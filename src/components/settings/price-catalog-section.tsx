@@ -13,6 +13,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { applyCatalogOrder as applyItemOrder } from "@/lib/catalog-order";
 import { ServiceImage } from "@/components/ui/service-image";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 import {
@@ -91,6 +92,87 @@ const CATEGORY_ROW_SIZES: Record<number, number[]> = {
 };
 function categoryRowSizes(count: number): number[] {
   return CATEGORY_ROW_SIZES[count] ?? (count > 0 ? [count] : []);
+}
+
+// Reordena una lista arrastrando con Pointer Events (mouse, touch o pen) en
+// vez de drag&drop nativo de HTML5 — el nativo no dispara en navegadores
+// mobile, que es donde más se usa esta pantalla. En cada movimiento reubica
+// el ítem según qué otro elemento tiene el centro más cercano al puntero;
+// esa distancia 2D (no solo eje X o Y) resuelve también grids que arman
+// varias filas (categorías) sin necesitar lógica de fila/columna aparte.
+// `touch-action: none` en el handle evita que el gesto también scrollee la
+// página mientras se arrastra.
+function usePointerReorder<T>(
+  items: T[],
+  getId: (item: T) => string,
+  onChange: (next: T[]) => void,
+  onDragEnd: (finalItems: T[]) => void,
+) {
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+  const nodesRef = useRef(new Map<string, HTMLElement>());
+
+  const setNodeRef = useCallback(
+    (id: string) => (el: HTMLElement | null) => {
+      if (el) nodesRef.current.set(id, el);
+      else nodesRef.current.delete(id);
+    },
+    [],
+  );
+
+  const startDrag = useCallback(
+    (id: string, event: React.PointerEvent<HTMLElement>) => {
+      if (event.pointerType === "mouse" && event.button !== 0) return;
+      event.preventDefault();
+      const handle = event.currentTarget;
+      handle.setPointerCapture(event.pointerId);
+      setDraggingId(id);
+
+      const handleMove = (moveEvent: PointerEvent) => {
+        const x = moveEvent.clientX;
+        const y = moveEvent.clientY;
+        const current = itemsRef.current;
+        const fromIndex = current.findIndex((it) => getId(it) === id);
+        if (fromIndex < 0) return;
+        let bestIndex = fromIndex;
+        let bestDist = Infinity;
+        current.forEach((it, i) => {
+          const node = nodesRef.current.get(getId(it));
+          if (!node) return;
+          const rect = node.getBoundingClientRect();
+          const cx = rect.left + rect.width / 2;
+          const cy = rect.top + rect.height / 2;
+          const dist = (x - cx) ** 2 + (y - cy) ** 2;
+          if (dist < bestDist) {
+            bestDist = dist;
+            bestIndex = i;
+          }
+        });
+        if (bestIndex !== fromIndex) {
+          const next = [...current];
+          const [moved] = next.splice(fromIndex, 1);
+          next.splice(bestIndex, 0, moved);
+          onChange(next);
+        }
+      };
+
+      const finish = () => {
+        window.removeEventListener("pointermove", handleMove);
+        window.removeEventListener("pointerup", finish);
+        window.removeEventListener("pointercancel", finish);
+        setDraggingId(null);
+        onDragEnd(itemsRef.current);
+      };
+
+      window.addEventListener("pointermove", handleMove);
+      window.addEventListener("pointerup", finish);
+      window.addEventListener("pointercancel", finish);
+    },
+    [getId, onChange, onDragEnd],
+  );
+
+  return { draggingId, setNodeRef, startDrag };
 }
 const MAX_CATEGORY_NAME_LENGTH = 18;
 const MAX_ITEM_NAME_LENGTH = 28;
@@ -893,9 +975,6 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     if (typeof window === "undefined") return isService ? "" : "Productos";
     return window.localStorage.getItem(activeCatStorageKey) || (isService ? "" : "Productos");
   });
-  const reorderingCategories = true;
-  const [draggedCategory, setDraggedCategory] = useState<string | null>(null);
-  const [draggedItemId, setDraggedItemId] = useState<string | null>(null);
   const [editing, setEditing] = useState<PriceRow | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -918,6 +997,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   const [customServiceCategories, setCustomServiceCategories] = useState<
     string[]
   >(defaultServiceCategories);
+  // Orden manual (drag&drop) de ítems dentro de cada categoría: { [categoria]: [ids] }.
+  const [itemOrderMap, setItemOrderMap] = useState<Record<string, string[]>>({});
 
   // Carga inicial: items (price_catalog) + categorías/config (business_settings)
   // en paralelo con Promise.all, y UN SOLO commit de estado al final con todo
@@ -951,11 +1032,21 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       if (cancelled) return;
 
       if (catalogRes.error) toast.error("Error: " + catalogRes.error.message);
-      const fetchedRows = (catalogRes.data ?? []) as PriceRow[];
+      const rawFetchedRows = (catalogRes.data ?? []) as PriceRow[];
 
       const schedule = (settingsRes.data?.schedule ?? {}) as Record<string, unknown>;
       const cats = (schedule._categories ?? {}) as Record<string, unknown>;
       const visibility = getPublicVisibility(schedule);
+      const itemOrder = (schedule._itemOrder ?? {}) as Record<string, unknown>;
+      const nextItemOrderMap = ((itemOrder[isService ? "service" : "catalog"] ?? {}) as Record<
+        string,
+        string[]
+      >);
+      const fetchedRows = applyItemOrder(
+        rawFetchedRows,
+        nextItemOrderMap,
+        isService ? "Servicios" : "Productos",
+      );
 
       let nextServiceReservable = serviceReservableMap;
       let nextServiceCats = customServiceCategories;
@@ -1041,6 +1132,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       }
       setImageMap(imgMap);
       setImagePositionMap(posMap);
+      setItemOrderMap(nextItemOrderMap);
       setCat(resolvedCat);
       setReady(true);
     })();
@@ -1108,6 +1200,36 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     [businessId],
   );
 
+  // Persistencia silenciosa e inmediata del orden de ítems dentro de una
+  // categoría (drag&drop). Mismo criterio que persistCategoryList: se guarda
+  // apenas el usuario suelta el ítem, sin esperar al Guardar global.
+  const persistItemOrder = useCallback(
+    async (category: string, orderedIds: string[]) => {
+      if (!businessId) return;
+      const { data: existingRow } = await supabase
+        .from("business_settings")
+        .select("schedule")
+        .eq("business_id", businessId)
+        .maybeSingle();
+      const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
+      const existingOrder = (existingSchedule._itemOrder ?? {}) as Record<string, unknown>;
+      const kind = isService ? "service" : "catalog";
+      const existingKindOrder = (existingOrder[kind] ?? {}) as Record<string, unknown>;
+      const updatedOrder = {
+        ...existingOrder,
+        [kind]: { ...existingKindOrder, [category]: orderedIds },
+      };
+      await supabase.from("business_settings").upsert(
+        {
+          business_id: businessId,
+          schedule: { ...existingSchedule, _itemOrder: updatedOrder },
+        },
+        { onConflict: "business_id" },
+      );
+    },
+    [businessId, isService],
+  );
+
   const saveCategories = useCallback(
     (next: string[], type: "catalog" | "service") => {
       const clean = Array.from(
@@ -1145,7 +1267,13 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       .order("category")
       .order("name");
     if (error) return toast.error("Error: " + error.message);
-    setRows((data ?? []) as PriceRow[]);
+    setRows(
+      applyItemOrder(
+        (data ?? []) as PriceRow[],
+        itemOrderRef.current,
+        isService ? "Servicios" : "Productos",
+      ),
+    );
   }, [businessId]);
 
   useEffect(() => {
@@ -1204,6 +1332,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   const rowsRef = useRef(rows);
   const imageMapRef = useRef(imageMap);
   const imagePositionMapRef = useRef(imagePositionMap);
+  const itemOrderRef = useRef(itemOrderMap);
   useEffect(() => {
     bookingConfigRef.current = bookingConfig;
   }, [bookingConfig]);
@@ -1213,6 +1342,9 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   useEffect(() => {
     imageMapRef.current = imageMap;
   }, [imageMap]);
+  useEffect(() => {
+    itemOrderRef.current = itemOrderMap;
+  }, [itemOrderMap]);
   useEffect(() => {
     imagePositionMapRef.current = imagePositionMap;
   }, [imagePositionMap]);
@@ -1831,42 +1963,33 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     markSettingsDirty();
   }
 
-  function reorderItem(row: PriceRow, direction: "up" | "down") {
-    const catRows = filtered;
-    const idx = catRows.findIndex((r) => r.id === row.id);
-    if (direction === "up" && idx === 0) return;
-    if (direction === "down" && idx === catRows.length - 1) return;
-    const swapIdx = direction === "up" ? idx - 1 : idx + 1;
-    const swapRow = catRows[swapIdx];
-    setRows((prev) => {
-      const arr = [...prev];
-      const i = arr.findIndex((r) => r.id === row.id);
-      const j = arr.findIndex((r) => r.id === swapRow.id);
-      [arr[i], arr[j]] = [arr[j], arr[i]];
-      return arr;
-    });
-    markSettingsDirty();
-  }
-
-  function reorderItemToTarget(sourceId: string | null, targetId: string) {
-    if (!sourceId || sourceId === targetId) return;
-    const source = rows.find((r) => r.id === sourceId);
-    const target = rows.find((r) => r.id === targetId);
-    if (!source || !target || source.category !== target.category) return;
-
-    setRows((prev) => {
-      const categoryRows = prev.filter((r) => r.category === target.category);
-      const otherRows = prev.filter((r) => r.category !== target.category);
-      const nextCategoryRows = [...categoryRows];
-      const from = nextCategoryRows.findIndex((r) => r.id === sourceId);
-      const to = nextCategoryRows.findIndex((r) => r.id === targetId);
-      if (from < 0 || to < 0) return prev;
-      const [moved] = nextCategoryRows.splice(from, 1);
-      nextCategoryRows.splice(to, 0, moved);
-      return [...otherRows, ...nextCategoryRows];
-    });
-    markSettingsDirty();
-  }
+  // Reordenar ítems dentro de la categoría activa (drag&drop con Pointer
+  // Events — funciona igual en mobile y desktop). El cambio visual es
+  // inmediato en cada movimiento; el guardado en business_settings recién
+  // se dispara una vez, al soltar.
+  const handleItemsReorderChange = useCallback(
+    (next: PriceRow[]) => {
+      setRows((prev) => {
+        const others = prev.filter((r) => r.category !== activeCat);
+        return [...others, ...next];
+      });
+    },
+    [activeCat],
+  );
+  const handleItemsReorderEnd = useCallback(
+    (final: PriceRow[]) => {
+      const ids = final.map((r) => r.id);
+      setItemOrderMap((prev) => ({ ...prev, [activeCat]: ids }));
+      void persistItemOrder(activeCat, ids);
+    },
+    [activeCat, persistItemOrder],
+  );
+  const itemReorder = usePointerReorder<PriceRow>(
+    filtered,
+    (r) => r.id,
+    handleItemsReorderChange,
+    handleItemsReorderEnd,
+  );
 
   // Inline input modal for add/rename category (avoids browser prompt())
   const [catModal, setCatModal] = useState<{
@@ -1935,17 +2058,28 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     setCatModal({ mode: "rename", current: category });
   }
 
-  function reorderCategory(fromCategory: string, toCategory: string) {
-    if (!fromCategory || !toCategory || fromCategory === toCategory) return;
-    const list = [...categories];
-    const fromIndex = list.findIndex((c) => c === fromCategory);
-    const toIndex = list.findIndex((c) => c === toCategory);
-    if (fromIndex < 0 || toIndex < 0) return;
-    const [moved] = list.splice(fromIndex, 1);
-    list.splice(toIndex, 0, moved);
-    saveCategories(list, isService ? "service" : "catalog");
-    selectCategory(fromCategory);
-  }
+  // Reordenar categorías (drag&drop con Pointer Events, mismo mecanismo que
+  // los ítems). Cambia visualmente en cada movimiento; se persiste una sola
+  // vez al soltar.
+  const handleCategoriesReorderChange = useCallback(
+    (next: string[]) => {
+      if (isService) setCustomServiceCategories(next);
+      else setCustomCatalogCategories(next);
+    },
+    [isService],
+  );
+  const handleCategoriesReorderEnd = useCallback(
+    (final: string[]) => {
+      void persistCategoryList(final, isService ? "service" : "catalog");
+    },
+    [isService, persistCategoryList],
+  );
+  const categoryReorder = usePointerReorder<string>(
+    categories,
+    (c) => c,
+    handleCategoriesReorderChange,
+    handleCategoriesReorderEnd,
+  );
 
   async function submitCatModal() {
     const clean = catInputVal.trim();
@@ -2110,37 +2244,31 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                       return (
                         <div
                           key={category}
-                          draggable
-                          onDragStart={(event) => {
-                            setDraggedCategory(category);
-                            event.dataTransfer.effectAllowed = "move";
-                          }}
-                          onDragOver={(event) => {
-                            event.preventDefault();
-                          }}
-                          onDrop={(event) => {
-                            event.preventDefault();
-                            reorderCategory(draggedCategory ?? "", category);
-                            setDraggedCategory(null);
-                          }}
-                          onDragEnd={() => setDraggedCategory(null)}
+                          ref={categoryReorder.setNodeRef(category)}
                           className={cn(
-                            "flex min-w-0 items-center gap-1 rounded-t-lg transition-colors",
-                            "cursor-grab active:cursor-grabbing",
+                            "flex min-w-0 items-center gap-1 rounded-t-lg transition-colors duration-150",
                             active
                               ? "bg-white/5 text-foreground"
                               : "text-muted-foreground hover:text-foreground",
-                            draggedCategory === category && "opacity-50",
+                            categoryReorder.draggingId === category &&
+                              "opacity-60 scale-[1.03] z-10",
                           )}
                         >
+                          <span
+                            onPointerDown={(event) =>
+                              categoryReorder.startDrag(category, event)
+                            }
+                            className="grid h-8 w-6 shrink-0 touch-none place-items-center rounded-md cursor-grab text-white/40 active:cursor-grabbing"
+                          >
+                            <GripVertical className="h-4 w-4" />
+                          </span>
                           <button
                             type="button"
                             onClick={() => selectCategory(category)}
                             onDoubleClick={() => renameCategory(category)}
                             title={category}
-                            className="flex min-w-0 flex-1 items-center gap-1.5 px-2 py-2 text-sm select-none"
+                            className="flex min-w-0 flex-1 items-center px-1 py-2 text-sm select-none"
                           >
-                            <GripVertical className="h-4 w-4 shrink-0 text-white/40" />
                             <span className="min-w-0 flex-1 truncate">{category}</span>
                           </button>
                           {categories.length > 1 && (
@@ -2224,24 +2352,18 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
             {filtered.map((row) => (
               <div
                 key={row.id}
-                draggable
-                onDragStart={(event) => {
-                  setDraggedItemId(row.id);
-                  event.dataTransfer.effectAllowed = "move";
-                }}
-                onDragOver={(event) => event.preventDefault()}
-                onDrop={(event) => {
-                  event.preventDefault();
-                  reorderItemToTarget(draggedItemId, row.id);
-                  setDraggedItemId(null);
-                }}
-                onDragEnd={() => setDraggedItemId(null)}
+                ref={itemReorder.setNodeRef(row.id)}
                 className={cn(
-                  "flex cursor-grab items-center gap-3 px-5 py-3 transition active:cursor-grabbing",
-                  draggedItemId === row.id && "opacity-50",
+                  "flex items-center gap-3 px-5 py-3 transition duration-150",
+                  itemReorder.draggingId === row.id && "opacity-60 scale-[1.01] z-10 relative",
                 )}
               >
-                <GripVertical className="h-4 w-4 shrink-0 text-white/35" />
+                <span
+                  onPointerDown={(event) => itemReorder.startDrag(row.id, event)}
+                  className="grid h-8 w-6 shrink-0 touch-none place-items-center cursor-grab text-white/35 active:cursor-grabbing"
+                >
+                  <GripVertical className="h-4 w-4" />
+                </span>
                 <ServiceImage
                   src={imageMap[row.id]}
                   alt={row.name}

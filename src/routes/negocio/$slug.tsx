@@ -20,6 +20,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 import { ServiceImage } from "@/components/ui/service-image";
+import { applyCatalogOrder, extractCatalogOrderMap } from "@/lib/catalog-order";
 
 export const Route = createFileRoute("/negocio/$slug")({
   head: () => ({
@@ -498,7 +499,7 @@ function PublicProfilePage() {
               .filter((employee) => employee.is_active !== false)
               .map((employee) => ({ ...employee, role: employee.role ?? employeeRoles[employee.id] ?? null })),
           );
-          setServices(
+          const orderedServices = applyCatalogOrder(
             (servicesRes.error ? [] : ((servicesRes.data ?? []) as Service[]))
               .filter((service) => service.is_active !== false)
               .filter((service) => visibility.services[service.id] !== false)
@@ -508,7 +509,10 @@ function PublicProfilePage() {
                 image_position: serviceImagePositions[service.id] ?? "50% 50%",
                 category: serviceCategoriesMap[service.id] ?? null,
               })),
+            extractCatalogOrderMap(settingsSchedule as Record<string, unknown>, "service"),
+            "Servicios",
           );
+          setServices(orderedServices);
           setSchedule(normalizeSchedule(settingsSchedule));
           setPortfolioUrls(normalizePortfolio(branding.portfolio_urls));
           setPortfolioPositions(Array.isArray(branding.portfolio_positions) ? branding.portfolio_positions : []);

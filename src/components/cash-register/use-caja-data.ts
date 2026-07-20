@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { loadCajaSession } from "@/components/cash-register/session-actions";
 import type { EmployeeServiceOverrideMap } from "@/lib/service-pricing";
+import { applyCatalogOrder, extractCatalogOrderMap } from "@/lib/catalog-order";
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
 
@@ -375,7 +376,22 @@ export function useCajaData() {
     if (loadSeqRef.current !== mySeq) return;
 
     // Services
-    const svcRaw = svcRes.status === "fulfilled" && !svcRes.value.error ? (svcRes.value.data ?? []) : [];
+    const svcRawUnordered = svcRes.status === "fulfilled" && !svcRes.value.error ? (svcRes.value.data ?? []) : [];
+    // Orden manual (drag&drop) definido en Configuración → Servicios/Catálogo:
+    // se aplica acá para que "Nueva venta" liste los ítems en el mismo orden.
+    const svcRaw = (() => {
+      const bsData = bsRes.status === "fulfilled" && !bsRes.value.error ? bsRes.value.data : null;
+      const schedule = (bsData?.schedule ?? {}) as Record<string, unknown>;
+      const serviceOrder = extractCatalogOrderMap(schedule, "service");
+      const catalogOrder = extractCatalogOrderMap(schedule, "catalog");
+      const rows = svcRawUnordered as Array<{ id: string; category: string | null; duration_min: number | null }>;
+      const services = rows.filter((r) => r.duration_min != null);
+      const products = rows.filter((r) => r.duration_min == null);
+      return [
+        ...applyCatalogOrder(services, serviceOrder, "Servicios"),
+        ...applyCatalogOrder(products, catalogOrder, "Productos"),
+      ];
+    })();
     // Imagen del ítem (servicios y catálogo comparten el mismo mapa) desde business_settings.schedule._catalogImages
     const catalogImages: Record<string, string> = (() => {
       const bsData = bsRes.status === "fulfilled" && !bsRes.value.error ? bsRes.value.data : null;
