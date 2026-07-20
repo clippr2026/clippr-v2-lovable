@@ -4609,11 +4609,14 @@ function NuevoGastoTab({
   onSaved: () => void;
 }) {
   const [form, setForm] = React.useState({
-    name: "",
     amount: "",
     category: "",
     method: "",
-    note: "",
+    // "Descripción del gasto" — opcional, funciona como aclaración/nota.
+    // Reemplaza a los dos campos que había antes (nombre obligatorio +
+    // nota opcional aparte): quedaban duplicados, así que se unifican en
+    // uno solo.
+    description: "",
   });
   const [saving, setSaving] = React.useState(false);
   const GCATEGORIES = [
@@ -4636,13 +4639,12 @@ function NuevoGastoTab({
   ];
 
   async function saveGasto() {
-    const name = form.name.trim();
     const amount = parseFloat(form.amount);
-    if (!name) return toast.error("La descripción del gasto es obligatoria.");
+    if (!form.category) return toast.error("Elegí el tipo de gasto.");
     if (!amount || amount <= 0)
       return toast.error("El monto debe ser mayor a 0.");
-    if (!form.category) return toast.error("Elegí la categoría del gasto.");
     if (!form.method) return toast.error("Seleccioná el método de pago.");
+    const description = form.description.trim();
     setSaving(true);
     // El usuario que registra el gasto se sigue guardando internamente
     // (user_name/created_by) para historial y auditoría, aunque ya no se
@@ -4650,15 +4652,16 @@ function NuevoGastoTab({
     // sabe quién está cargando. Misma lógica para la fecha: se toma la
     // fecha y hora actuales al momento de guardar, sin pedirla — created_at
     // ya la registra con precisión de hora, "date" es solo el día para
-    // filtros/reportes.
+    // filtros/reportes. name (usado para mostrar el gasto en listados) sale
+    // de la descripción si se cargó algo, o del tipo de gasto si no.
     const { error } = await supabase.from("expenses").insert({
       business_id: data.businessId,
-      name,
+      name: description || form.category,
       amount,
       category: form.category,
       payment_method: form.method || null,
       date: new Date().toISOString().slice(0, 10),
-      note: form.note.trim() || null,
+      note: description || null,
       user_name: userEmail ?? "Caja",
       created_by: userEmail ?? "Caja",
     });
@@ -4682,12 +4685,23 @@ function NuevoGastoTab({
         </div>
 
         <div className="space-y-3">
-          <input
-            value={form.name}
-            onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-            placeholder="Descripción del gasto *"
-            className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-blue-300/50"
-          />
+          {/* Orden: Tipo de gasto → Monto → Método de pago → Descripción
+              (opcional, al final, funciona como nota/aclaración). */}
+          <Select
+            value={form.category}
+            onValueChange={(v) => setForm((f) => ({ ...f, category: v }))}
+          >
+            <SelectTrigger className="h-auto w-full rounded-xl border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground focus:border-blue-300/50 focus:ring-0">
+              <SelectValue placeholder="Tipo de gasto *" />
+            </SelectTrigger>
+            <SelectContent>
+              {GCATEGORIES.map((c) => (
+                <SelectItem key={c} value={c}>
+                  {c}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <input
             value={form.amount}
             onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
@@ -4696,42 +4710,27 @@ function NuevoGastoTab({
             min={0}
             className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-blue-300/50"
           />
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <Select
-              value={form.category}
-              onValueChange={(v) => setForm((f) => ({ ...f, category: v }))}
-            >
-              <SelectTrigger className="h-auto w-full rounded-xl border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground focus:border-blue-300/50 focus:ring-0">
-                <SelectValue placeholder="Categoría del gasto *" />
-              </SelectTrigger>
-              <SelectContent>
-                {GCATEGORIES.map((c) => (
-                  <SelectItem key={c} value={c}>
-                    {c}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Select
-              value={form.method}
-              onValueChange={(v) => setForm((f) => ({ ...f, method: v }))}
-            >
-              <SelectTrigger className="h-auto w-full rounded-xl border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground focus:border-blue-300/50 focus:ring-0">
-                <SelectValue placeholder="Método de pago *" />
-              </SelectTrigger>
-              <SelectContent>
-                {GMETHODS.map((m) => (
-                  <SelectItem key={m} value={m}>
-                    {m.charAt(0).toUpperCase() + m.slice(1)}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+          <Select
+            value={form.method}
+            onValueChange={(v) => setForm((f) => ({ ...f, method: v }))}
+          >
+            <SelectTrigger className="h-auto w-full rounded-xl border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground focus:border-blue-300/50 focus:ring-0">
+              <SelectValue placeholder="Método de pago *" />
+            </SelectTrigger>
+            <SelectContent>
+              {GMETHODS.map((m) => (
+                <SelectItem key={m} value={m}>
+                  {m.charAt(0).toUpperCase() + m.slice(1)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <input
-            value={form.note}
-            onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
-            placeholder="Nota (opcional)"
+            value={form.description}
+            onChange={(e) =>
+              setForm((f) => ({ ...f, description: e.target.value }))
+            }
+            placeholder="Descripción del gasto (opcional)"
             className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-blue-300/50"
           />
 
