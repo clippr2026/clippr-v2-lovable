@@ -5437,7 +5437,7 @@ function CierreCajaBtn({
               <div className="grid grid-cols-3 gap-3">
                 {[
                   {
-                    label: "Cobrado",
+                    label: "Ingresos",
                     v: totalCobrado,
                     cls: "text-emerald-300",
                   },
@@ -5445,7 +5445,7 @@ function CierreCajaBtn({
                   {
                     label: "Utilidad",
                     v: utilidad,
-                    cls: utilidad >= 0 ? "text-emerald-300" : "text-rose-300",
+                    cls: utilidad >= 0 ? "text-violet-300" : "text-rose-300",
                   },
                 ].map((k) => (
                   <div
@@ -5491,7 +5491,7 @@ function CierreCajaBtn({
                         ${row.gastos.toLocaleString("es-AR")}
                       </span>
                       <span
-                        className={`text-right font-semibold tabular-nums ${row.utilidad >= 0 ? "text-emerald-300" : "text-rose-300"}`}
+                        className={`text-right font-semibold tabular-nums ${row.utilidad >= 0 ? "text-violet-300" : "text-rose-300"}`}
                       >
                         ${row.utilidad.toLocaleString("es-AR")}
                       </span>
@@ -6011,7 +6011,7 @@ function CierresTab({
               <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                 {[
                   {
-                    l: "Cobrado",
+                    l: "Ingresos",
                     v: `$${Number(selected.total_cobrado ?? 0).toLocaleString("es-AR")}`,
                     cls: "text-emerald-300",
                   },
@@ -6023,7 +6023,7 @@ function CierresTab({
                   {
                     l: "Utilidad",
                     v: `$${Number(selected.utilidad ?? 0).toLocaleString("es-AR")}`,
-                    cls: Number(selected.utilidad) >= 0 ? "text-emerald-300" : "text-rose-300",
+                    cls: Number(selected.utilidad) >= 0 ? "text-violet-300" : "text-rose-300",
                   },
                   {
                     l: "Diferencia",
