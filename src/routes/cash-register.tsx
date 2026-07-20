@@ -5527,6 +5527,37 @@ function CierresTab({
   const [reopenNote, setReopenNote] = useState("");
   const [subtab, setSubtab] = useState<"dia" | "historial">("dia");
 
+  // `selected.detalle_metodos_pago` es una foto guardada en la fila del
+  // cierre al momento de cerrarlo — si esa foto se guardó ANTES del fix de
+  // agrupamiento por método (normalizeCierreMethodKey), queda para siempre
+  // con "Efectivo" duplicado sin importar qué tan actualizado esté el
+  // código. Acá se recalcula en vivo a partir de cobros_snapshot/
+  // gastos_snapshot (que sí tienen el método de cada movimiento suelto),
+  // así el fix también corrige el historial ya guardado, no solo los
+  // cierres nuevos. Si un cierre muy viejo no tiene esos snapshots
+  // detallados, se cae de vuelta a la foto guardada como antes.
+  const detalleMetodosSelected = React.useMemo(() => {
+    if (!selected) return null;
+    const detail: Record<string, CierreMetodoDetalle> = {};
+    const ensure = (method: string | null | undefined) => {
+      const key = normalizeCierreMethodKey(method);
+      if (!detail[key]) detail[key] = { ingresos: 0, gastos: 0, utilidad: 0 };
+      return detail[key];
+    };
+    for (const p of selected.cobros_snapshot ?? []) {
+      ensure(p.metodo).ingresos += Number(p.monto ?? 0);
+    }
+    for (const g of selected.gastos_snapshot ?? []) {
+      ensure(g.metodo).gastos += Number(g.monto ?? 0);
+    }
+    Object.values(detail).forEach((row) => {
+      row.utilidad = row.ingresos - row.gastos;
+    });
+    return Object.keys(detail).length > 0
+      ? detail
+      : (selected.detalle_metodos_pago ?? null);
+  }, [selected]);
+
   const loadCierres = React.useCallback(() => {
     if (!businessId) {
       setCierres([]);
@@ -6072,13 +6103,13 @@ function CierresTab({
                 ))}
               </div>
 
-              {selected.detalle_metodos_pago && (
+              {detalleMetodosSelected && (
                 <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
                   <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
                     Medios de pago
                   </div>
                   <div className="space-y-2">
-                    {Object.entries(selected.detalle_metodos_pago as Record<string, any>).map(([method, row]) => (
+                    {Object.entries(detalleMetodosSelected as Record<string, any>).map(([method, row]) => (
                       <div key={method} className="grid grid-cols-4 gap-2 rounded-xl bg-black/22 px-3 py-2 text-xs">
                         <div className="font-semibold text-white">{paymentMethodLabel(method)}</div>
                         <div className="text-emerald-300">Ingresos ${Number(row.ingresos ?? 0).toLocaleString("es-AR")}</div>
