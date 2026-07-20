@@ -53,6 +53,8 @@ import {
 import { useClientesConfig } from "@/hooks/use-clientes-config";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 import { resolveServicePricing } from "@/lib/service-pricing";
+import { AcquisitionSourceField } from "@/components/acquisition-source-field";
+import { acquisitionChannelRequiresText } from "@/lib/acquisition-channels";
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
 const HISTORIAL_KEY = "clippr_cobros_historial_v2";
@@ -7998,8 +8000,36 @@ export function NuevaVentaTab({
   const [newClientOpen, setNewClientOpen] = React.useState(false);
   const [clientNotes, setClientNotes] = React.useState("");
   const [professionalSearch, setProfessionalSearch] = React.useState("");
+  // Resumen del paso 4: arranca compacto (2 ítems) — "Ver más" lo despliega
+  // sin que el módulo se agrande de entrada con carritos grandes.
+  const [summaryExpanded, setSummaryExpanded] = React.useState(false);
+  const [clientAcquisitionSource, setClientAcquisitionSource] = React.useState("");
+  const [clientAcquisitionCustom, setClientAcquisitionCustom] = React.useState("");
+  // Si el email ya tiene un origen guardado, no se vuelve a preguntar ni se
+  // deja cambiar desde acá — mismo criterio que Clientes → Nuevo cliente.
+  const [clientSourceAlreadyKnown, setClientSourceAlreadyKnown] = React.useState(false);
 
   const { isFieldEnabled } = useClientesConfig(data.businessId ?? null);
+
+  useEffect(() => {
+    const trimmedEmail = email.trim();
+    if (!data.businessId || !trimmedEmail || !trimmedEmail.includes("@")) {
+      setClientSourceAlreadyKnown(false);
+      return;
+    }
+    let cancelled = false;
+    const timer = window.setTimeout(async () => {
+      const { data: known, error } = await supabase.rpc(
+        "clippr_client_has_acquisition_source",
+        { p_business_id: data.businessId, p_email: trimmedEmail },
+      );
+      if (!cancelled && !error) setClientSourceAlreadyKnown(Boolean(known));
+    }, 500);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [data.businessId, email]);
 
   const pendingHydrateRef = React.useRef<string | null>(null);
   const pendingInjectedRef = React.useRef(false);
@@ -8277,15 +8307,44 @@ export function NuevaVentaTab({
     if (clientId && !clientId.startsWith("__pending_client__")) return clientId;
     if (pendingCharge?.client_name) return null;
     try {
+      const trimmedEmail = email.trim();
+      // Si el email ya pertenece a un cliente existente, no crear un
+      // duplicado — se actualiza el origen solo si todavía no lo tenía
+      // (mismo criterio que Clientes → Nuevo cliente).
+      if (trimmedEmail) {
+        const { data: existing } = await supabase
+          .from("clients")
+          .select("id, acquisition_source")
+          .eq("business_id", data.businessId)
+          .ilike("email", trimmedEmail)
+          .maybeSingle();
+        if (existing) {
+          if (!existing.acquisition_source && clientAcquisitionSource) {
+            await supabase
+              .from("clients")
+              .update({
+                acquisition_source: clientAcquisitionSource,
+                acquisition_source_custom: clientAcquisitionCustom.trim() || null,
+                acquisition_captured_at: new Date().toISOString(),
+              })
+              .eq("id", existing.id);
+          }
+          return existing.id;
+        }
+      }
       const { data: created, error } = await supabase
         .from("clients")
         .insert({
           business_id: data.businessId,
           full_name: client.trim(),
           phone: phone.trim() || null,
-          email: email.trim() || null,
+          email: trimmedEmail || null,
           birth_date: birthDate || null,
           notes: clientNotes.trim() || null,
+          acquisition_source: clientSourceAlreadyKnown ? null : clientAcquisitionSource || null,
+          acquisition_source_custom: clientSourceAlreadyKnown ? null : clientAcquisitionCustom.trim() || null,
+          acquisition_captured_at:
+            !clientSourceAlreadyKnown && clientAcquisitionSource ? new Date().toISOString() : null,
         })
         .select("id")
         .maybeSingle();
@@ -8966,6 +9025,8 @@ export function NuevaVentaTab({
                 setNewClientOpen(true);
                 setClient("");
                 setClientId(null);
+                setClientAcquisitionSource("");
+                setClientAcquisitionCustom("");
               }}
               className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium border border-white/15 bg-white/[0.03] text-muted-foreground hover:text-foreground hover:bg-white/[0.07] hover:border-white/25 transition-colors"
             >
@@ -8987,10 +9048,23 @@ export function NuevaVentaTab({
                   toast.error("Ingresá el teléfono del cliente.");
                   return;
                 }
-    if (!email.trim()) {
-      toast.error("Ingresá el email del cliente.");
-      return null;
-    }
+                if (isFieldEnabled("email") && !email.trim()) {
+                  toast.error("Ingresá el email del cliente.");
+                  return;
+                }
+                if (!clientSourceAlreadyKnown) {
+                  if (!clientAcquisitionSource) {
+                    toast.error("Indicá cómo nos conoció el cliente.");
+                    return;
+                  }
+                  if (
+                    acquisitionChannelRequiresText(clientAcquisitionSource) &&
+                    !clientAcquisitionCustom.trim()
+                  ) {
+                    toast.error("Indicá dónde nos conoció el cliente.");
+                    return;
+                  }
+                }
                 const saved = await saveClientIfNeeded();
                 if (saved) {
                   setClientId(saved);
@@ -9003,19 +9077,10 @@ export function NuevaVentaTab({
                 }
               }
               return (
-                <Card className="max-h-[300px] overflow-y-auto p-4 space-y-3 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
-                  <div className="flex items-center justify-between">
-                    <p className="text-xs text-muted-foreground tracking-[0.15em] uppercase">
-                      Nuevo cliente
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => setNewClientOpen(false)}
-                      className="text-xs text-muted-foreground hover:text-foreground transition"
-                    >
-                      ✕ Cancelar
-                    </button>
-                  </div>
+                <Card className="max-h-[340px] overflow-y-auto p-4 space-y-3 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+                  <p className="text-xs text-muted-foreground tracking-[0.15em] uppercase">
+                    Nuevo cliente
+                  </p>
                   <input
                     value={client}
                     onChange={(e) => {
@@ -9048,13 +9113,34 @@ export function NuevaVentaTab({
                       className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-base outline-none focus:border-blue-300/40"
                     />
                   )}
-                  <button
-                    type="button"
-                    onClick={handleGuardarCliente}
-                    className="w-full py-2.5 rounded-xl text-sm font-semibold transition bg-gradient-to-r from-blue-500/90 to-violet-500/90 text-white hover:brightness-110 cash-sale-button-glow"
-                  >
-                    Confirmar cliente
-                  </button>
+                  {!clientSourceAlreadyKnown && (
+                    <AcquisitionSourceField
+                      value={clientAcquisitionSource}
+                      onChange={setClientAcquisitionSource}
+                      customValue={clientAcquisitionCustom}
+                      onCustomChange={setClientAcquisitionCustom}
+                      wrapperClassName="space-y-3"
+                      otroBelow
+                      triggerClassName="w-full bg-white/[0.03] border-white/10 rounded-lg px-3 py-2.5 h-auto text-base focus:border-blue-300/40"
+                      inputClassName="w-full bg-white/[0.03] border-white/10 rounded-lg px-3 py-2.5 text-base focus:border-blue-300/40"
+                    />
+                  )}
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setNewClientOpen(false)}
+                      className="flex-1 py-2.5 rounded-xl text-sm font-medium border border-white/15 bg-white/[0.03] text-muted-foreground hover:text-foreground hover:bg-white/[0.07] transition-colors"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleGuardarCliente}
+                      className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition bg-gradient-to-r from-blue-500/90 to-violet-500/90 text-white hover:brightness-110 cash-sale-button-glow"
+                    >
+                      Confirmar cliente
+                    </button>
+                  </div>
                 </Card>
               );
             })()}
@@ -9291,24 +9377,29 @@ export function NuevaVentaTab({
               )}
             </>
           ) : (
-            <div className={cn("rounded-3xl border border-blue-300/25 bg-[linear-gradient(135deg,rgba(37,99,235,0.14),rgba(8,11,20,0.96),rgba(2,4,12,0.98))] p-4 shadow-[0_0_40px_rgba(96,165,250,0.12),0_18px_55px_-34px_rgba(0,0,0,1)] space-y-3", splits.length >= 3 && "max-h-[230px] overflow-y-auto overscroll-contain pr-2 [scrollbar-width:thin] [scrollbar-color:rgba(96,165,250,0.40)_transparent]")}>
+            <div className={cn("rounded-2xl border border-blue-300/25 bg-[linear-gradient(135deg,rgba(37,99,235,0.14),rgba(8,11,20,0.96),rgba(2,4,12,0.98))] p-3 shadow-[0_0_40px_rgba(96,165,250,0.12),0_18px_55px_-34px_rgba(0,0,0,1)] space-y-2", splits.length >= 3 && "max-h-[200px] overflow-y-auto overscroll-contain pr-1.5 [scrollbar-width:thin] [scrollbar-color:rgba(96,165,250,0.40)_transparent]")}>
               <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70">
                 PAGO MÚLTIPLE
               </p>
+              {/* Método, monto y eliminar bien juntos en una sola fila —
+                  antes método/monto tenían el mismo ancho (1fr cada uno),
+                  así que un monto de varias cifras quedaba apretado/cortado
+                  contra el borde. El monto ahora tiene ancho fijo propio
+                  (w-28) y se lee completo, alineado a la derecha. */}
               {splits.map((sp, idx) => {
                 const opt = paymentOptions.find((o) => o.id === sp.method);
                 const Icon = opt?.icon ?? Wallet;
                 return (
                   <div
                     key={idx}
-                    className="grid grid-cols-[1fr_1fr_36px] gap-2 items-center"
+                    className="grid grid-cols-[1fr_auto_auto] gap-1.5 items-center"
                   >
                     <select
                       value={sp.method}
                       onChange={(e) =>
                         updateSplit(idx, "method", e.target.value)
                       }
-                      className="h-10 rounded-2xl border border-blue-300/25 bg-black/45 px-4 text-base font-semibold text-white outline-none focus:border-blue-300/55 focus:ring-2 focus:ring-blue-400/15"
+                      className="h-9 min-w-0 rounded-xl border border-blue-300/25 bg-black/45 px-2.5 text-sm font-semibold text-white outline-none focus:border-blue-300/55 focus:ring-2 focus:ring-blue-400/15"
                     >
                       {paymentOptions.map((o) => (
                         <option key={o.id} value={o.id}>
@@ -9323,12 +9414,12 @@ export function NuevaVentaTab({
                       }
                       inputMode="numeric"
                       placeholder="Monto"
-                      className="h-12 w-full rounded-2xl border border-blue-300/25 bg-black/45 px-4 text-lg font-bold tabular-nums text-white outline-none placeholder:text-white/35 focus:border-blue-300/55 focus:ring-2 focus:ring-blue-400/15"
+                      className="h-9 w-28 rounded-xl border border-blue-300/25 bg-black/45 px-2 text-right text-sm font-bold tabular-nums text-white outline-none placeholder:text-white/35 focus:border-blue-300/55 focus:ring-2 focus:ring-blue-400/15"
                     />
                     <button
                       onClick={() => removeSplit(idx)}
                       disabled={splits.length <= 1}
-                      className="h-12 w-11 rounded-2xl border border-white/10 bg-black/35 grid place-items-center text-muted-foreground hover:border-rose-300/35 hover:text-rose-300 disabled:opacity-30 transition-colors"
+                      className="h-9 w-9 shrink-0 rounded-xl border border-white/10 bg-black/35 grid place-items-center text-muted-foreground hover:border-rose-300/35 hover:text-rose-300 disabled:opacity-30 transition-colors"
                     >
                       <Trash2 className="size-3.5" />
                     </button>
@@ -9338,11 +9429,11 @@ export function NuevaVentaTab({
               <button
                 onClick={addSplit}
                 disabled={splits.length >= paymentOptions.length}
-                className="inline-flex items-center gap-2 rounded-2xl border border-blue-300/20 bg-blue-400/10 px-3 py-2 text-xs font-semibold text-blue-100 hover:bg-blue-400/15 disabled:opacity-30 transition-colors"
+                className="inline-flex items-center gap-2 rounded-xl border border-blue-300/20 bg-blue-400/10 px-3 py-1.5 text-xs font-semibold text-blue-100 hover:bg-blue-400/15 disabled:opacity-30 transition-colors"
               >
                 <Plus className="size-3.5" /> Agregar método de pago
               </button>
-              <div className="flex items-center justify-between text-sm rounded-2xl border border-blue-300/20 bg-black/35 px-4 py-3">
+              <div className="flex items-center justify-between text-sm rounded-xl border border-blue-300/20 bg-black/35 px-3 py-2">
                 <span className="text-muted-foreground">
                   Total cargado: ${splitsTotal.toLocaleString("es-AR")}
                 </span>
@@ -9401,10 +9492,11 @@ export function NuevaVentaTab({
 
             {cartItems.length > 0 && (
               <div className="mt-1.5 space-y-1 border-t border-white/10 pt-1.5">
-                {/* Máximo 2 ítems visibles — con muchos servicios/productos
-                    el resumen no debe seguir creciendo y empujando todo lo
-                    demás fuera de pantalla. */}
-                {cartItems.slice(0, 2).map(({ svc, qty }) => (
+                {/* Máximo 2 ítems visibles por default — con muchos
+                    servicios/productos el resumen no debe crecer solo y
+                    empujar todo lo demás fuera de pantalla. "Ver más" lo
+                    despliega a pedido del usuario. */}
+                {(summaryExpanded ? cartItems : cartItems.slice(0, 2)).map(({ svc, qty }) => (
                   <div key={svc.id} className="flex items-start justify-between gap-3">
                     <span className="min-w-0 break-words text-xs text-white/65">
                       {svc.name}
@@ -9416,7 +9508,13 @@ export function NuevaVentaTab({
                   </div>
                 ))}
                 {cartItems.length > 2 && (
-                  <div className="text-xs text-white/40">+{cartItems.length - 2} ítems</div>
+                  <button
+                    type="button"
+                    onClick={() => setSummaryExpanded((v) => !v)}
+                    className="text-xs font-semibold text-blue-300 hover:text-blue-200 transition-colors"
+                  >
+                    {summaryExpanded ? "Ver menos" : "Ver más"}
+                  </button>
                 )}
               </div>
             )}
