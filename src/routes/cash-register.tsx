@@ -1502,11 +1502,11 @@ function ResumenTab({
                 >
                   <div>Fecha</div>
                   <div>Hora</div>
-                  <div>Categoría</div>
+                  <div>Tipo de gasto</div>
                   <div>Descripción</div>
                   <div className="text-right">Monto</div>
                   <div>Método</div>
-                  <div>Usuario responsable</div>
+                  <div>Responsable</div>
                 </div>
 
                 {data.expensesToday.length === 0 ? (
@@ -1535,8 +1535,18 @@ function ResumenTab({
                           ? `${createdDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}hs`
                           : "—";
                       const category = e.category ?? e.type ?? "—";
+                      // Descripción real solo si el usuario escribió algo
+                      // distinto del tipo de gasto — si no, no se repite
+                      // (antes "Alquiler" aparecía como categoría Y como
+                      // descripción cuando no había nada más para mostrar).
+                      const rawDescription = String(
+                        e.note?.trim() || e.name || e.description || e.concept || "",
+                      ).trim();
                       const description =
-                        e.name ?? e.description ?? e.concept ?? e.note ?? "Gasto";
+                        rawDescription &&
+                        rawDescription.toLowerCase() !== String(category).toLowerCase()
+                          ? rawDescription
+                          : "";
                       const method = paymentMethodLabel(e.payment_method ?? e.method ?? "");
                       const user = displayCashActor(e);
                       return (
@@ -1549,18 +1559,11 @@ function ResumenTab({
                         >
                           <div className="text-muted-foreground whitespace-nowrap">{date}</div>
                           <div className="text-muted-foreground whitespace-nowrap">{hora}</div>
-                          <div className="text-muted-foreground capitalize truncate">
+                          <div className="text-muted-foreground truncate">
                             {category}
                           </div>
-                          <div className="min-w-0">
-                            <div className="truncate text-foreground/90">
-                              {description}
-                            </div>
-                            {e.note && e.note !== description && (
-                              <div className="mt-0.5 truncate text-xs text-muted-foreground/70">
-                                {e.note}
-                              </div>
-                            )}
+                          <div className="min-w-0 truncate text-foreground/90">
+                            {description || "—"}
                           </div>
                           <div className="text-right font-bold tabular-nums text-rose-300">
                             -${Number(e.amount ?? 0).toLocaleString("es-AR")}
@@ -1604,8 +1607,14 @@ function ResumenTab({
                         ? `${createdDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}hs`
                         : "—";
                     const category = e.category ?? e.type ?? "—";
+                    const rawDescription = String(
+                      e.note?.trim() || e.name || e.description || e.concept || "",
+                    ).trim();
                     const description =
-                      e.name ?? e.description ?? e.concept ?? e.note ?? "Gasto";
+                      rawDescription &&
+                      rawDescription.toLowerCase() !== String(category).toLowerCase()
+                        ? rawDescription
+                        : "";
                     const method = paymentMethodLabel(e.payment_method ?? e.method ?? "");
                     const user = displayCashActor(e);
                     return (
@@ -1623,33 +1632,27 @@ function ResumenTab({
                         </div>
                         <div className="mt-2 space-y-1.5">
                           <div className="flex items-start justify-between gap-3">
-                            <span className="shrink-0 text-muted-foreground/70">Categoría</span>
-                            <span className="truncate text-right capitalize text-muted-foreground">
+                            <span className="shrink-0 text-muted-foreground/70">Tipo de gasto</span>
+                            <span className="truncate text-right text-muted-foreground">
                               {category}
                             </span>
                           </div>
-                          <div className="flex items-start justify-between gap-3">
-                            <span className="shrink-0 text-muted-foreground/70">Descripción</span>
-                            <span className="truncate text-right text-foreground/90">
-                              {description}
-                            </span>
-                          </div>
-                          {e.note && e.note !== description && (
-                            <div className="flex items-start justify-between gap-3">
-                              <span className="shrink-0 text-muted-foreground/70">Nota</span>
-                              <span className="truncate text-right text-muted-foreground/70">
-                                {e.note}
-                              </span>
-                            </div>
-                          )}
                           <div className="flex items-start justify-between gap-3">
                             <span className="shrink-0 text-muted-foreground/70">Método</span>
                             <span className="truncate text-right text-muted-foreground">
                               {method}
                             </span>
                           </div>
+                          {description && (
+                            <div className="flex items-start justify-between gap-3">
+                              <span className="shrink-0 text-muted-foreground/70">Descripción</span>
+                              <span className="truncate text-right text-foreground/90">
+                                {description}
+                              </span>
+                            </div>
+                          )}
                           <div className="flex items-start justify-between gap-3">
-                            <span className="shrink-0 text-muted-foreground/70">Usuario responsable</span>
+                            <span className="shrink-0 text-muted-foreground/70">Responsable</span>
                             <span className="truncate text-right text-muted-foreground">
                               {user}
                             </span>
@@ -1708,11 +1711,11 @@ function ResumenTab({
                 <div className="grid grid-cols-[80px_90px_150px_minmax(260px,1fr)_140px_150px_220px] items-center gap-x-3 border-b border-rose-300/10 bg-rose-400/[0.035] px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45">
                   <div>Fecha</div>
                   <div>Hora</div>
-                  <div>Categoría</div>
+                  <div>Tipo de gasto</div>
                   <div>Descripción</div>
                   <div className="text-right">Monto</div>
                   <div>Método</div>
-                  <div>Usuario responsable</div>
+                  <div>Responsable</div>
                 </div>
 
                 {data.expensesToday.length === 0 ? (
@@ -1735,7 +1738,14 @@ function ResumenTab({
                           ? `${createdDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}hs`
                           : "—";
                       const category = e.category ?? e.type ?? "—";
-                      const description = e.name ?? e.description ?? e.concept ?? e.note ?? "Gasto";
+                      const rawDescription = String(
+                        e.note?.trim() || e.name || e.description || e.concept || "",
+                      ).trim();
+                      const description =
+                        rawDescription &&
+                        rawDescription.toLowerCase() !== String(category).toLowerCase()
+                          ? rawDescription
+                          : "";
                       const method = paymentMethodLabel(e.payment_method ?? e.method ?? "");
                       const user = displayCashActor(e);
                       return (
@@ -1745,12 +1755,9 @@ function ResumenTab({
                         >
                           <div className="text-white/55">{date}</div>
                           <div className="text-white/55">{hora}</div>
-                          <div className="truncate capitalize text-white/55">{category}</div>
-                          <div className="min-w-0">
-                            <div className="truncate text-white/88">{description}</div>
-                            {e.note && e.note !== description && (
-                              <div className="mt-0.5 truncate text-xs text-white/45">{e.note}</div>
-                            )}
+                          <div className="truncate text-white/55">{category}</div>
+                          <div className="min-w-0 truncate text-white/88">
+                            {description || "—"}
                           </div>
                           <div className="text-right font-bold tabular-nums text-rose-300">
                             -${Number(e.amount ?? 0).toLocaleString("es-AR")}
@@ -1788,7 +1795,14 @@ function ResumenTab({
                           ? `${createdDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}hs`
                           : "—";
                       const category = e.category ?? e.type ?? "—";
-                      const description = e.name ?? e.description ?? e.concept ?? e.note ?? "Gasto";
+                      const rawDescription = String(
+                        e.note?.trim() || e.name || e.description || e.concept || "",
+                      ).trim();
+                      const description =
+                        rawDescription &&
+                        rawDescription.toLowerCase() !== String(category).toLowerCase()
+                          ? rawDescription
+                          : "";
                       const method = paymentMethodLabel(e.payment_method ?? e.method ?? "");
                       const user = displayCashActor(e);
                       return (
@@ -1806,33 +1820,27 @@ function ResumenTab({
                           </div>
                           <div className="mt-2 space-y-1.5">
                             <div className="flex items-start justify-between gap-3">
-                              <span className="shrink-0 text-white/45">Categoría</span>
-                              <span className="truncate text-right capitalize text-white/55">
+                              <span className="shrink-0 text-white/45">Tipo de gasto</span>
+                              <span className="truncate text-right text-white/55">
                                 {category}
                               </span>
                             </div>
-                            <div className="flex items-start justify-between gap-3">
-                              <span className="shrink-0 text-white/45">Descripción</span>
-                              <span className="truncate text-right text-white/88">
-                                {description}
-                              </span>
-                            </div>
-                            {e.note && e.note !== description && (
-                              <div className="flex items-start justify-between gap-3">
-                                <span className="shrink-0 text-white/45">Nota</span>
-                                <span className="truncate text-right text-white/45">
-                                  {e.note}
-                                </span>
-                              </div>
-                            )}
                             <div className="flex items-start justify-between gap-3">
                               <span className="shrink-0 text-white/45">Método</span>
                               <span className="truncate text-right text-white/55">
                                 {method}
                               </span>
                             </div>
+                            {description && (
+                              <div className="flex items-start justify-between gap-3">
+                                <span className="shrink-0 text-white/45">Descripción</span>
+                                <span className="truncate text-right text-white/88">
+                                  {description}
+                                </span>
+                              </div>
+                            )}
                             <div className="flex items-start justify-between gap-3">
-                              <span className="shrink-0 text-white/45">Usuario responsable</span>
+                              <span className="shrink-0 text-white/45">Responsable</span>
                               <span className="truncate text-right text-white/55">
                                 {user}
                               </span>
