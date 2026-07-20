@@ -113,6 +113,12 @@ function usePointerReorder<T>(
   getId: (item: T) => string,
   onChange: (next: T[]) => void,
   onDragEnd: (finalItems: T[]) => void,
+  // "x": el elemento arrastrado solo se desplaza horizontal (categorías,
+  // en su misma fila). "y": solo vertical (ítems, dentro de su columna/
+  // lista). Tanto el transform visual como el cálculo de "a qué posición
+  // se mueve" quedan atados al mismo eje — así nunca se compara/salta
+  // contra la distancia del eje que no debería importar.
+  axis: "x" | "y",
   dragScale = 1.06,
 ) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
@@ -180,7 +186,9 @@ function usePointerReorder<T>(
 
         const node = nodesRef.current.get(id);
         if (node) {
-          node.style.transform = `translate(${x - startX}px, ${y - startY}px) scale(${dragScale})`;
+          const tx = axis === "x" ? x - startX : 0;
+          const ty = axis === "y" ? y - startY : 0;
+          node.style.transform = `translate(${tx}px, ${ty}px) scale(${dragScale})`;
         }
 
         let bestIndex = fromIndex;
@@ -191,9 +199,12 @@ function usePointerReorder<T>(
           const el = nodesRef.current.get(itId);
           if (!el) return;
           const rect = el.getBoundingClientRect();
-          const cx = rect.left + rect.width / 2;
-          const cy = rect.top + rect.height / 2;
-          const dist = (x - cx) ** 2 + (y - cy) ** 2;
+          // Solo se compara en el eje permitido — el otro eje no debe
+          // hacer "saltar" el reorden hacia una fila/columna distinta.
+          const dist =
+            axis === "x"
+              ? (x - (rect.left + rect.width / 2)) ** 2
+              : (y - (rect.top + rect.height / 2)) ** 2;
           if (dist < bestDist) {
             bestDist = dist;
             bestIndex = i;
@@ -239,7 +250,7 @@ function usePointerReorder<T>(
       window.addEventListener("pointerup", finish);
       window.addEventListener("pointercancel", finish);
     },
-    [getId, onChange, onDragEnd, dragScale],
+    [getId, onChange, onDragEnd, axis, dragScale],
   );
 
   return { draggingId, setNodeRef, startDrag };
@@ -2059,6 +2070,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     (r) => r.id,
     handleItemsReorderChange,
     handleItemsReorderEnd,
+    "y",
     1.045,
   );
 
@@ -2150,6 +2162,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     (c) => c,
     handleCategoriesReorderChange,
     handleCategoriesReorderEnd,
+    "x",
     1.08,
   );
 
