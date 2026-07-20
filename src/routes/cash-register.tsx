@@ -4918,7 +4918,7 @@ async function buildCierreSnapshotForDate(businessId: string, dateStr: string) {
 
   const detalleMetodos: Record<string, CierreMetodoDetalle> = {};
   const ensure = (method: string | null | undefined) => {
-    const key = String(method || "efectivo").toLowerCase();
+    const key = normalizeCierreMethodKey(method);
     if (!detalleMetodos[key]) detalleMetodos[key] = { ingresos: 0, gastos: 0, utilidad: 0 };
     return detalleMetodos[key];
   };
@@ -5150,6 +5150,34 @@ function paymentMethodLabel(method: string) {
   return PAY_METHOD_LABEL[method as PayMethod] ?? method ?? "Sin método";
 }
 
+// `payments.method` guarda claves en inglés ("cash", "transfer", "card",
+// "mp"...) pero `expenses.payment_method` guarda texto en español
+// ("efectivo", "transferencia", "débito", "crédito", "mercado pago"...).
+// Si se agrupa el desglose por método usando la clave cruda, "cash" y
+// "efectivo" terminan como DOS filas separadas (una solo con ingresos,
+// otra solo con gastos) aunque ambas se vean como "Efectivo" en pantalla.
+// Esta función normaliza cualquiera de los dos vocabularios a la misma
+// clave canónica (la que ya usa PAY_METHOD_LABEL) antes de agrupar.
+function normalizeCierreMethodKey(method: string | null | undefined): string {
+  const raw = String(method || "").trim().toLowerCase();
+  if (!raw) return "cash";
+  const stripped = raw.normalize("NFD").replace(/[̀-ͯ]/g, "");
+  if (stripped === "cash" || stripped === "efectivo") return "cash";
+  if (stripped === "transfer" || stripped === "transferencia") return "transfer";
+  if (
+    stripped === "card" ||
+    stripped === "tarjeta" ||
+    stripped === "debito" ||
+    stripped === "credito"
+  )
+    return "card";
+  if (stripped === "mp" || stripped === "mercado pago" || stripped === "mercadopago")
+    return "mp";
+  if (stripped === "qr") return "qr";
+  if (stripped === "cuenta") return "cuenta";
+  return raw;
+}
+
 function CierreCajaBtn({
   paymentsToday,
   expensesToday,
@@ -5195,7 +5223,7 @@ function CierreCajaBtn({
   const detalleMetodos = useMemo(() => {
     const detail: Record<string, CierreMetodoDetalle> = {};
     const ensure = (method: string | null | undefined) => {
-      const key = String(method || "efectivo").toLowerCase();
+      const key = normalizeCierreMethodKey(method);
       if (!detail[key]) detail[key] = { ingresos: 0, gastos: 0, utilidad: 0 };
       return detail[key];
     };
