@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -317,11 +317,20 @@ export function BrandingSection() {
   // contenido, y necesitamos que se comporte igual que el <span> real de
   // la página pública cuando el texto ocupa 2 líneas.
   const announcementRef = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => {
+  // useLayoutEffect (no useEffect): el alto se recalcula ANTES de que el
+  // navegador pinte el frame, no después. Con useEffect, Safari en iOS a
+  // veces pintaba el textarea con su alto inicial de 1 fila (contenido
+  // recortado/no visible) y recién repintaba el contenido real al recibir
+  // foco — con useLayoutEffect no hay ese frame intermedio "mal" que pintar.
+  useLayoutEffect(() => {
     const el = announcementRef.current;
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
+    // Empuja a Safari/WebKit a repintar el contenido ya asignado por JS —
+    // mitiga un bug conocido de iOS donde el texto de un textarea no se
+    // renderiza hasta la primera interacción si el alto se tocó por script.
+    void el.offsetHeight;
   }, [data.profile_note]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
