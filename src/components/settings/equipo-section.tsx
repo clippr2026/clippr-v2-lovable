@@ -864,6 +864,9 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
 
 export function EquipoSection() {
   const { businessId } = useAuth();
+  const [equipoTab, setEquipoTab] = useState<"profesionales" | "accesos">(
+    "profesionales",
+  );
   const [selectedPermRole, setSelectedPermRole] =
     useState<RolePermissionId>("admin_general");
   const [rolePermissions, setRolePermissions] = useState<RolePermissions>(
@@ -2378,11 +2381,39 @@ export function EquipoSection() {
         </p>
       </div>
 
-      {/* Ya no son pestañas: Profesionales y Accesos quedan apilados en la
-          misma pantalla, uno seguido del otro — Accesos separado al final
-          para que la gestión del equipo no compita visualmente con la
-          configuración de accesos. */}
-      <div className="space-y-3">
+      {/* Pestañas Profesionales / Accesos — separación de siempre, restaurada
+          después de un cambio anterior que las había apilado en una sola
+          pantalla. Segmented control de ancho completo: en mobile queda
+          claro cuál está seleccionada y no compite en ancho con nada más
+          (sin scroll horizontal). */}
+      <div className="flex gap-1.5 rounded-2xl border border-white/10 bg-white/[0.03] p-1.5">
+        {(
+          [
+            ["profesionales", "Profesionales"],
+            ["accesos", "Accesos"],
+          ] as const
+        ).map(([id, label]) => {
+          const active = equipoTab === id;
+          return (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setEquipoTab(id)}
+              className={cn(
+                "flex-1 rounded-xl px-3.5 py-2.5 text-sm font-bold transition-all",
+                active
+                  ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white shadow-lg shadow-sky-500/20"
+                  : "text-muted-foreground hover:bg-white/[0.05] hover:text-foreground",
+              )}
+            >
+              {label}
+            </button>
+          );
+        })}
+      </div>
+
+      {equipoTab === "profesionales" && (
+      <div className="mt-4 space-y-3">
           <div className="flex justify-end">
             <button
               onClick={openNew}
@@ -2418,8 +2449,10 @@ export function EquipoSection() {
             </div>
           )}
         </div>
+      )}
 
-      <div className="mt-6 space-y-3">
+      {equipoTab === "accesos" && (
+      <div className="mt-4 space-y-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h3 className="text-lg font-display font-semibold">
@@ -2860,6 +2893,7 @@ export function EquipoSection() {
             </div>
           </div>
         </div>
+      )}
 
       {pendingDeleteUser && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4">
