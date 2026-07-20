@@ -864,6 +864,10 @@ function CashRegisterPage() {
               pendingCharge={activePendingCharge}
               userEmail={session.user.email ?? null}
               chargedByName={profile?.full_name || chargedByUsername(session.user.email)}
+              onCancel={() => {
+                setPendingToCharge(null);
+                setTab("resumen");
+              }}
               onPendingDone={() => {
                 setPendingToCharge(null);
                 setTab("resumen");
