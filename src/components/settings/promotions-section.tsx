@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -173,6 +174,10 @@ export function PromotionsSection() {
   // formulario arrastraba todo el fondo. Restaura la posición exacta al
   // cerrar.
   useBodyScrollLock(modalOpen);
+  const modalScrollRef = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    if (modalOpen) modalScrollRef.current?.scrollTo(0, 0);
+  }, [modalOpen]);
   const [editing, setEditing] = useState<Promotion | null>(null);
   const [form, setForm] = useState<PromoForm>(emptyForm([], []));
   const [saving, setSaving] = useState(false);
@@ -439,17 +444,28 @@ export function PromotionsSection() {
         )}
       </SectionCard>
 
-      {modalOpen && (
+      {modalOpen && typeof document !== "undefined" && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 backdrop-blur-sm p-4 pt-[4vh] [overscroll-behavior:contain]"
+          className="fixed inset-0 z-[9999] flex items-start justify-center overflow-y-auto bg-black/70 backdrop-blur-sm p-4 pt-[max(1rem,env(safe-area-inset-top,0px))] pb-[max(1rem,env(safe-area-inset-bottom,0px))] [overscroll-behavior:contain]"
           onClick={() => !saving && setModalOpen(false)}
         >
-          {/* dvh, no vh: en Safari móvil vh se calcula sobre el viewport
+          {/* Portal a document.body: esta pantalla vive dentro del
+              <div className="relative z-10"> de AppShell, que crea su
+              propio contexto de apilamiento — ese contexto entero queda
+              por debajo del header/bottom-nav de AppSidebar (sticky/fixed,
+              z-40, hermanos de <main> a nivel raíz). Sin portal, ningún
+              z-index de acá adentro podía ganarle a ese header (lo que el
+              usuario veía como "tapado por el banner de Configuración").
+              Mismo fix que el modal de info de Asesor IA.
+              dvh, no vh: en Safari móvil vh se calcula sobre el viewport
               "grande" (sin descontar la barra de direcciones), así que con
               vh el modal podía terminar más alto que el espacio realmente
-              visible y el footer quedaba tapado por la nav inferior. */}
+              visible y el footer quedaba tapado por la nav inferior. El
+              padding del overlay (arriba/abajo) también pasa a depender
+              de max(1rem, safe-area) en vez de un 4vh fijo, por la misma
+              razón. */}
           <div
-            className="relative flex h-[86dvh] max-h-[820px] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-zinc-950 ring-1 ring-white/10 shadow-2xl"
+            className="relative flex h-[86dvh] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-zinc-950 ring-1 ring-white/10 shadow-2xl [max-height:min(820px,calc(100dvh-max(1rem,env(safe-area-inset-top,0px))-max(1rem,env(safe-area-inset-bottom,0px))))]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header fijo: solo título + subtítulo — el estado, el
@@ -475,7 +491,7 @@ export function PromotionsSection() {
               </div>
             </div>
 
-            <div className="flex-1 space-y-4 overflow-y-auto p-5">
+            <div ref={modalScrollRef} className="flex-1 space-y-4 overflow-y-auto p-5">
               <SectionCard
                 label={
                   <SectionLabel icon={Info} color="text-sky-300">
@@ -838,7 +854,8 @@ export function PromotionsSection() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
       <ConfirmDialog
