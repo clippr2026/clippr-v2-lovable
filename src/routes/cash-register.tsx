@@ -5925,7 +5925,12 @@ function CierresTab({
           </div>
         ) : (
           <div className="pt-5">
-            <div className="overflow-hidden rounded-[28px] border border-white/[0.085] bg-black/25">
+            {/* Desktop: tabla de siempre, sin cambios. Mobile: tarjetas
+                verticales debajo (mismos datos/acciones) — la tabla de 7
+                columnas fijas nunca entraba en el ancho de un teléfono y
+                obligaba a hacer scroll horizontal para llegar a "Ver
+                detalles". */}
+            <div className="hidden overflow-hidden rounded-[28px] border border-white/[0.085] bg-black/25 sm:block">
               <div className="grid grid-cols-[130px_minmax(170px,1fr)_minmax(170px,1fr)_120px_120px_110px_132px] items-center gap-3 border-b border-white/[0.07] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">
                 <div>Fecha</div>
                 <div>Responsable apertura</div>
@@ -5983,6 +5988,62 @@ function CierresTab({
                   );
                 })}
               </div>
+            </div>
+
+            <div className="flex max-h-[65vh] flex-col gap-2.5 overflow-y-auto pr-0.5 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent] sm:hidden">
+              {cierres.map((c) => {
+                const s = cierreSummary(c);
+                const observacion = getCierreObservacion(c) ?? getReaperturaObservacion(c);
+                return (
+                  <div
+                    key={c.id}
+                    className="rounded-2xl border border-white/[0.08] bg-black/25 p-3.5"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="font-semibold text-white">{fechaDetalleLabel(c.fecha)}</div>
+                      <span
+                        className={cn(
+                          "shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ring-1",
+                          s.tipoCierre === "Automático"
+                            ? "bg-violet-500/10 text-violet-300 ring-violet-400/25"
+                            : "bg-white/[0.05] text-white/70 ring-white/10",
+                        )}
+                      >
+                        {s.tipoCierre}
+                      </span>
+                    </div>
+                    <div className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+                      <div className="text-white/45">
+                        Apertura{" "}
+                        <span className="text-white/80">{s.horaApertura}</span>
+                      </div>
+                      <div className="text-white/45">
+                        Cierre <span className="text-white/80">{s.horaCierre}</span>
+                      </div>
+                      <div className="col-span-2 truncate text-white/45">
+                        Responsable{" "}
+                        <span className="text-white/80">
+                          {s.responsableApertura === s.responsableCierre
+                            ? s.responsableApertura
+                            : `${s.responsableApertura} / ${s.responsableCierre}`}
+                        </span>
+                      </div>
+                    </div>
+                    {observacion && (
+                      <div className="mt-2.5 rounded-xl border border-white/[0.055] bg-white/[0.03] px-3 py-2 text-xs text-white/65">
+                        {observacion}
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setSelected(c)}
+                      className="mt-3 w-full rounded-xl border border-white/[0.08] bg-white/[0.045] px-3 py-2 text-xs font-bold text-white/80 transition active:bg-white/[0.08]"
+                    >
+                      Ver detalles
+                    </button>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
