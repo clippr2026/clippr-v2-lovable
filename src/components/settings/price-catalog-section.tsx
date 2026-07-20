@@ -11,6 +11,8 @@ import {
   GripVertical,
   Star,
   Loader2,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { applyCatalogOrder as applyItemOrder } from "@/lib/catalog-order";
@@ -2166,6 +2168,53 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     1.04,
   );
 
+  // Pista visual de que la fila de categorías sigue hacia los costados.
+  // IntersectionObserver sobre dos "centinelas" invisibles (uno antes de
+  // la primera categoría, otro después de la última) en vez de matemática
+  // manual con scrollLeft/scrollWidth/clientWidth: se recalcula solo con
+  // cada scroll/resize, sin listeners propios que mantener a mano ni
+  // cálculos que puedan quedar desincronizados.
+  const catScrollRef = useRef<HTMLDivElement | null>(null);
+  const catLeftSentinelRef = useRef<HTMLDivElement | null>(null);
+  const catRightSentinelRef = useRef<HTMLDivElement | null>(null);
+  const [catScroll, setCatScroll] = useState({ left: false, right: false });
+  // Ref (no state): la animación de pista solo debe reproducirse una vez
+  // por visita a la pantalla, nunca de nuevo aunque catScroll cambie.
+  const catHintPlayedRef = useRef(false);
+
+  useEffect(() => {
+    const root = catScrollRef.current;
+    const leftEl = catLeftSentinelRef.current;
+    const rightEl = catRightSentinelRef.current;
+    if (!root || !leftEl || !rightEl) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        for (const entry of entries) {
+          if (entry.target === leftEl) {
+            setCatScroll((s) => ({ ...s, left: !entry.isIntersecting }));
+          } else if (entry.target === rightEl) {
+            const right = !entry.isIntersecting;
+            setCatScroll((s) => ({ ...s, right }));
+            // La primera vez que se detecta que hay categorías tapadas a
+            // la derecha, un movimiento leve de ida y vuelta (una sola
+            // vez) muestra que la fila se puede deslizar.
+            if (right && !catHintPlayedRef.current) {
+              catHintPlayedRef.current = true;
+              root.scrollBy({ left: 28, behavior: "smooth" });
+              window.setTimeout(() => {
+                root.scrollBy({ left: -28, behavior: "smooth" });
+              }, 420);
+            }
+          }
+        }
+      },
+      { root, threshold: 1 },
+    );
+    observer.observe(leftEl);
+    observer.observe(rightEl);
+    return () => observer.disconnect();
+  }, [categories]);
+
   async function submitCatModal() {
     const clean = catInputVal.trim();
     if (!clean) {
@@ -2318,55 +2367,100 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
               entraran todas juntas sin scroll. Acá cada categoría se
               dimensiona a su propio contenido (shrink-0 + whitespace-
               nowrap, sin truncate) y la fila entera scrollea horizontal
-              si no entran todas — nunca se corta un nombre. */}
-          <div className="min-w-0 flex-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            <div className="flex items-center gap-1">
-              {categories.map((category) => {
-                const active = category === activeCat;
-                return (
-                  <div
-                    key={category}
-                    ref={categoryReorder.setNodeRef(category)}
-                    className={cn(
-                      "flex shrink-0 items-center gap-1 whitespace-nowrap rounded-t-lg transition-colors duration-150",
-                      active
-                        ? "bg-white/5 text-foreground"
-                        : "text-muted-foreground hover:text-foreground",
-                      categoryReorder.draggingId === category &&
-                        "z-50 rounded-lg bg-white/10 text-foreground shadow-[0_8px_22px_-6px_rgba(139,92,246,0.6)] ring-2 ring-violet-400/60",
-                    )}
-                  >
-                    <span
-                      onPointerDown={(event) =>
-                        categoryReorder.startDrag(category, event)
-                      }
-                      className="grid h-9 w-8 shrink-0 touch-none select-none place-items-center rounded-md cursor-grab text-white/40 [-webkit-touch-callout:none] active:cursor-grabbing active:bg-white/5"
+              si no entran todas — nunca se corta un nombre. Degradado +
+              flecha a los costados (ver catScroll arriba) avisan que hay
+              más categorías fuera de vista. */}
+          <div className="relative min-w-0 flex-1">
+            <div
+              ref={catScrollRef}
+              className="overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            >
+              <div className="flex items-center gap-1">
+                <div ref={catLeftSentinelRef} className="h-px w-px shrink-0" />
+                {categories.map((category) => {
+                  const active = category === activeCat;
+                  return (
+                    <div
+                      key={category}
+                      ref={categoryReorder.setNodeRef(category)}
+                      className={cn(
+                        "flex shrink-0 items-center gap-1 whitespace-nowrap rounded-t-lg transition-colors duration-150",
+                        active
+                          ? "bg-white/5 text-foreground"
+                          : "text-muted-foreground hover:text-foreground",
+                        categoryReorder.draggingId === category &&
+                          "z-50 rounded-lg bg-white/10 text-foreground shadow-[0_8px_22px_-6px_rgba(139,92,246,0.6)] ring-2 ring-violet-400/60",
+                      )}
                     >
-                      <GripVertical className="h-4 w-4" />
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => selectCategory(category)}
-                      onDoubleClick={() => renameCategory(category)}
-                      title={category}
-                      className="flex items-center whitespace-nowrap px-1 py-2 text-sm select-none"
-                    >
-                      {category}
-                    </button>
-                    {categories.length > 1 && (
+                      <span
+                        onPointerDown={(event) =>
+                          categoryReorder.startDrag(category, event)
+                        }
+                        className="grid h-9 w-8 shrink-0 touch-none select-none place-items-center rounded-md cursor-grab text-white/40 [-webkit-touch-callout:none] active:cursor-grabbing active:bg-white/5"
+                      >
+                        <GripVertical className="h-4 w-4" />
+                      </span>
                       <button
                         type="button"
-                        onClick={() => deleteCategory(category)}
-                        className="grid h-6 w-6 shrink-0 place-items-center rounded-md pr-1 text-red-300/70 transition hover:bg-red-500/10 hover:text-red-300"
-                        title="Eliminar categoría"
+                        onClick={() => selectCategory(category)}
+                        onDoubleClick={() => renameCategory(category)}
+                        title={category}
+                        className="flex items-center whitespace-nowrap px-1 py-2 text-sm select-none"
                       >
-                        <X className="h-3 w-3" />
+                        {category}
                       </button>
-                    )}
-                  </div>
-                );
-              })}
+                      {categories.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => deleteCategory(category)}
+                          className="grid h-6 w-6 shrink-0 place-items-center rounded-md pr-1 text-red-300/70 transition hover:bg-red-500/10 hover:text-red-300"
+                          title="Eliminar categoría"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
+                <div ref={catRightSentinelRef} className="h-px w-px shrink-0" />
+              </div>
             </div>
+
+            {/* Degradado + flecha: solo aparecen cuando efectivamente hay
+                categorías tapadas de ese lado (catScroll.left/right), se
+                ocultan solas al llegar al final. pointer-events-none en el
+                degradado para no tapar el toque sobre la categoría
+                parcialmente visible debajo. */}
+            {catScroll.left && (
+              <>
+                <div className="pointer-events-none absolute inset-y-0 left-0 w-7 bg-gradient-to-r from-black/40 to-transparent" />
+                <button
+                  type="button"
+                  onClick={() =>
+                    catScrollRef.current?.scrollBy({ left: -140, behavior: "smooth" })
+                  }
+                  aria-label="Ver categorías anteriores"
+                  className="absolute left-0.5 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full bg-white/10 text-white/70 ring-1 ring-white/15 backdrop-blur-sm transition hover:bg-white/20 hover:text-white"
+                >
+                  <ChevronLeft className="h-3.5 w-3.5" />
+                </button>
+              </>
+            )}
+            {catScroll.right && (
+              <>
+                <div className="pointer-events-none absolute inset-y-0 right-0 w-7 bg-gradient-to-l from-black/40 to-transparent" />
+                <button
+                  type="button"
+                  onClick={() =>
+                    catScrollRef.current?.scrollBy({ left: 140, behavior: "smooth" })
+                  }
+                  aria-label="Ver más categorías"
+                  className="absolute right-0.5 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full bg-white/10 text-white/70 ring-1 ring-white/15 backdrop-blur-sm transition hover:bg-white/20 hover:text-white"
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+              </>
+            )}
           </div>
 
           <div className="flex shrink-0 items-center justify-end pl-2 pr-0">
