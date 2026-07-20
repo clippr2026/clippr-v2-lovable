@@ -174,6 +174,13 @@ function usePointerReorder<T>(
 
       const startX = event.clientX;
       const startY = event.clientY;
+      // Cuánto tiene que moverse el puntero desde el último reordenamiento
+      // antes de volver a evaluar si corresponde otro. Sin esto, el
+      // temblor natural de la mano (un par de px) hace que el algoritmo de
+      // "más cercano" oscile entre dos posiciones — el ítem "tiembla"/se
+      // sigue moviendo aunque el dedo esté prácticamente quieto.
+      const MIN_COMMIT_DELTA = 16;
+      let lastCommitPos = axis === "x" ? startX : startY;
       const draggedNode = nodesRef.current.get(id);
       if (draggedNode) draggedNode.style.willChange = "transform";
 
@@ -190,6 +197,12 @@ function usePointerReorder<T>(
           const ty = axis === "y" ? y - startY : 0;
           node.style.transform = `translate(${tx}px, ${ty}px) scale(${dragScale})`;
         }
+
+        // El elemento ya sigue al dedo con fluidez (arriba). Lo que sigue
+        // — decidir si corresponde reordenar — solo se reevalúa si hubo
+        // movimiento real desde el último cambio de posición.
+        const pos = axis === "x" ? x : y;
+        if (Math.abs(pos - lastCommitPos) < MIN_COMMIT_DELTA) return;
 
         let bestIndex = fromIndex;
         let bestDist = Infinity;
@@ -211,6 +224,7 @@ function usePointerReorder<T>(
           }
         });
         if (bestIndex !== fromIndex) {
+          lastCommitPos = pos;
           const next = [...current];
           const [moved] = next.splice(fromIndex, 1);
           next.splice(bestIndex, 0, moved);
@@ -2071,7 +2085,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     handleItemsReorderChange,
     handleItemsReorderEnd,
     "y",
-    1.045,
+    1.02,
   );
 
   // Inline input modal for add/rename category (avoids browser prompt())
@@ -2163,7 +2177,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     handleCategoriesReorderChange,
     handleCategoriesReorderEnd,
     "x",
-    1.08,
+    1.04,
   );
 
   async function submitCatModal() {
@@ -2336,14 +2350,14 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                               ? "bg-white/5 text-foreground"
                               : "text-muted-foreground hover:text-foreground",
                             categoryReorder.draggingId === category &&
-                              "z-50 rounded-lg bg-white/10 text-foreground shadow-[0_20px_45px_-10px_rgba(139,92,246,0.65)] ring-2 ring-violet-400/70",
+                              "z-50 rounded-lg bg-white/10 text-foreground shadow-[0_8px_22px_-6px_rgba(139,92,246,0.6)] ring-2 ring-violet-400/60",
                           )}
                         >
                           <span
                             onPointerDown={(event) =>
                               categoryReorder.startDrag(category, event)
                             }
-                            className="grid h-8 w-6 shrink-0 touch-none place-items-center rounded-md cursor-grab text-white/40 active:cursor-grabbing"
+                            className="grid h-9 w-8 shrink-0 touch-none select-none place-items-center rounded-md cursor-grab text-white/40 [-webkit-touch-callout:none] active:cursor-grabbing active:bg-white/5"
                           >
                             <GripVertical className="h-4 w-4" />
                           </span>
@@ -2441,12 +2455,12 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                 className={cn(
                   "relative flex items-center gap-3 px-5 py-3 transition-colors duration-150",
                   itemReorder.draggingId === row.id &&
-                    "z-50 rounded-2xl bg-white/[0.06] shadow-[0_20px_45px_-10px_rgba(139,92,246,0.55)] ring-2 ring-violet-400/60",
+                    "z-50 rounded-2xl bg-white/[0.07] shadow-[0_8px_20px_-6px_rgba(139,92,246,0.5)] ring-2 ring-violet-400/50",
                 )}
               >
                 <span
                   onPointerDown={(event) => itemReorder.startDrag(row.id, event)}
-                  className="grid h-8 w-6 shrink-0 touch-none place-items-center cursor-grab text-white/35 active:cursor-grabbing"
+                  className="grid h-10 w-9 shrink-0 touch-none select-none place-items-center rounded-lg cursor-grab text-white/35 [-webkit-touch-callout:none] active:cursor-grabbing active:bg-white/5"
                 >
                   <GripVertical className="h-4 w-4" />
                 </span>

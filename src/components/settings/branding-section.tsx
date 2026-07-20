@@ -186,7 +186,7 @@ type BrandingData = {
   business_start_date: string;
 };
 const PROFILE_NOTE_MAX_LINES = 3;
-const DEFAULT_PROFILE_NOTE = "🔥 Todos los Miercoles 20% OFF EN EFECTIVO";
+const DEFAULT_PROFILE_NOTE = "🔥 Todos los miércoles\n20% OFF EN EFECTIVO";
 
 const EMPTY_BRANDING: BrandingData = {
   name: "",
@@ -332,6 +332,14 @@ export function BrandingSection() {
     // renderiza hasta la primera interacción si el alto se tocó por script.
     void el.offsetHeight;
   }, [data.profile_note]);
+  // Si no hay anuncio guardado, el globo arranca con un mensaje de ejemplo
+  // como VALOR real (no un placeholder — el usuario pidió explícitamente
+  // que no sea un placeholder, porque quiere ver contenido real desde que
+  // entra). "Sin tocar" se refiere a que todavía no lo editó ni lo activó:
+  // en ese estado, al guardar se persiste "" en vez del texto de ejemplo,
+  // para no publicar una promo que nadie eligió solo por haber abierto la
+  // pantalla. Se marca "tocado" apenas escribe o apenas activa el switch.
+  const [profileNoteTouched, setProfileNoteTouched] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
@@ -383,6 +391,10 @@ export function BrandingSection() {
       const normalizedFeaturedClients = normalizeFeaturedClients(
         cfg.featured_clients,
       );
+      const savedProfileNote = ((cfg.profile_note as string) ?? "")
+        .trim()
+        .slice(0, 50);
+      setProfileNoteTouched(Boolean(savedProfileNote));
       setData({
         name: (biz?.name as string) ?? "",
         slug: (biz?.slug as string) ?? "",
@@ -395,7 +407,7 @@ export function BrandingSection() {
           (cfg.instagram as string) ?? (biz?.instagram as string) ?? "",
         website: (cfg.website as string) ?? "",
         description: (cfg.description as string) ?? "",
-        profile_note: ((cfg.profile_note as string) ?? "").slice(0, 50),
+        profile_note: savedProfileNote || DEFAULT_PROFILE_NOTE,
         profile_note_active: cfg.profile_note_active === true,
         logo_url: (cfg.logo_url as string) ?? "",
         avatar_url: (biz?.avatar_url as string) ?? "",
@@ -906,7 +918,10 @@ export function BrandingSection() {
         instagram: data.instagram,
         website: data.website,
         description: data.description,
-        profile_note: data.profile_note,
+        // Si todavía muestra el mensaje de ejemplo sin que el usuario lo
+        // haya tocado ni activado, no se persiste — evita publicar una
+        // promo que nadie eligió solo por haber abierto la pantalla.
+        profile_note: profileNoteTouched ? data.profile_note : "",
         profile_note_active: data.profile_note_active,
         logo_url:
           logo_url || (existingBranding.logo_url as string | undefined) || "",
@@ -1085,19 +1100,21 @@ export function BrandingSection() {
               type="button"
               role="switch"
               aria-checked={data.profile_note_active}
-              onClick={() =>
+              onClick={() => {
+                // Activar publica lo que sea que esté en el globo en ese
+                // momento (aunque todavía sea el mensaje de ejemplo sin
+                // tocar) — es una decisión explícita del usuario, así que a
+                // partir de acá el guardado ya no debe pisarlo con "".
+                setProfileNoteTouched(true);
                 setData((d) => {
                   const nextActive = !d.profile_note_active;
                   return {
                     ...d,
                     profile_note_active: nextActive,
-                    profile_note:
-                      nextActive && !d.profile_note.trim()
-                        ? "🔥 Todos los Miercoles 20% OFF EN EFECTIVO"
-                        : d.profile_note,
+                    profile_note: d.profile_note.trim() || DEFAULT_PROFILE_NOTE,
                   };
-                })
-              }
+                });
+              }}
               className={cn(
                 "relative h-8 w-16 shrink-0 overflow-hidden rounded-full border transition focus:outline-none focus:ring-2 focus:ring-primary/40",
                 data.profile_note_active
@@ -1173,15 +1190,21 @@ export function BrandingSection() {
                   ref={announcementRef}
                   rows={1}
                   value={data.profile_note}
-                  onChange={(e) =>
+                  onChange={(e) => {
+                    setProfileNoteTouched(true);
                     setData((d) => ({
                       ...d,
                       profile_note: e.target.value.slice(0, 50),
-                    }))
-                  }
+                    }));
+                  }}
+                  onFocus={(e) => {
+                    // Todavía muestra el mensaje de ejemplo sin tocar: al
+                    // enfocar lo selecciona todo, así el primer caracter que
+                    // escribe lo reemplaza en vez de insertarse en el medio.
+                    if (!profileNoteTouched) e.currentTarget.select();
+                  }}
                   maxLength={50}
-                  placeholder="🔥 Todos los Miercoles 20% OFF EN EFECTIVO"
-                  className="block w-full resize-none whitespace-pre-line break-words border-0 bg-transparent p-0 text-center text-[11px] font-semibold leading-snug text-zinc-950 outline-none [word-break:normal] placeholder:text-zinc-400"
+                  className="block w-full resize-none whitespace-pre-line break-words border-0 bg-transparent p-0 text-center text-[11px] font-semibold leading-snug text-zinc-950 outline-none [word-break:normal] [-webkit-text-fill-color:#09090b] [-webkit-appearance:none]"
                 />
                 <span className="pointer-events-none absolute left-1/2 top-full h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-white" />
               </div>
