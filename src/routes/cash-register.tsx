@@ -2134,9 +2134,16 @@ function PreciosTab({
   );
 
   return (
-    <div className="-mt-5 h-auto overflow-visible pb-6 sm:h-[calc(100vh-270px)] sm:min-h-[470px] sm:overflow-hidden">
+    <div className="mt-3 h-auto overflow-visible pb-6 sm:-mt-5 sm:h-[calc(100vh-270px)] sm:min-h-[470px] sm:overflow-hidden">
       {/* Mobile: pestañas para ver una sección a la vez. Desktop no cambia:
-          las dos secciones siguen lado a lado (ver sm:grid abajo). */}
+          las dos secciones siguen lado a lado (ver sm:grid abajo).
+          El -mt-5 (desktop) tira el contenido hacia arriba para ajustar el
+          budget de altura fijo (calc(100vh-270px)) — pero en mobile
+          (h-auto, sin ese budget) esa misma resta hacía que estos botones
+          quedaran tapados por la barra de tabs de arriba, sobre todo
+          después de sacar los títulos con ícono de cada sección. En mobile
+          usa un margen positivo (mt-3, ~16px sumado al mt-1 del wrapper)
+          en vez de negativo, para separación real sin solapamiento. */}
       <div className="mb-3 flex gap-2 sm:hidden">
         {(
           [
@@ -2835,7 +2842,7 @@ function InventarioTab({
       : `${movement.stockFrom} → ${movement.stockTo}`;
 
   return (
-    <div className="-mt-5 grid h-auto grid-cols-1 gap-5 overflow-visible pb-6 xl:grid-cols-2 sm:h-[calc(100vh-270px)] sm:min-h-[470px] sm:overflow-hidden">
+    <div className="mt-3 grid h-auto grid-cols-1 gap-5 overflow-visible pb-6 xl:grid-cols-2 sm:-mt-5 sm:h-[calc(100vh-270px)] sm:min-h-[470px] sm:overflow-hidden">
       <section className="flex min-h-0 flex-col overflow-visible rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] shadow-[0_24px_85px_-50px_rgba(139,92,246,0.42)] sm:overflow-hidden">
         <div className="flex flex-col gap-3 border-b border-white/[0.065] px-5 py-3">
           {/* Mobile: "Últimos movimientos" pasa a un modal (ver botón +
@@ -8835,8 +8842,15 @@ export function NuevaVentaTab({
           // en professionals.tsx (pt-6 + pb-[max(1.5rem,safe-area)]), para
           // que la tarjeta ocupe justo el alto real disponible del
           // dispositivo sin sobrar ni faltar contra la barra superior o
-          // inferior.
-          ? { height: "calc(100dvh - 1.5rem - max(1.5rem, env(safe-area-inset-bottom, 0px)))" }
+          // inferior. svh (no dvh): dvh en iOS Safari a veces mide el
+          // viewport "grande" (como si la barra de direcciones ya estuviera
+          // colapsada) recién al abrir el modal, y no se corrige hasta que
+          // algo fuerza un resize real (como enfocar un input y abrir el
+          // teclado) — eso dejaba la barra de Volver/Continuar fuera del
+          // área visible hasta tocar el buscador. svh es el viewport MÁS
+          // chico posible (barra de direcciones expandida), estable desde
+          // el primer render sin depender de ningún evento para recalcular.
+          ? { height: "calc(100svh - 1.5rem - max(1.5rem, env(safe-area-inset-bottom, 0px)))" }
           : undefined
       }
     >
@@ -9004,7 +9018,17 @@ export function NuevaVentaTab({
       )}
 
       {step === 2 && (
-        <div className="space-y-3">
+        <div className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden">
+          {/* Igual que Servicios/Pago (pasos 3 y 4): el contenido de este
+              paso tiene su propio scroll interno acotado por flex-1, en vez
+              de crecer libremente dentro del modal de alto fijo. Sin esto,
+              con poco espacio disponible (profesional bloqueado en Panel
+              del profesional, donde Cliente suele ser el primer paso
+              visible) el contenido podía empujar la barra de Volver/
+              Continuar fuera del área visible del modal hasta que algún
+              evento (como enfocar el buscador) forzaba un recálculo del
+              layout. */}
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
           {/* 3. Tarjeta de confirmación — siempre visible cuando hay cliente */}
           {clientId && (
             <div className="flex items-start gap-3 rounded-2xl bg-[linear-gradient(135deg,rgba(16,185,129,0.16),rgba(6,95,70,0.16),rgba(2,6,23,0.78))] border border-emerald-400/28 px-4 py-3.5 shadow-[0_22px_55px_-42px_rgba(16,185,129,0.55)]">
@@ -9176,6 +9200,7 @@ export function NuevaVentaTab({
                       onChange={setClientAcquisitionSource}
                       customValue={clientAcquisitionCustom}
                       onCustomChange={setClientAcquisitionCustom}
+                      questionLabel="¿Cómo nos conoció?"
                       wrapperClassName="space-y-3"
                       otroBelow
                       triggerClassName="w-full bg-white/[0.03] border-white/10 rounded-lg px-3 py-2.5 h-auto text-base focus:border-blue-300/40"
@@ -9201,6 +9226,7 @@ export function NuevaVentaTab({
                 </Card>
               );
             })()}
+          </div>
         </div>
       )}
 
@@ -9589,15 +9615,15 @@ export function NuevaVentaTab({
           {/* Volver/Cancelar — siempre montado (nunca se saca del DOM) para
               que Continuar no se corra de lugar al llegar al primer paso:
               en variant="page" queda deshabilitado; en variant="modal" el
-              primer paso visible usa Cancelar (cierra el modal, sigue
-              siempre habilitado) y los siguientes Volver. */}
+              primer paso visible usa Volver (cierra el modal, sigue
+              siempre habilitado) y los siguientes Volver un paso atrás. */}
           {variant === "modal" ? (
             step === minStep ? (
               <button
                 onClick={onCancel}
-                className="flex-1 rounded-2xl px-4 py-2.5 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground transition-all"
+                className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-2xl px-4 py-2.5 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground transition-all"
               >
-                Cancelar
+                <ArrowLeft className="size-4" /> Volver
               </button>
             ) : (
               <button

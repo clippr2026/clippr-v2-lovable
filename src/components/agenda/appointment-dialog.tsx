@@ -780,6 +780,7 @@ export function AppointmentDialog({
                   onChange={setAcquisitionSource}
                   customValue={acquisitionCustom}
                   onCustomChange={setAcquisitionCustom}
+                  questionLabel="¿Cómo nos conoció?"
                   wrapperClassName="grid grid-cols-2 gap-2"
                   labelClassName="text-[10px] uppercase tracking-[0.16em] text-muted-foreground"
                   triggerClassName="h-8 text-sm"
