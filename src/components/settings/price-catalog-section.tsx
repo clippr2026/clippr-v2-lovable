@@ -102,16 +102,25 @@ function categoryRowSizes(count: number): number[] {
 // varias filas (categorías) sin necesitar lógica de fila/columna aparte.
 // `touch-action: none` en el handle evita que el gesto también scrollee la
 // página mientras se arrastra.
+//
+// El elemento arrastrado sigue al dedo/mouse en tiempo real (transform
+// imperativo, sin pasar por React en cada pixel — más fluido) y el resto de
+// los ítems desliza a su nueva posición con una animación FLIP (se toma la
+// posición ANTES de reordenar y se anima desde ahí) en vez de saltar
+// instantáneo, para que se note claramente el hueco que se abre en destino.
 function usePointerReorder<T>(
   items: T[],
   getId: (item: T) => string,
   onChange: (next: T[]) => void,
   onDragEnd: (finalItems: T[]) => void,
+  dragScale = 1.06,
 ) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
+  const draggingIdRef = useRef<string | null>(null);
   const itemsRef = useRef(items);
   itemsRef.current = items;
   const nodesRef = useRef(new Map<string, HTMLElement>());
+  const rectsBeforeRef = useRef<Map<string, DOMRect>>(new Map());
 
   const setNodeRef = useCallback(
     (id: string) => (el: HTMLElement | null) => {
@@ -121,13 +130,46 @@ function usePointerReorder<T>(
     [],
   );
 
+  // FLIP de los ítems NO arrastrados: corre después de cada render (sin
+  // deps — el check de tamaño de abajo lo hace barato en el caso común) y
+  // solo hace algo cuando handleMove acaba de dejar un snapshot de
+  // posiciones "antes" listo para animar.
+  useLayoutEffect(() => {
+    const before = rectsBeforeRef.current;
+    if (before.size === 0) return;
+    rectsBeforeRef.current = new Map();
+    for (const it of items) {
+      const id = getId(it);
+      if (id === draggingIdRef.current) continue;
+      const node = nodesRef.current.get(id);
+      const prevRect = before.get(id);
+      if (!node || !prevRect) continue;
+      const newRect = node.getBoundingClientRect();
+      const dx = prevRect.left - newRect.left;
+      const dy = prevRect.top - newRect.top;
+      if (!dx && !dy) continue;
+      node.style.transition = "none";
+      node.style.transform = `translate(${dx}px, ${dy}px)`;
+      requestAnimationFrame(() => {
+        node.style.transition = "transform 220ms cubic-bezier(0.22, 1, 0.36, 1)";
+        node.style.transform = "";
+      });
+    }
+  });
+
   const startDrag = useCallback(
     (id: string, event: React.PointerEvent<HTMLElement>) => {
       if (event.pointerType === "mouse" && event.button !== 0) return;
       event.preventDefault();
       const handle = event.currentTarget;
       handle.setPointerCapture(event.pointerId);
+      draggingIdRef.current = id;
       setDraggingId(id);
+
+      const startX = event.clientX;
+      const startY = event.clientY;
+      const draggedNode = nodesRef.current.get(id);
+      if (draggedNode) draggedNode.style.willChange = "transform";
 
       const handleMove = (moveEvent: PointerEvent) => {
         const x = moveEvent.clientX;
@@ -135,12 +177,20 @@ function usePointerReorder<T>(
         const current = itemsRef.current;
         const fromIndex = current.findIndex((it) => getId(it) === id);
         if (fromIndex < 0) return;
+
+        const node = nodesRef.current.get(id);
+        if (node) {
+          node.style.transform = `translate(${x - startX}px, ${y - startY}px) scale(${dragScale})`;
+        }
+
         let bestIndex = fromIndex;
         let bestDist = Infinity;
         current.forEach((it, i) => {
-          const node = nodesRef.current.get(getId(it));
-          if (!node) return;
-          const rect = node.getBoundingClientRect();
+          const itId = getId(it);
+          if (itId === id) return; // sigue al puntero: no compite consigo mismo
+          const el = nodesRef.current.get(itId);
+          if (!el) return;
+          const rect = el.getBoundingClientRect();
           const cx = rect.left + rect.width / 2;
           const cy = rect.top + rect.height / 2;
           const dist = (x - cx) ** 2 + (y - cy) ** 2;
@@ -153,6 +203,16 @@ function usePointerReorder<T>(
           const next = [...current];
           const [moved] = next.splice(fromIndex, 1);
           next.splice(bestIndex, 0, moved);
+          rectsBeforeRef.current = new Map(
+            current
+              .filter((it2) => getId(it2) !== id)
+              .map((it2) => {
+                const nid = getId(it2);
+                const el2 = nodesRef.current.get(nid);
+                return el2 ? ([nid, el2.getBoundingClientRect()] as const) : null;
+              })
+              .filter((v): v is readonly [string, DOMRect] => v !== null),
+          );
           onChange(next);
         }
       };
@@ -161,6 +221,16 @@ function usePointerReorder<T>(
         window.removeEventListener("pointermove", handleMove);
         window.removeEventListener("pointerup", finish);
         window.removeEventListener("pointercancel", finish);
+        const node = nodesRef.current.get(id);
+        if (node) {
+          node.style.transition = "transform 180ms cubic-bezier(0.22, 1, 0.36, 1)";
+          node.style.transform = "";
+          node.style.willChange = "";
+          window.setTimeout(() => {
+            if (node) node.style.transition = "";
+          }, 200);
+        }
+        draggingIdRef.current = null;
         setDraggingId(null);
         onDragEnd(itemsRef.current);
       };
@@ -169,7 +239,7 @@ function usePointerReorder<T>(
       window.addEventListener("pointerup", finish);
       window.addEventListener("pointercancel", finish);
     },
-    [getId, onChange, onDragEnd],
+    [getId, onChange, onDragEnd, dragScale],
   );
 
   return { draggingId, setNodeRef, startDrag };
@@ -1989,6 +2059,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     (r) => r.id,
     handleItemsReorderChange,
     handleItemsReorderEnd,
+    1.045,
   );
 
   // Inline input modal for add/rename category (avoids browser prompt())
@@ -2079,6 +2150,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     (c) => c,
     handleCategoriesReorderChange,
     handleCategoriesReorderEnd,
+    1.08,
   );
 
   async function submitCatModal() {
@@ -2251,7 +2323,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                               ? "bg-white/5 text-foreground"
                               : "text-muted-foreground hover:text-foreground",
                             categoryReorder.draggingId === category &&
-                              "opacity-60 scale-[1.03] z-10",
+                              "z-50 rounded-lg bg-white/10 text-foreground shadow-[0_20px_45px_-10px_rgba(139,92,246,0.65)] ring-2 ring-violet-400/70",
                           )}
                         >
                           <span
@@ -2354,8 +2426,9 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                 key={row.id}
                 ref={itemReorder.setNodeRef(row.id)}
                 className={cn(
-                  "flex items-center gap-3 px-5 py-3 transition duration-150",
-                  itemReorder.draggingId === row.id && "opacity-60 scale-[1.01] z-10 relative",
+                  "relative flex items-center gap-3 px-5 py-3 transition-colors duration-150",
+                  itemReorder.draggingId === row.id &&
+                    "z-50 rounded-2xl bg-white/[0.06] shadow-[0_20px_45px_-10px_rgba(139,92,246,0.55)] ring-2 ring-violet-400/60",
                 )}
               >
                 <span
