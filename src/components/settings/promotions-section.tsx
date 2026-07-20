@@ -446,7 +446,7 @@ export function PromotionsSection() {
 
       {modalOpen && typeof document !== "undefined" && createPortal(
         <div
-          className="fixed inset-0 z-[9999] flex items-start justify-center overflow-y-auto bg-black/70 backdrop-blur-sm p-4 pt-[max(1rem,env(safe-area-inset-top,0px))] pb-[max(1rem,env(safe-area-inset-bottom,0px))] [overscroll-behavior:contain]"
+          className="fixed inset-0 z-[9999] flex items-start justify-center overflow-y-auto bg-black/70 backdrop-blur-sm p-4 pt-[calc(24px+env(safe-area-inset-top,0px))] pb-[max(1rem,env(safe-area-inset-bottom,0px))] [overscroll-behavior:contain]"
           onClick={() => !saving && setModalOpen(false)}
         >
           {/* Portal a document.body: esta pantalla vive dentro del
@@ -461,11 +461,12 @@ export function PromotionsSection() {
               "grande" (sin descontar la barra de direcciones), así que con
               vh el modal podía terminar más alto que el espacio realmente
               visible y el footer quedaba tapado por la nav inferior. El
-              padding del overlay (arriba/abajo) también pasa a depender
-              de max(1rem, safe-area) en vez de un 4vh fijo, por la misma
-              razón. */}
+              padding-top del overlay usa 24px + safe-area (antes pegaba
+              el modal justo contra el borde superior) — el max-height de
+              acá abajo espeja exactamente esa misma reserva (arriba y
+              abajo) para no restarla dos veces. */}
           <div
-            className="relative flex h-[86dvh] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-zinc-950 ring-1 ring-white/10 shadow-2xl [max-height:min(820px,calc(100dvh-max(1rem,env(safe-area-inset-top,0px))-max(1rem,env(safe-area-inset-bottom,0px))))]"
+            className="relative flex h-[86dvh] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-zinc-950 ring-1 ring-white/10 shadow-2xl [max-height:min(820px,calc(100dvh-24px-env(safe-area-inset-top,0px)-max(1rem,env(safe-area-inset-bottom,0px))))]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header fijo: solo título + subtítulo — el estado, el

@@ -11,6 +11,7 @@ import {
   GripVertical,
   Star,
   Loader2,
+  ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { applyCatalogOrder as applyItemOrder } from "@/lib/catalog-order";
@@ -2166,6 +2167,34 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     1.04,
   );
 
+  // Pista visual de que la fila de categorías sigue hacia los costados —
+  // sin esto, con el scroll horizontal "silencioso" de antes, no se notaba
+  // que había más categorías fuera de vista salvo por casualidad.
+  const catScrollRef = useRef<HTMLDivElement | null>(null);
+  const [catScroll, setCatScroll] = useState({ left: false, right: false });
+  const updateCatScroll = useCallback(() => {
+    const el = catScrollRef.current;
+    if (!el) return;
+    setCatScroll({
+      left: el.scrollLeft > 4,
+      right: el.scrollLeft + el.clientWidth < el.scrollWidth - 4,
+    });
+  }, []);
+  useLayoutEffect(() => {
+    updateCatScroll();
+  }, [updateCatScroll, categories]);
+  useEffect(() => {
+    const el = catScrollRef.current;
+    if (!el) return;
+    const onResize = () => updateCatScroll();
+    el.addEventListener("scroll", updateCatScroll, { passive: true });
+    window.addEventListener("resize", onResize);
+    return () => {
+      el.removeEventListener("scroll", updateCatScroll);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [updateCatScroll]);
+
   async function submitCatModal() {
     const clean = catInputVal.trim();
     if (!clean) {
@@ -2318,8 +2347,15 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
               entraran todas juntas sin scroll. Acá cada categoría se
               dimensiona a su propio contenido (shrink-0 + whitespace-
               nowrap, sin truncate) y la fila entera scrollea horizontal
-              si no entran todas — nunca se corta un nombre. */}
-          <div className="min-w-0 flex-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              si no entran todas — nunca se corta un nombre. Degradado +
+              flecha a los costados avisan que hay más categorías fuera de
+              vista (antes el scroll era "silencioso", no se notaba que
+              seguía para el lado). */}
+          <div className="relative min-w-0 flex-1">
+            <div
+              ref={catScrollRef}
+              className="overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            >
             <div className="flex items-center gap-1">
               {categories.map((category) => {
                 const active = category === activeCat;
@@ -2367,6 +2403,31 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                 );
               })}
             </div>
+            </div>
+
+            {/* Degradado + flecha: solo aparecen cuando efectivamente hay
+                más categorías tapadas de ese lado (catScroll.left/right),
+                se ocultan solas al llegar al final. pointer-events-none en
+                el degradado para no tapar el toque sobre la última
+                categoría parcialmente visible. */}
+            {catScroll.left && (
+              <div className="pointer-events-none absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-[oklch(0.22_0.045_283/0.85)] to-transparent" />
+            )}
+            {catScroll.right && (
+              <>
+                <div className="pointer-events-none absolute inset-y-0 right-0 w-8 bg-gradient-to-l from-[oklch(0.22_0.045_283/0.85)] to-transparent" />
+                <button
+                  type="button"
+                  onClick={() =>
+                    catScrollRef.current?.scrollBy({ left: 140, behavior: "smooth" })
+                  }
+                  aria-label="Ver más categorías"
+                  className="absolute right-0.5 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full bg-white/10 text-white/70 ring-1 ring-white/15 backdrop-blur-sm transition hover:bg-white/20 hover:text-white"
+                >
+                  <ChevronRight className="h-3.5 w-3.5" />
+                </button>
+              </>
+            )}
           </div>
 
           <div className="flex shrink-0 items-center justify-end pl-2 pr-0">
