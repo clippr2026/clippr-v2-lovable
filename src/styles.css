@@ -480,6 +480,14 @@
     to { opacity: 1; transform: translateX(0); }
   }
 
+  /* Banner de sección móvil (debajo del header, arriba del contenido) —
+     entra deslizándose desde arriba al cambiar de sección desde la nav
+     inferior. Ver MobileSectionBanner en app-sidebar.tsx. */
+  @keyframes sectionBannerSlideDown {
+    from { opacity: 0; transform: translateY(-12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
   /* Performance helpers: fewer nested scrolls, lighter paint on mobile/tablet */
   img {
     content-visibility: auto;

@@ -689,10 +689,15 @@ function MobileSectionBanner() {
   return (
     <div
       key={pathname}
-      className="lg:hidden sticky top-12 z-30 flex items-center gap-2 border-b border-white/[0.07] bg-black/92 px-4 py-2 backdrop-blur-sm animate-fade-up"
+      className="lg:hidden sticky top-12 z-30 flex items-center gap-2 border-b border-white/[0.08] px-4 py-3 backdrop-blur-sm"
+      style={{
+        background: "linear-gradient(90deg, oklch(0.24 0.06 292 / 0.55), oklch(0.09 0.02 280 / 0.88))",
+        boxShadow: "0 10px 28px -22px oklch(0.65 0.24 290 / 0.6)",
+        animation: "sectionBannerSlideDown 220ms ease-out",
+      }}
     >
-      <Icon className="h-3.5 w-3.5 text-primary" />
-      <span className="text-[13px] font-semibold text-foreground">{label}</span>
+      <Icon className="h-4 w-4 shrink-0 text-violet-300 drop-shadow-[0_0_6px_oklch(0.72_0.2_300/0.55)]" />
+      <span className="text-sm font-semibold text-foreground">{label}</span>
     </div>
   );
 }
