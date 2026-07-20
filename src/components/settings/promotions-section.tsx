@@ -446,7 +446,7 @@ export function PromotionsSection() {
 
       {modalOpen && typeof document !== "undefined" && createPortal(
         <div
-          className="fixed inset-0 z-[9999] flex items-start justify-center overflow-y-auto bg-black/70 backdrop-blur-sm p-4 pt-[calc(24px+env(safe-area-inset-top,0px))] pb-[max(1rem,env(safe-area-inset-bottom,0px))] [overscroll-behavior:contain]"
+          className="fixed inset-0 z-[9999] flex items-start justify-center overflow-y-auto bg-black/70 backdrop-blur-sm p-4 pt-[calc(24px+env(safe-area-inset-top,0px))] pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] lg:pb-4 [overscroll-behavior:contain]"
           onClick={() => !saving && setModalOpen(false)}
         >
           {/* Portal a document.body: esta pantalla vive dentro del
@@ -460,13 +460,19 @@ export function PromotionsSection() {
               dvh, no vh: en Safari móvil vh se calcula sobre el viewport
               "grande" (sin descontar la barra de direcciones), así que con
               vh el modal podía terminar más alto que el espacio realmente
-              visible y el footer quedaba tapado por la nav inferior. El
-              padding-top del overlay usa 24px + safe-area (antes pegaba
-              el modal justo contra el borde superior) — el max-height de
-              acá abajo espeja exactamente esa misma reserva (arriba y
-              abajo) para no restarla dos veces. */}
+              visible y el footer quedaba tapado por la nav inferior.
+              padding-top: 24px + safe-area (más aire arriba). padding-
+              bottom en mobile: 3.5rem (56px, el h-14 real de
+              MobileBottomNav en app-sidebar.tsx) + safe-area — así la
+              barra de Cancelar/Guardar queda pegada arriba del banner de
+              navegación de Clippr, no contra el borde total de la
+              pantalla. En desktop (lg+) no existe ese nav inferior
+              (MobileBottomNav es lg:hidden), así que ahí vuelve a un
+              padding chico normal. El max-height de acá abajo espeja
+              exactamente esa misma reserva (arriba y abajo, mobile y
+              desktop) para no restarla dos veces. */}
           <div
-            className="relative flex h-[86dvh] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-zinc-950 ring-1 ring-white/10 shadow-2xl [max-height:min(820px,calc(100dvh-24px-env(safe-area-inset-top,0px)-max(1rem,env(safe-area-inset-bottom,0px))))]"
+            className="relative flex h-[86dvh] w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-zinc-950 ring-1 ring-white/10 shadow-2xl [max-height:min(820px,calc(100dvh-24px-env(safe-area-inset-top,0px)-3.5rem-env(safe-area-inset-bottom,0px)))] lg:[max-height:min(820px,calc(100dvh-24px-env(safe-area-inset-top,0px)-1rem))]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header fijo: solo título + subtítulo — el estado, el
