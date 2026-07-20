@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -933,6 +934,10 @@ export function EquipoSection() {
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
   useBodyScrollLock(open);
+  const proModalScrollRef = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    if (open) proModalScrollRef.current?.scrollTo(0, 0);
+  }, [open]);
   const [saving, setSaving] = useState(false);
   const [confirmDel, setConfirmDel] = useState<EmployeeRow | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -2943,13 +2948,22 @@ export function EquipoSection() {
         </div>
       )}
 
-      {open && (
+      {open && typeof document !== "undefined" && createPortal(
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 backdrop-blur-sm p-4 pt-[calc(4dvh+27px)] sm:pt-[calc(5dvh+27px)] [overscroll-behavior:contain]"
+          className="fixed inset-0 z-[9999] flex items-start justify-center overflow-y-auto bg-black/70 backdrop-blur-sm p-4 pt-[calc(24px+env(safe-area-inset-top,0px))] pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] lg:pb-4 [overscroll-behavior:contain]"
           onClick={() => !saving && setOpen(false)}
         >
+          {/* Portal a document.body: esta pantalla vive dentro del
+              <div className="relative z-10"> de AppShell, que crea su
+              propio contexto de apilamiento — pierde contra el header/
+              bottom-nav de AppSidebar (z-40, sticky/fixed, hermanos de
+              <main> a nivel raíz). Mismo fix que "Nueva promoción" (commit
+              ed4a511/53ab805): sin portal, ningún z-index de acá adentro
+              podía ganarle a ese header, y el padding-bottom pasa a
+              reservar el alto real del nav inferior (3.5rem + safe-area
+              en mobile, chico en desktop donde ese nav no existe). */}
           <div
-            className="relative flex h-[calc(86dvh-12px)] max-h-[888px] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-zinc-950 ring-1 ring-white/10 shadow-2xl"
+            className="relative flex h-[calc(86dvh-12px)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-zinc-950 ring-1 ring-white/10 shadow-2xl [max-height:min(888px,calc(100dvh-24px-env(safe-area-inset-top,0px)-3.5rem-env(safe-area-inset-bottom,0px)))] lg:[max-height:min(888px,calc(100dvh-24px-env(safe-area-inset-top,0px)-1rem))]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Tabs + cerrar — el modal no cambia de tamaño al cambiar de
@@ -2989,7 +3003,7 @@ export function EquipoSection() {
               </button>
             </div>
 
-            <div className="flex-1 overflow-y-auto px-3.5 py-2.5 space-y-4">
+            <div ref={proModalScrollRef} className="flex-1 overflow-y-auto px-3.5 py-2.5 space-y-4">
               {dlgTab === "perfil" && (
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-3">
@@ -3594,7 +3608,8 @@ export function EquipoSection() {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
       <ConfirmDialog
         open={!!confirmDel}
