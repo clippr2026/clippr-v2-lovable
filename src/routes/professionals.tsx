@@ -1012,10 +1012,12 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
 
   const [cobroTurno, setCobroTurno] = useState<import("@/hooks/use-professionals-data").ProfTurno | null>(null);
   const [walkInChargeOpen, setWalkInChargeOpen] = useState(false);
-  // El modal de "+ Venta" es un div fixed a mano (no Radix), así que no
-  // bloquea el scroll de fondo por su cuenta — sin esto, hacer scroll
-  // dentro del formulario también arrastraba la pantalla de atrás.
+  // Los dos modales de cobro ("+ Venta" y cobrar un turno pendiente) son
+  // divs fixed a mano (no Radix), así que no bloquean el scroll de fondo
+  // por su cuenta — sin esto, hacer scroll dentro del formulario también
+  // arrastraba la pantalla de atrás.
   useBodyScrollLock(approvalMode !== "disabled" && walkInChargeOpen && !!businessId && !!empId);
+  useBodyScrollLock(Boolean(cobroTurno) && !!businessId && !!empId);
   const [addTurnoOpen, setAddTurnoOpen] = useState(false);
   const [notaTurno, setNotaTurno] = useState<import("@/hooks/use-professionals-data").ProfTurno | null>(null);
   const [canceladosOpen, setCanceladosOpen] = useState(false);

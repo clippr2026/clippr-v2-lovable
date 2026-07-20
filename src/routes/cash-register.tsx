@@ -9187,12 +9187,14 @@ export function NuevaVentaTab({
       )}
 
       {step === 4 && (
-        <Card className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl p-3.5 space-y-2 border-white/[0.075] bg-[radial-gradient(circle_at_16%_0%,rgba(59,130,246,0.10),transparent_34%),radial-gradient(circle_at_90%_0%,rgba(139,92,246,0.12),transparent_40%),linear-gradient(135deg,rgba(3,6,14,0.98),rgba(8,9,22,0.96),rgba(1,3,10,0.99))] shadow-[0_38px_110px_-62px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.62)]">
-          <div className="grid grid-cols-2 gap-1.5 p-1 rounded-2xl bg-black/35 border border-white/[0.07] shadow-[0_1px_0_rgba(255,255,255,0.06)_inset]">
+        <Card className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain rounded-3xl p-3.5 space-y-2 border-white/[0.075] bg-[radial-gradient(circle_at_16%_0%,rgba(59,130,246,0.10),transparent_34%),radial-gradient(circle_at_90%_0%,rgba(139,92,246,0.12),transparent_40%),linear-gradient(135deg,rgba(3,6,14,0.98),rgba(8,9,22,0.96),rgba(1,3,10,0.99))] shadow-[0_38px_110px_-62px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.62)]">
+          {/* Franja fina, "techo" del módulo — antes era una tarjeta alta
+              con mucho padding vertical propio, ahora es solo el selector. */}
+          <div className="grid shrink-0 grid-cols-2 gap-1 rounded-xl bg-black/35 border border-white/[0.07] p-0.5 shadow-[0_1px_0_rgba(255,255,255,0.06)_inset]">
             <button
               onClick={() => setPaymentMode("simple")}
               className={cn(
-                "rounded-lg py-2 text-sm font-semibold",
+                "rounded-lg py-1.5 text-sm font-semibold",
                 paymentMode === "simple"
                   ? "bg-[linear-gradient(135deg,rgba(96,165,250,0.72),rgba(139,92,246,0.82))] text-white shadow-[0_0_24px_rgba(99,102,241,0.22)]"
                   : "text-muted-foreground hover:text-foreground",
@@ -9203,7 +9205,7 @@ export function NuevaVentaTab({
             <button
               onClick={() => setPaymentMode("multiple")}
               className={cn(
-                "rounded-lg py-2 text-sm font-semibold",
+                "rounded-lg py-1.5 text-sm font-semibold",
                 paymentMode === "multiple"
                   ? "bg-[linear-gradient(135deg,rgba(96,165,250,0.72),rgba(139,92,246,0.82))] text-white shadow-[0_0_24px_rgba(99,102,241,0.22)]"
                   : "text-muted-foreground hover:text-foreground",
@@ -9219,6 +9221,10 @@ export function NuevaVentaTab({
                 <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70 mb-2">
                   MÉTODO DE PAGO
                 </p>
+                {/* Ícono a la izquierda, nombre a la derecha, en una sola
+                    fila — antes iban apilados (ícono arriba, nombre abajo),
+                    lo que hacía cada tarjeta mucho más alta de lo
+                    necesario. 2 columnas en mobile, 4 en desktop ancho. */}
                 <div className="grid grid-cols-2 xl:grid-cols-4 gap-2">
                   {paymentOptions.map((m) => {
                     const active = method === m.id;
@@ -9227,14 +9233,16 @@ export function NuevaVentaTab({
                         key={m.id}
                         onClick={() => setMethod(m.id as PayMethod)}
                         className={cn(
-                          "flex flex-col items-center gap-1 rounded-2xl border px-3 py-2 transition-all duration-200 shadow-[0_18px_50px_-34px_rgba(0,0,0,1)]",
+                          "flex items-center gap-2.5 rounded-xl border px-3 py-2.5 text-left transition-all duration-200 shadow-[0_18px_50px_-34px_rgba(0,0,0,1)]",
                           active
                             ? "border-blue-300/48 bg-[linear-gradient(135deg,rgba(37,99,235,0.22),rgba(8,11,20,0.94))] text-white ring-1 ring-blue-300/20 shadow-[0_0_26px_rgba(96,165,250,0.13)]"
                             : "border-white/[0.065] bg-[linear-gradient(135deg,rgba(8,11,20,0.92),rgba(2,6,23,0.90))] text-muted-foreground hover:border-white/[0.12] hover:bg-white/[0.045] hover:text-foreground",
                         )}
                       >
-                        <m.icon className="size-4" />{" "}
-                        <span className="text-xs font-semibold">{m.label}</span>
+                        <m.icon className="size-4 shrink-0" />
+                        <span className="min-w-0 break-words text-xs font-semibold leading-tight">
+                          {m.label}
+                        </span>
                       </button>
                     );
                   })}
@@ -9284,7 +9292,7 @@ export function NuevaVentaTab({
               )}
             </>
           ) : (
-            <div className={cn("rounded-3xl border border-blue-300/25 bg-[linear-gradient(135deg,rgba(37,99,235,0.14),rgba(8,11,20,0.96),rgba(2,4,12,0.98))] p-4 shadow-[0_0_40px_rgba(96,165,250,0.12),0_18px_55px_-34px_rgba(0,0,0,1)] space-y-3", splits.length >= 3 && "max-h-[230px] overflow-y-auto pr-2 [scrollbar-width:thin] [scrollbar-color:rgba(96,165,250,0.40)_transparent]")}>
+            <div className={cn("rounded-3xl border border-blue-300/25 bg-[linear-gradient(135deg,rgba(37,99,235,0.14),rgba(8,11,20,0.96),rgba(2,4,12,0.98))] p-4 shadow-[0_0_40px_rgba(96,165,250,0.12),0_18px_55px_-34px_rgba(0,0,0,1)] space-y-3", splits.length >= 3 && "max-h-[230px] overflow-y-auto overscroll-contain pr-2 [scrollbar-width:thin] [scrollbar-color:rgba(96,165,250,0.40)_transparent]")}>
               <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70">
                 PAGO MÚLTIPLE
               </p>
