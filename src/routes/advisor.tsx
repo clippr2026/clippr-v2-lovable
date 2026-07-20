@@ -16,6 +16,7 @@ import { TIER_EMOJI, buildDemandRecommendations } from "@/lib/rejected-analytics
 import { MEASURABLE_CHANNELS } from "@/lib/acquisition-channels";
 import { AcquisitionChannelIcon } from "@/components/acquisition-channel-icon";
 import { DateRangePicker, type DateRange } from "@/components/date-range-picker";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import type {
   Recommendation,
   RecommendationContact,
@@ -1278,13 +1279,24 @@ function InfoModal({ content, onClose }: { content: InfoModalContent; onClose: (
     };
   });
 
+  // Bloquea el scroll de fondo mientras el modal está montado y restaura
+  // exactamente el scrollY al desmontar (se abre/cierra vía render
+  // condicional, así que el mount/unmount de este componente coincide
+  // siempre con abrir/cerrar el modal).
+  useBodyScrollLock(true);
+
+  const scrollRef = React.useRef<HTMLDivElement | null>(null);
+  React.useEffect(() => {
+    scrollRef.current?.scrollTo(0, 0);
+  }, [content]);
+
   return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 px-4 backdrop-blur-md">
-      <div className="relative max-h-[86vh] w-full max-w-2xl overflow-hidden rounded-[2rem] border border-white/12 bg-[#080713]/96 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_38px_130px_-58px_rgba(124,58,237,0.95)]">
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 px-4 pt-[max(1rem,env(safe-area-inset-top,0px))] pb-[max(1rem,env(safe-area-inset-bottom,0px))] backdrop-blur-md sm:items-center">
+      <div className="relative max-h-[85dvh] w-full max-w-2xl overflow-hidden rounded-[2rem] border border-white/12 bg-[#080713]/96 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_38px_130px_-58px_rgba(124,58,237,0.95)]">
         <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-violet-400/16 blur-3xl" />
         <div className="pointer-events-none absolute -left-24 bottom-0 h-56 w-56 rounded-full bg-emerald-400/12 blur-3xl" />
-        <div className="relative flex max-h-[86vh] flex-col">
-          <div className="flex items-start justify-between gap-4 border-b border-white/10 px-6 py-5">
+        <div className="relative flex max-h-[85dvh] flex-col">
+          <div className="flex items-start justify-between gap-4 border-b border-white/10 px-6 py-5 shrink-0">
             <div className="min-w-0">
               <div className="inline-flex items-center gap-2 rounded-full border border-violet-300/25 bg-violet-300/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.22em] text-violet-200">
                 <CircleHelp className="h-3.5 w-3.5" />
@@ -1306,7 +1318,7 @@ function InfoModal({ content, onClose }: { content: InfoModalContent; onClose: (
             </button>
           </div>
 
-          <div className="overflow-y-auto px-6 py-5">
+          <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
             <div className="grid gap-3 sm:grid-cols-3">
               <div className="rounded-2xl border border-emerald-300/18 bg-emerald-300/[0.055] p-4">
                 <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-300">
