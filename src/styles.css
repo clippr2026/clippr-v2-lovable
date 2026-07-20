@@ -473,6 +473,13 @@
   }
   .animate-fade-up { animation: fade-up 0.42s ease-out backwards; }
 
+  /* Configuración móvil (drill-down tipo iOS): la pantalla nueva entra
+     desde la derecha al abrir una sección — ver settings.tsx. */
+  @keyframes slide-in-right {
+    from { opacity: 0; transform: translateX(28px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
   /* Performance helpers: fewer nested scrolls, lighter paint on mobile/tablet */
   img {
     content-visibility: auto;

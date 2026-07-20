@@ -35,6 +35,7 @@ import {
   Rocket,
   Sparkles,
   ChevronRight,
+  ChevronLeft,
   User as UserIcon,
   Store,
   Cloud,
@@ -238,6 +239,11 @@ function SettingsPage() {
   // Evita el scroll automático en el montaje inicial de la página — solo
   // debe dispararse cuando el usuario elige una sección desde el menú.
   const skipNextScrollRef = useRef(true);
+  // Solo mobile: false = pantalla principal (lista de accesos, como
+  // Configuración del iPhone), true = adentro de una sección con su propio
+  // header y botón volver. En desktop este flag se ignora por completo —
+  // aside y section siguen lado a lado, sin drill-down.
+  const [mobileDrilledIn, setMobileDrilledIn] = useState(false);
 
   function saveCurrentSection() {
     window.dispatchEvent(
@@ -248,6 +254,7 @@ function SettingsPage() {
   }
 
   function requestSectionChange(section: SectionId) {
+    setMobileDrilledIn(true);
     if (section === active) return;
     // Guardado silencioso al cambiar de sección. No bloquea la navegación
     // ni muestra el modal de "Tenés cambios sin guardar". Los modales/paneles
@@ -256,27 +263,28 @@ function SettingsPage() {
     setActive(section);
   }
 
-  // Solo mobile (aside arriba, section abajo en una sola columna — ver el
-  // grid de abajo): al cambiar de sección, el contenido nuevo queda debajo
-  // de donde estaba el scroll y hay que bajar a mano para verlo. En
-  // desktop aside/section están lado a lado y ya son visibles juntos, así
-  // que ahí no se toca el scroll.
-  // behavior: "instant" (no "smooth"): la sección nueva casi siempre tiene
-  // una altura de contenido distinta a la anterior — combinado con un
-  // scroll animado, ese cambio de alto en pleno movimiento generaba una
-  // sensación de "toda la interfaz se encoge/aleja" en iOS Safari (la
-  // barra de Chrome colapsando durante el scroll suave lo acentuaba
-  // todavía más). Instantáneo: la posición cambia en el mismo frame, sin
-  // ningún tramo animado donde el contenido pueda reflowear a la vista.
+  function goBackToList() {
+    saveCurrentSection();
+    setMobileDrilledIn(false);
+  }
+
+  // En desktop aside/section están lado a lado — con el drill-down mobile
+  // (ver mobileDrilledIn) ya no hace falta reacomodar el scroll al cambiar
+  // de sección: la sección entra como pantalla completa nueva, siempre
+  // arriba de todo, no hay nada "más abajo" a lo que bajar. Este efecto
+  // queda solo por si algún día algo cambia `active` sin pasar por
+  // requestSectionChange/mobileDrilledIn.
   useEffect(() => {
     if (skipNextScrollRef.current) {
       skipNextScrollRef.current = false;
       return;
     }
-    if (window.matchMedia("(max-width: 1023px)").matches) {
+    if (window.matchMedia("(min-width: 1024px)").matches) {
       sectionRef.current?.scrollIntoView({ behavior: "instant", block: "start" });
     }
   }, [active]);
+
+  const activeItem = groups.flatMap((g) => g.items).find((it) => it.id === active);
 
   return (
     <AppShell>
@@ -298,8 +306,13 @@ function SettingsPage() {
           <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />
           <div className="space-y-6 animate-fade-up">
             <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr] lg:items-start gap-6">
-              {/* Sidebar */}
-              <aside className="space-y-5">
+              {/* Sidebar — en mobile es la PANTALLA PRINCIPAL (lista de
+                  accesos, como Configuración del iPhone): visible mientras
+                  !mobileDrilledIn, se oculta por completo al entrar a una
+                  sección (no queda atrás con scroll). En desktop siempre
+                  visible, lado a lado con la sección — mobileDrilledIn no
+                  se usa ahí. */}
+              <aside className={cn("space-y-5", mobileDrilledIn ? "hidden lg:block" : "block animate-fade-up")}>
                 {groups.map((g) => (
                   <div key={g.label}>
                     <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 px-3 mb-2">
@@ -316,7 +329,7 @@ function SettingsPage() {
                             className={cn(
                               "w-full flex items-center gap-3 rounded-xl px-2.5 py-2 text-sm transition-all group",
                               isActive
-                                ? "bg-white/[0.06] ring-1 ring-white/10 text-foreground"
+                                ? "lg:bg-white/[0.06] lg:ring-1 lg:ring-white/10 text-foreground"
                                 : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]",
                             )}
                           >
@@ -335,9 +348,13 @@ function SettingsPage() {
                                 strokeWidth={2}
                               />
                             </span>
-                            <span className={cn(isActive && "font-medium")}>
+                            <span className="flex-1 text-left">
                               {it.label}
                             </span>
+                            {/* Flecha ">" — solo mobile, patrón de lista tipo
+                                iOS. En desktop el estado activo ya se ve por
+                                el resaltado de fondo, no hace falta. */}
+                            <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/50 lg:hidden" />
                           </button>
                         );
                       })}
@@ -349,13 +366,37 @@ function SettingsPage() {
                 </div>
               </aside>
 
-              {/* Content. lg:-mt-7 cancela el mt-7 agregado arriba del
-                  Topbar, para que esta columna no se mueva de donde ya
-                  estaba — solo aplica en desktop, donde aside/section están
-                  lado a lado; en mobile el grid es una sola columna
-                  apilada (aside arriba, section abajo) y un -mt-7 ahí
-                  metería a la section por encima del aside. */}
-              <section ref={sectionRef} className="space-y-6 lg:-mt-7">
+              {/* Content — en mobile es una PANTALLA APARTE (no apilada
+                  debajo del aside): oculta mientras !mobileDrilledIn, y al
+                  entrar ocupa toda la pantalla con su propio header (← +
+                  título) arriba. Sin esto la sección quedaba debajo del
+                  aside en el mismo scroll, que era el salto/scroll chico
+                  que había que corregir. lg:-mt-7 cancela el mt-7 agregado
+                  arriba del Topbar, para que esta columna no se mueva de
+                  donde ya estaba — solo aplica en desktop. */}
+              <section
+                ref={sectionRef}
+                className={cn(
+                  "space-y-6 lg:-mt-7",
+                  mobileDrilledIn ? "block animate-[slide-in-right_0.28s_ease-out]" : "hidden lg:block",
+                )}
+              >
+                {/* Header de pantalla — solo mobile. Desktop ya muestra el
+                    título dentro de cada *Section (sin cambios). */}
+                <div className="flex items-center gap-2 lg:hidden">
+                  <button
+                    type="button"
+                    onClick={goBackToList}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-foreground/80 transition hover:bg-white/[0.06] active:scale-95"
+                    aria-label="Volver a Configuración"
+                  >
+                    <ChevronLeft className="h-5 w-5" />
+                  </button>
+                  <h1 className="text-lg font-semibold text-foreground">
+                    {activeItem?.label ?? "Configuración"}
+                  </h1>
+                </div>
+
                 {active === "branding" && <BrandingSection />}
 
                 {active === "horarios" && <HorariosSection />}
