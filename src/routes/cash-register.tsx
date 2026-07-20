@@ -38,6 +38,7 @@ import {
   BarChart3,
   TrendingUp,
   ArrowRight,
+  ArrowLeft,
   Trash2,
   ClipboardList,
   CreditCard,
@@ -825,7 +826,7 @@ function CashRegisterPage() {
             setTab("resumen");
           }}
         />
-        <div className="mt-2 sm:mt-6">
+        <div className="mt-1 sm:mt-3">
           {tab === "resumen" && (
             <ResumenTab
               data={data}
@@ -1048,7 +1049,7 @@ function Tabs({
   const nuevaActive = tab === "nueva";
   const [firstTab, ...restTabs] = TABS;
   return (
-    <div className="mt-5 flex flex-wrap items-end justify-between gap-5 border-b border-white/[0.055] pb-2.5 sm:mt-9 sm:pb-4">
+    <div className="mt-5 flex flex-wrap items-end justify-between gap-5 border-b border-white/[0.055] pb-1.5 sm:mt-9 sm:pb-2">
       {/* Mobile: sin scroll horizontal — Resumen ocupa toda la fila 1, el
           resto se reparte en una fila 2 de 4 columnas parejas. */}
       <div className="relative flex w-full flex-col gap-1.5 rounded-3xl border border-white/[0.085] bg-[linear-gradient(135deg,rgba(8,10,20,0.96),rgba(12,16,32,0.88))] p-1.5 backdrop-blur-2xl shadow-[0_18px_55px_-28px_rgba(0,0,0,0.95),0_1px_0_rgba(255,255,255,0.06)_inset] sm:hidden">
@@ -8212,6 +8213,18 @@ export function NuevaVentaTab({
           .map(({ svc, qty }) => `${svc.name}${qty > 1 ? ` x${qty}` : ""}`)
           .join(" + ")
       : "Sin servicios";
+  // Igual que serviceSummary pero separando servicios de catálogo — el
+  // resumen fijo de abajo los muestra en líneas distintas ("Servicio: …" /
+  // "Catálogo: …"), a diferencia de service_name (guardado en el pago)
+  // que sigue combinando todo en una sola cadena.
+  const cartServiceNames = cartItems
+    .filter(({ svc }) => !svc.is_catalog)
+    .map(({ svc, qty }) => `${svc.name}${qty > 1 ? ` x${qty}` : ""}`)
+    .join("/");
+  const cartCatalogNames = cartItems
+    .filter(({ svc }) => svc.is_catalog)
+    .map(({ svc, qty }) => `${svc.name}${qty > 1 ? ` x${qty}` : ""}`)
+    .join("/");
   const canContinue =
     step === 1
       ? Boolean(employeeId)
@@ -8815,12 +8828,6 @@ export function NuevaVentaTab({
 
       {step === 1 && (
         <div className="relative z-10 flex min-h-0 flex-1 flex-col space-y-3 overflow-hidden">
-          <div className="shrink-0">
-            <p className="text-xs font-bold uppercase tracking-[0.22em] text-blue-200/80">1 · Profesional</p>
-            <h2 className="mt-1 text-lg font-bold text-white">Seleccioná un profesional</h2>
-            <p className="mt-1 text-sm text-white/45">Elegí quién realizó la venta.</p>
-          </div>
-
           <div className="relative shrink-0">
             <Search className="pointer-events-none absolute left-4 top-1/2 size-4 -translate-y-1/2 text-white/35" />
             <input
@@ -8859,7 +8866,7 @@ export function NuevaVentaTab({
                           : "hover:border-white/14 hover:bg-white/[0.035]",
                       )}
                     >
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center justify-between">
                         <div className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-full bg-violet-500/20 text-sm font-bold text-violet-100 ring-1 ring-white/10">
                           {avatar ? (
                             <img src={avatar} alt={e.name} className="h-full w-full object-cover" />
@@ -8867,18 +8874,15 @@ export function NuevaVentaTab({
                             getInitials(e.name)
                           )}
                         </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-bold text-white">{e.name}</p>
-                          <p className="truncate text-xs text-muted-foreground">
-                            {e.role || "Profesional"}
-                          </p>
-                        </div>
                         {active ? (
-                          <Check className="size-4 text-blue-200" />
+                          <Check className="size-4 shrink-0 text-blue-200" />
                         ) : (
-                          <ArrowRight className="size-4 text-white/40 transition-transform group-hover:translate-x-0.5 group-hover:text-white/70" />
+                          <ArrowRight className="size-4 shrink-0 text-white/40 transition-transform group-hover:translate-x-0.5 group-hover:text-white/70" />
                         )}
                       </div>
+                      <p className="mt-2 w-full break-words text-sm font-bold text-white">
+                        {e.name}
+                      </p>
                     </Card>
                   );
                 })
@@ -9395,73 +9399,74 @@ export function NuevaVentaTab({
       )}
 
       <div className="relative z-20 mt-auto shrink-0 pt-3 pb-4">
-        <Card
-          className={cn(
-            "rounded-3xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(2,4,10,0.98),rgba(5,8,18,0.97),rgba(1,3,9,0.99))] px-3 py-2 flex items-center gap-3 shadow-[0_36px_110px_-52px_rgba(0,0,0,1),0_0_60px_-40px_rgba(139,92,246,0.60)]",
-            variant === "modal" && "justify-between",
-          )}
-        >
-          {/* variant="modal": sin el resumen (TOTAL/Cliente/Servicios) de
-              acá abajo — repetía info que ya se ve arriba, en el propio
-              paso, y en Cliente ("Sin cliente") ni siquiera aportaba nada
-              real. En Cliente (primer paso visible acá, profesional ya
-              viene bloqueado) el botón secundario cierra el modal
-              (Cancelar); en Servicios/Pago retrocede un paso (Volver). En
-              variant="page" (Caja completa) esto no cambia. */}
+        <div className="flex items-stretch gap-2">
+          {/* Volver/Cancelar — siempre montado (nunca se saca del DOM) para
+              que el resumen y Continuar no se corran de lugar al llegar al
+              primer paso: en variant="page" queda deshabilitado; en
+              variant="modal" el primer paso visible usa Cancelar (cierra
+              el modal, sigue siempre habilitado) y los siguientes Volver. */}
           {variant === "modal" ? (
             step === minStep ? (
               <button
                 onClick={onCancel}
-                className="rounded-2xl px-4 py-2 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground transition-all"
+                className="shrink-0 rounded-2xl px-4 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground transition-all"
               >
                 Cancelar
               </button>
             ) : (
               <button
                 onClick={() => setStep((s) => (s > minStep ? ((s - 1) as 1 | 2 | 3 | 4) : s))}
-                className="rounded-2xl px-4 py-2 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground transition-all"
+                className="shrink-0 inline-flex items-center justify-center gap-1.5 rounded-2xl px-4 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground transition-all"
               >
-                ← Volver
+                <ArrowLeft className="size-4" /> Volver
               </button>
             )
           ) : (
-            <>
-              {/* Con profesional bloqueado (Mi Agenda) el flujo arranca en
-                  Cliente (paso 2) y no debe poder retroceder al paso
-                  Profesional, que ni siquiera existe acá — el botón
-                  directamente no se muestra estando en el primer paso
-                  visible. */}
-              {step > minStep && (
-                <button
-                  onClick={() =>
-                    setStep((s) => (s > minStep ? ((s - 1) as 1 | 2 | 3 | 4) : s))
-                  }
-                  className="rounded-2xl px-4 py-2 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground transition-all"
-                >
-                  ← Volver
-                </button>
-              )}
-              <div className="min-w-0 flex-1 text-right sm:text-left">
-                <p className="text-[11px] tracking-[0.16em] text-muted-foreground/70">
-                  TOTAL
-                </p>
-                <p className="text-sm text-foreground truncate">
-                  {!lockedEmployeeId && `Profesional: ${selectedEmployee?.name ?? "Sin profesional"} · `}
-                  Cliente:{" "}
-                  {clientId ? client || "Cliente seleccionado" : "Sin cliente"}
-                </p>
-                <p className="text-xs text-muted-foreground truncate">
-                  Servicios: {serviceSummary}
-                </p>
-              </div>
-              <Money value={total} />
-            </>
+            <button
+              onClick={() =>
+                setStep((s) => (s > minStep ? ((s - 1) as 1 | 2 | 3 | 4) : s))
+              }
+              disabled={step <= minStep}
+              className="shrink-0 inline-flex items-center justify-center gap-1.5 rounded-2xl px-4 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground disabled:opacity-35 disabled:cursor-not-allowed transition-all"
+            >
+              <ArrowLeft className="size-4" /> Volver
+            </button>
           )}
+
+          {/* Resumen — tarjeta propia e independiente, ya no metida adentro
+              del botón Continuar. Sin truncate en ningún lado a propósito:
+              con varios servicios/catálogo el texto ocupa las líneas que
+              necesite y la tarjeta crece en alto — el stepper de arriba y
+              el contenido del paso activo (que ya tienen su propio scroll
+              interno) son los que ceden espacio, nunca este resumen. */}
+          <Card className="flex min-h-[52px] min-w-0 flex-1 flex-col justify-center rounded-2xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(2,4,10,0.98),rgba(5,8,18,0.97),rgba(1,3,9,0.99))] px-4 py-2 shadow-[0_36px_110px_-52px_rgba(0,0,0,1),0_0_60px_-40px_rgba(139,92,246,0.60)]">
+            <div className="space-y-0.5">
+              {!lockedEmployeeId && (
+                <p className="break-words text-sm font-semibold text-white">
+                  {employeeId
+                    ? `Profesional: ${selectedEmployee?.name ?? ""}`
+                    : "Sin profesional"}
+                </p>
+              )}
+              <p className="break-words text-xs text-white/55">
+                {cartServiceNames ? `Servicio: ${cartServiceNames}` : "Sin servicio"}
+              </p>
+              {cartCatalogNames && (
+                <p className="break-words text-xs text-white/55">
+                  Catálogo: {cartCatalogNames}
+                </p>
+              )}
+              <p className="text-base font-extrabold text-white">
+                Total: ${total.toLocaleString("es-AR")}
+              </p>
+            </div>
+          </Card>
+
           {step < finalStep ? (
             <button
               onClick={goNext}
               disabled={!canContinue}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl px-6 py-3 text-sm font-bold text-white bg-[linear-gradient(135deg,#60A5FA,#8B5CF6)] shadow-[0_0_34px_rgba(96,165,250,0.24)] hover:-translate-y-0.5 hover:shadow-[0_0_46px_rgba(139,92,246,0.36)] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+              className="shrink-0 inline-flex items-center justify-center gap-2 rounded-2xl px-6 text-sm font-bold text-white bg-[linear-gradient(135deg,#60A5FA,#8B5CF6)] shadow-[0_0_34px_rgba(96,165,250,0.24)] hover:-translate-y-0.5 hover:shadow-[0_0_46px_rgba(139,92,246,0.36)] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
             >
               Continuar <ArrowRight className="size-4" />
             </button>
@@ -9476,7 +9481,7 @@ export function NuevaVentaTab({
                 (!isManualFlow && paymentMode === "simple" && method === "cash" && cashShortfall > 0)
               }
               onClick={handleCobrar}
-              className="inline-flex items-center justify-center gap-2 rounded-2xl px-7 py-2.5 text-sm font-extrabold text-white bg-[linear-gradient(135deg,#6EA8FF,#8B5CF6)] shadow-[0_0_40px_rgba(110,168,255,0.32),0_18px_45px_-28px_rgba(0,0,0,0.95)] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_56px_rgba(139,92,246,0.46)] disabled:opacity-40 transition-all"
+              className="shrink-0 inline-flex items-center justify-center gap-2 rounded-2xl px-7 text-sm font-extrabold text-white bg-[linear-gradient(135deg,#6EA8FF,#8B5CF6)] shadow-[0_0_40px_rgba(110,168,255,0.32),0_18px_45px_-28px_rgba(0,0,0,0.95)] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_56px_rgba(139,92,246,0.46)] disabled:opacity-40 transition-all"
             >
               {submitting ? (
                 <>
@@ -9493,7 +9498,7 @@ export function NuevaVentaTab({
               )}
             </button>
           )}
-        </Card>
+        </div>
       </div>
     </div>
   );
