@@ -28,6 +28,7 @@ import {
   type EmployeeServiceOverrideMap,
 } from "@/lib/service-pricing";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import {
   SectionCard,
   reportSaveStatus,
@@ -928,6 +929,7 @@ export function EquipoSection() {
   const [commissionItems, setCommissionItems] = useState<PriceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
+  useBodyScrollLock(open);
   const [saving, setSaving] = useState(false);
   const [confirmDel, setConfirmDel] = useState<EmployeeRow | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -2909,11 +2911,11 @@ export function EquipoSection() {
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 backdrop-blur-sm p-4 pt-[calc(4vh+27px)] sm:pt-[calc(5vh+27px)]"
+          className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 backdrop-blur-sm p-4 pt-[calc(4dvh+27px)] sm:pt-[calc(5dvh+27px)] [overscroll-behavior:contain]"
           onClick={() => !saving && setOpen(false)}
         >
           <div
-            className="relative flex h-[calc(86vh-12px)] max-h-[888px] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-zinc-950 ring-1 ring-white/10 shadow-2xl"
+            className="relative flex h-[calc(86dvh-12px)] max-h-[888px] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-zinc-950 ring-1 ring-white/10 shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Tabs + cerrar — el modal no cambia de tamaño al cambiar de
@@ -3075,9 +3077,12 @@ export function EquipoSection() {
                       >
                         <div className="flex items-center gap-3 flex-wrap">
                           <button
+                            type="button"
+                            role="switch"
+                            aria-checked={d.enabled}
                             onClick={() => setDay(key, { enabled: !d.enabled })}
                             className={cn(
-                              "h-5 w-9 rounded-full relative transition-colors shrink-0",
+                              "h-5 w-9 shrink-0 overflow-hidden rounded-full relative transition-colors",
                               d.enabled ? "bg-primary" : "bg-white/15",
                             )}
                           >
@@ -3278,8 +3283,10 @@ export function EquipoSection() {
                                                   enabled: !cfg.enabled,
                                                 })
                                               }
+                                              role="switch"
+                                              aria-checked={cfg.enabled}
                                               className={cn(
-                                                "h-6 w-11 rounded-full relative transition-colors shrink-0",
+                                                "h-6 w-11 shrink-0 overflow-hidden rounded-full relative transition-colors",
                                                 cfg.enabled
                                                   ? "bg-primary"
                                                   : "bg-white/15",
@@ -3517,7 +3524,10 @@ export function EquipoSection() {
               )}
             </div>
 
-            <div className="flex shrink-0 items-center gap-2 px-5 py-3 border-t border-white/5">
+            <div
+              className="flex shrink-0 items-center gap-2 px-5 pt-3 border-t border-white/5"
+              style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
+            >
               {editingEmp ? (
                 <button
                   type="button"
