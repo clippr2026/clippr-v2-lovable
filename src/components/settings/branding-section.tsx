@@ -79,9 +79,16 @@ function makeEmptyFeaturedClient(order = 0): FeaturedClient {
     name: "",
     category: "Marca",
     image_url: "",
-    active: true,
+    // Arranca inactivo: recién se puede pasar a Activo cuando tiene imagen
+    // y nombre cargados (ver el gate en el botón Activo/Inactivo), para no
+    // publicar tarjetas vacías en la página pública.
+    active: false,
     order,
   };
+}
+
+function isFeaturedClientComplete(item: FeaturedClient): boolean {
+  return Boolean(item.image_url.trim() && item.name.trim());
 }
 
 // ─────────── Beneficios del local (lista editable, máx. 12) ───────────
@@ -699,10 +706,11 @@ export function BrandingSection() {
   function addFeaturedClient() {
     setData((d) => ({
       ...d,
-      featured_clients: [
-        ...d.featured_clients,
-        makeEmptyFeaturedClient(d.featured_clients.length),
-      ],
+      // Al frente de la lista: así el bloque para cargar el nuevo ítem
+      // aparece arriba, no hay que scrollear hasta el final para verlo.
+      featured_clients: [makeEmptyFeaturedClient(), ...d.featured_clients].map(
+        (item, index) => ({ ...item, order: index }),
+      ),
     }));
   }
 
@@ -1406,153 +1414,130 @@ export function BrandingSection() {
           <SectionCard label="Imágenes" id="pagina-reservas-imagenes">
             <div className="space-y-5">
               {/* Foto de perfil */}
-              <div className="flex items-center gap-4 border-b border-white/5 pb-5 last:border-b-0 last:pb-0">
-                <label
-                  className={cn(
-                    "group relative grid h-16 w-16 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-full border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07]",
-                    uploadingAvatar && "cursor-not-allowed opacity-50",
-                  )}
-                >
-                  {avatarPreview ? (
-                    <img
-                      src={avatarPreview}
-                      alt="Foto de perfil"
-                      className="h-full w-full object-cover"
-                      style={{ objectPosition: data.avatar_position }}
-                    />
-                  ) : (
-                    <UserIcon className="h-5 w-5 text-white/45" />
-                  )}
-                  <div className="absolute inset-0 grid place-items-center bg-black/35 opacity-0 transition group-hover:opacity-100">
-                    <span className="rounded-full bg-white/90 px-2 py-1 text-[10px] font-bold text-black">
-                      {uploadingAvatar ? "Subiendo" : "Cargar"}
-                    </span>
-                  </div>
-                  {!avatarPreview ? (
-                    <span className="absolute bottom-1 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/70 ring-1 ring-white/10">
-                      Cargar
-                    </span>
-                  ) : null}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    disabled={uploadingAvatar}
-                    onChange={(e) => {
-                      const f = e.target.files?.[0] ?? null;
-                      e.target.value = "";
-                      handleAvatarSelect(f);
-                    }}
-                  />
-                </label>
-
-                <div className="min-w-0 flex-1">
-                  <div className="font-medium text-sm">Foto de perfil</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    Imagen circular del perfil público. Se optimiza a WebP
-                    512px.
-                  </div>
-                </div>
-
-                {avatarPreview ? (
-                  <button
-                    type="button"
-                    onClick={removeAvatar}
-                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/5 text-red-300 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-200"
-                    aria-label="Eliminar foto de perfil"
+              <div className="flex flex-col items-center border-b border-white/5 pb-5 last:border-b-0 last:pb-0">
+                <div className="mb-3 text-sm font-medium">Foto de perfil</div>
+                <div className="relative">
+                  <label
+                    className={cn(
+                      "group relative grid h-20 w-20 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-full border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07]",
+                      uploadingAvatar && "cursor-not-allowed opacity-50",
+                    )}
                   >
-                    <X className="h-4 w-4" />
-                  </button>
-                ) : null}
+                    {avatarPreview ? (
+                      <img
+                        src={avatarPreview}
+                        alt="Foto de perfil"
+                        className="h-full w-full object-cover"
+                        style={{ objectPosition: data.avatar_position }}
+                      />
+                    ) : (
+                      <UserIcon className="h-6 w-6 text-white/45" />
+                    )}
+                    <div className="absolute inset-0 grid place-items-center bg-black/35 opacity-0 transition group-hover:opacity-100">
+                      <span className="rounded-full bg-white/90 px-2 py-1 text-[10px] font-bold text-black">
+                        {uploadingAvatar ? "Subiendo" : "Cargar"}
+                      </span>
+                    </div>
+                    {!avatarPreview ? (
+                      <span className="absolute bottom-1 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/70 ring-1 ring-white/10">
+                        Cargar
+                      </span>
+                    ) : null}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={uploadingAvatar}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0] ?? null;
+                        e.target.value = "";
+                        handleAvatarSelect(f);
+                      }}
+                    />
+                  </label>
+                  {avatarPreview ? (
+                    <button
+                      type="button"
+                      onClick={removeAvatar}
+                      className="absolute -right-1 -top-1 grid h-6 w-6 place-items-center rounded-full bg-zinc-900 text-red-300 ring-1 ring-white/15 transition hover:bg-red-500/20 hover:text-red-200"
+                      aria-label="Eliminar foto de perfil"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  ) : null}
+                </div>
               </div>
 
               {/* Portada */}
-              <div className="flex items-center gap-4 border-b border-white/5 pb-5 last:border-b-0 last:pb-0">
-                <label
-                  className={cn(
-                    "group relative grid h-16 w-28 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07] sm:w-36",
-                    uploadingCover && "cursor-not-allowed opacity-50",
-                  )}
-                >
-                  {coverPreview ? (
-                    <img
-                      src={coverPreview}
-                      alt="Portada"
-                      className="h-full w-full object-cover"
-                      style={{ objectPosition: data.cover_position }}
-                    />
-                  ) : (
-                    <ImageIcon className="h-5 w-5 text-white/45" />
-                  )}
-                  <div className="absolute inset-0 grid place-items-center bg-black/35 opacity-0 transition group-hover:opacity-100">
-                    <span className="rounded-full bg-white/90 px-2 py-1 text-[10px] font-bold text-black">
-                      {uploadingCover ? "Subiendo" : "Cargar"}
-                    </span>
-                  </div>
-                  {!coverPreview ? (
-                    <span className="absolute bottom-1 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/70 ring-1 ring-white/10">
-                      Cargar
-                    </span>
-                  ) : null}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    disabled={uploadingCover}
-                    onChange={(e) => {
-                      const f = e.target.files?.[0] ?? null;
-                      e.target.value = "";
-                      handleCoverSelect(f);
-                    }}
-                  />
-                </label>
-
-                <div className="min-w-0 flex-1">
-                  <div className="font-medium text-sm">Portada</div>
-                  <div className="text-xs text-muted-foreground mt-0.5">
-                    Banner superior de tu sitio web. Se optimiza a WebP
-                    1600×600.
-                  </div>
-                </div>
-
-                {coverPreview ? (
-                  <button
-                    type="button"
-                    onClick={removeCover}
-                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/5 text-red-300 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-200"
-                    aria-label="Eliminar portada"
+              <div className="flex flex-col items-center border-b border-white/5 pb-5 last:border-b-0 last:pb-0">
+                <div className="mb-3 text-sm font-medium">Portada</div>
+                <div className="relative">
+                  <label
+                    className={cn(
+                      "group relative grid h-20 w-36 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07] sm:w-44",
+                      uploadingCover && "cursor-not-allowed opacity-50",
+                    )}
                   >
-                    <X className="h-4 w-4" />
-                  </button>
-                ) : null}
+                    {coverPreview ? (
+                      <img
+                        src={coverPreview}
+                        alt="Portada"
+                        className="h-full w-full object-cover"
+                        style={{ objectPosition: data.cover_position }}
+                      />
+                    ) : (
+                      <ImageIcon className="h-5 w-5 text-white/45" />
+                    )}
+                    <div className="absolute inset-0 grid place-items-center bg-black/35 opacity-0 transition group-hover:opacity-100">
+                      <span className="rounded-full bg-white/90 px-2 py-1 text-[10px] font-bold text-black">
+                        {uploadingCover ? "Subiendo" : "Cargar"}
+                      </span>
+                    </div>
+                    {!coverPreview ? (
+                      <span className="absolute bottom-1 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/70 ring-1 ring-white/10">
+                        Cargar
+                      </span>
+                    ) : null}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={uploadingCover}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0] ?? null;
+                        e.target.value = "";
+                        handleCoverSelect(f);
+                      }}
+                    />
+                  </label>
+                  {coverPreview ? (
+                    <button
+                      type="button"
+                      onClick={removeCover}
+                      className="absolute -right-1 -top-1 grid h-6 w-6 place-items-center rounded-full bg-zinc-900 text-red-300 ring-1 ring-white/15 transition hover:bg-red-500/20 hover:text-red-200"
+                      aria-label="Eliminar portada"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  ) : null}
+                </div>
               </div>
 
               {/* Portafolio */}
               <div>
-                <div className="mb-3 flex items-start gap-4">
-                  <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
-                    <Sparkles className="h-4.5 w-4.5 text-muted-foreground" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="font-medium text-sm">Portafolio</div>
-                    <div className="text-xs text-muted-foreground mt-0.5">
-                      Hasta 3 imágenes destacadas para tu página pública.
-                    </div>
-                  </div>
+                <div className="mb-3 text-center text-sm font-medium">
+                  Portafolio
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-3">
+                <div className="grid grid-cols-3 gap-2">
                   {[0, 1, 2].map((index) => {
                     const url = data.portfolio_urls[index];
                     const uploading = uploadingPortfolioIndex === index;
                     return (
-                      <div
-                        key={index}
-                        className="flex items-center gap-3 rounded-2xl bg-white/[0.03] p-2 ring-1 ring-white/10"
-                      >
+                      <div key={index} className="relative">
                         <label
                           className={cn(
-                            "group relative grid h-20 w-20 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07]",
+                            "group relative grid aspect-square w-full cursor-pointer place-items-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07]",
                             uploading && "cursor-not-allowed opacity-50",
                           )}
                         >
@@ -1566,12 +1551,12 @@ export function BrandingSection() {
                             <ImageIcon className="h-5 w-5 text-white/45" />
                           )}
                           <div className="absolute inset-0 grid place-items-center bg-black/35 opacity-0 transition group-hover:opacity-100">
-                            <span className="rounded-full bg-white/90 px-2 py-1 text-[10px] font-bold text-black">
+                            <span className="rounded-full bg-white/90 px-1.5 py-1 text-[9px] font-bold text-black">
                               {uploading ? "Subiendo" : "Cargar"}
                             </span>
                           </div>
                           {!url ? (
-                            <span className="absolute bottom-1 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/70 ring-1 ring-white/10">
+                            <span className="absolute bottom-1 rounded-full bg-white/10 px-1.5 py-0.5 text-[9px] font-semibold text-white/70 ring-1 ring-white/10">
                               Cargar
                             </span>
                           ) : null}
@@ -1588,23 +1573,14 @@ export function BrandingSection() {
                           />
                         </label>
 
-                        <div className="min-w-0 flex-1">
-                          <div className="text-sm font-medium">
-                            Imagen {index + 1}
-                          </div>
-                          <div className="mt-0.5 text-xs text-muted-foreground">
-                            {url ? "Cargada" : "Sin cargar"}
-                          </div>
-                        </div>
-
                         {url ? (
                           <button
                             type="button"
                             onClick={() => removePortfolioImage(index)}
-                            className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/5 text-red-300 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-200"
+                            className="absolute -right-1 -top-1 grid h-6 w-6 place-items-center rounded-full bg-zinc-900 text-red-300 ring-1 ring-white/15 transition hover:bg-red-500/20 hover:text-red-200"
                             aria-label={`Eliminar imagen ${index + 1}`}
                           >
-                            <X className="h-4 w-4" />
+                            <X className="h-3.5 w-3.5" />
                           </button>
                         ) : null}
                       </div>
@@ -1725,22 +1701,37 @@ export function BrandingSection() {
                       </select>
 
                       <div className="flex items-center justify-end gap-1">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            updateFeaturedClient(item.id, {
-                              active: !item.active,
-                            })
-                          }
-                          className={cn(
-                            "rounded-full px-2.5 py-2 text-xs ring-1 transition",
-                            item.active
-                              ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30"
-                              : "bg-white/5 text-muted-foreground ring-white/10",
-                          )}
-                        >
-                          {item.active ? "Activo" : "Inactivo"}
-                        </button>
+                        {(() => {
+                          const complete = isFeaturedClientComplete(item);
+                          const canToggle = item.active || complete;
+                          return (
+                            <button
+                              type="button"
+                              disabled={!canToggle}
+                              onClick={() => {
+                                if (!canToggle) return;
+                                updateFeaturedClient(item.id, {
+                                  active: !item.active,
+                                });
+                              }}
+                              title={
+                                !canToggle
+                                  ? "Cargá imagen y nombre para poder activarlo"
+                                  : undefined
+                              }
+                              className={cn(
+                                "rounded-full px-2.5 py-2 text-xs ring-1 transition",
+                                item.active
+                                  ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30"
+                                  : canToggle
+                                    ? "bg-white/5 text-muted-foreground ring-white/10"
+                                    : "cursor-not-allowed bg-white/5 text-muted-foreground/40 ring-white/5",
+                              )}
+                            >
+                              {item.active ? "Activo" : "Inactivo"}
+                            </button>
+                          );
+                        })()}
 
                         <button
                           type="button"

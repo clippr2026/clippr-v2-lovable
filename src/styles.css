@@ -200,6 +200,19 @@
   }
   input[type="number"] { -moz-appearance: textfield; }
 
+  /* Safari en iOS hace zoom automático al enfocar cualquier input/textarea/
+     select cuyo font-size computado sea menor a 16px. Casi todos nuestros
+     campos usan clases de Tailwind (text-sm, text-xs, text-[11px]...) que
+     por especificidad de CSS le ganan a un selector de elemento plano, así
+     que hace falta !important para que el piso de 16px realmente gane —
+     sin tocar campo por campo. Solo en mobile (donde existe el bug); en
+     desktop cada campo conserva su tamaño de diseño. */
+  @media (max-width: 767px) {
+    input, textarea, select {
+      font-size: 16px !important;
+    }
+  }
+
   /* Respect reduced motion */
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after {

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { Copy, Timer, CalendarDays, AlarmClock } from "lucide-react";
+import { Timer, CalendarDays, AlarmClock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 import { SectionCard, reportSaveStatus, Toggle } from "@/components/settings/shared";
@@ -255,19 +255,18 @@ export function HorariosSection() {
       </div>
 
       <div className="glass rounded-2xl p-4 ring-1 ring-white/5">
-        <div className="grid grid-cols-[120px_1fr_1fr_auto_auto] gap-3 px-1 pb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+        <div className="grid grid-cols-[120px_1fr_1fr_auto] gap-3 px-1 pb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
           <div>Día</div>
           <div>Apertura</div>
           <div>Cierre</div>
           <div>Abierto</div>
-          <div></div>
         </div>
         <div className="divide-y divide-white/5">
           {days.map((d, i) => (
             <div
               key={d.name}
               className={cn(
-                "grid grid-cols-[120px_1fr_1fr_auto_auto] gap-3 items-center py-3",
+                "grid grid-cols-[120px_1fr_1fr_auto] gap-3 items-center py-3",
                 !d.enabled && "opacity-50",
               )}
             >
@@ -315,27 +314,6 @@ export function HorariosSection() {
                   )
                 }
               />
-              <button
-                disabled={!d.enabled}
-                onClick={() => {
-                  const source = days[i];
-                  setDays((state) =>
-                    state.map((row, idx) =>
-                      idx > i
-                        ? {
-                            ...row,
-                            open: source.open,
-                            close: source.close,
-                            enabled: source.enabled,
-                          }
-                        : row,
-                    ),
-                  );
-                }}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-white/5 ring-1 ring-white/10 px-2.5 py-1.5 text-xs text-muted-foreground hover:text-foreground hover:bg-white/10 disabled:opacity-40"
-              >
-                <Copy className="h-3 w-3" /> Copiar
-              </button>
             </div>
           ))}
         </div>
