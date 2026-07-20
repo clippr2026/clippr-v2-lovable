@@ -79,20 +79,6 @@ const serviceCategories = defaultServiceCategories;
 const defaultCatalogCategories = ["Productos", "Bebidas", "Indumentaria"];
 
 const MAX_CATEGORIES = 8;
-// Distribución fija de filas de tabs de categoría según la cantidad total (máx. 8).
-const CATEGORY_ROW_SIZES: Record<number, number[]> = {
-  1: [1],
-  2: [2],
-  3: [3],
-  4: [4],
-  5: [3, 2],
-  6: [3, 3],
-  7: [4, 3],
-  8: [4, 4],
-};
-function categoryRowSizes(count: number): number[] {
-  return CATEGORY_ROW_SIZES[count] ?? (count > 0 ? [count] : []);
-}
 
 // Reordena una lista arrastrando con Pointer Events (mouse, touch o pen) en
 // vez de drag&drop nativo de HTML5 — el nativo no dispara en navegadores
@@ -2326,67 +2312,61 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         ) : (
           <>
         <div className="relative flex items-start gap-2 px-3 pt-3 pr-1 border-b border-white/5 overflow-visible">
-          <div className="min-w-0 flex-1 space-y-1">
-            {(() => {
-              let cursor = 0;
-              return categoryRowSizes(categories.length).map((size, rowIdx) => {
-                const rowCategories = categories.slice(cursor, cursor + size);
-                cursor += size;
+          {/* Fila horizontal deslizable en vez de grid multi-fila: el grid
+              anterior repartía las categorías en columnas de ancho igual
+              (1fr) y truncaba el nombre ("B...", "In...") para que
+              entraran todas juntas sin scroll. Acá cada categoría se
+              dimensiona a su propio contenido (shrink-0 + whitespace-
+              nowrap, sin truncate) y la fila entera scrollea horizontal
+              si no entran todas — nunca se corta un nombre. */}
+          <div className="min-w-0 flex-1 overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex items-center gap-1">
+              {categories.map((category) => {
+                const active = category === activeCat;
                 return (
                   <div
-                    key={rowIdx}
-                    className="grid gap-1"
-                    style={{ gridTemplateColumns: `repeat(${size}, minmax(0, 1fr))` }}
+                    key={category}
+                    ref={categoryReorder.setNodeRef(category)}
+                    className={cn(
+                      "flex shrink-0 items-center gap-1 whitespace-nowrap rounded-t-lg transition-colors duration-150",
+                      active
+                        ? "bg-white/5 text-foreground"
+                        : "text-muted-foreground hover:text-foreground",
+                      categoryReorder.draggingId === category &&
+                        "z-50 rounded-lg bg-white/10 text-foreground shadow-[0_8px_22px_-6px_rgba(139,92,246,0.6)] ring-2 ring-violet-400/60",
+                    )}
                   >
-                    {rowCategories.map((category) => {
-                      const active = category === activeCat;
-                      return (
-                        <div
-                          key={category}
-                          ref={categoryReorder.setNodeRef(category)}
-                          className={cn(
-                            "flex min-w-0 items-center gap-1 rounded-t-lg transition-colors duration-150",
-                            active
-                              ? "bg-white/5 text-foreground"
-                              : "text-muted-foreground hover:text-foreground",
-                            categoryReorder.draggingId === category &&
-                              "z-50 rounded-lg bg-white/10 text-foreground shadow-[0_8px_22px_-6px_rgba(139,92,246,0.6)] ring-2 ring-violet-400/60",
-                          )}
-                        >
-                          <span
-                            onPointerDown={(event) =>
-                              categoryReorder.startDrag(category, event)
-                            }
-                            className="grid h-9 w-8 shrink-0 touch-none select-none place-items-center rounded-md cursor-grab text-white/40 [-webkit-touch-callout:none] active:cursor-grabbing active:bg-white/5"
-                          >
-                            <GripVertical className="h-4 w-4" />
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => selectCategory(category)}
-                            onDoubleClick={() => renameCategory(category)}
-                            title={category}
-                            className="flex min-w-0 flex-1 items-center px-1 py-2 text-sm select-none"
-                          >
-                            <span className="min-w-0 flex-1 truncate">{category}</span>
-                          </button>
-                          {categories.length > 1 && (
-                            <button
-                              type="button"
-                              onClick={() => deleteCategory(category)}
-                              className="grid h-6 w-6 shrink-0 place-items-center rounded-md pr-1 text-red-300/70 transition hover:bg-red-500/10 hover:text-red-300"
-                              title="Eliminar categoría"
-                            >
-                              <X className="h-3 w-3" />
-                            </button>
-                          )}
-                        </div>
-                      );
-                    })}
+                    <span
+                      onPointerDown={(event) =>
+                        categoryReorder.startDrag(category, event)
+                      }
+                      className="grid h-9 w-8 shrink-0 touch-none select-none place-items-center rounded-md cursor-grab text-white/40 [-webkit-touch-callout:none] active:cursor-grabbing active:bg-white/5"
+                    >
+                      <GripVertical className="h-4 w-4" />
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => selectCategory(category)}
+                      onDoubleClick={() => renameCategory(category)}
+                      title={category}
+                      className="flex items-center whitespace-nowrap px-1 py-2 text-sm select-none"
+                    >
+                      {category}
+                    </button>
+                    {categories.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => deleteCategory(category)}
+                        className="grid h-6 w-6 shrink-0 place-items-center rounded-md pr-1 text-red-300/70 transition hover:bg-red-500/10 hover:text-red-300"
+                        title="Eliminar categoría"
+                      >
+                        <X className="h-3 w-3" />
+                      </button>
+                    )}
                   </div>
                 );
-              });
-            })()}
+              })}
+            </div>
           </div>
 
           <div className="flex shrink-0 items-center justify-end pl-2 pr-0">
@@ -2488,17 +2468,24 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                   >
                     {row.name}
                   </div>
-                  <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs text-muted-foreground">
-                    <span>
-                      {isService
-                        ? // Duración primero, precio después — mismo orden que
-                          // Equipo → Comisiones, para que los dos datos
-                          // principales del servicio se lean juntos.
-                          `${row.duration_min ? `${row.duration_min} min` : "—"} · $${Number(row.price ?? 0).toLocaleString("es-AR")}`
-                        : `${typeof row.stock === "number" ? `Stock: ${row.stock} · ` : ""}$${Number(row.price ?? 0).toLocaleString("es-AR")}`}
-                    </span>
+                  <div className="mt-0.5 space-y-0.5 text-xs text-muted-foreground">
+                    {isService ? (
+                      // Duración primero, precio después — mismo orden que
+                      // Equipo → Comisiones, para que los dos datos
+                      // principales del servicio se lean juntos.
+                      <div>
+                        {`${row.duration_min ? `${row.duration_min} min` : "—"} · $${Number(row.price ?? 0).toLocaleString("es-AR")}`}
+                      </div>
+                    ) : (
+                      <>
+                        <div>{`$${Number(row.price ?? 0).toLocaleString("es-AR")}`}</div>
+                        {typeof row.stock === "number" && (
+                          <div>{`Stock: ${row.stock}`}</div>
+                        )}
+                      </>
+                    )}
                     {!isService && bookingConfig[row.id]?.show && (
-                      <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-violet-500/12 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-violet-200 ring-1 ring-violet-400/25">
+                      <span className="mt-1 inline-flex shrink-0 items-center gap-1 rounded-full bg-violet-500/12 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] text-violet-200 ring-1 ring-violet-400/25">
                         <Star className="h-3 w-3 fill-current" />
                         Online
                       </span>
