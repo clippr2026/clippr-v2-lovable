@@ -88,7 +88,7 @@ export function AppShell({ children, fullWidth = false }: { children: React.Reac
       <main
         className={
           "clippr-app-main flex-1 min-w-0 w-full py-2 sm:py-3 lg:py-4 " +
-          "pb-[calc(4rem+env(safe-area-inset-bottom))] lg:pb-2 " +
+          "pb-[calc(3.5rem+env(safe-area-inset-bottom))] lg:pb-2 " +
           (fullWidth
             ? "px-2 sm:px-3 lg:px-4"
             : "max-w-[1440px] mx-auto px-3 sm:px-5 lg:px-6")

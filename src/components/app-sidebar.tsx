@@ -16,7 +16,6 @@ import {
   LogOut,
   User as UserIcon,
   ClipboardList,
-  MoreHorizontal,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -581,11 +580,10 @@ function MobileBottomNavSkeleton() {
       className="lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-black"
       style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
     >
-      <div className="grid h-16 grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="flex flex-col items-center justify-center gap-1.5">
-            <div className="h-5 w-5 rounded-full bg-white/[0.06] animate-pulse" />
-            <div className="h-2 w-7 rounded-full bg-white/[0.06] animate-pulse" />
+      <div className="grid h-14 grid-cols-7">
+        {Array.from({ length: 7 }).map((_, i) => (
+          <div key={i} className="flex items-center justify-center">
+            <div className="h-[22px] w-[22px] rounded-full bg-white/[0.06] animate-pulse" />
           </div>
         ))}
       </div>
@@ -616,6 +614,11 @@ function MobileBottomNav() {
         ? MOBILE_NAV_ORDER_RECEPCIONISTA
         : MOBILE_NAV_ORDER_DEFAULT;
 
+  // Ya no se recorta a 4 + "Más": los 7 módulos entran directo en la barra,
+  // sin texto debajo — el nombre de la sección se ve arriba, en
+  // MobileSectionBanner. Si por permisos quedan menos de 7, el grid se
+  // redistribuye solo (repeat(items.length, 1fr) siempre ocupa el 100% del
+  // ancho, centrado, sin scroll horizontal).
   const items: MobileNavEntry[] = order
     .map((key) => ALL_NAV.find((item) => item.permKey === key))
     .filter((item): item is (typeof ALL_NAV)[number] & { permKey: PermKey } => !!item)
@@ -624,65 +627,73 @@ function MobileBottomNav() {
       if (item.permKey === "profesionales" && isProfessional) {
         return { ...item, label: "Mi Agenda", icon: ClipboardList };
       }
-      if (item.permKey === "dashboard") {
-        return { ...item, label: "Inicio" };
-      }
       return item;
     });
 
   if (items.length === 0) return null;
-
-  const overflow = items.length > 5 ? items.slice(4) : [];
-  const primary = overflow.length > 0 ? items.slice(0, 4) : items;
-  const slots = primary.length + (overflow.length > 0 ? 1 : 0);
 
   return (
     <nav
       className="lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-black"
       style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
     >
-      <div className="grid h-16" style={{ gridTemplateColumns: `repeat(${slots}, minmax(0, 1fr))` }}>
-        {primary.map((item) => {
+      <div className="grid h-14" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
+        {items.map((item) => {
           const active = pathname === item.to;
           const Icon = item.icon;
           return (
             <Link
               key={item.to}
               to={item.to}
-              className={cn(
-                "flex flex-col items-center justify-center gap-1 text-[11px] font-medium transition active:scale-[0.96]",
-                active ? "text-primary" : "text-muted-foreground",
-              )}
+              aria-label={item.label}
+              title={item.label}
+              // La celda del grid ya cubre todo el alto (56px) y 1/N del
+              // ancho — la zona táctil real es mucho más grande que el
+              // ícono visual (22px), sin necesidad de agrandarlo.
+              className="flex items-center justify-center transition active:scale-[0.94]"
             >
-              <Icon className="h-5 w-5" />
-              <span>{item.label}</span>
+              <span className={cn("grid place-items-center rounded-xl p-2 transition", active && "bg-primary/10")}>
+                <Icon
+                  className={cn(
+                    "h-[22px] w-[22px] transition",
+                    active ? "text-primary drop-shadow-[0_0_7px_rgba(139,92,246,0.55)]" : "text-muted-foreground",
+                  )}
+                />
+              </span>
             </Link>
           );
         })}
-        {overflow.length > 0 && (
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="flex flex-col items-center justify-center gap-1 text-[11px] font-medium text-muted-foreground transition active:scale-[0.96]">
-                <MoreHorizontal className="h-5 w-5" />
-                <span>Más</span>
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" side="top" sideOffset={8} className="w-48">
-              {overflow.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <DropdownMenuItem key={item.to} asChild className="cursor-pointer">
-                    <Link to={item.to}>
-                      <Icon className="h-4 w-4 mr-2" /> {item.label}
-                    </Link>
-                  </DropdownMenuItem>
-                );
-              })}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
       </div>
     </nav>
+  );
+}
+
+// Barra fina debajo del header con la sección actual (ícono + nombre) — sin
+// texto en la barra inferior, esto es lo único que le dice al usuario dónde
+// está. sticky, no fixed: viaja pegada al header (top-12, mismo alto que
+// <header>) en vez de flotar tapando contenido.
+function MobileSectionBanner() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { permissions, profile, loading } = useAuth();
+
+  if (loading) return null;
+
+  const isOwner = !profile?.role || profile.role === "owner" || profile.role === "admin_general";
+  const isProfessional = profile?.role === "profesional";
+  const current = ALL_NAV.find((item) => item.to === pathname);
+  if (!current || (!isOwner && current.permKey && permissions[current.permKey] !== true)) return null;
+
+  const label = current.permKey === "profesionales" && isProfessional ? "Mi Agenda" : current.label;
+  const Icon = current.permKey === "profesionales" && isProfessional ? ClipboardList : current.icon;
+
+  return (
+    <div
+      key={pathname}
+      className="lg:hidden sticky top-12 z-30 flex items-center gap-2 border-b border-white/[0.07] bg-black/92 px-4 py-2 backdrop-blur-sm animate-fade-up"
+    >
+      <Icon className="h-3.5 w-3.5 text-primary" />
+      <span className="text-[13px] font-semibold text-foreground">{label}</span>
+    </div>
   );
 }
 
@@ -706,6 +717,7 @@ export function AppSidebar() {
         </div>
       </header>
 
+      <MobileSectionBanner />
       <MobileBottomNav />
     </>
   );
