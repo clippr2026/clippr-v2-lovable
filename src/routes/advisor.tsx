@@ -3397,7 +3397,13 @@ function LaboratorioDecisiones(props: SimuladorProps) {
             type="button"
             onClick={() => setSim(s.key)}
             className={cn(
-              "group flex min-h-[58px] items-center gap-2 rounded-2xl border px-2.5 py-2 text-left transition-all",
+              // min-h subido y padding/ícono/tipografía ajustados para que
+              // las etiquetas de 2 líneas (ej. "Sumar" / "Profesional")
+              // entren sin desbordar en el grid de 3 columnas de mobile —
+              // mismo concepto de botón (ícono + texto en fila), solo el
+              // ajuste interno. truncate como garantía final: nunca se sale
+              // del botón aunque una palabra puntual no entre entera.
+              "group flex min-h-[60px] items-center gap-1.5 rounded-2xl border px-2 py-2 text-left transition-all",
               sim === s.key
                 ? "border-cyan-300/40 bg-cyan-400/[0.1] opacity-100 shadow-[0_0_30px_-10px_rgba(34,211,238,0.6)]"
                 : "border-white/10 bg-white/[0.03] opacity-55 hover:border-white/20 hover:bg-white/[0.05] hover:opacity-100",
@@ -3405,15 +3411,15 @@ function LaboratorioDecisiones(props: SimuladorProps) {
           >
             <span
               className={cn(
-                "grid h-8 w-8 shrink-0 place-items-center rounded-xl ring-1 text-white",
+                "grid h-7 w-7 shrink-0 place-items-center rounded-xl ring-1 text-white",
                 sim === s.key ? "bg-white/15 ring-white/20" : "bg-white/[0.06] ring-white/10",
               )}
             >
-              {React.createElement(s.icon, { className: "h-4 w-4" })}
+              {React.createElement(s.icon, { className: "h-3.5 w-3.5" })}
             </span>
-            <span className="min-w-0 flex-1 leading-[1.15]">
-              <span className="block text-[13px] font-bold text-white">{s.l1}</span>
-              {s.l2 ? <span className="block text-[13px] font-bold text-white">{s.l2}</span> : null}
+            <span className="min-w-0 flex-1 leading-[1.2]">
+              <span className="block truncate text-[11px] font-bold text-white sm:text-[13px]">{s.l1}</span>
+              {s.l2 ? <span className="block truncate text-[11px] font-bold text-white sm:text-[13px]">{s.l2}</span> : null}
             </span>
           </button>
         ))}

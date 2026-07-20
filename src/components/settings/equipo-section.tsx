@@ -863,7 +863,6 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
 
 export function EquipoSection() {
   const { businessId } = useAuth();
-  const [tab, setTab] = useState<"pros" | "users">("pros");
   const [selectedPermRole, setSelectedPermRole] =
     useState<RolePermissionId>("admin_general");
   const [rolePermissions, setRolePermissions] = useState<RolePermissions>(
@@ -2377,36 +2376,11 @@ export function EquipoSection() {
         </p>
       </div>
 
-      <div className="flex items-center gap-1 border-b border-white/5">
-        {(
-          [
-            ["pros", "Profesionales"],
-            ["users", "Accesos"],
-          ] as const
-        ).map(([id, label]) => {
-          const active = tab === id;
-          return (
-            <button
-              key={id}
-              onClick={() => setTab(id)}
-              className={cn(
-                "relative px-4 py-2.5 text-sm transition-colors",
-                active
-                  ? "text-foreground"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              {label}
-              {active && (
-                <span className="absolute inset-x-3 -bottom-px h-0.5 rounded-full bg-gradient-to-r from-sky-400 to-violet-500" />
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {tab === "pros" && (
-        <div className="space-y-3">
+      {/* Ya no son pestañas: Profesionales y Accesos quedan apilados en la
+          misma pantalla, uno seguido del otro — Accesos separado al final
+          para que la gestión del equipo no compita visualmente con la
+          configuración de accesos. */}
+      <div className="space-y-3">
           <div className="flex justify-end">
             <button
               onClick={openNew}
@@ -2442,10 +2416,8 @@ export function EquipoSection() {
             </div>
           )}
         </div>
-      )}
 
-      {tab === "users" && (
-        <div className="-mt-2 space-y-3">
+      <div className="mt-6 space-y-3">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <h3 className="text-lg font-display font-semibold">
@@ -2642,38 +2614,44 @@ export function EquipoSection() {
                       user.role === "profesional"
                         ? user.name || ROLE_LABEL_BY_ID[user.role]
                         : ROLE_LABEL_BY_ID[user.role];
+                    // Principal siempre gana — es el único badge que importa
+                    // mostrar ahí (no tiene sentido "Activo" + "Principal" a
+                    // la vez). Sin acceso (ninguno de los 3 estados de
+                    // arriba) no muestra ningún badge — nada que decir.
+                    const isPrincipal = user.id === principalAdminId;
+                    const statusBadge = isPrincipal
+                      ? { label: "Principal", cls: "bg-white/[0.05] text-muted-foreground ring-white/15" }
+                      : user.status === "active"
+                        ? { label: "Activo", cls: "bg-emerald-500/10 text-emerald-300 ring-emerald-400/20" }
+                        : user.status === "invited"
+                          ? { label: "Pendiente", cls: "bg-cyan-500/10 text-cyan-300 ring-cyan-400/20" }
+                          : null;
                     return (
                     <div
                       key={user.id}
                       className="flex items-center gap-3 rounded-xl bg-white/[0.04] ring-1 ring-white/10 p-3"
                     >
-                      <div className="h-9 w-9 rounded-full bg-white/8 ring-1 ring-white/10 grid place-items-center text-xs font-semibold">
+                      <div className="h-9 w-9 shrink-0 rounded-full bg-white/8 ring-1 ring-white/10 grid place-items-center text-xs font-semibold">
                         {(displayTitle[0] || "A").toUpperCase()}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium ">
+                        <div className="text-sm font-medium">
                           {displayTitle}
                         </div>
-                        <div className="text-xs text-muted-foreground ">
+                        {statusBadge && (
+                          <span
+                            className={cn(
+                              "mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] ring-1",
+                              statusBadge.cls,
+                            )}
+                          >
+                            {statusBadge.label}
+                          </span>
+                        )}
+                        <div className="text-xs text-muted-foreground mt-1">
                           {user.email}
                         </div>
                       </div>
-                      <span
-                        className={cn(
-                          "rounded-full px-2 py-1 text-[10px] ring-1",
-                          user.status === "active"
-                            ? "bg-emerald-500/10 text-emerald-300 ring-emerald-400/20"
-                            : user.status === "invited"
-                              ? "bg-cyan-500/10 text-cyan-300 ring-cyan-400/20"
-                              : "bg-white/5 text-muted-foreground ring-white/10",
-                        )}
-                      >
-                        {user.status === "active"
-                          ? "Activo"
-                          : user.status === "invited"
-                            ? "Pendiente"
-                            : "Inactivo"}
-                      </span>
                       <button
                         type="button"
                         onClick={() => editAccessUser(user)}
@@ -2681,14 +2659,7 @@ export function EquipoSection() {
                       >
                         Editar
                       </button>
-                      {user.id === principalAdminId ? (
-                        <span
-                          className="rounded-lg bg-white/[0.04] ring-1 ring-white/10 text-muted-foreground px-2.5 py-1.5 text-[10px]"
-                          title="El administrador principal no se puede eliminar"
-                        >
-                          Principal
-                        </span>
-                      ) : (
+                      {!isPrincipal && (
                         <button
                           type="button"
                           onClick={() => setPendingDeleteUser(user)}
@@ -2887,7 +2858,6 @@ export function EquipoSection() {
             </div>
           </div>
         </div>
-      )}
 
       {pendingDeleteUser && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4">
