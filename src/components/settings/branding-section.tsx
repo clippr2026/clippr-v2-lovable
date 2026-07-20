@@ -327,10 +327,19 @@ export function BrandingSection() {
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
-    // Empuja a Safari/WebKit a repintar el contenido ya asignado por JS —
-    // mitiga un bug conocido de iOS donde el texto de un textarea no se
-    // renderiza hasta la primera interacción si el alto se tocó por script.
+    // Un reflow (offsetHeight) no siempre alcanza para que iOS Safari
+    // vuelva a PINTAR el texto que ya está asignado por JS (el bug es de
+    // repaint, no de layout) — pasa sobre todo la primera vez que el
+    // globo se llena con datos que llegaron después del mount (fetch a
+    // Supabase), sin que el usuario haya tocado el campo todavía. Alternar
+    // `transform` fuerza una promoción/despromoción real de capa de
+    // composición en WebKit, que sí dispara un repaint genuino.
     void el.offsetHeight;
+    el.style.transform = "translateZ(0)";
+    const raf = requestAnimationFrame(() => {
+      if (announcementRef.current) announcementRef.current.style.transform = "";
+    });
+    return () => cancelAnimationFrame(raf);
   }, [data.profile_note]);
   // Si no hay anuncio guardado, el globo arranca con un mensaje de ejemplo
   // como VALOR real (no un placeholder — el usuario pidió explícitamente
