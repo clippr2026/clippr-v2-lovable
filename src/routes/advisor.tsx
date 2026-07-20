@@ -50,6 +50,7 @@ import {
   BriefcaseBusiness,
   Sunrise,
   Sunset,
+  X,
 } from "lucide-react";
 
 export const Route = createFileRoute("/advisor")({
@@ -1290,36 +1291,72 @@ function InfoModal({ content, onClose }: { content: InfoModalContent; onClose: (
     scrollRef.current?.scrollTo(0, 0);
   }, [content]);
 
+  // Botón/gesto de "volver" del teléfono: al abrir el modal se agrega una
+  // entrada extra al historial; si el usuario vuelve con el botón físico o
+  // el gesto del navegador, ese popstate cierra el modal en vez de navegar
+  // fuera de Asesor IA. Si se cierra con la X o tocando afuera, se
+  // consume esa misma entrada con history.back() para no dejarla colgada
+  // (evita que un "volver" posterior, ya con el modal cerrado, quede
+  // pisando una entrada vacía).
+  const closedByBackRef = React.useRef(false);
+  React.useEffect(() => {
+    window.history.pushState({ clipprInfoModal: true }, "");
+    const handlePopState = () => {
+      closedByBackRef.current = true;
+      onClose();
+    };
+    window.addEventListener("popstate", handlePopState);
+    return () => {
+      window.removeEventListener("popstate", handlePopState);
+      if (!closedByBackRef.current) window.history.back();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 px-4 pt-[max(1rem,env(safe-area-inset-top,0px))] pb-[max(1rem,env(safe-area-inset-bottom,0px))] backdrop-blur-md sm:items-center">
-      <div className="relative max-h-[85dvh] w-full max-w-2xl overflow-hidden rounded-[2rem] border border-white/12 bg-[#080713]/96 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_38px_130px_-58px_rgba(124,58,237,0.95)]">
+    <div
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 px-4 pt-[max(1rem,env(safe-area-inset-top,0px))] pb-[max(1rem,env(safe-area-inset-bottom,0px))] backdrop-blur-md sm:items-center"
+      onClick={onClose}
+    >
+      <div
+        // El overlay ya reserva max(1rem, safe-area) arriba y abajo con su
+        // propio padding (pt-/pb- de la clase de afuera) — este cálculo
+        // espeja exactamente esa misma reserva para no restarla dos veces
+        // (lo que dejaría la tarjeta más baja de lo necesario).
+        className="relative flex max-h-[calc(100dvh-max(1rem,env(safe-area-inset-top,0px))-max(1rem,env(safe-area-inset-bottom,0px)))] w-full max-w-2xl flex-col overflow-hidden rounded-[2rem] border border-white/12 bg-[#080713]/96 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_38px_130px_-58px_rgba(124,58,237,0.95)]"
+        onClick={(event) => event.stopPropagation()}
+      >
         <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-violet-400/16 blur-3xl" />
         <div className="pointer-events-none absolute -left-24 bottom-0 h-56 w-56 rounded-full bg-emerald-400/12 blur-3xl" />
-        <div className="relative flex max-h-[85dvh] flex-col">
-          <div className="flex items-start justify-between gap-4 border-b border-white/10 px-6 py-5 shrink-0">
-            <div className="min-w-0">
-              <div className="inline-flex items-center gap-2 rounded-full border border-violet-300/25 bg-violet-300/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.22em] text-violet-200">
-                <CircleHelp className="h-3.5 w-3.5" />
-                Cómo funciona
-              </div>
-              <h2 className="mt-4 font-display text-2xl font-bold tracking-tight text-white">
-                {content.title}
-              </h2>
-              <p className="mt-2 max-w-xl text-sm leading-relaxed text-white/62">
-                {content.description}
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="shrink-0 rounded-xl border border-white/10 bg-white/[0.05] px-3 py-2 text-xs font-semibold text-white/55 transition hover:bg-white/[0.09] hover:text-white"
-            >
-              Cerrar
-            </button>
-          </div>
+        {/* Solo esta barra chica (título + X) queda fija — el resto,
+            incluida la descripción, es parte del mismo scroll interno de
+            abajo. Antes el título Y la descripción completa vivían en el
+            header fijo, lo que en mobile podía ocupar media pantalla de
+            contenido estático. */}
+        <div className="relative flex shrink-0 items-center justify-between gap-3 border-b border-white/10 px-5 py-3.5">
+          <h2 className="min-w-0 truncate font-display text-base font-bold tracking-tight text-white">
+            {content.title}
+          </h2>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Cerrar"
+            className="grid size-8 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.05] text-white/60 transition hover:bg-white/[0.10] hover:text-white"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
 
-          <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
-            <div className="grid gap-3 sm:grid-cols-3">
+        <div ref={scrollRef} className="relative min-h-0 flex-1 overflow-y-auto px-6 py-5">
+            <div className="inline-flex items-center gap-2 rounded-full border border-violet-300/25 bg-violet-300/10 px-3 py-1.5 text-[11px] font-bold uppercase tracking-[0.22em] text-violet-200">
+              <CircleHelp className="h-3.5 w-3.5" />
+              Cómo funciona
+            </div>
+            <p className="mt-3 max-w-xl text-sm leading-relaxed text-white/62">
+              {content.description}
+            </p>
+
+            <div className="mt-5 grid gap-3 sm:grid-cols-3">
               <div className="rounded-2xl border border-emerald-300/18 bg-emerald-300/[0.055] p-4">
                 <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-300">
                   Qué analiza
@@ -1386,7 +1423,6 @@ function InfoModal({ content, onClose }: { content: InfoModalContent; onClose: (
                 <span className="font-bold text-rose-300">Rojo:</span> puede estar costando plata.
               </div>
             </div>
-          </div>
         </div>
       </div>
     </div>
@@ -1937,69 +1973,77 @@ function ManagerHero({ rec, totalOpportunity }: { rec: Recommendation; totalOppo
               este mes si ejecutás la estrategia principal
             </div>
           </div>
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            className="mt-7 inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-violet-500 to-fuchsia-500 px-6 py-3 text-sm font-black text-white shadow-[0_18px_45px_-22px_rgba(168,85,247,0.9)] ring-1 ring-white/15 transition hover:brightness-110"
-          >
-            {open ? "Ocultar estrategia" : "Ver estrategia"}
-            <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
-          </button>
         </div>
 
-        <div className="relative min-h-[220px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 ring-1 ring-white/8">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_22%,rgba(168,85,247,0.22),transparent_42%)]" />
-          <div className="relative flex h-full flex-col justify-between gap-6">
-            <ManagerTrendSparkline />
-            {/* w-full sin tope fijo en mobile (el max-w-[330px] recién
-                entra desde sm, con más aire): antes el monto grande y su
-                etiqueta iban siempre en fila (flex items-end), y en
-                pantallas angostas eso se salía del ancho de la tarjeta —
-                como la sección padre tiene overflow-hidden, no se veía
-                como scroll sino como texto cortado/ilegible. En mobile
-                pasan a columna. */}
-            <div className="ml-auto w-full rounded-3xl border border-fuchsia-300/28 bg-fuchsia-500/[0.09] p-5 ring-1 ring-fuchsia-300/20 sm:max-w-[330px]">
-              <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-end sm:gap-4">
-                <div className="font-display text-4xl font-black tracking-[-0.06em] text-white sm:text-5xl">
-                  {keyMetric}
-                </div>
-                <div className="text-sm font-semibold leading-snug text-white/70 sm:pb-1">
-                  {keyLabel}
+        {/* Botón + detalle desplegable ahora viven pegados a la tarjeta de
+            "pérdida estimada" que los origina (antes el botón quedaba en
+            la columna de texto, arriba del gráfico y del monto — se veía
+            desconectado de lo que en realidad controla). Orden: gráfico →
+            pérdida estimada → Ver estrategia → Estrategia recomendada. */}
+        <div className="space-y-4">
+          <div className="relative min-h-[220px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 ring-1 ring-white/8">
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_22%,rgba(168,85,247,0.22),transparent_42%)]" />
+            <div className="relative flex h-full flex-col justify-between gap-6">
+              <ManagerTrendSparkline />
+              {/* w-full sin tope fijo en mobile (el max-w-[330px] recién
+                  entra desde sm, con más aire): antes el monto grande y su
+                  etiqueta iban siempre en fila (flex items-end), y en
+                  pantallas angostas eso se salía del ancho de la tarjeta —
+                  como la sección padre tiene overflow-hidden, no se veía
+                  como scroll sino como texto cortado/ilegible. En mobile
+                  pasan a columna. */}
+              <div className="ml-auto w-full rounded-3xl border border-fuchsia-300/28 bg-fuchsia-500/[0.09] p-5 ring-1 ring-fuchsia-300/20 sm:max-w-[330px]">
+                <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-end sm:gap-4">
+                  <div className="font-display text-4xl font-black tracking-[-0.06em] text-white sm:text-5xl">
+                    {keyMetric}
+                  </div>
+                  <div className="text-sm font-semibold leading-snug text-white/70 sm:pb-1">
+                    {keyLabel}
+                  </div>
                 </div>
               </div>
             </div>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-500 to-fuchsia-500 px-6 py-3 text-sm font-black text-white shadow-[0_18px_45px_-22px_rgba(168,85,247,0.9)] ring-1 ring-white/15 transition hover:brightness-110"
+          >
+            {open ? "Ocultar estrategia" : "Ver estrategia"}
+            <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
+          </button>
+
+          {open ? (
+            <div className="relative space-y-3">
+              <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.055] to-white/[0.02] p-4">
+                <div className="text-[11px] font-black uppercase tracking-[0.14em] text-white/45">
+                  Estrategia recomendada
+                </div>
+                <p className="mt-1.5 text-base font-bold leading-snug text-white/90">{s.action}</p>
+                <ol className="mt-3 space-y-2">
+                  {s.steps.map((step, i) => (
+                    <li key={i} className="flex gap-2.5 text-sm leading-relaxed text-white/68">
+                      <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/10 text-[11px] font-bold text-white/80">
+                        {i + 1}
+                      </span>
+                      <span>{step}</span>
+                    </li>
+                  ))}
+                </ol>
+              </div>
+              <GrowthContactsBlock contacts={s.contacts} />
+              <GrowthMessageBlock message={s.message} />
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3.5">
+                <div className="text-[11px] font-black uppercase tracking-[0.14em] text-white/45">
+                  Cómo medir si funcionó
+                </div>
+                <p className="mt-1 text-sm leading-relaxed text-white/60">{s.measure}</p>
+              </div>
+            </div>
+          ) : null}
         </div>
       </div>
-
-      {open ? (
-        <div className="relative mt-8 space-y-3 border-t border-white/10 pt-8">
-          <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.055] to-white/[0.02] p-4">
-            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-white/45">
-              Estrategia recomendada
-            </div>
-            <p className="mt-1.5 text-base font-bold leading-snug text-white/90">{s.action}</p>
-            <ol className="mt-3 space-y-2">
-              {s.steps.map((step, i) => (
-                <li key={i} className="flex gap-2.5 text-sm leading-relaxed text-white/68">
-                  <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/10 text-[11px] font-bold text-white/80">
-                    {i + 1}
-                  </span>
-                  <span>{step}</span>
-                </li>
-              ))}
-            </ol>
-          </div>
-          <GrowthContactsBlock contacts={s.contacts} />
-          <GrowthMessageBlock message={s.message} />
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3.5">
-            <div className="text-[11px] font-black uppercase tracking-[0.14em] text-white/45">
-              Cómo medir si funcionó
-            </div>
-            <p className="mt-1 text-sm leading-relaxed text-white/60">{s.measure}</p>
-          </div>
-        </div>
-      ) : null}
     </section>
   );
 }
