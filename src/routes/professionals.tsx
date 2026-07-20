@@ -971,7 +971,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
   // semanal del negocio, misma resolución que usa Agenda/reserva online) —
   // nunca un valor fijo. "09:00" solo queda como último recurso si el día
   // no tiene horario configurado (nada que resolver).
-  const defaultTurnoStartsAt = React.useMemo(() => {
+  const scheduleDefaultTurnoStartsAt = React.useMemo(() => {
     const day = resolveDaySchedule(
       agendaData.schedule,
       agendaData.employeeSchedules,
@@ -983,6 +983,12 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
     const startTime = day?.enabled && day.start ? day.start : "09:00";
     return new Date(`${from}T${startTime}:00`);
   }, [agendaData.schedule, agendaData.employeeSchedules, agendaData.businessSpecialDates, agendaData.employeeSpecialDates, empId, agendaRangeStart, from]);
+  // Distinto de null cuando "+ Turno" se abrió tocando un horario vacío de
+  // la agenda (ver handleTimelineClick más abajo) — gana sobre el horario
+  // de apertura del día. Se resetea al cerrar el modal para que el botón
+  // "+ Turno" de siempre vuelva a usar ese default.
+  const [manualTurnoStartsAt, setManualTurnoStartsAt] = useState<Date | null>(null);
+  const defaultTurnoStartsAt = manualTurnoStartsAt ?? scheduleDefaultTurnoStartsAt;
   const cajaData = useCajaData();
 
   React.useEffect(() => {
@@ -1242,6 +1248,48 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
   };
   const timelineHeight = (dayBounds.endHour - dayBounds.startHour) * HOUR_HEIGHT + TIMELINE_TOP_OFFSET + 36;
 
+  // Tocar un espacio vacío de la agenda abre "+ Turno" con fecha/hora ya
+  // cargadas (redondeado a los 15' más cercanos) — mismo modal y mismo
+  // guardado que el botón "+ Turno" de siempre, solo cambia el default. No
+  // crea nada por su cuenta: valida acá mismo que el horario no esté fuera
+  // del horario laboral, en un descanso, o superpuesto con otro turno —
+  // esos casos no abren el modal, no dependen de que el usuario después
+  // vea un error de validación adentro.
+  const handleTimelineClick = React.useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    if (!canAddTurno) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const offsetY = e.clientY - rect.top;
+    const rawMinutes = ((offsetY - TIMELINE_TOP_OFFSET) / HOUR_HEIGHT) * 60 + dayBounds.startHour * 60;
+    const snapped = Math.round(rawMinutes / 15) * 15;
+
+    const day = resolveDaySchedule(
+      agendaData.schedule,
+      agendaData.employeeSchedules,
+      agendaData.businessSpecialDates,
+      agendaData.employeeSpecialDates,
+      empId,
+      agendaRangeStart,
+    );
+    if (!day?.enabled || !day.start || !day.end) return;
+    const workStart = parseScheduleTime(day.start) * 60;
+    const workEnd = parseScheduleTime(day.end) * 60;
+    if (snapped < workStart || snapped >= workEnd) return;
+
+    if (breakRange && snapped >= breakRange.startMin && snapped < breakRange.endMin) return;
+
+    const overlapsExisting = agendaTurnos.some((t) => {
+      const start = minutesOfDayFromISO(t.starts_at);
+      const end = getTurnoEndMin(t);
+      return snapped >= start && snapped < end;
+    });
+    if (overlapsExisting) return;
+
+    const hh = String(Math.floor(snapped / 60)).padStart(2, "0");
+    const mm = String(snapped % 60).padStart(2, "0");
+    setManualTurnoStartsAt(new Date(`${from}T${hh}:${mm}:00`));
+    setAddTurnoOpen(true);
+  }, [canAddTurno, dayBounds.startHour, agendaData.schedule, agendaData.employeeSchedules, agendaData.businessSpecialDates, agendaData.employeeSpecialDates, empId, agendaRangeStart, breakRange, agendaTurnos, from]);
+
   return (
     <div className="w-full space-y-2 animate-fade-up">
 
@@ -1329,7 +1377,11 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
               Desktop (sm+) sin cambios: 84px, texto normal. */}
           <div className="absolute left-0 top-0 bottom-0 w-[48px] sm:w-[84px] bg-[#111323]" />
           <div className="absolute left-12 sm:left-[84px] top-0 bottom-0 w-px bg-white/[0.07]" />
-          <div className="relative" style={{ height: timelineHeight }}>
+          <div
+            className={cn("relative", canAddTurno && "cursor-pointer")}
+            style={{ height: timelineHeight }}
+            onClick={handleTimelineClick}
+          >
             {timelineHours.map((hour) => (
               <div
                 key={hour}
@@ -1458,6 +1510,10 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                     style.border, style.bg, style.ring
                   )}
                   style={{ top: TIMELINE_TOP_OFFSET + getBlockTop(t.starts_at) + 6, height: getBlockHeight(t) }}
+                  // Corta la propagación: sin esto, tocar un turno existente
+                  // también disparaba handleTimelineClick del contenedor de
+                  // fondo (la creación rápida es solo para espacios vacíos).
+                  onClick={(e) => e.stopPropagation()}
                 >
                   {/* Mobile (<sm): fila compacta — línea 1 hora (fina, celeste)
                       + nombre del cliente (usa el ancho disponible, trunca
@@ -1620,7 +1676,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
       {canAddTurno && addTurnoOpen && businessId && empId && (
         <AppointmentDialog
           open={addTurnoOpen}
-          onOpenChange={(open) => { if (!open) setAddTurnoOpen(false); }}
+          onOpenChange={(open) => { if (!open) { setAddTurnoOpen(false); setManualTurnoStartsAt(null); } }}
           appointment={null}
           defaultEmployeeId={empId}
           defaultStartsAt={defaultTurnoStartsAt}
@@ -1630,7 +1686,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
           businessId={businessId}
           createdByName={profile?.email ?? null}
           createdByRole="profesional"
-          onSaved={() => { setAddTurnoOpen(false); refetch(); }}
+          onSaved={() => { setAddTurnoOpen(false); setManualTurnoStartsAt(null); refetch(); }}
           schedule={agendaData.schedule}
           employeeSchedules={agendaData.employeeSchedules}
           businessSpecialDates={agendaData.businessSpecialDates}

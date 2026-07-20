@@ -1115,7 +1115,7 @@ export function BrandingSection() {
               />
             </div>
             <div className="min-w-0">
-              <div className="font-semibold text-sm">Estado público</div>
+              <div className="font-semibold text-sm">Anuncio público</div>
               <p
                 className={cn(
                   "mt-1 text-xs transition",
@@ -1124,8 +1124,8 @@ export function BrandingSection() {
                     : "text-muted-foreground/70",
                 )}
               >
-                Aparece arriba de tu página pública. Ideal para promociones,
-                avisos o novedades.
+                Se muestra arriba de la foto de perfil en tu página de
+                reservas. Ideal para promociones, avisos o novedades.
               </p>
             </div>
           </div>
@@ -1175,6 +1175,26 @@ export function BrandingSection() {
               </span>
               <span className="text-muted-foreground/50">{data.profile_note.length}/50</span>
             </div>
+
+            {/* Vista previa — mismo globo blanco exacto que usa la página
+                pública (ver negocio/$slug.tsx, arriba de la foto de
+                perfil), solo que acá va estático en vez de posicionado
+                absolute sobre el avatar. Se actualiza en vivo con cada
+                tecla, nunca hay que entrar a la página pública para ver
+                cómo quedó. */}
+            {data.profile_note.trim() && (
+              <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.02] p-4">
+                <div className="mb-2 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+                  Vista previa
+                </div>
+                <div className="flex justify-center py-2">
+                  <div className="relative w-fit min-w-[150px] max-w-[176px] rounded-2xl bg-white px-2.5 py-1.5 text-[11px] font-semibold leading-snug text-zinc-950 shadow-xl ring-1 ring-black/5 sm:min-w-[190px] sm:max-w-[224px]">
+                    <span className="block text-center whitespace-normal break-words [word-break:normal]">{data.profile_note}</span>
+                    <span className="absolute left-1/2 top-full h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-white" />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </SectionCard>
