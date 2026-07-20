@@ -73,7 +73,7 @@ type InfoModalContent = {
 
 const INFO_CONTENT = {
   health: {
-    title: "Estado actual del negocio",
+    title: "Salud del negocio",
     description:
       "Resume la salud general del negocio en un puntaje simple de 0 a 100, combinando rentabilidad, clientes, ocupación y oportunidades pendientes.",
     points: [
@@ -402,7 +402,12 @@ function AdvisorContent({
       {advisorTab === "analisis" && (
         <>
           {/* ── SALUD DEL NEGOCIO ─────────────────────────────────── */}
-          <div className="relative overflow-visible rounded-[2rem] border border-emerald-300/[0.30] bg-white/[0.018] p-3 pt-14 shadow-[0_0_0_1px_rgba(16,185,129,0.16),0_30px_125px_-42px_rgba(45,212,191,1)] sm:p-4 sm:pt-16">
+          {/* overflow-hidden (no visible): el glow decorativo de abajo usa
+              -inset-x-6, que sin clip podía sobresalir del ancho real de
+              la tarjeta y forzar scroll horizontal en toda la página. El
+              botón "?" ya no lo necesitaba (tiene margen propio de sobra,
+              ver pt-14/right-4/top-4 más abajo). */}
+          <div className="relative overflow-hidden rounded-[2rem] border border-emerald-300/[0.30] bg-white/[0.018] p-3 pt-14 shadow-[0_0_0_1px_rgba(16,185,129,0.16),0_30px_125px_-42px_rgba(45,212,191,1)] sm:p-4 sm:pt-16">
             <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-emerald-400/[0.16] blur-3xl" />
             {/* "Cómo funciona" una sola vez por sección, en la esquina
                 superior derecha del bloque completo — antes vivía adentro
@@ -610,7 +615,10 @@ function AdvisorContent({
           {/* /Salud */}
 
           {/* ── EVOLUCIÓN DEL NEGOCIO ─────────────────────────────── */}
-          <div className="relative overflow-visible rounded-[1.7rem] border border-sky-300/[0.30] bg-white/[0.018] p-2.5 pt-14 shadow-[0_0_0_1px_rgba(56,189,248,0.16),0_24px_90px_-42px_rgba(14,165,233,0.9)] sm:p-3 sm:pt-16">
+          {/* Mismo fix que Salud del negocio: overflow-hidden contiene el
+              glow decorativo (-inset-x-6) para que no fuerce scroll
+              horizontal en toda la página. */}
+          <div className="relative overflow-hidden rounded-[1.7rem] border border-sky-300/[0.30] bg-white/[0.018] p-2.5 pt-14 shadow-[0_0_0_1px_rgba(56,189,248,0.16),0_24px_90px_-42px_rgba(14,165,233,0.9)] sm:p-3 sm:pt-16">
             <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-sky-400/[0.16] blur-3xl" />
             {/* Ver mismo comentario en Salud del negocio: "Cómo funciona"
                 una sola vez por sección, en la esquina superior derecha del
@@ -826,7 +834,10 @@ function AdvisorContent({
           {/* /Evolución */}
 
           {/* ── RADIOGRAFÍA DEL LOCAL ─────────────────────────────── */}
-          <div className="relative rounded-[2rem] border border-fuchsia-300/[0.22] bg-white/[0.016] p-3 shadow-[0_0_0_1px_rgba(217,70,239,0.12),0_28px_110px_-50px_rgba(217,70,239,0.8)] sm:p-4">
+          {/* overflow-hidden: mismo fix que Salud/Evolución — el glow
+              decorativo (-inset-x-6) podía sobresalir del ancho real y
+              forzar scroll horizontal en toda la página. */}
+          <div className="relative overflow-hidden rounded-[2rem] border border-fuchsia-300/[0.22] bg-white/[0.016] p-3 shadow-[0_0_0_1px_rgba(217,70,239,0.12),0_28px_110px_-50px_rgba(217,70,239,0.8)] sm:p-4">
             <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-fuchsia-500/[0.12] blur-3xl" />
             <div className="flex items-center gap-4 mb-3">
               <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
@@ -900,7 +911,8 @@ function AdvisorContent({
           {/* /Radiografía */}
 
           {/* ── HISTORIAL DE ANÁLISIS ─────────────────────────────── */}
-          <div className="relative rounded-[2rem] border border-violet-300/[0.13] bg-white/[0.014] p-3 shadow-[0_0_0_1px_rgba(139,92,246,0.05),0_24px_90px_-52px_rgba(124,58,237,0.55)] sm:p-4">
+          {/* overflow-hidden: mismo fix que las secciones anteriores. */}
+          <div className="relative overflow-hidden rounded-[2rem] border border-violet-300/[0.13] bg-white/[0.014] p-3 shadow-[0_0_0_1px_rgba(139,92,246,0.05),0_24px_90px_-52px_rgba(124,58,237,0.55)] sm:p-4">
             <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-violet-500/[0.06] blur-3xl" />
             <div className="flex items-center gap-4 mb-3">
               <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />

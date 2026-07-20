@@ -129,12 +129,26 @@
     font-feature-settings: "cv11", "ss01", "ss03";
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    /* Red de seguridad global: varios "glows" decorativos (blur, blobs)
+       usan posicionamiento absoluto con offsets negativos o w-screen para
+       centrarse en el viewport completo aunque vivan dentro de
+       contenedores angostos con padding — si algún contenedor intermedio
+       no tiene overflow-hidden propio, ese glow puede sobresalir unos
+       pocos px del ancho real y el navegador vuelve TODA la página
+       scrolleable horizontalmente para "alcanzarlo". Esto no reemplaza
+       corregir el elemento puntual que desborda, pero asegura que ningún
+       glow/blob futuro pueda volver a romper el scroll horizontal global.
+       max-width 100% además evita que un ancho fijo (ej. un ancho en px
+       mayor al viewport) estire el documento. */
+    max-width: 100%;
+    overflow-x: hidden;
   }
 
   body {
     position: relative;
     background-color: var(--color-background);
     min-height: 100dvh;
+    width: 100%;
   }
 
   /* Antes este degradado vivía en `background-image` + `background-attachment:
