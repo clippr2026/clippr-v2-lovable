@@ -54,6 +54,7 @@ import { useClientesConfig } from "@/hooks/use-clientes-config";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 import { resolveServicePricing } from "@/lib/service-pricing";
 import { AcquisitionSourceField } from "@/components/acquisition-source-field";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { acquisitionChannelRequiresText } from "@/lib/acquisition-channels";
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
@@ -4603,13 +4604,10 @@ function NuevoGastoTab({
   onCancel: () => void;
   onSaved: () => void;
 }) {
-  const today = new Date().toISOString().slice(0, 10);
   const [form, setForm] = React.useState({
     name: "",
     amount: "",
-    date: today,
     category: "",
-    categoryCustom: "",
     method: "",
     note: "",
   });
@@ -4640,22 +4638,22 @@ function NuevoGastoTab({
     if (!amount || amount <= 0)
       return toast.error("El monto debe ser mayor a 0.");
     if (!form.category) return toast.error("Elegí la categoría del gasto.");
-    if (form.category === "Otros" && !form.categoryCustom.trim())
-      return toast.error("Contanos qué gasto fue.");
     if (!form.method) return toast.error("Seleccioná el método de pago.");
     setSaving(true);
     // El usuario que registra el gasto se sigue guardando internamente
     // (user_name/created_by) para historial y auditoría, aunque ya no se
     // muestre como campo en el formulario — no hace falta pedirlo, ya se
-    // sabe quién está cargando.
+    // sabe quién está cargando. Misma lógica para la fecha: se toma la
+    // fecha y hora actuales al momento de guardar, sin pedirla — created_at
+    // ya la registra con precisión de hora, "date" es solo el día para
+    // filtros/reportes.
     const { error } = await supabase.from("expenses").insert({
       business_id: data.businessId,
       name,
       amount,
-      category:
-        form.category === "Otros" ? form.categoryCustom.trim() : form.category,
+      category: form.category,
       payment_method: form.method || null,
-      date: form.date || today,
+      date: new Date().toISOString().slice(0, 10),
       note: form.note.trim() || null,
       user_name: userEmail ?? "Caja",
       created_by: userEmail ?? "Caja",
@@ -4686,62 +4684,46 @@ function NuevoGastoTab({
             placeholder="Descripción del gasto *"
             className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-blue-300/50"
           />
+          <input
+            value={form.amount}
+            onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+            placeholder="Monto *"
+            type="number"
+            min={0}
+            className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-blue-300/50"
+          />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <input
-              value={form.amount}
-              onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-              placeholder="Monto *"
-              type="number"
-              min={0}
-              className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-blue-300/50"
-            />
-            <input
-              value={form.date}
-              onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
-              type="date"
-              className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground outline-none focus:border-blue-300/50"
-            />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <select
+            <Select
               value={form.category}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, category: e.target.value }))
-              }
-              className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground outline-none focus:border-blue-300/50"
+              onValueChange={(v) => setForm((f) => ({ ...f, category: v }))}
             >
-              <option value="">Categoría del gasto *</option>
-              {GCATEGORIES.map((c) => (
-                <option key={c} value={c}>
-                  {c}
-                </option>
-              ))}
-            </select>
-            <select
+              <SelectTrigger className="h-auto w-full rounded-xl border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground focus:border-blue-300/50 focus:ring-0">
+                <SelectValue placeholder="Categoría del gasto *" />
+              </SelectTrigger>
+              <SelectContent>
+                {GCATEGORIES.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {c}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select
               value={form.method}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, method: e.target.value }))
-              }
-              className="rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground outline-none focus:border-blue-300/50"
+              onValueChange={(v) => setForm((f) => ({ ...f, method: v }))}
             >
-              <option value="">Método de pago *</option>
-              {GMETHODS.map((m) => (
-                <option key={m} value={m}>
-                  {m.charAt(0).toUpperCase() + m.slice(1)}
-                </option>
-              ))}
-            </select>
+              <SelectTrigger className="h-auto w-full rounded-xl border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground focus:border-blue-300/50 focus:ring-0">
+                <SelectValue placeholder="Método de pago *" />
+              </SelectTrigger>
+              <SelectContent>
+                {GMETHODS.map((m) => (
+                  <SelectItem key={m} value={m}>
+                    {m.charAt(0).toUpperCase() + m.slice(1)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-          {form.category === "Otros" && (
-            <input
-              value={form.categoryCustom}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, categoryCustom: e.target.value }))
-              }
-              placeholder="Escribí qué tipo de gasto fue"
-              className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-blue-300/50"
-            />
-          )}
           <input
             value={form.note}
             onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
@@ -9593,11 +9575,29 @@ export function NuevaVentaTab({
             )
           ) : (
             <button
-              onClick={() =>
-                setStep((s) => (s > minStep ? ((s - 1) as 1 | 2 | 3 | 4) : s))
-              }
-              disabled={step <= minStep}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-2xl px-4 py-2.5 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground disabled:opacity-35 disabled:cursor-not-allowed transition-all"
+              onClick={() => {
+                if (step > minStep) {
+                  setStep((s) => (s - 1) as 1 | 2 | 3 | 4);
+                  return;
+                }
+                // Primer paso: Volver sale del flujo y vuelve a la
+                // pantalla principal de Caja. Si ya hay algo cargado
+                // (profesional, cliente o carrito) se confirma antes de
+                // descartarlo — nunca se pierde en silencio.
+                const hasSaleData = Boolean(
+                  employeeId || clientId || client.trim() || cartItems.length > 0,
+                );
+                if (
+                  hasSaleData &&
+                  !window.confirm(
+                    "¿Salir de Nueva venta? Se va a descartar lo que cargaste hasta ahora.",
+                  )
+                ) {
+                  return;
+                }
+                onCancel?.();
+              }}
+              className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-2xl px-4 py-2.5 text-sm font-medium border border-white/[0.075] bg-white/[0.025] text-muted-foreground hover:bg-white/[0.055] hover:text-foreground transition-all"
             >
               <ArrowLeft className="size-4" /> Volver
             </button>
