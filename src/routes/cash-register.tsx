@@ -56,6 +56,7 @@ import { resolveServicePricing } from "@/lib/service-pricing";
 import { AcquisitionSourceField } from "@/components/acquisition-source-field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { acquisitionChannelRequiresText } from "@/lib/acquisition-channels";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
 const HISTORIAL_KEY = "clippr_cobros_historial_v2";
@@ -2391,11 +2392,13 @@ function InventarioTab({
   // ProfesionalesTab/PreciosTab) — evita el refetch redundante y el flash
   // de "Sin artículos" al entrar a esta pestaña.
   const [stockQuery, setStockQuery] = React.useState("");
+  const [stockFilter, setStockFilter] = React.useState("Todos");
   const [movementQuery, setMovementQuery] = React.useState("");
   // Mobile: "Últimos movimientos" deja de listarse fijo en pantalla y pasa a
   // un modal (mismo dato/lógica, solo cambia dónde se muestra). Desktop no
   // se toca — sigue siendo la segunda columna de siempre.
   const [movementsModalOpen, setMovementsModalOpen] = React.useState(false);
+  useBodyScrollLock(movementsModalOpen);
   const [adjustingId, setAdjustingId] = React.useState<string | null>(null);
   const INVENTORY_STOCK_KEY = "clippr_inventory_stock_overrides_v1";
   const readLocalStock = React.useCallback((): Record<string, number> => {
@@ -2426,6 +2429,19 @@ function InventarioTab({
     () => (data.services ?? []).filter((item: any) => item.is_catalog),
     [data.services],
   );
+  const CATALOG_CATEGORY_ORDER = ["Productos", "Bebidas", "Indumentaria"];
+  const stockCategories = React.useMemo(() => {
+    const present = new Set(
+      catalogItems.map((item: any) =>
+        String(item.category || item.type || "Productos"),
+      ),
+    );
+    const ordered = CATALOG_CATEGORY_ORDER.filter((cat) => present.has(cat));
+    const extra = [...present].filter(
+      (cat) => !CATALOG_CATEGORY_ORDER.includes(cat),
+    );
+    return ["Todos", ...ordered, ...extra];
+  }, [catalogItems]);
   const normalizedStockQuery = stockQuery.trim().toLowerCase();
   const normalizedMovementQuery = movementQuery.trim().toLowerCase();
 
@@ -2610,6 +2626,11 @@ function InventarioTab({
   );
 
   const filteredStock = catalogItems.filter((item: any) => {
+    if (
+      stockFilter !== "Todos" &&
+      String(item.category || item.type || "Productos") !== stockFilter
+    )
+      return false;
     if (!normalizedStockQuery) return true;
     return `${item.name ?? ""} ${item.category ?? ""} ${item.type ?? ""}`
       .toLowerCase()
@@ -2869,21 +2890,7 @@ function InventarioTab({
   return (
     <div className="-mt-5 grid h-auto grid-cols-1 gap-5 overflow-visible pb-6 xl:grid-cols-2 sm:h-[calc(100vh-270px)] sm:min-h-[470px] sm:overflow-hidden">
       <section className="flex min-h-0 flex-col overflow-visible rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(12,16,30,0.95),rgba(5,7,16,0.98))] shadow-[0_24px_85px_-50px_rgba(139,92,246,0.42)] sm:overflow-hidden">
-        <div className="flex flex-col gap-4 border-b border-white/[0.065] px-5 py-5">
-          <div className="flex items-center gap-4">
-            <div className="grid size-12 place-items-center rounded-2xl bg-violet-500/12 text-violet-200 ring-1 ring-violet-300/18">
-              <ClipboardList className="size-6" />
-            </div>
-            <div className="text-xl font-bold text-white">
-              Stock <span className="text-white/35">·</span>{" "}
-              <span className="text-white/55">{catalogItems.length}</span>
-            </div>
-          </div>
-          <SearchBox
-            value={stockQuery}
-            onChange={setStockQuery}
-            placeholder="Buscar artículo"
-          />
+        <div className="flex flex-col gap-3 border-b border-white/[0.065] px-5 py-3">
           {/* Mobile: "Últimos movimientos" pasa a un modal (ver botón +
               modal más abajo, fuera de esta sección) en vez de listarse
               fijo en pantalla. Acceso rápido desde acá mismo. */}
@@ -2895,6 +2902,36 @@ function InventarioTab({
             <ArrowRight className="size-4" />
             Ver últimos movimientos
           </button>
+          {/* Mismo fix de WebKit que en Precios: fondo/borde afuera (sin
+              overflow, nunca se promueve a capa de scroll) y el mecanismo
+              de scroll adentro (sin fondo propio). */}
+          <div className="isolate inline-flex max-w-full self-start rounded-2xl border border-white/[0.07] bg-[rgba(0,0,0,0.25)] p-1.5">
+            <div className="flex min-w-0 gap-2 overflow-x-auto">
+              {stockCategories.map((cat) => {
+                const active = stockFilter === cat;
+                return (
+                  <button
+                    key={cat}
+                    type="button"
+                    onClick={() => setStockFilter(cat)}
+                    className={cn(
+                      "rounded-xl px-3.5 py-2 text-xs font-bold transition-all whitespace-nowrap",
+                      active
+                        ? "bg-violet-500/18 text-white ring-1 ring-violet-300/24"
+                        : "text-white/50 [@media(hover:hover)]:hover:bg-white/[0.045] [@media(hover:hover)]:hover:text-white/80 active:bg-white/[0.045] active:text-white/80",
+                    )}
+                  >
+                    {cat}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          <SearchBox
+            value={stockQuery}
+            onChange={setStockQuery}
+            placeholder="Buscar artículo"
+          />
         </div>
         <div className="min-h-0 flex-1 overflow-visible sm:overflow-y-auto px-4 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
           {/* Desktop: tabla. En mobile, tarjetas verticales debajo — mismos
@@ -2919,7 +2956,7 @@ function InventarioTab({
                 return (
                   <div
                     key={id}
-                    className="grid grid-cols-[minmax(190px,1fr)_120px_120px_120px] items-center gap-4 border-b border-white/[0.055] px-4 py-3 text-sm last:border-0 hover:bg-white/[0.026]"
+                    className="grid grid-cols-[minmax(190px,1fr)_120px_120px_120px] items-center gap-4 border-b border-white/[0.055] px-4 py-2.5 text-sm last:border-0 hover:bg-white/[0.026]"
                   >
                     <div className="flex min-w-0 items-center gap-4">
                       <Thumb item={item} />
@@ -2974,7 +3011,7 @@ function InventarioTab({
                   return (
                     <div
                       key={`mobile-${id}`}
-                      className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-3.5"
+                      className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-3"
                     >
                       <div className="flex min-w-0 items-center gap-3">
                         <Thumb item={item} />
@@ -2986,30 +3023,28 @@ function InventarioTab({
                             {catalogCategory(item)}
                           </div>
                         </div>
-                      </div>
-                      <div className="mt-3 flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-2">
+                        <div className="flex shrink-0 flex-col items-end gap-1">
                           <StockBadge stock={stock} />
                           <StatusBadge item={item} />
                         </div>
-                        <div className="flex gap-2">
-                          <button
-                            type="button"
-                            onClick={() => openStockAdjustment(item, "out")}
-                            disabled={loading}
-                            className="grid size-9 place-items-center rounded-full border border-white/10 bg-white/[0.035] text-white/70 transition active:bg-rose-500/12 active:text-rose-200 disabled:opacity-50"
-                          >
-                            <Minus className="size-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => openStockAdjustment(item, "in")}
-                            disabled={loading}
-                            className="grid size-9 place-items-center rounded-full border border-emerald-300/18 bg-emerald-400/12 text-emerald-200 shadow-[0_0_22px_rgba(16,185,129,0.18)] transition active:bg-emerald-400/18 disabled:opacity-50"
-                          >
-                            <Plus className="size-4" />
-                          </button>
-                        </div>
+                      </div>
+                      <div className="mt-2 flex justify-end gap-2">
+                        <button
+                          type="button"
+                          onClick={() => openStockAdjustment(item, "out")}
+                          disabled={loading}
+                          className="grid size-9 place-items-center rounded-full border border-white/10 bg-white/[0.035] text-white/70 transition active:bg-rose-500/12 active:text-rose-200 disabled:opacity-50"
+                        >
+                          <Minus className="size-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => openStockAdjustment(item, "in")}
+                          disabled={loading}
+                          className="grid size-9 place-items-center rounded-full border border-emerald-300/18 bg-emerald-400/12 text-emerald-200 shadow-[0_0_22px_rgba(16,185,129,0.18)] transition active:bg-emerald-400/18 disabled:opacity-50"
+                        >
+                          <Plus className="size-4" />
+                        </button>
                       </div>
                     </div>
                   );
@@ -3101,11 +3136,16 @@ function InventarioTab({
           cambia dónde se muestran en mobile: acá, con scroll interno. */}
       {movementsModalOpen && (
         <div
-          className="fixed inset-0 z-50 flex flex-col bg-black/70 backdrop-blur-sm sm:hidden"
+          className="fixed inset-0 z-50 flex flex-col bg-black/70 p-3 backdrop-blur-sm sm:hidden"
           onClick={() => setMovementsModalOpen(false)}
         >
+          {/* Anclado arriba (no como bottom sheet): sin mt-auto, el panel
+              queda pegado al top con un margen chico parejo alrededor.
+              useBodyScrollLock arriba bloquea el scroll de fondo mientras
+              está abierto y restaura el scrollY exacto al cerrar — evita
+              los saltos/huecos negros que aparecían antes. */}
           <div
-            className="mt-auto flex max-h-[85vh] w-full flex-col overflow-hidden rounded-t-3xl border-t border-white/10 bg-[linear-gradient(180deg,rgba(12,16,30,0.98),rgba(5,7,16,0.99))] shadow-[0_-30px_100px_-45px_rgba(139,92,246,0.4)]"
+            className="flex max-h-full w-full flex-col overflow-hidden rounded-3xl border border-white/10 bg-[linear-gradient(180deg,rgba(12,16,30,0.98),rgba(5,7,16,0.99))] shadow-[0_30px_100px_-45px_rgba(139,92,246,0.4)]"
             onClick={(event) => event.stopPropagation()}
           >
             <div className="flex flex-col gap-4 border-b border-white/[0.065] px-5 py-4">
