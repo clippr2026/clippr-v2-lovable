@@ -311,23 +311,40 @@ function denormalizeStoredPhoneForInput(phone: string): string {
 export function BrandingSection() {
   const { businessId } = useAuth();
   const [data, setData] = useState<BrandingData>(EMPTY_BRANDING);
-  // El globo blanco del anuncio público ES el editor (WYSIWYG) — un
-  // textarea transparente adentro, sin campo de texto ni "Vista previa"
-  // separados. auto-resize: sin esto un textarea no crece con el
-  // contenido, y necesitamos que se comporte igual que el <span> real de
-  // la página pública cuando el texto ocupa 2 líneas.
+  // El globo sigue siendo el editor (tocás y escribís ahí mismo), pero el
+  // texto VISIBLE lo pinta un <div> aparte superpuesto al textarea (mismo
+  // grid cell, ver el JSX del globo más abajo) — no el propio textarea.
+  // Antes el <textarea> pintaba su propio texto y dependía de auto-resize
+  // por JS + un workaround de foco/blur para forzar el repaint de iOS
+  // Safari en controles de formulario; con el <div> de afuera no hace
+  // falta nada de eso: un <div> no es un control de formulario, no tiene
+  // ese bug, y el grid lo dimensiona solo (sin JS).
   const announcementRef = useRef<HTMLTextAreaElement>(null);
-  // useLayoutEffect (no useEffect): el alto se recalcula ANTES de que el
-  // navegador pinte el frame, no después. Con useEffect, Safari en iOS a
-  // veces pintaba el textarea con su alto inicial de 1 fila (contenido
-  // recortado/no visible) y recién repintaba el contenido real al recibir
-  // foco — con useLayoutEffect no hay ese frame intermedio "mal" que pintar.
+  // Texto visible del globo, hasta 2 líneas sin cortar contenido: mide el
+  // <div> a tamaño base y si no entra en 2 líneas va reduciendo el
+  // font-size (no el texto) hasta que entra o llega al piso — recién ahí
+  // line-clamp-2 actúa como red de seguridad. El <textarea> (invisible,
+  // solo para el cursor) copia el mismo font-size y alto real para que el
+  // click quede alineado con lo que se ve.
+  const announcementTextRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
-    const el = announcementRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${el.scrollHeight}px`;
-    void el.offsetHeight;
+    const textEl = announcementTextRef.current;
+    const taEl = announcementRef.current;
+    if (!textEl || !taEl) return;
+    const MAX_SIZE = 11;
+    const MIN_SIZE = 8.5;
+    const STEP = 0.5;
+    let size = MAX_SIZE;
+    textEl.style.fontSize = `${size}px`;
+    let lineHeightPx = parseFloat(getComputedStyle(textEl).lineHeight);
+    while (size > MIN_SIZE && textEl.scrollHeight > lineHeightPx * 2 + 1) {
+      size -= STEP;
+      textEl.style.fontSize = `${size}px`;
+      lineHeightPx = parseFloat(getComputedStyle(textEl).lineHeight);
+    }
+    taEl.style.fontSize = `${size}px`;
+    taEl.style.height = "auto";
+    taEl.style.height = `${textEl.scrollHeight}px`;
   }, [data.profile_note]);
   // Si no hay anuncio guardado, el globo arranca con un mensaje de ejemplo
   // como VALOR real (no un placeholder — el usuario pidió explícitamente
@@ -338,27 +355,6 @@ export function BrandingSection() {
   // pantalla. Se marca "tocado" apenas escribe o apenas activa el switch.
   const [profileNoteTouched, setProfileNoteTouched] = useState(false);
   const [loading, setLoading] = useState(true);
-  // Bug conocido de iOS Safari: un textarea que recibe su valor por JS
-  // después del mount (acá, el fetch a Supabase que llena el globo con el
-  // anuncio guardado) puede quedar con el VALOR correcto pero sin pintar
-  // el texto en pantalla hasta la primera interacción real del usuario —
-  // confirmado en este caso puntual: tocar el campo "arregla" el globo.
-  // Un toggle de transform/opacity (lo que se probó antes) no siempre
-  // alcanza a comprometerse como un repaint real. Acá se automatiza la
-  // interacción exacta que sí funciona: un ciclo focus()+blur()
-  // programático apenas terminan de cargar los datos (una sola vez, no en
-  // cada letra que escribe). Sin gesto previo del usuario, iOS no abre el
-  // teclado con foco programático, así que no se nota — y preventScroll
-  // evita que la página salte.
-  const announcementHydratedRef = useRef(false);
-  useEffect(() => {
-    if (loading || announcementHydratedRef.current) return;
-    announcementHydratedRef.current = true;
-    const el = announcementRef.current;
-    if (!el) return;
-    el.focus({ preventScroll: true });
-    el.blur();
-  }, [loading]);
   const [saving, setSaving] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -1194,16 +1190,31 @@ export function BrandingSection() {
           </div>
 
           <div className="w-full lg:w-[420px]">
-            {/* El globo ES el editor — mismo diseño exacto que la página
-                pública (ver negocio/$slug.tsx), con un textarea
-                transparente adentro en vez de texto estático. Sin campo de
-                texto aparte ni "Vista previa": lo que el usuario toca y
-                escribe acá es exactamente lo que van a ver sus clientes. */}
+            {/* El globo sigue siendo el editor (tocás y escribís ahí
+                mismo), pero el texto VISIBLE ya no es el que pinta el
+                propio <textarea> — es un <div> aparte, sin ningún control
+                de formulario de por medio, así que no puede verse afectado
+                por el bug de repaint de iOS Safari en textareas (el
+                problema real: WebKit puede dejar el valor del textarea
+                correcto pero sin pintarlo hasta la primera interacción).
+                Los dos comparten la misma celda de grid ([grid-area:1/1]
+                vía col-start-1/row-start-1), así que ocupan exactamente
+                el mismo lugar sin necesitar JS para sincronizar tamaños:
+                el <div> se ve, el <textarea> queda con su propio texto
+                transparente encima (solo se nota el cursor) y refleja ahí
+                lo que se escribe. */}
             <div className="flex justify-center py-3">
               <div
                 onClick={() => announcementRef.current?.focus()}
-                className="relative flex w-fit min-w-[150px] max-w-[176px] cursor-text flex-col items-center justify-center rounded-2xl bg-white px-2.5 py-2 shadow-xl ring-1 ring-black/5 transition focus-within:ring-2 focus-within:ring-violet-400/50 sm:min-w-[190px] sm:max-w-[224px]"
+                className="relative grid w-fit min-w-[150px] max-w-[176px] cursor-text place-items-center rounded-2xl bg-white px-2.5 py-2 shadow-xl ring-1 ring-black/5 transition focus-within:ring-2 focus-within:ring-violet-400/50 sm:min-w-[190px] sm:max-w-[224px]"
               >
+                <div
+                  ref={announcementTextRef}
+                  aria-hidden="true"
+                  className="pointer-events-none col-start-1 row-start-1 line-clamp-2 block w-full overflow-hidden whitespace-pre-line break-words text-center text-[11px] font-semibold leading-snug text-zinc-950 opacity-100 [-webkit-text-fill-color:#09090b] [transform:none] [visibility:visible] [word-break:normal]"
+                >
+                  {data.profile_note.trim() || "Escribí un anuncio"}
+                </div>
                 <textarea
                   ref={announcementRef}
                   rows={1}
@@ -1222,7 +1233,7 @@ export function BrandingSection() {
                     if (!profileNoteTouched) e.currentTarget.select();
                   }}
                   maxLength={50}
-                  className="block w-full resize-none whitespace-pre-line break-words border-0 bg-transparent p-0 text-center text-[11px] font-semibold leading-snug text-zinc-950 outline-none [word-break:normal] [-webkit-text-fill-color:#09090b] [-webkit-appearance:none]"
+                  className="col-start-1 row-start-1 block w-full resize-none whitespace-pre-line break-words border-0 bg-transparent p-0 text-center text-[11px] font-semibold leading-snug text-transparent caret-zinc-950 outline-none [word-break:normal] [-webkit-text-fill-color:transparent] [-webkit-appearance:none]"
                 />
                 <span className="pointer-events-none absolute left-1/2 top-full h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-white" />
               </div>
