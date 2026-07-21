@@ -311,46 +311,42 @@ function denormalizeStoredPhoneForInput(phone: string): string {
 export function BrandingSection() {
   const { businessId } = useAuth();
   const [data, setData] = useState<BrandingData>(EMPTY_BRANDING);
-  // El globo sigue siendo el editor (tocás y escribís ahí mismo), pero el
-  // texto VISIBLE lo pinta un <div> aparte superpuesto al textarea (mismo
-  // grid cell, ver el JSX del globo más abajo) — no el propio textarea.
-  // Antes el <textarea> pintaba su propio texto y dependía de auto-resize
-  // por JS + un workaround de foco/blur para forzar el repaint de iOS
-  // Safari en controles de formulario; con el <div> de afuera no hace
-  // falta nada de eso: un <div> no es un control de formulario, no tiene
-  // ese bug, y el grid lo dimensiona solo (sin JS).
+  // El globo es un único <textarea> real y visible — nada de texto
+  // pintado por un <div> superpuesto con el propio textarea transparente
+  // encima. Esa superposición (probada antes) dependía del caret nativo
+  // para "avisar" que el campo era editable, y en Safari de iPhone ese
+  // caret no siempre se distinguía hasta la primera tecla. Con texto y
+  // caret en el mismo elemento real no hay nada que pueda desincronizarse.
   const announcementRef = useRef<HTMLTextAreaElement>(null);
-  // Texto visible del globo, hasta 2 líneas sin cortar contenido: mide el
-  // <div> a tamaño base y si no entra en 2 líneas va reduciendo el
-  // font-size (no el texto) hasta que entra o llega al piso — recién ahí
-  // line-clamp-2 actúa como red de seguridad.
-  const announcementTextRef = useRef<HTMLDivElement>(null);
+  // font-size fijo en 16px (ver className más abajo): cualquier input con
+  // letra menor a eso hace que iOS Safari dispare un auto-zoom de toda la
+  // página al enfocarlo. Acá solo se autoajusta el ALTO (layout puro, sin
+  // relación con el bug de pintado de glifos) para que el globo crezca de
+  // 1 a 2 líneas según el contenido, sin scroll interno.
   useLayoutEffect(() => {
-    const textEl = announcementTextRef.current;
-    const taEl = announcementRef.current;
-    if (!textEl || !taEl) return;
-    const MAX_SIZE = 11;
-    const MIN_SIZE = 8.5;
-    const STEP = 0.5;
-    let size = MAX_SIZE;
-    textEl.style.fontSize = `${size}px`;
-    let lineHeightPx = parseFloat(getComputedStyle(textEl).lineHeight);
-    while (size > MIN_SIZE && textEl.scrollHeight > lineHeightPx * 2 + 1) {
-      size -= STEP;
-      textEl.style.fontSize = `${size}px`;
-      lineHeightPx = parseFloat(getComputedStyle(textEl).lineHeight);
-    }
-    // El <textarea> (invisible, solo para el cursor) NO copia ese
-    // font-size chico: cualquier input con font-size menor a 16px hace que
-    // iOS Safari haga auto-zoom de toda la página al enfocarlo — ese zoom
-    // es justo el glitch reportado ("no veo el cursor, el texto queda
-    // cortado/superpuesto hasta que escribo la primera letra"). 16px fijo
-    // evita el zoom por completo; como el texto del textarea es
-    // transparente, el único efecto visible es el caret, así que el
-    // desajuste de tamaño real vs. el texto pintado no se nota.
-    taEl.style.height = "auto";
-    taEl.style.height = `${textEl.scrollHeight}px`;
+    const el = announcementRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    const lineHeightPx = parseFloat(getComputedStyle(el).lineHeight);
+    el.style.height = `${Math.min(el.scrollHeight, lineHeightPx * 2 + 1)}px`;
   }, [data.profile_note]);
+  function focusAnnouncementAtEnd() {
+    const el = announcementRef.current;
+    if (!el) return;
+    el.focus();
+    // No usamos select(): en Safari de iPhone una selección activa puede
+    // hacer que el caret parpadeante no se perciba. Colocamos el cursor
+    // al final del texto guardado, después del focus (requestAnimationFrame
+    // por si Safari todavía no asentó la selección en el mismo tick).
+    const len = el.value.length;
+    requestAnimationFrame(() => {
+      try {
+        el.setSelectionRange(len, len);
+      } catch {
+        // no-op: algunos navegadores pueden no soportarlo en ciertos estados
+      }
+    });
+  }
   // Si no hay anuncio guardado, el globo arranca con un mensaje de ejemplo
   // como VALOR real (no un placeholder — el usuario pidió explícitamente
   // que no sea un placeholder, porque quiere ver contenido real desde que
@@ -1195,31 +1191,16 @@ export function BrandingSection() {
           </div>
 
           <div className="w-full lg:w-[420px]">
-            {/* El globo sigue siendo el editor (tocás y escribís ahí
-                mismo), pero el texto VISIBLE ya no es el que pinta el
-                propio <textarea> — es un <div> aparte, sin ningún control
-                de formulario de por medio, así que no puede verse afectado
-                por el bug de repaint de iOS Safari en textareas (el
-                problema real: WebKit puede dejar el valor del textarea
-                correcto pero sin pintarlo hasta la primera interacción).
-                Los dos comparten la misma celda de grid ([grid-area:1/1]
-                vía col-start-1/row-start-1), así que ocupan exactamente
-                el mismo lugar sin necesitar JS para sincronizar tamaños:
-                el <div> se ve, el <textarea> queda con su propio texto
-                transparente encima (solo se nota el cursor) y refleja ahí
-                lo que se escribe. */}
+            {/* El globo ES el editor: un único <textarea> real y visible,
+                sin ningún <div> superpuesto pintando el texto ni trucos de
+                transparencia — eso dependía del caret nativo para marcar
+                que el campo era editable, y en Safari de iPhone ese caret
+                no siempre se distinguía hasta la primera tecla. */}
             <div className="flex justify-center py-3">
               <div
-                onClick={() => announcementRef.current?.focus()}
-                className="relative grid w-fit min-w-[150px] max-w-[176px] cursor-text place-items-center rounded-2xl bg-white px-2.5 py-2 shadow-xl ring-1 ring-black/5 transition focus-within:ring-2 focus-within:ring-violet-400/50 sm:min-w-[190px] sm:max-w-[224px]"
+                onClick={focusAnnouncementAtEnd}
+                className="relative flex min-w-[220px] max-w-[260px] cursor-text flex-col items-center justify-center rounded-2xl bg-white px-2.5 py-2 shadow-xl ring-1 ring-black/5 transition focus-within:ring-2 focus-within:ring-violet-400/50 sm:min-w-[240px] sm:max-w-[300px]"
               >
-                <div
-                  ref={announcementTextRef}
-                  aria-hidden="true"
-                  className="pointer-events-none col-start-1 row-start-1 line-clamp-2 block w-full overflow-hidden whitespace-pre-line break-words text-center text-[11px] font-semibold leading-snug text-zinc-950 opacity-100 [-webkit-text-fill-color:#09090b] [transform:none] [visibility:visible] [word-break:normal]"
-                >
-                  {data.profile_note.trim() || "Escribí un anuncio"}
-                </div>
                 <textarea
                   ref={announcementRef}
                   rows={1}
@@ -1232,13 +1213,23 @@ export function BrandingSection() {
                     }));
                   }}
                   onFocus={(e) => {
-                    // Todavía muestra el mensaje de ejemplo sin tocar: al
-                    // enfocar lo selecciona todo, así el primer caracter que
-                    // escribe lo reemplaza en vez de insertarse en el medio.
-                    if (!profileNoteTouched) e.currentTarget.select();
+                    // Sin select(): en Safari de iPhone una selección
+                    // activa puede tapar la percepción del caret. El
+                    // cursor va directo al final del texto (ver
+                    // focusAnnouncementAtEnd, mismo comportamiento acá
+                    // porque el textarea también recibe foco por tab/voz).
+                    const el = e.currentTarget;
+                    const len = el.value.length;
+                    requestAnimationFrame(() => {
+                      try {
+                        el.setSelectionRange(len, len);
+                      } catch {
+                        // no-op
+                      }
+                    });
                   }}
                   maxLength={50}
-                  className="col-start-1 row-start-1 block w-full resize-none whitespace-pre-line break-words border-0 bg-transparent p-0 text-center text-base font-semibold leading-snug text-transparent caret-zinc-950 outline-none [word-break:normal] [-webkit-text-fill-color:transparent] [-webkit-appearance:none]"
+                  className="block w-full resize-none overflow-hidden whitespace-pre-line break-words border-0 bg-transparent p-0 text-center text-base font-semibold leading-snug text-[#111111] outline-none [word-break:normal] [-webkit-text-fill-color:#111111] caret-[#111111] [-webkit-appearance:none]"
                 />
                 <span className="pointer-events-none absolute left-1/2 top-full h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-white" />
               </div>
