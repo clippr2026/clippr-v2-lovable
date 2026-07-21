@@ -5,7 +5,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import {
-  X,
   Upload,
   Plus,
   Trash2,
@@ -13,8 +12,7 @@ import {
   GripVertical,
   Star,
   Loader2,
-  ChevronLeft,
-  ChevronRight,
+  Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { applyCatalogOrder as applyItemOrder } from "@/lib/catalog-order";
@@ -568,6 +566,8 @@ function DraggableImageCrop({
   );
 }
 
+const NEW_CATEGORY_OPTION = "__new_category__";
+
 function PriceEditorModal({
   open,
   mode,
@@ -580,6 +580,7 @@ function PriceEditorModal({
   saving,
   catalogCategories = defaultCatalogCategories,
   onUploadImage,
+  onCreateCategory,
   featuredOthers = 0,
 }: {
   open: boolean;
@@ -593,6 +594,7 @@ function PriceEditorModal({
   saving: boolean;
   catalogCategories?: string[];
   onUploadImage?: (file: File) => Promise<string | null>;
+  onCreateCategory?: (name: string) => boolean;
   featuredOthers?: number;
 }) {
   const [uploadingImg, setUploadingImg] = useState(false);
@@ -602,11 +604,89 @@ function PriceEditorModal({
   useLayoutEffect(() => {
     if (open) scrollRef.current?.scrollTo(0, 0);
   }, [open]);
+  // Crear categoría sin salir del modal: al elegir "+ Crear nueva
+  // categoría" en el <select>, en vez de asignar ese valor literal se
+  // muestra un input inline acá mismo — el resto del formulario (nombre,
+  // precio, imagen...) sigue intacto, no se pierde nada.
+  const [creatingCategory, setCreatingCategory] = useState(false);
+  const [newCategoryName, setNewCategoryName] = useState("");
   if (!open) return null;
   const cashPrice = priceToCash(form.price, form.discount);
   const title = `${mode === "edit" ? "Editar" : "Nuevo"} ${isService ? "servicio" : "producto"}`;
   const availableCatalogCategories = Array.from(
     new Set([...(form.category ? [form.category] : []), ...catalogCategories]),
+  );
+  function handleCreateCategory() {
+    const clean = newCategoryName.trim();
+    if (!clean) return;
+    const exists = availableCatalogCategories.some(
+      (c) => c.toLowerCase() === clean.toLowerCase(),
+    );
+    if (exists) return toast.error("Ya existe una categoría con ese nombre");
+    const created = onCreateCategory?.(clean) ?? true;
+    if (!created) return;
+    setForm({ ...form, category: clean });
+    setCreatingCategory(false);
+    setNewCategoryName("");
+  }
+  const categoryField = creatingCategory ? (
+    <div className="space-y-2">
+      <input
+        autoFocus
+        value={newCategoryName}
+        onChange={(e) => setNewCategoryName(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            handleCreateCategory();
+          }
+          if (e.key === "Escape") {
+            setCreatingCategory(false);
+            setNewCategoryName("");
+          }
+        }}
+        placeholder="Nombre de la categoría"
+        maxLength={MAX_CATEGORY_NAME_LENGTH}
+        className={inputCls}
+      />
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={() => {
+            setCreatingCategory(false);
+            setNewCategoryName("");
+          }}
+          className="rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-2 text-sm"
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          onClick={handleCreateCategory}
+          className="flex-1 rounded-lg bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-3 py-2 text-sm"
+        >
+          Guardar categoría
+        </button>
+      </div>
+    </div>
+  ) : (
+    <select
+      value={form.category}
+      onChange={(e) => {
+        if (e.target.value === NEW_CATEGORY_OPTION) {
+          setNewCategoryName("");
+          setCreatingCategory(true);
+          return;
+        }
+        setForm({ ...form, category: e.target.value });
+      }}
+      className={inputCls}
+    >
+      {availableCatalogCategories.map((category) => (
+        <option key={category}>{category}</option>
+      ))}
+      <option value={NEW_CATEGORY_OPTION}>+ Crear nueva categoría</option>
+    </select>
   );
 
   if (typeof document === "undefined") return null;
@@ -644,17 +724,7 @@ function PriceEditorModal({
                       maxLength={MAX_ITEM_NAME_LENGTH}
                     />
                   </Field>
-                  <Field label="Categoría">
-                    <select
-                      value={form.category}
-                      onChange={(e) => setForm({ ...form, category: e.target.value })}
-                      className={inputCls}
-                    >
-                      {availableCatalogCategories.map((category) => (
-                        <option key={category}>{category}</option>
-                      ))}
-                    </select>
-                  </Field>
+                  <Field label="Categoría">{categoryField}</Field>
                   <Field label="Duración">
                     <div className="relative">
                       <input
@@ -815,17 +885,7 @@ function PriceEditorModal({
                       maxLength={MAX_ITEM_NAME_LENGTH}
                     />
                   </Field>
-                  <Field label="Categoría">
-                    <select
-                      value={form.category}
-                      onChange={(e) => setForm({ ...form, category: e.target.value })}
-                      className={inputCls}
-                    >
-                      {availableCatalogCategories.map((category) => (
-                        <option key={category}>{category}</option>
-                      ))}
-                    </select>
-                  </Field>
+                  <Field label="Categoría">{categoryField}</Field>
                 </div>
               </SectionCard>
 
@@ -2121,14 +2181,25 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     1.02,
   );
 
-  // Inline input modal for add/rename category (avoids browser prompt())
-  const [catModal, setCatModal] = useState<{
-    mode: "add" | "rename";
-    current?: string;
-  } | null>(null);
+  // Inline input modal para renombrar categoría (evita el prompt() del navegador).
+  // Crear categoría ya no pasa por acá — se creó desde el modal de
+  // servicio/producto (ver PriceEditorModal), así que este modal solo
+  // renombra categorías existentes (se abre desde el modo Organizar).
+  const [catModal, setCatModal] = useState<{ current: string } | null>(null);
   const [catInputVal, setCatInputVal] = useState("");
-  const [addMenuOpen, setAddMenuOpen] = useState(false);
-  const addMenuRef = React.useRef<HTMLDivElement | null>(null);
+  // Modo Organizar: reordenar categorías/ítems con drag&drop. Fuera de
+  // este modo no se ven controles de arrastre ni de eliminar categoría.
+  const [organizing, setOrganizing] = useState(false);
+  // Qué categoría tiene abierto su menú de acciones (Editar nombre /
+  // Eliminar categoría) dentro del modo Organizar.
+  const [catActionMenu, setCatActionMenu] = useState<string | null>(null);
+  // Si la categoría a eliminar todavía tiene ítems, en vez de borrarlos se
+  // pide elegir a dónde moverlos primero.
+  const [moveItemsModal, setMoveItemsModal] = useState<{
+    category: string;
+    itemCount: number;
+  } | null>(null);
+  const [moveTargetCategory, setMoveTargetCategory] = useState("");
   // Edición rápida de nombre por doble click (servicio/ítem), sin abrir el modal completo.
   const [itemRenameTarget, setItemRenameTarget] = useState<PriceRow | null>(null);
   const [itemRenameVal, setItemRenameVal] = useState("");
@@ -2162,30 +2233,10 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     }, 150);
   }
 
-  useEffect(() => {
-    if (!addMenuOpen) return;
-
-    function handleAddMenuOutsideClick(event: MouseEvent) {
-      const target = event.target as Node;
-      if (addMenuRef.current && !addMenuRef.current.contains(target)) {
-        setAddMenuOpen(false);
-      }
-    }
-
-    document.addEventListener("pointerdown", handleAddMenuOutsideClick, true);
-    return () =>
-      document.removeEventListener("pointerdown", handleAddMenuOutsideClick, true);
-  }, [addMenuOpen]);
-
-
-  function addCategory() {
-    setCatInputVal("");
-    setCatModal({ mode: "add" });
-  }
-
   async function renameCategory(category: string) {
+    setCatActionMenu(null);
     setCatInputVal(category);
-    setCatModal({ mode: "rename", current: category });
+    setCatModal({ current: category });
   }
 
   // Reordenar categorías (drag&drop con Pointer Events, mismo mecanismo que
@@ -2220,30 +2271,24 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   // cada scroll/resize, sin listeners propios que mantener a mano ni
   // cálculos que puedan quedar desincronizados.
   const catScrollRef = useRef<HTMLDivElement | null>(null);
-  const catLeftSentinelRef = useRef<HTMLDivElement | null>(null);
   const catRightSentinelRef = useRef<HTMLDivElement | null>(null);
-  const [catScroll, setCatScroll] = useState({ left: false, right: false });
   // Ref (no state): la animación de pista solo debe reproducirse una vez
-  // por visita a la pantalla, nunca de nuevo aunque catScroll cambie.
+  // por visita a la pantalla.
   const catHintPlayedRef = useRef(false);
 
   useEffect(() => {
     const root = catScrollRef.current;
-    const leftEl = catLeftSentinelRef.current;
     const rightEl = catRightSentinelRef.current;
-    if (!root || !leftEl || !rightEl) return;
+    if (!root || !rightEl) return;
     const observer = new IntersectionObserver(
       (entries) => {
         for (const entry of entries) {
-          if (entry.target === leftEl) {
-            setCatScroll((s) => ({ ...s, left: !entry.isIntersecting }));
-          } else if (entry.target === rightEl) {
-            const right = !entry.isIntersecting;
-            setCatScroll((s) => ({ ...s, right }));
+          if (entry.target === rightEl) {
             // La primera vez que se detecta que hay categorías tapadas a
-            // la derecha, un movimiento leve de ida y vuelta (una sola
-            // vez) muestra que la fila se puede deslizar.
-            if (right && !catHintPlayedRef.current) {
+            // la derecha, un movimiento leve de ida y vuelta (una sola vez,
+            // sin flechas ni botones visibles) muestra que la fila se
+            // puede deslizar.
+            if (!entry.isIntersecting && !catHintPlayedRef.current) {
               catHintPlayedRef.current = true;
               root.scrollBy({ left: 28, behavior: "smooth" });
               window.setTimeout(() => {
@@ -2255,107 +2300,56 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       },
       { root, threshold: 1 },
     );
-    observer.observe(leftEl);
     observer.observe(rightEl);
     return () => observer.disconnect();
   }, [categories]);
 
   async function submitCatModal() {
     const clean = catInputVal.trim();
-    if (!clean) {
-      setCatModal(null);
-      return;
-    }
-    if (catModal?.mode === "add") {
-      if (categories.length >= MAX_CATEGORIES) {
-        toast.error(`Máximo ${MAX_CATEGORIES} categorías alcanzado`);
-        setCatModal(null);
-        return;
-      }
-      if (isService)
-        saveCategories([...customServiceCategories, clean], "service");
-      else saveCategories([...customCatalogCategories, clean], "catalog");
-      selectCategory(clean);
-    } else if (catModal?.mode === "rename" && catModal.current) {
-      const category = catModal.current;
-      if (clean !== category) {
-        if (isService) {
-          const next = customServiceCategories.includes(category)
-            ? customServiceCategories.map((c) => (c === category ? clean : c))
-            : [...customServiceCategories, clean];
-          saveCategories(next, "service");
-        } else {
-          const next = customCatalogCategories.includes(category)
-            ? customCatalogCategories.map((c) => (c === category ? clean : c))
-            : [...customCatalogCategories, clean];
-          saveCategories(next, "catalog");
-        }
-        if (businessId) {
-          await supabase
-            .from("price_catalog")
-            .update({ category: clean })
-            .eq("business_id", businessId)
-            .eq("category", category);
-        }
-        selectCategory(clean);
-        toast.success("Categoría actualizada");
-        load();
-      }
-    }
+    const category = catModal?.current;
     setCatModal(null);
+    if (!clean || !category || clean === category) return;
+    if (isService) {
+      const next = customServiceCategories.includes(category)
+        ? customServiceCategories.map((c) => (c === category ? clean : c))
+        : [...customServiceCategories, clean];
+      saveCategories(next, "service");
+    } else {
+      const next = customCatalogCategories.includes(category)
+        ? customCatalogCategories.map((c) => (c === category ? clean : c))
+        : [...customCatalogCategories, clean];
+      saveCategories(next, "catalog");
+    }
+    if (businessId) {
+      await supabase
+        .from("price_catalog")
+        .update({ category: clean })
+        .eq("business_id", businessId)
+        .eq("category", category);
+    }
+    selectCategory(clean);
+    toast.success("Categoría actualizada");
+    load();
   }
 
-  async function deleteCategory(category: string) {
-    setConfirmDelCat(category);
-  }
-
-  async function doDeleteCategory() {
-    if (!confirmDelCat) return;
-    const category = confirmDelCat;
-    setConfirmDelCat(null);
-    const currentCategories = categories.filter((c) => c !== category);
-    if (currentCategories.length === 0)
-      return toast.error("Debe quedar al menos una categoría");
-
+  // Eliminar una categoría nunca borra sus ítems en silencio: si está
+  // vacía se confirma y se borra directo; si tiene ítems, primero hay que
+  // elegir a dónde moverlos (moveItemsModal).
+  function deleteCategory(category: string) {
+    setCatActionMenu(null);
     const itemsInCategory = rows.filter(
       (r) => (r.category || (isService ? "Servicios" : "Productos")) === category,
     );
-
-    // Borra la categoría completa: todos sus ítems se eliminan, salvo los que
-    // ya tienen historial (turnos, ventas) — esos nunca se borran, solo se
-    // desactivan, para no romper esas referencias.
-    const deletable: PriceRow[] = [];
-    const protectedItems: PriceRow[] = [];
-    for (const row of itemsInCategory) {
-      if (await hasHistoricalUsage(row)) protectedItems.push(row);
-      else deletable.push(row);
+    if (itemsInCategory.length === 0) {
+      setConfirmDelCat(category);
+    } else {
+      setMoveItemsModal({ category, itemCount: itemsInCategory.length });
+      setMoveTargetCategory(categories.find((c) => c !== category) ?? "");
     }
+  }
 
-    for (const row of deletable) {
-      if (!row.id.startsWith("new_")) {
-        await supabase.from("price_catalog").delete().eq("id", row.id);
-      }
-    }
-    for (const row of protectedItems) {
-      if (!row.id.startsWith("new_")) {
-        await supabase.from("price_catalog").update({ active: false }).eq("id", row.id);
-      }
-    }
-
-    const deletedIds = new Set(deletable.map((r) => r.id));
-    const deactivatedIds = new Set(protectedItems.map((r) => r.id));
-    setRows((prev) =>
-      prev
-        .filter((r) => !deletedIds.has(r.id))
-        .map((r) => (deactivatedIds.has(r.id) ? { ...r, active: false } : r)),
-    );
-    setPendingItems((prev) => prev.filter((p) => !deletedIds.has(p.tempId)));
-    setPendingDeletes((prev) => {
-      const next = new Set(prev);
-      for (const id of deletedIds) next.delete(id);
-      return next;
-    });
-
+  function removeCategoryFromList(category: string) {
+    const currentCategories = categories.filter((c) => c !== category);
     if (isService)
       saveCategories(
         customServiceCategories.filter((c) => c !== category),
@@ -2366,20 +2360,40 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         customCatalogCategories.filter((c) => c !== category),
         "catalog",
       );
-
     if (category === activeCat || !currentCategories.includes(activeCat)) {
       selectCategory(currentCategories[0]);
     }
+  }
 
-    toast.success(
-      protectedItems.length > 0
-        ? `Categoría eliminada. ${protectedItems.length} ${
-            protectedItems.length === 1
-              ? "elemento con historial fue desactivado"
-              : "elementos con historial fueron desactivados"
-          } porque no se pueden borrar.`
-        : "Categoría y elementos eliminados",
+  // Solo se llama para categorías ya vacías (ver deleteCategory) — acá no
+  // hace falta tocar ítems para nada.
+  async function doDeleteCategory() {
+    if (!confirmDelCat) return;
+    const category = confirmDelCat;
+    setConfirmDelCat(null);
+    if (categories.filter((c) => c !== category).length === 0)
+      return toast.error("Debe quedar al menos una categoría");
+    removeCategoryFromList(category);
+    toast.success("Categoría eliminada");
+    markSettingsDirty();
+  }
+
+  async function moveItemsAndDeleteCategory() {
+    if (!moveItemsModal || !businessId) return;
+    const { category } = moveItemsModal;
+    const target = moveTargetCategory;
+    if (!target || target === category) return;
+    setMoveItemsModal(null);
+    await supabase
+      .from("price_catalog")
+      .update({ category: target })
+      .eq("business_id", businessId)
+      .eq("category", category);
+    setRows((prev) =>
+      prev.map((r) => (r.category === category ? { ...r, category: target } : r)),
     );
+    removeCategoryFromList(category);
+    toast.success("Ítems movidos y categoría eliminada");
     markSettingsDirty();
     load();
   }
@@ -2406,22 +2420,19 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         ) : (
           <>
         <div className="relative flex items-start gap-2 px-3 pt-3 pr-1 border-b border-white/5 overflow-visible">
-          {/* Fila horizontal deslizable en vez de grid multi-fila: el grid
-              anterior repartía las categorías en columnas de ancho igual
-              (1fr) y truncaba el nombre ("B...", "In...") para que
-              entraran todas juntas sin scroll. Acá cada categoría se
-              dimensiona a su propio contenido (shrink-0 + whitespace-
-              nowrap, sin truncate) y la fila entera scrollea horizontal
-              si no entran todas — nunca se corta un nombre. Degradado +
-              flecha a los costados (ver catScroll arriba) avisan que hay
-              más categorías fuera de vista. */}
+          {/* Fila horizontal deslizable en vez de grid multi-fila: cada
+              categoría se dimensiona a su propio contenido (shrink-0 +
+              whitespace-nowrap, sin truncate) y la fila entera scrollea
+              horizontal si no entran todas — nunca se corta un nombre. Sin
+              flechas ni degradados superpuestos: solo scroll táctil, con un
+              pequeño empujón de una sola vez (ver catHintPlayedRef) para
+              avisar que se puede deslizar. */}
           <div className="relative min-w-0 flex-1">
             <div
               ref={catScrollRef}
               className="overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
-              <div className="flex items-center gap-1">
-                <div ref={catLeftSentinelRef} className="h-px w-px shrink-0" />
+              <div className="flex items-center gap-0.5">
                 {categories.map((category) => {
                   const active = category === activeCat;
                   return (
@@ -2429,135 +2440,68 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                       key={category}
                       ref={categoryReorder.setNodeRef(category)}
                       className={cn(
-                        "flex shrink-0 items-center gap-1 whitespace-nowrap rounded-t-lg transition-colors duration-150",
-                        active
+                        "flex shrink-0 items-center whitespace-nowrap rounded-t-lg transition-colors duration-150",
+                        active && !organizing
                           ? "bg-white/5 text-foreground"
                           : "text-muted-foreground hover:text-foreground",
                         categoryReorder.draggingId === category &&
                           "z-50 rounded-lg bg-white/10 text-foreground shadow-[0_8px_22px_-6px_rgba(139,92,246,0.6)] ring-2 ring-violet-400/60",
                       )}
                     >
-                      <span
-                        onPointerDown={(event) =>
-                          categoryReorder.startDrag(category, event)
-                        }
-                        className="grid h-9 w-8 shrink-0 touch-none select-none place-items-center rounded-md cursor-grab text-white/40 [-webkit-touch-callout:none] active:cursor-grabbing active:bg-white/5"
-                      >
-                        <GripVertical className="h-4 w-4" />
-                      </span>
+                      {organizing && (
+                        <span
+                          onPointerDown={(event) =>
+                            categoryReorder.startDrag(category, event)
+                          }
+                          className="grid h-9 w-7 shrink-0 touch-none select-none place-items-center rounded-md cursor-grab text-white/40 [-webkit-touch-callout:none] active:cursor-grabbing active:bg-white/5"
+                        >
+                          <GripVertical className="h-4 w-4" />
+                        </span>
+                      )}
                       <button
                         type="button"
-                        onClick={() => selectCategory(category)}
-                        onDoubleClick={() => renameCategory(category)}
+                        onClick={() =>
+                          organizing
+                            ? setCatActionMenu(category)
+                            : selectCategory(category)
+                        }
                         title={category}
-                        className="flex items-center whitespace-nowrap px-1 py-2 text-sm select-none"
+                        className="flex items-center whitespace-nowrap px-2 py-2 text-sm select-none"
                       >
                         {category}
                       </button>
-                      {categories.length > 1 && (
-                        <button
-                          type="button"
-                          onClick={() => deleteCategory(category)}
-                          className="grid h-6 w-6 shrink-0 place-items-center rounded-md pr-1 text-red-300/70 transition hover:bg-red-500/10 hover:text-red-300"
-                          title="Eliminar categoría"
-                        >
-                          <X className="h-3 w-3" />
-                        </button>
-                      )}
                     </div>
                   );
                 })}
                 <div ref={catRightSentinelRef} className="h-px w-px shrink-0" />
               </div>
             </div>
-
-            {/* Degradado + flecha: solo aparecen cuando efectivamente hay
-                categorías tapadas de ese lado (catScroll.left/right), se
-                ocultan solas al llegar al final. pointer-events-none en el
-                degradado para no tapar el toque sobre la categoría
-                parcialmente visible debajo. */}
-            {catScroll.left && (
-              <>
-                <div className="pointer-events-none absolute inset-y-0 left-0 w-7 bg-gradient-to-r from-black/40 to-transparent" />
-                <button
-                  type="button"
-                  onClick={() =>
-                    catScrollRef.current?.scrollBy({ left: -140, behavior: "smooth" })
-                  }
-                  aria-label="Ver categorías anteriores"
-                  className="absolute left-0.5 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full bg-white/10 text-white/70 ring-1 ring-white/15 backdrop-blur-sm transition hover:bg-white/20 hover:text-white"
-                >
-                  <ChevronLeft className="h-3.5 w-3.5" />
-                </button>
-              </>
-            )}
-            {catScroll.right && (
-              <>
-                <div className="pointer-events-none absolute inset-y-0 right-0 w-7 bg-gradient-to-l from-black/40 to-transparent" />
-                <button
-                  type="button"
-                  onClick={() =>
-                    catScrollRef.current?.scrollBy({ left: 140, behavior: "smooth" })
-                  }
-                  aria-label="Ver más categorías"
-                  className="absolute right-0.5 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-full bg-white/10 text-white/70 ring-1 ring-white/15 backdrop-blur-sm transition hover:bg-white/20 hover:text-white"
-                >
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </button>
-              </>
-            )}
           </div>
 
-          <div className="flex shrink-0 items-center justify-end pl-2 pr-0">
-            <div ref={addMenuRef} className="relative">
+          <div className="flex shrink-0 items-center justify-end gap-1.5 pl-2 pr-0">
+            <button
+              type="button"
+              onClick={() => setOrganizing((v) => !v)}
+              className={cn(
+                "grid h-8 place-items-center rounded-xl px-2.5 text-xs font-semibold transition",
+                organizing
+                  ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white"
+                  : "bg-white/5 text-white/60 ring-1 ring-white/10 hover:bg-white/10 hover:text-white",
+              )}
+              aria-label={organizing ? "Salir de organizar" : "Organizar"}
+            >
+              {organizing ? "Listo" : <GripVertical className="h-4 w-4" />}
+            </button>
+            {!organizing && (
               <button
                 type="button"
-                onClick={() => setAddMenuOpen((open) => !open)}
+                onClick={openNew}
                 className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white shadow-[0_8px_24px_-10px_rgba(56,189,248,0.75)] transition hover:opacity-95"
                 aria-label="Agregar"
               >
                 <Plus className="h-4.5 w-4.5" strokeWidth={2.5} />
               </button>
-
-              {addMenuOpen ? (
-                <div className="absolute right-0 top-10 z-30 w-56 overflow-hidden rounded-2xl border border-white/10 bg-[oklch(0.13_0.035_275/0.98)] p-1.5 shadow-2xl backdrop-blur-xl">
-                  <button
-                    type="button"
-                    disabled={categories.length >= MAX_CATEGORIES}
-                    onClick={() => {
-                      if (categories.length >= MAX_CATEGORIES) return;
-                      setAddMenuOpen(false);
-                      addCategory();
-                    }}
-                    className={cn(
-                      "flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm transition",
-                      categories.length >= MAX_CATEGORIES
-                        ? "cursor-not-allowed text-white/30"
-                        : "text-white/85 hover:bg-white/10 hover:text-white",
-                    )}
-                  >
-                    <Plus className="h-4 w-4 text-sky-300" />
-                    Nueva categoría
-                  </button>
-                  {categories.length >= MAX_CATEGORIES && (
-                    <div className="px-3 pb-1.5 pt-0.5 text-[10px] text-amber-300/90">
-                      Máximo {MAX_CATEGORIES} categorías alcanzado.
-                    </div>
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setAddMenuOpen(false);
-                      openNew();
-                    }}
-                    className="flex w-full items-center gap-2 rounded-xl px-3 py-2.5 text-left text-sm text-white/85 transition hover:bg-white/10 hover:text-white"
-                  >
-                    <Plus className="h-4 w-4 text-violet-300" />
-                    {isService ? "Nuevo servicio" : "Nuevo item"}
-                  </button>
-                </div>
-              ) : null}
-            </div>
+            )}
           </div>
         </div>
 
@@ -2577,12 +2521,14 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                     "z-50 rounded-2xl bg-white/[0.07] shadow-[0_8px_20px_-6px_rgba(139,92,246,0.5)] ring-2 ring-violet-400/50",
                 )}
               >
-                <span
-                  onPointerDown={(event) => itemReorder.startDrag(row.id, event)}
-                  className="grid h-10 w-9 shrink-0 touch-none select-none place-items-center rounded-lg cursor-grab text-white/35 [-webkit-touch-callout:none] active:cursor-grabbing active:bg-white/5"
-                >
-                  <GripVertical className="h-4 w-4" />
-                </span>
+                {organizing && (
+                  <span
+                    onPointerDown={(event) => itemReorder.startDrag(row.id, event)}
+                    className="grid h-10 w-9 shrink-0 touch-none select-none place-items-center rounded-lg cursor-grab text-white/35 [-webkit-touch-callout:none] active:cursor-grabbing active:bg-white/5"
+                  >
+                    <GripVertical className="h-4 w-4" />
+                  </span>
+                )}
                 <ServiceImage
                   src={imageMap[row.id]}
                   alt={row.name}
@@ -2684,6 +2630,14 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         saving={saving}
         catalogCategories={categories}
         onUploadImage={uploadBookingImage}
+        onCreateCategory={(name) => {
+          if (categories.length >= MAX_CATEGORIES) {
+            toast.error(`Máximo ${MAX_CATEGORIES} categorías alcanzado`);
+            return false;
+          }
+          saveCategories([...categories, name], isService ? "service" : "catalog");
+          return true;
+        }}
         featuredOthers={
           Object.entries(bookingConfig).filter(
             ([id, c]) => c.show && id !== editing?.id,
@@ -2697,21 +2651,12 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         onConfirm={doRemoveItem}
         onCancel={() => setConfirmDelItem(null)}
       />
-      <ConfirmDialog
-        open={!!confirmDelCat}
-        title="Eliminar categoría"
-        message="Esta acción eliminará la categoría y todos los elementos que contiene. ¿Deseás continuar?"
-        onConfirm={doDeleteCategory}
-        onCancel={() => setConfirmDelCat(null)}
-      />
-      {/* Category name input modal */}
+      {/* Category rename modal */}
       {catModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
           <div className="glass rounded-2xl p-6 max-w-sm w-full mx-4 ring-1 ring-white/10 space-y-4">
             <div className="font-display font-semibold text-base">
-              {catModal.mode === "add"
-                ? "Nueva categoría"
-                : "Renombrar categoría"}
+              Renombrar categoría
             </div>
             <input
               autoFocus
@@ -2736,7 +2681,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                 onClick={submitCatModal}
                 className="px-4 py-2 rounded-xl text-sm font-semibold bg-gradient-to-r from-sky-400 to-violet-500 text-white transition"
               >
-                {catModal.mode === "add" ? "Agregar" : "Guardar"}
+                Guardar
               </button>
             </div>
           </div>
@@ -2773,6 +2718,106 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                 className="px-4 py-2 rounded-xl text-sm font-semibold bg-gradient-to-r from-sky-400 to-violet-500 text-white transition"
               >
                 Guardar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Acciones de categoría (modo Organizar): editar nombre o eliminar.
+          Modal centrado en vez de un menú anclado a la pestaña — la fila de
+          categorías tiene scroll horizontal, así que un dropdown pegado a
+          la pestaña quedaría recortado por el propio contenedor. */}
+      {catActionMenu && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center"
+          onClick={() => setCatActionMenu(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="glass w-full max-w-sm rounded-t-2xl p-2 ring-1 ring-white/10 space-y-1 sm:rounded-2xl sm:mx-4"
+          >
+            <div className="px-3 py-2 text-xs uppercase tracking-[0.14em] text-muted-foreground">
+              {catActionMenu}
+            </div>
+            <button
+              type="button"
+              onClick={() => renameCategory(catActionMenu)}
+              className="flex w-full items-center gap-2.5 rounded-xl px-3 py-3 text-left text-sm text-white/85 transition hover:bg-white/10 hover:text-white"
+            >
+              <Pencil className="h-4 w-4 text-sky-300" />
+              Editar nombre
+            </button>
+            <button
+              type="button"
+              disabled={categories.length <= 1}
+              onClick={() => deleteCategory(catActionMenu)}
+              className={cn(
+                "flex w-full items-center gap-2.5 rounded-xl px-3 py-3 text-left text-sm transition",
+                categories.length <= 1
+                  ? "cursor-not-allowed text-white/30"
+                  : "text-red-300 hover:bg-red-500/10",
+              )}
+            >
+              <Trash2 className="h-4 w-4" />
+              Eliminar categoría
+            </button>
+            <button
+              type="button"
+              onClick={() => setCatActionMenu(null)}
+              className="flex w-full items-center justify-center rounded-xl px-3 py-3 text-sm text-muted-foreground transition hover:bg-white/5"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+      <ConfirmDialog
+        open={!!confirmDelCat}
+        title="Eliminar categoría"
+        message={`¿Deseás eliminar la categoría "${confirmDelCat}"? Está vacía, no tiene ${isService ? "servicios" : "productos"}.`}
+        onConfirm={doDeleteCategory}
+        onCancel={() => setConfirmDelCat(null)}
+      />
+      {/* La categoría tiene ítems: hay que decidir a dónde van antes de
+          poder borrarla — nunca se eliminan ni desactivan automáticamente. */}
+      {moveItemsModal && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="glass rounded-2xl p-6 max-w-sm w-full ring-1 ring-white/10 space-y-4">
+            <div>
+              <div className="font-display font-semibold text-base">
+                Mover {isService ? "servicios" : "productos"} antes de eliminar
+              </div>
+              <p className="text-sm text-muted-foreground mt-1">
+                "{moveItemsModal.category}" tiene {moveItemsModal.itemCount}{" "}
+                {isService ? "servicio" : "producto"}
+                {moveItemsModal.itemCount === 1 ? "" : "s"}. Elegí a dónde
+                moverlos para poder eliminar la categoría.
+              </p>
+            </div>
+            <select
+              value={moveTargetCategory}
+              onChange={(e) => setMoveTargetCategory(e.target.value)}
+              className="w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-4 py-2.5 text-sm focus:outline-none focus:ring-primary/40"
+            >
+              {categories
+                .filter((c) => c !== moveItemsModal.category)
+                .map((c) => (
+                  <option key={c}>{c}</option>
+                ))}
+            </select>
+            <div className="flex gap-3 justify-end">
+              <button
+                onClick={() => setMoveItemsModal(null)}
+                className="px-4 py-2 rounded-xl text-sm bg-white/5 hover:bg-white/10 ring-1 ring-white/10 transition"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={moveItemsAndDeleteCategory}
+                disabled={!moveTargetCategory}
+                className="px-4 py-2 rounded-xl text-sm font-semibold bg-gradient-to-r from-sky-400 to-violet-500 text-white transition disabled:opacity-50"
+              >
+                Mover y eliminar
               </button>
             </div>
           </div>
