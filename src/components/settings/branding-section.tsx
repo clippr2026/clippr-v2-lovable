@@ -1229,7 +1229,17 @@ export function BrandingSection() {
                     });
                   }}
                   maxLength={50}
-                  className="block w-full resize-none overflow-hidden whitespace-pre-line break-words border-0 bg-transparent p-0 text-center text-base font-semibold leading-snug text-[#111111] outline-none [word-break:normal] [-webkit-text-fill-color:#111111] caret-[#111111] [-webkit-appearance:none]"
+                  // Color también inline (no solo por clase): así queda
+                  // garantizado por encima de cualquier regla externa con
+                  // más prioridad en la cascada (capas, !important, orden
+                  // de carga) — nada puede volver a dejarlo transparente
+                  // o heredado sin que sea un cambio explícito acá mismo.
+                  style={{
+                    color: "#111111",
+                    WebkitTextFillColor: "#111111",
+                    caretColor: "#111111",
+                  }}
+                  className="block w-full resize-none overflow-hidden whitespace-pre-line break-words border-0 bg-transparent p-0 text-center text-base font-semibold leading-snug outline-none [word-break:normal] [-webkit-appearance:none]"
                 />
                 <span className="pointer-events-none absolute left-1/2 top-full h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-white" />
               </div>

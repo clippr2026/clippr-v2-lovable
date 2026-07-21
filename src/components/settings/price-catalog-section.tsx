@@ -561,20 +561,8 @@ function DraggableImageCrop({
           }
         />
       </div>
-      <div className="flex items-center justify-between gap-2 text-[10px] text-muted-foreground">
-        <span>Arrastrá la imagen para acomodarla.</span>
-        <button
-          type="button"
-          className="font-medium text-white/75 transition hover:text-white"
-          onClick={() => {
-            if (!geometry) return onChange("50% 50%");
-            const centered = { x: -geometry.overflowX / 2, y: -geometry.overflowY / 2 };
-            setTranslate(centered);
-            commit(centered);
-          }}
-        >
-          Centrar
-        </button>
+      <div className="text-center text-[10px] text-muted-foreground">
+        Arrastrá la imagen para acomodarla.
       </div>
     </div>
   );
@@ -816,134 +804,142 @@ function PriceEditorModal({
             </>
           ) : (
             <>
-              {/* Producto · básica + imagen en una fila */}
-              <SectionCard label="Información básica">
-                <div className="flex gap-3">
-                  <div className="min-w-0 flex-1 space-y-3">
-                    <Field label="Nombre">
-                      <input
-                        value={form.name}
-                        onChange={(e) => setForm({ ...form, name: e.target.value })}
-                        className={inputCls}
-                        placeholder="Nombre del producto"
-                        maxLength={MAX_ITEM_NAME_LENGTH}
-                      />
-                    </Field>
-                    <div className="grid grid-cols-2 gap-3">
-                      <Field label="Precio de lista">
-                        <input
-                          type="number"
-                          value={form.price}
-                          onChange={(e) => setForm({ ...form, price: e.target.value })}
-                          className={inputCls}
-                        />
-                      </Field>
-                      <Field label="Desc. efectivo (%)">
-                        <input
-                          type="number"
-                          value={form.discount}
-                          onChange={(e) => setForm({ ...form, discount: e.target.value })}
-                          className={inputCls}
-                        />
-                      </Field>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <Field label="Categoría">
-                        <select
-                          value={form.category}
-                          onChange={(e) => setForm({ ...form, category: e.target.value })}
-                          className={inputCls}
-                        >
-                          {availableCatalogCategories.map((category) => (
-                            <option key={category}>{category}</option>
-                          ))}
-                        </select>
-                      </Field>
-                      <Field label="Estado">
-                        <select
-                          value={form.status}
-                          onChange={(e) =>
-                            setForm({ ...form, status: e.target.value as PriceForm["status"] })
-                          }
-                          className={inputCls}
-                        >
-                          <option>Activo</option>
-                          <option>Inactivo</option>
-                        </select>
-                      </Field>
-                    </div>
-                  </div>
-
-                  {/* Imagen del producto */}
-                  <div className="w-28 shrink-0 sm:w-32">
-                    <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-1.5">
-                      Imagen del producto
-                    </div>
-                    <div className="relative">
-                      <input
-                        ref={bookingFileRef}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={async (e) => {
-                          const file = e.target.files?.[0];
-                          e.target.value = "";
-                          if (!file || !onUploadImage) return;
-                          setUploadingImg(true);
-                          const url = await onUploadImage(file);
-                          setUploadingImg(false);
-                          if (url) setForm({ ...form, image: url, imagePosition: "50% 50%" });
-                        }}
-                      />
-                      {form.image ? (
-                        <DraggableImageCrop
-                          src={form.image}
-                          alt={form.name || "Producto"}
-                          value={form.imagePosition}
-                          onChange={(imagePosition) => setForm({ ...form, imagePosition })}
-                          onPickImage={() => bookingFileRef.current?.click()}
-                        />
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => bookingFileRef.current?.click()}
-                          disabled={uploadingImg}
-                          className="grid aspect-square w-full place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10 disabled:opacity-50"
-                        >
-                          {uploadingImg ? (
-                            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                          ) : (
-                            <span className="flex flex-col items-center gap-1 text-muted-foreground/80">
-                              <Upload className="h-5 w-5" />
-                              <span className="text-[11px]">Subir imagen</span>
-                            </span>
-                          )}
-                        </button>
-                      )}
-                      {form.image ? (
-                        <button
-                          type="button"
-                          onClick={() => setForm({ ...form, image: "", imagePosition: "50% 50%" })}
-                          disabled={uploadingImg}
-                          className="absolute -right-2 -top-2 grid h-6 w-6 place-items-center rounded-full bg-red-500 text-white shadow-lg disabled:opacity-50"
-                          title="Quitar imagen"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      ) : null}
-                    </div>
-
-                  </div>
+              <SectionCard label="Información principal">
+                <div className="space-y-3">
+                  <Field label="Nombre del producto">
+                    <input
+                      value={form.name}
+                      onChange={(e) => setForm({ ...form, name: e.target.value })}
+                      className={inputCls}
+                      placeholder="Nombre del producto"
+                      maxLength={MAX_ITEM_NAME_LENGTH}
+                    />
+                  </Field>
+                  <Field label="Categoría">
+                    <select
+                      value={form.category}
+                      onChange={(e) => setForm({ ...form, category: e.target.value })}
+                      className={inputCls}
+                    >
+                      {availableCatalogCategories.map((category) => (
+                        <option key={category}>{category}</option>
+                      ))}
+                    </select>
+                  </Field>
                 </div>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Efectivo:{" "}
-                  <span className="font-semibold text-[oklch(0.82_0.14_75)]">
-                    ${cashPrice.toLocaleString("es-AR")}
-                  </span>
-                </p>
               </SectionCard>
 
-              {/* Reservas online */}
+              <SectionCard label="Precios">
+                <div className="space-y-3">
+                  <Field label="Precio de lista">
+                    <div className="relative">
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                        $
+                      </span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={formatThousands(form.price)}
+                        onChange={(e) =>
+                          setForm({ ...form, price: e.target.value.replace(/\D/g, "") })
+                        }
+                        className={cn(inputCls, "pl-6")}
+                        placeholder="0"
+                      />
+                    </div>
+                  </Field>
+                  <Field label="Descuento en efectivo">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={form.discount}
+                        onChange={(e) =>
+                          setForm({ ...form, discount: clampPercent(e.target.value.replace(/\D/g, "")) })
+                        }
+                        className={cn(inputCls, "pr-8")}
+                        placeholder="0"
+                      />
+                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                        %
+                      </span>
+                    </div>
+                  </Field>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-1.5">
+                      Precio en efectivo
+                    </div>
+                    <div className="text-lg font-semibold text-[oklch(0.82_0.14_75)]">
+                      ${cashPrice.toLocaleString("es-AR")}
+                    </div>
+                  </div>
+                </div>
+              </SectionCard>
+
+              <SectionCard label="Imagen del producto">
+                <input
+                  ref={bookingFileRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!file || !onUploadImage) return;
+                    setUploadingImg(true);
+                    const url = await onUploadImage(file);
+                    setUploadingImg(false);
+                    if (url) setForm({ ...form, image: url, imagePosition: "50% 50%" });
+                  }}
+                />
+                {form.image ? (
+                  <div className="space-y-3">
+                    <DraggableImageCrop
+                      src={form.image}
+                      alt={form.name || "Producto"}
+                      value={form.imagePosition}
+                      onChange={(imagePosition) => setForm({ ...form, imagePosition })}
+                      onPickImage={() => bookingFileRef.current?.click()}
+                      className="mx-auto max-w-[220px]"
+                    />
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => bookingFileRef.current?.click()}
+                        disabled={uploadingImg}
+                        className="rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-4 py-2 text-sm disabled:opacity-50"
+                      >
+                        Cambiar imagen
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setForm({ ...form, image: "", imagePosition: "50% 50%" })}
+                        disabled={uploadingImg}
+                        className="rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-300 ring-1 ring-red-500/20 px-4 py-2 text-sm disabled:opacity-50"
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => bookingFileRef.current?.click()}
+                    disabled={uploadingImg}
+                    className="mx-auto grid aspect-square w-full max-w-[220px] place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10 disabled:opacity-50"
+                  >
+                    {uploadingImg ? (
+                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                    ) : (
+                      <span className="flex flex-col items-center gap-1 text-muted-foreground/80">
+                        <Upload className="h-5 w-5" />
+                        <span className="text-[11px]">Subir imagen</span>
+                      </span>
+                    )}
+                  </button>
+                )}
+              </SectionCard>
+
               <SectionCard label="Reservas online">
                 <div className="space-y-3">
                   {(() => {
@@ -975,12 +971,18 @@ function PriceEditorModal({
                       </>
                     );
                   })()}
-                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  <div
+                    className={cn(
+                      "grid grid-cols-1 gap-3 sm:grid-cols-2 transition-opacity",
+                      !form.bookingShow && "pointer-events-none opacity-40",
+                    )}
+                  >
                     <Field label="Oferta %">
                       <input
                         type="number"
                         min={0}
                         max={90}
+                        disabled={!form.bookingShow}
                         value={form.bookingOffer === "none" || form.bookingOffer === "special" ? "" : form.bookingOffer}
                         onChange={(e) =>
                           setForm({
@@ -995,6 +997,7 @@ function PriceEditorModal({
                     <Field label="Mini descripción">
                       <input
                         value={form.miniDesc}
+                        disabled={!form.bookingShow}
                         onChange={(e) => setForm({ ...form, miniDesc: e.target.value })}
                         className={inputCls}
                         maxLength={60}
@@ -1005,7 +1008,6 @@ function PriceEditorModal({
                 </div>
               </SectionCard>
 
-              {/* Stock compacto */}
               <SectionCard label="Stock">
                 <div className="grid grid-cols-3 gap-3">
                   <div>
