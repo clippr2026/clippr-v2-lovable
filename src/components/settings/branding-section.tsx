@@ -329,6 +329,22 @@ export function BrandingSection() {
     el.style.height = "auto";
     const lineHeightPx = parseFloat(getComputedStyle(el).lineHeight);
     el.style.height = `${Math.min(el.scrollHeight, lineHeightPx * 2 + 1)}px`;
+    // Bug conocido de WebKit en iOS: un <textarea> puede quedar con el
+    // VALOR correcto (confirmado por diagnóstico real: computed styles y
+    // DOM perfectos) pero sin pintar los glifos en pantalla — el raster
+    // queda desactualizado aunque el CSSOM esté bien. display:none/block
+    // fuerza a WebKit a descartar esa capa y repintarla de cero. Ojo: NO
+    // hacer esto si el campo tiene foco — un elemento con display:none
+    // pierde el foco al instante, así que mientras el usuario está
+    // escribiendo (cada letra dispara este mismo efecto) esto lo sacaría
+    // del campo en cada tecla. Solo hace falta cuando el valor cambia
+    // "desde afuera" (carga inicial), que es justo cuando no hay foco.
+    if (document.activeElement !== el) {
+      const prevDisplay = el.style.display;
+      el.style.display = "none";
+      void el.offsetHeight;
+      el.style.display = prevDisplay;
+    }
   }, [data.profile_note]);
   function focusAnnouncementAtEnd() {
     const el = announcementRef.current;
