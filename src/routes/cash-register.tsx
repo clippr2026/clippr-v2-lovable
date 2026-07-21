@@ -3301,6 +3301,12 @@ function ProfesionalesTab({
   const [loadingRange, setLoadingRange] = React.useState(true);
   const [loadingCommissions, setLoadingCommissions] = React.useState(true);
   const [loadingPaySettlements, setLoadingPaySettlements] = React.useState(true);
+  // Errores reales (no silenciados en $0): si la query de comisiones/pagos
+  // falla (RLS, columna faltante, etc.), se muestra acá en vez de quedar
+  // solo en la consola — "todo en $0" tiene que distinguirse de "no hay
+  // datos" de un error real de la query.
+  const [commissionsError, setCommissionsError] = React.useState<string | null>(null);
+  const [paySettlementsError, setPaySettlementsError] = React.useState<string | null>(null);
   const [payingEmployeeId, setPayingEmployeeId] = React.useState<string | null>(
     null,
   );
@@ -3418,13 +3424,18 @@ function ProfesionalesTab({
           .select("id,professional_id,amount,paid_amount,pending_amount,status,sale_date")
           .eq("business_id", businessId);
         if (error) throw error;
-        if (!cancelled) setAllCommissions(rows ?? []);
+        if (!cancelled) {
+          setAllCommissions(rows ?? []);
+          setCommissionsError(null);
+        }
       } catch (e) {
-        if (!cancelled) setAllCommissions([]);
-        console.warn(
-          "[caja] no se pudieron cargar las comisiones:",
-          (e as Error).message,
-        );
+        const message = (e as Error).message;
+        if (!cancelled) {
+          setAllCommissions([]);
+          setCommissionsError(message);
+        }
+        console.warn("[caja] no se pudieron cargar las comisiones:", message);
+        toast.error(`No se pudieron cargar las comisiones: ${message}`);
       } finally {
         if (!cancelled) setLoadingCommissions(false);
       }
@@ -3473,17 +3484,20 @@ function ProfesionalesTab({
             .order("created_at", { ascending: false }),
         ]);
         if (settlementsRes.error) throw settlementsRes.error;
-        if (!cancelled) setPaySettlements(settlementsRes.data ?? []);
-        if (!cancelled) setPayPayoutsLegacy(payoutsRes.error ? [] : payoutsRes.data ?? []);
+        if (!cancelled) {
+          setPaySettlements(settlementsRes.data ?? []);
+          setPayPayoutsLegacy(payoutsRes.error ? [] : payoutsRes.data ?? []);
+          setPaySettlementsError(null);
+        }
       } catch (e) {
+        const message = (e as Error).message;
         if (!cancelled) {
           setPaySettlements([]);
           setPayPayoutsLegacy([]);
+          setPaySettlementsError(message);
         }
-        console.warn(
-          "[caja] no se pudieron cargar los pagos:",
-          (e as Error).message,
-        );
+        console.warn("[caja] no se pudieron cargar los pagos:", message);
+        toast.error(`No se pudieron cargar los pagos: ${message}`);
       } finally {
         if (!cancelled) setLoadingPaySettlements(false);
       }
@@ -4094,6 +4108,22 @@ function ProfesionalesTab({
             tone="neutral"
           />
         </div>
+
+        {(commissionsError || paySettlementsError) && (
+          <div className="mx-5 mt-3 rounded-xl border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-xs text-rose-200">
+            {commissionsError && (
+              <div>No se pudieron cargar las comisiones: {commissionsError}</div>
+            )}
+            {paySettlementsError && (
+              <div>No se pudieron cargar los pagos: {paySettlementsError}</div>
+            )}
+          </div>
+        )}
+        {!loadingCommissions && !commissionsError && (
+          <div className="mx-5 mt-2 text-[10px] text-white/30">
+            {allCommissions.length} comisiones cargadas en total del negocio.
+          </div>
+        )}
 
         {data.loading || loadingRange || loadingCommissions || loadingPaySettlements ? (
           <>
