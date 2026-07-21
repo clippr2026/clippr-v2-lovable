@@ -3291,6 +3291,14 @@ function ProfesionalesTab({
   );
   const [startDate, setStartDate] = React.useState(today);
   const [endDate, setEndDate] = React.useState(today);
+  // Nunca se puede consultar actividad "futura" — si por algún estado
+  // viejo (ej. restaurado de otra pestaña) quedara una fecha posterior a
+  // hoy, se corrige sola a hoy. Comparación de strings ISO (YYYY-MM-DD),
+  // sin new Date() de por medio, para no depender de la zona horaria.
+  React.useEffect(() => {
+    if (startDate > today) setStartDate(today);
+    if (endDate > today) setEndDate(today);
+  }, [startDate, endDate, today]);
   const [rangePayments, setRangePayments] = React.useState<any[]>([]);
   // Arrancan en `true` (no `false`): el efecto que los apaga corre después
   // del primer render, así que si empezaran en `false` se alcanzaba a
@@ -3310,11 +3318,13 @@ function ProfesionalesTab({
   const [payingEmployeeId, setPayingEmployeeId] = React.useState<string | null>(
     null,
   );
-  // "Rango de pagos": filtro independiente del "Rango de actividad"
-  // (startDate/endDate). Nunca se usan para calcular el saldo pendiente —
-  // solo para consultar qué pagos se hicieron en un período. Arranca en
-  // "todo el historial" (2000-01-01 → hoy) para que el historial no
-  // aparezca vacío por default.
+  // "Rango de pagos": filtro propio, solo para la LISTA del Historial —
+  // nunca se usa para calcular el saldo pendiente. La tarjeta "Pagado en
+  // el período" no usa esto: sigue el mismo "Rango de actividad" que
+  // "Comisión del período" (startDate/endDate), para que ambas tarjetas
+  // respondan siempre al mismo rango que el usuario ve arriba. Arranca en
+  // "todo el historial" (2000-01-01 → hoy) para que la lista no aparezca
+  // vacía por default.
   const [payStartDate, setPayStartDate] = React.useState("2000-01-01");
   const [payEndDate, setPayEndDate] = React.useState(today);
   const [selectedDetail, setSelectedDetail] = React.useState<
@@ -3446,14 +3456,19 @@ function ProfesionalesTab({
     };
   }, [businessId, commissionsVersion]);
 
-  // Pagos dentro del "Rango de pagos" (independiente del rango de
-  // actividad): combina professional_settlements (pagos nuevos, desde que
-  // existe este sistema) + professional_payouts (pagos de antes de la
-  // migración) para "Pagado en el período" y el Historial.
+  // TODOS los pagos del negocio (sin filtrar por fecha, igual que
+  // allCommissions): combina professional_settlements (pagos nuevos, desde
+  // que existe este sistema) + professional_payouts (pagos de antes de la
+  // migración). "Pagado en el período" filtra esto por el rango de
+  // ACTIVIDAD (startDate/endDate) — el mismo que "Comisión del período",
+  // para que ambas tarjetas respondan al mismo rango que el usuario ve en
+  // pantalla. El Historial usa su propio "Rango de pagos" independiente
+  // (payStartDate/payEndDate) filtrando este mismo set, sin volver a pedir
+  // nada.
   React.useEffect(() => {
     let cancelled = false;
     async function loadPaySettlements() {
-      if (!businessId || !payStartDate || !payEndDate) {
+      if (!businessId) {
         if (!cancelled) {
           setPaySettlements([]);
           setPayPayoutsLegacy([]);
@@ -3463,8 +3478,6 @@ function ProfesionalesTab({
       }
       setLoadingPaySettlements(true);
       try {
-        const from = `${payStartDate}T00:00:00`;
-        const to = `${payEndDate}T23:59:59.999`;
         const [settlementsRes, payoutsRes] = await Promise.all([
           supabase
             .from("professional_settlements" as any)
@@ -3472,15 +3485,11 @@ function ProfesionalesTab({
               "id,professional_id,amount_paid,already_paid_before,pending_after,commission_total_in_range,payment_method,note,paid_by_name,paid_at",
             )
             .eq("business_id", businessId)
-            .gte("paid_at", from)
-            .lte("paid_at", to)
             .order("paid_at", { ascending: false }),
           supabase
             .from("professional_payouts")
             .select("id,employee_id,amount,date,method,note,created_by,created_at")
             .eq("business_id", businessId)
-            .gte("date", payStartDate)
-            .lte("date", payEndDate)
             .order("created_at", { ascending: false }),
         ]);
         if (settlementsRes.error) throw settlementsRes.error;
@@ -3506,7 +3515,7 @@ function ProfesionalesTab({
     return () => {
       cancelled = true;
     };
-  }, [businessId, payStartDate, payEndDate, commissionsVersion]);
+  }, [businessId, commissionsVersion]);
 
   // Tiempo real: si se registra un pago desde otra pestaña/dispositivo (o
   // Profesionales, que usa las mismas tablas), este panel se actualiza solo.
@@ -3569,12 +3578,20 @@ function ProfesionalesTab({
         (sum: number, c: any) => sum + Number(c.pending_amount ?? 0),
         0,
       );
+      // "Pagado en el período" sigue el mismo rango de actividad que
+      // "Comisión del período" (startDate/endDate) — no el "Rango de
+      // pagos" independiente, que solo filtra la lista del Historial.
       const paid =
         paySettlements
           .filter((s: any) => String(s.professional_id) === String(employee.id))
+          .filter((s: any) => {
+            const d = String(s.paid_at ?? "").slice(0, 10);
+            return d >= startDate && d <= endDate;
+          })
           .reduce((sum: number, s: any) => sum + Number(s.amount_paid ?? 0), 0) +
         payPayoutsLegacy
           .filter((p: any) => String(p.employee_id) === String(employee.id))
+          .filter((p: any) => p.date >= startDate && p.date <= endDate)
           .reduce((sum: number, p: any) => sum + Number(p.amount ?? 0), 0);
 
       return {
@@ -3642,6 +3659,10 @@ function ProfesionalesTab({
     if (!selectedRow) return [] as any[];
     const fromSettlements = paySettlements
       .filter((s: any) => String(s.professional_id) === selectedRow.id)
+      .filter((s: any) => {
+        const d = String(s.paid_at ?? "").slice(0, 10);
+        return d >= payStartDate && d <= payEndDate;
+      })
       .map((s: any) => ({
         id: s.id,
         created_at: s.paid_at,
@@ -3657,6 +3678,7 @@ function ProfesionalesTab({
       }));
     const fromLegacy = payPayoutsLegacy
       .filter((p: any) => String(p.employee_id) === selectedRow.id)
+      .filter((p: any) => p.date >= payStartDate && p.date <= payEndDate)
       .map((p: any) => ({
         id: p.id,
         created_at: p.created_at ?? `${p.date}T00:00:00`,
@@ -3670,7 +3692,7 @@ function ProfesionalesTab({
     return [...fromSettlements, ...fromLegacy].sort((a, b) =>
       String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")),
     );
-  }, [paySettlements, payPayoutsLegacy, selectedRow]);
+  }, [paySettlements, payPayoutsLegacy, selectedRow, payStartDate, payEndDate]);
 
   async function payCommission(row: (typeof rows)[number] | null) {
     if (!row || row.pending <= 0 || payingEmployeeId) return;
@@ -4050,14 +4072,21 @@ function ProfesionalesTab({
                           day.iso && day.iso >= startDate && day.iso <= endDate,
                         );
                         const isToday = day.iso === todayIso;
+                        // No se puede elegir mañana ni ninguna fecha
+                        // posterior — comparación de strings ISO
+                        // (YYYY-MM-DD), sin new Date() de por medio, para
+                        // no depender de la zona horaria del navegador.
+                        const isFuture = Boolean(day.iso && day.iso > todayIso);
                         return (
                           <button
                             key={`${day.iso || "empty"}-${index}`}
                             type="button"
-                            disabled={!day.inMonth}
+                            disabled={!day.inMonth || isFuture}
                             onClick={() => handleCalendarDayClick(day.iso)}
                             className={cn(
-                              "relative h-11 text-sm font-semibold transition disabled:pointer-events-none disabled:opacity-0",
+                              "relative h-11 text-sm font-semibold transition disabled:pointer-events-none",
+                              !day.inMonth && "disabled:opacity-0",
+                              isFuture && day.inMonth && "text-white/15",
                               inRange
                                 ? "bg-blue-500/26 text-white"
                                 : "text-white/78 hover:bg-white/[0.06]",
@@ -4515,15 +4544,21 @@ function ProfesionalesTab({
                   </span>
                   <input
                     type="date"
+                    max={today}
                     value={payStartDate}
-                    onChange={(event) => setPayStartDate(event.target.value)}
+                    onChange={(event) =>
+                      setPayStartDate(event.target.value > today ? today : event.target.value)
+                    }
                     className="h-8 rounded-lg border border-white/[0.09] bg-black/30 px-2 text-white outline-none [color-scheme:dark]"
                   />
                   <span className="text-white/35">→</span>
                   <input
                     type="date"
+                    max={today}
                     value={payEndDate}
-                    onChange={(event) => setPayEndDate(event.target.value)}
+                    onChange={(event) =>
+                      setPayEndDate(event.target.value > today ? today : event.target.value)
+                    }
                     className="h-8 rounded-lg border border-white/[0.09] bg-black/30 px-2 text-white outline-none [color-scheme:dark]"
                   />
                 </div>
