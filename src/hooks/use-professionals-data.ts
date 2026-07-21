@@ -83,6 +83,13 @@ export function useProfessionals(businessId: string | null) {
 }
 
 // ── Stats for one professional in date range ──────────────────────────────
+// `pendiente` es la cuenta corriente real (comisión generada - pagada, sin
+// importar rango) — fuente: commission_records, la misma que usa Caja >
+// Liquidaciones. `comision`/`ventasCount` sí se filtran por rango (lo que
+// generó en ese período), pero nunca alteran el pendiente total.
+// Nota: como en Caja > Liquidaciones, esto solo contempla commission_pct —
+// un profesional con comisión fija (commission_fixed) sin % configurado no
+// genera filas en commission_records y va a mostrar comisión/pendiente $0.
 export function useProfStats(
   businessId: string | null,
   empId: string | null,
@@ -92,50 +99,57 @@ export function useProfStats(
   return useQuery({
     queryKey: ["prof-stats", businessId, empId, from, to],
     queryFn: async (): Promise<ProfStats> => {
-      // Guard against invalid dates
       if (!from || !to || isNaN(new Date(from).getTime()) || isNaN(new Date(to).getTime())) {
         return { facturacion: 0, comision: 0, pagado: 0, pendiente: 0, ventasCount: 0 };
       }
       const fromISO = from + "T00:00:00";
       const toISO = to + "T23:59:59";
 
-      const [{ data: pays }, { data: payouts }] = await Promise.all([
-        supabase
-          .from("payments")
-          .select("total,amount")
-          .eq("business_id", businessId!)
-          .eq("employee_id", empId!)
-          .gte("created_at", fromISO)
-          .lte("created_at", toISO),
-        supabase
-          .from("professional_payouts")
-          .select("amount")
-          .eq("business_id", businessId!)
-          .eq("employee_id", empId!)
-          .gte("date", from)
-          .lte("date", to),
-      ]);
+      const [{ data: pays }, { data: commissions }, { data: settlements }, { data: legacyPayouts }] =
+        await Promise.all([
+          supabase
+            .from("payments")
+            .select("total,amount")
+            .eq("business_id", businessId!)
+            .eq("employee_id", empId!)
+            .gte("created_at", fromISO)
+            .lte("created_at", toISO),
+          supabase
+            .from("commission_records" as any)
+            .select("amount,paid_amount,pending_amount,sale_date")
+            .eq("business_id", businessId!)
+            .eq("professional_id", empId!),
+          supabase
+            .from("professional_settlements" as any)
+            .select("amount_paid,paid_at")
+            .eq("business_id", businessId!)
+            .eq("professional_id", empId!)
+            .gte("paid_at", fromISO)
+            .lte("paid_at", toISO),
+          supabase
+            .from("professional_payouts")
+            .select("amount,date")
+            .eq("business_id", businessId!)
+            .eq("employee_id", empId!)
+            .gte("date", from)
+            .lte("date", to),
+        ]);
 
-      // Need commission_pct for this employee
-      const { data: emp } = await supabase
-        .from("employees")
-        .select("commission_pct,commission_fixed")
-        .eq("id", empId!)
-        .maybeSingle();
-
-      const commPct = Number(emp?.commission_pct ?? 0) / 100;
-      const commFixed = Number((emp as { commission_fixed?: number | null } | null)?.commission_fixed ?? 0);
       const facturacion = (pays ?? []).reduce((s, p) => s + Number(p.total ?? p.amount ?? 0), 0);
-      const comision = commFixed > 0
-        ? Math.round(commFixed * (pays ?? []).length)
-        : Math.round(facturacion * commPct);
-      const pagado = (payouts ?? []).reduce((s, p) => s + Number(p.amount ?? 0), 0);
+      const allCommissions = (commissions ?? []) as Array<{ amount: number; pending_amount: number; sale_date: string }>;
+      const pendiente = allCommissions.reduce((s, c) => s + Number(c.pending_amount ?? 0), 0);
+      const comision = allCommissions
+        .filter((c) => c.sale_date >= from && c.sale_date <= to)
+        .reduce((s, c) => s + Number(c.amount ?? 0), 0);
+      const pagado =
+        (settlements ?? []).reduce((s: number, p: any) => s + Number(p.amount_paid ?? 0), 0) +
+        (legacyPayouts ?? []).reduce((s, p) => s + Number(p.amount ?? 0), 0);
 
       return {
         facturacion,
         comision,
         pagado,
-        pendiente: Math.max(0, comision - pagado),
+        pendiente,
         ventasCount: (pays ?? []).length,
       };
     },
@@ -145,6 +159,10 @@ export function useProfStats(
 }
 
 // ── Payment history (all time) ────────────────────────────────────────────
+// Combina professional_settlements (pagos nuevos, con saldo anterior/
+// posterior) + professional_payouts (pagos de antes de existir la cuenta
+// corriente — esos no tienen saldo anterior/posterior, ver balanceBefore/
+// balanceAfter en null).
 export function useProfPayments(
   businessId: string | null,
   empId: string | null,
@@ -156,36 +174,83 @@ export function useProfPayments(
   const query = useQuery({
     queryKey: ["prof-payments", businessId, empId, from ?? null, to ?? null],
     queryFn: async (): Promise<ProfPayment[]> => {
-      let query = supabase
+      let settlementsQuery = supabase
+        .from("professional_settlements" as any)
+        .select(
+          "id,amount_paid,already_paid_before,commission_total_in_range,pending_after,payment_method,note,paid_by_name,paid_at",
+        )
+        .eq("business_id", businessId!)
+        .eq("professional_id", empId!);
+      let payoutsQuery = supabase
         .from("professional_payouts")
         .select("id,amount,date,method,note,created_by,created_at")
         .eq("business_id", businessId!)
         .eq("employee_id", empId!);
 
-      if (from) query = query.gte("date", from);
-      if (to) query = query.lte("date", to);
+      if (from) {
+        settlementsQuery = settlementsQuery.gte("paid_at", `${from}T00:00:00`);
+        payoutsQuery = payoutsQuery.gte("date", from);
+      }
+      if (to) {
+        settlementsQuery = settlementsQuery.lte("paid_at", `${to}T23:59:59.999`);
+        payoutsQuery = payoutsQuery.lte("date", to);
+      }
 
-      const { data, error } = await query.order("date", { ascending: false });
-      if (error) throw new Error(error.message);
-      return (data ?? []) as ProfPayment[];
+      const [{ data: settlements, error: settlementsError }, { data: payouts, error: payoutsError }] =
+        await Promise.all([
+          settlementsQuery.order("paid_at", { ascending: false }),
+          payoutsQuery.order("date", { ascending: false }),
+        ]);
+      if (settlementsError) throw new Error(settlementsError.message);
+      if (payoutsError) throw new Error(payoutsError.message);
+
+      const fromSettlements = ((settlements ?? []) as any[]).map((s) => ({
+        id: s.id,
+        amount: Number(s.amount_paid ?? 0),
+        date: String(s.paid_at ?? "").slice(0, 10),
+        method: s.payment_method,
+        note: s.note,
+        created_by: s.paid_by_name,
+        created_at: s.paid_at,
+      }));
+      const fromPayouts = ((payouts ?? []) as any[]).map((p) => ({
+        id: p.id,
+        amount: Number(p.amount ?? 0),
+        date: p.date,
+        method: p.method,
+        note: p.note,
+        created_by: p.created_by,
+        created_at: p.created_at,
+      }));
+
+      return [...fromSettlements, ...fromPayouts].sort((a, b) =>
+        String(b.created_at ?? b.date ?? "").localeCompare(String(a.created_at ?? a.date ?? "")),
+      ) as ProfPayment[];
     },
     enabled: !!businessId && !!empId,
     staleTime: 30_000,
   });
 
-  // Realtime: cuando se registra/edita una liquidación (p.ej. desde Caja →
-  // Liquidaciones), refrescar el historial de pagos y los stats al instante,
-  // sin recargar la página ni cambiar de pestaña. Sin filtro server-side para
-  // no depender de REPLICA IDENTITY FULL; RLS acota las filas igual.
+  // Realtime: cuando se registra un pago (p.ej. desde Caja → Liquidaciones),
+  // refrescar el historial de pagos y los stats al instante, sin recargar
+  // la página ni cambiar de pestaña. Sin filtro server-side para no
+  // depender de REPLICA IDENTITY FULL; RLS acota las filas igual.
   React.useEffect(() => {
     if (!businessId || !empId) return;
     const channel = supabase
       .channel(`prof-payouts-${empId}`)
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "professional_payouts" },
+        { event: "*", schema: "public", table: "professional_settlements" },
         () => {
           qc.invalidateQueries({ queryKey: ["prof-payments", businessId, empId] });
+          qc.invalidateQueries({ queryKey: ["prof-stats", businessId, empId] });
+        },
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "commission_records" },
+        () => {
           qc.invalidateQueries({ queryKey: ["prof-stats", businessId, empId] });
         },
       )
@@ -344,14 +409,24 @@ export function useRegisterPayout(businessId: string | null) {
   return useMutation({
     mutationFn: async (input: NewPayoutInput) => {
       if (!businessId) throw new Error("Sin negocio");
-      const { error } = await supabase.from("professional_payouts").insert({
-        business_id: businessId,
-        employee_id: input.empId,
-        amount: input.amount,
-        date: new Date().toISOString().slice(0, 10),
-        method: input.method || null,
-        note: input.note?.trim() || null,
-        created_by: input.createdBy ?? null,
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user?.id) throw new Error("Sesión inválida — volvé a iniciar sesión");
+
+      // Transaccional en el server: aplica el pago contra las comisiones
+      // pendientes más viejas primero (commission_records) y crea el
+      // registro de liquidación con los snapshots — misma función que usa
+      // Caja > Liquidaciones, así el saldo nunca se desincroniza entre
+      // las dos pantallas.
+      const { error } = await supabase.rpc("register_settlement_payment" as any, {
+        p_business_id: businessId,
+        p_professional_id: input.empId,
+        p_amount: input.amount,
+        p_payment_method: input.method || null,
+        p_note: input.note?.trim() || null,
+        p_paid_by: user.id,
+        p_paid_by_name: input.createdBy ?? "Profesionales",
       });
       if (error) throw new Error(error.message);
     },

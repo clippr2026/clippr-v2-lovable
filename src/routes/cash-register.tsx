@@ -3299,10 +3299,18 @@ function ProfesionalesTab({
   // skeleton y recién después los montos correctos, es lo que se percibía
   // como "prende la luz" al llegar los datos.
   const [loadingRange, setLoadingRange] = React.useState(true);
-  const [loadingPayouts, setLoadingPayouts] = React.useState(true);
+  const [loadingCommissions, setLoadingCommissions] = React.useState(true);
+  const [loadingPaySettlements, setLoadingPaySettlements] = React.useState(true);
   const [payingEmployeeId, setPayingEmployeeId] = React.useState<string | null>(
     null,
   );
+  // "Rango de pagos": filtro independiente del "Rango de actividad"
+  // (startDate/endDate). Nunca se usan para calcular el saldo pendiente —
+  // solo para consultar qué pagos se hicieron en un período. Arranca en
+  // "todo el historial" (2000-01-01 → hoy) para que el historial no
+  // aparezca vacío por default.
+  const [payStartDate, setPayStartDate] = React.useState("2000-01-01");
+  const [payEndDate, setPayEndDate] = React.useState(today);
   const [selectedDetail, setSelectedDetail] = React.useState<
     "produccion" | "historial" | "pagar"
   >("produccion");
@@ -3311,13 +3319,17 @@ function ProfesionalesTab({
     method: "transferencia",
     note: "",
   });
-  // Liquidaciones a profesionales: persistidas en la tabla `professional_payouts`
-  // de Supabase (misma fuente que el Panel de Profesionales). Antes vivían solo
-  // en localStorage, por lo que se perdían al recargar y nunca aparecían en el
-  // historial de pagos del profesional. Ahora se insertan y se vuelven a leer
-  // siempre desde la base de datos.
-  const [payouts, setPayouts] = React.useState<any[]>([]);
-  const [payoutsVersion, setPayoutsVersion] = React.useState(0);
+  // Cuenta corriente por profesional: `commission_records` es la fuente de
+  // verdad de cuánto se le debe a cada uno (una fila por venta, con su
+  // propio estado pagado/pendiente) — nunca se recalcula por rango de
+  // fechas. `professional_settlements` es el historial de pagos NUEVOS
+  // (desde que existe este sistema); `professional_payouts` sigue siendo
+  // el historial de pagos VIEJOS, de antes de la migración — no se borra
+  // ni se migra, el historial combina ambas fuentes para mostrarlas juntas.
+  const [allCommissions, setAllCommissions] = React.useState<any[]>([]);
+  const [paySettlements, setPaySettlements] = React.useState<any[]>([]);
+  const [payPayoutsLegacy, setPayPayoutsLegacy] = React.useState<any[]>([]);
+  const [commissionsVersion, setCommissionsVersion] = React.useState(0);
 
   const money = React.useCallback(
     (value: number) => `$${Math.round(value).toLocaleString("es-AR")}`,
@@ -3384,45 +3396,125 @@ function ProfesionalesTab({
     };
   }, [businessId, startDate, endDate, data.paymentsToday]);
 
-  // Carga las liquidaciones del rango seleccionado desde `professional_payouts`.
-  // `payoutsVersion` se incrementa tras registrar un pago para forzar la relectura.
+  // Todas las comisiones del negocio (sin filtrar por fecha): el saldo
+  // pendiente TOTAL de cada profesional sale de acá, sin importar qué rango
+  // esté seleccionado arriba — "Comisión del período"/"nueva sin pagar" se
+  // derivan filtrando este mismo set por sale_date en memoria, nunca con
+  // una query aparte que pueda desincronizarse.
   React.useEffect(() => {
     let cancelled = false;
-    async function loadPayouts() {
-      if (!businessId || !startDate || !endDate) {
+    async function loadCommissions() {
+      if (!businessId) {
         if (!cancelled) {
-          setPayouts([]);
-          setLoadingPayouts(false);
+          setAllCommissions([]);
+          setLoadingCommissions(false);
         }
         return;
       }
-      setLoadingPayouts(true);
+      setLoadingCommissions(true);
       try {
         const { data: rows, error } = await supabase
-          .from("professional_payouts")
-          .select("id,employee_id,amount,date,method,note,created_by,created_at")
-          .eq("business_id", businessId)
-          .gte("date", startDate)
-          .lte("date", endDate)
-          .order("created_at", { ascending: false });
+          .from("commission_records" as any)
+          .select("id,professional_id,amount,paid_amount,pending_amount,status,sale_date")
+          .eq("business_id", businessId);
         if (error) throw error;
-        if (!cancelled) setPayouts(rows ?? []);
+        if (!cancelled) setAllCommissions(rows ?? []);
       } catch (e) {
-        // Sin fallback a localStorage: la única fuente de verdad es la base de datos.
-        if (!cancelled) setPayouts([]);
+        if (!cancelled) setAllCommissions([]);
         console.warn(
-          "[caja] no se pudieron cargar las liquidaciones:",
+          "[caja] no se pudieron cargar las comisiones:",
           (e as Error).message,
         );
       } finally {
-        if (!cancelled) setLoadingPayouts(false);
+        if (!cancelled) setLoadingCommissions(false);
       }
     }
-    loadPayouts();
+    loadCommissions();
     return () => {
       cancelled = true;
     };
-  }, [businessId, startDate, endDate, payoutsVersion]);
+  }, [businessId, commissionsVersion]);
+
+  // Pagos dentro del "Rango de pagos" (independiente del rango de
+  // actividad): combina professional_settlements (pagos nuevos, desde que
+  // existe este sistema) + professional_payouts (pagos de antes de la
+  // migración) para "Pagado en el período" y el Historial.
+  React.useEffect(() => {
+    let cancelled = false;
+    async function loadPaySettlements() {
+      if (!businessId || !payStartDate || !payEndDate) {
+        if (!cancelled) {
+          setPaySettlements([]);
+          setPayPayoutsLegacy([]);
+          setLoadingPaySettlements(false);
+        }
+        return;
+      }
+      setLoadingPaySettlements(true);
+      try {
+        const from = `${payStartDate}T00:00:00`;
+        const to = `${payEndDate}T23:59:59.999`;
+        const [settlementsRes, payoutsRes] = await Promise.all([
+          supabase
+            .from("professional_settlements" as any)
+            .select(
+              "id,professional_id,amount_paid,already_paid_before,pending_after,commission_total_in_range,payment_method,note,paid_by_name,paid_at",
+            )
+            .eq("business_id", businessId)
+            .gte("paid_at", from)
+            .lte("paid_at", to)
+            .order("paid_at", { ascending: false }),
+          supabase
+            .from("professional_payouts")
+            .select("id,employee_id,amount,date,method,note,created_by,created_at")
+            .eq("business_id", businessId)
+            .gte("date", payStartDate)
+            .lte("date", payEndDate)
+            .order("created_at", { ascending: false }),
+        ]);
+        if (settlementsRes.error) throw settlementsRes.error;
+        if (!cancelled) setPaySettlements(settlementsRes.data ?? []);
+        if (!cancelled) setPayPayoutsLegacy(payoutsRes.error ? [] : payoutsRes.data ?? []);
+      } catch (e) {
+        if (!cancelled) {
+          setPaySettlements([]);
+          setPayPayoutsLegacy([]);
+        }
+        console.warn(
+          "[caja] no se pudieron cargar los pagos:",
+          (e as Error).message,
+        );
+      } finally {
+        if (!cancelled) setLoadingPaySettlements(false);
+      }
+    }
+    loadPaySettlements();
+    return () => {
+      cancelled = true;
+    };
+  }, [businessId, payStartDate, payEndDate, commissionsVersion]);
+
+  // Tiempo real: si se registra un pago desde otra pestaña/dispositivo (o
+  // Profesionales, que usa las mismas tablas), este panel se actualiza solo.
+  React.useEffect(() => {
+    if (!businessId) return;
+    const channel = supabase
+      .channel(`caja-liquidaciones-${businessId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "commission_records", filter: `business_id=eq.${businessId}` },
+        () => setCommissionsVersion((v) => v + 1),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "professional_settlements", filter: `business_id=eq.${businessId}` },
+        () => setCommissionsVersion((v) => v + 1),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [businessId]);
 
   const rows = React.useMemo(() => {
     return (data.employees ?? []).map((employee: any) => {
@@ -3440,18 +3532,36 @@ function ProfesionalesTab({
           employee.comision ??
           0,
       );
-      const commission =
-        commissionPct > 0 ? Math.round(revenue * (commissionPct / 100)) : 0;
-      const paid = payouts
-        .filter(
-          (payment: any) =>
-            String(payment.employee_id) === String(employee.id),
-        )
-        .reduce(
-          (sum: number, payment: any) => sum + Number(payment.amount ?? 0),
-          0,
-        );
-      const pending = Math.max(commission - paid, 0);
+
+      // Cuenta corriente: el saldo pendiente TOTAL nunca depende del rango
+      // seleccionado — sale de sumar pending_amount de TODAS las comisiones
+      // de este profesional. "Del período"/"nueva sin pagar" filtran ese
+      // mismo set por sale_date, en memoria, sin volver a pedir nada.
+      const employeeCommissions = allCommissions.filter(
+        (c: any) => String(c.professional_id) === String(employee.id),
+      );
+      const pending = employeeCommissions.reduce(
+        (sum: number, c: any) => sum + Number(c.pending_amount ?? 0),
+        0,
+      );
+      const commissionsInRange = employeeCommissions.filter(
+        (c: any) => c.sale_date >= startDate && c.sale_date <= endDate,
+      );
+      const commission = commissionsInRange.reduce(
+        (sum: number, c: any) => sum + Number(c.amount ?? 0),
+        0,
+      );
+      const newUnpaid = commissionsInRange.reduce(
+        (sum: number, c: any) => sum + Number(c.pending_amount ?? 0),
+        0,
+      );
+      const paid =
+        paySettlements
+          .filter((s: any) => String(s.professional_id) === String(employee.id))
+          .reduce((sum: number, s: any) => sum + Number(s.amount_paid ?? 0), 0) +
+        payPayoutsLegacy
+          .filter((p: any) => String(p.employee_id) === String(employee.id))
+          .reduce((sum: number, p: any) => sum + Number(p.amount ?? 0), 0);
 
       return {
         id: String(employee.id),
@@ -3462,11 +3572,20 @@ function ProfesionalesTab({
         commission,
         paid,
         pending,
+        newUnpaid,
         commissionPct,
         payments: employeePayments,
       };
     });
-  }, [data.employees, rangePayments, payouts]);
+  }, [
+    data.employees,
+    rangePayments,
+    allCommissions,
+    paySettlements,
+    payPayoutsLegacy,
+    startDate,
+    endDate,
+  ]);
 
   const showingAllEmployees = selectedEmployeeId === "all";
 
@@ -3488,8 +3607,9 @@ function ProfesionalesTab({
         commission: acc.commission + row.commission,
         paid: acc.paid + row.paid,
         pending: acc.pending + row.pending,
+        newUnpaid: acc.newUnpaid + row.newUnpaid,
       }),
-      { sales: 0, commission: 0, paid: 0, pending: 0 },
+      { sales: 0, commission: 0, paid: 0, pending: 0, newUnpaid: 0 },
     );
   }, [rows, selectedRow]);
 
@@ -3500,21 +3620,43 @@ function ProfesionalesTab({
     );
   }, [selectedRow]);
 
+  // Combina pagos nuevos (professional_settlements, con saldo anterior/
+  // posterior "congelados" al momento del pago) con pagos viejos
+  // (professional_payouts, de antes de existir esta cuenta corriente —
+  // esos no tienen saldo anterior/posterior porque nunca se calcularon).
   const selectedPaymentHistory = React.useMemo(() => {
     if (!selectedRow) return [] as any[];
-    return payouts
-      .filter(
-        (payment: any) => String(payment.employee_id) === selectedRow.id,
-      )
-      .map((payment: any) => ({
-        id: payment.id,
-        created_at: payment.created_at ?? `${payment.date}T00:00:00`,
-        amount: payment.amount,
-        method: payment.method,
-        note: payment.note,
-        user: displayResponsibleUser(payment.created_by),
+    const fromSettlements = paySettlements
+      .filter((s: any) => String(s.professional_id) === selectedRow.id)
+      .map((s: any) => ({
+        id: s.id,
+        created_at: s.paid_at,
+        amount: Number(s.amount_paid ?? 0),
+        method: s.payment_method,
+        note: s.note,
+        user: s.paid_by_name ?? "Caja",
+        balanceBefore:
+          s.commission_total_in_range != null && s.already_paid_before != null
+            ? Number(s.commission_total_in_range) - Number(s.already_paid_before)
+            : null,
+        balanceAfter: s.pending_after != null ? Number(s.pending_after) : null,
       }));
-  }, [payouts, selectedRow]);
+    const fromLegacy = payPayoutsLegacy
+      .filter((p: any) => String(p.employee_id) === selectedRow.id)
+      .map((p: any) => ({
+        id: p.id,
+        created_at: p.created_at ?? `${p.date}T00:00:00`,
+        amount: Number(p.amount ?? 0),
+        method: p.method,
+        note: p.note,
+        user: displayResponsibleUser(p.created_by),
+        balanceBefore: null as number | null,
+        balanceAfter: null as number | null,
+      }));
+    return [...fromSettlements, ...fromLegacy].sort((a, b) =>
+      String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")),
+    );
+  }, [paySettlements, payPayoutsLegacy, selectedRow]);
 
   async function payCommission(row: (typeof rows)[number] | null) {
     if (!row || row.pending <= 0 || payingEmployeeId) return;
@@ -3531,19 +3673,28 @@ function ProfesionalesTab({
 
     setPayingEmployeeId(row.id);
     try {
-      const { error } = await supabase.from("professional_payouts").insert({
-        business_id: businessId,
-        employee_id: row.id,
-        amount,
-        date: new Date().toLocaleDateString("sv-SE"), // YYYY-MM-DD en hora local
-        method: paymentForm.method || "transferencia",
-        note: paymentForm.note.trim() || null,
-        created_by: userEmail ?? "Caja",
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user?.id) throw new Error("Sesión inválida — volvé a iniciar sesión");
+
+      // Transaccional en el server (RPC): aplica el pago contra las
+      // comisiones pendientes más viejas primero y crea el registro de
+      // liquidación con los snapshots, todo en un solo paso — nunca puede
+      // quedar a medio hacer.
+      const { error } = await supabase.rpc("register_settlement_payment" as any, {
+        p_business_id: businessId,
+        p_professional_id: row.id,
+        p_amount: amount,
+        p_payment_method: paymentForm.method || "transferencia",
+        p_note: paymentForm.note.trim() || null,
+        p_paid_by: user.id,
+        p_paid_by_name: userEmail ?? "Caja",
       });
       if (error) throw error;
       toast.success(`Pago registrado para ${row.name}: ${money(amount)}`);
       setPaymentForm({ amount: "", method: "transferencia", note: "" });
-      setPayoutsVersion((value) => value + 1); // vuelve a leer desde la DB
+      setCommissionsVersion((value) => value + 1); // vuelve a leer desde la DB
       setSelectedDetail("historial");
     } catch (e) {
       toast.error(`No se pudo registrar el pago: ${(e as Error).message}`);
@@ -3922,21 +4073,29 @@ function ProfesionalesTab({
         </div>
 
         <div className="grid grid-cols-2 gap-3 border-b border-white/[0.055] px-5 py-4 lg:grid-cols-4">
-          <StatCard label="Ventas" value={totals.sales} tone="neutral" />
           <StatCard
-            label="Comisión"
+            label="Comisión del período"
             value={money(totals.commission)}
             tone="violet"
           />
-          <StatCard label="Pagado" value={money(totals.paid)} tone="green" />
           <StatCard
-            label="Pendiente"
+            label="Pagado en el período"
+            value={money(totals.paid)}
+            tone="green"
+          />
+          <StatCard
+            label="Saldo pendiente total"
             value={money(totals.pending)}
             tone="rose"
           />
+          <StatCard
+            label="Comisión nueva sin pagar"
+            value={money(totals.newUnpaid)}
+            tone="neutral"
+          />
         </div>
 
-        {data.loading || loadingRange || loadingPayouts ? (
+        {data.loading || loadingRange || loadingCommissions || loadingPaySettlements ? (
           <>
             {/* Desktop: skeleton sin tarjeta propia (misma caja continua de
                 siempre). Sin cambios de layout respecto de la web. */}
@@ -3964,7 +4123,7 @@ function ProfesionalesTab({
                 contenido apareciendo de la nada era lo que se percibía
                 como "prende la luz". También usa la MISMA cantidad de
                 tarjetas que `data.employees` (ya disponible aunque
-                loadingRange/loadingPayouts sigan en true, porque son fetches
+                loadingRange/loadingCommissions sigan en true, porque son fetches
                 aparte) en vez de un número fijo — antes, con una lista de
                 4 placeholders fijos, si el negocio tenía menos o más
                 empleados la altura de la sección cambiaba de golpe al
@@ -4317,14 +4476,38 @@ function ProfesionalesTab({
 
             {selectedDetail === "historial" && (
               <div className="min-h-0 flex-1 overflow-visible sm:overflow-y-auto px-5 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+                {/* Rango de pagos: filtro independiente del rango de
+                    actividad de arriba — solo cambia qué pagos se ven acá,
+                    nunca el saldo pendiente. */}
+                <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-white/55">
+                  <span className="font-semibold uppercase tracking-[0.14em] text-white/38">
+                    Rango de pagos
+                  </span>
+                  <input
+                    type="date"
+                    value={payStartDate}
+                    onChange={(event) => setPayStartDate(event.target.value)}
+                    className="h-8 rounded-lg border border-white/[0.09] bg-black/30 px-2 text-white outline-none [color-scheme:dark]"
+                  />
+                  <span className="text-white/35">→</span>
+                  <input
+                    type="date"
+                    value={payEndDate}
+                    onChange={(event) => setPayEndDate(event.target.value)}
+                    className="h-8 rounded-lg border border-white/[0.09] bg-black/30 px-2 text-white outline-none [color-scheme:dark]"
+                  />
+                </div>
+
                 {/* Desktop: tabla. En mobile, tarjetas verticales debajo. */}
                 <div className="hidden overflow-hidden rounded-2xl border border-white/[0.07] bg-black/18 sm:block">
-                  <div className="grid grid-cols-[90px_80px_120px_140px_minmax(140px,1fr)_minmax(180px,1fr)] gap-3 border-b border-white/[0.06] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
+                  <div className="grid grid-cols-[90px_80px_110px_100px_minmax(110px,1fr)_120px_120px_minmax(140px,1fr)] gap-3 border-b border-white/[0.06] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
                     <div>Fecha</div>
                     <div>Hora</div>
                     <div className="text-right">Monto</div>
                     <div>Método</div>
-                    <div>Usuario</div>
+                    <div>Responsable</div>
+                    <div className="text-right">Saldo ant.</div>
+                    <div className="text-right">Saldo post.</div>
                     <div>Nota</div>
                   </div>
                   {selectedPaymentHistory.length === 0 ? (
@@ -4340,7 +4523,7 @@ function ProfesionalesTab({
                         return (
                           <div
                             key={payment.id}
-                            className="grid grid-cols-[90px_80px_120px_140px_minmax(140px,1fr)_minmax(180px,1fr)] gap-3 px-4 py-3 text-sm transition hover:bg-white/[0.025]"
+                            className="grid grid-cols-[90px_80px_110px_100px_minmax(110px,1fr)_120px_120px_minmax(140px,1fr)] gap-3 px-4 py-3 text-sm transition hover:bg-white/[0.025]"
                           >
                             <div className="text-white/52">
                               {created.toLocaleDateString("es-AR", {
@@ -4362,6 +4545,12 @@ function ProfesionalesTab({
                             </div>
                             <div className="truncate text-white/68">
                               {payment.user ?? "Caja"}
+                            </div>
+                            <div className="text-right tabular-nums text-white/52">
+                              {payment.balanceBefore != null ? money(payment.balanceBefore) : "—"}
+                            </div>
+                            <div className="text-right tabular-nums text-white/52">
+                              {payment.balanceAfter != null ? money(payment.balanceAfter) : "—"}
                             </div>
                             <div className="truncate text-white/52">
                               {payment.note ?? "—"}
@@ -4403,6 +4592,12 @@ function ProfesionalesTab({
                               <span className="capitalize text-white/68">{payment.method ?? "—"}</span>
                               <span className="truncate text-white/68">{payment.user ?? "Caja"}</span>
                             </div>
+                            {(payment.balanceBefore != null || payment.balanceAfter != null) && (
+                              <div className="mt-1 flex items-center justify-between gap-2 text-white/45">
+                                <span>Saldo ant.: {payment.balanceBefore != null ? money(payment.balanceBefore) : "—"}</span>
+                                <span>Saldo post.: {payment.balanceAfter != null ? money(payment.balanceAfter) : "—"}</span>
+                              </div>
+                            )}
                             {payment.note && (
                               <div className="mt-1 truncate text-white/45">{payment.note}</div>
                             )}

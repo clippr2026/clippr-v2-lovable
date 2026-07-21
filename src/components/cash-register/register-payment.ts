@@ -134,6 +134,32 @@ export async function registerPayment(input: RegisterPaymentInput) {
     throw new Error("Supabase no devolvió el pago guardado (¿RLS?).");
   }
 
+  // Registra la comisión generada por esta venta — fuente de verdad del
+  // saldo pendiente del profesional (Caja > Liquidaciones), independiente
+  // de cualquier rango de fechas. Best-effort: si falla (ej. la migración
+  // de liquidaciones todavía no corrió), no aborta la venta ya confirmada.
+  const commissionPct = Number(input.commissionPct ?? 0);
+  if (input.employeeId && commissionPct > 0) {
+    const commissionAmount = Math.round(total * (commissionPct / 100));
+    if (commissionAmount > 0) {
+      const { error: commissionError } = await supabase
+        .from("commission_records" as any)
+        .insert({
+          business_id: input.businessId,
+          professional_id: input.employeeId,
+          sale_id: data[0].id,
+          amount: commissionAmount,
+          sale_date: (payload.created_at as string).slice(0, 10),
+        });
+      if (commissionError) {
+        console.warn(
+          "[registerPayment] no se pudo registrar la comisión:",
+          commissionError.message,
+        );
+      }
+    }
+  }
+
   // Pago múltiple: los métodos usados (para mostrar "Efectivo • Transferencia"
   // en Historial de ventas) se guardan en un UPDATE aparte, después de que el
   // cobro ya quedó confirmado — nunca en el INSERT de arriba. Si la columna
