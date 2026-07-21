@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import {
   X,
   Upload,
@@ -264,6 +266,19 @@ function priceToCash(price: string, discount: string) {
   const p = Number(price) || 0;
   const d = Number(discount) || 0;
   return Math.max(0, Math.round(p - (p * d) / 100));
+}
+
+// El estado sigue guardando solo dígitos (lo que espera Number(form.price)
+// al persistir) — esto formatea esos dígitos con separador de miles
+// argentino solo para mostrarlos en el input.
+function formatThousands(digits: string) {
+  const n = Number(digits);
+  return digits && Number.isFinite(n) ? n.toLocaleString("es-AR") : "";
+}
+
+function clampPercent(digits: string) {
+  if (!digits) return "";
+  return String(Math.min(100, Number(digits)));
 }
 
 function rowToForm(row: PriceRow, isService: boolean): PriceForm {
@@ -594,6 +609,11 @@ function PriceEditorModal({
 }) {
   const [uploadingImg, setUploadingImg] = useState(false);
   const bookingFileRef = useRef<HTMLInputElement | null>(null);
+  useBodyScrollLock(open);
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    if (open) scrollRef.current?.scrollTo(0, 0);
+  }, [open]);
   if (!open) return null;
   const cashPrice = priceToCash(form.price, form.discount);
   const title = `${mode === "edit" ? "Editar" : "Nuevo"} ${isService ? "servicio" : "producto"}`;
@@ -601,10 +621,18 @@ function PriceEditorModal({
     new Set([...(form.category ? [form.category] : []), ...catalogCategories]),
   );
 
-  return (
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4">
-      <div className="w-full max-w-3xl rounded-2xl bg-[oklch(0.12_0.02_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-white/5">
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    // Portal a document.body: esta pantalla vive dentro del <div
+    // className="relative z-10"> de AppShell, que crea su propio contexto
+    // de apilamiento — pierde contra el header/bottom-nav de AppSidebar
+    // (z-40, sticky/fixed, hermanos de <main> a nivel raíz). Mismo fix que
+    // "Agregar profesional" (commit a084001). padding-bottom reserva el
+    // alto real del nav inferior (3.5rem + safe-area en mobile).
+    <div className="fixed inset-0 z-[9999] flex items-start justify-center overflow-y-auto bg-black/70 backdrop-blur-sm p-4 pt-[calc(24px+env(safe-area-inset-top,0px))] pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] lg:pb-4 [overscroll-behavior:contain]">
+      <div className="relative flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-[oklch(0.12_0.02_275)] ring-1 ring-white/10 shadow-2xl max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-3.5rem-env(safe-area-inset-bottom,0px))] lg:max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-1rem)]">
+        <div className="flex shrink-0 items-center justify-between px-5 py-4 border-b border-white/5">
           <h3 className="font-display text-lg font-semibold">{title}</h3>
           <button
             onClick={onClose}
@@ -614,143 +642,157 @@ function PriceEditorModal({
           </button>
         </div>
 
-        <div className="p-4 space-y-3">
+        <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto p-4 space-y-3 [overscroll-behavior:contain]">
           {isService ? (
             <>
-              {/* Servicio · información básica + imagen en una fila */}
-              <SectionCard label="Información básica">
-                <div className="flex gap-3">
-                  <div className="min-w-0 flex-1 space-y-3">
-                    <Field label="Nombre del servicio">
-                      <input
-                        value={form.name}
-                        onChange={(e) => setForm({ ...form, name: e.target.value })}
-                        className={inputCls}
-                        placeholder="Corte + Barba"
-                        maxLength={MAX_ITEM_NAME_LENGTH}
-                      />
-                    </Field>
-                    <div className="grid grid-cols-2 gap-3">
-                      <Field label="Precio de lista">
-                        <input
-                          type="number"
-                          value={form.price}
-                          onChange={(e) => setForm({ ...form, price: e.target.value })}
-                          className={inputCls}
-                        />
-                      </Field>
-                      <Field label="Desc. efectivo (%)">
-                        <input
-                          type="number"
-                          value={form.discount}
-                          onChange={(e) => setForm({ ...form, discount: e.target.value })}
-                          className={inputCls}
-                        />
-                      </Field>
-                    </div>
-                    <div className="grid grid-cols-3 gap-3">
-                      <Field label="Duración (min)">
-                        <input
-                          type="number"
-                          min={0}
-                          value={form.duration}
-                          onChange={(e) => setForm({ ...form, duration: e.target.value })}
-                          className={inputCls}
-                        />
-                      </Field>
-                      <Field label="Categoría">
-                        <select
-                          value={form.category}
-                          onChange={(e) => setForm({ ...form, category: e.target.value })}
-                          className={inputCls}
-                        >
-                          {availableCatalogCategories.map((category) => (
-                            <option key={category}>{category}</option>
-                          ))}
-                        </select>
-                      </Field>
-                      <Field label="Estado">
-                        <select
-                          value={form.status}
-                          onChange={(e) =>
-                            setForm({ ...form, status: e.target.value as PriceForm["status"] })
-                          }
-                          className={inputCls}
-                        >
-                          <option>Activo</option>
-                          <option>Inactivo</option>
-                        </select>
-                      </Field>
-                    </div>
-                  </div>
-
-                  {/* Imagen del servicio */}
-                  <div className="w-28 shrink-0 sm:w-32">
-                    <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-1.5">
-                      Imagen del servicio
-                    </div>
+              <SectionCard label="Información principal">
+                <div className="space-y-3">
+                  <Field label="Nombre del servicio">
+                    <input
+                      value={form.name}
+                      onChange={(e) => setForm({ ...form, name: e.target.value })}
+                      className={inputCls}
+                      placeholder="Corte + Barba"
+                      maxLength={MAX_ITEM_NAME_LENGTH}
+                    />
+                  </Field>
+                  <Field label="Categoría">
+                    <select
+                      value={form.category}
+                      onChange={(e) => setForm({ ...form, category: e.target.value })}
+                      className={inputCls}
+                    >
+                      {availableCatalogCategories.map((category) => (
+                        <option key={category}>{category}</option>
+                      ))}
+                    </select>
+                  </Field>
+                  <Field label="Duración">
                     <div className="relative">
                       <input
-                        ref={bookingFileRef}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={async (e) => {
-                          const file = e.target.files?.[0];
-                          e.target.value = "";
-                          if (!file || !onUploadImage) return;
-                          setUploadingImg(true);
-                          const url = await onUploadImage(file);
-                          setUploadingImg(false);
-                          if (url) setForm({ ...form, image: url, imagePosition: "50% 50%" });
-                        }}
+                        type="number"
+                        min={0}
+                        value={form.duration}
+                        onChange={(e) => setForm({ ...form, duration: e.target.value })}
+                        className={cn(inputCls, "pr-12")}
                       />
-                      {form.image ? (
-                        <DraggableImageCrop
-                          src={form.image}
-                          alt={form.name || "Servicio"}
-                          value={form.imagePosition}
-                          onChange={(imagePosition) => setForm({ ...form, imagePosition })}
-                          onPickImage={() => bookingFileRef.current?.click()}
-                        />
-                      ) : (
-                        <button
-                          type="button"
-                          onClick={() => bookingFileRef.current?.click()}
-                          disabled={uploadingImg}
-                          className="grid aspect-square w-full place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10 disabled:opacity-50"
-                        >
-                          {uploadingImg ? (
-                            <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                          ) : (
-                            <span className="flex flex-col items-center gap-1 text-muted-foreground/80">
-                              <Upload className="h-5 w-5" />
-                              <span className="text-[11px]">Subir imagen</span>
-                            </span>
-                          )}
-                        </button>
-                      )}
-                      {form.image ? (
-                        <button
-                          type="button"
-                          onClick={() => setForm({ ...form, image: "", imagePosition: "50% 50%" })}
-                          disabled={uploadingImg}
-                          className="absolute -right-2 -top-2 grid h-6 w-6 place-items-center rounded-full bg-red-500 text-white shadow-lg disabled:opacity-50"
-                          title="Quitar imagen"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      ) : null}
+                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                        min
+                      </span>
                     </div>
+                  </Field>
+                </div>
+              </SectionCard>
 
+              <SectionCard label="Precios">
+                <div className="space-y-3">
+                  <Field label="Precio de lista">
+                    <div className="relative">
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                        $
+                      </span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={formatThousands(form.price)}
+                        onChange={(e) =>
+                          setForm({ ...form, price: e.target.value.replace(/\D/g, "") })
+                        }
+                        className={cn(inputCls, "pl-6")}
+                        placeholder="0"
+                      />
+                    </div>
+                  </Field>
+                  <Field label="Descuento en efectivo">
+                    <div className="relative">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={form.discount}
+                        onChange={(e) =>
+                          setForm({ ...form, discount: clampPercent(e.target.value.replace(/\D/g, "")) })
+                        }
+                        className={cn(inputCls, "pr-8")}
+                        placeholder="0"
+                      />
+                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                        %
+                      </span>
+                    </div>
+                  </Field>
+                  <div>
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-1.5">
+                      Precio en efectivo
+                    </div>
+                    <div className="text-lg font-semibold text-[oklch(0.82_0.14_75)]">
+                      ${cashPrice.toLocaleString("es-AR")}
+                    </div>
                   </div>
                 </div>
-                <p className="mt-2 text-xs text-muted-foreground">
-                  Efectivo:{" "}
-                  <span className="font-semibold text-[oklch(0.82_0.14_75)]">
-                    ${cashPrice.toLocaleString("es-AR")}
-                  </span>
-                </p>
+              </SectionCard>
+
+              <SectionCard label="Imagen del servicio">
+                <input
+                  ref={bookingFileRef}
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={async (e) => {
+                    const file = e.target.files?.[0];
+                    e.target.value = "";
+                    if (!file || !onUploadImage) return;
+                    setUploadingImg(true);
+                    const url = await onUploadImage(file);
+                    setUploadingImg(false);
+                    if (url) setForm({ ...form, image: url, imagePosition: "50% 50%" });
+                  }}
+                />
+                {form.image ? (
+                  <div className="space-y-3">
+                    <DraggableImageCrop
+                      src={form.image}
+                      alt={form.name || "Servicio"}
+                      value={form.imagePosition}
+                      onChange={(imagePosition) => setForm({ ...form, imagePosition })}
+                      onPickImage={() => bookingFileRef.current?.click()}
+                      className="mx-auto max-w-[220px]"
+                    />
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => bookingFileRef.current?.click()}
+                        disabled={uploadingImg}
+                        className="rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-4 py-2 text-sm disabled:opacity-50"
+                      >
+                        Cambiar imagen
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setForm({ ...form, image: "", imagePosition: "50% 50%" })}
+                        disabled={uploadingImg}
+                        className="rounded-xl bg-red-500/10 hover:bg-red-500/20 text-red-300 ring-1 ring-red-500/20 px-4 py-2 text-sm disabled:opacity-50"
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => bookingFileRef.current?.click()}
+                    disabled={uploadingImg}
+                    className="mx-auto grid aspect-square w-full max-w-[220px] place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10 hover:bg-white/10 disabled:opacity-50"
+                  >
+                    {uploadingImg ? (
+                      <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                    ) : (
+                      <span className="flex flex-col items-center gap-1 text-muted-foreground/80">
+                        <Upload className="h-5 w-5" />
+                        <span className="text-[11px]">Subir imagen</span>
+                      </span>
+                    )}
+                  </button>
+                )}
               </SectionCard>
 
               <SectionCard label="Reserva online">
@@ -999,7 +1041,7 @@ function PriceEditorModal({
           )}
         </div>
 
-        <div className="flex items-center gap-2 px-5 py-4 border-t border-white/5">
+        <div className="flex shrink-0 items-center gap-2 px-5 py-4 border-t border-white/5">
           {mode === "edit" && onDelete && (
           <button
             onClick={onDelete}
@@ -1015,7 +1057,7 @@ function PriceEditorModal({
           </button>
           <button
             onClick={onSave}
-            disabled={saving}
+            disabled={saving || !form.name.trim()}
             className="flex-1 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 py-2.5 text-sm disabled:opacity-50"
           >
             {saving
@@ -1024,7 +1066,8 @@ function PriceEditorModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

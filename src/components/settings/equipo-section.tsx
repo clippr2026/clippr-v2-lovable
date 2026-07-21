@@ -474,7 +474,7 @@ function ApprovalModeCard({
 }
 
 const timeCls =
-  "rounded-md bg-white/5 ring-1 ring-white/10 px-2 py-1 text-xs focus:outline-none w-[72px] [color-scheme:dark]";
+  "w-full min-w-0 flex-1 rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2.5 text-sm focus:outline-none disabled:opacity-40 [color-scheme:dark]";
 
 
 export type RolePermissionId =
@@ -848,6 +848,12 @@ export function EquipoSection() {
   );
   const [deletingAccess, setDeletingAccess] = useState(false);
   const [accessTouched, setAccessTouched] = useState(false);
+  const [accessModalOpen, setAccessModalOpen] = useState(false);
+  useBodyScrollLock(accessModalOpen);
+  const accessModalScrollRef = useRef<HTMLDivElement | null>(null);
+  useLayoutEffect(() => {
+    if (accessModalOpen) accessModalScrollRef.current?.scrollTo(0, 0);
+  }, [accessModalOpen]);
   const [accessPermissionsForm, setAccessPermissionsForm] =
     useState<PermissionMap>(DEFAULT_ROLE_PERMISSIONS.profesional);
   const [userPermissions, setUserPermissions] = useState<
@@ -2165,6 +2171,7 @@ export function EquipoSection() {
     setAccessTouched(false);
     setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS.profesional);
     setSelectedPermRole(accessForm.role);
+    setAccessModalOpen(false);
     await loadTeamMembers();
   }
 
@@ -2184,6 +2191,7 @@ export function EquipoSection() {
     setSelectedPermRole(user.role);
     setSelectedAccessUserId(user.id);
     setAccessTouched(false);
+    setAccessModalOpen(true);
   }
 
   function cancelEditAccessUser() {
@@ -2191,6 +2199,16 @@ export function EquipoSection() {
     setAccessForm(EMPTY_ACCESS_FORM);
     setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS.profesional);
     setAccessTouched(false);
+  }
+
+  function openNewAccessModal() {
+    cancelEditAccessUser();
+    setAccessModalOpen(true);
+  }
+
+  function closeAccessModal() {
+    setAccessModalOpen(false);
+    cancelEditAccessUser();
   }
 
   async function removeAccessUser(id: string) {
@@ -2219,7 +2237,7 @@ export function EquipoSection() {
     if (errMsg) return toast.error("Error eliminando acceso: " + errMsg);
 
     if (selectedAccessUserId === id) setSelectedAccessUserId("");
-    if (editingAccessUserId === id) cancelEditAccessUser();
+    if (editingAccessUserId === id) closeAccessModal();
     toast.success("Acceso eliminado");
     await loadTeamMembers();
   }
@@ -2234,6 +2252,14 @@ export function EquipoSection() {
       );
     return admins[0]?.id ?? null;
   })();
+
+  // El principal siempre primero — sort estable, así que el resto conserva
+  // el orden por created_at que ya trae accessUsers.
+  const sortedAccessUsers = [...accessUsers].sort((a, b) => {
+    if (a.id === principalAdminId) return -1;
+    if (b.id === principalAdminId) return 1;
+    return 0;
+  });
 
   function toggleUserPermission(userId: string, key: PermissionKey) {
     const user = accessUsers.find((item) => item.id === userId);
@@ -2427,7 +2453,7 @@ export function EquipoSection() {
 
       {equipoTab === "accesos" && (
       <div className="mt-4 space-y-3">
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+          <div className="flex items-center justify-between gap-3">
             <div>
               <h3 className="text-lg font-display font-semibold">
                 Accesos del equipo
@@ -2436,36 +2462,129 @@ export function EquipoSection() {
                 Invitá y administrá quién puede entrar a Clippr.
               </p>
             </div>
-            {editingAccessUserId && (
-              <div className="rounded-xl bg-cyan-500/10 ring-1 ring-cyan-400/20 px-3 py-2 text-xs text-cyan-200 flex items-center justify-between gap-3">
-                <span>Editando: {accessForm.email || "sin email"}</span>
-                <button
-                  type="button"
-                  onClick={cancelEditAccessUser}
-                  className="rounded-lg bg-white/10 hover:bg-white/15 px-2 py-1 text-[11px] text-foreground"
-                >
-                  Cancelar
-                </button>
+            <button
+              type="button"
+              onClick={openNewAccessModal}
+              className="shrink-0 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 py-2.5 text-sm shadow-lg shadow-sky-500/20 flex items-center gap-1.5"
+            >
+              <UserPlus className="h-4 w-4" />
+              Nuevo acceso
+            </button>
+          </div>
+
+          <div className="glass rounded-2xl p-4 ring-1 ring-white/5 space-y-3">
+            <div>
+              <div className="text-xs text-muted-foreground">
+                {accessUsers.length}{" "}
+                {accessUsers.length === 1
+                  ? "acceso creado"
+                  : "accesos creados"}
+              </div>
+            </div>
+
+            {accessUsers.length === 0 ? (
+              <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 p-5 text-sm text-muted-foreground text-center">
+                Todavía no hay accesos creados.
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {sortedAccessUsers.map((user) => {
+                  const displayTitle =
+                    user.role === "profesional"
+                      ? user.name || ROLE_LABEL_BY_ID[user.role]
+                      : ROLE_LABEL_BY_ID[user.role];
+                  // Principal siempre gana — es el único badge que importa
+                  // mostrar ahí (no tiene sentido "Activo" + "Principal" a
+                  // la vez). Sin acceso (ninguno de los 3 estados de
+                  // arriba) no muestra ningún badge — nada que decir.
+                  const isPrincipal = user.id === principalAdminId;
+                  const statusBadge = isPrincipal
+                    ? { label: "Principal", cls: "bg-white/[0.05] text-muted-foreground ring-white/15" }
+                    : user.status === "active"
+                      ? { label: "Activo", cls: "bg-emerald-500/10 text-emerald-300 ring-emerald-400/20" }
+                      : user.status === "invited"
+                        ? { label: "Pendiente", cls: "bg-cyan-500/10 text-cyan-300 ring-cyan-400/20" }
+                        : null;
+                  return (
+                  <div
+                    key={user.id}
+                    className="flex items-center gap-3 rounded-xl bg-white/[0.04] ring-1 ring-white/10 p-3"
+                  >
+                    <div className="h-9 w-9 shrink-0 rounded-full bg-white/8 ring-1 ring-white/10 grid place-items-center text-xs font-semibold">
+                      {(displayTitle[0] || "A").toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium">
+                        {displayTitle}
+                      </div>
+                      {statusBadge && (
+                        <span
+                          className={cn(
+                            "mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] ring-1",
+                            statusBadge.cls,
+                          )}
+                        >
+                          {statusBadge.label}
+                        </span>
+                      )}
+                      <div className="text-xs text-muted-foreground mt-1">
+                        {user.email}
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => editAccessUser(user)}
+                      className="rounded-lg bg-white/[0.05] hover:bg-white/[0.09] ring-1 ring-white/10 text-foreground px-2.5 py-1.5 text-xs"
+                    >
+                      Editar
+                    </button>
+                    {!isPrincipal && (
+                      <button
+                        type="button"
+                        onClick={() => setPendingDeleteUser(user)}
+                        className="rounded-lg bg-red-500/10 hover:bg-red-500/20 ring-1 ring-red-500/30 text-red-300 px-2.5 py-1.5"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    )}
+                  </div>
+                  );
+                })}
               </div>
             )}
           </div>
+        </div>
+      )}
 
-          <div className="grid grid-cols-1 xl:grid-cols-[0.78fr_1fr] gap-3">
-            <div className="glass rounded-2xl p-4 ring-1 ring-white/5">
-              <div className="flex items-center gap-3 mb-4">
-                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-sky-400/10 ring-1 ring-sky-300/20">
-                  <UserPlus className="h-5 w-5 text-sky-300" />
-                </div>
-                <div>
-                  <div className="text-sm font-semibold">Nuevo acceso</div>
-                  <div className="text-xs text-muted-foreground">
-                    {editingAccessUserId
-                      ? "Actualizá el acceso seleccionado."
-                      : "Invitá a un profesional o colaborador a Clippr."}
-                  </div>
-                </div>
-              </div>
+      {accessModalOpen && typeof document !== "undefined" && createPortal(
+        // Portal a document.body por la misma razón que el modal de
+        // profesional (ver comentario más abajo): esta pantalla vive
+        // dentro del <div className="relative z-10"> de AppShell y pierde
+        // el contexto de apilamiento contra el header/bottom-nav fijo.
+        <div
+          className="fixed inset-0 z-[9999] flex items-start justify-center overflow-y-auto bg-black/70 backdrop-blur-sm p-4 pt-[calc(24px+env(safe-area-inset-top,0px))] pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] lg:pb-4 [overscroll-behavior:contain]"
+          onClick={() => !saving && closeAccessModal()}
+        >
+          <div
+            className="relative flex w-full max-w-xl flex-col overflow-hidden rounded-2xl bg-zinc-950 ring-1 ring-white/10 shadow-2xl max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-3.5rem-env(safe-area-inset-bottom,0px))] lg:max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-1rem)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex shrink-0 items-center justify-between px-5 py-4 border-b border-white/5">
+              <h3 className="font-display text-lg font-semibold">
+                {editingAccessUserId ? "Editar acceso" : "Nuevo acceso"}
+              </h3>
+              <button
+                onClick={closeAccessModal}
+                className="rounded-full p-1.5 text-muted-foreground hover:bg-white/5"
+              >
+                ✕
+              </button>
+            </div>
 
+            <div
+              ref={accessModalScrollRef}
+              className="min-h-0 flex-1 overflow-y-auto p-4 [overscroll-behavior:contain]"
+            >
               <div className="space-y-3">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <Field label="Rol">
@@ -2581,19 +2700,6 @@ export function EquipoSection() {
                     por email.
                   </span>
                 </div>
-
-                <button
-                  type="button"
-                  onClick={saveAccessUser}
-                  disabled={saving}
-                  className="w-full rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 py-2.5 text-sm shadow-lg shadow-sky-500/20 disabled:opacity-60"
-                >
-                  {saving
-                    ? "Procesando…"
-                    : editingAccessUserId
-                      ? "Guardar cambios"
-                      : "Invitar y guardar"}
-                </button>
 
                 {/* Vista previa de lo que va a poder ver esta persona con
                     el rol/permisos elegidos arriba — vive junto al
@@ -2770,94 +2876,31 @@ export function EquipoSection() {
               </div>
             </div>
 
-            <div className="glass rounded-2xl p-4 ring-1 ring-white/5 space-y-3">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <div className="text-sm font-semibold">
-                    Usuarios y accesos
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {accessUsers.length}{" "}
-                    {accessUsers.length === 1
-                      ? "acceso creado"
-                      : "accesos creados"}
-                  </div>
-                </div>
-              </div>
-
-              {accessUsers.length === 0 ? (
-                <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 p-5 text-sm text-muted-foreground text-center">
-                  Todavía no hay accesos creados.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {accessUsers.map((user) => {
-                    const displayTitle =
-                      user.role === "profesional"
-                        ? user.name || ROLE_LABEL_BY_ID[user.role]
-                        : ROLE_LABEL_BY_ID[user.role];
-                    // Principal siempre gana — es el único badge que importa
-                    // mostrar ahí (no tiene sentido "Activo" + "Principal" a
-                    // la vez). Sin acceso (ninguno de los 3 estados de
-                    // arriba) no muestra ningún badge — nada que decir.
-                    const isPrincipal = user.id === principalAdminId;
-                    const statusBadge = isPrincipal
-                      ? { label: "Principal", cls: "bg-white/[0.05] text-muted-foreground ring-white/15" }
-                      : user.status === "active"
-                        ? { label: "Activo", cls: "bg-emerald-500/10 text-emerald-300 ring-emerald-400/20" }
-                        : user.status === "invited"
-                          ? { label: "Pendiente", cls: "bg-cyan-500/10 text-cyan-300 ring-cyan-400/20" }
-                          : null;
-                    return (
-                    <div
-                      key={user.id}
-                      className="flex items-center gap-3 rounded-xl bg-white/[0.04] ring-1 ring-white/10 p-3"
-                    >
-                      <div className="h-9 w-9 shrink-0 rounded-full bg-white/8 ring-1 ring-white/10 grid place-items-center text-xs font-semibold">
-                        {(displayTitle[0] || "A").toUpperCase()}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium">
-                          {displayTitle}
-                        </div>
-                        {statusBadge && (
-                          <span
-                            className={cn(
-                              "mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] ring-1",
-                              statusBadge.cls,
-                            )}
-                          >
-                            {statusBadge.label}
-                          </span>
-                        )}
-                        <div className="text-xs text-muted-foreground mt-1">
-                          {user.email}
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => editAccessUser(user)}
-                        className="rounded-lg bg-white/[0.05] hover:bg-white/[0.09] ring-1 ring-white/10 text-foreground px-2.5 py-1.5 text-xs"
-                      >
-                        Editar
-                      </button>
-                      {!isPrincipal && (
-                        <button
-                          type="button"
-                          onClick={() => setPendingDeleteUser(user)}
-                          className="rounded-lg bg-red-500/10 hover:bg-red-500/20 ring-1 ring-red-500/30 text-red-300 px-2.5 py-1.5"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      )}
-                    </div>
-                    );
-                  })}
-                </div>
-              )}
+            <div className="flex shrink-0 items-center gap-2 px-5 py-4 border-t border-white/5">
+              <button
+                type="button"
+                onClick={closeAccessModal}
+                disabled={saving}
+                className="rounded-xl bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-4 py-2.5 text-sm disabled:opacity-60"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={saveAccessUser}
+                disabled={saving}
+                className="flex-1 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 py-2.5 text-sm shadow-lg shadow-sky-500/20 disabled:opacity-60"
+              >
+                {saving
+                  ? "Procesando…"
+                  : editingAccessUserId
+                    ? "Guardar cambios"
+                    : "Invitar y guardar"}
+              </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
       {pendingDeleteUser && (
@@ -3081,9 +3124,10 @@ export function EquipoSection() {
                     return (
                       <div
                         key={key}
-                        className="rounded-xl bg-white/5 ring-1 ring-white/10 p-3"
+                        className="rounded-xl bg-white/5 ring-1 ring-white/10 p-3.5 space-y-3"
                       >
-                        <div className="flex items-center gap-3 flex-wrap">
+                        <div className="flex items-center justify-between">
+                          <div className="text-sm font-medium">{label}</div>
                           <button
                             type="button"
                             role="switch"
@@ -3101,54 +3145,62 @@ export function EquipoSection() {
                               )}
                             />
                           </button>
-                          <div className="text-sm font-medium w-20">
-                            {label}
+                        </div>
+                        <div className={cn("space-y-1.5", !d.enabled && "opacity-40")}>
+                          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+                            Horario
                           </div>
-                          {d.enabled && (
-                            <>
-                              <input
-                                type="time"
-                                value={d.start}
-                                onChange={(e) =>
-                                  setDay(key, { start: e.target.value })
-                                }
-                                className={timeCls}
-                              />
-                              <span className="text-muted-foreground text-xs">
-                                a
-                              </span>
-                              <input
-                                type="time"
-                                value={d.end}
-                                onChange={(e) =>
-                                  setDay(key, { end: e.target.value })
-                                }
-                                className={timeCls}
-                              />
-                              <div className="text-xs text-muted-foreground ml-2">
-                                Descanso:
-                              </div>
-                              <input
-                                type="time"
-                                value={d.breakStart}
-                                onChange={(e) =>
-                                  setDay(key, { breakStart: e.target.value })
-                                }
-                                className={timeCls}
-                              />
-                              <span className="text-muted-foreground text-xs">
-                                -
-                              </span>
-                              <input
-                                type="time"
-                                value={d.breakEnd}
-                                onChange={(e) =>
-                                  setDay(key, { breakEnd: e.target.value })
-                                }
-                                className={timeCls}
-                              />
-                            </>
-                          )}
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="time"
+                              value={d.start}
+                              disabled={!d.enabled}
+                              onChange={(e) =>
+                                setDay(key, { start: e.target.value })
+                              }
+                              className={timeCls}
+                            />
+                            <span className="shrink-0 text-xs text-muted-foreground">
+                              a
+                            </span>
+                            <input
+                              type="time"
+                              value={d.end}
+                              disabled={!d.enabled}
+                              onChange={(e) =>
+                                setDay(key, { end: e.target.value })
+                              }
+                              className={timeCls}
+                            />
+                          </div>
+                        </div>
+                        <div className={cn("space-y-1.5", !d.enabled && "opacity-40")}>
+                          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+                            Descanso
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="time"
+                              value={d.breakStart}
+                              disabled={!d.enabled}
+                              onChange={(e) =>
+                                setDay(key, { breakStart: e.target.value })
+                              }
+                              className={timeCls}
+                            />
+                            <span className="shrink-0 text-xs text-muted-foreground">
+                              a
+                            </span>
+                            <input
+                              type="time"
+                              value={d.breakEnd}
+                              disabled={!d.enabled}
+                              onChange={(e) =>
+                                setDay(key, { breakEnd: e.target.value })
+                              }
+                              className={timeCls}
+                            />
+                          </div>
                         </div>
                       </div>
                     );
@@ -3174,17 +3226,6 @@ export function EquipoSection() {
                         {tabId === "servicios" ? "Servicios" : "Catálogo"}
                       </button>
                     ))}
-                  </div>
-
-                  <div className="rounded-2xl bg-[linear-gradient(135deg,rgba(139,92,246,0.09),rgba(56,189,248,0.05))] ring-1 ring-white/10 p-4">
-                    <div className="font-semibold text-sm">
-                      {commTab === "servicios" ? "Servicios" : "Catálogo"}
-                    </div>
-                    <div className="mt-1 text-xs text-muted-foreground">
-                      {commTab === "servicios"
-                        ? "Configurá qué servicios realiza este profesional, su comisión y, si corresponde, su duración y precio personalizados."
-                        : "Configurá qué productos puede vender este profesional y la comisión que recibe por cada venta."}
-                    </div>
                   </div>
 
                   {([commTab] as const).map((kind) => {
