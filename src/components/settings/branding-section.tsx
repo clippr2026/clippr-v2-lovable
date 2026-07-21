@@ -323,9 +323,7 @@ export function BrandingSection() {
   // Texto visible del globo, hasta 2 líneas sin cortar contenido: mide el
   // <div> a tamaño base y si no entra en 2 líneas va reduciendo el
   // font-size (no el texto) hasta que entra o llega al piso — recién ahí
-  // line-clamp-2 actúa como red de seguridad. El <textarea> (invisible,
-  // solo para el cursor) copia el mismo font-size y alto real para que el
-  // click quede alineado con lo que se ve.
+  // line-clamp-2 actúa como red de seguridad.
   const announcementTextRef = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const textEl = announcementTextRef.current;
@@ -342,7 +340,14 @@ export function BrandingSection() {
       textEl.style.fontSize = `${size}px`;
       lineHeightPx = parseFloat(getComputedStyle(textEl).lineHeight);
     }
-    taEl.style.fontSize = `${size}px`;
+    // El <textarea> (invisible, solo para el cursor) NO copia ese
+    // font-size chico: cualquier input con font-size menor a 16px hace que
+    // iOS Safari haga auto-zoom de toda la página al enfocarlo — ese zoom
+    // es justo el glitch reportado ("no veo el cursor, el texto queda
+    // cortado/superpuesto hasta que escribo la primera letra"). 16px fijo
+    // evita el zoom por completo; como el texto del textarea es
+    // transparente, el único efecto visible es el caret, así que el
+    // desajuste de tamaño real vs. el texto pintado no se nota.
     taEl.style.height = "auto";
     taEl.style.height = `${textEl.scrollHeight}px`;
   }, [data.profile_note]);
@@ -1233,7 +1238,7 @@ export function BrandingSection() {
                     if (!profileNoteTouched) e.currentTarget.select();
                   }}
                   maxLength={50}
-                  className="col-start-1 row-start-1 block w-full resize-none whitespace-pre-line break-words border-0 bg-transparent p-0 text-center text-[11px] font-semibold leading-snug text-transparent caret-zinc-950 outline-none [word-break:normal] [-webkit-text-fill-color:transparent] [-webkit-appearance:none]"
+                  className="col-start-1 row-start-1 block w-full resize-none whitespace-pre-line break-words border-0 bg-transparent p-0 text-center text-base font-semibold leading-snug text-transparent caret-zinc-950 outline-none [word-break:normal] [-webkit-text-fill-color:transparent] [-webkit-appearance:none]"
                 />
                 <span className="pointer-events-none absolute left-1/2 top-full h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-white" />
               </div>
