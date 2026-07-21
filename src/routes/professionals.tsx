@@ -26,8 +26,12 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   useProfessionals, useProfPayments,
   useProfTurnos,
-  type ProfTurno, type ProfSale,
+  useProfSettlementRuns, useProfSettlementRunPayments,
+  useConfirmSettlementRun, useObserveSettlementRun,
+  fetchSettlementRunServices,
+  type ProfTurno, type ProfSale, type SettlementRun,
 } from "@/hooks/use-professionals-data";
+import { buildComprobanteText, downloadComprobante, shareComprobante } from "@/lib/settlement-comprobante";
 import { cancelAppointment } from "@/components/agenda/use-agenda-data";
 import { useAgendaData } from "@/components/agenda/use-agenda-data";
 import { resolveDaySchedule } from "@/lib/availability";
@@ -47,7 +51,7 @@ export const Route = createFileRoute("/professionals")({
   component: ProfessionalsPage,
 });
 
-type TabKey = "turnos" | "stats" | "historial-servicios" | "historial-pagos";
+type TabKey = "turnos" | "stats" | "historial-servicios" | "historial-pagos" | "liquidaciones";
 type RangeKey = "hoy" | "semana" | "mes" | "custom";
 
 function toLocalISODate(date: Date) {
@@ -497,12 +501,13 @@ function ProfessionalsPage() {
           abajo — a diferencia de un margin-top ahí, este padding no puede
           "colapsar" ni perderse, así que asegura el aire pedido sin
           depender de cómo el navegador resuelva márgenes adyacentes. */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 pb-3">
+      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3 pb-3">
         {([
           { key: "turnos",             label: "Mi Agenda",             Icon: ClipboardList, tint: "text-cyan-300" },
           { key: "stats",              label: "Rendimiento",           Icon: BarChart3,     tint: "text-sky-300"   },
           { key: "historial-servicios",label: "Historial de ventas",   Icon: Clock,         tint: "text-violet-300"},
           { key: "historial-pagos",    label: "Historial de pagos",    Icon: DollarSign,    tint: "text-emerald-300"},
+          { key: "liquidaciones",      label: "Mis liquidaciones",     Icon: HandCoins,     tint: "text-amber-300" },
         ] as const).map(({ key, label, Icon, tint }) => {
           const isActive = tab === key;
           return (
@@ -531,7 +536,7 @@ function ProfessionalsPage() {
         </div>
       )}
 
-      {tab !== "turnos" && (
+      {tab !== "turnos" && tab !== "liquidaciones" && (
         <div className="flex justify-end -mt-3">
           <DateRangePicker
             from={fromDate}
@@ -685,6 +690,14 @@ function ProfessionalsPage() {
       {tab === "stats" && <StatsView businessId={businessId} empId={empId} from={fromDate} to={toDate} commissionPct={Number(active?.commission_pct ?? 0)} commissionFixed={Number(active?.commission_fixed ?? 0)} />}
       {tab === "historial-servicios" && <HistorialView businessId={businessId} empId={empId} commissionPct={Number(active?.commission_pct ?? 0)} from={fromDate} to={toDate} />}
       {tab === "historial-pagos" && <PagosView businessId={businessId} empId={empId} userEmail={profile?.email ?? null} from={fromDate} to={toDate} />}
+      {tab === "liquidaciones" && (
+        <LiquidacionesPanelView
+          businessId={businessId}
+          empId={empId}
+          professionalName={active?.full_name ?? "Profesional"}
+          canConfirmOrObserve={isProfessionalAccess && canOperateSelectedPanel}
+        />
+      )}
       </div>
       </div>
     </AppShell>
@@ -2339,6 +2352,299 @@ function PagosView({ businessId, empId, userEmail, from, to }: { businessId: str
   );
 }
 
+
+const RUN_STATUS_LABEL: Record<SettlementRun["status"], string> = {
+  pendiente: "Pendiente",
+  parcial: "Pago parcial",
+  pagada: "Pagada",
+  observada: "Observada",
+};
+const RUN_STATUS_STYLE: Record<SettlementRun["status"], string> = {
+  pendiente: "bg-sky-500/10 text-sky-300 ring-sky-400/20",
+  parcial: "bg-amber-500/10 text-amber-300 ring-amber-400/20",
+  pagada: "bg-emerald-500/10 text-emerald-300 ring-emerald-400/20",
+  observada: "bg-rose-500/10 text-rose-300 ring-rose-400/20",
+};
+
+// Panel del profesional > Mis liquidaciones. Lee EXACTAMENTE las mismas
+// tablas que Caja > Liquidaciones (settlement_runs/settlement_payments):
+// el profesional y el administrador siempre ven los mismos números. El
+// profesional nunca puede editar montos acá — solo confirmar recepción u
+// observar, ambos vía RPC (ver 20260721100000_settlement_runs_confirm.sql).
+function LiquidacionesPanelView({
+  businessId, empId, professionalName, canConfirmOrObserve,
+}: {
+  businessId: string | null;
+  empId: string | null;
+  professionalName: string;
+  canConfirmOrObserve: boolean;
+}) {
+  const { data: runs = [], isLoading } = useProfSettlementRuns(businessId, empId);
+  const { data: payments = [] } = useProfSettlementRunPayments(businessId, empId);
+  const confirmRun = useConfirmSettlementRun(businessId, empId);
+  const observeRun = useObserveSettlementRun(businessId, empId);
+
+  const [detailRunId, setDetailRunId] = useState<string | null>(null);
+  const [detailRows, setDetailRows] = useState<any[] | null>(null);
+  const [loadingDetail, setLoadingDetail] = useState(false);
+  const [observingRunId, setObservingRunId] = useState<string | null>(null);
+  const [observationText, setObservationText] = useState("");
+
+  async function openServicios(runId: string) {
+    setDetailRunId(runId);
+    setDetailRows(null);
+    setLoadingDetail(true);
+    try {
+      const rows = await fetchSettlementRunServices(runId);
+      setDetailRows(rows);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudieron cargar los servicios");
+      setDetailRunId(null);
+    } finally {
+      setLoadingDetail(false);
+    }
+  }
+
+  function comprobanteFor(run: SettlementRun) {
+    const lastPayment = payments.find((p) => p.settlement_run_id === run.id);
+    return buildComprobanteText({
+      runNumber: run.run_number,
+      cutoffDate: run.cutoff_date,
+      professionalName,
+      previousBalance: run.previous_balance,
+      newCommissions: run.new_commissions,
+      adjustments: run.adjustments,
+      deductions: run.deductions,
+      totalToSettle: run.total_to_settle,
+      amountPaid: run.amount_paid,
+      payment: lastPayment
+        ? {
+            amount: lastPayment.amount,
+            method: lastPayment.payment_method ?? "—",
+            note: lastPayment.note,
+            balanceBefore: lastPayment.balance_before,
+            balanceAfter: lastPayment.balance_after,
+            paidByName: lastPayment.paid_by_name,
+            paidAt: lastPayment.paid_at,
+          }
+        : null,
+    });
+  }
+
+  async function handleConfirm(runId: string) {
+    try {
+      await confirmRun.mutateAsync(runId);
+      toast.success("Recepción confirmada");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo confirmar");
+    }
+  }
+
+  async function handleObserve(runId: string) {
+    if (!observationText.trim()) {
+      toast.error("Escribí una observación");
+      return;
+    }
+    try {
+      await observeRun.mutateAsync({ settlementRunId: runId, observation: observationText.trim() });
+      toast.success("Observación registrada");
+      setObservingRunId(null);
+      setObservationText("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudo registrar la observación");
+    }
+  }
+
+  if (isLoading) {
+    return <div className="p-8 text-center text-sm text-muted-foreground animate-pulse">Cargando…</div>;
+  }
+
+  if (runs.length === 0) {
+    return (
+      <div className="glass rounded-2xl p-8 text-center text-sm text-muted-foreground">
+        Todavía no hay liquidaciones preparadas.
+      </div>
+    );
+  }
+
+  const detailRun = detailRunId ? runs.find((r) => r.id === detailRunId) ?? null : null;
+
+  return (
+    <div className="space-y-3 animate-fade-up">
+      {runs.map((run) => {
+        const remaining = Math.max(run.total_to_settle - run.amount_paid, 0);
+        const runPayments = payments.filter((p) => p.settlement_run_id === run.id);
+        return (
+          <div key={run.id} className="glass rounded-2xl p-4 sm:p-5 space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <div>
+                <div className="text-sm font-semibold">Liquidación #{run.run_number}</div>
+                <div className="text-xs text-muted-foreground">Liquidado hasta {run.cutoff_date}</div>
+              </div>
+              <span className={cn("text-xs font-medium px-2.5 py-1 rounded-full ring-1", RUN_STATUS_STYLE[run.status])}>
+                {RUN_STATUS_LABEL[run.status]}
+              </span>
+            </div>
+
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              <div className="rounded-xl bg-white/[0.03] p-2.5">
+                <div className="text-muted-foreground">Saldo anterior</div>
+                <div className="text-sm font-semibold tabular-nums">${run.previous_balance.toLocaleString("es-AR")}</div>
+              </div>
+              <div className="rounded-xl bg-white/[0.03] p-2.5">
+                <div className="text-muted-foreground">Comisiones nuevas</div>
+                <div className="text-sm font-semibold tabular-nums">${run.new_commissions.toLocaleString("es-AR")}</div>
+              </div>
+              <div className="rounded-xl bg-white/[0.03] p-2.5">
+                <div className="text-muted-foreground">Total a liquidar</div>
+                <div className="text-sm font-semibold tabular-nums">${run.total_to_settle.toLocaleString("es-AR")}</div>
+              </div>
+              <div className="rounded-xl bg-white/[0.03] p-2.5">
+                <div className="text-muted-foreground">Saldo restante</div>
+                <div className={cn("text-sm font-semibold tabular-nums", remaining > 0 ? "text-amber-300" : "text-emerald-300")}>
+                  ${remaining.toLocaleString("es-AR")}
+                </div>
+              </div>
+            </div>
+
+            <div className="text-[11px] text-muted-foreground">
+              Preparada por {run.prepared_by_name} · {new Date(run.prepared_at).toLocaleString("es-AR")}
+            </div>
+
+            {run.professional_confirmed_at && (
+              <div className="text-[11px] text-emerald-300">
+                Recepción confirmada el {new Date(run.professional_confirmed_at).toLocaleString("es-AR")}
+              </div>
+            )}
+            {run.professional_observation && (
+              <div className="text-[11px] text-rose-300">
+                Observación: {run.professional_observation}
+                {run.professional_observed_at && ` · ${new Date(run.professional_observed_at).toLocaleString("es-AR")}`}
+              </div>
+            )}
+
+            {runPayments.length > 0 && (
+              <div className="rounded-xl bg-white/[0.02] ring-1 ring-white/5 divide-y divide-white/5">
+                {runPayments.map((p) => (
+                  <div key={p.id} className="flex items-center justify-between gap-2 px-3 py-2 text-xs">
+                    <div className="text-muted-foreground">
+                      {new Date(p.paid_at).toLocaleString("es-AR")} · {methodDisplayLabel(p.payment_method ?? "")} · {p.paid_by_name}
+                    </div>
+                    <div className="font-semibold tabular-nums text-emerald-300">${p.amount.toLocaleString("es-AR")}</div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-2 pt-1">
+              <button
+                onClick={() => openServicios(run.id)}
+                className="rounded-full bg-white/[0.04] px-3 py-1.5 text-xs font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
+              >
+                Ver servicios incluidos
+              </button>
+              <button
+                onClick={() => downloadComprobante(comprobanteFor(run), `Liquidación #${run.run_number}`)}
+                className="rounded-full bg-white/[0.04] px-3 py-1.5 text-xs font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
+              >
+                Descargar comprobante
+              </button>
+              <button
+                onClick={async () => {
+                  const result = await shareComprobante(comprobanteFor(run), `Liquidación #${run.run_number}`);
+                  if (result === "copied") toast.success("Comprobante copiado al portapapeles");
+                  if (result === "failed") toast.error("No se pudo compartir");
+                }}
+                className="rounded-full bg-white/[0.04] px-3 py-1.5 text-xs font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
+              >
+                Compartir comprobante
+              </button>
+
+              {canConfirmOrObserve && !run.professional_confirmed_at && run.status !== "observada" && (
+                <button
+                  onClick={() => handleConfirm(run.id)}
+                  disabled={confirmRun.isPending}
+                  className="rounded-full bg-emerald-500/15 px-3 py-1.5 text-xs font-medium ring-1 ring-emerald-400/25 text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-50"
+                >
+                  Confirmar recepción
+                </button>
+              )}
+              {canConfirmOrObserve && observingRunId !== run.id && (
+                <button
+                  onClick={() => { setObservingRunId(run.id); setObservationText(""); }}
+                  className="rounded-full bg-rose-500/10 px-3 py-1.5 text-xs font-medium ring-1 ring-rose-400/20 text-rose-300 hover:bg-rose-500/15"
+                >
+                  Observar
+                </button>
+              )}
+            </div>
+
+            {canConfirmOrObserve && observingRunId === run.id && (
+              <div className="space-y-2 pt-1">
+                <textarea
+                  value={observationText}
+                  onChange={(e) => setObservationText(e.target.value)}
+                  placeholder="Contá qué encontrás mal en esta liquidación…"
+                  rows={2}
+                  className="w-full rounded-xl bg-white/[0.03] ring-1 ring-white/10 px-3 py-2 text-xs outline-none focus:ring-primary/40"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleObserve(run.id)}
+                    disabled={observeRun.isPending}
+                    className="rounded-full bg-rose-500/15 px-3 py-1.5 text-xs font-medium ring-1 ring-rose-400/25 text-rose-300 hover:bg-rose-500/20 disabled:opacity-50"
+                  >
+                    Enviar observación
+                  </button>
+                  <button
+                    onClick={() => setObservingRunId(null)}
+                    className="rounded-full bg-white/[0.04] px-3 py-1.5 text-xs font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {detailRunId && (
+        <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
+          <div className="w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl glass max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+              <div className="text-sm font-semibold">
+                Servicios de la liquidación #{detailRun?.run_number ?? ""}
+              </div>
+              <button onClick={() => setDetailRunId(null)} className="text-muted-foreground hover:text-white text-sm">
+                Cerrar
+              </button>
+            </div>
+            <div className="overflow-y-auto p-4 space-y-2">
+              {loadingDetail ? (
+                <div className="text-center text-sm text-muted-foreground py-6 animate-pulse">Cargando…</div>
+              ) : !detailRows || detailRows.length === 0 ? (
+                <div className="text-center text-sm text-muted-foreground py-6">Sin servicios en esta liquidación.</div>
+              ) : (
+                detailRows.map((row) => (
+                  <div key={row.id} className="rounded-xl bg-white/[0.03] p-3 text-xs space-y-0.5">
+                    <div className="flex justify-between">
+                      <span className="font-medium">{row.sale?.client_name ?? "Cliente"}</span>
+                      <span className="font-semibold text-emerald-300 tabular-nums">${Number(row.amount).toLocaleString("es-AR")}</span>
+                    </div>
+                    <div className="text-muted-foreground">
+                      {row.sale_date} · {row.sale?.service_name ?? "—"} · {row.commission_pct}% com.
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 const METHOD_LABELS: Record<string, string> = {
   cash: "Efectivo",

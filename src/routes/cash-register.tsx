@@ -57,6 +57,7 @@ import { AcquisitionSourceField } from "@/components/acquisition-source-field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { acquisitionChannelRequiresText } from "@/lib/acquisition-channels";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
+import { buildComprobanteText, downloadComprobante, shareComprobante } from "@/lib/settlement-comprobante";
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
 const HISTORIAL_KEY = "clippr_cobros_historial_v2";
@@ -3329,6 +3330,20 @@ function ProfesionalesTab({
   const [allRunPayments, setAllRunPayments] = React.useState<any[]>([]);
   const [commissionsVersion, setCommissionsVersion] = React.useState(0);
 
+  // Filtros del Historial (además del profesional, que ya se elige en la
+  // lista de la izquierda): estado, responsable y método filtran runs y
+  // pagos por igual; las dos fechas son independientes entre sí — fecha de
+  // liquidación filtra por cutoff_date del run, fecha de pago por paid_at.
+  const [historialFilters, setHistorialFilters] = React.useState({
+    estado: "all" as "all" | "pendiente" | "parcial" | "pagada" | "observada",
+    metodo: "all" as string,
+    responsable: "all" as string,
+    liqDesde: "",
+    liqHasta: "",
+    pagoDesde: "",
+    pagoHasta: "",
+  });
+
   const money = React.useCallback(
     (value: number) => `$${Math.round(value).toLocaleString("es-AR")}`,
     [],
@@ -3623,6 +3638,40 @@ function ProfesionalesTab({
       .filter((p: any) => String(p.professional_id) === selectedRow.id)
       .sort((a: any, b: any) => String(b.paid_at ?? "").localeCompare(String(a.paid_at ?? "")));
   }, [allRunPayments, selectedRow]);
+
+  const responsableOptions = React.useMemo(() => {
+    const names = new Set<string>();
+    allRuns.forEach((r: any) => r.prepared_by_name && names.add(r.prepared_by_name));
+    allRunPayments.forEach((p: any) => p.paid_by_name && names.add(p.paid_by_name));
+    return Array.from(names).sort();
+  }, [allRuns, allRunPayments]);
+
+  const metodoOptions = React.useMemo(() => {
+    const methods = new Set<string>();
+    allRunPayments.forEach((p: any) => p.payment_method && methods.add(p.payment_method));
+    return Array.from(methods).sort();
+  }, [allRunPayments]);
+
+  const filteredRuns = React.useMemo(() => {
+    return selectedRuns.filter((r: any) => {
+      if (historialFilters.estado !== "all" && r.status !== historialFilters.estado) return false;
+      if (historialFilters.responsable !== "all" && r.prepared_by_name !== historialFilters.responsable) return false;
+      if (historialFilters.liqDesde && r.cutoff_date < historialFilters.liqDesde) return false;
+      if (historialFilters.liqHasta && r.cutoff_date > historialFilters.liqHasta) return false;
+      return true;
+    });
+  }, [selectedRuns, historialFilters]);
+
+  const filteredRunPayments = React.useMemo(() => {
+    return selectedRunPayments.filter((p: any) => {
+      if (historialFilters.metodo !== "all" && p.payment_method !== historialFilters.metodo) return false;
+      if (historialFilters.responsable !== "all" && p.paid_by_name !== historialFilters.responsable) return false;
+      const paidDate = String(p.paid_at ?? "").slice(0, 10);
+      if (historialFilters.pagoDesde && paidDate < historialFilters.pagoDesde) return false;
+      if (historialFilters.pagoHasta && paidDate > historialFilters.pagoHasta) return false;
+      return true;
+    });
+  }, [selectedRunPayments, historialFilters]);
 
   async function prepareRun(row: (typeof rows)[number] | null) {
     if (!row || preparingRunFor) return;
@@ -4441,16 +4490,90 @@ function ProfesionalesTab({
 
             {selectedDetail === "historial" && (
               <div className="min-h-0 flex-1 overflow-visible sm:overflow-y-auto px-5 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+                <div className="mb-4 flex flex-wrap gap-2">
+                  <select
+                    value={historialFilters.estado}
+                    onChange={(e) => setHistorialFilters((f) => ({ ...f, estado: e.target.value as any }))}
+                    className="rounded-lg border border-white/[0.08] bg-black/25 px-2.5 py-1.5 text-xs text-white/70"
+                  >
+                    <option value="all">Estado: todos</option>
+                    <option value="pendiente">Pendiente</option>
+                    <option value="parcial">Pago parcial</option>
+                    <option value="pagada">Pagada</option>
+                    <option value="observada">Observada</option>
+                  </select>
+                  <select
+                    value={historialFilters.metodo}
+                    onChange={(e) => setHistorialFilters((f) => ({ ...f, metodo: e.target.value }))}
+                    className="rounded-lg border border-white/[0.08] bg-black/25 px-2.5 py-1.5 text-xs text-white/70"
+                  >
+                    <option value="all">Método: todos</option>
+                    {metodoOptions.map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+                  <select
+                    value={historialFilters.responsable}
+                    onChange={(e) => setHistorialFilters((f) => ({ ...f, responsable: e.target.value }))}
+                    className="rounded-lg border border-white/[0.08] bg-black/25 px-2.5 py-1.5 text-xs text-white/70"
+                  >
+                    <option value="all">Responsable: todos</option>
+                    {responsableOptions.map((r) => (
+                      <option key={r} value={r}>{r}</option>
+                    ))}
+                  </select>
+                  <label className="flex items-center gap-1.5 text-[11px] text-white/45">
+                    Liquidación
+                    <input
+                      type="date"
+                      value={historialFilters.liqDesde}
+                      onChange={(e) => setHistorialFilters((f) => ({ ...f, liqDesde: e.target.value }))}
+                      className="rounded-lg border border-white/[0.08] bg-black/25 px-2 py-1 text-xs text-white/70"
+                    />
+                    <span>a</span>
+                    <input
+                      type="date"
+                      value={historialFilters.liqHasta}
+                      onChange={(e) => setHistorialFilters((f) => ({ ...f, liqHasta: e.target.value }))}
+                      className="rounded-lg border border-white/[0.08] bg-black/25 px-2 py-1 text-xs text-white/70"
+                    />
+                  </label>
+                  <label className="flex items-center gap-1.5 text-[11px] text-white/45">
+                    Pago
+                    <input
+                      type="date"
+                      value={historialFilters.pagoDesde}
+                      onChange={(e) => setHistorialFilters((f) => ({ ...f, pagoDesde: e.target.value }))}
+                      className="rounded-lg border border-white/[0.08] bg-black/25 px-2 py-1 text-xs text-white/70"
+                    />
+                    <span>a</span>
+                    <input
+                      type="date"
+                      value={historialFilters.pagoHasta}
+                      onChange={(e) => setHistorialFilters((f) => ({ ...f, pagoHasta: e.target.value }))}
+                      className="rounded-lg border border-white/[0.08] bg-black/25 px-2 py-1 text-xs text-white/70"
+                    />
+                  </label>
+                  {(historialFilters.estado !== "all" || historialFilters.metodo !== "all" || historialFilters.responsable !== "all" || historialFilters.liqDesde || historialFilters.liqHasta || historialFilters.pagoDesde || historialFilters.pagoHasta) && (
+                    <button
+                      onClick={() => setHistorialFilters({ estado: "all", metodo: "all", responsable: "all", liqDesde: "", liqHasta: "", pagoDesde: "", pagoHasta: "" })}
+                      className="rounded-lg px-2.5 py-1.5 text-xs text-white/45 hover:text-white/70"
+                    >
+                      Limpiar filtros
+                    </button>
+                  )}
+                </div>
+
                 <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">
                   Liquidaciones
                 </div>
-                {selectedRuns.length === 0 ? (
+                {filteredRuns.length === 0 ? (
                   <div className="mb-5 rounded-xl border border-white/[0.07] bg-black/18 px-4 py-6 text-center text-sm text-white/45">
                     Todavía no se preparó ninguna liquidación.
                   </div>
                 ) : (
                   <div className="mb-5 flex flex-col gap-2">
-                    {selectedRuns.map((run: any) => {
+                    {filteredRuns.map((run: any) => {
                       const remaining = Number(run.total_to_settle) - Number(run.amount_paid);
                       const statusTone =
                         run.status === "pagada"
@@ -4509,6 +4632,76 @@ function ProfesionalesTab({
                                 })
                               : "—"}
                           </div>
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <button
+                              onClick={() => {
+                                const lastPayment = allRunPayments
+                                  .filter((p: any) => p.settlement_run_id === run.id)
+                                  .sort((a: any, b: any) => String(b.paid_at ?? "").localeCompare(String(a.paid_at ?? "")))[0];
+                                const text = buildComprobanteText({
+                                  runNumber: run.run_number,
+                                  cutoffDate: run.cutoff_date,
+                                  professionalName: selectedRow?.name ?? "Profesional",
+                                  previousBalance: Number(run.previous_balance ?? 0),
+                                  newCommissions: Number(run.new_commissions ?? 0),
+                                  adjustments: Number(run.adjustments ?? 0),
+                                  deductions: Number(run.deductions ?? 0),
+                                  totalToSettle: Number(run.total_to_settle ?? 0),
+                                  amountPaid: Number(run.amount_paid ?? 0),
+                                  payment: lastPayment
+                                    ? {
+                                        amount: Number(lastPayment.amount ?? 0),
+                                        method: lastPayment.payment_method ?? "—",
+                                        note: lastPayment.note,
+                                        balanceBefore: Number(lastPayment.balance_before ?? 0),
+                                        balanceAfter: Number(lastPayment.balance_after ?? 0),
+                                        paidByName: lastPayment.paid_by_name ?? "Caja",
+                                        paidAt: lastPayment.paid_at,
+                                      }
+                                    : null,
+                                });
+                                downloadComprobante(text, `Liquidación #${run.run_number}`);
+                              }}
+                              className="rounded-full bg-white/[0.04] px-3 py-1 text-[11px] font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
+                            >
+                              Descargar comprobante
+                            </button>
+                            <button
+                              onClick={async () => {
+                                const lastPayment = allRunPayments
+                                  .filter((p: any) => p.settlement_run_id === run.id)
+                                  .sort((a: any, b: any) => String(b.paid_at ?? "").localeCompare(String(a.paid_at ?? "")))[0];
+                                const text = buildComprobanteText({
+                                  runNumber: run.run_number,
+                                  cutoffDate: run.cutoff_date,
+                                  professionalName: selectedRow?.name ?? "Profesional",
+                                  previousBalance: Number(run.previous_balance ?? 0),
+                                  newCommissions: Number(run.new_commissions ?? 0),
+                                  adjustments: Number(run.adjustments ?? 0),
+                                  deductions: Number(run.deductions ?? 0),
+                                  totalToSettle: Number(run.total_to_settle ?? 0),
+                                  amountPaid: Number(run.amount_paid ?? 0),
+                                  payment: lastPayment
+                                    ? {
+                                        amount: Number(lastPayment.amount ?? 0),
+                                        method: lastPayment.payment_method ?? "—",
+                                        note: lastPayment.note,
+                                        balanceBefore: Number(lastPayment.balance_before ?? 0),
+                                        balanceAfter: Number(lastPayment.balance_after ?? 0),
+                                        paidByName: lastPayment.paid_by_name ?? "Caja",
+                                        paidAt: lastPayment.paid_at,
+                                      }
+                                    : null,
+                                });
+                                const result = await shareComprobante(text, `Liquidación #${run.run_number}`);
+                                if (result === "copied") toast.success("Comprobante copiado al portapapeles");
+                                if (result === "failed") toast.error("No se pudo compartir");
+                              }}
+                              className="rounded-full bg-white/[0.04] px-3 py-1 text-[11px] font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
+                            >
+                              Compartir comprobante
+                            </button>
+                          </div>
                         </div>
                       );
                     })}
@@ -4530,13 +4723,13 @@ function ProfesionalesTab({
                     <div className="text-right">Saldo post.</div>
                     <div>Nota</div>
                   </div>
-                  {selectedRunPayments.length === 0 ? (
+                  {filteredRunPayments.length === 0 ? (
                     <div className="px-4 py-10 text-center text-sm text-white/45">
                       Sin pagos registrados.
                     </div>
                   ) : (
                     <div className="divide-y divide-white/[0.05]">
-                      {selectedRunPayments.map((payment: any) => {
+                      {filteredRunPayments.map((payment: any) => {
                         const created = payment.paid_at ? new Date(payment.paid_at) : new Date();
                         return (
                           <div
@@ -4575,13 +4768,13 @@ function ProfesionalesTab({
                 </div>
 
                 <div className="sm:hidden">
-                  {selectedRunPayments.length === 0 ? (
+                  {filteredRunPayments.length === 0 ? (
                     <div className="px-2 py-10 text-center text-sm text-white/45">
                       Sin pagos registrados.
                     </div>
                   ) : (
                     <div className="flex flex-col gap-2.5">
-                      {selectedRunPayments.map((payment: any) => {
+                      {filteredRunPayments.map((payment: any) => {
                         const created = payment.paid_at ? new Date(payment.paid_at) : new Date();
                         return (
                           <div

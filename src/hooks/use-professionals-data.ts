@@ -436,3 +436,146 @@ export function useRegisterPayout(businessId: string | null) {
     },
   });
 }
+
+// ── Mis liquidaciones (Panel del profesional) ─────────────────────────────
+// Lee las mismas tablas que Caja > Liquidaciones (settlement_runs /
+// settlement_payments) — el profesional y el administrador siempre ven
+// los mismos importes, porque es la misma fuente de datos.
+export type SettlementRun = {
+  id: string;
+  run_number: number;
+  cutoff_date: string;
+  previous_balance: number;
+  new_commissions: number;
+  adjustments: number;
+  deductions: number;
+  total_to_settle: number;
+  amount_paid: number;
+  service_count: number;
+  status: "pendiente" | "parcial" | "pagada" | "observada";
+  prepared_by_name: string;
+  prepared_at: string;
+  professional_confirmed_at: string | null;
+  professional_observation: string | null;
+  professional_observed_at: string | null;
+};
+
+export function useProfSettlementRuns(businessId: string | null, empId: string | null) {
+  const qc = useQueryClient();
+
+  const query = useQuery({
+    queryKey: ["prof-settlement-runs", businessId, empId],
+    queryFn: async (): Promise<SettlementRun[]> => {
+      const { data, error } = await supabase
+        .from("settlement_runs" as any)
+        .select(
+          "id,run_number,cutoff_date,previous_balance,new_commissions,adjustments,deductions,total_to_settle,amount_paid,service_count,status,prepared_by_name,prepared_at,professional_confirmed_at,professional_observation,professional_observed_at",
+        )
+        .eq("business_id", businessId!)
+        .eq("professional_id", empId!)
+        .order("cutoff_date", { ascending: false });
+      if (error) throw new Error(error.message);
+      return (data ?? []) as SettlementRun[];
+    },
+    enabled: !!businessId && !!empId,
+    staleTime: 30_000,
+  });
+
+  React.useEffect(() => {
+    if (!businessId || !empId) return;
+    const channel = supabase
+      .channel(`prof-settlement-runs-${empId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "settlement_runs", filter: `professional_id=eq.${empId}` },
+        () => qc.invalidateQueries({ queryKey: ["prof-settlement-runs", businessId, empId] }),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [businessId, empId, qc]);
+
+  return query;
+}
+
+export function useProfSettlementRunPayments(businessId: string | null, empId: string | null) {
+  return useQuery({
+    queryKey: ["prof-settlement-run-payments", businessId, empId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("settlement_payments" as any)
+        .select("id,settlement_run_id,amount,payment_method,note,balance_before,balance_after,paid_by_name,paid_at")
+        .eq("business_id", businessId!)
+        .eq("professional_id", empId!)
+        .order("paid_at", { ascending: false });
+      if (error) throw new Error(error.message);
+      return (data ?? []) as Array<{
+        id: string;
+        settlement_run_id: string;
+        amount: number;
+        payment_method: string | null;
+        note: string | null;
+        balance_before: number;
+        balance_after: number;
+        paid_by_name: string;
+        paid_at: string;
+      }>;
+    },
+    enabled: !!businessId && !!empId,
+    staleTime: 30_000,
+  });
+}
+
+// Servicios incluidos en una liquidación puntual (para "Ver servicios
+// incluidos" dentro de Mis liquidaciones).
+export async function fetchSettlementRunServices(settlementRunId: string) {
+  const { data: commissionRows, error } = await supabase
+    .from("commission_records" as any)
+    .select("id,amount,commission_pct,sale_date,sale_id")
+    .eq("settlement_run_id", settlementRunId)
+    .order("sale_date", { ascending: true });
+  if (error) throw new Error(error.message);
+  const saleIds = (commissionRows ?? []).map((c: any) => c.sale_id).filter(Boolean);
+  let paymentsById: Record<string, any> = {};
+  if (saleIds.length > 0) {
+    const { data: pays, error: payError } = await supabase
+      .from("payments" as any)
+      .select("id,client_name,service_name,total,amount,method,payment_method")
+      .in("id", saleIds);
+    if (payError) throw new Error(payError.message);
+    paymentsById = Object.fromEntries((pays ?? []).map((p: any) => [p.id, p]));
+  }
+  return (commissionRows ?? []).map((c: any) => ({ ...c, sale: paymentsById[c.sale_id] ?? null }));
+}
+
+export function useConfirmSettlementRun(businessId: string | null, empId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (settlementRunId: string) => {
+      const { error } = await supabase.rpc("confirm_settlement_run" as any, {
+        p_settlement_run_id: settlementRunId,
+      });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["prof-settlement-runs", businessId, empId] });
+    },
+  });
+}
+
+export function useObserveSettlementRun(businessId: string | null, empId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { settlementRunId: string; observation: string }) => {
+      const { error } = await supabase.rpc("observe_settlement_run" as any, {
+        p_settlement_run_id: input.settlementRunId,
+        p_observation: input.observation,
+      });
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["prof-settlement-runs", businessId, empId] });
+    },
+  });
+}
