@@ -327,19 +327,7 @@ export function BrandingSection() {
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
-    // Un reflow (offsetHeight) no siempre alcanza para que iOS Safari
-    // vuelva a PINTAR el texto que ya está asignado por JS (el bug es de
-    // repaint, no de layout) — pasa sobre todo la primera vez que el
-    // globo se llena con datos que llegaron después del mount (fetch a
-    // Supabase), sin que el usuario haya tocado el campo todavía. Alternar
-    // `transform` fuerza una promoción/despromoción real de capa de
-    // composición en WebKit, que sí dispara un repaint genuino.
     void el.offsetHeight;
-    el.style.transform = "translateZ(0)";
-    const raf = requestAnimationFrame(() => {
-      if (announcementRef.current) announcementRef.current.style.transform = "";
-    });
-    return () => cancelAnimationFrame(raf);
   }, [data.profile_note]);
   // Si no hay anuncio guardado, el globo arranca con un mensaje de ejemplo
   // como VALOR real (no un placeholder — el usuario pidió explícitamente
@@ -350,6 +338,27 @@ export function BrandingSection() {
   // pantalla. Se marca "tocado" apenas escribe o apenas activa el switch.
   const [profileNoteTouched, setProfileNoteTouched] = useState(false);
   const [loading, setLoading] = useState(true);
+  // Bug conocido de iOS Safari: un textarea que recibe su valor por JS
+  // después del mount (acá, el fetch a Supabase que llena el globo con el
+  // anuncio guardado) puede quedar con el VALOR correcto pero sin pintar
+  // el texto en pantalla hasta la primera interacción real del usuario —
+  // confirmado en este caso puntual: tocar el campo "arregla" el globo.
+  // Un toggle de transform/opacity (lo que se probó antes) no siempre
+  // alcanza a comprometerse como un repaint real. Acá se automatiza la
+  // interacción exacta que sí funciona: un ciclo focus()+blur()
+  // programático apenas terminan de cargar los datos (una sola vez, no en
+  // cada letra que escribe). Sin gesto previo del usuario, iOS no abre el
+  // teclado con foco programático, así que no se nota — y preventScroll
+  // evita que la página salte.
+  const announcementHydratedRef = useRef(false);
+  useEffect(() => {
+    if (loading || announcementHydratedRef.current) return;
+    announcementHydratedRef.current = true;
+    const el = announcementRef.current;
+    if (!el) return;
+    el.focus({ preventScroll: true });
+    el.blur();
+  }, [loading]);
   const [saving, setSaving] = useState(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
