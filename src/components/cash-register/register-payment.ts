@@ -150,6 +150,10 @@ export async function registerPayment(input: RegisterPaymentInput) {
           sale_id: data[0].id,
           amount: commissionAmount,
           sale_date: (payload.created_at as string).slice(0, 10),
+          // Congela el % usado en esta venta puntual — "Ver detalle" no
+          // puede recalcular con el % actual del profesional si cambia
+          // después.
+          commission_pct: commissionPct,
         });
       if (commissionError) {
         console.warn(

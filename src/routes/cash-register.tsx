@@ -3285,66 +3285,48 @@ function ProfesionalesTab({
   const [selectedEmployeeId, setSelectedEmployeeId] =
     React.useState<string>("all");
   const [rangeOpen, setRangeOpen] = React.useState(false);
-  const [rangeStep, setRangeStep] = React.useState<"start" | "end">("start");
   const [calendarMonth, setCalendarMonth] = React.useState(
     () => new Date(`${today}T12:00:00`),
   );
-  const [startDate, setStartDate] = React.useState(today);
-  const [endDate, setEndDate] = React.useState(today);
-  // Nunca se puede consultar actividad "futura" — si por algún estado
-  // viejo (ej. restaurado de otra pestaña) quedara una fecha posterior a
-  // hoy, se corrige sola a hoy. Comparación de strings ISO (YYYY-MM-DD),
-  // sin new Date() de por medio, para no depender de la zona horaria.
+  // "Liquidar hasta": una sola fecha de corte, no un rango — reemplaza el
+  // viejo sistema de rango desde-hasta en la pantalla principal. Nunca
+  // puede ser futura (comparación de strings ISO, sin new Date() de por
+  // medio para no depender de la zona horaria); si quedara una fecha
+  // futura por algún estado viejo, se corrige sola a hoy.
+  const [cutoffDate, setCutoffDate] = React.useState(today);
   React.useEffect(() => {
-    if (startDate > today) setStartDate(today);
-    if (endDate > today) setEndDate(today);
-  }, [startDate, endDate, today]);
-  const [rangePayments, setRangePayments] = React.useState<any[]>([]);
-  // Arrancan en `true` (no `false`): el efecto que los apaga corre después
-  // del primer render, así que si empezaran en `false` se alcanzaba a
-  // pintar un frame con `rows`/`totals` en $0 (datos "reales" vacíos) antes
-  // de que aparezca el skeleton — ese flash de números en cero, seguido del
-  // skeleton y recién después los montos correctos, es lo que se percibía
-  // como "prende la luz" al llegar los datos.
-  const [loadingRange, setLoadingRange] = React.useState(true);
+    if (cutoffDate > today) setCutoffDate(today);
+  }, [cutoffDate, today]);
   const [loadingCommissions, setLoadingCommissions] = React.useState(true);
-  const [loadingPaySettlements, setLoadingPaySettlements] = React.useState(true);
-  // Errores reales (no silenciados en $0): si la query de comisiones/pagos
-  // falla (RLS, columna faltante, etc.), se muestra acá en vez de quedar
-  // solo en la consola — "todo en $0" tiene que distinguirse de "no hay
-  // datos" de un error real de la query.
+  const [loadingRuns, setLoadingRuns] = React.useState(true);
+  // Errores reales (no silenciados en $0): si la query falla (RLS, columna
+  // faltante, etc.), se muestra acá en vez de quedar solo en la consola —
+  // "todo en $0" tiene que distinguirse de "no hay datos" de un error real.
   const [commissionsError, setCommissionsError] = React.useState<string | null>(null);
-  const [paySettlementsError, setPaySettlementsError] = React.useState<string | null>(null);
-  const [payingEmployeeId, setPayingEmployeeId] = React.useState<string | null>(
-    null,
-  );
-  // "Rango de pagos": filtro propio, solo para la LISTA del Historial —
-  // nunca se usa para calcular el saldo pendiente. La tarjeta "Pagado en
-  // el período" no usa esto: sigue el mismo "Rango de actividad" que
-  // "Comisión del período" (startDate/endDate), para que ambas tarjetas
-  // respondan siempre al mismo rango que el usuario ve arriba. Arranca en
-  // "todo el historial" (2000-01-01 → hoy) para que la lista no aparezca
-  // vacía por default.
-  const [payStartDate, setPayStartDate] = React.useState("2000-01-01");
-  const [payEndDate, setPayEndDate] = React.useState(today);
+  const [runsError, setRunsError] = React.useState<string | null>(null);
+  const [preparingRunFor, setPreparingRunFor] = React.useState<string | null>(null);
+  const [payingRunId, setPayingRunId] = React.useState<string | null>(null);
   const [selectedDetail, setSelectedDetail] = React.useState<
-    "produccion" | "historial" | "pagar"
-  >("produccion");
+    "detalle" | "historial" | "liquidar"
+  >("detalle");
   const [paymentForm, setPaymentForm] = React.useState({
     amount: "",
     method: "transferencia",
     note: "",
   });
-  // Cuenta corriente por profesional: `commission_records` es la fuente de
-  // verdad de cuánto se le debe a cada uno (una fila por venta, con su
-  // propio estado pagado/pendiente) — nunca se recalcula por rango de
-  // fechas. `professional_settlements` es el historial de pagos NUEVOS
-  // (desde que existe este sistema); `professional_payouts` sigue siendo
-  // el historial de pagos VIEJOS, de antes de la migración — no se borra
-  // ni se migra, el historial combina ambas fuentes para mostrarlas juntas.
+  const [adjustmentsForm, setAdjustmentsForm] = React.useState({
+    adjustments: "",
+    deductions: "",
+  });
+  // commission_records: fuente de verdad de cuánto se le debe a cada
+  // profesional. Las que ya tienen settlement_run_id están "bloqueadas"
+  // dentro de una liquidación preparada; las que no, son las que entrarían
+  // como "comisiones nuevas" en la próxima liquidación. settlement_runs es
+  // el lote preparado (inmutable) y settlement_payments los pagos contra
+  // cada uno.
   const [allCommissions, setAllCommissions] = React.useState<any[]>([]);
-  const [paySettlements, setPaySettlements] = React.useState<any[]>([]);
-  const [payPayoutsLegacy, setPayPayoutsLegacy] = React.useState<any[]>([]);
+  const [allRuns, setAllRuns] = React.useState<any[]>([]);
+  const [allRunPayments, setAllRunPayments] = React.useState<any[]>([]);
   const [commissionsVersion, setCommissionsVersion] = React.useState(0);
 
   const money = React.useCallback(
@@ -3362,61 +3344,17 @@ function ProfesionalesTab({
 
   React.useEffect(() => {
     if (selectedEmployeeId === "all") {
-      setSelectedDetail("produccion");
+      setSelectedDetail("detalle");
       setPaymentForm({ amount: "", method: "transferencia", note: "" });
+      setAdjustmentsForm({ adjustments: "", deductions: "" });
     }
   }, [selectedEmployeeId]);
 
-  React.useEffect(() => {
-    let cancelled = false;
-
-    async function loadPaymentsByRange() {
-      if (!businessId || !startDate || !endDate) {
-        setRangePayments(data.paymentsToday ?? []);
-        setLoadingRange(false);
-        return;
-      }
-
-      setLoadingRange(true);
-      try {
-        const from = `${startDate}T00:00:00`;
-        const to = `${endDate}T23:59:59.999`;
-        const { data: payments, error } = await supabase
-          .from("payments" as any)
-          .select("*")
-          .eq("business_id", businessId)
-          .gte("created_at", from)
-          .lte("created_at", to)
-          .order("created_at", { ascending: false });
-
-        if (error) throw error;
-        if (!cancelled) setRangePayments(payments ?? []);
-      } catch {
-        const fromTime = new Date(`${startDate}T00:00:00`).getTime();
-        const toTime = new Date(`${endDate}T23:59:59.999`).getTime();
-        const fallback = (data.paymentsToday ?? []).filter((payment: any) => {
-          const createdAt = payment.created_at
-            ? new Date(payment.created_at).getTime()
-            : Date.now();
-          return createdAt >= fromTime && createdAt <= toTime;
-        });
-        if (!cancelled) setRangePayments(fallback);
-      } finally {
-        if (!cancelled) setLoadingRange(false);
-      }
-    }
-
-    loadPaymentsByRange();
-    return () => {
-      cancelled = true;
-    };
-  }, [businessId, startDate, endDate, data.paymentsToday]);
-
-  // Todas las comisiones del negocio (sin filtrar por fecha): el saldo
-  // pendiente TOTAL de cada profesional sale de acá, sin importar qué rango
-  // esté seleccionado arriba — "Comisión del período"/"nueva sin pagar" se
-  // derivan filtrando este mismo set por sale_date en memoria, nunca con
-  // una query aparte que pueda desincronizarse.
+  // Todas las comisiones del negocio (bloqueadas o no en algún run): el
+  // saldo pendiente TOTAL de cada profesional sale de acá, nunca de un
+  // rango de fechas. Las que tienen settlement_run_id null y sale_date <=
+  // cutoffDate son las "comisiones nuevas" candidatas a la próxima
+  // liquidación.
   React.useEffect(() => {
     let cancelled = false;
     async function loadCommissions() {
@@ -3431,7 +3369,9 @@ function ProfesionalesTab({
       try {
         const { data: rows, error } = await supabase
           .from("commission_records" as any)
-          .select("id,professional_id,amount,paid_amount,pending_amount,status,sale_date")
+          .select(
+            "id,professional_id,amount,paid_amount,pending_amount,status,sale_date,commission_pct,settlement_run_id,sale_id",
+          )
           .eq("business_id", businessId);
         if (error) throw error;
         if (!cancelled) {
@@ -3456,69 +3396,65 @@ function ProfesionalesTab({
     };
   }, [businessId, commissionsVersion]);
 
-  // TODOS los pagos del negocio (sin filtrar por fecha, igual que
-  // allCommissions): combina professional_settlements (pagos nuevos, desde
-  // que existe este sistema) + professional_payouts (pagos de antes de la
-  // migración). "Pagado en el período" filtra esto por el rango de
-  // ACTIVIDAD (startDate/endDate) — el mismo que "Comisión del período",
-  // para que ambas tarjetas respondan al mismo rango que el usuario ve en
-  // pantalla. El Historial usa su propio "Rango de pagos" independiente
-  // (payStartDate/payEndDate) filtrando este mismo set, sin volver a pedir
-  // nada.
+  // Todas las liquidaciones (settlement_runs) y sus pagos (settlement_payments).
   React.useEffect(() => {
     let cancelled = false;
-    async function loadPaySettlements() {
+    async function loadRuns() {
       if (!businessId) {
         if (!cancelled) {
-          setPaySettlements([]);
-          setPayPayoutsLegacy([]);
-          setLoadingPaySettlements(false);
+          setAllRuns([]);
+          setAllRunPayments([]);
+          setLoadingRuns(false);
         }
         return;
       }
-      setLoadingPaySettlements(true);
+      setLoadingRuns(true);
       try {
-        const [settlementsRes, payoutsRes] = await Promise.all([
+        const [runsRes, paymentsRes] = await Promise.all([
           supabase
-            .from("professional_settlements" as any)
+            .from("settlement_runs" as any)
             .select(
-              "id,professional_id,amount_paid,already_paid_before,pending_after,commission_total_in_range,payment_method,note,paid_by_name,paid_at",
+              "id,professional_id,run_number,cutoff_date,previous_balance,new_commissions,adjustments,deductions,total_to_settle,amount_paid,service_count,total_sold,status,prepared_by_name,prepared_at",
+            )
+            .eq("business_id", businessId)
+            .order("cutoff_date", { ascending: false }),
+          supabase
+            .from("settlement_payments" as any)
+            .select(
+              "id,settlement_run_id,professional_id,amount,payment_method,note,balance_before,balance_after,paid_by_name,paid_at",
             )
             .eq("business_id", businessId)
             .order("paid_at", { ascending: false }),
-          supabase
-            .from("professional_payouts")
-            .select("id,employee_id,amount,date,method,note,created_by,created_at")
-            .eq("business_id", businessId)
-            .order("created_at", { ascending: false }),
         ]);
-        if (settlementsRes.error) throw settlementsRes.error;
+        if (runsRes.error) throw runsRes.error;
+        if (paymentsRes.error) throw paymentsRes.error;
         if (!cancelled) {
-          setPaySettlements(settlementsRes.data ?? []);
-          setPayPayoutsLegacy(payoutsRes.error ? [] : payoutsRes.data ?? []);
-          setPaySettlementsError(null);
+          setAllRuns(runsRes.data ?? []);
+          setAllRunPayments(paymentsRes.data ?? []);
+          setRunsError(null);
         }
       } catch (e) {
         const message = (e as Error).message;
         if (!cancelled) {
-          setPaySettlements([]);
-          setPayPayoutsLegacy([]);
-          setPaySettlementsError(message);
+          setAllRuns([]);
+          setAllRunPayments([]);
+          setRunsError(message);
         }
-        console.warn("[caja] no se pudieron cargar los pagos:", message);
-        toast.error(`No se pudieron cargar los pagos: ${message}`);
+        console.warn("[caja] no se pudieron cargar las liquidaciones:", message);
+        toast.error(`No se pudieron cargar las liquidaciones: ${message}`);
       } finally {
-        if (!cancelled) setLoadingPaySettlements(false);
+        if (!cancelled) setLoadingRuns(false);
       }
     }
-    loadPaySettlements();
+    loadRuns();
     return () => {
       cancelled = true;
     };
   }, [businessId, commissionsVersion]);
 
-  // Tiempo real: si se registra un pago desde otra pestaña/dispositivo (o
-  // Profesionales, que usa las mismas tablas), este panel se actualiza solo.
+  // Tiempo real: si se prepara/paga una liquidación desde otra pestaña/
+  // dispositivo (o Profesionales, que usa las mismas tablas), este panel
+  // se actualiza solo.
   React.useEffect(() => {
     if (!businessId) return;
     const channel = supabase
@@ -3530,7 +3466,12 @@ function ProfesionalesTab({
       )
       .on(
         "postgres_changes",
-        { event: "*", schema: "public", table: "professional_settlements", filter: `business_id=eq.${businessId}` },
+        { event: "*", schema: "public", table: "settlement_runs", filter: `business_id=eq.${businessId}` },
+        () => setCommissionsVersion((v) => v + 1),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "settlement_payments", filter: `business_id=eq.${businessId}` },
         () => setCommissionsVersion((v) => v + 1),
       )
       .subscribe();
@@ -3541,82 +3482,59 @@ function ProfesionalesTab({
 
   const rows = React.useMemo(() => {
     return (data.employees ?? []).map((employee: any) => {
-      const employeePayments = (rangePayments ?? []).filter(
-        (payment: any) =>
-          String(payment.employee_id ?? "") === String(employee.id),
-      );
-      const sales = employeePayments.length;
-      const revenue = employeePayments.reduce((sum: number, payment: any) => {
-        return sum + Number(payment.total ?? payment.amount ?? 0);
-      }, 0);
-      const commissionPct = Number(
-        employee.commission_pct ??
-          employee.commission ??
-          employee.comision ??
-          0,
-      );
-
-      // Cuenta corriente: el saldo pendiente TOTAL nunca depende del rango
-      // seleccionado — sale de sumar pending_amount de TODAS las comisiones
-      // de este profesional. "Del período"/"nueva sin pagar" filtran ese
-      // mismo set por sale_date, en memoria, sin volver a pedir nada.
       const employeeCommissions = allCommissions.filter(
         (c: any) => String(c.professional_id) === String(employee.id),
       );
+      // Saldo pendiente actual: TODA la deuda real, sin importar el corte
+      // elegido ni si la comisión ya quedó bloqueada dentro de una
+      // liquidación preparada — solo cambia cuando se genera una comisión
+      // nueva o se registra un pago.
       const pending = employeeCommissions.reduce(
         (sum: number, c: any) => sum + Number(c.pending_amount ?? 0),
         0,
       );
-      const commissionsInRange = employeeCommissions.filter(
-        (c: any) => c.sale_date >= startDate && c.sale_date <= endDate,
+
+      const employeeRuns = allRuns
+        .filter((r: any) => String(r.professional_id) === String(employee.id))
+        .sort((a: any, b: any) =>
+          a.cutoff_date === b.cutoff_date
+            ? String(b.prepared_at ?? "").localeCompare(String(a.prepared_at ?? ""))
+            : a.cutoff_date < b.cutoff_date
+              ? 1
+              : -1,
+        );
+      const latestRun = employeeRuns[0] ?? null;
+      const previousBalance = latestRun
+        ? Math.max(Number(latestRun.total_to_settle) - Number(latestRun.amount_paid), 0)
+        : 0;
+      // El run activo (todavía no pagado del todo) es el que se muestra en
+      // la pestaña "Liquidar" con su botón Registrar pago.
+      const activeRun = employeeRuns.find((r: any) => r.status !== "pagada") ?? null;
+
+      // Comisiones nuevas: generadas hasta el corte elegido y todavía sin
+      // asignar a ningún run — exactamente lo que "Preparar liquidación"
+      // va a incluir.
+      const unlockedUpToCutoff = employeeCommissions.filter(
+        (c: any) => !c.settlement_run_id && c.sale_date <= cutoffDate,
       );
-      const commission = commissionsInRange.reduce(
+      const newCommissions = unlockedUpToCutoff.reduce(
         (sum: number, c: any) => sum + Number(c.amount ?? 0),
         0,
       );
-      const newUnpaid = commissionsInRange.reduce(
-        (sum: number, c: any) => sum + Number(c.pending_amount ?? 0),
-        0,
-      );
-      // "Pagado en el período" sigue el mismo rango de actividad que
-      // "Comisión del período" (startDate/endDate) — no el "Rango de
-      // pagos" independiente, que solo filtra la lista del Historial.
-      const paid =
-        paySettlements
-          .filter((s: any) => String(s.professional_id) === String(employee.id))
-          .filter((s: any) => {
-            const d = String(s.paid_at ?? "").slice(0, 10);
-            return d >= startDate && d <= endDate;
-          })
-          .reduce((sum: number, s: any) => sum + Number(s.amount_paid ?? 0), 0) +
-        payPayoutsLegacy
-          .filter((p: any) => String(p.employee_id) === String(employee.id))
-          .filter((p: any) => p.date >= startDate && p.date <= endDate)
-          .reduce((sum: number, p: any) => sum + Number(p.amount ?? 0), 0);
 
       return {
         id: String(employee.id),
         name: employee.name ?? "Profesional",
         role: employee.role ?? employee.position ?? "Profesional",
-        sales,
-        revenue,
-        commission,
-        paid,
         pending,
-        newUnpaid,
-        commissionPct,
-        payments: employeePayments,
+        previousBalance,
+        newCommissions,
+        latestRun,
+        activeRun,
+        commissionPct: Number(employee.commission_pct ?? 0),
       };
     });
-  }, [
-    data.employees,
-    rangePayments,
-    allCommissions,
-    paySettlements,
-    payPayoutsLegacy,
-    startDate,
-    endDate,
-  ]);
+  }, [data.employees, allCommissions, allRuns, cutoffDate]);
 
   const showingAllEmployees = selectedEmployeeId === "all";
 
@@ -3634,93 +3552,136 @@ function ProfesionalesTab({
     const source = selectedRow ? [selectedRow] : rows;
     return source.reduce(
       (acc, row) => ({
-        sales: acc.sales + row.sales,
-        commission: acc.commission + row.commission,
-        paid: acc.paid + row.paid,
+        previousBalance: acc.previousBalance + row.previousBalance,
+        newCommissions: acc.newCommissions + row.newCommissions,
         pending: acc.pending + row.pending,
-        newUnpaid: acc.newUnpaid + row.newUnpaid,
       }),
-      { sales: 0, commission: 0, paid: 0, pending: 0, newUnpaid: 0 },
+      { previousBalance: 0, newCommissions: 0, pending: 0 },
     );
   }, [rows, selectedRow]);
 
-  const selectedProduction = React.useMemo(() => {
+  // Ver detalle: desglose auditable de las comisiones que entrarían en la
+  // próxima liquidación (bloqueadas o no, hasta el corte elegido). Se pide
+  // bajo demanda (no en cada render) porque necesita el detalle de la
+  // venta (cliente/servicio/método/descuento), que no vive en
+  // commission_records.
+  const [detailRows, setDetailRows] = React.useState<any[] | null>(null);
+  const [loadingDetail, setLoadingDetail] = React.useState(false);
+  const [detailError, setDetailError] = React.useState<string | null>(null);
+
+  async function openDetail(professionalId: string) {
+    setLoadingDetail(true);
+    setDetailRows(null);
+    setDetailError(null);
+    try {
+      const { data: commissionRows, error } = await supabase
+        .from("commission_records" as any)
+        .select("id,amount,commission_pct,sale_date,status,sale_id")
+        .eq("business_id", businessId)
+        .eq("professional_id", professionalId)
+        .is("settlement_run_id", null)
+        .lte("sale_date", cutoffDate)
+        .order("sale_date", { ascending: true });
+      if (error) throw error;
+      const saleIds = (commissionRows ?? [])
+        .map((c: any) => c.sale_id)
+        .filter(Boolean);
+      let paymentsById: Record<string, any> = {};
+      if (saleIds.length > 0) {
+        const { data: pays, error: payError } = await supabase
+          .from("payments" as any)
+          .select("id,client_name,service_name,total,amount,method,payment_method,discount_amount,created_at")
+          .in("id", saleIds);
+        if (payError) throw payError;
+        paymentsById = Object.fromEntries((pays ?? []).map((p: any) => [p.id, p]));
+      }
+      setDetailRows(
+        (commissionRows ?? []).map((c: any) => ({
+          ...c,
+          sale: paymentsById[c.sale_id] ?? null,
+        })),
+      );
+    } catch (e) {
+      const message = (e as Error).message;
+      setDetailError(message);
+      toast.error(`No se pudo cargar el detalle: ${message}`);
+    } finally {
+      setLoadingDetail(false);
+    }
+  }
+
+  const selectedRuns = React.useMemo(() => {
     if (!selectedRow) return [] as any[];
-    return [...selectedRow.payments].sort((a: any, b: any) =>
-      String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")),
-    );
-  }, [selectedRow]);
+    return allRuns
+      .filter((r: any) => String(r.professional_id) === selectedRow.id)
+      .sort((a: any, b: any) => (a.cutoff_date < b.cutoff_date ? 1 : a.cutoff_date > b.cutoff_date ? -1 : 0));
+  }, [allRuns, selectedRow]);
 
-  // Combina pagos nuevos (professional_settlements, con saldo anterior/
-  // posterior "congelados" al momento del pago) con pagos viejos
-  // (professional_payouts, de antes de existir esta cuenta corriente —
-  // esos no tienen saldo anterior/posterior porque nunca se calcularon).
-  const selectedPaymentHistory = React.useMemo(() => {
+  const selectedRunPayments = React.useMemo(() => {
     if (!selectedRow) return [] as any[];
-    const fromSettlements = paySettlements
-      .filter((s: any) => String(s.professional_id) === selectedRow.id)
-      .filter((s: any) => {
-        const d = String(s.paid_at ?? "").slice(0, 10);
-        return d >= payStartDate && d <= payEndDate;
-      })
-      .map((s: any) => ({
-        id: s.id,
-        created_at: s.paid_at,
-        amount: Number(s.amount_paid ?? 0),
-        method: s.payment_method,
-        note: s.note,
-        user: s.paid_by_name ?? "Caja",
-        balanceBefore:
-          s.commission_total_in_range != null && s.already_paid_before != null
-            ? Number(s.commission_total_in_range) - Number(s.already_paid_before)
-            : null,
-        balanceAfter: s.pending_after != null ? Number(s.pending_after) : null,
-      }));
-    const fromLegacy = payPayoutsLegacy
-      .filter((p: any) => String(p.employee_id) === selectedRow.id)
-      .filter((p: any) => p.date >= payStartDate && p.date <= payEndDate)
-      .map((p: any) => ({
-        id: p.id,
-        created_at: p.created_at ?? `${p.date}T00:00:00`,
-        amount: Number(p.amount ?? 0),
-        method: p.method,
-        note: p.note,
-        user: displayResponsibleUser(p.created_by),
-        balanceBefore: null as number | null,
-        balanceAfter: null as number | null,
-      }));
-    return [...fromSettlements, ...fromLegacy].sort((a, b) =>
-      String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")),
-    );
-  }, [paySettlements, payPayoutsLegacy, selectedRow, payStartDate, payEndDate]);
+    return allRunPayments
+      .filter((p: any) => String(p.professional_id) === selectedRow.id)
+      .sort((a: any, b: any) => String(b.paid_at ?? "").localeCompare(String(a.paid_at ?? "")));
+  }, [allRunPayments, selectedRow]);
 
-  async function payCommission(row: (typeof rows)[number] | null) {
-    if (!row || row.pending <= 0 || payingEmployeeId) return;
-
-    const amount = Number(paymentForm.amount);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      toast.error("Ingresá un monto válido");
+  async function prepareRun(row: (typeof rows)[number] | null) {
+    if (!row || preparingRunFor) return;
+    const adjustments = Number(adjustmentsForm.adjustments || 0);
+    const deductions = Number(adjustmentsForm.deductions || 0);
+    const total = row.previousBalance + row.newCommissions + adjustments - deductions;
+    if (total <= 0) {
+      toast.error("No hay nada para liquidar en este corte");
       return;
     }
-    if (amount > row.pending) {
-      toast.error("El monto no puede superar el pendiente");
-      return;
-    }
-
-    setPayingEmployeeId(row.id);
+    setPreparingRunFor(row.id);
     try {
       const {
         data: { user },
       } = await supabase.auth.getUser();
       if (!user?.id) throw new Error("Sesión inválida — volvé a iniciar sesión");
 
-      // Transaccional en el server (RPC): aplica el pago contra las
-      // comisiones pendientes más viejas primero y crea el registro de
-      // liquidación con los snapshots, todo en un solo paso — nunca puede
-      // quedar a medio hacer.
-      const { error } = await supabase.rpc("register_settlement_payment" as any, {
+      const { error } = await supabase.rpc("prepare_settlement_run" as any, {
         p_business_id: businessId,
         p_professional_id: row.id,
+        p_cutoff_date: cutoffDate,
+        p_adjustments: adjustments,
+        p_deductions: deductions,
+        p_prepared_by: user.id,
+        p_prepared_by_name: userEmail ?? "Caja",
+      });
+      if (error) throw error;
+      toast.success(`Liquidación preparada para ${row.name}`);
+      setAdjustmentsForm({ adjustments: "", deductions: "" });
+      setCommissionsVersion((v) => v + 1);
+      setSelectedDetail("liquidar");
+    } catch (e) {
+      toast.error(`No se pudo preparar la liquidación: ${(e as Error).message}`);
+    } finally {
+      setPreparingRunFor(null);
+    }
+  }
+
+  async function payRun(run: any, professionalName: string) {
+    if (!run || payingRunId) return;
+    const amount = Number(paymentForm.amount);
+    const remaining = Number(run.total_to_settle) - Number(run.amount_paid);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error("Ingresá un monto válido");
+      return;
+    }
+    if (amount > remaining) {
+      toast.error("El monto no puede superar el saldo de esta liquidación");
+      return;
+    }
+    setPayingRunId(run.id);
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user?.id) throw new Error("Sesión inválida — volvé a iniciar sesión");
+
+      const { error } = await supabase.rpc("register_settlement_run_payment" as any, {
+        p_settlement_run_id: run.id,
         p_amount: amount,
         p_payment_method: paymentForm.method || "transferencia",
         p_note: paymentForm.note.trim() || null,
@@ -3728,32 +3689,24 @@ function ProfesionalesTab({
         p_paid_by_name: userEmail ?? "Caja",
       });
       if (error) throw error;
-      toast.success(`Pago registrado para ${row.name}: ${money(amount)}`);
+      toast.success(`Pago registrado para ${professionalName}: ${money(amount)}`);
       setPaymentForm({ amount: "", method: "transferencia", note: "" });
-      setCommissionsVersion((value) => value + 1); // vuelve a leer desde la DB
+      setCommissionsVersion((v) => v + 1);
       setSelectedDetail("historial");
     } catch (e) {
       toast.error(`No se pudo registrar el pago: ${(e as Error).message}`);
     } finally {
-      setPayingEmployeeId(null);
+      setPayingRunId(null);
     }
   }
 
-  const periodLabel = React.useMemo(() => {
-    const start = new Date(`${startDate}T12:00:00`);
-    const end = new Date(`${endDate}T12:00:00`);
-    const startText = start
-      .toLocaleDateString("es-AR", { day: "2-digit", month: "short" })
+  const cutoffLabel = React.useMemo(() => {
+    const d = new Date(`${cutoffDate}T12:00:00`);
+    const text = d
+      .toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" })
       .replace(".", "");
-    const endText = end
-      .toLocaleDateString("es-AR", {
-        day: "2-digit",
-        month: "short",
-        year: "numeric",
-      })
-      .replace(".", "");
-    return startDate === endDate ? endText : `${startText} → ${endText}`;
-  }, [startDate, endDate]);
+    return cutoffDate === today ? `Hoy · ${text}` : text;
+  }, [cutoffDate, today]);
 
   const calendarDays = React.useMemo(() => {
     const year = calendarMonth.getFullYear();
@@ -3787,65 +3740,31 @@ function ProfesionalesTab({
     return raw.charAt(0).toUpperCase() + raw.slice(1);
   }, [calendarMonth]);
 
-  const todayIso = React.useMemo(
-    () => new Date().toLocaleDateString("sv-SE"),
-    [],
-  );
-
-  function applyDatePreset(
-    kind: "today" | "yesterday" | "week" | "month" | "prevMonth",
-  ) {
+  function applyDatePreset(kind: "today" | "yesterday" | "weekStart" | "monthStart") {
     const now = new Date();
-    let from = new Date(now);
-    let to = new Date(now);
+    let d = new Date(now);
 
     if (kind === "yesterday") {
-      from.setDate(now.getDate() - 1);
-      to = new Date(from);
+      d.setDate(now.getDate() - 1);
     }
-
-    if (kind === "week") {
+    if (kind === "weekStart") {
       const offset = (now.getDay() + 6) % 7;
-      from = new Date(now);
-      from.setDate(now.getDate() - offset);
-      to = new Date(now);
+      d = new Date(now);
+      d.setDate(now.getDate() - offset);
+    }
+    if (kind === "monthStart") {
+      d = new Date(now.getFullYear(), now.getMonth(), 1);
     }
 
-    if (kind === "month") {
-      from = new Date(now.getFullYear(), now.getMonth(), 1);
-      to = new Date(now);
-    }
-
-    if (kind === "prevMonth") {
-      from = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-      to = new Date(now.getFullYear(), now.getMonth(), 0);
-    }
-
-    setStartDate(from.toLocaleDateString("sv-SE"));
-    setEndDate(to.toLocaleDateString("sv-SE"));
-    setCalendarMonth(new Date(from.getFullYear(), from.getMonth(), 1));
-    setRangeStep("start");
+    const iso = d.toLocaleDateString("sv-SE");
+    setCutoffDate(iso > today ? today : iso);
+    setCalendarMonth(new Date(d.getFullYear(), d.getMonth(), 1));
     setRangeOpen(false);
   }
 
   function handleCalendarDayClick(iso: string) {
-    if (!iso) return;
-
-    if (rangeStep === "start") {
-      setStartDate(iso);
-      setEndDate(iso);
-      setRangeStep("end");
-      return;
-    }
-
-    if (iso < startDate) {
-      setEndDate(startDate);
-      setStartDate(iso);
-    } else {
-      setEndDate(iso);
-    }
-
-    setRangeStep("start");
+    if (!iso || iso > today) return;
+    setCutoffDate(iso);
     setRangeOpen(false);
   }
 
@@ -3894,7 +3813,7 @@ function ProfesionalesTab({
     id,
     children,
   }: {
-    id: "produccion" | "historial" | "pagar";
+    id: "detalle" | "historial" | "liquidar";
     children: React.ReactNode;
   }) => {
     const active = selectedDetail === id;
@@ -3902,17 +3821,21 @@ function ProfesionalesTab({
       <button
         type="button"
         onClick={() => {
-          if (id === "pagar" && selectedRow && paymentForm.amount === "") {
-            setPaymentForm((form) => ({
-              ...form,
-              amount: String(selectedRow.pending),
-            }));
+          if (
+            id === "liquidar" &&
+            selectedRow?.activeRun &&
+            paymentForm.amount === ""
+          ) {
+            const remaining =
+              Number(selectedRow.activeRun.total_to_settle) -
+              Number(selectedRow.activeRun.amount_paid);
+            setPaymentForm((form) => ({ ...form, amount: String(remaining) }));
           }
           setSelectedDetail(id);
         }}
         className={cn(
           "rounded-xl border px-3.5 py-1.5 text-xs font-semibold transition",
-          id === "pagar"
+          id === "liquidar"
             ? active
               ? "border-white/[0.12] bg-white/[0.05] text-white shadow-[0_0_18px_rgba(255,255,255,0.06)]"
               : "border-emerald-400/30 bg-emerald-400/12 text-emerald-200 hover:bg-emerald-400/20 hover:text-white"
@@ -3925,6 +3848,14 @@ function ProfesionalesTab({
       </button>
     );
   };
+
+  // Carga el detalle bajo demanda cuando se ve la pestaña "Ver detalle"
+  // (o cambia el profesional/corte mientras está abierta).
+  React.useEffect(() => {
+    if (selectedDetail !== "detalle" || !selectedRow) return;
+    openDetail(selectedRow.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDetail, selectedRow?.id, cutoffDate, commissionsVersion]);
 
   return (
     <div className="-mt-5 h-auto overflow-visible pb-6 sm:h-[calc(100vh-270px)] sm:min-h-[470px] sm:overflow-hidden">
@@ -3959,13 +3890,11 @@ function ProfesionalesTab({
                 const nextId = event.target.value;
                 setSelectedEmployeeId(nextId);
                 const nextRow = rows.find((row) => row.id === nextId);
-                if (nextId !== "all" && nextRow?.pending > 0) {
-                  setPaymentForm((form) => ({ ...form, amount: String(nextRow.pending) }));
-                  setSelectedDetail("pagar");
-                } else {
-                  setPaymentForm({ amount: "", method: "transferencia", note: "" });
-                  setSelectedDetail("produccion");
-                }
+                setPaymentForm({ amount: "", method: "transferencia", note: "" });
+                setAdjustmentsForm({ adjustments: "", deductions: "" });
+                setSelectedDetail(
+                  nextId !== "all" && nextRow?.activeRun ? "liquidar" : "detalle",
+                );
               }}
               className="h-10 w-full rounded-2xl border border-white/[0.09] bg-[#070A13]/80 px-3.5 text-base text-white outline-none backdrop-blur-xl focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12 sm:min-w-[230px] sm:w-auto sm:text-sm"
             >
@@ -3984,7 +3913,7 @@ function ProfesionalesTab({
                 className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-2xl border border-white/[0.10] bg-white/[0.055] px-3.5 text-xs font-semibold text-white ring-1 ring-white/[0.07] transition hover:bg-white/[0.09] hover:text-white sm:w-auto sm:justify-start"
               >
                 <CalendarDays className="size-3.5" />
-                {periodLabel}
+                Liquidar hasta: {cutoffLabel}
               </button>
 
               {rangeOpen && (
@@ -3993,21 +3922,15 @@ function ProfesionalesTab({
                     {[
                       ["today", "Hoy"],
                       ["yesterday", "Ayer"],
-                      ["week", "Esta semana"],
-                      ["month", "Este mes"],
-                      ["prevMonth", "Mes anterior"],
+                      ["weekStart", "Inicio de semana"],
+                      ["monthStart", "Inicio de mes"],
                     ].map(([kind, label]) => (
                       <button
                         key={kind}
                         type="button"
                         onClick={() =>
                           applyDatePreset(
-                            kind as
-                              | "today"
-                              | "yesterday"
-                              | "week"
-                              | "month"
-                              | "prevMonth",
+                            kind as "today" | "yesterday" | "weekStart" | "monthStart",
                           )
                         }
                         className="rounded-2xl border border-white/[0.09] bg-white/[0.035] px-4 py-2 text-sm font-semibold text-white/58 transition hover:bg-white/[0.07] hover:text-white"
@@ -4066,17 +3989,13 @@ function ProfesionalesTab({
 
                     <div className="mt-1 grid grid-cols-7 overflow-hidden rounded-2xl">
                       {calendarDays.map((day, index) => {
-                        const isSelectedStart = day.iso === startDate;
-                        const isSelectedEnd = day.iso === endDate;
-                        const inRange = Boolean(
-                          day.iso && day.iso >= startDate && day.iso <= endDate,
-                        );
-                        const isToday = day.iso === todayIso;
+                        const isSelected = day.iso === cutoffDate;
+                        const isToday = day.iso === today;
                         // No se puede elegir mañana ni ninguna fecha
                         // posterior — comparación de strings ISO
                         // (YYYY-MM-DD), sin new Date() de por medio, para
                         // no depender de la zona horaria del navegador.
-                        const isFuture = Boolean(day.iso && day.iso > todayIso);
+                        const isFuture = Boolean(day.iso && day.iso > today);
                         return (
                           <button
                             key={`${day.iso || "empty"}-${index}`}
@@ -4087,14 +4006,10 @@ function ProfesionalesTab({
                               "relative h-11 text-sm font-semibold transition disabled:pointer-events-none",
                               !day.inMonth && "disabled:opacity-0",
                               isFuture && day.inMonth && "text-white/15",
-                              inRange
-                                ? "bg-blue-500/26 text-white"
-                                : "text-white/78 hover:bg-white/[0.06]",
-                              (isSelectedStart || isSelectedEnd) &&
+                              !isFuture && day.inMonth && "text-white/78 hover:bg-white/[0.06]",
+                              isSelected &&
                                 "bg-gradient-to-br from-blue-400 to-fuchsia-500 text-white shadow-[0_0_24px_rgba(139,92,246,0.42)]",
-                              isToday &&
-                                !(isSelectedStart || isSelectedEnd) &&
-                                "text-sky-300 ring-1 ring-sky-400/55 ring-inset",
+                              isToday && !isSelected && "text-sky-300 ring-1 ring-sky-400/55 ring-inset",
                             )}
                           >
                             {day.day || ""}
@@ -4104,9 +4019,7 @@ function ProfesionalesTab({
                     </div>
 
                     <div className="mt-5 text-center text-xs text-white/28">
-                      {rangeStep === "end"
-                        ? "Seleccioná la fecha final"
-                        : "Seleccioná la fecha inicial"}
+                      Seleccioná la fecha de corte
                     </div>
                   </div>
                 </div>
@@ -4117,44 +4030,39 @@ function ProfesionalesTab({
 
         <div className="grid grid-cols-2 gap-3 border-b border-white/[0.055] px-5 py-4 lg:grid-cols-4">
           <StatCard
-            label="Comisión del período"
-            value={money(totals.commission)}
+            label="Saldo anterior pendiente"
+            value={money(totals.previousBalance)}
+            tone="neutral"
+          />
+          <StatCard
+            label="Comisiones nuevas"
+            value={money(totals.newCommissions)}
             tone="violet"
           />
           <StatCard
-            label="Pagado en el período"
-            value={money(totals.paid)}
+            label="Total a liquidar"
+            value={money(totals.previousBalance + totals.newCommissions)}
             tone="green"
           />
           <StatCard
-            label="Saldo pendiente total"
+            label="Saldo pendiente actual"
             value={money(totals.pending)}
             tone="rose"
           />
-          <StatCard
-            label="Comisión nueva sin pagar"
-            value={money(totals.newUnpaid)}
-            tone="neutral"
-          />
         </div>
 
-        {(commissionsError || paySettlementsError) && (
+        {(commissionsError || runsError) && (
           <div className="mx-5 mt-3 rounded-xl border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-xs text-rose-200">
             {commissionsError && (
               <div>No se pudieron cargar las comisiones: {commissionsError}</div>
             )}
-            {paySettlementsError && (
-              <div>No se pudieron cargar los pagos: {paySettlementsError}</div>
+            {runsError && (
+              <div>No se pudieron cargar las liquidaciones: {runsError}</div>
             )}
           </div>
         )}
-        {!loadingCommissions && !commissionsError && (
-          <div className="mx-5 mt-2 text-[10px] text-white/30">
-            {allCommissions.length} comisiones cargadas en total del negocio.
-          </div>
-        )}
 
-        {data.loading || loadingRange || loadingCommissions || loadingPaySettlements ? (
+        {data.loading || loadingCommissions || loadingRuns ? (
           <>
             {/* Desktop: skeleton sin tarjeta propia (misma caja continua de
                 siempre). Sin cambios de layout respecto de la web. */}
@@ -4182,7 +4090,7 @@ function ProfesionalesTab({
                 contenido apareciendo de la nada era lo que se percibía
                 como "prende la luz". También usa la MISMA cantidad de
                 tarjetas que `data.employees` (ya disponible aunque
-                loadingRange/loadingCommissions sigan en true, porque son fetches
+                loadingCommissions/loadingRuns sigan en true, porque son fetches
                 aparte) en vez de un número fijo — antes, con una lista de
                 4 placeholders fijos, si el negocio tenía menos o más
                 empleados la altura de la sección cambiaba de golpe al
@@ -4224,12 +4132,11 @@ function ProfesionalesTab({
           <div className="flex min-h-0 flex-1 flex-col overflow-visible sm:overflow-hidden">
             {/* Desktop: tabla continua de siempre, sin cambios. En mobile
                 queda oculta — ver tarjetas verticales debajo, mismos datos. */}
-            <div className="hidden grid-cols-[minmax(180px,1.25fr)_90px_140px_140px_140px_minmax(260px,1fr)] items-center gap-3 border-b border-white/[0.06] bg-white/[0.018] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38 sm:grid">
+            <div className="hidden grid-cols-[minmax(180px,1.25fr)_140px_140px_140px_minmax(260px,1fr)] items-center gap-3 border-b border-white/[0.06] bg-white/[0.018] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38 sm:grid">
               <div>Profesional</div>
-              <div>Ventas</div>
-              <div className="text-right">Comisión</div>
-              <div className="text-right">Pagado</div>
-              <div className="text-right">Pendiente</div>
+              <div className="text-right">Saldo anterior</div>
+              <div className="text-right">Comisiones nuevas</div>
+              <div className="text-right">Pendiente actual</div>
               <div className="text-right">Acciones</div>
             </div>
             {visibleRows.length === 0 ? (
@@ -4241,7 +4148,7 @@ function ProfesionalesTab({
                 {visibleRows.map((row) => (
                   <div
                     key={row.id}
-                    className="hidden grid-cols-[minmax(180px,1.25fr)_90px_140px_140px_140px_minmax(260px,1fr)] items-center gap-3 px-5 py-3 text-sm transition-all duration-200 hover:bg-white/[0.026] sm:grid"
+                    className="hidden grid-cols-[minmax(180px,1.25fr)_140px_140px_140px_minmax(260px,1fr)] items-center gap-3 px-5 py-3 text-sm transition-all duration-200 hover:bg-white/[0.026] sm:grid"
                   >
                     <div className="min-w-0">
                       <div className="truncate font-bold text-white">
@@ -4251,12 +4158,11 @@ function ProfesionalesTab({
                         {row.role}
                       </div>
                     </div>
-                    <div className="text-white/62">{row.sales}</div>
-                    <div className="text-right font-bold tabular-nums text-violet-300">
-                      {money(row.commission)}
+                    <div className="text-right font-bold tabular-nums text-white/62">
+                      {money(row.previousBalance)}
                     </div>
-                    <div className="text-right font-bold tabular-nums text-emerald-300">
-                      {money(row.paid)}
+                    <div className="text-right font-bold tabular-nums text-violet-300">
+                      {money(row.newCommissions)}
                     </div>
                     <div
                       className={cn(
@@ -4271,11 +4177,11 @@ function ProfesionalesTab({
                         type="button"
                         onClick={() => {
                           setSelectedEmployeeId(row.id);
-                          setSelectedDetail("produccion");
+                          setSelectedDetail("detalle");
                         }}
                         className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs font-semibold text-white/68 transition hover:bg-white/[0.065] hover:text-white"
                       >
-                        Producción
+                        Ver detalle
                       </button>
                       <button
                         type="button"
@@ -4287,22 +4193,20 @@ function ProfesionalesTab({
                       >
                         Historial
                       </button>
-                      {row.pending > 0 && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedEmployeeId(row.id);
-                            setPaymentForm((form) => ({
-                              ...form,
-                              amount: String(row.pending),
-                            }));
-                            setSelectedDetail("pagar");
-                          }}
-                          className="rounded-xl border border-emerald-400/32 bg-gradient-to-r from-emerald-500 to-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-[0_0_30px_rgba(34,197,94,0.22)] transition hover:brightness-110"
-                        >
-                          Pagar
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedEmployeeId(row.id);
+                          if (row.activeRun) {
+                            const remaining = Number(row.activeRun.total_to_settle) - Number(row.activeRun.amount_paid);
+                            setPaymentForm((form) => ({ ...form, amount: String(remaining) }));
+                          }
+                          setSelectedDetail("liquidar");
+                        }}
+                        className="rounded-xl border border-emerald-400/32 bg-gradient-to-r from-emerald-500 to-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-[0_0_30px_rgba(34,197,94,0.22)] transition hover:brightness-110"
+                      >
+                        Liquidar
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -4331,18 +4235,14 @@ function ProfesionalesTab({
                           </div>
                         </div>
                       </div>
-                      <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
+                      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
                         <div>
-                          <div className="text-white/40">Ventas</div>
-                          <div className="font-semibold text-white/75">{row.sales}</div>
+                          <div className="text-white/40">Saldo anterior</div>
+                          <div className="font-semibold text-white/75">{money(row.previousBalance)}</div>
                         </div>
                         <div>
-                          <div className="text-white/40">Comisión</div>
-                          <div className="font-semibold text-violet-300">{money(row.commission)}</div>
-                        </div>
-                        <div>
-                          <div className="text-white/40">Pagado</div>
-                          <div className="font-semibold text-emerald-300">{money(row.paid)}</div>
+                          <div className="text-white/40">Comisiones nuevas</div>
+                          <div className="font-semibold text-violet-300">{money(row.newCommissions)}</div>
                         </div>
                       </div>
                       <div className="mt-3 flex gap-2">
@@ -4350,11 +4250,11 @@ function ProfesionalesTab({
                           type="button"
                           onClick={() => {
                             setSelectedEmployeeId(row.id);
-                            setSelectedDetail("produccion");
+                            setSelectedDetail("detalle");
                           }}
                           className="flex-1 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs font-semibold text-white/68 transition active:bg-white/[0.065]"
                         >
-                          Producción
+                          Ver detalle
                         </button>
                         <button
                           type="button"
@@ -4366,22 +4266,20 @@ function ProfesionalesTab({
                         >
                           Historial
                         </button>
-                        {row.pending > 0 && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSelectedEmployeeId(row.id);
-                              setPaymentForm((form) => ({
-                                ...form,
-                                amount: String(row.pending),
-                              }));
-                              setSelectedDetail("pagar");
-                            }}
-                            className="flex-1 rounded-xl border border-emerald-400/32 bg-gradient-to-r from-emerald-500 to-emerald-600 px-3.5 py-2 text-xs font-bold text-white shadow-[0_0_30px_rgba(34,197,94,0.22)] transition active:brightness-110"
-                          >
-                            Pagar
-                          </button>
-                        )}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedEmployeeId(row.id);
+                            if (row.activeRun) {
+                              const remaining = Number(row.activeRun.total_to_settle) - Number(row.activeRun.amount_paid);
+                              setPaymentForm((form) => ({ ...form, amount: String(remaining) }));
+                            }
+                            setSelectedDetail("liquidar");
+                          }}
+                          className="flex-1 rounded-xl border border-emerald-400/32 bg-gradient-to-r from-emerald-500 to-emerald-600 px-3.5 py-2 text-xs font-bold text-white shadow-[0_0_30px_rgba(34,197,94,0.22)] transition active:brightness-110"
+                        >
+                          Liquidar
+                        </button>
                       </div>
                     </div>
                   ))}
@@ -4392,75 +4290,89 @@ function ProfesionalesTab({
         ) : selectedRow ? (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="flex justify-end gap-2 border-b border-white/[0.06] bg-white/[0.018] px-5 py-3">
-              <ActionButton id="produccion">Producción</ActionButton>
+              <ActionButton id="detalle">Ver detalle</ActionButton>
               <ActionButton id="historial">Historial</ActionButton>
-              {selectedRow.pending > 0 && (
-                <ActionButton id="pagar">Pagar</ActionButton>
-              )}
+              <ActionButton id="liquidar">Liquidar</ActionButton>
             </div>
 
-            {selectedDetail === "produccion" && (
+            {selectedDetail === "detalle" && (
               <div className="min-h-0 flex-1 overflow-visible sm:overflow-y-auto px-5 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+                <div className="mb-3 text-xs text-white/45">
+                  Comisiones generadas hasta el {cutoffLabel}, todavía sin
+                  asignar a ninguna liquidación. La suma coincide con
+                  "Comisiones nuevas" de arriba — nunca se recalcula con el %
+                  actual, cada fila conserva el que regía al cobrar la venta.
+                </div>
+                {detailError && (
+                  <div className="mb-3 rounded-xl border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-xs text-rose-200">
+                    {detailError}
+                  </div>
+                )}
                 {/* Desktop: tabla. En mobile, tarjetas verticales debajo. */}
                 <div className="hidden overflow-hidden rounded-2xl border border-white/[0.07] bg-black/18 sm:block">
-                  <div className="grid grid-cols-[90px_minmax(120px,1fr)_minmax(180px,1.3fr)_120px_130px] gap-3 border-b border-white/[0.06] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
+                  <div className="grid grid-cols-[80px_minmax(110px,1fr)_minmax(140px,1.2fr)_90px_70px_60px_90px_100px_90px] gap-3 border-b border-white/[0.06] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
                     <div>Fecha</div>
                     <div>Cliente</div>
                     <div>Servicio</div>
-                    <div className="text-right">Monto venta</div>
+                    <div className="text-right">Precio</div>
+                    <div className="text-right">Desc.</div>
+                    <div className="text-right">%Com.</div>
+                    <div className="text-right">Comisión</div>
                     <div>Método</div>
+                    <div>Estado</div>
                   </div>
-                  {selectedProduction.length === 0 ? (
+                  {loadingDetail ? (
                     <div className="px-4 py-10 text-center text-sm text-white/45">
-                      Sin servicios realizados en este rango.
+                      Cargando…
+                    </div>
+                  ) : !detailRows || detailRows.length === 0 ? (
+                    <div className="px-4 py-10 text-center text-sm text-white/45">
+                      Sin comisiones nuevas hasta esta fecha.
                     </div>
                   ) : (
                     <div className="divide-y divide-white/[0.05]">
-                      {selectedProduction.map((payment: any) => {
-                        const date = payment.created_at
-                          ? new Date(payment.created_at).toLocaleDateString(
-                              "es-AR",
-                              { day: "2-digit", month: "2-digit" },
-                            )
+                      {detailRows.map((c: any) => {
+                        const sale = c.sale ?? {};
+                        const date = c.sale_date
+                          ? new Date(`${c.sale_date}T12:00:00`).toLocaleDateString("es-AR", {
+                              day: "2-digit",
+                              month: "2-digit",
+                            })
                           : "—";
-                        const client =
-                          payment.client_name ??
-                          payment.client ??
-                          payment.customer_name ??
-                          "Sin cliente";
-                        const service =
-                          payment.service_name ??
-                          payment.service ??
-                          payment.item_name ??
-                          "Servicio";
-                        const amount = Number(
-                          payment.total ?? payment.amount ?? 0,
-                        );
                         const method =
                           PAY_METHOD_LABEL[
-                            String(
-                              payment.method ?? payment.payment_method ?? "",
-                            ) as PayMethod
+                            String(sale.method ?? sale.payment_method ?? "") as PayMethod
                           ] ??
-                          payment.method ??
-                          payment.payment_method ??
+                          sale.method ??
+                          sale.payment_method ??
                           "—";
                         return (
                           <div
-                            key={payment.id ?? `${date}-${client}-${service}`}
-                            className="grid grid-cols-[90px_minmax(120px,1fr)_minmax(180px,1.3fr)_120px_130px] gap-3 px-4 py-3 text-sm transition hover:bg-white/[0.025]"
+                            key={c.id}
+                            title={`ID: ${c.id}`}
+                            className="grid grid-cols-[80px_minmax(110px,1fr)_minmax(140px,1.2fr)_90px_70px_60px_90px_100px_90px] gap-3 px-4 py-3 text-sm transition hover:bg-white/[0.025]"
                           >
                             <div className="text-white/52">{date}</div>
                             <div className="truncate text-white/82">
-                              {client}
+                              {sale.client_name ?? "Sin cliente"}
                             </div>
                             <div className="truncate text-white/82">
-                              {service}
+                              {sale.service_name ?? "Servicio"}
                             </div>
-                            <div className="text-right font-bold tabular-nums text-emerald-300">
-                              {money(amount)}
+                            <div className="text-right tabular-nums text-white/72">
+                              {money(Number(sale.total ?? sale.amount ?? 0))}
+                            </div>
+                            <div className="text-right tabular-nums text-white/52">
+                              {sale.discount_amount ? money(Number(sale.discount_amount)) : "—"}
+                            </div>
+                            <div className="text-right tabular-nums text-white/52">
+                              {c.commission_pct != null ? `${c.commission_pct}%` : "—"}
+                            </div>
+                            <div className="text-right font-bold tabular-nums text-violet-300">
+                              {money(Number(c.amount ?? 0))}
                             </div>
                             <div className="text-white/52">{method}</div>
+                            <div className="text-white/52 capitalize">{c.status}</div>
                           </div>
                         );
                       })}
@@ -4469,60 +4381,54 @@ function ProfesionalesTab({
                 </div>
 
                 <div className="sm:hidden">
-                  {selectedProduction.length === 0 ? (
+                  {loadingDetail ? (
                     <div className="px-2 py-10 text-center text-sm text-white/45">
-                      Sin servicios realizados en este rango.
+                      Cargando…
+                    </div>
+                  ) : !detailRows || detailRows.length === 0 ? (
+                    <div className="px-2 py-10 text-center text-sm text-white/45">
+                      Sin comisiones nuevas hasta esta fecha.
                     </div>
                   ) : (
                     <div className="flex flex-col gap-2.5">
-                      {selectedProduction.map((payment: any) => {
-                        const date = payment.created_at
-                          ? new Date(payment.created_at).toLocaleDateString(
-                              "es-AR",
-                              { day: "2-digit", month: "2-digit" },
-                            )
+                      {detailRows.map((c: any) => {
+                        const sale = c.sale ?? {};
+                        const date = c.sale_date
+                          ? new Date(`${c.sale_date}T12:00:00`).toLocaleDateString("es-AR", {
+                              day: "2-digit",
+                              month: "2-digit",
+                            })
                           : "—";
-                        const client =
-                          payment.client_name ??
-                          payment.client ??
-                          payment.customer_name ??
-                          "Sin cliente";
-                        const service =
-                          payment.service_name ??
-                          payment.service ??
-                          payment.item_name ??
-                          "Servicio";
-                        const amount = Number(
-                          payment.total ?? payment.amount ?? 0,
-                        );
                         const method =
                           PAY_METHOD_LABEL[
-                            String(
-                              payment.method ?? payment.payment_method ?? "",
-                            ) as PayMethod
+                            String(sale.method ?? sale.payment_method ?? "") as PayMethod
                           ] ??
-                          payment.method ??
-                          payment.payment_method ??
+                          sale.method ??
+                          sale.payment_method ??
                           "—";
                         return (
                           <div
-                            key={`mobile-${payment.id ?? `${date}-${client}-${service}`}`}
+                            key={`mobile-${c.id}`}
                             className="rounded-2xl border border-white/[0.07] bg-black/18 px-3.5 py-3 text-xs"
                           >
                             <div className="flex items-center justify-between gap-2">
                               <span className="text-[10px] font-semibold uppercase tracking-wider text-white/45">
                                 {date}
                               </span>
-                              <span className="text-sm font-bold tabular-nums text-emerald-300">
-                                {money(amount)}
+                              <span className="text-sm font-bold tabular-nums text-violet-300">
+                                {money(Number(c.amount ?? 0))}
                               </span>
                             </div>
                             <div className="mt-1.5 truncate font-semibold text-white/82">
-                              {client}
+                              {sale.client_name ?? "Sin cliente"}
                             </div>
                             <div className="mt-0.5 flex items-center justify-between gap-2 text-white/60">
-                              <span className="truncate">{service}</span>
+                              <span className="truncate">{sale.service_name ?? "Servicio"}</span>
                               <span className="shrink-0 text-white/45">{method}</span>
+                            </div>
+                            <div className="mt-1 flex items-center justify-between gap-2 text-white/45">
+                              <span>Precio: {money(Number(sale.total ?? sale.amount ?? 0))}</span>
+                              <span>%Com.: {c.commission_pct != null ? `${c.commission_pct}%` : "—"}</span>
                             </div>
                           </div>
                         );
@@ -4535,34 +4441,83 @@ function ProfesionalesTab({
 
             {selectedDetail === "historial" && (
               <div className="min-h-0 flex-1 overflow-visible sm:overflow-y-auto px-5 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
-                {/* Rango de pagos: filtro independiente del rango de
-                    actividad de arriba — solo cambia qué pagos se ven acá,
-                    nunca el saldo pendiente. */}
-                <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-white/55">
-                  <span className="font-semibold uppercase tracking-[0.14em] text-white/38">
-                    Rango de pagos
-                  </span>
-                  <input
-                    type="date"
-                    max={today}
-                    value={payStartDate}
-                    onChange={(event) =>
-                      setPayStartDate(event.target.value > today ? today : event.target.value)
-                    }
-                    className="h-8 rounded-lg border border-white/[0.09] bg-black/30 px-2 text-white outline-none [color-scheme:dark]"
-                  />
-                  <span className="text-white/35">→</span>
-                  <input
-                    type="date"
-                    max={today}
-                    value={payEndDate}
-                    onChange={(event) =>
-                      setPayEndDate(event.target.value > today ? today : event.target.value)
-                    }
-                    className="h-8 rounded-lg border border-white/[0.09] bg-black/30 px-2 text-white outline-none [color-scheme:dark]"
-                  />
+                <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">
+                  Liquidaciones
                 </div>
+                {selectedRuns.length === 0 ? (
+                  <div className="mb-5 rounded-xl border border-white/[0.07] bg-black/18 px-4 py-6 text-center text-sm text-white/45">
+                    Todavía no se preparó ninguna liquidación.
+                  </div>
+                ) : (
+                  <div className="mb-5 flex flex-col gap-2">
+                    {selectedRuns.map((run: any) => {
+                      const remaining = Number(run.total_to_settle) - Number(run.amount_paid);
+                      const statusTone =
+                        run.status === "pagada"
+                          ? "text-emerald-300 bg-emerald-400/10 ring-emerald-400/20"
+                          : run.status === "parcial"
+                            ? "text-amber-300 bg-amber-400/10 ring-amber-400/20"
+                            : run.status === "observada"
+                              ? "text-rose-300 bg-rose-400/10 ring-rose-400/20"
+                              : "text-white/60 bg-white/[0.05] ring-white/10";
+                      return (
+                        <div
+                          key={run.id}
+                          className="rounded-2xl border border-white/[0.07] bg-black/18 px-4 py-3 text-sm"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div className="font-bold text-white">
+                              Liquidación #{run.run_number} · hasta el{" "}
+                              {new Date(`${run.cutoff_date}T12:00:00`).toLocaleDateString("es-AR", {
+                                day: "2-digit",
+                                month: "2-digit",
+                                year: "numeric",
+                              })}
+                            </div>
+                            <span className={cn("rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1", statusTone)}>
+                              {run.status}
+                            </span>
+                          </div>
+                          <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                            <div>
+                              <div className="text-white/40">Total</div>
+                              <div className="font-semibold text-white/85">{money(Number(run.total_to_settle))}</div>
+                            </div>
+                            <div>
+                              <div className="text-white/40">Pagado</div>
+                              <div className="font-semibold text-emerald-300">{money(Number(run.amount_paid))}</div>
+                            </div>
+                            <div>
+                              <div className="text-white/40">Restante</div>
+                              <div className={cn("font-semibold", remaining > 0 ? "text-rose-300" : "text-white/60")}>
+                                {money(remaining)}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-white/40">Servicios</div>
+                              <div className="font-semibold text-white/85">{run.service_count}</div>
+                            </div>
+                          </div>
+                          <div className="mt-2 text-[11px] text-white/38">
+                            Preparada por {run.prepared_by_name} ·{" "}
+                            {run.prepared_at
+                              ? new Date(run.prepared_at).toLocaleString("es-AR", {
+                                  day: "2-digit",
+                                  month: "2-digit",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                })
+                              : "—"}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
 
+                <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">
+                  Pagos
+                </div>
                 {/* Desktop: tabla. En mobile, tarjetas verticales debajo. */}
                 <div className="hidden overflow-hidden rounded-2xl border border-white/[0.07] bg-black/18 sm:block">
                   <div className="grid grid-cols-[90px_80px_110px_100px_minmax(110px,1fr)_120px_120px_minmax(140px,1fr)] gap-3 border-b border-white/[0.06] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
@@ -4575,47 +4530,39 @@ function ProfesionalesTab({
                     <div className="text-right">Saldo post.</div>
                     <div>Nota</div>
                   </div>
-                  {selectedPaymentHistory.length === 0 ? (
+                  {selectedRunPayments.length === 0 ? (
                     <div className="px-4 py-10 text-center text-sm text-white/45">
-                      Sin pagos de comisión registrados.
+                      Sin pagos registrados.
                     </div>
                   ) : (
                     <div className="divide-y divide-white/[0.05]">
-                      {selectedPaymentHistory.map((payment: any) => {
-                        const created = payment.created_at
-                          ? new Date(payment.created_at)
-                          : new Date();
+                      {selectedRunPayments.map((payment: any) => {
+                        const created = payment.paid_at ? new Date(payment.paid_at) : new Date();
                         return (
                           <div
                             key={payment.id}
                             className="grid grid-cols-[90px_80px_110px_100px_minmax(110px,1fr)_120px_120px_minmax(140px,1fr)] gap-3 px-4 py-3 text-sm transition hover:bg-white/[0.025]"
                           >
                             <div className="text-white/52">
-                              {created.toLocaleDateString("es-AR", {
-                                day: "2-digit",
-                                month: "2-digit",
-                              })}
+                              {created.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}
                             </div>
                             <div className="text-white/52">
-                              {created.toLocaleTimeString("es-AR", {
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
+                              {created.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}
                             </div>
                             <div className="text-right font-bold tabular-nums text-emerald-300">
                               {money(Number(payment.amount ?? 0))}
                             </div>
                             <div className="capitalize text-white/68">
-                              {payment.method ?? "—"}
+                              {payment.payment_method ?? "—"}
                             </div>
                             <div className="truncate text-white/68">
-                              {payment.user ?? "Caja"}
+                              {payment.paid_by_name ?? "Caja"}
                             </div>
                             <div className="text-right tabular-nums text-white/52">
-                              {payment.balanceBefore != null ? money(payment.balanceBefore) : "—"}
+                              {money(Number(payment.balance_before ?? 0))}
                             </div>
                             <div className="text-right tabular-nums text-white/52">
-                              {payment.balanceAfter != null ? money(payment.balanceAfter) : "—"}
+                              {money(Number(payment.balance_after ?? 0))}
                             </div>
                             <div className="truncate text-white/52">
                               {payment.note ?? "—"}
@@ -4628,16 +4575,14 @@ function ProfesionalesTab({
                 </div>
 
                 <div className="sm:hidden">
-                  {selectedPaymentHistory.length === 0 ? (
+                  {selectedRunPayments.length === 0 ? (
                     <div className="px-2 py-10 text-center text-sm text-white/45">
-                      Sin pagos de comisión registrados.
+                      Sin pagos registrados.
                     </div>
                   ) : (
                     <div className="flex flex-col gap-2.5">
-                      {selectedPaymentHistory.map((payment: any) => {
-                        const created = payment.created_at
-                          ? new Date(payment.created_at)
-                          : new Date();
+                      {selectedRunPayments.map((payment: any) => {
+                        const created = payment.paid_at ? new Date(payment.paid_at) : new Date();
                         return (
                           <div
                             key={`mobile-${payment.id}`}
@@ -4654,15 +4599,13 @@ function ProfesionalesTab({
                               </span>
                             </div>
                             <div className="mt-1.5 flex items-center justify-between gap-2">
-                              <span className="capitalize text-white/68">{payment.method ?? "—"}</span>
-                              <span className="truncate text-white/68">{payment.user ?? "Caja"}</span>
+                              <span className="capitalize text-white/68">{payment.payment_method ?? "—"}</span>
+                              <span className="truncate text-white/68">{payment.paid_by_name ?? "Caja"}</span>
                             </div>
-                            {(payment.balanceBefore != null || payment.balanceAfter != null) && (
-                              <div className="mt-1 flex items-center justify-between gap-2 text-white/45">
-                                <span>Saldo ant.: {payment.balanceBefore != null ? money(payment.balanceBefore) : "—"}</span>
-                                <span>Saldo post.: {payment.balanceAfter != null ? money(payment.balanceAfter) : "—"}</span>
-                              </div>
-                            )}
+                            <div className="mt-1 flex items-center justify-between gap-2 text-white/45">
+                              <span>Saldo ant.: {money(Number(payment.balance_before ?? 0))}</span>
+                              <span>Saldo post.: {money(Number(payment.balance_after ?? 0))}</span>
+                            </div>
                             {payment.note && (
                               <div className="mt-1 truncate text-white/45">{payment.note}</div>
                             )}
@@ -4675,93 +4618,201 @@ function ProfesionalesTab({
               </div>
             )}
 
-            {selectedDetail === "pagar" && (
+            {selectedDetail === "liquidar" && (
               <div className="min-h-0 flex-1 overflow-visible sm:overflow-y-auto px-5 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
-                <div className="mx-auto max-w-2xl rounded-2xl border border-emerald-400/18 bg-emerald-400/[0.035] p-4 shadow-[0_0_35px_rgba(34,197,94,0.08)]">
-                  <div className="mb-4 flex items-start justify-between gap-3">
-                    <div>
-                      <div className="text-base font-bold text-white">
-                        Liquidar comisión
+                {selectedRow.activeRun ? (
+                  // Ya hay una liquidación preparada (pendiente o parcial):
+                  // acá se registra el pago, total o parcial, contra ESE run.
+                  <div className="mx-auto max-w-2xl rounded-2xl border border-emerald-400/18 bg-emerald-400/[0.035] p-4 shadow-[0_0_35px_rgba(34,197,94,0.08)]">
+                    <div className="mb-4 flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-base font-bold text-white">
+                          Liquidación #{selectedRow.activeRun.run_number}
+                        </div>
+                        <div className="mt-0.5 text-sm text-white/48">
+                          Hasta el{" "}
+                          {new Date(`${selectedRow.activeRun.cutoff_date}T12:00:00`).toLocaleDateString(
+                            "es-AR",
+                            { day: "2-digit", month: "2-digit", year: "numeric" },
+                          )}
+                        </div>
                       </div>
-                      <div className="mt-0.5 text-sm text-white/48">
-                        Pendiente actual:{" "}
-                        <span className="font-bold text-rose-300">
-                          {money(selectedRow.pending)}
-                        </span>
+                      <div className="rounded-full bg-emerald-400/12 px-3 py-1 text-xs font-bold text-emerald-300 ring-1 ring-emerald-400/20">
+                        {selectedRow.name}
                       </div>
                     </div>
-                    <div className="rounded-full bg-emerald-400/12 px-3 py-1 text-xs font-bold text-emerald-300 ring-1 ring-emerald-400/20">
-                      {selectedRow.name}
-                    </div>
-                  </div>
 
-                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                    <label className="space-y-1.5 text-xs font-semibold text-white/55">
-                      Monto a pagar
-                      <input
-                        type="number"
-                        min={0}
-                        max={selectedRow.pending}
-                        value={paymentForm.amount}
+                    <div className="mb-4 grid grid-cols-3 gap-3 rounded-2xl border border-white/[0.07] bg-black/20 p-3 text-center">
+                      <div>
+                        <div className="text-[10px] uppercase tracking-wider text-white/40">Total</div>
+                        <div className="mt-1 font-bold text-white">
+                          {money(Number(selectedRow.activeRun.total_to_settle))}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] uppercase tracking-wider text-white/40">Pagado</div>
+                        <div className="mt-1 font-bold text-emerald-300">
+                          {money(Number(selectedRow.activeRun.amount_paid))}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] uppercase tracking-wider text-white/40">Restante</div>
+                        <div className="mt-1 font-bold text-rose-300">
+                          {money(
+                            Number(selectedRow.activeRun.total_to_settle) -
+                              Number(selectedRow.activeRun.amount_paid),
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <label className="space-y-1.5 text-xs font-semibold text-white/55">
+                        Monto a pagar
+                        <input
+                          type="number"
+                          min={0}
+                          max={
+                            Number(selectedRow.activeRun.total_to_settle) -
+                            Number(selectedRow.activeRun.amount_paid)
+                          }
+                          value={paymentForm.amount}
+                          onChange={(event) =>
+                            setPaymentForm((form) => ({ ...form, amount: event.target.value }))
+                          }
+                          className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-base text-white outline-none focus:border-emerald-300/35"
+                        />
+                      </label>
+                      <label className="space-y-1.5 text-xs font-semibold text-white/55">
+                        Método
+                        <select
+                          value={paymentForm.method}
+                          onChange={(event) =>
+                            setPaymentForm((form) => ({ ...form, method: event.target.value }))
+                          }
+                          className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-base text-white outline-none focus:border-emerald-300/35"
+                        >
+                          <option value="efectivo">Efectivo</option>
+                          <option value="transferencia">Transferencia</option>
+                          <option value="debito">Débito</option>
+                          <option value="mercado pago">Mercado Pago</option>
+                        </select>
+                      </label>
+                    </div>
+
+                    <label className="mt-2 block space-y-1.5 text-xs font-semibold text-white/55">
+                      Nota
+                      <textarea
+                        value={paymentForm.note}
                         onChange={(event) =>
-                          setPaymentForm((form) => ({
-                            ...form,
-                            amount: event.target.value,
-                          }))
+                          setPaymentForm((form) => ({ ...form, note: event.target.value }))
                         }
-                        className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-base text-white outline-none focus:border-emerald-300/35"
+                        placeholder="Ej: adelanto, diferencia, etc."
+                        rows={3}
+                        className="w-full resize-none rounded-2xl border border-white/[0.08] bg-black/30 px-3 py-3 text-base text-white outline-none placeholder:text-white/32 focus:border-emerald-300/35"
                       />
                     </label>
-                    <label className="space-y-1.5 text-xs font-semibold text-white/55">
-                      Método
-                      <select
-                        value={paymentForm.method}
-                        onChange={(event) =>
-                          setPaymentForm((form) => ({
-                            ...form,
-                            method: event.target.value,
-                          }))
-                        }
-                        className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-base text-white outline-none focus:border-emerald-300/35"
-                      >
-                        <option value="efectivo">Efectivo</option>
-                        <option value="transferencia">Transferencia</option>
-                        <option value="debito">Débito</option>
-                        <option value="mercado pago">Mercado Pago</option>
-                      </select>
-                    </label>
+
+                    <button
+                      type="button"
+                      onClick={() => payRun(selectedRow.activeRun, selectedRow.name)}
+                      disabled={payingRunId === selectedRow.activeRun.id}
+                      className="mt-2 inline-flex w-full items-center justify-center rounded-2xl border border-emerald-300/28 bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-3 text-sm font-bold text-white shadow-[0_0_35px_rgba(34,197,94,0.22)] transition hover:brightness-110 disabled:opacity-60"
+                    >
+                      {payingRunId === selectedRow.activeRun.id
+                        ? "Registrando pago…"
+                        : "Registrar pago"}
+                    </button>
                   </div>
+                ) : (
+                  // Sin liquidación activa: acá se prepara una nueva, con el
+                  // corte elegido arriba.
+                  <div className="mx-auto max-w-2xl rounded-2xl border border-violet-400/18 bg-violet-400/[0.035] p-4 shadow-[0_0_35px_rgba(139,92,246,0.08)]">
+                    <div className="mb-4 flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-base font-bold text-white">Preparar liquidación</div>
+                        <div className="mt-0.5 text-sm text-white/48">
+                          Hasta el {cutoffLabel}
+                        </div>
+                      </div>
+                      <div className="rounded-full bg-violet-400/12 px-3 py-1 text-xs font-bold text-violet-300 ring-1 ring-violet-400/20">
+                        {selectedRow.name}
+                      </div>
+                    </div>
 
-                  <label className="mt-2 block space-y-1.5 text-xs font-semibold text-white/55">
-                    Nota
-                    <textarea
-                      value={paymentForm.note}
-                      onChange={(event) =>
-                        setPaymentForm((form) => ({
-                          ...form,
-                          note: event.target.value,
-                        }))
+                    <div className="mb-4 grid grid-cols-2 gap-3 rounded-2xl border border-white/[0.07] bg-black/20 p-3 text-center sm:grid-cols-4">
+                      <div>
+                        <div className="text-[10px] uppercase tracking-wider text-white/40">Saldo anterior</div>
+                        <div className="mt-1 font-bold text-white/85">{money(selectedRow.previousBalance)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] uppercase tracking-wider text-white/40">Comisiones nuevas</div>
+                        <div className="mt-1 font-bold text-violet-300">{money(selectedRow.newCommissions)}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] uppercase tracking-wider text-white/40">Total a liquidar</div>
+                        <div className="mt-1 font-bold text-emerald-300">
+                          {money(
+                            selectedRow.previousBalance +
+                              selectedRow.newCommissions +
+                              Number(adjustmentsForm.adjustments || 0) -
+                              Number(adjustmentsForm.deductions || 0),
+                          )}
+                        </div>
+                      </div>
+                      <div>
+                        <div className="text-[10px] uppercase tracking-wider text-white/40">Pendiente actual</div>
+                        <div className="mt-1 font-bold text-rose-300">{money(selectedRow.pending)}</div>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                      <label className="space-y-1.5 text-xs font-semibold text-white/55">
+                        Ajustes (+)
+                        <input
+                          type="number"
+                          value={adjustmentsForm.adjustments}
+                          onChange={(event) =>
+                            setAdjustmentsForm((form) => ({ ...form, adjustments: event.target.value }))
+                          }
+                          placeholder="0"
+                          className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-base text-white outline-none focus:border-violet-300/35"
+                        />
+                      </label>
+                      <label className="space-y-1.5 text-xs font-semibold text-white/55">
+                        Deducciones (−)
+                        <input
+                          type="number"
+                          min={0}
+                          value={adjustmentsForm.deductions}
+                          onChange={(event) =>
+                            setAdjustmentsForm((form) => ({ ...form, deductions: event.target.value }))
+                          }
+                          placeholder="0"
+                          className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-base text-white outline-none focus:border-violet-300/35"
+                        />
+                      </label>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => prepareRun(selectedRow)}
+                      disabled={
+                        preparingRunFor === selectedRow.id ||
+                        selectedRow.previousBalance +
+                          selectedRow.newCommissions +
+                          Number(adjustmentsForm.adjustments || 0) -
+                          Number(adjustmentsForm.deductions || 0) <=
+                          0
                       }
-                      placeholder="Ej: liquidación semana, adelanto, diferencia, etc."
-                      rows={3}
-                      className="w-full resize-none rounded-2xl border border-white/[0.08] bg-black/30 px-3 py-3 text-base text-white outline-none placeholder:text-white/32 focus:border-emerald-300/35"
-                    />
-                  </label>
-
-                  <button
-                    type="button"
-                    onClick={() => payCommission(selectedRow)}
-                    disabled={
-                      payingEmployeeId === selectedRow.id ||
-                      selectedRow.pending <= 0
-                    }
-                    className="mt-2 inline-flex w-full items-center justify-center rounded-2xl border border-emerald-300/28 bg-gradient-to-r from-emerald-500 to-emerald-600 px-4 py-3 text-sm font-bold text-white shadow-[0_0_35px_rgba(34,197,94,0.22)] transition hover:brightness-110 disabled:opacity-60"
-                  >
-                    {payingEmployeeId === selectedRow.id
-                      ? "Registrando pago…"
-                      : "Confirmar pago"}
-                  </button>
-                </div>
+                      className="mt-3 inline-flex w-full items-center justify-center rounded-2xl border border-violet-300/28 bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_35px_rgba(139,92,246,0.22)] transition hover:brightness-110 disabled:opacity-60"
+                    >
+                      {preparingRunFor === selectedRow.id
+                        ? "Preparando…"
+                        : "Preparar liquidación"}
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </div>
