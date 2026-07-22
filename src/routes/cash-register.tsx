@@ -4255,6 +4255,16 @@ function ProfesionalesTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [lastLiquidacionInfo, liquidarModalOpen]);
 
+  // Para la tarjeta "Período actual" del header — a diferencia de
+  // liquidarPeriodLabel (que se recalcula solo al abrir el modal de
+  // Pagar), esta se actualiza sola cada minuto vía nowClock, ya que se ve
+  // todo el tiempo en pantalla, no solo al confirmar un pago.
+  const periodoActualLabel = React.useMemo(() => {
+    const hasta = `${todayLabel} • ${nowTimeLabel} h`;
+    if (!lastLiquidacionInfo) return `Primera liquidación · hasta ${hasta}`;
+    return `Desde ${lastLiquidacionInfo.dateLabel} • ${lastLiquidacionInfo.timeLabel} hasta ${hasta}`;
+  }, [lastLiquidacionInfo, todayLabel, nowTimeLabel]);
+
   const calendarDays = React.useMemo(() => {
     const year = calendarMonth.getFullYear();
     const month = calendarMonth.getMonth();
@@ -4448,16 +4458,14 @@ function ProfesionalesTab({
                 setCalendarMonth(new Date(`${today}T12:00:00`));
                 setPeriodInfoOpen(true);
               }}
-              className="inline-flex w-full flex-col items-start gap-0.5 rounded-2xl border border-white/[0.10] bg-white/[0.055] px-3.5 py-2 text-left ring-1 ring-white/[0.07] transition hover:bg-white/[0.09] sm:w-auto"
+              className="inline-flex w-full flex-col items-center gap-0.5 rounded-2xl border border-white/[0.10] bg-white/[0.055] px-3.5 py-2 text-center ring-1 ring-white/[0.07] transition hover:bg-white/[0.09] sm:w-auto"
             >
-              <span className="flex items-center gap-1.5 text-xs font-semibold text-white">
+              <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-white/45">
                 <CalendarDays className="size-3.5" />
-                {lastLiquidacionInfo
-                  ? `Última liquidación: ${lastLiquidacionInfo.dateLabel} • ${lastLiquidacionInfo.timeLabel}`
-                  : "Primera liquidación"}
+                Período actual
               </span>
-              <span className="pl-5 text-[11px] text-white/45">
-                Hasta hoy: {todayLabel} · {nowTimeLabel} h
+              <span className="max-w-full break-words text-xs font-semibold text-white">
+                {periodoActualLabel}
               </span>
             </button>
           </div>
