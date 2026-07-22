@@ -3303,6 +3303,8 @@ const LIQUIDACION_ANTERIOR_INFO_TEXT =
   "Importe incluido en una liquidación anterior que todavía no fue pagado por completo.";
 const COMISIONES_NUEVAS_INFO_TEXT =
   "Comisiones generadas después de la fecha y hora de la última liquidación.";
+const ADELANTOS_INFO_TEXT =
+  "Dinero ya entregado al profesional antes de liquidar, todavía no descontado de ninguna liquidación. Se resta del total a liquidar.";
 
 // Ícono de información chico junto a un título — no existe nada parecido
 // en este codebase (sin Tooltip/Popover instalado), así que es un
@@ -3592,6 +3594,20 @@ function ProfesionalesTab({
     setLiquidarModalOpen(false);
     setPaymentForm({ amount: "", method: "transferencia", note: "" });
   }
+
+  const [adelantoModalOpen, setAdelantoModalOpen] = React.useState(false);
+  const [adelantoForm, setAdelantoForm] = React.useState({
+    amount: "",
+    method: "efectivo",
+    date: "",
+    note: "",
+  });
+  const [registeringAdvance, setRegisteringAdvance] = React.useState(false);
+
+  function resetAdelantoForm() {
+    setAdelantoModalOpen(false);
+    setAdelantoForm({ amount: "", method: "efectivo", date: "", note: "" });
+  }
   // commission_records: fuente de verdad de cuánto se le debe a cada
   // profesional. Las que ya tienen settlement_run_id están "bloqueadas"
   // dentro de una liquidación preparada; las que no, son las que entrarían
@@ -3601,6 +3617,7 @@ function ProfesionalesTab({
   const [allCommissions, setAllCommissions] = React.useState<any[]>([]);
   const [allRuns, setAllRuns] = React.useState<any[]>([]);
   const [allRunPayments, setAllRunPayments] = React.useState<any[]>([]);
+  const [allAdvances, setAllAdvances] = React.useState<any[]>([]);
   const [commissionsVersion, setCommissionsVersion] = React.useState(0);
 
   const money = React.useCallback(
@@ -3734,6 +3751,35 @@ function ProfesionalesTab({
     };
   }, [businessId, commissionsVersion]);
 
+  // Adelantos (professional_advances) — fetch aparte y con su propio
+  // try/catch: si la migración todavía no corrió en producción (tabla
+  // inexistente), no debe tirar abajo runs/payments que sí cargaron bien.
+  React.useEffect(() => {
+    let cancelled = false;
+    async function loadAdvances() {
+      if (!businessId) {
+        if (!cancelled) setAllAdvances([]);
+        return;
+      }
+      try {
+        const { data: rows, error } = await supabase
+          .from("professional_advances" as any)
+          .select("id,professional_id,amount,payment_method,note,advanced_at,registered_by_name,settlement_run_id")
+          .eq("business_id", businessId)
+          .order("advanced_at", { ascending: false });
+        if (error) throw error;
+        if (!cancelled) setAllAdvances(rows ?? []);
+      } catch (e) {
+        if (!cancelled) setAllAdvances([]);
+        console.warn("[caja] no se pudieron cargar los adelantos:", (e as Error).message);
+      }
+    }
+    loadAdvances();
+    return () => {
+      cancelled = true;
+    };
+  }, [businessId, commissionsVersion]);
+
   // Tiempo real: si se prepara/paga una liquidación desde otra pestaña/
   // dispositivo (o Profesionales, que usa las mismas tablas), este panel
   // se actualiza solo.
@@ -3754,6 +3800,11 @@ function ProfesionalesTab({
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "settlement_payments", filter: `business_id=eq.${businessId}` },
+        () => setCommissionsVersion((v) => v + 1),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "professional_advances", filter: `business_id=eq.${businessId}` },
         () => setCommissionsVersion((v) => v + 1),
       )
       .subscribe();
@@ -3812,6 +3863,12 @@ function ProfesionalesTab({
         0,
       );
 
+      // Adelantos todavía no incluidos en ninguna liquidación — se
+      // descuentan del total a liquidar (ver prepare_settlement_run).
+      const pendingAdvances = allAdvances
+        .filter((a: any) => String(a.professional_id) === String(employee.id) && !a.settlement_run_id)
+        .reduce((sum: number, a: any) => sum + Number(a.amount ?? 0), 0);
+
       return {
         id: String(employee.id),
         name: employee.name ?? "Profesional",
@@ -3819,6 +3876,7 @@ function ProfesionalesTab({
         pending,
         previousBalance,
         newCommissions,
+        pendingAdvances,
         periodStart,
         periodStartAt,
         latestRun,
@@ -3826,7 +3884,7 @@ function ProfesionalesTab({
         commissionPct: Number(employee.commission_pct ?? 0),
       };
     });
-  }, [data.employees, allCommissions, allRuns]);
+  }, [data.employees, allCommissions, allRuns, allAdvances]);
 
   const selectedRow = React.useMemo(() => {
     return rows.find((row) => row.id === selectedEmployeeId) ?? null;
@@ -3838,9 +3896,10 @@ function ProfesionalesTab({
       (acc, row) => ({
         previousBalance: acc.previousBalance + row.previousBalance,
         newCommissions: acc.newCommissions + row.newCommissions,
+        pendingAdvances: acc.pendingAdvances + row.pendingAdvances,
         pending: acc.pending + row.pending,
       }),
-      { previousBalance: 0, newCommissions: 0, pending: 0 },
+      { previousBalance: 0, newCommissions: 0, pendingAdvances: 0, pending: 0 },
     );
   }, [rows, selectedRow]);
 
@@ -3970,6 +4029,30 @@ function ProfesionalesTab({
       .sort((a: any, b: any) => String(b.paid_at ?? "").localeCompare(String(a.paid_at ?? "")));
   }, [allRunPayments, selectedRow]);
 
+  const selectedAdvances = React.useMemo(() => {
+    if (!selectedRow) return [] as any[];
+    return allAdvances
+      .filter((a: any) => String(a.professional_id) === selectedRow.id)
+      .sort((a: any, b: any) => String(b.advanced_at ?? "").localeCompare(String(a.advanced_at ?? "")));
+  }, [allAdvances, selectedRow]);
+
+  // Historial es un timeline único de movimientos guardados — pagos de
+  // liquidación y adelantos mezclados y ordenados por fecha, no dos listas
+  // separadas por "tipo de liquidación".
+  const historialItems = React.useMemo(() => {
+    const payments = selectedRunPayments.map((p: any) => ({
+      kind: "pago" as const,
+      at: p.paid_at as string,
+      data: p,
+    }));
+    const advances = selectedAdvances.map((a: any) => ({
+      kind: "adelanto" as const,
+      at: a.advanced_at as string,
+      data: a,
+    }));
+    return [...payments, ...advances].sort((a, b) => String(b.at ?? "").localeCompare(String(a.at ?? "")));
+  }, [selectedRunPayments, selectedAdvances]);
+
   // Historial ya no se organiza por liquidación — se organiza por pago:
   // cada registro de settlement_payments es una fila propia (si una
   // liquidación tuvo 2 pagos, son 2 filas separadas). Este mapa solo
@@ -3999,7 +4082,7 @@ function ProfesionalesTab({
     const validDeductions = validSettlementItems(deductionItems);
     const adjustments = validAdjustments.reduce((sum, i) => sum + i.amount, 0);
     const deductions = validDeductions.reduce((sum, i) => sum + i.amount, 0);
-    const total = row.previousBalance + row.newCommissions + adjustments - deductions;
+    const total = row.previousBalance + row.newCommissions + adjustments - deductions - row.pendingAdvances;
     if (total <= 0) {
       toast.error("No hay nada para liquidar en este corte");
       return;
@@ -4111,6 +4194,45 @@ function ProfesionalesTab({
       toast.error(friendlyRpcError(e, "No pudimos registrar el pago. Intentá nuevamente."));
     } finally {
       setPayingRunId(null);
+    }
+  }
+
+  async function registerAdvance(row: (typeof rows)[number] | null) {
+    if (!row || registeringAdvance) return;
+    const amount = Number(adelantoForm.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast.error("Ingresá un monto válido");
+      return;
+    }
+    setRegisteringAdvance(true);
+    try {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user?.id) throw new Error("Sesión inválida — volvé a iniciar sesión");
+
+      const advancedAt = adelantoForm.date
+        ? new Date(`${adelantoForm.date}T12:00:00`).toISOString()
+        : new Date().toISOString();
+
+      const { error } = await supabase.rpc("register_professional_advance" as any, {
+        p_business_id: businessId,
+        p_professional_id: row.id,
+        p_amount: amount,
+        p_payment_method: adelantoForm.method || null,
+        p_note: adelantoForm.note.trim() || null,
+        p_advanced_at: advancedAt,
+        p_registered_by: user.id,
+        p_registered_by_name: userEmail ?? "Caja",
+      });
+      if (error) throw error;
+      toast.success(`Adelanto registrado para ${row.name}: ${money(amount)}`);
+      resetAdelantoForm();
+      setCommissionsVersion((v) => v + 1);
+    } catch (e) {
+      toast.error(friendlyRpcError(e, "No pudimos registrar el adelanto. Intentá nuevamente."));
+    } finally {
+      setRegisteringAdvance(false);
     }
   }
 
@@ -4258,7 +4380,7 @@ function ProfesionalesTab({
           if (id === "liquidar" && selectedRow && paymentForm.amount === "") {
             const suggested = selectedRow.activeRun
               ? Number(selectedRow.activeRun.total_to_settle) - Number(selectedRow.activeRun.amount_paid)
-              : selectedRow.previousBalance + selectedRow.newCommissions;
+              : selectedRow.previousBalance + selectedRow.newCommissions - selectedRow.pendingAdvances;
             if (suggested > 0) {
               setPaymentForm((form) => ({ ...form, amount: String(Math.round(suggested)) }));
             }
@@ -4314,7 +4436,7 @@ function ProfesionalesTab({
     0,
   );
   const liquidarBaseTotal = selectedRow
-    ? selectedRow.previousBalance + selectedRow.newCommissions
+    ? selectedRow.previousBalance + selectedRow.newCommissions - selectedRow.pendingAdvances
     : 0;
   const liquidarFinalTotal = liquidarBaseTotal + liquidarAdjustmentsSum - liquidarDeductionsSum;
   const liquidarValidAdjustmentsCount = validSettlementItems(adjustmentItems).length;
@@ -4373,7 +4495,7 @@ function ProfesionalesTab({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 border-b border-white/[0.055] px-5 py-4 lg:grid-cols-3">
+        <div className="grid grid-cols-2 gap-3 border-b border-white/[0.055] px-5 py-4">
           <StatCard
             label="Liquidación anterior pendiente"
             value={money(totals.previousBalance)}
@@ -4386,13 +4508,17 @@ function ProfesionalesTab({
             tone="violet"
             info={COMISIONES_NUEVAS_INFO_TEXT}
           />
-          <div className="col-span-2 lg:col-span-1">
-            <StatCard
-              label="Total a liquidar"
-              value={money(totals.previousBalance + totals.newCommissions)}
-              tone="green"
-            />
-          </div>
+          <StatCard
+            label="Adelantos"
+            value={totals.pendingAdvances > 0 ? `−${money(totals.pendingAdvances)}` : money(0)}
+            tone="rose"
+            info={ADELANTOS_INFO_TEXT}
+          />
+          <StatCard
+            label="Total a liquidar"
+            value={money(Math.max(totals.previousBalance + totals.newCommissions - totals.pendingAdvances, 0))}
+            tone="green"
+          />
         </div>
 
         {(commissionsError || runsError) && (
@@ -4474,7 +4600,17 @@ function ProfesionalesTab({
           </>
         ) : selectedRow ? (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div className="flex justify-end gap-2 border-b border-white/[0.06] bg-white/[0.018] px-5 py-3">
+            <div className="flex flex-wrap justify-end gap-2 border-b border-white/[0.06] bg-white/[0.018] px-5 py-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setAdelantoForm((form) => ({ ...form, date: form.date || today }));
+                  setAdelantoModalOpen(true);
+                }}
+                className="rounded-xl border border-amber-300/25 bg-amber-400/[0.06] px-3.5 py-1.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-400/[0.11]"
+              >
+                Adelantos
+              </button>
               <ActionButton id="detalle">Ver desglose</ActionButton>
               <ActionButton id="historial">Historial</ActionButton>
               <ActionButton id="liquidar">Liquidar</ActionButton>
@@ -4684,10 +4820,16 @@ function ProfesionalesTab({
                         <span className="font-semibold text-white/80">{money(selectedRow.previousBalance)}</span>
                       </div>
                     )}
+                    {selectedRow.pendingAdvances > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-white/50">Adelantos</span>
+                        <span className="font-semibold text-amber-300">−{money(selectedRow.pendingAdvances)}</span>
+                      </div>
+                    )}
                     <div className="mt-1 flex items-center justify-between border-t border-white/[0.08] pt-2">
                       <span className="font-bold text-white/70">Total disponible para liquidar</span>
                       <span className="text-base font-bold text-emerald-300">
-                        {money(selectedRow.previousBalance + selectedRow.newCommissions)}
+                        {money(Math.max(selectedRow.previousBalance + selectedRow.newCommissions - selectedRow.pendingAdvances, 0))}
                       </span>
                     </div>
                   </div>
@@ -4697,16 +4839,13 @@ function ProfesionalesTab({
 
             {selectedDetail === "historial" && (
               <div className="min-h-0 flex-1 overflow-visible sm:overflow-y-auto px-5 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
-                {selectedRunPayments.length === 0 ? (
+                {historialItems.length === 0 ? (
                   <div className="rounded-xl border border-white/[0.07] bg-black/18 px-4 py-8 text-center text-sm text-white/45">
-                    Todavía no se registró ningún pago.
+                    Todavía no se registró ningún pago ni adelanto.
                   </div>
                 ) : (
                   <div className="flex flex-col gap-2.5">
-                    {selectedRunPayments.map((payment: any) => {
-                      const run = runById.get(payment.settlement_run_id);
-                      const balanceAfter = Number(payment.balance_after ?? 0);
-                      const isFull = balanceAfter <= 0;
+                    {historialItems.map((item) => {
                       const fmtDateTime = (iso: string) =>
                         new Date(iso).toLocaleString("es-AR", {
                           day: "2-digit",
@@ -4716,9 +4855,59 @@ function ProfesionalesTab({
                           minute: "2-digit",
                           hour12: false,
                         });
+
+                      if (item.kind === "adelanto") {
+                        const advance = item.data;
+                        return (
+                          <div
+                            key={`adelanto-${advance.id}`}
+                            className="rounded-2xl border border-white/[0.07] bg-black/18 px-4 py-3.5 text-sm"
+                          >
+                            <div className="flex flex-wrap items-start justify-between gap-2">
+                              <div>
+                                <div className="font-bold text-white">{selectedRow.name}</div>
+                                <div className="text-xs text-white/50">
+                                  {advance.advanced_at ? fmtDateTime(advance.advanced_at) : "—"}
+                                </div>
+                              </div>
+                              <span className="rounded-full bg-amber-400/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-amber-300 ring-1 ring-amber-400/20">
+                                Adelanto
+                              </span>
+                            </div>
+
+                            <div className="mt-3 space-y-1 text-xs">
+                              <div className="flex items-center justify-between">
+                                <span className="text-white/45">Monto pagado</span>
+                                <span className="font-bold tabular-nums text-amber-300">{money(Number(advance.amount ?? 0))}</span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-white/45">Método</span>
+                                <span className="font-semibold capitalize text-white/80">
+                                  {advance.payment_method ?? "—"}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-white/45">Registrado por</span>
+                                <span className="font-semibold text-white/80">{advance.registered_by_name ?? "Caja"}</span>
+                              </div>
+                              {advance.note && (
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-white/45">Nota</span>
+                                  <span className="truncate font-semibold text-white/80">{advance.note}</span>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      }
+
+                      const payment = item.data;
+                      const run = runById.get(payment.settlement_run_id);
+                      const balanceAfter = Number(payment.balance_after ?? 0);
+                      const isFull = balanceAfter <= 0;
                       return (
                         <div
-                          key={payment.id}
+                          key={`pago-${payment.id}`}
                           className="rounded-2xl border border-white/[0.07] bg-black/18 px-4 py-3.5 text-sm"
                         >
                           <div className="flex flex-wrap items-start justify-between gap-2">
@@ -4817,6 +5006,77 @@ function ProfesionalesTab({
           </div>
         )}
       </section>
+
+      {selectedRow && (
+        <AgendaCenteredModal
+          open={adelantoModalOpen}
+          onOpenChange={(v) => {
+            if (!v) resetAdelantoForm();
+          }}
+          lockOutside={false}
+          title="Registrar adelanto"
+          subtitle={selectedRow.name}
+          footer={
+            <button
+              type="button"
+              onClick={() => registerAdvance(selectedRow)}
+              disabled={registeringAdvance || !Number.isFinite(Number(adelantoForm.amount)) || Number(adelantoForm.amount) <= 0}
+              className="w-full rounded-2xl border border-amber-300/28 bg-gradient-to-r from-amber-400 to-orange-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_35px_rgba(251,146,60,0.22)] transition hover:brightness-110 disabled:opacity-60"
+            >
+              {registeringAdvance ? "Registrando…" : "Registrar adelanto"}
+            </button>
+          }
+        >
+          <div className="space-y-3">
+            <label className="space-y-1.5 text-xs font-semibold text-white/55">
+              Monto
+              <input
+                type="number"
+                min={0}
+                value={adelantoForm.amount}
+                onChange={(event) => setAdelantoForm((form) => ({ ...form, amount: event.target.value }))}
+                placeholder="Ej: 20.000"
+                className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-base text-white outline-none placeholder:text-white/30 focus:border-amber-300/35"
+              />
+            </label>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <label className="space-y-1.5 text-xs font-semibold text-white/55">
+                Método
+                <select
+                  value={adelantoForm.method}
+                  onChange={(event) => setAdelantoForm((form) => ({ ...form, method: event.target.value }))}
+                  className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-base text-white outline-none focus:border-amber-300/35"
+                >
+                  <option value="efectivo">Efectivo</option>
+                  <option value="transferencia">Transferencia</option>
+                  <option value="debito">Débito</option>
+                  <option value="mercado pago">Mercado Pago</option>
+                </select>
+              </label>
+              <label className="space-y-1.5 text-xs font-semibold text-white/55">
+                Fecha
+                <input
+                  type="date"
+                  max={today}
+                  value={adelantoForm.date || today}
+                  onChange={(event) => setAdelantoForm((form) => ({ ...form, date: event.target.value }))}
+                  className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-base text-white outline-none focus:border-amber-300/35"
+                />
+              </label>
+            </div>
+            <label className="block space-y-1.5 text-xs font-semibold text-white/55">
+              Nota
+              <textarea
+                value={adelantoForm.note}
+                onChange={(event) => setAdelantoForm((form) => ({ ...form, note: event.target.value }))}
+                placeholder="Opcional"
+                rows={2}
+                className="w-full resize-none rounded-2xl border border-white/[0.08] bg-black/30 px-3 py-3 text-base text-white outline-none placeholder:text-white/32 focus:border-amber-300/35"
+              />
+            </label>
+          </div>
+        </AgendaCenteredModal>
+      )}
 
       {selectedRow && (
         <AgendaCenteredModal
@@ -5228,6 +5488,12 @@ function ProfesionalesTab({
                       <span className="text-white/50">Comisiones nuevas</span>
                       <span className="font-semibold text-white">{money(selectedRow.newCommissions)}</span>
                     </div>
+                    {selectedRow.pendingAdvances > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-white/50">Adelantos</span>
+                        <span className="font-semibold text-amber-300">−{money(selectedRow.pendingAdvances)}</span>
+                      </div>
+                    )}
                     <div className="flex items-center justify-between">
                       <span className="text-white/50">Ajustes</span>
                       <span className="font-semibold text-emerald-300">
