@@ -5407,27 +5407,6 @@ function ProfesionalesTab({
                 </>
               ) : (
                 <>
-                  <div className="grid grid-cols-3 gap-2 rounded-2xl border border-white/[0.07] bg-black/20 p-3 text-center">
-                    <div>
-                      <div className="flex items-center justify-center gap-1 text-[10px] uppercase tracking-wider text-white/40">
-                        <span>Liquidación anterior pendiente</span>
-                        <InfoPopover text={LIQUIDACION_ANTERIOR_INFO_TEXT} />
-                      </div>
-                      <div className="mt-1 text-sm font-bold text-white/85">{money(selectedRow.previousBalance)}</div>
-                    </div>
-                    <div>
-                      <div className="flex items-center justify-center gap-1 text-[10px] uppercase tracking-wider text-white/40">
-                        <span>Comisiones nuevas</span>
-                        <InfoPopover text={COMISIONES_NUEVAS_INFO_TEXT} />
-                      </div>
-                      <div className="mt-1 text-sm font-bold text-violet-300">{money(selectedRow.newCommissions)}</div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] uppercase tracking-wider text-white/40">Total a liquidar</div>
-                      <div className="mt-1 text-sm font-bold text-emerald-300">{money(liquidarBaseTotal)}</div>
-                    </div>
-                  </div>
-
                   <div>
                     <div className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-emerald-300/80">
                       Ajustes (+)
@@ -5456,32 +5435,28 @@ function ProfesionalesTab({
                     />
                   </div>
 
-                  {/* Ya no repite Liquidación anterior/Comisiones nuevas acá — esos
-                      dos números ya se muestran arriba, antes de Ajustes/Deducciones.
-                      Repetirlos en un segundo bloque hacía que todo el modal se
-                      leyera como "resumen para preparar" + "resumen para confirmar",
-                      es decir, como dos tarjetas separadas aunque técnicamente
-                      fuera un solo <AgendaCenteredModal>. Acá solo se agrega lo
-                      nuevo (ajustes/deducciones, si hay) y el total final. */}
                   <div className="space-y-1.5 rounded-2xl border border-white/[0.08] bg-black/25 p-3.5 text-sm">
-                    {(liquidarValidAdjustmentsCount > 0 || liquidarValidDeductionsCount > 0) && (
-                      <>
-                        {liquidarValidAdjustmentsCount > 0 && (
-                          <div className="flex items-center justify-between">
-                            <span className="text-white/50">Ajustes ({liquidarValidAdjustmentsCount})</span>
-                            <span className="font-semibold text-emerald-300">+{money(liquidarAdjustmentsSum)}</span>
-                          </div>
-                        )}
-                        {liquidarValidDeductionsCount > 0 && (
-                          <div className="flex items-center justify-between">
-                            <span className="text-white/50">Deducciones ({liquidarValidDeductionsCount})</span>
-                            <span className="font-semibold text-rose-300">−{money(liquidarDeductionsSum)}</span>
-                          </div>
-                        )}
-                        <div className="border-t border-white/[0.08] pt-1.5" />
-                      </>
-                    )}
                     <div className="flex items-center justify-between">
+                      <span className="text-white/50">Liquidación anterior pendiente</span>
+                      <span className="font-semibold text-white">{money(selectedRow.previousBalance)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-white/50">Comisiones nuevas</span>
+                      <span className="font-semibold text-white">{money(selectedRow.newCommissions)}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-white/50">Ajustes</span>
+                      <span className="font-semibold text-emerald-300">
+                        {liquidarValidAdjustmentsCount > 0 ? `${liquidarValidAdjustmentsCount} · ` : ""}+{money(liquidarAdjustmentsSum)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-white/50">Deducciones</span>
+                      <span className="font-semibold text-rose-300">
+                        {liquidarValidDeductionsCount > 0 ? `${liquidarValidDeductionsCount} · ` : ""}−{money(liquidarDeductionsSum)}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex items-center justify-between border-t border-white/[0.08] pt-2">
                       <span className="font-bold text-white/70">Total final a pagar</span>
                       <span className="text-base font-bold text-emerald-300">{money(liquidarFinalTotal)}</span>
                     </div>
