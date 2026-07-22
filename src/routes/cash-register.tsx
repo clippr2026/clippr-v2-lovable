@@ -5,6 +5,7 @@ import {
   useSearch,
 } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
 import { ServiceImage } from "@/components/ui/service-image";
@@ -3310,55 +3311,112 @@ const COMISIONES_NUEVAS_INFO_TEXT =
 // casos. Una X chica adentro como cierre de respaldo.
 function InfoPopover({ text }: { text: React.ReactNode }) {
   const [open, setOpen] = React.useState(false);
-  const wrapperRef = React.useRef<HTMLSpanElement>(null);
+  const [coords, setCoords] = React.useState<{ top: number; left: number } | null>(null);
+  const buttonRef = React.useRef<HTMLButtonElement>(null);
+  const panelRef = React.useRef<HTMLDivElement>(null);
+  // matchMedia("hover: hover") — no window.onMouseEnter/onMouseLeave para
+  // abrir en dispositivos táctiles: ahí un tap dispara un mouseenter
+  // sintético ANTES del click, así que abrir-por-hover + togglear-por-click
+  // se cancelaban entre sí en el mismo toque (el bug reportado: "aparece
+  // pero no pasa nada"). En desktop real sí se permite hover.
+  const supportsHover = React.useRef(false);
+  React.useEffect(() => {
+    supportsHover.current =
+      typeof window !== "undefined" && window.matchMedia?.("(hover: hover)").matches;
+  }, []);
+
+  const updatePosition = React.useCallback(() => {
+    const rect = buttonRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    // El panel mide w-56 (224px, mitad 112) — se centra en el ícono pero
+    // sin dejar que se corte contra el borde de la pantalla en mobile.
+    const halfPanel = 112;
+    const idealLeft = rect.left + rect.width / 2;
+    const clampedLeft = Math.min(
+      Math.max(idealLeft, halfPanel + 8),
+      window.innerWidth - halfPanel - 8,
+    );
+    setCoords({ top: rect.bottom + 8, left: clampedLeft });
+  }, []);
 
   React.useEffect(() => {
     if (!open) return;
+    updatePosition();
     function handleOutside(event: MouseEvent) {
-      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+      const target = event.target as Node;
+      if (
+        !buttonRef.current?.contains(target) &&
+        !panelRef.current?.contains(target)
+      ) {
         setOpen(false);
       }
     }
+    function handleKey(event: KeyboardEvent) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    // capture:true en scroll para detectar el scroll DENTRO de un modal
+    // (overflow-y-auto), no solo el de la ventana.
     document.addEventListener("mousedown", handleOutside);
-    return () => document.removeEventListener("mousedown", handleOutside);
-  }, [open]);
+    document.addEventListener("keydown", handleKey);
+    window.addEventListener("scroll", updatePosition, true);
+    window.addEventListener("resize", updatePosition);
+    return () => {
+      document.removeEventListener("mousedown", handleOutside);
+      document.removeEventListener("keydown", handleKey);
+      window.removeEventListener("scroll", updatePosition, true);
+      window.removeEventListener("resize", updatePosition);
+    };
+  }, [open, updatePosition]);
 
   return (
-    <span
-      ref={wrapperRef}
-      className="relative inline-flex shrink-0"
-      onMouseEnter={() => setOpen(true)}
-      onMouseLeave={() => setOpen(false)}
-    >
+    <span className="relative inline-flex shrink-0">
       <button
+        ref={buttonRef}
         type="button"
         onClick={(event) => {
           event.stopPropagation();
           setOpen((value) => !value);
         }}
+        onMouseEnter={() => supportsHover.current && setOpen(true)}
+        onMouseLeave={() => supportsHover.current && setOpen(false)}
         aria-label="Más información"
-        className="inline-flex size-3.5 items-center justify-center rounded-full text-white/32 transition hover:text-white/65"
+        aria-expanded={open}
+        // -m-2 sobre size-8 (32px, el mínimo táctil pedido) sin empujar el
+        // layout del título — el ícono visual sigue siendo de 3.5 (14px).
+        className="-m-2 inline-flex size-8 shrink-0 items-center justify-center rounded-full text-white/32 transition hover:text-white/65"
       >
         <Info className="size-3.5" />
       </button>
-      {open && (
-        <div
-          onClick={(event) => event.stopPropagation()}
-          className="absolute left-1/2 top-full z-40 mt-2 w-56 -translate-x-1/2 rounded-2xl border border-white/[0.12] bg-[#0A0D18] p-3 text-left normal-case shadow-[0_20px_60px_rgba(0,0,0,0.6)]"
-        >
-          <button
-            type="button"
-            onClick={() => setOpen(false)}
-            aria-label="Cerrar"
-            className="absolute right-2 top-2 text-white/35 transition hover:text-white/70"
+      {/* Portal a document.body: esta tarjeta vive dentro de secciones con
+          overflow-hidden/overflow-y-auto (la sección principal y el modal
+          de Preparar liquidación) — sin portal, el popover quedaba
+          recortado por ese overflow y parecía que "no pasaba nada" al
+          tocar el ícono. Mismo problema, mismo remedio que
+          AgendaCenteredModal (agenda-drawer.tsx). */}
+      {open &&
+        coords &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            ref={panelRef}
+            onClick={(event) => event.stopPropagation()}
+            style={{ position: "fixed", top: coords.top, left: coords.left, transform: "translateX(-50%)" }}
+            className="z-[70] w-56 rounded-2xl border border-white/[0.12] bg-[#0A0D18] p-3 text-left normal-case shadow-[0_20px_60px_rgba(0,0,0,0.6)]"
           >
-            <X className="size-3" />
-          </button>
-          <div className="pr-4 text-[11px] font-normal leading-relaxed tracking-normal text-white/70">
-            {text}
-          </div>
-        </div>
-      )}
+            <button
+              type="button"
+              onClick={() => setOpen(false)}
+              aria-label="Cerrar"
+              className="absolute right-2 top-2 text-white/35 transition hover:text-white/70"
+            >
+              <X className="size-3" />
+            </button>
+            <div className="pr-4 text-[11px] font-normal leading-relaxed tracking-normal text-white/70">
+              {text}
+            </div>
+          </div>,
+          document.body,
+        )}
     </span>
   );
 }
@@ -3446,6 +3504,20 @@ function SettlementItemsEditor({
       </button>
     </div>
   );
+}
+
+// Nuestros propios raise exception en las RPC de liquidaciones (motivo
+// faltante, total negativo, etc.) llegan con code "P0001" y ya son texto
+// en español pensado para mostrarse tal cual. Cualquier otro error
+// (función no encontrada, columna inexistente, red) es jerga técnica que
+// no debería llegar al usuario final — se loguea completo en consola
+// para diagnóstico y se muestra un mensaje corto en su lugar.
+function friendlyRpcError(e: unknown, fallback: string) {
+  console.error(fallback, e);
+  const code = (e as { code?: string } | null)?.code;
+  const message = (e as Error)?.message;
+  if (code === "P0001" && message) return message;
+  return fallback;
 }
 
 function ProfesionalesTab({
@@ -3929,7 +4001,7 @@ function ProfesionalesTab({
       setCommissionsVersion((v) => v + 1);
       setSelectedDetail("liquidar");
     } catch (e) {
-      toast.error(`No se pudo preparar la liquidación: ${(e as Error).message}`);
+      toast.error(friendlyRpcError(e, "No pudimos preparar la liquidación. Intentá nuevamente."));
     } finally {
       setPreparingRunFor(null);
     }
@@ -3968,7 +4040,7 @@ function ProfesionalesTab({
       setCommissionsVersion((v) => v + 1);
       setSelectedDetail("historial");
     } catch (e) {
-      toast.error(`No se pudo registrar el pago: ${(e as Error).message}`);
+      toast.error(friendlyRpcError(e, "No pudimos registrar el pago. Intentá nuevamente."));
     } finally {
       setPayingRunId(null);
     }
