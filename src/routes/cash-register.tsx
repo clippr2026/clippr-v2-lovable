@@ -65,35 +65,6 @@ import { fetchSettlementRunServices } from "@/hooks/use-professionals-data";
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
 const HISTORIAL_KEY = "clippr_cobros_historial_v2";
-// Último profesional consultado en Caja > Liquidaciones, por negocio —
-// {[businessId]: employeeId} — para que la sección arranque siempre en un
-// profesional concreto (nunca en un listado de "todos") sin perder la
-// selección al recargar la página.
-const LIQUIDACIONES_LAST_PROFESSIONAL_KEY = "clippr_liquidaciones_last_professional_v1";
-
-function getLastLiquidacionesProfessional(businessId: string | null): string | null {
-  if (!businessId) return null;
-  try {
-    const raw = localStorage.getItem(LIQUIDACIONES_LAST_PROFESSIONAL_KEY);
-    if (!raw) return null;
-    const map = JSON.parse(raw) as Record<string, string>;
-    return map[businessId] ?? null;
-  } catch {
-    return null;
-  }
-}
-
-function setLastLiquidacionesProfessional(businessId: string | null, employeeId: string) {
-  if (!businessId) return;
-  try {
-    const raw = localStorage.getItem(LIQUIDACIONES_LAST_PROFESSIONAL_KEY);
-    const map = raw ? (JSON.parse(raw) as Record<string, string>) : {};
-    map[businessId] = employeeId;
-    localStorage.setItem(LIQUIDACIONES_LAST_PROFESSIONAL_KEY, JSON.stringify(map));
-  } catch {
-    // localStorage puede fallar (modo privado, cuota) — no es crítico.
-  }
-}
 // Marca al inicio de payments.observations para guardar el historial
 // "Envió a caja" / "Cobró" de una venta de mostrador sin turno — no hay
 // appointment al que asociar appointments.cobro_events en ese caso, así que
@@ -3299,8 +3270,6 @@ function InventarioTab({
   );
 }
 
-const LIQUIDACION_ANTERIOR_INFO_TEXT =
-  "Comisiones de períodos anteriores que todavía no fueron pagadas.";
 const COMISIONES_NUEVAS_INFO_TEXT =
   "Comisiones generadas desde la última liquidación hasta ahora.";
 const ADELANTOS_INFO_TEXT =
@@ -3632,23 +3601,18 @@ function ProfesionalesTab({
     return digits && Number.isFinite(n) ? n.toLocaleString("es-AR") : "";
   }, []);
 
-  // Selecciona automáticamente un profesional en cuanto hay lista: el
-  // último consultado para este negocio (si sigue existiendo) o, si no
-  // hay uno guardado o ya no es válido, el primero disponible.
+  // Ya no se auto-selecciona ningún profesional: el selector arranca en
+  // "Seleccionar profesional" y se queda ahí hasta que el usuario elige
+  // uno a mano. Este efecto solo limpia la selección si el profesional
+  // elegido deja de existir en la lista (ej. se lo dio de baja).
   React.useEffect(() => {
+    if (!selectedEmployeeId) return;
     const employees = data.employees ?? [];
-    if (employees.length === 0) return;
     const stillValid = employees.some(
       (employee: any) => String(employee.id) === selectedEmployeeId,
     );
-    if (stillValid) return;
-    const remembered = getLastLiquidacionesProfessional(businessId);
-    const rememberedValid =
-      remembered && employees.some((employee: any) => String(employee.id) === remembered);
-    const nextId = rememberedValid ? remembered! : String(employees[0].id);
-    setSelectedEmployeeId(nextId);
-    setLastLiquidacionesProfessional(businessId, nextId);
-  }, [data.employees, businessId, selectedEmployeeId]);
+    if (!stillValid) setSelectedEmployeeId("");
+  }, [data.employees, selectedEmployeeId]);
 
   // Todas las comisiones del negocio (bloqueadas o no en algún run): el
   // saldo pendiente TOTAL de cada profesional sale de acá, nunca de un
@@ -4366,7 +4330,7 @@ function ProfesionalesTab({
     );
   };
 
-  // Mitad de un segmented control (Desglose | Historial) — una sola pieza
+  // Mitad de un segmented control (Comisiones | Historial) — una sola pieza
   // partida al medio, no dos botones sueltos: el borde/fondo compartido
   // vive en el contenedor (ver más abajo), acá solo cambia el resaltado de
   // la mitad activa.
@@ -4453,10 +4417,10 @@ function ProfesionalesTab({
               onChange={(event) => {
                 const nextId = event.target.value;
                 setSelectedEmployeeId(nextId);
-                setLastLiquidacionesProfessional(businessId, nextId);
-                const nextRow = rows.find((row) => row.id === nextId);
                 resetLiquidarForm();
                 setSelectedDetail("detalle");
+                if (!nextId) return;
+                const nextRow = rows.find((row) => row.id === nextId);
                 // Si el profesional entrante ya tiene una liquidación
                 // preparada sin terminar de pagar, abrimos Pagar directo
                 // para cobrar el saldo — sigue siendo un acceso rápido, ya
@@ -4466,6 +4430,9 @@ function ProfesionalesTab({
               }}
               className="h-10 w-full rounded-2xl border border-white/[0.09] bg-[#070A13]/80 px-3.5 text-base text-white outline-none backdrop-blur-xl focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12 sm:min-w-[230px] sm:w-auto sm:text-sm"
             >
+              <option value="" disabled>
+                Seleccionar profesional
+              </option>
               {(data.employees ?? []).map((employee: any) => (
                 <option key={employee.id} value={String(employee.id)}>
                   {employee.name ?? "Profesional"}
@@ -4494,31 +4461,29 @@ function ProfesionalesTab({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 border-b border-white/[0.055] px-5 py-4">
-          <StatCard
-            label="Comisiones pendientes"
-            value={money(totals.previousBalance)}
-            tone="neutral"
-            info={LIQUIDACION_ANTERIOR_INFO_TEXT}
-          />
-          <StatCard
-            label="Comisiones nuevas"
-            value={money(totals.newCommissions)}
-            tone="violet"
-            info={COMISIONES_NUEVAS_INFO_TEXT}
-          />
-          <StatCard
-            label="Adelantos"
-            value={totals.pendingAdvances > 0 ? `−${money(totals.pendingAdvances)}` : money(0)}
-            tone="rose"
-            info={ADELANTOS_INFO_TEXT}
-          />
-          <StatCard
-            label="Total a pagar"
-            value={money(Math.max(totals.previousBalance + totals.newCommissions - totals.pendingAdvances, 0))}
-            tone="green"
-          />
-        </div>
+        {selectedRow && (
+          <div className="grid grid-cols-2 gap-3 border-b border-white/[0.055] px-5 py-4">
+            <StatCard
+              label="Comisiones nuevas"
+              value={money(totals.newCommissions)}
+              tone="violet"
+              info={COMISIONES_NUEVAS_INFO_TEXT}
+            />
+            <StatCard
+              label="Adelantos"
+              value={totals.pendingAdvances > 0 ? `−${money(totals.pendingAdvances)}` : money(0)}
+              tone="rose"
+              info={ADELANTOS_INFO_TEXT}
+            />
+            <div className="col-span-2">
+              <StatCard
+                label="Total a pagar"
+                value={money(Math.max(totals.previousBalance + totals.newCommissions - totals.pendingAdvances, 0))}
+                tone="green"
+              />
+            </div>
+          </div>
+        )}
 
         {(commissionsError || runsError) && (
           <div className="mx-5 mt-3 rounded-xl border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-xs text-rose-200">
@@ -4599,12 +4564,12 @@ function ProfesionalesTab({
           </>
         ) : selectedRow ? (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            {/* Selector Desglose | Historial: una sola pieza partida al
+            {/* Selector Comisiones | Historial: una sola pieza partida al
                 medio (borde/fondo compartidos acá, divide-x como línea
                 central), no dos botones sueltos — ActionButton solo
                 resalta la mitad activa. */}
             <div className="grid grid-cols-2 divide-x divide-white/[0.07] overflow-hidden border-b border-white/[0.06] bg-white/[0.018]">
-              <ActionButton id="detalle">Desglose</ActionButton>
+              <ActionButton id="detalle">Comisiones</ActionButton>
               <ActionButton id="historial">Historial</ActionButton>
             </div>
 
@@ -5005,9 +4970,13 @@ function ProfesionalesTab({
               </div>
             )}
           </div>
-        ) : (
+        ) : (data.employees ?? []).length === 0 ? (
           <div className="px-5 py-10 text-center text-sm text-white/45">
             Todavía no hay profesionales cargados en Equipo.
+          </div>
+        ) : (
+          <div className="px-5 py-10 text-center text-sm text-white/45">
+            Seleccioná un profesional para ver sus comisiones.
           </div>
         )}
       </section>
