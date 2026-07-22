@@ -3270,6 +3270,8 @@ function InventarioTab({
   );
 }
 
+const LIQUIDACION_ANTERIOR_INFO_TEXT =
+  "Comisiones de períodos anteriores que todavía no fueron pagadas.";
 const COMISIONES_NUEVAS_INFO_TEXT =
   "Comisiones generadas desde la última liquidación hasta ahora.";
 const ADELANTOS_INFO_TEXT =
@@ -4464,6 +4466,12 @@ function ProfesionalesTab({
         {selectedRow && (
           <div className="grid grid-cols-2 gap-3 border-b border-white/[0.055] px-5 py-4">
             <StatCard
+              label="Comisiones pendientes"
+              value={money(totals.previousBalance)}
+              tone="neutral"
+              info={LIQUIDACION_ANTERIOR_INFO_TEXT}
+            />
+            <StatCard
               label="Comisiones nuevas"
               value={money(totals.newCommissions)}
               tone="violet"
@@ -4475,13 +4483,11 @@ function ProfesionalesTab({
               tone="rose"
               info={ADELANTOS_INFO_TEXT}
             />
-            <div className="col-span-2">
-              <StatCard
-                label="Total a pagar"
-                value={money(Math.max(totals.previousBalance + totals.newCommissions - totals.pendingAdvances, 0))}
-                tone="green"
-              />
-            </div>
+            <StatCard
+              label="Total a pagar"
+              value={money(Math.max(totals.previousBalance + totals.newCommissions - totals.pendingAdvances, 0))}
+              tone="green"
+            />
           </div>
         )}
 
