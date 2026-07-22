@@ -3568,9 +3568,10 @@ function ProfesionalesTab({
   const [runsError, setRunsError] = React.useState<string | null>(null);
   const [preparingRunFor, setPreparingRunFor] = React.useState<string | null>(null);
   const [payingRunId, setPayingRunId] = React.useState<string | null>(null);
-  const [selectedDetail, setSelectedDetail] = React.useState<
-    "detalle" | "historial" | "liquidar"
-  >("detalle");
+  // "detalle"/"historial" son las únicas vistas de consulta (pestañas
+  // reales) — Liquidar y Adelantos son botones de acción que abren su
+  // modal directo, nunca cambian esta pestaña.
+  const [selectedDetail, setSelectedDetail] = React.useState<"detalle" | "historial">("detalle");
   const [paymentForm, setPaymentForm] = React.useState({
     amount: "",
     method: "transferencia",
@@ -4138,7 +4139,7 @@ function ProfesionalesTab({
           );
           resetLiquidarForm();
           setCommissionsVersion((v) => v + 1);
-          setSelectedDetail("liquidar");
+          setLiquidarModalOpen(true);
           return;
         }
         toast.success(`Liquidación preparada y pago registrado para ${row.name}`);
@@ -4149,7 +4150,7 @@ function ProfesionalesTab({
         toast.success(`Liquidación preparada para ${row.name}`);
         resetLiquidarForm();
         setCommissionsVersion((v) => v + 1);
-        setSelectedDetail("liquidar");
+        setLiquidarModalOpen(true);
       }
     } catch (e) {
       toast.error(friendlyRpcError(e, "No pudimos preparar la liquidación. Intentá nuevamente."));
@@ -4369,36 +4370,18 @@ function ProfesionalesTab({
     id,
     children,
   }: {
-    id: "detalle" | "historial" | "liquidar";
+    id: "detalle" | "historial";
     children: React.ReactNode;
   }) => {
     const active = selectedDetail === id;
     return (
       <button
         type="button"
-        onClick={() => {
-          if (id === "liquidar" && selectedRow && paymentForm.amount === "") {
-            const suggested = selectedRow.activeRun
-              ? Number(selectedRow.activeRun.total_to_settle) - Number(selectedRow.activeRun.amount_paid)
-              : selectedRow.previousBalance + selectedRow.newCommissions - selectedRow.pendingAdvances;
-            if (suggested > 0) {
-              setPaymentForm((form) => ({ ...form, amount: String(Math.round(suggested)) }));
-            }
-          }
-          setSelectedDetail(id);
-        }}
+        onClick={() => setSelectedDetail(id)}
         className={cn(
           "rounded-xl border px-3.5 py-1.5 text-xs font-semibold transition",
-          // Violeta/índigo solo en el botón realmente seleccionado (nunca
-          // verde: el verde queda reservado para importes positivos y
-          // estados cobrados/confirmados) — Liquidar es la acción
-          // principal, así que cuando está activo se destaca más que
-          // Ver desglose/Historial, pero inactivo se ve igual de
-          // secundario que los otros dos.
           active
-            ? id === "liquidar"
-              ? "border-violet-300/40 bg-gradient-to-r from-sky-400 to-violet-500 text-white shadow-[0_0_26px_rgba(139,92,246,0.35)]"
-              : "border-violet-300/35 bg-violet-400/10 text-violet-100 shadow-[0_0_18px_rgba(139,92,246,0.16)]"
+            ? "border-violet-300/35 bg-violet-400/10 text-violet-100 shadow-[0_0_18px_rgba(139,92,246,0.16)]"
             : "border-white/[0.08] bg-white/[0.03] text-white/68 hover:bg-white/[0.065] hover:text-white",
         )}
       >
@@ -4407,6 +4390,22 @@ function ProfesionalesTab({
     );
   };
 
+  // Liquidar es un botón de acción (como Adelantos), no una pestaña: abre
+  // su modal directo, precargando el monto sugerido, sin tocar
+  // selectedDetail.
+  function openLiquidarModal(row: (typeof rows)[number] | null) {
+    if (!row) return;
+    if (paymentForm.amount === "") {
+      const suggested = row.activeRun
+        ? Number(row.activeRun.total_to_settle) - Number(row.activeRun.amount_paid)
+        : row.previousBalance + row.newCommissions - row.pendingAdvances;
+      if (suggested > 0) {
+        setPaymentForm((form) => ({ ...form, amount: String(Math.round(suggested)) }));
+      }
+    }
+    setLiquidarModalOpen(true);
+  }
+
   // Carga el detalle bajo demanda cuando se ve la pestaña "Ver detalle"
   // (o cambia el profesional mientras está abierta).
   React.useEffect(() => {
@@ -4414,16 +4413,6 @@ function ProfesionalesTab({
     openDetail(selectedRow.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDetail, selectedRow?.id, commissionsVersion]);
-
-  // Abre el modal de Liquidar solo, apenas se entra a esa pestaña — con o
-  // sin liquidación activa, todo (resumen, ajustes/deducciones si
-  // corresponde, y los datos de pago) vive en el mismo modal, sin una
-  // pantalla intermedia que haya que abrir a mano.
-  React.useEffect(() => {
-    if (selectedDetail === "liquidar" && selectedRow) {
-      setLiquidarModalOpen(true);
-    }
-  }, [selectedDetail, selectedRow]);
 
   // Totales en vivo del modal "Preparar liquidación" — se recalculan en
   // cada tecla mientras se agregan/editan ajustes y deducciones.
@@ -4463,7 +4452,13 @@ function ProfesionalesTab({
                 setLastLiquidacionesProfessional(businessId, nextId);
                 const nextRow = rows.find((row) => row.id === nextId);
                 resetLiquidarForm();
-                setSelectedDetail(nextRow?.activeRun ? "liquidar" : "detalle");
+                setSelectedDetail("detalle");
+                // Si el profesional entrante ya tiene una liquidación
+                // preparada sin terminar de pagar, abrimos Liquidar directo
+                // para cobrar el saldo — sigue siendo un acceso rápido, ya
+                // no depende de una pestaña. (Sin precargar monto acá: recién
+                // se limpió paymentForm arriba, en el mismo tick.)
+                if (nextRow?.activeRun) setLiquidarModalOpen(true);
               }}
               className="h-10 w-full rounded-2xl border border-white/[0.09] bg-[#070A13]/80 px-3.5 text-base text-white outline-none backdrop-blur-xl focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12 sm:min-w-[230px] sm:w-auto sm:text-sm"
             >
@@ -4613,7 +4608,13 @@ function ProfesionalesTab({
               </button>
               <ActionButton id="detalle">Ver desglose</ActionButton>
               <ActionButton id="historial">Historial</ActionButton>
-              <ActionButton id="liquidar">Liquidar</ActionButton>
+              <button
+                type="button"
+                onClick={() => openLiquidarModal(selectedRow)}
+                className="rounded-xl border border-violet-300/40 bg-gradient-to-r from-sky-400 to-violet-500 px-3.5 py-1.5 text-xs font-semibold text-white shadow-[0_0_26px_rgba(139,92,246,0.35)] transition hover:brightness-110"
+              >
+                Liquidar
+              </button>
             </div>
 
             {selectedDetail === "detalle" && (
@@ -4987,16 +4988,6 @@ function ProfesionalesTab({
                     })}
                   </div>
                 )}
-              </div>
-            )}
-
-            {selectedDetail === "liquidar" && (
-              // Todo el contenido (resumen, ajustes/deducciones si
-              // corresponde, y los datos de pago) vive en el modal de
-              // Liquidar (se abre solo, ver efecto más abajo) — acá no
-              // queda una pantalla intermedia que abrir a mano.
-              <div className="min-h-0 flex-1 overflow-visible px-5 py-4">
-                <div className="py-10 text-center text-sm text-white/35">Abriendo liquidación…</div>
               </div>
             )}
           </div>
@@ -5382,14 +5373,7 @@ function ProfesionalesTab({
           <AgendaCenteredModal
             open={liquidarModalOpen}
             onOpenChange={(v) => {
-              if (!v) {
-                resetLiquidarForm();
-                // Si se cierra sin haber confirmado, no queda nada que
-                // mostrar en la pestaña "Liquidar" (la pantalla intermedia
-                // ya no existe) — vuelve a "Ver desglose" en vez de
-                // reabrir el modal solo de nuevo.
-                if (!selectedRow.activeRun) setSelectedDetail("detalle");
-              }
+              if (!v) resetLiquidarForm();
             }}
             title={selectedRow.name}
             subtitle={

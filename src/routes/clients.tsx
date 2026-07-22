@@ -1,6 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { AppShell } from "@/components/app-shell";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 import {
@@ -18,6 +20,7 @@ import {
   Trash2,
   UserRound,
   CalendarDays,
+  X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
@@ -518,6 +521,91 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
   );
 });
 
+type ClientDetailModalProps = {
+  open: boolean;
+  loading: boolean;
+  client: Client | null;
+  onClose: () => void;
+  onDelete: (client: Client) => void;
+  onSaveNotes: (clientId: string, notes: string) => Promise<void>;
+  savingNotes: boolean;
+};
+
+function ClientDetailModal({
+  open,
+  loading,
+  client,
+  onClose,
+  onDelete,
+  onSaveNotes,
+  savingNotes,
+}: ClientDetailModalProps) {
+  useBodyScrollLock(open);
+
+  useEffect(() => {
+    if (!open) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [open, onClose]);
+
+  if (!open) return null;
+  if (typeof document === "undefined") return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 p-0 sm:p-4"
+      onClick={onClose}
+    >
+      <div
+        className={cn(
+          "glass relative flex w-full sm:max-w-2xl max-h-[92dvh] flex-col overflow-hidden rounded-t-3xl sm:rounded-3xl",
+          client?.status === "perdido" && "ring-1 ring-rose-400/30",
+          client?.status === "vip" && "ring-1 ring-amber-300/30",
+        )}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <button
+          type="button"
+          aria-label="Cerrar"
+          onClick={onClose}
+          className="absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-full bg-black/40 text-white/80 backdrop-blur transition hover:bg-black/60 hover:text-white"
+        >
+          <X className="h-4 w-4" />
+        </button>
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          {client ? (
+            <ClientDetailPanel
+              client={client}
+              onDelete={onDelete}
+              onSaveNotes={onSaveNotes}
+              savingNotes={savingNotes}
+            />
+          ) : (
+            <div className="grid min-h-[280px] place-items-center p-6">
+              <div className="text-center space-y-3">
+                {loading ? (
+                  <>
+                    <UserRound className="mx-auto h-8 w-8 text-muted-foreground animate-pulse" />
+                    <div className="text-lg font-display text-muted-foreground">Cargando cliente…</div>
+                  </>
+                ) : (
+                  <>
+                    <UserRound className="mx-auto h-8 w-8 text-muted-foreground" />
+                    <div className="text-lg font-display">No se encontró el cliente</div>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ClientsPage() {
   const { businessId } = useAuth();
   const saveClient = useSaveClient(businessId);
@@ -581,9 +669,11 @@ function ClientsPage() {
   );
   const total = pageData?.pages?.[0]?.total ?? 0;
 
-  useEffect(() => {
-    if (!selected && clients.length > 0) setSelected(clients[0].id);
-  }, [clients, selected]);
+  // Ya no se auto-selecciona el primer cliente de la lista al cargar: el
+  // detalle ahora es un modal (ver ClientDetailModal más abajo), y un modal
+  // solo debe abrirse por una acción explícita del usuario (tocar una
+  // tarjeta), nunca solo. Antes tenía sentido porque el panel de detalle
+  // era un panel siempre visible al lado de la lista en desktop.
 
   // Search + sorting (nombre/recientes/gasto) all happen server-side now.
   const filtered = clients;
@@ -816,7 +906,7 @@ function ClientsPage() {
               Nuevo cliente
             </button>
           </div>
-        <div className="grid min-h-0 flex-1 gap-4 lg:grid-cols-[360px_minmax(0,1fr)] xl:grid-cols-[400px_minmax(0,1fr)]">
+        <div className="min-h-0 flex-1">
           <div className="glass rounded-2xl p-3 sm:p-4 flex min-h-0 lg:h-full flex-col gap-3 sm:gap-4 lg:overflow-hidden">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -923,41 +1013,34 @@ function ClientsPage() {
               )}
             </div>
           </div>
-
-          <div
-            className={cn(
-              "glass rounded-2xl p-0 lg:h-full min-h-0 overflow-hidden",
-              current?.status === "perdido" && "ring-1 ring-rose-400/30",
-              current?.status === "vip" && "ring-1 ring-amber-300/30",
-            )}
-          >
-            {current ? (
-              <ClientDetailPanel
-                client={current}
-                onDelete={handleDeleteClient}
-                onSaveNotes={saveNotes}
-                savingNotes={updateNotes.isPending}
-              />
-            ) : (
-              <div className="h-full grid place-items-center p-6">
-                <div className="text-center space-y-3">
-                  {selected && detailLoading ? (
-                    <>
-                      <UserRound className="mx-auto h-8 w-8 text-muted-foreground animate-pulse" />
-                      <div className="text-lg font-display text-muted-foreground">Cargando cliente…</div>
-                    </>
-                  ) : (
-                    <>
-                      <UserRound className="mx-auto h-8 w-8 text-muted-foreground" />
-                      <div className="text-lg font-display">Seleccioná un cliente</div>
-                    </>
-                  )}
-                </div>
-              </div>
-            )}
-          </div>
         </div>
       </div>
+
+      {/* Detalle del cliente: modal superpuesto, no contenido normal de la
+          página. Portal a document.body + useBodyScrollLock — mismo motivo
+          que AgendaCenteredModal (src/components/agenda/agenda-drawer.tsx):
+          sin portal, un modal fixed adentro de un contenedor con su propio
+          stacking context puede terminar tapado por hermanos fixed del
+          árbol raíz (barra inferior, etc.) aunque su z-index sea mayor en
+          el papel. No se reusa AgendaCenteredModal tal cual porque
+          ClientDetailPanel ya trae su propio header (avatar, nombre,
+          estado) — un segundo título arriba sería un header duplicado; acá
+          solo se agrega la X de cierre flotante sobre ese header propio.
+          useBodyScrollLock además deja al usuario en el mismo scroll del
+          listado al cerrar (no hace falta recordar la posición a mano). */}
+      {selected &&
+        createPortal(
+          <ClientDetailModal
+            open
+            loading={detailLoading}
+            client={current}
+            onClose={() => setSelected(null)}
+            onDelete={handleDeleteClient}
+            onSaveNotes={saveNotes}
+            savingNotes={updateNotes.isPending}
+          />,
+          document.body,
+        )}
 
       {newClientOpen && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4">
