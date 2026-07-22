@@ -2407,11 +2407,16 @@ function LiquidacionesPanelView({
 
   function comprobanteFor(run: SettlementRun) {
     const lastPayment = payments.find((p) => p.settlement_run_id === run.id);
+    const previousRun = runs.find((r) => r.id === run.previous_settlement_run_id);
     return buildComprobanteText({
       runNumber: run.run_number,
       cutoffDate: run.cutoff_date,
+      periodStart: run.period_start,
       professionalName,
       previousBalance: run.previous_balance,
+      previousRun: previousRun
+        ? { runNumber: previousRun.run_number, cutoffDate: previousRun.cutoff_date, status: previousRun.status }
+        : null,
       newCommissions: run.new_commissions,
       adjustments: run.adjustments,
       deductions: run.deductions,
@@ -2474,12 +2479,17 @@ function LiquidacionesPanelView({
       {runs.map((run) => {
         const remaining = Math.max(run.total_to_settle - run.amount_paid, 0);
         const runPayments = payments.filter((p) => p.settlement_run_id === run.id);
+        const previousRun = runs.find((r) => r.id === run.previous_settlement_run_id);
         return (
           <div key={run.id} className="glass rounded-2xl p-4 sm:p-5 space-y-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div>
                 <div className="text-sm font-semibold">Liquidación #{run.run_number}</div>
-                <div className="text-xs text-muted-foreground">Liquidado hasta {run.cutoff_date}</div>
+                <div className="text-xs text-muted-foreground">
+                  {run.period_start
+                    ? `Período: del ${run.period_start} al ${run.cutoff_date}`
+                    : `Liquidado hasta ${run.cutoff_date}`}
+                </div>
               </div>
               <span className={cn("text-xs font-medium px-2.5 py-1 rounded-full ring-1", RUN_STATUS_STYLE[run.status])}>
                 {RUN_STATUS_LABEL[run.status]}
@@ -2490,6 +2500,9 @@ function LiquidacionesPanelView({
               <div className="rounded-xl bg-white/[0.03] p-2.5">
                 <div className="text-muted-foreground">Saldo anterior</div>
                 <div className="text-sm font-semibold tabular-nums">${run.previous_balance.toLocaleString("es-AR")}</div>
+                {previousRun && run.previous_balance > 0 && (
+                  <div className="mt-0.5 text-[10px] text-muted-foreground">Liq. #{previousRun.run_number}</div>
+                )}
               </div>
               <div className="rounded-xl bg-white/[0.03] p-2.5">
                 <div className="text-muted-foreground">Comisiones nuevas</div>

@@ -3429,7 +3429,7 @@ function ProfesionalesTab({
           supabase
             .from("settlement_runs" as any)
             .select(
-              "id,professional_id,run_number,cutoff_date,previous_balance,new_commissions,adjustments,deductions,total_to_settle,amount_paid,service_count,total_sold,status,prepared_by_name,prepared_at",
+              "id,professional_id,run_number,cutoff_date,period_start,previous_settlement_run_id,previous_balance,new_commissions,adjustments,deductions,total_to_settle,amount_paid,service_count,total_sold,status,prepared_by_name,prepared_at",
             )
             .eq("business_id", businessId)
             .order("cutoff_date", { ascending: false }),
@@ -3526,14 +3526,28 @@ function ProfesionalesTab({
       // la pestaña "Liquidar" con su botón Registrar pago.
       const activeRun = employeeRuns.find((r: any) => r.status !== "pagada") ?? null;
 
-      // Comisiones nuevas: generadas hasta el corte elegido y todavía sin
-      // asignar a ningún run — exactamente lo que "Preparar liquidación"
-      // va a incluir.
+      // Comisiones nuevas: generadas dentro del período (desde el día
+      // posterior al último corte, si lo hay) hasta el corte elegido y
+      // todavía sin asignar a ningún run — exactamente lo que "Preparar
+      // liquidación" va a incluir.
+      let periodStart: string | null = null;
+      if (latestRun) {
+        const d = new Date(`${latestRun.cutoff_date}T12:00:00`);
+        d.setDate(d.getDate() + 1);
+        periodStart = d.toLocaleDateString("sv-SE");
+      }
+      // Solo deuda real (pending_amount, no amount): una comisión con
+      // pagos históricos ya aplicados (de antes de este sistema) no debe
+      // volver a contar como "nueva" por su monto bruto.
       const unlockedUpToCutoff = employeeCommissions.filter(
-        (c: any) => !c.settlement_run_id && c.sale_date <= cutoffDate,
+        (c: any) =>
+          !c.settlement_run_id &&
+          c.sale_date <= cutoffDate &&
+          (!periodStart || c.sale_date >= periodStart) &&
+          Number(c.pending_amount ?? 0) > 0,
       );
       const newCommissions = unlockedUpToCutoff.reduce(
-        (sum: number, c: any) => sum + Number(c.amount ?? 0),
+        (sum: number, c: any) => sum + Number(c.pending_amount ?? 0),
         0,
       );
 
@@ -3544,6 +3558,7 @@ function ProfesionalesTab({
         pending,
         previousBalance,
         newCommissions,
+        periodStart,
         latestRun,
         activeRun,
         commissionPct: Number(employee.commission_pct ?? 0),
@@ -3589,14 +3604,19 @@ function ProfesionalesTab({
     setDetailRows(null);
     setDetailError(null);
     try {
-      const { data: commissionRows, error } = await supabase
+      const row = rows.find((r) => r.id === professionalId);
+      let query = supabase
         .from("commission_records" as any)
-        .select("id,amount,commission_pct,sale_date,status,sale_id")
+        .select("id,amount,pending_amount,commission_pct,sale_date,status,sale_id")
         .eq("business_id", businessId)
         .eq("professional_id", professionalId)
         .is("settlement_run_id", null)
-        .lte("sale_date", cutoffDate)
-        .order("sale_date", { ascending: true });
+        .gt("pending_amount", 0)
+        .lte("sale_date", cutoffDate);
+      if (row?.periodStart) {
+        query = query.gte("sale_date", row.periodStart);
+      }
+      const { data: commissionRows, error } = await query.order("sale_date", { ascending: true });
       if (error) throw error;
       const saleIds = (commissionRows ?? [])
         .map((c: any) => c.sale_id)
@@ -3605,7 +3625,7 @@ function ProfesionalesTab({
       if (saleIds.length > 0) {
         const { data: pays, error: payError } = await supabase
           .from("payments" as any)
-          .select("id,client_name,service_name,total,amount,method,payment_method,discount_amount,created_at")
+          .select("id,client_name,service_name,total,amount,method,payment_method,created_at")
           .in("id", saleIds);
         if (payError) throw payError;
         paymentsById = Object.fromEntries((pays ?? []).map((p: any) => [p.id, p]));
@@ -3756,6 +3776,14 @@ function ProfesionalesTab({
       .replace(".", "");
     return cutoffDate === today ? `Hoy · ${text}` : text;
   }, [cutoffDate, today]);
+
+  const nextPeriodStartLabel = React.useMemo(() => {
+    if (!selectedRow?.latestRun) return null;
+    const cutoff = new Date(`${selectedRow.latestRun.cutoff_date}T12:00:00`);
+    cutoff.setDate(cutoff.getDate() + 1);
+    return cutoff
+      .toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  }, [selectedRow]);
 
   const calendarDays = React.useMemo(() => {
     const year = calendarMonth.getFullYear();
@@ -4045,17 +4073,31 @@ function ProfesionalesTab({
                         // (YYYY-MM-DD), sin new Date() de por medio, para
                         // no depender de la zona horaria del navegador.
                         const isFuture = Boolean(day.iso && day.iso > today);
+                        // Tampoco se puede elegir una fecha anterior o
+                        // igual al último corte del profesional
+                        // seleccionado — los períodos no se superponen.
+                        const isBeforeLastCutoff = Boolean(
+                          selectedRow?.latestRun &&
+                            day.iso &&
+                            day.iso <= selectedRow.latestRun.cutoff_date,
+                        );
+                        const isDisabled = isFuture || isBeforeLastCutoff;
                         return (
                           <button
                             key={`${day.iso || "empty"}-${index}`}
                             type="button"
-                            disabled={!day.inMonth || isFuture}
+                            disabled={!day.inMonth || isDisabled}
                             onClick={() => handleCalendarDayClick(day.iso)}
+                            title={
+                              isBeforeLastCutoff
+                                ? `Ya liquidado en la liquidación #${selectedRow?.latestRun?.run_number}`
+                                : undefined
+                            }
                             className={cn(
                               "relative h-11 text-sm font-semibold transition disabled:pointer-events-none",
                               !day.inMonth && "disabled:opacity-0",
-                              isFuture && day.inMonth && "text-white/15",
-                              !isFuture && day.inMonth && "text-white/78 hover:bg-white/[0.06]",
+                              isDisabled && day.inMonth && "text-white/15",
+                              !isDisabled && day.inMonth && "text-white/78 hover:bg-white/[0.06]",
                               isSelected &&
                                 "bg-gradient-to-br from-blue-400 to-fuchsia-500 text-white shadow-[0_0_24px_rgba(139,92,246,0.42)]",
                               isToday && !isSelected && "text-sky-300 ring-1 ring-sky-400/55 ring-inset",
@@ -4068,7 +4110,9 @@ function ProfesionalesTab({
                     </div>
 
                     <div className="mt-5 text-center text-xs text-white/28">
-                      Seleccioná la fecha de corte
+                      {nextPeriodStartLabel
+                        ? `El próximo período empieza el ${nextPeriodStartLabel}`
+                        : "Seleccioná la fecha de corte"}
                     </div>
                   </div>
                 </div>
@@ -4346,11 +4390,37 @@ function ProfesionalesTab({
 
             {selectedDetail === "detalle" && (
               <div className="min-h-0 flex-1 overflow-visible sm:overflow-y-auto px-5 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+                {selectedRow.latestRun && selectedRow.previousBalance > 0 && (
+                  <div className="mb-4 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-3.5">
+                    <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
+                      Saldo anterior
+                    </div>
+                    <div className="mt-1 flex items-baseline justify-between gap-2">
+                      <div className="text-lg font-bold text-white/85">
+                        {money(selectedRow.previousBalance)}
+                      </div>
+                      <div className="text-xs text-white/45">
+                        Liquidación #{selectedRow.latestRun.run_number} · corte{" "}
+                        {new Date(`${selectedRow.latestRun.cutoff_date}T12:00:00`).toLocaleDateString(
+                          "es-AR",
+                          { day: "2-digit", month: "2-digit", year: "numeric" },
+                        )}{" "}
+                        · {selectedRow.latestRun.status}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
+                  Período actual
+                </div>
                 <div className="mb-3 text-xs text-white/45">
-                  Comisiones generadas hasta el {cutoffLabel}, todavía sin
-                  asignar a ninguna liquidación. La suma coincide con
-                  "Comisiones nuevas" de arriba — nunca se recalcula con el %
-                  actual, cada fila conserva el que regía al cobrar la venta.
+                  {selectedRow.periodStart
+                    ? `Del ${new Date(`${selectedRow.periodStart}T12:00:00`).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })} al ${cutoffLabel}`
+                    : `Hasta el ${cutoffLabel}`}
+                  , todavía sin asignar a ninguna liquidación. La suma
+                  coincide con "Comisiones nuevas" de arriba — nunca se
+                  recalcula con el % actual, cada fila conserva el que regía
+                  al cobrar la venta.
                 </div>
                 {detailError && (
                   <div className="mb-3 rounded-xl border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-xs text-rose-200">
@@ -4411,14 +4481,12 @@ function ProfesionalesTab({
                             <div className="text-right tabular-nums text-white/72">
                               {money(Number(sale.total ?? sale.amount ?? 0))}
                             </div>
-                            <div className="text-right tabular-nums text-white/52">
-                              {sale.discount_amount ? money(Number(sale.discount_amount)) : "—"}
-                            </div>
+                            <div className="text-right tabular-nums text-white/52">—</div>
                             <div className="text-right tabular-nums text-white/52">
                               {c.commission_pct != null ? `${c.commission_pct}%` : "—"}
                             </div>
                             <div className="text-right font-bold tabular-nums text-violet-300">
-                              {money(Number(c.amount ?? 0))}
+                              {money(Number(c.pending_amount ?? c.amount ?? 0))}
                             </div>
                             <div className="text-white/52">{method}</div>
                             <div className="text-white/52 capitalize">{c.status}</div>
@@ -4465,7 +4533,7 @@ function ProfesionalesTab({
                                 {date}
                               </span>
                               <span className="text-sm font-bold tabular-nums text-violet-300">
-                                {money(Number(c.amount ?? 0))}
+                                {money(Number(c.pending_amount ?? c.amount ?? 0))}
                               </span>
                             </div>
                             <div className="mt-1.5 truncate font-semibold text-white/82">
@@ -4590,12 +4658,10 @@ function ProfesionalesTab({
                         >
                           <div className="flex flex-wrap items-center justify-between gap-2">
                             <div className="font-bold text-white">
-                              Liquidación #{run.run_number} · hasta el{" "}
-                              {new Date(`${run.cutoff_date}T12:00:00`).toLocaleDateString("es-AR", {
-                                day: "2-digit",
-                                month: "2-digit",
-                                year: "numeric",
-                              })}
+                              Liquidación #{run.run_number} ·{" "}
+                              {run.period_start
+                                ? `del ${new Date(`${run.period_start}T12:00:00`).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })} al ${new Date(`${run.cutoff_date}T12:00:00`).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}`
+                                : `hasta el ${new Date(`${run.cutoff_date}T12:00:00`).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}`}
                             </div>
                             <span className={cn("rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1", statusTone)}>
                               {run.status}
@@ -4638,11 +4704,22 @@ function ProfesionalesTab({
                                 const lastPayment = allRunPayments
                                   .filter((p: any) => p.settlement_run_id === run.id)
                                   .sort((a: any, b: any) => String(b.paid_at ?? "").localeCompare(String(a.paid_at ?? "")))[0];
+                                const previousRun = allRuns.find(
+                                  (r: any) => r.id === run.previous_settlement_run_id,
+                                );
                                 const text = buildComprobanteText({
                                   runNumber: run.run_number,
                                   cutoffDate: run.cutoff_date,
+                                  periodStart: run.period_start ?? null,
                                   professionalName: selectedRow?.name ?? "Profesional",
                                   previousBalance: Number(run.previous_balance ?? 0),
+                                  previousRun: previousRun
+                                    ? {
+                                        runNumber: previousRun.run_number,
+                                        cutoffDate: previousRun.cutoff_date,
+                                        status: previousRun.status,
+                                      }
+                                    : null,
                                   newCommissions: Number(run.new_commissions ?? 0),
                                   adjustments: Number(run.adjustments ?? 0),
                                   deductions: Number(run.deductions ?? 0),
@@ -4671,11 +4748,22 @@ function ProfesionalesTab({
                                 const lastPayment = allRunPayments
                                   .filter((p: any) => p.settlement_run_id === run.id)
                                   .sort((a: any, b: any) => String(b.paid_at ?? "").localeCompare(String(a.paid_at ?? "")))[0];
+                                const previousRun = allRuns.find(
+                                  (r: any) => r.id === run.previous_settlement_run_id,
+                                );
                                 const text = buildComprobanteText({
                                   runNumber: run.run_number,
                                   cutoffDate: run.cutoff_date,
+                                  periodStart: run.period_start ?? null,
                                   professionalName: selectedRow?.name ?? "Profesional",
                                   previousBalance: Number(run.previous_balance ?? 0),
+                                  previousRun: previousRun
+                                    ? {
+                                        runNumber: previousRun.run_number,
+                                        cutoffDate: previousRun.cutoff_date,
+                                        status: previousRun.status,
+                                      }
+                                    : null,
                                   newCommissions: Number(run.new_commissions ?? 0),
                                   adjustments: Number(run.adjustments ?? 0),
                                   deductions: Number(run.deductions ?? 0),
@@ -4823,11 +4911,9 @@ function ProfesionalesTab({
                           Liquidación #{selectedRow.activeRun.run_number}
                         </div>
                         <div className="mt-0.5 text-sm text-white/48">
-                          Hasta el{" "}
-                          {new Date(`${selectedRow.activeRun.cutoff_date}T12:00:00`).toLocaleDateString(
-                            "es-AR",
-                            { day: "2-digit", month: "2-digit", year: "numeric" },
-                          )}
+                          {selectedRow.activeRun.period_start
+                            ? `Período: del ${new Date(`${selectedRow.activeRun.period_start}T12:00:00`).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })} al ${new Date(`${selectedRow.activeRun.cutoff_date}T12:00:00`).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}`
+                            : `Hasta el ${new Date(`${selectedRow.activeRun.cutoff_date}T12:00:00`).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}`}
                         </div>
                       </div>
                       <div className="rounded-full bg-emerald-400/12 px-3 py-1 text-xs font-bold text-emerald-300 ring-1 ring-emerald-400/20">
@@ -4925,7 +5011,9 @@ function ProfesionalesTab({
                       <div>
                         <div className="text-base font-bold text-white">Preparar liquidación</div>
                         <div className="mt-0.5 text-sm text-white/48">
-                          Hasta el {cutoffLabel}
+                          {nextPeriodStartLabel
+                            ? `Período: del ${nextPeriodStartLabel} al ${cutoffLabel}`
+                            : `Primera liquidación — hasta el ${cutoffLabel}`}
                         </div>
                       </div>
                       <div className="rounded-full bg-violet-400/12 px-3 py-1 text-xs font-bold text-violet-300 ring-1 ring-violet-400/20">
@@ -4937,6 +5025,11 @@ function ProfesionalesTab({
                       <div>
                         <div className="text-[10px] uppercase tracking-wider text-white/40">Saldo anterior</div>
                         <div className="mt-1 font-bold text-white/85">{money(selectedRow.previousBalance)}</div>
+                        {selectedRow.latestRun && selectedRow.previousBalance > 0 && (
+                          <div className="mt-0.5 text-[10px] text-white/35">
+                            Liquidación #{selectedRow.latestRun.run_number}
+                          </div>
+                        )}
                       </div>
                       <div>
                         <div className="text-[10px] uppercase tracking-wider text-white/40">Comisiones nuevas</div>

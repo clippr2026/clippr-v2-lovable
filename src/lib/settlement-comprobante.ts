@@ -7,8 +7,10 @@
 export type ComprobanteData = {
   runNumber: number;
   cutoffDate: string;
+  periodStart?: string | null;
   professionalName: string;
   previousBalance: number;
+  previousRun?: { runNumber: number; cutoffDate: string; status: string } | null;
   newCommissions: number;
   adjustments: number;
   deductions: number;
@@ -29,19 +31,41 @@ function money(n: number) {
   return `$${Math.round(n).toLocaleString("es-AR")}`;
 }
 
+function formatDate(iso: string) {
+  const d = new Date(`${iso}T12:00:00`);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
+
 export function buildComprobanteText(d: ComprobanteData) {
+  const periodLabel = d.periodStart
+    ? `Período: del ${formatDate(d.periodStart)} al ${formatDate(d.cutoffDate)}`
+    : `Período: hasta el ${formatDate(d.cutoffDate)} (primera liquidación)`;
+
   const lines = [
     `Comprobante de liquidación #${d.runNumber}`,
     `Profesional: ${d.professionalName}`,
-    `Liquidado hasta: ${d.cutoffDate}`,
+    periodLabel,
     "",
-    `Saldo anterior:      ${money(d.previousBalance)}`,
-    `Comisiones nuevas:    ${money(d.newCommissions)}`,
+    "── Saldo anterior ──",
+    `Monto:                ${money(d.previousBalance)}`,
+    ...(d.previousRun
+      ? [
+          `Liquidación anterior: #${d.previousRun.runNumber} · corte ${formatDate(d.previousRun.cutoffDate)} · ${d.previousRun.status}`,
+        ]
+      : []),
+    "",
+    "── Período actual ──",
+    `Comisiones del período: ${money(d.newCommissions)}`,
+    "",
+    "── Resumen ──",
+    `Saldo anterior:       ${money(d.previousBalance)}`,
+    `Comisiones del período:${money(d.newCommissions)}`,
     ...(d.adjustments ? [`Ajustes:              ${money(d.adjustments)}`] : []),
     ...(d.deductions ? [`Deducciones:         -${money(d.deductions)}`] : []),
     `Total a liquidar:     ${money(d.totalToSettle)}`,
-    `Pagado hasta ahora:   ${money(d.amountPaid)}`,
-    `Saldo restante:       ${money(Math.max(d.totalToSettle - d.amountPaid, 0))}`,
+    `Pago registrado:      ${money(d.amountPaid)}`,
+    `Saldo posterior:      ${money(Math.max(d.totalToSettle - d.amountPaid, 0))}`,
   ];
 
   if (d.payment) {
