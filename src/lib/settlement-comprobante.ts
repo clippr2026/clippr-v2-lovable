@@ -51,7 +51,7 @@ export function buildComprobanteText(d: ComprobanteData) {
     `Profesional: ${d.professionalName}`,
     periodLabel,
     "",
-    "── Saldo anterior ──",
+    "── Liquidación anterior pendiente ──",
     `Monto:                ${money(d.previousBalance)}`,
     ...(d.previousRun
       ? [
@@ -69,7 +69,7 @@ export function buildComprobanteText(d: ComprobanteData) {
       : []),
     "",
     "── Resumen ──",
-    `Saldo anterior:       ${money(d.previousBalance)}`,
+    `Liquidación anterior pendiente: ${money(d.previousBalance)}`,
     `Comisiones del período:${money(d.newCommissions)}`,
     ...(d.adjustments ? [`Ajustes:              ${money(d.adjustments)}`] : []),
     ...(d.deductions ? [`Deducciones:         -${money(d.deductions)}`] : []),

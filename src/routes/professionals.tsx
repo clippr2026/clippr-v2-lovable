@@ -2502,7 +2502,7 @@ function LiquidacionesPanelView({
 
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
               <div className="rounded-xl bg-white/[0.03] p-2.5">
-                <div className="text-muted-foreground">Saldo anterior</div>
+                <div className="text-muted-foreground">Liquidación anterior pendiente</div>
                 <div className="text-sm font-semibold tabular-nums">${run.previous_balance.toLocaleString("es-AR")}</div>
                 {previousRun && run.previous_balance > 0 && (
                   <div className="mt-0.5 text-[10px] text-muted-foreground">Liq. #{previousRun.run_number}</div>

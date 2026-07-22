@@ -49,6 +49,7 @@ import {
   CalendarDays,
   X,
   Scissors,
+  Info,
 } from "lucide-react";
 import { useClientesConfig } from "@/hooks/use-clientes-config";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
@@ -62,6 +63,35 @@ import { buildComprobanteText, downloadComprobante, shareComprobante } from "@/l
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
 const HISTORIAL_KEY = "clippr_cobros_historial_v2";
+// Último profesional consultado en Caja > Liquidaciones, por negocio —
+// {[businessId]: employeeId} — para que la sección arranque siempre en un
+// profesional concreto (nunca en un listado de "todos") sin perder la
+// selección al recargar la página.
+const LIQUIDACIONES_LAST_PROFESSIONAL_KEY = "clippr_liquidaciones_last_professional_v1";
+
+function getLastLiquidacionesProfessional(businessId: string | null): string | null {
+  if (!businessId) return null;
+  try {
+    const raw = localStorage.getItem(LIQUIDACIONES_LAST_PROFESSIONAL_KEY);
+    if (!raw) return null;
+    const map = JSON.parse(raw) as Record<string, string>;
+    return map[businessId] ?? null;
+  } catch {
+    return null;
+  }
+}
+
+function setLastLiquidacionesProfessional(businessId: string | null, employeeId: string) {
+  if (!businessId) return;
+  try {
+    const raw = localStorage.getItem(LIQUIDACIONES_LAST_PROFESSIONAL_KEY);
+    const map = raw ? (JSON.parse(raw) as Record<string, string>) : {};
+    map[businessId] = employeeId;
+    localStorage.setItem(LIQUIDACIONES_LAST_PROFESSIONAL_KEY, JSON.stringify(map));
+  } catch {
+    // localStorage puede fallar (modo privado, cuota) — no es crítico.
+  }
+}
 // Marca al inicio de payments.observations para guardar el historial
 // "Envió a caja" / "Cobró" de una venta de mostrador sin turno — no hay
 // appointment al que asociar appointments.cobro_events en ese caso, así que
@@ -3267,6 +3297,72 @@ function InventarioTab({
   );
 }
 
+const LIQUIDACION_ANTERIOR_INFO_TEXT =
+  "Importe incluido en una liquidación anterior que todavía no fue pagado por completo.";
+const COMISIONES_NUEVAS_INFO_TEXT =
+  "Comisiones generadas después de la fecha y hora de la última liquidación.";
+
+// Ícono de información chico junto a un título — no existe nada parecido
+// en este codebase (sin Tooltip/Popover instalado), así que es un
+// wrapper propio: onClick lo abre/cierra (cubre el tap en mobile),
+// onMouseEnter/onMouseLeave también (cubre el hover en desktop sin
+// necesitar click), y un listener de click afuera lo cierra en ambos
+// casos. Una X chica adentro como cierre de respaldo.
+function InfoPopover({ text }: { text: React.ReactNode }) {
+  const [open, setOpen] = React.useState(false);
+  const wrapperRef = React.useRef<HTMLSpanElement>(null);
+
+  React.useEffect(() => {
+    if (!open) return;
+    function handleOutside(event: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleOutside);
+    return () => document.removeEventListener("mousedown", handleOutside);
+  }, [open]);
+
+  return (
+    <span
+      ref={wrapperRef}
+      className="relative inline-flex shrink-0"
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+    >
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          setOpen((value) => !value);
+        }}
+        aria-label="Más información"
+        className="inline-flex size-3.5 items-center justify-center rounded-full text-white/32 transition hover:text-white/65"
+      >
+        <Info className="size-3.5" />
+      </button>
+      {open && (
+        <div
+          onClick={(event) => event.stopPropagation()}
+          className="absolute left-1/2 top-full z-40 mt-2 w-56 -translate-x-1/2 rounded-2xl border border-white/[0.12] bg-[#0A0D18] p-3 text-left normal-case shadow-[0_20px_60px_rgba(0,0,0,0.6)]"
+        >
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            aria-label="Cerrar"
+            className="absolute right-2 top-2 text-white/35 transition hover:text-white/70"
+          >
+            <X className="size-3" />
+          </button>
+          <div className="pr-4 text-[11px] font-normal leading-relaxed tracking-normal text-white/70">
+            {text}
+          </div>
+        </div>
+      )}
+    </span>
+  );
+}
+
 // Lista editable de ajustes o deducciones (importe + motivo) dentro del
 // modal de "Preparar liquidación" — mismo patrón de agregar/quitar filas
 // que "Pago múltiple" en Nueva venta (addSplit/removeSplit más abajo en
@@ -3369,21 +3465,18 @@ function ProfesionalesTab({
   // se reportó. Ahora reutiliza el `data` que ya cargó CashRegisterPage
   // (mismo patrón que ya usa CierresTab), sin ningún fetch redundante.
   const today = React.useMemo(() => new Date().toLocaleDateString("sv-SE"), []);
-  const [selectedEmployeeId, setSelectedEmployeeId] =
-    React.useState<string>("all");
-  const [rangeOpen, setRangeOpen] = React.useState(false);
+  // Liquidaciones trabaja siempre sobre un único profesional — nunca
+  // "todos" — así que arranca vacío y un efecto más abajo lo completa en
+  // cuanto hay empleados: el último consultado (persistido por negocio) o,
+  // si es la primera vez, el primero disponible.
+  const [selectedEmployeeId, setSelectedEmployeeId] = React.useState<string>("");
+  // El corte ya no se elige a mano — siempre es "ahora". Este estado solo
+  // controla si el modal informativo (calendario de solo lectura) está
+  // abierto, y qué mes muestra.
+  const [periodInfoOpen, setPeriodInfoOpen] = React.useState(false);
   const [calendarMonth, setCalendarMonth] = React.useState(
     () => new Date(`${today}T12:00:00`),
   );
-  // "Liquidar hasta": una sola fecha de corte, no un rango — reemplaza el
-  // viejo sistema de rango desde-hasta en la pantalla principal. Nunca
-  // puede ser futura (comparación de strings ISO, sin new Date() de por
-  // medio para no depender de la zona horaria); si quedara una fecha
-  // futura por algún estado viejo, se corrige sola a hoy.
-  const [cutoffDate, setCutoffDate] = React.useState(today);
-  React.useEffect(() => {
-    if (cutoffDate > today) setCutoffDate(today);
-  }, [cutoffDate, today]);
   const [loadingCommissions, setLoadingCommissions] = React.useState(true);
   const [loadingRuns, setLoadingRuns] = React.useState(true);
   // Errores reales (no silenciados en $0): si la query falla (RLS, columna
@@ -3456,27 +3549,29 @@ function ProfesionalesTab({
     return digits && Number.isFinite(n) ? n.toLocaleString("es-AR") : "";
   }, []);
 
+  // Selecciona automáticamente un profesional en cuanto hay lista: el
+  // último consultado para este negocio (si sigue existiendo) o, si no
+  // hay uno guardado o ya no es válido, el primero disponible.
   React.useEffect(() => {
-    if (selectedEmployeeId === "all") return;
-    const exists = (data.employees ?? []).some(
+    const employees = data.employees ?? [];
+    if (employees.length === 0) return;
+    const stillValid = employees.some(
       (employee: any) => String(employee.id) === selectedEmployeeId,
     );
-    if (!exists) setSelectedEmployeeId("all");
-  }, [data.employees, selectedEmployeeId]);
-
-  React.useEffect(() => {
-    if (selectedEmployeeId === "all") {
-      setSelectedDetail("detalle");
-      setPaymentForm({ amount: "", method: "transferencia", note: "" });
-      resetLiquidarForm();
-    }
-  }, [selectedEmployeeId]);
+    if (stillValid) return;
+    const remembered = getLastLiquidacionesProfessional(businessId);
+    const rememberedValid =
+      remembered && employees.some((employee: any) => String(employee.id) === remembered);
+    const nextId = rememberedValid ? remembered! : String(employees[0].id);
+    setSelectedEmployeeId(nextId);
+    setLastLiquidacionesProfessional(businessId, nextId);
+  }, [data.employees, businessId, selectedEmployeeId]);
 
   // Todas las comisiones del negocio (bloqueadas o no en algún run): el
   // saldo pendiente TOTAL de cada profesional sale de acá, nunca de un
-  // rango de fechas. Las que tienen settlement_run_id null y sale_date <=
-  // cutoffDate son las "comisiones nuevas" candidatas a la próxima
-  // liquidación.
+  // rango de fechas. Las que tienen settlement_run_id null y created_at
+  // posterior a la última liquidación son las "comisiones nuevas"
+  // candidatas a la próxima.
   React.useEffect(() => {
     let cancelled = false;
     async function loadCommissions() {
@@ -3492,7 +3587,7 @@ function ProfesionalesTab({
         const { data: rows, error } = await supabase
           .from("commission_records" as any)
           .select(
-            "id,professional_id,amount,paid_amount,pending_amount,status,sale_date,commission_pct,settlement_run_id,sale_id",
+            "id,professional_id,amount,paid_amount,pending_amount,status,sale_date,created_at,commission_pct,settlement_run_id,sale_id",
           )
           .eq("business_id", businessId);
         if (error) throw error;
@@ -3536,7 +3631,7 @@ function ProfesionalesTab({
           supabase
             .from("settlement_runs" as any)
             .select(
-              "id,professional_id,run_number,cutoff_date,period_start,previous_settlement_run_id,previous_balance,new_commissions,adjustments,deductions,adjustment_items,deduction_items,total_to_settle,amount_paid,service_count,total_sold,status,prepared_by_name,prepared_at",
+              "id,professional_id,run_number,cutoff_date,period_start,period_start_at,previous_settlement_run_id,previous_balance,new_commissions,adjustments,deductions,adjustment_items,deduction_items,total_to_settle,amount_paid,service_count,total_sold,status,prepared_by_name,prepared_at",
             )
             .eq("business_id", businessId)
             .order("cutoff_date", { ascending: false }),
@@ -3607,24 +3702,20 @@ function ProfesionalesTab({
       const employeeCommissions = allCommissions.filter(
         (c: any) => String(c.professional_id) === String(employee.id),
       );
-      // Saldo pendiente actual: TODA la deuda real, sin importar el corte
-      // elegido ni si la comisión ya quedó bloqueada dentro de una
-      // liquidación preparada — solo cambia cuando se genera una comisión
-      // nueva o se registra un pago.
+      // Pendiente total: TODA la deuda real, sin importar si la comisión ya
+      // quedó bloqueada dentro de una liquidación preparada — solo cambia
+      // cuando se genera una comisión nueva o se registra un pago.
       const pending = employeeCommissions.reduce(
         (sum: number, c: any) => sum + Number(c.pending_amount ?? 0),
         0,
       );
 
+      // Orden por prepared_at (marca exacta), no por cutoff_date (date) —
+      // con el corte automático "ahora", varias liquidaciones del mismo
+      // profesional pueden caer en la misma fecha.
       const employeeRuns = allRuns
         .filter((r: any) => String(r.professional_id) === String(employee.id))
-        .sort((a: any, b: any) =>
-          a.cutoff_date === b.cutoff_date
-            ? String(b.prepared_at ?? "").localeCompare(String(a.prepared_at ?? ""))
-            : a.cutoff_date < b.cutoff_date
-              ? 1
-              : -1,
-        );
+        .sort((a: any, b: any) => String(b.prepared_at ?? "").localeCompare(String(a.prepared_at ?? "")));
       const latestRun = employeeRuns[0] ?? null;
       const previousBalance = latestRun
         ? Math.max(Number(latestRun.total_to_settle) - Number(latestRun.amount_paid), 0)
@@ -3633,27 +3724,25 @@ function ProfesionalesTab({
       // la pestaña "Liquidar" con su botón Registrar pago.
       const activeRun = employeeRuns.find((r: any) => r.status !== "pagada") ?? null;
 
-      // Comisiones nuevas: generadas dentro del período (desde el día
-      // posterior al último corte, si lo hay) hasta el corte elegido y
-      // todavía sin asignar a ningún run — exactamente lo que "Preparar
-      // liquidación" va a incluir.
-      let periodStart: string | null = null;
-      if (latestRun) {
-        const d = new Date(`${latestRun.cutoff_date}T12:00:00`);
-        d.setDate(d.getDate() + 1);
-        periodStart = d.toLocaleDateString("sv-SE");
-      }
+      // Comisiones nuevas: generadas después de la marca de tiempo EXACTA
+      // de la última liquidación (no del día siguiente) y todavía sin
+      // asignar a ningún run — así una comisión de esa misma tarde, unas
+      // horas después del corte, entra en la próxima liquidación en vez
+      // de perderse o quedar mezclada con la anterior.
+      const periodStartAt: string | null = latestRun?.prepared_at ?? null;
+      const periodStart: string | null = periodStartAt
+        ? new Date(periodStartAt).toLocaleDateString("sv-SE")
+        : null;
       // Solo deuda real (pending_amount, no amount): una comisión con
       // pagos históricos ya aplicados (de antes de este sistema) no debe
       // volver a contar como "nueva" por su monto bruto.
-      const unlockedUpToCutoff = employeeCommissions.filter(
+      const unlockedSincePeriodStart = employeeCommissions.filter(
         (c: any) =>
           !c.settlement_run_id &&
-          c.sale_date <= cutoffDate &&
-          (!periodStart || c.sale_date >= periodStart) &&
+          (!periodStartAt || String(c.created_at ?? "") > periodStartAt) &&
           Number(c.pending_amount ?? 0) > 0,
       );
-      const newCommissions = unlockedUpToCutoff.reduce(
+      const newCommissions = unlockedSincePeriodStart.reduce(
         (sum: number, c: any) => sum + Number(c.pending_amount ?? 0),
         0,
       );
@@ -3666,24 +3755,17 @@ function ProfesionalesTab({
         previousBalance,
         newCommissions,
         periodStart,
+        periodStartAt,
         latestRun,
         activeRun,
         commissionPct: Number(employee.commission_pct ?? 0),
       };
     });
-  }, [data.employees, allCommissions, allRuns, cutoffDate]);
-
-  const showingAllEmployees = selectedEmployeeId === "all";
+  }, [data.employees, allCommissions, allRuns]);
 
   const selectedRow = React.useMemo(() => {
-    if (showingAllEmployees) return null;
     return rows.find((row) => row.id === selectedEmployeeId) ?? null;
-  }, [rows, selectedEmployeeId, showingAllEmployees]);
-
-  const visibleRows = React.useMemo(() => {
-    if (showingAllEmployees) return rows;
-    return selectedRow ? [selectedRow] : [];
-  }, [rows, selectedRow, showingAllEmployees]);
+  }, [rows, selectedEmployeeId]);
 
   const totals = React.useMemo(() => {
     const source = selectedRow ? [selectedRow] : rows;
@@ -3714,16 +3796,15 @@ function ProfesionalesTab({
       const row = rows.find((r) => r.id === professionalId);
       let query = supabase
         .from("commission_records" as any)
-        .select("id,amount,pending_amount,commission_pct,sale_date,status,sale_id")
+        .select("id,amount,pending_amount,commission_pct,sale_date,created_at,status,sale_id")
         .eq("business_id", businessId)
         .eq("professional_id", professionalId)
         .is("settlement_run_id", null)
-        .gt("pending_amount", 0)
-        .lte("sale_date", cutoffDate);
-      if (row?.periodStart) {
-        query = query.gte("sale_date", row.periodStart);
+        .gt("pending_amount", 0);
+      if (row?.periodStartAt) {
+        query = query.gt("created_at", row.periodStartAt);
       }
-      const { data: commissionRows, error } = await query.order("sale_date", { ascending: true });
+      const { data: commissionRows, error } = await query.order("created_at", { ascending: true });
       if (error) throw error;
       const saleIds = (commissionRows ?? [])
         .map((c: any) => c.sale_id)
@@ -3837,7 +3918,6 @@ function ProfesionalesTab({
       const { error } = await supabase.rpc("prepare_settlement_run" as any, {
         p_business_id: businessId,
         p_professional_id: row.id,
-        p_cutoff_date: cutoffDate,
         p_adjustment_items: validAdjustments,
         p_deduction_items: validDeductions,
         p_prepared_by: user.id,
@@ -3894,31 +3974,37 @@ function ProfesionalesTab({
     }
   }
 
-  const cutoffLabel = React.useMemo(() => {
-    const d = new Date(`${cutoffDate}T12:00:00`);
-    const text = d
-      .toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" })
-      .replace(".", "");
-    return cutoffDate === today ? `Hoy · ${text}` : text;
-  }, [cutoffDate, today]);
+  // El corte ya no se elige — siempre es "ahora". "Hasta hoy" muestra la
+  // fecha de hoy en formato DD/MM/AAAA en todos lados (mismo formato que
+  // "Última liquidación", para que se lean como un solo rango).
+  const todayLabel = React.useMemo(() => {
+    return new Date(`${today}T12:00:00`).toLocaleDateString("es-AR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  }, [today]);
 
-  const nextPeriodStartLabel = React.useMemo(() => {
+  // Fecha y hora EXACTAS de la última liquidación del profesional
+  // seleccionado — null si todavía no tiene ninguna ("Primera
+  // liquidación"). No usar toLocaleDateString("es-AR") a secas para la
+  // hora: da formato "15:00" pero sin la unidad — se agrega " h" a mano
+  // (nunca "hs", como pidió el negocio).
+  const lastLiquidacionInfo = React.useMemo(() => {
     if (!selectedRow?.latestRun) return null;
-    const cutoff = new Date(`${selectedRow.latestRun.cutoff_date}T12:00:00`);
-    cutoff.setDate(cutoff.getDate() + 1);
-    return cutoff
-      .toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
+    const d = new Date(selectedRow.latestRun.prepared_at);
+    return {
+      dateLabel: d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" }),
+      timeLabel: `${d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })} h`,
+    };
   }, [selectedRow]);
 
   const liquidarPeriodLabel = React.useMemo(() => {
-    const plainCutoff = new Date(`${cutoffDate}T12:00:00`)
-      .toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" })
-      .replace(".", "");
-    if (nextPeriodStartLabel) {
-      return `Período: del ${nextPeriodStartLabel} al ${plainCutoff}`;
+    if (lastLiquidacionInfo) {
+      return `Período: del ${lastLiquidacionInfo.dateLabel} al ${todayLabel}`;
     }
-    return `Primera liquidación · hasta ${cutoffDate === today ? `hoy, ${plainCutoff}` : plainCutoff}`;
-  }, [cutoffDate, today, nextPeriodStartLabel]);
+    return `Primera liquidación · hasta hoy, ${todayLabel}`;
+  }, [lastLiquidacionInfo, todayLabel]);
 
   const calendarDays = React.useMemo(() => {
     const year = calendarMonth.getFullYear();
@@ -3952,42 +4038,17 @@ function ProfesionalesTab({
     return raw.charAt(0).toUpperCase() + raw.slice(1);
   }, [calendarMonth]);
 
-  function applyDatePreset(kind: "today" | "yesterday" | "weekStart" | "monthStart") {
-    const now = new Date();
-    let d = new Date(now);
-
-    if (kind === "yesterday") {
-      d.setDate(now.getDate() - 1);
-    }
-    if (kind === "weekStart") {
-      const offset = (now.getDay() + 6) % 7;
-      d = new Date(now);
-      d.setDate(now.getDate() - offset);
-    }
-    if (kind === "monthStart") {
-      d = new Date(now.getFullYear(), now.getMonth(), 1);
-    }
-
-    const iso = d.toLocaleDateString("sv-SE");
-    setCutoffDate(iso > today ? today : iso);
-    setCalendarMonth(new Date(d.getFullYear(), d.getMonth(), 1));
-    setRangeOpen(false);
-  }
-
-  function handleCalendarDayClick(iso: string) {
-    if (!iso || iso > today) return;
-    setCutoffDate(iso);
-    setRangeOpen(false);
-  }
 
   const StatCard = ({
     label,
     value,
     tone,
+    info,
   }: {
     label: string;
     value: React.ReactNode;
     tone: "neutral" | "violet" | "green" | "rose";
+    info?: React.ReactNode;
   }) => {
     const toneClass = {
       neutral:
@@ -4010,11 +4071,12 @@ function ProfesionalesTab({
       <div className={cn("rounded-2xl border px-4 py-3", toneClass)}>
         <div
           className={cn(
-            "text-[10px] font-bold uppercase tracking-[0.16em]",
+            "flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.16em]",
             labelClass,
           )}
         >
-          {label}
+          <span>{label}</span>
+          {info && <InfoPopover text={info} />}
         </div>
         <div className="mt-1 text-xl font-bold tabular-nums">{value}</div>
       </div>
@@ -4062,12 +4124,12 @@ function ProfesionalesTab({
   };
 
   // Carga el detalle bajo demanda cuando se ve la pestaña "Ver detalle"
-  // (o cambia el profesional/corte mientras está abierta).
+  // (o cambia el profesional mientras está abierta).
   React.useEffect(() => {
     if (selectedDetail !== "detalle" || !selectedRow) return;
     openDetail(selectedRow.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDetail, selectedRow?.id, cutoffDate, commissionsVersion]);
+  }, [selectedDetail, selectedRow?.id, commissionsVersion]);
 
   // Totales en vivo del modal "Preparar liquidación" — se recalculan en
   // cada tecla mientras se agregan/editan ajustes y deducciones.
@@ -4119,9 +4181,7 @@ function ProfesionalesTab({
             <div>
               <div className="text-xl font-bold text-white">Liquidaciones</div>
               <div className="mt-0.5 text-sm text-white/48">
-                {showingAllEmployees
-                  ? "Resumen general de comisiones por profesional."
-                  : "Liquidación del profesional seleccionado."}
+                Liquidación del profesional seleccionado.
               </div>
             </div>
           </div>
@@ -4132,16 +4192,14 @@ function ProfesionalesTab({
               onChange={(event) => {
                 const nextId = event.target.value;
                 setSelectedEmployeeId(nextId);
+                setLastLiquidacionesProfessional(businessId, nextId);
                 const nextRow = rows.find((row) => row.id === nextId);
                 setPaymentForm({ amount: "", method: "transferencia", note: "" });
                 resetLiquidarForm();
-                setSelectedDetail(
-                  nextId !== "all" && nextRow?.activeRun ? "liquidar" : "detalle",
-                );
+                setSelectedDetail(nextRow?.activeRun ? "liquidar" : "detalle");
               }}
               className="h-10 w-full rounded-2xl border border-white/[0.09] bg-[#070A13]/80 px-3.5 text-base text-white outline-none backdrop-blur-xl focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12 sm:min-w-[230px] sm:w-auto sm:text-sm"
             >
-              <option value="all">Todos los profesionales</option>
               {(data.employees ?? []).map((employee: any) => (
                 <option key={employee.id} value={String(employee.id)}>
                   {employee.name ?? "Profesional"}
@@ -4149,154 +4207,37 @@ function ProfesionalesTab({
               ))}
             </select>
 
-            <div className="relative w-full sm:w-auto">
-              <button
-                type="button"
-                onClick={() => setRangeOpen((value) => !value)}
-                className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-2xl border border-white/[0.10] bg-white/[0.055] px-3.5 text-xs font-semibold text-white ring-1 ring-white/[0.07] transition hover:bg-white/[0.09] hover:text-white sm:w-auto sm:justify-start"
-              >
+            <button
+              type="button"
+              onClick={() => {
+                setCalendarMonth(new Date(`${today}T12:00:00`));
+                setPeriodInfoOpen(true);
+              }}
+              className="inline-flex w-full flex-col items-start gap-0.5 rounded-2xl border border-white/[0.10] bg-white/[0.055] px-3.5 py-2 text-left ring-1 ring-white/[0.07] transition hover:bg-white/[0.09] sm:w-auto"
+            >
+              <span className="flex items-center gap-1.5 text-xs font-semibold text-white">
                 <CalendarDays className="size-3.5" />
-                Liquidar hasta: {cutoffLabel}
-              </button>
-
-              {rangeOpen && (
-                <div className="absolute left-0 right-0 top-12 z-30 w-auto overflow-hidden rounded-[30px] border border-white/[0.10] bg-[#050612]/95 shadow-[0_34px_110px_rgba(0,0,0,0.78)] backdrop-blur-2xl sm:left-auto sm:right-0 sm:w-[430px]">
-                  <div className="flex flex-wrap gap-2 border-b border-white/[0.07] px-4 py-4">
-                    {[
-                      ["today", "Hoy"],
-                      ["yesterday", "Ayer"],
-                      ["weekStart", "Inicio de semana"],
-                      ["monthStart", "Inicio de mes"],
-                    ].map(([kind, label]) => (
-                      <button
-                        key={kind}
-                        type="button"
-                        onClick={() =>
-                          applyDatePreset(
-                            kind as "today" | "yesterday" | "weekStart" | "monthStart",
-                          )
-                        }
-                        className="rounded-2xl border border-white/[0.09] bg-white/[0.035] px-4 py-2 text-sm font-semibold text-white/58 transition hover:bg-white/[0.07] hover:text-white"
-                      >
-                        {label}
-                      </button>
-                    ))}
-                  </div>
-
-                  <div className="px-4 pb-5 pt-5">
-                    <div className="mb-5 flex items-center justify-between">
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setCalendarMonth(
-                            (date) =>
-                              new Date(
-                                date.getFullYear(),
-                                date.getMonth() - 1,
-                                1,
-                              ),
-                          )
-                        }
-                        className="grid size-9 place-items-center rounded-xl text-white/45 transition hover:bg-white/[0.06] hover:text-white"
-                      >
-                        ‹
-                      </button>
-                      <div className="text-lg font-bold capitalize text-white">
-                        {calendarTitle}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setCalendarMonth(
-                            (date) =>
-                              new Date(
-                                date.getFullYear(),
-                                date.getMonth() + 1,
-                                1,
-                              ),
-                          )
-                        }
-                        className="grid size-9 place-items-center rounded-xl text-white/45 transition hover:bg-white/[0.06] hover:text-white"
-                      >
-                        ›
-                      </button>
-                    </div>
-
-                    <div className="grid grid-cols-7 text-center text-xs font-semibold uppercase tracking-[0.16em] text-white/28">
-                      {["LU", "MA", "MI", "JU", "VI", "SÁ", "DO"].map((day) => (
-                        <div key={day} className="py-2">
-                          {day}
-                        </div>
-                      ))}
-                    </div>
-
-                    <div className="mt-1 grid grid-cols-7 overflow-hidden rounded-2xl">
-                      {calendarDays.map((day, index) => {
-                        const isSelected = day.iso === cutoffDate;
-                        const isToday = day.iso === today;
-                        // No se puede elegir mañana ni ninguna fecha
-                        // posterior — comparación de strings ISO
-                        // (YYYY-MM-DD), sin new Date() de por medio, para
-                        // no depender de la zona horaria del navegador.
-                        const isFuture = Boolean(day.iso && day.iso > today);
-                        // Tampoco se puede elegir una fecha anterior o
-                        // igual al último corte del profesional
-                        // seleccionado — los períodos no se superponen.
-                        const isBeforeLastCutoff = Boolean(
-                          selectedRow?.latestRun &&
-                            day.iso &&
-                            day.iso <= selectedRow.latestRun.cutoff_date,
-                        );
-                        const isDisabled = isFuture || isBeforeLastCutoff;
-                        return (
-                          <button
-                            key={`${day.iso || "empty"}-${index}`}
-                            type="button"
-                            disabled={!day.inMonth || isDisabled}
-                            onClick={() => handleCalendarDayClick(day.iso)}
-                            title={
-                              isBeforeLastCutoff
-                                ? `Ya liquidado en la liquidación #${selectedRow?.latestRun?.run_number}`
-                                : undefined
-                            }
-                            className={cn(
-                              "relative h-11 text-sm font-semibold transition disabled:pointer-events-none",
-                              !day.inMonth && "disabled:opacity-0",
-                              isDisabled && day.inMonth && "text-white/15",
-                              !isDisabled && day.inMonth && "text-white/78 hover:bg-white/[0.06]",
-                              isSelected &&
-                                "bg-gradient-to-br from-blue-400 to-fuchsia-500 text-white shadow-[0_0_24px_rgba(139,92,246,0.42)]",
-                              isToday && !isSelected && "text-sky-300 ring-1 ring-sky-400/55 ring-inset",
-                            )}
-                          >
-                            {day.day || ""}
-                          </button>
-                        );
-                      })}
-                    </div>
-
-                    <div className="mt-5 text-center text-xs text-white/28">
-                      {nextPeriodStartLabel
-                        ? `El próximo período empieza el ${nextPeriodStartLabel}`
-                        : "Seleccioná la fecha de corte"}
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+                {lastLiquidacionInfo
+                  ? `Última liquidación: ${lastLiquidacionInfo.dateLabel} • ${lastLiquidacionInfo.timeLabel}`
+                  : "Primera liquidación"}
+              </span>
+              <span className="pl-5 text-[11px] text-white/45">Hasta hoy: {todayLabel}</span>
+            </button>
           </div>
         </div>
 
         <div className="grid grid-cols-2 gap-3 border-b border-white/[0.055] px-5 py-4 lg:grid-cols-3">
           <StatCard
-            label="Saldo anterior pendiente"
+            label="Liquidación anterior pendiente"
             value={money(totals.previousBalance)}
             tone="neutral"
+            info={LIQUIDACION_ANTERIOR_INFO_TEXT}
           />
           <StatCard
             label="Comisiones nuevas"
             value={money(totals.newCommissions)}
             tone="violet"
+            info={COMISIONES_NUEVAS_INFO_TEXT}
           />
           <div className="col-span-2 lg:col-span-1">
             <StatCard
@@ -4384,165 +4325,6 @@ function ProfesionalesTab({
               ))}
             </div>
           </>
-        ) : showingAllEmployees ? (
-          <div className="flex min-h-0 flex-1 flex-col overflow-visible sm:overflow-hidden">
-            {/* Desktop: tabla continua de siempre, sin cambios. En mobile
-                queda oculta — ver tarjetas verticales debajo, mismos datos. */}
-            <div className="hidden grid-cols-[minmax(180px,1.25fr)_140px_140px_140px_minmax(260px,1fr)] items-center gap-3 border-b border-white/[0.06] bg-white/[0.018] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38 sm:grid">
-              <div>Profesional</div>
-              <div className="text-right">Saldo anterior</div>
-              <div className="text-right">Comisiones nuevas</div>
-              <div className="text-right">Pendiente actual</div>
-              <div className="text-right">Acciones</div>
-            </div>
-            {visibleRows.length === 0 ? (
-              <div className="px-5 py-10 text-center text-sm text-white/45">
-                No hay profesionales para liquidar.
-              </div>
-            ) : (
-              <div className="min-h-0 flex-1 divide-y divide-white/[0.055] overflow-visible sm:overflow-y-auto [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
-                {visibleRows.map((row) => (
-                  <div
-                    key={row.id}
-                    className="hidden grid-cols-[minmax(180px,1.25fr)_140px_140px_140px_minmax(260px,1fr)] items-center gap-3 px-5 py-3 text-sm transition-all duration-200 hover:bg-white/[0.026] sm:grid"
-                  >
-                    <div className="min-w-0">
-                      <div className="truncate font-bold text-white">
-                        {row.name}
-                      </div>
-                      <div className="mt-0.5 truncate text-xs text-white/42">
-                        {row.role}
-                      </div>
-                    </div>
-                    <div className="text-right font-bold tabular-nums text-white/62">
-                      {money(row.previousBalance)}
-                    </div>
-                    <div className="text-right font-bold tabular-nums text-violet-300">
-                      {money(row.newCommissions)}
-                    </div>
-                    <div
-                      className={cn(
-                        "text-right font-bold tabular-nums",
-                        row.pending > 0 ? "text-rose-300" : "text-white/42",
-                      )}
-                    >
-                      {money(row.pending)}
-                    </div>
-                    <div className="flex justify-end gap-2">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedEmployeeId(row.id);
-                          setSelectedDetail("detalle");
-                        }}
-                        className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs font-semibold text-white/68 transition hover:bg-white/[0.065] hover:text-white"
-                      >
-                        Ver detalle
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedEmployeeId(row.id);
-                          setSelectedDetail("historial");
-                        }}
-                        className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-1.5 text-xs font-semibold text-white/68 transition hover:bg-white/[0.065] hover:text-white"
-                      >
-                        Historial
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setSelectedEmployeeId(row.id);
-                          if (row.activeRun) {
-                            const remaining = Number(row.activeRun.total_to_settle) - Number(row.activeRun.amount_paid);
-                            setPaymentForm((form) => ({ ...form, amount: String(remaining) }));
-                          }
-                          setSelectedDetail("liquidar");
-                        }}
-                        className="rounded-xl border border-emerald-400/32 bg-gradient-to-r from-emerald-500 to-emerald-600 px-3.5 py-1.5 text-xs font-bold text-white shadow-[0_0_30px_rgba(34,197,94,0.22)] transition hover:brightness-110"
-                      >
-                        Liquidar
-                      </button>
-                    </div>
-                  </div>
-                ))}
-                {/* Mobile: tarjetas verticales — mismos datos y acciones que
-                    la tabla de arriba, sin scroll horizontal. */}
-                <div className="flex flex-col gap-2.5 p-3 sm:hidden">
-                  {visibleRows.map((row) => (
-                    <div
-                      key={`mobile-${row.id}`}
-                      className="rounded-2xl border border-white/[0.07] bg-white/[0.03] p-3.5"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="truncate font-bold text-white">{row.name}</div>
-                          <div className="mt-0.5 truncate text-xs text-white/42">{row.role}</div>
-                        </div>
-                        <div
-                          className={cn(
-                            "shrink-0 text-right text-sm font-bold tabular-nums",
-                            row.pending > 0 ? "text-rose-300" : "text-white/42",
-                          )}
-                        >
-                          {money(row.pending)}
-                          <div className="text-[10px] font-normal uppercase tracking-wider text-white/35">
-                            Pendiente
-                          </div>
-                        </div>
-                      </div>
-                      <div className="mt-3 grid grid-cols-2 gap-2 text-xs">
-                        <div>
-                          <div className="text-white/40">Saldo anterior</div>
-                          <div className="font-semibold text-white/75">{money(row.previousBalance)}</div>
-                        </div>
-                        <div>
-                          <div className="text-white/40">Comisiones nuevas</div>
-                          <div className="font-semibold text-violet-300">{money(row.newCommissions)}</div>
-                        </div>
-                      </div>
-                      <div className="mt-3 flex gap-2">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedEmployeeId(row.id);
-                            setSelectedDetail("detalle");
-                          }}
-                          className="flex-1 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs font-semibold text-white/68 transition active:bg-white/[0.065]"
-                        >
-                          Ver detalle
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedEmployeeId(row.id);
-                            setSelectedDetail("historial");
-                          }}
-                          className="flex-1 rounded-xl border border-white/[0.08] bg-white/[0.03] px-3 py-2 text-xs font-semibold text-white/68 transition active:bg-white/[0.065]"
-                        >
-                          Historial
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setSelectedEmployeeId(row.id);
-                            if (row.activeRun) {
-                              const remaining = Number(row.activeRun.total_to_settle) - Number(row.activeRun.amount_paid);
-                              setPaymentForm((form) => ({ ...form, amount: String(remaining) }));
-                            }
-                            setSelectedDetail("liquidar");
-                          }}
-                          className="flex-1 rounded-xl border border-emerald-400/32 bg-gradient-to-r from-emerald-500 to-emerald-600 px-3.5 py-2 text-xs font-bold text-white shadow-[0_0_30px_rgba(34,197,94,0.22)] transition active:brightness-110"
-                        >
-                          Liquidar
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
         ) : selectedRow ? (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="flex justify-end gap-2 border-b border-white/[0.06] bg-white/[0.018] px-5 py-3">
@@ -4556,7 +4338,7 @@ function ProfesionalesTab({
                 {selectedRow.latestRun && selectedRow.previousBalance > 0 && (
                   <div className="mb-4 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-3.5">
                     <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
-                      Saldo anterior
+                      Liquidación anterior pendiente
                     </div>
                     <div className="mt-1 flex items-baseline justify-between gap-2">
                       <div className="text-lg font-bold text-white/85">
@@ -4577,9 +4359,9 @@ function ProfesionalesTab({
                   Período actual
                 </div>
                 <div className="mb-3 text-xs text-white/45">
-                  {selectedRow.periodStart
-                    ? `Del ${new Date(`${selectedRow.periodStart}T12:00:00`).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })} al ${cutoffLabel}`
-                    : `Hasta el ${cutoffLabel}`}
+                  {lastLiquidacionInfo
+                    ? `Del ${lastLiquidacionInfo.dateLabel} (${lastLiquidacionInfo.timeLabel}) al ${todayLabel}`
+                    : `Hasta hoy, ${todayLabel}`}
                   , todavía sin asignar a ninguna liquidación. La suma
                   coincide con "Comisiones nuevas" de arriba — nunca se
                   recalcula con el % actual, cada fila conserva el que regía
@@ -5215,7 +4997,10 @@ function ProfesionalesTab({
 
                     <div className="mb-4 grid grid-cols-3 gap-3 rounded-2xl border border-white/[0.07] bg-black/20 p-3 text-center">
                       <div>
-                        <div className="text-[10px] uppercase tracking-wider text-white/40">Saldo anterior</div>
+                        <div className="flex items-center justify-center gap-1 text-[10px] uppercase tracking-wider text-white/40">
+                          <span>Liquidación anterior pendiente</span>
+                          <InfoPopover text={LIQUIDACION_ANTERIOR_INFO_TEXT} />
+                        </div>
                         <div className="mt-1 font-bold text-white/85">{money(selectedRow.previousBalance)}</div>
                         {selectedRow.latestRun && selectedRow.previousBalance > 0 && (
                           <div className="mt-0.5 text-[10px] text-white/35">
@@ -5224,7 +5009,10 @@ function ProfesionalesTab({
                         )}
                       </div>
                       <div>
-                        <div className="text-[10px] uppercase tracking-wider text-white/40">Comisiones nuevas</div>
+                        <div className="flex items-center justify-center gap-1 text-[10px] uppercase tracking-wider text-white/40">
+                          <span>Comisiones nuevas</span>
+                          <InfoPopover text={COMISIONES_NUEVAS_INFO_TEXT} />
+                        </div>
                         <div className="mt-1 font-bold text-violet-300">{money(selectedRow.newCommissions)}</div>
                       </div>
                       <div>
@@ -5252,10 +5040,86 @@ function ProfesionalesTab({
           </div>
         ) : (
           <div className="px-5 py-10 text-center text-sm text-white/45">
-            Seleccioná un profesional.
+            Todavía no hay profesionales cargados en Equipo.
           </div>
         )}
       </section>
+
+      {selectedRow && (
+        <AgendaCenteredModal
+          open={periodInfoOpen}
+          onOpenChange={setPeriodInfoOpen}
+          lockOutside={false}
+          title="Período de esta liquidación"
+          subtitle={liquidarPeriodLabel}
+        >
+          <div>
+            <div className="mb-5 flex items-center justify-between">
+              <button
+                type="button"
+                onClick={() =>
+                  setCalendarMonth(
+                    (date) => new Date(date.getFullYear(), date.getMonth() - 1, 1),
+                  )
+                }
+                className="grid size-9 place-items-center rounded-xl text-white/45 transition hover:bg-white/[0.06] hover:text-white"
+              >
+                ‹
+              </button>
+              <div className="text-lg font-bold capitalize text-white">{calendarTitle}</div>
+              <button
+                type="button"
+                onClick={() =>
+                  setCalendarMonth(
+                    (date) => new Date(date.getFullYear(), date.getMonth() + 1, 1),
+                  )
+                }
+                className="grid size-9 place-items-center rounded-xl text-white/45 transition hover:bg-white/[0.06] hover:text-white"
+              >
+                ›
+              </button>
+            </div>
+
+            <div className="grid grid-cols-7 text-center text-xs font-semibold uppercase tracking-[0.16em] text-white/28">
+              {["LU", "MA", "MI", "JU", "VI", "SÁ", "DO"].map((day) => (
+                <div key={day} className="py-2">
+                  {day}
+                </div>
+              ))}
+            </div>
+
+            <div className="mt-1 grid grid-cols-7 overflow-hidden rounded-2xl">
+              {calendarDays.map((day, index) => {
+                const inRange = Boolean(
+                  day.iso &&
+                    (!selectedRow.periodStart || day.iso >= selectedRow.periodStart) &&
+                    day.iso <= today,
+                );
+                const isToday = day.iso === today;
+                return (
+                  <div
+                    key={`${day.iso || "empty"}-${index}`}
+                    className={cn(
+                      "grid h-11 place-items-center text-sm font-semibold",
+                      !day.inMonth && "opacity-0",
+                      day.inMonth && !inRange && "text-white/25",
+                      inRange &&
+                        "bg-gradient-to-br from-blue-400/25 to-fuchsia-500/25 text-white",
+                      isToday && "ring-1 ring-sky-400/55 ring-inset",
+                    )}
+                  >
+                    {day.day || ""}
+                  </div>
+                );
+              })}
+            </div>
+
+            <div className="mt-5 text-center text-xs text-white/28">
+              Período calculado automáticamente
+            </div>
+          </div>
+        </AgendaCenteredModal>
+      )}
 
       {selectedRow && (
         <AgendaCenteredModal
@@ -5327,11 +5191,17 @@ function ProfesionalesTab({
             <div className="space-y-4">
               <div className="grid grid-cols-3 gap-2 rounded-2xl border border-white/[0.07] bg-black/20 p-3 text-center">
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider text-white/40">Saldo anterior</div>
+                  <div className="flex items-center justify-center gap-1 text-[10px] uppercase tracking-wider text-white/40">
+                    <span>Liquidación anterior pendiente</span>
+                    <InfoPopover text={LIQUIDACION_ANTERIOR_INFO_TEXT} />
+                  </div>
                   <div className="mt-1 text-sm font-bold text-white/85">{money(selectedRow.previousBalance)}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider text-white/40">Comisiones nuevas</div>
+                  <div className="flex items-center justify-center gap-1 text-[10px] uppercase tracking-wider text-white/40">
+                    <span>Comisiones nuevas</span>
+                    <InfoPopover text={COMISIONES_NUEVAS_INFO_TEXT} />
+                  </div>
                   <div className="mt-1 text-sm font-bold text-violet-300">{money(selectedRow.newCommissions)}</div>
                 </div>
                 <div>
