@@ -536,9 +536,9 @@ export function useProfSettlementRunPayments(businessId: string | null, empId: s
 export async function fetchSettlementRunServices(settlementRunId: string) {
   const { data: commissionRows, error } = await supabase
     .from("commission_records" as any)
-    .select("id,amount,commission_pct,sale_date,sale_id")
+    .select("id,amount,pending_amount,commission_pct,sale_date,created_at,sale_id")
     .eq("settlement_run_id", settlementRunId)
-    .order("sale_date", { ascending: true });
+    .order("created_at", { ascending: true });
   if (error) throw new Error(error.message);
   const saleIds = (commissionRows ?? []).map((c: any) => c.sale_id).filter(Boolean);
   let paymentsById: Record<string, any> = {};

@@ -61,6 +61,7 @@ import { acquisitionChannelRequiresText } from "@/lib/acquisition-channels";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { AgendaCenteredModal } from "@/components/agenda/agenda-drawer";
 import { buildComprobanteText, downloadComprobante, shareComprobante } from "@/lib/settlement-comprobante";
+import { fetchSettlementRunServices } from "@/hooks/use-professionals-data";
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
 const HISTORIAL_KEY = "clippr_cobros_historial_v2";
@@ -3549,6 +3550,13 @@ function ProfesionalesTab({
   const [calendarMonth, setCalendarMonth] = React.useState(
     () => new Date(`${today}T12:00:00`),
   );
+  // Detalle expandible de una liquidación del Historial: qué run se está
+  // viendo (null = cerrado) y sus servicios, pedidos bajo demanda porque
+  // no viven en settlement_runs — mismo query que ya usa "Mis
+  // liquidaciones" del profesional (fetchSettlementRunServices).
+  const [historialDetailRun, setHistorialDetailRun] = React.useState<any | null>(null);
+  const [historialDetailServices, setHistorialDetailServices] = React.useState<any[] | null>(null);
+  const [loadingHistorialDetail, setLoadingHistorialDetail] = React.useState(false);
   const [loadingCommissions, setLoadingCommissions] = React.useState(true);
   const [loadingRuns, setLoadingRuns] = React.useState(true);
   // Errores reales (no silenciados en $0): si la query falla (RLS, columna
@@ -3905,6 +3913,64 @@ function ProfesionalesTab({
     }
   }
 
+  // Arma el texto del comprobante para un run del Historial — factorizado
+  // porque lo usan Descargar, Compartir y (más abajo) el modal de detalle.
+  function buildHistorialComprobante(run: any) {
+    const lastPayment = allRunPayments
+      .filter((p: any) => p.settlement_run_id === run.id)
+      .sort((a: any, b: any) => String(b.paid_at ?? "").localeCompare(String(a.paid_at ?? "")))[0];
+    const previousRun = allRuns.find((r: any) => r.id === run.previous_settlement_run_id);
+    return buildComprobanteText({
+      runNumber: run.run_number,
+      cutoffDate: run.cutoff_date,
+      periodStart: run.period_start ?? null,
+      professionalName: selectedRow?.name ?? "Profesional",
+      previousBalance: Number(run.previous_balance ?? 0),
+      previousRun: previousRun
+        ? {
+            runNumber: previousRun.run_number,
+            cutoffDate: previousRun.cutoff_date,
+            status: previousRun.status,
+          }
+        : null,
+      newCommissions: Number(run.new_commissions ?? 0),
+      adjustments: Number(run.adjustments ?? 0),
+      deductions: Number(run.deductions ?? 0),
+      adjustmentItems: Array.isArray(run.adjustment_items) ? run.adjustment_items : [],
+      deductionItems: Array.isArray(run.deduction_items) ? run.deduction_items : [],
+      preparedByName: run.prepared_by_name ?? null,
+      preparedAt: run.prepared_at ?? null,
+      totalToSettle: Number(run.total_to_settle ?? 0),
+      amountPaid: Number(run.amount_paid ?? 0),
+      payment: lastPayment
+        ? {
+            amount: Number(lastPayment.amount ?? 0),
+            method: lastPayment.payment_method ?? "—",
+            note: lastPayment.note,
+            balanceBefore: Number(lastPayment.balance_before ?? 0),
+            balanceAfter: Number(lastPayment.balance_after ?? 0),
+            paidByName: lastPayment.paid_by_name ?? "Caja",
+            paidAt: lastPayment.paid_at,
+          }
+        : null,
+    });
+  }
+
+  async function openHistorialDetail(run: any) {
+    setHistorialDetailRun(run);
+    setHistorialDetailServices(null);
+    setLoadingHistorialDetail(true);
+    try {
+      const rows = await fetchSettlementRunServices(run.id);
+      setHistorialDetailServices(rows);
+    } catch (e) {
+      toast.error(`No se pudo cargar el detalle de la liquidación: ${(e as Error).message}`);
+      setHistorialDetailServices([]);
+    } finally {
+      setLoadingHistorialDetail(false);
+    }
+  }
+
   const selectedRuns = React.useMemo(() => {
     if (!selectedRow) return [] as any[];
     return allRuns
@@ -4071,12 +4137,19 @@ function ProfesionalesTab({
     };
   }, [selectedRow]);
 
+  // Recalculada cada vez que se abre el modal de Liquidar (no en cada
+  // render) para que "hasta" refleje el momento real de preparar, con
+  // hora en las dos puntas — ej. "Desde 14/07/2026 · 15:00 hasta
+  // 22/07/2026 · 08:50".
   const liquidarPeriodLabel = React.useMemo(() => {
+    const now = new Date();
+    const nowLabel = `${now.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })} · ${now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`;
     if (lastLiquidacionInfo) {
-      return `Período: del ${lastLiquidacionInfo.dateLabel} al ${todayLabel}`;
+      return `Desde ${lastLiquidacionInfo.dateLabel} · ${lastLiquidacionInfo.timeLabel.replace(" h", "")} hasta ${nowLabel}`;
     }
-    return `Primera liquidación · hasta hoy, ${todayLabel}`;
-  }, [lastLiquidacionInfo, todayLabel]);
+    return `Primera liquidación · hasta hoy, ${nowLabel}`;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastLiquidacionInfo, liquidarModalOpen]);
 
   const calendarDays = React.useMemo(() => {
     const year = calendarMonth.getFullYear();
@@ -4400,7 +4473,7 @@ function ProfesionalesTab({
         ) : selectedRow ? (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             <div className="flex justify-end gap-2 border-b border-white/[0.06] bg-white/[0.018] px-5 py-3">
-              <ActionButton id="detalle">Ver detalle</ActionButton>
+              <ActionButton id="detalle">Ver desglose</ActionButton>
               <ActionButton id="historial">Historial</ActionButton>
               <ActionButton id="liquidar">Liquidar</ActionButton>
             </div>
@@ -4409,21 +4482,55 @@ function ProfesionalesTab({
               <div className="min-h-0 flex-1 overflow-visible sm:overflow-y-auto px-5 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
                 {selectedRow.latestRun && selectedRow.previousBalance > 0 && (
                   <div className="mb-4 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-3.5">
-                    <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
-                      Liquidación anterior pendiente
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
+                        Liquidación anterior pendiente
+                      </div>
+                      <div className="text-[11px] text-white/40">
+                        Liquidación #{selectedRow.latestRun.run_number} · {selectedRow.latestRun.status}
+                      </div>
                     </div>
-                    <div className="mt-1 flex items-baseline justify-between gap-2">
-                      <div className="text-lg font-bold text-white/85">
-                        {money(selectedRow.previousBalance)}
+                    <div className="mt-1 text-lg font-bold text-white/85">
+                      {money(selectedRow.previousBalance)}
+                    </div>
+                    <div className="mt-1.5 text-xs text-white/45">
+                      Período anterior: hasta el{" "}
+                      {new Date(selectedRow.latestRun.prepared_at).toLocaleDateString("es-AR", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                      })}{" "}
+                      ·{" "}
+                      {new Date(selectedRow.latestRun.prepared_at).toLocaleTimeString("es-AR", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}
+                    </div>
+                    <div className="mt-2.5 grid grid-cols-3 gap-2 rounded-xl border border-white/[0.06] bg-black/15 p-2.5 text-center text-xs">
+                      <div>
+                        <div className="text-white/35">Total de la liquidación</div>
+                        <div className="mt-0.5 font-semibold text-white/80">
+                          {money(Number(selectedRow.latestRun.total_to_settle))}
+                        </div>
                       </div>
-                      <div className="text-xs text-white/45">
-                        Liquidación #{selectedRow.latestRun.run_number} · corte{" "}
-                        {new Date(`${selectedRow.latestRun.cutoff_date}T12:00:00`).toLocaleDateString(
-                          "es-AR",
-                          { day: "2-digit", month: "2-digit", year: "numeric" },
-                        )}{" "}
-                        · {selectedRow.latestRun.status}
+                      <div>
+                        <div className="text-white/35">Pagado</div>
+                        <div className="mt-0.5 font-semibold text-emerald-300">
+                          {money(Number(selectedRow.latestRun.amount_paid))}
+                        </div>
                       </div>
+                      <div>
+                        <div className="text-white/35">Saldo pendiente</div>
+                        <div className="mt-0.5 font-semibold text-rose-300">
+                          {money(selectedRow.previousBalance)}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-2.5 text-[11px] leading-relaxed text-white/45">
+                      De los {money(Number(selectedRow.latestRun.total_to_settle))} de la liquidación #
+                      {selectedRow.latestRun.run_number}, se pagaron{" "}
+                      {money(Number(selectedRow.latestRun.amount_paid))} — quedan{" "}
+                      {money(selectedRow.previousBalance)} pendientes.
                     </div>
                   </div>
                 )}
@@ -4446,8 +4553,8 @@ function ProfesionalesTab({
                 )}
                 {/* Desktop: tabla. En mobile, tarjetas verticales debajo. */}
                 <div className="hidden overflow-hidden rounded-2xl border border-white/[0.07] bg-black/18 sm:block">
-                  <div className="grid grid-cols-[80px_minmax(110px,1fr)_minmax(140px,1.2fr)_90px_70px_60px_90px_100px_90px] gap-3 border-b border-white/[0.06] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
-                    <div>Fecha</div>
+                  <div className="grid grid-cols-[92px_minmax(110px,1fr)_minmax(140px,1.2fr)_90px_70px_60px_90px_100px_90px] gap-3 border-b border-white/[0.06] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
+                    <div>Fecha y hora</div>
                     <div>Cliente</div>
                     <div>Servicio</div>
                     <div className="text-right">Precio</div>
@@ -4469,12 +4576,13 @@ function ProfesionalesTab({
                     <div className="divide-y divide-white/[0.05]">
                       {detailRows.map((c: any) => {
                         const sale = c.sale ?? {};
-                        const date = c.sale_date
-                          ? new Date(`${c.sale_date}T12:00:00`).toLocaleDateString("es-AR", {
-                              day: "2-digit",
-                              month: "2-digit",
-                            })
+                        const saleDate = c.created_at ? new Date(c.created_at) : null;
+                        const date = saleDate
+                          ? saleDate.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })
                           : "—";
+                        const time = saleDate
+                          ? saleDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
+                          : null;
                         const method =
                           PAY_METHOD_LABEL[
                             String(sale.method ?? sale.payment_method ?? "") as PayMethod
@@ -4486,9 +4594,12 @@ function ProfesionalesTab({
                           <div
                             key={c.id}
                             title={`ID: ${c.id}`}
-                            className="grid grid-cols-[80px_minmax(110px,1fr)_minmax(140px,1.2fr)_90px_70px_60px_90px_100px_90px] gap-3 px-4 py-3 text-sm transition hover:bg-white/[0.025]"
+                            className="grid grid-cols-[92px_minmax(110px,1fr)_minmax(140px,1.2fr)_90px_70px_60px_90px_100px_90px] gap-3 px-4 py-3 text-sm transition hover:bg-white/[0.025]"
                           >
-                            <div className="text-white/52">{date}</div>
+                            <div className="text-white/52">
+                              {date}
+                              {time && <div className="text-[11px] text-white/35">{time}</div>}
+                            </div>
                             <div className="truncate text-white/82">
                               {sale.client_name ?? "Sin cliente"}
                             </div>
@@ -4527,12 +4638,13 @@ function ProfesionalesTab({
                     <div className="flex flex-col gap-2.5">
                       {detailRows.map((c: any) => {
                         const sale = c.sale ?? {};
-                        const date = c.sale_date
-                          ? new Date(`${c.sale_date}T12:00:00`).toLocaleDateString("es-AR", {
-                              day: "2-digit",
-                              month: "2-digit",
-                            })
+                        const saleDate = c.created_at ? new Date(c.created_at) : null;
+                        const date = saleDate
+                          ? saleDate.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })
                           : "—";
+                        const time = saleDate
+                          ? saleDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
+                          : null;
                         const method =
                           PAY_METHOD_LABEL[
                             String(sale.method ?? sale.payment_method ?? "") as PayMethod
@@ -4548,6 +4660,7 @@ function ProfesionalesTab({
                             <div className="flex items-center justify-between gap-2">
                               <span className="text-[10px] font-semibold uppercase tracking-wider text-white/45">
                                 {date}
+                                {time && <span className="ml-1 font-normal normal-case text-white/35">{time}</span>}
                               </span>
                               <span className="text-sm font-bold tabular-nums text-violet-300">
                                 {money(Number(c.pending_amount ?? c.amount ?? 0))}
@@ -4570,6 +4683,31 @@ function ProfesionalesTab({
                     </div>
                   )}
                 </div>
+
+                {!loadingDetail && detailRows && detailRows.length > 0 && (
+                  <div className="mt-3 space-y-1.5 rounded-2xl border border-white/[0.08] bg-black/20 p-3.5 text-sm">
+                    <div className="flex items-center justify-between">
+                      <span className="text-white/50">Total de servicios</span>
+                      <span className="font-semibold text-white">{detailRows.length}</span>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <span className="text-white/50">Total de comisiones nuevas</span>
+                      <span className="font-semibold text-violet-300">{money(selectedRow.newCommissions)}</span>
+                    </div>
+                    {selectedRow.previousBalance > 0 && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-white/50">Liquidación anterior pendiente</span>
+                        <span className="font-semibold text-white/80">{money(selectedRow.previousBalance)}</span>
+                      </div>
+                    )}
+                    <div className="mt-1 flex items-center justify-between border-t border-white/[0.08] pt-2">
+                      <span className="font-bold text-white/70">Total disponible para liquidar</span>
+                      <span className="text-base font-bold text-emerald-300">
+                        {money(selectedRow.previousBalance + selectedRow.newCommissions)}
+                      </span>
+                    </div>
+                  </div>
+                )}
               </div>
             )}
 
@@ -4739,47 +4877,14 @@ function ProfesionalesTab({
                           )}
                           <div className="mt-3 flex flex-wrap gap-2">
                             <button
+                              onClick={() => openHistorialDetail(run)}
+                              className="rounded-full bg-white/[0.04] px-3 py-1 text-[11px] font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
+                            >
+                              Ver detalle
+                            </button>
+                            <button
                               onClick={() => {
-                                const lastPayment = allRunPayments
-                                  .filter((p: any) => p.settlement_run_id === run.id)
-                                  .sort((a: any, b: any) => String(b.paid_at ?? "").localeCompare(String(a.paid_at ?? "")))[0];
-                                const previousRun = allRuns.find(
-                                  (r: any) => r.id === run.previous_settlement_run_id,
-                                );
-                                const text = buildComprobanteText({
-                                  runNumber: run.run_number,
-                                  cutoffDate: run.cutoff_date,
-                                  periodStart: run.period_start ?? null,
-                                  professionalName: selectedRow?.name ?? "Profesional",
-                                  previousBalance: Number(run.previous_balance ?? 0),
-                                  previousRun: previousRun
-                                    ? {
-                                        runNumber: previousRun.run_number,
-                                        cutoffDate: previousRun.cutoff_date,
-                                        status: previousRun.status,
-                                      }
-                                    : null,
-                                  newCommissions: Number(run.new_commissions ?? 0),
-                                  adjustments: Number(run.adjustments ?? 0),
-                                  deductions: Number(run.deductions ?? 0),
-                                  adjustmentItems: Array.isArray(run.adjustment_items) ? run.adjustment_items : [],
-                                  deductionItems: Array.isArray(run.deduction_items) ? run.deduction_items : [],
-                                  preparedByName: run.prepared_by_name ?? null,
-                                  preparedAt: run.prepared_at ?? null,
-                                  totalToSettle: Number(run.total_to_settle ?? 0),
-                                  amountPaid: Number(run.amount_paid ?? 0),
-                                  payment: lastPayment
-                                    ? {
-                                        amount: Number(lastPayment.amount ?? 0),
-                                        method: lastPayment.payment_method ?? "—",
-                                        note: lastPayment.note,
-                                        balanceBefore: Number(lastPayment.balance_before ?? 0),
-                                        balanceAfter: Number(lastPayment.balance_after ?? 0),
-                                        paidByName: lastPayment.paid_by_name ?? "Caja",
-                                        paidAt: lastPayment.paid_at,
-                                      }
-                                    : null,
-                                });
+                                const text = buildHistorialComprobante(run);
                                 downloadComprobante(text, `Liquidación #${run.run_number}`);
                               }}
                               className="rounded-full bg-white/[0.04] px-3 py-1 text-[11px] font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
@@ -4788,46 +4893,7 @@ function ProfesionalesTab({
                             </button>
                             <button
                               onClick={async () => {
-                                const lastPayment = allRunPayments
-                                  .filter((p: any) => p.settlement_run_id === run.id)
-                                  .sort((a: any, b: any) => String(b.paid_at ?? "").localeCompare(String(a.paid_at ?? "")))[0];
-                                const previousRun = allRuns.find(
-                                  (r: any) => r.id === run.previous_settlement_run_id,
-                                );
-                                const text = buildComprobanteText({
-                                  runNumber: run.run_number,
-                                  cutoffDate: run.cutoff_date,
-                                  periodStart: run.period_start ?? null,
-                                  professionalName: selectedRow?.name ?? "Profesional",
-                                  previousBalance: Number(run.previous_balance ?? 0),
-                                  previousRun: previousRun
-                                    ? {
-                                        runNumber: previousRun.run_number,
-                                        cutoffDate: previousRun.cutoff_date,
-                                        status: previousRun.status,
-                                      }
-                                    : null,
-                                  newCommissions: Number(run.new_commissions ?? 0),
-                                  adjustments: Number(run.adjustments ?? 0),
-                                  deductions: Number(run.deductions ?? 0),
-                                  adjustmentItems: Array.isArray(run.adjustment_items) ? run.adjustment_items : [],
-                                  deductionItems: Array.isArray(run.deduction_items) ? run.deduction_items : [],
-                                  preparedByName: run.prepared_by_name ?? null,
-                                  preparedAt: run.prepared_at ?? null,
-                                  totalToSettle: Number(run.total_to_settle ?? 0),
-                                  amountPaid: Number(run.amount_paid ?? 0),
-                                  payment: lastPayment
-                                    ? {
-                                        amount: Number(lastPayment.amount ?? 0),
-                                        method: lastPayment.payment_method ?? "—",
-                                        note: lastPayment.note,
-                                        balanceBefore: Number(lastPayment.balance_before ?? 0),
-                                        balanceAfter: Number(lastPayment.balance_after ?? 0),
-                                        paidByName: lastPayment.paid_by_name ?? "Caja",
-                                        paidAt: lastPayment.paid_at,
-                                      }
-                                    : null,
-                                });
+                                const text = buildHistorialComprobante(run);
                                 const result = await shareComprobante(text, `Liquidación #${run.run_number}`);
                                 if (result === "copied") toast.success("Comprobante copiado al portapapeles");
                                 if (result === "failed") toast.error("No se pudo compartir");
@@ -5193,6 +5259,191 @@ function ProfesionalesTab({
         </AgendaCenteredModal>
       )}
 
+      <AgendaCenteredModal
+        open={Boolean(historialDetailRun)}
+        onOpenChange={(v) => {
+          if (!v) {
+            setHistorialDetailRun(null);
+            setHistorialDetailServices(null);
+          }
+        }}
+        lockOutside={false}
+        title={historialDetailRun ? `Liquidación #${historialDetailRun.run_number}` : ""}
+        subtitle={
+          historialDetailRun
+            ? `${historialDetailRun.period_start ? `Del ${new Date(`${historialDetailRun.period_start}T12:00:00`).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })} al ` : "Hasta el "}${new Date(`${historialDetailRun.cutoff_date}T12:00:00`).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}`
+            : undefined
+        }
+        footer={
+          historialDetailRun && (
+            <div className="flex w-full gap-2">
+              <button
+                type="button"
+                onClick={() => downloadComprobante(buildHistorialComprobante(historialDetailRun), `Liquidación #${historialDetailRun.run_number}`)}
+                className="flex-1 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-xs font-semibold text-white/75 transition hover:bg-white/[0.07]"
+              >
+                Descargar comprobante
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  const result = await shareComprobante(
+                    buildHistorialComprobante(historialDetailRun),
+                    `Liquidación #${historialDetailRun.run_number}`,
+                  );
+                  if (result === "copied") toast.success("Comprobante copiado al portapapeles");
+                  if (result === "failed") toast.error("No se pudo compartir");
+                }}
+                className="flex-1 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-xs font-semibold text-white/75 transition hover:bg-white/[0.07]"
+              >
+                Compartir comprobante
+              </button>
+            </div>
+          )
+        }
+      >
+        {historialDetailRun && (() => {
+          const run = historialDetailRun;
+          const remaining = Number(run.total_to_settle) - Number(run.amount_paid);
+          const runPayments = allRunPayments
+            .filter((p: any) => p.settlement_run_id === run.id)
+            .sort((a: any, b: any) => String(a.paid_at ?? "").localeCompare(String(b.paid_at ?? "")));
+          const methods = Array.from(
+            new Set(runPayments.map((p: any) => p.payment_method).filter(Boolean)),
+          );
+          return (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/[0.07] bg-black/20 p-3 text-center text-xs sm:grid-cols-4">
+                <div>
+                  <div className="text-white/40">Total</div>
+                  <div className="mt-0.5 font-semibold text-white/85">{money(Number(run.total_to_settle))}</div>
+                </div>
+                <div>
+                  <div className="text-white/40">Pagado</div>
+                  <div className="mt-0.5 font-semibold text-emerald-300">{money(Number(run.amount_paid))}</div>
+                </div>
+                <div>
+                  <div className="text-white/40">Saldo pendiente</div>
+                  <div className={cn("mt-0.5 font-semibold", remaining > 0 ? "text-rose-300" : "text-white/60")}>
+                    {money(remaining)}
+                  </div>
+                </div>
+                <div>
+                  <div className="text-white/40">Estado</div>
+                  <div className="mt-0.5 font-semibold capitalize text-white/85">{run.status}</div>
+                </div>
+              </div>
+
+              <div className="space-y-1.5 rounded-2xl border border-white/[0.07] bg-black/20 p-3.5 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-white/50">Fecha y hora</span>
+                  <span className="font-semibold text-white">
+                    {new Date(run.prepared_at).toLocaleString("es-AR", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      year: "numeric",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/50">Liquidación anterior incluida</span>
+                  <span className="font-semibold text-white">{money(Number(run.previous_balance))}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/50">Comisiones del período</span>
+                  <span className="font-semibold text-white">{money(Number(run.new_commissions))}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/50">Usuario</span>
+                  <span className="font-semibold text-white">{run.prepared_by_name}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/50">Medio(s) de pago</span>
+                  <span className="font-semibold text-white">
+                    {methods.length > 0 ? methods.map((m: string) => PAY_METHOD_LABEL[m as PayMethod] ?? m).join(", ") : "—"}
+                  </span>
+                </div>
+              </div>
+
+              {Array.isArray(run.adjustment_items) && run.adjustment_items.length > 0 && (
+                <div className="space-y-1 rounded-2xl border border-emerald-400/15 bg-emerald-400/[0.04] p-3">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/70">Ajustes</div>
+                  {run.adjustment_items.map((item: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="text-white/60">{item.reason}</span>
+                      <span className="font-semibold text-emerald-300">+{money(Number(item.amount))}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {Array.isArray(run.deduction_items) && run.deduction_items.length > 0 && (
+                <div className="space-y-1 rounded-2xl border border-rose-400/15 bg-rose-400/[0.04] p-3">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-rose-300/70">Deducciones</div>
+                  {run.deduction_items.map((item: any, i: number) => (
+                    <div key={i} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="text-white/60">{item.reason}</span>
+                      <span className="font-semibold text-rose-300">−{money(Number(item.amount))}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              <div>
+                <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
+                  Servicios incluidos
+                </div>
+                {loadingHistorialDetail ? (
+                  <div className="py-6 text-center text-sm text-white/45">Cargando…</div>
+                ) : !historialDetailServices || historialDetailServices.length === 0 ? (
+                  <div className="py-6 text-center text-sm text-white/45">Sin servicios en esta liquidación.</div>
+                ) : (
+                  <div className="space-y-2">
+                    {historialDetailServices.map((c: any) => {
+                      const sale = c.sale ?? {};
+                      const saleDate = c.created_at ? new Date(c.created_at) : null;
+                      const method =
+                        PAY_METHOD_LABEL[String(sale.method ?? sale.payment_method ?? "") as PayMethod] ??
+                        sale.method ??
+                        sale.payment_method ??
+                        "—";
+                      return (
+                        <div key={c.id} className="rounded-xl border border-white/[0.07] bg-black/15 p-2.5 text-xs">
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="font-semibold text-white/82">{sale.client_name ?? "Sin cliente"}</span>
+                            <span className="font-bold tabular-nums text-violet-300">
+                              {money(Number(c.pending_amount ?? c.amount ?? 0))}
+                            </span>
+                          </div>
+                          <div className="mt-0.5 flex items-center justify-between gap-2 text-white/50">
+                            <span className="truncate">{sale.service_name ?? "Servicio"}</span>
+                            <span className="shrink-0">{method}</span>
+                          </div>
+                          <div className="mt-0.5 flex items-center justify-between gap-2 text-white/40">
+                            <span>
+                              {saleDate
+                                ? saleDate.toLocaleString("es-AR", {
+                                    day: "2-digit",
+                                    month: "2-digit",
+                                    hour: "2-digit",
+                                    minute: "2-digit",
+                                  })
+                                : "—"}
+                            </span>
+                            <span>{c.commission_pct != null ? `${c.commission_pct}% com.` : "—"}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            </div>
+          );
+        })()}
+      </AgendaCenteredModal>
+
       {selectedRow && (
         <AgendaCenteredModal
           open={liquidarModalOpen}
@@ -5217,7 +5468,7 @@ function ProfesionalesTab({
                   disabled={preparingRunFor === selectedRow.id}
                   className="flex-1 rounded-2xl border border-violet-300/28 bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_35px_rgba(139,92,246,0.22)] transition hover:brightness-110 disabled:opacity-60"
                 >
-                  {preparingRunFor === selectedRow.id ? "Confirmando…" : "Confirmar"}
+                  {preparingRunFor === selectedRow.id ? "Confirmando…" : "Confirmar liquidación"}
                 </button>
               </div>
             ) : (
@@ -5243,15 +5494,19 @@ function ProfesionalesTab({
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-white/50">Período</span>
-                  <span className="font-semibold text-white">{liquidarPeriodLabel.replace("Período: ", "")}</span>
+                  <span className="font-semibold text-white">{liquidarPeriodLabel}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-white/50">Cantidad de ajustes</span>
-                  <span className="font-semibold text-white">{liquidarValidAdjustmentsCount}</span>
+                  <span className="text-white/50">Ajustes</span>
+                  <span className="font-semibold text-emerald-300">
+                    {liquidarValidAdjustmentsCount} · +{money(liquidarAdjustmentsSum)}
+                  </span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-white/50">Cantidad de deducciones</span>
-                  <span className="font-semibold text-white">{liquidarValidDeductionsCount}</span>
+                  <span className="text-white/50">Deducciones</span>
+                  <span className="font-semibold text-rose-300">
+                    {liquidarValidDeductionsCount} · −{money(liquidarDeductionsSum)}
+                  </span>
                 </div>
                 <div className="mt-1 flex items-center justify-between border-t border-white/[0.08] pt-2">
                   <span className="font-bold text-white/70">Total a pagar</span>
@@ -5312,8 +5567,12 @@ function ProfesionalesTab({
 
               <div className="space-y-1.5 rounded-2xl border border-white/[0.08] bg-black/25 p-3.5 text-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-white/50">Comisiones pendientes</span>
-                  <span className="font-semibold text-white">{money(liquidarBaseTotal)}</span>
+                  <span className="text-white/50">Liquidación anterior pendiente</span>
+                  <span className="font-semibold text-white">{money(selectedRow.previousBalance)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/50">Comisiones nuevas</span>
+                  <span className="font-semibold text-white">{money(selectedRow.newCommissions)}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-white/50">Ajustes</span>
