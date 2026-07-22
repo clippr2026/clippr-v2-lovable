@@ -4267,16 +4267,17 @@ function ProfesionalesTab({
         }}
         className={cn(
           "rounded-xl border px-3.5 py-1.5 text-xs font-semibold transition",
-          // Liquidar es la acción principal de la pantalla — siempre en
-          // violeta/índigo (nunca verde: el verde queda reservado para
-          // importes positivos y estados cobrados/confirmados).
-          id === "liquidar"
-            ? active
+          // Violeta/índigo solo en el botón realmente seleccionado (nunca
+          // verde: el verde queda reservado para importes positivos y
+          // estados cobrados/confirmados) — Liquidar es la acción
+          // principal, así que cuando está activo se destaca más que
+          // Ver desglose/Historial, pero inactivo se ve igual de
+          // secundario que los otros dos.
+          active
+            ? id === "liquidar"
               ? "border-violet-300/40 bg-gradient-to-r from-sky-400 to-violet-500 text-white shadow-[0_0_26px_rgba(139,92,246,0.35)]"
-              : "border-violet-400/30 bg-violet-500/15 text-violet-100 hover:bg-violet-500/25 hover:text-white"
-            : active
-              ? "border-violet-300/35 bg-violet-400/10 text-violet-100 shadow-[0_0_18px_rgba(139,92,246,0.16)]"
-              : "border-white/[0.08] bg-white/[0.03] text-white/68 hover:bg-white/[0.065] hover:text-white",
+              : "border-violet-300/35 bg-violet-400/10 text-violet-100 shadow-[0_0_18px_rgba(139,92,246,0.16)]"
+            : "border-white/[0.08] bg-white/[0.03] text-white/68 hover:bg-white/[0.065] hover:text-white",
         )}
       >
         {children}
@@ -4488,30 +4489,8 @@ function ProfesionalesTab({
               <div className="min-h-0 flex-1 overflow-visible sm:overflow-y-auto px-5 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
                 {selectedRow.latestRun && selectedRow.previousBalance > 0 && (
                   <div className="mb-4 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-3.5">
-                    <div className="flex items-center justify-between gap-2">
-                      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
-                        Liquidación anterior pendiente
-                      </div>
-                      <div className="text-[11px] text-white/40">
-                        Liquidación #{selectedRow.latestRun.run_number} · {selectedRow.latestRun.status}
-                      </div>
-                    </div>
-                    <div className="mt-1 text-lg font-bold text-white/85">
-                      {money(selectedRow.previousBalance)}
-                    </div>
-                    <div className="mt-1.5 text-xs text-white/45">
-                      Período anterior: hasta el{" "}
-                      {new Date(selectedRow.latestRun.prepared_at).toLocaleDateString("es-AR", {
-                        day: "2-digit",
-                        month: "2-digit",
-                        year: "numeric",
-                      })}{" "}
-                      ·{" "}
-                      {new Date(selectedRow.latestRun.prepared_at).toLocaleTimeString("es-AR", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        hour12: false,
-                      })}
+                    <div className="whitespace-nowrap text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
+                      Liquidación anterior pendiente
                     </div>
                     <div className="mt-2.5 grid grid-cols-3 gap-2 rounded-xl border border-white/[0.06] bg-black/15 p-2.5 text-center text-xs">
                       <div>
@@ -4532,6 +4511,21 @@ function ProfesionalesTab({
                           {money(selectedRow.previousBalance)}
                         </div>
                       </div>
+                    </div>
+                    <div className="mt-2.5 text-xs text-white/45">
+                      Período anterior: hasta el{" "}
+                      {new Date(selectedRow.latestRun.prepared_at).toLocaleDateString("es-AR", {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                      })}{" "}
+                      ·{" "}
+                      {new Date(selectedRow.latestRun.prepared_at).toLocaleTimeString("es-AR", {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                        hour12: false,
+                      })}{" "}
+                      h
                     </div>
                   </div>
                 )}
