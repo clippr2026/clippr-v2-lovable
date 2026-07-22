@@ -4564,18 +4564,11 @@ function ProfesionalesTab({
           </>
         ) : selectedRow ? (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            {/* Selector Comisiones | Historial: una sola pieza partida al
-                medio (borde/fondo compartidos acá, divide-x como línea
-                central), no dos botones sueltos — ActionButton solo
-                resalta la mitad activa. */}
-            <div className="grid grid-cols-2 divide-x divide-white/[0.07] overflow-hidden border-b border-white/[0.06] bg-white/[0.018]">
-              <ActionButton id="detalle">Comisiones</ActionButton>
-              <ActionButton id="historial">Historial</ActionButton>
-            </div>
-
-            {/* Adelantar y Pagar: acciones principales independientes,
-                cada una alineada debajo de su tarjeta (Adelantos / Total a
-                pagar, misma grilla de 2 columnas de arriba). */}
+            {/* Adelantar y Pagar arriba de Comisiones/Historial, en las
+                mismas 2 columnas, para que cada botón quede visualmente
+                asociado a la sección que abre debajo (Adelantar → tarjeta
+                Adelantos / pestaña Comisiones; Pagar → tarjeta Total a
+                pagar / pestaña Historial). */}
             <div className="grid grid-cols-2 gap-3 border-b border-white/[0.06] bg-white/[0.018] px-5 py-3">
               <button
                 type="button"
@@ -4596,50 +4589,19 @@ function ProfesionalesTab({
               </button>
             </div>
 
+            {/* Selector Comisiones | Historial: una sola pieza partida al
+                medio (borde/fondo compartidos acá, divide-x como línea
+                central), no dos botones sueltos — ActionButton solo
+                resalta la mitad activa. */}
+            <div className="border-b border-white/[0.06] bg-white/[0.018] px-5 py-2">
+              <div className="grid grid-cols-2 divide-x divide-white/[0.07] overflow-hidden rounded-xl border border-white/[0.07]">
+                <ActionButton id="detalle">Comisiones</ActionButton>
+                <ActionButton id="historial">Historial</ActionButton>
+              </div>
+            </div>
+
             {selectedDetail === "detalle" && (
               <div className="min-h-0 flex-1 overflow-visible sm:overflow-y-auto px-5 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
-                {selectedRow.latestRun && selectedRow.previousBalance > 0 && (
-                  <div className="mb-4 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-3.5">
-                    <div className="whitespace-nowrap text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
-                      Comisiones pendientes
-                    </div>
-                    <div className="mt-2.5 grid grid-cols-3 gap-2 rounded-xl border border-white/[0.06] bg-black/15 p-2.5 text-center text-xs">
-                      <div>
-                        <div className="text-white/35">Total de la liquidación</div>
-                        <div className="mt-0.5 font-semibold text-white/80">
-                          {money(Number(selectedRow.latestRun.total_to_settle))}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-white/35">Pagado</div>
-                        <div className="mt-0.5 font-semibold text-emerald-300">
-                          {money(Number(selectedRow.latestRun.amount_paid))}
-                        </div>
-                      </div>
-                      <div>
-                        <div className="text-white/35">Saldo pendiente</div>
-                        <div className="mt-0.5 font-semibold text-rose-300">
-                          {money(selectedRow.previousBalance)}
-                        </div>
-                      </div>
-                    </div>
-                    <div className="mt-2.5 text-xs text-white/45">
-                      Período anterior: hasta el{" "}
-                      {new Date(selectedRow.latestRun.prepared_at).toLocaleDateString("es-AR", {
-                        day: "2-digit",
-                        month: "2-digit",
-                        year: "numeric",
-                      })}{" "}
-                      ·{" "}
-                      {new Date(selectedRow.latestRun.prepared_at).toLocaleTimeString("es-AR", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                        hour12: false,
-                      })}{" "}
-                      h
-                    </div>
-                  </div>
-                )}
                 <div className="mb-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
                   Período actual
                 </div>
