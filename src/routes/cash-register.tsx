@@ -4287,7 +4287,7 @@ function ProfesionalesTab({
           </div>
         </div>
 
-        <div className="grid grid-cols-2 gap-3 border-b border-white/[0.055] px-5 py-4 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 border-b border-white/[0.055] px-5 py-4 lg:grid-cols-3">
           <StatCard
             label="Saldo anterior pendiente"
             value={money(totals.previousBalance)}
@@ -4298,16 +4298,13 @@ function ProfesionalesTab({
             value={money(totals.newCommissions)}
             tone="violet"
           />
-          <StatCard
-            label="Total a liquidar"
-            value={money(totals.previousBalance + totals.newCommissions)}
-            tone="green"
-          />
-          <StatCard
-            label="Saldo pendiente actual"
-            value={money(totals.pending)}
-            tone="rose"
-          />
+          <div className="col-span-2 lg:col-span-1">
+            <StatCard
+              label="Total a liquidar"
+              value={money(totals.previousBalance + totals.newCommissions)}
+              tone="green"
+            />
+          </div>
         </div>
 
         {(commissionsError || runsError) && (
@@ -5231,7 +5228,7 @@ function ProfesionalesTab({
                         <div className="mt-1 font-bold text-violet-300">{money(selectedRow.newCommissions)}</div>
                       </div>
                       <div>
-                        <div className="text-[10px] uppercase tracking-wider text-white/40">Total pendiente</div>
+                        <div className="text-[10px] uppercase tracking-wider text-white/40">Total a liquidar</div>
                         <div className="mt-1 font-bold text-emerald-300">
                           {money(selectedRow.previousBalance + selectedRow.newCommissions)}
                         </div>
@@ -5338,8 +5335,8 @@ function ProfesionalesTab({
                   <div className="mt-1 text-sm font-bold text-violet-300">{money(selectedRow.newCommissions)}</div>
                 </div>
                 <div>
-                  <div className="text-[10px] uppercase tracking-wider text-white/40">Total pendiente</div>
-                  <div className="mt-1 text-sm font-bold text-white">{money(liquidarBaseTotal)}</div>
+                  <div className="text-[10px] uppercase tracking-wider text-white/40">Total a liquidar</div>
+                  <div className="mt-1 text-sm font-bold text-emerald-300">{money(liquidarBaseTotal)}</div>
                 </div>
               </div>
 
