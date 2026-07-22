@@ -3585,13 +3585,11 @@ function ProfesionalesTab({
     { id: string; amount: string; reason: string }[]
   >([]);
   const [liquidarModalOpen, setLiquidarModalOpen] = React.useState(false);
-  const [liquidarConfirmStep, setLiquidarConfirmStep] = React.useState(false);
 
   function resetLiquidarForm() {
     setAdjustmentItems([]);
     setDeductionItems([]);
     setLiquidarModalOpen(false);
-    setLiquidarConfirmStep(false);
   }
   // commission_records: fuente de verdad de cuánto se le debe a cada
   // profesional. Las que ya tienen settlement_run_id están "bloqueadas"
@@ -4293,6 +4291,15 @@ function ProfesionalesTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDetail, selectedRow?.id, commissionsVersion]);
 
+  // Abre el modal de Liquidar solo, apenas se entra a esa pestaña sin una
+  // liquidación activa — "Liquidar" ya deja todo listo ahí mismo, sin una
+  // pantalla intermedia que haya que abrir a mano.
+  React.useEffect(() => {
+    if (selectedDetail === "liquidar" && selectedRow && !selectedRow.activeRun) {
+      setLiquidarModalOpen(true);
+    }
+  }, [selectedDetail, selectedRow]);
+
   // Totales en vivo del modal "Preparar liquidación" — se recalculan en
   // cada tecla mientras se agregan/editan ajustes y deducciones.
   const liquidarAdjustmentsSum = adjustmentItems.reduce(
@@ -4307,22 +4314,8 @@ function ProfesionalesTab({
     ? selectedRow.previousBalance + selectedRow.newCommissions
     : 0;
   const liquidarFinalTotal = liquidarBaseTotal + liquidarAdjustmentsSum - liquidarDeductionsSum;
-  const liquidarHasIncompleteItems =
-    hasIncompleteSettlementItems(adjustmentItems) || hasIncompleteSettlementItems(deductionItems);
   const liquidarValidAdjustmentsCount = validSettlementItems(adjustmentItems).length;
   const liquidarValidDeductionsCount = validSettlementItems(deductionItems).length;
-
-  function handleConfirmLiquidarClick() {
-    if (liquidarHasIncompleteItems) {
-      toast.error("Cada ajuste o deducción con importe necesita un motivo");
-      return;
-    }
-    if (liquidarFinalTotal <= 0) {
-      toast.error("No hay nada para liquidar en este corte");
-      return;
-    }
-    setLiquidarConfirmStep(true);
-  }
 
   return (
     <div className="-mt-5 h-auto overflow-visible pb-6 sm:h-[calc(100vh-270px)] sm:min-h-[470px] sm:overflow-hidden">
@@ -4643,25 +4636,29 @@ function ProfesionalesTab({
                             key={`mobile-${c.id}`}
                             className="rounded-2xl border border-white/[0.07] bg-black/18 px-3.5 py-3 text-xs"
                           >
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-[10px] font-semibold uppercase tracking-wider text-white/45">
-                                {date}
-                                {time && <span className="ml-1 font-normal normal-case text-white/35">{time}</span>}
-                              </span>
-                              <span className="text-sm font-bold tabular-nums text-violet-300">
-                                {money(Number(c.pending_amount ?? c.amount ?? 0))}
-                              </span>
-                            </div>
-                            <div className="mt-1.5 truncate font-semibold text-white/82">
-                              {sale.client_name ?? "Sin cliente"}
-                            </div>
-                            <div className="mt-0.5 flex items-center justify-between gap-2 text-white/60">
-                              <span className="truncate">{sale.service_name ?? "Servicio"}</span>
-                              <span className="shrink-0 text-white/45">{method}</span>
-                            </div>
-                            <div className="mt-1 flex items-center justify-between gap-2 text-white/45">
-                              <span>Precio: {money(Number(sale.total ?? sale.amount ?? 0))}</span>
-                              <span>%Com.: {c.commission_pct != null ? `${c.commission_pct}%` : "—"}</span>
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0 flex-1">
+                                <div className="truncate font-semibold text-white/82">
+                                  {sale.client_name ?? "Sin cliente"}
+                                </div>
+                                <div className="mt-0.5 truncate text-white/60">
+                                  {sale.service_name ?? "Servicio"}
+                                </div>
+                                <div className="mt-1 flex items-center gap-2 text-white/45">
+                                  <span>Precio: {money(Number(sale.total ?? sale.amount ?? 0))}</span>
+                                  <span>%Com.: {c.commission_pct != null ? `${c.commission_pct}%` : "—"}</span>
+                                </div>
+                              </div>
+                              <div className="shrink-0 space-y-0.5 text-right">
+                                <div className="text-[10px] font-semibold uppercase tracking-wider text-white/45">
+                                  {date}
+                                  {time && <span className="ml-1 font-normal normal-case text-white/35">{time}</span>}
+                                </div>
+                                <div className="text-white/60">{method}</div>
+                                <div className="font-bold tabular-nums text-violet-300">
+                                  Comisión: {money(Number(c.pending_amount ?? c.amount ?? 0))}
+                                </div>
+                              </div>
                             </div>
                           </div>
                         );
@@ -5104,61 +5101,12 @@ function ProfesionalesTab({
                     </button>
                   </div>
                 ) : (
-                  // Sin liquidación activa: acá se prepara una nueva. El
-                  // formulario en sí (ajustes/deducciones itemizados +
-                  // confirmación) vive en un modal — acá solo un resumen
-                  // compacto y el botón para abrirlo, para no repetir los
-                  // mismos indicadores dos veces.
-                  <div className="mx-auto max-w-2xl rounded-2xl border border-violet-400/18 bg-violet-400/[0.035] p-4 shadow-[0_0_35px_rgba(139,92,246,0.08)]">
-                    <div className="mb-4 flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-base font-bold text-white">Preparar liquidación</div>
-                        <div className="mt-0.5 text-sm text-white/48">{liquidarPeriodLabel}</div>
-                      </div>
-                      <div className="rounded-full bg-violet-400/12 px-3 py-1 text-xs font-bold text-violet-300 ring-1 ring-violet-400/20">
-                        {selectedRow.name}
-                      </div>
-                    </div>
-
-                    <div className="mb-4 grid grid-cols-3 gap-3 rounded-2xl border border-white/[0.07] bg-black/20 p-3 text-center">
-                      <div>
-                        <div className="flex items-center justify-center gap-1 text-[10px] uppercase tracking-wider text-white/40">
-                          <span>Liquidación anterior pendiente</span>
-                          <InfoPopover text={LIQUIDACION_ANTERIOR_INFO_TEXT} />
-                        </div>
-                        <div className="mt-1 font-bold text-white/85">{money(selectedRow.previousBalance)}</div>
-                        {selectedRow.latestRun && selectedRow.previousBalance > 0 && (
-                          <div className="mt-0.5 text-[10px] text-white/35">
-                            Liquidación #{selectedRow.latestRun.run_number}
-                          </div>
-                        )}
-                      </div>
-                      <div>
-                        <div className="flex items-center justify-center gap-1 text-[10px] uppercase tracking-wider text-white/40">
-                          <span>Comisiones nuevas</span>
-                          <InfoPopover text={COMISIONES_NUEVAS_INFO_TEXT} />
-                        </div>
-                        <div className="mt-1 font-bold text-violet-300">{money(selectedRow.newCommissions)}</div>
-                      </div>
-                      <div>
-                        <div className="text-[10px] uppercase tracking-wider text-white/40">Total a liquidar</div>
-                        <div className="mt-1 font-bold text-emerald-300">
-                          {money(selectedRow.previousBalance + selectedRow.newCommissions)}
-                        </div>
-                      </div>
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setLiquidarConfirmStep(false);
-                        setLiquidarModalOpen(true);
-                      }}
-                      className="inline-flex w-full items-center justify-center rounded-2xl border border-violet-300/28 bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_35px_rgba(139,92,246,0.22)] transition hover:brightness-110"
-                    >
-                      Preparar liquidación
-                    </button>
-                  </div>
+                  // Sin liquidación activa: el modal de Liquidar se abre
+                  // solo (ver efecto más abajo) apenas se entra a esta
+                  // pestaña — no hay una pantalla intermedia que abrir a
+                  // mano, "Liquidar" ya deja todo listo para revisar,
+                  // ajustar y confirmar en el mismo lugar.
+                  <div className="py-10 text-center text-sm text-white/35">Abriendo liquidación…</div>
                 )}
               </div>
             )}
@@ -5437,147 +5385,105 @@ function ProfesionalesTab({
         <AgendaCenteredModal
           open={liquidarModalOpen}
           onOpenChange={(v) => {
-            if (!v) resetLiquidarForm();
+            if (!v) {
+              resetLiquidarForm();
+              // Si se cierra sin haber confirmado, no queda nada que
+              // mostrar en la pestaña "Liquidar" (la pantalla intermedia
+              // ya no existe) — vuelve a "Ver desglose" en vez de
+              // reabrir el modal solo de nuevo.
+              if (!selectedRow.activeRun) setSelectedDetail("detalle");
+            }
           }}
           title={selectedRow.name}
           subtitle={liquidarPeriodLabel}
           footer={
-            liquidarConfirmStep ? (
-              <div className="flex w-full gap-2">
-                <button
-                  type="button"
-                  onClick={() => setLiquidarConfirmStep(false)}
-                  className="flex-1 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-bold text-white/70 transition hover:bg-white/[0.07]"
-                >
-                  Volver
-                </button>
-                <button
-                  type="button"
-                  onClick={() => prepareRun(selectedRow)}
-                  disabled={preparingRunFor === selectedRow.id}
-                  className="flex-1 rounded-2xl border border-violet-300/28 bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_35px_rgba(139,92,246,0.22)] transition hover:brightness-110 disabled:opacity-60"
-                >
-                  {preparingRunFor === selectedRow.id ? "Confirmando…" : "Confirmar liquidación"}
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={handleConfirmLiquidarClick}
-                className="w-full rounded-2xl border border-violet-300/28 bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_35px_rgba(139,92,246,0.22)] transition hover:brightness-110"
-              >
-                Confirmar liquidación
-              </button>
-            )
+            <button
+              type="button"
+              onClick={() => prepareRun(selectedRow)}
+              disabled={preparingRunFor === selectedRow.id}
+              className="w-full rounded-2xl border border-violet-300/28 bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_35px_rgba(139,92,246,0.22)] transition hover:brightness-110 disabled:opacity-60"
+            >
+              {preparingRunFor === selectedRow.id ? "Confirmando…" : "Confirmar liquidación"}
+            </button>
           }
         >
-          {liquidarConfirmStep ? (
-            <div className="space-y-3">
-              <div className="text-xs font-bold uppercase tracking-[0.16em] text-white/38">
-                Validación final
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-2 rounded-2xl border border-white/[0.07] bg-black/20 p-3 text-center">
+              <div>
+                <div className="flex items-center justify-center gap-1 text-[10px] uppercase tracking-wider text-white/40">
+                  <span>Liquidación anterior pendiente</span>
+                  <InfoPopover text={LIQUIDACION_ANTERIOR_INFO_TEXT} />
+                </div>
+                <div className="mt-1 text-sm font-bold text-white/85">{money(selectedRow.previousBalance)}</div>
               </div>
-              <div className="space-y-2 rounded-2xl border border-white/[0.08] bg-black/20 p-3.5 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-white/50">Profesional</span>
-                  <span className="font-semibold text-white">{selectedRow.name}</span>
+              <div>
+                <div className="flex items-center justify-center gap-1 text-[10px] uppercase tracking-wider text-white/40">
+                  <span>Comisiones nuevas</span>
+                  <InfoPopover text={COMISIONES_NUEVAS_INFO_TEXT} />
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-white/50">Período</span>
-                  <span className="font-semibold text-white">{liquidarPeriodLabel}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-white/50">Ajustes</span>
-                  <span className="font-semibold text-emerald-300">
-                    {liquidarValidAdjustmentsCount} · +{money(liquidarAdjustmentsSum)}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-white/50">Deducciones</span>
-                  <span className="font-semibold text-rose-300">
-                    {liquidarValidDeductionsCount} · −{money(liquidarDeductionsSum)}
-                  </span>
-                </div>
-                <div className="mt-1 flex items-center justify-between border-t border-white/[0.08] pt-2">
-                  <span className="font-bold text-white/70">Total a pagar</span>
-                  <span className="text-base font-bold text-emerald-300">{money(liquidarFinalTotal)}</span>
-                </div>
+                <div className="mt-1 text-sm font-bold text-violet-300">{money(selectedRow.newCommissions)}</div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-wider text-white/40">Total a liquidar</div>
+                <div className="mt-1 text-sm font-bold text-emerald-300">{money(liquidarBaseTotal)}</div>
               </div>
             </div>
-          ) : (
-            <div className="space-y-4">
-              <div className="grid grid-cols-3 gap-2 rounded-2xl border border-white/[0.07] bg-black/20 p-3 text-center">
-                <div>
-                  <div className="flex items-center justify-center gap-1 text-[10px] uppercase tracking-wider text-white/40">
-                    <span>Liquidación anterior pendiente</span>
-                    <InfoPopover text={LIQUIDACION_ANTERIOR_INFO_TEXT} />
-                  </div>
-                  <div className="mt-1 text-sm font-bold text-white/85">{money(selectedRow.previousBalance)}</div>
-                </div>
-                <div>
-                  <div className="flex items-center justify-center gap-1 text-[10px] uppercase tracking-wider text-white/40">
-                    <span>Comisiones nuevas</span>
-                    <InfoPopover text={COMISIONES_NUEVAS_INFO_TEXT} />
-                  </div>
-                  <div className="mt-1 text-sm font-bold text-violet-300">{money(selectedRow.newCommissions)}</div>
-                </div>
-                <div>
-                  <div className="text-[10px] uppercase tracking-wider text-white/40">Total a liquidar</div>
-                  <div className="mt-1 text-sm font-bold text-emerald-300">{money(liquidarBaseTotal)}</div>
-                </div>
-              </div>
 
-              <div>
-                <div className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-emerald-300/80">
-                  Ajustes (+)
-                </div>
-                <SettlementItemsEditor
-                  items={adjustmentItems}
-                  onChange={setAdjustmentItems}
-                  addLabel="Agregar ajuste"
-                  reasonPlaceholder="Ej. Feriado trabajado, bono o comisión adicional"
-                  formatThousands={formatThousands}
-                  accentClass="border-emerald-400/25 bg-emerald-400/10 text-emerald-200 hover:bg-emerald-400/15"
-                />
+            <div>
+              <div className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-emerald-300/80">
+                Ajustes (+)
               </div>
+              <SettlementItemsEditor
+                items={adjustmentItems}
+                onChange={setAdjustmentItems}
+                addLabel="Agregar ajuste"
+                reasonPlaceholder="Ej. Feriado trabajado, bono o comisión adicional"
+                formatThousands={formatThousands}
+                accentClass="border-emerald-400/25 bg-emerald-400/10 text-emerald-200 hover:bg-emerald-400/15"
+              />
+            </div>
 
-              <div>
-                <div className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-rose-300/80">
-                  Deducciones (−)
-                </div>
-                <SettlementItemsEditor
-                  items={deductionItems}
-                  onChange={setDeductionItems}
-                  addLabel="Agregar deducción"
-                  reasonPlaceholder="Ej. Llegada tarde, adelanto o producto descontado"
-                  formatThousands={formatThousands}
-                  accentClass="border-rose-400/25 bg-rose-400/10 text-rose-200 hover:bg-rose-400/15"
-                />
+            <div>
+              <div className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-rose-300/80">
+                Deducciones (−)
               </div>
+              <SettlementItemsEditor
+                items={deductionItems}
+                onChange={setDeductionItems}
+                addLabel="Agregar deducción"
+                reasonPlaceholder="Ej. Llegada tarde, adelanto o producto descontado"
+                formatThousands={formatThousands}
+                accentClass="border-rose-400/25 bg-rose-400/10 text-rose-200 hover:bg-rose-400/15"
+              />
+            </div>
 
-              <div className="space-y-1.5 rounded-2xl border border-white/[0.08] bg-black/25 p-3.5 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-white/50">Liquidación anterior pendiente</span>
-                  <span className="font-semibold text-white">{money(selectedRow.previousBalance)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-white/50">Comisiones nuevas</span>
-                  <span className="font-semibold text-white">{money(selectedRow.newCommissions)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-white/50">Ajustes</span>
-                  <span className="font-semibold text-emerald-300">+{money(liquidarAdjustmentsSum)}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-white/50">Deducciones</span>
-                  <span className="font-semibold text-rose-300">−{money(liquidarDeductionsSum)}</span>
-                </div>
-                <div className="mt-1 flex items-center justify-between border-t border-white/[0.08] pt-2">
-                  <span className="font-bold text-white/70">Total final a pagar</span>
-                  <span className="text-base font-bold text-emerald-300">{money(liquidarFinalTotal)}</span>
-                </div>
+            <div className="space-y-1.5 rounded-2xl border border-white/[0.08] bg-black/25 p-3.5 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-white/50">Liquidación anterior pendiente</span>
+                <span className="font-semibold text-white">{money(selectedRow.previousBalance)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-white/50">Comisiones nuevas</span>
+                <span className="font-semibold text-white">{money(selectedRow.newCommissions)}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-white/50">Ajustes</span>
+                <span className="font-semibold text-emerald-300">
+                  {liquidarValidAdjustmentsCount > 0 ? `${liquidarValidAdjustmentsCount} · ` : ""}+{money(liquidarAdjustmentsSum)}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-white/50">Deducciones</span>
+                <span className="font-semibold text-rose-300">
+                  {liquidarValidDeductionsCount > 0 ? `${liquidarValidDeductionsCount} · ` : ""}−{money(liquidarDeductionsSum)}
+                </span>
+              </div>
+              <div className="mt-1 flex items-center justify-between border-t border-white/[0.08] pt-2">
+                <span className="font-bold text-white/70">Total final a pagar</span>
+                <span className="text-base font-bold text-emerald-300">{money(liquidarFinalTotal)}</span>
               </div>
             </div>
-          )}
+          </div>
         </AgendaCenteredModal>
       )}
     </div>
