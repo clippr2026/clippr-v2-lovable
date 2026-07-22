@@ -3300,11 +3300,11 @@ function InventarioTab({
 }
 
 const LIQUIDACION_ANTERIOR_INFO_TEXT =
-  "Importe incluido en una liquidación anterior que todavía no fue pagado por completo.";
+  "Comisiones de períodos anteriores que todavía no fueron pagadas.";
 const COMISIONES_NUEVAS_INFO_TEXT =
-  "Comisiones generadas después de la fecha y hora de la última liquidación.";
+  "Comisiones generadas desde la última liquidación hasta ahora.";
 const ADELANTOS_INFO_TEXT =
-  "Dinero ya entregado al profesional antes de liquidar, todavía no descontado de ninguna liquidación. Se resta del total a liquidar.";
+  "Dinero adelantado al profesional. Se descuenta del total a pagar.";
 
 // Ícono de información chico junto a un título — no existe nada parecido
 // en este codebase (sin Tooltip/Popover instalado), así que es un
@@ -3569,7 +3569,7 @@ function ProfesionalesTab({
   const [preparingRunFor, setPreparingRunFor] = React.useState<string | null>(null);
   const [payingRunId, setPayingRunId] = React.useState<string | null>(null);
   // "detalle"/"historial" son las únicas vistas de consulta (pestañas
-  // reales) — Liquidar y Adelantos son botones de acción que abren su
+  // reales) — Pagar y Adelantar son botones de acción que abren su
   // modal directo, nunca cambian esta pestaña.
   const [selectedDetail, setSelectedDetail] = React.useState<"detalle" | "historial">("detalle");
   const [paymentForm, setPaymentForm] = React.useState({
@@ -3837,8 +3837,8 @@ function ProfesionalesTab({
       const previousBalance = latestRun
         ? Math.max(Number(latestRun.total_to_settle) - Number(latestRun.amount_paid), 0)
         : 0;
-      // El run activo (todavía no pagado del todo) es el que se muestra en
-      // la pestaña "Liquidar" con su botón Registrar pago.
+      // El run activo (todavía no pagado del todo) es el que se muestra al
+      // abrir el modal de "Pagar".
       const activeRun = employeeRuns.find((r: any) => r.status !== "pagada") ?? null;
 
       // Comisiones nuevas: generadas después de la marca de tiempo EXACTA
@@ -3865,7 +3865,7 @@ function ProfesionalesTab({
       );
 
       // Adelantos todavía no incluidos en ninguna liquidación — se
-      // descuentan del total a liquidar (ver prepare_settlement_run).
+      // descuentan del total a pagar (ver prepare_settlement_run).
       const pendingAdvances = allAdvances
         .filter((a: any) => String(a.professional_id) === String(employee.id) && !a.settlement_run_id)
         .reduce((sum: number, a: any) => sum + Number(a.amount ?? 0), 0);
@@ -4085,7 +4085,7 @@ function ProfesionalesTab({
     const deductions = validDeductions.reduce((sum, i) => sum + i.amount, 0);
     const total = row.previousBalance + row.newCommissions + adjustments - deductions - row.pendingAdvances;
     if (total <= 0) {
-      toast.error("No hay nada para liquidar en este corte");
+      toast.error("No hay nada para pagar en este corte");
       return;
     }
     if (hasIncompleteSettlementItems(adjustmentItems) || hasIncompleteSettlementItems(deductionItems)) {
@@ -4095,10 +4095,10 @@ function ProfesionalesTab({
     // El monto a pagar es opcional acá: si se completó, el pago se
     // registra apenas se crea la liquidación, en la misma acción — si se
     // deja vacío, solo se prepara (se puede pagar después desde
-    // "Liquidar", que ya va a mostrar el saldo pendiente de este run).
+    // "Pagar", que ya va a mostrar el saldo pendiente de este run).
     const paymentAmount = Number(paymentForm.amount || 0);
     if (paymentAmount > 0 && paymentAmount > total) {
-      toast.error("El monto a pagar no puede superar el total a liquidar");
+      toast.error("El monto a pagar no puede superar el total a pagar");
       return;
     }
     setPreparingRunFor(row.id);
@@ -4120,7 +4120,7 @@ function ProfesionalesTab({
 
       // La liquidación ya quedó creada acá — si el pago falla, no se
       // pierde nada: queda como activeRun, listo para pagar desde
-      // "Liquidar" de nuevo.
+      // "Pagar" de nuevo.
       if (paymentAmount > 0 && (newRun as any)?.id) {
         const { error: payError } = await supabase.rpc("register_settlement_run_payment" as any, {
           p_settlement_run_id: (newRun as any).id,
@@ -4134,7 +4134,7 @@ function ProfesionalesTab({
           toast.error(
             friendlyRpcError(
               payError,
-              "La liquidación se preparó, pero no pudimos registrar el pago. Podés registrarlo desde Liquidar.",
+              "Se guardó el saldo, pero no pudimos registrar el pago. Podés intentarlo de nuevo desde Pagar.",
             ),
           );
           resetLiquidarForm();
@@ -4142,18 +4142,18 @@ function ProfesionalesTab({
           setLiquidarModalOpen(true);
           return;
         }
-        toast.success(`Liquidación preparada y pago registrado para ${row.name}`);
+        toast.success(`Pago registrado para ${row.name}: ${money(paymentAmount)}`);
         resetLiquidarForm();
         setCommissionsVersion((v) => v + 1);
         setSelectedDetail("historial");
       } else {
-        toast.success(`Liquidación preparada para ${row.name}`);
+        toast.success(`Saldo actualizado para ${row.name}`);
         resetLiquidarForm();
         setCommissionsVersion((v) => v + 1);
         setLiquidarModalOpen(true);
       }
     } catch (e) {
-      toast.error(friendlyRpcError(e, "No pudimos preparar la liquidación. Intentá nuevamente."));
+      toast.error(friendlyRpcError(e, "No pudimos registrar el pago. Intentá nuevamente."));
     } finally {
       setPreparingRunFor(null);
     }
@@ -4275,7 +4275,7 @@ function ProfesionalesTab({
     };
   }, [selectedRow]);
 
-  // Recalculada cada vez que se abre el modal de Liquidar (no en cada
+  // Recalculada cada vez que se abre el modal de Pagar (no en cada
   // render) para que "hasta" refleje el momento real de preparar, con
   // hora en las dos puntas — ej. "Desde 14/07/2026 · 15:00 hasta
   // 22/07/2026 · 08:50".
@@ -4394,7 +4394,7 @@ function ProfesionalesTab({
     );
   };
 
-  // Liquidar es un botón de acción (como Adelantos), no una pestaña: abre
+  // Pagar es un botón de acción (como Adelantar), no una pestaña: abre
   // su modal directo, precargando el monto sugerido, sin tocar
   // selectedDetail.
   function openLiquidarModal(row: (typeof rows)[number] | null) {
@@ -4458,7 +4458,7 @@ function ProfesionalesTab({
                 resetLiquidarForm();
                 setSelectedDetail("detalle");
                 // Si el profesional entrante ya tiene una liquidación
-                // preparada sin terminar de pagar, abrimos Liquidar directo
+                // preparada sin terminar de pagar, abrimos Pagar directo
                 // para cobrar el saldo — sigue siendo un acceso rápido, ya
                 // no depende de una pestaña. (Sin precargar monto acá: recién
                 // se limpió paymentForm arriba, en el mismo tick.)
@@ -4496,7 +4496,7 @@ function ProfesionalesTab({
 
         <div className="grid grid-cols-2 gap-3 border-b border-white/[0.055] px-5 py-4">
           <StatCard
-            label="Liquidación anterior pendiente"
+            label="Comisiones pendientes"
             value={money(totals.previousBalance)}
             tone="neutral"
             info={LIQUIDACION_ANTERIOR_INFO_TEXT}
@@ -4514,7 +4514,7 @@ function ProfesionalesTab({
             info={ADELANTOS_INFO_TEXT}
           />
           <StatCard
-            label="Total a liquidar"
+            label="Total a pagar"
             value={money(Math.max(totals.previousBalance + totals.newCommissions - totals.pendingAdvances, 0))}
             tone="green"
           />
@@ -4608,9 +4608,9 @@ function ProfesionalesTab({
               <ActionButton id="historial">Historial</ActionButton>
             </div>
 
-            {/* Adelantos y Liquidar: acciones principales independientes,
+            {/* Adelantar y Pagar: acciones principales independientes,
                 cada una alineada debajo de su tarjeta (Adelantos / Total a
-                liquidar, misma grilla de 2 columnas de arriba). */}
+                pagar, misma grilla de 2 columnas de arriba). */}
             <div className="grid grid-cols-2 gap-3 border-b border-white/[0.06] bg-white/[0.018] px-5 py-3">
               <button
                 type="button"
@@ -4620,14 +4620,14 @@ function ProfesionalesTab({
                 }}
                 className="rounded-2xl bg-rose-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_24px_rgba(244,63,94,0.28)] transition hover:brightness-110"
               >
-                Adelantos
+                Adelantar
               </button>
               <button
                 type="button"
                 onClick={() => openLiquidarModal(selectedRow)}
                 className="rounded-2xl bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_28px_rgba(139,92,246,0.32)] transition hover:brightness-110"
               >
-                Liquidar
+                Pagar
               </button>
             </div>
 
@@ -4636,7 +4636,7 @@ function ProfesionalesTab({
                 {selectedRow.latestRun && selectedRow.previousBalance > 0 && (
                   <div className="mb-4 rounded-2xl border border-white/[0.07] bg-white/[0.025] p-3.5">
                     <div className="whitespace-nowrap text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
-                      Liquidación anterior pendiente
+                      Comisiones pendientes
                     </div>
                     <div className="mt-2.5 grid grid-cols-3 gap-2 rounded-xl border border-white/[0.06] bg-black/15 p-2.5 text-center text-xs">
                       <div>
@@ -4831,7 +4831,7 @@ function ProfesionalesTab({
                     </div>
                     {selectedRow.previousBalance > 0 && (
                       <div className="flex items-center justify-between">
-                        <span className="text-white/50">Liquidación anterior pendiente</span>
+                        <span className="text-white/50">Comisiones pendientes</span>
                         <span className="font-semibold text-white/80">{money(selectedRow.previousBalance)}</span>
                       </div>
                     )}
@@ -4842,7 +4842,7 @@ function ProfesionalesTab({
                       </div>
                     )}
                     <div className="mt-1 flex items-center justify-between border-t border-white/[0.08] pt-2">
-                      <span className="font-bold text-white/70">Total disponible para liquidar</span>
+                      <span className="font-bold text-white/70">Total disponible para pagar</span>
                       <span className="text-base font-bold text-emerald-300">
                         {money(Math.max(selectedRow.previousBalance + selectedRow.newCommissions - selectedRow.pendingAdvances, 0))}
                       </span>
@@ -5019,7 +5019,7 @@ function ProfesionalesTab({
             if (!v) resetAdelantoForm();
           }}
           lockOutside={false}
-          title="Registrar adelanto"
+          title="Adelantar"
           subtitle={selectedRow.name}
           footer={
             <button
@@ -5028,7 +5028,7 @@ function ProfesionalesTab({
               disabled={registeringAdvance || !Number.isFinite(Number(adelantoForm.amount)) || Number(adelantoForm.amount) <= 0}
               className="w-full rounded-2xl border border-amber-300/28 bg-gradient-to-r from-amber-400 to-orange-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_35px_rgba(251,146,60,0.22)] transition hover:brightness-110 disabled:opacity-60"
             >
-              {registeringAdvance ? "Registrando…" : "Registrar adelanto"}
+              {registeringAdvance ? "Adelantando…" : "Adelantar"}
             </button>
           }
         >
@@ -5406,13 +5406,9 @@ function ProfesionalesTab({
                 disabled={payDisabled}
                 className="w-full rounded-2xl border border-violet-300/28 bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_35px_rgba(139,92,246,0.22)] transition hover:brightness-110 disabled:opacity-60"
               >
-                {activeRun
-                  ? payingRunId === activeRun.id
-                    ? "Registrando pago…"
-                    : "Registrar pago"
-                  : preparingRunFor === selectedRow.id
-                    ? "Confirmando…"
-                    : "Confirmar liquidación"}
+                {(activeRun ? payingRunId === activeRun.id : preparingRunFor === selectedRow.id)
+                  ? "Pagando…"
+                  : "Pagar"}
               </button>
             }
           >
@@ -5479,7 +5475,7 @@ function ProfesionalesTab({
 
                   <div className="space-y-1.5 rounded-2xl border border-white/[0.08] bg-black/25 p-3.5 text-sm">
                     <div className="flex items-center justify-between">
-                      <span className="text-white/50">Liquidación anterior pendiente</span>
+                      <span className="text-white/50">Comisiones pendientes</span>
                       <span className="font-semibold text-white">{money(selectedRow.previousBalance)}</span>
                     </div>
                     <div className="flex items-center justify-between">
