@@ -4123,6 +4123,19 @@ function ProfesionalesTab({
     });
   }, [today]);
 
+  // Hora actual para la tarjeta "Hasta hoy" — se actualiza sola cada
+  // minuto (no hace falta más precisión para algo puramente informativo).
+  const [nowClock, setNowClock] = React.useState(() => new Date());
+  React.useEffect(() => {
+    const id = setInterval(() => setNowClock(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+  const nowTimeLabel = nowClock.toLocaleTimeString("es-AR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+
   // Fecha y hora EXACTAS de la última liquidación del profesional
   // seleccionado — null si todavía no tiene ninguna ("Primera
   // liquidación"). No usar toLocaleDateString("es-AR") a secas para la
@@ -4133,7 +4146,7 @@ function ProfesionalesTab({
     const d = new Date(selectedRow.latestRun.prepared_at);
     return {
       dateLabel: d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" }),
-      timeLabel: `${d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })} h`,
+      timeLabel: `${d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })} h`,
     };
   }, [selectedRow]);
 
@@ -4143,7 +4156,7 @@ function ProfesionalesTab({
   // 22/07/2026 · 08:50".
   const liquidarPeriodLabel = React.useMemo(() => {
     const now = new Date();
-    const nowLabel = `${now.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })} · ${now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`;
+    const nowLabel = `${now.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })} · ${now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}`;
     if (lastLiquidacionInfo) {
       return `Desde ${lastLiquidacionInfo.dateLabel} · ${lastLiquidacionInfo.timeLabel.replace(" h", "")} hasta ${nowLabel}`;
     }
@@ -4254,12 +4267,15 @@ function ProfesionalesTab({
         }}
         className={cn(
           "rounded-xl border px-3.5 py-1.5 text-xs font-semibold transition",
+          // Liquidar es la acción principal de la pantalla — siempre en
+          // violeta/índigo (nunca verde: el verde queda reservado para
+          // importes positivos y estados cobrados/confirmados).
           id === "liquidar"
             ? active
-              ? "border-white/[0.12] bg-white/[0.05] text-white shadow-[0_0_18px_rgba(255,255,255,0.06)]"
-              : "border-emerald-400/30 bg-emerald-400/12 text-emerald-200 hover:bg-emerald-400/20 hover:text-white"
+              ? "border-violet-300/40 bg-gradient-to-r from-sky-400 to-violet-500 text-white shadow-[0_0_26px_rgba(139,92,246,0.35)]"
+              : "border-violet-400/30 bg-violet-500/15 text-violet-100 hover:bg-violet-500/25 hover:text-white"
             : active
-              ? "border-emerald-300/45 bg-emerald-500/22 text-emerald-50 shadow-[0_0_30px_rgba(34,197,94,0.24)]"
+              ? "border-violet-300/35 bg-violet-400/10 text-violet-100 shadow-[0_0_18px_rgba(139,92,246,0.16)]"
               : "border-white/[0.08] bg-white/[0.03] text-white/68 hover:bg-white/[0.065] hover:text-white",
         )}
       >
@@ -4319,18 +4335,6 @@ function ProfesionalesTab({
           vía `sm:`). */}
       <section className="flex flex-col overflow-visible rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(10,14,26,0.96),rgba(4,6,14,0.985))] shadow-[0_24px_85px_-50px_rgba(139,92,246,0.42)] sm:h-full sm:overflow-hidden sm:shadow-[0_32px_100px_-58px_rgba(0,0,0,0.95),0_24px_85px_-62px_rgba(139,92,246,0.42)]">
         <div className="flex flex-col gap-4 border-b border-white/[0.065] px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex items-center gap-4">
-            <div className="grid size-11 place-items-center rounded-2xl bg-violet-500/12 text-violet-200 ring-1 ring-violet-300/18">
-              <Wallet className="size-5" />
-            </div>
-            <div>
-              <div className="text-xl font-bold text-white">Liquidaciones</div>
-              <div className="mt-0.5 text-sm text-white/48">
-                Liquidación del profesional seleccionado.
-              </div>
-            </div>
-          </div>
-
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <select
               value={selectedEmployeeId}
@@ -4366,7 +4370,9 @@ function ProfesionalesTab({
                   ? `Última liquidación: ${lastLiquidacionInfo.dateLabel} • ${lastLiquidacionInfo.timeLabel}`
                   : "Primera liquidación"}
               </span>
-              <span className="pl-5 text-[11px] text-white/45">Hasta hoy: {todayLabel}</span>
+              <span className="pl-5 text-[11px] text-white/45">
+                Hasta hoy: {todayLabel} · {nowTimeLabel} h
+              </span>
             </button>
           </div>
         </div>
@@ -4504,6 +4510,7 @@ function ProfesionalesTab({
                       {new Date(selectedRow.latestRun.prepared_at).toLocaleTimeString("es-AR", {
                         hour: "2-digit",
                         minute: "2-digit",
+                        hour12: false,
                       })}
                     </div>
                     <div className="mt-2.5 grid grid-cols-3 gap-2 rounded-xl border border-white/[0.06] bg-black/15 p-2.5 text-center text-xs">
@@ -4526,25 +4533,10 @@ function ProfesionalesTab({
                         </div>
                       </div>
                     </div>
-                    <div className="mt-2.5 text-[11px] leading-relaxed text-white/45">
-                      De los {money(Number(selectedRow.latestRun.total_to_settle))} de la liquidación #
-                      {selectedRow.latestRun.run_number}, se pagaron{" "}
-                      {money(Number(selectedRow.latestRun.amount_paid))} — quedan{" "}
-                      {money(selectedRow.previousBalance)} pendientes.
-                    </div>
                   </div>
                 )}
-                <div className="mb-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
+                <div className="mb-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
                   Período actual
-                </div>
-                <div className="mb-3 text-xs text-white/45">
-                  {lastLiquidacionInfo
-                    ? `Del ${lastLiquidacionInfo.dateLabel} (${lastLiquidacionInfo.timeLabel}) al ${todayLabel}`
-                    : `Hasta hoy, ${todayLabel}`}
-                  , todavía sin asignar a ninguna liquidación. La suma
-                  coincide con "Comisiones nuevas" de arriba — nunca se
-                  recalcula con el % actual, cada fila conserva el que regía
-                  al cobrar la venta.
                 </div>
                 {detailError && (
                   <div className="mb-3 rounded-xl border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-xs text-rose-200">
@@ -4581,7 +4573,7 @@ function ProfesionalesTab({
                           ? saleDate.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })
                           : "—";
                         const time = saleDate
-                          ? saleDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
+                          ? saleDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })
                           : null;
                         const method =
                           PAY_METHOD_LABEL[
@@ -4643,7 +4635,7 @@ function ProfesionalesTab({
                           ? saleDate.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })
                           : "—";
                         const time = saleDate
-                          ? saleDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
+                          ? saleDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })
                           : null;
                         const method =
                           PAY_METHOD_LABEL[
@@ -4850,6 +4842,7 @@ function ProfesionalesTab({
                                   month: "2-digit",
                                   hour: "2-digit",
                                   minute: "2-digit",
+                                  hour12: false,
                                 })
                               : "—"}
                           </div>
@@ -4941,7 +4934,7 @@ function ProfesionalesTab({
                               {created.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}
                             </div>
                             <div className="text-white/52">
-                              {created.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}
+                              {created.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}
                             </div>
                             <div className="text-right font-bold tabular-nums text-emerald-300">
                               {money(Number(payment.amount ?? 0))}
@@ -4986,7 +4979,7 @@ function ProfesionalesTab({
                               <span className="text-[10px] font-semibold uppercase tracking-wider text-white/45">
                                 {created.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}
                                 {" · "}
-                                {created.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}
+                                {created.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}
                               </span>
                               <span className="text-sm font-bold tabular-nums text-emerald-300">
                                 {money(Number(payment.amount ?? 0))}
@@ -5344,6 +5337,7 @@ function ProfesionalesTab({
                       year: "numeric",
                       hour: "2-digit",
                       minute: "2-digit",
+                      hour12: false,
                     })}
                   </span>
                 </div>
@@ -5428,6 +5422,7 @@ function ProfesionalesTab({
                                     month: "2-digit",
                                     hour: "2-digit",
                                     minute: "2-digit",
+                                    hour12: false,
                                   })
                                 : "—"}
                             </span>
