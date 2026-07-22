@@ -2420,6 +2420,10 @@ function LiquidacionesPanelView({
       newCommissions: run.new_commissions,
       adjustments: run.adjustments,
       deductions: run.deductions,
+      adjustmentItems: run.adjustment_items ?? [],
+      deductionItems: run.deduction_items ?? [],
+      preparedByName: run.prepared_by_name,
+      preparedAt: run.prepared_at,
       totalToSettle: run.total_to_settle,
       amountPaid: run.amount_paid,
       payment: lastPayment
@@ -2523,6 +2527,29 @@ function LiquidacionesPanelView({
             <div className="text-[11px] text-muted-foreground">
               Preparada por {run.prepared_by_name} · {new Date(run.prepared_at).toLocaleString("es-AR")}
             </div>
+
+            {run.adjustment_items && run.adjustment_items.length > 0 && (
+              <div className="space-y-1 rounded-xl bg-emerald-400/[0.05] ring-1 ring-emerald-400/15 p-2.5">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/70">Ajustes</div>
+                {run.adjustment_items.map((item, i) => (
+                  <div key={i} className="flex items-center justify-between gap-2 text-xs">
+                    <span className="text-muted-foreground">{item.reason}</span>
+                    <span className="font-semibold text-emerald-300">+${item.amount.toLocaleString("es-AR")}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {run.deduction_items && run.deduction_items.length > 0 && (
+              <div className="space-y-1 rounded-xl bg-rose-400/[0.05] ring-1 ring-rose-400/15 p-2.5">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-rose-300/70">Deducciones</div>
+                {run.deduction_items.map((item, i) => (
+                  <div key={i} className="flex items-center justify-between gap-2 text-xs">
+                    <span className="text-muted-foreground">{item.reason}</span>
+                    <span className="font-semibold text-rose-300">−${item.amount.toLocaleString("es-AR")}</span>
+                  </div>
+                ))}
+              </div>
+            )}
 
             {run.professional_confirmed_at && (
               <div className="text-[11px] text-emerald-300">

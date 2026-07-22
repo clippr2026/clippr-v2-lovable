@@ -57,6 +57,7 @@ import { AcquisitionSourceField } from "@/components/acquisition-source-field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { acquisitionChannelRequiresText } from "@/lib/acquisition-channels";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
+import { AgendaCenteredModal } from "@/components/agenda/agenda-drawer";
 import { buildComprobanteText, downloadComprobante, shareComprobante } from "@/lib/settlement-comprobante";
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
@@ -3266,6 +3267,91 @@ function InventarioTab({
   );
 }
 
+// Lista editable de ajustes o deducciones (importe + motivo) dentro del
+// modal de "Preparar liquidación" — mismo patrón de agregar/quitar filas
+// que "Pago múltiple" en Nueva venta (addSplit/removeSplit más abajo en
+// este archivo), adaptado a importe+motivo en vez de método+importe.
+function SettlementItemsEditor({
+  items,
+  onChange,
+  addLabel,
+  reasonPlaceholder,
+  formatThousands,
+  accentClass,
+}: {
+  items: { id: string; amount: string; reason: string }[];
+  onChange: (items: { id: string; amount: string; reason: string }[]) => void;
+  addLabel: string;
+  reasonPlaceholder: string;
+  formatThousands: (digits: string) => string;
+  accentClass: string;
+}) {
+  function addItem() {
+    onChange([...items, { id: crypto.randomUUID(), amount: "", reason: "" }]);
+  }
+  function updateItem(id: string, patch: Partial<{ amount: string; reason: string }>) {
+    onChange(items.map((it) => (it.id === id ? { ...it, ...patch } : it)));
+  }
+  function removeItem(id: string) {
+    onChange(items.filter((it) => it.id !== id));
+  }
+
+  return (
+    <div className="space-y-2">
+      {items.map((item) => {
+        const incomplete = Number(item.amount || 0) > 0 && !item.reason.trim();
+        return (
+          <div key={item.id} className="space-y-1.5 rounded-2xl border border-white/[0.08] bg-black/20 p-2.5">
+            <div className="flex items-center gap-1.5">
+              <input
+                value={item.reason}
+                onChange={(e) => updateItem(item.id, { reason: e.target.value })}
+                placeholder={reasonPlaceholder}
+                className="h-10 min-w-0 flex-1 rounded-xl border border-white/[0.08] bg-black/30 px-3 text-sm text-white outline-none placeholder:text-white/30 focus:border-white/25"
+              />
+              <div className="relative w-28 shrink-0">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-white/45">
+                  $
+                </span>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  value={formatThousands(item.amount)}
+                  onChange={(e) => updateItem(item.id, { amount: e.target.value.replace(/\D/g, "") })}
+                  placeholder="0"
+                  className="h-10 w-full rounded-xl border border-white/[0.08] bg-black/30 pl-6 pr-2 text-right text-sm font-bold tabular-nums text-white outline-none focus:border-white/25"
+                />
+              </div>
+              <button
+                type="button"
+                onClick={() => removeItem(item.id)}
+                className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-black/25 text-white/45 transition hover:border-rose-300/35 hover:text-rose-300"
+              >
+                <Trash2 className="size-3.5" />
+              </button>
+            </div>
+            {incomplete && (
+              <div className="px-1 text-[11px] text-rose-300">
+                Falta el motivo para este importe.
+              </div>
+            )}
+          </div>
+        );
+      })}
+      <button
+        type="button"
+        onClick={addItem}
+        className={cn(
+          "inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition",
+          accentClass,
+        )}
+      >
+        <Plus className="size-3.5" /> {addLabel}
+      </button>
+    </div>
+  );
+}
+
 function ProfesionalesTab({
   businessId,
   userEmail,
@@ -3315,10 +3401,25 @@ function ProfesionalesTab({
     method: "transferencia",
     note: "",
   });
-  const [adjustmentsForm, setAdjustmentsForm] = React.useState({
-    adjustments: "",
-    deductions: "",
-  });
+  // Ajustes/deducciones itemizados: cada uno es un importe + un motivo
+  // (obligatorio si el importe es > $0), preservados tal cual en el
+  // comprobante/historial — reemplaza los dos campos numéricos sueltos de
+  // antes. El id es solo para la key de React, se descarta al confirmar.
+  const [adjustmentItems, setAdjustmentItems] = React.useState<
+    { id: string; amount: string; reason: string }[]
+  >([]);
+  const [deductionItems, setDeductionItems] = React.useState<
+    { id: string; amount: string; reason: string }[]
+  >([]);
+  const [liquidarModalOpen, setLiquidarModalOpen] = React.useState(false);
+  const [liquidarConfirmStep, setLiquidarConfirmStep] = React.useState(false);
+
+  function resetLiquidarForm() {
+    setAdjustmentItems([]);
+    setDeductionItems([]);
+    setLiquidarModalOpen(false);
+    setLiquidarConfirmStep(false);
+  }
   // commission_records: fuente de verdad de cuánto se le debe a cada
   // profesional. Las que ya tienen settlement_run_id están "bloqueadas"
   // dentro de una liquidación preparada; las que no, son las que entrarían
@@ -3348,6 +3449,12 @@ function ProfesionalesTab({
     (value: number) => `$${Math.round(value).toLocaleString("es-AR")}`,
     [],
   );
+  // Formatea dígitos crudos con separador de miles ("20000" -> "20.000")
+  // mientras se escribe — mismo patrón que precios en Precios/Catálogo.
+  const formatThousands = React.useCallback((digits: string) => {
+    const n = Number(digits);
+    return digits && Number.isFinite(n) ? n.toLocaleString("es-AR") : "";
+  }, []);
 
   React.useEffect(() => {
     if (selectedEmployeeId === "all") return;
@@ -3361,7 +3468,7 @@ function ProfesionalesTab({
     if (selectedEmployeeId === "all") {
       setSelectedDetail("detalle");
       setPaymentForm({ amount: "", method: "transferencia", note: "" });
-      setAdjustmentsForm({ adjustments: "", deductions: "" });
+      resetLiquidarForm();
     }
   }, [selectedEmployeeId]);
 
@@ -3429,7 +3536,7 @@ function ProfesionalesTab({
           supabase
             .from("settlement_runs" as any)
             .select(
-              "id,professional_id,run_number,cutoff_date,period_start,previous_settlement_run_id,previous_balance,new_commissions,adjustments,deductions,total_to_settle,amount_paid,service_count,total_sold,status,prepared_by_name,prepared_at",
+              "id,professional_id,run_number,cutoff_date,period_start,previous_settlement_run_id,previous_balance,new_commissions,adjustments,deductions,adjustment_items,deduction_items,total_to_settle,amount_paid,service_count,total_sold,status,prepared_by_name,prepared_at",
             )
             .eq("business_id", businessId)
             .order("cutoff_date", { ascending: false }),
@@ -3693,13 +3800,31 @@ function ProfesionalesTab({
     });
   }, [selectedRunPayments, historialFilters]);
 
+  // Solo cuentan los items con importe > 0 — una fila agregada pero nunca
+  // completada se descarta en vez de mandarse como un ajuste de $0.
+  function validSettlementItems(items: { amount: string; reason: string }[]) {
+    return items
+      .map((i) => ({ amount: Number(i.amount || 0), reason: i.reason.trim() }))
+      .filter((i) => i.amount > 0);
+  }
+
+  function hasIncompleteSettlementItems(items: { amount: string; reason: string }[]) {
+    return items.some((i) => Number(i.amount || 0) > 0 && !i.reason.trim());
+  }
+
   async function prepareRun(row: (typeof rows)[number] | null) {
     if (!row || preparingRunFor) return;
-    const adjustments = Number(adjustmentsForm.adjustments || 0);
-    const deductions = Number(adjustmentsForm.deductions || 0);
+    const validAdjustments = validSettlementItems(adjustmentItems);
+    const validDeductions = validSettlementItems(deductionItems);
+    const adjustments = validAdjustments.reduce((sum, i) => sum + i.amount, 0);
+    const deductions = validDeductions.reduce((sum, i) => sum + i.amount, 0);
     const total = row.previousBalance + row.newCommissions + adjustments - deductions;
     if (total <= 0) {
       toast.error("No hay nada para liquidar en este corte");
+      return;
+    }
+    if (hasIncompleteSettlementItems(adjustmentItems) || hasIncompleteSettlementItems(deductionItems)) {
+      toast.error("Cada ajuste o deducción con importe necesita un motivo");
       return;
     }
     setPreparingRunFor(row.id);
@@ -3713,14 +3838,14 @@ function ProfesionalesTab({
         p_business_id: businessId,
         p_professional_id: row.id,
         p_cutoff_date: cutoffDate,
-        p_adjustments: adjustments,
-        p_deductions: deductions,
+        p_adjustment_items: validAdjustments,
+        p_deduction_items: validDeductions,
         p_prepared_by: user.id,
         p_prepared_by_name: userEmail ?? "Caja",
       });
       if (error) throw error;
       toast.success(`Liquidación preparada para ${row.name}`);
-      setAdjustmentsForm({ adjustments: "", deductions: "" });
+      resetLiquidarForm();
       setCommissionsVersion((v) => v + 1);
       setSelectedDetail("liquidar");
     } catch (e) {
@@ -3784,6 +3909,16 @@ function ProfesionalesTab({
     return cutoff
       .toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
   }, [selectedRow]);
+
+  const liquidarPeriodLabel = React.useMemo(() => {
+    const plainCutoff = new Date(`${cutoffDate}T12:00:00`)
+      .toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" })
+      .replace(".", "");
+    if (nextPeriodStartLabel) {
+      return `Período: del ${nextPeriodStartLabel} al ${plainCutoff}`;
+    }
+    return `Primera liquidación · hasta ${cutoffDate === today ? `hoy, ${plainCutoff}` : plainCutoff}`;
+  }, [cutoffDate, today, nextPeriodStartLabel]);
 
   const calendarDays = React.useMemo(() => {
     const year = calendarMonth.getFullYear();
@@ -3934,6 +4069,37 @@ function ProfesionalesTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDetail, selectedRow?.id, cutoffDate, commissionsVersion]);
 
+  // Totales en vivo del modal "Preparar liquidación" — se recalculan en
+  // cada tecla mientras se agregan/editan ajustes y deducciones.
+  const liquidarAdjustmentsSum = adjustmentItems.reduce(
+    (sum, i) => sum + Math.max(Number(i.amount || 0), 0),
+    0,
+  );
+  const liquidarDeductionsSum = deductionItems.reduce(
+    (sum, i) => sum + Math.max(Number(i.amount || 0), 0),
+    0,
+  );
+  const liquidarBaseTotal = selectedRow
+    ? selectedRow.previousBalance + selectedRow.newCommissions
+    : 0;
+  const liquidarFinalTotal = liquidarBaseTotal + liquidarAdjustmentsSum - liquidarDeductionsSum;
+  const liquidarHasIncompleteItems =
+    hasIncompleteSettlementItems(adjustmentItems) || hasIncompleteSettlementItems(deductionItems);
+  const liquidarValidAdjustmentsCount = validSettlementItems(adjustmentItems).length;
+  const liquidarValidDeductionsCount = validSettlementItems(deductionItems).length;
+
+  function handleConfirmLiquidarClick() {
+    if (liquidarHasIncompleteItems) {
+      toast.error("Cada ajuste o deducción con importe necesita un motivo");
+      return;
+    }
+    if (liquidarFinalTotal <= 0) {
+      toast.error("No hay nada para liquidar en este corte");
+      return;
+    }
+    setLiquidarConfirmStep(true);
+  }
+
   return (
     <div className="-mt-5 h-auto overflow-visible pb-6 sm:h-[calc(100vh-270px)] sm:min-h-[470px] sm:overflow-hidden">
       {/* Mobile: un solo shadow liviano (mismo costo de paint que
@@ -3968,7 +4134,7 @@ function ProfesionalesTab({
                 setSelectedEmployeeId(nextId);
                 const nextRow = rows.find((row) => row.id === nextId);
                 setPaymentForm({ amount: "", method: "transferencia", note: "" });
-                setAdjustmentsForm({ adjustments: "", deductions: "" });
+                resetLiquidarForm();
                 setSelectedDetail(
                   nextId !== "all" && nextRow?.activeRun ? "liquidar" : "detalle",
                 );
@@ -4698,6 +4864,28 @@ function ProfesionalesTab({
                                 })
                               : "—"}
                           </div>
+                          {Array.isArray(run.adjustment_items) && run.adjustment_items.length > 0 && (
+                            <div className="mt-2 space-y-1 rounded-xl border border-emerald-400/15 bg-emerald-400/[0.04] p-2.5">
+                              <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/70">Ajustes</div>
+                              {run.adjustment_items.map((item: any, i: number) => (
+                                <div key={i} className="flex items-center justify-between gap-2 text-xs">
+                                  <span className="text-white/60">{item.reason}</span>
+                                  <span className="font-semibold text-emerald-300">+{money(Number(item.amount))}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                          {Array.isArray(run.deduction_items) && run.deduction_items.length > 0 && (
+                            <div className="mt-2 space-y-1 rounded-xl border border-rose-400/15 bg-rose-400/[0.04] p-2.5">
+                              <div className="text-[10px] font-bold uppercase tracking-wider text-rose-300/70">Deducciones</div>
+                              {run.deduction_items.map((item: any, i: number) => (
+                                <div key={i} className="flex items-center justify-between gap-2 text-xs">
+                                  <span className="text-white/60">{item.reason}</span>
+                                  <span className="font-semibold text-rose-300">−{money(Number(item.amount))}</span>
+                                </div>
+                              ))}
+                            </div>
+                          )}
                           <div className="mt-3 flex flex-wrap gap-2">
                             <button
                               onClick={() => {
@@ -4723,6 +4911,10 @@ function ProfesionalesTab({
                                   newCommissions: Number(run.new_commissions ?? 0),
                                   adjustments: Number(run.adjustments ?? 0),
                                   deductions: Number(run.deductions ?? 0),
+                                  adjustmentItems: Array.isArray(run.adjustment_items) ? run.adjustment_items : [],
+                                  deductionItems: Array.isArray(run.deduction_items) ? run.deduction_items : [],
+                                  preparedByName: run.prepared_by_name ?? null,
+                                  preparedAt: run.prepared_at ?? null,
                                   totalToSettle: Number(run.total_to_settle ?? 0),
                                   amountPaid: Number(run.amount_paid ?? 0),
                                   payment: lastPayment
@@ -4767,6 +4959,10 @@ function ProfesionalesTab({
                                   newCommissions: Number(run.new_commissions ?? 0),
                                   adjustments: Number(run.adjustments ?? 0),
                                   deductions: Number(run.deductions ?? 0),
+                                  adjustmentItems: Array.isArray(run.adjustment_items) ? run.adjustment_items : [],
+                                  deductionItems: Array.isArray(run.deduction_items) ? run.deduction_items : [],
+                                  preparedByName: run.prepared_by_name ?? null,
+                                  preparedAt: run.prepared_at ?? null,
                                   totalToSettle: Number(run.total_to_settle ?? 0),
                                   amountPaid: Number(run.amount_paid ?? 0),
                                   payment: lastPayment
@@ -5004,24 +5200,23 @@ function ProfesionalesTab({
                     </button>
                   </div>
                 ) : (
-                  // Sin liquidación activa: acá se prepara una nueva, con el
-                  // corte elegido arriba.
+                  // Sin liquidación activa: acá se prepara una nueva. El
+                  // formulario en sí (ajustes/deducciones itemizados +
+                  // confirmación) vive en un modal — acá solo un resumen
+                  // compacto y el botón para abrirlo, para no repetir los
+                  // mismos indicadores dos veces.
                   <div className="mx-auto max-w-2xl rounded-2xl border border-violet-400/18 bg-violet-400/[0.035] p-4 shadow-[0_0_35px_rgba(139,92,246,0.08)]">
                     <div className="mb-4 flex items-start justify-between gap-3">
                       <div>
                         <div className="text-base font-bold text-white">Preparar liquidación</div>
-                        <div className="mt-0.5 text-sm text-white/48">
-                          {nextPeriodStartLabel
-                            ? `Período: del ${nextPeriodStartLabel} al ${cutoffLabel}`
-                            : `Primera liquidación — hasta el ${cutoffLabel}`}
-                        </div>
+                        <div className="mt-0.5 text-sm text-white/48">{liquidarPeriodLabel}</div>
                       </div>
                       <div className="rounded-full bg-violet-400/12 px-3 py-1 text-xs font-bold text-violet-300 ring-1 ring-violet-400/20">
                         {selectedRow.name}
                       </div>
                     </div>
 
-                    <div className="mb-4 grid grid-cols-2 gap-3 rounded-2xl border border-white/[0.07] bg-black/20 p-3 text-center sm:grid-cols-4">
+                    <div className="mb-4 grid grid-cols-3 gap-3 rounded-2xl border border-white/[0.07] bg-black/20 p-3 text-center">
                       <div>
                         <div className="text-[10px] uppercase tracking-wider text-white/40">Saldo anterior</div>
                         <div className="mt-1 font-bold text-white/85">{money(selectedRow.previousBalance)}</div>
@@ -5036,66 +5231,22 @@ function ProfesionalesTab({
                         <div className="mt-1 font-bold text-violet-300">{money(selectedRow.newCommissions)}</div>
                       </div>
                       <div>
-                        <div className="text-[10px] uppercase tracking-wider text-white/40">Total a liquidar</div>
+                        <div className="text-[10px] uppercase tracking-wider text-white/40">Total pendiente</div>
                         <div className="mt-1 font-bold text-emerald-300">
-                          {money(
-                            selectedRow.previousBalance +
-                              selectedRow.newCommissions +
-                              Number(adjustmentsForm.adjustments || 0) -
-                              Number(adjustmentsForm.deductions || 0),
-                          )}
+                          {money(selectedRow.previousBalance + selectedRow.newCommissions)}
                         </div>
                       </div>
-                      <div>
-                        <div className="text-[10px] uppercase tracking-wider text-white/40">Pendiente actual</div>
-                        <div className="mt-1 font-bold text-rose-300">{money(selectedRow.pending)}</div>
-                      </div>
-                    </div>
-
-                    <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                      <label className="space-y-1.5 text-xs font-semibold text-white/55">
-                        Ajustes (+)
-                        <input
-                          type="number"
-                          value={adjustmentsForm.adjustments}
-                          onChange={(event) =>
-                            setAdjustmentsForm((form) => ({ ...form, adjustments: event.target.value }))
-                          }
-                          placeholder="0"
-                          className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-base text-white outline-none focus:border-violet-300/35"
-                        />
-                      </label>
-                      <label className="space-y-1.5 text-xs font-semibold text-white/55">
-                        Deducciones (−)
-                        <input
-                          type="number"
-                          min={0}
-                          value={adjustmentsForm.deductions}
-                          onChange={(event) =>
-                            setAdjustmentsForm((form) => ({ ...form, deductions: event.target.value }))
-                          }
-                          placeholder="0"
-                          className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-base text-white outline-none focus:border-violet-300/35"
-                        />
-                      </label>
                     </div>
 
                     <button
                       type="button"
-                      onClick={() => prepareRun(selectedRow)}
-                      disabled={
-                        preparingRunFor === selectedRow.id ||
-                        selectedRow.previousBalance +
-                          selectedRow.newCommissions +
-                          Number(adjustmentsForm.adjustments || 0) -
-                          Number(adjustmentsForm.deductions || 0) <=
-                          0
-                      }
-                      className="mt-3 inline-flex w-full items-center justify-center rounded-2xl border border-violet-300/28 bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_35px_rgba(139,92,246,0.22)] transition hover:brightness-110 disabled:opacity-60"
+                      onClick={() => {
+                        setLiquidarConfirmStep(false);
+                        setLiquidarModalOpen(true);
+                      }}
+                      className="inline-flex w-full items-center justify-center rounded-2xl border border-violet-300/28 bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_35px_rgba(139,92,246,0.22)] transition hover:brightness-110"
                     >
-                      {preparingRunFor === selectedRow.id
-                        ? "Preparando…"
-                        : "Preparar liquidación"}
+                      Preparar liquidación
                     </button>
                   </div>
                 )}
@@ -5108,6 +5259,140 @@ function ProfesionalesTab({
           </div>
         )}
       </section>
+
+      {selectedRow && (
+        <AgendaCenteredModal
+          open={liquidarModalOpen}
+          onOpenChange={(v) => {
+            if (!v) resetLiquidarForm();
+          }}
+          title={selectedRow.name}
+          subtitle={liquidarPeriodLabel}
+          footer={
+            liquidarConfirmStep ? (
+              <div className="flex w-full gap-2">
+                <button
+                  type="button"
+                  onClick={() => setLiquidarConfirmStep(false)}
+                  className="flex-1 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-bold text-white/70 transition hover:bg-white/[0.07]"
+                >
+                  Volver
+                </button>
+                <button
+                  type="button"
+                  onClick={() => prepareRun(selectedRow)}
+                  disabled={preparingRunFor === selectedRow.id}
+                  className="flex-1 rounded-2xl border border-violet-300/28 bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_35px_rgba(139,92,246,0.22)] transition hover:brightness-110 disabled:opacity-60"
+                >
+                  {preparingRunFor === selectedRow.id ? "Confirmando…" : "Confirmar"}
+                </button>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={handleConfirmLiquidarClick}
+                className="w-full rounded-2xl border border-violet-300/28 bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_35px_rgba(139,92,246,0.22)] transition hover:brightness-110"
+              >
+                Confirmar liquidación
+              </button>
+            )
+          }
+        >
+          {liquidarConfirmStep ? (
+            <div className="space-y-3">
+              <div className="text-xs font-bold uppercase tracking-[0.16em] text-white/38">
+                Validación final
+              </div>
+              <div className="space-y-2 rounded-2xl border border-white/[0.08] bg-black/20 p-3.5 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-white/50">Profesional</span>
+                  <span className="font-semibold text-white">{selectedRow.name}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/50">Período</span>
+                  <span className="font-semibold text-white">{liquidarPeriodLabel.replace("Período: ", "")}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/50">Cantidad de ajustes</span>
+                  <span className="font-semibold text-white">{liquidarValidAdjustmentsCount}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/50">Cantidad de deducciones</span>
+                  <span className="font-semibold text-white">{liquidarValidDeductionsCount}</span>
+                </div>
+                <div className="mt-1 flex items-center justify-between border-t border-white/[0.08] pt-2">
+                  <span className="font-bold text-white/70">Total a pagar</span>
+                  <span className="text-base font-bold text-emerald-300">{money(liquidarFinalTotal)}</span>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-2 rounded-2xl border border-white/[0.07] bg-black/20 p-3 text-center">
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-white/40">Saldo anterior</div>
+                  <div className="mt-1 text-sm font-bold text-white/85">{money(selectedRow.previousBalance)}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-white/40">Comisiones nuevas</div>
+                  <div className="mt-1 text-sm font-bold text-violet-300">{money(selectedRow.newCommissions)}</div>
+                </div>
+                <div>
+                  <div className="text-[10px] uppercase tracking-wider text-white/40">Total pendiente</div>
+                  <div className="mt-1 text-sm font-bold text-white">{money(liquidarBaseTotal)}</div>
+                </div>
+              </div>
+
+              <div>
+                <div className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-emerald-300/80">
+                  Ajustes (+)
+                </div>
+                <SettlementItemsEditor
+                  items={adjustmentItems}
+                  onChange={setAdjustmentItems}
+                  addLabel="Agregar ajuste"
+                  reasonPlaceholder="Ej. Feriado trabajado, bono o comisión adicional"
+                  formatThousands={formatThousands}
+                  accentClass="border-emerald-400/25 bg-emerald-400/10 text-emerald-200 hover:bg-emerald-400/15"
+                />
+              </div>
+
+              <div>
+                <div className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-rose-300/80">
+                  Deducciones (−)
+                </div>
+                <SettlementItemsEditor
+                  items={deductionItems}
+                  onChange={setDeductionItems}
+                  addLabel="Agregar deducción"
+                  reasonPlaceholder="Ej. Llegada tarde, adelanto o producto descontado"
+                  formatThousands={formatThousands}
+                  accentClass="border-rose-400/25 bg-rose-400/10 text-rose-200 hover:bg-rose-400/15"
+                />
+              </div>
+
+              <div className="space-y-1.5 rounded-2xl border border-white/[0.08] bg-black/25 p-3.5 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-white/50">Comisiones pendientes</span>
+                  <span className="font-semibold text-white">{money(liquidarBaseTotal)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/50">Ajustes</span>
+                  <span className="font-semibold text-emerald-300">+{money(liquidarAdjustmentsSum)}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/50">Deducciones</span>
+                  <span className="font-semibold text-rose-300">−{money(liquidarDeductionsSum)}</span>
+                </div>
+                <div className="mt-1 flex items-center justify-between border-t border-white/[0.08] pt-2">
+                  <span className="font-bold text-white/70">Total final a pagar</span>
+                  <span className="text-base font-bold text-emerald-300">{money(liquidarFinalTotal)}</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </AgendaCenteredModal>
+      )}
     </div>
   );
 }

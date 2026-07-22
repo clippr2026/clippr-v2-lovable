@@ -14,6 +14,10 @@ export type ComprobanteData = {
   newCommissions: number;
   adjustments: number;
   deductions: number;
+  adjustmentItems?: { amount: number; reason: string }[];
+  deductionItems?: { amount: number; reason: string }[];
+  preparedByName?: string | null;
+  preparedAt?: string | null;
   totalToSettle: number;
   amountPaid: number;
   payment?: {
@@ -57,6 +61,12 @@ export function buildComprobanteText(d: ComprobanteData) {
     "",
     "── Período actual ──",
     `Comisiones del período: ${money(d.newCommissions)}`,
+    ...(d.adjustmentItems && d.adjustmentItems.length > 0
+      ? ["", "── Ajustes ──", ...d.adjustmentItems.map((i) => `${i.reason}: +${money(i.amount)}`)]
+      : []),
+    ...(d.deductionItems && d.deductionItems.length > 0
+      ? ["", "── Deducciones ──", ...d.deductionItems.map((i) => `${i.reason}: -${money(i.amount)}`)]
+      : []),
     "",
     "── Resumen ──",
     `Saldo anterior:       ${money(d.previousBalance)}`,
@@ -66,6 +76,12 @@ export function buildComprobanteText(d: ComprobanteData) {
     `Total a liquidar:     ${money(d.totalToSettle)}`,
     `Pago registrado:      ${money(d.amountPaid)}`,
     `Saldo posterior:      ${money(Math.max(d.totalToSettle - d.amountPaid, 0))}`,
+    ...(d.preparedByName
+      ? [
+          "",
+          `Confirmado por: ${d.preparedByName}${d.preparedAt ? ` · ${new Date(d.preparedAt).toLocaleString("es-AR")}` : ""}`,
+        ]
+      : []),
   ];
 
   if (d.payment) {
