@@ -4366,6 +4366,10 @@ function ProfesionalesTab({
     );
   };
 
+  // Mitad de un segmented control (Desglose | Historial) — una sola pieza
+  // partida al medio, no dos botones sueltos: el borde/fondo compartido
+  // vive en el contenedor (ver más abajo), acá solo cambia el resaltado de
+  // la mitad activa.
   const ActionButton = ({
     id,
     children,
@@ -4379,10 +4383,10 @@ function ProfesionalesTab({
         type="button"
         onClick={() => setSelectedDetail(id)}
         className={cn(
-          "rounded-xl border px-3.5 py-1.5 text-xs font-semibold transition",
+          "px-3.5 py-3 text-xs font-bold uppercase tracking-[0.14em] transition",
           active
-            ? "border-violet-300/35 bg-violet-400/10 text-violet-100 shadow-[0_0_18px_rgba(139,92,246,0.16)]"
-            : "border-white/[0.08] bg-white/[0.03] text-white/68 hover:bg-white/[0.065] hover:text-white",
+            ? "bg-gradient-to-r from-sky-400/25 to-violet-500/25 text-white shadow-[inset_0_0_0_1px_rgba(167,139,250,0.35)]"
+            : "text-white/45 hover:bg-white/[0.04] hover:text-white/70",
         )}
       >
         {children}
@@ -4595,31 +4599,37 @@ function ProfesionalesTab({
           </>
         ) : selectedRow ? (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            <div className="flex flex-wrap justify-end gap-2 border-b border-white/[0.06] bg-white/[0.018] px-5 py-3">
+            {/* Selector Desglose | Historial: una sola pieza partida al
+                medio (borde/fondo compartidos acá, divide-x como línea
+                central), no dos botones sueltos — ActionButton solo
+                resalta la mitad activa. */}
+            <div className="grid grid-cols-2 divide-x divide-white/[0.07] overflow-hidden border-b border-white/[0.06] bg-white/[0.018]">
+              <ActionButton id="detalle">Desglose</ActionButton>
+              <ActionButton id="historial">Historial</ActionButton>
+            </div>
+
+            {/* Adelantos y Liquidar: acciones principales independientes,
+                cada una alineada debajo de su tarjeta (Adelantos / Total a
+                liquidar, misma grilla de 2 columnas de arriba). */}
+            <div className="grid grid-cols-2 gap-3 border-b border-white/[0.06] bg-white/[0.018] px-5 py-3">
               <button
                 type="button"
                 onClick={() => {
                   setAdelantoForm((form) => ({ ...form, date: form.date || today }));
                   setAdelantoModalOpen(true);
                 }}
-                className="rounded-xl border border-rose-400/30 bg-rose-500/10 px-3.5 py-1.5 text-xs font-semibold text-rose-200 transition hover:bg-rose-500/[0.16]"
+                className="rounded-2xl bg-rose-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_24px_rgba(244,63,94,0.28)] transition hover:brightness-110"
               >
                 Adelantos
               </button>
-              <ActionButton id="detalle">Ver desglose</ActionButton>
-              <ActionButton id="historial">Historial</ActionButton>
+              <button
+                type="button"
+                onClick={() => openLiquidarModal(selectedRow)}
+                className="rounded-2xl bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_28px_rgba(139,92,246,0.32)] transition hover:brightness-110"
+              >
+                Liquidar
+              </button>
             </div>
-
-            {/* Liquidar es la acción principal de toda la sección — banner
-                recto de ancho completo, no un botón chico más al lado de
-                Ver desglose/Historial/Adelantos. */}
-            <button
-              type="button"
-              onClick={() => openLiquidarModal(selectedRow)}
-              className="flex w-full items-center justify-center gap-2 border-b border-white/[0.06] bg-gradient-to-r from-sky-400 to-violet-500 px-5 py-3.5 text-sm font-bold uppercase tracking-[0.12em] text-white shadow-[0_0_30px_rgba(139,92,246,0.3)] transition hover:brightness-110"
-            >
-              Liquidar
-            </button>
 
             {selectedDetail === "detalle" && (
               <div className="min-h-0 flex-1 overflow-visible sm:overflow-y-auto px-5 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
