@@ -4602,20 +4602,24 @@ function ProfesionalesTab({
                   setAdelantoForm((form) => ({ ...form, date: form.date || today }));
                   setAdelantoModalOpen(true);
                 }}
-                className="rounded-xl border border-amber-300/25 bg-amber-400/[0.06] px-3.5 py-1.5 text-xs font-semibold text-amber-200 transition hover:bg-amber-400/[0.11]"
+                className="rounded-xl border border-rose-400/30 bg-rose-500/10 px-3.5 py-1.5 text-xs font-semibold text-rose-200 transition hover:bg-rose-500/[0.16]"
               >
                 Adelantos
               </button>
               <ActionButton id="detalle">Ver desglose</ActionButton>
               <ActionButton id="historial">Historial</ActionButton>
-              <button
-                type="button"
-                onClick={() => openLiquidarModal(selectedRow)}
-                className="rounded-xl border border-violet-300/40 bg-gradient-to-r from-sky-400 to-violet-500 px-3.5 py-1.5 text-xs font-semibold text-white shadow-[0_0_26px_rgba(139,92,246,0.35)] transition hover:brightness-110"
-              >
-                Liquidar
-              </button>
             </div>
+
+            {/* Liquidar es la acción principal de toda la sección — banner
+                recto de ancho completo, no un botón chico más al lado de
+                Ver desglose/Historial/Adelantos. */}
+            <button
+              type="button"
+              onClick={() => openLiquidarModal(selectedRow)}
+              className="flex w-full items-center justify-center gap-2 border-b border-white/[0.06] bg-gradient-to-r from-sky-400 to-violet-500 px-5 py-3.5 text-sm font-bold uppercase tracking-[0.12em] text-white shadow-[0_0_30px_rgba(139,92,246,0.3)] transition hover:brightness-110"
+            >
+              Liquidar
+            </button>
 
             {selectedDetail === "detalle" && (
               <div className="min-h-0 flex-1 overflow-visible sm:overflow-y-auto px-5 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
