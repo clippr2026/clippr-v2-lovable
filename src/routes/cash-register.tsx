@@ -3604,17 +3604,16 @@ function ProfesionalesTab({
   const [commissionsVersion, setCommissionsVersion] = React.useState(0);
 
   // Filtros del Historial (además del profesional, que ya se elige en la
-  // lista de la izquierda): estado, responsable y método filtran runs y
-  // pagos por igual; las dos fechas son independientes entre sí — fecha de
-  // liquidación filtra por cutoff_date del run, fecha de pago por paid_at.
+  // lista de la izquierda): estado filtra por run.status, método y
+  // responsable filtran por los pagos de cada run (un run "pasa" si
+  // alguno de sus pagos coincide), y el rango de fechas filtra por el
+  // período liquidado (cutoff_date del run).
   const [historialFilters, setHistorialFilters] = React.useState({
     estado: "all" as "all" | "pendiente" | "parcial" | "pagada" | "observada",
     metodo: "all" as string,
     responsable: "all" as string,
-    liqDesde: "",
-    liqHasta: "",
-    pagoDesde: "",
-    pagoHasta: "",
+    desde: "",
+    hasta: "",
   });
 
   const money = React.useCallback(
@@ -3997,26 +3996,38 @@ function ProfesionalesTab({
     return Array.from(methods).sort();
   }, [allRunPayments]);
 
+  // Pagos de cada run, agrupados por settlement_run_id — reemplaza la
+  // vieja tabla plana "Pagos" (todas las liquidaciones mezcladas): ahora
+  // cada tarjeta de Historial anida directamente sus propios pagos.
+  const paymentsByRun = React.useMemo(() => {
+    const map = new Map<string, any[]>();
+    selectedRunPayments.forEach((p: any) => {
+      const list = map.get(p.settlement_run_id) ?? [];
+      list.push(p);
+      map.set(p.settlement_run_id, list);
+    });
+    return map;
+  }, [selectedRunPayments]);
+
   const filteredRuns = React.useMemo(() => {
     return selectedRuns.filter((r: any) => {
       if (historialFilters.estado !== "all" && r.status !== historialFilters.estado) return false;
-      if (historialFilters.responsable !== "all" && r.prepared_by_name !== historialFilters.responsable) return false;
-      if (historialFilters.liqDesde && r.cutoff_date < historialFilters.liqDesde) return false;
-      if (historialFilters.liqHasta && r.cutoff_date > historialFilters.liqHasta) return false;
+      if (historialFilters.desde && r.cutoff_date < historialFilters.desde) return false;
+      if (historialFilters.hasta && r.cutoff_date > historialFilters.hasta) return false;
+      const runPayments = paymentsByRun.get(r.id) ?? [];
+      if (historialFilters.metodo !== "all" && !runPayments.some((p: any) => p.payment_method === historialFilters.metodo)) {
+        return false;
+      }
+      if (
+        historialFilters.responsable !== "all" &&
+        r.prepared_by_name !== historialFilters.responsable &&
+        !runPayments.some((p: any) => p.paid_by_name === historialFilters.responsable)
+      ) {
+        return false;
+      }
       return true;
     });
-  }, [selectedRuns, historialFilters]);
-
-  const filteredRunPayments = React.useMemo(() => {
-    return selectedRunPayments.filter((p: any) => {
-      if (historialFilters.metodo !== "all" && p.payment_method !== historialFilters.metodo) return false;
-      if (historialFilters.responsable !== "all" && p.paid_by_name !== historialFilters.responsable) return false;
-      const paidDate = String(p.paid_at ?? "").slice(0, 10);
-      if (historialFilters.pagoDesde && paidDate < historialFilters.pagoDesde) return false;
-      if (historialFilters.pagoHasta && paidDate > historialFilters.pagoHasta) return false;
-      return true;
-    });
-  }, [selectedRunPayments, historialFilters]);
+  }, [selectedRuns, historialFilters, paymentsByRun]);
 
   // Solo cuentan los items con importe > 0 — una fila agregada pero nunca
   // completada se descarta en vez de mandarse como un ajuste de $0.
@@ -4734,91 +4745,92 @@ function ProfesionalesTab({
 
             {selectedDetail === "historial" && (
               <div className="min-h-0 flex-1 overflow-visible sm:overflow-y-auto px-5 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
-                <div className="mb-4 flex flex-wrap gap-2">
-                  <select
-                    value={historialFilters.estado}
-                    onChange={(e) => setHistorialFilters((f) => ({ ...f, estado: e.target.value as any }))}
-                    className="rounded-lg border border-white/[0.08] bg-black/25 px-2.5 py-1.5 text-xs text-white/70"
-                  >
-                    <option value="all">Estado: todos</option>
-                    <option value="pendiente">Pendiente</option>
-                    <option value="parcial">Pago parcial</option>
-                    <option value="pagada">Pagada</option>
-                    <option value="observada">Observada</option>
-                  </select>
-                  <select
-                    value={historialFilters.metodo}
-                    onChange={(e) => setHistorialFilters((f) => ({ ...f, metodo: e.target.value }))}
-                    className="rounded-lg border border-white/[0.08] bg-black/25 px-2.5 py-1.5 text-xs text-white/70"
-                  >
-                    <option value="all">Método: todos</option>
-                    {metodoOptions.map((m) => (
-                      <option key={m} value={m}>{m}</option>
-                    ))}
-                  </select>
-                  <select
-                    value={historialFilters.responsable}
-                    onChange={(e) => setHistorialFilters((f) => ({ ...f, responsable: e.target.value }))}
-                    className="rounded-lg border border-white/[0.08] bg-black/25 px-2.5 py-1.5 text-xs text-white/70"
-                  >
-                    <option value="all">Responsable: todos</option>
-                    {responsableOptions.map((r) => (
-                      <option key={r} value={r}>{r}</option>
-                    ))}
-                  </select>
-                  <label className="flex items-center gap-1.5 text-[11px] text-white/45">
-                    Liquidación
-                    <input
-                      type="date"
-                      value={historialFilters.liqDesde}
-                      onChange={(e) => setHistorialFilters((f) => ({ ...f, liqDesde: e.target.value }))}
-                      className="rounded-lg border border-white/[0.08] bg-black/25 px-2 py-1 text-xs text-white/70"
-                    />
-                    <span>a</span>
-                    <input
-                      type="date"
-                      value={historialFilters.liqHasta}
-                      onChange={(e) => setHistorialFilters((f) => ({ ...f, liqHasta: e.target.value }))}
-                      className="rounded-lg border border-white/[0.08] bg-black/25 px-2 py-1 text-xs text-white/70"
-                    />
-                  </label>
-                  <label className="flex items-center gap-1.5 text-[11px] text-white/45">
-                    Pago
-                    <input
-                      type="date"
-                      value={historialFilters.pagoDesde}
-                      onChange={(e) => setHistorialFilters((f) => ({ ...f, pagoDesde: e.target.value }))}
-                      className="rounded-lg border border-white/[0.08] bg-black/25 px-2 py-1 text-xs text-white/70"
-                    />
-                    <span>a</span>
-                    <input
-                      type="date"
-                      value={historialFilters.pagoHasta}
-                      onChange={(e) => setHistorialFilters((f) => ({ ...f, pagoHasta: e.target.value }))}
-                      className="rounded-lg border border-white/[0.08] bg-black/25 px-2 py-1 text-xs text-white/70"
-                    />
-                  </label>
-                  {(historialFilters.estado !== "all" || historialFilters.metodo !== "all" || historialFilters.responsable !== "all" || historialFilters.liqDesde || historialFilters.liqHasta || historialFilters.pagoDesde || historialFilters.pagoHasta) && (
+                <div className="mb-4 rounded-2xl border border-white/[0.07] bg-black/15 p-3">
+                  <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
+                    <label className="space-y-1 text-[10px] font-semibold uppercase tracking-wider text-white/35">
+                      Estado
+                      <select
+                        value={historialFilters.estado}
+                        onChange={(e) => setHistorialFilters((f) => ({ ...f, estado: e.target.value as any }))}
+                        className="h-9 w-full rounded-xl border border-white/[0.08] bg-black/25 px-2.5 text-xs font-normal normal-case text-white/75"
+                      >
+                        <option value="all">Todos</option>
+                        <option value="pendiente">Pendiente</option>
+                        <option value="parcial">Parcial</option>
+                        <option value="pagada">Pagada</option>
+                        <option value="observada">Observada</option>
+                      </select>
+                    </label>
+                    <label className="space-y-1 text-[10px] font-semibold uppercase tracking-wider text-white/35">
+                      Método
+                      <select
+                        value={historialFilters.metodo}
+                        onChange={(e) => setHistorialFilters((f) => ({ ...f, metodo: e.target.value }))}
+                        className="h-9 w-full rounded-xl border border-white/[0.08] bg-black/25 px-2.5 text-xs font-normal capitalize text-white/75"
+                      >
+                        <option value="all">Todos</option>
+                        {metodoOptions.map((m) => (
+                          <option key={m} value={m}>{m}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className="space-y-1 text-[10px] font-semibold uppercase tracking-wider text-white/35">
+                      Responsable
+                      <select
+                        value={historialFilters.responsable}
+                        onChange={(e) => setHistorialFilters((f) => ({ ...f, responsable: e.target.value }))}
+                        className="h-9 w-full rounded-xl border border-white/[0.08] bg-black/25 px-2.5 text-xs font-normal normal-case text-white/75"
+                      >
+                        <option value="all">Todos</option>
+                        {responsableOptions.map((r) => (
+                          <option key={r} value={r}>{r}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <div className="col-span-2 space-y-1 text-[10px] font-semibold uppercase tracking-wider text-white/35 sm:col-span-1">
+                      Rango de fechas
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="date"
+                          value={historialFilters.desde}
+                          onChange={(e) => setHistorialFilters((f) => ({ ...f, desde: e.target.value }))}
+                          className="h-9 w-full rounded-xl border border-white/[0.08] bg-black/25 px-2 text-xs font-normal normal-case text-white/75"
+                        />
+                        <input
+                          type="date"
+                          value={historialFilters.hasta}
+                          onChange={(e) => setHistorialFilters((f) => ({ ...f, hasta: e.target.value }))}
+                          className="h-9 w-full rounded-xl border border-white/[0.08] bg-black/25 px-2 text-xs font-normal normal-case text-white/75"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  {(historialFilters.estado !== "all" || historialFilters.metodo !== "all" || historialFilters.responsable !== "all" || historialFilters.desde || historialFilters.hasta) && (
                     <button
-                      onClick={() => setHistorialFilters({ estado: "all", metodo: "all", responsable: "all", liqDesde: "", liqHasta: "", pagoDesde: "", pagoHasta: "" })}
-                      className="rounded-lg px-2.5 py-1.5 text-xs text-white/45 hover:text-white/70"
+                      onClick={() => setHistorialFilters({ estado: "all", metodo: "all", responsable: "all", desde: "", hasta: "" })}
+                      className="mt-2 text-xs text-white/45 hover:text-white/70"
                     >
                       Limpiar filtros
                     </button>
                   )}
                 </div>
 
-                <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">
-                  Liquidaciones
-                </div>
                 {filteredRuns.length === 0 ? (
-                  <div className="mb-5 rounded-xl border border-white/[0.07] bg-black/18 px-4 py-6 text-center text-sm text-white/45">
-                    Todavía no se preparó ninguna liquidación.
+                  <div className="rounded-xl border border-white/[0.07] bg-black/18 px-4 py-8 text-center text-sm text-white/45">
+                    Todavía no hay liquidaciones registradas.
                   </div>
                 ) : (
-                  <div className="mb-5 flex flex-col gap-2">
+                  <div className="flex flex-col gap-2.5">
                     {filteredRuns.map((run: any) => {
                       const remaining = Number(run.total_to_settle) - Number(run.amount_paid);
+                      const statusLabel =
+                        run.status === "pagada"
+                          ? "Pagada"
+                          : run.status === "parcial"
+                            ? "Parcial"
+                            : run.status === "observada"
+                              ? "Observada"
+                              : "Pendiente";
                       const statusTone =
                         run.status === "pagada"
                           ? "text-emerald-300 bg-emerald-400/10 ring-emerald-400/20"
@@ -4827,23 +4839,39 @@ function ProfesionalesTab({
                             : run.status === "observada"
                               ? "text-rose-300 bg-rose-400/10 ring-rose-400/20"
                               : "text-white/60 bg-white/[0.05] ring-white/10";
+                      const runPayments = (paymentsByRun.get(run.id) ?? []).slice().sort(
+                        (a: any, b: any) => String(a.paid_at ?? "").localeCompare(String(b.paid_at ?? "")),
+                      );
+                      const fmtDateTime = (iso: string) =>
+                        new Date(iso).toLocaleString("es-AR", {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          hour12: false,
+                        });
                       return (
                         <div
                           key={run.id}
-                          className="rounded-2xl border border-white/[0.07] bg-black/18 px-4 py-3 text-sm"
+                          className="rounded-2xl border border-white/[0.07] bg-black/18 px-4 py-3.5 text-sm"
                         >
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div className="font-bold text-white">
-                              Liquidación #{run.run_number} ·{" "}
-                              {run.period_start
-                                ? `del ${new Date(`${run.period_start}T12:00:00`).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })} al ${new Date(`${run.cutoff_date}T12:00:00`).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}`
-                                : `hasta el ${new Date(`${run.cutoff_date}T12:00:00`).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}`}
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div>
+                              <div className="font-bold text-white">Liquidación #{run.run_number}</div>
+                              <div className="text-xs text-white/50">{selectedRow.name}</div>
                             </div>
                             <span className={cn("rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1", statusTone)}>
-                              {run.status}
+                              {statusLabel}
                             </span>
                           </div>
-                          <div className="mt-2 grid grid-cols-2 gap-2 text-xs sm:grid-cols-4">
+                          <div className="mt-1.5 text-xs text-white/45">
+                            {run.period_start_at
+                              ? `Desde ${fmtDateTime(run.period_start_at)} hasta ${fmtDateTime(run.prepared_at)}`
+                              : `Primera liquidación · hasta ${fmtDateTime(run.prepared_at)}`}
+                          </div>
+
+                          <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
                             <div>
                               <div className="text-white/40">Total</div>
                               <div className="font-semibold text-white/85">{money(Number(run.total_to_settle))}</div>
@@ -4852,51 +4880,64 @@ function ProfesionalesTab({
                               <div className="text-white/40">Pagado</div>
                               <div className="font-semibold text-emerald-300">{money(Number(run.amount_paid))}</div>
                             </div>
-                            <div>
-                              <div className="text-white/40">Restante</div>
-                              <div className={cn("font-semibold", remaining > 0 ? "text-rose-300" : "text-white/60")}>
-                                {money(remaining)}
+                            {remaining > 0 && (
+                              <div>
+                                <div className="text-white/40">Restante</div>
+                                <div className="font-semibold text-rose-300">{money(remaining)}</div>
                               </div>
-                            </div>
-                            <div>
-                              <div className="text-white/40">Servicios</div>
-                              <div className="font-semibold text-white/85">{run.service_count}</div>
-                            </div>
+                            )}
                           </div>
-                          <div className="mt-2 text-[11px] text-white/38">
-                            Preparada por {run.prepared_by_name} ·{" "}
-                            {run.prepared_at
-                              ? new Date(run.prepared_at).toLocaleString("es-AR", {
-                                  day: "2-digit",
-                                  month: "2-digit",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                  hour12: false,
-                                })
-                              : "—"}
-                          </div>
-                          {Array.isArray(run.adjustment_items) && run.adjustment_items.length > 0 && (
-                            <div className="mt-2 space-y-1 rounded-xl border border-emerald-400/15 bg-emerald-400/[0.04] p-2.5">
-                              <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/70">Ajustes</div>
-                              {run.adjustment_items.map((item: any, i: number) => (
-                                <div key={i} className="flex items-center justify-between gap-2 text-xs">
-                                  <span className="text-white/60">{item.reason}</span>
-                                  <span className="font-semibold text-emerald-300">+{money(Number(item.amount))}</span>
+
+                          {runPayments.length === 1 && (
+                            <div className="mt-3 space-y-1 rounded-xl border border-white/[0.07] bg-black/15 p-2.5 text-xs">
+                              <div className="flex items-center justify-between">
+                                <span className="text-white/45">Método</span>
+                                <span className="font-semibold capitalize text-white/80">{runPayments[0].payment_method ?? "—"}</span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-white/45">Fecha de pago</span>
+                                <span className="font-semibold text-white/80">
+                                  {runPayments[0].paid_at ? fmtDateTime(runPayments[0].paid_at) : "—"}
+                                </span>
+                              </div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-white/45">Registrado por</span>
+                                <span className="font-semibold text-white/80">{runPayments[0].paid_by_name ?? "Caja"}</span>
+                              </div>
+                              {runPayments[0].note && (
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-white/45">Nota</span>
+                                  <span className="truncate font-semibold text-white/80">{runPayments[0].note}</span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {runPayments.length > 1 && (
+                            <div className="mt-3 space-y-1.5 rounded-xl border border-white/[0.07] bg-black/15 p-2.5">
+                              <div className="text-[10px] font-bold uppercase tracking-wider text-white/38">
+                                Pagos ({runPayments.length})
+                              </div>
+                              {runPayments.map((payment: any) => (
+                                <div key={payment.id} className="rounded-lg bg-white/[0.02] p-1.5 text-xs">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="font-semibold text-white/80">
+                                      {payment.paid_at ? fmtDateTime(payment.paid_at) : "—"}
+                                    </span>
+                                    <span className="font-bold tabular-nums text-emerald-300">{money(Number(payment.amount ?? 0))}</span>
+                                  </div>
+                                  <div className="mt-0.5 flex items-center justify-between gap-2 text-white/50">
+                                    <span className="capitalize">{payment.payment_method ?? "—"}</span>
+                                    <span className="truncate">{payment.paid_by_name ?? "Caja"}</span>
+                                  </div>
+                                  {payment.note && (
+                                    <div className="mt-0.5 truncate text-white/45">{payment.note}</div>
+                                  )}
                                 </div>
                               ))}
                             </div>
                           )}
-                          {Array.isArray(run.deduction_items) && run.deduction_items.length > 0 && (
-                            <div className="mt-2 space-y-1 rounded-xl border border-rose-400/15 bg-rose-400/[0.04] p-2.5">
-                              <div className="text-[10px] font-bold uppercase tracking-wider text-rose-300/70">Deducciones</div>
-                              {run.deduction_items.map((item: any, i: number) => (
-                                <div key={i} className="flex items-center justify-between gap-2 text-xs">
-                                  <span className="text-white/60">{item.reason}</span>
-                                  <span className="font-semibold text-rose-300">−{money(Number(item.amount))}</span>
-                                </div>
-                              ))}
-                            </div>
-                          )}
+
                           <div className="mt-3 flex flex-wrap gap-2">
                             <button
                               onClick={() => openHistorialDetail(run)}
@@ -4930,107 +4971,6 @@ function ProfesionalesTab({
                     })}
                   </div>
                 )}
-
-                <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.18em] text-white/38">
-                  Pagos
-                </div>
-                {/* Desktop: tabla. En mobile, tarjetas verticales debajo. */}
-                <div className="hidden overflow-hidden rounded-2xl border border-white/[0.07] bg-black/18 sm:block">
-                  <div className="grid grid-cols-[90px_80px_110px_100px_minmax(110px,1fr)_120px_120px_minmax(140px,1fr)] gap-3 border-b border-white/[0.06] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
-                    <div>Fecha</div>
-                    <div>Hora</div>
-                    <div className="text-right">Monto</div>
-                    <div>Método</div>
-                    <div>Responsable</div>
-                    <div className="text-right">Saldo ant.</div>
-                    <div className="text-right">Saldo post.</div>
-                    <div>Nota</div>
-                  </div>
-                  {filteredRunPayments.length === 0 ? (
-                    <div className="px-4 py-10 text-center text-sm text-white/45">
-                      Sin pagos registrados.
-                    </div>
-                  ) : (
-                    <div className="divide-y divide-white/[0.05]">
-                      {filteredRunPayments.map((payment: any) => {
-                        const created = payment.paid_at ? new Date(payment.paid_at) : new Date();
-                        return (
-                          <div
-                            key={payment.id}
-                            className="grid grid-cols-[90px_80px_110px_100px_minmax(110px,1fr)_120px_120px_minmax(140px,1fr)] gap-3 px-4 py-3 text-sm transition hover:bg-white/[0.025]"
-                          >
-                            <div className="text-white/52">
-                              {created.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}
-                            </div>
-                            <div className="text-white/52">
-                              {created.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}
-                            </div>
-                            <div className="text-right font-bold tabular-nums text-emerald-300">
-                              {money(Number(payment.amount ?? 0))}
-                            </div>
-                            <div className="capitalize text-white/68">
-                              {payment.payment_method ?? "—"}
-                            </div>
-                            <div className="truncate text-white/68">
-                              {payment.paid_by_name ?? "Caja"}
-                            </div>
-                            <div className="text-right tabular-nums text-white/52">
-                              {money(Number(payment.balance_before ?? 0))}
-                            </div>
-                            <div className="text-right tabular-nums text-white/52">
-                              {money(Number(payment.balance_after ?? 0))}
-                            </div>
-                            <div className="truncate text-white/52">
-                              {payment.note ?? "—"}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                <div className="sm:hidden">
-                  {filteredRunPayments.length === 0 ? (
-                    <div className="px-2 py-10 text-center text-sm text-white/45">
-                      Sin pagos registrados.
-                    </div>
-                  ) : (
-                    <div className="flex flex-col gap-2.5">
-                      {filteredRunPayments.map((payment: any) => {
-                        const created = payment.paid_at ? new Date(payment.paid_at) : new Date();
-                        return (
-                          <div
-                            key={`mobile-${payment.id}`}
-                            className="rounded-2xl border border-white/[0.07] bg-black/18 px-3.5 py-3 text-xs"
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <span className="text-[10px] font-semibold uppercase tracking-wider text-white/45">
-                                {created.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}
-                                {" · "}
-                                {created.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}
-                              </span>
-                              <span className="text-sm font-bold tabular-nums text-emerald-300">
-                                {money(Number(payment.amount ?? 0))}
-                              </span>
-                            </div>
-                            <div className="mt-1.5 flex items-center justify-between gap-2">
-                              <span className="capitalize text-white/68">{payment.payment_method ?? "—"}</span>
-                              <span className="truncate text-white/68">{payment.paid_by_name ?? "Caja"}</span>
-                            </div>
-                            <div className="mt-1 flex items-center justify-between gap-2 text-white/45">
-                              <span>Saldo ant.: {money(Number(payment.balance_before ?? 0))}</span>
-                              <span>Saldo post.: {money(Number(payment.balance_after ?? 0))}</span>
-                            </div>
-                            {payment.note && (
-                              <div className="mt-1 truncate text-white/45">{payment.note}</div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
               </div>
             )}
 
@@ -5176,9 +5116,6 @@ function ProfesionalesTab({
           const runPayments = allRunPayments
             .filter((p: any) => p.settlement_run_id === run.id)
             .sort((a: any, b: any) => String(a.paid_at ?? "").localeCompare(String(b.paid_at ?? "")));
-          const methods = Array.from(
-            new Set(runPayments.map((p: any) => p.payment_method).filter(Boolean)),
-          );
           return (
             <div className="space-y-4">
               <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/[0.07] bg-black/20 p-3 text-center text-xs sm:grid-cols-4">
@@ -5228,13 +5165,43 @@ function ProfesionalesTab({
                   <span className="text-white/50">Usuario</span>
                   <span className="font-semibold text-white">{run.prepared_by_name}</span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-white/50">Medio(s) de pago</span>
-                  <span className="font-semibold text-white">
-                    {methods.length > 0 ? methods.map((m: string) => PAY_METHOD_LABEL[m as PayMethod] ?? m).join(", ") : "—"}
-                  </span>
-                </div>
               </div>
+
+              {runPayments.length > 0 && (
+                <div>
+                  <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
+                    Pagos realizados
+                  </div>
+                  <div className="space-y-2">
+                    {runPayments.map((payment: any) => (
+                      <div key={payment.id} className="space-y-1 rounded-2xl border border-white/[0.07] bg-black/20 p-3 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="font-semibold text-white/85">
+                            {payment.paid_at
+                              ? new Date(payment.paid_at).toLocaleString("es-AR", {
+                                  day: "2-digit",
+                                  month: "2-digit",
+                                  year: "numeric",
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                  hour12: false,
+                                })
+                              : "—"}
+                          </span>
+                          <span className="font-bold tabular-nums text-emerald-300">{money(Number(payment.amount ?? 0))}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-white/55">
+                          <span className="capitalize">{PAY_METHOD_LABEL[payment.payment_method as PayMethod] ?? payment.payment_method ?? "—"}</span>
+                          <span className="truncate">Registrado por {payment.paid_by_name ?? "Caja"}</span>
+                        </div>
+                        {payment.note && (
+                          <div className="text-white/45">Nota: {payment.note}</div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               {Array.isArray(run.adjustment_items) && run.adjustment_items.length > 0 && (
                 <div className="space-y-1 rounded-2xl border border-emerald-400/15 bg-emerald-400/[0.04] p-3">
@@ -5407,33 +5374,23 @@ function ProfesionalesTab({
                 </>
               ) : (
                 <>
-                  <div>
-                    <div className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-emerald-300/80">
-                      Ajustes (+)
-                    </div>
-                    <SettlementItemsEditor
-                      items={adjustmentItems}
-                      onChange={setAdjustmentItems}
-                      addLabel="Agregar ajuste"
-                      reasonPlaceholder="Ej. Feriado trabajado, bono o comisión adicional"
-                      formatThousands={formatThousands}
-                      accentClass="border-emerald-400/25 bg-emerald-400/10 text-emerald-200 hover:bg-emerald-400/15"
-                    />
-                  </div>
+                  <SettlementItemsEditor
+                    items={adjustmentItems}
+                    onChange={setAdjustmentItems}
+                    addLabel="Agregar ajuste"
+                    reasonPlaceholder="Ej. Feriado trabajado, bono o comisión adicional"
+                    formatThousands={formatThousands}
+                    accentClass="border-emerald-400/25 bg-emerald-400/10 text-emerald-200 hover:bg-emerald-400/15"
+                  />
 
-                  <div>
-                    <div className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-rose-300/80">
-                      Deducciones (−)
-                    </div>
-                    <SettlementItemsEditor
-                      items={deductionItems}
-                      onChange={setDeductionItems}
-                      addLabel="Agregar deducción"
-                      reasonPlaceholder="Ej. Llegada tarde, adelanto o producto descontado"
-                      formatThousands={formatThousands}
-                      accentClass="border-rose-400/25 bg-rose-400/10 text-rose-200 hover:bg-rose-400/15"
-                    />
-                  </div>
+                  <SettlementItemsEditor
+                    items={deductionItems}
+                    onChange={setDeductionItems}
+                    addLabel="Agregar deducción"
+                    reasonPlaceholder="Ej. Llegada tarde, adelanto o producto descontado"
+                    formatThousands={formatThousands}
+                    accentClass="border-rose-400/25 bg-rose-400/10 text-rose-200 hover:bg-rose-400/15"
+                  />
 
                   <div className="space-y-1.5 rounded-2xl border border-white/[0.08] bg-black/25 p-3.5 text-sm">
                     <div className="flex items-center justify-between">
@@ -5465,9 +5422,6 @@ function ProfesionalesTab({
               )}
 
               <div>
-                <div className="mb-2 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
-                  Datos de pago
-                </div>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                   <label className="space-y-1.5 text-xs font-semibold text-white/55">
                     Monto a pagar
@@ -5477,7 +5431,7 @@ function ProfesionalesTab({
                       max={remaining > 0 ? remaining : undefined}
                       value={paymentForm.amount}
                       onChange={(event) => setPaymentForm((form) => ({ ...form, amount: event.target.value }))}
-                      placeholder={activeRun ? undefined : "Opcional — dejalo vacío para solo preparar"}
+                      placeholder="Ej: 451.784"
                       className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-base text-white outline-none placeholder:text-white/30 focus:border-violet-300/35"
                     />
                   </label>
