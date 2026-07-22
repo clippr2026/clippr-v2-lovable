@@ -59,7 +59,7 @@ drop function if exists public.prepare_settlement_run(
   uuid, uuid, jsonb, jsonb, uuid, text
 );
 
-create function public.prepare_settlement_run(
+create or replace function public.prepare_settlement_run(
   p_business_id uuid,
   p_professional_id uuid,
   p_adjustment_items jsonb,
