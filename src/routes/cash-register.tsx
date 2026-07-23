@@ -3558,15 +3558,17 @@ function ProfesionalesTab({
     { id: string; amount: string; reason: string }[]
   >([]);
   const [liquidarModalOpen, setLiquidarModalOpen] = React.useState(false);
-  // "" = hoy/ahora (el default de siempre). Solo se usa en el flujo sin
-  // activeRun — una liquidación ya preparada tiene su corte fijo.
+  // "" = hoy/ahora (el default de siempre). Se elige desde la tarjeta
+  // "Período actual" (línea "Hasta"), no desde el modal de Pagar —
+  // por eso NO se resetea al cerrar ese modal (resetLiquidarForm), solo
+  // al cambiar de profesional, para que la elección quede guardada
+  // entre aperturas del modal.
   const [liquidarCutoffDate, setLiquidarCutoffDate] = React.useState("");
 
   function resetLiquidarForm() {
     setAdjustmentItems([]);
     setDeductionItems([]);
     setLiquidarModalOpen(false);
-    setLiquidarCutoffDate("");
     setPaymentForm({ amount: "", method: "transferencia", note: "" });
   }
 
@@ -3889,7 +3891,8 @@ function ProfesionalesTab({
         .eq("business_id", businessId)
         .eq("professional_id", professionalId)
         .is("settlement_run_id", null)
-        .gt("pending_amount", 0);
+        .gt("pending_amount", 0)
+        .lte("created_at", liquidarCutoffAt.toISOString());
       if (row?.periodStartAt) {
         query = query.gt("created_at", row.periodStartAt);
       }
@@ -4163,29 +4166,13 @@ function ProfesionalesTab({
     }
   }
 
-  // El corte ya no se elige — siempre es "ahora". "Hasta hoy" muestra la
-  // fecha de hoy en formato DD/MM/AAAA en todos lados (mismo formato que
-  // "Última liquidación", para que se lean como un solo rango).
-  const todayLabel = React.useMemo(() => {
-    return new Date(`${today}T12:00:00`).toLocaleDateString("es-AR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-  }, [today]);
-
-  // Hora actual para la tarjeta "Hasta hoy" — se actualiza sola cada
-  // minuto (no hace falta más precisión para algo puramente informativo).
+  // Reloj para que liquidarCutoffAt (y todo lo que depende de "ahora")
+  // se actualice solo cada minuto mientras el corte elegido sea "hoy".
   const [nowClock, setNowClock] = React.useState(() => new Date());
   React.useEffect(() => {
     const id = setInterval(() => setNowClock(new Date()), 60_000);
     return () => clearInterval(id);
   }, []);
-  const nowTimeLabel = nowClock.toLocaleTimeString("es-AR", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
 
   // Fecha y hora EXACTAS de la última liquidación del profesional
   // seleccionado — null si todavía no tiene ninguna ("Primera
@@ -4231,20 +4218,29 @@ function ProfesionalesTab({
     return `Primera liquidación · ${hastaLabel}`;
   }, [lastLiquidacionInfo, liquidarCutoffAt]);
 
-  // Para la tarjeta "Período actual" del header — a diferencia de
-  // liquidarPeriodLabel (que se recalcula solo al abrir el modal de
-  // Pagar), esta se actualiza sola cada minuto vía nowClock, ya que se ve
-  // todo el tiempo en pantalla, no solo al confirmar un pago. Devuelve
-  // "Desde" y "Hasta" por separado para que el header los renderice en
-  // dos líneas propias, nunca juntas en una sola.
+  // Para la tarjeta "Período actual" del header — "hasta" ahora refleja
+  // el corte elegido (liquidarCutoffAt: hoy/ahora por default, ticking
+  // cada minuto, o las 23:59 del día elegido desde esta misma tarjeta).
+  // Devuelve "Desde" y "Hasta" por separado para que el header los
+  // renderice en dos líneas propias, nunca juntas en una sola.
   const periodoActualLabel = React.useMemo(() => {
+    const hastaDate = liquidarCutoffAt.toLocaleDateString("es-AR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+    const hastaTime = liquidarCutoffAt.toLocaleTimeString("es-AR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
     return {
       desde: lastLiquidacionInfo
         ? `Desde ${lastLiquidacionInfo.dateLabel} • ${lastLiquidacionInfo.timeLabel}`
         : "Primera liquidación",
-      hasta: `Hasta ${todayLabel} • ${nowTimeLabel} h`,
+      hasta: `Hasta ${hastaDate} • ${hastaTime} h`,
     };
-  }, [lastLiquidacionInfo, todayLabel, nowTimeLabel]);
+  }, [lastLiquidacionInfo, liquidarCutoffAt]);
 
   const calendarDays = React.useMemo(() => {
     const year = calendarMonth.getFullYear();
@@ -4372,13 +4368,17 @@ function ProfesionalesTab({
     setLiquidarModalOpen(true);
   }
 
-  // Carga el detalle bajo demanda cuando se ve la pestaña "Ver detalle"
-  // (o cambia el profesional mientras está abierta).
+  // Carga el detalle bajo demanda cuando se ve la pestaña "Comisiones"
+  // (o cambia el profesional, o el corte "Liquidar hasta" elegido desde
+  // la tarjeta "Período actual", mientras está abierta).
   React.useEffect(() => {
     if (selectedDetail !== "detalle" || !selectedRow) return;
     openDetail(selectedRow.id);
+    // liquidarCutoffDate (el string elegido), no liquidarCutoffAt (el
+    // Date derivado, que cambia cada minuto por nowClock aunque el
+    // corte elegido siga siendo "hoy") — evita refetchear de más.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDetail, selectedRow?.id, commissionsVersion]);
+  }, [selectedDetail, selectedRow?.id, commissionsVersion, liquidarCutoffDate]);
 
   // Comisiones/adelantos recalculados en vivo para el corte elegido —
   // selectedRow.newCommissions/pendingAdvances siempre reflejan "ahora",
@@ -4455,6 +4455,7 @@ function ProfesionalesTab({
                 // no se reutiliza su estado (montos precargados, etc.).
                 resetLiquidarForm();
                 resetAdelantoForm();
+                setLiquidarCutoffDate("");
                 setPeriodInfoOpen(false);
                 setHistorialDetailRun(null);
                 setHistorialDetailServices(null);
@@ -4472,14 +4473,7 @@ function ProfesionalesTab({
               ))}
             </select>
 
-            <button
-              type="button"
-              onClick={() => {
-                setCalendarMonth(new Date(`${today}T12:00:00`));
-                setPeriodInfoOpen(true);
-              }}
-              className="inline-flex w-full flex-col items-center gap-1 rounded-2xl border border-white/[0.10] bg-white/[0.055] px-3.5 py-2.5 text-center ring-1 ring-white/[0.07] transition hover:bg-white/[0.09] sm:w-auto"
-            >
+            <div className="inline-flex w-full flex-col items-center gap-1 rounded-2xl border border-white/[0.10] bg-white/[0.055] px-3.5 py-2.5 text-center ring-1 ring-white/[0.07] sm:w-auto">
               <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-white/45">
                 <CalendarDays className="size-3.5" />
                 Período actual
@@ -4487,10 +4481,20 @@ function ProfesionalesTab({
               <span className="max-w-full break-words text-xs font-semibold text-white">
                 {periodoActualLabel.desde}
               </span>
-              <span className="max-w-full break-words text-xs font-semibold text-white">
+              {/* Solo "Hasta" es editable — "Desde" queda fijo (es la
+                  última liquidación pagada). Tocarlo abre el calendario
+                  de abajo para elegir hasta qué día liquidar. */}
+              <button
+                type="button"
+                onClick={() => {
+                  setCalendarMonth(new Date(`${liquidarCutoffDate || today}T12:00:00`));
+                  setPeriodInfoOpen(true);
+                }}
+                className="max-w-full break-words text-xs font-semibold text-violet-200 underline decoration-dotted underline-offset-2 transition hover:text-violet-100"
+              >
                 {periodoActualLabel.hasta}
-              </span>
-            </button>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -4506,19 +4510,19 @@ function ProfesionalesTab({
             <StatCard
               label="Comisiones generadas"
               sublabel="Período actual"
-              value={money(totals.newCommissions)}
+              value={money(liquidarNewCommissions)}
               tone="violet"
               info={COMISIONES_NUEVAS_INFO_TEXT}
             />
             <StatCard
               label="Adelantos"
-              value={totals.pendingAdvances > 0 ? `−${money(totals.pendingAdvances)}` : money(0)}
+              value={liquidarPendingAdvances > 0 ? `−${money(liquidarPendingAdvances)}` : money(0)}
               tone="rose"
               info={ADELANTOS_INFO_TEXT}
             />
             <StatCard
               label="Total a pagar"
-              value={money(Math.max(totals.previousBalance + totals.newCommissions - totals.pendingAdvances, 0))}
+              value={money(Math.max(totals.previousBalance + liquidarNewCommissions - liquidarPendingAdvances, 0))}
               tone="green"
             />
           </div>
@@ -5006,7 +5010,7 @@ function ProfesionalesTab({
           open={periodInfoOpen}
           onOpenChange={setPeriodInfoOpen}
           lockOutside={false}
-          title="Período de esta liquidación"
+          title="Liquidar hasta"
           subtitle={liquidarPeriodLabel}
         >
           <div>
@@ -5046,32 +5050,42 @@ function ProfesionalesTab({
 
             <div className="mt-1 grid grid-cols-7 overflow-hidden rounded-2xl">
               {calendarDays.map((day, index) => {
-                const inRange = Boolean(
+                // Elegible: entre el inicio del período actual y hoy —
+                // nunca futuro, nunca antes de la última liquidación.
+                const selectable = Boolean(
                   day.iso &&
                     (!selectedRow.periodStart || day.iso >= selectedRow.periodStart) &&
                     day.iso <= today,
                 );
                 const isToday = day.iso === today;
+                const isSelectedHasta = day.iso === (liquidarCutoffDate || today);
                 return (
-                  <div
+                  <button
                     key={`${day.iso || "empty"}-${index}`}
+                    type="button"
+                    disabled={!selectable}
+                    onClick={() => {
+                      if (!day.iso) return;
+                      setLiquidarCutoffDate(day.iso === today ? "" : day.iso);
+                      setPeriodInfoOpen(false);
+                    }}
                     className={cn(
-                      "grid h-11 place-items-center text-sm font-semibold",
+                      "grid h-11 place-items-center text-sm font-semibold transition",
                       !day.inMonth && "opacity-0",
-                      day.inMonth && !inRange && "text-white/25",
-                      inRange &&
-                        "bg-gradient-to-br from-blue-400/25 to-fuchsia-500/25 text-white",
-                      isToday && "ring-1 ring-sky-400/55 ring-inset",
+                      day.inMonth && !selectable && "text-white/25",
+                      selectable && !isSelectedHasta && "bg-gradient-to-br from-blue-400/25 to-fuchsia-500/25 text-white hover:brightness-125",
+                      isSelectedHasta && "bg-gradient-to-br from-sky-400 to-violet-500 text-white shadow-[0_0_18px_rgba(139,92,246,0.45)]",
+                      isToday && !isSelectedHasta && "ring-1 ring-sky-400/55 ring-inset",
                     )}
                   >
                     {day.day || ""}
-                  </div>
+                  </button>
                 );
               })}
             </div>
 
             <div className="mt-5 text-center text-xs text-white/28">
-              Período calculado automáticamente
+              Elegí hasta qué día liquidar — el día elegido queda completo incluido, hasta las 23:59 h
             </div>
           </div>
         </AgendaCenteredModal>
@@ -5325,18 +5339,10 @@ function ProfesionalesTab({
             }
           >
             <div className="space-y-4">
+              {/* El corte ("Liquidar hasta") ya se elige desde la tarjeta
+                  "Período actual" de la pantalla principal — acá solo se
+                  muestra, no se vuelve a pedir. */}
               <div className="space-y-2 rounded-2xl border border-white/[0.08] bg-black/20 p-3.5">
-                <label className="block space-y-1.5 text-xs font-semibold text-white/55">
-                  Liquidar hasta
-                  <input
-                    type="date"
-                    min={selectedRow.periodStart ?? undefined}
-                    max={today}
-                    value={liquidarCutoffDate || today}
-                    onChange={(event) => setLiquidarCutoffDate(event.target.value)}
-                    className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-base text-white outline-none focus:border-violet-300/35"
-                  />
-                </label>
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-white/50">Comisiones generadas — Período actual</span>
                   <span className="font-semibold text-violet-300">{money(liquidarNewCommissions)}</span>
