@@ -4927,23 +4927,12 @@ function ProfesionalesTab({
                           </div>
 
                           {run && (
-                            <div className="mt-3 flex flex-wrap gap-2">
+                            <div className="mt-3">
                               <button
                                 onClick={() => openHistorialDetail(run)}
                                 className="rounded-full bg-white/[0.04] px-3 py-1 text-[11px] font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
                               >
                                 Ver detalle
-                              </button>
-                              <button
-                                onClick={async () => {
-                                  const text = buildHistorialComprobante(run);
-                                  const result = await shareComprobante(text, `Liquidación #${run.run_number}`);
-                                  if (result === "copied") toast.success("Comprobante copiado al portapapeles");
-                                  if (result === "failed") toast.error("No se pudo compartir");
-                                }}
-                                className="rounded-full bg-white/[0.04] px-3 py-1 text-[11px] font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
-                              >
-                                Compartir comprobante
                               </button>
                             </div>
                           )}
