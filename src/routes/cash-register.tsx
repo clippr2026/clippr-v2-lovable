@@ -4376,11 +4376,15 @@ function ProfesionalesTab({
 
   // Pagar es un botón de acción (como Adelantar), no una pestaña: abre
   // su modal directo, precargando el monto sugerido, sin tocar
-  // selectedDetail.
+  // selectedDetail. Usa liquidarNewCommissions/liquidarPendingAdvances
+  // (recalculados para el corte "Hasta" ya elegido desde la tarjeta
+  // Período actual), no row.newCommissions/pendingAdvances — esos
+  // siempre reflejan "ahora", así que si ya se eligió un corte pasado el
+  // monto sugerido quedaba más alto de lo que en verdad se puede pagar.
   function openLiquidarModal(row: (typeof rows)[number] | null) {
     if (!row) return;
     if (paymentForm.amount === "") {
-      const suggested = row.previousBalance + row.newCommissions - row.pendingAdvances;
+      const suggested = row.previousBalance + liquidarNewCommissions - liquidarPendingAdvances;
       if (suggested > 0) {
         setPaymentForm((form) => ({ ...form, amount: String(Math.round(suggested)) }));
       }
