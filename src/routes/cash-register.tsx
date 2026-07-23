@@ -4890,21 +4890,9 @@ function ProfesionalesTab({
                                 <span className="font-bold tabular-nums text-amber-300">{money(Number(advance.amount ?? 0))}</span>
                               </div>
                               <div className="flex items-center justify-between">
-                                <span className="text-white/45">Método</span>
-                                <span className="font-semibold capitalize text-white/80">
-                                  {advance.payment_method ?? "—"}
-                                </span>
-                              </div>
-                              <div className="flex items-center justify-between">
                                 <span className="text-white/45">Registrado por</span>
                                 <span className="font-semibold text-white/80">{displayResponsable(advance.registered_by_name)}</span>
                               </div>
-                              {advance.note && (
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className="text-white/45">Nota</span>
-                                  <span className="truncate font-semibold text-white/80">{advance.note}</span>
-                                </div>
-                              )}
                             </div>
 
                             <div className="mt-3">
@@ -4953,22 +4941,23 @@ function ProfesionalesTab({
                               <span className="font-bold tabular-nums text-emerald-300">{money(Number(payment.amount ?? 0))}</span>
                             </div>
                             <div className="flex items-center justify-between">
-                              <span className="text-white/45">Método</span>
-                              <span className="font-semibold capitalize text-white/80">
-                                {PAY_METHOD_LABEL[payment.payment_method as PayMethod] ?? payment.payment_method ?? "—"}
-                              </span>
-                            </div>
-                            <div className="flex items-center justify-between">
                               <span className="text-white/45">Registrado por</span>
                               <span className="font-semibold text-white/80">{displayResponsable(payment.paid_by_name)}</span>
                             </div>
-                            {payment.note && (
-                              <div className="flex items-center justify-between gap-2">
-                                <span className="text-white/45">Nota</span>
-                                <span className="truncate font-semibold text-white/80">{payment.note}</span>
-                              </div>
-                            )}
                           </div>
+
+                          {/* Período liquidado en dos líneas — solo tiene
+                              sentido acá (pago total/parcial), un adelanto
+                              todavía no pertenece a ninguna liquidación. */}
+                          {run && (
+                            <div className="mt-2.5 space-y-0.5 border-t border-white/[0.06] pt-2 text-[11px] text-white/45">
+                              <div>
+                                Desde{" "}
+                                {run.period_start_at ? fmtDetalleDateTime(run.period_start_at) : "primera liquidación"}
+                              </div>
+                              <div>Hasta {fmtDetalleDateTime(run.prepared_at)}</div>
+                            </div>
+                          )}
 
                           {run && (
                             <div className="mt-3">
