@@ -61,6 +61,7 @@ import { acquisitionChannelRequiresText } from "@/lib/acquisition-channels";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { AgendaCenteredModal } from "@/components/agenda/agenda-drawer";
 import { fetchSettlementRunServices } from "@/hooks/use-professionals-data";
+import { MultiMethodPaymentSplit, type MultiSplit } from "@/components/cash-register/multi-method-payment-split";
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
 const HISTORIAL_KEY = "clippr_cobros_historial_v2";
@@ -3415,10 +3416,11 @@ function InfoPopover({ text }: { text: React.ReactNode }) {
 }
 
 // Lista editable de ajustes o deducciones (importe + motivo) dentro del
-// modal de "Preparar liquidación" — mismo patrón de agregar/quitar filas
-// que "Pago múltiple" en Nueva venta (addSplit/removeSplit más abajo en
-// este archivo), adaptado a importe+motivo en vez de método+importe.
+// modal "Pagar" — compacta a propósito: sin fila vacía por default (solo
+// aparecen las que el usuario agregó) y sin una tarjeta grande por fila,
+// para que el modal no crezca de más apenas se suman un par de ítems.
 function SettlementItemsEditor({
+  title,
   items,
   onChange,
   addLabel,
@@ -3426,6 +3428,7 @@ function SettlementItemsEditor({
   formatThousands,
   accentClass,
 }: {
+  title: string;
   items: { id: string; amount: string; reason: string }[];
   onChange: (items: { id: string; amount: string; reason: string }[]) => void;
   addLabel: string;
@@ -3444,20 +3447,22 @@ function SettlementItemsEditor({
   }
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-1.5">
+      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">{title}</div>
       {items.map((item) => {
         const incomplete = Number(item.amount || 0) > 0 && !item.reason.trim();
         return (
-          <div key={item.id} className="space-y-1.5 rounded-2xl border border-white/[0.08] bg-black/20 p-2.5">
+          <div key={item.id}>
             <div className="flex items-center gap-1.5">
               <input
                 value={item.reason}
                 onChange={(e) => updateItem(item.id, { reason: e.target.value })}
                 placeholder={reasonPlaceholder}
-                className="h-10 min-w-0 flex-1 rounded-xl border border-white/[0.08] bg-black/30 px-3 text-sm text-white outline-none placeholder:text-white/30 focus:border-white/25"
+                maxLength={140}
+                className="h-8 min-w-0 flex-[2] rounded-lg border border-white/[0.08] bg-black/25 px-2.5 text-xs text-white outline-none placeholder:text-white/30 focus:border-white/25"
               />
-              <div className="relative w-28 shrink-0">
-                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-white/45">
+              <div className="relative w-20 shrink-0">
+                <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-white/45">
                   $
                 </span>
                 <input
@@ -3466,22 +3471,18 @@ function SettlementItemsEditor({
                   value={formatThousands(item.amount)}
                   onChange={(e) => updateItem(item.id, { amount: e.target.value.replace(/\D/g, "") })}
                   placeholder="0"
-                  className="h-10 w-full rounded-xl border border-white/[0.08] bg-black/30 pl-6 pr-2 text-right text-sm font-bold tabular-nums text-white outline-none focus:border-white/25"
+                  className="h-8 w-full rounded-lg border border-white/[0.08] bg-black/25 pl-4 pr-1.5 text-right text-xs font-bold tabular-nums text-white outline-none focus:border-white/25"
                 />
               </div>
               <button
                 type="button"
                 onClick={() => removeItem(item.id)}
-                className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-black/25 text-white/45 transition hover:border-rose-300/35 hover:text-rose-300"
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-white/40 transition hover:text-rose-300"
               >
                 <Trash2 className="size-3.5" />
               </button>
             </div>
-            {incomplete && (
-              <div className="px-1 text-[11px] text-rose-300">
-                Falta el motivo para este importe.
-              </div>
-            )}
+            {incomplete && <div className="px-1 text-[10px] text-rose-300">Falta el motivo para este importe.</div>}
           </div>
         );
       })}
@@ -3489,11 +3490,11 @@ function SettlementItemsEditor({
         type="button"
         onClick={addItem}
         className={cn(
-          "inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition",
+          "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-semibold transition",
           accentClass,
         )}
       >
-        <Plus className="size-3.5" /> {addLabel}
+        <Plus className="size-3" /> {addLabel}
       </button>
     </div>
   );
@@ -3567,9 +3568,19 @@ function ProfesionalesTab({
   const [selectedDetail, setSelectedDetail] = React.useState<"detalle" | "historial">("detalle");
   const [paymentForm, setPaymentForm] = React.useState({
     amount: "",
-    method: "transferencia",
+    method: "transfer",
     note: "",
   });
+  // Mientras el usuario no haya tocado "Monto a pagar" a mano, se mantiene
+  // sincronizado con el total final (que cambia en vivo al agregar
+  // adicionales/deducciones) — apenas lo edita una vez, deja de
+  // autocompletarse para no pisarle un pago parcial intencional.
+  const [paymentAmountTouched, setPaymentAmountTouched] = React.useState(false);
+  // Pago múltiple del modal Pagar: mismo componente/lógica que "Pago
+  // múltiple" en Nueva venta (MultiMethodPaymentSplit), pero acá si se
+  // permite pago parcial (la suma no tiene por qué llegar al total).
+  const [paymentMode, setPaymentMode] = React.useState<"simple" | "multiple">("simple");
+  const [paymentSplits, setPaymentSplits] = React.useState<MultiSplit[]>([{ method: "cash", amount: "" }]);
   // Ajustes/deducciones itemizados: cada uno es un importe + un motivo
   // (obligatorio si el importe es > $0), preservados tal cual en el
   // comprobante/historial — reemplaza los dos campos numéricos sueltos de
@@ -3592,7 +3603,10 @@ function ProfesionalesTab({
     setAdjustmentItems([]);
     setDeductionItems([]);
     setLiquidarModalOpen(false);
-    setPaymentForm({ amount: "", method: "transferencia", note: "" });
+    setPaymentForm({ amount: "", method: "transfer", note: "" });
+    setPaymentAmountTouched(false);
+    setPaymentMode("simple");
+    setPaymentSplits([{ method: "cash", amount: "" }]);
   }
 
   const [adelantoModalOpen, setAdelantoModalOpen] = React.useState(false);
@@ -3984,6 +3998,37 @@ function ProfesionalesTab({
       .sort((a: any, b: any) => String(b.advanced_at ?? "").localeCompare(String(a.advanced_at ?? "")));
   }, [allAdvances, selectedRow]);
 
+  // Mismos métodos/orden/config que Nueva venta (data.paymentMethods), para
+  // que "Pagar" use exactamente las mismas opciones — método simple y las
+  // filas de pago múltiple comparten esta lista.
+  const paymentOptions = React.useMemo(() => {
+    const cfg = data.paymentMethods;
+    return (
+      [
+        { id: "cash", label: "Efectivo", icon: Banknote, enabled: cfg.efectivo },
+        { id: "transfer", label: "Transferencia", icon: Smartphone, enabled: cfg.transferencia },
+        { id: "card", label: "Débito / Crédito", icon: CreditCard, enabled: cfg.tarjeta },
+        { id: "mp", label: "Mercado Pago", icon: Wallet, enabled: cfg.mp },
+        { id: "cuenta", label: "Cuenta DNI", icon: Smartphone, enabled: cfg.cuentaDni },
+      ] as const
+    ).filter((m) => m.enabled);
+  }, [data.paymentMethods]);
+
+  // Si el método por default (o el de la primera fila de pago múltiple) no
+  // está habilitado para este negocio, cae al primero que sí lo esté —
+  // mismo criterio que Nueva venta.
+  React.useEffect(() => {
+    if (paymentOptions.length === 0) return;
+    if (!paymentOptions.some((m) => m.id === paymentForm.method)) {
+      setPaymentForm((f) => ({ ...f, method: paymentOptions[0].id }));
+    }
+    setPaymentSplits((prev) =>
+      prev.every((s) => paymentOptions.some((m) => m.id === s.method))
+        ? prev
+        : prev.map((s) => (paymentOptions.some((m) => m.id === s.method) ? s : { ...s, method: paymentOptions[0].id })),
+    );
+  }, [paymentOptions, paymentForm.method]);
+
   // Historial es un timeline único de movimientos guardados — pagos de
   // liquidación y adelantos mezclados y ordenados por fecha, no dos listas
   // separadas por "tipo de liquidación".
@@ -4044,8 +4089,17 @@ function ProfesionalesTab({
     // El monto a pagar es opcional acá: si se completó, el pago se
     // registra apenas se crea la liquidación, en la misma acción — si se
     // deja vacío, solo se prepara (se puede pagar después desde
-    // "Pagar", que ya va a mostrar el saldo pendiente de este run).
-    const paymentAmount = Number(paymentForm.amount || 0);
+    // "Pagar", que ya va a mostrar el saldo pendiente de este run). En
+    // pago múltiple cada método con importe > 0 se registra como su
+    // propio pago (mismo run, un register_settlement_run_payment por
+    // fila) — así "Ver detalle" puede listar cada método por separado.
+    const paymentsToRegister =
+      paymentMode === "multiple"
+        ? paymentSplits
+            .map((s) => ({ amount: Number(s.amount || 0), method: s.method }))
+            .filter((p) => p.amount > 0)
+        : [{ amount: Number(paymentForm.amount || 0), method: paymentForm.method }].filter((p) => p.amount > 0);
+    const paymentAmount = paymentsToRegister.reduce((sum, p) => sum + p.amount, 0);
     if (paymentAmount > 0 && paymentAmount > total) {
       toast.error("El monto a pagar no puede superar el total a pagar");
       return;
@@ -4068,29 +4122,40 @@ function ProfesionalesTab({
       });
       if (error) throw error;
 
-      // La liquidación ya quedó creada acá — si el pago falla, no se
-      // pierde nada: queda como activeRun, listo para pagar desde
-      // "Pagar" de nuevo.
+      // La liquidación ya quedó creada acá — si algún pago falla, no se
+      // pierde nada: los anteriores en la lista ya quedaron aplicados y el
+      // run sigue activo, listo para completar el resto desde "Pagar" de
+      // nuevo (secuencial, no en paralelo: cada RPC recalcula el saldo
+      // restante contra el estado actual del run).
       if (paymentAmount > 0 && (newRun as any)?.id) {
-        const { error: payError } = await supabase.rpc("register_settlement_run_payment" as any, {
-          p_settlement_run_id: (newRun as any).id,
-          p_amount: paymentAmount,
-          p_payment_method: paymentForm.method || "transferencia",
-          p_note: paymentForm.note.trim() || null,
-          p_paid_by: user.id,
-          p_paid_by_name: chargedByName,
-        });
-        if (payError) {
-          toast.error(
-            friendlyRpcError(
-              payError,
-              "Se guardó el saldo, pero no pudimos registrar el pago. Podés intentarlo de nuevo desde Pagar.",
-            ),
-          );
-          resetLiquidarForm();
-          setCommissionsVersion((v) => v + 1);
-          setLiquidarModalOpen(true);
-          return;
+        const note = paymentForm.note.trim() || null;
+        let registered = 0;
+        for (const p of paymentsToRegister) {
+          const { error: payError } = await supabase.rpc("register_settlement_run_payment" as any, {
+            p_settlement_run_id: (newRun as any).id,
+            p_amount: p.amount,
+            p_payment_method: p.method || "transfer",
+            // La nota queda una sola vez (en el primer pago de la tanda)
+            // para no repetirla en cada fila de "Datos del pago".
+            p_note: registered === 0 ? note : null,
+            p_paid_by: user.id,
+            p_paid_by_name: chargedByName,
+          });
+          if (payError) {
+            toast.error(
+              friendlyRpcError(
+                payError,
+                registered > 0
+                  ? `Se registraron ${registered} de ${paymentsToRegister.length} métodos de pago. Completá el resto desde Pagar.`
+                  : "Se guardó el saldo, pero no pudimos registrar el pago. Podés intentarlo de nuevo desde Pagar.",
+              ),
+            );
+            resetLiquidarForm();
+            setCommissionsVersion((v) => v + 1);
+            setLiquidarModalOpen(true);
+            return;
+          }
+          registered += 1;
         }
         toast.success(`Pago registrado para ${row.name}: ${money(paymentAmount)}`);
         resetLiquidarForm();
@@ -4345,12 +4410,8 @@ function ProfesionalesTab({
   // monto sugerido quedaba más alto de lo que en verdad se puede pagar.
   function openLiquidarModal(row: (typeof rows)[number] | null) {
     if (!row) return;
-    if (paymentForm.amount === "") {
-      const suggested = row.previousBalance + liquidarNewCommissions - liquidarPendingAdvances;
-      if (suggested > 0) {
-        setPaymentForm((form) => ({ ...form, amount: String(Math.round(suggested)) }));
-      }
-    }
+    // El monto sugerido lo pone el efecto de liquidarFinalTotal (más abajo)
+    // apenas liquidarModalOpen pasa a true — acá solo hace falta abrir.
     setLiquidarModalOpen(true);
   }
 
@@ -4415,6 +4476,15 @@ function ProfesionalesTab({
   const liquidarFinalTotal = liquidarBaseTotal + liquidarAdjustmentsSum - liquidarDeductionsSum;
   const liquidarValidAdjustmentsCount = validSettlementItems(adjustmentItems).length;
   const liquidarValidDeductionsCount = validSettlementItems(deductionItems).length;
+
+  // "Monto a pagar" arranca siempre igual al total final y lo sigue en vivo
+  // (si se agrega un adicional, sube solo) mientras el usuario no lo haya
+  // tocado a mano — apenas lo edita una vez, se respeta su valor (pago
+  // parcial intencional) y deja de autocompletarse.
+  React.useEffect(() => {
+    if (!liquidarModalOpen || paymentAmountTouched) return;
+    setPaymentForm((f) => ({ ...f, amount: liquidarFinalTotal > 0 ? String(Math.round(liquidarFinalTotal)) : "" }));
+  }, [liquidarModalOpen, paymentAmountTouched, liquidarFinalTotal]);
 
   return (
     <div className="-mt-5 h-auto overflow-visible pb-6 sm:h-[calc(100vh-270px)] sm:min-h-[470px] sm:overflow-hidden">
@@ -5126,12 +5196,12 @@ function ProfesionalesTab({
         {historialDetailRun && (() => {
           const run = historialDetailRun;
           const remaining = Math.max(Number(run.total_to_settle) - Number(run.amount_paid), 0);
+          // Con pago múltiple un mismo run puede tener varios pagos (uno
+          // por método usado en esa tanda) — se listan todos, no solo el
+          // último.
           const runPayments = allRunPayments
             .filter((p: any) => p.settlement_run_id === run.id)
             .sort((a: any, b: any) => String(a.paid_at ?? "").localeCompare(String(b.paid_at ?? "")));
-          // Con el flujo actual (cada "Pagar" prepara un run nuevo), un run
-          // tiene como mucho un pago — se toma el último por las dudas.
-          const primaryPayment = runPayments[runPayments.length - 1] ?? null;
           const runAdvances = allAdvances
             .filter((a: any) => a.settlement_run_id === run.id)
             .sort((a: any, b: any) => String(a.advanced_at ?? "").localeCompare(String(b.advanced_at ?? "")));
@@ -5186,33 +5256,46 @@ function ProfesionalesTab({
                 </div>
               </div>
 
-              {primaryPayment && (
+              {runPayments.length > 0 && (
                 <div className="space-y-1.5 rounded-2xl border border-white/[0.07] bg-black/20 p-3.5 text-sm">
                   <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
                     Datos del pago
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-white/50">Método</span>
-                    <span className="font-semibold capitalize text-white">
-                      {PAY_METHOD_LABEL[primaryPayment.payment_method as PayMethod] ?? primaryPayment.payment_method ?? "—"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-white/50">Fecha y hora del pago</span>
-                    <span className="font-semibold text-white">
-                      {primaryPayment.paid_at ? fmtDetalleDateTime(primaryPayment.paid_at) : "—"}
-                    </span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-white/50">Registrado por</span>
-                    <span className="font-semibold text-white">{displayResponsable(primaryPayment.paid_by_name)}</span>
-                  </div>
-                  {primaryPayment.note && (
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-white/50">Nota</span>
-                      <span className="truncate font-semibold text-white">{primaryPayment.note}</span>
+                  {/* Con pago múltiple hay una fila por método usado en esa
+                      tanda — cada una con su propio monto. */}
+                  {runPayments.map((payment: any, idx: number) => (
+                    <div
+                      key={payment.id ?? idx}
+                      className={cn("space-y-1", idx > 0 && "mt-2 border-t border-white/[0.06] pt-2")}
+                    >
+                      <div className="flex items-center justify-between">
+                        <span className="text-white/50">Método</span>
+                        <span className="font-semibold capitalize text-white">
+                          {PAY_METHOD_LABEL[payment.payment_method as PayMethod] ?? payment.payment_method ?? "—"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-white/50">Monto</span>
+                        <span className="font-semibold text-emerald-300">{money(Number(payment.amount ?? 0))}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-white/50">Fecha y hora del pago</span>
+                        <span className="font-semibold text-white">
+                          {payment.paid_at ? fmtDetalleDateTime(payment.paid_at) : "—"}
+                        </span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-white/50">Registrado por</span>
+                        <span className="font-semibold text-white">{displayResponsable(payment.paid_by_name)}</span>
+                      </div>
+                      {payment.note && (
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-white/50">Nota</span>
+                          <span className="truncate font-semibold text-white">{payment.note}</span>
+                        </div>
+                      )}
                     </div>
-                  )}
+                  ))}
                 </div>
               )}
 
@@ -5402,8 +5485,10 @@ function ProfesionalesTab({
         // cada run solo toma las que todavía no tienen settlement_run_id.
         const periodStartAtMs = selectedRow.periodStartAt ? new Date(selectedRow.periodStartAt).getTime() : null;
         const liquidarPeriodValid = periodStartAtMs === null || liquidarCutoffAt.getTime() > periodStartAtMs;
+        const paymentSplitsSum = paymentSplits.reduce((s, sp) => s + Number(sp.amount || 0), 0);
+        const multipleSumOver = paymentMode === "multiple" && Math.round(paymentSplitsSum) > Math.round(liquidarFinalTotal);
         const payDisabled =
-          preparingRunFor === selectedRow.id || !liquidarPeriodValid || liquidarFinalTotal <= 0;
+          preparingRunFor === selectedRow.id || !liquidarPeriodValid || liquidarFinalTotal <= 0 || multipleSumOver;
 
         return (
           <AgendaCenteredModal
@@ -5434,6 +5519,7 @@ function ProfesionalesTab({
               )}
 
               <SettlementItemsEditor
+                title="Adicionales"
                 items={adjustmentItems}
                 onChange={setAdjustmentItems}
                 addLabel="Agregar adicional"
@@ -5443,6 +5529,7 @@ function ProfesionalesTab({
               />
 
               <SettlementItemsEditor
+                title="Deducciones"
                 items={deductionItems}
                 onChange={setDeductionItems}
                 addLabel="Agregar deducción"
@@ -5475,33 +5562,84 @@ function ProfesionalesTab({
               </div>
 
               <div>
-                <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                  <label className="space-y-1.5 text-xs font-semibold text-white/55">
-                    Monto a pagar
-                    <input
-                      type="number"
-                      min={0}
-                      max={liquidarFinalTotal > 0 ? liquidarFinalTotal : undefined}
-                      value={paymentForm.amount}
-                      onChange={(event) => setPaymentForm((form) => ({ ...form, amount: event.target.value }))}
-                      placeholder="Ej: 451.784"
-                      className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-base text-white outline-none placeholder:text-white/30 focus:border-violet-300/35"
-                    />
-                  </label>
-                  <label className="space-y-1.5 text-xs font-semibold text-white/55">
-                    Método
-                    <select
-                      value={paymentForm.method}
-                      onChange={(event) => setPaymentForm((form) => ({ ...form, method: event.target.value }))}
-                      className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-base text-white outline-none focus:border-violet-300/35"
-                    >
-                      <option value="efectivo">Efectivo</option>
-                      <option value="transferencia">Transferencia</option>
-                      <option value="debito">Débito</option>
-                      <option value="mercado pago">Mercado Pago</option>
-                    </select>
-                  </label>
+                {/* Mismo segmented control que Nueva venta (paso Pago) —
+                    "simple" es un método + un monto editable (permite pago
+                    parcial); "multiple" reusa MultiMethodPaymentSplit, acá
+                    con allowPartial: la suma puede ser menor al total
+                    (queda como pago parcial), nunca mayor. */}
+                <div className="mb-3 grid grid-cols-2 overflow-hidden rounded-2xl border border-white/[0.08]">
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMode("simple")}
+                    className={cn(
+                      "py-2 text-xs font-semibold transition",
+                      paymentMode === "simple"
+                        ? "bg-[linear-gradient(135deg,rgba(16,185,129,0.35),rgba(5,150,105,0.4))] text-white"
+                        : "bg-black/25 text-white/45 hover:text-white/70",
+                    )}
+                  >
+                    Pago simple
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPaymentMode("multiple")}
+                    className={cn(
+                      "py-2 text-xs font-semibold transition",
+                      paymentMode === "multiple"
+                        ? "bg-[linear-gradient(135deg,rgba(16,185,129,0.35),rgba(5,150,105,0.4))] text-white"
+                        : "bg-black/25 text-white/45 hover:text-white/70",
+                    )}
+                  >
+                    Pago múltiple
+                  </button>
                 </div>
+
+                {paymentMode === "simple" ? (
+                  <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                    <label className="space-y-1.5 text-xs font-semibold text-white/55">
+                      Monto a pagar
+                      <div className="relative">
+                        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-white/45">
+                          $
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={formatThousands(paymentForm.amount)}
+                          onChange={(event) => {
+                            setPaymentAmountTouched(true);
+                            setPaymentForm((form) => ({ ...form, amount: event.target.value.replace(/\D/g, "") }));
+                          }}
+                          placeholder="0"
+                          className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 pl-7 pr-3 text-base font-bold tabular-nums text-white outline-none placeholder:text-white/30 focus:border-violet-300/35"
+                        />
+                      </div>
+                    </label>
+                    <label className="space-y-1.5 text-xs font-semibold text-white/55">
+                      Método
+                      <select
+                        value={paymentForm.method}
+                        onChange={(event) => setPaymentForm((form) => ({ ...form, method: event.target.value }))}
+                        className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-base text-white outline-none focus:border-violet-300/35"
+                      >
+                        {paymentOptions.map((o) => (
+                          <option key={o.id} value={o.id}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                  </div>
+                ) : (
+                  <MultiMethodPaymentSplit
+                    splits={paymentSplits}
+                    onChange={setPaymentSplits}
+                    paymentOptions={paymentOptions}
+                    total={liquidarFinalTotal}
+                    allowPartial
+                  />
+                )}
+
                 <label className="mt-3 block space-y-1.5 text-xs font-semibold text-white/55">
                   Nota
                   <textarea
@@ -8961,8 +9099,6 @@ function getInitials(name?: string | null): string {
   );
 }
 
-type MultiSplit = { method: string; amount: string };
-
 type PendingCharge = ReturnType<typeof useCajaData>["pendingCharges"][number];
 
 export function NuevaVentaTab({
@@ -9337,22 +9473,6 @@ export function NuevaVentaTab({
       const { [id]: _, ...rest } = c;
       return n <= 0 ? rest : { ...c, [id]: n };
     });
-
-  function addSplit() {
-    const available = paymentOptions.filter(
-      (o) => !splits.some((s) => s.method === o.id),
-    );
-    if (available.length === 0) return;
-    setSplits((prev) => [...prev, { method: available[0].id, amount: "" }]);
-  }
-  function removeSplit(idx: number) {
-    setSplits((prev) => prev.filter((_, i) => i !== idx));
-  }
-  function updateSplit(idx: number, key: "method" | "amount", val: string) {
-    setSplits((prev) =>
-      prev.map((s, i) => (i === idx ? { ...s, [key]: val } : s)),
-    );
-  }
 
   function goNext() {
     if (step === 1 && !employeeId) {
@@ -10466,84 +10586,12 @@ export function NuevaVentaTab({
               )}
             </>
           ) : (
-            <div className={cn("rounded-2xl border border-blue-300/25 bg-[linear-gradient(135deg,rgba(37,99,235,0.14),rgba(8,11,20,0.96),rgba(2,4,12,0.98))] p-3 shadow-[0_0_40px_rgba(96,165,250,0.12),0_18px_55px_-34px_rgba(0,0,0,1)] space-y-2", splits.length >= 3 && "max-h-[200px] overflow-y-auto overscroll-contain pr-1.5 [scrollbar-width:thin] [scrollbar-color:rgba(96,165,250,0.40)_transparent]")}>
-              <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70">
-                PAGO MÚLTIPLE
-              </p>
-              {/* Método, monto y eliminar bien juntos en una sola fila —
-                  antes método/monto tenían el mismo ancho (1fr cada uno),
-                  así que un monto de varias cifras quedaba apretado/cortado
-                  contra el borde. El monto ahora tiene ancho fijo propio
-                  (w-28) y se lee completo, alineado a la derecha. */}
-              {splits.map((sp, idx) => {
-                const opt = paymentOptions.find((o) => o.id === sp.method);
-                const Icon = opt?.icon ?? Wallet;
-                return (
-                  <div
-                    key={idx}
-                    className="grid grid-cols-[1fr_auto_auto] gap-1.5 items-center"
-                  >
-                    <select
-                      value={sp.method}
-                      onChange={(e) =>
-                        updateSplit(idx, "method", e.target.value)
-                      }
-                      className="h-9 min-w-0 rounded-xl border border-blue-300/25 bg-black/45 px-2.5 text-sm font-semibold text-white outline-none focus:border-blue-300/55 focus:ring-2 focus:ring-blue-400/15"
-                    >
-                      {paymentOptions.map((o) => (
-                        <option key={o.id} value={o.id}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </select>
-                    <input
-                      value={sp.amount}
-                      onChange={(e) =>
-                        updateSplit(idx, "amount", e.target.value)
-                      }
-                      inputMode="numeric"
-                      placeholder="Monto"
-                      className="h-9 w-28 rounded-xl border border-blue-300/25 bg-black/45 px-2 text-right text-sm font-bold tabular-nums text-white outline-none placeholder:text-white/35 focus:border-blue-300/55 focus:ring-2 focus:ring-blue-400/15"
-                    />
-                    <button
-                      onClick={() => removeSplit(idx)}
-                      disabled={splits.length <= 1}
-                      className="h-9 w-9 shrink-0 rounded-xl border border-white/10 bg-black/35 grid place-items-center text-muted-foreground hover:border-rose-300/35 hover:text-rose-300 disabled:opacity-30 transition-colors"
-                    >
-                      <Trash2 className="size-3.5" />
-                    </button>
-                  </div>
-                );
-              })}
-              <button
-                onClick={addSplit}
-                disabled={splits.length >= paymentOptions.length}
-                className="inline-flex items-center gap-2 rounded-xl border border-blue-300/20 bg-blue-400/10 px-3 py-1.5 text-xs font-semibold text-blue-100 hover:bg-blue-400/15 disabled:opacity-30 transition-colors"
-              >
-                <Plus className="size-3.5" /> Agregar método de pago
-              </button>
-              <div className="flex items-center justify-between text-sm rounded-xl border border-blue-300/20 bg-black/35 px-3 py-2">
-                <span className="text-muted-foreground">
-                  Total cargado: ${splitsTotal.toLocaleString("es-AR")}
-                </span>
-                <span
-                  className={cn(
-                    "font-semibold",
-                    splitsRemaining === 0
-                      ? "text-emerald-300"
-                      : splitsRemaining > 0
-                        ? "text-blue-200"
-                        : "text-rose-300",
-                  )}
-                >
-                  {splitsRemaining === 0
-                    ? "Completo ✓"
-                    : splitsRemaining > 0
-                      ? `Falta $${splitsRemaining.toLocaleString("es-AR")}`
-                      : `Sobra $${Math.abs(splitsRemaining).toLocaleString("es-AR")}`}
-                </span>
-              </div>
-            </div>
+            <MultiMethodPaymentSplit
+              splits={splits}
+              onChange={setSplits}
+              paymentOptions={paymentOptions}
+              total={total}
+            />
           )}
         </Card>
       )}
