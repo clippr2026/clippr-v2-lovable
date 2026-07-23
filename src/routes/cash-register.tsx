@@ -3704,7 +3704,7 @@ function ProfesionalesTab({
           supabase
             .from("settlement_runs" as any)
             .select(
-              "id,professional_id,run_number,cutoff_date,period_start,period_start_at,previous_settlement_run_id,previous_balance,new_commissions,adjustments,deductions,advances,adjustment_items,deduction_items,total_to_settle,amount_paid,service_count,total_sold,status,prepared_by_name,prepared_at",
+              "id,professional_id,professional_name,run_number,cutoff_date,period_start,period_start_at,previous_settlement_run_id,previous_balance,new_commissions,adjustments,deductions,advances,adjustment_items,deduction_items,total_to_settle,amount_paid,service_count,total_sold,status,prepared_by_name,prepared_at",
             )
             .eq("business_id", businessId)
             .order("cutoff_date", { ascending: false }),
@@ -3956,7 +3956,7 @@ function ProfesionalesTab({
       runNumber: run.run_number,
       cutoffDate: run.cutoff_date,
       periodStart: run.period_start ?? null,
-      professionalName: selectedRow?.name ?? "Profesional",
+      professionalName: run.professional_name || selectedRow?.name || "Profesional",
       previousBalance: Number(run.previous_balance ?? 0),
       previousRun: previousRun
         ? {
@@ -4886,7 +4886,7 @@ function ProfesionalesTab({
                         >
                           <div className="flex flex-wrap items-start justify-between gap-2">
                             <div>
-                              <div className="font-bold text-white">{selectedRow.name}</div>
+                              <div className="font-bold text-white">{run?.professional_name || selectedRow.name}</div>
                               <div className="text-xs text-white/50">
                                 {payment.paid_at ? fmtDateTime(payment.paid_at) : "—"}
                               </div>
@@ -5209,6 +5209,10 @@ function ProfesionalesTab({
               <div className="space-y-1.5 rounded-2xl border border-white/[0.08] bg-black/25 p-3.5 text-sm">
                 <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
                   Resumen
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/50">Profesional</span>
+                  <span className="font-semibold text-white">{run.professional_name || "—"}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-white/50">Comisiones pendientes anteriores</span>

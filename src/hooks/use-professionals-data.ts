@@ -532,25 +532,35 @@ export function useProfSettlementRunPayments(businessId: string | null, empId: s
 }
 
 // Servicios incluidos en una liquidación puntual (para "Ver servicios
-// incluidos" dentro de Mis liquidaciones).
+// incluidos" dentro de Mis liquidaciones y para "Servicios incluidos" del
+// detalle de Historial en Caja).
+//
+// Ya NO hace join en vivo a payments — commission_records guarda su propia
+// fotografía (snapshot_*) tomada por prepare_settlement_run en el momento
+// exacto en que bloqueó cada fila dentro de este run, así que el
+// comprobante queda fijo para siempre aunque después se edite o borre el
+// cliente/servicio/precio original. `sale` se arma igual que antes (mismo
+// shape) para no tener que tocar los componentes que ya lo consumen.
 export async function fetchSettlementRunServices(settlementRunId: string) {
   const { data: commissionRows, error } = await supabase
     .from("commission_records" as any)
-    .select("id,amount,pending_amount,commission_pct,sale_date,created_at,sale_id")
+    .select(
+      "id,amount,pending_amount,commission_pct,sale_date,created_at,sale_id,snapshot_client_name,snapshot_service_name,snapshot_sale_total,snapshot_payment_method",
+    )
     .eq("settlement_run_id", settlementRunId)
     .order("created_at", { ascending: true });
   if (error) throw new Error(error.message);
-  const saleIds = (commissionRows ?? []).map((c: any) => c.sale_id).filter(Boolean);
-  let paymentsById: Record<string, any> = {};
-  if (saleIds.length > 0) {
-    const { data: pays, error: payError } = await supabase
-      .from("payments" as any)
-      .select("id,client_name,service_name,total,amount,method,payment_method")
-      .in("id", saleIds);
-    if (payError) throw new Error(payError.message);
-    paymentsById = Object.fromEntries((pays ?? []).map((p: any) => [p.id, p]));
-  }
-  return (commissionRows ?? []).map((c: any) => ({ ...c, sale: paymentsById[c.sale_id] ?? null }));
+  return (commissionRows ?? []).map((c: any) => ({
+    ...c,
+    sale: {
+      client_name: c.snapshot_client_name,
+      service_name: c.snapshot_service_name,
+      total: c.snapshot_sale_total,
+      amount: c.snapshot_sale_total,
+      method: c.snapshot_payment_method,
+      payment_method: c.snapshot_payment_method,
+    },
+  }));
 }
 
 export function useConfirmSettlementRun(businessId: string | null, empId: string | null) {
