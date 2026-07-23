@@ -3538,7 +3538,6 @@ function ProfesionalesTab({
   const [commissionsError, setCommissionsError] = React.useState<string | null>(null);
   const [runsError, setRunsError] = React.useState<string | null>(null);
   const [preparingRunFor, setPreparingRunFor] = React.useState<string | null>(null);
-  const [payingRunId, setPayingRunId] = React.useState<string | null>(null);
   // "detalle"/"historial" son las únicas vistas de consulta (pestañas
   // reales) — Pagar y Adelantar son botones de acción que abren su
   // modal directo, nunca cambian esta pestaña.
@@ -3806,9 +3805,6 @@ function ProfesionalesTab({
       const previousBalance = latestRun
         ? Math.max(Number(latestRun.total_to_settle) - Number(latestRun.amount_paid), 0)
         : 0;
-      // El run activo (todavía no pagado del todo) es el que se muestra al
-      // abrir el modal de "Pagar".
-      const activeRun = employeeRuns.find((r: any) => r.status !== "pagada") ?? null;
 
       // Comisiones nuevas: generadas después de la marca de tiempo EXACTA
       // de la última liquidación (no del día siguiente) y todavía sin
@@ -3850,7 +3846,6 @@ function ProfesionalesTab({
         periodStart,
         periodStartAt,
         latestRun,
-        activeRun,
         commissionPct: Number(employee.commission_pct ?? 0),
       };
     });
@@ -4131,45 +4126,6 @@ function ProfesionalesTab({
     }
   }
 
-  async function payRun(run: any, professionalName: string) {
-    if (!run || payingRunId) return;
-    const amount = Number(paymentForm.amount);
-    const remaining = Number(run.total_to_settle) - Number(run.amount_paid);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      toast.error("Ingresá un monto válido");
-      return;
-    }
-    if (amount > remaining) {
-      toast.error("El monto no puede superar el saldo de esta liquidación");
-      return;
-    }
-    setPayingRunId(run.id);
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (!user?.id) throw new Error("Sesión inválida — volvé a iniciar sesión");
-
-      const { error } = await supabase.rpc("register_settlement_run_payment" as any, {
-        p_settlement_run_id: run.id,
-        p_amount: amount,
-        p_payment_method: paymentForm.method || "transferencia",
-        p_note: paymentForm.note.trim() || null,
-        p_paid_by: user.id,
-        p_paid_by_name: userEmail ?? "Caja",
-      });
-      if (error) throw error;
-      toast.success(`Pago registrado para ${professionalName}: ${money(amount)}`);
-      resetLiquidarForm();
-      setCommissionsVersion((v) => v + 1);
-      setSelectedDetail("historial");
-    } catch (e) {
-      toast.error(friendlyRpcError(e, "No pudimos registrar el pago. Intentá nuevamente."));
-    } finally {
-      setPayingRunId(null);
-    }
-  }
-
   async function registerAdvance(row: (typeof rows)[number] | null) {
     if (!row || registeringAdvance) return;
     const amount = Number(adelantoForm.amount);
@@ -4408,9 +4364,7 @@ function ProfesionalesTab({
   function openLiquidarModal(row: (typeof rows)[number] | null) {
     if (!row) return;
     if (paymentForm.amount === "") {
-      const suggested = row.activeRun
-        ? Number(row.activeRun.total_to_settle) - Number(row.activeRun.amount_paid)
-        : row.previousBalance + row.newCommissions - row.pendingAdvances;
+      const suggested = row.previousBalance + row.newCommissions - row.pendingAdvances;
       if (suggested > 0) {
         setPaymentForm((form) => ({ ...form, amount: String(Math.round(suggested)) }));
       }
@@ -5338,14 +5292,18 @@ function ProfesionalesTab({
       </AgendaCenteredModal>
 
       {selectedRow && (() => {
-        const activeRun = selectedRow.activeRun;
-        const remaining = activeRun
-          ? Number(activeRun.total_to_settle) - Number(activeRun.amount_paid)
-          : liquidarFinalTotal;
-        const payAmount = Number(paymentForm.amount || 0);
-        const payDisabled = activeRun
-          ? payingRunId === activeRun.id || !Number.isFinite(payAmount) || payAmount <= 0 || payAmount > remaining
-          : preparingRunFor === selectedRow.id || liquidarFinalTotal <= 0;
+        // Un solo flujo para todos los profesionales, tengan o no una
+        // liquidación previa sin terminar de pagar: "Pagar" siempre
+        // prepara una liquidación nueva (prepareRun), que arrastra el
+        // saldo restante de la anterior como "Comisiones pendientes"
+        // (previousBalance) — nunca reutiliza ni vuelve a mostrar el
+        // viejo modal de solo lectura (Total/Pagado/Restante) de un run
+        // ya preparado. No hay riesgo de contar comisiones dos veces:
+        // cada run solo toma las que todavía no tienen settlement_run_id.
+        const periodStartAtMs = selectedRow.periodStartAt ? new Date(selectedRow.periodStartAt).getTime() : null;
+        const liquidarPeriodValid = periodStartAtMs === null || liquidarCutoffAt.getTime() > periodStartAtMs;
+        const payDisabled =
+          preparingRunFor === selectedRow.id || !liquidarPeriodValid || liquidarFinalTotal <= 0;
 
         return (
           <AgendaCenteredModal
@@ -5354,137 +5312,88 @@ function ProfesionalesTab({
               if (!v) resetLiquidarForm();
             }}
             title={selectedRow.name}
-            subtitle={
-              activeRun
-                ? activeRun.period_start
-                  ? `Del ${new Date(`${activeRun.period_start}T12:00:00`).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })} al ${new Date(`${activeRun.cutoff_date}T12:00:00`).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}`
-                  : `Hasta el ${new Date(`${activeRun.cutoff_date}T12:00:00`).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}`
-                : liquidarPeriodLabel
-            }
+            subtitle={liquidarPeriodLabel}
             footer={
               <button
                 type="button"
-                onClick={() =>
-                  activeRun ? payRun(activeRun, selectedRow.name) : prepareRun(selectedRow)
-                }
+                onClick={() => prepareRun(selectedRow)}
                 disabled={payDisabled}
                 className="w-full rounded-2xl border border-violet-300/28 bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_35px_rgba(139,92,246,0.22)] transition hover:brightness-110 disabled:opacity-60"
               >
-                {(activeRun ? payingRunId === activeRun.id : preparingRunFor === selectedRow.id)
-                  ? "Pagando…"
-                  : "Pagar"}
+                {preparingRunFor === selectedRow.id ? "Pagando…" : "Pagar"}
               </button>
             }
           >
             <div className="space-y-4">
-              {activeRun ? (
-                <>
-                  <div className="grid grid-cols-3 gap-2 rounded-2xl border border-white/[0.07] bg-black/20 p-3 text-center">
-                    <div>
-                      <div className="text-[10px] uppercase tracking-wider text-white/40">Total</div>
-                      <div className="mt-1 text-sm font-bold text-white">{money(Number(activeRun.total_to_settle))}</div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] uppercase tracking-wider text-white/40">Pagado</div>
-                      <div className="mt-1 text-sm font-bold text-emerald-300">{money(Number(activeRun.amount_paid))}</div>
-                    </div>
-                    <div>
-                      <div className="text-[10px] uppercase tracking-wider text-white/40">Restante</div>
-                      <div className="mt-1 text-sm font-bold text-rose-300">{money(remaining)}</div>
-                    </div>
-                  </div>
-
-                  {Array.isArray(activeRun.adjustment_items) && activeRun.adjustment_items.length > 0 && (
-                    <div className="space-y-1 rounded-2xl border border-emerald-400/15 bg-emerald-400/[0.04] p-3">
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/70">Adicionales</div>
-                      {activeRun.adjustment_items.map((item: any, i: number) => (
-                        <div key={i} className="flex items-center justify-between gap-2 text-xs">
-                          <span className="text-white/60">{item.reason}</span>
-                          <span className="font-semibold text-emerald-300">+{money(Number(item.amount))}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {Array.isArray(activeRun.deduction_items) && activeRun.deduction_items.length > 0 && (
-                    <div className="space-y-1 rounded-2xl border border-rose-400/15 bg-rose-400/[0.04] p-3">
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-rose-300/70">Deducciones</div>
-                      {activeRun.deduction_items.map((item: any, i: number) => (
-                        <div key={i} className="flex items-center justify-between gap-2 text-xs">
-                          <span className="text-white/60">{item.reason}</span>
-                          <span className="font-semibold text-rose-300">−{money(Number(item.amount))}</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </>
-              ) : (
-                <>
-                  <div className="space-y-2 rounded-2xl border border-white/[0.08] bg-black/20 p-3.5">
-                    <label className="block space-y-1.5 text-xs font-semibold text-white/55">
-                      Liquidar hasta
-                      <input
-                        type="date"
-                        min={selectedRow.periodStart ?? undefined}
-                        max={today}
-                        value={liquidarCutoffDate || today}
-                        onChange={(event) => setLiquidarCutoffDate(event.target.value)}
-                        className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-base text-white outline-none focus:border-violet-300/35"
-                      />
-                    </label>
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="text-white/50">Comisiones generadas — Período actual</span>
-                      <span className="font-semibold text-violet-300">{money(liquidarNewCommissions)}</span>
-                    </div>
-                    {liquidarPendingAdvances > 0 && (
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="text-white/50">Adelantos aplicados</span>
-                        <span className="font-semibold text-rose-300">−{money(liquidarPendingAdvances)}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <SettlementItemsEditor
-                    items={adjustmentItems}
-                    onChange={setAdjustmentItems}
-                    addLabel="Agregar adicional"
-                    reasonPlaceholder="Ej. Feriado trabajado, bono o comisión adicional"
-                    formatThousands={formatThousands}
-                    accentClass="border-emerald-400/25 bg-emerald-400/10 text-emerald-200 hover:bg-emerald-400/15"
+              <div className="space-y-2 rounded-2xl border border-white/[0.08] bg-black/20 p-3.5">
+                <label className="block space-y-1.5 text-xs font-semibold text-white/55">
+                  Liquidar hasta
+                  <input
+                    type="date"
+                    min={selectedRow.periodStart ?? undefined}
+                    max={today}
+                    value={liquidarCutoffDate || today}
+                    onChange={(event) => setLiquidarCutoffDate(event.target.value)}
+                    className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-base text-white outline-none focus:border-violet-300/35"
                   />
-
-                  <SettlementItemsEditor
-                    items={deductionItems}
-                    onChange={setDeductionItems}
-                    addLabel="Agregar deducción"
-                    reasonPlaceholder="Ej. Llegada tarde, adelanto o producto descontado"
-                    formatThousands={formatThousands}
-                    accentClass="border-rose-400/25 bg-rose-400/10 text-rose-200 hover:bg-rose-400/15"
-                  />
-
-                  {/* Sin Comisiones pendientes/nuevas ni Adelantos acá — ya
-                      están en las tarjetas de la pantalla principal, este
-                      resumen solo agrega lo que se puede tocar en este
-                      modal (adicionales/deducciones) y el total final. */}
-                  <div className="space-y-1.5 rounded-2xl border border-white/[0.08] bg-black/25 p-3.5 text-sm">
-                    <div className="flex items-center justify-between">
-                      <span className="text-white/50">Adicionales</span>
-                      <span className="font-semibold text-emerald-300">
-                        {liquidarValidAdjustmentsCount > 0 ? `${liquidarValidAdjustmentsCount} · ` : ""}+{money(liquidarAdjustmentsSum)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-white/50">Deducciones</span>
-                      <span className="font-semibold text-rose-300">
-                        {liquidarValidDeductionsCount > 0 ? `${liquidarValidDeductionsCount} · ` : ""}−{money(liquidarDeductionsSum)}
-                      </span>
-                    </div>
-                    <div className="mt-1 flex items-center justify-between border-t border-white/[0.08] pt-2">
-                      <span className="font-bold text-white/70">Total final a pagar</span>
-                      <span className="text-base font-bold text-emerald-300">{money(liquidarFinalTotal)}</span>
-                    </div>
+                </label>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-white/50">Comisiones generadas — Período actual</span>
+                  <span className="font-semibold text-violet-300">{money(liquidarNewCommissions)}</span>
+                </div>
+                {liquidarPendingAdvances > 0 && (
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-white/50">Adelantos aplicados</span>
+                    <span className="font-semibold text-rose-300">−{money(liquidarPendingAdvances)}</span>
                   </div>
-                </>
-              )}
+                )}
+                {!liquidarPeriodValid && (
+                  <div className="pt-1 text-[11px] text-rose-300">
+                    No hay comisiones disponibles hasta la fecha seleccionada.
+                  </div>
+                )}
+              </div>
+
+              <SettlementItemsEditor
+                items={adjustmentItems}
+                onChange={setAdjustmentItems}
+                addLabel="Agregar adicional"
+                reasonPlaceholder="Ej. Feriado trabajado, bono o comisión adicional"
+                formatThousands={formatThousands}
+                accentClass="border-emerald-400/25 bg-emerald-400/10 text-emerald-200 hover:bg-emerald-400/15"
+              />
+
+              <SettlementItemsEditor
+                items={deductionItems}
+                onChange={setDeductionItems}
+                addLabel="Agregar deducción"
+                reasonPlaceholder="Ej. Llegada tarde, adelanto o producto descontado"
+                formatThousands={formatThousands}
+                accentClass="border-rose-400/25 bg-rose-400/10 text-rose-200 hover:bg-rose-400/15"
+              />
+
+              {/* Sin Comisiones pendientes/nuevas ni Adelantos acá — ya
+                  están en las tarjetas de la pantalla principal, este
+                  resumen solo agrega lo que se puede tocar en este
+                  modal (adicionales/deducciones) y el total final. */}
+              <div className="space-y-1.5 rounded-2xl border border-white/[0.08] bg-black/25 p-3.5 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-white/50">Adicionales</span>
+                  <span className="font-semibold text-emerald-300">
+                    {liquidarValidAdjustmentsCount > 0 ? `${liquidarValidAdjustmentsCount} · ` : ""}+{money(liquidarAdjustmentsSum)}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/50">Deducciones</span>
+                  <span className="font-semibold text-rose-300">
+                    {liquidarValidDeductionsCount > 0 ? `${liquidarValidDeductionsCount} · ` : ""}−{money(liquidarDeductionsSum)}
+                  </span>
+                </div>
+                <div className="mt-1 flex items-center justify-between border-t border-white/[0.08] pt-2">
+                  <span className="font-bold text-white/70">Total final a pagar</span>
+                  <span className="text-base font-bold text-emerald-300">{money(liquidarFinalTotal)}</span>
+                </div>
+              </div>
 
               <div>
                 <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -5493,7 +5402,7 @@ function ProfesionalesTab({
                     <input
                       type="number"
                       min={0}
-                      max={remaining > 0 ? remaining : undefined}
+                      max={liquidarFinalTotal > 0 ? liquidarFinalTotal : undefined}
                       value={paymentForm.amount}
                       onChange={(event) => setPaymentForm((form) => ({ ...form, amount: event.target.value }))}
                       placeholder="Ej: 451.784"
