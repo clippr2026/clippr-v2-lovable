@@ -4258,11 +4258,16 @@ function ProfesionalesTab({
   // Para la tarjeta "Período actual" del header — a diferencia de
   // liquidarPeriodLabel (que se recalcula solo al abrir el modal de
   // Pagar), esta se actualiza sola cada minuto vía nowClock, ya que se ve
-  // todo el tiempo en pantalla, no solo al confirmar un pago.
+  // todo el tiempo en pantalla, no solo al confirmar un pago. Devuelve
+  // "Desde" y "Hasta" por separado para que el header los renderice en
+  // dos líneas propias, nunca juntas en una sola.
   const periodoActualLabel = React.useMemo(() => {
-    const hasta = `${todayLabel} • ${nowTimeLabel} h`;
-    if (!lastLiquidacionInfo) return `Primera liquidación · hasta ${hasta}`;
-    return `Desde ${lastLiquidacionInfo.dateLabel} • ${lastLiquidacionInfo.timeLabel} hasta ${hasta}`;
+    return {
+      desde: lastLiquidacionInfo
+        ? `Desde ${lastLiquidacionInfo.dateLabel} • ${lastLiquidacionInfo.timeLabel}`
+        : "Primera liquidación",
+      hasta: `Hasta ${todayLabel} • ${nowTimeLabel} h`,
+    };
   }, [lastLiquidacionInfo, todayLabel, nowTimeLabel]);
 
   const calendarDays = React.useMemo(() => {
@@ -4458,14 +4463,17 @@ function ProfesionalesTab({
                 setCalendarMonth(new Date(`${today}T12:00:00`));
                 setPeriodInfoOpen(true);
               }}
-              className="inline-flex w-full flex-col items-center gap-0.5 rounded-2xl border border-white/[0.10] bg-white/[0.055] px-3.5 py-2 text-center ring-1 ring-white/[0.07] transition hover:bg-white/[0.09] sm:w-auto"
+              className="inline-flex w-full flex-col items-center gap-1 rounded-2xl border border-white/[0.10] bg-white/[0.055] px-3.5 py-2.5 text-center ring-1 ring-white/[0.07] transition hover:bg-white/[0.09] sm:w-auto"
             >
               <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-white/45">
                 <CalendarDays className="size-3.5" />
                 Período actual
               </span>
               <span className="max-w-full break-words text-xs font-semibold text-white">
-                {periodoActualLabel}
+                {periodoActualLabel.desde}
+              </span>
+              <span className="max-w-full break-words text-xs font-semibold text-white">
+                {periodoActualLabel.hasta}
               </span>
             </button>
           </div>
@@ -4590,14 +4598,14 @@ function ProfesionalesTab({
                   setAdelantoForm((form) => ({ ...form, date: form.date || today }));
                   setAdelantoModalOpen(true);
                 }}
-                className="rounded-2xl bg-rose-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_24px_rgba(244,63,94,0.28)] transition hover:brightness-110"
+                className="mx-auto w-full max-w-[160px] rounded-xl bg-rose-500 px-3.5 py-2 text-xs font-bold text-white shadow-[0_0_18px_rgba(244,63,94,0.26)] transition hover:brightness-110"
               >
                 Adelantar
               </button>
               <button
                 type="button"
                 onClick={() => openLiquidarModal(selectedRow)}
-                className="rounded-2xl bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_28px_rgba(139,92,246,0.32)] transition hover:brightness-110"
+                className="mx-auto w-full max-w-[160px] rounded-xl bg-emerald-500 px-3.5 py-2 text-xs font-bold text-white shadow-[0_0_18px_rgba(16,185,129,0.28)] transition hover:brightness-110"
               >
                 Pagar
               </button>
@@ -4616,9 +4624,6 @@ function ProfesionalesTab({
 
             {selectedDetail === "detalle" && (
               <div className="min-h-0 flex-1 overflow-visible sm:overflow-y-auto px-5 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
-                <div className="mb-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
-                  Período actual
-                </div>
                 {detailError && (
                   <div className="mb-3 rounded-xl border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-xs text-rose-200">
                     {detailError}
