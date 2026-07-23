@@ -3571,14 +3571,13 @@ function ProfesionalesTab({
   const [adelantoForm, setAdelantoForm] = React.useState({
     amount: "",
     method: "efectivo",
-    date: "",
     note: "",
   });
   const [registeringAdvance, setRegisteringAdvance] = React.useState(false);
 
   function resetAdelantoForm() {
     setAdelantoModalOpen(false);
-    setAdelantoForm({ amount: "", method: "efectivo", date: "", note: "" });
+    setAdelantoForm({ amount: "", method: "efectivo", note: "" });
   }
   // commission_records: fuente de verdad de cuánto se le debe a cada
   // profesional. Las que ya tienen settlement_run_id están "bloqueadas"
@@ -4055,7 +4054,7 @@ function ProfesionalesTab({
       return;
     }
     if (hasIncompleteSettlementItems(adjustmentItems) || hasIncompleteSettlementItems(deductionItems)) {
-      toast.error("Cada ajuste o deducción con importe necesita un motivo");
+      toast.error("Cada adicional o deducción con importe necesita un motivo");
       return;
     }
     // El monto a pagar es opcional acá: si se completó, el pago se
@@ -4178,17 +4177,15 @@ function ProfesionalesTab({
       } = await supabase.auth.getUser();
       if (!user?.id) throw new Error("Sesión inválida — volvé a iniciar sesión");
 
-      const advancedAt = adelantoForm.date
-        ? new Date(`${adelantoForm.date}T12:00:00`).toISOString()
-        : new Date().toISOString();
-
+      // Siempre "ahora" — no hay campo Fecha en este modal, el adelanto
+      // queda registrado con el momento exacto de la confirmación.
       const { error } = await supabase.rpc("register_professional_advance" as any, {
         p_business_id: businessId,
         p_professional_id: row.id,
         p_amount: amount,
         p_payment_method: adelantoForm.method || null,
         p_note: adelantoForm.note.trim() || null,
-        p_advanced_at: advancedAt,
+        p_advanced_at: new Date().toISOString(),
         p_registered_by: user.id,
         p_registered_by_name: userEmail ?? "Caja",
       });
@@ -4305,11 +4302,13 @@ function ProfesionalesTab({
 
   const StatCard = ({
     label,
+    sublabel,
     value,
     tone,
     info,
   }: {
     label: string;
+    sublabel?: string;
     value: React.ReactNode;
     tone: "neutral" | "violet" | "green" | "rose";
     info?: React.ReactNode;
@@ -4342,6 +4341,11 @@ function ProfesionalesTab({
           <span>{label}</span>
           {info && <InfoPopover text={info} />}
         </div>
+        {sublabel && (
+          <div className="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/30">
+            {sublabel}
+          </div>
+        )}
         <div className="mt-1 text-xl font-bold tabular-nums">{value}</div>
       </div>
     );
@@ -4434,16 +4438,17 @@ function ProfesionalesTab({
               onChange={(event) => {
                 const nextId = event.target.value;
                 setSelectedEmployeeId(nextId);
+                // Cambiar de profesional nunca abre un modal solo — se
+                // queda en la pantalla principal (Comisiones) mostrando
+                // los datos del profesional entrante. Cierra cualquier
+                // modal que hubiera quedado abierto para el anterior, así
+                // no se reutiliza su estado (montos precargados, etc.).
                 resetLiquidarForm();
+                resetAdelantoForm();
+                setPeriodInfoOpen(false);
+                setHistorialDetailRun(null);
+                setHistorialDetailServices(null);
                 setSelectedDetail("detalle");
-                if (!nextId) return;
-                const nextRow = rows.find((row) => row.id === nextId);
-                // Si el profesional entrante ya tiene una liquidación
-                // preparada sin terminar de pagar, abrimos Pagar directo
-                // para cobrar el saldo — sigue siendo un acceso rápido, ya
-                // no depende de una pestaña. (Sin precargar monto acá: recién
-                // se limpió paymentForm arriba, en el mismo tick.)
-                if (nextRow?.activeRun) setLiquidarModalOpen(true);
               }}
               className="h-10 w-full rounded-2xl border border-white/[0.09] bg-[#070A13]/80 px-3.5 text-base text-white outline-none backdrop-blur-xl focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12 sm:min-w-[230px] sm:w-auto sm:text-sm"
             >
@@ -4483,12 +4488,14 @@ function ProfesionalesTab({
           <div className="grid grid-cols-2 gap-3 border-b border-white/[0.055] px-5 py-4">
             <StatCard
               label="Comisiones pendientes"
+              sublabel="Período anterior"
               value={money(totals.previousBalance)}
               tone="neutral"
               info={LIQUIDACION_ANTERIOR_INFO_TEXT}
             />
             <StatCard
-              label="Comisiones nuevas"
+              label="Comisiones generadas"
+              sublabel="Período actual"
               value={money(totals.newCommissions)}
               tone="violet"
               info={COMISIONES_NUEVAS_INFO_TEXT}
@@ -4586,26 +4593,20 @@ function ProfesionalesTab({
           </>
         ) : selectedRow ? (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            {/* Adelantar y Pagar arriba de Comisiones/Historial, en las
-                mismas 2 columnas, para que cada botón quede visualmente
-                asociado a la sección que abre debajo (Adelantar → tarjeta
-                Adelantos / pestaña Comisiones; Pagar → tarjeta Total a
-                pagar / pestaña Historial). */}
-            <div className="grid grid-cols-2 gap-3 border-b border-white/[0.06] bg-white/[0.018] px-5 py-3">
+            {/* Adelantar y Pagar: acciones principales, compactas y
+                centradas (no estiradas a lo ancho de una columna). */}
+            <div className="flex items-center justify-center gap-4 border-b border-white/[0.06] bg-white/[0.018] px-5 py-3">
               <button
                 type="button"
-                onClick={() => {
-                  setAdelantoForm((form) => ({ ...form, date: form.date || today }));
-                  setAdelantoModalOpen(true);
-                }}
-                className="mx-auto w-full max-w-[160px] rounded-xl bg-rose-500 px-3.5 py-2 text-xs font-bold text-white shadow-[0_0_18px_rgba(244,63,94,0.26)] transition hover:brightness-110"
+                onClick={() => setAdelantoModalOpen(true)}
+                className="w-28 rounded-xl bg-rose-500 px-3 py-2 text-xs font-bold text-white shadow-[0_0_18px_rgba(244,63,94,0.26)] transition hover:brightness-110"
               >
                 Adelantar
               </button>
               <button
                 type="button"
                 onClick={() => openLiquidarModal(selectedRow)}
-                className="mx-auto w-full max-w-[160px] rounded-xl bg-emerald-500 px-3.5 py-2 text-xs font-bold text-white shadow-[0_0_18px_rgba(16,185,129,0.28)] transition hover:brightness-110"
+                className="w-28 rounded-xl bg-emerald-500 px-3 py-2 text-xs font-bold text-white shadow-[0_0_18px_rgba(16,185,129,0.28)] transition hover:brightness-110"
               >
                 Pagar
               </button>
@@ -4764,37 +4765,6 @@ function ProfesionalesTab({
                     </div>
                   )}
                 </div>
-
-                {!loadingDetail && detailRows && detailRows.length > 0 && (
-                  <div className="mt-3 space-y-1.5 rounded-2xl border border-white/[0.08] bg-black/20 p-3.5 text-sm">
-                    <div className="flex items-center justify-between">
-                      <span className="text-white/50">Total de servicios</span>
-                      <span className="font-semibold text-white">{detailRows.length}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-white/50">Total de comisiones nuevas</span>
-                      <span className="font-semibold text-violet-300">{money(selectedRow.newCommissions)}</span>
-                    </div>
-                    {selectedRow.previousBalance > 0 && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-white/50">Comisiones pendientes</span>
-                        <span className="font-semibold text-white/80">{money(selectedRow.previousBalance)}</span>
-                      </div>
-                    )}
-                    {selectedRow.pendingAdvances > 0 && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-white/50">Adelantos</span>
-                        <span className="font-semibold text-amber-300">−{money(selectedRow.pendingAdvances)}</span>
-                      </div>
-                    )}
-                    <div className="mt-1 flex items-center justify-between border-t border-white/[0.08] pt-2">
-                      <span className="font-bold text-white/70">Total disponible para pagar</span>
-                      <span className="text-base font-bold text-emerald-300">
-                        {money(Math.max(selectedRow.previousBalance + selectedRow.newCommissions - selectedRow.pendingAdvances, 0))}
-                      </span>
-                    </div>
-                  </div>
-                )}
               </div>
             )}
 
@@ -4976,7 +4946,7 @@ function ProfesionalesTab({
               type="button"
               onClick={() => registerAdvance(selectedRow)}
               disabled={registeringAdvance || !Number.isFinite(Number(adelantoForm.amount)) || Number(adelantoForm.amount) <= 0}
-              className="w-full rounded-2xl border border-amber-300/28 bg-gradient-to-r from-amber-400 to-orange-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_35px_rgba(251,146,60,0.22)] transition hover:brightness-110 disabled:opacity-60"
+              className="w-full rounded-2xl bg-rose-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_35px_rgba(244,63,94,0.28)] transition hover:brightness-110 disabled:opacity-60"
             >
               {registeringAdvance ? "Adelantando…" : "Adelantar"}
             </button>
@@ -4994,31 +4964,19 @@ function ProfesionalesTab({
                 className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-base text-white outline-none placeholder:text-white/30 focus:border-amber-300/35"
               />
             </label>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <label className="space-y-1.5 text-xs font-semibold text-white/55">
-                Método
-                <select
-                  value={adelantoForm.method}
-                  onChange={(event) => setAdelantoForm((form) => ({ ...form, method: event.target.value }))}
-                  className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-base text-white outline-none focus:border-amber-300/35"
-                >
-                  <option value="efectivo">Efectivo</option>
-                  <option value="transferencia">Transferencia</option>
-                  <option value="debito">Débito</option>
-                  <option value="mercado pago">Mercado Pago</option>
-                </select>
-              </label>
-              <label className="space-y-1.5 text-xs font-semibold text-white/55">
-                Fecha
-                <input
-                  type="date"
-                  max={today}
-                  value={adelantoForm.date || today}
-                  onChange={(event) => setAdelantoForm((form) => ({ ...form, date: event.target.value }))}
-                  className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-base text-white outline-none focus:border-amber-300/35"
-                />
-              </label>
-            </div>
+            <label className="space-y-1.5 text-xs font-semibold text-white/55">
+              Método
+              <select
+                value={adelantoForm.method}
+                onChange={(event) => setAdelantoForm((form) => ({ ...form, method: event.target.value }))}
+                className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-base text-white outline-none focus:border-amber-300/35"
+              >
+                <option value="efectivo">Efectivo</option>
+                <option value="transferencia">Transferencia</option>
+                <option value="debito">Débito</option>
+                <option value="mercado pago">Mercado Pago</option>
+              </select>
+            </label>
             <label className="block space-y-1.5 text-xs font-semibold text-white/55">
               Nota
               <textarea
@@ -5247,7 +5205,7 @@ function ProfesionalesTab({
 
               {Array.isArray(run.adjustment_items) && run.adjustment_items.length > 0 && (
                 <div className="space-y-1 rounded-2xl border border-emerald-400/15 bg-emerald-400/[0.04] p-3">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/70">Ajustes</div>
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/70">Adicionales</div>
                   {run.adjustment_items.map((item: any, i: number) => (
                     <div key={i} className="flex items-center justify-between gap-2 text-xs">
                       <span className="text-white/60">{item.reason}</span>
@@ -5382,7 +5340,7 @@ function ProfesionalesTab({
 
                   {Array.isArray(activeRun.adjustment_items) && activeRun.adjustment_items.length > 0 && (
                     <div className="space-y-1 rounded-2xl border border-emerald-400/15 bg-emerald-400/[0.04] p-3">
-                      <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/70">Ajustes</div>
+                      <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/70">Adicionales</div>
                       {activeRun.adjustment_items.map((item: any, i: number) => (
                         <div key={i} className="flex items-center justify-between gap-2 text-xs">
                           <span className="text-white/60">{item.reason}</span>
@@ -5408,7 +5366,7 @@ function ProfesionalesTab({
                   <SettlementItemsEditor
                     items={adjustmentItems}
                     onChange={setAdjustmentItems}
-                    addLabel="Agregar ajuste"
+                    addLabel="Agregar adicional"
                     reasonPlaceholder="Ej. Feriado trabajado, bono o comisión adicional"
                     formatThousands={formatThousands}
                     accentClass="border-emerald-400/25 bg-emerald-400/10 text-emerald-200 hover:bg-emerald-400/15"
@@ -5423,23 +5381,13 @@ function ProfesionalesTab({
                     accentClass="border-rose-400/25 bg-rose-400/10 text-rose-200 hover:bg-rose-400/15"
                   />
 
+                  {/* Sin Comisiones pendientes/nuevas ni Adelantos acá — ya
+                      están en las tarjetas de la pantalla principal, este
+                      resumen solo agrega lo que se puede tocar en este
+                      modal (adicionales/deducciones) y el total final. */}
                   <div className="space-y-1.5 rounded-2xl border border-white/[0.08] bg-black/25 p-3.5 text-sm">
                     <div className="flex items-center justify-between">
-                      <span className="text-white/50">Comisiones pendientes</span>
-                      <span className="font-semibold text-white">{money(selectedRow.previousBalance)}</span>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <span className="text-white/50">Comisiones nuevas</span>
-                      <span className="font-semibold text-white">{money(selectedRow.newCommissions)}</span>
-                    </div>
-                    {selectedRow.pendingAdvances > 0 && (
-                      <div className="flex items-center justify-between">
-                        <span className="text-white/50">Adelantos</span>
-                        <span className="font-semibold text-amber-300">−{money(selectedRow.pendingAdvances)}</span>
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between">
-                      <span className="text-white/50">Ajustes</span>
+                      <span className="text-white/50">Adicionales</span>
                       <span className="font-semibold text-emerald-300">
                         {liquidarValidAdjustmentsCount > 0 ? `${liquidarValidAdjustmentsCount} · ` : ""}+{money(liquidarAdjustmentsSum)}
                       </span>
@@ -5491,7 +5439,7 @@ function ProfesionalesTab({
                   <textarea
                     value={paymentForm.note}
                     onChange={(event) => setPaymentForm((form) => ({ ...form, note: event.target.value }))}
-                    placeholder="Ej: adelanto, diferencia, etc."
+                    placeholder="Opcional"
                     rows={2}
                     className="w-full resize-none rounded-2xl border border-white/[0.08] bg-black/30 px-3 py-3 text-base text-white outline-none placeholder:text-white/32 focus:border-violet-300/35"
                   />
