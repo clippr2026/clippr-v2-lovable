@@ -5199,9 +5199,12 @@ function ProfesionalesTab({
           const realServices = (historialDetailServices ?? []).filter(
             (c: any) => Number(c.amount ?? 0) > 0,
           );
+          const hasPreviousBalance = Number(run.previous_balance ?? 0) > 0;
+          const isFirstRun = !run.period_start_at;
+          const firstPayment = runPayments[0] ?? null;
           return (
             <div className="space-y-4">
-              <div className="space-y-1.5 rounded-2xl border border-white/[0.08] bg-black/25 p-3.5 text-sm">
+              <div className="space-y-2 rounded-2xl border border-white/[0.08] bg-black/25 p-3.5 text-sm">
                 <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
                   Resumen
                 </div>
@@ -5209,26 +5212,99 @@ function ProfesionalesTab({
                   <span className="text-white/50">Profesional</span>
                   <span className="font-semibold text-white">{run.professional_name || "—"}</span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-white/50">Comisiones pendientes anteriores</span>
-                  <span className="font-semibold text-white">{money(Number(run.previous_balance ?? 0))}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-white/50">Comisiones generadas en el período</span>
+
+                {hasPreviousBalance && (
+                  <div className="flex items-end justify-between">
+                    <div>
+                      <div className="text-white/70">Comisiones pendientes</div>
+                      <div className="text-[10px] uppercase tracking-wider text-white/35">Período anterior</div>
+                    </div>
+                    <span className="font-semibold text-white">{money(Number(run.previous_balance ?? 0))}</span>
+                  </div>
+                )}
+
+                <div className="flex items-end justify-between">
+                  <div>
+                    <div className="text-white/70">Comisiones generadas</div>
+                    {!isFirstRun && (
+                      <div className="text-[10px] uppercase tracking-wider text-white/35">Período actual</div>
+                    )}
+                  </div>
                   <span className="font-semibold text-white">{money(Number(run.new_commissions ?? 0))}</span>
                 </div>
+
                 <div className="flex items-center justify-between">
-                  <span className="text-white/50">Adicionales</span>
+                  <span className="flex items-center text-white/50">
+                    Adicionales
+                    {Array.isArray(run.adjustment_items) && run.adjustment_items.length > 0 && (
+                      <InfoPopover
+                        text={
+                          <div className="space-y-1.5">
+                            {run.adjustment_items.map((item: any, i: number) => (
+                              <div key={i} className="flex items-center justify-between gap-2">
+                                <span className="text-white/70">{item.reason}</span>
+                                <span className="shrink-0 font-semibold text-emerald-300">
+                                  +{money(Number(item.amount))}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        }
+                      />
+                    )}
+                  </span>
                   <span className="font-semibold text-emerald-300">+{money(Number(run.adjustments ?? 0))}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-white/50">Deducciones</span>
+                  <span className="flex items-center text-white/50">
+                    Deducciones
+                    {Array.isArray(run.deduction_items) && run.deduction_items.length > 0 && (
+                      <InfoPopover
+                        text={
+                          <div className="space-y-1.5">
+                            {run.deduction_items.map((item: any, i: number) => (
+                              <div key={i} className="flex items-center justify-between gap-2">
+                                <span className="text-white/70">{item.reason}</span>
+                                <span className="shrink-0 font-semibold text-rose-300">
+                                  −{money(Number(item.amount))}
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                        }
+                      />
+                    )}
+                  </span>
                   <span className="font-semibold text-rose-300">−{money(Number(run.deductions ?? 0))}</span>
                 </div>
                 <div className="flex items-center justify-between">
-                  <span className="text-white/50">Adelantos descontados</span>
+                  <span className="flex items-center text-white/50">
+                    Adelantos
+                    {runAdvances.length > 0 && (
+                      <InfoPopover
+                        text={
+                          <div className="space-y-1.5">
+                            {runAdvances.map((advance: any) => (
+                              <div key={advance.id} className="space-y-0.5">
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="text-white/70">
+                                    {advance.advanced_at ? fmtDetalleDateTime(advance.advanced_at) : "—"}
+                                  </span>
+                                  <span className="shrink-0 font-semibold text-rose-300">
+                                    −{money(Number(advance.amount ?? 0))}
+                                  </span>
+                                </div>
+                                {advance.note && <div className="text-white/45">{advance.note}</div>}
+                              </div>
+                            ))}
+                          </div>
+                        }
+                      />
+                    )}
+                  </span>
                   <span className="font-semibold text-rose-300">−{money(Number(run.advances ?? 0))}</span>
                 </div>
+
                 <div className="mt-1 flex items-center justify-between border-t border-white/[0.08] pt-2">
                   <span className="font-bold text-white/70">Total final</span>
                   <span className="text-base font-bold text-white">{money(Number(run.total_to_settle))}</span>
@@ -5250,86 +5326,38 @@ function ProfesionalesTab({
                   <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
                     Datos del pago
                   </div>
-                  {/* Con pago múltiple hay una fila por método usado en esa
-                      tanda — cada una con su propio monto. */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-white/50">Fecha y hora del pago</span>
+                    <span className="font-semibold text-white">
+                      {firstPayment?.paid_at ? fmtDetalleDateTime(firstPayment.paid_at) : "—"}
+                    </span>
+                  </div>
+                  {/* Con pago múltiple hay un método+monto por fila,
+                      numerados — con uno solo se muestran sin número. */}
                   {runPayments.map((payment: any, idx: number) => (
-                    <div
-                      key={payment.id ?? idx}
-                      className={cn("space-y-1", idx > 0 && "mt-2 border-t border-white/[0.06] pt-2")}
-                    >
+                    <React.Fragment key={payment.id ?? idx}>
                       <div className="flex items-center justify-between">
-                        <span className="text-white/50">Método</span>
+                        <span className="text-white/50">{runPayments.length > 1 ? `Método ${idx + 1}` : "Método"}</span>
                         <span className="font-semibold capitalize text-white">
                           {PAY_METHOD_LABEL[payment.payment_method as PayMethod] ?? payment.payment_method ?? "—"}
                         </span>
                       </div>
                       <div className="flex items-center justify-between">
-                        <span className="text-white/50">Monto</span>
+                        <span className="text-white/50">{runPayments.length > 1 ? `Monto ${idx + 1}` : "Monto"}</span>
                         <span className="font-semibold text-emerald-300">{money(Number(payment.amount ?? 0))}</span>
                       </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-white/50">Fecha y hora del pago</span>
-                        <span className="font-semibold text-white">
-                          {payment.paid_at ? fmtDetalleDateTime(payment.paid_at) : "—"}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-white/50">Registrado por</span>
-                        <span className="font-semibold text-white">{displayResponsable(payment.paid_by_name)}</span>
-                      </div>
-                      {payment.note && (
-                        <div className="flex items-center justify-between gap-2">
-                          <span className="text-white/50">Nota</span>
-                          <span className="truncate font-semibold text-white">{payment.note}</span>
-                        </div>
-                      )}
-                    </div>
+                    </React.Fragment>
                   ))}
-                </div>
-              )}
-
-              {Array.isArray(run.adjustment_items) && run.adjustment_items.length > 0 && (
-                <div className="space-y-1 rounded-2xl border border-emerald-400/15 bg-emerald-400/[0.04] p-3">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/70">Adicionales</div>
-                  {run.adjustment_items.map((item: any, i: number) => (
-                    <div key={i} className="flex items-center justify-between gap-2 text-xs">
-                      <span className="text-white/60">{item.reason}</span>
-                      <span className="font-semibold text-emerald-300">+{money(Number(item.amount))}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {Array.isArray(run.deduction_items) && run.deduction_items.length > 0 && (
-                <div className="space-y-1 rounded-2xl border border-rose-400/15 bg-rose-400/[0.04] p-3">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-rose-300/70">Deducciones</div>
-                  {run.deduction_items.map((item: any, i: number) => (
-                    <div key={i} className="flex items-center justify-between gap-2 text-xs">
-                      <span className="text-white/60">{item.reason}</span>
-                      <span className="font-semibold text-rose-300">−{money(Number(item.amount))}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {runAdvances.length > 0 && (
-                <div className="space-y-1.5 rounded-2xl border border-rose-400/15 bg-rose-400/[0.04] p-3">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-rose-300/70">
-                    Adelantos descontados
+                  <div className="flex items-center justify-between">
+                    <span className="text-white/50">Registrado por</span>
+                    <span className="font-semibold text-white">{displayResponsable(firstPayment?.paid_by_name)}</span>
                   </div>
-                  {runAdvances.map((advance: any) => (
-                    <div key={advance.id} className="space-y-0.5 rounded-lg bg-black/15 p-2 text-xs">
-                      <div className="flex items-center justify-between">
-                        <span className="text-white/60">
-                          {advance.advanced_at ? fmtDetalleDateTime(advance.advanced_at) : "—"}
-                        </span>
-                        <span className="font-semibold text-rose-300">−{money(Number(advance.amount ?? 0))}</span>
-                      </div>
-                      <div className="flex items-center justify-between text-white/50">
-                        <span className="capitalize">{advance.payment_method ?? "—"}</span>
-                        {advance.note && <span className="truncate">{advance.note}</span>}
-                      </div>
+                  {firstPayment?.note && (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-white/50">Nota</span>
+                      <span className="truncate font-semibold text-white">{firstPayment.note}</span>
                     </div>
-                  ))}
+                  )}
                 </div>
               )}
 
