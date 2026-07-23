@@ -55,7 +55,7 @@ update public.commission_records cr
     and cr.snapshot_client_name is null;
 
 update public.settlement_runs sr
-  set professional_name = e.name
+  set professional_name = e.full_name
   from public.employees e
   where sr.professional_id = e.id
     and sr.professional_name is null;
@@ -118,7 +118,7 @@ begin
     raise exception 'Un profesional no puede preparar sus propias liquidaciones';
   end if;
 
-  select e.name into v_professional_name
+  select e.full_name into v_professional_name
   from public.employees e where e.id = p_professional_id;
 
   for v_item in select * from jsonb_array_elements(v_adjustment_items)
