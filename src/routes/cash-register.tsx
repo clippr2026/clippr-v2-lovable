@@ -5058,7 +5058,18 @@ function ProfesionalesTab({
                     day.iso <= today,
                 );
                 const isToday = day.iso === today;
-                const isSelectedHasta = day.iso === (liquidarCutoffDate || today);
+                const hastaIso = liquidarCutoffDate || today;
+                // Rango que se va a liquidar: desde el inicio real del
+                // período (Desde) hasta el corte elegido (Hasta) — nunca
+                // "desde el elegido hasta hoy", ni un solo día suelto.
+                const isRangeStart = Boolean(selectedRow.periodStart && day.iso === selectedRow.periodStart);
+                const isRangeEnd = day.iso === hastaIso;
+                const isInRange = Boolean(
+                  day.iso &&
+                    (!selectedRow.periodStart || day.iso >= selectedRow.periodStart) &&
+                    day.iso <= hastaIso,
+                );
+                const isRangeMiddle = isInRange && !isRangeStart && !isRangeEnd;
                 return (
                   <button
                     key={`${day.iso || "empty"}-${index}`}
@@ -5070,19 +5081,27 @@ function ProfesionalesTab({
                       setPeriodInfoOpen(false);
                     }}
                     className={cn(
-                      "grid h-11 place-items-center rounded-xl text-sm font-semibold transition",
+                      "grid h-11 place-items-center text-sm font-semibold transition",
                       !day.inMonth && "opacity-0",
                       day.inMonth && !selectable && "text-white/25",
-                      // Días seleccionables sin elegir: estado normal, solo
-                      // clickeables (nada de rango pintado de un extremo al
-                      // otro) — un leve hover para que se note que responden.
-                      selectable && !isSelectedHasta && !isToday && "text-white/85 hover:bg-white/[0.06]",
-                      // Hoy, si NO es el elegido: solo un borde, nunca relleno
-                      // — para que no se confunda con "seleccionado".
-                      isToday && !isSelectedHasta && "text-white/85 ring-1 ring-sky-400/55 ring-inset hover:bg-white/[0.06]",
-                      // Único relleno sólido del calendario: el día
-                      // efectivamente elegido como corte.
-                      isSelectedHasta && "bg-gradient-to-br from-sky-400 to-violet-500 text-white shadow-[0_0_18px_rgba(139,92,246,0.45)]",
+                      // Fuera del rango a liquidar: estado normal, solo
+                      // clickeable — un leve hover para que se note.
+                      selectable && !isInRange && !isToday && "rounded-xl text-white/85 hover:bg-white/[0.06]",
+                      // Hoy, si queda FUERA del rango: solo un borde, nunca
+                      // relleno — para que no se confunda con "seleccionado".
+                      isToday && !isInRange && "rounded-xl text-white/85 ring-1 ring-sky-400/55 ring-inset hover:bg-white/[0.06]",
+                      // Días intermedios del rango: fondo parejo, sin bordes
+                      // redondeados propios (se ve como una franja continua).
+                      isRangeMiddle && "bg-violet-400/20 text-white",
+                      // Extremos del rango (Desde/Hasta): relleno sólido,
+                      // redondeados hacia afuera del rango.
+                      isRangeStart &&
+                        "rounded-l-xl bg-gradient-to-br from-sky-400 to-violet-500 text-white shadow-[0_0_18px_rgba(139,92,246,0.45)]",
+                      isRangeEnd &&
+                        "rounded-r-xl bg-gradient-to-br from-sky-400 to-violet-500 text-white shadow-[0_0_18px_rgba(139,92,246,0.45)]",
+                      // Si el rango es un solo día (Desde === Hasta, o no hay
+                      // Desde), ese día redondea los dos lados.
+                      isRangeStart && isRangeEnd && "rounded-xl",
                     )}
                   >
                     {day.day || ""}
