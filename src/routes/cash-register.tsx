@@ -3559,11 +3559,15 @@ function ProfesionalesTab({
     { id: string; amount: string; reason: string }[]
   >([]);
   const [liquidarModalOpen, setLiquidarModalOpen] = React.useState(false);
+  // "" = hoy/ahora (el default de siempre). Solo se usa en el flujo sin
+  // activeRun — una liquidación ya preparada tiene su corte fijo.
+  const [liquidarCutoffDate, setLiquidarCutoffDate] = React.useState("");
 
   function resetLiquidarForm() {
     setAdjustmentItems([]);
     setDeductionItems([]);
     setLiquidarModalOpen(false);
+    setLiquidarCutoffDate("");
     setPaymentForm({ amount: "", method: "transferencia", note: "" });
   }
 
@@ -4048,7 +4052,9 @@ function ProfesionalesTab({
     const validDeductions = validSettlementItems(deductionItems);
     const adjustments = validAdjustments.reduce((sum, i) => sum + i.amount, 0);
     const deductions = validDeductions.reduce((sum, i) => sum + i.amount, 0);
-    const total = row.previousBalance + row.newCommissions + adjustments - deductions - row.pendingAdvances;
+    // Usa los totales recalculados para el corte elegido (liquidarCutoffAt),
+    // no row.newCommissions/pendingAdvances (que siempre reflejan "ahora").
+    const total = row.previousBalance + liquidarNewCommissions + adjustments - deductions - liquidarPendingAdvances;
     if (total <= 0) {
       toast.error("No hay nada para pagar en este corte");
       return;
@@ -4080,6 +4086,7 @@ function ProfesionalesTab({
         p_deduction_items: validDeductions,
         p_prepared_by: user.id,
         p_prepared_by_name: userEmail ?? "Caja",
+        p_cutoff_at: liquidarCutoffAt.toISOString(),
       });
       if (error) throw error;
 
@@ -4238,19 +4245,35 @@ function ProfesionalesTab({
     };
   }, [selectedRow]);
 
-  // Recalculada cada vez que se abre el modal de Pagar (no en cada
-  // render) para que "hasta" refleje el momento real de preparar, con
-  // hora en las dos puntas — ej. "Desde 14/07/2026 · 15:00 hasta
-  // 22/07/2026 · 08:50".
+  // Corte elegido para "Pagar" — vacío (o == hoy) significa "ahora mismo"
+  // (mismo comportamiento de siempre, se recalcula solo con nowClock). Si
+  // se elige un día anterior, el corte pasa a ser las 23:59:59.999 de ESE
+  // día: el día elegido queda completo adentro, lo generado desde el
+  // día siguiente 00:00 en adelante queda pendiente para la próxima vez.
+  const liquidarCutoffAt = React.useMemo(() => {
+    if (!liquidarCutoffDate || liquidarCutoffDate === today) return nowClock;
+    return new Date(`${liquidarCutoffDate}T23:59:59.999`);
+  }, [liquidarCutoffDate, today, nowClock]);
+
+  // "Desde"/"hasta" del período que se va a liquidar — hasta refleja el
+  // corte elegido (hoy/ahora por default, o las 23:59 del día elegido).
   const liquidarPeriodLabel = React.useMemo(() => {
-    const now = new Date();
-    const nowLabel = `${now.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })} · ${now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}`;
+    const hastaDate = liquidarCutoffAt.toLocaleDateString("es-AR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+    const hastaTime = liquidarCutoffAt.toLocaleTimeString("es-AR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+    const hastaLabel = `Hasta ${hastaDate} • ${hastaTime} h`;
     if (lastLiquidacionInfo) {
-      return `Desde ${lastLiquidacionInfo.dateLabel} · ${lastLiquidacionInfo.timeLabel.replace(" h", "")} hasta ${nowLabel}`;
+      return `Desde ${lastLiquidacionInfo.dateLabel} • ${lastLiquidacionInfo.timeLabel} ${hastaLabel}`;
     }
-    return `Primera liquidación · hasta hoy, ${nowLabel}`;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [lastLiquidacionInfo, liquidarModalOpen]);
+    return `Primera liquidación · ${hastaLabel}`;
+  }, [lastLiquidacionInfo, liquidarCutoffAt]);
 
   // Para la tarjeta "Período actual" del header — a diferencia de
   // liquidarPeriodLabel (que se recalcula solo al abrir el modal de
@@ -4403,8 +4426,41 @@ function ProfesionalesTab({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDetail, selectedRow?.id, commissionsVersion]);
 
+  // Comisiones/adelantos recalculados en vivo para el corte elegido —
+  // selectedRow.newCommissions/pendingAdvances siempre reflejan "ahora",
+  // acá se vuelve a filtrar por fecha para poder liquidar "hasta tal día".
+  const liquidarNewCommissions = React.useMemo(() => {
+    if (!selectedRow) return 0;
+    const periodStartAt = selectedRow.periodStartAt;
+    const cutoffIso = liquidarCutoffAt.toISOString();
+    return allCommissions
+      .filter(
+        (c: any) =>
+          String(c.professional_id) === selectedRow.id &&
+          !c.settlement_run_id &&
+          (!periodStartAt || String(c.created_at ?? "") > periodStartAt) &&
+          String(c.created_at ?? "") <= cutoffIso &&
+          Number(c.pending_amount ?? 0) > 0,
+      )
+      .reduce((sum: number, c: any) => sum + Number(c.pending_amount ?? 0), 0);
+  }, [allCommissions, selectedRow, liquidarCutoffAt]);
+
+  const liquidarPendingAdvances = React.useMemo(() => {
+    if (!selectedRow) return 0;
+    const cutoffIso = liquidarCutoffAt.toISOString();
+    return allAdvances
+      .filter(
+        (a: any) =>
+          String(a.professional_id) === selectedRow.id &&
+          !a.settlement_run_id &&
+          String(a.advanced_at ?? "") <= cutoffIso,
+      )
+      .reduce((sum: number, a: any) => sum + Number(a.amount ?? 0), 0);
+  }, [allAdvances, selectedRow, liquidarCutoffAt]);
+
   // Totales en vivo del modal "Preparar liquidación" — se recalculan en
-  // cada tecla mientras se agregan/editan ajustes y deducciones.
+  // cada tecla mientras se agregan/editan ajustes y deducciones, y cada
+  // vez que cambia el corte elegido.
   const liquidarAdjustmentsSum = adjustmentItems.reduce(
     (sum, i) => sum + Math.max(Number(i.amount || 0), 0),
     0,
@@ -4414,7 +4470,7 @@ function ProfesionalesTab({
     0,
   );
   const liquidarBaseTotal = selectedRow
-    ? selectedRow.previousBalance + selectedRow.newCommissions - selectedRow.pendingAdvances
+    ? selectedRow.previousBalance + liquidarNewCommissions - liquidarPendingAdvances
     : 0;
   const liquidarFinalTotal = liquidarBaseTotal + liquidarAdjustmentsSum - liquidarDeductionsSum;
   const liquidarValidAdjustmentsCount = validSettlementItems(adjustmentItems).length;
@@ -5363,6 +5419,30 @@ function ProfesionalesTab({
                 </>
               ) : (
                 <>
+                  <div className="space-y-2 rounded-2xl border border-white/[0.08] bg-black/20 p-3.5">
+                    <label className="block space-y-1.5 text-xs font-semibold text-white/55">
+                      Liquidar hasta
+                      <input
+                        type="date"
+                        min={selectedRow.periodStart ?? undefined}
+                        max={today}
+                        value={liquidarCutoffDate || today}
+                        onChange={(event) => setLiquidarCutoffDate(event.target.value)}
+                        className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-base text-white outline-none focus:border-violet-300/35"
+                      />
+                    </label>
+                    <div className="flex items-center justify-between text-xs">
+                      <span className="text-white/50">Comisiones generadas — Período actual</span>
+                      <span className="font-semibold text-violet-300">{money(liquidarNewCommissions)}</span>
+                    </div>
+                    {liquidarPendingAdvances > 0 && (
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-white/50">Adelantos aplicados</span>
+                        <span className="font-semibold text-rose-300">−{money(liquidarPendingAdvances)}</span>
+                      </div>
+                    )}
+                  </div>
+
                   <SettlementItemsEditor
                     items={adjustmentItems}
                     onChange={setAdjustmentItems}
