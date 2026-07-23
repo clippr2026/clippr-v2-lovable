@@ -4919,6 +4919,7 @@ function ProfesionalesTab({
                           <div className="flex flex-wrap items-start justify-between gap-2">
                             <div>
                               <div className="font-bold text-white">{run?.professional_name || selectedRow.name}</div>
+                              {run && <div className="text-xs font-semibold text-white/60">Liquidación #{run.run_number}</div>}
                               <div className="text-xs text-white/50">
                                 {payment.paid_at ? fmtDateTime(payment.paid_at) : "—"}
                               </div>
@@ -5204,120 +5205,122 @@ function ProfesionalesTab({
           const firstPayment = runPayments[0] ?? null;
           return (
             <div className="space-y-4">
-              <div className="space-y-2 rounded-2xl border border-white/[0.08] bg-black/25 p-3.5 text-sm">
-                <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
+              <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-black/25 text-sm">
+                <div className="px-3.5 pb-1.5 pt-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
                   Resumen
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-white/50">Profesional</span>
-                  <span className="font-semibold text-white">{run.professional_name || "—"}</span>
-                </div>
+                <div className="divide-y divide-white/[0.06]">
+                  <div className="flex items-center justify-between px-3.5 py-2.5">
+                    <span className="text-white/50">Profesional</span>
+                    <span className="font-semibold text-white">{run.professional_name || "—"}</span>
+                  </div>
 
-                {hasPreviousBalance && (
-                  <div className="flex items-end justify-between">
-                    <div>
-                      <div className="text-white/70">Comisiones pendientes</div>
-                      <div className="text-[10px] uppercase tracking-wider text-white/35">Período anterior</div>
+                  {hasPreviousBalance && (
+                    <div className="flex items-end justify-between px-3.5 py-2.5">
+                      <div>
+                        <div className="text-white/70">Comisiones pendientes</div>
+                        <div className="text-[10px] uppercase tracking-wider text-white/35">Período anterior</div>
+                      </div>
+                      <span className="font-semibold text-white">{money(Number(run.previous_balance ?? 0))}</span>
                     </div>
-                    <span className="font-semibold text-white">{money(Number(run.previous_balance ?? 0))}</span>
-                  </div>
-                )}
+                  )}
 
-                <div className="flex items-end justify-between">
-                  <div>
-                    <div className="text-white/70">Comisiones generadas</div>
-                    {!isFirstRun && (
-                      <div className="text-[10px] uppercase tracking-wider text-white/35">Período actual</div>
-                    )}
+                  <div className="flex items-end justify-between px-3.5 py-2.5">
+                    <div>
+                      <div className="text-white/70">Comisiones generadas</div>
+                      {!isFirstRun && (
+                        <div className="text-[10px] uppercase tracking-wider text-white/35">Período actual</div>
+                      )}
+                    </div>
+                    <span className="font-semibold text-white">{money(Number(run.new_commissions ?? 0))}</span>
                   </div>
-                  <span className="font-semibold text-white">{money(Number(run.new_commissions ?? 0))}</span>
-                </div>
 
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center text-white/50">
-                    Adicionales
-                    {Array.isArray(run.adjustment_items) && run.adjustment_items.length > 0 && (
-                      <InfoPopover
-                        text={
-                          <div className="space-y-1.5">
-                            {run.adjustment_items.map((item: any, i: number) => (
-                              <div key={i} className="flex items-center justify-between gap-2">
-                                <span className="text-white/70">{item.reason}</span>
-                                <span className="shrink-0 font-semibold text-emerald-300">
-                                  +{money(Number(item.amount))}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        }
-                      />
-                    )}
-                  </span>
-                  <span className="font-semibold text-emerald-300">+{money(Number(run.adjustments ?? 0))}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center text-white/50">
-                    Deducciones
-                    {Array.isArray(run.deduction_items) && run.deduction_items.length > 0 && (
-                      <InfoPopover
-                        text={
-                          <div className="space-y-1.5">
-                            {run.deduction_items.map((item: any, i: number) => (
-                              <div key={i} className="flex items-center justify-between gap-2">
-                                <span className="text-white/70">{item.reason}</span>
-                                <span className="shrink-0 font-semibold text-rose-300">
-                                  −{money(Number(item.amount))}
-                                </span>
-                              </div>
-                            ))}
-                          </div>
-                        }
-                      />
-                    )}
-                  </span>
-                  <span className="font-semibold text-rose-300">−{money(Number(run.deductions ?? 0))}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="flex items-center text-white/50">
-                    Adelantos
-                    {runAdvances.length > 0 && (
-                      <InfoPopover
-                        text={
-                          <div className="space-y-1.5">
-                            {runAdvances.map((advance: any) => (
-                              <div key={advance.id} className="space-y-0.5">
-                                <div className="flex items-center justify-between gap-2">
-                                  <span className="text-white/70">
-                                    {advance.advanced_at ? fmtDetalleDateTime(advance.advanced_at) : "—"}
-                                  </span>
-                                  <span className="shrink-0 font-semibold text-rose-300">
-                                    −{money(Number(advance.amount ?? 0))}
+                  <div className="flex items-center justify-between px-3.5 py-2.5">
+                    <span className="flex items-center text-white/50">
+                      Adicionales
+                      {Array.isArray(run.adjustment_items) && run.adjustment_items.length > 0 && (
+                        <InfoPopover
+                          text={
+                            <div className="space-y-1.5">
+                              {run.adjustment_items.map((item: any, i: number) => (
+                                <div key={i} className="flex items-center justify-between gap-2">
+                                  <span className="text-white/70">{item.reason}</span>
+                                  <span className="shrink-0 font-semibold text-emerald-300">
+                                    +{money(Number(item.amount))}
                                   </span>
                                 </div>
-                                {advance.note && <div className="text-white/45">{advance.note}</div>}
-                              </div>
-                            ))}
-                          </div>
-                        }
-                      />
-                    )}
-                  </span>
-                  <span className="font-semibold text-rose-300">−{money(Number(run.advances ?? 0))}</span>
-                </div>
+                              ))}
+                            </div>
+                          }
+                        />
+                      )}
+                    </span>
+                    <span className="font-semibold text-emerald-300">+{money(Number(run.adjustments ?? 0))}</span>
+                  </div>
+                  <div className="flex items-center justify-between px-3.5 py-2.5">
+                    <span className="flex items-center text-white/50">
+                      Deducciones
+                      {Array.isArray(run.deduction_items) && run.deduction_items.length > 0 && (
+                        <InfoPopover
+                          text={
+                            <div className="space-y-1.5">
+                              {run.deduction_items.map((item: any, i: number) => (
+                                <div key={i} className="flex items-center justify-between gap-2">
+                                  <span className="text-white/70">{item.reason}</span>
+                                  <span className="shrink-0 font-semibold text-rose-300">
+                                    −{money(Number(item.amount))}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          }
+                        />
+                      )}
+                    </span>
+                    <span className="font-semibold text-rose-300">−{money(Number(run.deductions ?? 0))}</span>
+                  </div>
+                  <div className="flex items-center justify-between px-3.5 py-2.5">
+                    <span className="flex items-center text-white/50">
+                      Adelantos
+                      {runAdvances.length > 0 && (
+                        <InfoPopover
+                          text={
+                            <div className="space-y-1.5">
+                              {runAdvances.map((advance: any) => (
+                                <div key={advance.id} className="space-y-0.5">
+                                  <div className="flex items-center justify-between gap-2">
+                                    <span className="text-white/70">
+                                      {advance.advanced_at ? fmtDetalleDateTime(advance.advanced_at) : "—"}
+                                    </span>
+                                    <span className="shrink-0 font-semibold text-rose-300">
+                                      −{money(Number(advance.amount ?? 0))}
+                                    </span>
+                                  </div>
+                                  {advance.note && <div className="text-white/45">{advance.note}</div>}
+                                </div>
+                              ))}
+                            </div>
+                          }
+                        />
+                      )}
+                    </span>
+                    <span className="font-semibold text-rose-300">−{money(Number(run.advances ?? 0))}</span>
+                  </div>
 
-                <div className="mt-1 flex items-center justify-between border-t border-white/[0.08] pt-2">
-                  <span className="font-bold text-white/70">Total final</span>
-                  <span className="text-base font-bold text-white">{money(Number(run.total_to_settle))}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-white/50">Monto pagado</span>
-                  <span className="font-semibold text-emerald-300">{money(Number(run.amount_paid))}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-white/50">Saldo pendiente</span>
-                  <span className={cn("font-semibold", remaining > 0 ? "text-rose-300" : "text-white/60")}>
-                    {money(remaining)}
-                  </span>
+                  <div className="flex items-center justify-between bg-white/[0.025] px-3.5 py-2.5">
+                    <span className="font-bold text-white/70">Total final</span>
+                    <span className="text-base font-bold text-white">{money(Number(run.total_to_settle))}</span>
+                  </div>
+                  <div className="flex items-center justify-between px-3.5 py-2.5">
+                    <span className="text-white/50">Monto pagado</span>
+                    <span className="font-semibold text-emerald-300">{money(Number(run.amount_paid))}</span>
+                  </div>
+                  <div className="flex items-center justify-between px-3.5 py-2.5">
+                    <span className="text-white/50">Saldo pendiente</span>
+                    <span className={cn("font-semibold", remaining > 0 ? "text-rose-300" : "text-white/60")}>
+                      {money(remaining)}
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -5327,27 +5330,41 @@ function ProfesionalesTab({
                     Datos del pago
                   </div>
                   <div className="flex items-center justify-between">
-                    <span className="text-white/50">Fecha y hora del pago</span>
+                    <span className="text-white/50">Fecha y hora</span>
                     <span className="font-semibold text-white">
                       {firstPayment?.paid_at ? fmtDetalleDateTime(firstPayment.paid_at) : "—"}
                     </span>
                   </div>
-                  {/* Con pago múltiple hay un método+monto por fila,
-                      numerados — con uno solo se muestran sin número. */}
-                  {runPayments.map((payment: any, idx: number) => (
-                    <React.Fragment key={payment.id ?? idx}>
-                      <div className="flex items-center justify-between">
-                        <span className="text-white/50">{runPayments.length > 1 ? `Método ${idx + 1}` : "Método"}</span>
-                        <span className="font-semibold capitalize text-white">
-                          {PAY_METHOD_LABEL[payment.payment_method as PayMethod] ?? payment.payment_method ?? "—"}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-between">
-                        <span className="text-white/50">{runPayments.length > 1 ? `Monto ${idx + 1}` : "Monto"}</span>
-                        <span className="font-semibold text-emerald-300">{money(Number(payment.amount ?? 0))}</span>
-                      </div>
-                    </React.Fragment>
-                  ))}
+                  {/* Un solo método: Método/Monto en dos filas, como antes.
+                      Varios métodos: cada uno en una sola fila ("Método N —
+                      Label" a la izquierda, importe a la derecha) — ya no
+                      hay una fila "Monto N" separada. */}
+                  {runPayments.length > 1
+                    ? runPayments.map((payment: any, idx: number) => (
+                        <div key={payment.id ?? idx} className="flex items-center justify-between gap-2">
+                          <span className="text-white/50">
+                            Método {idx + 1} —{" "}
+                            <span className="font-semibold capitalize text-white">
+                              {PAY_METHOD_LABEL[payment.payment_method as PayMethod] ?? payment.payment_method ?? "—"}
+                            </span>
+                          </span>
+                          <span className="font-semibold text-emerald-300">{money(Number(payment.amount ?? 0))}</span>
+                        </div>
+                      ))
+                    : firstPayment && (
+                        <>
+                          <div className="flex items-center justify-between">
+                            <span className="text-white/50">Método</span>
+                            <span className="font-semibold capitalize text-white">
+                              {PAY_METHOD_LABEL[firstPayment.payment_method as PayMethod] ?? firstPayment.payment_method ?? "—"}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between">
+                            <span className="text-white/50">Monto</span>
+                            <span className="font-semibold text-emerald-300">{money(Number(firstPayment.amount ?? 0))}</span>
+                          </div>
+                        </>
+                      )}
                   <div className="flex items-center justify-between">
                     <span className="text-white/50">Registrado por</span>
                     <span className="font-semibold text-white">{displayResponsable(firstPayment?.paid_by_name)}</span>
