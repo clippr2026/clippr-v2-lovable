@@ -60,7 +60,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { acquisitionChannelRequiresText } from "@/lib/acquisition-channels";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { AgendaCenteredModal } from "@/components/agenda/agenda-drawer";
-import { buildComprobanteText, downloadComprobante, shareComprobante } from "@/lib/settlement-comprobante";
 import { fetchSettlementRunServices } from "@/hooks/use-professionals-data";
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
@@ -3550,6 +3549,10 @@ function ProfesionalesTab({
   const [historialDetailRun, setHistorialDetailRun] = React.useState<any | null>(null);
   const [historialDetailServices, setHistorialDetailServices] = React.useState<any[] | null>(null);
   const [loadingHistorialDetail, setLoadingHistorialDetail] = React.useState(false);
+  // Detalle de un adelanto del Historial — no necesita fetch (professional_
+  // advances ya trae todo lo que hace falta mostrar), solo qué fila se está
+  // viendo.
+  const [historialDetailAdvance, setHistorialDetailAdvance] = React.useState<any | null>(null);
   const [loadingCommissions, setLoadingCommissions] = React.useState(true);
   const [loadingRuns, setLoadingRuns] = React.useState(true);
   // Errores reales (no silenciados en $0): si la query falla (RLS, columna
@@ -3945,49 +3948,6 @@ function ProfesionalesTab({
     }
   }
 
-  // Arma el texto del comprobante para un run del Historial — factorizado
-  // porque lo usan Descargar, Compartir y (más abajo) el modal de detalle.
-  function buildHistorialComprobante(run: any) {
-    const lastPayment = allRunPayments
-      .filter((p: any) => p.settlement_run_id === run.id)
-      .sort((a: any, b: any) => String(b.paid_at ?? "").localeCompare(String(a.paid_at ?? "")))[0];
-    const previousRun = allRuns.find((r: any) => r.id === run.previous_settlement_run_id);
-    return buildComprobanteText({
-      runNumber: run.run_number,
-      cutoffDate: run.cutoff_date,
-      periodStart: run.period_start ?? null,
-      professionalName: run.professional_name || selectedRow?.name || "Profesional",
-      previousBalance: Number(run.previous_balance ?? 0),
-      previousRun: previousRun
-        ? {
-            runNumber: previousRun.run_number,
-            cutoffDate: previousRun.cutoff_date,
-            status: previousRun.status,
-          }
-        : null,
-      newCommissions: Number(run.new_commissions ?? 0),
-      adjustments: Number(run.adjustments ?? 0),
-      deductions: Number(run.deductions ?? 0),
-      adjustmentItems: Array.isArray(run.adjustment_items) ? run.adjustment_items : [],
-      deductionItems: Array.isArray(run.deduction_items) ? run.deduction_items : [],
-      preparedByName: run.prepared_by_name ?? null,
-      preparedAt: run.prepared_at ?? null,
-      totalToSettle: Number(run.total_to_settle ?? 0),
-      amountPaid: Number(run.amount_paid ?? 0),
-      payment: lastPayment
-        ? {
-            amount: Number(lastPayment.amount ?? 0),
-            method: lastPayment.payment_method ?? "—",
-            note: lastPayment.note,
-            balanceBefore: Number(lastPayment.balance_before ?? 0),
-            balanceAfter: Number(lastPayment.balance_after ?? 0),
-            paidByName: lastPayment.paid_by_name ?? "Caja",
-            paidAt: lastPayment.paid_at,
-          }
-        : null,
-    });
-  }
-
   async function openHistorialDetail(run: any) {
     setHistorialDetailRun(run);
     setHistorialDetailServices(null);
@@ -4301,12 +4261,14 @@ function ProfesionalesTab({
     value,
     tone,
     info,
+    className,
   }: {
     label: string;
     sublabel?: string;
     value: React.ReactNode;
     tone: "neutral" | "violet" | "green" | "rose";
     info?: React.ReactNode;
+    className?: string;
   }) => {
     const toneClass = {
       neutral:
@@ -4326,7 +4288,7 @@ function ProfesionalesTab({
     }[tone];
 
     return (
-      <div className={cn("rounded-2xl border px-4 py-3", toneClass)}>
+      <div className={cn("rounded-2xl border px-4 py-3", toneClass, className)}>
         <div
           className={cn(
             "flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.16em]",
@@ -4530,19 +4492,22 @@ function ProfesionalesTab({
         {selectedRow && (
           <div className="grid grid-cols-2 gap-3 border-b border-white/[0.055] px-5 py-4">
             <StatCard
-              label="Comisiones pendientes"
-              sublabel="Período anterior"
-              value={money(totals.previousBalance)}
-              tone="neutral"
-              info={LIQUIDACION_ANTERIOR_INFO_TEXT}
-            />
-            <StatCard
               label="Comisiones generadas"
-              sublabel="Período actual"
+              sublabel={totals.previousBalance > 0 ? "Período actual" : undefined}
               value={money(liquidarNewCommissions)}
               tone="violet"
               info={COMISIONES_NUEVAS_INFO_TEXT}
+              className={totals.previousBalance > 0 ? undefined : "col-span-2"}
             />
+            {totals.previousBalance > 0 && (
+              <StatCard
+                label="Comisiones pendientes"
+                sublabel="Período anterior"
+                value={money(totals.previousBalance)}
+                tone="neutral"
+                info={LIQUIDACION_ANTERIOR_INFO_TEXT}
+              />
+            )}
             <StatCard
               label="Adelantos"
               value={liquidarPendingAdvances > 0 ? `−${money(liquidarPendingAdvances)}` : money(0)}
@@ -4871,6 +4836,15 @@ function ProfesionalesTab({
                                 </div>
                               )}
                             </div>
+
+                            <div className="mt-3">
+                              <button
+                                onClick={() => setHistorialDetailAdvance(advance)}
+                                className="rounded-full bg-white/[0.04] px-3 py-1 text-[11px] font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
+                              >
+                                Ver detalle
+                              </button>
+                            </div>
                           </div>
                         );
                       }
@@ -5148,33 +5122,6 @@ function ProfesionalesTab({
             </div>
           ) : undefined
         }
-        footer={
-          historialDetailRun && (
-            <div className="flex w-full gap-2">
-              <button
-                type="button"
-                onClick={() => downloadComprobante(buildHistorialComprobante(historialDetailRun), `Liquidación #${historialDetailRun.run_number}`)}
-                className="flex-1 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-xs font-semibold text-white/75 transition hover:bg-white/[0.07]"
-              >
-                Descargar comprobante
-              </button>
-              <button
-                type="button"
-                onClick={async () => {
-                  const result = await shareComprobante(
-                    buildHistorialComprobante(historialDetailRun),
-                    `Liquidación #${historialDetailRun.run_number}`,
-                  );
-                  if (result === "copied") toast.success("Comprobante copiado al portapapeles");
-                  if (result === "failed") toast.error("No se pudo compartir");
-                }}
-                className="flex-1 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-xs font-semibold text-white/75 transition hover:bg-white/[0.07]"
-              >
-                Compartir comprobante
-              </button>
-            </div>
-          )
-        }
       >
         {historialDetailRun && (() => {
           const run = historialDetailRun;
@@ -5369,6 +5316,79 @@ function ProfesionalesTab({
             </div>
           );
         })()}
+      </AgendaCenteredModal>
+
+      <AgendaCenteredModal
+        open={Boolean(historialDetailAdvance)}
+        onOpenChange={(v) => {
+          if (!v) setHistorialDetailAdvance(null);
+        }}
+        lockOutside={false}
+        title="Adelanto"
+        subtitle={
+          historialDetailAdvance
+            ? fmtDetalleDateTime(historialDetailAdvance.advanced_at)
+            : undefined
+        }
+      >
+        {historialDetailAdvance &&
+          (() => {
+            const advance = historialDetailAdvance;
+            const appliedRun = advance.settlement_run_id ? runById.get(advance.settlement_run_id) : null;
+            return (
+              <div className="space-y-1.5 rounded-2xl border border-white/[0.08] bg-black/25 p-3.5 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-white/50">Profesional</span>
+                  <span className="font-semibold text-white">{selectedRow?.name ?? "—"}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/50">Monto adelantado</span>
+                  <span className="font-bold tabular-nums text-amber-300">{money(Number(advance.amount ?? 0))}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/50">Método</span>
+                  <span className="font-semibold capitalize text-white">{advance.payment_method ?? "—"}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/50">Fecha y hora</span>
+                  <span className="font-semibold text-white">
+                    {advance.advanced_at ? fmtDetalleDateTime(advance.advanced_at) : "—"}
+                  </span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/50">Registrado por</span>
+                  <span className="font-semibold text-white">{displayResponsable(advance.registered_by_name)}</span>
+                </div>
+                {advance.note && (
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-white/50">Nota</span>
+                    <span className="truncate font-semibold text-white">{advance.note}</span>
+                  </div>
+                )}
+                <div className="mt-1 flex items-center justify-between border-t border-white/[0.08] pt-2">
+                  <span className="text-white/50">Estado</span>
+                  <span
+                    className={cn(
+                      "rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1",
+                      appliedRun
+                        ? "text-emerald-300 bg-emerald-400/10 ring-emerald-400/20"
+                        : "text-amber-300 bg-amber-400/10 ring-amber-400/20",
+                    )}
+                  >
+                    {appliedRun ? "Descontado" : "Disponible"}
+                  </span>
+                </div>
+                {appliedRun && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-white/50">Liquidación</span>
+                    <span className="font-semibold text-white">
+                      {`#${appliedRun.run_number} · ${fmtDetalleDateTime(appliedRun.prepared_at)}`}
+                    </span>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
       </AgendaCenteredModal>
 
       {selectedRow && (() => {
