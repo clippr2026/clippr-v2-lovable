@@ -32,6 +32,13 @@ export function useBodyScrollLock(locked: boolean) {
       body.style.right = prev.right;
       body.style.width = prev.width;
       body.style.overflow = prev.overflow;
+      // iOS Safari conocido: después de sacar body{position:fixed}, otros
+      // elementos position:fixed (la barra inferior "Mi Agenda") quedan
+      // pintados en el lugar donde estaban relativos al offset viejo hasta
+      // que algo fuerza un reflow — quedaban "flotando" a mitad de
+      // pantalla en vez de volver a pegarse abajo. Leer offsetHeight fuerza
+      // ese reflow sincrónico antes de restaurar el scroll.
+      void body.offsetHeight;
       window.scrollTo(0, scrollY);
     };
   }, [locked]);

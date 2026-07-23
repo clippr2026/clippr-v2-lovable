@@ -374,6 +374,26 @@ function chargedByUsername(email?: string | null) {
   return raw.includes("@") ? raw.split("@")[0] || "Recepción" : raw;
 }
 
+// "Registrado por" en Liquidaciones: los registros más viejos guardaron
+// el email de sesión ahí (antes de que ProfesionalesTab recibiera un
+// nombre real vía chargedByName) — si lo que hay guardado todavía
+// parece un email, lo mostramos igual que chargedByUsername (parte
+// antes de la @) en vez del email completo.
+function displayResponsable(name: string | null | undefined) {
+  const raw = String(name ?? "").trim();
+  if (!raw) return "Caja";
+  return raw.includes("@") ? raw.split("@")[0] || "Caja" : raw;
+}
+
+// "DD/MM/AAAA • HH:MM h" — formato de fecha y hora exacta usado en el
+// detalle de Historial (período liquidado, datos del pago, adelantos).
+function fmtDetalleDateTime(iso: string) {
+  const d = new Date(iso);
+  const date = d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
+  const time = d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false });
+  return `${date} • ${time} h`;
+}
+
 // "HH:MM" en zona horaria de Argentina, sin importar en qué huso horario
 // esté configurado el dispositivo — usado para el "time" que se muestra en
 // el historial de Pendientes ("11:47hs Alan → Envió a caja"). El ISO
@@ -890,7 +910,7 @@ function CashRegisterPage() {
           {tab === "profesionales" && (
             <ProfesionalesTab
               businessId={data.businessId}
-              userEmail={session.user.email ?? null}
+              chargedByName={profile?.full_name || chargedByUsername(session.user.email)}
               data={data}
             />
           )}
@@ -3496,11 +3516,11 @@ function friendlyRpcError(e: unknown, fallback: string) {
 
 function ProfesionalesTab({
   businessId,
-  userEmail,
+  chargedByName,
   data,
 }: {
   businessId: string | null;
-  userEmail: string | null;
+  chargedByName: string;
   data: ReturnType<typeof useCajaData>;
 }) {
   // Antes esta pestaña llamaba a su propia useCajaData(), que vuelve a
@@ -3684,7 +3704,7 @@ function ProfesionalesTab({
           supabase
             .from("settlement_runs" as any)
             .select(
-              "id,professional_id,run_number,cutoff_date,period_start,period_start_at,previous_settlement_run_id,previous_balance,new_commissions,adjustments,deductions,adjustment_items,deduction_items,total_to_settle,amount_paid,service_count,total_sold,status,prepared_by_name,prepared_at",
+              "id,professional_id,run_number,cutoff_date,period_start,period_start_at,previous_settlement_run_id,previous_balance,new_commissions,adjustments,deductions,advances,adjustment_items,deduction_items,total_to_settle,amount_paid,service_count,total_sold,status,prepared_by_name,prepared_at",
             )
             .eq("business_id", businessId)
             .order("cutoff_date", { ascending: false }),
@@ -4083,7 +4103,7 @@ function ProfesionalesTab({
         p_adjustment_items: validAdjustments,
         p_deduction_items: validDeductions,
         p_prepared_by: user.id,
-        p_prepared_by_name: userEmail ?? "Caja",
+        p_prepared_by_name: chargedByName,
         p_cutoff_at: liquidarCutoffAt.toISOString(),
       });
       if (error) throw error;
@@ -4098,7 +4118,7 @@ function ProfesionalesTab({
           p_payment_method: paymentForm.method || "transferencia",
           p_note: paymentForm.note.trim() || null,
           p_paid_by: user.id,
-          p_paid_by_name: userEmail ?? "Caja",
+          p_paid_by_name: chargedByName,
         });
         if (payError) {
           toast.error(
@@ -4153,7 +4173,7 @@ function ProfesionalesTab({
         p_note: adelantoForm.note.trim() || null,
         p_advanced_at: new Date().toISOString(),
         p_registered_by: user.id,
-        p_registered_by_name: userEmail ?? "Caja",
+        p_registered_by_name: chargedByName,
       });
       if (error) throw error;
       toast.success(`Adelanto registrado para ${row.name}: ${money(amount)}`);
@@ -4473,28 +4493,33 @@ function ProfesionalesTab({
               ))}
             </select>
 
-            <div className="inline-flex w-full flex-col items-center gap-1 rounded-2xl border border-white/[0.10] bg-white/[0.055] px-3.5 py-2.5 text-center ring-1 ring-white/[0.07] sm:w-auto">
-              <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-white/45">
-                <CalendarDays className="size-3.5" />
-                Período actual
-              </span>
-              <span className="max-w-full break-words text-xs font-semibold text-white">
-                {periodoActualLabel.desde}
-              </span>
-              {/* Solo "Hasta" es editable — "Desde" queda fijo (es la
-                  última liquidación pagada). Tocarlo abre el calendario
-                  de abajo para elegir hasta qué día liquidar. */}
-              <button
-                type="button"
-                onClick={() => {
-                  setCalendarMonth(new Date(`${liquidarCutoffDate || today}T12:00:00`));
-                  setPeriodInfoOpen(true);
-                }}
-                className="max-w-full break-words text-xs font-semibold text-violet-200 underline decoration-dotted underline-offset-2 transition hover:text-violet-100"
-              >
-                {periodoActualLabel.hasta}
-              </button>
-            </div>
+            {/* Sin profesional elegido no hay período que mostrar —
+                arrancar con "Primera liquidación"/fechas sueltas antes
+                de elegir a alguien confunde más que ayuda. */}
+            {selectedRow && (
+              <div className="inline-flex w-full flex-col items-center gap-1 rounded-2xl border border-white/[0.10] bg-white/[0.055] px-3.5 py-2.5 text-center ring-1 ring-white/[0.07] sm:w-auto">
+                <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-white/45">
+                  <CalendarDays className="size-3.5" />
+                  Período actual
+                </span>
+                <span className="max-w-full break-words text-xs font-semibold text-white">
+                  {periodoActualLabel.desde}
+                </span>
+                {/* Solo "Hasta" es editable — "Desde" queda fijo (es la
+                    última liquidación pagada). Tocarlo abre el calendario
+                    de abajo para elegir hasta qué día liquidar. */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCalendarMonth(new Date(`${liquidarCutoffDate || today}T12:00:00`));
+                    setPeriodInfoOpen(true);
+                  }}
+                  className="max-w-full break-words text-xs font-semibold text-violet-200 underline decoration-dotted underline-offset-2 transition hover:text-violet-100"
+                >
+                  {periodoActualLabel.hasta}
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
@@ -4833,7 +4858,7 @@ function ProfesionalesTab({
                               </div>
                               <div className="flex items-center justify-between">
                                 <span className="text-white/45">Registrado por</span>
-                                <span className="font-semibold text-white/80">{advance.registered_by_name ?? "Caja"}</span>
+                                <span className="font-semibold text-white/80">{displayResponsable(advance.registered_by_name)}</span>
                               </div>
                               {advance.note && (
                                 <div className="flex items-center justify-between gap-2">
@@ -4887,7 +4912,7 @@ function ProfesionalesTab({
                             </div>
                             <div className="flex items-center justify-between">
                               <span className="text-white/45">Registrado por</span>
-                              <span className="font-semibold text-white/80">{payment.paid_by_name ?? "Caja"}</span>
+                              <span className="font-semibold text-white/80">{displayResponsable(payment.paid_by_name)}</span>
                             </div>
                             {payment.note && (
                               <div className="flex items-center justify-between gap-2">
@@ -4904,15 +4929,6 @@ function ProfesionalesTab({
                                 className="rounded-full bg-white/[0.04] px-3 py-1 text-[11px] font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
                               >
                                 Ver detalle
-                              </button>
-                              <button
-                                onClick={() => {
-                                  const text = buildHistorialComprobante(run);
-                                  downloadComprobante(text, `Liquidación #${run.run_number}`);
-                                }}
-                                className="rounded-full bg-white/[0.04] px-3 py-1 text-[11px] font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
-                              >
-                                Descargar comprobante
                               </button>
                               <button
                                 onClick={async () => {
@@ -4988,7 +5004,6 @@ function ProfesionalesTab({
                 <option value="efectivo">Efectivo</option>
                 <option value="transferencia">Transferencia</option>
                 <option value="debito">Débito</option>
-                <option value="mercado pago">Mercado Pago</option>
               </select>
             </label>
             <label className="block space-y-1.5 text-xs font-semibold text-white/55">
@@ -5128,9 +5143,17 @@ function ProfesionalesTab({
         lockOutside={false}
         title={historialDetailRun ? `Liquidación #${historialDetailRun.run_number}` : ""}
         subtitle={
-          historialDetailRun
-            ? `${historialDetailRun.period_start ? `Del ${new Date(`${historialDetailRun.period_start}T12:00:00`).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })} al ` : "Hasta el "}${new Date(`${historialDetailRun.cutoff_date}T12:00:00`).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}`
-            : undefined
+          historialDetailRun ? (
+            <div className="space-y-0.5">
+              <div className="text-[10px] font-bold uppercase tracking-wider text-white/35">Período liquidado</div>
+              <div>
+                {historialDetailRun.period_start_at
+                  ? `Desde ${fmtDetalleDateTime(historialDetailRun.period_start_at)}`
+                  : "Primera liquidación"}
+              </div>
+              <div>{`Hasta ${fmtDetalleDateTime(historialDetailRun.prepared_at)}`}</div>
+            </div>
+          ) : undefined
         }
         footer={
           historialDetailRun && (
@@ -5162,94 +5185,90 @@ function ProfesionalesTab({
       >
         {historialDetailRun && (() => {
           const run = historialDetailRun;
-          const remaining = Number(run.total_to_settle) - Number(run.amount_paid);
+          const remaining = Math.max(Number(run.total_to_settle) - Number(run.amount_paid), 0);
           const runPayments = allRunPayments
             .filter((p: any) => p.settlement_run_id === run.id)
             .sort((a: any, b: any) => String(a.paid_at ?? "").localeCompare(String(b.paid_at ?? "")));
+          // Con el flujo actual (cada "Pagar" prepara un run nuevo), un run
+          // tiene como mucho un pago — se toma el último por las dudas.
+          const primaryPayment = runPayments[runPayments.length - 1] ?? null;
+          const runAdvances = allAdvances
+            .filter((a: any) => a.settlement_run_id === run.id)
+            .sort((a: any, b: any) => String(a.advanced_at ?? "").localeCompare(String(b.advanced_at ?? "")));
+          // Servicios reales: descarta comisión $0 (datos viejos/incompletos
+          // vinculados por error, no comisiones efectivamente cobradas).
+          const realServices = (historialDetailServices ?? []).filter(
+            (c: any) => Number(c.amount ?? 0) > 0,
+          );
           return (
             <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-2 rounded-2xl border border-white/[0.07] bg-black/20 p-3 text-center text-xs sm:grid-cols-4">
-                <div>
-                  <div className="text-white/40">Total</div>
-                  <div className="mt-0.5 font-semibold text-white/85">{money(Number(run.total_to_settle))}</div>
+              <div className="space-y-1.5 rounded-2xl border border-white/[0.08] bg-black/25 p-3.5 text-sm">
+                <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
+                  Resumen
                 </div>
-                <div>
-                  <div className="text-white/40">Pagado</div>
-                  <div className="mt-0.5 font-semibold text-emerald-300">{money(Number(run.amount_paid))}</div>
-                </div>
-                <div>
-                  <div className="text-white/40">Saldo pendiente</div>
-                  <div className={cn("mt-0.5 font-semibold", remaining > 0 ? "text-rose-300" : "text-white/60")}>
-                    {money(remaining)}
-                  </div>
-                </div>
-                <div>
-                  <div className="text-white/40">Estado</div>
-                  <div className="mt-0.5 font-semibold capitalize text-white/85">{run.status}</div>
-                </div>
-              </div>
-
-              <div className="space-y-1.5 rounded-2xl border border-white/[0.07] bg-black/20 p-3.5 text-sm">
                 <div className="flex items-center justify-between">
-                  <span className="text-white/50">Fecha y hora</span>
-                  <span className="font-semibold text-white">
-                    {new Date(run.prepared_at).toLocaleString("es-AR", {
-                      day: "2-digit",
-                      month: "2-digit",
-                      year: "numeric",
-                      hour: "2-digit",
-                      minute: "2-digit",
-                      hour12: false,
-                    })}
+                  <span className="text-white/50">Comisiones pendientes anteriores</span>
+                  <span className="font-semibold text-white">{money(Number(run.previous_balance ?? 0))}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/50">Comisiones generadas en el período</span>
+                  <span className="font-semibold text-white">{money(Number(run.new_commissions ?? 0))}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/50">Adicionales</span>
+                  <span className="font-semibold text-emerald-300">+{money(Number(run.adjustments ?? 0))}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/50">Deducciones</span>
+                  <span className="font-semibold text-rose-300">−{money(Number(run.deductions ?? 0))}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/50">Adelantos descontados</span>
+                  <span className="font-semibold text-rose-300">−{money(Number(run.advances ?? 0))}</span>
+                </div>
+                <div className="mt-1 flex items-center justify-between border-t border-white/[0.08] pt-2">
+                  <span className="font-bold text-white/70">Total final</span>
+                  <span className="text-base font-bold text-white">{money(Number(run.total_to_settle))}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/50">Monto pagado</span>
+                  <span className="font-semibold text-emerald-300">{money(Number(run.amount_paid))}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-white/50">Saldo pendiente</span>
+                  <span className={cn("font-semibold", remaining > 0 ? "text-rose-300" : "text-white/60")}>
+                    {money(remaining)}
                   </span>
                 </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-white/50">Liquidación anterior incluida</span>
-                  <span className="font-semibold text-white">{money(Number(run.previous_balance))}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-white/50">Comisiones del período</span>
-                  <span className="font-semibold text-white">{money(Number(run.new_commissions))}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-white/50">Usuario</span>
-                  <span className="font-semibold text-white">{run.prepared_by_name}</span>
-                </div>
               </div>
 
-              {runPayments.length > 0 && (
-                <div>
-                  <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
-                    Pagos realizados
+              {primaryPayment && (
+                <div className="space-y-1.5 rounded-2xl border border-white/[0.07] bg-black/20 p-3.5 text-sm">
+                  <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
+                    Datos del pago
                   </div>
-                  <div className="space-y-2">
-                    {runPayments.map((payment: any) => (
-                      <div key={payment.id} className="space-y-1 rounded-2xl border border-white/[0.07] bg-black/20 p-3 text-xs">
-                        <div className="flex items-center justify-between">
-                          <span className="font-semibold text-white/85">
-                            {payment.paid_at
-                              ? new Date(payment.paid_at).toLocaleString("es-AR", {
-                                  day: "2-digit",
-                                  month: "2-digit",
-                                  year: "numeric",
-                                  hour: "2-digit",
-                                  minute: "2-digit",
-                                  hour12: false,
-                                })
-                              : "—"}
-                          </span>
-                          <span className="font-bold tabular-nums text-emerald-300">{money(Number(payment.amount ?? 0))}</span>
-                        </div>
-                        <div className="flex items-center justify-between text-white/55">
-                          <span className="capitalize">{PAY_METHOD_LABEL[payment.payment_method as PayMethod] ?? payment.payment_method ?? "—"}</span>
-                          <span className="truncate">Registrado por {payment.paid_by_name ?? "Caja"}</span>
-                        </div>
-                        {payment.note && (
-                          <div className="text-white/45">Nota: {payment.note}</div>
-                        )}
-                      </div>
-                    ))}
+                  <div className="flex items-center justify-between">
+                    <span className="text-white/50">Método</span>
+                    <span className="font-semibold capitalize text-white">
+                      {PAY_METHOD_LABEL[primaryPayment.payment_method as PayMethod] ?? primaryPayment.payment_method ?? "—"}
+                    </span>
                   </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-white/50">Fecha y hora del pago</span>
+                    <span className="font-semibold text-white">
+                      {primaryPayment.paid_at ? fmtDetalleDateTime(primaryPayment.paid_at) : "—"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-white/50">Registrado por</span>
+                    <span className="font-semibold text-white">{displayResponsable(primaryPayment.paid_by_name)}</span>
+                  </div>
+                  {primaryPayment.note && (
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-white/50">Nota</span>
+                      <span className="truncate font-semibold text-white">{primaryPayment.note}</span>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -5276,17 +5295,39 @@ function ProfesionalesTab({
                 </div>
               )}
 
+              {runAdvances.length > 0 && (
+                <div className="space-y-1.5 rounded-2xl border border-rose-400/15 bg-rose-400/[0.04] p-3">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-rose-300/70">
+                    Adelantos descontados
+                  </div>
+                  {runAdvances.map((advance: any) => (
+                    <div key={advance.id} className="space-y-0.5 rounded-lg bg-black/15 p-2 text-xs">
+                      <div className="flex items-center justify-between">
+                        <span className="text-white/60">
+                          {advance.advanced_at ? fmtDetalleDateTime(advance.advanced_at) : "—"}
+                        </span>
+                        <span className="font-semibold text-rose-300">−{money(Number(advance.amount ?? 0))}</span>
+                      </div>
+                      <div className="flex items-center justify-between text-white/50">
+                        <span className="capitalize">{advance.payment_method ?? "—"}</span>
+                        {advance.note && <span className="truncate">{advance.note}</span>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
               <div>
                 <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
                   Servicios incluidos
                 </div>
                 {loadingHistorialDetail ? (
                   <div className="py-6 text-center text-sm text-white/45">Cargando…</div>
-                ) : !historialDetailServices || historialDetailServices.length === 0 ? (
+                ) : realServices.length === 0 ? (
                   <div className="py-6 text-center text-sm text-white/45">Sin servicios en esta liquidación.</div>
                 ) : (
                   <div className="space-y-2">
-                    {historialDetailServices.map((c: any) => {
+                    {realServices.map((c: any) => {
                       const sale = c.sale ?? {};
                       const saleDate = c.created_at ? new Date(c.created_at) : null;
                       const method =
@@ -5299,12 +5340,14 @@ function ProfesionalesTab({
                           <div className="flex items-center justify-between gap-2">
                             <span className="font-semibold text-white/82">{sale.client_name ?? "Sin cliente"}</span>
                             <span className="font-bold tabular-nums text-violet-300">
-                              {money(Number(c.pending_amount ?? c.amount ?? 0))}
+                              {money(Number(c.amount ?? 0))}
                             </span>
                           </div>
                           <div className="mt-0.5 flex items-center justify-between gap-2 text-white/50">
                             <span className="truncate">{sale.service_name ?? "Servicio"}</span>
-                            <span className="shrink-0">{method}</span>
+                            <span className="shrink-0">
+                              {money(Number(sale.total ?? sale.amount ?? 0))}
+                            </span>
                           </div>
                           <div className="mt-0.5 flex items-center justify-between gap-2 text-white/40">
                             <span>
@@ -5318,7 +5361,7 @@ function ProfesionalesTab({
                                   })
                                 : "—"}
                             </span>
-                            <span>{c.commission_pct != null ? `${c.commission_pct}% com.` : "—"}</span>
+                            <span>{method}</span>
                           </div>
                         </div>
                       );
@@ -5352,39 +5395,26 @@ function ProfesionalesTab({
               if (!v) resetLiquidarForm();
             }}
             title={selectedRow.name}
-            subtitle={liquidarPeriodLabel}
             footer={
               <button
                 type="button"
                 onClick={() => prepareRun(selectedRow)}
                 disabled={payDisabled}
-                className="w-full rounded-2xl border border-violet-300/28 bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_35px_rgba(139,92,246,0.22)] transition hover:brightness-110 disabled:opacity-60"
+                className="w-full rounded-2xl bg-emerald-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_35px_rgba(16,185,129,0.28)] transition hover:brightness-110 disabled:opacity-60"
               >
                 {preparingRunFor === selectedRow.id ? "Pagando…" : "Pagar"}
               </button>
             }
           >
             <div className="space-y-4">
-              {/* El corte ("Liquidar hasta") ya se elige desde la tarjeta
-                  "Período actual" de la pantalla principal — acá solo se
-                  muestra, no se vuelve a pedir. */}
-              <div className="space-y-2 rounded-2xl border border-white/[0.08] bg-black/20 p-3.5">
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-white/50">Comisiones generadas — Período actual</span>
-                  <span className="font-semibold text-violet-300">{money(liquidarNewCommissions)}</span>
+              {/* Sin período ni "Comisiones generadas" acá — ya están en
+                  la pantalla principal (tarjeta Período actual + tarjetas
+                  de arriba), no hace falta repetirlas dentro del modal. */}
+              {!liquidarPeriodValid && (
+                <div className="rounded-2xl border border-rose-400/25 bg-rose-400/10 px-3.5 py-2.5 text-xs text-rose-200">
+                  No hay comisiones disponibles hasta la fecha seleccionada.
                 </div>
-                {liquidarPendingAdvances > 0 && (
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-white/50">Adelantos aplicados</span>
-                    <span className="font-semibold text-rose-300">−{money(liquidarPendingAdvances)}</span>
-                  </div>
-                )}
-                {!liquidarPeriodValid && (
-                  <div className="pt-1 text-[11px] text-rose-300">
-                    No hay comisiones disponibles hasta la fecha seleccionada.
-                  </div>
-                )}
-              </div>
+              )}
 
               <SettlementItemsEditor
                 items={adjustmentItems}
