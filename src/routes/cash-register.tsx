@@ -4546,7 +4546,7 @@ function ProfesionalesTab({
         </div>
 
         {selectedRow && (
-          <div className="grid grid-cols-2 gap-3 border-b border-white/[0.055] px-5 py-4">
+          <div className="grid grid-cols-2 gap-3 border-b border-white/[0.055] px-5 py-3">
             <StatCard
               label="Comisiones generadas"
               sublabel={totals.previousBalance > 0 ? "Período actual" : undefined}
@@ -4571,7 +4571,7 @@ function ProfesionalesTab({
               info={ADELANTOS_INFO_TEXT}
             />
             <StatCard
-              label="Total a pagar"
+              label="Total final"
               value={money(Math.max(totals.previousBalance + liquidarNewCommissions - liquidarPendingAdvances, 0))}
               tone="green"
             />
@@ -4659,7 +4659,7 @@ function ProfesionalesTab({
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
             {/* Adelantar y Pagar: acciones principales, compactas y
                 centradas (no estiradas a lo ancho de una columna). */}
-            <div className="flex items-center justify-center gap-4 border-b border-white/[0.06] bg-white/[0.018] px-5 py-3">
+            <div className="flex items-center justify-center gap-4 border-b border-white/[0.06] bg-white/[0.018] px-5 py-2">
               <button
                 type="button"
                 onClick={() => setAdelantoModalOpen(true)}
@@ -4680,7 +4680,7 @@ function ProfesionalesTab({
                 medio (borde/fondo compartidos acá, divide-x como línea
                 central), no dos botones sueltos — ActionButton solo
                 resalta la mitad activa. */}
-            <div className="border-b border-white/[0.06] bg-white/[0.018] px-5 py-2">
+            <div className="border-b border-white/[0.06] bg-white/[0.018] px-5 py-1.5">
               <div className="grid grid-cols-2 divide-x divide-white/[0.07] overflow-hidden rounded-xl border border-white/[0.07]">
                 <ActionButton id="detalle">Comisiones</ActionButton>
                 <ActionButton id="historial">Historial</ActionButton>
@@ -5640,36 +5640,23 @@ function ProfesionalesTab({
                               </select>
                             </label>
                           </div>
-                          <div className="space-y-1 rounded-xl border border-blue-300/20 bg-black/35 px-3 py-2 text-sm">
-                            <div className="flex items-center justify-between">
-                              <span className="text-muted-foreground">Total final</span>
-                              <span className="font-semibold text-white">{money(liquidarFinalTotal)}</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-muted-foreground">Monto del pago</span>
-                              <span className="font-semibold text-white">{money(simpleAmount)}</span>
-                            </div>
-                            <div className="flex items-center justify-between">
-                              <span className="text-muted-foreground">{isCashOverpay ? "Vuelto" : "Saldo pendiente"}</span>
-                              <span
-                                className={cn(
-                                  "font-semibold",
-                                  isCashOverpay
-                                    ? "text-emerald-300"
-                                    : simpleDiff < 0
-                                      ? "text-rose-300"
-                                      : simpleDiff === 0
-                                        ? "text-emerald-300"
-                                        : "text-blue-200",
-                                )}
-                              >
-                                {isCashOverpay
-                                  ? money(Math.abs(simpleDiff))
-                                  : simpleDiff < 0
-                                    ? `Sobra ${money(Math.abs(simpleDiff))}`
-                                    : money(simpleDiff)}
+                          {/* Un solo renglón dinámico en vez del recuadro de
+                              3 filas (Total final/Monto del pago/Saldo
+                              pendiente) — esos dos primeros ya se muestran
+                              en el resumen de arriba, repetirlos acá era
+                              información duplicada. */}
+                          <div className="px-1 text-sm font-semibold">
+                            {isCashOverpay ? (
+                              <span className="text-emerald-300">Vuelto: {money(Math.abs(simpleDiff))}</span>
+                            ) : simpleDiff < 0 ? (
+                              <span className="text-rose-300">
+                                Sobra {money(Math.abs(simpleDiff))} — no puede superar el total
                               </span>
-                            </div>
+                            ) : simpleDiff === 0 ? (
+                              <span className="text-emerald-300">✓ Liquidación completa · Saldo pendiente: $0</span>
+                            ) : (
+                              <span className="text-rose-300">Saldo pendiente: {money(simpleDiff)}</span>
+                            )}
                           </div>
                         </div>
                       );

@@ -106,32 +106,19 @@ export function MultiMethodPaymentSplit({
       </button>
 
       {allowPartial ? (
-        <div className="space-y-1 rounded-xl border border-blue-300/20 bg-black/35 px-3 py-2 text-sm">
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">Total final</span>
-            <span className="font-semibold text-white">${total.toLocaleString("es-AR")}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">Monto del pago</span>
-            <span className="font-semibold text-white">${splitsTotal.toLocaleString("es-AR")}</span>
-          </div>
-          <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">Saldo pendiente</span>
-            <span
-              className={cn(
-                "font-semibold",
-                splitsRemaining === 0
-                  ? "text-emerald-300"
-                  : splitsRemaining > 0
-                    ? "text-blue-200"
-                    : "text-rose-300",
-              )}
-            >
-              {splitsRemaining < 0
-                ? `Sobra $${Math.abs(splitsRemaining).toLocaleString("es-AR")}`
-                : `$${splitsRemaining.toLocaleString("es-AR")}`}
+        // Un solo renglón dinámico — Total final y Monto del pago ya se
+        // muestran en el resumen de arriba del modal, no hace falta
+        // repetirlos acá.
+        <div className="px-1 text-sm font-semibold">
+          {splitsRemaining === 0 ? (
+            <span className="text-emerald-300">✓ Liquidación completa · Saldo pendiente: $0</span>
+          ) : splitsRemaining > 0 ? (
+            <span className="text-rose-300">Saldo pendiente: ${splitsRemaining.toLocaleString("es-AR")}</span>
+          ) : (
+            <span className="text-rose-300">
+              Sobra ${Math.abs(splitsRemaining).toLocaleString("es-AR")} — no puede superar el total
             </span>
-          </div>
+          )}
         </div>
       ) : (
         <div className="flex items-center justify-between text-sm rounded-xl border border-blue-300/20 bg-black/35 px-3 py-2">
