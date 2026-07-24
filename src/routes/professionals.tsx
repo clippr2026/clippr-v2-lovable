@@ -7,7 +7,6 @@ import {
   ClipboardList,
   BarChart3,
   Clock,
-  DollarSign,
   ChevronLeft,
   ChevronRight,
   CalendarPlus,
@@ -52,7 +51,7 @@ export const Route = createFileRoute("/professionals")({
   component: ProfessionalsPage,
 });
 
-type TabKey = "turnos" | "stats" | "historial-servicios" | "historial-pagos" | "liquidaciones";
+type TabKey = "turnos" | "stats" | "historial-servicios" | "historial-pagos";
 type RangeKey = "hoy" | "semana" | "mes" | "custom";
 
 function toLocalISODate(date: Date) {
@@ -502,13 +501,12 @@ function ProfessionalsPage() {
           abajo — a diferencia de un margin-top ahí, este padding no puede
           "colapsar" ni perderse, así que asegura el aire pedido sin
           depender de cómo el navegador resuelva márgenes adyacentes. */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 sm:gap-3 pb-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 pb-3">
         {([
           { key: "turnos",             label: "Mi Agenda",             Icon: ClipboardList, tint: "text-cyan-300" },
           { key: "stats",              label: "Rendimiento",           Icon: BarChart3,     tint: "text-sky-300"   },
-          { key: "historial-servicios",label: "Historial de ventas",   Icon: Clock,         tint: "text-violet-300"},
-          { key: "historial-pagos",    label: "Historial de pagos",    Icon: DollarSign,    tint: "text-emerald-300"},
-          { key: "liquidaciones",      label: "Mis liquidaciones",     Icon: HandCoins,     tint: "text-amber-300" },
+          { key: "historial-servicios",label: "Comisiones",            Icon: Clock,         tint: "text-violet-300"},
+          { key: "historial-pagos",    label: "Movimientos",           Icon: HandCoins,     tint: "text-amber-300" },
         ] as const).map(({ key, label, Icon, tint }) => {
           const isActive = tab === key;
           return (
@@ -537,7 +535,7 @@ function ProfessionalsPage() {
         </div>
       )}
 
-      {tab !== "turnos" && tab !== "liquidaciones" && (
+      {tab !== "turnos" && tab !== "historial-pagos" && (
         <div className="flex justify-end -mt-3">
           <DateRangePicker
             from={fromDate}
@@ -690,8 +688,7 @@ function ProfessionalsPage() {
       )}
       {tab === "stats" && <StatsView businessId={businessId} empId={empId} from={fromDate} to={toDate} commissionPct={Number(active?.commission_pct ?? 0)} commissionFixed={Number(active?.commission_fixed ?? 0)} />}
       {tab === "historial-servicios" && <HistorialView businessId={businessId} empId={empId} commissionPct={Number(active?.commission_pct ?? 0)} from={fromDate} to={toDate} />}
-      {tab === "historial-pagos" && <PagosView businessId={businessId} empId={empId} userEmail={profile?.email ?? null} from={fromDate} to={toDate} />}
-      {tab === "liquidaciones" && (
+      {tab === "historial-pagos" && (
         <LiquidacionesPanelView
           businessId={businessId}
           empId={empId}
@@ -2318,42 +2315,6 @@ function LineChart({
   );
 }
 
-function PagosView({ businessId, empId, userEmail, from, to }: { businessId: string | null; empId: string | null; userEmail: string | null; from: string; to: string }) {
-  const { data: payments = [], isLoading } = useProfPayments(businessId, empId, from, to);
-
-  return (
-    <div className="space-y-4 animate-fade-up">
-<div className="glass rounded-2xl overflow-hidden">
-        {isLoading ? (
-          <div className="p-8 text-center text-sm text-muted-foreground animate-pulse">Cargando…</div>
-        ) : payments.length === 0 ? (
-          <div className="p-8 text-center text-sm text-muted-foreground">Sin pagos registrados aún.</div>
-        ) : (
-          payments.map((p, i) => {
-            const dt = p.created_at ? new Date(p.created_at) : new Date(p.date + "T12:00:00");
-            const fecha = dt.toLocaleDateString("es-AR", { weekday: "short", day: "numeric", month: "numeric" }).replace(".", "");
-            const hora = dt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false });
-            const rawPayer = String(p.created_by ?? "").trim();
-            const payer = rawPayer
-              ? (rawPayer.includes("@") ? rawPayer.split("@")[0] || "Caja" : rawPayer)
-              : "Caja";
-            return (
-              <div key={p.id} className={cn("flex items-center gap-4 px-5 py-3.5", i < payments.length - 1 && "border-b border-white/5")}>
-                <div className="flex-1 min-w-0">
-                  <div className="text-sm font-medium capitalize">{fecha}</div>
-                  <div className="text-xs text-muted-foreground">{hora} hs · {payer} pagó · {p.method ?? "Sin método"}{p.note ? " · " + p.note : ""}</div>
-                </div>
-                <div className="text-base font-bold text-emerald-300 tabular-nums">${Number(p.amount).toLocaleString("es-AR")}</div>
-              </div>
-            );
-          })
-        )}
-      </div>
-    </div>
-  );
-}
-
-
 const RUN_STATUS_LABEL: Record<SettlementRun["status"], string> = {
   pendiente: "Pendiente",
   parcial: "Pago parcial",
@@ -2367,11 +2328,12 @@ const RUN_STATUS_STYLE: Record<SettlementRun["status"], string> = {
   observada: "bg-rose-500/10 text-rose-300 ring-rose-400/20",
 };
 
-// Panel del profesional > Mis liquidaciones. Lee EXACTAMENTE las mismas
-// tablas que Caja > Liquidaciones (settlement_runs/settlement_payments):
-// el profesional y el administrador siempre ven los mismos números. El
-// profesional nunca puede editar montos acá — solo confirmar recepción u
-// observar, ambos vía RPC (ver 20260721100000_settlement_runs_confirm.sql).
+// Panel del profesional > Movimientos. Lee EXACTAMENTE las mismas tablas
+// que Caja > Liquidaciones > Movimientos (settlement_runs/settlement_payments/
+// professional_advances): el profesional y el administrador siempre ven los
+// mismos números. El profesional nunca puede editar montos acá — solo
+// confirmar recepción u observar, ambos vía RPC (ver
+// 20260721100000_settlement_runs_confirm.sql).
 function LiquidacionesPanelView({
   businessId, empId, professionalName, canConfirmOrObserve,
 }: {
@@ -3005,6 +2967,11 @@ type EnrichedSaleRow = {
   service_name: string | null;
   total: number;
   commission: number;
+  // id de la fila en `payments` que respalda esta venta (si ya se cobró) —
+  // es el mismo `sale_id` que usa commission_records, así se puede pisar
+  // la comisión estimada por la real (ver más abajo) sin tener que
+  // recalcular nada del lado del cliente.
+  saleId?: string;
   sourceType: "turno" | "venta-directa";
   // Método(s) de pago usados — varios si fue pago múltiple (ej. Efectivo +
   // Transferencia). Sin importes acá a propósito: eso es para el detalle
@@ -3097,6 +3064,7 @@ function useProfSalesEnriched(
       .on("postgres_changes", { event: "*", schema: "public", table: "appointments", filter: `business_id=eq.${businessId}` }, bump)
       .on("postgres_changes", { event: "*", schema: "public", table: "business_settings", filter: `business_id=eq.${businessId}` }, bump)
       .on("postgres_changes", { event: "*", schema: "public", table: "payments", filter: `business_id=eq.${businessId}` }, bump)
+      .on("postgres_changes", { event: "*", schema: "public", table: "commission_records", filter: `business_id=eq.${businessId}` }, bump)
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [businessId, empId]);
@@ -3135,6 +3103,21 @@ function useProfSalesEnriched(
           .eq("employee_id", empId)
           .gte("created_at", fromDate.toISOString())
           .lte("created_at", toDate.toISOString()));
+      }
+
+      // Comisión REAL por venta (misma fuente que Caja > Liquidaciones >
+      // Comisiones — commission_records), para que el número acá coincida
+      // siempre con lo que ve Caja. Sin rango de fechas a propósito: se
+      // busca por sale_id sin importar cuándo se generó, más simple y
+      // robusto que alinear ventanas de tiempo.
+      const { data: commissionRows } = await supabase
+        .from("commission_records")
+        .select("sale_id,amount")
+        .eq("business_id", businessId)
+        .eq("professional_id", empId);
+      const commissionBySaleId = new Map<string, number>();
+      for (const c of commissionRows ?? []) {
+        if (c.sale_id) commissionBySaleId.set(c.sale_id, Number(c.amount ?? 0));
       }
 
       // Métodos usados por un pago — varios si fue pago múltiple (splits),
@@ -3200,6 +3183,7 @@ function useProfSalesEnriched(
           service_name: t.service_name,
           total: pay ? Number(pay.total ?? pay.amount ?? t.service_price ?? 0) : Number(t.service_price ?? 0),
           commission: 0,
+          saleId: pay?.id,
           sourceType: "turno",
           methods: pay ? methodsOf(pay) : [],
           methodBreakdown: pay ? methodBreakdownOf(pay) : [],
@@ -3229,6 +3213,7 @@ function useProfSalesEnriched(
           service_name: p.service_name,
           total: Number(p.total ?? p.amount ?? 0),
           commission: 0,
+          saleId: p.id,
           sourceType: "venta-directa",
           methods: methodsOf(p),
           methodBreakdown: methodBreakdownOf(p),
@@ -3281,8 +3266,19 @@ function useProfSalesEnriched(
       // merced de en qué loop se haya insertado cada fila) ni por cuándo se
       // cobró — cobrar o rechazar una pendiente nunca debe correrla de
       // lugar en la lista.
+      // Si ya existe un commission_record real para esta venta (se generó
+      // al cobrarla), ese es el número que manda — es EXACTAMENTE el mismo
+      // que ve Caja (`amount`, el total generado, no `pending_amount`: acá
+      // se listan TODAS las ventas sin importar si ya se liquidaron, así
+      // que una comisión ya pagada no debe mostrarse como $0). Solo se
+      // estima en base al % actual cuando todavía no hay registro (venta
+      // pendiente de cobro, sin commission_record aún).
       const final = rows
-        .map(r => ({ ...r, commission: Math.round(r.total * commissionPct / 100) }))
+        .map(r => {
+          const real = r.saleId ? commissionBySaleId.get(r.saleId) : undefined;
+          const commission = real != null ? Math.round(real) : Math.round(r.total * commissionPct / 100);
+          return { ...r, commission };
+        })
         .sort((a, b) => b.sortTs.localeCompare(a.sortTs));
 
       // Si ya se lanzó una corrida más nueva mientras esta esperaba sus
