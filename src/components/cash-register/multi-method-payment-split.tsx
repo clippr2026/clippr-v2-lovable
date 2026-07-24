@@ -111,7 +111,10 @@ export function MultiMethodPaymentSplit({
         // repetirlos acá.
         <div className="px-1 text-sm font-semibold">
           {splitsRemaining === 0 ? (
-            <span className="text-emerald-300">✓ Liquidación completa · Saldo pendiente: $0</span>
+            <div className="space-y-0.5">
+              <div className="font-bold text-emerald-300">Liquidación completa</div>
+              <div className="text-xs font-semibold text-emerald-300/80">Saldo pendiente: $0</div>
+            </div>
           ) : splitsRemaining > 0 ? (
             <span className="text-rose-300">Saldo pendiente: ${splitsRemaining.toLocaleString("es-AR")}</span>
           ) : (

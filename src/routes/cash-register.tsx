@@ -5205,11 +5205,11 @@ function ProfesionalesTab({
           const hasAdvancesAmount = Number(run.advances ?? 0) > 0;
           return (
             <div className="space-y-4">
-              <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-black/25 text-sm">
-                <div className="px-3.5 pb-1.5 pt-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
+              <div className="overflow-hidden rounded-2xl border border-blue-300/25 bg-[linear-gradient(135deg,rgba(37,99,235,0.14),rgba(8,11,20,0.96),rgba(2,4,12,0.98))] text-sm shadow-[0_0_40px_rgba(96,165,250,0.12),0_18px_55px_-34px_rgba(0,0,0,1)]">
+                <div className="px-3.5 pb-1.5 pt-3 text-[10px] font-bold uppercase tracking-[0.16em] text-blue-200/55">
                   Resumen
                 </div>
-                <div className="divide-y divide-white/[0.06]">
+                <div className="divide-y divide-blue-300/10">
                   <div className="flex items-center justify-between px-3.5 py-2.5">
                     <span className="text-white/50">Profesional</span>
                     <span className="font-semibold text-white">{run.professional_name || "—"}</span>
@@ -5315,11 +5315,11 @@ function ProfesionalesTab({
                 </div>
 
                 {/* Sección fija, siempre visible, separada del bloque de
-                    arriba por un borde más marcado que el divide-y interno
-                    — Total final / Monto pagado / Saldo pendiente son el
+                    arriba por un borde marcado + un poco de aire extra —
+                    Total final / Monto pagado / Saldo pendiente son el
                     cierre del Resumen, no una fila condicional más. */}
-                <div className="divide-y divide-white/[0.06] border-t border-white/[0.14]">
-                  <div className="flex items-center justify-between bg-white/[0.025] px-3.5 py-2.5">
+                <div className="mt-1.5 divide-y divide-blue-300/10 border-t border-blue-300/20 pt-1.5">
+                  <div className="flex items-center justify-between bg-blue-400/[0.07] px-3.5 py-2.5">
                     <span className="font-bold text-white/70">Total final</span>
                     <span className="text-base font-bold text-white">{money(Number(run.total_to_settle))}</span>
                   </div>
@@ -5335,11 +5335,11 @@ function ProfesionalesTab({
               </div>
 
               {runPayments.length > 0 && (
-                <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-black/20 text-sm">
-                  <div className="px-3.5 pb-1.5 pt-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
+                <div className="overflow-hidden rounded-2xl border border-emerald-300/25 bg-[linear-gradient(135deg,rgba(16,185,129,0.14),rgba(8,11,20,0.96),rgba(2,4,12,0.98))] text-sm shadow-[0_0_40px_rgba(16,185,129,0.12),0_18px_55px_-34px_rgba(0,0,0,1)]">
+                  <div className="px-3.5 pb-1.5 pt-3 text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-200/55">
                     Datos del pago
                   </div>
-                  <div className="divide-y divide-white/[0.06]">
+                  <div className="divide-y divide-emerald-300/10">
                     <div className="flex items-center justify-between px-3.5 py-2.5">
                       <span className="text-white/50">Fecha y hora</span>
                       <span className="font-semibold text-white">
@@ -5443,35 +5443,37 @@ function ProfesionalesTab({
           (() => {
             const advance = historialDetailAdvance;
             return (
-              <div className="space-y-1.5 rounded-2xl border border-white/[0.08] bg-black/25 p-3.5 text-sm">
-                <div className="flex items-center justify-between">
-                  <span className="text-white/50">Profesional</span>
-                  <span className="font-semibold text-white">{selectedRow?.name ?? "—"}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-white/50">Monto adelantado</span>
-                  <span className="font-bold tabular-nums text-emerald-300">{money(Number(advance.amount ?? 0))}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-white/50">Método</span>
-                  <span className="font-semibold capitalize text-white">{advance.payment_method ?? "—"}</span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-white/50">Fecha y hora</span>
-                  <span className="font-semibold text-white">
-                    {advance.advanced_at ? fmtDetalleDateTime(advance.advanced_at) : "—"}
-                  </span>
-                </div>
-                <div className="flex items-center justify-between">
-                  <span className="text-white/50">Registrado por</span>
-                  <span className="font-semibold text-white">{displayResponsable(advance.registered_by_name)}</span>
-                </div>
-                {advance.note && (
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-white/50">Nota</span>
-                    <span className="truncate font-semibold text-white">{advance.note}</span>
+              <div className="overflow-hidden rounded-2xl border border-rose-300/25 bg-[linear-gradient(135deg,rgba(244,63,94,0.14),rgba(8,11,20,0.96),rgba(2,4,12,0.98))] text-sm shadow-[0_0_40px_rgba(244,63,94,0.12),0_18px_55px_-34px_rgba(0,0,0,1)]">
+                <div className="divide-y divide-rose-300/10">
+                  <div className="flex items-center justify-between px-3.5 py-2.5">
+                    <span className="text-white/50">Profesional</span>
+                    <span className="font-semibold text-white">{selectedRow?.name ?? "—"}</span>
                   </div>
-                )}
+                  <div className="flex items-center justify-between px-3.5 py-2.5">
+                    <span className="text-white/50">Monto adelantado</span>
+                    <span className="font-bold tabular-nums text-rose-300">{money(Number(advance.amount ?? 0))}</span>
+                  </div>
+                  <div className="flex items-center justify-between px-3.5 py-2.5">
+                    <span className="text-white/50">Método</span>
+                    <span className="font-semibold capitalize text-white">{advance.payment_method ?? "—"}</span>
+                  </div>
+                  <div className="flex items-center justify-between px-3.5 py-2.5">
+                    <span className="text-white/50">Fecha y hora</span>
+                    <span className="font-semibold text-white">
+                      {advance.advanced_at ? fmtDetalleDateTime(advance.advanced_at) : "—"}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between px-3.5 py-2.5">
+                    <span className="text-white/50">Registrado por</span>
+                    <span className="font-semibold text-white">{displayResponsable(advance.registered_by_name)}</span>
+                  </div>
+                  {advance.note && (
+                    <div className="flex items-center justify-between gap-2 px-3.5 py-2.5">
+                      <span className="text-white/50">Nota</span>
+                      <span className="truncate font-semibold text-white">{advance.note}</span>
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })()}
@@ -5653,7 +5655,10 @@ function ProfesionalesTab({
                                 Sobra {money(Math.abs(simpleDiff))} — no puede superar el total
                               </span>
                             ) : simpleDiff === 0 ? (
-                              <span className="text-emerald-300">✓ Liquidación completa · Saldo pendiente: $0</span>
+                              <div className="space-y-0.5">
+                                <div className="font-bold text-emerald-300">Liquidación completa</div>
+                                <div className="text-xs font-semibold text-emerald-300/80">Saldo pendiente: $0</div>
+                              </div>
                             ) : (
                               <span className="text-rose-300">Saldo pendiente: {money(simpleDiff)}</span>
                             )}
