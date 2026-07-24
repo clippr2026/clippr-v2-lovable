@@ -5329,7 +5329,9 @@ function ProfesionalesTab({
                   </div>
                   <div className="flex items-center justify-between px-3.5 py-2.5">
                     <span className="text-white/50">Saldo pendiente</span>
-                    <span className="font-semibold text-white">{money(remaining)}</span>
+                    <span className={cn("font-semibold", remaining > 0 ? "text-amber-300" : "text-emerald-300")}>
+                      {money(remaining)}
+                    </span>
                   </div>
                 </div>
               </div>
