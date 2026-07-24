@@ -5,12 +5,11 @@
 // con copiar-al-portapapeles como respaldo si el navegador no la soporta.
 
 export type ComprobanteData = {
-  runNumber: number;
+  movementNumber: number;
   cutoffDate: string;
   periodStart?: string | null;
   professionalName: string;
   previousBalance: number;
-  previousRun?: { runNumber: number; cutoffDate: string; status: string } | null;
   newCommissions: number;
   adjustments: number;
   deductions: number;
@@ -47,17 +46,12 @@ export function buildComprobanteText(d: ComprobanteData) {
     : `Período: hasta el ${formatDate(d.cutoffDate)} (primera liquidación)`;
 
   const lines = [
-    `Comprobante de liquidación #${d.runNumber}`,
+    `Comprobante de movimiento #${d.movementNumber}`,
     `Profesional: ${d.professionalName}`,
     periodLabel,
     "",
     "── Liquidación anterior pendiente ──",
     `Monto:                ${money(d.previousBalance)}`,
-    ...(d.previousRun
-      ? [
-          `Liquidación anterior: #${d.previousRun.runNumber} · corte ${formatDate(d.previousRun.cutoffDate)} · ${d.previousRun.status}`,
-        ]
-      : []),
     "",
     "── Período actual ──",
     `Comisiones del período: ${money(d.newCommissions)}`,
@@ -97,6 +91,32 @@ export function buildComprobanteText(d: ComprobanteData) {
       ...(d.payment.note ? [`Nota: ${d.payment.note}`] : []),
     );
   }
+
+  return lines.join("\n");
+}
+
+export type AdvanceComprobanteData = {
+  movementNumber: number;
+  professionalName: string;
+  amount: number;
+  method?: string | null;
+  note?: string | null;
+  registeredByName: string;
+  advancedAt: string;
+};
+
+export function buildAdvanceComprobanteText(d: AdvanceComprobanteData) {
+  const lines = [
+    `Comprobante de movimiento #${d.movementNumber}`,
+    "Adelanto",
+    `Profesional: ${d.professionalName}`,
+    "",
+    `Monto:          ${money(d.amount)}`,
+    `Método:         ${d.method ?? "—"}`,
+    `Fecha:          ${new Date(d.advancedAt).toLocaleString("es-AR")}`,
+    `Registrado por: ${d.registeredByName}`,
+    ...(d.note ? [`Nota: ${d.note}`] : []),
+  ];
 
   return lines.join("\n");
 }

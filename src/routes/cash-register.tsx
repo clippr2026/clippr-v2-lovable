@@ -62,6 +62,7 @@ import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { AgendaCenteredModal } from "@/components/agenda/agenda-drawer";
 import { fetchSettlementRunServices } from "@/hooks/use-professionals-data";
 import { MultiMethodPaymentSplit, type MultiSplit } from "@/components/cash-register/multi-method-payment-split";
+import { buildHistorialMovimientos } from "@/lib/historial-movimientos";
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
 const HISTORIAL_KEY = "clippr_cobros_historial_v2";
@@ -3548,6 +3549,7 @@ function ProfesionalesTab({
   // no viven en settlement_runs — mismo query que ya usa "Mis
   // liquidaciones" del profesional (fetchSettlementRunServices).
   const [historialDetailRun, setHistorialDetailRun] = React.useState<any | null>(null);
+  const [historialDetailMovementNumber, setHistorialDetailMovementNumber] = React.useState<number | null>(null);
   const [historialDetailServices, setHistorialDetailServices] = React.useState<any[] | null>(null);
   const [loadingHistorialDetail, setLoadingHistorialDetail] = React.useState(false);
   // Detalle de un adelanto del Historial — no necesita fetch (professional_
@@ -3728,7 +3730,7 @@ function ProfesionalesTab({
           supabase
             .from("settlement_payments" as any)
             .select(
-              "id,settlement_run_id,professional_id,amount,payment_method,note,balance_before,balance_after,paid_by_name,paid_at",
+              "id,settlement_run_id,professional_id,amount,payment_method,note,balance_before,balance_after,paid_by_name,paid_at,movement_number",
             )
             .eq("business_id", businessId)
             .order("paid_at", { ascending: false }),
@@ -3772,7 +3774,9 @@ function ProfesionalesTab({
       try {
         const { data: rows, error } = await supabase
           .from("professional_advances" as any)
-          .select("id,professional_id,amount,payment_method,note,advanced_at,registered_by_name,settlement_run_id")
+          .select(
+            "id,professional_id,amount,payment_method,note,advanced_at,registered_by_name,settlement_run_id,movement_number",
+          )
           .eq("business_id", businessId)
           .order("advanced_at", { ascending: false });
         if (error) throw error;
@@ -3962,8 +3966,9 @@ function ProfesionalesTab({
     }
   }
 
-  async function openHistorialDetail(run: any) {
+  async function openHistorialDetail(run: any, movementNumber: number | null = null) {
     setHistorialDetailRun(run);
+    setHistorialDetailMovementNumber(movementNumber);
     setHistorialDetailServices(null);
     setLoadingHistorialDetail(true);
     try {
@@ -4029,28 +4034,16 @@ function ProfesionalesTab({
     );
   }, [paymentOptions, paymentForm.method]);
 
-  // Historial es un timeline único de movimientos guardados — pagos de
-  // liquidación y adelantos mezclados y ordenados por fecha, no dos listas
-  // separadas por "tipo de liquidación".
-  const historialItems = React.useMemo(() => {
-    const payments = selectedRunPayments.map((p: any) => ({
-      kind: "pago" as const,
-      at: p.paid_at as string,
-      data: p,
-    }));
-    const advances = selectedAdvances.map((a: any) => ({
-      kind: "adelanto" as const,
-      at: a.advanced_at as string,
-      data: a,
-    }));
-    return [...payments, ...advances].sort((a, b) => String(b.at ?? "").localeCompare(String(a.at ?? "")));
-  }, [selectedRunPayments, selectedAdvances]);
+  // Historial es un timeline único de Movimientos — pagos de liquidación
+  // (agrupados por movement_number: un pago múltiple con varios métodos es
+  // UNA sola card) y adelantos, mezclados y ordenados por fecha.
+  const historialItems = React.useMemo(
+    () => buildHistorialMovimientos(selectedRunPayments, selectedAdvances),
+    [selectedRunPayments, selectedAdvances],
+  );
 
-  // Historial ya no se organiza por liquidación — se organiza por pago:
-  // cada registro de settlement_payments es una fila propia (si una
-  // liquidación tuvo 2 pagos, son 2 filas separadas). Este mapa solo
-  // sirve para recuperar el run dueño de cada pago (período, comprobante,
-  // "Ver detalle"), no para agrupar la vista.
+  // Este mapa solo sirve para recuperar el run dueño de un pago (período,
+  // "Ver detalle"), no para agrupar la vista — eso lo hace historialItems.
   const runById = React.useMemo(() => {
     const map = new Map<string, any>();
     selectedRuns.forEach((r: any) => map.set(r.id, r));
@@ -4088,11 +4081,12 @@ function ProfesionalesTab({
     }
     // El monto a pagar es opcional acá: si se completó, el pago se
     // registra apenas se crea la liquidación, en la misma acción — si se
-    // deja vacío, solo se prepara (se puede pagar después desde
-    // "Pagar", que ya va a mostrar el saldo pendiente de este run). En
-    // pago múltiple cada método con importe > 0 se registra como su
-    // propio pago (mismo run, un register_settlement_run_payment por
-    // fila) — así "Ver detalle" puede listar cada método por separado.
+    // deja vacío, solo se prepara (se puede pagar después desde "Pagar",
+    // que ya va a mostrar el saldo pendiente de este run). En pago
+    // múltiple cada método con importe > 0 viaja como su propio split
+    // dentro de una sola llamada a register_settlement_run_payment_batch
+    // — todos comparten el mismo Movimiento #, y "Ver detalle" igual puede
+    // listar cada método por separado.
     const paymentsToRegister =
       paymentMode === "multiple"
         ? paymentSplits
@@ -4122,40 +4116,32 @@ function ProfesionalesTab({
       });
       if (error) throw error;
 
-      // La liquidación ya quedó creada acá — si algún pago falla, no se
-      // pierde nada: los anteriores en la lista ya quedaron aplicados y el
-      // run sigue activo, listo para completar el resto desde "Pagar" de
-      // nuevo (secuencial, no en paralelo: cada RPC recalcula el saldo
-      // restante contra el estado actual del run).
+      // La liquidación ya quedó creada acá — si el pago falla, no se
+      // pierde nada: el run sigue activo, listo para pagarse desde "Pagar"
+      // de nuevo. register_settlement_run_payment_batch inserta todos los
+      // splits en una sola transacción (todo o nada) bajo un mismo
+      // Movimiento #, así que no hay riesgo de fallo parcial a mitad de
+      // una tanda de pago múltiple.
       if (paymentAmount > 0 && (newRun as any)?.id) {
         const note = paymentForm.note.trim() || null;
-        let registered = 0;
-        for (const p of paymentsToRegister) {
-          const { error: payError } = await supabase.rpc("register_settlement_run_payment" as any, {
-            p_settlement_run_id: (newRun as any).id,
-            p_amount: p.amount,
-            p_payment_method: p.method || "transfer",
-            // La nota queda una sola vez (en el primer pago de la tanda)
-            // para no repetirla en cada fila de "Datos del pago".
-            p_note: registered === 0 ? note : null,
-            p_paid_by: user.id,
-            p_paid_by_name: chargedByName,
-          });
-          if (payError) {
-            toast.error(
-              friendlyRpcError(
-                payError,
-                registered > 0
-                  ? `Se registraron ${registered} de ${paymentsToRegister.length} métodos de pago. Completá el resto desde Pagar.`
-                  : "Se guardó el saldo, pero no pudimos registrar el pago. Podés intentarlo de nuevo desde Pagar.",
-              ),
-            );
-            resetLiquidarForm();
-            setCommissionsVersion((v) => v + 1);
-            setLiquidarModalOpen(true);
-            return;
-          }
-          registered += 1;
+        const { error: payError } = await supabase.rpc("register_settlement_run_payment_batch" as any, {
+          p_settlement_run_id: (newRun as any).id,
+          p_splits: paymentsToRegister.map((p) => ({ amount: p.amount, method: p.method || "transfer" })),
+          p_note: note,
+          p_paid_by: user.id,
+          p_paid_by_name: chargedByName,
+        });
+        if (payError) {
+          toast.error(
+            friendlyRpcError(
+              payError,
+              "Se guardó el saldo, pero no pudimos registrar el pago. Podés intentarlo de nuevo desde Pagar.",
+            ),
+          );
+          resetLiquidarForm();
+          setCommissionsVersion((v) => v + 1);
+          setLiquidarModalOpen(true);
+          return;
         }
         toast.success(`Pago registrado para ${row.name}: ${money(paymentAmount)}`);
         resetLiquidarForm();
@@ -4874,7 +4860,10 @@ function ProfesionalesTab({
                           >
                             <div className="flex flex-wrap items-start justify-between gap-2">
                               <div>
-                                <div className="font-bold text-white">{selectedRow.name}</div>
+                                {item.movementNumber != null && (
+                                  <div className="font-bold text-white">Movimiento #{item.movementNumber}</div>
+                                )}
+                                <div className="text-sm font-semibold text-white/70">{selectedRow.name}</div>
                                 <div className="text-xs text-white/50">
                                   {advance.advanced_at ? fmtDateTime(advance.advanced_at) : "—"}
                                 </div>
@@ -4907,22 +4896,20 @@ function ProfesionalesTab({
                         );
                       }
 
-                      const payment = item.data;
-                      const run = runById.get(payment.settlement_run_id);
-                      const balanceAfter = Number(payment.balance_after ?? 0);
-                      const isFull = balanceAfter <= 0;
+                      const run = runById.get(item.settlementRunId);
+                      const isFull = item.isFull;
                       return (
                         <div
-                          key={`pago-${payment.id}`}
+                          key={`pago-${item.movementNumber ?? item.splits[0].id}`}
                           className="rounded-2xl border border-white/[0.07] bg-black/18 px-4 py-3.5 text-sm"
                         >
                           <div className="flex flex-wrap items-start justify-between gap-2">
                             <div>
-                              {run && <div className="font-bold text-white">Liquidación #{run.run_number}</div>}
+                              {item.movementNumber != null && (
+                                <div className="font-bold text-white">Movimiento #{item.movementNumber}</div>
+                              )}
                               <div className="text-sm font-semibold text-white/70">{run?.professional_name || selectedRow.name}</div>
-                              <div className="text-xs text-white/50">
-                                {payment.paid_at ? fmtDateTime(payment.paid_at) : "—"}
-                              </div>
+                              <div className="text-xs text-white/50">{item.at ? fmtDateTime(item.at) : "—"}</div>
                             </div>
                             <span
                               className={cn(
@@ -4939,11 +4926,20 @@ function ProfesionalesTab({
                           <div className="mt-3 space-y-1 text-xs">
                             <div className="flex items-center justify-between">
                               <span className="text-white/45">Monto pagado</span>
-                              <span className="font-bold tabular-nums text-emerald-300">{money(Number(payment.amount ?? 0))}</span>
+                              <span className="font-bold tabular-nums text-emerald-300">{money(item.totalAmount)}</span>
                             </div>
+                            {item.splits.length > 1 &&
+                              item.splits.map((split) => (
+                                <div key={split.id} className="flex items-center justify-between pl-2 text-white/50">
+                                  <span>{paymentMethodLabel(split.payment_method ?? "")}</span>
+                                  <span className="tabular-nums">{money(Number(split.amount ?? 0))}</span>
+                                </div>
+                              ))}
                             <div className="flex items-center justify-between">
                               <span className="text-white/45">Registrado por</span>
-                              <span className="font-semibold text-white/80">{displayResponsable(payment.paid_by_name)}</span>
+                              <span className="font-semibold text-white/80">
+                                {displayResponsable(item.splits[0].paid_by_name)}
+                              </span>
                             </div>
                           </div>
 
@@ -4963,7 +4959,7 @@ function ProfesionalesTab({
                           {run && (
                             <div className="mt-3">
                               <button
-                                onClick={() => openHistorialDetail(run)}
+                                onClick={() => openHistorialDetail(run, item.movementNumber)}
                                 className="rounded-full bg-white/[0.04] px-3 py-1 text-[11px] font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
                               >
                                 Ver detalle
@@ -5164,11 +5160,12 @@ function ProfesionalesTab({
         onOpenChange={(v) => {
           if (!v) {
             setHistorialDetailRun(null);
+            setHistorialDetailMovementNumber(null);
             setHistorialDetailServices(null);
           }
         }}
         lockOutside={false}
-        title={historialDetailRun ? `Liquidación #${historialDetailRun.run_number}` : ""}
+        title={historialDetailMovementNumber != null ? `Movimiento #${historialDetailMovementNumber}` : ""}
         subtitle={
           historialDetailRun ? (
             <div className="space-y-0.5">
@@ -5432,7 +5429,11 @@ function ProfesionalesTab({
           if (!v) setHistorialDetailAdvance(null);
         }}
         lockOutside={false}
-        title="Adelanto"
+        title={
+          historialDetailAdvance?.movement_number != null
+            ? `Movimiento #${historialDetailAdvance.movement_number}`
+            : "Adelanto"
+        }
         subtitle={
           historialDetailAdvance
             ? fmtDetalleDateTime(historialDetailAdvance.advanced_at)

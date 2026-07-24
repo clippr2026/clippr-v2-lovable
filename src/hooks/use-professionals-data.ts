@@ -509,7 +509,9 @@ export function useProfSettlementRunPayments(businessId: string | null, empId: s
     queryFn: async () => {
       const { data, error } = await supabase
         .from("settlement_payments" as any)
-        .select("id,settlement_run_id,amount,payment_method,note,balance_before,balance_after,paid_by_name,paid_at")
+        .select(
+          "id,settlement_run_id,amount,payment_method,note,balance_before,balance_after,paid_by_name,paid_at,movement_number",
+        )
         .eq("business_id", businessId!)
         .eq("professional_id", empId!)
         .order("paid_at", { ascending: false });
@@ -524,11 +526,59 @@ export function useProfSettlementRunPayments(businessId: string | null, empId: s
         balance_after: number;
         paid_by_name: string;
         paid_at: string;
+        movement_number: number | null;
       }>;
     },
     enabled: !!businessId && !!empId,
     staleTime: 30_000,
   });
+}
+
+export type ProfAdvance = {
+  id: string;
+  amount: number;
+  payment_method: string | null;
+  note: string | null;
+  advanced_at: string;
+  registered_by_name: string;
+  movement_number: number | null;
+};
+
+export function useProfAdvances(businessId: string | null, empId: string | null) {
+  const qc = useQueryClient();
+
+  const query = useQuery({
+    queryKey: ["prof-advances", businessId, empId],
+    queryFn: async (): Promise<ProfAdvance[]> => {
+      const { data, error } = await supabase
+        .from("professional_advances" as any)
+        .select("id,amount,payment_method,note,advanced_at,registered_by_name,movement_number")
+        .eq("business_id", businessId!)
+        .eq("professional_id", empId!)
+        .order("advanced_at", { ascending: false });
+      if (error) throw new Error(error.message);
+      return (data ?? []) as ProfAdvance[];
+    },
+    enabled: !!businessId && !!empId,
+    staleTime: 30_000,
+  });
+
+  React.useEffect(() => {
+    if (!businessId || !empId) return;
+    const channel = supabase
+      .channel(`prof-advances-${empId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "professional_advances", filter: `professional_id=eq.${empId}` },
+        () => qc.invalidateQueries({ queryKey: ["prof-advances", businessId, empId] }),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [businessId, empId, qc]);
+
+  return query;
 }
 
 // Servicios incluidos en una liquidación puntual (para "Ver servicios

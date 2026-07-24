@@ -26,12 +26,13 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   useProfessionals, useProfPayments,
   useProfTurnos,
-  useProfSettlementRuns, useProfSettlementRunPayments,
+  useProfSettlementRuns, useProfSettlementRunPayments, useProfAdvances,
   useConfirmSettlementRun, useObserveSettlementRun,
   fetchSettlementRunServices,
   type ProfTurno, type ProfSale, type SettlementRun,
 } from "@/hooks/use-professionals-data";
-import { buildComprobanteText, downloadComprobante, shareComprobante } from "@/lib/settlement-comprobante";
+import { buildComprobanteText, buildAdvanceComprobanteText, downloadComprobante, shareComprobante } from "@/lib/settlement-comprobante";
+import { buildHistorialMovimientos } from "@/lib/historial-movimientos";
 import { cancelAppointment } from "@/components/agenda/use-agenda-data";
 import { useAgendaData } from "@/components/agenda/use-agenda-data";
 import { resolveDaySchedule } from "@/lib/availability";
@@ -2379,8 +2380,9 @@ function LiquidacionesPanelView({
   professionalName: string;
   canConfirmOrObserve: boolean;
 }) {
-  const { data: runs = [], isLoading } = useProfSettlementRuns(businessId, empId);
-  const { data: payments = [] } = useProfSettlementRunPayments(businessId, empId);
+  const { data: runs = [], isLoading: loadingRuns } = useProfSettlementRuns(businessId, empId);
+  const { data: payments = [], isLoading: loadingPayments } = useProfSettlementRunPayments(businessId, empId);
+  const { data: advances = [], isLoading: loadingAdvances } = useProfAdvances(businessId, empId);
   const confirmRun = useConfirmSettlementRun(businessId, empId);
   const observeRun = useObserveSettlementRun(businessId, empId);
 
@@ -2405,18 +2407,26 @@ function LiquidacionesPanelView({
     }
   }
 
-  function comprobanteFor(run: SettlementRun) {
-    const lastPayment = payments.find((p) => p.settlement_run_id === run.id);
-    const previousRun = runs.find((r) => r.id === run.previous_settlement_run_id);
+  const runsById = React.useMemo(() => new Map(runs.map((r) => [r.id, r])), [runs]);
+
+  // Mismo timeline que Caja > Historial: pagos agrupados por Movimiento #
+  // (un pago múltiple con varios métodos es UNA sola card) y adelantos,
+  // mezclados y ordenados por fecha.
+  const movimientos = React.useMemo(() => buildHistorialMovimientos(payments, advances), [payments, advances]);
+
+  // Liquidaciones preparadas pero todavía sin ningún pago registrado — no
+  // son un Movimiento (no hay plata que haya cambiado de mano todavía),
+  // pero el profesional necesita verlas para confirmar/observar antes de
+  // cobrar, así que quedan en su propia sección arriba.
+  const pendingRuns = React.useMemo(() => runs.filter((r) => r.status === "pendiente"), [runs]);
+
+  function comprobanteFor(run: SettlementRun, movementNumber: number, payment: (typeof payments)[number] | null) {
     return buildComprobanteText({
-      runNumber: run.run_number,
+      movementNumber,
       cutoffDate: run.cutoff_date,
       periodStart: run.period_start,
       professionalName,
       previousBalance: run.previous_balance,
-      previousRun: previousRun
-        ? { runNumber: previousRun.run_number, cutoffDate: previousRun.cutoff_date, status: previousRun.status }
-        : null,
       newCommissions: run.new_commissions,
       adjustments: run.adjustments,
       deductions: run.deductions,
@@ -2426,17 +2436,29 @@ function LiquidacionesPanelView({
       preparedAt: run.prepared_at,
       totalToSettle: run.total_to_settle,
       amountPaid: run.amount_paid,
-      payment: lastPayment
+      payment: payment
         ? {
-            amount: lastPayment.amount,
-            method: lastPayment.payment_method ?? "—",
-            note: lastPayment.note,
-            balanceBefore: lastPayment.balance_before,
-            balanceAfter: lastPayment.balance_after,
-            paidByName: lastPayment.paid_by_name,
-            paidAt: lastPayment.paid_at,
+            amount: payment.amount,
+            method: payment.payment_method ?? "—",
+            note: payment.note,
+            balanceBefore: payment.balance_before,
+            balanceAfter: payment.balance_after,
+            paidByName: payment.paid_by_name,
+            paidAt: payment.paid_at,
           }
         : null,
+    });
+  }
+
+  function advanceComprobanteFor(advance: (typeof advances)[number], movementNumber: number) {
+    return buildAdvanceComprobanteText({
+      movementNumber,
+      professionalName,
+      amount: advance.amount,
+      method: advance.payment_method,
+      note: advance.note,
+      registeredByName: advance.registered_by_name,
+      advancedAt: advance.advanced_at,
     });
   }
 
@@ -2464,11 +2486,71 @@ function LiquidacionesPanelView({
     }
   }
 
+  // Botones de Confirmar/Observar y el textarea que se despliega — se usan
+  // igual en la sección de liquidaciones sin pagar y en la card de
+  // Movimiento del pago (el run al que pertenecen es el mismo, solo cambia
+  // dónde vive hoy: sin pago vive en la sección de arriba, con pago vive en
+  // su propia card).
+  function confirmObserveButtons(run: SettlementRun) {
+    return (
+      <>
+        {canConfirmOrObserve && !run.professional_confirmed_at && run.status !== "observada" && (
+          <button
+            onClick={() => handleConfirm(run.id)}
+            disabled={confirmRun.isPending}
+            className="rounded-full bg-emerald-500/15 px-3 py-1.5 text-xs font-medium ring-1 ring-emerald-400/25 text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-50"
+          >
+            Confirmar recepción
+          </button>
+        )}
+        {canConfirmOrObserve && observingRunId !== run.id && (
+          <button
+            onClick={() => { setObservingRunId(run.id); setObservationText(""); }}
+            className="rounded-full bg-rose-500/10 px-3 py-1.5 text-xs font-medium ring-1 ring-rose-400/20 text-rose-300 hover:bg-rose-500/15"
+          >
+            Observar
+          </button>
+        )}
+      </>
+    );
+  }
+
+  function observationBlock(run: SettlementRun) {
+    if (!canConfirmOrObserve || observingRunId !== run.id) return null;
+    return (
+      <div className="space-y-2 pt-1">
+        <textarea
+          value={observationText}
+          onChange={(e) => setObservationText(e.target.value)}
+          placeholder="Contá qué encontrás mal en esta liquidación…"
+          rows={2}
+          className="w-full rounded-xl bg-white/[0.03] ring-1 ring-white/10 px-3 py-2 text-xs outline-none focus:ring-primary/40"
+        />
+        <div className="flex gap-2">
+          <button
+            onClick={() => handleObserve(run.id)}
+            disabled={observeRun.isPending}
+            className="rounded-full bg-rose-500/15 px-3 py-1.5 text-xs font-medium ring-1 ring-rose-400/25 text-rose-300 hover:bg-rose-500/20 disabled:opacity-50"
+          >
+            Enviar observación
+          </button>
+          <button
+            onClick={() => setObservingRunId(null)}
+            className="rounded-full bg-white/[0.04] px-3 py-1.5 text-xs font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
+          >
+            Cancelar
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const isLoading = loadingRuns || loadingPayments || loadingAdvances;
   if (isLoading) {
     return <div className="p-8 text-center text-sm text-muted-foreground animate-pulse">Cargando…</div>;
   }
 
-  if (runs.length === 0) {
+  if (pendingRuns.length === 0 && movimientos.length === 0) {
     return (
       <div className="glass rounded-2xl p-8 text-center text-sm text-muted-foreground">
         Todavía no hay liquidaciones preparadas.
@@ -2476,96 +2558,267 @@ function LiquidacionesPanelView({
     );
   }
 
-  const detailRun = detailRunId ? runs.find((r) => r.id === detailRunId) ?? null : null;
-
   return (
     <div className="space-y-3 animate-fade-up">
-      {runs.map((run) => {
-        const remaining = Math.max(run.total_to_settle - run.amount_paid, 0);
-        const runPayments = payments.filter((p) => p.settlement_run_id === run.id);
-        const previousRun = runs.find((r) => r.id === run.previous_settlement_run_id);
-        return (
-          <div key={run.id} className="glass rounded-2xl p-4 sm:p-5 space-y-3">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div>
-                <div className="text-sm font-semibold">Liquidación #{run.run_number}</div>
+      {pendingRuns.length > 0 && (
+        <div className="space-y-3">
+          <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+            Liquidaciones preparadas, esperando pago
+          </div>
+          {pendingRuns.map((run) => (
+            <div key={run.id} className="glass rounded-2xl p-4 sm:p-5 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="text-xs text-muted-foreground">
                   {run.period_start
                     ? `Período: del ${run.period_start} al ${run.cutoff_date}`
                     : `Liquidado hasta ${run.cutoff_date}`}
                 </div>
+                <span className={cn("text-xs font-medium px-2.5 py-1 rounded-full ring-1", RUN_STATUS_STYLE[run.status])}>
+                  {RUN_STATUS_LABEL[run.status]}
+                </span>
               </div>
-              <span className={cn("text-xs font-medium px-2.5 py-1 rounded-full ring-1", RUN_STATUS_STYLE[run.status])}>
-                {RUN_STATUS_LABEL[run.status]}
-              </span>
-            </div>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-              <div className="rounded-xl bg-white/[0.03] p-2.5">
-                <div className="text-muted-foreground">Liquidación anterior pendiente</div>
-                <div className="text-sm font-semibold tabular-nums">${run.previous_balance.toLocaleString("es-AR")}</div>
-                {previousRun && run.previous_balance > 0 && (
-                  <div className="mt-0.5 text-[10px] text-muted-foreground">Liq. #{previousRun.run_number}</div>
-                )}
-              </div>
-              <div className="rounded-xl bg-white/[0.03] p-2.5">
-                <div className="text-muted-foreground">Comisiones nuevas</div>
-                <div className="text-sm font-semibold tabular-nums">${run.new_commissions.toLocaleString("es-AR")}</div>
-              </div>
-              <div className="rounded-xl bg-white/[0.03] p-2.5">
-                <div className="text-muted-foreground">Total a liquidar</div>
-                <div className="text-sm font-semibold tabular-nums">${run.total_to_settle.toLocaleString("es-AR")}</div>
-              </div>
-              <div className="rounded-xl bg-white/[0.03] p-2.5">
-                <div className="text-muted-foreground">Saldo restante</div>
-                <div className={cn("text-sm font-semibold tabular-nums", remaining > 0 ? "text-amber-300" : "text-emerald-300")}>
-                  ${remaining.toLocaleString("es-AR")}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                <div className="rounded-xl bg-white/[0.03] p-2.5">
+                  <div className="text-muted-foreground">Liquidación anterior pendiente</div>
+                  <div className="text-sm font-semibold tabular-nums">${run.previous_balance.toLocaleString("es-AR")}</div>
+                </div>
+                <div className="rounded-xl bg-white/[0.03] p-2.5">
+                  <div className="text-muted-foreground">Comisiones nuevas</div>
+                  <div className="text-sm font-semibold tabular-nums">${run.new_commissions.toLocaleString("es-AR")}</div>
+                </div>
+                <div className="rounded-xl bg-white/[0.03] p-2.5">
+                  <div className="text-muted-foreground">Total a liquidar</div>
+                  <div className="text-sm font-semibold tabular-nums">${run.total_to_settle.toLocaleString("es-AR")}</div>
+                </div>
+                <div className="rounded-xl bg-white/[0.03] p-2.5">
+                  <div className="text-muted-foreground">Saldo restante</div>
+                  <div className="text-sm font-semibold tabular-nums text-amber-300">
+                    ${Math.max(run.total_to_settle - run.amount_paid, 0).toLocaleString("es-AR")}
+                  </div>
                 </div>
               </div>
+
+              <div className="text-[11px] text-muted-foreground">
+                Preparada por {run.prepared_by_name} · {new Date(run.prepared_at).toLocaleString("es-AR")}
+              </div>
+
+              {run.adjustment_items && run.adjustment_items.length > 0 && (
+                <div className="space-y-1 rounded-xl bg-emerald-400/[0.05] ring-1 ring-emerald-400/15 p-2.5">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/70">Ajustes</div>
+                  {run.adjustment_items.map((item, i) => (
+                    <div key={i} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="text-muted-foreground">{item.reason}</span>
+                      <span className="font-semibold text-emerald-300">+${item.amount.toLocaleString("es-AR")}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {run.deduction_items && run.deduction_items.length > 0 && (
+                <div className="space-y-1 rounded-xl bg-rose-400/[0.05] ring-1 ring-rose-400/15 p-2.5">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-rose-300/70">Deducciones</div>
+                  {run.deduction_items.map((item, i) => (
+                    <div key={i} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="text-muted-foreground">{item.reason}</span>
+                      <span className="font-semibold text-rose-300">−${item.amount.toLocaleString("es-AR")}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {run.professional_confirmed_at && (
+                <div className="text-[11px] text-emerald-300">
+                  Recepción confirmada el {new Date(run.professional_confirmed_at).toLocaleString("es-AR")}
+                </div>
+              )}
+              {run.professional_observation && (
+                <div className="text-[11px] text-rose-300">
+                  Observación: {run.professional_observation}
+                  {run.professional_observed_at && ` · ${new Date(run.professional_observed_at).toLocaleString("es-AR")}`}
+                </div>
+              )}
+
+              <div className="flex flex-wrap gap-2 pt-1">
+                <button
+                  onClick={() => openServicios(run.id)}
+                  className="rounded-full bg-white/[0.04] px-3 py-1.5 text-xs font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
+                >
+                  Ver servicios incluidos
+                </button>
+                {confirmObserveButtons(run)}
+              </div>
+              {observationBlock(run)}
             </div>
+          ))}
+        </div>
+      )}
 
-            <div className="text-[11px] text-muted-foreground">
-              Preparada por {run.prepared_by_name} · {new Date(run.prepared_at).toLocaleString("es-AR")}
-            </div>
-
-            {run.adjustment_items && run.adjustment_items.length > 0 && (
-              <div className="space-y-1 rounded-xl bg-emerald-400/[0.05] ring-1 ring-emerald-400/15 p-2.5">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/70">Ajustes</div>
-                {run.adjustment_items.map((item, i) => (
-                  <div key={i} className="flex items-center justify-between gap-2 text-xs">
-                    <span className="text-muted-foreground">{item.reason}</span>
-                    <span className="font-semibold text-emerald-300">+${item.amount.toLocaleString("es-AR")}</span>
+      {movimientos.length === 0 ? (
+        <div className="glass rounded-2xl p-8 text-center text-sm text-muted-foreground">
+          Todavía no se registró ningún pago ni adelanto.
+        </div>
+      ) : (
+        movimientos.map((item) => {
+          if (item.kind === "adelanto") {
+            const advance = item.data;
+            return (
+              <div key={`adelanto-${advance.id}`} className="glass rounded-2xl p-4 sm:p-5 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    {item.movementNumber != null && (
+                      <div className="text-sm font-semibold">Movimiento #{item.movementNumber}</div>
+                    )}
+                    <div className="text-xs text-muted-foreground">
+                      {new Date(advance.advanced_at).toLocaleString("es-AR")}
+                    </div>
                   </div>
-                ))}
-              </div>
-            )}
-            {run.deduction_items && run.deduction_items.length > 0 && (
-              <div className="space-y-1 rounded-xl bg-rose-400/[0.05] ring-1 ring-rose-400/15 p-2.5">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-rose-300/70">Deducciones</div>
-                {run.deduction_items.map((item, i) => (
-                  <div key={i} className="flex items-center justify-between gap-2 text-xs">
-                    <span className="text-muted-foreground">{item.reason}</span>
-                    <span className="font-semibold text-rose-300">−${item.amount.toLocaleString("es-AR")}</span>
+                  <span className="text-xs font-medium px-2.5 py-1 rounded-full ring-1 bg-rose-500/10 text-rose-300 ring-rose-400/20">
+                    Adelanto
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="rounded-xl bg-white/[0.03] p-2.5">
+                    <div className="text-muted-foreground">Monto</div>
+                    <div className="text-sm font-semibold tabular-nums">${advance.amount.toLocaleString("es-AR")}</div>
                   </div>
-                ))}
-              </div>
-            )}
+                  <div className="rounded-xl bg-white/[0.03] p-2.5">
+                    <div className="text-muted-foreground">Método</div>
+                    <div className="text-sm font-semibold">{methodDisplayLabel(advance.payment_method ?? "")}</div>
+                  </div>
+                </div>
 
-            {run.professional_confirmed_at && (
-              <div className="text-[11px] text-emerald-300">
-                Recepción confirmada el {new Date(run.professional_confirmed_at).toLocaleString("es-AR")}
-              </div>
-            )}
-            {run.professional_observation && (
-              <div className="text-[11px] text-rose-300">
-                Observación: {run.professional_observation}
-                {run.professional_observed_at && ` · ${new Date(run.professional_observed_at).toLocaleString("es-AR")}`}
-              </div>
-            )}
+                <div className="text-[11px] text-muted-foreground">Registrado por {advance.registered_by_name}</div>
+                {advance.note && <div className="text-[11px] text-muted-foreground">Nota: {advance.note}</div>}
 
-            {runPayments.length > 0 && (
+                {item.movementNumber != null && (
+                  <div className="flex flex-wrap gap-2 pt-1">
+                    <button
+                      onClick={() =>
+                        downloadComprobante(
+                          advanceComprobanteFor(advance, item.movementNumber!),
+                          `Movimiento #${item.movementNumber}`,
+                        )
+                      }
+                      className="rounded-full bg-white/[0.04] px-3 py-1.5 text-xs font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
+                    >
+                      Descargar comprobante
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const result = await shareComprobante(
+                          advanceComprobanteFor(advance, item.movementNumber!),
+                          `Movimiento #${item.movementNumber}`,
+                        );
+                        if (result === "copied") toast.success("Comprobante copiado al portapapeles");
+                        if (result === "failed") toast.error("No se pudo compartir");
+                      }}
+                      className="rounded-full bg-white/[0.04] px-3 py-1.5 text-xs font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
+                    >
+                      Compartir comprobante
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          }
+
+          const run = runsById.get(item.settlementRunId) ?? null;
+          const remaining = run ? Math.max(run.total_to_settle - run.amount_paid, 0) : 0;
+          const lastPayment = item.splits[item.splits.length - 1];
+          return (
+            <div key={`pago-${item.movementNumber ?? lastPayment.id}`} className="glass rounded-2xl p-4 sm:p-5 space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  {item.movementNumber != null && (
+                    <div className="text-sm font-semibold">Movimiento #{item.movementNumber}</div>
+                  )}
+                  <div className="text-xs text-muted-foreground">
+                    {run
+                      ? run.period_start
+                        ? `Período: del ${run.period_start} al ${run.cutoff_date}`
+                        : `Liquidado hasta ${run.cutoff_date}`
+                      : ""}
+                  </div>
+                </div>
+                <span
+                  className={cn(
+                    "text-xs font-medium px-2.5 py-1 rounded-full ring-1",
+                    item.isFull
+                      ? "bg-emerald-500/10 text-emerald-300 ring-emerald-400/20"
+                      : "bg-amber-500/10 text-amber-300 ring-amber-400/20",
+                  )}
+                >
+                  {item.isFull ? "Pago total" : "Pago parcial"}
+                </span>
+              </div>
+
+              {run && (
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  <div className="rounded-xl bg-white/[0.03] p-2.5">
+                    <div className="text-muted-foreground">Liquidación anterior pendiente</div>
+                    <div className="text-sm font-semibold tabular-nums">${run.previous_balance.toLocaleString("es-AR")}</div>
+                  </div>
+                  <div className="rounded-xl bg-white/[0.03] p-2.5">
+                    <div className="text-muted-foreground">Comisiones nuevas</div>
+                    <div className="text-sm font-semibold tabular-nums">${run.new_commissions.toLocaleString("es-AR")}</div>
+                  </div>
+                  <div className="rounded-xl bg-white/[0.03] p-2.5">
+                    <div className="text-muted-foreground">Total a liquidar</div>
+                    <div className="text-sm font-semibold tabular-nums">${run.total_to_settle.toLocaleString("es-AR")}</div>
+                  </div>
+                  <div className="rounded-xl bg-white/[0.03] p-2.5">
+                    <div className="text-muted-foreground">Saldo restante</div>
+                    <div className={cn("text-sm font-semibold tabular-nums", remaining > 0 ? "text-amber-300" : "text-emerald-300")}>
+                      ${remaining.toLocaleString("es-AR")}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {run && (
+                <div className="text-[11px] text-muted-foreground">
+                  Preparada por {run.prepared_by_name} · {new Date(run.prepared_at).toLocaleString("es-AR")}
+                </div>
+              )}
+
+              {run?.adjustment_items && run.adjustment_items.length > 0 && (
+                <div className="space-y-1 rounded-xl bg-emerald-400/[0.05] ring-1 ring-emerald-400/15 p-2.5">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/70">Ajustes</div>
+                  {run.adjustment_items.map((adj, i) => (
+                    <div key={i} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="text-muted-foreground">{adj.reason}</span>
+                      <span className="font-semibold text-emerald-300">+${adj.amount.toLocaleString("es-AR")}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {run?.deduction_items && run.deduction_items.length > 0 && (
+                <div className="space-y-1 rounded-xl bg-rose-400/[0.05] ring-1 ring-rose-400/15 p-2.5">
+                  <div className="text-[10px] font-bold uppercase tracking-wider text-rose-300/70">Deducciones</div>
+                  {run.deduction_items.map((ded, i) => (
+                    <div key={i} className="flex items-center justify-between gap-2 text-xs">
+                      <span className="text-muted-foreground">{ded.reason}</span>
+                      <span className="font-semibold text-rose-300">−${ded.amount.toLocaleString("es-AR")}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {run?.professional_confirmed_at && (
+                <div className="text-[11px] text-emerald-300">
+                  Recepción confirmada el {new Date(run.professional_confirmed_at).toLocaleString("es-AR")}
+                </div>
+              )}
+              {run?.professional_observation && (
+                <div className="text-[11px] text-rose-300">
+                  Observación: {run.professional_observation}
+                  {run.professional_observed_at && ` · ${new Date(run.professional_observed_at).toLocaleString("es-AR")}`}
+                </div>
+              )}
+
               <div className="rounded-xl bg-white/[0.02] ring-1 ring-white/5 divide-y divide-white/5">
-                {runPayments.map((p) => (
+                {item.splits.map((p) => (
                   <div key={p.id} className="flex items-center justify-between gap-2 px-3 py-2 text-xs">
                     <div className="text-muted-foreground">
                       {new Date(p.paid_at).toLocaleString("es-AR")} · {methodDisplayLabel(p.payment_method ?? "")} · {p.paid_by_name}
@@ -2574,88 +2827,57 @@ function LiquidacionesPanelView({
                   </div>
                 ))}
               </div>
-            )}
 
-            <div className="flex flex-wrap gap-2 pt-1">
-              <button
-                onClick={() => openServicios(run.id)}
-                className="rounded-full bg-white/[0.04] px-3 py-1.5 text-xs font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
-              >
-                Ver servicios incluidos
-              </button>
-              <button
-                onClick={() => downloadComprobante(comprobanteFor(run), `Liquidación #${run.run_number}`)}
-                className="rounded-full bg-white/[0.04] px-3 py-1.5 text-xs font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
-              >
-                Descargar comprobante
-              </button>
-              <button
-                onClick={async () => {
-                  const result = await shareComprobante(comprobanteFor(run), `Liquidación #${run.run_number}`);
-                  if (result === "copied") toast.success("Comprobante copiado al portapapeles");
-                  if (result === "failed") toast.error("No se pudo compartir");
-                }}
-                className="rounded-full bg-white/[0.04] px-3 py-1.5 text-xs font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
-              >
-                Compartir comprobante
-              </button>
-
-              {canConfirmOrObserve && !run.professional_confirmed_at && run.status !== "observada" && (
-                <button
-                  onClick={() => handleConfirm(run.id)}
-                  disabled={confirmRun.isPending}
-                  className="rounded-full bg-emerald-500/15 px-3 py-1.5 text-xs font-medium ring-1 ring-emerald-400/25 text-emerald-300 hover:bg-emerald-500/20 disabled:opacity-50"
-                >
-                  Confirmar recepción
-                </button>
-              )}
-              {canConfirmOrObserve && observingRunId !== run.id && (
-                <button
-                  onClick={() => { setObservingRunId(run.id); setObservationText(""); }}
-                  className="rounded-full bg-rose-500/10 px-3 py-1.5 text-xs font-medium ring-1 ring-rose-400/20 text-rose-300 hover:bg-rose-500/15"
-                >
-                  Observar
-                </button>
-              )}
-            </div>
-
-            {canConfirmOrObserve && observingRunId === run.id && (
-              <div className="space-y-2 pt-1">
-                <textarea
-                  value={observationText}
-                  onChange={(e) => setObservationText(e.target.value)}
-                  placeholder="Contá qué encontrás mal en esta liquidación…"
-                  rows={2}
-                  className="w-full rounded-xl bg-white/[0.03] ring-1 ring-white/10 px-3 py-2 text-xs outline-none focus:ring-primary/40"
-                />
-                <div className="flex gap-2">
+              <div className="flex flex-wrap gap-2 pt-1">
+                {run && (
                   <button
-                    onClick={() => handleObserve(run.id)}
-                    disabled={observeRun.isPending}
-                    className="rounded-full bg-rose-500/15 px-3 py-1.5 text-xs font-medium ring-1 ring-rose-400/25 text-rose-300 hover:bg-rose-500/20 disabled:opacity-50"
-                  >
-                    Enviar observación
-                  </button>
-                  <button
-                    onClick={() => setObservingRunId(null)}
+                    onClick={() => openServicios(run.id)}
                     className="rounded-full bg-white/[0.04] px-3 py-1.5 text-xs font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
                   >
-                    Cancelar
+                    Ver servicios incluidos
                   </button>
-                </div>
+                )}
+                {run && item.movementNumber != null && (
+                  <>
+                    <button
+                      onClick={() =>
+                        downloadComprobante(
+                          comprobanteFor(run, item.movementNumber!, lastPayment),
+                          `Movimiento #${item.movementNumber}`,
+                        )
+                      }
+                      className="rounded-full bg-white/[0.04] px-3 py-1.5 text-xs font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
+                    >
+                      Descargar comprobante
+                    </button>
+                    <button
+                      onClick={async () => {
+                        const result = await shareComprobante(
+                          comprobanteFor(run, item.movementNumber!, lastPayment),
+                          `Movimiento #${item.movementNumber}`,
+                        );
+                        if (result === "copied") toast.success("Comprobante copiado al portapapeles");
+                        if (result === "failed") toast.error("No se pudo compartir");
+                      }}
+                      className="rounded-full bg-white/[0.04] px-3 py-1.5 text-xs font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
+                    >
+                      Compartir comprobante
+                    </button>
+                  </>
+                )}
+                {run && confirmObserveButtons(run)}
               </div>
-            )}
-          </div>
-        );
-      })}
+              {run && observationBlock(run)}
+            </div>
+          );
+        })
+      )}
 
       {detailRunId && (
         <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
           <div className="w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl glass max-h-[85vh] flex flex-col">
             <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
-              <div className="text-sm font-semibold">
-                Servicios de la liquidación #{detailRun?.run_number ?? ""}
-              </div>
+              <div className="text-sm font-semibold">Servicios incluidos</div>
               <button onClick={() => setDetailRunId(null)} className="text-muted-foreground hover:text-white text-sm">
                 Cerrar
               </button>
