@@ -3421,7 +3421,6 @@ function InfoPopover({ text }: { text: React.ReactNode }) {
 // aparecen las que el usuario agregó) y sin una tarjeta grande por fila,
 // para que el modal no crezca de más apenas se suman un par de ítems.
 function SettlementItemsEditor({
-  title,
   items,
   onChange,
   addLabel,
@@ -3429,7 +3428,6 @@ function SettlementItemsEditor({
   formatThousands,
   accentClass,
 }: {
-  title: string;
   items: { id: string; amount: string; reason: string }[];
   onChange: (items: { id: string; amount: string; reason: string }[]) => void;
   addLabel: string;
@@ -3449,7 +3447,6 @@ function SettlementItemsEditor({
 
   return (
     <div className="space-y-1.5">
-      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">{title}</div>
       {items.map((item) => {
         const incomplete = Number(item.amount || 0) > 0 && !item.reason.trim();
         return (
@@ -5526,7 +5523,6 @@ function ProfesionalesTab({
               )}
 
               <SettlementItemsEditor
-                title="Adicionales"
                 items={adjustmentItems}
                 onChange={setAdjustmentItems}
                 addLabel="Agregar adicional"
@@ -5536,7 +5532,6 @@ function ProfesionalesTab({
               />
 
               <SettlementItemsEditor
-                title="Deducciones"
                 items={deductionItems}
                 onChange={setDeductionItems}
                 addLabel="Agregar deducción"
