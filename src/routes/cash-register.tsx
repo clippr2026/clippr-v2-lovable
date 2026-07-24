@@ -4876,7 +4876,7 @@ function ProfesionalesTab({
                             <div className="mt-3 space-y-1 text-xs">
                               <div className="flex items-center justify-between">
                                 <span className="text-white/45">Monto pagado</span>
-                                <span className="font-bold tabular-nums text-amber-300">{money(Number(advance.amount ?? 0))}</span>
+                                <span className="font-bold tabular-nums text-emerald-300">{money(Number(advance.amount ?? 0))}</span>
                               </div>
                               <div className="flex items-center justify-between">
                                 <span className="text-white/45">Registrado por</span>
@@ -5203,11 +5203,6 @@ function ProfesionalesTab({
           const hasAdjustments = Number(run.adjustments ?? 0) > 0;
           const hasDeductions = Number(run.deductions ?? 0) > 0;
           const hasAdvancesAmount = Number(run.advances ?? 0) > 0;
-          // Si no hubo adicionales/deducciones/adelantos, "Total final" es
-          // exactamente lo mismo que "Comisiones generadas" (+ pendientes
-          // anteriores, si hay) — mostrarlo también sería repetir el mismo
-          // número dos veces.
-          const hasAnyExtra = hasAdjustments || hasDeductions || hasAdvancesAmount;
           return (
             <div className="space-y-4">
               <div className="overflow-hidden rounded-2xl border border-white/[0.08] bg-black/25 text-sm">
@@ -5251,7 +5246,7 @@ function ProfesionalesTab({
                                 {run.adjustment_items.map((item: any, i: number) => (
                                   <div key={i} className="flex items-center justify-between gap-2">
                                     <span className="text-white/70">{item.reason}</span>
-                                    <span className="shrink-0 font-semibold text-emerald-300">
+                                    <span className="shrink-0 font-semibold text-white">
                                       +{money(Number(item.amount))}
                                     </span>
                                   </div>
@@ -5261,7 +5256,7 @@ function ProfesionalesTab({
                           />
                         )}
                       </span>
-                      <span className="font-semibold text-emerald-300">+{money(Number(run.adjustments ?? 0))}</span>
+                      <span className="font-semibold text-white">+{money(Number(run.adjustments ?? 0))}</span>
                     </div>
                   )}
                   {hasDeductions && (
@@ -5317,59 +5312,63 @@ function ProfesionalesTab({
                       <span className="font-semibold text-rose-300">−{money(Number(run.advances ?? 0))}</span>
                     </div>
                   )}
+                </div>
 
-                  {hasAnyExtra && (
-                    <div className="flex items-center justify-between bg-white/[0.025] px-3.5 py-2.5">
-                      <span className="font-bold text-white/70">Total final</span>
-                      <span className="text-base font-bold text-white">{money(Number(run.total_to_settle))}</span>
-                    </div>
-                  )}
+                {/* Sección fija, siempre visible, separada del bloque de
+                    arriba por un borde más marcado que el divide-y interno
+                    — Total final / Monto pagado / Saldo pendiente son el
+                    cierre del Resumen, no una fila condicional más. */}
+                <div className="divide-y divide-white/[0.06] border-t border-white/[0.14]">
+                  <div className="flex items-center justify-between bg-white/[0.025] px-3.5 py-2.5">
+                    <span className="font-bold text-white/70">Total final</span>
+                    <span className="text-base font-bold text-white">{money(Number(run.total_to_settle))}</span>
+                  </div>
                   <div className="flex items-center justify-between px-3.5 py-2.5">
                     <span className="text-white/50">Monto pagado</span>
                     <span className="font-semibold text-emerald-300">{money(Number(run.amount_paid))}</span>
                   </div>
-                  {remaining > 0 && (
-                    <div className="flex items-center justify-between px-3.5 py-2.5">
-                      <span className="text-white/50">Saldo pendiente</span>
-                      <span className="font-semibold text-rose-300">{money(remaining)}</span>
-                    </div>
-                  )}
+                  <div className="flex items-center justify-between px-3.5 py-2.5">
+                    <span className="text-white/50">Saldo pendiente</span>
+                    <span className="font-semibold text-white">{money(remaining)}</span>
+                  </div>
                 </div>
               </div>
 
               {runPayments.length > 0 && (
-                <div className="space-y-1.5 rounded-2xl border border-white/[0.07] bg-black/20 p-3.5 text-sm">
-                  <div className="mb-1 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
+                <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-black/20 text-sm">
+                  <div className="px-3.5 pb-1.5 pt-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
                     Datos del pago
                   </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-white/50">Fecha y hora</span>
-                    <span className="font-semibold text-white">
-                      {firstPayment?.paid_at ? fmtDetalleDateTime(firstPayment.paid_at) : "—"}
-                    </span>
-                  </div>
-                  {/* Un solo método o varios, misma fila para cada uno: el
-                      nombre del medio de pago a la izquierda, el importe a
-                      la derecha — sin numerar ("Método 1/2") ni separar en
-                      dos filas (Método/Monto), ni con uno solo. */}
-                  {runPayments.map((payment: any, idx: number) => (
-                    <div key={payment.id ?? idx} className="flex items-center justify-between gap-2">
-                      <span className="font-semibold capitalize text-white">
-                        {PAY_METHOD_LABEL[payment.payment_method as PayMethod] ?? payment.payment_method ?? "—"}
+                  <div className="divide-y divide-white/[0.06]">
+                    <div className="flex items-center justify-between px-3.5 py-2.5">
+                      <span className="text-white/50">Fecha y hora</span>
+                      <span className="font-semibold text-white">
+                        {firstPayment?.paid_at ? fmtDetalleDateTime(firstPayment.paid_at) : "—"}
                       </span>
-                      <span className="font-semibold text-emerald-300">{money(Number(payment.amount ?? 0))}</span>
                     </div>
-                  ))}
-                  <div className="flex items-center justify-between">
-                    <span className="text-white/50">Registrado por</span>
-                    <span className="font-semibold text-white">{displayResponsable(firstPayment?.paid_by_name)}</span>
+                    {/* Un solo método o varios, misma fila para cada uno: el
+                        nombre del medio de pago a la izquierda, el importe a
+                        la derecha — sin numerar ("Método 1/2") ni separar en
+                        dos filas (Método/Monto), ni con uno solo. */}
+                    {runPayments.map((payment: any, idx: number) => (
+                      <div key={payment.id ?? idx} className="flex items-center justify-between gap-2 px-3.5 py-2.5">
+                        <span className="font-semibold capitalize text-white">
+                          {PAY_METHOD_LABEL[payment.payment_method as PayMethod] ?? payment.payment_method ?? "—"}
+                        </span>
+                        <span className="font-semibold text-white">{money(Number(payment.amount ?? 0))}</span>
+                      </div>
+                    ))}
+                    <div className="flex items-center justify-between px-3.5 py-2.5">
+                      <span className="text-white/50">Registrado por</span>
+                      <span className="font-semibold text-white">{displayResponsable(firstPayment?.paid_by_name)}</span>
+                    </div>
+                    {firstPayment?.note && (
+                      <div className="flex items-center justify-between gap-2 px-3.5 py-2.5">
+                        <span className="text-white/50">Nota</span>
+                        <span className="truncate font-semibold text-white">{firstPayment.note}</span>
+                      </div>
+                    )}
                   </div>
-                  {firstPayment?.note && (
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-white/50">Nota</span>
-                      <span className="truncate font-semibold text-white">{firstPayment.note}</span>
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -5451,7 +5450,7 @@ function ProfesionalesTab({
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-white/50">Monto adelantado</span>
-                  <span className="font-bold tabular-nums text-amber-300">{money(Number(advance.amount ?? 0))}</span>
+                  <span className="font-bold tabular-nums text-emerald-300">{money(Number(advance.amount ?? 0))}</span>
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="text-white/50">Método</span>
@@ -5560,7 +5559,7 @@ function ProfesionalesTab({
                   </span>
                 </div>
                 <div className="mt-1 flex items-center justify-between border-t border-white/[0.08] pt-2">
-                  <span className="font-bold text-white/70">Total final a pagar</span>
+                  <span className="font-bold text-white/70">Total final</span>
                   <span className="text-base font-bold text-emerald-300">{money(liquidarFinalTotal)}</span>
                 </div>
               </div>
@@ -5578,7 +5577,7 @@ function ProfesionalesTab({
                     className={cn(
                       "py-2 text-xs font-semibold transition",
                       paymentMode === "simple"
-                        ? "bg-[linear-gradient(135deg,rgba(16,185,129,0.35),rgba(5,150,105,0.4))] text-white"
+                        ? "bg-[linear-gradient(135deg,rgba(96,165,250,0.55),rgba(139,92,246,0.62))] text-white"
                         : "bg-black/25 text-white/45 hover:text-white/70",
                     )}
                   >
@@ -5590,7 +5589,7 @@ function ProfesionalesTab({
                     className={cn(
                       "py-2 text-xs font-semibold transition",
                       paymentMode === "multiple"
-                        ? "bg-[linear-gradient(135deg,rgba(16,185,129,0.35),rgba(5,150,105,0.4))] text-white"
+                        ? "bg-[linear-gradient(135deg,rgba(96,165,250,0.55),rgba(139,92,246,0.62))] text-white"
                         : "bg-black/25 text-white/45 hover:text-white/70",
                     )}
                   >
@@ -5608,7 +5607,7 @@ function ProfesionalesTab({
                           <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70">PAGO SIMPLE</p>
                           <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
                             <label className="space-y-1 text-xs font-semibold text-white/55">
-                              Monto a pagar
+                              Monto del pago
                               <div className="relative">
                                 <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-white/45">
                                   $
@@ -5643,15 +5642,15 @@ function ProfesionalesTab({
                           </div>
                           <div className="space-y-1 rounded-xl border border-blue-300/20 bg-black/35 px-3 py-2 text-sm">
                             <div className="flex items-center justify-between">
-                              <span className="text-muted-foreground">Total a pagar</span>
+                              <span className="text-muted-foreground">Total final</span>
                               <span className="font-semibold text-white">{money(liquidarFinalTotal)}</span>
                             </div>
                             <div className="flex items-center justify-between">
-                              <span className="text-muted-foreground">Total ingresado</span>
+                              <span className="text-muted-foreground">Monto del pago</span>
                               <span className="font-semibold text-white">{money(simpleAmount)}</span>
                             </div>
                             <div className="flex items-center justify-between">
-                              <span className="text-muted-foreground">{isCashOverpay ? "Vuelto" : "Restante"}</span>
+                              <span className="text-muted-foreground">{isCashOverpay ? "Vuelto" : "Saldo pendiente"}</span>
                               <span
                                 className={cn(
                                   "font-semibold",

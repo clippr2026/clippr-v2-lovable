@@ -2680,7 +2680,7 @@ function LiquidacionesPanelView({
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   <div className="rounded-xl bg-white/[0.03] p-2.5">
                     <div className="text-muted-foreground">Monto</div>
-                    <div className="text-sm font-semibold tabular-nums">${advance.amount.toLocaleString("es-AR")}</div>
+                    <div className="text-sm font-semibold tabular-nums text-emerald-300">${advance.amount.toLocaleString("es-AR")}</div>
                   </div>
                   <div className="rounded-xl bg-white/[0.03] p-2.5">
                     <div className="text-muted-foreground">Método</div>

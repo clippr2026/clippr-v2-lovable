@@ -108,15 +108,15 @@ export function MultiMethodPaymentSplit({
       {allowPartial ? (
         <div className="space-y-1 rounded-xl border border-blue-300/20 bg-black/35 px-3 py-2 text-sm">
           <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">Total a pagar</span>
+            <span className="text-muted-foreground">Total final</span>
             <span className="font-semibold text-white">${total.toLocaleString("es-AR")}</span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">Total ingresado</span>
+            <span className="text-muted-foreground">Monto del pago</span>
             <span className="font-semibold text-white">${splitsTotal.toLocaleString("es-AR")}</span>
           </div>
           <div className="flex items-center justify-between">
-            <span className="text-muted-foreground">Restante</span>
+            <span className="text-muted-foreground">Saldo pendiente</span>
             <span
               className={cn(
                 "font-semibold",
