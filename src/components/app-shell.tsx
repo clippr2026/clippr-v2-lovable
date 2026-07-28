@@ -3,7 +3,29 @@ import { useNavigate } from "@tanstack/react-router";
 import { AppSidebar } from "./app-sidebar";
 import { useAuth } from "@/hooks/use-auth";
 
-export function AppShell({ children, fullWidth = false }: { children: React.ReactNode; fullWidth?: boolean }) {
+export function AppShell({
+  children,
+  fullWidth = false,
+  containedScroll = false,
+}: {
+  children: React.ReactNode;
+  fullWidth?: boolean;
+  // Por default el scroll de la pantalla es el del documento (html/body),
+  // como siempre — sin cambios para ninguna pantalla existente. Con
+  // containedScroll=true, <main> pasa a ser SU PROPIO contenedor de scroll
+  // (altura fija = viewport, overflow-y:auto), en vez de que el documento
+  // crezca con el contenido. La diferencia importa en iOS: un contenedor
+  // con overflow-y:auto ya es "scrolleable" desde el primer frame aunque
+  // todavía no tenga contenido que desborde — no depende de que Safari
+  // detecte, DESPUÉS de que el contenido creció de forma asíncrona, que el
+  // documento pasó a ser scrolleable. Eso es justamente lo que fallaba en
+  // el Dashboard: el documento nacía con la altura exacta del viewport
+  // (nada para scrollear) y crecía recién cuando llegaban los datos —
+  // ese cambio de altura podía coincidir con el primer gesto de scroll del
+  // usuario y quedar sin efecto. Con containedScroll, <main> siempre es
+  // scrolleable desde el pixel uno, sea cual sea el contenido.
+  containedScroll?: boolean;
+}) {
   const { loading, session } = useAuth();
   const navigate = useNavigate();
 
@@ -83,12 +105,15 @@ export function AppShell({ children, fullWidth = false }: { children: React.Reac
   if (!session) return null;
 
   return (
-    <div className="flex flex-col min-h-dvh w-full">
+    <div className={containedScroll ? "flex flex-col h-dvh w-full overflow-hidden" : "flex flex-col min-h-dvh w-full"}>
       <AppSidebar />
       <main
         className={
           "clippr-app-main flex-1 min-w-0 w-full py-2 sm:py-3 lg:py-4 " +
           "pb-[calc(3.5rem+env(safe-area-inset-bottom))] lg:pb-2 " +
+          (containedScroll
+            ? "min-h-0 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] "
+            : "") +
           (fullWidth
             ? "px-2 sm:px-3 lg:px-4"
             : "max-w-[1440px] mx-auto px-3 sm:px-5 lg:px-6")

@@ -65,7 +65,7 @@ function DashboardRoute() {
   const firstName = (profile?.full_name ?? "Usuario").split(" ")[0];
 
   return (
-    <AppShell>
+    <AppShell containedScroll>
       {/* Oculto en mobile: el banner de sección debajo del header ya dice
           "Dashboard" (ver MobileSectionBanner) — repetirlo acá era
           redundante y le sacaba alto útil a la pantalla. En desktop no hay
