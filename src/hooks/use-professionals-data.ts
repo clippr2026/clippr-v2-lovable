@@ -444,8 +444,10 @@ export function useRegisterPayout(businessId: string | null) {
 export type SettlementRun = {
   id: string;
   run_number: number;
+  professional_name: string | null;
   cutoff_date: string;
   period_start: string | null;
+  period_start_at: string | null;
   previous_settlement_run_id: string | null;
   previous_balance: number;
   new_commissions: number;
@@ -453,6 +455,9 @@ export type SettlementRun = {
   deductions: number;
   adjustment_items: { amount: number; reason: string }[];
   deduction_items: { amount: number; reason: string }[];
+  adjustment_movement_number: number | null;
+  deduction_movement_number: number | null;
+  advances: number;
   total_to_settle: number;
   amount_paid: number;
   service_count: number;
@@ -473,7 +478,7 @@ export function useProfSettlementRuns(businessId: string | null, empId: string |
       const { data, error } = await supabase
         .from("settlement_runs" as any)
         .select(
-          "id,run_number,cutoff_date,period_start,previous_settlement_run_id,previous_balance,new_commissions,adjustments,deductions,adjustment_items,deduction_items,total_to_settle,amount_paid,service_count,status,prepared_by_name,prepared_at,professional_confirmed_at,professional_observation,professional_observed_at",
+          "id,run_number,professional_name,cutoff_date,period_start,period_start_at,previous_settlement_run_id,previous_balance,new_commissions,adjustments,deductions,adjustment_items,deduction_items,adjustment_movement_number,deduction_movement_number,advances,total_to_settle,amount_paid,service_count,status,prepared_by_name,prepared_at,professional_confirmed_at,professional_observation,professional_observed_at",
         )
         .eq("business_id", businessId!)
         .eq("professional_id", empId!)
@@ -542,6 +547,7 @@ export type ProfAdvance = {
   advanced_at: string;
   registered_by_name: string;
   movement_number: number | null;
+  settlement_run_id: string | null;
 };
 
 export function useProfAdvances(businessId: string | null, empId: string | null) {
@@ -552,7 +558,7 @@ export function useProfAdvances(businessId: string | null, empId: string | null)
     queryFn: async (): Promise<ProfAdvance[]> => {
       const { data, error } = await supabase
         .from("professional_advances" as any)
-        .select("id,amount,payment_method,note,advanced_at,registered_by_name,movement_number")
+        .select("id,amount,payment_method,note,advanced_at,registered_by_name,movement_number,settlement_run_id")
         .eq("business_id", businessId!)
         .eq("professional_id", empId!)
         .order("advanced_at", { ascending: false });

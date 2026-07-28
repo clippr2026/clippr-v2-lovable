@@ -121,6 +121,33 @@ export function buildAdvanceComprobanteText(d: AdvanceComprobanteData) {
   return lines.join("\n");
 }
 
+export type ItemsComprobanteData = {
+  movementNumber: number;
+  kind: "ajuste" | "deduccion";
+  professionalName: string;
+  amount: number;
+  items: { amount: number; reason: string }[];
+  preparedByName: string;
+  preparedAt: string;
+};
+
+export function buildItemsComprobanteText(d: ItemsComprobanteData) {
+  const sign = d.kind === "ajuste" ? "+" : "-";
+  const lines = [
+    `Comprobante de movimiento #${d.movementNumber}`,
+    d.kind === "ajuste" ? "Ajuste" : "Deducción",
+    `Profesional: ${d.professionalName}`,
+    "",
+    ...d.items.map((i) => `${i.reason}: ${sign}${money(i.amount)}`),
+    "",
+    `Total:          ${sign}${money(d.amount)}`,
+    `Preparado por:  ${d.preparedByName}`,
+    `Fecha:          ${new Date(d.preparedAt).toLocaleString("es-AR")}`,
+  ];
+
+  return lines.join("\n");
+}
+
 export function downloadComprobante(text: string, title: string) {
   const win = window.open("", "_blank", "width=420,height=640");
   if (!win) return;

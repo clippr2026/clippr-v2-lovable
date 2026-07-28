@@ -1,9 +1,9 @@
 // Historial de movimientos — timeline único de pagos de liquidación
 // (agrupados por Movimiento #, un pago múltiple con varios métodos es UN
-// solo item) y adelantos, ordenado por fecha. Compartido por Caja >
-// Liquidaciones (cash-register.tsx) y Panel del profesional > Mis
-// liquidaciones (professionals.tsx) para no duplicar el criterio de
-// agrupación en los dos lugares.
+// solo item), adelantos, ajustes y deducciones, ordenado por fecha.
+// Compartido por Caja > Liquidaciones > Movimientos (cash-register.tsx) y
+// Panel del profesional > Movimientos (professionals.tsx) para no duplicar
+// el criterio de agrupación ni la presentación en los dos lugares.
 
 export type HistorialPaymentRow = {
   id: string;
@@ -28,6 +28,23 @@ export type HistorialAdvanceRow = {
   movement_number: number | null;
 };
 
+// Subset de SettlementRun con lo necesario para derivar sus movimientos de
+// Ajuste/Deducción (ver 20260803010000_ajuste_deduccion_movements.sql —
+// cada run pide, como mucho, un movement_number para su ajuste y otro para
+// su deducción, asignados al prepararse).
+export type HistorialRunRow = {
+  id: string;
+  professional_name: string | null;
+  prepared_at: string;
+  prepared_by_name: string;
+  adjustments: number;
+  adjustment_items: { amount: number; reason: string }[] | null;
+  adjustment_movement_number: number | null;
+  deductions: number;
+  deduction_items: { amount: number; reason: string }[] | null;
+  deduction_movement_number: number | null;
+};
+
 export type MovimientoPago = {
   kind: "pago";
   movementNumber: number | null;
@@ -46,7 +63,29 @@ export type MovimientoAdelanto = {
   data: HistorialAdvanceRow;
 };
 
-export type MovimientoItem = MovimientoPago | MovimientoAdelanto;
+export type MovimientoAjuste = {
+  kind: "ajuste";
+  movementNumber: number | null;
+  at: string;
+  runId: string;
+  amount: number;
+  items: { amount: number; reason: string }[];
+  professionalName: string | null;
+  preparedByName: string;
+};
+
+export type MovimientoDeduccion = {
+  kind: "deduccion";
+  movementNumber: number | null;
+  at: string;
+  runId: string;
+  amount: number;
+  items: { amount: number; reason: string }[];
+  professionalName: string | null;
+  preparedByName: string;
+};
+
+export type MovimientoItem = MovimientoPago | MovimientoAdelanto | MovimientoAjuste | MovimientoDeduccion;
 
 // Agrupa por movement_number (splits de un mismo pago múltiple comparten
 // número). Pagos históricos sin movement_number (no backfillearon todavía)
@@ -54,6 +93,7 @@ export type MovimientoItem = MovimientoPago | MovimientoAdelanto;
 export function buildHistorialMovimientos(
   payments: HistorialPaymentRow[],
   advances: HistorialAdvanceRow[],
+  runs: HistorialRunRow[] = [],
 ): MovimientoItem[] {
   const groups = new Map<string, HistorialPaymentRow[]>();
   for (const p of payments) {
@@ -87,5 +127,33 @@ export function buildHistorialMovimientos(
     data: a,
   }));
 
-  return [...pagoItems, ...adelantoItems].sort((a, b) => String(b.at ?? "").localeCompare(String(a.at ?? "")));
+  const ajusteItems: MovimientoAjuste[] = runs
+    .filter((r) => r.adjustment_movement_number != null)
+    .map((r) => ({
+      kind: "ajuste",
+      movementNumber: r.adjustment_movement_number,
+      at: r.prepared_at,
+      runId: r.id,
+      amount: Number(r.adjustments ?? 0),
+      items: r.adjustment_items ?? [],
+      professionalName: r.professional_name,
+      preparedByName: r.prepared_by_name,
+    }));
+
+  const deduccionItems: MovimientoDeduccion[] = runs
+    .filter((r) => r.deduction_movement_number != null)
+    .map((r) => ({
+      kind: "deduccion",
+      movementNumber: r.deduction_movement_number,
+      at: r.prepared_at,
+      runId: r.id,
+      amount: Number(r.deductions ?? 0),
+      items: r.deduction_items ?? [],
+      professionalName: r.professional_name,
+      preparedByName: r.prepared_by_name,
+    }));
+
+  return [...pagoItems, ...adelantoItems, ...ajusteItems, ...deduccionItems].sort((a, b) =>
+    String(b.at ?? "").localeCompare(String(a.at ?? "")),
+  );
 }

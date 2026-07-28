@@ -30,8 +30,28 @@ import {
   fetchSettlementRunServices,
   type ProfTurno, type ProfSale, type SettlementRun,
 } from "@/hooks/use-professionals-data";
-import { buildComprobanteText, buildAdvanceComprobanteText, downloadComprobante, shareComprobante } from "@/lib/settlement-comprobante";
-import { buildHistorialMovimientos } from "@/lib/historial-movimientos";
+import {
+  buildComprobanteText,
+  buildAdvanceComprobanteText,
+  buildItemsComprobanteText,
+  downloadComprobante,
+  shareComprobante,
+} from "@/lib/settlement-comprobante";
+import {
+  buildHistorialMovimientos,
+  type MovimientoAjuste,
+  type MovimientoDeduccion,
+  type HistorialAdvanceRow,
+} from "@/lib/historial-movimientos";
+import { MovimientoCard } from "@/components/liquidaciones/movimiento-card";
+import {
+  PagoDetalleContent,
+  AdelantoDetalleContent,
+  AjusteDetalleContent,
+  DeduccionDetalleContent,
+  type PagoDetalleService,
+} from "@/components/liquidaciones/movimiento-detalle-content";
+import { AgendaCenteredModal } from "@/components/agenda/agenda-drawer";
 import { cancelAppointment } from "@/components/agenda/use-agenda-data";
 import { useAgendaData } from "@/components/agenda/use-agenda-data";
 import { resolveDaySchedule } from "@/lib/availability";
@@ -2354,6 +2374,60 @@ function LiquidacionesPanelView({
   const [observingRunId, setObservingRunId] = useState<string | null>(null);
   const [observationText, setObservationText] = useState("");
 
+  // "Ver detalle" de un Movimiento — mismo modal (AgendaCenteredModal) y
+  // mismo contenido que usa Caja > Liquidaciones > Movimientos, ver
+  // src/components/liquidaciones/. Un solo estado de "kind" controla cuál
+  // de los cuatro contenidos se muestra, nunca más de uno a la vez.
+  const [movimientoDetailKind, setMovimientoDetailKind] = useState<"pago" | "adelanto" | "ajuste" | "deduccion" | null>(null);
+  const [movimientoDetailRun, setMovimientoDetailRun] = useState<SettlementRun | null>(null);
+  const [movimientoDetailMovementNumber, setMovimientoDetailMovementNumber] = useState<number | null>(null);
+  const [movimientoDetailAdvance, setMovimientoDetailAdvance] = useState<HistorialAdvanceRow | null>(null);
+  const [movimientoDetailAjuste, setMovimientoDetailAjuste] = useState<MovimientoAjuste | null>(null);
+  const [movimientoDetailDeduccion, setMovimientoDetailDeduccion] = useState<MovimientoDeduccion | null>(null);
+  const [movimientoDetailServices, setMovimientoDetailServices] = useState<PagoDetalleService[] | null>(null);
+  const [loadingMovimientoDetailServices, setLoadingMovimientoDetailServices] = useState(false);
+
+  function closeMovimientoDetalle() {
+    setMovimientoDetailKind(null);
+    setMovimientoDetailRun(null);
+    setMovimientoDetailMovementNumber(null);
+    setMovimientoDetailAdvance(null);
+    setMovimientoDetailAjuste(null);
+    setMovimientoDetailDeduccion(null);
+    setMovimientoDetailServices(null);
+  }
+
+  async function openPagoDetalle(run: SettlementRun, movementNumber: number | null) {
+    setMovimientoDetailKind("pago");
+    setMovimientoDetailRun(run);
+    setMovimientoDetailMovementNumber(movementNumber);
+    setMovimientoDetailServices(null);
+    setLoadingMovimientoDetailServices(true);
+    try {
+      const rows = await fetchSettlementRunServices(run.id);
+      setMovimientoDetailServices(rows as PagoDetalleService[]);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudieron cargar los servicios");
+    } finally {
+      setLoadingMovimientoDetailServices(false);
+    }
+  }
+
+  function openAdvanceDetalle(advance: HistorialAdvanceRow) {
+    setMovimientoDetailKind("adelanto");
+    setMovimientoDetailAdvance(advance);
+  }
+
+  function openAjusteDetalle(item: MovimientoAjuste) {
+    setMovimientoDetailKind("ajuste");
+    setMovimientoDetailAjuste(item);
+  }
+
+  function openDeduccionDetalle(item: MovimientoDeduccion) {
+    setMovimientoDetailKind("deduccion");
+    setMovimientoDetailDeduccion(item);
+  }
+
   async function openServicios(runId: string) {
     setDetailRunId(runId);
     setDetailRows(null);
@@ -2374,7 +2448,10 @@ function LiquidacionesPanelView({
   // Mismo timeline que Caja > Historial: pagos agrupados por Movimiento #
   // (un pago múltiple con varios métodos es UNA sola card) y adelantos,
   // mezclados y ordenados por fecha.
-  const movimientos = React.useMemo(() => buildHistorialMovimientos(payments, advances), [payments, advances]);
+  const movimientos = React.useMemo(
+    () => buildHistorialMovimientos(payments, advances, runs),
+    [payments, advances, runs],
+  );
 
   // Liquidaciones preparadas pero todavía sin ningún pago registrado — no
   // son un Movimiento (no hay plata que haya cambiado de mano todavía),
@@ -2412,7 +2489,7 @@ function LiquidacionesPanelView({
     });
   }
 
-  function advanceComprobanteFor(advance: (typeof advances)[number], movementNumber: number) {
+  function advanceComprobanteFor(advance: HistorialAdvanceRow, movementNumber: number) {
     return buildAdvanceComprobanteText({
       movementNumber,
       professionalName,
@@ -2421,6 +2498,18 @@ function LiquidacionesPanelView({
       note: advance.note,
       registeredByName: advance.registered_by_name,
       advancedAt: advance.advanced_at,
+    });
+  }
+
+  function itemsComprobanteFor(item: MovimientoAjuste | MovimientoDeduccion) {
+    return buildItemsComprobanteText({
+      movementNumber: item.movementNumber ?? 0,
+      kind: item.kind,
+      professionalName: item.professionalName || professionalName,
+      amount: item.amount,
+      items: item.items,
+      preparedByName: item.preparedByName,
+      preparedAt: item.at,
     });
   }
 
@@ -2624,216 +2713,181 @@ function LiquidacionesPanelView({
           if (item.kind === "adelanto") {
             const advance = item.data;
             return (
-              <div key={`adelanto-${advance.id}`} className="glass rounded-2xl p-4 sm:p-5 space-y-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    {item.movementNumber != null && (
-                      <div className="text-sm font-semibold">Movimiento #{item.movementNumber}</div>
-                    )}
-                    <div className="text-xs text-muted-foreground">
-                      {new Date(advance.advanced_at).toLocaleString("es-AR")}
-                    </div>
-                  </div>
-                  <span className="text-xs font-medium px-2.5 py-1 rounded-full ring-1 bg-rose-500/10 text-rose-300 ring-rose-400/20">
-                    Adelanto
-                  </span>
-                </div>
+              <MovimientoCard
+                key={`adelanto-${advance.id}`}
+                item={item}
+                professionalName={professionalName}
+                onVerDetalle={() => openAdvanceDetalle(advance)}
+                extraActions={
+                  item.movementNumber != null ? (
+                    <>
+                      <button
+                        onClick={() =>
+                          downloadComprobante(
+                            advanceComprobanteFor(advance, item.movementNumber!),
+                            `Movimiento #${item.movementNumber}`,
+                          )
+                        }
+                        className="rounded-full bg-white/[0.04] px-3 py-1 text-[11px] font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
+                      >
+                        Descargar comprobante
+                      </button>
+                      <button
+                        onClick={async () => {
+                          const result = await shareComprobante(
+                            advanceComprobanteFor(advance, item.movementNumber!),
+                            `Movimiento #${item.movementNumber}`,
+                          );
+                          if (result === "copied") toast.success("Comprobante copiado al portapapeles");
+                          if (result === "failed") toast.error("No se pudo compartir");
+                        }}
+                        className="rounded-full bg-white/[0.04] px-3 py-1 text-[11px] font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
+                      >
+                        Compartir comprobante
+                      </button>
+                    </>
+                  ) : null
+                }
+              />
+            );
+          }
 
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <div className="rounded-xl bg-white/[0.03] p-2.5">
-                    <div className="text-muted-foreground">Monto</div>
-                    <div className="text-sm font-semibold tabular-nums text-emerald-300">${advance.amount.toLocaleString("es-AR")}</div>
-                  </div>
-                  <div className="rounded-xl bg-white/[0.03] p-2.5">
-                    <div className="text-muted-foreground">Método</div>
-                    <div className="text-sm font-semibold">{methodDisplayLabel(advance.payment_method ?? "")}</div>
-                  </div>
-                </div>
-
-                <div className="text-[11px] text-muted-foreground">Registrado por {advance.registered_by_name}</div>
-                {advance.note && <div className="text-[11px] text-muted-foreground">Nota: {advance.note}</div>}
-
-                {item.movementNumber != null && (
-                  <div className="flex flex-wrap gap-2 pt-1">
-                    <button
-                      onClick={() =>
-                        downloadComprobante(
-                          advanceComprobanteFor(advance, item.movementNumber!),
-                          `Movimiento #${item.movementNumber}`,
-                        )
-                      }
-                      className="rounded-full bg-white/[0.04] px-3 py-1.5 text-xs font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
-                    >
-                      Descargar comprobante
-                    </button>
-                    <button
-                      onClick={async () => {
-                        const result = await shareComprobante(
-                          advanceComprobanteFor(advance, item.movementNumber!),
-                          `Movimiento #${item.movementNumber}`,
-                        );
-                        if (result === "copied") toast.success("Comprobante copiado al portapapeles");
-                        if (result === "failed") toast.error("No se pudo compartir");
-                      }}
-                      className="rounded-full bg-white/[0.04] px-3 py-1.5 text-xs font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
-                    >
-                      Compartir comprobante
-                    </button>
-                  </div>
-                )}
-              </div>
+          if (item.kind === "ajuste" || item.kind === "deduccion") {
+            const isAjuste = item.kind === "ajuste";
+            return (
+              <MovimientoCard
+                key={`${item.kind}-${item.runId}`}
+                item={item}
+                professionalName={professionalName}
+                onVerDetalle={() => (isAjuste ? openAjusteDetalle(item) : openDeduccionDetalle(item))}
+                extraActions={
+                  item.movementNumber != null ? (
+                    <>
+                      <button
+                        onClick={() =>
+                          downloadComprobante(itemsComprobanteFor(item), `Movimiento #${item.movementNumber}`)
+                        }
+                        className="rounded-full bg-white/[0.04] px-3 py-1 text-[11px] font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
+                      >
+                        Descargar comprobante
+                      </button>
+                      <button
+                        onClick={async () => {
+                          const result = await shareComprobante(
+                            itemsComprobanteFor(item),
+                            `Movimiento #${item.movementNumber}`,
+                          );
+                          if (result === "copied") toast.success("Comprobante copiado al portapapeles");
+                          if (result === "failed") toast.error("No se pudo compartir");
+                        }}
+                        className="rounded-full bg-white/[0.04] px-3 py-1 text-[11px] font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
+                      >
+                        Compartir comprobante
+                      </button>
+                    </>
+                  ) : null
+                }
+              />
             );
           }
 
           const run = runsById.get(item.settlementRunId) ?? null;
-          const remaining = run ? Math.max(run.total_to_settle - run.amount_paid, 0) : 0;
           const lastPayment = item.splits[item.splits.length - 1];
           return (
-            <div key={`pago-${item.movementNumber ?? lastPayment.id}`} className="glass rounded-2xl p-4 sm:p-5 space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  {item.movementNumber != null && (
-                    <div className="text-sm font-semibold">Movimiento #{item.movementNumber}</div>
-                  )}
-                  <div className="text-xs text-muted-foreground">
-                    {run
-                      ? run.period_start
-                        ? `Período: del ${run.period_start} al ${run.cutoff_date}`
-                        : `Liquidado hasta ${run.cutoff_date}`
-                      : ""}
-                  </div>
-                </div>
-                <span
-                  className={cn(
-                    "text-xs font-medium px-2.5 py-1 rounded-full ring-1",
-                    item.isFull
-                      ? "bg-emerald-500/10 text-emerald-300 ring-emerald-400/20"
-                      : "bg-amber-500/10 text-amber-300 ring-amber-400/20",
-                  )}
-                >
-                  {item.isFull ? "Pago total" : "Pago parcial"}
-                </span>
-              </div>
-
-              {run && (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                  <div className="rounded-xl bg-white/[0.03] p-2.5">
-                    <div className="text-muted-foreground">Liquidación anterior pendiente</div>
-                    <div className="text-sm font-semibold tabular-nums">${run.previous_balance.toLocaleString("es-AR")}</div>
-                  </div>
-                  <div className="rounded-xl bg-white/[0.03] p-2.5">
-                    <div className="text-muted-foreground">Comisiones nuevas</div>
-                    <div className="text-sm font-semibold tabular-nums">${run.new_commissions.toLocaleString("es-AR")}</div>
-                  </div>
-                  <div className="rounded-xl bg-white/[0.03] p-2.5">
-                    <div className="text-muted-foreground">Total a liquidar</div>
-                    <div className="text-sm font-semibold tabular-nums">${run.total_to_settle.toLocaleString("es-AR")}</div>
-                  </div>
-                  <div className="rounded-xl bg-white/[0.03] p-2.5">
-                    <div className="text-muted-foreground">Saldo restante</div>
-                    <div className={cn("text-sm font-semibold tabular-nums", remaining > 0 ? "text-amber-300" : "text-emerald-300")}>
-                      ${remaining.toLocaleString("es-AR")}
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {run && (
-                <div className="text-[11px] text-muted-foreground">
-                  Preparada por {run.prepared_by_name} · {new Date(run.prepared_at).toLocaleString("es-AR")}
-                </div>
-              )}
-
-              {run?.adjustment_items && run.adjustment_items.length > 0 && (
-                <div className="space-y-1 rounded-xl bg-emerald-400/[0.05] ring-1 ring-emerald-400/15 p-2.5">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-300/70">Ajustes</div>
-                  {run.adjustment_items.map((adj, i) => (
-                    <div key={i} className="flex items-center justify-between gap-2 text-xs">
-                      <span className="text-muted-foreground">{adj.reason}</span>
-                      <span className="font-semibold text-emerald-300">+${adj.amount.toLocaleString("es-AR")}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {run?.deduction_items && run.deduction_items.length > 0 && (
-                <div className="space-y-1 rounded-xl bg-rose-400/[0.05] ring-1 ring-rose-400/15 p-2.5">
-                  <div className="text-[10px] font-bold uppercase tracking-wider text-rose-300/70">Deducciones</div>
-                  {run.deduction_items.map((ded, i) => (
-                    <div key={i} className="flex items-center justify-between gap-2 text-xs">
-                      <span className="text-muted-foreground">{ded.reason}</span>
-                      <span className="font-semibold text-rose-300">−${ded.amount.toLocaleString("es-AR")}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-
-              {run?.professional_confirmed_at && (
-                <div className="text-[11px] text-emerald-300">
-                  Recepción confirmada el {new Date(run.professional_confirmed_at).toLocaleString("es-AR")}
-                </div>
-              )}
-              {run?.professional_observation && (
-                <div className="text-[11px] text-rose-300">
-                  Observación: {run.professional_observation}
-                  {run.professional_observed_at && ` · ${new Date(run.professional_observed_at).toLocaleString("es-AR")}`}
-                </div>
-              )}
-
-              <div className="rounded-xl bg-white/[0.02] ring-1 ring-white/5 divide-y divide-white/5">
-                {item.splits.map((p) => (
-                  <div key={p.id} className="flex items-center justify-between gap-2 px-3 py-2 text-xs">
-                    <div className="text-muted-foreground">
-                      {new Date(p.paid_at).toLocaleString("es-AR")} · {methodDisplayLabel(p.payment_method ?? "")} · {p.paid_by_name}
-                    </div>
-                    <div className="font-semibold tabular-nums text-emerald-300">${p.amount.toLocaleString("es-AR")}</div>
-                  </div>
-                ))}
-              </div>
-
-              <div className="flex flex-wrap gap-2 pt-1">
-                {run && (
-                  <button
-                    onClick={() => openServicios(run.id)}
-                    className="rounded-full bg-white/[0.04] px-3 py-1.5 text-xs font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
-                  >
-                    Ver servicios incluidos
-                  </button>
-                )}
-                {run && item.movementNumber != null && (
+            <div key={`pago-${item.movementNumber ?? lastPayment.id}`} className="space-y-2">
+              <MovimientoCard
+                item={item}
+                professionalName={professionalName}
+                run={run}
+                onVerDetalle={() => run && openPagoDetalle(run, item.movementNumber)}
+                extraActions={
                   <>
-                    <button
-                      onClick={() =>
-                        downloadComprobante(
-                          comprobanteFor(run, item.movementNumber!, lastPayment),
-                          `Movimiento #${item.movementNumber}`,
-                        )
-                      }
-                      className="rounded-full bg-white/[0.04] px-3 py-1.5 text-xs font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
-                    >
-                      Descargar comprobante
-                    </button>
-                    <button
-                      onClick={async () => {
-                        const result = await shareComprobante(
-                          comprobanteFor(run, item.movementNumber!, lastPayment),
-                          `Movimiento #${item.movementNumber}`,
-                        );
-                        if (result === "copied") toast.success("Comprobante copiado al portapapeles");
-                        if (result === "failed") toast.error("No se pudo compartir");
-                      }}
-                      className="rounded-full bg-white/[0.04] px-3 py-1.5 text-xs font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
-                    >
-                      Compartir comprobante
-                    </button>
+                    {run && item.movementNumber != null && (
+                      <>
+                        <button
+                          onClick={() =>
+                            downloadComprobante(
+                              comprobanteFor(run, item.movementNumber!, lastPayment),
+                              `Movimiento #${item.movementNumber}`,
+                            )
+                          }
+                          className="rounded-full bg-white/[0.04] px-3 py-1 text-[11px] font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
+                        >
+                          Descargar comprobante
+                        </button>
+                        <button
+                          onClick={async () => {
+                            const result = await shareComprobante(
+                              comprobanteFor(run, item.movementNumber!, lastPayment),
+                              `Movimiento #${item.movementNumber}`,
+                            );
+                            if (result === "copied") toast.success("Comprobante copiado al portapapeles");
+                            if (result === "failed") toast.error("No se pudo compartir");
+                          }}
+                          className="rounded-full bg-white/[0.04] px-3 py-1 text-[11px] font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
+                        >
+                          Compartir comprobante
+                        </button>
+                      </>
+                    )}
+                    {run && confirmObserveButtons(run)}
                   </>
-                )}
-                {run && confirmObserveButtons(run)}
-              </div>
+                }
+              />
               {run && observationBlock(run)}
             </div>
           );
         })
       )}
+
+      {/* "Ver detalle" de un Movimiento — mismo modal/contenido que Caja >
+          Liquidaciones > Movimientos (src/components/liquidaciones/). El
+          modal "Servicios incluidos" de más abajo es distinto: solo
+          aplica a liquidaciones preparadas sin pago todavía, que no tienen
+          Movimiento propio. */}
+      <AgendaCenteredModal
+        open={movimientoDetailKind !== null}
+        onOpenChange={(v) => {
+          if (!v) closeMovimientoDetalle();
+        }}
+        lockOutside={false}
+        title={movimientoDetailMovementNumber != null ? `Movimiento #${movimientoDetailMovementNumber}` : ""}
+      >
+        {movimientoDetailKind === "pago" && movimientoDetailRun && (
+          <PagoDetalleContent
+            run={movimientoDetailRun}
+            payments={payments.filter((p) => p.settlement_run_id === movimientoDetailRun.id)}
+            advances={advances.filter((a) => a.settlement_run_id === movimientoDetailRun.id)}
+            services={movimientoDetailServices}
+            loadingServices={loadingMovimientoDetailServices}
+          />
+        )}
+        {movimientoDetailKind === "adelanto" && movimientoDetailAdvance && (
+          <AdelantoDetalleContent professionalName={professionalName} advance={movimientoDetailAdvance} />
+        )}
+        {movimientoDetailKind === "ajuste" && movimientoDetailAjuste && (
+          <AjusteDetalleContent
+            data={{
+              professionalName: movimientoDetailAjuste.professionalName,
+              preparedByName: movimientoDetailAjuste.preparedByName,
+              preparedAt: movimientoDetailAjuste.at,
+              amount: movimientoDetailAjuste.amount,
+              items: movimientoDetailAjuste.items,
+            }}
+          />
+        )}
+        {movimientoDetailKind === "deduccion" && movimientoDetailDeduccion && (
+          <DeduccionDetalleContent
+            data={{
+              professionalName: movimientoDetailDeduccion.professionalName,
+              preparedByName: movimientoDetailDeduccion.preparedByName,
+              preparedAt: movimientoDetailDeduccion.at,
+              amount: movimientoDetailDeduccion.amount,
+              items: movimientoDetailDeduccion.items,
+            }}
+          />
+        )}
+      </AgendaCenteredModal>
 
       {detailRunId && (
         <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
