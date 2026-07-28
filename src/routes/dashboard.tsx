@@ -107,6 +107,27 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
   const { data, isLoading, error } = useDashboardData(businessId, range ?? null);
   const [activeMetric, setActiveMetric] = React.useState<"ingresos"|"gastos"|"utilidad">("ingresos");
 
+  // El contenido pasa de corto (spinner) a alto (stats + gráficos de 500px)
+  // recién cuando useDashboardData resuelve, en un momento asíncrono e
+  // impredecible — típicamente justo cuando el usuario, recién entrado a
+  // la pantalla, ya está haciendo el primer gesto de scroll. iOS Safari
+  // calcula el área scrolleable en el touchstart; si el documento crece
+  // después de ese instante, ese primer gesto no "ve" la altura nueva y no
+  // scrollea — recién el segundo toque, con el layout ya asentado,
+  // funciona. Forzar un reflow síncrono apenas el contenido crece hace que
+  // WebKit recalcule el scroll bounds de una, sin esperar a un gesto.
+  React.useEffect(() => {
+    if (isLoading || !data) return;
+    const id = requestAnimationFrame(() => {
+      const el = document.documentElement;
+      const prevOverflow = el.style.overflow;
+      el.style.overflow = "hidden";
+      void el.offsetHeight; // fuerza el reflow síncrono
+      el.style.overflow = prevOverflow;
+    });
+    return () => cancelAnimationFrame(id);
+  }, [isLoading, data]);
+
   const setQuickRange = (days: number) => {
     const to = new Date();
     const from = new Date();
@@ -165,7 +186,7 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
   const utilidad = data.utilidad;
 
   return (
-    <div className="dashboard-premium-shell space-y-3 animate-fade-up">
+    <div className="dashboard-premium-shell space-y-3 animate-fade-in-safe">
       {dateBar}
       {/* Top stat cards */}
       <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
