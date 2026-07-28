@@ -277,11 +277,10 @@ export function HorariosSection() {
                 disabled={!d.enabled}
                 onChange={(e) => {
                   const value = e.target.value;
-                  // En Clippr el horario de atención se usa como regla general
-                  // de la agenda. Al cambiar la apertura, aplicamos el mismo
-                  // valor a todos los días para que no quede modificado solo el
-                  // día que se editó.
-                  setDays((s) => s.map((x) => ({ ...x, open: value })));
+                  // Cada día es independiente — solo se actualiza el día
+                  // editado (idx === i), igual que ya hace el Toggle de
+                  // abierto/cerrado unas líneas más abajo.
+                  setDays((s) => s.map((x, idx) => (idx === i ? { ...x, open: value } : x)));
                 }}
                 className="rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40 disabled:cursor-not-allowed"
               />
@@ -291,8 +290,8 @@ export function HorariosSection() {
                 disabled={!d.enabled}
                 onChange={(e) => {
                   const value = e.target.value;
-                  // Igual que apertura: el cierre se aplica a todos los días.
-                  setDays((s) => s.map((x) => ({ ...x, close: value })));
+                  // Igual que apertura: solo el día editado.
+                  setDays((s) => s.map((x, idx) => (idx === i ? { ...x, close: value } : x)));
                 }}
                 className="rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40 disabled:cursor-not-allowed"
               />
