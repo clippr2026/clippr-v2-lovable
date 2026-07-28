@@ -32,7 +32,6 @@ import {
   Cell,
 } from "recharts";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
-import { ScrollDebugOverlay } from "@/components/debug/scroll-debug-overlay";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -67,7 +66,6 @@ function DashboardRoute() {
 
   return (
     <AppShell>
-      <ScrollDebugOverlay />
       {/* Oculto en mobile: el banner de sección debajo del header ya dice
           "Dashboard" (ver MobileSectionBanner) — repetirlo acá era
           redundante y le sacaba alto útil a la pantalla. En desktop no hay
@@ -109,27 +107,6 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
   const { data, isLoading, error } = useDashboardData(businessId, range ?? null);
   const [activeMetric, setActiveMetric] = React.useState<"ingresos"|"gastos"|"utilidad">("ingresos");
 
-  // El contenido pasa de corto (spinner) a alto (stats + gráficos de 500px)
-  // recién cuando useDashboardData resuelve, en un momento asíncrono e
-  // impredecible — típicamente justo cuando el usuario, recién entrado a
-  // la pantalla, ya está haciendo el primer gesto de scroll. iOS Safari
-  // calcula el área scrolleable en el touchstart; si el documento crece
-  // después de ese instante, ese primer gesto no "ve" la altura nueva y no
-  // scrollea — recién el segundo toque, con el layout ya asentado,
-  // funciona. Forzar un reflow síncrono apenas el contenido crece hace que
-  // WebKit recalcule el scroll bounds de una, sin esperar a un gesto.
-  React.useEffect(() => {
-    if (isLoading || !data) return;
-    const id = requestAnimationFrame(() => {
-      const el = document.documentElement;
-      const prevOverflow = el.style.overflow;
-      el.style.overflow = "hidden";
-      void el.offsetHeight; // fuerza el reflow síncrono
-      el.style.overflow = prevOverflow;
-    });
-    return () => cancelAnimationFrame(id);
-  }, [isLoading, data]);
-
   const setQuickRange = (days: number) => {
     const to = new Date();
     const from = new Date();
@@ -165,11 +142,9 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
 
   if (isLoading || !data) {
     return (
-      <div className="space-y-4">
+      <div className="dashboard-premium-shell space-y-3">
         {dateBar}
-        <div className="grid place-items-center py-32">
-          <ClipprLoader size="screen" delayMs={130} />
-        </div>
+        <DashboardSkeleton />
       </div>
     );
   }
@@ -223,6 +198,45 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
         <ServicesDonut data={data} activeMetric={activeMetric} />
       </section>
 
+    </div>
+  );
+}
+
+// Mismas clases/alturas exactas que el contenido real (grilla de 3 stat
+// cards + grilla de gráfico/torta de 500px) — el objetivo NO es estética,
+// es que scrollHeight sea el mismo desde el primer render y cuando
+// useDashboardData resuelva, sin importar cuánto tarde. Antes acá había un
+// spinner corto (documento no scrolleable) que recién pasaba a alto cuando
+// llegaban los datos — ese salto de altura, justo en el momento en que el
+// usuario ya está haciendo el primer gesto de scroll, es la causa
+// confirmada (con datos reales de un iPhone) de que el primer toque no
+// scrolleaba en iOS Safari: el documento crecía después de que WebKit ya
+// había medido el área scrolleable para ese gesto.
+function DashboardSkeleton() {
+  return (
+    <div className="animate-pulse">
+      <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="glass rounded-2xl p-3 sm:p-4 min-h-0 sm:min-h-[108px]">
+            <div className="flex sm:hidden items-center gap-2">
+              <div className="h-8 w-8 shrink-0 rounded-xl bg-white/[0.06]" />
+              <div className="h-3.5 flex-1 rounded bg-white/[0.06]" />
+              <div className="h-4 w-16 shrink-0 rounded bg-white/[0.08]" />
+            </div>
+            <div className="hidden sm:flex items-center gap-2">
+              <div className="h-9 w-9 rounded-xl bg-white/[0.06]" />
+              <div className="h-3.5 w-20 rounded bg-white/[0.06]" />
+            </div>
+            <div className="hidden sm:block mt-2">
+              <div className="h-8 w-28 rounded bg-white/[0.08]" />
+            </div>
+          </div>
+        ))}
+      </section>
+      <section className="mt-3 grid grid-cols-1 xl:grid-cols-[minmax(0,3fr)_minmax(300px,1fr)] gap-3 items-stretch">
+        <div className="glass rounded-2xl p-4 h-[500px]" />
+        <div className="glass rounded-2xl p-4 h-[500px]" />
+      </section>
     </div>
   );
 }
