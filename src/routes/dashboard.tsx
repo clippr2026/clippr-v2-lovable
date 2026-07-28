@@ -32,6 +32,7 @@ import {
   Cell,
 } from "recharts";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
+import { ScrollDebugOverlay } from "@/components/debug/scroll-debug-overlay";
 
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
@@ -66,6 +67,7 @@ function DashboardRoute() {
 
   return (
     <AppShell>
+      <ScrollDebugOverlay />
       {/* Oculto en mobile: el banner de sección debajo del header ya dice
           "Dashboard" (ver MobileSectionBanner) — repetirlo acá era
           redundante y le sacaba alto útil a la pantalla. En desktop no hay
