@@ -83,6 +83,12 @@ export async function processImage(
   canvas.height = h;
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("No se pudo procesar la imagen");
+  // "high" en vez del smoothing por defecto del navegador (a veces "low"):
+  // se nota sobre todo achicando gráficos con bordes marcados (logos,
+  // escudos) — sin esto el downscale puede verse borroso/con artefactos
+  // aunque el archivo final tenga buena resolución.
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = "high";
   ctx.drawImage(img, 0, 0, w, h);
   const toBlob = (type: string) =>
     new Promise<Blob | null>((res) =>

@@ -847,7 +847,10 @@ export function BrandingSection() {
     if (!file || !businessId) return;
     setUploadingFeaturedClubLogoId(id);
     try {
-      const { blob, ext, type } = await processImage(file, 128, 128, 0.82);
+      // Se muestra chiquito (unos 20px) pero en pantallas retina de iPhone
+      // eso son ~60-80px reales — 256px de origen y calidad casi sin
+      // pérdida evita que un escudo con líneas finas/texto se vea pixelado.
+      const { blob, ext, type } = await processImage(file, 256, 256, 0.95);
       const url = await uploadBlob(
         blob,
         `${businessId}/featured-club-${id}.${ext}`,
@@ -1831,7 +1834,7 @@ export function BrandingSection() {
                         <div className="col-span-full flex flex-wrap items-center gap-2 rounded-xl bg-white/[0.02] p-2 ring-1 ring-white/5">
                           <label
                             className={cn(
-                              "group relative grid h-10 w-10 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-full border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07]",
+                              "group relative grid h-10 w-10 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07]",
                               uploadingFeaturedClubLogoId === item.id &&
                                 "cursor-not-allowed opacity-50",
                             )}
@@ -1841,7 +1844,7 @@ export function BrandingSection() {
                               <img
                                 src={item.club_logo_url}
                                 alt={item.club_name || "Escudo del club"}
-                                className="h-full w-full object-cover"
+                                className="h-full w-full object-contain"
                               />
                             ) : (
                               <ImageIcon className="h-3.5 w-3.5 text-white/45" />

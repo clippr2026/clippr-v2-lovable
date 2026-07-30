@@ -356,7 +356,7 @@ function FeaturedClientCard({
   imagePosition?: string;
   onZoom: (item: FeaturedClient) => void;
 }) {
-  const isFootballer = item.category === "Futbolista" && item.club_name;
+  const isFootballer = item.category === "Futbolista" && Boolean(item.club_name);
   return (
     <div
       className={
@@ -392,33 +392,43 @@ function FeaturedClientCard({
         )}
       </button>
       <div className="p-3 text-center sm:p-4">
-        <p className="truncate font-semibold">{item.name}</p>
-        <p className={(isLight ? "text-zinc-500" : "text-white/50") + " mt-0.5 truncate text-sm"}>
+        <p className="truncate font-semibold leading-tight">{item.name}</p>
+        <p className={(isLight ? "text-zinc-500" : "text-white/50") + " mt-0.5 truncate text-sm leading-tight"}>
           {item.category}
         </p>
-        {isFootballer ? (
-          <div className="mt-2 flex items-center justify-center gap-1.5">
-            {item.club_logo_url ? (
-              <img
-                src={item.club_logo_url}
-                alt={item.club_name}
-                className="h-5 w-5 shrink-0 rounded-full object-cover ring-1 ring-white/15"
-                loading="lazy"
-                decoding="async"
-              />
-            ) : (
-              <span
-                className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-[9px] font-bold"
-                style={{ background: accentColor, color: "#fff" }}
-              >
-                {item.club_name!.slice(0, 1)}
-              </span>
-            )}
-            <span className={(isLight ? "text-zinc-600" : "text-white/70") + " truncate text-xs font-medium"}>
-              {item.club_name}
+        {/* Fila del club: SIEMPRE se renderiza (con `invisible` cuando no
+            aplica) para que todas las tarjetas midan exactamente lo mismo,
+            tengan o no club cargado — sin esto, una tarjeta con club queda
+            más alta que el resto de la grilla. */}
+        <div
+          className={
+            "mt-1 flex items-center justify-center gap-1.5" + (isFootballer ? "" : " invisible")
+          }
+        >
+          {item.club_logo_url ? (
+            <img
+              src={item.club_logo_url}
+              alt={item.club_name || ""}
+              // object-contain (no cover): un escudo casi nunca es
+              // perfectamente cuadrado — cover lo recortaría. rounded-md en
+              // vez de círculo para que el letterboxing de contain no se
+              // vea raro contra una máscara circular.
+              className="h-5 w-5 shrink-0 rounded-md bg-white/10 object-contain ring-1 ring-white/15"
+              loading="lazy"
+              decoding="async"
+            />
+          ) : (
+            <span
+              className="grid h-5 w-5 shrink-0 place-items-center rounded-md text-[9px] font-bold"
+              style={{ background: accentColor, color: "#fff" }}
+            >
+              {(item.club_name || "?").slice(0, 1)}
             </span>
-          </div>
-        ) : null}
+          )}
+          <span className={(isLight ? "text-zinc-600" : "text-white/70") + " truncate text-xs font-medium leading-tight"}>
+            {item.club_name || " "}
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -1231,7 +1241,7 @@ function PublicProfilePage() {
                     <img
                       src={zoomedFeaturedClient.club_logo_url}
                       alt={zoomedFeaturedClient.club_name}
-                      className="h-5 w-5 rounded-full object-cover ring-1 ring-white/20"
+                      className="h-5 w-5 rounded-md bg-white/10 object-contain ring-1 ring-white/20"
                     />
                   ) : null}
                   <span className="text-sm font-medium text-white/70">{zoomedFeaturedClient.club_name}</span>
