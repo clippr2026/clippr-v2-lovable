@@ -60,6 +60,9 @@ type FeaturedClient = {
   image_url: string;
   active: boolean;
   order: number;
+  // Solo se cargan/muestran cuando category === "Futbolista".
+  club_name: string;
+  club_logo_url: string;
 };
 
 const FEATURED_CLIENT_CATEGORIES: FeaturedClientCategory[] = [
@@ -84,6 +87,8 @@ function makeEmptyFeaturedClient(order = 0): FeaturedClient {
     // publicar tarjetas vacías en la página pública.
     active: false,
     order,
+    club_name: "",
+    club_logo_url: "",
   };
 }
 
@@ -157,6 +162,8 @@ function normalizeFeaturedClients(value: unknown): FeaturedClient[] {
         image_url: typeof row.image_url === "string" ? row.image_url : "",
         active: row.active !== false,
         order: Number.isFinite(Number(row.order)) ? Number(row.order) : index,
+        club_name: typeof row.club_name === "string" ? row.club_name : "",
+        club_logo_url: typeof row.club_logo_url === "string" ? row.club_logo_url : "",
       };
     })
     .filter((item) => item.name.trim() || item.image_url.trim())
@@ -352,6 +359,8 @@ export function BrandingSection() {
   const [uploadingFeaturedId, setUploadingFeaturedId] = useState<string | null>(
     null,
   );
+  const [uploadingFeaturedClubLogoId, setUploadingFeaturedClubLogoId] =
+    useState<string | null>(null);
   const [draggedFeaturedId, setDraggedFeaturedId] = useState<string | null>(
     null,
   );
@@ -827,6 +836,30 @@ export function BrandingSection() {
       toast.error((e as Error).message);
     } finally {
       setUploadingFeaturedId(null);
+    }
+  }
+
+  // Escudo/mini imagen del club — solo se usa cuando category === "Futbolista".
+  // Mismo flujo que handleFeaturedImageSelect pero más chico (128x128, es un
+  // ícono pequeño) y con su propio estado de "subiendo" para no pisar el
+  // spinner de la foto principal si se tocan los dos casi juntos.
+  async function handleFeaturedClubLogoSelect(id: string, file: File | null) {
+    if (!file || !businessId) return;
+    setUploadingFeaturedClubLogoId(id);
+    try {
+      const { blob, ext, type } = await processImage(file, 128, 128, 0.82);
+      const url = await uploadBlob(
+        blob,
+        `${businessId}/featured-club-${id}.${ext}`,
+        type,
+      );
+      if (!url) return;
+      updateFeaturedClient(id, { club_logo_url: url });
+      toast.success("Escudo actualizado");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setUploadingFeaturedClubLogoId(null);
     }
   }
 
@@ -1791,6 +1824,52 @@ export function BrandingSection() {
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
+
+                      {/* Solo para "Futbolista": club + escudo. Se muestra en
+                          la página pública junto al nombre del club. */}
+                      {item.category === "Futbolista" ? (
+                        <div className="col-span-full flex flex-wrap items-center gap-2 rounded-xl bg-white/[0.02] p-2 ring-1 ring-white/5">
+                          <label
+                            className={cn(
+                              "group relative grid h-10 w-10 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-full border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07]",
+                              uploadingFeaturedClubLogoId === item.id &&
+                                "cursor-not-allowed opacity-50",
+                            )}
+                            title="Escudo del club"
+                          >
+                            {item.club_logo_url ? (
+                              <img
+                                src={item.club_logo_url}
+                                alt={item.club_name || "Escudo del club"}
+                                className="h-full w-full object-cover"
+                              />
+                            ) : (
+                              <ImageIcon className="h-3.5 w-3.5 text-white/45" />
+                            )}
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              disabled={uploadingFeaturedClubLogoId === item.id}
+                              onChange={(e) => {
+                                const f = e.target.files?.[0] ?? null;
+                                e.target.value = "";
+                                handleFeaturedClubLogoSelect(item.id, f);
+                              }}
+                            />
+                          </label>
+                          <input
+                            value={item.club_name}
+                            onChange={(e) =>
+                              updateFeaturedClient(item.id, {
+                                club_name: e.target.value,
+                              })
+                            }
+                            placeholder="Nombre del club (ej: Boca Juniors)"
+                            className="min-w-0 flex-1 rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+                          />
+                        </div>
+                      ) : null}
                     </div>
                   );
                 })}

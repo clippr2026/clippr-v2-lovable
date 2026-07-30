@@ -21,6 +21,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 import { ServiceImage } from "@/components/ui/service-image";
 import { applyCatalogOrder, extractCatalogOrderMap } from "@/lib/catalog-order";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 
 export const Route = createFileRoute("/negocio/$slug")({
   head: () => ({
@@ -77,6 +78,9 @@ type FeaturedClient = {
   image_url?: string;
   active?: boolean;
   order?: number;
+  // Solo se usan cuando category === "Futbolista".
+  club_name?: string;
+  club_logo_url?: string;
 };
 
 type PublicBranding = {
@@ -186,6 +190,8 @@ function normalizeFeaturedClients(value: unknown): FeaturedClient[] {
         image_url: typeof row.image_url === "string" ? row.image_url : "",
         active: row.active !== false,
         order: Number.isFinite(Number(row.order)) ? Number(row.order) : index,
+        club_name: typeof row.club_name === "string" ? row.club_name.trim() : "",
+        club_logo_url: typeof row.club_logo_url === "string" ? row.club_logo_url : "",
       };
     })
     .filter((item) => item.active !== false && (item.name || item.image_url))
@@ -331,6 +337,93 @@ function GlowCard({ children, className = "" }: { children: React.ReactNode; cla
   );
 }
 
+// Tarjeta de una persona en "Confían en nosotros" — la usan tanto la grilla
+// principal como el modal "Ver todos" (mismo diseño en los dos lugares a
+// propósito: nunca dos versiones distintas de la misma tarjeta). La foto es
+// el elemento protagonista (aspect-square, object-cover, ocupa todo el
+// ancho de la tarjeta) y es lo único tapeable — abre la foto ampliada.
+// Nombre / categoría / club quedan debajo, con jerarquía clara.
+function FeaturedClientCard({
+  item,
+  isLight,
+  accentColor,
+  imagePosition,
+  onZoom,
+}: {
+  item: FeaturedClient;
+  isLight: boolean;
+  accentColor: string;
+  imagePosition?: string;
+  onZoom: (item: FeaturedClient) => void;
+}) {
+  const isFootballer = item.category === "Futbolista" && item.club_name;
+  return (
+    <div
+      className={
+        (isLight
+          ? "border-zinc-200 bg-white shadow-[0_0_42px_rgba(168,85,247,0.14)]"
+          : "border-white/10 bg-white/[0.055] shadow-[0_0_42px_rgba(168,85,247,0.2)]") +
+        " overflow-hidden rounded-3xl border transition hover:-translate-y-0.5"
+      }
+    >
+      <button
+        type="button"
+        onClick={() => item.image_url && onZoom(item)}
+        disabled={!item.image_url}
+        className={
+          (isLight ? "bg-zinc-100" : "bg-white/5") +
+          " grid aspect-square w-full place-items-center overflow-hidden disabled:cursor-default"
+        }
+        aria-label={item.image_url ? `Ampliar foto de ${item.name}` : undefined}
+      >
+        {item.image_url ? (
+          <img
+            src={item.image_url}
+            alt={item.name}
+            className="h-full w-full object-cover transition duration-300 hover:scale-105"
+            style={{ objectPosition: imagePosition || "50% 50%" }}
+            loading="lazy"
+            decoding="async"
+          />
+        ) : (
+          <span className={(isLight ? "text-zinc-700" : "text-white/80") + " text-4xl font-bold"}>
+            {item.name.slice(0, 1)}
+          </span>
+        )}
+      </button>
+      <div className="p-3 text-center sm:p-4">
+        <p className="truncate font-semibold">{item.name}</p>
+        <p className={(isLight ? "text-zinc-500" : "text-white/50") + " mt-0.5 truncate text-sm"}>
+          {item.category}
+        </p>
+        {isFootballer ? (
+          <div className="mt-2 flex items-center justify-center gap-1.5">
+            {item.club_logo_url ? (
+              <img
+                src={item.club_logo_url}
+                alt={item.club_name}
+                className="h-5 w-5 shrink-0 rounded-full object-cover ring-1 ring-white/15"
+                loading="lazy"
+                decoding="async"
+              />
+            ) : (
+              <span
+                className="grid h-5 w-5 shrink-0 place-items-center rounded-full text-[9px] font-bold"
+                style={{ background: accentColor, color: "#fff" }}
+              >
+                {item.club_name!.slice(0, 1)}
+              </span>
+            )}
+            <span className={(isLight ? "text-zinc-600" : "text-white/70") + " truncate text-xs font-medium"}>
+              {item.club_name}
+            </span>
+          </div>
+        ) : null}
+      </div>
+    </div>
+  );
+}
+
 function PublicProfilePage() {
   const { slug } = Route.useParams();
 
@@ -346,6 +439,10 @@ function PublicProfilePage() {
   const [featuredPositions, setFeaturedPositions] = React.useState<Record<string, string>>({});
   const [featuredClients, setFeaturedClients] = React.useState<FeaturedClient[]>([]);
   const [showAllFeaturedClients, setShowAllFeaturedClients] = React.useState(false);
+  // Foto de una persona de "Confían en nosotros" ampliada en modal — separado
+  // del lightbox del portafolio porque no hay noción de "siguiente/anterior"
+  // acá, es una sola foto por persona.
+  const [zoomedFeaturedClient, setZoomedFeaturedClient] = React.useState<FeaturedClient | null>(null);
   const [description, setDescription] = React.useState<string>("");
   const [profileNote, setProfileNote] = React.useState<string>("");
   const [additionalInfo, setAdditionalInfo] = React.useState<string[]>([]);
@@ -361,6 +458,26 @@ function PublicProfilePage() {
     servicesCompleted: number;
     startDate: string | null;
   } | null>(null);
+
+  // Bloquean el scroll del fondo mientras cualquiera de estos dos modales
+  // está abierto. useBodyScrollLock lleva un contador propio, así que se
+  // pueden anidar sin problema (abrir la foto ampliada desde adentro de
+  // "Ver todos" no desbloquea el scroll de golpe al cerrar solo una).
+  useBodyScrollLock(showAllFeaturedClients);
+  useBodyScrollLock(zoomedFeaturedClient !== null);
+
+  // Cerrar los modales de "Confían en nosotros" con Escape, igual que con
+  // el click afuera / la X.
+  React.useEffect(() => {
+    if (!showAllFeaturedClients && !zoomedFeaturedClient) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      if (zoomedFeaturedClient) setZoomedFeaturedClient(null);
+      else setShowAllFeaturedClients(false);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [showAllFeaturedClients, zoomedFeaturedClient]);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -741,24 +858,19 @@ function PublicProfilePage() {
                   ) : null}
                 </div>
 
-                <div className="mt-5 flex gap-3 overflow-x-auto pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:grid lg:grid-cols-5 lg:overflow-visible lg:pb-0">
-                  {featuredClients.slice(0, 5).map((item, index) => (
-                    <div
+                {/* Siempre 2 columnas — "2 arriba, 2 abajo", máximo 4
+                    visibles, sin scroll horizontal. El resto (si hay más de
+                    4) solo se ve entrando a "Ver todos". */}
+                <div className="mt-5 grid grid-cols-2 gap-3">
+                  {featuredClients.slice(0, 4).map((item, index) => (
+                    <FeaturedClientCard
                       key={item.id || `${item.name}-${index}`}
-                      className={(index === 4 ? "hidden lg:block " : "") + "relative min-w-[145px] overflow-hidden rounded-2xl border border-white/10 bg-white/[0.055] p-3 text-center transition hover:bg-white/[0.08]"}
-                    >
-                      <div className="mx-auto grid h-14 w-14 place-items-center overflow-hidden rounded-2xl bg-white/5 ring-1 ring-white/10">
-                        {item.image_url ? (
-                          <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" style={{ objectPosition: featuredPositions[item.id] || "50% 50%" }} loading="lazy" decoding="async" />
-                        ) : (
-                          <span className="text-lg font-bold text-white/80">{item.name.slice(0, 1)}</span>
-                        )}
-                      </div>
-                      <div className="mt-3 min-w-0">
-                        <p className="truncate font-semibold text-white">{item.name}</p>
-                        <p className="mt-0.5 truncate text-xs text-white/50">{item.category}</p>
-                      </div>
-                    </div>
+                      item={item}
+                      isLight={isLight}
+                      accentColor={cAccent}
+                      imagePosition={item.id ? featuredPositions[item.id] : undefined}
+                      onZoom={setZoomedFeaturedClient}
+                    />
                   ))}
                 </div>
               </div>
@@ -1068,25 +1180,63 @@ function PublicProfilePage() {
                     </div>
                     <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
                       {items.map((item, index) => (
-                        <div
+                        <FeaturedClientCard
                           key={item.id || `featured-modal-${category}-${item.name}-${index}`}
-                          className={(isLight ? "border-zinc-200 bg-white shadow-[0_0_42px_rgba(168,85,247,0.18)]" : "border-white/10 bg-white/[0.055] shadow-[0_0_42px_rgba(168,85,247,0.22)]") + " relative overflow-hidden rounded-3xl border p-4 text-center before:absolute before:inset-x-6 before:-top-10 before:h-20 before:rounded-full before:bg-[radial-gradient(circle,rgba(217,70,239,0.42),transparent_68%)] before:blur-xl"}
-                        >
-                          <div className={(isLight ? "bg-white ring-zinc-200" : "bg-white/5 ring-white/10") + " mx-auto grid h-24 w-24 place-items-center overflow-hidden rounded-3xl ring-1 sm:h-28 sm:w-28"}>
-                            {item.image_url ? (
-                              <img src={item.image_url} alt={item.name} className="h-full w-full object-cover" style={{ objectPosition: featuredPositions[item.id] || "50% 50%" }} loading="lazy" decoding="async" />
-                            ) : (
-                              <span className={(isLight ? "text-zinc-800" : "text-white/80") + " text-3xl font-bold"}>{item.name.slice(0, 1)}</span>
-                            )}
-                          </div>
-                          <p className="mt-4 truncate font-semibold">{item.name}</p>
-                          <p className={(isLight ? "text-zinc-500" : "text-white/50") + " mt-1 truncate text-sm"}>{item.category}</p>
-                        </div>
+                          item={item}
+                          isLight={isLight}
+                          accentColor={cAccent}
+                          imagePosition={item.id ? featuredPositions[item.id] : undefined}
+                          onZoom={setZoomedFeaturedClient}
+                        />
                       ))}
                     </div>
                   </section>
                 ))}
               </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Foto ampliada de una persona de "Confían en nosotros" — a
+          diferencia del lightbox del portafolio (más abajo), este sí cierra
+          tocando afuera, porque acá no hay galería con flechas: es una
+          sola foto por persona. */}
+      {zoomedFeaturedClient?.image_url ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm"
+          onClick={() => setZoomedFeaturedClient(null)}
+        >
+          <button
+            type="button"
+            onClick={() => setZoomedFeaturedClient(null)}
+            className="absolute right-4 top-4 grid h-11 w-11 place-items-center rounded-full border border-white/15 bg-white/10 text-white transition hover:bg-white/20 sm:right-6 sm:top-6"
+            aria-label="Cerrar"
+          >
+            <X className="h-5 w-5" />
+          </button>
+          <div className="flex max-h-[86vh] max-w-[min(92vw,520px)] flex-col items-center gap-4" onClick={(event) => event.stopPropagation()}>
+            <img
+              src={zoomedFeaturedClient.image_url}
+              alt={zoomedFeaturedClient.name}
+              className="max-h-[72vh] w-full rounded-2xl object-contain shadow-2xl"
+              decoding="async"
+            />
+            <div className="text-center text-white">
+              <p className="text-lg font-semibold">{zoomedFeaturedClient.name}</p>
+              <p className="text-sm text-white/60">{zoomedFeaturedClient.category}</p>
+              {zoomedFeaturedClient.category === "Futbolista" && zoomedFeaturedClient.club_name ? (
+                <div className="mt-1.5 flex items-center justify-center gap-1.5">
+                  {zoomedFeaturedClient.club_logo_url ? (
+                    <img
+                      src={zoomedFeaturedClient.club_logo_url}
+                      alt={zoomedFeaturedClient.club_name}
+                      className="h-5 w-5 rounded-full object-cover ring-1 ring-white/20"
+                    />
+                  ) : null}
+                  <span className="text-sm font-medium text-white/70">{zoomedFeaturedClient.club_name}</span>
+                </div>
+              ) : null}
             </div>
           </div>
         </div>
