@@ -1572,7 +1572,7 @@ export function BrandingSection() {
                   Portafolio
                 </div>
 
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 gap-3">
                   {[0, 1, 2].map((index) => {
                     const url = data.portfolio_urls[index];
                     const uploading = uploadingPortfolioIndex === index;
@@ -1580,7 +1580,12 @@ export function BrandingSection() {
                       <div key={index} className="relative">
                         <label
                           className={cn(
-                            "group relative grid aspect-square w-full cursor-pointer place-items-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07]",
+                            // Mismos aspect-[4/3] / rounded-3xl / object-cover
+                            // + objectPosition que la vista previa pública
+                            // (src/routes/negocio/$slug.tsx) — lo que se ve
+                            // acá tiene que ser exactamente lo que ve el
+                            // cliente, no una miniatura cuadrada aparte.
+                            "group relative grid aspect-[4/3] w-full cursor-pointer place-items-center overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07]",
                             uploading && "cursor-not-allowed opacity-50",
                           )}
                         >
@@ -1589,6 +1594,7 @@ export function BrandingSection() {
                               src={url}
                               alt={`Imagen ${index + 1}`}
                               className="h-full w-full object-cover"
+                              style={{ objectPosition: data.portfolio_positions[index] || "50% 50%" }}
                             />
                           ) : (
                             <ImageIcon className="h-5 w-5 text-white/45" />
