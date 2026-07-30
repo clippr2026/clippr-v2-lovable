@@ -201,8 +201,16 @@ function usePointerReorder<T>(
         // scroll nativo para el resto de este gesto y se "levanta" el
         // elemento (scale + sombra vía draggingId + vibración si el
         // dispositivo lo soporta — iOS Safari no implementa la Vibration
-        // API, así que ahí simplemente no vibra).
-        node.setPointerCapture(pointerId);
+        // API, así que ahí simplemente no vibra). setPointerCapture puede
+        // lanzar si el pointer ya no está activo (p. ej. el navegador lo dio
+        // por perdido) — no debe abortar el resto de la activación si falla,
+        // porque el tracking real del gesto va por los listeners globales de
+        // abajo, no por la captura.
+        try {
+          node.setPointerCapture(pointerId);
+        } catch {
+          /* no-op */
+        }
         node.style.touchAction = "none";
         node.style.willChange = "transform";
         node.style.transition = "transform 140ms cubic-bezier(0.22, 1, 0.36, 1)";
@@ -230,6 +238,13 @@ function usePointerReorder<T>(
 
         const handleMove = (moveEvent: PointerEvent) => {
           if (moveEvent.pointerId !== pointerId) return;
+          // Con el drag ya activo, este preventDefault es lo que realmente
+          // le saca el gesto al scroll nativo del navegador (touch-action
+          // solo alcanza a avisar la intención; en iOS un touch que arrancó
+          // sin `none` puede seguir queriendo scrollear la página apenas el
+          // dedo se mueve, aunque hayamos cambiado touch-action al activar
+          // — cancelar el evento acá es lo que efectivamente lo bloquea).
+          if (moveEvent.cancelable) moveEvent.preventDefault();
           const x = moveEvent.clientX;
           const y = moveEvent.clientY;
           const current = itemsRef.current;
@@ -291,6 +306,11 @@ function usePointerReorder<T>(
 
         const finish = (endEvent?: PointerEvent) => {
           if (endEvent && endEvent.pointerId !== pointerId) return;
+          // Evita el click fantasma que el navegador dispara después de un
+          // pointerup sobre el mismo elemento — sin esto, soltar el ítem
+          // arrastrado podía además togglear "Activo" o abrir "Editar" si
+          // terminó bajo esos botones.
+          if (endEvent?.cancelable) endEvent.preventDefault();
           window.removeEventListener("pointermove", handleMove);
           window.removeEventListener("pointerup", finish);
           window.removeEventListener("pointercancel", finish);
@@ -309,7 +329,10 @@ function usePointerReorder<T>(
           onDragEnd(itemsRef.current);
         };
 
-        window.addEventListener("pointermove", handleMove);
+        // { passive: false } explícito: sin esto, algunos navegadores móviles
+        // tratan los listeners de pointermove en window como pasivos por
+        // default y el preventDefault() de arriba se ignora en silencio.
+        window.addEventListener("pointermove", handleMove, { passive: false });
         window.addEventListener("pointerup", finish);
         window.addEventListener("pointercancel", finish);
       };
