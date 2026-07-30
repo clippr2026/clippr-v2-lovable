@@ -111,8 +111,17 @@ export function AppShell({
         className={
           "clippr-app-main flex-1 min-w-0 w-full py-2 sm:py-3 lg:py-4 " +
           "pb-[calc(3.5rem+env(safe-area-inset-bottom))] lg:pb-2 " +
+          // Sin [-webkit-overflow-scrolling:touch] a propósito: es la única
+          // propiedad de scroll con momentum "legacy" de todo el proyecto —
+          // desde iOS 13, overflow-y:auto ya tiene momentum nativo sin ella,
+          // y WebKit tiene un bug conocido donde un contenedor con esa
+          // propiedad, si queda a mitad de un scroll con inercia justo
+          // cuando la pestaña pasa a segundo plano, puede volver de bfcache
+          // con el touch de toda la página completamente muerto hasta
+          // recargar. Quitarla no le saca nada al scroll (sigue con
+          // momentum nativo) y elimina esa causa.
           (containedScroll
-            ? "min-h-0 overflow-y-auto overscroll-contain [-webkit-overflow-scrolling:touch] "
+            ? "min-h-0 overflow-y-auto overscroll-contain "
             : "") +
           (fullWidth
             ? "px-2 sm:px-3 lg:px-4"

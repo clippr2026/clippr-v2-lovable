@@ -142,6 +142,37 @@ function RootComponent() {
     document.addEventListener("touchstart", () => {}, { passive: true });
   }, []);
 
+  // iOS Safari/PWA: al volver de otra pestaña (o del selector de apps), la
+  // página puede restaurarse desde la bfcache con el compositor de WebKit
+  // "dormido" — la pantalla se ve intacta pero no responde a ningún toque
+  // hasta recargar manualmente. No hay forma de detectar esto con certeza,
+  // así que en cada `pageshow`/`visibilitychange→visible` forzamos un
+  // reflow + repaint real (toggle de transform, dura un frame, imperceptible)
+  // para que WebKit vuelva a despachar eventos táctiles sin necesidad de
+  // recargar. Es barato y no rompe nada si el touch ya andaba bien.
+  React.useEffect(() => {
+    const wakeUp = () => {
+      const body = document.body;
+      body.style.transform = "translateZ(0)";
+      void body.offsetHeight;
+      requestAnimationFrame(() => {
+        body.style.transform = "";
+      });
+    };
+    const onPageShow = (event: PageTransitionEvent) => {
+      if (event.persisted) wakeUp();
+    };
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") wakeUp();
+    };
+    window.addEventListener("pageshow", onPageShow);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("pageshow", onPageShow);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, []);
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
