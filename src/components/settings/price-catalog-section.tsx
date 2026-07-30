@@ -9,7 +9,6 @@ import {
   Plus,
   Trash2,
   Instagram,
-  GripVertical,
   Star,
   Loader2,
   Pencil,
@@ -88,14 +87,24 @@ const MAX_CATEGORIES = 8;
 // el ítem según qué otro elemento tiene el centro más cercano al puntero;
 // esa distancia 2D (no solo eje X o Y) resuelve también grids que arman
 // varias filas (categorías) sin necesitar lógica de fila/columna aparte.
-// `touch-action: none` en el handle evita que el gesto también scrollee la
-// página mientras se arrastra.
+//
+// El gesto arranca con presión mantenida (long-press), no con el simple
+// pointerdown: un toque o swipe normal sobre la fila/categoría debe seguir
+// scrolleando la pantalla sin interferencia. Por eso `startPress` no hace
+// nada disruptivo (sin preventDefault, sin tocar touch-action) hasta que
+// pasan LONG_PRESS_MS sosteniendo el dedo casi quieto; recién ahí se
+// "levanta" el elemento (scale + vibración) y arranca el drag de verdad. Si
+// hay un pointerup o un movimiento mayor a MOVE_CANCEL_PX antes de ese
+// punto, se cancela la activación y el gesto se deja pasar tal cual (scroll
+// nativo o el click normal del elemento).
 //
 // El elemento arrastrado sigue al dedo/mouse en tiempo real (transform
 // imperativo, sin pasar por React en cada pixel — más fluido) y el resto de
 // los ítems desliza a su nueva posición con una animación FLIP (se toma la
 // posición ANTES de reordenar y se anima desde ahí) en vez de saltar
 // instantáneo, para que se note claramente el hueco que se abre en destino.
+const LONG_PRESS_MS = 350;
+const MOVE_CANCEL_PX = 10;
 function usePointerReorder<T>(
   items: T[],
   getId: (item: T) => string,
@@ -108,6 +117,11 @@ function usePointerReorder<T>(
   // contra la distancia del eje que no debería importar.
   axis: "x" | "y",
   dragScale = 1.06,
+  // Se invoca en cada pointermove mientras hay un drag activo (sin el
+  // throttle de MIN_COMMIT_DELTA de abajo, que es solo para decidir cuándo
+  // reordenar). Lo usa el drag de ítems para detectar si el dedo está
+  // sobre una pestaña de categoría distinta — ver handleItemDragMove.
+  onDragMove?: (x: number, y: number, id: string) => void,
 ) {
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const draggingIdRef = useRef<string | null>(null);
@@ -151,111 +165,164 @@ function usePointerReorder<T>(
     }
   });
 
-  const startDrag = useCallback(
+  const startPress = useCallback(
     (id: string, event: React.PointerEvent<HTMLElement>) => {
       if (event.pointerType === "mouse" && event.button !== 0) return;
-      event.preventDefault();
-      const handle = event.currentTarget;
-      handle.setPointerCapture(event.pointerId);
-      draggingIdRef.current = id;
-      setDraggingId(id);
-
+      const pointerId = event.pointerId;
       const startX = event.clientX;
       const startY = event.clientY;
-      // Cuánto tiene que moverse el puntero desde el último reordenamiento
-      // antes de volver a evaluar si corresponde otro. Sin esto, el
-      // temblor natural de la mano (un par de px) hace que el algoritmo de
-      // "más cercano" oscile entre dos posiciones — el ítem "tiembla"/se
-      // sigue moviendo aunque el dedo esté prácticamente quieto.
-      const MIN_COMMIT_DELTA = 16;
-      let lastCommitPos = axis === "x" ? startX : startY;
-      const draggedNode = nodesRef.current.get(id);
-      if (draggedNode) draggedNode.style.willChange = "transform";
 
-      const handleMove = (moveEvent: PointerEvent) => {
-        const x = moveEvent.clientX;
-        const y = moveEvent.clientY;
-        const current = itemsRef.current;
-        const fromIndex = current.findIndex((it) => getId(it) === id);
-        if (fromIndex < 0) return;
+      // Fase de espera: todavía no es un drag. No hay preventDefault ni
+      // pointer capture acá — si el usuario suelta antes de tiempo (tap) o
+      // mueve el dedo (scroll/swipe), el gesto se deja pasar sin tocar
+      // nada, tal como si este handler no existiera.
+      const cancelWait = () => {
+        window.clearTimeout(timer);
+        window.removeEventListener("pointermove", waitMove);
+        window.removeEventListener("pointerup", waitEnd);
+        window.removeEventListener("pointercancel", waitEnd);
+      };
+      const waitMove = (moveEvent: PointerEvent) => {
+        if (moveEvent.pointerId !== pointerId) return;
+        const dx = moveEvent.clientX - startX;
+        const dy = moveEvent.clientY - startY;
+        if (Math.hypot(dx, dy) > MOVE_CANCEL_PX) cancelWait();
+      };
+      const waitEnd = (endEvent: PointerEvent) => {
+        if (endEvent.pointerId !== pointerId) return;
+        cancelWait();
+      };
 
+      const activate = () => {
+        cancelWait();
         const node = nodesRef.current.get(id);
-        if (node) {
-          const tx = axis === "x" ? x - startX : 0;
-          const ty = axis === "y" ? y - startY : 0;
-          node.style.transform = `translate(${tx}px, ${ty}px) scale(${dragScale})`;
-        }
-
-        // El elemento ya sigue al dedo con fluidez (arriba). Lo que sigue
-        // — decidir si corresponde reordenar — solo se reevalúa si hubo
-        // movimiento real desde el último cambio de posición.
-        const pos = axis === "x" ? x : y;
-        if (Math.abs(pos - lastCommitPos) < MIN_COMMIT_DELTA) return;
-
-        let bestIndex = fromIndex;
-        let bestDist = Infinity;
-        current.forEach((it, i) => {
-          const itId = getId(it);
-          if (itId === id) return; // sigue al puntero: no compite consigo mismo
-          const el = nodesRef.current.get(itId);
-          if (!el) return;
-          const rect = el.getBoundingClientRect();
-          // Solo se compara en el eje permitido — el otro eje no debe
-          // hacer "saltar" el reorden hacia una fila/columna distinta.
-          const dist =
-            axis === "x"
-              ? (x - (rect.left + rect.width / 2)) ** 2
-              : (y - (rect.top + rect.height / 2)) ** 2;
-          if (dist < bestDist) {
-            bestDist = dist;
-            bestIndex = i;
+        if (!node) return;
+        // Recién acá arranca el drag: se toma el pointer, se bloquea el
+        // scroll nativo para el resto de este gesto y se "levanta" el
+        // elemento (scale + sombra vía draggingId + vibración si el
+        // dispositivo lo soporta — iOS Safari no implementa la Vibration
+        // API, así que ahí simplemente no vibra).
+        node.setPointerCapture(pointerId);
+        node.style.touchAction = "none";
+        node.style.willChange = "transform";
+        node.style.transition = "transform 140ms cubic-bezier(0.22, 1, 0.36, 1)";
+        node.style.transform = `scale(${dragScale})`;
+        window.setTimeout(() => {
+          if (node) node.style.transition = "";
+        }, 150);
+        if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+          try {
+            navigator.vibrate(12);
+          } catch {
+            /* no-op: algunos navegadores lanzan si se llama sin gesto reciente */
           }
-        });
-        if (bestIndex !== fromIndex) {
-          lastCommitPos = pos;
-          const next = [...current];
-          const [moved] = next.splice(fromIndex, 1);
-          next.splice(bestIndex, 0, moved);
-          rectsBeforeRef.current = new Map(
-            current
-              .filter((it2) => getId(it2) !== id)
-              .map((it2) => {
-                const nid = getId(it2);
-                const el2 = nodesRef.current.get(nid);
-                return el2 ? ([nid, el2.getBoundingClientRect()] as const) : null;
-              })
-              .filter((v): v is readonly [string, DOMRect] => v !== null),
-          );
-          onChange(next);
         }
+        draggingIdRef.current = id;
+        setDraggingId(id);
+
+        // Cuánto tiene que moverse el puntero desde el último reordenamiento
+        // antes de volver a evaluar si corresponde otro. Sin esto, el
+        // temblor natural de la mano (un par de px) hace que el algoritmo de
+        // "más cercano" oscile entre dos posiciones — el ítem "tiembla"/se
+        // sigue moviendo aunque el dedo esté prácticamente quieto.
+        const MIN_COMMIT_DELTA = 16;
+        let lastCommitPos = axis === "x" ? startX : startY;
+
+        const handleMove = (moveEvent: PointerEvent) => {
+          if (moveEvent.pointerId !== pointerId) return;
+          const x = moveEvent.clientX;
+          const y = moveEvent.clientY;
+          const current = itemsRef.current;
+          const fromIndex = current.findIndex((it) => getId(it) === id);
+          if (fromIndex < 0) return;
+
+          const dragNode = nodesRef.current.get(id);
+          if (dragNode) {
+            const tx = axis === "x" ? x - startX : 0;
+            const ty = axis === "y" ? y - startY : 0;
+            dragNode.style.transform = `translate(${tx}px, ${ty}px) scale(${dragScale})`;
+          }
+
+          onDragMove?.(x, y, id);
+
+          // El elemento ya sigue al dedo con fluidez (arriba). Lo que sigue
+          // — decidir si corresponde reordenar — solo se reevalúa si hubo
+          // movimiento real desde el último cambio de posición.
+          const pos = axis === "x" ? x : y;
+          if (Math.abs(pos - lastCommitPos) < MIN_COMMIT_DELTA) return;
+
+          let bestIndex = fromIndex;
+          let bestDist = Infinity;
+          current.forEach((it, i) => {
+            const itId = getId(it);
+            if (itId === id) return; // sigue al puntero: no compite consigo mismo
+            const el = nodesRef.current.get(itId);
+            if (!el) return;
+            const rect = el.getBoundingClientRect();
+            // Solo se compara en el eje permitido — el otro eje no debe
+            // hacer "saltar" el reorden hacia una fila/columna distinta.
+            const dist =
+              axis === "x"
+                ? (x - (rect.left + rect.width / 2)) ** 2
+                : (y - (rect.top + rect.height / 2)) ** 2;
+            if (dist < bestDist) {
+              bestDist = dist;
+              bestIndex = i;
+            }
+          });
+          if (bestIndex !== fromIndex) {
+            lastCommitPos = pos;
+            const next = [...current];
+            const [moved] = next.splice(fromIndex, 1);
+            next.splice(bestIndex, 0, moved);
+            rectsBeforeRef.current = new Map(
+              current
+                .filter((it2) => getId(it2) !== id)
+                .map((it2) => {
+                  const nid = getId(it2);
+                  const el2 = nodesRef.current.get(nid);
+                  return el2 ? ([nid, el2.getBoundingClientRect()] as const) : null;
+                })
+                .filter((v): v is readonly [string, DOMRect] => v !== null),
+            );
+            onChange(next);
+          }
+        };
+
+        const finish = (endEvent?: PointerEvent) => {
+          if (endEvent && endEvent.pointerId !== pointerId) return;
+          window.removeEventListener("pointermove", handleMove);
+          window.removeEventListener("pointerup", finish);
+          window.removeEventListener("pointercancel", finish);
+          const node2 = nodesRef.current.get(id);
+          if (node2) {
+            node2.style.transition = "transform 180ms cubic-bezier(0.22, 1, 0.36, 1)";
+            node2.style.transform = "";
+            node2.style.willChange = "";
+            node2.style.touchAction = "";
+            window.setTimeout(() => {
+              if (node2) node2.style.transition = "";
+            }, 200);
+          }
+          draggingIdRef.current = null;
+          setDraggingId(null);
+          onDragEnd(itemsRef.current);
+        };
+
+        window.addEventListener("pointermove", handleMove);
+        window.addEventListener("pointerup", finish);
+        window.addEventListener("pointercancel", finish);
       };
 
-      const finish = () => {
-        window.removeEventListener("pointermove", handleMove);
-        window.removeEventListener("pointerup", finish);
-        window.removeEventListener("pointercancel", finish);
-        const node = nodesRef.current.get(id);
-        if (node) {
-          node.style.transition = "transform 180ms cubic-bezier(0.22, 1, 0.36, 1)";
-          node.style.transform = "";
-          node.style.willChange = "";
-          window.setTimeout(() => {
-            if (node) node.style.transition = "";
-          }, 200);
-        }
-        draggingIdRef.current = null;
-        setDraggingId(null);
-        onDragEnd(itemsRef.current);
-      };
-
-      window.addEventListener("pointermove", handleMove);
-      window.addEventListener("pointerup", finish);
-      window.addEventListener("pointercancel", finish);
+      const timer = window.setTimeout(activate, LONG_PRESS_MS);
+      window.addEventListener("pointermove", waitMove);
+      window.addEventListener("pointerup", waitEnd);
+      window.addEventListener("pointercancel", waitEnd);
     },
-    [getId, onChange, onDragEnd, axis, dragScale],
+    [getId, onChange, onDragEnd, axis, dragScale, onDragMove],
   );
 
-  return { draggingId, setNodeRef, startDrag };
+  return { draggingId, setNodeRef, startPress };
 }
 const MAX_CATEGORY_NAME_LENGTH = 18;
 const MAX_ITEM_NAME_LENGTH = 28;
@@ -1881,6 +1948,14 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   }, [activeCatStorageKey]);
 
   const activeCat = ready && categories.includes(cat) ? cat : "";
+  // Ref siempre al día con la categoría activa — necesaria dentro de los
+  // callbacks del drag de ítems (handleItemsReorderChange/End), que pueden
+  // seguir corriendo con closures viejas si la categoría cambió a mitad de
+  // gesto (arrastrar un servicio hacia otra pestaña, ver handleItemDragMove).
+  const activeCatRef = useRef(activeCat);
+  useEffect(() => {
+    activeCatRef.current = activeCat;
+  }, [activeCat]);
 
   const filtered = visibleRows.filter(
     (r) => (r.category || (isService ? "Servicios" : "Productos")) === activeCat,
@@ -2154,24 +2229,115 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   // Reordenar ítems dentro de la categoría activa (drag&drop con Pointer
   // Events — funciona igual en mobile y desktop). El cambio visual es
   // inmediato en cada movimiento; el guardado en business_settings recién
-  // se dispara una vez, al soltar.
-  const handleItemsReorderChange = useCallback(
-    (next: PriceRow[]) => {
-      setRows((prev) => {
-        const others = prev.filter((r) => r.category !== activeCat);
-        return [...others, ...next];
-      });
-    },
-    [activeCat],
-  );
+  // se dispara una vez, al soltar. Lee activeCatRef (no activeCat directo):
+  // si el usuario cambia de categoría a mitad del gesto (ver
+  // checkCategoryHover más abajo) este callback sigue vivo con la closure
+  // original, y necesita la categoría ACTUAL, no la de cuando arrancó el drag.
+  const handleItemsReorderChange = useCallback((next: PriceRow[]) => {
+    setRows((prev) => {
+      const others = prev.filter((r) => r.category !== activeCatRef.current);
+      return [...others, ...next];
+    });
+  }, []);
   const handleItemsReorderEnd = useCallback(
     (final: PriceRow[]) => {
+      clearCategoryHover();
+      const cat = activeCatRef.current;
       const ids = final.map((r) => r.id);
-      setItemOrderMap((prev) => ({ ...prev, [activeCat]: ids }));
-      void persistItemOrder(activeCat, ids);
+      setItemOrderMap((prev) => ({ ...prev, [cat]: ids }));
+      void persistItemOrder(cat, ids);
     },
-    [activeCat, persistItemOrder],
+    [persistItemOrder],
   );
+
+  // Mover un servicio a otra categoría arrastrándolo (opción 1): mientras
+  // se arrastra un ítem, si el dedo se mantiene ~500ms sobre una pestaña de
+  // categoría distinta, esa pestaña se activa sola (sin soltar) y el drag
+  // continúa dentro de la nueva lista — el ítem queda reasignado a esa
+  // categoría recién al terminar el gesto (ver handleItemsReorderEnd).
+  const CATEGORY_HOVER_MS = 500;
+  const categoryTabRefsMap = useRef(new Map<string, HTMLElement>());
+  const categoryHoverRef = useRef<{ category: string; timer: number } | null>(null);
+  const [hoverTargetCategory, setHoverTargetCategory] = useState<string | null>(null);
+
+  const clearCategoryHover = useCallback(() => {
+    if (categoryHoverRef.current) {
+      window.clearTimeout(categoryHoverRef.current.timer);
+      categoryHoverRef.current = null;
+    }
+    setHoverTargetCategory(null);
+  }, []);
+
+  const switchDraggedItemCategory = useCallback(
+    (id: string, newCategory: string) => {
+      setRows((prev) =>
+        prev.map((r) => (r.id === id ? { ...r, category: newCategory } : r)),
+      );
+      setPendingItems((prev) => {
+        const existing = prev.find((p) => p.tempId === id);
+        if (existing)
+          return prev.map((p) =>
+            p.tempId === id
+              ? { ...p, payload: { ...p.payload, category: newCategory } }
+              : p,
+          );
+        return [
+          ...prev,
+          { tempId: id, payload: { category: newCategory }, isNew: false },
+        ];
+      });
+      selectCategory(newCategory);
+      markSettingsDirty();
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+        try {
+          navigator.vibrate(12);
+        } catch {
+          /* no-op */
+        }
+      }
+      // Persistencia inmediata — mismo criterio que toggle()/saveItem(): la
+      // categoría nueva no puede quedar solo en la cola local a la espera
+      // del "Guardar" global.
+      window.setTimeout(() => {
+        window.dispatchEvent(
+          new CustomEvent("clippr:save-settings", {
+            detail: { section: isService ? "servicios" : "catalogo", silent: true },
+          }),
+        );
+      }, 150);
+    },
+    [selectCategory, isService],
+  );
+
+  const handleItemDragMove = useCallback(
+    (x: number, y: number, id: string) => {
+      let hovered: string | null = null;
+      for (const [category, el] of categoryTabRefsMap.current) {
+        if (category === activeCatRef.current) continue;
+        const rect = el.getBoundingClientRect();
+        if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+          hovered = category;
+          break;
+        }
+      }
+      if (!hovered) {
+        clearCategoryHover();
+        return;
+      }
+      if (categoryHoverRef.current?.category === hovered) return;
+      if (categoryHoverRef.current) window.clearTimeout(categoryHoverRef.current.timer);
+      const targetCategory = hovered;
+      const timer = window.setTimeout(() => {
+        switchDraggedItemCategory(id, targetCategory);
+        categoryHoverRef.current = null;
+        setHoverTargetCategory(null);
+      }, CATEGORY_HOVER_MS);
+      categoryHoverRef.current = { category: targetCategory, timer };
+      setHoverTargetCategory(targetCategory);
+    },
+    [clearCategoryHover, switchDraggedItemCategory],
+  );
+
   const itemReorder = usePointerReorder<PriceRow>(
     filtered,
     (r) => r.id,
@@ -2179,19 +2345,17 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     handleItemsReorderEnd,
     "y",
     1.02,
+    handleItemDragMove,
   );
 
   // Inline input modal para renombrar categoría (evita el prompt() del navegador).
   // Crear categoría ya no pasa por acá — se creó desde el modal de
   // servicio/producto (ver PriceEditorModal), así que este modal solo
-  // renombra categorías existentes (se abre desde el modo Organizar).
+  // renombra categorías existentes (se abre con doble tap sobre la pestaña).
   const [catModal, setCatModal] = useState<{ current: string } | null>(null);
   const [catInputVal, setCatInputVal] = useState("");
-  // Modo Organizar: reordenar categorías/ítems con drag&drop. Fuera de
-  // este modo no se ven controles de arrastre ni de eliminar categoría.
-  const [organizing, setOrganizing] = useState(false);
   // Qué categoría tiene abierto su menú de acciones (Editar nombre /
-  // Eliminar categoría) dentro del modo Organizar.
+  // Eliminar categoría) — se abre con doble tap sobre la pestaña.
   const [catActionMenu, setCatActionMenu] = useState<string | null>(null);
   // Si la categoría a eliminar todavía tiene ítems, en vez de borrarlos se
   // pide elegir a dónde moverlos primero.
@@ -2435,36 +2599,31 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
               <div className="flex items-center gap-0.5">
                 {categories.map((category) => {
                   const active = category === activeCat;
+                  const hoverTarget = hoverTargetCategory === category;
                   return (
                     <div
                       key={category}
-                      ref={categoryReorder.setNodeRef(category)}
+                      ref={(el) => {
+                        categoryReorder.setNodeRef(category)(el);
+                        if (el) categoryTabRefsMap.current.set(category, el);
+                        else categoryTabRefsMap.current.delete(category);
+                      }}
+                      onPointerDown={(event) => categoryReorder.startPress(category, event)}
                       className={cn(
-                        "flex shrink-0 items-center whitespace-nowrap rounded-t-lg transition-colors duration-150",
-                        active && !organizing
+                        "flex shrink-0 items-center whitespace-nowrap rounded-t-lg transition-colors duration-150 select-none [-webkit-touch-callout:none]",
+                        active
                           ? "bg-white/5 text-foreground"
                           : "text-muted-foreground hover:text-foreground",
                         categoryReorder.draggingId === category &&
                           "z-50 rounded-lg bg-white/10 text-foreground shadow-[0_8px_22px_-6px_rgba(139,92,246,0.6)] ring-2 ring-violet-400/60",
+                        hoverTarget &&
+                          "z-40 rounded-lg bg-violet-500/20 text-foreground ring-2 ring-violet-400/70",
                       )}
                     >
-                      {organizing && (
-                        <span
-                          onPointerDown={(event) =>
-                            categoryReorder.startDrag(category, event)
-                          }
-                          className="grid h-9 w-7 shrink-0 touch-none select-none place-items-center rounded-md cursor-grab text-white/40 [-webkit-touch-callout:none] active:cursor-grabbing active:bg-white/5"
-                        >
-                          <GripVertical className="h-4 w-4" />
-                        </span>
-                      )}
                       <button
                         type="button"
-                        onClick={() =>
-                          organizing
-                            ? setCatActionMenu(category)
-                            : selectCategory(category)
-                        }
+                        onClick={() => selectCategory(category)}
+                        onDoubleClick={() => setCatActionMenu(category)}
                         title={category}
                         className="flex items-center whitespace-nowrap px-2 py-2 text-sm select-none"
                       >
@@ -2481,27 +2640,12 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           <div className="flex shrink-0 items-center justify-end gap-1.5 pl-2 pr-0">
             <button
               type="button"
-              onClick={() => setOrganizing((v) => !v)}
-              className={cn(
-                "grid h-8 place-items-center rounded-xl px-2.5 text-xs font-semibold transition",
-                organizing
-                  ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white"
-                  : "bg-white/5 text-white/60 ring-1 ring-white/10 hover:bg-white/10 hover:text-white",
-              )}
-              aria-label={organizing ? "Salir de organizar" : "Organizar"}
+              onClick={openNew}
+              className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white shadow-[0_8px_24px_-10px_rgba(56,189,248,0.75)] transition hover:opacity-95"
+              aria-label="Agregar"
             >
-              {organizing ? "Listo" : <GripVertical className="h-4 w-4" />}
+              <Plus className="h-4.5 w-4.5" strokeWidth={2.5} />
             </button>
-            {!organizing && (
-              <button
-                type="button"
-                onClick={openNew}
-                className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white shadow-[0_8px_24px_-10px_rgba(56,189,248,0.75)] transition hover:opacity-95"
-                aria-label="Agregar"
-              >
-                <Plus className="h-4.5 w-4.5" strokeWidth={2.5} />
-              </button>
-            )}
           </div>
         </div>
 
@@ -2515,20 +2659,13 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
               <div
                 key={row.id}
                 ref={itemReorder.setNodeRef(row.id)}
+                onPointerDown={(event) => itemReorder.startPress(row.id, event)}
                 className={cn(
-                  "relative flex items-center gap-3 px-5 py-3 transition-colors duration-150",
+                  "relative flex items-center gap-3 px-5 py-3 transition-colors duration-150 select-none [-webkit-touch-callout:none]",
                   itemReorder.draggingId === row.id &&
                     "z-50 rounded-2xl bg-white/[0.07] shadow-[0_8px_20px_-6px_rgba(139,92,246,0.5)] ring-2 ring-violet-400/50",
                 )}
               >
-                {organizing && (
-                  <span
-                    onPointerDown={(event) => itemReorder.startDrag(row.id, event)}
-                    className="grid h-10 w-9 shrink-0 touch-none select-none place-items-center rounded-lg cursor-grab text-white/35 [-webkit-touch-callout:none] active:cursor-grabbing active:bg-white/5"
-                  >
-                    <GripVertical className="h-4 w-4" />
-                  </span>
-                )}
                 <ServiceImage
                   src={imageMap[row.id]}
                   alt={row.name}
@@ -2723,7 +2860,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           </div>
         </div>
       )}
-      {/* Acciones de categoría (modo Organizar): editar nombre o eliminar.
+      {/* Acciones de categoría (doble tap sobre la pestaña): editar nombre o eliminar.
           Modal centrado en vez de un menú anclado a la pestaña — la fila de
           categorías tiene scroll horizontal, así que un dropdown pegado a
           la pestaña quedaría recortado por el propio contenedor. */}
