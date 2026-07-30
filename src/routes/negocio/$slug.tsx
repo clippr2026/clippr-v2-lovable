@@ -346,10 +346,6 @@ function PublicProfilePage() {
   const [featuredPositions, setFeaturedPositions] = React.useState<Record<string, string>>({});
   const [featuredClients, setFeaturedClients] = React.useState<FeaturedClient[]>([]);
   const [showAllFeaturedClients, setShowAllFeaturedClients] = React.useState(false);
-  // Pestaña activa de "Servicios disponibles": null = "Todos". El cliente
-  // siempre ve primero el listado completo y después puede filtrar por
-  // categoría, nunca al revés.
-  const [activeServiceCategory, setActiveServiceCategory] = React.useState<string | null>(null);
   const [description, setDescription] = React.useState<string>("");
   const [profileNote, setProfileNote] = React.useState<string>("");
   const [additionalInfo, setAdditionalInfo] = React.useState<string[]>([]);
@@ -617,13 +613,6 @@ function PublicProfilePage() {
     const bi = featuredCategoryOrder.indexOf(b);
     return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
   });
-  const serviceCategories = Array.from(
-    new Set(services.map((service) => service.category?.trim() || "Otro")),
-  ).sort((a, b) => a.localeCompare(b, "es"));
-  const visibleServices = activeServiceCategory
-    ? services.filter((service) => (service.category?.trim() || "Otro") === activeServiceCategory)
-    : services;
-
   return (
     <main
       data-theme={theme}
@@ -786,40 +775,8 @@ function PublicProfilePage() {
               {services.length === 0 ? (
                 <p className="mt-4 text-sm text-white/55">Todavía no hay servicios habilitados para reserva online.</p>
               ) : (
-                <>
-                  {serviceCategories.length > 1 && (
-                    <div className="mt-5 flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                      <button
-                        type="button"
-                        onClick={() => setActiveServiceCategory(null)}
-                        className="shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold transition"
-                        style={
-                          activeServiceCategory === null
-                            ? { background: cAccent, color: accentButtonText }
-                            : { background: "rgba(255,255,255,0.06)", color: "inherit" }
-                        }
-                      >
-                        Todos
-                      </button>
-                      {serviceCategories.map((category) => (
-                        <button
-                          key={category}
-                          type="button"
-                          onClick={() => setActiveServiceCategory(category)}
-                          className="shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold transition"
-                          style={
-                            activeServiceCategory === category
-                              ? { background: cAccent, color: accentButtonText }
-                              : { background: "rgba(255,255,255,0.06)", color: "inherit" }
-                          }
-                        >
-                          {category}
-                        </button>
-                      ))}
-                    </div>
-                  )}
                 <div className="mt-5 divide-y divide-white/10">
-                  {visibleServices.map((service: Service) => (
+                  {services.map((service: Service) => (
                     <div key={service.id} className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0">
                       <div className="flex min-w-0 items-center gap-3">
                         <ServiceImage
@@ -847,7 +804,6 @@ function PublicProfilePage() {
                     </div>
                   ))}
                 </div>
-                </>
               )}
             </div>
           </GlowCard>
