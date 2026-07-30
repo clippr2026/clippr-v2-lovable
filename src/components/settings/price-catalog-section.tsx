@@ -2684,7 +2684,20 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                 ref={itemReorder.setNodeRef(row.id)}
                 onPointerDown={(event) => itemReorder.startPress(row.id, event)}
                 className={cn(
-                  "relative flex items-center gap-3 px-5 py-3 transition-colors duration-150 select-none [-webkit-touch-callout:none]",
+                  // touch-none (touch-action:none) desde el render, no solo
+                  // al activar el drag: en la lista de ítems el eje de
+                  // reorden (vertical) es el MISMO eje que el scroll de la
+                  // página — si el touch-action se pusiera recién al activar
+                  // (como en las categorías, que compiten con el scroll
+                  // horizontal de su propia tira, un gesto mucho menos
+                  // agresivo para iOS), el scroll vertical del documento
+                  // puede quedarse con el gesto antes de que nuestro timer
+                  // de long-press llegue a tomar el control. Como
+                  // contrapartida, un swipe que arranque justo sobre una
+                  // fila ya no scrollea la página — hay que arrancarlo desde
+                  // otra zona (esto es aceptable: son pocos ítems por
+                  // categoría).
+                  "relative flex items-center gap-3 px-5 py-3 transition-colors duration-150 select-none touch-none [-webkit-touch-callout:none]",
                   itemReorder.draggingId === row.id &&
                     "z-50 rounded-2xl bg-white/[0.07] shadow-[0_8px_20px_-6px_rgba(139,92,246,0.5)] ring-2 ring-violet-400/50",
                 )}
