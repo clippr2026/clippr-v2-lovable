@@ -76,6 +76,13 @@ const FEATURED_CLIENT_CATEGORIES: FeaturedClientCategory[] = [
   "Otro",
 ];
 
+// La tarjeta en la página pública muestra hasta 3 por fila (ver
+// featuredCardWidthClass en negocio/$slug.tsx) — con ese ancho, un nombre
+// más largo que esto no entra en una línea y se corta con "...". Este tope
+// evita cargar nombres que después se van a ver cortados en la mayoría de
+// los casos.
+const MAX_FEATURED_CLIENT_NAME_LENGTH = 16;
+
 function makeEmptyFeaturedClient(order = 0): FeaturedClient {
   return {
     id: `featured-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -1684,7 +1691,8 @@ export function BrandingSection() {
                   <p className="mt-1 text-xs text-muted-foreground">
                     Logos o fotos de personas, marcas o equipos que querés
                     mostrar en tu página pública. Si no hay activos, esta
-                    sección no aparece.
+                    sección no aparece. Máximo {MAX_FEATURED_CLIENT_NAME_LENGTH}{" "}
+                    caracteres por nombre, para que entre bien en la tarjeta.
                   </p>
                 </div>
                 <button
@@ -1766,6 +1774,7 @@ export function BrandingSection() {
                           })
                         }
                         placeholder="Nombre: Nike, Duki, Boca Juniors..."
+                        maxLength={MAX_FEATURED_CLIENT_NAME_LENGTH}
                         className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
                       />
 

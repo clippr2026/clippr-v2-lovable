@@ -340,27 +340,27 @@ function GlowCard({ children, className = "" }: { children: React.ReactNode; cla
 // Distribución de "Confían en nosotros" según cuánta gente hay cargada —
 // misma cantidad de columnas en todos los tamaños de pantalla (no depende
 // del viewport, depende de cuántas tarjetas hay), para que 4 personas se
-// vean siempre "2 arriba y 2 abajo", 5 siempre "3 arriba y 2 abajo", etc.
-// Con más de 6 (solo puede pasar dentro de "Ver todos", agrupado por
-// categoría) no hay una distribución prolija única para todos los casos,
-// así que ahí se vuelve a la grilla responsive de siempre.
-function featuredGridColsClass(count: number): string {
-  switch (count) {
-    case 0:
-    case 1:
-      return "grid-cols-1";
-    case 2:
-      return "grid-cols-2";
-    case 3:
-      return "grid-cols-3";
-    case 4:
-      return "grid-cols-2";
-    case 5:
-    case 6:
-      return "grid-cols-3";
-    default:
-      return "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4";
-  }
+// vean siempre "2 arriba y 2 abajo", 5 siempre "3 arriba y 2 abajo", 6
+// siempre "3 arriba y 3 abajo". Con más de 6 (solo puede pasar dentro de
+// "Ver todos", agrupado por categoría) no hay una distribución prolija
+// única para todos los casos, ahí se cae a 3 columnas siempre.
+function featuredCols(count: number): number {
+  if (count <= 1) return 1;
+  if (count === 2 || count === 4) return 2;
+  return 3;
+}
+
+// Ancho de cada tarjeta como flexbox (no CSS grid): con grid, una fila
+// incompleta (el caso de 5 personas: 3 arriba y 2 abajo) queda pegada a la
+// izquierda con un hueco vacío a la derecha. flex-wrap + justify-center
+// centra automáticamente cualquier fila incompleta, sin casos especiales.
+// El cálculo replica gap-1.5 (mobile) / gap-2 (desktop) descontado del
+// ancho de cada tarjeta, para que N tarjetas + sus gaps sumen exactamente
+// el 100% del contenedor.
+function featuredCardWidthClass(cols: number): string {
+  if (cols <= 1) return "w-full shrink-0";
+  if (cols === 2) return "w-[calc(50%-0.1875rem)] sm:w-[calc(50%-0.25rem)] shrink-0";
+  return "w-[calc(33.333%-0.25rem)] sm:w-[calc(33.333%-0.333rem)] shrink-0";
 }
 
 // Tarjeta de una persona en "Confían en nosotros" — la usan tanto la grilla
@@ -375,12 +375,14 @@ function FeaturedClientCard({
   accentColor,
   imagePosition,
   onZoom,
+  className = "",
 }: {
   item: FeaturedClient;
   isLight: boolean;
   accentColor: string;
   imagePosition?: string;
   onZoom: (item: FeaturedClient) => void;
+  className?: string;
 }) {
   const isFootballer = item.category === "Futbolista" && Boolean(item.club_name);
   return (
@@ -389,7 +391,8 @@ function FeaturedClientCard({
         (isLight
           ? "border-zinc-200 bg-white shadow-[0_0_42px_rgba(168,85,247,0.14)]"
           : "border-white/10 bg-white/[0.055] shadow-[0_0_42px_rgba(168,85,247,0.2)]") +
-        " overflow-hidden rounded-3xl border transition hover:-translate-y-0.5"
+        " overflow-hidden rounded-3xl border transition hover:-translate-y-0.5 " +
+        className
       }
     >
       <button
@@ -418,7 +421,7 @@ function FeaturedClientCard({
         )}
       </button>
       <div className="px-2 py-2 text-center sm:px-3 sm:py-2.5">
-        <p className="truncate text-sm font-semibold leading-tight sm:text-base">{item.name}</p>
+        <p className="truncate text-xs font-semibold leading-tight sm:text-sm">{item.name}</p>
         <p className={(isLight ? "text-zinc-500" : "text-white/50") + " mt-0.5 truncate text-xs leading-tight sm:text-sm"}>
           {item.category}
         </p>
@@ -895,11 +898,12 @@ function PublicProfilePage() {
                 </div>
 
                 {/* Distribución fija según cuánta gente hay (2/3/2/3/3 arriba
-                    para 2/3/4/5/6 personas — ver featuredGridColsClass),
-                    igual en todos los tamaños de pantalla, sin scroll
-                    horizontal. Máximo 6 visibles; el resto (si hay más de 6)
-                    solo se ve entrando a "Ver todos". */}
-                <div className={"mt-5 grid gap-2 sm:gap-3 " + featuredGridColsClass(Math.min(featuredClients.length, 6))}>
+                    para 2/3/4/5/6 personas — ver featuredCols). flex-wrap +
+                    justify-center (no CSS grid) para que una fila incompleta
+                    —el caso de 5: 3 arriba y 2 abajo— quede centrada en vez
+                    de pegada a la izquierda. Máximo 6 visibles; el resto
+                    (si hay más de 6) solo se ve entrando a "Ver todos". */}
+                <div className="mt-5 flex flex-wrap justify-center gap-1.5 sm:gap-2">
                   {featuredClients.slice(0, 6).map((item, index) => (
                     <FeaturedClientCard
                       key={item.id || `${item.name}-${index}`}
@@ -908,6 +912,7 @@ function PublicProfilePage() {
                       accentColor={cAccent}
                       imagePosition={item.id ? featuredPositions[item.id] : undefined}
                       onZoom={setZoomedFeaturedClient}
+                      className={featuredCardWidthClass(featuredCols(Math.min(featuredClients.length, 6)))}
                     />
                   ))}
                 </div>
@@ -1216,7 +1221,7 @@ function PublicProfilePage() {
                       <h3 className="text-lg font-bold">{category}</h3>
                       <span className={(isLight ? "bg-zinc-100 text-zinc-600" : "bg-white/10 text-white/60") + " rounded-full px-3 py-1 text-xs font-semibold"}>{items.length}</span>
                     </div>
-                    <div className={"grid gap-3 " + featuredGridColsClass(items.length)}>
+                    <div className="flex flex-wrap justify-center gap-1.5 sm:gap-2">
                       {items.map((item, index) => (
                         <FeaturedClientCard
                           key={item.id || `featured-modal-${category}-${item.name}-${index}`}
@@ -1225,6 +1230,7 @@ function PublicProfilePage() {
                           accentColor={cAccent}
                           imagePosition={item.id ? featuredPositions[item.id] : undefined}
                           onZoom={setZoomedFeaturedClient}
+                          className={featuredCardWidthClass(featuredCols(items.length))}
                         />
                       ))}
                     </div>
