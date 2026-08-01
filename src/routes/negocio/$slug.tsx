@@ -337,6 +337,32 @@ function GlowCard({ children, className = "" }: { children: React.ReactNode; cla
   );
 }
 
+// Distribución de "Confían en nosotros" según cuánta gente hay cargada —
+// misma cantidad de columnas en todos los tamaños de pantalla (no depende
+// del viewport, depende de cuántas tarjetas hay), para que 4 personas se
+// vean siempre "2 arriba y 2 abajo", 5 siempre "3 arriba y 2 abajo", etc.
+// Con más de 6 (solo puede pasar dentro de "Ver todos", agrupado por
+// categoría) no hay una distribución prolija única para todos los casos,
+// así que ahí se vuelve a la grilla responsive de siempre.
+function featuredGridColsClass(count: number): string {
+  switch (count) {
+    case 0:
+    case 1:
+      return "grid-cols-1";
+    case 2:
+      return "grid-cols-2";
+    case 3:
+      return "grid-cols-3";
+    case 4:
+      return "grid-cols-2";
+    case 5:
+    case 6:
+      return "grid-cols-3";
+    default:
+      return "grid-cols-2 sm:grid-cols-3 lg:grid-cols-4";
+  }
+}
+
 // Tarjeta de una persona en "Confían en nosotros" — la usan tanto la grilla
 // principal como el modal "Ver todos" (mismo diseño en los dos lugares a
 // propósito: nunca dos versiones distintas de la misma tarjeta). La foto es
@@ -391,9 +417,9 @@ function FeaturedClientCard({
           </span>
         )}
       </button>
-      <div className="p-3 text-center sm:p-4">
-        <p className="truncate font-semibold leading-tight">{item.name}</p>
-        <p className={(isLight ? "text-zinc-500" : "text-white/50") + " mt-0.5 truncate text-sm leading-tight"}>
+      <div className="px-2 py-2 text-center sm:px-3 sm:py-2.5">
+        <p className="truncate text-sm font-semibold leading-tight sm:text-base">{item.name}</p>
+        <p className={(isLight ? "text-zinc-500" : "text-white/50") + " mt-0.5 truncate text-xs leading-tight sm:text-sm"}>
           {item.category}
         </p>
         {/* Fila del club: SIEMPRE se renderiza (con `invisible` cuando no
@@ -402,7 +428,7 @@ function FeaturedClientCard({
             más alta que el resto de la grilla. */}
         <div
           className={
-            "mt-1 flex items-center justify-center gap-1.5" + (isFootballer ? "" : " invisible")
+            "mt-1 flex items-center justify-center gap-1" + (isFootballer ? "" : " invisible")
           }
         >
           {item.club_logo_url ? (
@@ -413,19 +439,19 @@ function FeaturedClientCard({
               // perfectamente cuadrado — cover lo recortaría. rounded-md en
               // vez de círculo para que el letterboxing de contain no se
               // vea raro contra una máscara circular.
-              className="h-5 w-5 shrink-0 rounded-md bg-white/10 object-contain ring-1 ring-white/15"
+              className="h-4 w-4 shrink-0 rounded-md bg-white/10 object-contain ring-1 ring-white/15"
               loading="lazy"
               decoding="async"
             />
           ) : (
             <span
-              className="grid h-5 w-5 shrink-0 place-items-center rounded-md text-[9px] font-bold"
+              className="grid h-4 w-4 shrink-0 place-items-center rounded-md text-[8px] font-bold"
               style={{ background: accentColor, color: "#fff" }}
             >
               {(item.club_name || "?").slice(0, 1)}
             </span>
           )}
-          <span className={(isLight ? "text-zinc-600" : "text-white/70") + " truncate text-xs font-medium leading-tight"}>
+          <span className={(isLight ? "text-zinc-600" : "text-white/70") + " truncate text-[11px] font-medium leading-tight"}>
             {item.club_name || " "}
           </span>
         </div>
@@ -856,7 +882,7 @@ function PublicProfilePage() {
                     <h2 className="text-2xl font-semibold">Confían en nosotros</h2>
                   </div>
 
-                  {featuredClients.length > 4 ? (
+                  {featuredClients.length > 6 ? (
                     <button
                       type="button"
                       onClick={() => setShowAllFeaturedClients(true)}
@@ -868,11 +894,13 @@ function PublicProfilePage() {
                   ) : null}
                 </div>
 
-                {/* Siempre 2 columnas — "2 arriba, 2 abajo", máximo 4
-                    visibles, sin scroll horizontal. El resto (si hay más de
-                    4) solo se ve entrando a "Ver todos". */}
-                <div className="mt-5 grid grid-cols-2 gap-3">
-                  {featuredClients.slice(0, 4).map((item, index) => (
+                {/* Distribución fija según cuánta gente hay (2/3/2/3/3 arriba
+                    para 2/3/4/5/6 personas — ver featuredGridColsClass),
+                    igual en todos los tamaños de pantalla, sin scroll
+                    horizontal. Máximo 6 visibles; el resto (si hay más de 6)
+                    solo se ve entrando a "Ver todos". */}
+                <div className={"mt-5 grid gap-2 sm:gap-3 " + featuredGridColsClass(Math.min(featuredClients.length, 6))}>
+                  {featuredClients.slice(0, 6).map((item, index) => (
                     <FeaturedClientCard
                       key={item.id || `${item.name}-${index}`}
                       item={item}
@@ -1188,7 +1216,7 @@ function PublicProfilePage() {
                       <h3 className="text-lg font-bold">{category}</h3>
                       <span className={(isLight ? "bg-zinc-100 text-zinc-600" : "bg-white/10 text-white/60") + " rounded-full px-3 py-1 text-xs font-semibold"}>{items.length}</span>
                     </div>
-                    <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+                    <div className={"grid gap-3 " + featuredGridColsClass(items.length)}>
                       {items.map((item, index) => (
                         <FeaturedClientCard
                           key={item.id || `featured-modal-${category}-${item.name}-${index}`}
