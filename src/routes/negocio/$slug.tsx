@@ -373,14 +373,12 @@ function featuredCardWidthClass(cols: number): string {
 function FeaturedClientCard({
   item,
   isLight,
-  accentColor,
   imagePosition,
   onZoom,
   className = "",
 }: {
   item: FeaturedClient;
   isLight: boolean;
-  accentColor: string;
   imagePosition?: string;
   onZoom: (item: FeaturedClient) => void;
   className?: string;
@@ -426,24 +424,23 @@ function FeaturedClientCard({
           `truncate` para poder cortar con "..." en vez de desbordar) sobre
           un min-h fijo — el nombre/categoría/club quedan centrados
           verticalmente y la altura del bloque es IDÉNTICA en todas las
-          tarjetas, tengan club o no (el bloque de club de abajo reserva su
-          lugar siempre, ver más abajo). El min-h subió respecto de antes
-          porque el escudo (bastante más grande) ahora va apilado arriba
-          del nombre del club, no al lado — el resto de los gaps/padding
-          se mantiene al mínimo para no sumar aire de más. */}
-      <div className="flex min-h-[84px] flex-col justify-center px-2 py-1 text-center sm:min-h-[96px] sm:px-3 sm:py-1.5">
+          tarjetas, tengan club o no: el min-h es el piso común y
+          justify-center absorbe la diferencia cuando una tarjeta tiene
+          menos contenido (sin club, o con club pero sin logo) que otra. */}
+      <div className="flex min-h-[58px] flex-col justify-center px-2 py-1 text-center sm:min-h-[68px] sm:px-3 sm:py-1.5">
         <p className="truncate text-[12px] font-semibold leading-tight sm:text-[14px]">{item.name}</p>
         <p className={(isLight ? "text-zinc-500" : "text-white/50") + " mt-0.5 truncate text-[10px] leading-tight sm:text-[11px]"}>
           {item.category}
         </p>
-        {/* Bloque del club (escudo arriba, nombre debajo): SIEMPRE se
-            renderiza (con `invisible` cuando no aplica) para que todas las
-            tarjetas midan exactamente lo mismo, tengan o no club cargado —
-            sin esto, una tarjeta con club queda más alta que el resto de
-            la grilla. */}
+        {/* Bloque del club (logo a la izquierda, nombre a la derecha,
+            centrado como un solo grupo): SIEMPRE se renderiza (con
+            `invisible` cuando no aplica) para que todas las tarjetas
+            reserven el mismo piso de altura — ver el comentario del min-h
+            arriba. Sin logo cargado no se dibuja ningún ícono de
+            reemplazo, solo el nombre del club centrado. */}
         <div
           className={
-            "mt-1 flex flex-col items-center justify-center gap-0.5" + (isFootballer ? "" : " invisible")
+            "mt-1 flex items-center justify-center gap-1.5 sm:gap-2" + (isFootballer ? "" : " invisible")
           }
         >
           {item.club_logo_url ? (
@@ -454,18 +451,11 @@ function FeaturedClientCard({
               // perfectamente cuadrado — cover lo recortaría. rounded-md en
               // vez de círculo para que el letterboxing de contain no se
               // vea raro contra una máscara circular.
-              className="h-8 w-8 shrink-0 rounded-md bg-white/10 object-contain ring-1 ring-white/15"
+              className="h-5 w-5 shrink-0 rounded-md bg-white/10 object-contain ring-1 ring-white/15"
               loading="lazy"
               decoding="async"
             />
-          ) : (
-            <span
-              className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-[12px] font-bold"
-              style={{ background: accentColor, color: "#fff" }}
-            >
-              {(item.club_name || "?").slice(0, 1)}
-            </span>
-          )}
+          ) : null}
           <span className={(isLight ? "text-zinc-600" : "text-white/70") + " max-w-full truncate text-[11px] font-medium leading-tight sm:text-[12px]"}>
             {item.club_name || " "}
           </span>
@@ -924,7 +914,6 @@ function PublicProfilePage() {
                       key={item.id || `${item.name}-${index}`}
                       item={item}
                       isLight={isLight}
-                      accentColor={cAccent}
                       imagePosition={item.id ? featuredPositions[item.id] : undefined}
                       onZoom={setZoomedFeaturedClient}
                       className={featuredCardWidthClass(featuredCols(Math.min(featuredClients.length, 6)))}
@@ -1242,7 +1231,6 @@ function PublicProfilePage() {
                           key={item.id || `featured-modal-${category}-${item.name}-${index}`}
                           item={item}
                           isLight={isLight}
-                          accentColor={cAccent}
                           imagePosition={item.id ? featuredPositions[item.id] : undefined}
                           onZoom={setZoomedFeaturedClient}
                           className={featuredCardWidthClass(featuredCols(items.length))}
