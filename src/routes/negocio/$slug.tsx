@@ -456,7 +456,7 @@ function FeaturedClientCard({
               decoding="async"
             />
           ) : null}
-          <span className={(isLight ? "text-zinc-500" : "text-white/50") + " max-w-full truncate text-[10px] leading-tight sm:text-[11px]"}>
+          <span className={(isLight ? "text-zinc-500" : "text-white/50") + " max-w-full truncate text-[10px] font-bold leading-tight sm:text-[11px]"}>
             {item.club_name || " "}
           </span>
         </div>
