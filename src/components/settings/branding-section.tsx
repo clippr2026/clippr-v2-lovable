@@ -81,7 +81,7 @@ const FEATURED_CLIENT_CATEGORIES: FeaturedClientCategory[] = [
 // más largo que esto no entra en una línea y se corta con "...". Este tope
 // evita cargar nombres que después se van a ver cortados en la mayoría de
 // los casos.
-const MAX_FEATURED_CLIENT_NAME_LENGTH = 16;
+const MAX_FEATURED_CLIENT_NAME_LENGTH = 20;
 
 function makeEmptyFeaturedClient(order = 0): FeaturedClient {
   return {

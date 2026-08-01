@@ -354,13 +354,14 @@ function featuredCols(count: number): number {
 // incompleta (el caso de 5 personas: 3 arriba y 2 abajo) queda pegada a la
 // izquierda con un hueco vacío a la derecha. flex-wrap + justify-center
 // centra automáticamente cualquier fila incompleta, sin casos especiales.
-// El cálculo replica gap-1.5 (mobile) / gap-2 (desktop) descontado del
+// El cálculo replica gap-1 (mobile) / gap-1.5 (desktop) descontado del
 // ancho de cada tarjeta, para que N tarjetas + sus gaps sumen exactamente
-// el 100% del contenedor.
+// el 100% del contenedor — el gap más chico posible que sigue viéndose
+// prolijo es lo que más ancho real le devuelve a cada tarjeta.
 function featuredCardWidthClass(cols: number): string {
   if (cols <= 1) return "w-full shrink-0";
-  if (cols === 2) return "w-[calc(50%-0.1875rem)] sm:w-[calc(50%-0.25rem)] shrink-0";
-  return "w-[calc(33.333%-0.25rem)] sm:w-[calc(33.333%-0.333rem)] shrink-0";
+  if (cols === 2) return "w-[calc(50%-0.125rem)] sm:w-[calc(50%-0.1875rem)] shrink-0";
+  return "w-[calc(33.333%-0.1667rem)] sm:w-[calc(33.333%-0.25rem)] shrink-0";
 }
 
 // Tarjeta de una persona en "Confían en nosotros" — la usan tanto la grilla
@@ -420,9 +421,16 @@ function FeaturedClientCard({
           </span>
         )}
       </button>
-      <div className="px-2 py-2 text-center sm:px-3 sm:py-2.5">
-        <p className="truncate text-xs font-semibold leading-tight sm:text-sm">{item.name}</p>
-        <p className={(isLight ? "text-zinc-500" : "text-white/50") + " mt-0.5 truncate text-xs leading-tight sm:text-sm"}>
+      {/* flex-col + justify-center (sin items-center: así los hijos
+          heredan el stretch por default y el ancho completo que necesita
+          `truncate` para poder cortar con "..." en vez de desbordar) sobre
+          un min-h fijo — el nombre/categoría/club quedan centrados
+          verticalmente y la altura del bloque es IDÉNTICA en todas las
+          tarjetas, tengan club o no (la fila del club de abajo reserva su
+          lugar siempre, ver más abajo). */}
+      <div className="flex min-h-[62px] flex-col justify-center px-2 py-1.5 text-center sm:min-h-[72px] sm:px-3 sm:py-2">
+        <p className="truncate text-[11px] font-semibold leading-tight sm:text-[13px]">{item.name}</p>
+        <p className={(isLight ? "text-zinc-500" : "text-white/50") + " mt-0.5 truncate text-[10px] leading-tight sm:text-xs"}>
           {item.category}
         </p>
         {/* Fila del club: SIEMPRE se renderiza (con `invisible` cuando no
@@ -431,7 +439,7 @@ function FeaturedClientCard({
             más alta que el resto de la grilla. */}
         <div
           className={
-            "mt-1 flex items-center justify-center gap-1" + (isFootballer ? "" : " invisible")
+            "mt-1 flex max-w-full items-center justify-center gap-1" + (isFootballer ? "" : " invisible")
           }
         >
           {item.club_logo_url ? (
@@ -454,7 +462,7 @@ function FeaturedClientCard({
               {(item.club_name || "?").slice(0, 1)}
             </span>
           )}
-          <span className={(isLight ? "text-zinc-600" : "text-white/70") + " truncate text-[11px] font-medium leading-tight"}>
+          <span className={(isLight ? "text-zinc-600" : "text-white/70") + " max-w-[6.5rem] truncate text-[10px] font-medium leading-tight"}>
             {item.club_name || " "}
           </span>
         </div>
@@ -876,7 +884,10 @@ function PublicProfilePage() {
 
           {featuredClients.length > 0 ? (
             <GlowCard>
-              <div className="p-5 sm:p-6">
+              {/* Menos padding lateral que el resto de las secciones a
+                  propósito — le da más ancho real a las tarjetas de abajo,
+                  que ya vienen apretadas por tener que entrar 3 por fila. */}
+              <div className="p-4 sm:p-5">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-3">
                     <span className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/5" style={{ color: cAccent }}>
@@ -903,7 +914,7 @@ function PublicProfilePage() {
                     —el caso de 5: 3 arriba y 2 abajo— quede centrada en vez
                     de pegada a la izquierda. Máximo 6 visibles; el resto
                     (si hay más de 6) solo se ve entrando a "Ver todos". */}
-                <div className="mt-5 flex flex-wrap justify-center gap-1.5 sm:gap-2">
+                <div className="mt-5 flex flex-wrap justify-center gap-1 sm:gap-1.5">
                   {featuredClients.slice(0, 6).map((item, index) => (
                     <FeaturedClientCard
                       key={item.id || `${item.name}-${index}`}
@@ -1221,7 +1232,7 @@ function PublicProfilePage() {
                       <h3 className="text-lg font-bold">{category}</h3>
                       <span className={(isLight ? "bg-zinc-100 text-zinc-600" : "bg-white/10 text-white/60") + " rounded-full px-3 py-1 text-xs font-semibold"}>{items.length}</span>
                     </div>
-                    <div className="flex flex-wrap justify-center gap-1.5 sm:gap-2">
+                    <div className="flex flex-wrap justify-center gap-1 sm:gap-1.5">
                       {items.map((item, index) => (
                         <FeaturedClientCard
                           key={item.id || `featured-modal-${category}-${item.name}-${index}`}
