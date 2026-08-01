@@ -440,7 +440,7 @@ function FeaturedClientCard({
             reemplazo, solo el nombre del club centrado. */}
         <div
           className={
-            "mt-0.5 flex items-center justify-center gap-1 sm:gap-1.5" + (isFootballer ? "" : " invisible")
+            "mt-px flex items-center justify-center gap-1 sm:gap-1.5" + (isFootballer ? "" : " invisible")
           }
         >
           {item.club_logo_url ? (
@@ -451,7 +451,7 @@ function FeaturedClientCard({
               // perfectamente cuadrado — cover lo recortaría. rounded-md en
               // vez de círculo para que el letterboxing de contain no se
               // vea raro contra una máscara circular.
-              className="h-[22px] w-[22px] shrink-0 rounded-md bg-white/10 object-contain ring-1 ring-white/15"
+              className="h-6 w-6 shrink-0 rounded-md bg-white/10 object-contain ring-1 ring-white/15"
               loading="lazy"
               decoding="async"
             />
