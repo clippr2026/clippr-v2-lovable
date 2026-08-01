@@ -440,7 +440,7 @@ function FeaturedClientCard({
             reemplazo, solo el nombre del club centrado. */}
         <div
           className={
-            "mt-px flex items-center justify-center gap-1 sm:gap-1.5" + (isFootballer ? "" : " invisible")
+            "mt-0 flex items-center justify-center gap-1.5 sm:gap-2" + (isFootballer ? "" : " invisible")
           }
         >
           {item.club_logo_url ? (

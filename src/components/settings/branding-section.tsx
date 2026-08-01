@@ -83,10 +83,13 @@ const FEATURED_CLIENT_CATEGORIES: FeaturedClientCategory[] = [
 // los casos.
 const MAX_FEATURED_CLIENT_NAME_LENGTH = 20;
 
-// Mismo criterio que el nombre de la persona, para el nombre del club
-// (solo aplica a la categoría "Futbolista") — trunca con "..." en la
-// tarjeta pública si se pasa.
-const MAX_FEATURED_CLUB_NAME_LENGTH = 20;
+// El nombre del club comparte la fila con el escudo (24px + separación),
+// así que tiene bastante MENOS ancho real disponible que el nombre de la
+// persona (que no compite con ningún ícono) — 20 caracteres ahí se
+// truncaban seguro en mobile con 3 tarjetas por fila. 14 es la estimación
+// más ajustada al espacio real que queda junto al escudo en ese layout;
+// "Boca Juniors" (12) entra con margen, nombres bastante más largos no.
+const MAX_FEATURED_CLUB_NAME_LENGTH = 14;
 
 function makeEmptyFeaturedClient(order = 0): FeaturedClient {
   return {
@@ -1697,8 +1700,9 @@ export function BrandingSection() {
                     Logos o fotos de personas, marcas o equipos que querés
                     mostrar en tu página pública. Si no hay activos, esta
                     sección no aparece. Máximo {MAX_FEATURED_CLIENT_NAME_LENGTH}{" "}
-                    caracteres por nombre (también para el nombre del club),
-                    para que entre bien en la tarjeta.
+                    caracteres por nombre (el nombre del club admite hasta{" "}
+                    {MAX_FEATURED_CLUB_NAME_LENGTH}, comparte la fila con el
+                    escudo), para que entre bien en la tarjeta.
                   </p>
                 </div>
                 <button
