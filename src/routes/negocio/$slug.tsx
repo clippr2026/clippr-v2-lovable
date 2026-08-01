@@ -427,8 +427,10 @@ function FeaturedClientCard({
           un min-h fijo — el nombre/categoría/club quedan centrados
           verticalmente y la altura del bloque es IDÉNTICA en todas las
           tarjetas, tengan club o no (la fila del club de abajo reserva su
-          lugar siempre, ver más abajo). */}
-      <div className="flex min-h-[62px] flex-col justify-center px-2 py-1.5 text-center sm:min-h-[72px] sm:px-3 sm:py-2">
+          lugar siempre, ver más abajo). Padding y gaps al mínimo para que
+          el escudo (más grande, ver abajo) no agrande la tarjeta: se le
+          hace lugar achicando el aire alrededor, no el contenido. */}
+      <div className="flex min-h-[56px] flex-col justify-center px-2 py-1 text-center sm:min-h-[66px] sm:px-3 sm:py-1.5">
         <p className="truncate text-[11px] font-semibold leading-tight sm:text-[13px]">{item.name}</p>
         <p className={(isLight ? "text-zinc-500" : "text-white/50") + " mt-0.5 truncate text-[10px] leading-tight sm:text-xs"}>
           {item.category}
@@ -439,7 +441,7 @@ function FeaturedClientCard({
             más alta que el resto de la grilla. */}
         <div
           className={
-            "mt-1 flex max-w-full items-center justify-center gap-1" + (isFootballer ? "" : " invisible")
+            "mt-0.5 flex max-w-full items-center justify-center gap-1.5" + (isFootballer ? "" : " invisible")
           }
         >
           {item.club_logo_url ? (
@@ -450,19 +452,19 @@ function FeaturedClientCard({
               // perfectamente cuadrado — cover lo recortaría. rounded-md en
               // vez de círculo para que el letterboxing de contain no se
               // vea raro contra una máscara circular.
-              className="h-4 w-4 shrink-0 rounded-md bg-white/10 object-contain ring-1 ring-white/15"
+              className="h-6 w-6 shrink-0 rounded-md bg-white/10 object-contain ring-1 ring-white/15"
               loading="lazy"
               decoding="async"
             />
           ) : (
             <span
-              className="grid h-4 w-4 shrink-0 place-items-center rounded-md text-[8px] font-bold"
+              className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-[10px] font-bold"
               style={{ background: accentColor, color: "#fff" }}
             >
               {(item.club_name || "?").slice(0, 1)}
             </span>
           )}
-          <span className={(isLight ? "text-zinc-600" : "text-white/70") + " max-w-[6.5rem] truncate text-[10px] font-medium leading-tight"}>
+          <span className={(isLight ? "text-zinc-600" : "text-white/70") + " max-w-[6.5rem] truncate text-[11px] font-medium leading-tight"}>
             {item.club_name || " "}
           </span>
         </div>
