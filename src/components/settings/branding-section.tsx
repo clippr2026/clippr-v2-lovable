@@ -83,6 +83,11 @@ const FEATURED_CLIENT_CATEGORIES: FeaturedClientCategory[] = [
 // los casos.
 const MAX_FEATURED_CLIENT_NAME_LENGTH = 20;
 
+// Mismo criterio que el nombre de la persona, para el nombre del club
+// (solo aplica a la categoría "Futbolista") — trunca con "..." en la
+// tarjeta pública si se pasa.
+const MAX_FEATURED_CLUB_NAME_LENGTH = 20;
+
 function makeEmptyFeaturedClient(order = 0): FeaturedClient {
   return {
     id: `featured-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
@@ -1692,7 +1697,8 @@ export function BrandingSection() {
                     Logos o fotos de personas, marcas o equipos que querés
                     mostrar en tu página pública. Si no hay activos, esta
                     sección no aparece. Máximo {MAX_FEATURED_CLIENT_NAME_LENGTH}{" "}
-                    caracteres por nombre, para que entre bien en la tarjeta.
+                    caracteres por nombre (también para el nombre del club),
+                    para que entre bien en la tarjeta.
                   </p>
                 </div>
                 <button
@@ -1878,6 +1884,7 @@ export function BrandingSection() {
                               })
                             }
                             placeholder="Nombre del club (ej: Boca Juniors)"
+                            maxLength={MAX_FEATURED_CLUB_NAME_LENGTH}
                             className="min-w-0 flex-1 rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
                           />
                         </div>
