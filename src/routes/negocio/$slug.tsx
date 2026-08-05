@@ -384,6 +384,11 @@ function FeaturedClientCard({
   className?: string;
 }) {
   const isFootballer = item.category === "Futbolista" && Boolean(item.club_name);
+  // Nombres cortos ("Boca") no necesitan el ancho extra del sangrado hacia
+  // el borde: quedan mejor con el inset normal, centrados junto al escudo
+  // como el resto del contenido de la tarjeta. Nombres largos ("Boca
+  // Juniors") sí lo necesitan para no truncar antes de tiempo.
+  const clubNameIsLong = (item.club_name?.length ?? 0) > 8;
   return (
     <div
       className={
@@ -440,13 +445,16 @@ function FeaturedClientCard({
             reemplazo, solo el nombre del club centrado. */}
         <div
           className={
-            // -mx-2/sm:-mx-3 reclaman exactamente el px-2/sm:px-3 del
-            // contenedor padre (línea de arriba) SOLO para esta fila: el
-            // grupo logo+nombre queda pegado al borde real de la tarjeta en
-            // vez de centrado dentro del padding, y el <span> truncado de
-            // abajo gana ese ancho extra antes de cortar con "...".
-            "mt-0 -mx-2 flex items-center justify-start gap-1.5 sm:-mx-3 sm:gap-2" +
-            (isFootballer ? "" : " invisible")
+            // gap-1/sm:gap-1.5 achica la separación entre escudo y nombre
+            // (antes gap-1.5/gap-2) para que el texto quede más pegado al
+            // logo. El sangrado hacia el borde real de la tarjeta
+            // (-mx-2/sm:-mx-3, que reclama exactamente el px-2/sm:px-3 del
+            // contenedor padre) solo se aplica con nombres largos, que lo
+            // necesitan para no truncar antes de tiempo — con nombres
+            // cortos el grupo se queda en el inset normal, más centrado
+            // junto al escudo en vez de pegado al extremo.
+            "mt-0 flex items-center justify-start gap-1 sm:gap-1.5" +
+            (isFootballer ? (clubNameIsLong ? " -mx-2 sm:-mx-3" : "") : " invisible")
           }
         >
           {item.club_logo_url ? (
