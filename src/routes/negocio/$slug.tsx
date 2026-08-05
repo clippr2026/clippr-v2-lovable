@@ -440,7 +440,13 @@ function FeaturedClientCard({
             reemplazo, solo el nombre del club centrado. */}
         <div
           className={
-            "mt-0 flex items-center justify-center gap-1.5 sm:gap-2" + (isFootballer ? "" : " invisible")
+            // -mx-2/sm:-mx-3 reclaman exactamente el px-2/sm:px-3 del
+            // contenedor padre (línea de arriba) SOLO para esta fila: el
+            // grupo logo+nombre queda pegado al borde real de la tarjeta en
+            // vez de centrado dentro del padding, y el <span> truncado de
+            // abajo gana ese ancho extra antes de cortar con "...".
+            "mt-0 -mx-2 flex items-center justify-start gap-1.5 sm:-mx-3 sm:gap-2" +
+            (isFootballer ? "" : " invisible")
           }
         >
           {item.club_logo_url ? (
