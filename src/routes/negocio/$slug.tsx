@@ -447,14 +447,14 @@ function FeaturedClientCard({
           className={
             // gap-1/sm:gap-1.5 achica la separación entre escudo y nombre
             // (antes gap-1.5/gap-2) para que el texto quede más pegado al
-            // logo. El sangrado hacia el borde real de la tarjeta
-            // (-mx-2/sm:-mx-3, que reclama exactamente el px-2/sm:px-3 del
-            // contenedor padre) solo se aplica con nombres largos, que lo
-            // necesitan para no truncar antes de tiempo — con nombres
-            // cortos el grupo se queda en el inset normal, más centrado
-            // junto al escudo en vez de pegado al extremo.
+            // logo. El sangrado hacia el borde real de la tarjeta con
+            // nombres largos (-mx-3/sm:-mx-4) va unos px más allá del
+            // px-2/sm:px-3 del contenedor padre, corriendo el grupo un
+            // poco más a la izquierda del borde real y ganando ese ancho
+            // extra para el <span> truncado — con nombres cortos el grupo
+            // se queda en el inset normal, más centrado junto al escudo.
             "mt-0 flex items-center justify-start gap-1 sm:gap-1.5" +
-            (isFootballer ? (clubNameIsLong ? " -mx-2 sm:-mx-3" : "") : " invisible")
+            (isFootballer ? (clubNameIsLong ? " -mx-3 sm:-mx-4" : "") : " invisible")
           }
         >
           {item.club_logo_url ? (
