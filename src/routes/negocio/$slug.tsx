@@ -448,16 +448,24 @@ function FeaturedClientCard({
             // grupo escudo+nombre queda centrado con el mismo espacio libre
             // a los dos lados sin importar cuántas letras tenga el club, y
             // se recentra solo a medida que el nombre cambia de largo —
-            // sin saltos ni casos especiales. El sangrado (-mx-2/sm:-mx-3)
-            // cancela EXACTO el px-2/sm:px-3 del contenedor padre — ni un
-            // px más — para que el ancho de esta fila nunca supere el
-            // ancho real de la tarjeta: con nombres larguísimos, cuando el
-            // <span> se termina de truncar y no queda espacio para
-            // centrar, el escudo (shrink-0, nunca se achica) puede llegar
-            // como mucho a tocar el borde real, jamás a pasarse de él y
-            // quedar cortado por el overflow-hidden de la tarjeta.
+            // sin saltos ni casos especiales.
+            //
+            // SIN sangrado (sin -mx): esta fila se queda dentro del
+            // px-2/sm:px-3 normal del contenedor padre, igual que el
+            // nombre y la categoría de arriba. Lo probamos con bleed
+            // (-mx-2/-mx-3, cancelando el padding) y el escudo terminaba
+            // demasiado cerca de la esquina inferior izquierda de la
+            // tarjeta: como el borde es rounded-3xl (radio de 24px), la
+            // curva "come" varios px horizontales incluso ANTES de llegar
+            // al borde recto, así que 0px de inset ahí SÍ se corta contra
+            // el overflow-hidden de la tarjeta. Con el padding normal de
+            // 8px/12px como piso mínimo, el escudo (shrink-0, nunca se
+            // achica) queda siempre con margen de sobra respecto a esa
+            // curva. El <span> truncado absorbe todo el ajuste: con
+            // nombres muy largos se acorta con "..." en vez de forzar más
+            // ancho para la fila.
             "mt-0 flex items-center justify-center gap-1 sm:gap-1.5" +
-            (isFootballer ? " -mx-2 sm:-mx-3" : " invisible")
+            (isFootballer ? "" : " invisible")
           }
         >
           {item.club_logo_url ? (
