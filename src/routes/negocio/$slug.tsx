@@ -445,20 +445,29 @@ function FeaturedClientCard({
             reemplazo, solo el nombre del club centrado. */}
         <div
           className={
-            // gap-0/sm:gap-0.5 (antes gap-0.5/gap-1) achica más la
-            // separación entre escudo y nombre. El escudo además lleva
-            // ml-1 (ver más abajo) que le come esos mismos px al gap — así
-            // el escudo se corre hacia la derecha, más cerca del texto,
-            // pero el <span> del nombre NO se mueve de su posición
-            // (icono+gap dan el mismo total de siempre: 4px mobile / 6px
-            // desktop). El sangrado hacia el borde real de la tarjeta con
-            // nombres largos (-mx-3/sm:-mx-4) va unos px más allá del
-            // px-2/sm:px-3 del contenedor padre, corriendo el grupo un
-            // poco más a la izquierda del borde real y ganando ese ancho
-            // extra para el <span> truncado — con nombres cortos el grupo
-            // se queda en el inset normal, más centrado junto al escudo.
-            "mt-0 flex items-center justify-start gap-0 sm:gap-0.5" +
-            (isFootballer ? (clubNameIsLong ? " -mx-3 sm:-mx-4" : "") : " invisible")
+            // gap-0/sm:gap-0.5 achica la separación entre escudo y nombre.
+            // El escudo además lleva ml-1 (ver más abajo) que le come esos
+            // mismos px al gap — así el escudo se corre hacia la derecha,
+            // más cerca del texto, pero el <span> del nombre NO se mueve
+            // de su posición dentro del grupo (icono+gap dan el mismo
+            // total de siempre: 4px mobile / 6px desktop).
+            //
+            // El grupo completo (escudo+nombre) se posiciona distinto según
+            // el largo del nombre:
+            // - Nombre corto (ej. "Boca"): justify-center SIN sangrado —
+            //   el grupo queda centrado dentro del ancho con padding normal
+            //   de la tarjeta, con el mismo espacio libre a los dos lados.
+            // - Nombre largo (ej. "Boca Juniors"): justify-start CON
+            //   sangrado (-mx-3/sm:-mx-4, unos px más allá del px-2/sm:px-3
+            //   del contenedor padre) — el grupo se corre a la izquierda y
+            //   gana ese ancho extra para el <span> truncado, para no
+            //   cortar el nombre.
+            "mt-0 flex items-center gap-0 sm:gap-0.5" +
+            (isFootballer
+              ? clubNameIsLong
+                ? " justify-start -mx-3 sm:-mx-4"
+                : " justify-center"
+              : " invisible justify-start")
           }
         >
           {item.club_logo_url ? (
