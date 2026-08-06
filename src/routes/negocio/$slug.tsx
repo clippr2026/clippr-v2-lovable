@@ -937,8 +937,8 @@ function PublicProfilePage() {
                     min-w-0 en el título y shrink-0 en la corona/botón para
                     que si el nombre no entra en una pantalla muy angosta,
                     ceda el título (con "…") y no el layout. */}
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex min-w-0 items-center gap-2">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
                     {/* Corona más chica y fina que un ícono normal (h-5 se
                         sentía grande al lado del título) y con el color
                         PRIMARIO de marca (cPrimary), no el accent — el
@@ -946,14 +946,18 @@ function PublicProfilePage() {
                         (a veces negro puro) y acá se veía apagado; el
                         primario es el que identifica visualmente al local. */}
                     <Crown className="h-[17px] w-[17px] shrink-0" strokeWidth={1.75} style={{ color: cPrimary }} />
-                    <h2 className="truncate text-lg font-semibold sm:text-2xl">Ellos confían en nosotros</h2>
+                    {/* text-base (no text-lg) en mobile: con el chip "Ver
+                        todos" compartiendo el mismo renglón, text-lg
+                        llegaba a truncar el título en anchos de celular
+                        típicos (~375-390px). */}
+                    <h2 className="truncate text-base font-semibold sm:text-2xl">Ellos confían en nosotros</h2>
                   </div>
 
                   {featuredClients.length > 6 ? (
                     <button
                       type="button"
                       onClick={() => setShowAllFeaturedClients(true)}
-                      className="inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold transition hover:brightness-110 sm:gap-1.5 sm:px-3.5 sm:py-1.5"
+                      className="inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold transition hover:brightness-110 sm:gap-1.5 sm:px-3.5 sm:py-1.5"
                       style={{ borderColor: "color-mix(in oklch, var(--c-accent) 32%, transparent)", color: cAccent }}
                     >
                       Ver todos <ChevronRight className="h-3.5 w-3.5" />
