@@ -1027,7 +1027,10 @@ function PublicProfilePage() {
                       key={service.id}
                       className={
                         (isLight ? "border-zinc-200 bg-zinc-50/60 hover:bg-zinc-50" : "border-white/10 bg-white/[0.03] hover:bg-white/[0.05]") +
-                        " flex items-center gap-4 rounded-2xl border p-3 transition sm:p-4"
+                        // min-w-0: es un ítem de un grid — sin esto, el
+                        // truncate del nombre de abajo reporta su ancho
+                        // sin truncar como mínimo y desborda la página.
+                        " flex min-w-0 items-center gap-4 rounded-2xl border p-3 transition sm:p-4"
                       }
                     >
                       <ServiceImage
@@ -1087,7 +1090,11 @@ function PublicProfilePage() {
                     <a
                       key={employee.id}
                       href={bookingHref({ professional: employee.id })}
-                      className="flex items-center gap-3 rounded-3xl border border-white/10 bg-white/[0.03] p-4 transition hover:bg-white/[0.06]"
+                      // min-w-0: ítem de un grid — sin esto, el truncate
+                      // del nombre de abajo puede empujar la página a
+                      // desbordar horizontalmente en mobile (mismo bug que
+                      // en Servicios/Confían en nosotros).
+                      className="flex min-w-0 items-center gap-3 rounded-3xl border border-white/10 bg-white/[0.03] p-4 transition hover:bg-white/[0.06]"
                     >
                       <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-full bg-white/10 text-lg font-semibold">
                         {employee.avatar_url ? (
@@ -1165,7 +1172,7 @@ function PublicProfilePage() {
 
         </div>
 
-        <aside className="space-y-5 lg:sticky lg:top-6 lg:self-start">
+        <aside className="min-w-0 space-y-5 lg:sticky lg:top-6 lg:self-start">
           {/* Reserva */}
           <GlowCard className="p-5 sm:p-6">
             <Link
@@ -1239,7 +1246,9 @@ function PublicProfilePage() {
                   return (
                     <div
                       key={item}
-                      className={(isLight ? "border-zinc-200" : "border-white/10") + " flex items-center gap-2.5 rounded-2xl border p-3"}
+                      // min-w-0: ítem de un grid, mismo cuidado que en
+                      // Servicios/Profesionales/Confían en nosotros.
+                      className={(isLight ? "border-zinc-200" : "border-white/10") + " flex min-w-0 items-center gap-2.5 rounded-2xl border p-3"}
                       style={{ background: "color-mix(in oklch, var(--c-primary) 6%, transparent)" }}
                     >
                       <span
