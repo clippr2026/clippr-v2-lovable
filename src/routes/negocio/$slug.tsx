@@ -1008,29 +1008,53 @@ function PublicProfilePage() {
               {services.length === 0 ? (
                 <p className="mt-4 text-sm text-white/55">Todavía no hay servicios habilitados para reserva online.</p>
               ) : (
-                <div className="mt-5 divide-y divide-white/10">
+                // Cada servicio es su propia tarjeta (borde + fondo propio,
+                // no divide-y) para que se sienta como una unidad "premium"
+                // en vez de una lista de datos. El precio es lo más grande
+                // del bloque de texto; la duración queda chica y apagada,
+                // arriba, a modo de dato secundario.
+                <div className="mt-5 grid gap-2.5">
                   {services.map((service: Service) => (
-                    <div key={service.id} className="flex items-center justify-between gap-4 py-4 first:pt-0 last:pb-0">
-                      <div className="flex min-w-0 items-center gap-3">
-                        <ServiceImage
-                          src={service.image_url}
-                          alt={service.name}
-                          position={service.image_position}
-                          className="h-20 w-20 rounded-xl bg-white/[0.06] ring-1 ring-white/10"
-                          fallback={<Sparkles className="h-5 w-5 text-white/30" />}
-                        />
-                        <div className="min-w-0">
-                          <p className="font-medium">{service.name}</p>
-                          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-white/50">
-                            {service.duration_min ? <span>{Number(service.duration_min)} min</span> : null}
-                            <span className="font-semibold text-white">{formatMoney(service.price)}</span>
+                    <div
+                      key={service.id}
+                      className={
+                        (isLight ? "border-zinc-200 bg-zinc-50/60 hover:bg-zinc-50" : "border-white/10 bg-white/[0.03] hover:bg-white/[0.05]") +
+                        " flex items-center gap-4 rounded-2xl border p-3 transition sm:p-4"
+                      }
+                    >
+                      <ServiceImage
+                        src={service.image_url}
+                        alt={service.name}
+                        position={service.image_position}
+                        className={(isLight ? "ring-zinc-200" : "ring-white/10") + " h-20 w-20 rounded-xl ring-1"}
+                        fallback={
+                          // Placeholder con un degradado muy suave del
+                          // color del negocio en vez del ícono suelto de
+                          // antes — se siente a marca, no a "falta imagen".
+                          <div
+                            className="grid h-full w-full place-items-center"
+                            style={{
+                              background:
+                                "linear-gradient(135deg, color-mix(in oklch, var(--c-accent) 20%, transparent), color-mix(in oklch, var(--c-primary) 12%, transparent))",
+                            }}
+                          >
+                            <Sparkles className="h-6 w-6" style={{ color: cAccent }} />
                           </div>
-                        </div>
+                        }
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-semibold">{service.name}</p>
+                        {service.duration_min ? (
+                          <p className={(isLight ? "text-zinc-500" : "text-white/45") + " mt-0.5 text-xs"}>
+                            {Number(service.duration_min)} min
+                          </p>
+                        ) : null}
+                        <p className="mt-1 text-xl font-extrabold tracking-tight">{formatMoney(service.price)}</p>
                       </div>
                       <a
                         href={bookingHref({ service: service.id })}
-                        className="shrink-0 rounded-full px-4 py-2 text-sm font-bold transition hover:brightness-110"
-                        style={{ background: cAccent, color: accentButtonText, WebkitTextFillColor: accentButtonText, boxShadow: "0 10px 24px -12px color-mix(in oklch, var(--c-accent) 70%, transparent)" }}
+                        className="shrink-0 rounded-full px-5 py-2.5 text-sm font-bold transition hover:-translate-y-0.5 hover:brightness-110"
+                        style={{ background: cAccent, color: accentButtonText, WebkitTextFillColor: accentButtonText, boxShadow: "0 14px 30px -12px color-mix(in oklch, var(--c-accent) 75%, transparent)" }}
                       >
                         Reservar
                       </a>
@@ -1192,18 +1216,34 @@ function PublicProfilePage() {
           <GlowCard className="overflow-hidden">
             <div className="p-5 sm:p-6">
               <h2 className="text-2xl font-semibold">Beneficios del negocio</h2>
-              <div className="mt-5 flex flex-wrap gap-3">
-                {additionalInfo.slice(0, 12).map((item) => (
-                  <span
-                    key={item}
-                    className={(isLight
-                      ? "bg-zinc-100 text-zinc-950"
-                      : "bg-white/[0.075] text-white") +
-                      " inline-flex items-center rounded-full px-4 py-2 text-sm font-semibold ring-1 ring-black/5 sm:text-base"}
-                  >
-                    {item}
-                  </span>
-                ))}
+              {/* Grilla de tarjetas (2/3/4 columnas según ancho) en vez de
+                  la nube de chips grises de antes — cada beneficio ya trae
+                  su propio emoji cargado por el negocio ("⚡ Confirmación
+                  instantánea", etc.); lo separamos del texto para mostrarlo
+                  como ícono en una burbuja, con el color PRINCIPAL del
+                  negocio de fondo muy suave (color-mix, nunca un hex fijo).
+                  Si algún beneficio no trae emoji, cae a un check genérico. */}
+              <div className="mt-5 grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-4">
+                {additionalInfo.slice(0, 12).map((item) => {
+                  const match = item.match(/^(\p{Extended_Pictographic}️?)\s*(.+)$/u);
+                  const icon = match ? match[1] : "✓";
+                  const label = match ? match[2] : item;
+                  return (
+                    <div
+                      key={item}
+                      className={(isLight ? "border-zinc-200" : "border-white/10") + " flex items-center gap-2.5 rounded-2xl border p-3"}
+                      style={{ background: "color-mix(in oklch, var(--c-primary) 6%, transparent)" }}
+                    >
+                      <span
+                        className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-base"
+                        style={{ background: "color-mix(in oklch, var(--c-primary) 14%, transparent)" }}
+                      >
+                        {icon}
+                      </span>
+                      <span className="text-sm font-semibold leading-tight">{label}</span>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </GlowCard>
