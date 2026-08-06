@@ -6,6 +6,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock3,
+  Crown,
   ExternalLink,
   Info,
   Instagram,
@@ -905,27 +906,41 @@ function PublicProfilePage() {
         <div className="space-y-6">
 
           {featuredClients.length > 0 ? (
-            <GlowCard>
+            <GlowCard className="overflow-hidden shadow-[0_24px_60px_-28px_rgba(0,0,0,0.45)]">
+              {/* Degradado muy sutil con el color principal del negocio,
+                  limitado a la franja del encabezado (h-28) — no un fondo
+                  fijo violeta: usa var(--c-primary), que ya se resuelve por
+                  negocio y por tema (ver el estilo inline en <main> más
+                  arriba). El overflow-hidden de GlowCard (className) lo
+                  recorta contra las esquinas redondeadas de la tarjeta. */}
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-x-0 top-0 h-28"
+                style={{
+                  background: isLight
+                    ? "linear-gradient(120deg, color-mix(in oklch, var(--c-primary) 10%, transparent) 0%, transparent 65%)"
+                    : "linear-gradient(120deg, color-mix(in oklch, var(--c-primary) 16%, transparent) 0%, transparent 65%)",
+                }}
+              />
+
               {/* Menos padding lateral que el resto de las secciones a
                   propósito — le da más ancho real a las tarjetas de abajo,
                   que ya vienen apretadas por tener que entrar 3 por fila. */}
-              <div className="p-4 sm:p-5">
+              <div className="relative p-4 sm:p-5">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/5" style={{ color: cAccent }}>
-                      <Star className="h-5 w-5 fill-current" />
-                    </span>
-                    <h2 className="text-2xl font-semibold">Confían en nosotros</h2>
+                  <div className="flex items-center gap-2.5">
+                    <Crown className="h-5 w-5 shrink-0" style={{ color: cAccent }} />
+                    <h2 className="text-2xl font-semibold">Ellos confían en nosotros</h2>
                   </div>
 
                   {featuredClients.length > 6 ? (
                     <button
                       type="button"
                       onClick={() => setShowAllFeaturedClients(true)}
-                      className="inline-flex items-center gap-1.5 text-sm font-semibold text-white/65 transition hover:text-white"
-                      style={{ color: cAccent }}
+                      className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-full border px-3.5 py-1.5 text-xs font-semibold transition hover:brightness-110 sm:self-auto"
+                      style={{ borderColor: "color-mix(in oklch, var(--c-accent) 32%, transparent)", color: cAccent }}
                     >
-                      Ver todos <ChevronRight className="h-4 w-4" />
+                      Ver todos <ChevronRight className="h-3.5 w-3.5" />
                     </button>
                   ) : null}
                 </div>
@@ -935,8 +950,13 @@ function PublicProfilePage() {
                     justify-center (no CSS grid) para que una fila incompleta
                     —el caso de 5: 3 arriba y 2 abajo— quede centrada en vez
                     de pegada a la izquierda. Máximo 6 visibles; el resto
-                    (si hay más de 6) solo se ve entrando a "Ver todos". */}
-                <div className="mt-5 flex flex-wrap justify-center gap-1 sm:gap-1.5">
+                    (si hay más de 6) solo se ve entrando a "Ver todos".
+                    -mx-1.5/sm:-mx-2 le gana unos px más de ancho real a cada
+                    tarjeta (mismo truco que el padding del bloque, un nivel
+                    más adentro) — imágenes ligeramente más grandes sin
+                    tocar la cantidad de columnas por cantidad de gente
+                    (featuredCols) ni el gap entre tarjetas. */}
+                <div className="-mx-1.5 mt-5 flex flex-wrap justify-center gap-1 sm:-mx-2 sm:gap-1.5">
                   {featuredClients.slice(0, 6).map((item, index) => (
                     <FeaturedClientCard
                       key={item.id || `${item.name}-${index}`}
@@ -1227,13 +1247,9 @@ function PublicProfilePage() {
             onClick={(event) => event.stopPropagation()}
           >
             <div className={(isLight ? "border-zinc-200" : "border-white/10") + " flex items-start justify-between gap-4 border-b p-5 sm:p-6"}>
-              <div className="flex items-center gap-3">
-                <span className={(isLight ? "border-zinc-200 bg-zinc-50" : "border-white/10 bg-white/5") + " grid h-11 w-11 place-items-center rounded-2xl border"} style={{ color: cAccent }}>
-                  <Star className="h-5 w-5 fill-current" />
-                </span>
-                <div>
-                  <h2 className="text-2xl font-semibold">Confían en nosotros</h2>
-                </div>
+              <div className="flex items-center gap-2.5">
+                <Crown className="h-5 w-5 shrink-0" style={{ color: cAccent }} />
+                <h2 className="text-2xl font-semibold">Ellos confían en nosotros</h2>
               </div>
               <button
                 type="button"
