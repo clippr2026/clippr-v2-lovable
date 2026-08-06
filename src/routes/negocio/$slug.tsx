@@ -448,13 +448,16 @@ function FeaturedClientCard({
             // grupo escudo+nombre queda centrado con el mismo espacio libre
             // a los dos lados sin importar cuántas letras tenga el club, y
             // se recentra solo a medida que el nombre cambia de largo —
-            // sin saltos ni casos especiales. El sangrado (-mx-3/sm:-mx-4,
-            // unos px más allá del px-2/sm:px-3 del contenedor padre)
-            // también queda siempre aplicado: no cambia dónde cae el
-            // centro (el sangrado es simétrico), solo le da al <span> más
-            // ancho antes de truncar cuando el nombre es largo.
+            // sin saltos ni casos especiales. El sangrado (-mx-2/sm:-mx-3)
+            // cancela EXACTO el px-2/sm:px-3 del contenedor padre — ni un
+            // px más — para que el ancho de esta fila nunca supere el
+            // ancho real de la tarjeta: con nombres larguísimos, cuando el
+            // <span> se termina de truncar y no queda espacio para
+            // centrar, el escudo (shrink-0, nunca se achica) puede llegar
+            // como mucho a tocar el borde real, jamás a pasarse de él y
+            // quedar cortado por el overflow-hidden de la tarjeta.
             "mt-0 flex items-center justify-center gap-1 sm:gap-1.5" +
-            (isFootballer ? " -mx-3 sm:-mx-4" : " invisible")
+            (isFootballer ? " -mx-2 sm:-mx-3" : " invisible")
           }
         >
           {item.club_logo_url ? (
