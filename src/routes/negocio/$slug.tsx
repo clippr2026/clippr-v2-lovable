@@ -384,11 +384,6 @@ function FeaturedClientCard({
   className?: string;
 }) {
   const isFootballer = item.category === "Futbolista" && Boolean(item.club_name);
-  // Nombres cortos ("Boca") no necesitan el ancho extra del sangrado hacia
-  // el borde: quedan mejor con el inset normal, centrados junto al escudo
-  // como el resto del contenido de la tarjeta. Nombres largos ("Boca
-  // Juniors") sí lo necesitan para no truncar antes de tiempo.
-  const clubNameIsLong = (item.club_name?.length ?? 0) > 8;
   return (
     <div
       className={
@@ -452,22 +447,17 @@ function FeaturedClientCard({
             // de su posición dentro del grupo (icono+gap dan el mismo
             // total de siempre: 4px mobile / 6px desktop).
             //
-            // El grupo completo (escudo+nombre) se posiciona distinto según
-            // el largo del nombre:
-            // - Nombre corto (ej. "Boca"): justify-center SIN sangrado —
-            //   el grupo queda centrado dentro del ancho con padding normal
-            //   de la tarjeta, con el mismo espacio libre a los dos lados.
-            // - Nombre largo (ej. "Boca Juniors"): justify-start CON
-            //   sangrado (-mx-3/sm:-mx-4, unos px más allá del px-2/sm:px-3
-            //   del contenedor padre) — el grupo se corre a la izquierda y
-            //   gana ese ancho extra para el <span> truncado, para no
-            //   cortar el nombre.
-            "mt-0 flex items-center gap-0 sm:gap-0.5" +
-            (isFootballer
-              ? clubNameIsLong
-                ? " justify-start -mx-3 sm:-mx-4"
-                : " justify-center"
-              : " invisible justify-start")
+            // justify-center SIEMPRE (no según un umbral de longitud): el
+            // grupo escudo+nombre queda centrado con el mismo espacio libre
+            // a los dos lados sin importar cuántas letras tenga el club, y
+            // se recentra solo a medida que el nombre cambia de largo —
+            // sin saltos ni casos especiales. El sangrado (-mx-3/sm:-mx-4,
+            // unos px más allá del px-2/sm:px-3 del contenedor padre)
+            // también queda siempre aplicado: no cambia dónde cae el
+            // centro (el sangrado es simétrico), solo le da al <span> más
+            // ancho antes de truncar cuando el nombre es largo.
+            "mt-0 flex items-center justify-center gap-0 sm:gap-0.5" +
+            (isFootballer ? " -mx-3 sm:-mx-4" : " invisible")
           }
         >
           {item.club_logo_url ? (
