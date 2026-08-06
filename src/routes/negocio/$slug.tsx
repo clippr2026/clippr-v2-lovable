@@ -929,8 +929,11 @@ function PublicProfilePage() {
 
               {/* Menos padding lateral que el resto de las secciones a
                   propósito — le da más ancho real a las tarjetas de abajo,
-                  que ya vienen apretadas por tener que entrar 3 por fila. */}
-              <div className="relative p-4 sm:p-5">
+                  que ya vienen apretadas por tener que entrar 3 por fila.
+                  pt-5/sm:pt-6 (más que el px/pb) para que la corona y el
+                  título respiren arriba, separados de la esquina de la
+                  tarjeta. */}
+              <div className="relative px-4 pb-4 pt-5 sm:px-5 sm:pb-5 sm:pt-6">
                 {/* Fila siempre horizontal (ni siquiera en mobile pasa a
                     flex-col): título y "Ver todos" comparten renglón para
                     no gastar una fila entera solo en el botón. truncate +
@@ -940,11 +943,14 @@ function PublicProfilePage() {
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
                     {/* Corona más chica y fina que un ícono normal (h-5 se
-                        sentía grande al lado del título) y con el color
-                        PRIMARIO de marca (cPrimary), no el accent — el
-                        accent lo suele configurar el negocio para botones
-                        (a veces negro puro) y acá se veía apagado; el
-                        primario es el que identifica visualmente al local. */}
+                        sentía grande al lado del título), color PRIMARIO
+                        de marca (cPrimary) — es el que identifica
+                        visualmente a cada negocio, así que la corona,
+                        el degradado de arriba y el chip "Ver todos" de
+                        abajo comparten SIEMPRE ese mismo color dinámico
+                        (nunca el accent, que cada negocio suele
+                        configurar aparte para botones — a veces negro
+                        puro — ni ningún hex fijo). */}
                     <Crown className="h-[17px] w-[17px] shrink-0" strokeWidth={1.75} style={{ color: cPrimary }} />
                     {/* text-base (no text-lg) en mobile: con el chip "Ver
                         todos" compartiendo el mismo renglón, text-lg
@@ -957,8 +963,8 @@ function PublicProfilePage() {
                     <button
                       type="button"
                       onClick={() => setShowAllFeaturedClients(true)}
-                      className="inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold transition hover:brightness-110 sm:gap-1.5 sm:px-3.5 sm:py-1.5"
-                      style={{ borderColor: "color-mix(in oklch, var(--c-accent) 32%, transparent)", color: cAccent }}
+                      className="mr-0.5 inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold transition hover:brightness-110 sm:mr-1 sm:gap-1.5 sm:px-3.5 sm:py-1.5"
+                      style={{ borderColor: "color-mix(in oklch, var(--c-primary) 32%, transparent)", color: cPrimary }}
                     >
                       Ver todos <ChevronRight className="h-3.5 w-3.5" />
                     </button>
