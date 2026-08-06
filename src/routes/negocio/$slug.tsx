@@ -907,7 +907,15 @@ function PublicProfilePage() {
       </section>
 
       <section className="mx-auto grid max-w-6xl gap-6 px-4 py-5 lg:grid-cols-[1fr_360px] lg:items-start">
-        <div className="space-y-6">
+        {/* min-w-0: sin esto, este ítem del grid usa su ancho mínimo de
+            contenido como piso — y el header de "Ellos confían en
+            nosotros" (título+chip en la misma fila, con truncate) reporta
+            como mínimo su ancho SIN truncar, lo que termina empujando toda
+            la columna (y la página en mobile) a desbordar horizontalmente.
+            min-w-0 le devuelve al grid la libertad de angostar esta
+            columna al ancho real disponible; el truncate interno se
+            encarga de recortar el texto ahí adentro. */}
+        <div className="min-w-0 space-y-6">
 
           {featuredClients.length > 0 ? (
             <GlowCard className="overflow-hidden shadow-[0_24px_60px_-28px_rgba(0,0,0,0.45)]">
