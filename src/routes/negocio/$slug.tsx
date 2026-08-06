@@ -440,12 +440,9 @@ function FeaturedClientCard({
             reemplazo, solo el nombre del club centrado. */}
         <div
           className={
-            // gap-0/sm:gap-0.5 achica la separación entre escudo y nombre.
-            // El escudo además lleva ml-1 (ver más abajo) que le come esos
-            // mismos px al gap — así el escudo se corre hacia la derecha,
-            // más cerca del texto, pero el <span> del nombre NO se mueve
-            // de su posición dentro del grupo (icono+gap dan el mismo
-            // total de siempre: 4px mobile / 6px desktop).
+            // gap-1/sm:gap-1.5 da una separación uniforme y prolija entre
+            // escudo y nombre (escudo ahora más chico, h-4 w-4 — ver más
+            // abajo — así no le compite en protagonismo al nombre).
             //
             // justify-center SIEMPRE (no según un umbral de longitud): el
             // grupo escudo+nombre queda centrado con el mismo espacio libre
@@ -456,7 +453,7 @@ function FeaturedClientCard({
             // también queda siempre aplicado: no cambia dónde cae el
             // centro (el sangrado es simétrico), solo le da al <span> más
             // ancho antes de truncar cuando el nombre es largo.
-            "mt-0 flex items-center justify-center gap-0 sm:gap-0.5" +
+            "mt-0 flex items-center justify-center gap-1 sm:gap-1.5" +
             (isFootballer ? " -mx-3 sm:-mx-4" : " invisible")
           }
         >
@@ -464,15 +461,14 @@ function FeaturedClientCard({
             <img
               src={item.club_logo_url}
               alt={item.club_name || ""}
-              // rounded-full + object-cover: el contenedor es 1:1 (h-6 w-6)
+              // rounded-full + object-cover: el contenedor es 1:1 (h-4 w-4)
               // así que rounded-full siempre da un círculo perfecto, y
               // cover rellena ese círculo completo recortando el sobrante
               // (centrado por default) en vez de dejar letterboxing — así
               // un escudo con foto vertical/horizontal no se ve ovalado ni
-              // con espacios raros. ml-1 lo corre hacia la derecha (le
-              // resta esos mismos px al gap del contenedor padre, así el
-              // nombre no se mueve).
-              className="h-6 w-6 shrink-0 rounded-full bg-white/10 object-cover ring-1 ring-white/15 ml-1"
+              // con espacios raros. h-4 w-4 (antes h-6 w-6) para que el
+              // escudo no le robe protagonismo al nombre del club.
+              className="h-4 w-4 shrink-0 rounded-full bg-white/10 object-cover ring-1 ring-white/15"
               loading="lazy"
               decoding="async"
             />
