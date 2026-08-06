@@ -401,7 +401,11 @@ function FeaturedClientCard({
         disabled={!item.image_url}
         className={
           (isLight ? "bg-zinc-100" : "bg-white/5") +
-          " grid aspect-square w-full place-items-center overflow-hidden disabled:cursor-default"
+          // aspect-[1/1.05] (no aspect-square): mismo ancho de siempre
+          // (no toca featuredCols/featuredCardWidthClass), pero ~5% más
+          // alta — la foto gana un poco más de protagonismo sin romper la
+          // grilla.
+          " grid aspect-[1/1.05] w-full place-items-center overflow-hidden disabled:cursor-default"
         }
         aria-label={item.image_url ? `Ampliar foto de ${item.name}` : undefined}
       >
@@ -918,8 +922,8 @@ function PublicProfilePage() {
                 className="pointer-events-none absolute inset-x-0 top-0 h-28"
                 style={{
                   background: isLight
-                    ? "linear-gradient(120deg, color-mix(in oklch, var(--c-primary) 10%, transparent) 0%, transparent 65%)"
-                    : "linear-gradient(120deg, color-mix(in oklch, var(--c-primary) 16%, transparent) 0%, transparent 65%)",
+                    ? "linear-gradient(120deg, color-mix(in oklch, var(--c-primary) 6%, transparent) 0%, transparent 60%)"
+                    : "linear-gradient(120deg, color-mix(in oklch, var(--c-primary) 10%, transparent) 0%, transparent 60%)",
                 }}
               />
 
@@ -927,17 +931,29 @@ function PublicProfilePage() {
                   propósito — le da más ancho real a las tarjetas de abajo,
                   que ya vienen apretadas por tener que entrar 3 por fila. */}
               <div className="relative p-4 sm:p-5">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-center gap-2.5">
-                    <Crown className="h-5 w-5 shrink-0" style={{ color: cAccent }} />
-                    <h2 className="text-2xl font-semibold">Ellos confían en nosotros</h2>
+                {/* Fila siempre horizontal (ni siquiera en mobile pasa a
+                    flex-col): título y "Ver todos" comparten renglón para
+                    no gastar una fila entera solo en el botón. truncate +
+                    min-w-0 en el título y shrink-0 en la corona/botón para
+                    que si el nombre no entra en una pantalla muy angosta,
+                    ceda el título (con "…") y no el layout. */}
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-2">
+                    {/* Corona más chica y fina que un ícono normal (h-5 se
+                        sentía grande al lado del título) y con el color
+                        PRIMARIO de marca (cPrimary), no el accent — el
+                        accent lo suele configurar el negocio para botones
+                        (a veces negro puro) y acá se veía apagado; el
+                        primario es el que identifica visualmente al local. */}
+                    <Crown className="h-[17px] w-[17px] shrink-0" strokeWidth={1.75} style={{ color: cPrimary }} />
+                    <h2 className="truncate text-lg font-semibold sm:text-2xl">Ellos confían en nosotros</h2>
                   </div>
 
                   {featuredClients.length > 6 ? (
                     <button
                       type="button"
                       onClick={() => setShowAllFeaturedClients(true)}
-                      className="inline-flex shrink-0 items-center gap-1.5 self-start rounded-full border px-3.5 py-1.5 text-xs font-semibold transition hover:brightness-110 sm:self-auto"
+                      className="inline-flex shrink-0 items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-semibold transition hover:brightness-110 sm:gap-1.5 sm:px-3.5 sm:py-1.5"
                       style={{ borderColor: "color-mix(in oklch, var(--c-accent) 32%, transparent)", color: cAccent }}
                     >
                       Ver todos <ChevronRight className="h-3.5 w-3.5" />
@@ -956,7 +972,7 @@ function PublicProfilePage() {
                     más adentro) — imágenes ligeramente más grandes sin
                     tocar la cantidad de columnas por cantidad de gente
                     (featuredCols) ni el gap entre tarjetas. */}
-                <div className="-mx-1.5 mt-5 flex flex-wrap justify-center gap-1 sm:-mx-2 sm:gap-1.5">
+                <div className="-mx-1.5 mt-3 flex flex-wrap justify-center gap-1 sm:-mx-2 sm:gap-1.5">
                   {featuredClients.slice(0, 6).map((item, index) => (
                     <FeaturedClientCard
                       key={item.id || `${item.name}-${index}`}
@@ -1247,9 +1263,9 @@ function PublicProfilePage() {
             onClick={(event) => event.stopPropagation()}
           >
             <div className={(isLight ? "border-zinc-200" : "border-white/10") + " flex items-start justify-between gap-4 border-b p-5 sm:p-6"}>
-              <div className="flex items-center gap-2.5">
-                <Crown className="h-5 w-5 shrink-0" style={{ color: cAccent }} />
-                <h2 className="text-2xl font-semibold">Ellos confían en nosotros</h2>
+              <div className="flex min-w-0 items-center gap-2">
+                <Crown className="h-[17px] w-[17px] shrink-0" strokeWidth={1.75} style={{ color: cPrimary }} />
+                <h2 className="truncate text-lg font-semibold sm:text-2xl">Ellos confían en nosotros</h2>
               </div>
               <button
                 type="button"
