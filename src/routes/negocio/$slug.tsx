@@ -445,19 +445,19 @@ function FeaturedClientCard({
             reemplazo, solo el nombre del club centrado. */}
         <div
           className={
-            // gap-0.5/sm:gap-1 (antes gap-1/gap-1.5) achica la separación
-            // entre escudo y nombre. El escudo además lleva ml-0.5 (ver
-            // más abajo) que le come esos mismos px al gap — así el escudo
-            // se corre hacia la derecha, más cerca del texto, pero el
-            // <span> del nombre NO se mueve de su posición (icono+gap dan
-            // el mismo total de antes). El sangrado hacia el borde real de
-            // la tarjeta con nombres largos (-mx-3/sm:-mx-4) va unos px más
-            // allá del px-2/sm:px-3 del contenedor padre, corriendo el
-            // grupo un poco más a la izquierda del borde real y ganando ese
-            // ancho extra para el <span> truncado — con nombres cortos el
-            // grupo se queda en el inset normal, más centrado junto al
-            // escudo.
-            "mt-0 flex items-center justify-start gap-0.5 sm:gap-1" +
+            // gap-0/sm:gap-0.5 (antes gap-0.5/gap-1) achica más la
+            // separación entre escudo y nombre. El escudo además lleva
+            // ml-1 (ver más abajo) que le come esos mismos px al gap — así
+            // el escudo se corre hacia la derecha, más cerca del texto,
+            // pero el <span> del nombre NO se mueve de su posición
+            // (icono+gap dan el mismo total de siempre: 4px mobile / 6px
+            // desktop). El sangrado hacia el borde real de la tarjeta con
+            // nombres largos (-mx-3/sm:-mx-4) va unos px más allá del
+            // px-2/sm:px-3 del contenedor padre, corriendo el grupo un
+            // poco más a la izquierda del borde real y ganando ese ancho
+            // extra para el <span> truncado — con nombres cortos el grupo
+            // se queda en el inset normal, más centrado junto al escudo.
+            "mt-0 flex items-center justify-start gap-0 sm:gap-0.5" +
             (isFootballer ? (clubNameIsLong ? " -mx-3 sm:-mx-4" : "") : " invisible")
           }
         >
@@ -468,10 +468,10 @@ function FeaturedClientCard({
               // object-contain (no cover): un escudo casi nunca es
               // perfectamente cuadrado — cover lo recortaría. rounded-md en
               // vez de círculo para que el letterboxing de contain no se
-              // vea raro contra una máscara circular. ml-0.5 lo corre hacia
+              // vea raro contra una máscara circular. ml-1 lo corre hacia
               // la derecha (le resta esos mismos px al gap del contenedor
               // padre, así el nombre no se mueve).
-              className="h-6 w-6 shrink-0 rounded-md bg-white/10 object-contain ring-1 ring-white/15 ml-0.5"
+              className="h-6 w-6 shrink-0 rounded-md bg-white/10 object-contain ring-1 ring-white/15 ml-1"
               loading="lazy"
               decoding="async"
             />
