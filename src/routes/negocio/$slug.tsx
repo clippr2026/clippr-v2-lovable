@@ -464,13 +464,15 @@ function FeaturedClientCard({
             <img
               src={item.club_logo_url}
               alt={item.club_name || ""}
-              // object-contain (no cover): un escudo casi nunca es
-              // perfectamente cuadrado — cover lo recortaría. rounded-md en
-              // vez de círculo para que el letterboxing de contain no se
-              // vea raro contra una máscara circular. ml-1 lo corre hacia
-              // la derecha (le resta esos mismos px al gap del contenedor
-              // padre, así el nombre no se mueve).
-              className="h-6 w-6 shrink-0 rounded-md bg-white/10 object-contain ring-1 ring-white/15 ml-1"
+              // rounded-full + object-cover: el contenedor es 1:1 (h-6 w-6)
+              // así que rounded-full siempre da un círculo perfecto, y
+              // cover rellena ese círculo completo recortando el sobrante
+              // (centrado por default) en vez de dejar letterboxing — así
+              // un escudo con foto vertical/horizontal no se ve ovalado ni
+              // con espacios raros. ml-1 lo corre hacia la derecha (le
+              // resta esos mismos px al gap del contenedor padre, así el
+              // nombre no se mueve).
+              className="h-6 w-6 shrink-0 rounded-full bg-white/10 object-cover ring-1 ring-white/15 ml-1"
               loading="lazy"
               decoding="async"
             />
@@ -1297,7 +1299,7 @@ function PublicProfilePage() {
                     <img
                       src={zoomedFeaturedClient.club_logo_url}
                       alt={zoomedFeaturedClient.club_name}
-                      className="h-5 w-5 rounded-md bg-white/10 object-contain ring-1 ring-white/20"
+                      className="h-5 w-5 rounded-full bg-white/10 object-cover ring-1 ring-white/20"
                     />
                   ) : null}
                   <span className="text-sm font-medium text-white/70">{zoomedFeaturedClient.club_name}</span>
