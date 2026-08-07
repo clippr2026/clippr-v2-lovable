@@ -65,6 +65,7 @@ type Service = {
   image_url?: string | null;
   image_position?: string | null;
   category?: string | null;
+  cash_discount?: number | null;
 };
 
 type DayKey = "sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat";
@@ -125,6 +126,12 @@ function formatMoney(value: number | null | undefined) {
     currency: "ARS",
     maximumFractionDigits: 0,
   }).format(Number(value ?? 0));
+}
+
+function cashPrice(price: number | null | undefined, discount: number | null | undefined) {
+  const p = Number(price ?? 0);
+  const d = Number(discount ?? 0);
+  return Math.round(p - (p * d) / 100);
 }
 
 function extractBranding(schedule: unknown): PublicBranding {
@@ -625,6 +632,9 @@ function PublicProfilePage() {
             .select("id,full_name,avatar_url,is_active,role")
             .eq("business_id", businessId)
             .order("full_name", { ascending: true }),
+          // La vista public_booking_services (rol anon) no expone `cash_discount`
+          // de price_catalog — se lee espejado desde business_settings.schedule
+          // más abajo, mismo criterio que ya se usa para `category`.
           supabase
             .from("public_booking_services")
             .select("id,name,price,duration_min,is_active")
@@ -672,6 +682,15 @@ function PublicProfilePage() {
           typeof (settingsSchedule as Record<string, unknown>)._serviceCategories === "object"
             ? ((settingsSchedule as Record<string, unknown>)._serviceCategories as Record<string, string>)
             : {};
+        // Mismo criterio que serviceCategoriesMap arriba, para el descuento
+        // en efectivo (tampoco expuesto por la vista pública).
+        const serviceCashDiscountsMap =
+          settingsSchedule &&
+          typeof settingsSchedule === "object" &&
+          (settingsSchedule as Record<string, unknown>)._serviceCashDiscounts &&
+          typeof (settingsSchedule as Record<string, unknown>)._serviceCashDiscounts === "object"
+            ? ((settingsSchedule as Record<string, unknown>)._serviceCashDiscounts as Record<string, number>)
+            : {};
 
         if (!cancelled) {
           setBusiness(mergedBusiness as Business);
@@ -695,6 +714,7 @@ function PublicProfilePage() {
                 image_url: serviceImages[service.id] ?? null,
                 image_position: serviceImagePositions[service.id] ?? "50% 50%",
                 category: serviceCategoriesMap[service.id] ?? null,
+                cash_discount: serviceCashDiscountsMap[service.id] ?? null,
               })),
             extractCatalogOrderMap(settingsSchedule as Record<string, unknown>, "service"),
             "Servicios",
@@ -1017,60 +1037,98 @@ function PublicProfilePage() {
                 <p className="mt-4 text-sm text-white/55">Todavía no hay servicios habilitados para reserva online.</p>
               ) : (
                 // Cada servicio es su propia tarjeta (borde + fondo propio,
-                // no divide-y) para que se sienta como una unidad "premium"
-                // en vez de una lista de datos. El precio es lo más grande
-                // del bloque de texto; la duración queda chica y apagada,
-                // arriba, a modo de dato secundario.
-                <div className="mt-5 grid gap-2.5">
-                  {services.map((service: Service) => (
-                    <div
-                      key={service.id}
-                      className={
-                        (isLight ? "border-zinc-200 bg-zinc-50/60 hover:bg-zinc-50" : "border-white/10 bg-white/[0.03] hover:bg-white/[0.05]") +
-                        // min-w-0: es un ítem de un grid — sin esto, el
-                        // truncate del nombre de abajo reporta su ancho
-                        // sin truncar como mínimo y desborda la página.
-                        " flex min-w-0 items-center gap-4 rounded-2xl border p-3 transition sm:p-4"
-                      }
-                    >
-                      <ServiceImage
-                        src={service.image_url}
-                        alt={service.name}
-                        position={service.image_position}
-                        className={(isLight ? "ring-zinc-200" : "ring-white/10") + " h-20 w-20 rounded-xl ring-1"}
-                        fallback={
-                          // Placeholder con un degradado muy suave del
-                          // color del negocio en vez del ícono suelto de
-                          // antes — se siente a marca, no a "falta imagen".
-                          <div
-                            className="grid h-full w-full place-items-center"
-                            style={{
-                              background:
-                                "linear-gradient(135deg, color-mix(in oklch, var(--c-accent) 20%, transparent), color-mix(in oklch, var(--c-primary) 12%, transparent))",
-                            }}
-                          >
-                            <Sparkles className="h-6 w-6" style={{ color: cAccent }} />
-                          </div>
+                // sombra marcada + separación vertical generosa) para que se
+                // lea como un bloque individual y no como una lista continua.
+                // Estructura en dos filas: arriba imagen + nombre a todo el
+                // ancho disponible (nada de precio/botón compitiendo por
+                // espacio, así el nombre trunca lo más tarde posible); abajo
+                // precios y botón "Reservar" alineados en la misma línea
+                // para que el pie de la tarjeta quede equilibrado.
+                <div className="mt-5 grid gap-4 sm:gap-5">
+                  {services.map((service: Service) => {
+                    const hasCashDiscount = Number(service.cash_discount ?? 0) > 0;
+                    const cash = cashPrice(service.price, service.cash_discount);
+                    return (
+                      <div
+                        key={service.id}
+                        className={
+                          (isLight
+                            ? "border-zinc-200/80 bg-zinc-50/60 shadow-[0_16px_40px_-24px_rgba(24,24,27,0.35)] hover:bg-zinc-50"
+                            : "border-white/[0.08] bg-white/[0.03] shadow-[0_16px_40px_-20px_rgba(0,0,0,0.6)] hover:bg-white/[0.05]") +
+                          // min-w-0: es un ítem de un grid — sin esto, el
+                          // truncate del nombre de abajo reporta su ancho
+                          // sin truncar como mínimo y desborda la página.
+                          " min-w-0 rounded-2xl border p-4 transition sm:p-5"
                         }
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate font-semibold">{service.name}</p>
-                        {service.duration_min ? (
-                          <p className={(isLight ? "text-zinc-500" : "text-white/45") + " mt-0.5 text-xs"}>
-                            {Number(service.duration_min)} min
-                          </p>
-                        ) : null}
-                        <p className="mt-1 text-xl font-extrabold tracking-tight">{formatMoney(service.price)}</p>
-                      </div>
-                      <a
-                        href={bookingHref({ service: service.id })}
-                        className="shrink-0 rounded-full px-5 py-2.5 text-sm font-bold transition hover:-translate-y-0.5 hover:brightness-110"
-                        style={{ background: cAccent, color: accentButtonText, WebkitTextFillColor: accentButtonText, boxShadow: "0 14px 30px -12px color-mix(in oklch, var(--c-accent) 75%, transparent)" }}
                       >
-                        Reservar
-                      </a>
-                    </div>
-                  ))}
+                        <div className="flex min-w-0 items-center gap-4">
+                          <ServiceImage
+                            src={service.image_url}
+                            alt={service.name}
+                            position={service.image_position}
+                            className={(isLight ? "ring-zinc-200" : "ring-white/10") + " h-16 w-16 shrink-0 rounded-xl ring-1 sm:h-20 sm:w-20"}
+                            fallback={
+                              // Placeholder con un degradado muy suave del
+                              // color del negocio en vez del ícono suelto de
+                              // antes — se siente a marca, no a "falta imagen".
+                              <div
+                                className="grid h-full w-full place-items-center"
+                                style={{
+                                  background:
+                                    "linear-gradient(135deg, color-mix(in oklch, var(--c-accent) 20%, transparent), color-mix(in oklch, var(--c-primary) 12%, transparent))",
+                                }}
+                              >
+                                <Sparkles className="h-6 w-6" style={{ color: cAccent }} />
+                              </div>
+                            }
+                          />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-base font-semibold sm:text-lg">{service.name}</p>
+                            {service.duration_min ? (
+                              <p className={(isLight ? "text-zinc-500" : "text-white/45") + " mt-0.5 text-xs"}>
+                                {Number(service.duration_min)} min
+                              </p>
+                            ) : null}
+                          </div>
+                        </div>
+                        <div
+                          className={
+                            (isLight ? "border-zinc-200/70" : "border-white/[0.06]") +
+                            " mt-4 flex items-end justify-between gap-4 border-t pt-4"
+                          }
+                        >
+                          {hasCashDiscount ? (
+                            <div className="min-w-0">
+                              <p className={(isLight ? "text-zinc-400" : "text-white/35") + " text-xs"}>
+                                Precio de lista{" "}
+                                <span className="line-through">{formatMoney(service.price)}</span>
+                              </p>
+                              <p
+                                className={
+                                  (isLight ? "text-emerald-600" : "text-emerald-400") +
+                                  " mt-0.5 text-xl font-extrabold tracking-tight"
+                                }
+                              >
+                                {formatMoney(cash)}
+                                <span className={(isLight ? "text-emerald-600/70" : "text-emerald-400/70") + " ml-1.5 text-xs font-semibold"}>
+                                  efectivo
+                                </span>
+                              </p>
+                            </div>
+                          ) : (
+                            <p className="text-xl font-extrabold tracking-tight">{formatMoney(service.price)}</p>
+                          )}
+                          <a
+                            href={bookingHref({ service: service.id })}
+                            className="shrink-0 rounded-full px-5 py-2.5 text-sm font-bold transition hover:-translate-y-0.5 hover:brightness-110"
+                            style={{ background: cAccent, color: accentButtonText, WebkitTextFillColor: accentButtonText, boxShadow: "0 14px 30px -12px color-mix(in oklch, var(--c-accent) 75%, transparent)" }}
+                          >
+                            Reservar
+                          </a>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>

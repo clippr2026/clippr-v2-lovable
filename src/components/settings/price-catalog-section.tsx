@@ -1818,6 +1818,30 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           return merged;
         };
 
+        // Descuento en efectivo por servicio, espejado en
+        // business_settings.schedule por el mismo motivo que la categoría
+        // arriba: la vista public_booking_services (rol anon) no expone
+        // `cash_discount` de price_catalog.
+        const mergeServiceCashDiscounts = (
+          existingSchedule: Record<string, unknown>,
+        ): Record<string, number> => {
+          const merged = {
+            ...((existingSchedule._serviceCashDiscounts ?? {}) as Record<
+              string,
+              number
+            >),
+          };
+          for (const r of rowsRef.current) {
+            if (r.duration_min == null) continue;
+            const realId = tempIdToReal[r.id] ?? r.id;
+            const discount = Number(r.cash_discount ?? 0);
+            if (discount > 0) merged[realId] = discount;
+            else delete merged[realId];
+          }
+          for (const id of deletes) delete merged[id];
+          return merged;
+        };
+
         imageMapRef.current = nextImageMap;
         setImageMap(nextImageMap);
         imagePositionMapRef.current = nextImagePositionMap;
@@ -1845,6 +1869,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                 _catalogImagePositions: mergeCatalogImagePositions(existingSchedule),
                 _catalogImageOffsets: mergeCatalogImageOffsets(existingSchedule),
                 _serviceCategories: mergeServiceCategories(existingSchedule),
+                _serviceCashDiscounts: mergeServiceCashDiscounts(existingSchedule),
                 _publicVisibility: {
                   ...visibility,
                   services: nextServiceReservableMap,
