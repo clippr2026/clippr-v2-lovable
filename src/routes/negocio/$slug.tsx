@@ -1099,24 +1099,20 @@ function PublicProfilePage() {
                         >
                           {hasCashDiscount ? (
                             <div className="min-w-0">
-                              <p className={(isLight ? "text-zinc-400" : "text-white/40") + " flex items-baseline gap-1.5 text-xs font-medium"}>
-                                Lista
-                                <span className={(isLight ? "text-zinc-600" : "text-white/60") + " text-sm font-semibold"}>
-                                  {formatMoney(service.price)}
-                                </span>
+                              <p className={(isLight ? "text-zinc-400" : "text-white/40") + " text-xs font-medium"}>Precio de lista</p>
+                              <p className={(isLight ? "text-zinc-600" : "text-white/60") + " text-sm font-semibold"}>
+                                {formatMoney(service.price)}
                               </p>
-                              <p className="mt-1 flex items-baseline gap-1.5">
-                                <span className={(isLight ? "text-emerald-600/80" : "text-emerald-400/80") + " text-xs font-semibold"}>
-                                  Efectivo
-                                </span>
-                                <span
-                                  className={
-                                    (isLight ? "text-emerald-600" : "text-emerald-400") +
-                                    " text-2xl font-extrabold tracking-tight"
-                                  }
-                                >
-                                  {formatMoney(cash)}
-                                </span>
+                              <p className={(isLight ? "text-emerald-600/80" : "text-emerald-400/80") + " mt-2 text-xs font-semibold"}>
+                                Precio en efectivo
+                              </p>
+                              <p
+                                className={
+                                  (isLight ? "text-emerald-600" : "text-emerald-400") +
+                                  " text-2xl font-extrabold tracking-tight"
+                                }
+                              >
+                                {formatMoney(cash)}
                               </p>
                             </div>
                           ) : (
