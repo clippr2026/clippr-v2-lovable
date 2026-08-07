@@ -1097,27 +1097,25 @@ function PublicProfilePage() {
                             " mt-4 flex items-end justify-between gap-4 border-t pt-4"
                           }
                         >
-                          {hasCashDiscount ? (
-                            <div className="min-w-0">
-                              <p className={(isLight ? "text-zinc-400" : "text-white/40") + " text-xs font-medium"}>Precio de lista</p>
-                              <p className={(isLight ? "text-zinc-600" : "text-white/60") + " text-sm font-semibold"}>
-                                {formatMoney(service.price)}
-                              </p>
-                              <p className={(isLight ? "text-emerald-600/80" : "text-emerald-400/80") + " mt-2 text-xs font-semibold"}>
+                          {/* Bloque de precio con altura fija (misma estructura de 2 filas
+                              siempre, la fila "Precio en efectivo" queda invisible pero sigue
+                              ocupando su lugar cuando no hay descuento real) para que todas las
+                              tarjetas midan exactamente lo mismo, tengan o no descuento. Label y
+                              precio comparten el mismo tamaño en ambas filas — solo cambia el color. */}
+                          <div className="min-w-0">
+                            <p className={(isLight ? "text-zinc-400" : "text-white/40") + " text-xs font-semibold"}>Precio de lista</p>
+                            <p className={(isLight ? "text-zinc-900" : "text-white") + " text-xl font-extrabold tracking-tight"}>
+                              {formatMoney(service.price)}
+                            </p>
+                            <div className={"mt-2" + (hasCashDiscount ? "" : " invisible")} aria-hidden={hasCashDiscount ? undefined : true}>
+                              <p className={(isLight ? "text-emerald-600/80" : "text-emerald-400/80") + " text-xs font-semibold"}>
                                 Precio en efectivo
                               </p>
-                              <p
-                                className={
-                                  (isLight ? "text-emerald-600" : "text-emerald-400") +
-                                  " text-2xl font-extrabold tracking-tight"
-                                }
-                              >
+                              <p className={(isLight ? "text-emerald-600" : "text-emerald-400") + " text-xl font-extrabold tracking-tight"}>
                                 {formatMoney(cash)}
                               </p>
                             </div>
-                          ) : (
-                            <p className="text-xl font-extrabold tracking-tight">{formatMoney(service.price)}</p>
-                          )}
+                          </div>
                           <a
                             href={bookingHref({ service: service.id })}
                             className="shrink-0 rounded-full px-5 py-2.5 text-sm font-bold transition hover:-translate-y-0.5 hover:brightness-110"
