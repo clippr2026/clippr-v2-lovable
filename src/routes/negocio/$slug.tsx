@@ -1094,11 +1094,14 @@ function PublicProfilePage() {
                         <div
                           className={
                             (isLight ? "border-zinc-200/70" : "border-white/[0.06]") +
-                            " mt-4 flex items-end justify-between gap-4 border-t pt-4"
+                            // items-center (no items-end): el botón queda centrado contra el
+                            // bloque de precio de altura fija en vez de pegado abajo del todo —
+                            // misma posición tenga o no tenga descuento el servicio.
+                            " mt-4 flex items-center justify-between gap-4 border-t pt-4"
                           }
                         >
                           {/* Bloque de precio con altura fija (misma estructura de 2 filas
-                              siempre, la fila "Precio en efectivo" queda invisible pero sigue
+                              siempre, la fila "Descuento en efectivo" queda invisible pero sigue
                               ocupando su lugar cuando no hay descuento real) para que todas las
                               tarjetas midan exactamente lo mismo, tengan o no descuento. Label y
                               precio comparten el mismo tamaño en ambas filas — solo cambia el color. */}
@@ -1109,7 +1112,7 @@ function PublicProfilePage() {
                             </p>
                             <div className={"mt-2" + (hasCashDiscount ? "" : " invisible")} aria-hidden={hasCashDiscount ? undefined : true}>
                               <p className={(isLight ? "text-emerald-600/80" : "text-emerald-400/80") + " text-xs font-semibold"}>
-                                Precio en efectivo
+                                Descuento en efectivo
                               </p>
                               <p className={(isLight ? "text-emerald-600" : "text-emerald-400") + " text-xl font-extrabold tracking-tight"}>
                                 {formatMoney(cash)}
