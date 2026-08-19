@@ -1100,23 +1100,42 @@ function PublicProfilePage() {
                             " mt-4 flex items-center justify-between gap-4 border-t pt-4"
                           }
                         >
-                          {/* Bloque de precio con altura fija (misma estructura de 2 filas
-                              siempre, la fila "Descuento en efectivo" queda invisible pero sigue
-                              ocupando su lugar cuando no hay descuento real) para que todas las
-                              tarjetas midan exactamente lo mismo, tengan o no descuento. Label y
-                              precio comparten el mismo tamaño en ambas filas — solo cambia el color. */}
-                          <div className="min-w-0">
-                            <p className={(isLight ? "text-zinc-400" : "text-white/40") + " text-xs font-semibold"}>Precio de lista</p>
-                            <p className={(isLight ? "text-zinc-900" : "text-white") + " text-xl font-extrabold tracking-tight"}>
-                              {formatMoney(service.price)}
-                            </p>
-                            <div className={"mt-2" + (hasCashDiscount ? "" : " invisible")} aria-hidden={hasCashDiscount ? undefined : true}>
-                              <p className={(isLight ? "text-emerald-600/80" : "text-emerald-400/80") + " text-xs font-semibold"}>
-                                Descuento en efectivo
+                          {/* Bloque de precio: un elemento invisible (siempre con la
+                              estructura de 2 filas) reserva la altura para que todas las
+                              tarjetas midan exactamente lo mismo, tengan o no descuento.
+                              El contenido visible se superpone en la misma celda de grid:
+                              con descuento queda arriba (ambas filas, como antes); sin
+                              descuento se centra en esa altura reservada, quedando a la
+                              misma línea vertical que el botón "Reservar". */}
+                          <div className="min-w-0 grid">
+                            <div className="invisible col-start-1 row-start-1" aria-hidden="true">
+                              <p className="text-xs font-semibold">Precio de lista</p>
+                              <p className="text-xl font-extrabold tracking-tight">{formatMoney(service.price)}</p>
+                              <div className="mt-2">
+                                <p className="text-xs font-semibold">Descuento en efectivo</p>
+                                <p className="text-xl font-extrabold tracking-tight">{formatMoney(cash)}</p>
+                              </div>
+                            </div>
+                            <div
+                              className={
+                                "col-start-1 row-start-1 flex min-w-0 flex-col" +
+                                (hasCashDiscount ? " justify-start" : " justify-center")
+                              }
+                            >
+                              <p className={(isLight ? "text-zinc-400" : "text-white/40") + " text-xs font-semibold"}>Precio de lista</p>
+                              <p className={(isLight ? "text-zinc-900" : "text-white") + " text-xl font-extrabold tracking-tight"}>
+                                {formatMoney(service.price)}
                               </p>
-                              <p className={(isLight ? "text-emerald-600" : "text-emerald-400") + " text-xl font-extrabold tracking-tight"}>
-                                {formatMoney(cash)}
-                              </p>
+                              {hasCashDiscount ? (
+                                <div className="mt-2">
+                                  <p className={(isLight ? "text-emerald-600/80" : "text-emerald-400/80") + " text-xs font-semibold"}>
+                                    Descuento en efectivo
+                                  </p>
+                                  <p className={(isLight ? "text-emerald-600" : "text-emerald-400") + " text-xl font-extrabold tracking-tight"}>
+                                    {formatMoney(cash)}
+                                  </p>
+                                </div>
+                              ) : null}
                             </div>
                           </div>
                           <a
