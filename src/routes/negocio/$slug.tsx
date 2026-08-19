@@ -691,6 +691,17 @@ function PublicProfilePage() {
           typeof (settingsSchedule as Record<string, unknown>)._serviceCashDiscounts === "object"
             ? ((settingsSchedule as Record<string, unknown>)._serviceCashDiscounts as Record<string, number>)
             : {};
+        // Orden de categorías configurado en Configuración → Servicios
+        // (business_settings.schedule._categories.service), para que la
+        // página pública liste primero por categoría en ese mismo orden.
+        const serviceCategoryOrder = (() => {
+          const cats =
+            settingsSchedule && typeof settingsSchedule === "object"
+              ? (settingsSchedule as Record<string, unknown>)._categories
+              : null;
+          const list = cats && typeof cats === "object" ? (cats as Record<string, unknown>).service : null;
+          return Array.isArray(list) ? (list as string[]) : undefined;
+        })();
 
         if (!cancelled) {
           setBusiness(mergedBusiness as Business);
@@ -718,6 +729,7 @@ function PublicProfilePage() {
               })),
             extractCatalogOrderMap(settingsSchedule as Record<string, unknown>, "service"),
             "Servicios",
+            serviceCategoryOrder,
           );
           setServices(orderedServices);
           setSchedule(normalizeSchedule(settingsSchedule));

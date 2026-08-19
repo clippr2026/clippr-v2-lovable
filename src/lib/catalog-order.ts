@@ -24,12 +24,21 @@ export function extractCatalogOrderMap(
 // categoría bajo el que se guardó el orden manual. Si acá se usara otro
 // fallback (p. ej. "" u "Otro"), la clave no matchearía y el orden guardado
 // nunca se aplicaría para los ítems sin categoría — que suelen ser la mayoría.
+// `categoryOrder`, si se pasa, es el mismo array que define el orden de las
+// categorías en Configuración (business_settings.schedule._categories.service
+// / .catalog). Sin este parámetro, las categorías salen en el orden en que
+// aparecen por primera vez en `rows` (comportamiento histórico, que usan
+// Configuración y Caja) — solo lo pasa la página pública, para que el orden
+// de categorías coincida con el de Configuración → Servicios.
 export function applyCatalogOrder<T extends { id: string; category: string | null }>(
   rows: T[],
   orderMap: CatalogOrderMap,
   defaultCategory: string,
+  categoryOrder?: string[],
 ): T[] {
-  if (!orderMap || Object.keys(orderMap).length === 0) return rows;
+  const hasItemOrder = !!orderMap && Object.keys(orderMap).length > 0;
+  if (!hasItemOrder && (!categoryOrder || categoryOrder.length === 0)) return rows;
+
   const byCategory = new Map<string, T[]>();
   for (const row of rows) {
     const key = row.category || defaultCategory;
@@ -37,9 +46,17 @@ export function applyCatalogOrder<T extends { id: string; category: string | nul
     if (list) list.push(row);
     else byCategory.set(key, [row]);
   }
+
+  const categoriesInOrder =
+    categoryOrder && categoryOrder.length > 0
+      ? [...categoryOrder, ...Array.from(byCategory.keys()).filter((c) => !categoryOrder.includes(c))]
+      : Array.from(byCategory.keys());
+
   const result: T[] = [];
-  for (const [category, categoryRows] of byCategory) {
-    const order = orderMap[category];
+  for (const category of categoriesInOrder) {
+    const categoryRows = byCategory.get(category);
+    if (!categoryRows) continue;
+    const order = orderMap?.[category];
     if (!order || order.length === 0) {
       result.push(...categoryRows);
       continue;
