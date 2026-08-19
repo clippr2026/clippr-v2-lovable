@@ -1,4 +1,5 @@
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/utils";
 
 export type PriceRow = {
@@ -163,11 +164,20 @@ export function ConfirmDialog({
   danger?: boolean;
 }) {
   if (!open) return null;
-  return (
+  if (typeof document === "undefined") return null;
+  // Portal a document.body (igual que PriceEditorModal/AddEmployeeModal):
+  // este diálogo se dispara a menudo desde ADENTRO de otro modal ya
+  // porteado a body con z-[9999] (p.ej. "Editar servicio"). Si ConfirmDialog
+  // se quedara montado en su lugar normal del árbol, seguiría atrapado
+  // dentro del stacking context de AppShell (el <div className="relative
+  // z-10"> que envuelve todo el contenido) — y ningún z-index, por alto que
+  // sea, puede escapar de ahí para ganarle a un portal-sibling de body con
+  // z-index propio. Body no tiene stacking context, así que acá el z-index
+  // sí compara de verdad contra el modal de atrás.
+  return createPortal(
     // z-[10000]: por encima de los modales de edición (z-[9999], p.ej.
-    // "Editar servicio"), que a veces quedan abiertos de fondo cuando este
-    // diálogo se dispara desde adentro de ellos — si no, la confirmación
-    // queda tapada e invisible/no clickeable hasta cerrar el modal de atrás.
+    // "Editar servicio"), que quedan abiertos de fondo cuando este diálogo
+    // se dispara desde adentro de ellos.
     <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-sm">
       <div className="glass rounded-2xl p-6 max-w-sm w-full mx-4 ring-1 ring-white/10 space-y-4">
         <div>
@@ -196,7 +206,8 @@ export function ConfirmDialog({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
