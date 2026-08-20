@@ -2409,6 +2409,11 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   const [addMenuOpen, setAddMenuOpen] = useState(false);
   const [categoryManagerOpen, setCategoryManagerOpen] = useState(false);
   const [newCategoryManagerInput, setNewCategoryManagerInput] = useState("");
+  // Bloquea el scroll de fondo mientras "Agregar categoría" está abierto —
+  // mismo hook que usa PriceEditorModal, necesario para que el scroll táctil
+  // en iPhone quede contenido dentro del modal en vez de mover la página de
+  // atrás (rubber-band scroll de iOS Safari).
+  useBodyScrollLock(categoryManagerOpen);
   // Si la categoría a eliminar todavía tiene ítems, en vez de borrarlos se
   // pide elegir a dónde moverlos primero.
   const [moveItemsModal, setMoveItemsModal] = useState<{
@@ -2920,72 +2925,82 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         </div>
       )}
       {/* "Agregar categoría": administración centralizada de categorías
-          (crear, editar, eliminar, reordenar por arrastre). Va ANTES que el
-          resto de los modales de categoría/ítem en el JSX (mismo z-50, sin
-          portal): así, si se dispara un renombrado/borrado desde acá, ese
-          modal queda encima en vez de tapado detrás. El orden que se arma
-          acá (customServiceCategories/customCatalogCategories, persistido
-          en business_settings.schedule._categories) es la misma fuente que
+          (crear, editar, eliminar, reordenar por arrastre).
+          Porteado a document.body + mismo patrón de altura que
+          PriceEditorModal (items-start, max-h que reserva la barra de
+          navegación inferior + safe-area, cabecera fija y solo la lista con
+          scroll interno) — sin el portal, este modal vive dentro del <div
+          className="relative z-10"> de AppShell y pierde contra la barra de
+          navegación inferior (fixed, z-40, fuera de ese wrapper): por eso en
+          mobile el final de la lista quedaba tapado y sin poder tocarse.
+          useBodyScrollLock(categoryManagerOpen) arriba evita que el scroll
+          del dedo se filtre a la página de atrás en iOS.
+          El orden que se arma acá (customServiceCategories/
+          customCatalogCategories, persistido en
+          business_settings.schedule._categories) es la misma fuente que
           usan las pestañas de esta pantalla y la página pública — no hace
           falta sincronizar nada aparte. */}
-      {categoryManagerOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center"
-          onClick={() => {
-            setCategoryManagerOpen(false);
-            setNewCategoryManagerInput("");
-          }}
-        >
+      {categoryManagerOpen &&
+        typeof document !== "undefined" &&
+        createPortal(
           <div
-            onClick={(e) => e.stopPropagation()}
-            className="glass w-full max-w-sm rounded-t-2xl p-4 ring-1 ring-white/10 space-y-4 sm:rounded-2xl sm:mx-4"
+            className="fixed inset-0 z-[9999] flex items-start justify-center overflow-y-auto bg-black/70 backdrop-blur-sm p-4 pt-[calc(24px+env(safe-area-inset-top,0px))] pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] lg:pb-4 [overscroll-behavior:contain]"
+            onClick={() => {
+              setCategoryManagerOpen(false);
+              setNewCategoryManagerInput("");
+            }}
           >
-            <div className="flex items-center justify-between">
-              <div className="font-display font-semibold text-base">Agregar categoría</div>
-              <button
-                type="button"
-                onClick={() => {
-                  setCategoryManagerOpen(false);
-                  setNewCategoryManagerInput("");
-                }}
-                className="rounded-full p-1.5 text-muted-foreground hover:bg-white/5"
-                aria-label="Cerrar"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="flex gap-2">
-              <input
-                autoFocus
-                value={newCategoryManagerInput}
-                onChange={(e) => setNewCategoryManagerInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    if (createCategory(newCategoryManagerInput)) setNewCategoryManagerInput("");
-                  }
-                }}
-                placeholder="Nombre de la categoría"
-                maxLength={MAX_CATEGORY_NAME_LENGTH}
-                className="min-w-0 flex-1 rounded-xl bg-white/5 px-4 py-2.5 text-sm ring-1 ring-white/10 focus:outline-none focus:ring-primary/40"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  if (createCategory(newCategoryManagerInput)) setNewCategoryManagerInput("");
-                }}
-                className="shrink-0 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-95"
-              >
-                Crear
-              </button>
-            </div>
-
-            {categories.length > 0 && (
-              <div>
-                <div className="px-1 pb-1.5 text-xs uppercase tracking-[0.14em] text-muted-foreground">
-                  Categorías existentes
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="glass flex w-full max-w-sm flex-col overflow-hidden rounded-2xl ring-1 ring-white/10 max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-3.5rem-env(safe-area-inset-bottom,0px))] lg:max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-1rem)]"
+            >
+              <div className="shrink-0 space-y-4 border-b border-white/5 p-4">
+                <div className="flex items-center justify-between">
+                  <div className="font-display font-semibold text-base">Agregar categoría</div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCategoryManagerOpen(false);
+                      setNewCategoryManagerInput("");
+                    }}
+                    className="rounded-full p-1.5 text-muted-foreground hover:bg-white/5"
+                    aria-label="Cerrar"
+                  >
+                    ✕
+                  </button>
                 </div>
-                <div className="max-h-[40vh] space-y-1.5 overflow-y-auto">
+
+                <div className="flex gap-2">
+                  <input
+                    autoFocus
+                    value={newCategoryManagerInput}
+                    onChange={(e) => setNewCategoryManagerInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        if (createCategory(newCategoryManagerInput)) setNewCategoryManagerInput("");
+                      }
+                    }}
+                    placeholder="Nombre de la categoría"
+                    maxLength={MAX_CATEGORY_NAME_LENGTH}
+                    className="min-w-0 flex-1 rounded-xl bg-white/5 px-4 py-2.5 text-sm ring-1 ring-white/10 focus:outline-none focus:ring-primary/40"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (createCategory(newCategoryManagerInput)) setNewCategoryManagerInput("");
+                    }}
+                    className="shrink-0 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-95"
+                  >
+                    Crear
+                  </button>
+                </div>
+              </div>
+
+              {categories.length > 0 && (
+                <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto p-4 [overscroll-behavior:contain]">
+                  <div className="px-1 pb-1.5 text-xs uppercase tracking-[0.14em] text-muted-foreground">
+                    Categorías existentes
+                  </div>
                   {categories.map((category) => (
                     <div
                       key={category}
@@ -3026,15 +3041,20 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                     </div>
                   ))}
                 </div>
-              </div>
-            )}
-          </div>
-        </div>
-      )}
-      {/* Category rename modal */}
-      {catModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="glass rounded-2xl p-6 max-w-sm w-full mx-4 ring-1 ring-white/10 space-y-4">
+              )}
+            </div>
+          </div>,
+          document.body,
+        )}
+      {/* Category rename modal — porteado a document.body, z-[10000]: se
+          abre desde adentro de "Agregar categoría" (categoryManagerOpen,
+          z-[9999] portaled), así que tiene que quedar por encima de ese
+          modal en vez de tapado detrás. */}
+      {catModal &&
+        typeof document !== "undefined" &&
+        createPortal(
+        <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="glass rounded-2xl p-6 max-w-sm w-full ring-1 ring-white/10 space-y-4">
             <div className="font-display font-semibold text-base">
               Renombrar categoría
             </div>
@@ -3065,7 +3085,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
       {/* Item/service quick rename modal (double click) */}
       {itemRenameTarget && (
@@ -3111,9 +3132,13 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         onCancel={() => setConfirmDelCat(null)}
       />
       {/* La categoría tiene ítems: hay que decidir a dónde van antes de
-          poder borrarla — nunca se eliminan ni desactivan automáticamente. */}
-      {moveItemsModal && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4">
+          poder borrarla — nunca se eliminan ni desactivan automáticamente.
+          Porteado a document.body, z-[10000]: se dispara desde adentro de
+          "Agregar categoría" (categoryManagerOpen, z-[9999] portaled). */}
+      {moveItemsModal &&
+        typeof document !== "undefined" &&
+        createPortal(
+        <div className="fixed inset-0 z-[10000] grid place-items-center bg-black/60 backdrop-blur-sm p-4">
           <div className="glass rounded-2xl p-6 max-w-sm w-full ring-1 ring-white/10 space-y-4">
             <div>
               <div className="font-display font-semibold text-base">
@@ -3153,7 +3178,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
