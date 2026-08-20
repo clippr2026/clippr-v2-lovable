@@ -2397,15 +2397,14 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   );
 
   // Inline input modal para renombrar categoría (evita el prompt() del navegador).
-  // Se abre desde el modal "Administrar categorías" (botón + de la fila de
-  // categorías) — ver categoryManagerOpen más abajo.
+  // Crear categoría ya no pasa por acá — se creó desde el modal de
+  // servicio/producto (ver PriceEditorModal), así que este modal solo
+  // renombra categorías existentes (se abre con doble tap sobre la pestaña).
   const [catModal, setCatModal] = useState<{ current: string } | null>(null);
   const [catInputVal, setCatInputVal] = useState("");
-  // Modal "Administrar categorías": agregar, editar (renombrar) y eliminar
-  // categorías, todo en un solo lugar. Reemplaza el viejo flujo de doble tap
-  // sobre el nombre de la pestaña — ya no hace falta depender de ese gesto.
-  const [categoryManagerOpen, setCategoryManagerOpen] = useState(false);
-  const [newCategoryManagerInput, setNewCategoryManagerInput] = useState("");
+  // Qué categoría tiene abierto su menú de acciones (Editar nombre /
+  // Eliminar categoría) — se abre con doble tap sobre la pestaña.
+  const [catActionMenu, setCatActionMenu] = useState<string | null>(null);
   // Si la categoría a eliminar todavía tiene ítems, en vez de borrarlos se
   // pide elegir a dónde moverlos primero.
   const [moveItemsModal, setMoveItemsModal] = useState<{
@@ -2447,27 +2446,9 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   }
 
   async function renameCategory(category: string) {
+    setCatActionMenu(null);
     setCatInputVal(category);
     setCatModal({ current: category });
-  }
-
-  // Alta/edición de categorías con la misma validación (nombre no vacío, sin
-  // duplicados case-insensitive, tope MAX_CATEGORIES) que antes vivía inline
-  // en el modal de servicio/producto — ahora también la usa el modal
-  // "Administrar categorías".
-  function createCategory(name: string): boolean {
-    const clean = name.trim();
-    if (!clean) return false;
-    if (categories.some((c) => c.toLowerCase() === clean.toLowerCase())) {
-      toast.error("Ya existe una categoría con ese nombre");
-      return false;
-    }
-    if (categories.length >= MAX_CATEGORIES) {
-      toast.error(`Máximo ${MAX_CATEGORIES} categorías alcanzado`);
-      return false;
-    }
-    saveCategories([...categories, clean], isService ? "service" : "catalog");
-    return true;
   }
 
   // Reordenar categorías (drag&drop con Pointer Events, mismo mecanismo que
@@ -2567,6 +2548,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   // vacía se confirma y se borra directo; si tiene ítems, primero hay que
   // elegir a dónde moverlos (moveItemsModal).
   function deleteCategory(category: string) {
+    setCatActionMenu(null);
     const itemsInCategory = rows.filter(
       (r) => (r.category || (isService ? "Servicios" : "Productos")) === category,
     );
@@ -2689,6 +2671,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                       <button
                         type="button"
                         onClick={() => selectCategory(category)}
+                        onDoubleClick={() => setCatActionMenu(category)}
                         title={category}
                         className="flex items-center whitespace-nowrap px-2 py-2 text-sm select-none"
                       >
@@ -2703,14 +2686,11 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           </div>
 
           <div className="flex shrink-0 items-center justify-end gap-1.5 pl-2 pr-0">
-            {/* Acceso a "Administrar categorías" (agregar/editar/eliminar,
-                y desde ahí también agregar servicio/producto nuevo) — antes
-                este botón abría directo el modal de alta de ítem. */}
             <button
               type="button"
-              onClick={() => setCategoryManagerOpen(true)}
+              onClick={openNew}
               className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white shadow-[0_8px_24px_-10px_rgba(56,189,248,0.75)] transition hover:opacity-95"
-              aria-label="Administrar categorías"
+              aria-label="Agregar"
             >
               <Plus className="h-4.5 w-4.5" strokeWidth={2.5} />
             </button>
@@ -2848,7 +2828,14 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         saving={saving}
         catalogCategories={categories}
         onUploadImage={uploadBookingImage}
-        onCreateCategory={createCategory}
+        onCreateCategory={(name) => {
+          if (categories.length >= MAX_CATEGORIES) {
+            toast.error(`Máximo ${MAX_CATEGORIES} categorías alcanzado`);
+            return false;
+          }
+          saveCategories([...categories, name], isService ? "service" : "catalog");
+          return true;
+        }}
         featuredOthers={
           Object.entries(bookingConfig).filter(
             ([id, c]) => c.show && id !== editing?.id,
@@ -2862,118 +2849,6 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         onConfirm={doRemoveItem}
         onCancel={() => setConfirmDelItem(null)}
       />
-      {/* Administrar categorías: agregar, editar (renombrar) y eliminar,
-          todo desde acá — es lo que abre el botón + de la fila de
-          categorías. Reemplaza el viejo menú de doble tap sobre la pestaña.
-          Va ANTES que el resto de los modales de categoría/ítem en el JSX
-          (mismo z-50, sin portal): así, si se dispara un renombrado/borrado
-          desde acá, ese modal queda encima en vez de tapado detrás. */}
-      {categoryManagerOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center"
-          onClick={() => {
-            setCategoryManagerOpen(false);
-            setNewCategoryManagerInput("");
-          }}
-        >
-          <div
-            onClick={(e) => e.stopPropagation()}
-            className="glass w-full max-w-sm rounded-t-2xl p-4 ring-1 ring-white/10 space-y-4 sm:rounded-2xl sm:mx-4"
-          >
-            <div className="flex items-center justify-between">
-              <div className="font-display font-semibold text-base">Categorías</div>
-              <button
-                type="button"
-                onClick={() => {
-                  setCategoryManagerOpen(false);
-                  setNewCategoryManagerInput("");
-                }}
-                className="rounded-full p-1.5 text-muted-foreground hover:bg-white/5"
-                aria-label="Cerrar"
-              >
-                ✕
-              </button>
-            </div>
-
-            <div className="max-h-[45vh] space-y-1.5 overflow-y-auto">
-              {categories.length === 0 ? (
-                <p className="px-1 text-sm text-muted-foreground">
-                  Todavía no creaste categorías.
-                </p>
-              ) : (
-                categories.map((category) => (
-                  <div
-                    key={category}
-                    className="flex items-center justify-between gap-2 rounded-xl bg-white/[0.03] px-3 py-2 ring-1 ring-white/5"
-                  >
-                    <span className="truncate text-sm">{category}</span>
-                    <div className="flex shrink-0 items-center gap-1.5">
-                      <button
-                        type="button"
-                        onClick={() => renameCategory(category)}
-                        className="flex items-center gap-1.5 rounded-lg bg-white/5 px-2.5 py-1.5 text-xs text-white/85 ring-1 ring-white/10 transition hover:bg-white/10 hover:text-white"
-                      >
-                        <Pencil className="h-3.5 w-3.5 text-sky-300" />
-                        Editar
-                      </button>
-                      <button
-                        type="button"
-                        disabled={categories.length <= 1}
-                        onClick={() => deleteCategory(category)}
-                        className={cn(
-                          "flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs ring-1 transition",
-                          categories.length <= 1
-                            ? "cursor-not-allowed text-white/30 ring-white/10"
-                            : "text-red-300 ring-red-500/20 hover:bg-red-500/10",
-                        )}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        Eliminar
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <div className="flex gap-2">
-              <input
-                value={newCategoryManagerInput}
-                onChange={(e) => setNewCategoryManagerInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    if (createCategory(newCategoryManagerInput)) setNewCategoryManagerInput("");
-                  }
-                }}
-                placeholder="Nueva categoría"
-                maxLength={MAX_CATEGORY_NAME_LENGTH}
-                className="min-w-0 flex-1 rounded-xl bg-white/5 px-4 py-2.5 text-sm ring-1 ring-white/10 focus:outline-none focus:ring-primary/40"
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  if (createCategory(newCategoryManagerInput)) setNewCategoryManagerInput("");
-                }}
-                className="shrink-0 rounded-xl bg-white/5 px-4 py-2.5 text-sm ring-1 ring-white/10 transition hover:bg-white/10"
-              >
-                Agregar
-              </button>
-            </div>
-
-            <button
-              type="button"
-              onClick={() => {
-                setCategoryManagerOpen(false);
-                setNewCategoryManagerInput("");
-                openNew();
-              }}
-              className="w-full rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-2.5 text-sm font-semibold text-white transition hover:opacity-95"
-            >
-              Agregar {isService ? "servicio" : "producto"}
-            </button>
-          </div>
-        </div>
-      )}
       {/* Category rename modal */}
       {catModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
@@ -3043,6 +2918,54 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                 Guardar
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {/* Acciones de categoría (doble tap sobre la pestaña): editar nombre o eliminar.
+          Modal centrado en vez de un menú anclado a la pestaña — la fila de
+          categorías tiene scroll horizontal, así que un dropdown pegado a
+          la pestaña quedaría recortado por el propio contenedor. */}
+      {catActionMenu && (
+        <div
+          className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm sm:items-center"
+          onClick={() => setCatActionMenu(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="glass w-full max-w-sm rounded-t-2xl p-2 ring-1 ring-white/10 space-y-1 sm:rounded-2xl sm:mx-4"
+          >
+            <div className="px-3 py-2 text-xs uppercase tracking-[0.14em] text-muted-foreground">
+              {catActionMenu}
+            </div>
+            <button
+              type="button"
+              onClick={() => renameCategory(catActionMenu)}
+              className="flex w-full items-center gap-2.5 rounded-xl px-3 py-3 text-left text-sm text-white/85 transition hover:bg-white/10 hover:text-white"
+            >
+              <Pencil className="h-4 w-4 text-sky-300" />
+              Editar nombre
+            </button>
+            <button
+              type="button"
+              disabled={categories.length <= 1}
+              onClick={() => deleteCategory(catActionMenu)}
+              className={cn(
+                "flex w-full items-center gap-2.5 rounded-xl px-3 py-3 text-left text-sm transition",
+                categories.length <= 1
+                  ? "cursor-not-allowed text-white/30"
+                  : "text-red-300 hover:bg-red-500/10",
+              )}
+            >
+              <Trash2 className="h-4 w-4" />
+              Eliminar categoría
+            </button>
+            <button
+              type="button"
+              onClick={() => setCatActionMenu(null)}
+              className="flex w-full items-center justify-center rounded-xl px-3 py-3 text-sm text-muted-foreground transition hover:bg-white/5"
+            >
+              Cancelar
+            </button>
           </div>
         </div>
       )}
