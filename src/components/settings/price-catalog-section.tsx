@@ -37,15 +37,10 @@ import {
 type PriceForm = {
   name: string;
   price: string;
-  discount: string;
-  // "Descuento en efectivo" se puede cargar de dos formas: como % (discount,
-  // el valor que se persiste siempre) o como precio final manual en $
-  // (discountAmount) — discountMode controla cuál de los dos maneja el
-  // input activo. discountAmount se mantiene sincronizado con el precio en
-  // efectivo vigente aunque el modo activo sea "percent", para que al
-  // cambiar a "amount" arranque con un valor sensato en vez de 0.
-  discountMode: "percent" | "amount";
-  discountAmount: string;
+  // Precio en efectivo: campo manual, se tipea directamente el precio final
+  // (no un %). Vacío = no hay precio en efectivo distinto — se usa el
+  // Precio de lista tal cual, en toda la app.
+  cashPriceInput: string;
   duration: string;
   status: "Activo" | "Inactivo";
   category: string;
@@ -69,9 +64,7 @@ const emptyPriceForm = (
 ): PriceForm => ({
   name: "",
   price: "0",
-  discount: "0",
-  discountMode: "percent",
-  discountAmount: "0",
+  cashPriceInput: "",
   duration: isService ? "30" : "",
   status: "Activo",
   category,
@@ -376,32 +369,27 @@ function formatThousands(digits: string) {
   return digits && Number.isFinite(n) ? n.toLocaleString("es-AR") : "";
 }
 
-function clampPercent(digits: string) {
-  if (!digits) return "";
-  return String(Math.min(100, Number(digits)));
-}
-
-// Tope del precio manual en efectivo: no tiene sentido que un "descuento" en
-// efectivo termine costando más que el precio de lista.
+// Tope del precio en efectivo manual: no tiene sentido que termine costando
+// más que el precio de lista.
 function clampAmount(digits: string, maxPrice: number) {
   if (!digits) return "";
   return String(Math.max(0, Math.min(maxPrice, Number(digits))));
 }
 
-// % efectivo a persistir en price_catalog.cash_discount — la DB y todo el
-// resto de la app (página pública, Caja, este mismo form al reabrir) solo
-// conocen un %, nunca un modo de carga. En modo "amount" se deriva el %
-// exacto que reproduce el precio final tipeado (price - amount)/price*100,
-// sin redondear: al recalcular price - price*discount/100 en cualquier otro
-// lugar, Math.round reconstruye el mismo precio final que se tipeó acá.
-function resolveCashDiscountPercent(form: PriceForm): number {
-  if (form.discountMode === "amount") {
-    const price = Number(form.price) || 0;
-    if (price <= 0) return 0;
-    const amount = Number(form.discountAmount) || 0;
-    return Math.max(0, ((price - amount) / price) * 100);
-  }
-  return Number(form.discount) || 0;
+// price_catalog.cash_discount sigue siendo, puertas adentro, un % — la DB y
+// todo el resto de la app (página pública, Caja) leen ese campo así. El
+// formulario ya no expone ningún %: acá se deriva el equivalente exacto que
+// reproduce el precio final tipeado, (price - cashPriceInput)/price*100 sin
+// redondear, para que Math.round(price - price*discount/100) en cualquier
+// otro lugar reconstruya el mismo precio que se cargó en este campo.
+// cashPriceInput vacío, igual al precio de lista, o mayor a él → sin
+// precio en efectivo distinto (0%): se muestra el precio de lista tal cual.
+function resolveCashDiscountPercent(price: string, cashPriceInput: string): number {
+  const p = Number(price) || 0;
+  if (p <= 0 || !cashPriceInput) return 0;
+  const amount = Number(cashPriceInput);
+  if (!Number.isFinite(amount) || amount >= p) return 0;
+  return Math.max(0, ((p - amount) / p) * 100);
 }
 
 function rowToForm(row: PriceRow, isService: boolean): PriceForm {
@@ -410,9 +398,7 @@ function rowToForm(row: PriceRow, isService: boolean): PriceForm {
   return {
     name: row.name ?? "",
     price: String(price),
-    discount: String(discount), // ← read real value
-    discountMode: "percent",
-    discountAmount: String(priceToCash(String(price), String(discount))),
+    cashPriceInput: discount > 0 ? String(priceToCash(String(price), String(discount))) : "",
     duration: row.duration_min
       ? String(row.duration_min)
       : isService
@@ -740,108 +726,32 @@ function PriceEditorModal({
   const [creatingCategory, setCreatingCategory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
   if (!open) return null;
-  // En modo "amount" el precio en efectivo mostrado es exactamente lo que
-  // se tipeó (no pasa por %) — eso es lo que pide ese modo: control directo
-  // del precio final sin tener que calcular el porcentaje que representa.
-  const cashPrice =
-    form.discountMode === "amount"
-      ? Math.max(0, Number(form.discountAmount) || 0)
-      : priceToCash(form.price, form.discount);
   const title = `${mode === "edit" ? "Editar" : "Nuevo"} ${isService ? "servicio" : "producto"}`;
-  // Al cambiar de modo, se siembra el otro campo con el valor equivalente
-  // vigente en vez de arrancar en 0 — así alternar %/$ no pierde lo ya
-  // cargado.
-  function setDiscountMode(nextMode: "percent" | "amount") {
-    if (nextMode === form.discountMode) return;
-    if (nextMode === "amount") {
-      setForm({
-        ...form,
-        discountMode: "amount",
-        discountAmount: String(priceToCash(form.price, form.discount)),
-      });
-    } else {
-      const price = Number(form.price) || 0;
-      const amount = Number(form.discountAmount) || 0;
-      const pct =
-        price > 0 ? Math.max(0, Math.min(100, Math.round(((price - amount) / price) * 100))) : 0;
-      setForm({ ...form, discountMode: "percent", discount: String(pct) });
-    }
-  }
-  const discountModeToggle = (
-    <div className="absolute right-1.5 top-1/2 flex -translate-y-1/2 items-center gap-0.5 rounded-lg bg-white/5 p-0.5 ring-1 ring-white/10">
-      <button
-        type="button"
-        onClick={() => setDiscountMode("percent")}
-        className={cn(
-          "rounded-md px-2 py-1 text-xs font-semibold transition",
-          form.discountMode === "percent"
-            ? "bg-white/15 text-white"
-            : "text-muted-foreground hover:text-white",
-        )}
-      >
-        %
-      </button>
-      <button
-        type="button"
-        onClick={() => setDiscountMode("amount")}
-        className={cn(
-          "rounded-md px-2 py-1 text-xs font-semibold transition",
-          form.discountMode === "amount"
-            ? "bg-white/15 text-white"
-            : "text-muted-foreground hover:text-white",
-        )}
-      >
-        $
-      </button>
-    </div>
-  );
-  const discountField = (
-    <Field label="Descuento en efectivo">
+  // Precio en efectivo: campo manual, sin %. Vacío = sin precio en efectivo
+  // distinto (se usa el precio de lista tal cual en toda la app) — por eso
+  // el placeholder muestra el precio de lista en vez de "0", como pista de
+  // qué se está usando mientras el campo esté sin cargar.
+  const cashPriceField = (
+    <Field label="Precio en efectivo">
       <div className="relative">
-        {form.discountMode === "amount" && (
-          <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
-            $
-          </span>
-        )}
-        {form.discountMode === "amount" ? (
-          <input
-            type="text"
-            inputMode="numeric"
-            value={formatThousands(form.discountAmount)}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                discountAmount: clampAmount(e.target.value.replace(/\D/g, ""), Number(form.price) || 0),
-              })
-            }
-            className={cn(inputCls, "pl-6 pr-20")}
-            placeholder="0"
-          />
-        ) : (
-          <input
-            type="text"
-            inputMode="numeric"
-            value={form.discount}
-            onChange={(e) =>
-              setForm({ ...form, discount: clampPercent(e.target.value.replace(/\D/g, "")) })
-            }
-            className={cn(inputCls, "pr-20")}
-            placeholder="0"
-          />
-        )}
-        {discountModeToggle}
+        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+          $
+        </span>
+        <input
+          type="text"
+          inputMode="numeric"
+          value={formatThousands(form.cashPriceInput)}
+          onChange={(e) =>
+            setForm({
+              ...form,
+              cashPriceInput: clampAmount(e.target.value.replace(/\D/g, ""), Number(form.price) || 0),
+            })
+          }
+          className={cn(inputCls, "pl-6")}
+          placeholder={formatThousands(form.price) || "0"}
+        />
       </div>
     </Field>
-  );
-  const cashPricePreview = (
-    <div>
-      <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-1.5">
-        Precio en efectivo
-      </div>
-      <div className="text-lg font-semibold text-[oklch(0.82_0.14_75)]">
-        ${cashPrice.toLocaleString("es-AR")}
-      </div>
-    </div>
   );
   const availableCatalogCategories = Array.from(
     new Set([...(form.category ? [form.category] : []), ...catalogCategories]),
@@ -991,8 +901,7 @@ function PriceEditorModal({
                       />
                     </div>
                   </Field>
-                  {discountField}
-                  {cashPricePreview}
+                  {cashPriceField}
                 </div>
               </SectionCard>
 
@@ -1115,8 +1024,7 @@ function PriceEditorModal({
                       />
                     </div>
                   </Field>
-                  {discountField}
-                  {cashPricePreview}
+                  {cashPriceField}
                 </div>
               </SectionCard>
 
@@ -2166,7 +2074,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       business_id: businessId,
       name: form.name.trim(),
       price: Number(form.price) || 0,
-      cash_discount: resolveCashDiscountPercent(form),
+      cash_discount: resolveCashDiscountPercent(form.price, form.cashPriceInput),
       category: form.category,
       active: form.status === "Activo",
       duration_min: isService ? Number(form.duration) || 30 : null,
