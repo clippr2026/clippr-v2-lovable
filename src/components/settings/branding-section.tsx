@@ -20,6 +20,7 @@ import {
   User as UserIcon,
   Moon,
   Sun,
+  Loader2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
@@ -1619,11 +1620,20 @@ export function BrandingSection() {
 
               {/* Portafolio */}
               <div>
-                <div className="mb-3 text-center text-sm font-medium">
+                <div className="mb-1 text-center text-sm font-medium">
                   Portafolio
                 </div>
+                <p className="mb-3 text-center text-xs text-muted-foreground">
+                  Tocá una imagen para cargarla o reemplazarla.
+                </p>
 
-                <div className="grid grid-cols-3 gap-3">
+                {/* Mismo grid que la vista pública (gap-3 sm:grid-cols-3 —
+                    1 columna en mobile, 3 en desktop) y misma tarjeta
+                    (aspect-[4/3] / rounded-3xl / object-cover + objectPosition,
+                    ver src/routes/negocio/$slug.tsx): lo que se ve acá tiene
+                    que ser exactamente lo que ve el cliente, sin overlays ni
+                    miniaturas propias de Configuración que no existan ahí. */}
+                <div className="grid gap-3 sm:grid-cols-3">
                   {[0, 1, 2].map((index) => {
                     const url = data.portfolio_urls[index];
                     const uploading = uploadingPortfolioIndex === index;
@@ -1631,13 +1641,8 @@ export function BrandingSection() {
                       <div key={index} className="relative">
                         <label
                           className={cn(
-                            // Mismos aspect-[4/3] / rounded-3xl / object-cover
-                            // + objectPosition que la vista previa pública
-                            // (src/routes/negocio/$slug.tsx) — lo que se ve
-                            // acá tiene que ser exactamente lo que ve el
-                            // cliente, no una miniatura cuadrada aparte.
                             "group relative grid aspect-[4/3] w-full cursor-pointer place-items-center overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07]",
-                            uploading && "cursor-not-allowed opacity-50",
+                            uploading && "cursor-not-allowed",
                           )}
                         >
                           {url ? (
@@ -1648,17 +1653,12 @@ export function BrandingSection() {
                               style={{ objectPosition: data.portfolio_positions[index] || "50% 50%" }}
                             />
                           ) : (
-                            <ImageIcon className="h-5 w-5 text-white/45" />
+                            <ImageIcon className="h-6 w-6 text-white/45" />
                           )}
-                          <div className="absolute inset-0 grid place-items-center bg-black/35 opacity-0 transition group-hover:opacity-100">
-                            <span className="rounded-full bg-white/90 px-1.5 py-1 text-[9px] font-bold text-black">
-                              {uploading ? "Subiendo" : "Cargar"}
-                            </span>
-                          </div>
-                          {!url ? (
-                            <span className="absolute bottom-1 rounded-full bg-white/10 px-1.5 py-0.5 text-[9px] font-semibold text-white/70 ring-1 ring-white/10">
-                              Cargar
-                            </span>
+                          {uploading ? (
+                            <div className="absolute inset-0 grid place-items-center bg-black/45">
+                              <Loader2 className="h-5 w-5 animate-spin text-white" />
+                            </div>
                           ) : null}
                           <input
                             type="file"
@@ -1673,7 +1673,7 @@ export function BrandingSection() {
                           />
                         </label>
 
-                        {url ? (
+                        {url && !uploading ? (
                           <button
                             type="button"
                             onClick={() => removePortfolioImage(index)}
