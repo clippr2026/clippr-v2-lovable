@@ -23,6 +23,7 @@ import { ClipprLoader } from "@/components/ui/clippr-loader";
 import { ServiceImage } from "@/components/ui/service-image";
 import { applyCatalogOrder, extractCatalogOrderMap } from "@/lib/catalog-order";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/negocio/$slug")({
   head: () => ({
@@ -714,6 +715,11 @@ function PublicProfilePage() {
           setEmployees(
             (employeesRes.error ? [] : ((employeesRes.data ?? []) as Employee[]))
               .filter((employee) => employee.is_active !== false)
+              // ONLINE/OFFLINE de Configuración → Equipo (mismo mapa que ya
+              // usa reservar/$slug.tsx para no dejar reservar con un
+              // profesional OFFLINE) — sin este filtro, el perfil público
+              // seguía listando profesionales aunque estuvieran OFFLINE.
+              .filter((employee) => visibility.employees[employee.id] !== false)
               .map((employee) => ({ ...employee, role: employee.role ?? employeeRoles[employee.id] ?? null })),
           );
           const orderedServices = applyCatalogOrder(
@@ -822,6 +828,29 @@ function PublicProfilePage() {
   };
   const mapLink = mapsUrl(business.address);
   const instagram = cleanInstagram(business.instagram);
+  const contactLinks = [
+    business.phone
+      ? {
+          key: "whatsapp",
+          href: `https://wa.me/${business.phone.replace(/\D/g, "")}`,
+          label: "WhatsApp",
+          icon: Phone,
+          external: true,
+        }
+      : null,
+    instagram
+      ? {
+          key: "instagram",
+          href: `https://instagram.com/${instagram}`,
+          label: "Instagram",
+          icon: Instagram,
+          external: true,
+        }
+      : null,
+    business.email
+      ? { key: "email", href: `mailto:${business.email}`, label: "Mail", icon: Mail, external: false }
+      : null,
+  ].filter((link): link is NonNullable<typeof link> => link !== null);
   const todayStatus = getTodayStatus(schedule);
   const todayKey = getTodayKey();
   const isOpen = todayStatus.startsWith("Abierto");
@@ -1366,47 +1395,59 @@ function PublicProfilePage() {
               </span>
               <h2 className="text-2xl font-semibold">Contactanos</h2>
             </div>
-            <div className="flex flex-wrap gap-3">
-              {business.phone ? (
-                <a
-                  href={`https://wa.me/${business.phone.replace(/\D/g, "")}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label="WhatsApp"
-                  className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold transition hover:bg-white/10"
-                >
-                  <Phone className="h-5 w-5" /> WhatsApp
-                </a>
-              ) : null}
-              {instagram ? (
-                <a
-                  href={`https://instagram.com/${instagram}`}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label="Instagram"
-                  className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold transition hover:bg-white/10"
-                >
-                  <Instagram className="h-5 w-5" /> Instagram
-                </a>
-              ) : null}
-              {business.email ? (
-                <a
-                  href={`mailto:${business.email}`}
-                  aria-label="Email"
-                  className="inline-flex h-12 items-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-4 text-sm font-semibold transition hover:bg-white/10"
-                >
-                  <Mail className="h-5 w-5" /> Mail
-                </a>
-              ) : null}
-            </div>
+            {/* grid con grid-cols exacto según cuántas opciones hay (no
+                flex-wrap): así 2 o 3 botones siempre quedan en una sola fila
+                repartiendo el ancho parejo, en vez de acomodarse como
+                entren y quedar uno solo en una segunda línea en mobile. Con
+                una sola opción no se estira: se centra a tamaño natural. */}
+            {contactLinks.length > 0 ? (
+              <div
+                className={
+                  contactLinks.length === 1
+                    ? "flex w-full justify-center sm:w-auto"
+                    : contactLinks.length === 2
+                      ? "grid w-full grid-cols-2 gap-3 sm:w-auto"
+                      : "grid w-full grid-cols-3 gap-3 sm:w-auto"
+                }
+              >
+                {contactLinks.map((link) => (
+                  <a
+                    key={link.key}
+                    href={link.href}
+                    target={link.external ? "_blank" : undefined}
+                    rel={link.external ? "noreferrer" : undefined}
+                    aria-label={link.label}
+                    className={cn(
+                      "inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 text-sm font-semibold transition hover:bg-white/10 sm:px-4",
+                      contactLinks.length > 1 && "w-full",
+                    )}
+                  >
+                    <link.icon className="h-5 w-5 shrink-0" /> {link.label}
+                  </a>
+                ))}
+              </div>
+            ) : null}
           </div>
         </GlowCard>
       </section>
 
+      {/* text-white/NN (no colores fijos): la regla global
+          .public-landing[data-theme="light"] [class*="text-white/"] de más
+          arriba ya invierte automáticamente estas clases a var(--muted)
+          cuando el fondo del negocio es claro — mismo mecanismo que usa el
+          resto de la página, sin necesitar lógica de color acá. El logo
+          mantiene sus colores propios (no es texto, no lo toca esa regla). */}
       <footer className="mx-auto max-w-6xl px-4 pb-10 pt-2">
-        <div className="flex items-center justify-center gap-2 text-sm text-white/50">
-          <span className="grid h-6 w-6 place-items-center rounded-md bg-gradient-to-br from-sky-400 via-violet-500 to-fuchsia-500 text-xs font-bold text-white">C</span>
-          <span>Hecho con <span className="font-semibold text-white/80">Clippr</span></span>
+        <div className="flex items-center justify-center gap-2">
+          <span className="text-sm font-medium text-white/60">Impulsado por</span>
+          <img
+            src="/clippr-powered-logo.webp"
+            alt="Clippr"
+            loading="lazy"
+            decoding="async"
+            className="h-6 w-6 rounded-md object-contain"
+          />
+          <span className="text-sm font-bold tracking-tight text-white/80">Clippr</span>
         </div>
       </footer>
 

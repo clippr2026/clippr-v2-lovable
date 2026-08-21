@@ -3592,7 +3592,13 @@ export function EquipoSection() {
                   Eliminar
                 </button>
               ) : null}
-              <div className="flex-1" />
+              {/* Guardar usa flex-1 (llena el espacio que sobra) en vez del
+                  spacer + min-w-[160px] de antes: ese ancho mínimo fijo, sumado
+                  a Eliminar + Cancelar, no entraba en pantallas de celular
+                  angostas y el botón quedaba cortado a la derecha. Sin
+                  min-width fijo, la fila siempre se reparte dentro del ancho
+                  real del modal — mismo patrón que el footer de Agregar/
+                  Editar servicio en price-catalog-section.tsx. */}
               <button
                 onClick={() => setOpen(false)}
                 disabled={saving}
@@ -3603,7 +3609,7 @@ export function EquipoSection() {
               <button
                 onClick={saveProfessional}
                 disabled={saving}
-                className="inline-flex min-w-[160px] items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 py-2.5 text-sm shadow-[0_10px_26px_-10px_rgba(139,92,246,0.65),inset_0_1px_0_rgba(255,255,255,0.2)] transition hover:brightness-110 disabled:opacity-50 disabled:hover:brightness-100"
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 py-2.5 text-sm shadow-[0_10px_26px_-10px_rgba(139,92,246,0.65),inset_0_1px_0_rgba(255,255,255,0.2)] transition hover:brightness-110 disabled:opacity-50 disabled:hover:brightness-100"
               >
                 {saving ? "Guardando…" : "Guardar"}
               </button>

@@ -1196,7 +1196,15 @@ function PublicBookingPage() {
         )}
       >
         <div className="relative flex w-full items-center justify-center px-4 py-0.5 sm:py-1">
-          <div className="inline-flex items-center justify-center gap-3">
+          {/* Clickeable: vuelve al perfil público del negocio, saliendo del
+              paso actual de la reserva — mismo destino que "Volver al
+              perfil" en el paso "done" de más abajo. */}
+          <Link
+            to="/negocio/$slug"
+            params={{ slug }}
+            className="inline-flex items-center justify-center gap-3 transition hover:opacity-80"
+            aria-label="Volver al inicio"
+          >
             <span
               className="text-[10px] font-medium sm:text-[11px]"
               style={
@@ -1224,12 +1232,21 @@ function PublicBookingPage() {
             >
               Clippr
             </span>
-          </div>
+          </Link>
         </div>
       </section>
 
       <section className={cn("mx-auto grid max-w-5xl gap-6 px-4 py-6 lg:items-start", step === "done" ? "lg:grid-cols-1" : "lg:grid-cols-[1fr_330px]")}>
-        <div className="space-y-6">
+        {/* min-w-0: ítem de un grid — sin esto, este item usa el ancho
+            mínimo de SU CONTENIDO (p. ej. la fila de fechas/categorías sin
+            wrappear) como piso, empujando toda la sección más ancha que el
+            viewport. El overflow-x-auto de esas filas nunca llega a activarse
+            porque su propio contenedor ya creció para no necesitarlo — el
+            "desborde" real termina pasando en el body (recortado por su
+            overflow-x:hidden global), no ahí, y por eso se ve contenido
+            cortado a la derecha sin poder scrollearlo. Mismo bug/fix que ya
+            se usa en toda la página de negocio/$slug.tsx. */}
+        <div className="min-w-0 space-y-6">
           <Card className="booking-card booking-shell border-white/10 bg-white/[0.04] text-white shadow-xl">
             <CardContent className="p-5 sm:p-6">
               {step !== "done" ? (
@@ -1673,7 +1690,7 @@ function PublicBookingPage() {
                     {availableDays.length === 0 ? (
                       <p className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 text-sm text-white/60">No hay horarios disponibles en los próximos días.</p>
                     ) : (
-                      <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2">
+                      <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                         {availableDays.map((day, index) => {
                           const active = index === selectedDayIndex;
                           const weekday = day.date.toLocaleDateString("es-AR", { weekday: "short" }).replace(".", "");
@@ -2061,7 +2078,7 @@ function PublicBookingPage() {
         </div>
 
         {step !== "done" ? (
-        <aside className="lg:sticky lg:top-6 lg:self-start">
+        <aside className="min-w-0 lg:sticky lg:top-6 lg:self-start">
           <Card className="booking-card border-white/10 bg-white/[0.06] text-white shadow-2xl backdrop-blur-xl">
             <CardContent className="p-5 sm:p-6">
               <div className="flex items-center gap-2"><CalendarDays className="h-5 w-5" style={{ color: accent }} /><h2 className="text-lg font-semibold">Tu reserva</h2></div>
