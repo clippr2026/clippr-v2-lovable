@@ -1399,7 +1399,13 @@ function PublicProfilePage() {
                 flex-wrap): así 2 o 3 botones siempre quedan en una sola fila
                 repartiendo el ancho parejo, en vez de acomodarse como
                 entren y quedar uno solo en una segunda línea en mobile. Con
-                una sola opción no se estira: se centra a tamaño natural. */}
+                una sola opción no se estira: se centra a tamaño natural.
+                Con las 3 opciones, "WhatsApp"/"Instagram" + ícono no entran
+                cómodos al tamaño de texto/padding normal en el tercio de
+                ancho que le toca a cada botón en mobile — quedaban con el
+                texto pegado al borde. Con 3 se usa una versión más compacta
+                (padding/gap/ícono/texto más chicos) solo en mobile — a
+                partir de sm: hay espacio de sobra y vuelve al tamaño normal. */}
             {contactLinks.length > 0 ? (
               <div
                 className={
@@ -1407,7 +1413,7 @@ function PublicProfilePage() {
                     ? "flex w-full justify-center sm:w-auto"
                     : contactLinks.length === 2
                       ? "grid w-full grid-cols-2 gap-3 sm:w-auto"
-                      : "grid w-full grid-cols-3 gap-3 sm:w-auto"
+                      : "grid w-full grid-cols-3 gap-2 sm:w-auto sm:gap-3"
                 }
               >
                 {contactLinks.map((link) => (
@@ -1418,11 +1424,17 @@ function PublicProfilePage() {
                     rel={link.external ? "noreferrer" : undefined}
                     aria-label={link.label}
                     className={cn(
-                      "inline-flex h-12 items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/5 px-3 text-sm font-semibold transition hover:bg-white/10 sm:px-4",
+                      "inline-flex h-12 items-center justify-center rounded-2xl border border-white/10 bg-white/5 font-semibold transition hover:bg-white/10",
                       contactLinks.length > 1 && "w-full",
+                      contactLinks.length === 3
+                        ? "gap-1.5 px-2.5 text-[13px] sm:gap-2 sm:px-4 sm:text-sm"
+                        : "gap-2 px-3 text-sm sm:px-4",
                     )}
                   >
-                    <link.icon className="h-5 w-5 shrink-0" /> {link.label}
+                    <link.icon
+                      className={cn("shrink-0", contactLinks.length === 3 ? "h-[18px] w-[18px] sm:h-5 sm:w-5" : "h-5 w-5")}
+                    />
+                    {link.label}
                   </a>
                 ))}
               </div>
