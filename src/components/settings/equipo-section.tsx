@@ -181,6 +181,7 @@ type CommissionConfig = {
 };
 
 const DEFAULT_SERVICE_OVERRIDE: ServiceOverrideConfig = {
+  enabled: true,
   useStandardDuration: true,
   duration_min: "",
   useStandardPrice: true,
@@ -3429,7 +3430,42 @@ export function EquipoSection() {
                                             </div>
                                           </div>
 
-                                          {isServiceKind && (
+                                          {isServiceKind && (() => {
+                                            const offered = overrideCfg.enabled !== false;
+                                            return (
+                                              <label className="mt-2.5 flex items-center justify-between gap-3 rounded-lg bg-white/[0.03] px-3 py-2 ring-1 ring-white/10">
+                                                <span className="min-w-0">
+                                                  <span className="block text-xs font-semibold">
+                                                    Ofrece este servicio
+                                                  </span>
+                                                  <span className="block text-[10px] text-muted-foreground">
+                                                    Si está apagado, no aparece para reservar online con este profesional.
+                                                  </span>
+                                                </span>
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    updateOverrideCfg({ enabled: !offered })
+                                                  }
+                                                  role="switch"
+                                                  aria-checked={offered}
+                                                  className={cn(
+                                                    "h-6 w-11 shrink-0 overflow-hidden rounded-full relative transition-colors",
+                                                    offered ? "bg-primary" : "bg-white/15",
+                                                  )}
+                                                >
+                                                  <span
+                                                    className={cn(
+                                                      "absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all",
+                                                      offered ? "left-[22px]" : "left-0.5",
+                                                    )}
+                                                  />
+                                                </button>
+                                              </label>
+                                            );
+                                          })()}
+
+                                          {isServiceKind && overrideCfg.enabled !== false && (
                                             <div className="mt-2.5">
                                               <button
                                                 type="button"

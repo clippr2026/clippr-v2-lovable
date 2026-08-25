@@ -52,6 +52,7 @@ import { ServiceImage } from "@/components/ui/service-image";
 import {
   resolveServicePricing,
   getServiceRange,
+  isServiceOfferedByEmployee,
   formatServiceRangeLabel,
   isPromotionCurrentlyValid,
   isPromotionApplicable,
@@ -366,6 +367,22 @@ function PublicBookingPage() {
     () => selectedServiceIds.map((id) => services.find((service) => service.id === id)).filter(Boolean) as Service[],
     [selectedServiceIds, services],
   );
+  // Solo profesionales que ofrecen TODOS los servicios elegidos (switch
+  // "Ofrece este servicio" en Configuración → Equipo → cada profesional) —
+  // si no ofrece alguno de los servicios del turno combinado, no puede
+  // tomarlo. Se usa tanto para el paso "Elegí profesional" como para el pool
+  // de "Sin preferencia" en el cálculo de turnos disponibles.
+  const employeesForSelectedServices = React.useMemo(
+    () =>
+      selectedServiceIds.length === 0
+        ? employees
+        : employees.filter((employee) =>
+            selectedServiceIds.every((serviceId) =>
+              isServiceOfferedByEmployee(serviceId, employee.id, employeeServiceOverrides),
+            ),
+          ),
+    [employees, selectedServiceIds, employeeServiceOverrides],
+  );
   const serviceCategories = React.useMemo(
     () =>
       Array.from(new Set(services.map((service) => service.category?.trim() || "Otro"))).sort((a, b) =>
@@ -439,7 +456,7 @@ function PublicBookingPage() {
       buildSlots(
         schedule,
         appointments,
-        employees,
+        employeesForSelectedServices,
         selectedEmployeeId,
         totalDuration,
         Math.max(1, reservationSettings.maxAdvance || 10),
@@ -451,7 +468,7 @@ function PublicBookingPage() {
     [
       schedule,
       appointments,
-      employees,
+      employeesForSelectedServices,
       selectedEmployeeId,
       totalDuration,
       employeeSchedules,
@@ -1152,7 +1169,7 @@ function PublicBookingPage() {
     step === "products" ? 1 + promoOffset + 3 :
     step === "details" ? 1 + promoOffset + (hasProducts ? 4 : 3) :
     totalSteps;
-  const professionalOptionCount = employees.length + 1;
+  const professionalOptionCount = employeesForSelectedServices.length + 1;
 
   return (
     <main
@@ -1320,13 +1337,16 @@ function PublicBookingPage() {
                     {visibleStepServices.map((service) => {
                       const checked = selectedServiceIds.includes(service.id);
                       // Mismo resolver que el resto de la app: rango de
-                      // duración y precio entre los profesionales visibles
-                      // para este servicio. "30 min · $20.000" si no hay
+                      // duración y precio entre los profesionales que
+                      // ofrecen ESTE servicio en particular (switch "Ofrece
+                      // este servicio"). "30 min · $20.000" si no hay
                       // variación, "30–60 min · Desde $20.000" si la hay —
                       // ver formatServiceRangeLabel en src/lib/service-pricing.ts.
                       const range = getServiceRange(
                         { id: service.id, price: service.price, duration_min: service.duration_min ?? service.duration },
-                        employees.map((e) => e.id),
+                        employees
+                          .filter((e) => isServiceOfferedByEmployee(service.id, e.id, employeeServiceOverrides))
+                          .map((e) => e.id),
                         employeeServiceOverrides,
                       );
                       return (
@@ -1507,7 +1527,22 @@ function PublicBookingPage() {
                 </div>
               ) : null}
 
-              {step === "professional" ? (
+              {step === "professional" && employeesForSelectedServices.length === 0 ? (
+                // Ningún profesional visible ofrece la combinación de
+                // servicios elegida (switch "Ofrece este servicio" apagado
+                // para todos) — sin este mensaje, el paso quedaría vacío o
+                // solo con "Sin preferencia" sin nadie real detrás.
+                <div className="mt-5 rounded-3xl border border-white/10 bg-white/[0.03] p-6 text-center">
+                  <p className="text-sm text-white/70">
+                    No hay profesionales disponibles para el servicio elegido en este momento.
+                  </p>
+                  <p className="mt-1 text-xs text-white/45">
+                    Probá con otra combinación de servicios o contactá al negocio directamente.
+                  </p>
+                </div>
+              ) : null}
+
+              {step === "professional" && employeesForSelectedServices.length > 0 ? (
                 <div
                   className={cn(
                     "mt-5 grid gap-3",
@@ -1541,7 +1576,7 @@ function PublicBookingPage() {
                     </span>
                   </button>
 
-                  {employees.map((employee) => {
+                  {employeesForSelectedServices.map((employee) => {
                     // Precio y duración reales para ESTE profesional (mismo
                     // resolver que el resto de la app), para que el cliente
                     // vea de entrada si le conviene uno u otro.

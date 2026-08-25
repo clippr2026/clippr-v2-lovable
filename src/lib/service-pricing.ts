@@ -21,6 +21,10 @@
 import type { DayKey } from "@/lib/availability";
 
 export type ServiceOverrideConfig = {
+  // Si el profesional ofrece este servicio. undefined (configs guardadas
+  // antes de que existiera este campo) se trata como true — ver
+  // isServiceOfferedByEmployee. Solo un false explícito lo deshabilita.
+  enabled?: boolean;
   useStandardDuration: boolean;
   duration_min: string;
   useStandardPrice: boolean;
@@ -70,6 +74,20 @@ export function resolveServicePricing(
     priceOverridden,
     durationOverridden,
   };
+}
+
+// Si el profesional ofrece este servicio para reserva online. Sin
+// configuración guardada (o guardada antes de que existiera este campo) =
+// lo ofrece, igual que el resto de los switches "activo por default" de la
+// app (is_active, visibility.employees, etc.) — solo un false explícito lo
+// saca de circulación.
+export function isServiceOfferedByEmployee(
+  serviceId: string,
+  employeeId: string | null | undefined,
+  overridesMap: EmployeeServiceOverrideMap | null | undefined,
+): boolean {
+  if (!employeeId) return true;
+  return overridesMap?.[employeeId]?.[serviceId]?.enabled !== false;
 }
 
 export type ServiceRange = {
