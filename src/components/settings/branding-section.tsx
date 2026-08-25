@@ -1627,24 +1627,23 @@ export function BrandingSection() {
                   Tocá una imagen para cargarla o reemplazarla.
                 </p>
 
-                {/* Mismo grid que la vista pública (gap-3 sm:grid-cols-3 —
-                    1 columna en mobile, 3 en desktop) y misma tarjeta
-                    (aspect-[4/3] / rounded-3xl / object-cover + objectPosition,
-                    ver src/routes/negocio/$slug.tsx): lo que se ve acá tiene
-                    que ser exactamente lo que ve el cliente, sin overlays ni
-                    miniaturas propias de Configuración que no existan ahí.
+                {/* A diferencia de la página pública (que en mobile pasa a
+                    1 columna), acá siempre son 3 en una misma fila — así se
+                    ven/administran las 3 juntas sin scrollear. Lo que sí
+                    tiene que coincidir sí o sí con la pública es la tarjeta
+                    en sí: aspect-[4/3] / rounded-3xl / object-cover +
+                    objectPosition (ver src/routes/negocio/$slug.tsx) — el
+                    encuadre/recorte de cada miniatura es el mismo cálculo,
+                    solo cambia cuántas entran por fila.
                     max-w-[686px]: en desktop, Configuración comparte fila con
                     un menú angosto (260px) y le sobra mucho más ancho que a
                     la página pública, donde esa misma tarjeta comparte fila
-                    con el panel de reserva (360px) — mismo aspect-ratio,
-                    pero sin este tope las imágenes se ven mucho más grandes
-                    acá que publicadas. 686px es el ancho real que le queda a
-                    la tarjeta del portafolio en la página pública en
-                    pantallas grandes (max-w-6xl 1152 − px-4 32 − sidebar 360
-                    − gap-6 24 − borde 2 − p-6 48), así el tamaño coincide en
-                    vez de solo la proporción. Por debajo de ese ancho (mobile
-                    y tablets) el tope no llega a activarse. */}
-                <div className="mx-auto grid max-w-[686px] gap-3 sm:grid-cols-3">
+                    con el panel de reserva (360px) — sin este tope las 3
+                    miniaturas se ven más grandes acá que publicadas. 686px es
+                    el ancho real que le queda a esa tarjeta en la página
+                    pública en pantallas grandes (max-w-6xl 1152 − px-4 32 −
+                    sidebar 360 − gap-6 24 − borde 2 − p-6 48). */}
+                <div className="mx-auto grid max-w-[686px] grid-cols-3 gap-2 sm:gap-3">
                   {[0, 1, 2].map((index) => {
                     const url = data.portfolio_urls[index];
                     const uploading = uploadingPortfolioIndex === index;
