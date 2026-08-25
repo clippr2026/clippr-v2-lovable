@@ -1650,9 +1650,20 @@ export function BrandingSection() {
                     const uploading = uploadingPortfolioIndex === index;
                     return (
                       <div key={index} className="relative">
+                        {/* block, no grid/place-items-center: la pública usa
+                            un <button> (bloque simple) para el mismo marco
+                            aspect-[4/3] — acá era un <label> con display:grid
+                            + place-items-center, que en algunos motores
+                            (WebKit/Safari) resuelve el tamaño de un <img>
+                            h-full/w-full contra un grid de auto-sizing de
+                            forma distinta al bloque simple, dando una altura
+                            y un recorte ligeramente distintos al publicado.
+                            El ícono de placeholder y el spinner ya no
+                            dependen de ese centrado del padre: se superponen
+                            con absolute inset-0 propio. */}
                         <label
                           className={cn(
-                            "group relative grid aspect-[4/3] w-full cursor-pointer place-items-center overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07]",
+                            "group relative block aspect-[4/3] w-full cursor-pointer overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07]",
                             uploading && "cursor-not-allowed",
                           )}
                         >
@@ -1664,7 +1675,9 @@ export function BrandingSection() {
                               style={{ objectPosition: data.portfolio_positions[index] || "50% 50%" }}
                             />
                           ) : (
-                            <ImageIcon className="h-6 w-6 text-white/45" />
+                            <div className="absolute inset-0 grid place-items-center">
+                              <ImageIcon className="h-6 w-6 text-white/45" />
+                            </div>
                           )}
                           {uploading ? (
                             <div className="absolute inset-0 grid place-items-center bg-black/45">
