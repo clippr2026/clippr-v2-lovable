@@ -1721,11 +1721,7 @@ export function BrandingSection() {
                   <div className="text-sm font-medium">Confían en nosotros</div>
                   <p className="mt-1 text-xs text-muted-foreground">
                     Logos o fotos de personas, marcas o equipos que querés
-                    mostrar en tu página pública. Si no hay activos, esta
-                    sección no aparece. Máximo {MAX_FEATURED_CLIENT_NAME_LENGTH}{" "}
-                    caracteres por nombre (el nombre del club admite hasta{" "}
-                    {MAX_FEATURED_CLUB_NAME_LENGTH}, comparte la fila con el
-                    escudo), para que entre bien en la tarjeta.
+                    mostrar en tu página pública.
                   </p>
                 </div>
                 <button
