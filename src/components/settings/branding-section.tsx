@@ -1752,124 +1752,133 @@ export function BrandingSection() {
                       }}
                       onDragEnd={() => setDraggedFeaturedId(null)}
                       className={cn(
-                        "grid cursor-grab gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 transition active:cursor-grabbing lg:grid-cols-[22px_72px_1fr_170px_auto] lg:items-center",
+                        "grid cursor-grab gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 transition active:cursor-grabbing",
                         draggedFeaturedId === item.id && "opacity-50",
                       )}
                     >
-                      <GripVertical className="hidden h-4 w-4 text-white/35 lg:block" />
-                      <label
-                        className={cn(
-                          "group relative grid h-16 w-16 cursor-pointer place-items-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07]",
-                          uploading && "cursor-not-allowed opacity-50",
-                        )}
-                      >
-                        {item.image_url ? (
-                          <img
-                            src={item.image_url}
-                            alt={item.name || "Confían en nosotros"}
-                            className="h-full w-full object-cover"
-                          />
-                        ) : (
-                          <ImageIcon className="h-5 w-5 text-white/45" />
-                        )}
-                        <div className="absolute inset-0 grid place-items-center bg-black/35 opacity-0 transition group-hover:opacity-100">
-                          <span className="rounded-full bg-white/90 px-2 py-1 text-[10px] font-bold text-black">
-                            {uploading ? "Subiendo" : "Cargar"}
-                          </span>
-                        </div>
-                        {!item.image_url ? (
-                          <span className="absolute bottom-1 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/70 ring-1 ring-white/10">
-                            Cargar
-                          </span>
-                        ) : null}
-                        <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          disabled={uploading}
-                          onChange={(e) => {
-                            const f = e.target.files?.[0] ?? null;
-                            e.target.value = "";
-                            handleFeaturedImageSelect(item.id, f);
-                          }}
-                        />
-                      </label>
-
-                      <input
-                        value={item.name}
-                        onChange={(e) =>
-                          updateFeaturedClient(item.id, {
-                            name: e.target.value,
-                          })
-                        }
-                        placeholder="Nombre: Nike, Duki, Boca Juniors..."
-                        maxLength={MAX_FEATURED_CLIENT_NAME_LENGTH}
-                        className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
-                      />
-
-                      <select
-                        value={item.category}
-                        onChange={(e) =>
-                          updateFeaturedClient(item.id, {
-                            category: e.target.value as FeaturedClientCategory,
-                          })
-                        }
-                        className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
-                      >
-                        {FEATURED_CLIENT_CATEGORIES.map((cat) => (
-                          <option key={cat} value={cat}>
-                            {cat}
-                          </option>
-                        ))}
-                      </select>
-
-                      <div className="flex items-center justify-end gap-1">
-                        {(() => {
-                          const complete = isFeaturedClientComplete(item);
-                          const canToggle = item.active || complete;
-                          return (
-                            <button
-                              type="button"
-                              disabled={!canToggle}
-                              onClick={() => {
-                                if (!canToggle) return;
-                                updateFeaturedClient(item.id, {
-                                  active: !item.active,
-                                });
-                              }}
-                              title={
-                                !canToggle
-                                  ? "Cargá imagen y nombre para poder activarlo"
-                                  : undefined
-                              }
-                              className={cn(
-                                "rounded-full px-2.5 py-2 text-xs ring-1 transition",
-                                item.active
-                                  ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30"
-                                  : canToggle
-                                    ? "bg-white/5 text-muted-foreground ring-white/10"
-                                    : "cursor-not-allowed bg-white/5 text-muted-foreground/40 ring-white/5",
-                              )}
-                            >
-                              {item.active ? "Activo" : "Inactivo"}
-                            </button>
-                          );
-                        })()}
-
-                        <button
-                          type="button"
-                          onClick={() => removeFeaturedClient(item.id)}
-                          className="rounded-full bg-white/5 p-2 text-red-300 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-200"
-                          aria-label="Eliminar de Confían en nosotros"
+                      {/* Imagen a la izquierda; nombre y tipo (Futbolista,
+                          etc.) apilados a la derecha, uno debajo del otro —
+                          no lado a lado. Activo/Inactivo y Eliminar quedan a
+                          la derecha del todo. */}
+                      <div className="flex items-start gap-3">
+                        <GripVertical className="mt-5 hidden h-4 w-4 shrink-0 text-white/35 lg:block" />
+                        <label
+                          className={cn(
+                            "group relative grid h-16 w-16 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07]",
+                            uploading && "cursor-not-allowed opacity-50",
+                          )}
                         >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                          {item.image_url ? (
+                            <img
+                              src={item.image_url}
+                              alt={item.name || "Confían en nosotros"}
+                              className="h-full w-full object-cover"
+                            />
+                          ) : (
+                            <ImageIcon className="h-5 w-5 text-white/45" />
+                          )}
+                          <div className="absolute inset-0 grid place-items-center bg-black/35 opacity-0 transition group-hover:opacity-100">
+                            <span className="rounded-full bg-white/90 px-2 py-1 text-[10px] font-bold text-black">
+                              {uploading ? "Subiendo" : "Cargar"}
+                            </span>
+                          </div>
+                          {!item.image_url ? (
+                            <span className="absolute bottom-1 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/70 ring-1 ring-white/10">
+                              Cargar
+                            </span>
+                          ) : null}
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            disabled={uploading}
+                            onChange={(e) => {
+                              const f = e.target.files?.[0] ?? null;
+                              e.target.value = "";
+                              handleFeaturedImageSelect(item.id, f);
+                            }}
+                          />
+                        </label>
+
+                        <div className="min-w-0 flex-1 space-y-1.5">
+                          <input
+                            value={item.name}
+                            onChange={(e) =>
+                              updateFeaturedClient(item.id, {
+                                name: e.target.value,
+                              })
+                            }
+                            placeholder="Nombre: Nike, Duki, Boca Juniors..."
+                            maxLength={MAX_FEATURED_CLIENT_NAME_LENGTH}
+                            className="w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+                          />
+
+                          <select
+                            value={item.category}
+                            onChange={(e) =>
+                              updateFeaturedClient(item.id, {
+                                category: e.target.value as FeaturedClientCategory,
+                              })
+                            }
+                            className="w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+                          >
+                            {FEATURED_CLIENT_CATEGORIES.map((cat) => (
+                              <option key={cat} value={cat}>
+                                {cat}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+
+                        <div className="flex shrink-0 flex-col items-end gap-1.5">
+                          {(() => {
+                            const complete = isFeaturedClientComplete(item);
+                            const canToggle = item.active || complete;
+                            return (
+                              <button
+                                type="button"
+                                disabled={!canToggle}
+                                onClick={() => {
+                                  if (!canToggle) return;
+                                  updateFeaturedClient(item.id, {
+                                    active: !item.active,
+                                  });
+                                }}
+                                title={
+                                  !canToggle
+                                    ? "Cargá imagen y nombre para poder activarlo"
+                                    : undefined
+                                }
+                                className={cn(
+                                  "whitespace-nowrap rounded-full px-2.5 py-2 text-xs ring-1 transition",
+                                  item.active
+                                    ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30"
+                                    : canToggle
+                                      ? "bg-white/5 text-muted-foreground ring-white/10"
+                                      : "cursor-not-allowed bg-white/5 text-muted-foreground/40 ring-white/5",
+                                )}
+                              >
+                                {item.active ? "Activo" : "Inactivo"}
+                              </button>
+                            );
+                          })()}
+
+                          <button
+                            type="button"
+                            onClick={() => removeFeaturedClient(item.id)}
+                            className="rounded-full bg-white/5 p-2 text-red-300 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-200"
+                            aria-label="Eliminar de Confían en nosotros"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
                       </div>
 
-                      {/* Solo para "Futbolista": club + escudo. Se muestra en
-                          la página pública junto al nombre del club. */}
+                      {/* Solo para "Futbolista": club + escudo, debajo de la
+                          primera fila. Se muestra en la página pública junto
+                          al nombre del club. */}
                       {item.category === "Futbolista" ? (
-                        <div className="col-span-full flex flex-wrap items-center gap-2 rounded-xl bg-white/[0.02] p-2 ring-1 ring-white/5">
+                        <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white/[0.02] p-2 ring-1 ring-white/5">
                           <label
                             className={cn(
                               "group relative grid h-10 w-10 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07]",
