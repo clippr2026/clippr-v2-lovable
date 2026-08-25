@@ -58,11 +58,67 @@ export function markSettingsDirty() {
 
 // Optimiza una imagen del lado del cliente: redimensiona (sin agrandar) dentro de
 // maxW x maxH y la convierte a WebP (cae a JPEG si el navegador no soporta WebP).
+// Detecta el rectángulo real del contenido no-transparente de una imagen
+// (para recortar el "aire" alrededor de logos con mucho padding
+// transparente). Escanea sobre una versión achicada (barata en CPU incluso
+// para archivos grandes) y mapea el resultado de vuelta a las coordenadas
+// originales para no perder resolución al recortar. Devuelve null si no
+// hay canvas, si el escaneo falla, o si el contenido ya ocupa casi todo el
+// lienzo (no vale la pena recortar un margen insignificante).
+function findOpaqueBounds(
+  img: HTMLImageElement,
+): { x: number; y: number; w: number; h: number } | null {
+  const SCAN_MAX = 300;
+  const ALPHA_THRESHOLD = 10;
+  const scale = Math.min(1, SCAN_MAX / Math.max(img.width, img.height));
+  const sw = Math.max(1, Math.round(img.width * scale));
+  const sh = Math.max(1, Math.round(img.height * scale));
+  const scanCanvas = document.createElement("canvas");
+  scanCanvas.width = sw;
+  scanCanvas.height = sh;
+  const scanCtx = scanCanvas.getContext("2d");
+  if (!scanCtx) return null;
+  scanCtx.drawImage(img, 0, 0, sw, sh);
+  let data: Uint8ClampedArray;
+  try {
+    data = scanCtx.getImageData(0, 0, sw, sh).data;
+  } catch {
+    return null;
+  }
+  let minX = sw, minY = sh, maxX = -1, maxY = -1;
+  for (let y = 0; y < sh; y++) {
+    for (let x = 0; x < sw; x++) {
+      if (data[(y * sw + x) * 4 + 3] > ALPHA_THRESHOLD) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+  if (maxX < minX || maxY < minY) return null;
+  if (maxX - minX + 1 >= sw * 0.98 && maxY - minY + 1 >= sh * 0.98) return null;
+  const scaleBackX = img.width / sw;
+  const scaleBackY = img.height / sh;
+  const x = Math.max(0, Math.floor(minX * scaleBackX));
+  const y = Math.max(0, Math.floor(minY * scaleBackY));
+  const w = Math.min(img.width - x, Math.ceil((maxX - minX + 1) * scaleBackX));
+  const h = Math.min(img.height - y, Math.ceil((maxY - minY + 1) * scaleBackY));
+  return { x, y, w, h };
+}
+
 export async function processImage(
   file: File,
   maxW: number,
   maxH: number,
   quality = 0.8,
+  // trimTransparent: recorta el margen transparente antes de escalar (ver
+  // findOpaqueBounds) — para logos/escudos con mucho padding transparente
+  // en el archivo original, así el contenido visible siempre aprovecha el
+  // máximo del lienzo final en vez de quedar "flotando" chico adentro.
+  // Solo tiene efecto si la imagen realmente tiene canal alfa con margen
+  // transparente real; una foto opaca (JPEG) sale sin cambios.
+  options?: { trimTransparent?: boolean },
 ): Promise<{ blob: Blob; ext: string; type: string }> {
   const dataUrl = await new Promise<string>((res, rej) => {
     const r = new FileReader();
@@ -76,9 +132,22 @@ export async function processImage(
     i.onerror = () => rej(new Error("No se pudo cargar la imagen"));
     i.src = dataUrl;
   });
-  const ratio = Math.min(maxW / img.width, maxH / img.height, 1);
-  const w = Math.max(1, Math.round(img.width * ratio));
-  const h = Math.max(1, Math.round(img.height * ratio));
+  let sx = 0;
+  let sy = 0;
+  let sw = img.width;
+  let sh = img.height;
+  if (options?.trimTransparent) {
+    const bounds = findOpaqueBounds(img);
+    if (bounds) {
+      sx = bounds.x;
+      sy = bounds.y;
+      sw = bounds.w;
+      sh = bounds.h;
+    }
+  }
+  const ratio = Math.min(maxW / sw, maxH / sh, 1);
+  const w = Math.max(1, Math.round(sw * ratio));
+  const h = Math.max(1, Math.round(sh * ratio));
   const canvas = document.createElement("canvas");
   canvas.width = w;
   canvas.height = h;
@@ -90,7 +159,7 @@ export async function processImage(
   // aunque el archivo final tenga buena resolución.
   ctx.imageSmoothingEnabled = true;
   ctx.imageSmoothingQuality = "high";
-  ctx.drawImage(img, 0, 0, w, h);
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, w, h);
   const toBlob = (type: string) =>
     new Promise<Blob | null>((res) =>
       canvas.toBlob((b) => res(b), type, quality),

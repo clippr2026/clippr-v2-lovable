@@ -866,7 +866,13 @@ export function BrandingSection() {
       // Se muestra chiquito (unos 20px) pero en pantallas retina de iPhone
       // eso son ~60-80px reales — 256px de origen y calidad casi sin
       // pérdida evita que un escudo con líneas finas/texto se vea pixelado.
-      const { blob, ext, type } = await processImage(file, 256, 256, 0.95);
+      // trimTransparent: recorta el margen transparente del archivo antes
+      // de escalar — sin esto, dos escudos con el mismo diseño pero
+      // distinto padding transparente en el PNG original terminan
+      // viéndose de tamaño notablemente distinto uno al lado del otro.
+      const { blob, ext, type } = await processImage(file, 256, 256, 0.95, {
+        trimTransparent: true,
+      });
       const url = await uploadBlob(
         blob,
         `${businessId}/featured-club-${id}.${ext}`,
