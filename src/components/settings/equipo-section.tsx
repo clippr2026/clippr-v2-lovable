@@ -3269,10 +3269,17 @@ export function EquipoSection() {
                                   <div className="space-y-2">
                                     {items.map((item) => {
                                       const cfg = form.commissions[item.id] ?? {
-                                        enabled: false,
+                                        enabled: isServiceKind,
                                         mode: "percent" as CommissionMode,
                                         value: "",
                                       };
+                                      // Servicios: "Ofrece este servicio" (más abajo) es el
+                                      // único switch de esta tarjeta — la comisión por
+                                      // servicio queda siempre habilitada, sin un switch
+                                      // aparte que duplicara visualmente el mismo concepto.
+                                      // Productos (Catálogo) conservan su propio switch,
+                                      // sin cambios.
+                                      const commissionActive = isServiceKind || cfg.enabled;
                                       const updateCfg = (
                                         patch: Partial<CommissionConfig>,
                                       ) =>
@@ -3280,7 +3287,9 @@ export function EquipoSection() {
                                           ...form,
                                           commissions: {
                                             ...form.commissions,
-                                            [item.id]: { ...cfg, ...patch },
+                                            [item.id]: isServiceKind
+                                              ? { ...cfg, ...patch, enabled: true }
+                                              : { ...cfg, ...patch },
                                           },
                                         });
 
@@ -3320,37 +3329,39 @@ export function EquipoSection() {
                                           key={item.id}
                                           className={cn(
                                             "rounded-xl ring-1 p-3 transition-all duration-200",
-                                            cfg.enabled
+                                            commissionActive
                                               ? "bg-white/[0.08] ring-white/[0.14] shadow-[0_0_24px_-10px_rgba(139,92,246,0.45)]"
                                               : "bg-white/[0.02] ring-white/5 opacity-70",
                                           )}
                                         >
                                           <div className="flex flex-col lg:flex-row lg:items-center gap-3">
-                                            <button
-                                              type="button"
-                                              onClick={() =>
-                                                updateCfg({
-                                                  enabled: !cfg.enabled,
-                                                })
-                                              }
-                                              role="switch"
-                                              aria-checked={cfg.enabled}
-                                              className={cn(
-                                                "h-6 w-11 shrink-0 overflow-hidden rounded-full relative transition-colors",
-                                                cfg.enabled
-                                                  ? "bg-primary"
-                                                  : "bg-white/15",
-                                              )}
-                                            >
-                                              <span
+                                            {!isServiceKind && (
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  updateCfg({
+                                                    enabled: !cfg.enabled,
+                                                  })
+                                                }
+                                                role="switch"
+                                                aria-checked={cfg.enabled}
                                                 className={cn(
-                                                  "absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all",
+                                                  "h-6 w-11 shrink-0 overflow-hidden rounded-full relative transition-colors",
                                                   cfg.enabled
-                                                    ? "left-[22px]"
-                                                    : "left-0.5",
+                                                    ? "bg-primary"
+                                                    : "bg-white/15",
                                                 )}
-                                              />
-                                            </button>
+                                              >
+                                                <span
+                                                  className={cn(
+                                                    "absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all",
+                                                    cfg.enabled
+                                                      ? "left-[22px]"
+                                                      : "left-0.5",
+                                                  )}
+                                                />
+                                              </button>
+                                            )}
 
                                             <div className="flex-1 min-w-0">
                                               <div className="text-sm font-medium ">
@@ -3386,12 +3397,12 @@ export function EquipoSection() {
                                             <div
                                               className={cn(
                                                 "flex items-center overflow-hidden rounded-lg ring-1 ring-white/10 transition",
-                                                cfg.enabled ? "bg-white/5" : "bg-white/[0.02]",
+                                                commissionActive ? "bg-white/5" : "bg-white/[0.02]",
                                               )}
                                             >
                                               <select
                                                 value={cfg.mode}
-                                                disabled={!cfg.enabled}
+                                                disabled={!commissionActive}
                                                 onChange={(e) =>
                                                   updateCfg({
                                                     mode: e.target
@@ -3411,7 +3422,7 @@ export function EquipoSection() {
                                                 <input
                                                   type="number"
                                                   min={0}
-                                                  disabled={!cfg.enabled}
+                                                  disabled={!commissionActive}
                                                   value={cfg.value}
                                                   onChange={(e) =>
                                                     updateCfg({
@@ -3433,15 +3444,7 @@ export function EquipoSection() {
                                           {isServiceKind && (() => {
                                             const offered = overrideCfg.enabled !== false;
                                             return (
-                                              <label className="mt-2.5 flex items-center justify-between gap-3 rounded-lg bg-white/[0.03] px-3 py-2 ring-1 ring-white/10">
-                                                <span className="min-w-0">
-                                                  <span className="block text-xs font-semibold">
-                                                    Ofrece este servicio
-                                                  </span>
-                                                  <span className="block text-[10px] text-muted-foreground">
-                                                    Si está apagado, no aparece para reservar online con este profesional.
-                                                  </span>
-                                                </span>
+                                              <label className="mt-2.5 flex items-center justify-end gap-3 rounded-lg bg-white/[0.03] px-3 py-2 ring-1 ring-white/10">
                                                 <button
                                                   type="button"
                                                   onClick={() =>
