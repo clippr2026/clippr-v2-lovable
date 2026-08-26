@@ -383,16 +383,28 @@ function PublicBookingPage() {
           ),
     [employees, selectedServiceIds, employeeServiceOverrides],
   );
+  // Servicios que al menos un profesional activo ofrece (switch "Ofrece este
+  // servicio" en cada empleado) — si está deshabilitado para todos, no tiene
+  // sentido ofrecerlo como opción reservable en la página pública.
+  const offeredServices = React.useMemo(
+    () =>
+      services.filter((service) =>
+        employees.some((employee) =>
+          isServiceOfferedByEmployee(service.id, employee.id, employeeServiceOverrides),
+        ),
+      ),
+    [services, employees, employeeServiceOverrides],
+  );
   const serviceCategories = React.useMemo(
     () =>
-      Array.from(new Set(services.map((service) => service.category?.trim() || "Otro"))).sort((a, b) =>
+      Array.from(new Set(offeredServices.map((service) => service.category?.trim() || "Otro"))).sort((a, b) =>
         a.localeCompare(b, "es"),
       ),
-    [services],
+    [offeredServices],
   );
   const visibleStepServices = activeServiceCategory
-    ? services.filter((service) => (service.category?.trim() || "Otro") === activeServiceCategory)
-    : services;
+    ? offeredServices.filter((service) => (service.category?.trim() || "Otro") === activeServiceCategory)
+    : offeredServices;
   const selectedEmployee = employees.find((employee) => employee.id === selectedSlot?.employeeId || employee.id === selectedEmployeeId) ?? null;
   // Profesional ya decidido para el cálculo de precio/duración: el del turno
   // elegido si ya se seleccionó horario, si no el elegido en el paso
