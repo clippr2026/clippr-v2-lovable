@@ -649,45 +649,6 @@ function PublicBookingPage() {
             role: employee.role?.trim() || employeeRoles[employee.id]?.trim() || null,
           }));
 
-        if (debugMode) {
-          const diagnostico = {
-            businessId,
-            errorConsultaConRole: employeesWithRoleRes.error
-              ? {
-                  message: employeesWithRoleRes.error.message,
-                  code: (employeesWithRoleRes.error as any).code ?? null,
-                  details: (employeesWithRoleRes.error as any).details ?? null,
-                  hint: (employeesWithRoleRes.error as any).hint ?? null,
-                }
-              : null,
-            errorConsultaFallbackSinRole: employeesRes.error
-              ? {
-                  message: employeesRes.error.message,
-                  code: (employeesRes.error as any).code ?? null,
-                  details: (employeesRes.error as any).details ?? null,
-                  hint: (employeesRes.error as any).hint ?? null,
-                }
-              : null,
-            cantidadFilasCrudas: rawEmployeeRows.length,
-            filasCrudasDevueltasPorLaVista: rawEmployeeRows.map((e) => ({
-              id: e.id,
-              nombre: e.full_name,
-              is_active: e.is_active,
-            })),
-            mapaAceptaReservasEnLinea: visibility.employees,
-            resultado: rawEmployeeRows.map((e) => ({
-              nombre: e.full_name,
-              is_active: e.is_active,
-              acepta_online: visibility.employees[e.id] !== false,
-              visible: e.is_active !== false && visibility.employees[e.id] !== false,
-            })),
-          };
-          console.warn(
-            "[debug reserva] diagnóstico de empleados (antes del filtro por servicio)",
-            JSON.stringify(diagnostico, null, 2),
-          );
-          if (!cancelled) setDebugEmployeeInfo(diagnostico);
-        }
         const serviceImageMap =
           settingsSchedule && typeof settingsSchedule === "object"
             ? (((settingsSchedule as Record<string, unknown>)._catalogImages ?? {}) as Record<string, string>)
@@ -791,22 +752,42 @@ function PublicBookingPage() {
           setEmployeeServiceOverrides(rawServiceOverrides);
 
           // Diagnóstico temporal — se activa solo con ?debug=1 en la URL, no
-          // afecta a clientes normales. Muestra en la consola del navegador
-          // exactamente qué datos llegaron para cruzar profesionales,
-          // servicios y overrides sin necesidad de consultar Supabase.
+          // afecta a clientes normales. Comparación puntual Alan vs
+          // Alejandro (auro-stylo, "Corte en cabello corto") en vez de un
+          // volcado genérico, para ir directo a la diferencia real entre los
+          // dos sin depender de la consola.
           if (debugMode) {
-            console.warn(
-              "[debug reserva] empleados visibles + servicios + overrides",
-              JSON.stringify(
-                {
-                  empleadosVisibles: visibleEmployees.map((e) => ({ id: e.id, nombre: e.full_name })),
-                  serviciosVisibles: visibleServices.map((s) => ({ id: s.id, nombre: s.name })),
-                  employeeServiceOverrides: rawServiceOverrides,
-                },
-                null,
-                2,
-              ),
-            );
+            const rawServicesAll = (servicesRes.error ? [] : (servicesRes.data ?? [])) as Service[];
+            const targetService = rawServicesAll.find((s) => s.name?.toLowerCase().includes("corte en cabello corto"));
+            const buildProfile = (needle: string) => {
+              const raw = rawEmployeeRows.find((e) => e.full_name?.toLowerCase().includes(needle));
+              if (!raw) return { encontradoEnConsulta: false };
+              const overrideForService = targetService
+                ? ((rawServiceOverrides as any)?.[raw.id]?.[targetService.id] ?? null)
+                : null;
+              return {
+                encontradoEnConsulta: true,
+                id: raw.id,
+                full_name: raw.full_name,
+                is_active: raw.is_active,
+                role: (raw as any).role ?? employeeRoles[raw.id] ?? null,
+                acepta_reservas_en_linea: visibility.employees[raw.id] !== false,
+                pasa_filtro_visible_en_pagina_publica: raw.is_active !== false && visibility.employees[raw.id] !== false,
+                tiene_horario_semanal_configurado: Boolean(empScheds[raw.id]),
+                horario_semanal: empScheds[raw.id] ?? null,
+                override_guardado_para_este_servicio: overrideForService,
+                ofrece_este_servicio: overrideForService ? overrideForService.enabled !== false : true,
+              };
+            };
+            const comparacion = {
+              servicio_buscado: "Corte en cabello corto",
+              servicio_encontrado_en_consulta_cruda: targetService ? { id: targetService.id, nombre: targetService.name, is_active: targetService.is_active } : null,
+              servicio_pasa_filtro_visible: targetService ? visibleServices.some((s) => s.id === targetService.id) : null,
+              alan: buildProfile("alan"),
+              alejandro: buildProfile("alejandro"),
+            };
+            console.warn("[debug reserva] comparación Alan vs Alejandro", JSON.stringify(comparacion, null, 2));
+            if (!cancelled) setDebugEmployeeInfo(comparacion);
           }
 
           const rawPromotions =
@@ -1309,43 +1290,18 @@ function PublicBookingPage() {
         <div className="relative z-[60] mx-auto max-w-3xl px-4 pt-4">
           <div className="rounded-2xl border-2 border-yellow-400 bg-black p-4 font-mono text-[11px] leading-relaxed text-yellow-300">
             <p className="mb-2 text-sm font-bold text-yellow-200">
-              PANEL DE DIAGNÓSTICO (?debug=1) — servicio seleccionado: {selectedServices.map((s) => s.name).join(", ") || "ninguno"}
+              PANEL DE DIAGNÓSTICO (?debug=1) — comparación Alan vs Alejandro para "Corte en cabello corto"
             </p>
             {!debugEmployeeInfo ? (
               <p>Cargando datos…</p>
             ) : (
               <>
-                <p>business_id: {String(debugEmployeeInfo.businessId)}</p>
-                <p>Error consulta CON columna role: {JSON.stringify(debugEmployeeInfo.errorConsultaConRole)}</p>
-                <p>Error consulta SIN columna role (fallback): {JSON.stringify(debugEmployeeInfo.errorConsultaFallbackSinRole)}</p>
-                <p>Cantidad de filas crudas devueltas: {String(debugEmployeeInfo.cantidadFilasCrudas)}</p>
-                <p className="mt-2 font-bold">Empleados devueltos por la vista (antes de cualquier filtro):</p>
-                <pre className="whitespace-pre-wrap break-all">{JSON.stringify(debugEmployeeInfo.filasCrudasDevueltasPorLaVista, null, 2)}</pre>
-                <p className="mt-2 font-bold">Mapa "Acepta reservas en línea" (_publicVisibility.employees):</p>
-                <pre className="whitespace-pre-wrap break-all">{JSON.stringify(debugEmployeeInfo.mapaAceptaReservasEnLinea, null, 2)}</pre>
-                <p className="mt-2 font-bold">Resultado por empleado (is_active / acepta_online / visible):</p>
-                <pre className="whitespace-pre-wrap break-all">{JSON.stringify(debugEmployeeInfo.resultado, null, 2)}</pre>
-                {selectedServiceIds.length > 0 && (
-                  <>
-                    <p className="mt-2 font-bold">Overrides de "Ofrece este servicio" para el/los servicio(s) elegido(s), por empleado visible:</p>
-                    <pre className="whitespace-pre-wrap break-all">
-                      {JSON.stringify(
-                        employees.map((e) => ({
-                          nombre: e.full_name,
-                          id: e.id,
-                          ofrece_servicio_seleccionado: selectedServiceIds.every((sid) =>
-                            isServiceOfferedByEmployee(sid, e.id, employeeServiceOverrides),
-                          ),
-                          override_crudo_guardado: selectedServiceIds.map(
-                            (sid) => (employeeServiceOverrides as any)?.[e.id]?.[sid] ?? null,
-                          ),
-                        })),
-                        null,
-                        2,
-                      )}
-                    </pre>
-                  </>
-                )}
+                <p>Servicio "Corte en cabello corto" encontrado: {JSON.stringify(debugEmployeeInfo.servicio_encontrado_en_consulta_cruda)}</p>
+                <p>¿Ese servicio pasa el filtro de visibilidad pública?: {String(debugEmployeeInfo.servicio_pasa_filtro_visible)}</p>
+                <p className="mt-2 font-bold">ALAN:</p>
+                <pre className="whitespace-pre-wrap break-all">{JSON.stringify(debugEmployeeInfo.alan, null, 2)}</pre>
+                <p className="mt-2 font-bold">ALEJANDRO:</p>
+                <pre className="whitespace-pre-wrap break-all">{JSON.stringify(debugEmployeeInfo.alejandro, null, 2)}</pre>
               </>
             )}
           </div>
