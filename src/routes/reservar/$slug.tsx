@@ -515,7 +515,7 @@ function PublicBookingPage() {
       setLoading(true);
       const debugMode = new URLSearchParams(window.location.search).get("debug") === "1";
       if (debugMode) {
-        console.log(`[debug reserva] load() arrancó — marca de versión: debug-v3 — ${new Date().toISOString()}`);
+        console.warn(`[debug reserva] load() arrancó — marca de versión: debug-v4 — ${new Date().toISOString()}`);
       }
       try {
         const fetchBusiness = () => {
@@ -642,7 +642,7 @@ function PublicBookingPage() {
           }));
 
         if (debugMode) {
-          console.log(
+          console.warn(
             "[debug reserva] diagnóstico de empleados (antes del filtro por servicio)",
             JSON.stringify(
               {
@@ -772,7 +772,7 @@ function PublicBookingPage() {
           // exactamente qué datos llegaron para cruzar profesionales,
           // servicios y overrides sin necesidad de consultar Supabase.
           if (debugMode) {
-            console.log(
+            console.warn(
               "[debug reserva] empleados visibles + servicios + overrides",
               JSON.stringify(
                 {
