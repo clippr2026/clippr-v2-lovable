@@ -296,6 +296,14 @@ function PublicBookingPage() {
 
   const [step, setStep] = React.useState<BookingStep>("services");
   const [selectedServiceIds, setSelectedServiceIds] = React.useState<string[]>([]);
+  // Diagnóstico visual (?debug=1): panel en pantalla con los datos crudos de
+  // empleados/overrides, para no depender de la consola del navegador (nivel
+  // de log, caché, filtros) al investigar por qué un profesional no aparece.
+  const [debugMode, setDebugMode] = React.useState(false);
+  const [debugEmployeeInfo, setDebugEmployeeInfo] = React.useState<Record<string, unknown> | null>(null);
+  React.useEffect(() => {
+    setDebugMode(new URLSearchParams(window.location.search).get("debug") === "1");
+  }, []);
   // Pestaña activa del paso "Servicios": null = "Todos", siempre primera y
   // seleccionada por defecto.
   const [activeServiceCategory, setActiveServiceCategory] = React.useState<string | null>(null);
@@ -642,28 +650,43 @@ function PublicBookingPage() {
           }));
 
         if (debugMode) {
+          const diagnostico = {
+            businessId,
+            errorConsultaConRole: employeesWithRoleRes.error
+              ? {
+                  message: employeesWithRoleRes.error.message,
+                  code: (employeesWithRoleRes.error as any).code ?? null,
+                  details: (employeesWithRoleRes.error as any).details ?? null,
+                  hint: (employeesWithRoleRes.error as any).hint ?? null,
+                }
+              : null,
+            errorConsultaFallbackSinRole: employeesRes.error
+              ? {
+                  message: employeesRes.error.message,
+                  code: (employeesRes.error as any).code ?? null,
+                  details: (employeesRes.error as any).details ?? null,
+                  hint: (employeesRes.error as any).hint ?? null,
+                }
+              : null,
+            cantidadFilasCrudas: rawEmployeeRows.length,
+            filasCrudasDevueltasPorLaVista: rawEmployeeRows.map((e) => ({
+              id: e.id,
+              nombre: e.full_name,
+              is_active: e.is_active,
+            })),
+            mapaAceptaReservasEnLinea: visibility.employees,
+            resultado: rawEmployeeRows.map((e) => ({
+              nombre: e.full_name,
+              is_active: e.is_active,
+              acepta_online: visibility.employees[e.id] !== false,
+              visible: e.is_active !== false && visibility.employees[e.id] !== false,
+            })),
+          };
           console.warn(
             "[debug reserva] diagnóstico de empleados (antes del filtro por servicio)",
-            JSON.stringify(
-              {
-                errorConsultaEmpleados: employeesRes.error?.message ?? null,
-                filasCrudasDevueltasPorLaVista: rawEmployeeRows.map((e) => ({
-                  id: e.id,
-                  nombre: e.full_name,
-                  is_active: e.is_active,
-                })),
-                mapaAceptaReservasEnLinea: visibility.employees,
-                resultado: rawEmployeeRows.map((e) => ({
-                  nombre: e.full_name,
-                  is_active: e.is_active,
-                  acepta_online: visibility.employees[e.id] !== false,
-                  visible: e.is_active !== false && visibility.employees[e.id] !== false,
-                })),
-              },
-              null,
-              2,
-            ),
+            JSON.stringify(diagnostico, null, 2),
           );
+          if (!cancelled) setDebugEmployeeInfo(diagnostico);
         }
         const serviceImageMap =
           settingsSchedule && typeof settingsSchedule === "object"
@@ -1282,6 +1305,52 @@ function PublicBookingPage() {
         .public-booking[data-theme="light"] [class*="border-white"] { border-color: var(--border) !important; }
         .public-booking[data-theme="light"] [class*="bg-white/"] { background-color: rgba(255,255,255,0.72) !important; }
       `}</style>
+      {debugMode && (
+        <div className="relative z-[60] mx-auto max-w-3xl px-4 pt-4">
+          <div className="rounded-2xl border-2 border-yellow-400 bg-black p-4 font-mono text-[11px] leading-relaxed text-yellow-300">
+            <p className="mb-2 text-sm font-bold text-yellow-200">
+              PANEL DE DIAGNÓSTICO (?debug=1) — servicio seleccionado: {selectedServices.map((s) => s.name).join(", ") || "ninguno"}
+            </p>
+            {!debugEmployeeInfo ? (
+              <p>Cargando datos…</p>
+            ) : (
+              <>
+                <p>business_id: {String(debugEmployeeInfo.businessId)}</p>
+                <p>Error consulta CON columna role: {JSON.stringify(debugEmployeeInfo.errorConsultaConRole)}</p>
+                <p>Error consulta SIN columna role (fallback): {JSON.stringify(debugEmployeeInfo.errorConsultaFallbackSinRole)}</p>
+                <p>Cantidad de filas crudas devueltas: {String(debugEmployeeInfo.cantidadFilasCrudas)}</p>
+                <p className="mt-2 font-bold">Empleados devueltos por la vista (antes de cualquier filtro):</p>
+                <pre className="whitespace-pre-wrap break-all">{JSON.stringify(debugEmployeeInfo.filasCrudasDevueltasPorLaVista, null, 2)}</pre>
+                <p className="mt-2 font-bold">Mapa "Acepta reservas en línea" (_publicVisibility.employees):</p>
+                <pre className="whitespace-pre-wrap break-all">{JSON.stringify(debugEmployeeInfo.mapaAceptaReservasEnLinea, null, 2)}</pre>
+                <p className="mt-2 font-bold">Resultado por empleado (is_active / acepta_online / visible):</p>
+                <pre className="whitespace-pre-wrap break-all">{JSON.stringify(debugEmployeeInfo.resultado, null, 2)}</pre>
+                {selectedServiceIds.length > 0 && (
+                  <>
+                    <p className="mt-2 font-bold">Overrides de "Ofrece este servicio" para el/los servicio(s) elegido(s), por empleado visible:</p>
+                    <pre className="whitespace-pre-wrap break-all">
+                      {JSON.stringify(
+                        employees.map((e) => ({
+                          nombre: e.full_name,
+                          id: e.id,
+                          ofrece_servicio_seleccionado: selectedServiceIds.every((sid) =>
+                            isServiceOfferedByEmployee(sid, e.id, employeeServiceOverrides),
+                          ),
+                          override_crudo_guardado: selectedServiceIds.map(
+                            (sid) => (employeeServiceOverrides as any)?.[e.id]?.[sid] ?? null,
+                          ),
+                        })),
+                        null,
+                        2,
+                      )}
+                    </pre>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
       {submitting ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 px-4 backdrop-blur-md">
           <div className="rounded-3xl border border-white/10 bg-[#09090f] p-8 text-center text-white shadow-2xl">
