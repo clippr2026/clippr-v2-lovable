@@ -737,6 +737,16 @@ function PublicBookingPage() {
               : {};
           setEmployeeServiceOverrides(rawServiceOverrides);
 
+          // Diagnóstico temporal — se activa solo con ?debug=1 en la URL, no
+          // afecta a clientes normales. Muestra en la consola del navegador
+          // exactamente qué datos llegaron para cruzar profesionales,
+          // servicios y overrides sin necesidad de consultar Supabase.
+          if (new URLSearchParams(window.location.search).get("debug") === "1") {
+            console.log("[debug reserva] empleados visibles", visibleEmployees.map((e) => ({ id: e.id, nombre: e.full_name })));
+            console.log("[debug reserva] servicios visibles", visibleServices.map((s) => ({ id: s.id, nombre: s.name })));
+            console.log("[debug reserva] _employeeServiceOverrides", rawServiceOverrides);
+          }
+
           const rawPromotions =
             rawSchedule && Array.isArray(rawSchedule._promotions)
               ? (rawSchedule._promotions as Promotion[])
