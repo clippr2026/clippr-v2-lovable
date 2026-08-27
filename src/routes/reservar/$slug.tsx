@@ -628,13 +628,39 @@ function PublicBookingPage() {
           typeof (settingsSchedule as Record<string, unknown>)._employeeRoles === "object"
             ? ((settingsSchedule as Record<string, unknown>)._employeeRoles as Record<string, string>)
             : {};
-        const visibleEmployees = ((employeesRes.error ? [] : (employeesRes.data ?? [])) as Employee[])
+        const rawEmployeeRows = (employeesRes.error ? [] : (employeesRes.data ?? [])) as Employee[];
+        const visibleEmployees = rawEmployeeRows
           .filter((employee) => employee.is_active !== false)
           .filter((employee) => visibility.employees[employee.id] !== false)
           .map((employee) => ({
             ...employee,
             role: employee.role?.trim() || employeeRoles[employee.id]?.trim() || null,
           }));
+
+        if (new URLSearchParams(window.location.search).get("debug") === "1") {
+          console.log(
+            "[debug reserva] diagnóstico de empleados (antes del filtro por servicio)",
+            JSON.stringify(
+              {
+                errorConsultaEmpleados: employeesRes.error?.message ?? null,
+                filasCrudasDevueltasPorLaVista: rawEmployeeRows.map((e) => ({
+                  id: e.id,
+                  nombre: e.full_name,
+                  is_active: e.is_active,
+                })),
+                mapaAceptaReservasEnLinea: visibility.employees,
+                resultado: rawEmployeeRows.map((e) => ({
+                  nombre: e.full_name,
+                  is_active: e.is_active,
+                  acepta_online: visibility.employees[e.id] !== false,
+                  visible: e.is_active !== false && visibility.employees[e.id] !== false,
+                })),
+              },
+              null,
+              2,
+            ),
+          );
+        }
         const serviceImageMap =
           settingsSchedule && typeof settingsSchedule === "object"
             ? (((settingsSchedule as Record<string, unknown>)._catalogImages ?? {}) as Record<string, string>)
@@ -742,9 +768,18 @@ function PublicBookingPage() {
           // exactamente qué datos llegaron para cruzar profesionales,
           // servicios y overrides sin necesidad de consultar Supabase.
           if (new URLSearchParams(window.location.search).get("debug") === "1") {
-            console.log("[debug reserva] empleados visibles", visibleEmployees.map((e) => ({ id: e.id, nombre: e.full_name })));
-            console.log("[debug reserva] servicios visibles", visibleServices.map((s) => ({ id: s.id, nombre: s.name })));
-            console.log("[debug reserva] _employeeServiceOverrides", rawServiceOverrides);
+            console.log(
+              "[debug reserva] empleados visibles + servicios + overrides",
+              JSON.stringify(
+                {
+                  empleadosVisibles: visibleEmployees.map((e) => ({ id: e.id, nombre: e.full_name })),
+                  serviciosVisibles: visibleServices.map((s) => ({ id: s.id, nombre: s.name })),
+                  employeeServiceOverrides: rawServiceOverrides,
+                },
+                null,
+                2,
+              ),
+            );
           }
 
           const rawPromotions =
