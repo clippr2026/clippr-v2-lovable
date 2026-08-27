@@ -757,11 +757,14 @@ function PublicBookingPage() {
     };
   }, [slug]);
 
+  // Un solo servicio por turno: elegir otro reemplaza al anterior en vez de
+  // sumarlo, así el paso "Elegí profesional" siempre filtra por un único
+  // servicio (antes, con varios servicios combinados, un profesional podía
+  // desaparecer de la lista solo por no ofrecer alguno de los otros
+  // servicios elegidos, aunque sí ofreciera el que realmente interesaba).
   function toggleService(serviceId: string) {
     setSelectedSlot(null);
-    setSelectedServiceIds((current) =>
-      current.includes(serviceId) ? current.filter((id) => id !== serviceId) : [...current, serviceId],
-    );
+    setSelectedServiceIds([serviceId]);
   }
 
   function nextFromServices() {
@@ -1313,7 +1316,7 @@ function PublicBookingPage() {
 
               {step === "services" ? (
                 <div className="mt-5 space-y-4">
-                  <p className="text-sm text-white/60">Podés seleccionar uno o varios servicios.</p>
+                  <p className="text-sm text-white/60">Elegí el servicio que querés reservar.</p>
                   {serviceCategories.length > 1 && (
                     <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                       <button
