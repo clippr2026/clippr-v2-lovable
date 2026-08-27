@@ -513,6 +513,10 @@ function PublicBookingPage() {
     let cancelled = false;
     async function load() {
       setLoading(true);
+      const debugMode = new URLSearchParams(window.location.search).get("debug") === "1";
+      if (debugMode) {
+        console.log(`[debug reserva] load() arrancó — marca de versión: debug-v3 — ${new Date().toISOString()}`);
+      }
       try {
         const fetchBusiness = () => {
           const businessQuery = supabase
@@ -637,7 +641,7 @@ function PublicBookingPage() {
             role: employee.role?.trim() || employeeRoles[employee.id]?.trim() || null,
           }));
 
-        if (new URLSearchParams(window.location.search).get("debug") === "1") {
+        if (debugMode) {
           console.log(
             "[debug reserva] diagnóstico de empleados (antes del filtro por servicio)",
             JSON.stringify(
@@ -767,7 +771,7 @@ function PublicBookingPage() {
           // afecta a clientes normales. Muestra en la consola del navegador
           // exactamente qué datos llegaron para cruzar profesionales,
           // servicios y overrides sin necesidad de consultar Supabase.
-          if (new URLSearchParams(window.location.search).get("debug") === "1") {
+          if (debugMode) {
             console.log(
               "[debug reserva] empleados visibles + servicios + overrides",
               JSON.stringify(
@@ -809,6 +813,9 @@ function PublicBookingPage() {
           }
         }
       } catch (error) {
+        if (debugMode) {
+          console.error("[debug reserva] load() explotó antes de llegar a los diagnósticos:", error);
+        }
         toast.error((error as Error).message);
       } finally {
         if (!cancelled) setLoading(false);
