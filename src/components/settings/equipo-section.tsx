@@ -3306,6 +3306,11 @@ export function EquipoSection() {
                                             [item.id]: { ...overrideCfg, ...patch },
                                           },
                                         });
+                                      // Único switch que define si este profesional realiza
+                                      // este servicio — si está apagado, no aparece
+                                      // disponible para reservar con él en la página
+                                      // pública (isServiceOfferedByEmployee, $slug.tsx).
+                                      const offered = overrideCfg.enabled !== false;
                                       // Mismo resolver que usan Agenda/Mi Agenda/Caja/Página
                                       // Pública, para que la vista previa acá coincida
                                       // exactamente con lo que se va a cobrar/agendar.
@@ -3364,8 +3369,31 @@ export function EquipoSection() {
                                             )}
 
                                             <div className="flex-1 min-w-0">
-                                              <div className="text-sm font-medium ">
-                                                {item.name}
+                                              <div className="flex items-center gap-2">
+                                                <div className="text-sm font-medium truncate">
+                                                  {item.name}
+                                                </div>
+                                                {isServiceKind && (
+                                                  <button
+                                                    type="button"
+                                                    onClick={() =>
+                                                      updateOverrideCfg({ enabled: !offered })
+                                                    }
+                                                    role="switch"
+                                                    aria-checked={offered}
+                                                    className={cn(
+                                                      "h-6 w-11 shrink-0 overflow-hidden rounded-full relative transition-colors",
+                                                      offered ? "bg-primary" : "bg-white/15",
+                                                    )}
+                                                  >
+                                                    <span
+                                                      className={cn(
+                                                        "absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all",
+                                                        offered ? "left-[22px]" : "left-0.5",
+                                                      )}
+                                                    />
+                                                  </button>
+                                                )}
                                               </div>
                                               <div className="text-xs text-muted-foreground">
                                                 {isServiceKind && resolved && (
@@ -3440,33 +3468,6 @@ export function EquipoSection() {
                                               </div>
                                             </div>
                                           </div>
-
-                                          {isServiceKind && (() => {
-                                            const offered = overrideCfg.enabled !== false;
-                                            return (
-                                              <label className="mt-2.5 flex items-center justify-end gap-3 rounded-lg bg-white/[0.03] px-3 py-2 ring-1 ring-white/10">
-                                                <button
-                                                  type="button"
-                                                  onClick={() =>
-                                                    updateOverrideCfg({ enabled: !offered })
-                                                  }
-                                                  role="switch"
-                                                  aria-checked={offered}
-                                                  className={cn(
-                                                    "h-6 w-11 shrink-0 overflow-hidden rounded-full relative transition-colors",
-                                                    offered ? "bg-primary" : "bg-white/15",
-                                                  )}
-                                                >
-                                                  <span
-                                                    className={cn(
-                                                      "absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all",
-                                                      offered ? "left-[22px]" : "left-0.5",
-                                                    )}
-                                                  />
-                                                </button>
-                                              </label>
-                                            );
-                                          })()}
 
                                           {isServiceKind && overrideCfg.enabled !== false && (
                                             <div className="mt-2.5">
