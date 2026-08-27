@@ -514,12 +514,30 @@ function PublicBookingPage() {
     async function load() {
       setLoading(true);
       try {
-        const businessQuery = supabase
-          .from("public_booking_businesses")
-          .select("id,name,slug,address,phone,email,instagram,logo_url,avatar_url,cover_url,accent_color");
-        const { data: businessData, error: businessError } = await (isUuid(slug)
-          ? businessQuery.eq("id", slug).maybeSingle()
-          : businessQuery.eq("slug", slug).maybeSingle());
+        const fetchBusiness = () => {
+          const businessQuery = supabase
+            .from("public_booking_businesses")
+            .select("id,name,slug,address,phone,email,instagram,logo_url,avatar_url,cover_url,accent_color");
+          return isUuid(slug)
+            ? businessQuery.eq("id", slug).maybeSingle()
+            : businessQuery.eq("slug", slug).maybeSingle();
+        };
+
+        let { data: businessData, error: businessError } = await fetchBusiness();
+
+        // La reserva pública es 100% anónima, pero el cliente de Supabase es
+        // compartido con el resto del sitio (persistSession: true) — si este
+        // navegador tiene guardada una sesión vieja/rota (reloj desincronizado,
+        // token corrupto: "JWT issued at future"), la manda igual en cada
+        // pedido y el servidor la rechaza, tirando abajo la página aunque el
+        // negocio exista. Se limpia esa sesión local (no afecta a otros
+        // dispositivos/usuarios) y se reintenta una vez como anónimo, en vez
+        // de mostrar "Página no encontrada" por un error que no tiene nada
+        // que ver con el negocio.
+        if (businessError && /jwt/i.test(businessError.message ?? "")) {
+          await supabase.auth.signOut({ scope: "local" }).catch(() => {});
+          ({ data: businessData, error: businessError } = await fetchBusiness());
+        }
 
         if (businessError) throw new Error(businessError.message);
         if (!businessData) {
