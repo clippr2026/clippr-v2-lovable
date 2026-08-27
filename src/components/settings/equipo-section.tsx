@@ -16,6 +16,7 @@ import {
   Globe,
   Camera,
   ChevronDown,
+  UserCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
@@ -193,6 +194,11 @@ type NewProForm = {
   email: string;
   phone: string;
   role: string;
+  // Profesional activo en el negocio (employees.is_active) — distinto de
+  // "Acepta reservas en línea" (_publicVisibility.employees, otro campo,
+  // guardado aparte). Un profesional inactivo no debe aparecer en ningún
+  // lado de cara al público, ni siquiera si acepta reservas en línea.
+  isActive: boolean;
   acceptsOnline: boolean;
   color: string;
   schedule: ScheduleMap;
@@ -215,6 +221,7 @@ const EMPTY_FORM: NewProForm = {
   email: "",
   phone: "",
   role: "Barbero",
+  isActive: true,
   acceptsOnline: true,
   color: AGENDA_COLORS[0],
   schedule: DEFAULT_SCHEDULE,
@@ -1560,6 +1567,7 @@ export function EquipoSection() {
           .from("employees")
           .update({
             full_name: name,
+            is_active: form.isActive,
             commission_pct: commission,
             avatar_url: form.avatarUrl || null,
           })
@@ -1669,6 +1677,7 @@ export function EquipoSection() {
               ? {
                   ...emp,
                   full_name: name,
+                  is_active: form.isActive,
                   commission_pct: commission,
                   avatar_url: form.avatarUrl || null,
                   role: form.role.trim() || "Profesional",
@@ -1734,7 +1743,7 @@ export function EquipoSection() {
         .insert({
           business_id: businessId,
           full_name: name,
-          is_active: true,
+          is_active: form.isActive,
           commission_pct: commission,
           avatar_url: form.avatarUrl || null,
         })
@@ -1851,7 +1860,7 @@ export function EquipoSection() {
           full_name: name,
           avatar_url: form.avatarUrl || null,
           role: form.role.trim() || "Profesional",
-          is_active: true,
+          is_active: form.isActive,
           commission_pct: commission,
         },
       ]);
@@ -1983,6 +1992,7 @@ export function EquipoSection() {
         avatarUrl: emp.avatar_url ?? "",
         commissionPct: String(emp.commission_pct ?? ""),
         role: emp.role ?? "Barbero",
+        isActive: emp.is_active !== false,
         acceptsOnline: employeeOnlineMap[emp.id] !== false,
         schedule: employeeSchedules[emp.id] ?? EMPTY_FORM.schedule,
         specialDates: employeeSpecialDates[emp.id] ?? {},
@@ -3088,6 +3098,13 @@ export function EquipoSection() {
                       />
                     </Field>
                   </div>
+                  <PermissionToggleRow
+                    icon={UserCheck}
+                    title="Profesional activo"
+                    desc="Si está apagado, no aparece en Agenda, Caja ni en la página pública, sin importar los demás switches."
+                    on={form.isActive}
+                    onChange={(v) => setForm({ ...form, isActive: v })}
+                  />
                   <PermissionToggleRow
                     icon={Globe}
                     title="Acepta reservas en línea"
