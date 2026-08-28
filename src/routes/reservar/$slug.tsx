@@ -1615,80 +1615,103 @@ function PublicBookingPage() {
                     </span>
                   </button>
 
-                  {employeesForSelectedServices.map((employee) => {
-                    // Precio y duración reales para ESTE profesional (mismo
-                    // resolver que el resto de la app), para que el cliente
-                    // vea de entrada si le conviene uno u otro.
-                    const employeeTotals = selectedServices.reduce(
-                      (acc, service) => {
-                        const resolved = resolveServicePricing(
-                          { id: service.id, price: service.price, duration_min: service.duration_min ?? service.duration },
-                          employee.id,
-                          employeeServiceOverrides,
-                        );
-                        const applies =
-                          appliedPromotion &&
-                          isPromotionApplicable(appliedPromotion, {
-                            serviceId: service.id,
-                            employeeId: employee.id,
-                            category: service.category ?? null,
-                          });
-                        const finalPrice = applyPromotionDiscount(
-                          resolved.price,
-                          applies ? appliedPromotion : null,
-                        );
-                        return {
-                          price: acc.price + finalPrice,
-                          originalPrice: acc.originalPrice + resolved.price,
-                          duration: acc.duration + resolved.duration_min,
-                        };
-                      },
-                      { price: 0, originalPrice: 0, duration: 0 },
+                  {(() => {
+                    // Precio y duración reales para CADA profesional (mismo
+                    // resolver que el resto de la app), más si alguno de los
+                    // servicios elegidos tiene precio/duración personalizado
+                    // para ese profesional en particular.
+                    const cards = employeesForSelectedServices.map((employee) => {
+                      let isCustomized = false;
+                      const totals = selectedServices.reduce(
+                        (acc, service) => {
+                          const resolved = resolveServicePricing(
+                            { id: service.id, price: service.price, duration_min: service.duration_min ?? service.duration },
+                            employee.id,
+                            employeeServiceOverrides,
+                          );
+                          if (resolved.priceOverridden || resolved.durationOverridden) isCustomized = true;
+                          const applies =
+                            appliedPromotion &&
+                            isPromotionApplicable(appliedPromotion, {
+                              serviceId: service.id,
+                              employeeId: employee.id,
+                              category: service.category ?? null,
+                            });
+                          const finalPrice = applyPromotionDiscount(
+                            resolved.price,
+                            applies ? appliedPromotion : null,
+                          );
+                          return {
+                            effectivePrice: acc.effectivePrice + finalPrice,
+                            listPrice: acc.listPrice + resolved.price,
+                            duration: acc.duration + resolved.duration_min,
+                          };
+                        },
+                        { effectivePrice: 0, listPrice: 0, duration: 0 },
+                      );
+                      return { employee, totals, isCustomized };
+                    });
+                    // No es un orden por precio: se mantiene el orden original
+                    // (alfabético) dentro de cada grupo y solo se empuja al
+                    // final a quienes tengan precio o duración distintos del
+                    // estándar del servicio — Array.sort de JS es estable.
+                    const sortedCards = [...cards].sort(
+                      (a, b) => Number(a.isCustomized) - Number(b.isCustomized),
                     );
-                    return (
-                      <button
-                        key={employee.id}
-                        type="button"
-                        onClick={() => { setSelectedEmployeeId(employee.id); setSelectedSlot(null); setStep("datetime"); }}
-                        className={cn(
-                          "flex min-w-0 flex-col items-center justify-center gap-2 rounded-3xl border border-white/10 bg-white/[0.03] text-center transition hover:border-white/30 hover:bg-white/[0.055]",
-                          professionalOptionCount >= 7 ? "min-h-[116px] p-3" : "min-h-[128px] p-4",
-                        )}
-                      >
-                        <span
+
+                    return sortedCards.map(({ employee, totals, isCustomized }) => {
+                      const hasEffectivePrice = totals.effectivePrice < totals.listPrice;
+                      return (
+                        <button
+                          key={employee.id}
+                          type="button"
+                          onClick={() => { setSelectedEmployeeId(employee.id); setSelectedSlot(null); setStep("datetime"); }}
                           className={cn(
-                            "grid shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/10",
-                            professionalOptionCount >= 7 ? "h-11 w-11" : "h-12 w-12",
+                            "relative flex min-w-0 flex-col items-center justify-center gap-2 rounded-3xl border text-center transition hover:border-white/30 hover:bg-white/[0.055]",
+                            isCustomized ? "border-white/15 bg-white/[0.05]" : "border-white/10 bg-white/[0.03]",
+                            professionalOptionCount >= 7 ? "min-h-[124px] p-3" : "min-h-[140px] p-4",
                           )}
                         >
-                          {employee.avatar_url ? (
-                            <img loading="lazy" decoding="async" src={employee.avatar_url} alt={employee.full_name} className="h-full w-full object-cover" />
-                          ) : (
-                            <UserRound className={cn(professionalOptionCount >= 7 ? "h-5 w-5" : "h-6 w-6")} />
-                          )}
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block truncate font-semibold">{employee.full_name}</span>
-                          <span className="block truncate text-xs text-white/55">{employee.role?.trim() || "Profesional"}</span>
-                          {selectedServices.length > 0 && (
-                            <span className="block truncate text-xs text-white/70">
-                              {employeeTotals.duration} min ·{" "}
-                              {employeeTotals.price < employeeTotals.originalPrice ? (
-                                <>
-                                  <span className="line-through text-white/40">
-                                    {formatMoney(employeeTotals.originalPrice)}
-                                  </span>{" "}
-                                  {formatMoney(employeeTotals.price)}
-                                </>
-                              ) : (
-                                formatMoney(employeeTotals.price)
-                              )}
+                          {isCustomized && (
+                            <span
+                              className="absolute right-2 top-2 rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide"
+                              style={{ background: `${accent}22`, color: accent }}
+                            >
+                              Personalizado
                             </span>
                           )}
-                        </span>
-                      </button>
-                    );
-                  })}
+                          <span
+                            className={cn(
+                              "grid shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/10",
+                              professionalOptionCount >= 7 ? "h-11 w-11" : "h-12 w-12",
+                            )}
+                          >
+                            {employee.avatar_url ? (
+                              <img loading="lazy" decoding="async" src={employee.avatar_url} alt={employee.full_name} className="h-full w-full object-cover" />
+                            ) : (
+                              <UserRound className={cn(professionalOptionCount >= 7 ? "h-5 w-5" : "h-6 w-6")} />
+                            )}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block truncate font-semibold">{employee.full_name}</span>
+                            <span className="block truncate text-xs text-white/55">{employee.role?.trim() || "Profesional"}</span>
+                            {selectedServices.length > 0 && (
+                              <>
+                                <span className="block truncate text-xs text-white/70">
+                                  {totals.duration} min · Lista {formatMoney(totals.listPrice)}
+                                </span>
+                                {hasEffectivePrice && (
+                                  <span className="block truncate text-xs font-semibold" style={{ color: accent }}>
+                                    Efectivo {formatMoney(totals.effectivePrice)}
+                                  </span>
+                                )}
+                              </>
+                            )}
+                          </span>
+                        </button>
+                      );
+                    });
+                  })()}
                 </div>
               ) : null}
 
