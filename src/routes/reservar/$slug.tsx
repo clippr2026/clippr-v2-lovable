@@ -1659,13 +1659,8 @@ function PublicBookingPage() {
                       (a, b) => Number(a.isCustomized) - Number(b.isCustomized),
                     );
 
-                    return sortedCards.map(({ employee, totals, isCustomized }) => {
+                    return sortedCards.map(({ employee, totals }) => {
                       const hasEffectivePrice = totals.effectivePrice < totals.listPrice;
-                      // Personalizado: sin etiqueta ni cambio de tarjeta, solo
-                      // sus propios valores (duración/precio) resaltados en el
-                      // color de acento — el resto de la tarjeta queda idéntico.
-                      const highlightCls = isCustomized ? "font-semibold" : "text-white/70";
-                      const highlightStyle = isCustomized ? { color: accent } : undefined;
                       return (
                         <button
                           key={employee.id}
@@ -1690,13 +1685,12 @@ function PublicBookingPage() {
                           </span>
                           <span className="min-w-0 leading-tight">
                             <span className="block truncate text-xs font-semibold leading-tight">{employee.full_name}</span>
-                            <span className="block truncate text-[10px] leading-tight text-white/55">{employee.role?.trim() || "Profesional"}</span>
                             {selectedServices.length > 0 && (
                               <>
-                                <span className={cn("block truncate text-[10px] leading-tight", highlightCls)} style={highlightStyle}>
+                                <span className="block truncate text-[10px] leading-tight text-white/70">
                                   {totals.duration} min
                                 </span>
-                                <span className={cn("block truncate text-[10px] leading-tight", highlightCls)} style={highlightStyle}>
+                                <span className="block truncate text-[10px] leading-tight text-white/70">
                                   Lista {formatMoney(totals.listPrice)}
                                 </span>
                                 {hasEffectivePrice && (
