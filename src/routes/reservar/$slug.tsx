@@ -111,6 +111,9 @@ type Service = {
   image_position?: string | null;
   image_offset?: CatalogImageOffset | null;
   category?: string | null;
+  // "Precio efectivo" estándar (Comisiones → Servicios). null = no
+  // configurado — ver resolveServicePricing en service-pricing.ts.
+  effective_price?: number | null;
 };
 
 type BookingStep = "services" | "promo" | "professional" | "datetime" | "products" | "details" | "done";
@@ -580,7 +583,7 @@ function PublicBookingPage() {
         const start = startOfDay(new Date()).toISOString();
         const end = addMinutes(startOfDay(new Date()), maxAdvanceDays * 24 * 60).toISOString();
 
-        const [employeesWithRoleRes, servicesRes, appointmentsRes, settingsRes] = await Promise.all([
+        const [employeesWithRoleRes, servicesWithEffectiveRes, appointmentsRes, settingsRes] = await Promise.all([
           supabase
             .from("public_booking_employees")
             .select("id,full_name,avatar_url,is_active,role")
@@ -588,7 +591,7 @@ function PublicBookingPage() {
             .order("full_name", { ascending: true }),
           supabase
             .from("public_booking_services")
-            .select("id,name,price,duration_min,is_active")
+            .select("id,name,price,duration_min,is_active,effective_price")
             .eq("business_id", businessId)
             .order("name", { ascending: true }),
           supabase
@@ -609,6 +612,19 @@ function PublicBookingPage() {
               .eq("business_id", businessId)
               .order("full_name", { ascending: true })
           : employeesWithRoleRes;
+
+        // Algunas bases todavía tienen la vista public_booking_services sin la
+        // columna effective_price ("Precio efectivo" de Comisiones →
+        // Servicios). Mismo criterio que arriba: si falla, reintenta sin esa
+        // columna para que la reserva no caiga — sencillamente no se muestra
+        // "Efectivo" hasta que se actualice esa vista.
+        const servicesRes = servicesWithEffectiveRes.error
+          ? await supabase
+              .from("public_booking_services")
+              .select("id,name,price,duration_min,is_active")
+              .eq("business_id", businessId)
+              .order("name", { ascending: true })
+          : servicesWithEffectiveRes;
 
         // La reserva pública no debe mostrar "Página no encontrada" si falla una vista secundaria.
         console.warn("Public booking secondary data", {
@@ -1625,29 +1641,35 @@ function PublicBookingPage() {
                       const totals = selectedServices.reduce(
                         (acc, service) => {
                           const resolved = resolveServicePricing(
-                            { id: service.id, price: service.price, duration_min: service.duration_min ?? service.duration },
+                            {
+                              id: service.id,
+                              price: service.price,
+                              duration_min: service.duration_min ?? service.duration,
+                              effective_price: service.effective_price,
+                            },
                             employee.id,
                             employeeServiceOverrides,
                           );
-                          if (resolved.priceOverridden || resolved.durationOverridden) isCustomized = true;
-                          const applies =
-                            appliedPromotion &&
-                            isPromotionApplicable(appliedPromotion, {
-                              serviceId: service.id,
-                              employeeId: employee.id,
-                              category: service.category ?? null,
-                            });
-                          const finalPrice = applyPromotionDiscount(
-                            resolved.price,
-                            applies ? appliedPromotion : null,
-                          );
+                          if (
+                            resolved.priceOverridden ||
+                            resolved.durationOverridden ||
+                            resolved.effectivePriceOverridden
+                          ) {
+                            isCustomized = true;
+                          }
                           return {
-                            effectivePrice: acc.effectivePrice + finalPrice,
+                            // "Precio efectivo" (Comisiones → Servicios /
+                            // override por profesional) — ya no se calcula a
+                            // partir de promociones activas.
+                            effectivePrice:
+                              resolved.effectivePrice == null
+                                ? acc.effectivePrice
+                                : (acc.effectivePrice ?? 0) + resolved.effectivePrice,
                             listPrice: acc.listPrice + resolved.price,
                             duration: acc.duration + resolved.duration_min,
                           };
                         },
-                        { effectivePrice: 0, listPrice: 0, duration: 0 },
+                        { effectivePrice: null as number | null, listPrice: 0, duration: 0 },
                       );
                       return { employee, totals, isCustomized };
                     });
@@ -1660,7 +1682,7 @@ function PublicBookingPage() {
                     );
 
                     return sortedCards.map(({ employee, totals }) => {
-                      const hasEffectivePrice = totals.effectivePrice < totals.listPrice;
+                      const hasEffectivePrice = totals.effectivePrice != null;
                       return (
                         <button
                           key={employee.id}

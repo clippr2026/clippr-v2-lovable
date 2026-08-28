@@ -29,6 +29,14 @@ export type ServiceOverrideConfig = {
   duration_min: string;
   useStandardPrice: boolean;
   price: string;
+  // "Precio efectivo": un segundo precio estático (no confundir con
+  // "Precio en efectivo" de Servicios/Caja, que es el descuento por pago en
+  // efectivo) — el precio final a mostrar en la Página Pública, editable por
+  // servicio y, acá, por profesional. undefined (configs guardadas antes de
+  // que existiera este campo) se trata como true, igual criterio que el
+  // resto de los "usar estándar".
+  useStandardEffectivePrice?: boolean;
+  effectivePrice?: string;
 };
 
 export type EmployeeServiceOverrideMap = Record<
@@ -40,6 +48,10 @@ export type ResolvableService = {
   id: string;
   price: number | string | null | undefined;
   duration_min?: number | string | null;
+  // Precio efectivo estándar del servicio (Configuración → Servicios).
+  // null/undefined/"" = no configurado, no se muestra a menos que el
+  // profesional tenga su propio override.
+  effective_price?: number | string | null;
 };
 
 export type ResolvedServicePricing = {
@@ -47,6 +59,10 @@ export type ResolvedServicePricing = {
   duration_min: number;
   priceOverridden: boolean;
   durationOverridden: boolean;
+  // null = ni el servicio ni el profesional tienen precio efectivo
+  // configurado — la Página Pública no debe mostrar la línea "Efectivo".
+  effectivePrice: number | null;
+  effectivePriceOverridden: boolean;
 };
 
 export function resolveServicePricing(
@@ -56,6 +72,10 @@ export function resolveServicePricing(
 ): ResolvedServicePricing {
   const standardPrice = Number(service.price ?? 0) || 0;
   const standardDuration = Number(service.duration_min ?? 30) || 30;
+  const standardEffectivePrice =
+    service.effective_price != null && String(service.effective_price).trim() !== ""
+      ? Number(service.effective_price) || null
+      : null;
 
   const cfg = employeeId ? overridesMap?.[employeeId]?.[service.id] : undefined;
 
@@ -65,6 +85,11 @@ export function resolveServicePricing(
     !!cfg &&
     cfg.useStandardDuration === false &&
     cfg.duration_min.trim() !== "";
+  const effectivePriceOverridden =
+    !!cfg &&
+    cfg.useStandardEffectivePrice === false &&
+    !!cfg.effectivePrice &&
+    cfg.effectivePrice.trim() !== "";
 
   return {
     price: priceOverridden ? Number(cfg!.price) || standardPrice : standardPrice,
@@ -73,6 +98,10 @@ export function resolveServicePricing(
       : standardDuration,
     priceOverridden,
     durationOverridden,
+    effectivePrice: effectivePriceOverridden
+      ? Number(cfg!.effectivePrice) || standardEffectivePrice
+      : standardEffectivePrice,
+    effectivePriceOverridden,
   };
 }
 

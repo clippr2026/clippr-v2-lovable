@@ -186,6 +186,8 @@ const DEFAULT_SERVICE_OVERRIDE: ServiceOverrideConfig = {
   duration_min: "",
   useStandardPrice: true,
   price: "",
+  useStandardEffectivePrice: true,
+  effectivePrice: "",
 };
 
 type NewProForm = {
@@ -948,7 +950,7 @@ export function EquipoSection() {
       supabase
         .from("price_catalog")
         .select(
-          "id,name,price,duration_min,category,active,stock,cash_discount",
+          "id,name,price,duration_min,category,active,stock,cash_discount,effective_price",
         )
         .eq("business_id", businessId)
         .order("category")
@@ -3525,7 +3527,7 @@ export function EquipoSection() {
                                               </button>
 
                                               {overrideExpanded && (
-                                                <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                                                <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
                                                   {/* Duración — valor siempre alineado a la
                                                       izquierda del campo, estándar o personalizado. */}
                                                   <div className="rounded-lg bg-white/[0.035] ring-1 ring-white/10 p-2.5">
@@ -3576,11 +3578,12 @@ export function EquipoSection() {
                                                     </div>
                                                   </div>
 
-                                                  {/* Precio — valor siempre alineado a la
-                                                      derecha del campo, estándar o personalizado. */}
+                                                  {/* Precio de lista — valor siempre alineado
+                                                      a la derecha del campo, estándar o
+                                                      personalizado. */}
                                                   <div className="rounded-lg bg-white/[0.035] ring-1 ring-white/10 p-2.5">
                                                     <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">
-                                                      Precio
+                                                      Precio de lista
                                                     </div>
                                                     <label className="mt-1 flex items-center gap-2 text-xs">
                                                       <input
@@ -3594,7 +3597,7 @@ export function EquipoSection() {
                                                         }
                                                         className="h-3.5 w-3.5 accent-primary"
                                                       />
-                                                      <span>Usar precio estándar</span>
+                                                      <span>Usar precio de lista estándar</span>
                                                     </label>
                                                     <div className="mt-1.5 flex items-center justify-end gap-1 rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1.5">
                                                       {overrideCfg.useStandardPrice ? (
@@ -3616,6 +3619,61 @@ export function EquipoSection() {
                                                             onChange={(e) =>
                                                               updateOverrideCfg({
                                                                 price: e.target.value,
+                                                              })
+                                                            }
+                                                            className="w-20 bg-transparent text-sm text-right focus:outline-none"
+                                                            placeholder="0"
+                                                          />
+                                                        </>
+                                                      )}
+                                                    </div>
+                                                  </div>
+
+                                                  {/* Precio efectivo — segundo precio estático
+                                                      (no ligado a promociones ni al "Precio en
+                                                      efectivo" de pago en efectivo de
+                                                      Servicios/Caja), configurable por servicio
+                                                      y, acá, por profesional. Sin valor
+                                                      estándar configurado en el servicio, no
+                                                      aparece "Efectivo" en la Página Pública a
+                                                      menos que el profesional lo personalice. */}
+                                                  <div className="rounded-lg bg-white/[0.035] ring-1 ring-white/10 p-2.5">
+                                                    <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+                                                      Precio efectivo
+                                                    </div>
+                                                    <label className="mt-1 flex items-center gap-2 text-xs">
+                                                      <input
+                                                        type="checkbox"
+                                                        checked={overrideCfg.useStandardEffectivePrice !== false}
+                                                        onChange={(e) =>
+                                                          updateOverrideCfg({
+                                                            useStandardEffectivePrice:
+                                                              e.target.checked,
+                                                          })
+                                                        }
+                                                        className="h-3.5 w-3.5 accent-primary"
+                                                      />
+                                                      <span>Usar precio efectivo estándar</span>
+                                                    </label>
+                                                    <div className="mt-1.5 flex items-center justify-end gap-1 rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1.5">
+                                                      {overrideCfg.useStandardEffectivePrice !== false ? (
+                                                        <span className="text-sm">
+                                                          {item.effective_price != null
+                                                            ? `$${Number(item.effective_price).toLocaleString("es-AR")}`
+                                                            : "Sin definir"}
+                                                        </span>
+                                                      ) : (
+                                                        <>
+                                                          <span className="text-xs text-muted-foreground">
+                                                            $
+                                                          </span>
+                                                          <input
+                                                            type="number"
+                                                            min={0}
+                                                            value={overrideCfg.effectivePrice ?? ""}
+                                                            onChange={(e) =>
+                                                              updateOverrideCfg({
+                                                                effectivePrice: e.target.value,
                                                               })
                                                             }
                                                             className="w-20 bg-transparent text-sm text-right focus:outline-none"

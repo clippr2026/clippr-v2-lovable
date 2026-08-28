@@ -41,6 +41,11 @@ type PriceForm = {
   // (no un %). Vacío = no hay precio en efectivo distinto — se usa el
   // Precio de lista tal cual, en toda la app.
   cashPriceInput: string;
+  // Precio efectivo: segundo precio estático que se muestra en la Página
+  // Pública (no confundir con el precio en efectivo de arriba, que es por
+  // pago en efectivo). Vacío = no configurado, no se muestra "Efectivo" a
+  // menos que el profesional lo personalice en Equipo.
+  effectivePriceInput: string;
   duration: string;
   status: "Activo" | "Inactivo";
   category: string;
@@ -65,6 +70,7 @@ const emptyPriceForm = (
   name: "",
   price: "0",
   cashPriceInput: "",
+  effectivePriceInput: "",
   duration: isService ? "30" : "",
   status: "Activo",
   category,
@@ -399,6 +405,7 @@ function rowToForm(row: PriceRow, isService: boolean): PriceForm {
     name: row.name ?? "",
     price: String(price),
     cashPriceInput: discount > 0 ? String(priceToCash(String(price), String(discount))) : "",
+    effectivePriceInput: row.effective_price != null ? String(row.effective_price) : "",
     duration: row.duration_min
       ? String(row.duration_min)
       : isService
@@ -753,6 +760,32 @@ function PriceEditorModal({
       </div>
     </Field>
   );
+  // Precio efectivo: segundo precio estático que se muestra en la Página
+  // Pública además del Precio de lista (no es el precio en efectivo de
+  // arriba, ese es por pago en efectivo). Vacío = no se muestra "Efectivo"
+  // para este servicio, salvo que un profesional lo personalice en Equipo.
+  const effectivePriceField = (
+    <Field label="Precio efectivo">
+      <div className="relative">
+        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+          $
+        </span>
+        <input
+          type="text"
+          inputMode="numeric"
+          value={formatThousands(form.effectivePriceInput)}
+          onChange={(e) =>
+            setForm({
+              ...form,
+              effectivePriceInput: e.target.value.replace(/\D/g, ""),
+            })
+          }
+          className={cn(inputCls, "pl-6")}
+          placeholder="Sin definir"
+        />
+      </div>
+    </Field>
+  );
   const availableCatalogCategories = Array.from(
     new Set([...(form.category ? [form.category] : []), ...catalogCategories]),
   );
@@ -902,6 +935,7 @@ function PriceEditorModal({
                     </div>
                   </Field>
                   {cashPriceField}
+                  {effectivePriceField}
                 </div>
               </SectionCard>
 
@@ -1298,7 +1332,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       const [catalogRes, settingsRes] = await Promise.all([
         supabase
           .from("price_catalog")
-          .select("id,name,price,duration_min,category,active,stock,cash_discount")
+          .select("id,name,price,duration_min,category,active,stock,cash_discount,effective_price")
           .eq("business_id", businessId)
           .order("category")
           .order("name"),
@@ -1542,7 +1576,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     if (!businessId) return;
     const { data, error } = await supabase
       .from("price_catalog")
-      .select("id,name,price,duration_min,category,active,stock,cash_discount")
+      .select("id,name,price,duration_min,category,active,stock,cash_discount,effective_price")
       .eq("business_id", businessId)
       .order("category")
       .order("name");
@@ -2075,6 +2109,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       name: form.name.trim(),
       price: Number(form.price) || 0,
       cash_discount: resolveCashDiscountPercent(form.price, form.cashPriceInput),
+      effective_price: form.effectivePriceInput.trim() ? Number(form.effectivePriceInput) : null,
       category: form.category,
       active: form.status === "Activo",
       duration_min: isService ? Number(form.duration) || 30 : null,
