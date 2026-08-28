@@ -1661,25 +1661,21 @@ function PublicBookingPage() {
 
                     return sortedCards.map(({ employee, totals, isCustomized }) => {
                       const hasEffectivePrice = totals.effectivePrice < totals.listPrice;
+                      // Personalizado: sin etiqueta ni cambio de tarjeta, solo
+                      // sus propios valores (duración/precio) resaltados en el
+                      // color de acento — el resto de la tarjeta queda idéntico.
+                      const highlightCls = isCustomized ? "font-semibold" : "text-white/70";
+                      const highlightStyle = isCustomized ? { color: accent } : undefined;
                       return (
                         <button
                           key={employee.id}
                           type="button"
                           onClick={() => { setSelectedEmployeeId(employee.id); setSelectedSlot(null); setStep("datetime"); }}
                           className={cn(
-                            "relative flex min-w-0 flex-col items-center justify-center gap-2 rounded-3xl border text-center transition hover:border-white/30 hover:bg-white/[0.055]",
-                            isCustomized ? "border-white/15 bg-white/[0.05]" : "border-white/10 bg-white/[0.03]",
-                            professionalOptionCount >= 7 ? "min-h-[124px] p-3" : "min-h-[140px] p-4",
+                            "flex min-w-0 flex-col items-center justify-center gap-1.5 rounded-3xl border border-white/10 bg-white/[0.03] text-center transition hover:border-white/30 hover:bg-white/[0.055]",
+                            professionalOptionCount >= 7 ? "min-h-[116px] p-3" : "min-h-[128px] p-4",
                           )}
                         >
-                          {isCustomized && (
-                            <span
-                              className="absolute right-2 top-2 rounded-full px-1.5 py-0.5 text-[9px] font-semibold uppercase tracking-wide"
-                              style={{ background: `${accent}22`, color: accent }}
-                            >
-                              Personalizado
-                            </span>
-                          )}
                           <span
                             className={cn(
                               "grid shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/10",
@@ -1692,16 +1688,19 @@ function PublicBookingPage() {
                               <UserRound className={cn(professionalOptionCount >= 7 ? "h-5 w-5" : "h-6 w-6")} />
                             )}
                           </span>
-                          <span className="min-w-0">
-                            <span className="block truncate font-semibold">{employee.full_name}</span>
-                            <span className="block truncate text-xs text-white/55">{employee.role?.trim() || "Profesional"}</span>
+                          <span className="min-w-0 leading-tight">
+                            <span className="block truncate text-xs font-semibold leading-tight">{employee.full_name}</span>
+                            <span className="block truncate text-[10px] leading-tight text-white/55">{employee.role?.trim() || "Profesional"}</span>
                             {selectedServices.length > 0 && (
                               <>
-                                <span className="block truncate text-xs text-white/70">
-                                  {totals.duration} min · Lista {formatMoney(totals.listPrice)}
+                                <span className={cn("block truncate text-[10px] leading-tight", highlightCls)} style={highlightStyle}>
+                                  {totals.duration} min
+                                </span>
+                                <span className={cn("block truncate text-[10px] leading-tight", highlightCls)} style={highlightStyle}>
+                                  Lista {formatMoney(totals.listPrice)}
                                 </span>
                                 {hasEffectivePrice && (
-                                  <span className="block truncate text-xs font-semibold" style={{ color: accent }}>
+                                  <span className="block truncate text-[10px] font-semibold leading-tight" style={{ color: accent }}>
                                     Efectivo {formatMoney(totals.effectivePrice)}
                                   </span>
                                 )}
