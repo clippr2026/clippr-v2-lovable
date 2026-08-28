@@ -111,9 +111,10 @@ type Service = {
   image_position?: string | null;
   image_offset?: CatalogImageOffset | null;
   category?: string | null;
-  // "Precio efectivo" estándar (Comisiones → Servicios). null = no
-  // configurado — ver resolveServicePricing en service-pricing.ts.
-  effective_price?: number | null;
+  // % "Precio en efectivo" (Configuración → Servicios) — misma fuente que
+  // "Precio efectivo estándar" en Equipo. Ver computeStandardEffectivePrice
+  // en service-pricing.ts.
+  cash_discount?: number | null;
 };
 
 type BookingStep = "services" | "promo" | "professional" | "datetime" | "products" | "details" | "done";
@@ -591,7 +592,7 @@ function PublicBookingPage() {
             .order("full_name", { ascending: true }),
           supabase
             .from("public_booking_services")
-            .select("id,name,price,duration_min,is_active,effective_price")
+            .select("id,name,price,duration_min,is_active,cash_discount")
             .eq("business_id", businessId)
             .order("name", { ascending: true }),
           supabase
@@ -614,8 +615,8 @@ function PublicBookingPage() {
           : employeesWithRoleRes;
 
         // Algunas bases todavía tienen la vista public_booking_services sin la
-        // columna effective_price ("Precio efectivo" de Comisiones →
-        // Servicios). Mismo criterio que arriba: si falla, reintenta sin esa
+        // columna cash_discount ("Precio en efectivo" / "Precio efectivo
+        // estándar"). Mismo criterio que arriba: si falla, reintenta sin esa
         // columna para que la reserva no caiga — sencillamente no se muestra
         // "Efectivo" hasta que se actualice esa vista.
         const servicesRes = servicesWithEffectiveRes.error
@@ -1645,7 +1646,7 @@ function PublicBookingPage() {
                               id: service.id,
                               price: service.price,
                               duration_min: service.duration_min ?? service.duration,
-                              effective_price: service.effective_price,
+                              cash_discount: service.cash_discount,
                             },
                             employee.id,
                             employeeServiceOverrides,

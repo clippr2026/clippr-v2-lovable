@@ -24,6 +24,7 @@ import type {
 } from "@/components/agenda/use-agenda-data";
 import {
   resolveServicePricing,
+  computeStandardEffectivePrice,
   type ServiceOverrideConfig,
   type EmployeeServiceOverrideMap,
 } from "@/lib/service-pricing";
@@ -950,7 +951,7 @@ export function EquipoSection() {
       supabase
         .from("price_catalog")
         .select(
-          "id,name,price,duration_min,category,active,stock,cash_discount,effective_price",
+          "id,name,price,duration_min,category,active,stock,cash_discount",
         )
         .eq("business_id", businessId)
         .order("category")
@@ -3629,14 +3630,14 @@ export function EquipoSection() {
                                                     </div>
                                                   </div>
 
-                                                  {/* Precio efectivo — segundo precio estático
-                                                      (no ligado a promociones ni al "Precio en
-                                                      efectivo" de pago en efectivo de
-                                                      Servicios/Caja), configurable por servicio
-                                                      y, acá, por profesional. Sin valor
-                                                      estándar configurado en el servicio, no
-                                                      aparece "Efectivo" en la Página Pública a
-                                                      menos que el profesional lo personalice. */}
+                                                  {/* Precio efectivo — reutiliza el "Precio en
+                                                      efectivo" ya existente del servicio
+                                                      (Configuración → Servicios → Precios,
+                                                      price_catalog.cash_discount), no es un
+                                                      campo nuevo. Sin precio en efectivo
+                                                      configurado en el servicio, no aparece
+                                                      "Efectivo" en la Página Pública a menos que
+                                                      el profesional lo personalice acá. */}
                                                   <div className="rounded-lg bg-white/[0.035] ring-1 ring-white/10 p-2.5">
                                                     <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">
                                                       Precio efectivo
@@ -3658,9 +3659,15 @@ export function EquipoSection() {
                                                     <div className="mt-1.5 flex items-center justify-end gap-1 rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1.5">
                                                       {overrideCfg.useStandardEffectivePrice !== false ? (
                                                         <span className="text-sm">
-                                                          {item.effective_price != null
-                                                            ? `$${Number(item.effective_price).toLocaleString("es-AR")}`
-                                                            : "Sin definir"}
+                                                          {(() => {
+                                                            const standard = computeStandardEffectivePrice(
+                                                              item.price,
+                                                              item.cash_discount,
+                                                            );
+                                                            return standard != null
+                                                              ? `$${standard.toLocaleString("es-AR")}`
+                                                              : "Sin definir";
+                                                          })()}
                                                         </span>
                                                       ) : (
                                                         <>

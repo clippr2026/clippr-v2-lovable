@@ -48,11 +48,26 @@ export type ResolvableService = {
   id: string;
   price: number | string | null | undefined;
   duration_min?: number | string | null;
-  // Precio efectivo estándar del servicio (Configuración → Servicios).
-  // null/undefined/"" = no configurado, no se muestra a menos que el
+  // % de descuento por pago en efectivo (Configuración → Servicios →
+  // "Precio en efectivo") — es la MISMA fuente que "Precio efectivo
+  // estándar" acá y en Equipo, no un concepto nuevo. 0/null = sin precio en
+  // efectivo configurado, no se muestra "Efectivo" a menos que el
   // profesional tenga su propio override.
-  effective_price?: number | string | null;
+  cash_discount?: number | string | null;
 };
+
+// Reconstruye el precio en efectivo a partir del % guardado — misma fórmula
+// que usa Configuración → Servicios (priceToCash) para que el valor
+// coincida exactamente con lo que el dueño tipeó ahí, sin un campo aparte.
+export function computeStandardEffectivePrice(
+  price: number | string | null | undefined,
+  cashDiscountPercent: number | string | null | undefined,
+): number | null {
+  const p = Number(price ?? 0) || 0;
+  const d = Number(cashDiscountPercent ?? 0) || 0;
+  if (p <= 0 || d <= 0) return null;
+  return Math.max(0, Math.round(p - (p * d) / 100));
+}
 
 export type ResolvedServicePricing = {
   price: number;
@@ -72,10 +87,10 @@ export function resolveServicePricing(
 ): ResolvedServicePricing {
   const standardPrice = Number(service.price ?? 0) || 0;
   const standardDuration = Number(service.duration_min ?? 30) || 30;
-  const standardEffectivePrice =
-    service.effective_price != null && String(service.effective_price).trim() !== ""
-      ? Number(service.effective_price) || null
-      : null;
+  const standardEffectivePrice = computeStandardEffectivePrice(
+    service.price,
+    service.cash_discount,
+  );
 
   const cfg = employeeId ? overridesMap?.[employeeId]?.[service.id] : undefined;
 

@@ -11,10 +11,6 @@ export type PriceRow = {
   active: boolean | null;
   stock?: number | null;
   cash_discount?: number | null;
-  // "Precio efectivo" estándar del servicio — no confundir con
-  // cash_discount ("Precio en efectivo", el descuento por pago en
-  // efectivo). null = no configurado.
-  effective_price?: number | null;
 };
 
 export function SectionCard({
