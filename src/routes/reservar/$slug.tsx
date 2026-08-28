@@ -629,9 +629,13 @@ function PublicBookingPage() {
             ? ((settingsSchedule as Record<string, unknown>)._employeeRoles as Record<string, string>)
             : {};
         const rawEmployeeRows = (employeesRes.error ? [] : (employeesRes.data ?? [])) as Employee[];
+        // Único switch "Acepta reservas en línea" = employees.is_active (ya
+        // filtrado también por la propia vista public_booking_employees). Se
+        // dejó de leer _publicVisibility.employees acá: era un segundo campo
+        // que podía quedar desincronizado del real y esconder profesionales
+        // activos (ver caso Alan/auro-stylo).
         const visibleEmployees = rawEmployeeRows
           .filter((employee) => employee.is_active !== false)
-          .filter((employee) => visibility.employees[employee.id] !== false)
           .map((employee) => ({
             ...employee,
             role: employee.role?.trim() || employeeRoles[employee.id]?.trim() || null,

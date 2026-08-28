@@ -16,7 +16,6 @@ import {
   Globe,
   Camera,
   ChevronDown,
-  UserCheck,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
@@ -194,12 +193,13 @@ type NewProForm = {
   email: string;
   phone: string;
   role: string;
-  // Profesional activo en el negocio (employees.is_active) — distinto de
-  // "Acepta reservas en línea" (_publicVisibility.employees, otro campo,
-  // guardado aparte). Un profesional inactivo no debe aparecer en ningún
-  // lado de cara al público, ni siquiera si acepta reservas en línea.
+  // Único switch de "Acepta reservas en línea" — respaldado por
+  // employees.is_active, el campo que realmente filtra
+  // public_booking_employees. También se espeja en
+  // business_settings.schedule._publicVisibility.employees (ver
+  // saveProfessional) para que las páginas públicas y el RPC de reserva que
+  // todavía leen ese campo legado queden sincronizados con un solo switch.
   isActive: boolean;
-  acceptsOnline: boolean;
   color: string;
   schedule: ScheduleMap;
   publicName: string;
@@ -222,7 +222,6 @@ const EMPTY_FORM: NewProForm = {
   phone: "",
   role: "Barbero",
   isActive: true,
-  acceptsOnline: true,
   color: AGENDA_COLORS[0],
   schedule: DEFAULT_SCHEDULE,
   publicName: "",
@@ -795,11 +794,10 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
           <div className="font-medium text-sm ">{displayName}</div>
           <div className="text-xs text-muted-foreground">{emp.role?.trim() || "Profesional"}</div>
         </div>
-        {/* Refleja directamente el switch "Acepta reservas en línea" del
-            perfil (misma fuente: employeeOnlineMap / _publicVisibility.employees)
-            — no hay un estado "Activo" independiente. Un clic acá alterna el
-            mismo switch, así que sigue habiendo una sola fuente de verdad
-            para la visibilidad del profesional en la página pública. */}
+        {/* Refleja el único switch "Acepta reservas en línea" del perfil
+            (employees.is_active). Un clic acá alterna ese mismo campo, así
+            que sigue habiendo una sola fuente de verdad para la visibilidad
+            del profesional en la página pública. */}
         <button
           type="button"
           onClick={() => onToggleOnline(emp)}
@@ -1657,7 +1655,12 @@ export function EquipoSection() {
                   ...visibility,
                   employees: {
                     ...employeesVisibility,
-                    [editingEmp.id]: form.acceptsOnline !== false,
+                    // Mismo valor que el switch único "Acepta reservas en
+                    // línea" (employees.is_active) — se espeja acá para que
+                    // páginas públicas viejas (negocio/$slug.tsx) y el RPC de
+                    // reserva, que todavía leen este campo, queden en el
+                    // mismo estado sin depender de un segundo switch.
+                    [editingEmp.id]: form.isActive !== false,
                   },
                 },
               },
@@ -1687,7 +1690,7 @@ export function EquipoSection() {
         );
         setEmployeeOnlineMap((current) => ({
           ...current,
-          [editingEmp.id]: form.acceptsOnline,
+          [editingEmp.id]: form.isActive,
         }));
         setEmployeeApprovalEnabledMap((current) => ({
           ...current,
@@ -1840,7 +1843,7 @@ export function EquipoSection() {
                 ...visibility,
                 employees: {
                   ...employeesVisibility,
-                  [newId]: form.acceptsOnline !== false,
+                  [newId]: form.isActive !== false,
                 },
               },
             },
@@ -1866,7 +1869,7 @@ export function EquipoSection() {
       ]);
       setEmployeeOnlineMap((current) => ({
         ...current,
-        [newId]: form.acceptsOnline,
+        [newId]: form.isActive,
       }));
       setEmployeeApprovalEnabledMap((current) => ({
         ...current,
@@ -1910,31 +1913,45 @@ export function EquipoSection() {
     }
   }
 
-  // Alterna "Acepta reservas en línea" directamente desde la tarjeta —
-  // misma fuente de verdad que usa el switch del perfil (form.acceptsOnline,
-  // ver handleEditPro/guardado): persiste en
-  // business_settings.schedule._publicVisibility.employees. No toca
-  // employees.is_active ni crea un estado independiente.
+  // Alterna "Acepta reservas en línea" directamente desde la tarjeta — mismo
+  // switch único del perfil (form.isActive/employees.is_active, ver
+  // handleEditPro/guardado). employees.is_active es la escritura principal
+  // (es el campo que realmente filtra public_booking_employees); el espejo
+  // en business_settings.schedule._publicVisibility.employees es best-effort,
+  // para páginas públicas/RPC legadas que todavía lo leen.
   const toggleOnline = useCallback(
     async (emp: EmployeeRow) => {
       if (!businessId) return;
       const nextOnline = !(employeeOnlineMap[emp.id] !== false);
       setEmployeeOnlineMap((current) => ({ ...current, [emp.id]: nextOnline }));
+      setRows((current) =>
+        current.map((e) => (e.id === emp.id ? { ...e, is_active: nextOnline } : e)),
+      );
+
+      const { error: empError } = await supabase
+        .from("employees")
+        .update({ is_active: nextOnline })
+        .eq("id", emp.id);
+      if (empError) {
+        setEmployeeOnlineMap((current) => ({ ...current, [emp.id]: !nextOnline }));
+        setRows((current) =>
+          current.map((e) => (e.id === emp.id ? { ...e, is_active: !nextOnline } : e)),
+        );
+        return toast.error("No se pudo actualizar el estado online. Probá de nuevo.");
+      }
+
       const { data: existingRow, error: fetchError } = await supabase
         .from("business_settings")
         .select("schedule")
         .eq("business_id", businessId)
         .maybeSingle();
-      if (fetchError) {
-        setEmployeeOnlineMap((current) => ({ ...current, [emp.id]: !nextOnline }));
-        return toast.error("No se pudo actualizar el estado online. Probá de nuevo.");
-      }
+      if (fetchError) return;
       const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
       const visibility = getPublicVisibility(existingSchedule);
       const employeesVisibility = normalizePublicBooleanMap(
         visibility.employees ?? existingSchedule._employeeOnline,
       );
-      const { error } = await supabase.from("business_settings").upsert(
+      await supabase.from("business_settings").upsert(
         {
           business_id: businessId,
           schedule: {
@@ -1947,10 +1964,6 @@ export function EquipoSection() {
         },
         { onConflict: "business_id" },
       );
-      if (error) {
-        setEmployeeOnlineMap((current) => ({ ...current, [emp.id]: !nextOnline }));
-        toast.error("No se pudo actualizar el estado online. Probá de nuevo.");
-      }
     },
     [businessId, employeeOnlineMap],
   );
@@ -1993,7 +2006,6 @@ export function EquipoSection() {
         commissionPct: String(emp.commission_pct ?? ""),
         role: emp.role ?? "Barbero",
         isActive: emp.is_active !== false,
-        acceptsOnline: employeeOnlineMap[emp.id] !== false,
         schedule: employeeSchedules[emp.id] ?? EMPTY_FORM.schedule,
         specialDates: employeeSpecialDates[emp.id] ?? {},
         approvalEnabled: employeeApprovalEnabledMap[emp.id] === true,
@@ -2007,7 +2019,6 @@ export function EquipoSection() {
       setOpen(true);
     },
     [
-      employeeOnlineMap,
       employeeSchedules,
       employeeSpecialDates,
       employeeApprovalEnabledMap,
@@ -3099,18 +3110,11 @@ export function EquipoSection() {
                     </Field>
                   </div>
                   <PermissionToggleRow
-                    icon={UserCheck}
-                    title="Profesional activo"
-                    desc="Si está apagado, no aparece en Agenda, Caja ni en la página pública, sin importar los demás switches."
-                    on={form.isActive}
-                    onChange={(v) => setForm({ ...form, isActive: v })}
-                  />
-                  <PermissionToggleRow
                     icon={Globe}
                     title="Acepta reservas en línea"
-                    desc="Aparece disponible para reservas online."
-                    on={form.acceptsOnline}
-                    onChange={(v) => setForm({ ...form, acceptsOnline: v })}
+                    desc="Si está apagado, no aparece en la página pública para ningún servicio. Si está prendido, aparece solo en los servicios que tenga habilitados en Comisiones → Servicios."
+                    on={form.isActive}
+                    onChange={(v) => setForm({ ...form, isActive: v })}
                   />
 
                   <ApprovalModeCard
