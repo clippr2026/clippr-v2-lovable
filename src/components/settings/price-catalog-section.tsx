@@ -1549,6 +1549,18 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       .order("category")
       .order("name");
     if (error) return toast.error("Error: " + error.message);
+    if (new URLSearchParams(window.location.search).get("debug") === "1") {
+      console.warn(
+        `[debug catalogo] load() trajo de Supabase @ ${new Date().toISOString()} (isService=${isService})`,
+        (data ?? []).map((r: any) => ({
+          id: r.id,
+          name: r.name,
+          stock: r.stock,
+          stock_min: r.stock_min,
+          stock_critical: r.stock_critical,
+        })),
+      );
+    }
     setRows(
       applyItemOrder(
         (data ?? []) as PriceRow[],
@@ -1716,15 +1728,30 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
               }
             }
           } else {
-            // .select("id") para poder distinguir un guardado real de un
+            const debugOn = new URLSearchParams(window.location.search).get("debug") === "1";
+            if (debugOn) {
+              console.warn(
+                `[debug catalogo] UPDATE a punto de enviarse @ ${new Date().toISOString()} — id=${tempId} payload=`,
+                JSON.parse(JSON.stringify(payload)),
+              );
+            }
+            // .select(...) para poder distinguir un guardado real de un
             // UPDATE que no matcheó ninguna fila (id vencido/incorrecto) —
             // sin esto, ese caso no devuelve error y el toast de éxito
-            // aparece igual aunque nada se haya guardado de verdad.
+            // aparece igual aunque nada se haya guardado de verdad. También
+            // sirve de evidencia directa de lo que Supabase dice haber
+            // guardado, sin depender de un fetch posterior.
             const { data: updated, error } = await supabase
               .from("price_catalog")
               .update(payload)
               .eq("id", tempId)
-              .select("id");
+              .select("id,stock,stock_min,stock_critical");
+            if (debugOn) {
+              console.warn(
+                `[debug catalogo] respuesta del UPDATE @ ${new Date().toISOString()} — id=${tempId}`,
+                { data: updated, error },
+              );
+            }
             if (error) errors.push(error.message);
             else if (!updated || updated.length === 0) {
               errors.push(`No se encontró el ítem a actualizar (id ${tempId}).`);
@@ -2067,6 +2094,12 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   }
 
   function openEdit(row: PriceRow) {
+    if (new URLSearchParams(window.location.search).get("debug") === "1") {
+      console.warn(
+        `[debug catalogo] openEdit() @ ${new Date().toISOString()} — row cruda (de rows/state):`,
+        { id: row.id, name: row.name, stock: row.stock, stock_min: row.stock_min, stock_critical: row.stock_critical },
+      );
+    }
     setEditing(row);
     const cfg = bookingConfig[row.id];
     setForm({
@@ -2100,6 +2133,17 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       // que se hubieran tipeado — ver el fix en rowToForm más arriba.
       payload.stock_min = Number(form.warnStock) || 0;
       payload.stock_critical = Number(form.criticalStock) || 0;
+    }
+
+    if (new URLSearchParams(window.location.search).get("debug") === "1") {
+      console.warn(
+        `[debug catalogo] saveItem() @ ${new Date().toISOString()} — editing.id=${editing?.id} form.stock/warnStock/criticalStock=`,
+        form.stock,
+        form.warnStock,
+        form.criticalStock,
+        "payload construido:",
+        JSON.parse(JSON.stringify(payload)),
+      );
     }
 
     if (editing) {
