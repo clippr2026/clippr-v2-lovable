@@ -1435,7 +1435,7 @@ function PublicBookingPage() {
                       );
                     })}
                   </div>
-                  <Button onClick={nextFromServices} className="w-full rounded-2xl py-6 font-bold text-white hover:brightness-110" style={{ background: accent, color: accentButtonText }}>
+                  <Button onClick={nextFromServices} className="w-full rounded-2xl py-6 font-bold hover:brightness-110" style={{ background: accent, color: accentButtonText }}>
                     Continuar
                   </Button>
                 </div>
@@ -1545,7 +1545,7 @@ function PublicBookingPage() {
 
                   <Button
                     onClick={confirmPromoChoice}
-                    className="w-full rounded-2xl py-6 font-bold text-white hover:brightness-110"
+                    className="w-full rounded-2xl py-6 font-bold hover:brightness-110"
                     style={{ background: accent, color: accentButtonText }}
                   >
                     Continuar
@@ -1954,9 +1954,9 @@ function PublicBookingPage() {
                               onClick={() => toggleProduct(product.id)}
                               className={cn(
                                 "mt-2.5 w-full rounded-2xl py-2.5 text-sm font-bold transition hover:brightness-110",
-                                added ? "bg-emerald-500 text-white" : "text-white",
+                                added && "bg-emerald-500",
                               )}
-                              style={added ? undefined : { background: accent, color: accentButtonText }}
+                              style={added ? { color: "#ffffff" } : { background: accent, color: accentButtonText }}
                             >
                               {added ? "✓ Agregado" : "+ Agregar"}
                             </button>
@@ -1984,7 +1984,7 @@ function PublicBookingPage() {
                     </Button>
                     <Button
                       onClick={() => setStep("details")}
-                      className="flex-1 rounded-2xl py-4 font-bold text-white hover:brightness-110"
+                      className="flex-1 rounded-2xl py-4 font-bold hover:brightness-110"
                       style={{ background: accent, color: accentButtonText }}
                     >
                       Continuar
@@ -2014,7 +2014,7 @@ function PublicBookingPage() {
                       inputClassName="border-white/10 bg-white/[0.04] text-white"
                     />
                   ) : null}
-                  <Button disabled={submitting} onClick={submitBooking} className="w-full rounded-2xl py-6 font-bold text-white hover:brightness-110" style={{ background: accent, color: accentButtonText }}>
+                  <Button disabled={submitting} onClick={submitBooking} className="w-full rounded-2xl py-6 font-bold hover:brightness-110" style={{ background: accent, color: accentButtonText }}>
                     {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     Confirmar reserva
                   </Button>
