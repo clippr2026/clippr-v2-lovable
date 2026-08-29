@@ -409,8 +409,8 @@ function rowToForm(row: PriceRow, isService: boolean): PriceForm {
     description: "",
     reservable: true,
     stock: String(row.stock ?? 0),
-    warnStock: "0",
-    criticalStock: "0",
+    warnStock: String(row.stock_min ?? 0),
+    criticalStock: String(row.stock_critical ?? 0),
     bookingShow: false,
     bookingOffer: "none",
     miniDesc: "",
@@ -1298,7 +1298,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       const [catalogRes, settingsRes] = await Promise.all([
         supabase
           .from("price_catalog")
-          .select("id,name,price,duration_min,category,active,stock,cash_discount")
+          .select("id,name,price,duration_min,category,active,stock,stock_min,stock_critical,cash_discount")
           .eq("business_id", businessId)
           .is("deleted_at", null)
           .order("category")
@@ -1543,7 +1543,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     if (!businessId) return;
     const { data, error } = await supabase
       .from("price_catalog")
-      .select("id,name,price,duration_min,category,active,stock,cash_discount")
+      .select("id,name,price,duration_min,category,active,stock,stock_min,stock_critical,cash_discount")
       .eq("business_id", businessId)
       .is("deleted_at", null)
       .order("category")
@@ -1716,11 +1716,19 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
               }
             }
           } else {
-            const { error } = await supabase
+            // .select("id") para poder distinguir un guardado real de un
+            // UPDATE que no matcheó ninguna fila (id vencido/incorrecto) —
+            // sin esto, ese caso no devuelve error y el toast de éxito
+            // aparece igual aunque nada se haya guardado de verdad.
+            const { data: updated, error } = await supabase
               .from("price_catalog")
               .update(payload)
-              .eq("id", tempId);
+              .eq("id", tempId)
+              .select("id");
             if (error) errors.push(error.message);
+            else if (!updated || updated.length === 0) {
+              errors.push(`No se encontró el ítem a actualizar (id ${tempId}).`);
+            }
           }
         }
 
@@ -2085,7 +2093,14 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       active: form.status === "Activo",
       duration_min: isService ? Number(form.duration) || 30 : null,
     };
-    if (!isService) payload.stock = Number(form.stock) || 0;
+    if (!isService) {
+      payload.stock = Number(form.stock) || 0;
+      // Antes no se guardaban: rowToForm los leía hardcodeados en "0", así
+      // que Aviso/Crítico siempre volvían a 0 al reabrir el producto por más
+      // que se hubieran tipeado — ver el fix en rowToForm más arriba.
+      payload.stock_min = Number(form.warnStock) || 0;
+      payload.stock_critical = Number(form.criticalStock) || 0;
+    }
 
     if (editing) {
       if (isService)

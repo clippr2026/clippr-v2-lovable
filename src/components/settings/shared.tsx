@@ -10,6 +10,8 @@ export type PriceRow = {
   category: string | null;
   active: boolean | null;
   stock?: number | null;
+  stock_min?: number | null;
+  stock_critical?: number | null;
   cash_discount?: number | null;
 };
 
