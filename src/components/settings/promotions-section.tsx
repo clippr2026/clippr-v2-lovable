@@ -196,6 +196,7 @@ export function PromotionsSection() {
         .select("id,name,category")
         .eq("business_id", businessId)
         .not("duration_min", "is", null)
+        .is("deleted_at", null)
         .order("name"),
       supabase
         .from("employees")

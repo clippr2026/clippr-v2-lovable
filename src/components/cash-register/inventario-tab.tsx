@@ -75,6 +75,7 @@ export function InventarioTab({
         .from("price_catalog")
         .select("id,name,category,price,duration_min,stock,stock_min,stock_critical,active")
         .eq("business_id", businessId)
+        .is("deleted_at", null)
         .order("category")
         .order("name"),
       supabase

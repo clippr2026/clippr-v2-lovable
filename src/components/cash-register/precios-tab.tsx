@@ -49,6 +49,7 @@ export function PreciosTab({ businessId }: { businessId: string | null }) {
         .from("price_catalog")
         .select("id,name,price,cash_discount,duration_min,category,active,stock")
         .eq("business_id", businessId)
+        .is("deleted_at", null)
         .order("category")
         .order("name"),
       supabase

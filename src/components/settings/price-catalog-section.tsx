@@ -1300,6 +1300,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           .from("price_catalog")
           .select("id,name,price,duration_min,category,active,stock,cash_discount")
           .eq("business_id", businessId)
+          .is("deleted_at", null)
           .order("category")
           .order("name"),
         supabase
@@ -1544,6 +1545,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       .from("price_catalog")
       .select("id,name,price,duration_min,category,active,stock,cash_discount")
       .eq("business_id", businessId)
+      .is("deleted_at", null)
       .order("category")
       .order("name");
     if (error) return toast.error("Error: " + error.message);
@@ -1656,11 +1658,15 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         const nextImagePositionMap = { ...imagePositionMapRef.current };
         const tempIdToReal: Record<string, string> = {};
 
-        // Flush deletes
+        // Flush deletes — baja lógica (deleted_at), nunca DELETE físico: ver
+        // comentario en requestDeleteItem. active:false además hace que se
+        // excluya automáticamente de toda consulta que ya filtraba por
+        // "active" (Nueva venta, Dashboard, Advisor, Agenda, página pública),
+        // sin tener que tocar cada una.
         for (const id of deletes) {
           const { error } = await supabase
             .from("price_catalog")
-            .delete()
+            .update({ deleted_at: new Date().toISOString(), active: false })
             .eq("id", id);
           if (error) errors.push(error.message);
           if (isService) delete nextServiceReservableMap[id];
@@ -2197,48 +2203,21 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     }, 150);
   }
 
-  // Un servicio/ítem con historial (turno agendado, venta en Caja, etc.) nunca
-  // se borra físicamente para no romper esas referencias — solo se puede
-  // desactivar. Los ítems nuevos (sin guardar todavía, tempId "new_...")
-  // nunca tienen historial real.
-  async function hasHistoricalUsage(row: PriceRow): Promise<boolean> {
-    if (!businessId || row.id.startsWith("new_")) return false;
-    const idFilter = JSON.stringify([{ id: row.id }]);
-    const checks = [
-      supabase
-        .from("payments")
-        .select("id", { count: "exact", head: true })
-        .eq("business_id", businessId)
-        .filter("items", "cs", idFilter),
-    ];
-    if (isService) {
-      checks.push(
-        supabase
-          .from("appointments")
-          .select("id", { count: "exact", head: true })
-          .eq("business_id", businessId)
-          .eq("service_id", row.id),
-      );
-    }
-    const results = await Promise.all(checks);
-    return results.some((r) => (r.count ?? 0) > 0);
-  }
-
-  async function requestDeleteItem(row: PriceRow) {
-    const used = await hasHistoricalUsage(row);
-    if (used) {
-      toast.error(
-        isService
-          ? "Este servicio ya posee historial y no puede eliminarse. Podés desactivarlo."
-          : "Este producto ya posee historial y no puede eliminarse. Podés desactivarlo.",
-      );
-      return;
-    }
+  // Eliminar siempre hace baja lógica (price_catalog.deleted_at), nunca un
+  // DELETE físico — así se puede eliminar cualquier ítem, tenga o no
+  // historial (turnos, ventas, comisiones, liquidaciones), sin romper esas
+  // referencias: quedan con su nombre/precio/etc. congelados tal como
+  // estaban al momento de cada operación pasada (ver
+  // appointments.service_name/service_price, payments, commission_records),
+  // ninguna de las cuales vuelve a leer price_catalog para mostrarse. El
+  // ítem deja de aparecer acá y en cualquier lugar que ofrezca elegirlo para
+  // una operación nueva.
+  function requestDeleteItem(row: PriceRow) {
     setConfirmDelItem(row);
   }
 
-  async function remove(row: PriceRow) {
-    await requestDeleteItem(row);
+  function remove(row: PriceRow) {
+    requestDeleteItem(row);
   }
 
   async function doRemoveItem() {

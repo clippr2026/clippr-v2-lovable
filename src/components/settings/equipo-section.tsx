@@ -954,6 +954,7 @@ export function EquipoSection() {
           "id,name,price,duration_min,category,active,stock,cash_discount",
         )
         .eq("business_id", businessId)
+        .is("deleted_at", null)
         .order("category")
         .order("name"),
       supabase
