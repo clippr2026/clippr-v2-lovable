@@ -487,7 +487,14 @@ function PublicBookingPage() {
         employeeSchedules,
         businessSpecial,
         employeeSpecial,
-        reservationSettings.interval || 30,
+        // El espaciado entre horarios ofrecidos es la propia duración
+        // resuelta (personalizada del profesional para este servicio si
+        // existe, si no la estándar del servicio — mismo criterio que
+        // totalDuration/resolveServicePricing) y no un intervalo fijo de
+        // negocio: turnos de 60 min se ofrecen cada 60 min, de 40 cada 40,
+        // etc., en vez de superponer duraciones distintas con una grilla
+        // pareja.
+        totalDuration,
       ),
     [
       schedule,
@@ -499,7 +506,6 @@ function PublicBookingPage() {
       businessSpecial,
       employeeSpecial,
       reservationSettings.maxAdvance,
-      reservationSettings.interval,
     ],
   );
   const availableDays = React.useMemo(() => slots.filter((day) => day.slots.length > 0), [slots]);
