@@ -1887,90 +1887,121 @@ function PublicBookingPage() {
                     </span>
                   </div>
 
-                  {/* Tarjetas */}
-                  <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
-                    {recommendedProducts.map((product) => {
-                      const added = selectedProductIds.includes(product.id);
-                      const pct = offerPct(product.offer);
-                      const finalPrice = productFinalPrice(product);
-                      const description = product.description;
-                      return (
-                        <div
-                          key={product.id}
-                          className={cn(
-                            "relative flex flex-col rounded-3xl border p-2.5 transition",
-                            added ? "border-transparent bg-white/[0.06]" : "border-white/10 bg-white/[0.03]",
-                          )}
-                          style={added ? { boxShadow: `0 0 0 1.5px ${accent}` } : undefined}
-                        >
-                          {/* Badge circular */}
-                          <div className="absolute left-2.5 top-2.5 z-10">
-                            {pct > 0 ? (
-                              <span className="grid h-12 w-12 place-items-center rounded-full bg-red-500 !text-white shadow-lg shadow-red-500/30">
-                                <span
-                                  className="text-center text-[10px] font-black uppercase leading-none !text-white"
-                                  style={{ color: "#fff" }}
-                                >
-                                  {pct}%
-                                  <br />
-                                  OFF
-                                </span>
-                              </span>
-                            ) : (
-                              <span
-                                className="grid h-12 w-12 place-items-center rounded-full text-white shadow-lg"
-                                style={{ background: `linear-gradient(135deg, ${cPrimary}, ${cSecondary})` }}
-                              >
-                                <span className="flex flex-col items-center leading-none">
-                                  <Star className="h-4 w-4 fill-current" />
-                                  <span className="mt-0.5 text-[7px] font-bold tracking-wide">RECOMENDADO</span>
-                                </span>
-                              </span>
-                            )}
-                          </div>
-
-                          {/* Imagen grande — misma posición guardada en Configuración → Catálogo, sin recentrar */}
-                          <ServiceImage
-                            src={product.image}
-                            alt={product.name}
-                            position={product.image_position}
-                            className="aspect-[1/1] w-full rounded-xl bg-white/[0.04]"
-                            fallback={<ShoppingBag className="h-12 w-12 text-white/30" />}
-                          />
-
-                          {/* Cuerpo */}
-                          <div className="mt-2 flex flex-1 flex-col px-1">
-                            <p className="font-semibold leading-tight">{product.name}</p>
-                            {description ? (
-                              <p className="mt-1 line-clamp-2 text-xs leading-snug text-white/50">{description}</p>
-                            ) : null}
-                            <div className="mt-1.5 flex flex-1 items-end">
-                              <div className="flex items-baseline gap-2">
+                  {/* Tarjetas — nunca más de 3, la grilla se adapta según
+                      cuántas hay (protagonista si es 1 sola, en hilera
+                      completa si son 2 o 3), igual en mobile que en desktop
+                      para no depender de scroll horizontal. */}
+                  {(() => {
+                    const products = recommendedProducts.slice(0, 3);
+                    const count = products.length;
+                    const solo = count === 1;
+                    const compact = count === 3;
+                    return (
+                      <div
+                        className={cn(
+                          "mt-4 grid gap-2.5",
+                          solo && "grid-cols-1",
+                          count === 2 && "grid-cols-2",
+                          compact && "grid-cols-3",
+                        )}
+                      >
+                        {products.map((product) => {
+                          const added = selectedProductIds.includes(product.id);
+                          const pct = offerPct(product.offer);
+                          const finalPrice = productFinalPrice(product);
+                          const description = product.description;
+                          const badgeSize = solo ? "h-14 w-14" : compact ? "h-8 w-8" : "h-12 w-12";
+                          return (
+                            <div
+                              key={product.id}
+                              className={cn(
+                                "relative flex rounded-3xl border transition",
+                                solo ? "flex-row items-center gap-4 p-3" : "flex-col p-2",
+                                compact && "p-1.5",
+                                added ? "border-transparent bg-white/[0.06]" : "border-white/10 bg-white/[0.03]",
+                              )}
+                              style={added ? { boxShadow: `0 0 0 1.5px ${accent}` } : undefined}
+                            >
+                              {/* Badge circular */}
+                              <div className={cn("absolute z-10", solo ? "left-3 top-3" : "left-1.5 top-1.5")}>
                                 {pct > 0 ? (
-                                  <span className="text-sm text-white/40 line-through">{formatMoney(product.price)}</span>
+                                  <span className={cn("grid place-items-center rounded-full bg-red-500 !text-white shadow-lg shadow-red-500/30", badgeSize)}>
+                                    <span
+                                      className={cn("text-center font-black uppercase leading-none !text-white", compact ? "text-[6px]" : "text-[10px]")}
+                                      style={{ color: "#fff" }}
+                                    >
+                                      {pct}%
+                                      {!compact && <br />}
+                                      {!compact && "OFF"}
+                                    </span>
+                                  </span>
+                                ) : (
+                                  <span
+                                    className={cn("grid place-items-center rounded-full text-white shadow-lg", badgeSize)}
+                                    style={{ background: `linear-gradient(135deg, ${cPrimary}, ${cSecondary})` }}
+                                  >
+                                    <span className="flex flex-col items-center leading-none">
+                                      <Star className={compact ? "h-3 w-3 fill-current" : "h-4 w-4 fill-current"} />
+                                      {!compact && <span className="mt-0.5 text-[7px] font-bold tracking-wide">RECOMENDADO</span>}
+                                    </span>
+                                  </span>
+                                )}
+                              </div>
+
+                              {/* Imagen — misma posición guardada en Configuración → Catálogo, sin recentrar */}
+                              <ServiceImage
+                                src={product.image}
+                                alt={product.name}
+                                position={product.image_position}
+                                className={cn(
+                                  "shrink-0 rounded-xl bg-white/[0.04]",
+                                  solo ? "aspect-square w-28 sm:w-36" : "aspect-square w-full",
+                                )}
+                                fallback={<ShoppingBag className={cn("text-white/30", solo ? "h-10 w-10" : "h-8 w-8")} />}
+                              />
+
+                              {/* Cuerpo */}
+                              <div className={cn("flex flex-1 flex-col", solo ? "min-w-0 justify-center" : "mt-1.5 px-0.5")}>
+                                <p className={cn("break-words font-semibold leading-tight", solo ? "text-lg" : compact ? "text-[10px]" : "text-sm")}>
+                                  {product.name}
+                                </p>
+                                {description && !compact ? (
+                                  <p className={cn("line-clamp-2 leading-snug text-white/50", solo ? "mt-1 text-sm" : "mt-0.5 text-[10px]")}>
+                                    {description}
+                                  </p>
                                 ) : null}
-                                <span className={cn("text-lg font-bold", pct > 0 ? "text-red-400" : "text-white")}>
-                                  {formatMoney(finalPrice)}
-                                </span>
+                                <div className={cn("flex flex-1 items-end", solo ? "mt-2" : "mt-1")}>
+                                  <div className={cn("flex items-baseline gap-1.5", compact && "flex-col items-start gap-0")}>
+                                    {pct > 0 ? (
+                                      <span className={cn("text-white/40 line-through", solo ? "text-base" : "text-[10px]")}>
+                                        {formatMoney(product.price)}
+                                      </span>
+                                    ) : null}
+                                    <span className={cn("font-bold", pct > 0 ? "text-red-400" : "text-white", solo ? "text-2xl" : compact ? "text-xs" : "text-base")}>
+                                      {formatMoney(finalPrice)}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                <button
+                                  type="button"
+                                  onClick={() => toggleProduct(product.id)}
+                                  className={cn(
+                                    "w-full rounded-2xl font-bold transition hover:brightness-110",
+                                    solo ? "mt-3 py-3 text-base" : compact ? "mt-1.5 py-1.5 text-[10px]" : "mt-2 py-2 text-xs",
+                                    added && "bg-emerald-500",
+                                  )}
+                                  style={added ? { color: "#ffffff" } : { background: accent, color: accentButtonText }}
+                                >
+                                  {added ? "✓ Agregado" : "+ Agregar"}
+                                </button>
                               </div>
                             </div>
-
-                            <button
-                              type="button"
-                              onClick={() => toggleProduct(product.id)}
-                              className={cn(
-                                "mt-2.5 w-full rounded-2xl py-2.5 text-sm font-bold transition hover:brightness-110",
-                                added && "bg-emerald-500",
-                              )}
-                              style={added ? { color: "#ffffff" } : { background: accent, color: accentButtonText }}
-                            >
-                              {added ? "✓ Agregado" : "+ Agregar"}
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
 
                   {/* Mensaje opcional */}
                   <div className="mt-4 flex justify-center">
