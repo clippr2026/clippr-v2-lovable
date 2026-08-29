@@ -1621,8 +1621,8 @@ function PublicBookingPage() {
                     type="button"
                     onClick={() => { setSelectedEmployeeId("any"); setSelectedSlot(null); setStep("datetime"); }}
                     className={cn(
-                      "flex min-w-0 flex-col items-center justify-center gap-2 rounded-3xl border border-white/10 bg-white/[0.03] text-center transition hover:border-white/30 hover:bg-white/[0.055]",
-                      professionalOptionCount >= 7 ? "min-h-[116px] p-3" : "min-h-[128px] p-4",
+                      "flex min-w-0 flex-col items-center justify-center gap-2 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] text-center transition hover:border-white/30 hover:bg-white/[0.055]",
+                      professionalOptionCount >= 7 ? "min-h-[116px] p-2" : "min-h-[128px] p-3",
                     )}
                   >
                     <span
@@ -1634,9 +1634,9 @@ function PublicBookingPage() {
                     >
                       <UsersRound className={cn(professionalOptionCount >= 7 ? "h-5 w-5" : "h-6 w-6")} />
                     </span>
-                    <span className="w-full min-w-0 px-1">
-                      <span className="block break-words text-xs font-semibold leading-tight">Sin preferencia</span>
-                      <span className="block break-words text-[10px] leading-tight text-white/55">Disponible</span>
+                    <span className="w-full min-w-0">
+                      <span className="block overflow-visible whitespace-nowrap text-[11px] font-semibold leading-tight tracking-tight">Sin preferencia</span>
+                      <span className="block overflow-visible whitespace-nowrap text-[10px] leading-tight text-white/55">Disponible</span>
                     </span>
                   </button>
 
@@ -1698,8 +1698,8 @@ function PublicBookingPage() {
                           type="button"
                           onClick={() => { setSelectedEmployeeId(employee.id); setSelectedSlot(null); setStep("datetime"); }}
                           className={cn(
-                            "flex min-w-0 flex-col items-center justify-center gap-1.5 rounded-3xl border border-white/10 bg-white/[0.03] text-center transition hover:border-white/30 hover:bg-white/[0.055]",
-                            professionalOptionCount >= 7 ? "min-h-[116px] p-3" : "min-h-[128px] p-4",
+                            "flex min-w-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] text-center transition hover:border-white/30 hover:bg-white/[0.055]",
+                            professionalOptionCount >= 7 ? "min-h-[116px] p-2" : "min-h-[128px] p-3",
                           )}
                         >
                           <span
@@ -1714,19 +1714,19 @@ function PublicBookingPage() {
                               <UserRound className={cn(professionalOptionCount >= 7 ? "h-5 w-5" : "h-6 w-6")} />
                             )}
                           </span>
-                          <span className="w-full min-w-0 px-1 leading-tight">
+                          <span className="w-full min-w-0 leading-tight">
                             <span className="block break-words text-xs font-semibold leading-tight">{employee.full_name}</span>
                             {selectedServices.length > 0 && (
                               <>
-                                <span className="block break-words text-[9px] leading-tight text-white/70">
+                                <span className="block overflow-visible whitespace-nowrap text-[10px] leading-tight tracking-tight text-white/70">
                                   Lista {formatMoney(totals.listPrice)}
                                 </span>
                                 {hasEffectivePrice && (
-                                  <span className="block break-words text-[9px] font-semibold leading-tight" style={{ color: accent }}>
+                                  <span className="block overflow-visible whitespace-nowrap text-[10px] font-semibold leading-tight tracking-tight" style={{ color: accent }}>
                                     Efectivo {formatMoney(totals.effectivePrice)}
                                   </span>
                                 )}
-                                <span className="block break-words text-[9px] leading-tight text-white/70">
+                                <span className="block overflow-visible whitespace-nowrap text-[10px] leading-tight tracking-tight text-white/70">
                                   {totals.duration} min
                                 </span>
                               </>
