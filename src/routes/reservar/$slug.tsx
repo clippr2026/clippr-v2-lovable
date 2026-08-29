@@ -1626,7 +1626,7 @@ function PublicBookingPage() {
                     >
                       <UsersRound className={cn(professionalOptionCount >= 7 ? "h-5 w-5" : "h-6 w-6")} />
                     </span>
-                    <span className="min-w-0">
+                    <span className="w-full min-w-0 px-1">
                       <span className="block truncate font-semibold">Sin preferencia</span>
                       <span className="block truncate text-xs text-white/55">Disponible</span>
                     </span>
@@ -1706,13 +1706,10 @@ function PublicBookingPage() {
                               <UserRound className={cn(professionalOptionCount >= 7 ? "h-5 w-5" : "h-6 w-6")} />
                             )}
                           </span>
-                          <span className="min-w-0 leading-tight">
+                          <span className="w-full min-w-0 px-1 leading-tight">
                             <span className="block truncate text-xs font-semibold leading-tight">{employee.full_name}</span>
                             {selectedServices.length > 0 && (
                               <>
-                                <span className="block truncate text-[10px] leading-tight text-white/70">
-                                  {totals.duration} min
-                                </span>
                                 <span className="block truncate text-[10px] leading-tight text-white/70">
                                   Lista {formatMoney(totals.listPrice)}
                                 </span>
@@ -1721,6 +1718,9 @@ function PublicBookingPage() {
                                     Efectivo {formatMoney(totals.effectivePrice)}
                                   </span>
                                 )}
+                                <span className="block truncate text-[10px] leading-tight text-white/70">
+                                  {totals.duration} min
+                                </span>
                               </>
                             )}
                           </span>
