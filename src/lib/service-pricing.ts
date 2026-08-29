@@ -100,11 +100,21 @@ export function resolveServicePricing(
     !!cfg &&
     cfg.useStandardDuration === false &&
     cfg.duration_min.trim() !== "";
+
+  // "Usar precio efectivo estándar" desactivado + valor propio > 0 → ese
+  // valor. Desactivado sin valor propio (vacío, 0 o no numérico) → sin
+  // precio efectivo para este profesional, NUNCA hereda el estándar del
+  // servicio — a diferencia de precio/duración, acá 0 significa "no tiene",
+  // no "usar el estándar" (por eso no se puede usar
+  // `Number(cfg.effectivePrice) || standardEffectivePrice`: 0 es falsy y
+  // haría fallback al estándar por error — este era el bug de Alan).
+  const customEffectivePrice =
+    !!cfg && cfg.useStandardEffectivePrice === false
+      ? Number(cfg.effectivePrice ?? "0") || 0
+      : null;
   const effectivePriceOverridden =
-    !!cfg &&
-    cfg.useStandardEffectivePrice === false &&
-    !!cfg.effectivePrice &&
-    cfg.effectivePrice.trim() !== "";
+    customEffectivePrice != null && customEffectivePrice > 0;
+  const usesStandardEffectivePrice = !cfg || cfg.useStandardEffectivePrice !== false;
 
   return {
     price: priceOverridden ? Number(cfg!.price) || standardPrice : standardPrice,
@@ -113,9 +123,11 @@ export function resolveServicePricing(
       : standardDuration,
     priceOverridden,
     durationOverridden,
-    effectivePrice: effectivePriceOverridden
-      ? Number(cfg!.effectivePrice) || standardEffectivePrice
-      : standardEffectivePrice,
+    effectivePrice: usesStandardEffectivePrice
+      ? standardEffectivePrice
+      : effectivePriceOverridden
+        ? customEffectivePrice
+        : null,
     effectivePriceOverridden,
   };
 }
