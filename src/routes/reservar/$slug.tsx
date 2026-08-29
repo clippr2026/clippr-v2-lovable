@@ -310,7 +310,11 @@ function PublicBookingPage() {
   const [promoCodeError, setPromoCodeError] = React.useState("");
   const [appliedPromotion, setAppliedPromotion] = React.useState<Promotion | null>(null);
   const [infoModalPromo, setInfoModalPromo] = React.useState<Promotion | null>(null);
-  const [selectedEmployeeId, setSelectedEmployeeId] = React.useState<string | "any">("any");
+  // "" = todavía no eligió nada en el paso "Elegí profesional" (distinto de
+  // "any", que es la elección explícita de "Sin preferencia") — así el
+  // resumen "Tu reserva" no asume un profesional (ni sus valores
+  // personalizados) antes de que el cliente elija de verdad.
+  const [selectedEmployeeId, setSelectedEmployeeId] = React.useState<string | "any">("");
   const [professionalLocked, setProfessionalLocked] = React.useState(false);
   const [selectedSlot, setSelectedSlot] = React.useState<{ time: Date; employeeId: string } | null>(null);
   const [clientFirstName, setClientFirstName] = React.useState("");
@@ -416,6 +420,10 @@ function PublicBookingPage() {
   // ya que todavía no se sabe qué profesional va a tomar el turno).
   const pricingEmployeeId =
     selectedSlot?.employeeId ?? (selectedEmployeeId !== "any" ? selectedEmployeeId : null);
+  // Todavía no eligió ni un profesional puntual ni "Sin preferencia" — el
+  // resumen "Tu reserva" no debe mostrar precio/duración (ni asumir el
+  // estándar) hasta que elija de verdad en el paso "Elegí profesional".
+  const professionalChosen = selectedEmployeeId !== "";
   // Promociones vigentes ahora mismo (activa, dentro de vigencia, día/hora
   // habilitado, cupo total no agotado) — se recalcula en cada render, es
   // barato y evita depender de un reloj propio.
@@ -1627,8 +1635,8 @@ function PublicBookingPage() {
                       <UsersRound className={cn(professionalOptionCount >= 7 ? "h-5 w-5" : "h-6 w-6")} />
                     </span>
                     <span className="w-full min-w-0 px-1">
-                      <span className="block truncate font-semibold">Sin preferencia</span>
-                      <span className="block truncate text-xs text-white/55">Disponible</span>
+                      <span className="block break-words text-xs font-semibold leading-tight">Sin preferencia</span>
+                      <span className="block break-words text-[10px] leading-tight text-white/55">Disponible</span>
                     </span>
                   </button>
 
@@ -1707,18 +1715,18 @@ function PublicBookingPage() {
                             )}
                           </span>
                           <span className="w-full min-w-0 px-1 leading-tight">
-                            <span className="block truncate text-xs font-semibold leading-tight">{employee.full_name}</span>
+                            <span className="block break-words text-xs font-semibold leading-tight">{employee.full_name}</span>
                             {selectedServices.length > 0 && (
                               <>
-                                <span className="block truncate text-[10px] leading-tight text-white/70">
+                                <span className="block break-words text-[9px] leading-tight text-white/70">
                                   Lista {formatMoney(totals.listPrice)}
                                 </span>
                                 {hasEffectivePrice && (
-                                  <span className="block truncate text-[10px] font-semibold leading-tight" style={{ color: accent }}>
+                                  <span className="block break-words text-[9px] font-semibold leading-tight" style={{ color: accent }}>
                                     Efectivo {formatMoney(totals.effectivePrice)}
                                   </span>
                                 )}
-                                <span className="block truncate text-[10px] leading-tight text-white/70">
+                                <span className="block break-words text-[9px] leading-tight text-white/70">
                                   {totals.duration} min
                                 </span>
                               </>
@@ -2220,7 +2228,9 @@ function PublicBookingPage() {
                 ) : null}
                 <div className="flex items-center justify-between border-t border-white/10 pt-4">
                   <span>Total</span>
-                  {promoSavings > 0 ? (
+                  {!professionalChosen ? (
+                    <span className="text-white/40">Sin seleccionar</span>
+                  ) : promoSavings > 0 ? (
                     <span className="text-right">
                       <span className="mr-2 text-sm text-white/40 line-through">{formatMoney(originalGrandTotal)}</span>
                       <span className="text-lg font-semibold text-white">{formatMoney(grandTotal)}</span>
@@ -2230,7 +2240,12 @@ function PublicBookingPage() {
                     <span className="text-lg font-semibold text-white">{formatMoney(grandTotal)}</span>
                   )}
                 </div>
-                <div className="flex items-center justify-between"><span>Duración</span><span className="font-semibold text-white">{totalDuration} min</span></div>
+                <div className="flex items-center justify-between">
+                  <span>Duración</span>
+                  <span className="font-semibold text-white">
+                    {professionalChosen ? `${totalDuration} min` : <span className="font-normal text-white/40">Sin seleccionar</span>}
+                  </span>
+                </div>
               </div>
             </CardContent>
           </Card>
