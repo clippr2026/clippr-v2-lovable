@@ -1423,7 +1423,7 @@ function PublicBookingPage() {
                               className="h-20 w-20 rounded-xl bg-white/[0.06] ring-1 ring-white/10"
                               fallback={<Scissors className="h-4 w-4 text-white/30" />}
                             />
-                            <span className={cn("grid h-6 w-6 shrink-0 place-items-center rounded-full border", checked ? "border-transparent text-white" : "border-white/20")} style={checked ? { background: accent } : undefined}>
+                            <span className={cn("grid h-6 w-6 shrink-0 place-items-center rounded-full border", checked ? "border-transparent" : "border-white/20")} style={checked ? { background: accent, color: accentButtonText } : undefined}>
                               {checked ? <CheckCircle2 className="h-4 w-4" /> : null}
                             </span>
                             <span>
@@ -1453,9 +1453,9 @@ function PublicBookingPage() {
                         "grid h-5 w-5 shrink-0 place-items-center rounded-full border",
                         promoChoice === "none" ? "border-transparent" : "border-white/25",
                       )}
-                      style={promoChoice === "none" ? { background: accent } : undefined}
+                      style={promoChoice === "none" ? { background: accent, color: accentButtonText } : undefined}
                     >
-                      {promoChoice === "none" && <CheckCircle2 className="h-3.5 w-3.5 text-white" />}
+                      {promoChoice === "none" && <CheckCircle2 className="h-3.5 w-3.5" />}
                     </span>
                     <span className="font-medium">Sin beneficio</span>
                   </button>
@@ -1477,10 +1477,10 @@ function PublicBookingPage() {
                               "grid h-5 w-5 shrink-0 place-items-center rounded-full border",
                               promoChoice === promo.id ? "border-transparent" : "border-white/25",
                             )}
-                            style={promoChoice === promo.id ? { background: accent } : undefined}
+                            style={promoChoice === promo.id ? { background: accent, color: accentButtonText } : undefined}
                           >
                             {promoChoice === promo.id && (
-                              <CheckCircle2 className="h-3.5 w-3.5 text-white" />
+                              <CheckCircle2 className="h-3.5 w-3.5" />
                             )}
                           </span>
                           <span className="min-w-0">
@@ -1515,10 +1515,10 @@ function PublicBookingPage() {
                             "grid h-5 w-5 shrink-0 place-items-center rounded-full border",
                             promoChoice === "code" ? "border-transparent" : "border-white/25",
                           )}
-                          style={promoChoice === "code" ? { background: accent } : undefined}
+                          style={promoChoice === "code" ? { background: accent, color: accentButtonText } : undefined}
                         >
                           {promoChoice === "code" && (
-                            <CheckCircle2 className="h-3.5 w-3.5 text-white" />
+                            <CheckCircle2 className="h-3.5 w-3.5" />
                           )}
                         </span>
                         <span className="font-medium">Tengo un código de descuento</span>
@@ -1823,9 +1823,9 @@ function PublicBookingPage() {
                               onClick={() => setSelectedDayIndex(index)}
                               className={cn(
                                 "flex min-w-[72px] flex-col items-center rounded-2xl border px-4 py-3 text-center transition",
-                                active ? "border-transparent text-white shadow-lg" : "border-white/10 bg-white/[0.04] text-white/60 hover:bg-white/[0.08]",
+                                active ? "border-transparent shadow-lg" : "border-white/10 bg-white/[0.04] text-white/60 hover:bg-white/[0.08]",
                               )}
-                              style={active ? { background: accent } : undefined}
+                              style={active ? { background: accent, color: accentButtonText } : undefined}
                             >
                               <span className="text-sm capitalize leading-none">{weekday}</span>
                               <span className="mt-1.5 text-2xl font-bold leading-none">{day.date.getDate()}</span>
