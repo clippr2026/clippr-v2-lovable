@@ -1693,8 +1693,8 @@ function PublicBookingPage() {
                         type="button"
                         onClick={() => { setSelectedEmployeeId(employee.id); setSelectedSlot(null); setStep("datetime"); }}
                         className={cn(
-                          "flex min-w-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] text-center transition hover:border-white/30 hover:bg-white/[0.055]",
-                          professionalOptionCount >= 7 ? "min-h-[116px] p-2" : "min-h-[128px] p-3",
+                          "flex min-w-0 flex-col items-center justify-center gap-0.5 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] text-center transition hover:border-white/30 hover:bg-white/[0.055]",
+                          professionalOptionCount >= 7 ? "min-h-[104px] p-2" : "min-h-[114px] p-2.5",
                         )}
                       >
                         <span
@@ -1716,9 +1716,13 @@ function PublicBookingPage() {
                               del servicio (etiqueta si difiere del estándar,
                               precio y duración) — dos bloques bien
                               diferenciados sin agregar fondo ni agrandar la
-                              tarjeta. */}
+                              tarjeta. border-t (no bg-white/*) porque el
+                              override de tema claro convierte cualquier
+                              bg-white/NN en un blanco casi opaco, invisible
+                              sobre la tarjeta blanca; border-white/10 sí
+                              mapea a un gris sutil en los dos temas. */}
                           {(badge || selectedServices.length > 0) && (
-                            <span className="my-1.5 block h-px w-full bg-white/10" aria-hidden="true" />
+                            <span className="mb-1 mt-1 block border-t border-white/10" aria-hidden="true" />
                           )}
                           {badge && (
                             <span
@@ -1734,7 +1738,7 @@ function PublicBookingPage() {
                                 Lista {formatMoney(totals.listPrice)}
                               </span>
                               {hasEffectivePrice && (
-                                <span className="block overflow-visible whitespace-nowrap text-[10px] font-semibold leading-tight tracking-tight" style={{ color: accent }}>
+                                <span className="block overflow-visible whitespace-nowrap text-[10px] font-bold leading-tight tracking-tight">
                                   Efectivo {formatMoney(totals.effectivePrice)}
                                 </span>
                               )}
