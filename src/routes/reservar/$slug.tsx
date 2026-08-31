@@ -475,12 +475,56 @@ function PublicBookingPage() {
   const productsTotal = selectedProducts.reduce((sum, p) => sum + productFinalPrice(p), 0);
   const grandTotal = totalPrice + productsTotal;
   const originalGrandTotal = originalTotalPrice + productsTotal;
+  // Etiqueta ("Precio diferente" / "Duración diferente" / "Precio y
+  // duración diferentes" / null = estándar) por profesional respecto del
+  // precio y duración estándar del servicio — única fuente de verdad,
+  // usada tanto para agrupar las tarjetas del paso "Elegí profesional"
+  // como para restringir el pool de "Sin preferencia" a solo estándar.
+  const employeeBadges = React.useMemo(() => {
+    const map = new Map<string, string | null>();
+    for (const employee of employeesForSelectedServices) {
+      let priceChanged = false;
+      let durationChanged = false;
+      for (const service of selectedServices) {
+        const resolved = resolveServicePricing(
+          {
+            id: service.id,
+            price: service.price,
+            duration_min: service.duration_min ?? service.duration,
+            cash_discount: service.cash_discount,
+          },
+          employee.id,
+          employeeServiceOverrides,
+        );
+        if (resolved.priceOverridden || resolved.effectivePriceOverridden) priceChanged = true;
+        if (resolved.durationOverridden) durationChanged = true;
+      }
+      map.set(
+        employee.id,
+        priceChanged && durationChanged
+          ? "Precio y duración diferentes"
+          : priceChanged
+            ? "Precio diferente"
+            : durationChanged
+              ? "Duración diferente"
+              : null,
+      );
+    }
+    return map;
+  }, [employeesForSelectedServices, selectedServices, employeeServiceOverrides]);
+  // Pool elegible para "Sin preferencia": solo profesionales que mantienen
+  // precio y duración estándar — los de "Opciones diferentes" no deben
+  // poder tocarle en suerte a quien elige "Sin preferencia".
+  const standardEmployeesForSelectedServices = React.useMemo(
+    () => employeesForSelectedServices.filter((employee) => !employeeBadges.get(employee.id)),
+    [employeesForSelectedServices, employeeBadges],
+  );
   const slots = React.useMemo(
     () =>
       buildSlots(
         schedule,
         appointments,
-        employeesForSelectedServices,
+        selectedEmployeeId === "any" ? standardEmployeesForSelectedServices : employeesForSelectedServices,
         selectedEmployeeId,
         totalDuration,
         Math.max(1, reservationSettings.maxAdvance || 10),
@@ -500,6 +544,7 @@ function PublicBookingPage() {
       schedule,
       appointments,
       employeesForSelectedServices,
+      standardEmployeesForSelectedServices,
       selectedEmployeeId,
       totalDuration,
       employeeSchedules,
@@ -1622,12 +1667,11 @@ function PublicBookingPage() {
                     professionalOptionCount >= 13 && "grid-cols-3 sm:grid-cols-6",
                   );
                   // Precio y duración reales para CADA profesional (mismo
-                  // resolver que el resto de la app), más específicamente
-                  // QUÉ cambió (precio, duración, o ambos) respecto del
-                  // estándar del servicio para ese profesional en particular.
+                  // resolver que el resto de la app) — la etiqueta ("qué
+                  // cambió" respecto del estándar) sale de employeeBadges,
+                  // la misma fuente que restringe el pool de "Sin
+                  // preferencia", para que ambos coincidan siempre.
                   const cards = employeesForSelectedServices.map((employee) => {
-                    let priceChanged = false;
-                    let durationChanged = false;
                     const totals = selectedServices.reduce(
                       (acc, service) => {
                         const resolved = resolveServicePricing(
@@ -1640,8 +1684,6 @@ function PublicBookingPage() {
                           employee.id,
                           employeeServiceOverrides,
                         );
-                        if (resolved.priceOverridden || resolved.effectivePriceOverridden) priceChanged = true;
-                        if (resolved.durationOverridden) durationChanged = true;
                         return {
                           // "Precio efectivo" (Comisiones → Servicios /
                           // override por profesional) — ya no se calcula a
@@ -1656,15 +1698,7 @@ function PublicBookingPage() {
                       },
                       { effectivePrice: null as number | null, listPrice: 0, duration: 0 },
                     );
-                    const badge =
-                      priceChanged && durationChanged
-                        ? "Precio y duración diferentes"
-                        : priceChanged
-                          ? "Precio diferente"
-                          : durationChanged
-                            ? "Duración diferente"
-                            : null;
-                    return { employee, totals, badge };
+                    return { employee, totals, badge: employeeBadges.get(employee.id) ?? null };
                   });
                   // Orden estable (no por precio): dentro de cada grupo se
                   // mantiene el orden original (alfabético).
@@ -1699,7 +1733,7 @@ function PublicBookingPage() {
                           <span className="block break-words text-xs font-semibold leading-tight">{employee.full_name}</span>
                           {badge && (
                             <span
-                              className="mt-1 inline-block break-words rounded-full bg-violet-800 px-2 py-1 text-[9px] font-semibold leading-tight"
+                              className="mb-1.5 mt-1 inline-block break-words rounded-full bg-violet-800 px-2 py-1 text-[9px] font-semibold leading-tight"
                               style={{ color: "#ffffff" }}
                             >
                               {badge}
