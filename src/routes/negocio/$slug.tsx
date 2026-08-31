@@ -1058,10 +1058,14 @@ function PublicProfilePage() {
                 <p className="mt-4 text-sm text-white/55">Todavía no hay servicios habilitados para reserva online.</p>
               ) : (
                 // Cada servicio es su propia tarjeta (borde + fondo propio)
-                // pero simplificada a lo esencial: imagen + nombre + botón
-                // "Reservar" en una sola fila — sin precio ni duración (esos
-                // datos siguen intactos en el sistema, se resuelven recién
-                // al elegir profesional en el flujo de reserva).
+                // simplificada a lo esencial: imagen a la izquierda y, a la
+                // derecha, nombre arriba + botón "Reservar" abajo (en vez de
+                // los tres en una sola fila) — así el botón no le compite
+                // ancho al nombre y textos largos ("Corte en cabello
+                // corto/largo") entran en hasta 2 líneas sin cortarse. Sin
+                // precio ni duración (esos datos siguen intactos en el
+                // sistema, se resuelven recién al elegir profesional en el
+                // flujo de reserva).
                 <div className="mt-5 grid gap-3 sm:gap-4">
                   {services.map((service: Service) => (
                     <div
@@ -1071,8 +1075,8 @@ function PublicProfilePage() {
                           ? "border-zinc-200/80 bg-zinc-50/60 shadow-[0_16px_40px_-24px_rgba(24,24,27,0.35)] hover:bg-zinc-50"
                           : "border-white/[0.08] bg-white/[0.03] shadow-[0_16px_40px_-20px_rgba(0,0,0,0.6)] hover:bg-white/[0.05]") +
                         // min-w-0: es un ítem de un grid — sin esto, el
-                        // truncate del nombre reporta su ancho sin truncar
-                        // como mínimo y desborda la página.
+                        // line-clamp del nombre reporta su ancho sin
+                        // envolver como mínimo y desborda la página.
                         " flex min-w-0 items-center gap-4 rounded-2xl border p-3 transition sm:p-4"
                       }
                     >
@@ -1096,14 +1100,16 @@ function PublicProfilePage() {
                           </div>
                         }
                       />
-                      <p className="min-w-0 flex-1 truncate text-base font-semibold sm:text-lg">{service.name}</p>
-                      <a
-                        href={bookingHref({ service: service.id })}
-                        className="shrink-0 rounded-full px-5 py-2.5 text-sm font-bold transition hover:-translate-y-0.5 hover:brightness-110"
-                        style={{ background: cAccent, color: accentButtonText, WebkitTextFillColor: accentButtonText, boxShadow: "0 14px 30px -12px color-mix(in oklch, var(--c-accent) 75%, transparent)" }}
-                      >
-                        Reservar
-                      </a>
+                      <div className="min-w-0 flex-1">
+                        <p className="line-clamp-2 text-base font-semibold leading-snug sm:text-lg">{service.name}</p>
+                        <a
+                          href={bookingHref({ service: service.id })}
+                          className="mt-2 block w-full rounded-full py-2.5 text-center text-sm font-bold transition hover:-translate-y-0.5 hover:brightness-110"
+                          style={{ background: cAccent, color: accentButtonText, WebkitTextFillColor: accentButtonText, boxShadow: "0 14px 30px -12px color-mix(in oklch, var(--c-accent) 75%, transparent)" }}
+                        >
+                          Reservar
+                        </a>
+                      </div>
                     </div>
                   ))}
                 </div>
