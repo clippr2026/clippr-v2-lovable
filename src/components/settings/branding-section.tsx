@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { usePointerReorder } from "@/hooks/use-pointer-reorder";
 import {
   MapPin,
   Phone,
@@ -377,8 +378,19 @@ export function BrandingSection() {
   );
   const [uploadingFeaturedClubLogoId, setUploadingFeaturedClubLogoId] =
     useState<string | null>(null);
-  const [draggedFeaturedId, setDraggedFeaturedId] = useState<string | null>(
-    null,
+  // Reordenar "Confían en nosotros" con Pointer Events (touch-friendly, ver
+  // usePointerReorder) en vez del drag&drop nativo HTML5 anterior, que no
+  // disparaba en navegadores mobile.
+  const featuredReorder = usePointerReorder<FeaturedClient>(
+    data.featured_clients,
+    (item) => item.id,
+    (next) => setData((d) => ({ ...d, featured_clients: next })),
+    (finalItems) =>
+      setData((d) => ({
+        ...d,
+        featured_clients: finalItems.map((item, order) => ({ ...item, order })),
+      })),
+    "y",
   );
   const [activeTab, setActiveTab] = useState<"info" | "imagenes" | "colores">(
     "info",
@@ -782,37 +794,6 @@ export function BrandingSection() {
     });
   }
 
-  function moveFeaturedClient(id: string, direction: -1 | 1) {
-    setData((d) => {
-      const list = [...d.featured_clients];
-      const index = list.findIndex((item) => item.id === id);
-      const nextIndex = index + direction;
-      if (index < 0 || nextIndex < 0 || nextIndex >= list.length) return d;
-      [list[index], list[nextIndex]] = [list[nextIndex], list[index]];
-      return {
-        ...d,
-        featured_clients: list.map((item, order) => ({ ...item, order })),
-      };
-    });
-  }
-
-  function reorderFeaturedClient(dragId: string | null, targetId: string) {
-    if (!dragId || dragId === targetId) return;
-    setData((d) => {
-      const list = [...d.featured_clients];
-      const from = list.findIndex((item) => item.id === dragId);
-      const to = list.findIndex((item) => item.id === targetId);
-      if (from < 0 || to < 0) return d;
-
-      const [moved] = list.splice(from, 1);
-      list.splice(to, 0, moved);
-
-      return {
-        ...d,
-        featured_clients: list.map((item, order) => ({ ...item, order })),
-      };
-    });
-  }
 
   function nudgePosition(
     value: string | undefined,
@@ -1739,27 +1720,16 @@ export function BrandingSection() {
                 </button>
               </div>
 
-              <div className="space-y-2">
-                {data.featured_clients.map((item, index) => {
+              <div className="space-y-1.5">
+                {data.featured_clients.map((item) => {
                   const uploading = uploadingFeaturedId === item.id;
                   return (
                     <div
                       key={item.id}
-                      draggable
-                      onDragStart={(event) => {
-                        setDraggedFeaturedId(item.id);
-                        event.dataTransfer.effectAllowed = "move";
-                      }}
-                      onDragOver={(event) => event.preventDefault()}
-                      onDrop={(event) => {
-                        event.preventDefault();
-                        reorderFeaturedClient(draggedFeaturedId, item.id);
-                        setDraggedFeaturedId(null);
-                      }}
-                      onDragEnd={() => setDraggedFeaturedId(null)}
+                      ref={featuredReorder.setNodeRef(item.id)}
                       className={cn(
-                        "grid cursor-grab gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3 transition active:cursor-grabbing",
-                        draggedFeaturedId === item.id && "opacity-50",
+                        "grid gap-2.5 rounded-2xl border border-white/10 bg-white/[0.03] p-2.5 transition",
+                        featuredReorder.draggingId === item.id && "z-10 shadow-2xl shadow-black/40",
                       )}
                     >
                       {/* Imagen a la izquierda; nombre y tipo (Futbolista,
@@ -1767,10 +1737,18 @@ export function BrandingSection() {
                           no lado a lado. Activo/Inactivo y Eliminar quedan a
                           la derecha del todo. */}
                       <div className="flex items-start gap-3">
-                        <GripVertical className="mt-5 hidden h-4 w-4 shrink-0 text-white/35 lg:block" />
+                        <button
+                          type="button"
+                          onPointerDown={(event) => featuredReorder.startPress(item.id, event)}
+                          className="mt-4 shrink-0 cursor-grab touch-none rounded-lg p-1 text-white/35 transition hover:bg-white/5 hover:text-white/60 active:cursor-grabbing"
+                          aria-label="Arrastrar para reordenar"
+                          title="Mantené presionado y arrastrá para reordenar"
+                        >
+                          <GripVertical className="h-4 w-4" />
+                        </button>
                         <label
                           className={cn(
-                            "group relative grid h-16 w-16 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07]",
+                            "group relative grid h-14 w-14 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07]",
                             uploading && "cursor-not-allowed opacity-50",
                           )}
                         >
@@ -1816,7 +1794,7 @@ export function BrandingSection() {
                             }
                             placeholder="Nombre: Nike, Duki, Boca Juniors..."
                             maxLength={MAX_FEATURED_CLIENT_NAME_LENGTH}
-                            className="w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+                            className="w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-1.5 text-sm focus:outline-none focus:ring-primary/40"
                           />
 
                           <select
@@ -1826,7 +1804,7 @@ export function BrandingSection() {
                                 category: e.target.value as FeaturedClientCategory,
                               })
                             }
-                            className="w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+                            className="w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-1.5 text-sm focus:outline-none focus:ring-primary/40"
                           >
                             {FEATURED_CLIENT_CATEGORIES.map((cat) => (
                               <option key={cat} value={cat}>
