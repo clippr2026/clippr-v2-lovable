@@ -1379,9 +1379,17 @@ function PublicBookingPage() {
                 {selectedServices.length ? selectedServices.map((s) => s.name).join(" + ") : "Sin servicio"}
                 <span className="text-white/40">
                   {" "}
-                  · {selectedEmployee?.full_name || (selectedEmployeeId === "any" ? "Sin preferencia" : "Sin profesional")} ·{" "}
-                  {selectedSlot ? `${formatShortDay(selectedSlot.time)} ${formatTime(selectedSlot.time)}` : "Sin horario"}
+                  · {selectedEmployee?.full_name || (selectedEmployeeId === "any" ? "Sin preferencia" : "Sin profesional")}
                 </span>
+              </p>
+              {/* Fecha/horario en su propia línea, sin truncate: a
+                  diferencia de servicio/profesional (que sí puede recortarse
+                  con "…" si el nombre es larguísimo), esta info no debe
+                  ocultarse nunca — por eso se separa en vez de compartir la
+                  primera línea, que en pantallas chicas no siempre alcanza
+                  para las tres cosas juntas. */}
+              <p className="mt-0.5 text-xs text-white/40">
+                {selectedSlot ? `${formatShortDay(selectedSlot.time)} · ${formatTime(selectedSlot.time)}` : "Sin horario"}
               </p>
               <p className="mt-0.5 truncate text-xs text-white/40">
                 <span className="font-semibold text-white">Total: {professionalChosen ? formatMoney(grandTotal) : "$—"}</span>
@@ -1744,7 +1752,7 @@ function PublicBookingPage() {
                               sobre la tarjeta blanca; border-white/10 sí
                               mapea a un gris sutil en los dos temas. */}
                           {(badge || selectedServices.length > 0) && (
-                            <span className="mb-1 mt-1 block border-t border-white/10" aria-hidden="true" />
+                            <span className="mb-0.5 mt-0.5 block border-t border-white/10" aria-hidden="true" />
                           )}
                           {badge && (
                             <span
@@ -1760,11 +1768,11 @@ function PublicBookingPage() {
                                 Lista {formatMoney(totals.listPrice)}
                               </span>
                               {hasEffectivePrice && (
-                                <span className="block overflow-visible whitespace-nowrap text-[10px] font-bold leading-tight tracking-tight">
+                                <span className="mt-0.5 block overflow-visible whitespace-nowrap text-[10px] font-bold leading-tight tracking-tight">
                                   Efectivo {formatMoney(totals.effectivePrice)}
                                 </span>
                               )}
-                              <span className="block overflow-visible whitespace-nowrap text-[10px] leading-tight tracking-tight text-white/70">
+                              <span className="mt-0.5 block overflow-visible whitespace-nowrap text-[10px] leading-tight tracking-tight text-white/70">
                                 {totals.duration} min
                               </span>
                             </>
@@ -1933,21 +1941,15 @@ function PublicBookingPage() {
               ) : null}
 
               {step === "products" ? (
-                <div className="mt-3">
-                  {/* Encabezado */}
-                  <div className="text-center">
-                    <span
-                      className="mx-auto grid h-10 w-10 place-items-center rounded-2xl"
-                      style={{ background: `color-mix(in oklch, ${accent} 16%, transparent)`, color: accent }}
-                    >
-                      <ShoppingBag className="h-5 w-5" />
-                    </span>
-                    <h3 className="mt-2 text-2xl font-bold tracking-tight sm:text-3xl">Tentate con estos productos</h3>
-                    <p className="mt-1 text-sm text-white/55 sm:text-base">Sumalos a tu turno y retiralos en el local.</p>
-                  </div>
+                <div className="mt-2">
+                  {/* Sin ícono ni título propios: "Productos recomendados"
+                      ya es el h2 del encabezado compartido del paso, arriba
+                      de este bloque — repetirlo acá era redundante y le
+                      restaba altura de pantalla al mobile. */}
+                  <p className="text-center text-sm text-white/55 sm:text-base">Sumalos a tu turno y retiralos en el local.</p>
 
                   {/* Píldora de oferta */}
-                  <div className="mt-3 flex justify-center">
+                  <div className="mt-2 flex justify-center">
                     <span
                       className="inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold"
                       style={{ background: `color-mix(in oklch, ${accent} 12%, transparent)`, color: accent }}
@@ -1968,7 +1970,7 @@ function PublicBookingPage() {
                     return (
                       <div
                         className={cn(
-                          "mt-4 grid gap-2.5",
+                          "mt-3 grid gap-2.5",
                           solo && "grid-cols-1",
                           count === 2 && "grid-cols-2",
                           compact && "grid-cols-3",
@@ -2073,7 +2075,7 @@ function PublicBookingPage() {
                   })()}
 
                   {/* Mensaje opcional */}
-                  <div className="mt-4 flex justify-center">
+                  <div className="mt-3 flex justify-center">
                     <span className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1.5 text-xs text-white/60">
                       <ShieldCheck className="h-4 w-4" style={{ color: accent }} />
                       Es totalmente opcional. Podés continuar sin agregar productos.
@@ -2081,7 +2083,7 @@ function PublicBookingPage() {
                   </div>
 
                   {/* Botones */}
-                  <div className="mt-3 flex gap-3">
+                  <div className="mt-2 flex gap-3">
                     <Button
                       onClick={() => { setSelectedProductIds([]); setStep("details"); }}
                       className="flex-1 rounded-2xl border border-white/10 bg-white/[0.04] py-4 font-semibold text-white hover:bg-white/[0.08]"
