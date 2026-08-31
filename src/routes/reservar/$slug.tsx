@@ -472,7 +472,6 @@ function PublicBookingPage() {
   );
   const productsTotal = selectedProducts.reduce((sum, p) => sum + productFinalPrice(p), 0);
   const grandTotal = totalPrice + productsTotal;
-  const originalGrandTotal = originalTotalPrice + productsTotal;
   // Etiqueta ("Precio diferente" / "Duración diferente" / "Precio y
   // duración diferentes" / null = estándar) por profesional respecto del
   // precio y duración estándar del servicio — única fuente de verdad,
@@ -1366,16 +1365,39 @@ function PublicBookingPage() {
         </div>
       </section>
 
-      <section className={cn("mx-auto grid max-w-5xl gap-6 px-4 py-6 lg:items-start", step === "done" ? "lg:grid-cols-1" : "lg:grid-cols-[1fr_330px]")}>
-        {/* min-w-0: ítem de un grid — sin esto, este item usa el ancho
-            mínimo de SU CONTENIDO (p. ej. la fila de fechas/categorías sin
-            wrappear) como piso, empujando toda la sección más ancha que el
-            viewport. El overflow-x-auto de esas filas nunca llega a activarse
-            porque su propio contenedor ya creció para no necesitarlo — el
-            "desborde" real termina pasando en el body (recortado por su
-            overflow-x:hidden global), no ahí, y por eso se ve contenido
-            cortado a la derecha sin poder scrollearlo. Mismo bug/fix que ya
-            se usa en toda la página de negocio/$slug.tsx. */}
+      <section className={cn("mx-auto px-4 py-6", step === "done" ? "max-w-5xl" : "max-w-2xl")}>
+        {/* Resumen "Tu reserva": barra compacta arriba de todo el flujo (no
+            más sidebar aparte al costado ni al final) — el cliente ve
+            servicio/profesional/horario/total/duración mientras avanza,
+            sin que ocupe una tarjeta alta. Se actualiza solo, mismos
+            valores que ya se calculan para el resto de la página. */}
+        {step !== "done" ? (
+          <div className="booking-card mb-4 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] p-3 text-white">
+            <CalendarDays className="h-4 w-4 shrink-0" style={{ color: accent }} />
+            <div className="min-w-0 flex-1 leading-tight">
+              <p className="truncate text-xs font-medium sm:text-sm">
+                {selectedServices.length ? selectedServices.map((s) => s.name).join(" + ") : "Sin servicio"}
+                <span className="text-white/40">
+                  {" "}
+                  · {selectedEmployee?.full_name || (selectedEmployeeId === "any" ? "Sin preferencia" : "Sin profesional")} ·{" "}
+                  {selectedSlot ? `${formatShortDay(selectedSlot.time)} ${formatTime(selectedSlot.time)}` : "Sin horario"}
+                </span>
+              </p>
+              <p className="mt-0.5 truncate text-xs text-white/40">
+                <span className="font-semibold text-white">Total: {professionalChosen ? formatMoney(grandTotal) : "$—"}</span>
+                {professionalChosen && promoSavings > 0 && (
+                  <span className="text-emerald-400"> (ahorrás {formatMoney(promoSavings)})</span>
+                )}
+                {" · "}
+                <span className="font-semibold text-white">Duración: {professionalChosen ? `${totalDuration} min` : "— min"}</span>
+              </p>
+            </div>
+          </div>
+        ) : null}
+        {/* min-w-0: sin esto, la fila de fechas/categorías sin wrappear
+            reporta su ancho mínimo como piso, empujando la sección más
+            ancha que el viewport y evitando que su propio overflow-x-auto
+            llegue a activarse — mismo bug/fix que en negocio/$slug.tsx. */}
         <div className="min-w-0 space-y-6">
           <Card className="booking-card booking-shell border-white/10 bg-white/[0.04] text-white shadow-xl">
             <CardContent className="p-5 sm:p-6">
@@ -2281,60 +2303,6 @@ function PublicBookingPage() {
             </CardContent>
           </Card>
         </div>
-
-        {step !== "done" ? (
-        <aside className="min-w-0 lg:sticky lg:top-6 lg:self-start">
-          <Card className="booking-card border-white/10 bg-white/[0.06] text-white shadow-2xl backdrop-blur-xl">
-            <CardContent className="p-5 sm:p-6">
-              <div className="flex items-center gap-2"><CalendarDays className="h-5 w-5" style={{ color: accent }} /><h2 className="text-lg font-semibold">Tu reserva</h2></div>
-              <div className="mt-5 space-y-4 text-sm text-white/65">
-                <div><p className="text-white/40">Servicios</p><p className="mt-1 font-medium text-white">{selectedServices.length ? selectedServices.map((s) => s.name).join(" + ") : "Sin seleccionar"}</p></div>
-                <div><p className="text-white/40">Profesional</p><p className="mt-1 font-medium text-white">{selectedEmployee?.full_name || (selectedEmployeeId === "any" ? "Sin preferencia" : "Sin seleccionar")}</p></div>
-                <div><p className="text-white/40">Horario</p><p className="mt-1 font-medium text-white">{selectedSlot ? `${formatShortDay(selectedSlot.time)} · ${formatTime(selectedSlot.time)}` : "Sin seleccionar"}</p></div>
-                {selectedProducts.length ? (
-                  <div className="border-t border-white/10 pt-4">
-                    <p className="text-white/40">Productos</p>
-                    <div className="mt-1 space-y-1">
-                      {selectedProducts.map((product) => (
-                        <div key={product.id} className="flex items-center justify-between gap-3">
-                          <span className="min-w-0 truncate font-medium text-white">{product.name}</span>
-                          <span className="shrink-0 font-medium text-white">{formatMoney(productFinalPrice(product))}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-                {appliedPromotion ? (
-                  <div className="border-t border-white/10 pt-4">
-                    <p className="text-white/40">Beneficio</p>
-                    <p className="mt-1 font-medium text-white">{appliedPromotion.name}</p>
-                  </div>
-                ) : null}
-                <div className="flex items-center justify-between border-t border-white/10 pt-4">
-                  <span>Total</span>
-                  {!professionalChosen ? (
-                    <span className="text-white/40">Sin seleccionar</span>
-                  ) : promoSavings > 0 ? (
-                    <span className="text-right">
-                      <span className="mr-2 text-sm text-white/40 line-through">{formatMoney(originalGrandTotal)}</span>
-                      <span className="text-lg font-semibold text-white">{formatMoney(grandTotal)}</span>
-                      <span className="block text-xs font-semibold text-emerald-400">Ahorrás {formatMoney(promoSavings)}</span>
-                    </span>
-                  ) : (
-                    <span className="text-lg font-semibold text-white">{formatMoney(grandTotal)}</span>
-                  )}
-                </div>
-                <div className="flex items-center justify-between">
-                  <span>Duración</span>
-                  <span className="font-semibold text-white">
-                    {professionalChosen ? `${totalDuration} min` : <span className="font-normal text-white/40">Sin seleccionar</span>}
-                  </span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </aside>
-        ) : null}
       </section>
     </main>
   );
