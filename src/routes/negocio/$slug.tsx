@@ -770,9 +770,7 @@ function PublicProfilePage() {
   const isLight = theme === "light";
   const accentButtonText = colors.buttonText || "#ffffff";
 
-  // Métricas reales de cabecera. Si no hay datos caen a "—": nunca rompen el render.
-  const statClientsAttended = headerStats ? headerStats.clientsAttended.toLocaleString("es-AR") : "—";
-  const statServicesCompleted = headerStats ? headerStats.servicesCompleted.toLocaleString("es-AR") : "—";
+  // Métrica real de cabecera. Si no hay datos cae a "—": nunca rompe el render.
   const statYearsExperience = (() => {
     const raw = headerStats?.startDate;
     if (!raw) return "—";
@@ -930,7 +928,7 @@ function PublicProfilePage() {
                 )}
               </div>
             </div>
-            <div className="mt-4 flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between lg:gap-10">
+            <div className="mt-4">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2 sm:gap-3">
                   <h1 className="text-3xl font-semibold tracking-tight sm:text-5xl">{business.name}</h1>
@@ -944,23 +942,19 @@ function PublicProfilePage() {
                     </svg>
                   </span>
                 </div>
-                <div className="mt-2 flex items-center gap-2 text-sm font-semibold" style={{ color: cAccent }}>
-                  <FiveStars />
-                  <span className={isLight ? "text-zinc-700" : "text-white/90"}>5,0</span>
-                </div>
-              </div>
-
-              <div className="grid w-full max-w-lg grid-cols-3 divide-x text-center lg:w-auto lg:min-w-[390px] lg:justify-self-start" style={{ borderColor: isLight ? "rgba(15,23,42,0.12)" : "rgba(255,255,255,0.14)" }}>
-                {[
-                  { value: statClientsAttended, label: <>Clientes<br />atendidos</> },
-                  { value: statServicesCompleted, label: <>Servicios<br />realizados</> },
-                  { value: statYearsExperience, label: <>Años de<br />experiencia</> },
-                ].map((item, index) => (
-                  <div key={index} className="px-3 sm:px-5">
-                    <div className="whitespace-nowrap text-2xl font-bold leading-none tracking-tight sm:text-3xl">{item.value}</div>
-                    <div className="mt-2 text-xs leading-4 text-white/55 sm:text-sm">{item.label}</div>
+                <div className="mt-2 flex flex-wrap items-center gap-4 sm:gap-5">
+                  <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: cAccent }}>
+                    <FiveStars />
+                    <span className={isLight ? "text-zinc-700" : "text-white/90"}>5,0</span>
                   </div>
-                ))}
+                  <div
+                    className="flex items-center gap-2 border-l pl-4 sm:pl-5"
+                    style={{ borderColor: isLight ? "rgba(15,23,42,0.12)" : "rgba(255,255,255,0.14)" }}
+                  >
+                    <div className="whitespace-nowrap text-2xl font-bold leading-none tracking-tight sm:text-3xl">{statYearsExperience}</div>
+                    <div className="text-xs leading-4 text-white/55 sm:text-sm">Años de<br />experiencia</div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
