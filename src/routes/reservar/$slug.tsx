@@ -1711,9 +1711,18 @@ function PublicBookingPage() {
                         </span>
                         <span className="w-full min-w-0 leading-tight">
                           <span className="block break-words text-xs font-semibold leading-tight">{employee.full_name}</span>
+                          {/* Línea muy sutil que separa la identidad del
+                              profesional (foto + nombre) de las condiciones
+                              del servicio (etiqueta si difiere del estándar,
+                              precio y duración) — dos bloques bien
+                              diferenciados sin agregar fondo ni agrandar la
+                              tarjeta. */}
+                          {(badge || selectedServices.length > 0) && (
+                            <span className="my-1.5 block h-px w-full bg-white/10" aria-hidden="true" />
+                          )}
                           {badge && (
                             <span
-                              className="mb-1.5 mt-1 inline-block break-words rounded-full bg-violet-800 px-2 py-0.5 text-[9px] font-semibold leading-none"
+                              className="mb-1 inline-block break-words rounded-full bg-violet-800 px-2 py-0.5 text-[9px] font-semibold leading-none"
                               style={{ color: "#ffffff" }}
                             >
                               {badge}
