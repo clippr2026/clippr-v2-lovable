@@ -1733,7 +1733,7 @@ function PublicBookingPage() {
                           <span className="block break-words text-xs font-semibold leading-tight">{employee.full_name}</span>
                           {badge && (
                             <span
-                              className="mb-1.5 mt-1 inline-block break-words rounded-full bg-violet-800 px-2 py-1 text-[9px] font-semibold leading-tight"
+                              className="mb-1.5 mt-1 inline-block break-words rounded-full bg-violet-800 px-2 py-0.5 text-[9px] font-semibold leading-none"
                               style={{ color: "#ffffff" }}
                             >
                               {badge}
