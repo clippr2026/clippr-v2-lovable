@@ -2,7 +2,6 @@ import React, { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { usePointerReorder } from "@/hooks/use-pointer-reorder";
 import {
   MapPin,
   Phone,
@@ -16,7 +15,8 @@ import {
   Trash2,
   Mail,
   Instagram,
-  GripVertical,
+  ChevronUp,
+  ChevronDown,
   Sparkles,
   User as UserIcon,
   Moon,
@@ -378,20 +378,6 @@ export function BrandingSection() {
   );
   const [uploadingFeaturedClubLogoId, setUploadingFeaturedClubLogoId] =
     useState<string | null>(null);
-  // Reordenar "Confían en nosotros" con Pointer Events (touch-friendly, ver
-  // usePointerReorder) en vez del drag&drop nativo HTML5 anterior, que no
-  // disparaba en navegadores mobile.
-  const featuredReorder = usePointerReorder<FeaturedClient>(
-    data.featured_clients,
-    (item) => item.id,
-    (next) => setData((d) => ({ ...d, featured_clients: next })),
-    (finalItems) =>
-      setData((d) => ({
-        ...d,
-        featured_clients: finalItems.map((item, order) => ({ ...item, order })),
-      })),
-    "y",
-  );
   const [activeTab, setActiveTab] = useState<"info" | "imagenes" | "colores">(
     "info",
   );
@@ -794,6 +780,22 @@ export function BrandingSection() {
     });
   }
 
+  // Flechas ↑/↓ de "Confían en nosotros": mueve un lugar y guarda al toque,
+  // sin esperar al botón "Guardar" general de la sección — persiste solo
+  // featured_clients (persistBrandingPatch), no el resto del formulario.
+  async function moveFeaturedClient(id: string, direction: -1 | 1) {
+    const current = data.featured_clients;
+    const index = current.findIndex((item) => item.id === id);
+    const nextIndex = index + direction;
+    if (index < 0 || nextIndex < 0 || nextIndex >= current.length) return;
+    const list = [...current];
+    [list[index], list[nextIndex]] = [list[nextIndex], list[index]];
+    const reindexed = list.map((item, order) => ({ ...item, order }));
+    setData((d) => ({ ...d, featured_clients: reindexed }));
+    reportSaveStatus("saving");
+    const ok = await persistBrandingPatch({ featured_clients: reindexed });
+    if (ok) reportSaveStatus("saved");
+  }
 
   function nudgePosition(
     value: string | undefined,
@@ -1721,31 +1723,42 @@ export function BrandingSection() {
               </div>
 
               <div className="space-y-1.5">
-                {data.featured_clients.map((item) => {
+                {data.featured_clients.map((item, index) => {
                   const uploading = uploadingFeaturedId === item.id;
+                  const isFirst = index === 0;
+                  const isLast = index === data.featured_clients.length - 1;
                   return (
                     <div
                       key={item.id}
-                      ref={featuredReorder.setNodeRef(item.id)}
-                      className={cn(
-                        "grid gap-2.5 rounded-2xl border border-white/10 bg-white/[0.03] p-2.5 transition",
-                        featuredReorder.draggingId === item.id && "z-10 shadow-2xl shadow-black/40",
-                      )}
+                      className="grid gap-2.5 rounded-2xl border border-white/10 bg-white/[0.03] p-2.5 transition"
                     >
                       {/* Imagen a la izquierda; nombre y tipo (Futbolista,
                           etc.) apilados a la derecha, uno debajo del otro —
                           no lado a lado. Activo/Inactivo y Eliminar quedan a
                           la derecha del todo. */}
                       <div className="flex items-start gap-3">
-                        <button
-                          type="button"
-                          onPointerDown={(event) => featuredReorder.startPress(item.id, event)}
-                          className="mt-4 shrink-0 cursor-grab touch-none rounded-lg p-1 text-white/35 transition hover:bg-white/5 hover:text-white/60 active:cursor-grabbing"
-                          aria-label="Arrastrar para reordenar"
-                          title="Mantené presionado y arrastrá para reordenar"
-                        >
-                          <GripVertical className="h-4 w-4" />
-                        </button>
+                        <div className="mt-3.5 flex shrink-0 flex-col gap-0.5">
+                          <button
+                            type="button"
+                            onClick={() => moveFeaturedClient(item.id, -1)}
+                            disabled={isFirst}
+                            className="rounded-md p-0.5 text-white/35 transition hover:bg-white/5 hover:text-white/60 disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:bg-transparent"
+                            aria-label="Mover arriba"
+                            title="Mover arriba"
+                          >
+                            <ChevronUp className="h-4 w-4" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => moveFeaturedClient(item.id, 1)}
+                            disabled={isLast}
+                            className="rounded-md p-0.5 text-white/35 transition hover:bg-white/5 hover:text-white/60 disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:bg-transparent"
+                            aria-label="Mover abajo"
+                            title="Mover abajo"
+                          >
+                            <ChevronDown className="h-4 w-4" />
+                          </button>
+                        </div>
                         <label
                           className={cn(
                             "group relative grid h-14 w-14 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07]",
