@@ -1613,136 +1613,153 @@ function PublicBookingPage() {
               ) : null}
 
               {step === "professional" && employeesForSelectedServices.length > 0 ? (
-                <div
-                  className={cn(
-                    "mt-5 grid gap-3",
+                (() => {
+                  const gridColsCls = cn(
+                    "grid gap-3",
                     professionalOptionCount <= 3 && "grid-cols-1",
                     professionalOptionCount >= 4 && professionalOptionCount <= 6 && "grid-cols-2 sm:grid-cols-3",
                     professionalOptionCount >= 7 && professionalOptionCount <= 12 && "grid-cols-3 sm:grid-cols-4",
                     professionalOptionCount >= 13 && "grid-cols-3 sm:grid-cols-6",
-                    professionalOptionCount >= 19 && "max-h-[58vh] overflow-y-auto pr-1",
-                  )}
-                >
-                  <button
-                    type="button"
-                    onClick={() => { setSelectedEmployeeId("any"); setSelectedSlot(null); setStep("datetime"); }}
-                    className={cn(
-                      "flex min-w-0 flex-col items-center justify-center gap-2 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] text-center transition hover:border-white/30 hover:bg-white/[0.055]",
-                      professionalOptionCount >= 7 ? "min-h-[116px] p-2" : "min-h-[128px] p-3",
-                    )}
-                  >
-                    <span
-                      className={cn(
-                        "grid shrink-0 place-items-center rounded-2xl",
-                        professionalOptionCount >= 7 ? "h-10 w-10" : "h-12 w-12",
-                      )}
-                      style={{ background: `${accent}22`, color: accent }}
-                    >
-                      <UsersRound className={cn(professionalOptionCount >= 7 ? "h-5 w-5" : "h-6 w-6")} />
-                    </span>
-                    <span className="w-full min-w-0">
-                      <span className="block overflow-visible whitespace-nowrap text-[11px] font-semibold leading-tight tracking-tight">Sin preferencia</span>
-                      <span className="block overflow-visible whitespace-nowrap text-[10px] leading-tight text-white/55">Disponible</span>
-                    </span>
-                  </button>
-
-                  {(() => {
-                    // Precio y duración reales para CADA profesional (mismo
-                    // resolver que el resto de la app), más si alguno de los
-                    // servicios elegidos tiene precio/duración personalizado
-                    // para ese profesional en particular.
-                    const cards = employeesForSelectedServices.map((employee) => {
-                      let isCustomized = false;
-                      const totals = selectedServices.reduce(
-                        (acc, service) => {
-                          const resolved = resolveServicePricing(
-                            {
-                              id: service.id,
-                              price: service.price,
-                              duration_min: service.duration_min ?? service.duration,
-                              cash_discount: service.cash_discount,
-                            },
-                            employee.id,
-                            employeeServiceOverrides,
-                          );
-                          if (
-                            resolved.priceOverridden ||
-                            resolved.durationOverridden ||
-                            resolved.effectivePriceOverridden
-                          ) {
-                            isCustomized = true;
-                          }
-                          return {
-                            // "Precio efectivo" (Comisiones → Servicios /
-                            // override por profesional) — ya no se calcula a
-                            // partir de promociones activas.
-                            effectivePrice:
-                              resolved.effectivePrice == null
-                                ? acc.effectivePrice
-                                : (acc.effectivePrice ?? 0) + resolved.effectivePrice,
-                            listPrice: acc.listPrice + resolved.price,
-                            duration: acc.duration + resolved.duration_min,
-                          };
-                        },
-                        { effectivePrice: null as number | null, listPrice: 0, duration: 0 },
-                      );
-                      return { employee, totals, isCustomized };
-                    });
-                    // No es un orden por precio: se mantiene el orden original
-                    // (alfabético) dentro de cada grupo y solo se empuja al
-                    // final a quienes tengan precio o duración distintos del
-                    // estándar del servicio — Array.sort de JS es estable.
-                    const sortedCards = [...cards].sort(
-                      (a, b) => Number(a.isCustomized) - Number(b.isCustomized),
+                  );
+                  // Precio y duración reales para CADA profesional (mismo
+                  // resolver que el resto de la app), más específicamente
+                  // QUÉ cambió (precio, duración, o ambos) respecto del
+                  // estándar del servicio para ese profesional en particular.
+                  const cards = employeesForSelectedServices.map((employee) => {
+                    let priceChanged = false;
+                    let durationChanged = false;
+                    const totals = selectedServices.reduce(
+                      (acc, service) => {
+                        const resolved = resolveServicePricing(
+                          {
+                            id: service.id,
+                            price: service.price,
+                            duration_min: service.duration_min ?? service.duration,
+                            cash_discount: service.cash_discount,
+                          },
+                          employee.id,
+                          employeeServiceOverrides,
+                        );
+                        if (resolved.priceOverridden || resolved.effectivePriceOverridden) priceChanged = true;
+                        if (resolved.durationOverridden) durationChanged = true;
+                        return {
+                          // "Precio efectivo" (Comisiones → Servicios /
+                          // override por profesional) — ya no se calcula a
+                          // partir de promociones activas.
+                          effectivePrice:
+                            resolved.effectivePrice == null
+                              ? acc.effectivePrice
+                              : (acc.effectivePrice ?? 0) + resolved.effectivePrice,
+                          listPrice: acc.listPrice + resolved.price,
+                          duration: acc.duration + resolved.duration_min,
+                        };
+                      },
+                      { effectivePrice: null as number | null, listPrice: 0, duration: 0 },
                     );
+                    const badge =
+                      priceChanged && durationChanged
+                        ? "Precio y duración diferentes"
+                        : priceChanged
+                          ? "Precio diferente"
+                          : durationChanged
+                            ? "Duración diferente"
+                            : null;
+                    return { employee, totals, badge };
+                  });
+                  // Orden estable (no por precio): dentro de cada grupo se
+                  // mantiene el orden original (alfabético).
+                  const standardCards = cards.filter((c) => !c.badge);
+                  const customCards = cards.filter((c) => c.badge);
 
-                    return sortedCards.map(({ employee, totals }) => {
-                      const hasEffectivePrice = totals.effectivePrice != null;
-                      return (
-                        <button
-                          key={employee.id}
-                          type="button"
-                          onClick={() => { setSelectedEmployeeId(employee.id); setSelectedSlot(null); setStep("datetime"); }}
+                  const renderCard = ({ employee, totals, badge }: (typeof cards)[number]) => {
+                    const hasEffectivePrice = totals.effectivePrice != null;
+                    return (
+                      <button
+                        key={employee.id}
+                        type="button"
+                        onClick={() => { setSelectedEmployeeId(employee.id); setSelectedSlot(null); setStep("datetime"); }}
+                        className={cn(
+                          "flex min-w-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] text-center transition hover:border-white/30 hover:bg-white/[0.055]",
+                          professionalOptionCount >= 7 ? "min-h-[116px] p-2" : "min-h-[128px] p-3",
+                        )}
+                      >
+                        <span
                           className={cn(
-                            "flex min-w-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] text-center transition hover:border-white/30 hover:bg-white/[0.055]",
+                            "grid shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/10",
+                            professionalOptionCount >= 7 ? "h-11 w-11" : "h-12 w-12",
+                          )}
+                        >
+                          {employee.avatar_url ? (
+                            <img loading="lazy" decoding="async" src={employee.avatar_url} alt={employee.full_name} className="h-full w-full object-cover" />
+                          ) : (
+                            <UserRound className={cn(professionalOptionCount >= 7 ? "h-5 w-5" : "h-6 w-6")} />
+                          )}
+                        </span>
+                        <span className="w-full min-w-0 leading-tight">
+                          <span className="block break-words text-xs font-semibold leading-tight">{employee.full_name}</span>
+                          {badge && (
+                            <span className="mt-0.5 inline-block break-words rounded-full bg-violet-500/[0.14] px-1.5 py-0.5 text-[8px] font-semibold leading-tight text-violet-200 ring-1 ring-violet-400/25">
+                              {badge}
+                            </span>
+                          )}
+                          {selectedServices.length > 0 && (
+                            <>
+                              <span className="block overflow-visible whitespace-nowrap text-[10px] leading-tight tracking-tight text-white/70">
+                                Lista {formatMoney(totals.listPrice)}
+                              </span>
+                              {hasEffectivePrice && (
+                                <span className="block overflow-visible whitespace-nowrap text-[10px] font-semibold leading-tight tracking-tight" style={{ color: accent }}>
+                                  Efectivo {formatMoney(totals.effectivePrice)}
+                                </span>
+                              )}
+                              <span className="block overflow-visible whitespace-nowrap text-[10px] leading-tight tracking-tight text-white/70">
+                                {totals.duration} min
+                              </span>
+                            </>
+                          )}
+                        </span>
+                      </button>
+                    );
+                  };
+
+                  return (
+                    <div className={cn("mt-5", professionalOptionCount >= 19 && "max-h-[58vh] overflow-y-auto pr-1")}>
+                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/40">Profesionales</p>
+                      <div className={gridColsCls}>
+                        <button
+                          type="button"
+                          onClick={() => { setSelectedEmployeeId("any"); setSelectedSlot(null); setStep("datetime"); }}
+                          className={cn(
+                            "flex min-w-0 flex-col items-center justify-center gap-2 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] text-center transition hover:border-white/30 hover:bg-white/[0.055]",
                             professionalOptionCount >= 7 ? "min-h-[116px] p-2" : "min-h-[128px] p-3",
                           )}
                         >
                           <span
                             className={cn(
-                              "grid shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/10",
-                              professionalOptionCount >= 7 ? "h-11 w-11" : "h-12 w-12",
+                              "grid shrink-0 place-items-center rounded-2xl",
+                              professionalOptionCount >= 7 ? "h-10 w-10" : "h-12 w-12",
                             )}
+                            style={{ background: `${accent}22`, color: accent }}
                           >
-                            {employee.avatar_url ? (
-                              <img loading="lazy" decoding="async" src={employee.avatar_url} alt={employee.full_name} className="h-full w-full object-cover" />
-                            ) : (
-                              <UserRound className={cn(professionalOptionCount >= 7 ? "h-5 w-5" : "h-6 w-6")} />
-                            )}
+                            <UsersRound className={cn(professionalOptionCount >= 7 ? "h-5 w-5" : "h-6 w-6")} />
                           </span>
-                          <span className="w-full min-w-0 leading-tight">
-                            <span className="block break-words text-xs font-semibold leading-tight">{employee.full_name}</span>
-                            {selectedServices.length > 0 && (
-                              <>
-                                <span className="block overflow-visible whitespace-nowrap text-[10px] leading-tight tracking-tight text-white/70">
-                                  Lista {formatMoney(totals.listPrice)}
-                                </span>
-                                {hasEffectivePrice && (
-                                  <span className="block overflow-visible whitespace-nowrap text-[10px] font-semibold leading-tight tracking-tight" style={{ color: accent }}>
-                                    Efectivo {formatMoney(totals.effectivePrice)}
-                                  </span>
-                                )}
-                                <span className="block overflow-visible whitespace-nowrap text-[10px] leading-tight tracking-tight text-white/70">
-                                  {totals.duration} min
-                                </span>
-                              </>
-                            )}
+                          <span className="w-full min-w-0">
+                            <span className="block overflow-visible whitespace-nowrap text-[11px] font-semibold leading-tight tracking-tight">Sin preferencia</span>
+                            <span className="block overflow-visible whitespace-nowrap text-[10px] leading-tight text-white/55">Disponible</span>
                           </span>
                         </button>
-                      );
-                    });
-                  })()}
-                </div>
+                        {standardCards.map(renderCard)}
+                      </div>
+
+                      {customCards.length > 0 && (
+                        <>
+                          <p className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wide text-white/40">Opciones diferentes</p>
+                          <div className={gridColsCls}>{customCards.map(renderCard)}</div>
+                        </>
+                      )}
+                    </div>
+                  );
+                })()
               ) : null}
 
               {step === "datetime" ? (
