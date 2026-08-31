@@ -1698,7 +1698,10 @@ function PublicBookingPage() {
                         <span className="w-full min-w-0 leading-tight">
                           <span className="block break-words text-xs font-semibold leading-tight">{employee.full_name}</span>
                           {badge && (
-                            <span className="mt-0.5 inline-block break-words rounded-full bg-violet-600 px-1.5 py-1 text-[8px] font-semibold leading-tight text-white">
+                            <span
+                              className="mt-1 inline-block break-words rounded-full bg-violet-800 px-2 py-1 text-[9px] font-semibold leading-tight"
+                              style={{ color: "#ffffff" }}
+                            >
                               {badge}
                             </span>
                           )}
