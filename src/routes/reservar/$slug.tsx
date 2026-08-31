@@ -216,13 +216,6 @@ function formatTime(date: Date) {
   return date.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
 }
 
-function formatInputDate(date: Date) {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
 function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
@@ -552,7 +545,6 @@ function PublicBookingPage() {
   );
   const availableDays = React.useMemo(() => slots.filter((day) => day.slots.length > 0), [slots]);
   const [selectedDayIndex, setSelectedDayIndex] = React.useState(0);
-  const [showDatePicker, setShowDatePicker] = React.useState(false);
   const selectedDay = availableDays[selectedDayIndex] ?? availableDays[0] ?? null;
 
   const selectedSlotRef = React.useRef<typeof selectedSlot>(null);
@@ -1824,64 +1816,13 @@ function PublicBookingPage() {
 
               {step === "datetime" ? (
                 <div className="mt-5 space-y-6">
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-                    <button
-                      type="button"
-                      onClick={() => { setSelectedSlot(null); setStep("professional"); }}
-                      className="group inline-flex w-max items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] p-1.5 pr-4 text-left transition hover:border-white/25 hover:bg-white/[0.08]"
-                      title="Cambiar profesional"
-                    >
-                      <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-xl bg-white/10">
-                        {selectedEmployee?.avatar_url ? <img loading="lazy" decoding="async" src={selectedEmployee.avatar_url} alt={selectedEmployee.full_name} className="h-full w-full object-cover" /> : <UserRound className="h-5 w-5" />}
-                      </span>
-                      <span>
-                        <span className="block text-base font-semibold">{selectedEmployee?.full_name ?? "Sin preferencia"}</span>
-                        <span className="block text-xs text-white/45 group-hover:text-white/65">Tocá para cambiar</span>
-                      </span>
-                    </button>
-                    <div className="relative">
-                      <button
-                        type="button"
-                        onClick={() => setShowDatePicker((value) => !value)}
-                        className="grid h-11 w-11 place-items-center rounded-2xl border border-white/10 bg-white/[0.04] transition hover:border-white/25 hover:bg-white/[0.08]"
-                        title="Abrir calendario"
-                      >
-                        <CalendarDays className="h-5 w-5" />
-                      </button>
-                      {showDatePicker ? (
-                        <input
-                          type="date"
-                          className="absolute right-0 top-12 z-20 rounded-2xl border border-white/10 bg-white p-3 text-sm text-zinc-950 shadow-2xl"
-                          min={formatInputDate(new Date())}
-                          max={formatInputDate(addMinutes(new Date(), (Math.max(1, reservationSettings.maxAdvance) - 1) * 24 * 60))}
-                          value={selectedDay ? formatInputDate(selectedDay.date) : ""}
-                          onChange={(event) => {
-                            const index = availableDays.findIndex((day) => formatInputDate(day.date) === event.target.value);
-                            if (index >= 0) {
-                              setSelectedDayIndex(index);
-                              setSelectedSlot(null);
-                              setShowDatePicker(false);
-                              return;
-                            }
-                            // No hay slots ese día específico: puede ser porque el
-                            // negocio está cerrado / sin cupo (día dentro del rango
-                            // permitido), o porque la fecha está fuera del rango de
-                            // anticipación configurado. Distinguimos ambos casos en
-                            // vez de mostrar siempre el mismo mensaje genérico.
-                            const withinConfiguredRange = slots.some(
-                              (day) => formatInputDate(day.date) === event.target.value,
-                            );
-                            toast.error(
-                              withinConfiguredRange
-                                ? "Ese día no tiene horarios disponibles."
-                                : "Esa fecha está fuera del rango de anticipación permitido para reservar.",
-                            );
-                          }}
-                        />
-                      ) : null}
-                    </div>
-                  </div>
-
+                  {/* Se sacaron la tarjeta de profesional ("Tocá para
+                      cambiar") y el botón de calendario que quedaba solo
+                      arriba de "Seleccioná una fecha": el profesional ya se
+                      ve en la barra "Tu reserva" de arriba (duplicado acá),
+                      y elegir fecha por calendario era redundante con la
+                      lista de días de abajo — "Volver" (header compartido
+                      del paso) sigue permitiendo cambiar de profesional. */}
                   <div>
                     <div className="mb-4 flex items-center justify-between gap-3">
                       <h3 className="text-xl font-semibold tracking-tight sm:text-2xl">Seleccioná una fecha</h3>
@@ -1997,13 +1938,16 @@ function PublicBookingPage() {
                               <div className={cn("absolute z-10", solo ? "left-3 top-3" : "left-1.5 top-1.5")}>
                                 {pct > 0 ? (
                                   <span className={cn("grid place-items-center rounded-full bg-red-500 !text-white shadow-lg shadow-red-500/30", badgeSize)}>
-                                    <span
-                                      className={cn("text-center font-black uppercase leading-none !text-white", compact ? "text-[6px]" : "text-[10px]")}
-                                      style={{ color: "#fff" }}
-                                    >
-                                      {pct}%
-                                      {!compact && <br />}
-                                      {!compact && "OFF"}
+                                    {/* El porcentaje es lo que tiene que
+                                        llamar la atención primero — se
+                                        agranda bien respecto de "OFF", que
+                                        queda como texto secundario chico. El
+                                        círculo (badgeSize) no cambia. */}
+                                    <span className="flex flex-col items-center leading-none !text-white" style={{ color: "#fff" }}>
+                                      <span className={cn("font-black", compact ? "text-[12px]" : solo ? "text-xl" : "text-base")}>
+                                        {pct}%
+                                      </span>
+                                      {!compact && <span className="mt-0.5 text-[9px] font-bold uppercase tracking-wide">OFF</span>}
                                     </span>
                                   </span>
                                 ) : (

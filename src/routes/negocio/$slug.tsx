@@ -1104,7 +1104,7 @@ function PublicProfilePage() {
                         <p className="line-clamp-2 text-base font-semibold leading-snug sm:text-lg">{service.name}</p>
                         <a
                           href={bookingHref({ service: service.id })}
-                          className="mt-2 block w-full rounded-full py-2.5 text-center text-sm font-bold transition hover:-translate-y-0.5 hover:brightness-110"
+                          className="mt-1.5 block w-full rounded-full py-1.5 text-center text-xs font-bold transition hover:-translate-y-0.5 hover:brightness-110"
                           style={{ background: cAccent, color: accentButtonText, WebkitTextFillColor: accentButtonText, boxShadow: "0 14px 30px -12px color-mix(in oklch, var(--c-accent) 75%, transparent)" }}
                         >
                           Reservar
@@ -1135,22 +1135,25 @@ function PublicProfilePage() {
                       // del nombre de abajo puede empujar la página a
                       // desbordar horizontalmente en mobile (mismo bug que
                       // en Servicios/Confían en nosotros).
-                      className="flex min-w-0 items-center gap-3 rounded-3xl border border-white/10 bg-white/[0.03] p-4 transition hover:bg-white/[0.06]"
+                      className="flex min-w-0 items-center gap-3 rounded-3xl border border-white/10 bg-white/[0.03] p-3.5 transition hover:bg-white/[0.06]"
                     >
-                      <div className="grid h-14 w-14 shrink-0 place-items-center overflow-hidden rounded-full bg-white/10 text-lg font-semibold">
+                      <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full bg-white/10 text-lg font-semibold">
                         {employee.avatar_url ? (
                           <img src={employee.avatar_url} alt={employee.full_name} className="h-full w-full object-cover" loading="lazy" decoding="async" />
                         ) : (
                           employee.full_name.slice(0, 1)
                         )}
                       </div>
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <h3 className="truncate font-semibold">{employee.full_name}</h3>
                         <p className="text-sm text-white/50">{employee.role?.trim() || "Profesional"}</p>
-                        <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border bg-white px-2.5 py-1 text-sm font-bold text-zinc-950 shadow-sm" style={{ borderColor: "color-mix(in oklch, var(--c-accent) 28%, transparent)" }}>
-                          <Star className="h-4 w-4 fill-current" style={{ color: "#F5B301" }} />
-                          <span>5,0</span>
-                        </div>
+                      </div>
+                      {/* Valoración a la derecha, aprovechando el espacio
+                          vacío que quedaba — antes iba debajo de "Barbero"
+                          apilada con el nombre/rol. */}
+                      <div className="inline-flex shrink-0 items-center gap-1.5 rounded-full border bg-white px-2.5 py-1 text-sm font-bold text-zinc-950 shadow-sm" style={{ borderColor: "color-mix(in oklch, var(--c-accent) 28%, transparent)" }}>
+                        <Star className="h-4 w-4 fill-current" style={{ color: "#F5B301" }} />
+                        <span>5,0</span>
                       </div>
                     </a>
                   ))}
@@ -1461,19 +1464,24 @@ function PublicProfilePage() {
               className="max-h-[72vh] w-full rounded-2xl object-contain shadow-2xl"
               decoding="async"
             />
-            <div className="text-center text-white">
-              <p className="text-lg font-semibold">{zoomedFeaturedClient.name}</p>
-              <p className="text-sm text-white/60">{zoomedFeaturedClient.category}</p>
+            {/* El backdrop del modal es negro fijo (bg-black/90) sin
+                importar el tema del negocio, así que el texto va con color
+                inline en vez de clases text-white/*: esas clases las pisa
+                el override de tema claro (color: var(--muted) en vez del
+                gris casi negro que corresponde acá) y quedaban ilegibles. */}
+            <div className="text-center">
+              <p className="text-lg font-bold" style={{ color: "#ffffff" }}>{zoomedFeaturedClient.name}</p>
+              <p className="mt-0.5 text-sm" style={{ color: "rgba(255,255,255,0.72)" }}>{zoomedFeaturedClient.category}</p>
               {zoomedFeaturedClient.category === "Futbolista" && zoomedFeaturedClient.club_name ? (
-                <div className="mt-1.5 flex items-center justify-center gap-1.5">
+                <div className="mt-2 flex items-center justify-center gap-2">
                   {zoomedFeaturedClient.club_logo_url ? (
                     <img
                       src={zoomedFeaturedClient.club_logo_url}
                       alt={zoomedFeaturedClient.club_name}
-                      className="h-5 w-5 rounded-full bg-white/10 object-cover ring-1 ring-white/20"
+                      className="h-10 w-10 rounded-full bg-white/10 object-cover ring-1 ring-white/20"
                     />
                   ) : null}
-                  <span className="text-sm font-medium text-white/70">{zoomedFeaturedClient.club_name}</span>
+                  <span className="text-sm font-medium" style={{ color: "rgba(255,255,255,0.85)" }}>{zoomedFeaturedClient.club_name}</span>
                 </div>
               ) : null}
             </div>
