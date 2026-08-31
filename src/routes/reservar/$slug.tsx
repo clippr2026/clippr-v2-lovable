@@ -51,9 +51,7 @@ import { ClipprLoader } from "@/components/ui/clippr-loader";
 import { ServiceImage } from "@/components/ui/service-image";
 import {
   resolveServicePricing,
-  getServiceRange,
   isServiceOfferedByEmployee,
-  formatServiceRangeLabel,
   isPromotionCurrentlyValid,
   isPromotionApplicable,
   applyPromotionDiscount,
@@ -1451,37 +1449,19 @@ function PublicBookingPage() {
                   <div className="divide-y divide-white/10 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.02]">
                     {visibleStepServices.map((service) => {
                       const checked = selectedServiceIds.includes(service.id);
-                      // Mismo resolver que el resto de la app: rango de
-                      // duración y precio entre los profesionales que
-                      // ofrecen ESTE servicio en particular (switch "Ofrece
-                      // este servicio"). "30 min · $20.000" si no hay
-                      // variación, "30–60 min · Desde $20.000" si la hay —
-                      // ver formatServiceRangeLabel en src/lib/service-pricing.ts.
-                      const range = getServiceRange(
-                        { id: service.id, price: service.price, duration_min: service.duration_min ?? service.duration },
-                        employees
-                          .filter((e) => isServiceOfferedByEmployee(service.id, e.id, employeeServiceOverrides))
-                          .map((e) => e.id),
-                        employeeServiceOverrides,
-                      );
                       return (
-                        <button key={service.id} type="button" onClick={() => toggleService(service.id)} className="flex w-full items-center justify-between gap-4 p-4 text-left transition hover:bg-white/[0.04]">
-                          <span className="flex min-w-0 items-center gap-3">
-                            <ServiceImage
-                              src={service.image_url}
-                              alt={service.name}
-                              position={service.image_position}
-                              className="h-20 w-20 rounded-xl bg-white/[0.06] ring-1 ring-white/10"
-                              fallback={<Scissors className="h-4 w-4 text-white/30" />}
-                            />
-                            <span className={cn("grid h-6 w-6 shrink-0 place-items-center rounded-full border", checked ? "border-transparent" : "border-white/20")} style={checked ? { background: accent, color: accentButtonText } : undefined}>
-                              {checked ? <CheckCircle2 className="h-4 w-4" /> : null}
-                            </span>
-                            <span>
-                              <span className="block font-medium">{service.name}</span>
-                              <span className="text-sm text-white/50">{formatServiceRangeLabel(range, formatMoney)}</span>
-                            </span>
+                        <button key={service.id} type="button" onClick={() => toggleService(service.id)} className="flex w-full items-center gap-3 p-2.5 text-left transition hover:bg-white/[0.04]">
+                          <ServiceImage
+                            src={service.image_url}
+                            alt={service.name}
+                            position={service.image_position}
+                            className="h-11 w-11 shrink-0 rounded-xl bg-white/[0.06] ring-1 ring-white/10"
+                            fallback={<Scissors className="h-4 w-4 text-white/30" />}
+                          />
+                          <span className={cn("grid h-6 w-6 shrink-0 place-items-center rounded-full border", checked ? "border-transparent" : "border-white/20")} style={checked ? { background: accent, color: accentButtonText } : undefined}>
+                            {checked ? <CheckCircle2 className="h-4 w-4" /> : null}
                           </span>
+                          <span className="min-w-0 truncate font-medium">{service.name}</span>
                         </button>
                       );
                     })}

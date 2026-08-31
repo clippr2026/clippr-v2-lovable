@@ -121,20 +121,6 @@ function isUuid(value: string) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
 }
 
-function formatMoney(value: number | null | undefined) {
-  return new Intl.NumberFormat("es-AR", {
-    style: "currency",
-    currency: "ARS",
-    maximumFractionDigits: 0,
-  }).format(Number(value ?? 0));
-}
-
-function cashPrice(price: number | null | undefined, discount: number | null | undefined) {
-  const p = Number(price ?? 0);
-  const d = Number(discount ?? 0);
-  return Math.round(p - (p * d) / 100);
-}
-
 function extractBranding(schedule: unknown): PublicBranding {
   if (!schedule || typeof schedule !== "object") return {};
   const branding = (schedule as Record<string, any>)._branding;
@@ -1071,119 +1057,55 @@ function PublicProfilePage() {
               {services.length === 0 ? (
                 <p className="mt-4 text-sm text-white/55">Todavía no hay servicios habilitados para reserva online.</p>
               ) : (
-                // Cada servicio es su propia tarjeta (borde + fondo propio,
-                // sombra marcada + separación vertical generosa) para que se
-                // lea como un bloque individual y no como una lista continua.
-                // Estructura en dos filas: arriba imagen + nombre a todo el
-                // ancho disponible (nada de precio/botón compitiendo por
-                // espacio, así el nombre trunca lo más tarde posible); abajo
-                // precios y botón "Reservar" alineados en la misma línea
-                // para que el pie de la tarjeta quede equilibrado.
-                <div className="mt-5 grid gap-4 sm:gap-5">
-                  {services.map((service: Service) => {
-                    const cash = cashPrice(service.price, service.cash_discount);
-                    const hasCashDiscount = Number(service.cash_discount ?? 0) > 0 && cash !== Number(service.price ?? 0);
-                    return (
-                      <div
-                        key={service.id}
-                        className={
-                          (isLight
-                            ? "border-zinc-200/80 bg-zinc-50/60 shadow-[0_16px_40px_-24px_rgba(24,24,27,0.35)] hover:bg-zinc-50"
-                            : "border-white/[0.08] bg-white/[0.03] shadow-[0_16px_40px_-20px_rgba(0,0,0,0.6)] hover:bg-white/[0.05]") +
-                          // min-w-0: es un ítem de un grid — sin esto, el
-                          // truncate del nombre de abajo reporta su ancho
-                          // sin truncar como mínimo y desborda la página.
-                          " min-w-0 rounded-2xl border p-4 transition sm:p-5"
-                        }
-                      >
-                        <div className="flex min-w-0 items-center gap-4">
-                          <ServiceImage
-                            src={service.image_url}
-                            alt={service.name}
-                            position={service.image_position}
-                            className={(isLight ? "ring-zinc-200" : "ring-white/10") + " h-16 w-16 shrink-0 rounded-xl ring-1 sm:h-20 sm:w-20"}
-                            fallback={
-                              // Placeholder con un degradado muy suave del
-                              // color del negocio en vez del ícono suelto de
-                              // antes — se siente a marca, no a "falta imagen".
-                              <div
-                                className="grid h-full w-full place-items-center"
-                                style={{
-                                  background:
-                                    "linear-gradient(135deg, color-mix(in oklch, var(--c-accent) 20%, transparent), color-mix(in oklch, var(--c-primary) 12%, transparent))",
-                                }}
-                              >
-                                <Sparkles className="h-6 w-6" style={{ color: cAccent }} />
-                              </div>
-                            }
-                          />
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-base font-semibold sm:text-lg">{service.name}</p>
-                            {service.duration_min ? (
-                              <p className={(isLight ? "text-zinc-500" : "text-white/45") + " mt-0.5 text-xs"}>
-                                {Number(service.duration_min)} min
-                              </p>
-                            ) : null}
-                          </div>
-                        </div>
-                        <div
-                          className={
-                            (isLight ? "border-zinc-200/70" : "border-white/[0.06]") +
-                            // items-center (no items-end): el botón queda centrado contra el
-                            // bloque de precio de altura fija en vez de pegado abajo del todo —
-                            // misma posición tenga o no tenga descuento el servicio.
-                            " mt-4 flex items-center justify-between gap-4 border-t pt-4"
-                          }
-                        >
-                          {/* Bloque de precio: un elemento invisible (siempre con la
-                              estructura de 2 filas) reserva la altura para que todas las
-                              tarjetas midan exactamente lo mismo, tengan o no descuento.
-                              El contenido visible se superpone en la misma celda de grid:
-                              con descuento queda arriba (ambas filas, como antes); sin
-                              descuento se centra en esa altura reservada, quedando a la
-                              misma línea vertical que el botón "Reservar". */}
-                          <div className="min-w-0 grid">
-                            <div className="invisible col-start-1 row-start-1" aria-hidden="true">
-                              <p className="text-xs font-semibold">Precio de lista</p>
-                              <p className="text-xl font-extrabold tracking-tight">{formatMoney(service.price)}</p>
-                              <div className="mt-2">
-                                <p className="text-xs font-semibold">Descuento en efectivo</p>
-                                <p className="text-xl font-extrabold tracking-tight">{formatMoney(cash)}</p>
-                              </div>
-                            </div>
-                            <div
-                              className={
-                                "col-start-1 row-start-1 flex min-w-0 flex-col" +
-                                (hasCashDiscount ? " justify-start" : " justify-center")
-                              }
-                            >
-                              <p className={(isLight ? "text-zinc-400" : "text-white/40") + " text-xs font-semibold"}>Precio de lista</p>
-                              <p className={(isLight ? "text-zinc-900" : "text-white") + " text-xl font-extrabold tracking-tight"}>
-                                {formatMoney(service.price)}
-                              </p>
-                              {hasCashDiscount ? (
-                                <div className="mt-2">
-                                  <p className={(isLight ? "text-emerald-600/80" : "text-emerald-400/80") + " text-xs font-semibold"}>
-                                    Descuento en efectivo
-                                  </p>
-                                  <p className={(isLight ? "text-emerald-600" : "text-emerald-400") + " text-xl font-extrabold tracking-tight"}>
-                                    {formatMoney(cash)}
-                                  </p>
-                                </div>
-                              ) : null}
-                            </div>
-                          </div>
-                          <a
-                            href={bookingHref({ service: service.id })}
-                            className="shrink-0 rounded-full px-5 py-2.5 text-sm font-bold transition hover:-translate-y-0.5 hover:brightness-110"
-                            style={{ background: cAccent, color: accentButtonText, WebkitTextFillColor: accentButtonText, boxShadow: "0 14px 30px -12px color-mix(in oklch, var(--c-accent) 75%, transparent)" }}
+                // Cada servicio es su propia tarjeta (borde + fondo propio)
+                // pero simplificada a lo esencial: imagen + nombre + botón
+                // "Reservar" en una sola fila — sin precio ni duración (esos
+                // datos siguen intactos en el sistema, se resuelven recién
+                // al elegir profesional en el flujo de reserva).
+                <div className="mt-5 grid gap-3 sm:gap-4">
+                  {services.map((service: Service) => (
+                    <div
+                      key={service.id}
+                      className={
+                        (isLight
+                          ? "border-zinc-200/80 bg-zinc-50/60 shadow-[0_16px_40px_-24px_rgba(24,24,27,0.35)] hover:bg-zinc-50"
+                          : "border-white/[0.08] bg-white/[0.03] shadow-[0_16px_40px_-20px_rgba(0,0,0,0.6)] hover:bg-white/[0.05]") +
+                        // min-w-0: es un ítem de un grid — sin esto, el
+                        // truncate del nombre reporta su ancho sin truncar
+                        // como mínimo y desborda la página.
+                        " flex min-w-0 items-center gap-4 rounded-2xl border p-3 transition sm:p-4"
+                      }
+                    >
+                      <ServiceImage
+                        src={service.image_url}
+                        alt={service.name}
+                        position={service.image_position}
+                        className={(isLight ? "ring-zinc-200" : "ring-white/10") + " h-14 w-14 shrink-0 rounded-xl ring-1 sm:h-16 sm:w-16"}
+                        fallback={
+                          // Placeholder con un degradado muy suave del
+                          // color del negocio en vez del ícono suelto de
+                          // antes — se siente a marca, no a "falta imagen".
+                          <div
+                            className="grid h-full w-full place-items-center"
+                            style={{
+                              background:
+                                "linear-gradient(135deg, color-mix(in oklch, var(--c-accent) 20%, transparent), color-mix(in oklch, var(--c-primary) 12%, transparent))",
+                            }}
                           >
-                            Reservar
-                          </a>
-                        </div>
-                      </div>
-                    );
-                  })}
+                            <Sparkles className="h-6 w-6" style={{ color: cAccent }} />
+                          </div>
+                        }
+                      />
+                      <p className="min-w-0 flex-1 truncate text-base font-semibold sm:text-lg">{service.name}</p>
+                      <a
+                        href={bookingHref({ service: service.id })}
+                        className="shrink-0 rounded-full px-5 py-2.5 text-sm font-bold transition hover:-translate-y-0.5 hover:brightness-110"
+                        style={{ background: cAccent, color: accentButtonText, WebkitTextFillColor: accentButtonText, boxShadow: "0 14px 30px -12px color-mix(in oklch, var(--c-accent) 75%, transparent)" }}
+                      >
+                        Reservar
+                      </a>
+                    </div>
+                  ))}
                 </div>
               )}
             </div>
