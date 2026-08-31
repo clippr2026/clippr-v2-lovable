@@ -2062,6 +2062,7 @@ function PublicBookingPage() {
                       onCustomChange={setAcquisitionCustom}
                       showLabel
                       otroBelow
+                      usePortalDropdown
                       triggerClassName="border-white/10 bg-white/[0.04] text-white"
                       inputClassName="border-white/10 bg-white/[0.04] text-white"
                     />
