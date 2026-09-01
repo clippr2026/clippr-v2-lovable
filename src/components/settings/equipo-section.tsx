@@ -16,6 +16,7 @@ import {
   Globe,
   Camera,
   ChevronDown,
+  Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
@@ -3528,130 +3529,156 @@ export function EquipoSection() {
                                                 />
                                               </button>
 
-                                              {overrideExpanded && (
-                                                // Un único bloque compacto (no 3 tarjetas
-                                                // separadas): cada fila muestra el valor
-                                                // estándar del servicio en gris por default, y
-                                                // el switch "Personalizar" lo vuelve editable
-                                                // con un valor propio para este profesional. Sin
-                                                // personalizar -> hereda el estándar
-                                                // automáticamente (mismo criterio que antes,
-                                                // solo cambia cómo se edita).
-                                                <div className="mt-2 divide-y divide-white/10 rounded-lg bg-white/[0.035] ring-1 ring-white/10 px-3">
-                                                  {/* Duración */}
-                                                  <div className="flex items-center justify-between gap-3 py-2.5">
-                                                    <span className="text-xs text-muted-foreground">Duración</span>
-                                                    <div className="flex items-center gap-2.5">
-                                                      {overrideCfg.useStandardDuration ? (
-                                                        <span className="text-sm text-muted-foreground">
-                                                          {Number(item.duration_min ?? 30) || 30} min
-                                                        </span>
-                                                      ) : (
-                                                        <span className="flex items-center gap-1">
-                                                          <input
-                                                            type="number"
-                                                            min={1}
-                                                            value={overrideCfg.duration_min}
-                                                            onChange={(e) =>
-                                                              updateOverrideCfg({
-                                                                duration_min: e.target.value,
-                                                              })
-                                                            }
-                                                            className="w-14 bg-transparent text-sm text-right focus:outline-none"
-                                                            placeholder="30"
-                                                          />
-                                                          <span className="text-xs text-muted-foreground">min</span>
-                                                        </span>
-                                                      )}
-                                                      <Toggle
-                                                        on={!overrideCfg.useStandardDuration}
-                                                        onChange={(v) =>
-                                                          updateOverrideCfg({ useStandardDuration: !v })
-                                                        }
-                                                      />
+                                              {overrideExpanded && (() => {
+                                                const standardDurationVal = Number(item.duration_min ?? 30) || 30;
+                                                const standardPriceVal = Number(item.price ?? 0) || 0;
+                                                const standardEffectiveVal = computeStandardEffectivePrice(
+                                                  item.price,
+                                                  item.cash_discount,
+                                                );
+                                                // Estilo compartido del input cuando la fila está
+                                                // personalizada: fondo + borde distintos y lápiz,
+                                                // para que "switch encendido" se lea de un vistazo
+                                                // como "esto ahora se puede tocar y editar", sin
+                                                // agregar texto explicativo ni altura.
+                                                const editableWrapCls =
+                                                  "flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 ring-1 ring-primary/50";
+                                                return (
+                                                  // Un único bloque compacto (no 3 tarjetas
+                                                  // separadas): cada fila muestra el valor
+                                                  // estándar del servicio en gris por default, y
+                                                  // el switch "Personalizar" la vuelve editable
+                                                  // con un valor propio para este profesional. Sin
+                                                  // personalizar -> hereda el estándar
+                                                  // automáticamente.
+                                                  <div className="mt-2 divide-y divide-white/10 rounded-lg bg-white/[0.035] ring-1 ring-white/10 px-3">
+                                                    {/* Duración */}
+                                                    <div className="flex items-center justify-between gap-3 py-2.5">
+                                                      <span className="text-xs text-muted-foreground">Duración</span>
+                                                      <div className="flex items-center gap-2.5">
+                                                        {overrideCfg.useStandardDuration ? (
+                                                          <span className="text-sm text-muted-foreground">
+                                                            {standardDurationVal} min
+                                                          </span>
+                                                        ) : (
+                                                          <span className={editableWrapCls}>
+                                                            <input
+                                                              type="number"
+                                                              inputMode="numeric"
+                                                              min={1}
+                                                              value={overrideCfg.duration_min}
+                                                              onChange={(e) =>
+                                                                updateOverrideCfg({
+                                                                  duration_min: e.target.value,
+                                                                })
+                                                              }
+                                                              className="w-12 bg-transparent text-sm font-medium text-right focus:outline-none"
+                                                            />
+                                                            <span className="text-xs text-muted-foreground">min</span>
+                                                            <Pencil className="h-3 w-3 shrink-0 text-primary/70" />
+                                                          </span>
+                                                        )}
+                                                        <Toggle
+                                                          on={!overrideCfg.useStandardDuration}
+                                                          onChange={(v) =>
+                                                            updateOverrideCfg({
+                                                              useStandardDuration: !v,
+                                                              duration_min: v ? String(standardDurationVal) : "",
+                                                            })
+                                                          }
+                                                        />
+                                                      </div>
                                                     </div>
-                                                  </div>
 
-                                                  {/* Precio de lista */}
-                                                  <div className="flex items-center justify-between gap-3 py-2.5">
-                                                    <span className="text-xs text-muted-foreground">Lista</span>
-                                                    <div className="flex items-center gap-2.5">
-                                                      {overrideCfg.useStandardPrice ? (
-                                                        <span className="text-sm text-muted-foreground">
-                                                          ${Number(item.price ?? 0).toLocaleString("es-AR")}
-                                                        </span>
-                                                      ) : (
-                                                        <span className="flex items-center gap-1">
-                                                          <span className="text-xs text-muted-foreground">$</span>
-                                                          <input
-                                                            type="number"
-                                                            min={0}
-                                                            value={overrideCfg.price}
-                                                            onChange={(e) =>
-                                                              updateOverrideCfg({ price: e.target.value })
-                                                            }
-                                                            className="w-20 bg-transparent text-sm text-right focus:outline-none"
-                                                            placeholder="0"
-                                                          />
-                                                        </span>
-                                                      )}
-                                                      <Toggle
-                                                        on={!overrideCfg.useStandardPrice}
-                                                        onChange={(v) => updateOverrideCfg({ useStandardPrice: !v })}
-                                                      />
+                                                    {/* Precio de lista */}
+                                                    <div className="flex items-center justify-between gap-3 py-2.5">
+                                                      <span className="text-xs text-muted-foreground">Lista</span>
+                                                      <div className="flex items-center gap-2.5">
+                                                        {overrideCfg.useStandardPrice ? (
+                                                          <span className="text-sm text-muted-foreground">
+                                                            ${standardPriceVal.toLocaleString("es-AR")}
+                                                          </span>
+                                                        ) : (
+                                                          <span className={editableWrapCls}>
+                                                            <span className="text-xs text-muted-foreground">$</span>
+                                                            <input
+                                                              type="number"
+                                                              inputMode="numeric"
+                                                              min={0}
+                                                              value={overrideCfg.price}
+                                                              onChange={(e) =>
+                                                                updateOverrideCfg({ price: e.target.value })
+                                                              }
+                                                              className="w-16 bg-transparent text-sm font-medium text-right focus:outline-none"
+                                                            />
+                                                            <Pencil className="h-3 w-3 shrink-0 text-primary/70" />
+                                                          </span>
+                                                        )}
+                                                        <Toggle
+                                                          on={!overrideCfg.useStandardPrice}
+                                                          onChange={(v) =>
+                                                            updateOverrideCfg({
+                                                              useStandardPrice: !v,
+                                                              price: v ? String(standardPriceVal) : "",
+                                                            })
+                                                          }
+                                                        />
+                                                      </div>
                                                     </div>
-                                                  </div>
 
-                                                  {/* Precio efectivo — reutiliza el "Precio en
-                                                      efectivo" ya existente del servicio
-                                                      (Configuración → Servicios → Precios,
-                                                      price_catalog.cash_discount), no es un
-                                                      campo nuevo. Sin precio en efectivo
-                                                      configurado en el servicio, no aparece
-                                                      "Efectivo" en la Página Pública a menos que
-                                                      el profesional lo personalice acá. */}
-                                                  <div className="flex items-center justify-between gap-3 py-2.5">
-                                                    <span className="text-xs text-muted-foreground">Efectivo</span>
-                                                    <div className="flex items-center gap-2.5">
-                                                      {overrideCfg.useStandardEffectivePrice !== false ? (
-                                                        <span className="text-sm text-muted-foreground">
-                                                          {(() => {
-                                                            const standard = computeStandardEffectivePrice(
-                                                              item.price,
-                                                              item.cash_discount,
-                                                            );
-                                                            return standard != null
-                                                              ? `$${standard.toLocaleString("es-AR")}`
-                                                              : "Sin definir";
-                                                          })()}
-                                                        </span>
-                                                      ) : (
-                                                        <span className="flex items-center gap-1">
-                                                          <span className="text-xs text-muted-foreground">$</span>
-                                                          <input
-                                                            type="number"
-                                                            min={0}
-                                                            value={overrideCfg.effectivePrice ?? ""}
-                                                            onChange={(e) =>
-                                                              updateOverrideCfg({
-                                                                effectivePrice: e.target.value,
-                                                              })
-                                                            }
-                                                            className="w-20 bg-transparent text-sm text-right focus:outline-none"
-                                                            placeholder="0"
-                                                          />
-                                                        </span>
-                                                      )}
-                                                      <Toggle
-                                                        on={overrideCfg.useStandardEffectivePrice === false}
-                                                        onChange={(v) =>
-                                                          updateOverrideCfg({ useStandardEffectivePrice: !v })
-                                                        }
-                                                      />
+                                                    {/* Precio efectivo — reutiliza el "Precio en
+                                                        efectivo" ya existente del servicio
+                                                        (Configuración → Servicios → Precios,
+                                                        price_catalog.cash_discount), no es un
+                                                        campo nuevo. Sin precio en efectivo
+                                                        configurado en el servicio, no aparece
+                                                        "Efectivo" en la Página Pública a menos que
+                                                        el profesional lo personalice acá. */}
+                                                    <div className="flex items-center justify-between gap-3 py-2.5">
+                                                      <span className="text-xs text-muted-foreground">Efectivo</span>
+                                                      <div className="flex items-center gap-2.5">
+                                                        {overrideCfg.useStandardEffectivePrice !== false ? (
+                                                          <span className="text-sm text-muted-foreground">
+                                                            {standardEffectiveVal != null
+                                                              ? `$${standardEffectiveVal.toLocaleString("es-AR")}`
+                                                              : "Sin definir"}
+                                                          </span>
+                                                        ) : (
+                                                          <span className={editableWrapCls}>
+                                                            <span className="text-xs text-muted-foreground">$</span>
+                                                            <input
+                                                              type="number"
+                                                              inputMode="numeric"
+                                                              min={0}
+                                                              value={overrideCfg.effectivePrice ?? ""}
+                                                              onChange={(e) =>
+                                                                updateOverrideCfg({
+                                                                  effectivePrice: e.target.value,
+                                                                })
+                                                              }
+                                                              className="w-16 bg-transparent text-sm font-medium text-right focus:outline-none"
+                                                            />
+                                                            <Pencil className="h-3 w-3 shrink-0 text-primary/70" />
+                                                          </span>
+                                                        )}
+                                                        <Toggle
+                                                          on={overrideCfg.useStandardEffectivePrice === false}
+                                                          onChange={(v) =>
+                                                            updateOverrideCfg({
+                                                              useStandardEffectivePrice: !v,
+                                                              effectivePrice: v
+                                                                ? standardEffectiveVal != null
+                                                                  ? String(standardEffectiveVal)
+                                                                  : ""
+                                                                : "",
+                                                            })
+                                                          }
+                                                        />
                                                     </div>
                                                   </div>
                                                 </div>
-                                              )}
+                                                );
+                                              })()}
                                             </div>
                                           )}
                                         </div>
