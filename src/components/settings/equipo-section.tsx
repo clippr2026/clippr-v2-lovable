@@ -351,41 +351,10 @@ function ApprovalModeCard({
               )}
             </div>
 
-            <div className="relative mt-2">
-              <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-violet-200/80">
-                Descripción
-              </div>
-              <p className="mt-1 text-xs leading-snug text-white/75">
-                El profesional cobra desde su panel y el ingreso se registra
-                automáticamente en Caja.
-              </p>
-            </div>
-
-            <div className="relative mt-2">
-              <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-violet-200/80">
-                Para qué sirve
-              </div>
-              <p className="mt-1 text-xs leading-snug text-white/75">
-                Ideal si cada profesional cobra directamente a sus clientes.
-              </p>
-            </div>
-
-            <div className="relative mt-2">
-              <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-violet-200/80">
-                Ejemplo
-              </div>
-              <p className="mt-1 text-xs leading-snug text-white/60">
-                Juan finaliza un servicio de{" "}
-                <span className="font-semibold text-white/80">$20.000</span> y
-                cobra desde su panel.
-              </p>
-              <div className="mt-1.5 flex items-center gap-2 rounded-lg bg-white/[0.045] px-2.5 py-1.5 ring-1 ring-white/10 text-xs">
-                <span className="font-mono text-[10px] text-white/42">12:00</span>
-                <span className="font-semibold text-white">Juan</span>
-                <span className="text-white/35">→</span>
-                <span className="font-semibold text-emerald-400">Cobró</span>
-              </div>
-            </div>
+            <p className="relative mt-2 text-xs leading-snug text-white/75">
+              El profesional cobra desde su panel y el ingreso se registra
+              automáticamente en Caja.
+            </p>
           </div>
 
           <div
@@ -422,50 +391,10 @@ function ApprovalModeCard({
               )}
             </div>
 
-            <div className="relative mt-2">
-              <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-violet-200/80">
-                Descripción
-              </div>
-              <p className="mt-1 text-xs leading-snug text-white/75">
-                El profesional envía el cobro y Recepción lo revisa antes de
-                registrarlo oficialmente.
-              </p>
-            </div>
-
-            <div className="relative mt-2">
-              <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-violet-200/80">
-                Para qué sirve
-              </div>
-              <p className="mt-1 text-xs leading-snug text-white/75">
-                Ideal para que profesionales y Recepción tengan el mismo
-                control sobre los servicios realizados.
-              </p>
-            </div>
-
-            <div className="relative mt-2">
-              <div className="text-[9px] font-semibold uppercase tracking-[0.18em] text-violet-200/80">
-                Ejemplo
-              </div>
-              <p className="mt-1 text-xs leading-snug text-white/60">
-                Juan finaliza un servicio de{" "}
-                <span className="font-semibold text-white/80">$20.000</span> y
-                envía el cobro desde su panel.
-              </p>
-              <div className="mt-1.5 space-y-1">
-                <div className="flex items-center gap-2 rounded-lg bg-white/[0.045] px-2.5 py-1.5 ring-1 ring-white/10 text-xs">
-                  <span className="font-mono text-[10px] text-white/42">12:00</span>
-                  <span className="font-semibold text-white">Juan</span>
-                  <span className="text-white/35">→</span>
-                  <span className="font-semibold text-sky-400">Envió a Recepción</span>
-                </div>
-                <div className="flex items-center gap-2 rounded-lg bg-white/[0.045] px-2.5 py-1.5 ring-1 ring-white/10 text-xs">
-                  <span className="font-mono text-[10px] text-white/42">12:01</span>
-                  <span className="font-semibold text-white">Recepción</span>
-                  <span className="text-white/35">→</span>
-                  <span className="font-semibold text-emerald-400">Cobró</span>
-                </div>
-              </div>
-            </div>
+            <p className="relative mt-2 text-xs leading-snug text-white/75">
+              El profesional envía el cobro desde su panel para que Caja lo
+              revise y confirme.
+            </p>
           </div>
         </div>
       )}
