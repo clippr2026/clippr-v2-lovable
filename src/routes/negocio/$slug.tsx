@@ -1217,15 +1217,33 @@ function PublicProfilePage() {
         </div>
 
         <aside className="min-w-0 space-y-5 lg:sticky lg:top-6 lg:self-start">
-          {/* Reserva */}
+          {/* Debajo del mapa: dirección + "Cómo llegar" en vez de otro
+              "Reservar turno" (ya está el botón fijo de mobile y el de
+              cada servicio/profesional) — con dirección configurada, este
+              botón lleva directo a Google Maps. */}
           <GlowCard className="p-5 sm:p-6">
-            <Link
-              {...reservarTo}
-              className="inline-flex w-full items-center justify-center rounded-2xl px-5 py-3 text-base font-bold transition hover:brightness-110"
-              style={{ background: cAccent, color: accentButtonText, WebkitTextFillColor: accentButtonText, boxShadow: "0 12px 32px -10px color-mix(in oklch, var(--c-accent) 70%, transparent)" }}
-            >
-              Reservar turno
-            </Link>
+            {business.address && mapLink ? (
+              <a
+                href={mapLink}
+                target="_blank"
+                rel="noreferrer"
+                className="flex w-full flex-col items-center gap-1 rounded-2xl px-5 py-3.5 text-center transition hover:brightness-110"
+                style={{ background: cAccent, color: accentButtonText, WebkitTextFillColor: accentButtonText, boxShadow: "0 12px 32px -10px color-mix(in oklch, var(--c-accent) 70%, transparent)" }}
+              >
+                <span className="text-sm font-semibold leading-snug">{business.address}</span>
+                <span className="inline-flex items-center gap-1 text-base font-bold">
+                  Cómo llegar <ExternalLink className="h-4 w-4" />
+                </span>
+              </a>
+            ) : (
+              <Link
+                {...reservarTo}
+                className="inline-flex w-full items-center justify-center rounded-2xl px-5 py-3 text-base font-bold transition hover:brightness-110"
+                style={{ background: cAccent, color: accentButtonText, WebkitTextFillColor: accentButtonText, boxShadow: "0 12px 32px -10px color-mix(in oklch, var(--c-accent) 70%, transparent)" }}
+              >
+                Reservar turno
+              </Link>
+            )}
           </GlowCard>
 
           {/* Horarios + Dirección */}
