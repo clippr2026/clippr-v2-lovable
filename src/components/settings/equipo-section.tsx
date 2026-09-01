@@ -3435,7 +3435,7 @@ export function EquipoSection() {
 
                                                     {/* Precio de lista */}
                                                     <div className="flex items-center justify-between gap-3 py-2.5">
-                                                      <span className="text-xs text-muted-foreground">Lista</span>
+                                                      <span className="text-xs text-muted-foreground">Precio de lista</span>
                                                       {overrideCfg.useStandardPrice ? (
                                                         <button
                                                           type="button"
@@ -3479,7 +3479,7 @@ export function EquipoSection() {
                                                         "Efectivo" en la Página Pública a menos que
                                                         el profesional lo personalice acá. */}
                                                     <div className="flex items-center justify-between gap-3 py-2.5">
-                                                      <span className="text-xs text-muted-foreground">Efectivo</span>
+                                                      <span className="text-xs text-muted-foreground">Precio en efectivo</span>
                                                       {overrideCfg.useStandardEffectivePrice !== false ? (
                                                         <button
                                                           type="button"
