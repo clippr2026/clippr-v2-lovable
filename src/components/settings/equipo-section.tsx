@@ -249,13 +249,11 @@ const EMPTY_FORM: NewProForm = {
 function PermissionToggleRow({
   icon: Icon,
   title,
-  desc,
   on,
   onChange,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   title: string;
-  desc: string;
   on: boolean;
   onChange: (v: boolean) => void;
 }) {
@@ -264,10 +262,7 @@ function PermissionToggleRow({
       <div className="h-8 w-8 rounded-lg bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
         <Icon className="h-3.5 w-3.5 text-violet-200" />
       </div>
-      <div className="flex-1 min-w-0">
-        <div className="text-sm font-medium leading-tight">{title}</div>
-        <div className="text-xs text-muted-foreground mt-0.5 leading-snug">{desc}</div>
-      </div>
+      <div className="flex-1 min-w-0 text-sm font-medium leading-tight">{title}</div>
       <Toggle on={on} onChange={onChange} />
     </div>
   );
@@ -303,14 +298,12 @@ function ApprovalModeCard({
       <PermissionToggleRow
         icon={CalendarPlus}
         title="Puede agregar turnos desde su panel"
-        desc="Permite crear turnos desde Mi Agenda. Impactan en Agenda general."
         on={canAddTurno}
         onChange={onToggleCanAddTurno}
       />
       <PermissionToggleRow
         icon={Trash2}
         title="Puede cancelar turnos desde su panel"
-        desc="Permite cancelar o eliminar turnos desde Mi Agenda."
         on={canCancelTurno}
         onChange={onToggleCanCancelTurno}
       />
@@ -318,7 +311,6 @@ function ApprovalModeCard({
       <PermissionToggleRow
         icon={ShieldCheck}
         title="Habilitar modo de aprobación"
-        desc="Cobro directo en Caja o requiere revisión."
         on={enabled}
         onChange={onToggleEnabled}
       />
@@ -3059,9 +3051,6 @@ export function EquipoSection() {
                       <div className="text-sm font-semibold">
                         Foto del profesional
                       </div>
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        Tocá la foto para cambiarla.
-                      </div>
                       {form.avatarUrl && (
                         <button
                           type="button"
@@ -3109,7 +3098,6 @@ export function EquipoSection() {
                   <PermissionToggleRow
                     icon={Globe}
                     title="Acepta reservas en línea"
-                    desc="Si está apagado, no aparece en la página pública para ningún servicio. Si está prendido, aparece solo en los servicios que tenga habilitados en Comisiones → Servicios."
                     on={form.isActive}
                     onChange={(v) => setForm({ ...form, isActive: v })}
                   />
