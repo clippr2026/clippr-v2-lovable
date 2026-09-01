@@ -3555,8 +3555,6 @@ export function EquipoSection() {
                                                               ...overrideCfg,
                                                               useStandardPrice: true,
                                                               price: "",
-                                                              useStandardEffectivePrice: true,
-                                                              effectivePrice: "",
                                                             },
                                                           }
                                                         : form.serviceOverrides,
@@ -3577,20 +3575,13 @@ export function EquipoSection() {
                                                   />
                                                 </button>
                                               </div>
-                                              <div className="mt-1.5 text-xs text-muted-foreground">
-                                                ${Number(item.price ?? 0).toLocaleString("es-AR")}
-                                              </div>
-
                                               {/* Con el switch apagado, solo nombre + switch
-                                                  + precio base — nada editable. Al prenderlo,
-                                                  comisión y precio aparecen directamente,
-                                                  misma dinámica que Servicios. */}
+                                                  — nada de precio ni comisión a la vista. Al
+                                                  prenderlo aparecen directamente Precio y %
+                                                  Comisión (un único campo de precio en
+                                                  Catálogo, sin distinguir lista/efectivo). */}
                                               {cfg.enabled && (() => {
                                                 const standardPriceVal = Number(item.price ?? 0) || 0;
-                                                const standardEffectiveVal = computeStandardEffectivePrice(
-                                                  item.price,
-                                                  item.cash_discount,
-                                                );
                                                 const editableWrapCls =
                                                   "group flex items-center gap-1 rounded-md border border-white/10 bg-white/[0.03] px-2 py-1 transition-colors focus-within:border-primary/60 focus-within:bg-primary/10";
                                                 const editablePencilCls =
@@ -3599,41 +3590,10 @@ export function EquipoSection() {
                                                   "flex items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-2 py-1 transition-colors hover:border-white/20 hover:bg-white/[0.06]";
                                                 return (
                                                   <div className="mt-2.5 space-y-2.5">
-                                                    {/* Comisión */}
-                                                    <div className="flex items-center overflow-hidden rounded-lg ring-1 ring-white/10 bg-white/5">
-                                                      <select
-                                                        value={cfg.mode}
-                                                        onChange={(e) =>
-                                                          updateCfg({
-                                                            mode: e.target.value as CommissionMode,
-                                                          })
-                                                        }
-                                                        className="border-r border-white/10 bg-transparent px-2 py-1.5 text-xs focus:outline-none"
-                                                      >
-                                                        <option value="percent">% comisión</option>
-                                                        <option value="fixed">Monto fijo</option>
-                                                      </select>
-                                                      <div className="flex items-center gap-1 px-2 py-1.5">
-                                                        <input
-                                                          type="number"
-                                                          min={0}
-                                                          value={cfg.value}
-                                                          onChange={(e) =>
-                                                            updateCfg({ value: e.target.value })
-                                                          }
-                                                          className="w-20 bg-transparent text-sm text-right focus:outline-none"
-                                                          placeholder="0"
-                                                        />
-                                                        <span className="text-xs text-muted-foreground">
-                                                          {cfg.mode === "percent" ? "%" : "$"}
-                                                        </span>
-                                                      </div>
-                                                    </div>
-
-                                                    {/* Precio de lista / efectivo */}
-                                                    <div className="divide-y divide-white/10 rounded-lg bg-white/[0.035] ring-1 ring-white/10 px-3">
+                                                    {/* Precio */}
+                                                    <div className="rounded-lg bg-white/[0.035] ring-1 ring-white/10 px-3">
                                                       <div className="flex items-center justify-between gap-3 py-2.5">
-                                                        <span className="text-xs text-muted-foreground">Lista</span>
+                                                        <span className="text-xs text-muted-foreground">Precio</span>
                                                         {overrideCfg.useStandardPrice ? (
                                                           <button
                                                             type="button"
@@ -3667,48 +3627,36 @@ export function EquipoSection() {
                                                           </span>
                                                         )}
                                                       </div>
+                                                    </div>
 
-                                                      <div className="flex items-center justify-between gap-3 py-2.5">
-                                                        <span className="text-xs text-muted-foreground">Efectivo</span>
-                                                        {overrideCfg.useStandardEffectivePrice !== false ? (
-                                                          <button
-                                                            type="button"
-                                                            onClick={() =>
-                                                              updateOverrideCfg({
-                                                                useStandardEffectivePrice: false,
-                                                                effectivePrice:
-                                                                  standardEffectiveVal != null
-                                                                    ? String(standardEffectiveVal)
-                                                                    : "",
-                                                              })
-                                                            }
-                                                            className={standardWrapCls}
-                                                          >
-                                                            <span className="text-sm text-muted-foreground">
-                                                              {standardEffectiveVal != null
-                                                                ? `$${standardEffectiveVal.toLocaleString("es-AR")}`
-                                                                : "Sin definir"}
-                                                            </span>
-                                                            <Pencil className="h-3 w-3 shrink-0 text-muted-foreground/60" />
-                                                          </button>
-                                                        ) : (
-                                                          <span className={editableWrapCls}>
-                                                            <span className="text-xs text-muted-foreground">$</span>
-                                                            <input
-                                                              type="number"
-                                                              inputMode="numeric"
-                                                              min={0}
-                                                              value={overrideCfg.effectivePrice ?? ""}
-                                                              onChange={(e) =>
-                                                                updateOverrideCfg({
-                                                                  effectivePrice: e.target.value,
-                                                                })
-                                                              }
-                                                              className="w-16 bg-transparent text-sm font-medium text-right focus:outline-none"
-                                                            />
-                                                            <Pencil className={editablePencilCls} />
-                                                          </span>
-                                                        )}
+                                                    {/* Comisión */}
+                                                    <div className="flex items-center overflow-hidden rounded-lg ring-1 ring-white/10 bg-white/5">
+                                                      <select
+                                                        value={cfg.mode}
+                                                        onChange={(e) =>
+                                                          updateCfg({
+                                                            mode: e.target.value as CommissionMode,
+                                                          })
+                                                        }
+                                                        className="border-r border-white/10 bg-transparent px-2 py-1.5 text-xs focus:outline-none"
+                                                      >
+                                                        <option value="percent">% comisión</option>
+                                                        <option value="fixed">Monto fijo</option>
+                                                      </select>
+                                                      <div className="flex items-center gap-1 px-2 py-1.5">
+                                                        <input
+                                                          type="number"
+                                                          min={0}
+                                                          value={cfg.value}
+                                                          onChange={(e) =>
+                                                            updateCfg({ value: e.target.value })
+                                                          }
+                                                          className="w-20 bg-transparent text-sm text-right focus:outline-none"
+                                                          placeholder="0"
+                                                        />
+                                                        <span className="text-xs text-muted-foreground">
+                                                          {cfg.mode === "percent" ? "%" : "$"}
+                                                        </span>
                                                       </div>
                                                     </div>
                                                   </div>
