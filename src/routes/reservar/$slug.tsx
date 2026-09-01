@@ -374,7 +374,7 @@ function PublicBookingPage() {
   // si no ofrece alguno de los servicios del turno combinado, no puede
   // tomarlo. Se usa tanto para el paso "Elegí profesional" como para el pool
   // de "Sin preferencia" en el cálculo de turnos disponibles.
-  const employeesForSelectedServices = React.useMemo(
+  const employeesOfferingSelectedServices = React.useMemo(
     () =>
       selectedServiceIds.length === 0
         ? employees
@@ -385,6 +385,24 @@ function PublicBookingPage() {
           ),
     [employees, selectedServiceIds, employeeServiceOverrides],
   );
+  // Si hay una promo elegida en el Paso 2, el profesional también tiene que
+  // tenerla habilitada — antes se lo dejaba elegir igual y recién en el
+  // resumen se avisaba "la promo no aplica a tu selección". Ahora directamente
+  // no aparece como opción, mismo criterio (isPromotionApplicable) que decide
+  // el descuento real, así que nunca se puede armar una combinación promo +
+  // profesional inválida. Genérico para cualquier promoción.
+  const employeesForSelectedServices = React.useMemo(() => {
+    if (!appliedPromotion || selectedServices.length === 0) return employeesOfferingSelectedServices;
+    return employeesOfferingSelectedServices.filter((employee) =>
+      selectedServices.every((service) =>
+        isPromotionApplicable(appliedPromotion, {
+          serviceId: service.id,
+          employeeId: employee.id,
+          category: service.category ?? null,
+        }),
+      ),
+    );
+  }, [employeesOfferingSelectedServices, appliedPromotion, selectedServices]);
   // Servicios que al menos un profesional activo ofrece (switch "Ofrece este
   // servicio" en cada empleado) — si está deshabilitado para todos, no tiene
   // sentido ofrecerlo como opción reservable en la página pública.
@@ -1671,17 +1689,42 @@ function PublicBookingPage() {
               ) : null}
 
               {step === "professional" && employeesForSelectedServices.length === 0 ? (
-                // Ningún profesional visible ofrece la combinación de
-                // servicios elegida (switch "Ofrece este servicio" apagado
-                // para todos) — sin este mensaje, el paso quedaría vacío o
-                // solo con "Sin preferencia" sin nadie real detrás.
                 <div className="mt-5 rounded-3xl border border-white/10 bg-white/[0.03] p-6 text-center">
-                  <p className="text-sm text-white/70">
-                    No hay profesionales disponibles para el servicio elegido en este momento.
-                  </p>
-                  <p className="mt-1 text-xs text-white/45">
-                    Probá con otra combinación de servicios o contactá al negocio directamente.
-                  </p>
+                  {appliedPromotion && employeesOfferingSelectedServices.length > 0 ? (
+                    // El servicio sí tiene profesionales, pero ninguno tiene
+                    // habilitada la promo elegida — se lo manda de nuevo al
+                    // Paso 2 en vez de dejarlo varado acá.
+                    <>
+                      <p className="text-sm text-white/70">
+                        Ningún profesional tiene habilitada la promo "{appliedPromotion.name}" para este servicio.
+                      </p>
+                      <p className="mt-1 text-xs text-white/45">
+                        Volvé a elegir un beneficio distinto o continuá sin promoción.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setStep("promo")}
+                        className="mt-4 inline-flex items-center gap-1 rounded-full px-4 py-2 text-sm font-semibold"
+                        style={{ background: accent, color: accentButtonText }}
+                      >
+                        Cambiar beneficio
+                      </button>
+                    </>
+                  ) : (
+                    // Ningún profesional visible ofrece la combinación de
+                    // servicios elegida (switch "Ofrece este servicio"
+                    // apagado para todos) — sin este mensaje, el paso
+                    // quedaría vacío o solo con "Sin preferencia" sin nadie
+                    // real detrás.
+                    <>
+                      <p className="text-sm text-white/70">
+                        No hay profesionales disponibles para el servicio elegido en este momento.
+                      </p>
+                      <p className="mt-1 text-xs text-white/45">
+                        Probá con otra combinación de servicios o contactá al negocio directamente.
+                      </p>
+                    </>
+                  )}
                 </div>
               ) : null}
 
