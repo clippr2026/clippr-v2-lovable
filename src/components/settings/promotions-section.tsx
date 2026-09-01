@@ -467,7 +467,13 @@ export function PromotionsSection() {
               </div>
             </div>
 
-            <div ref={modalScrollRef} className="flex-1 space-y-4 overflow-y-auto p-5">
+            {/* min-h-0: sin esto, un hijo flex no se achica más allá de la
+                altura de su propio contenido (default min-height: auto) —
+                con un formulario largo (Vigencia con los 7 días, etc.) este
+                div terminaba más alto que el modal, y el overflow-hidden del
+                contenedor recortaba el footer (Eliminar/Cancelar/Guardar) en
+                vez de que este div scrolleara internamente. */}
+            <div ref={modalScrollRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
               <SectionCard
                 label={
                   <SectionLabel icon={Info} color="text-sky-300">
