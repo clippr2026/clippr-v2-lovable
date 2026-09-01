@@ -3518,7 +3518,7 @@ export function EquipoSection() {
                                                 )}
                                               >
                                                 <span>
-                                                  Personalizar duración y precio
+                                                  Precio y duración
                                                 </span>
                                                 <ChevronDown
                                                   className={cn(
@@ -3529,105 +3529,76 @@ export function EquipoSection() {
                                               </button>
 
                                               {overrideExpanded && (
-                                                <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                                                  {/* Duración — valor siempre alineado a la
-                                                      izquierda del campo, estándar o personalizado. */}
-                                                  <div className="rounded-lg bg-white/[0.035] ring-1 ring-white/10 p-2.5">
-                                                    <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">
-                                                      Duración
-                                                    </div>
-                                                    <label className="mt-1 flex items-center gap-2 text-xs">
-                                                      <input
-                                                        type="checkbox"
-                                                        checked={overrideCfg.useStandardDuration}
-                                                        onChange={(e) =>
-                                                          updateOverrideCfg({
-                                                            useStandardDuration:
-                                                              e.target.checked,
-                                                          })
-                                                        }
-                                                        className="h-3.5 w-3.5 accent-primary"
-                                                      />
-                                                      <span>Usar duración estándar</span>
-                                                    </label>
-                                                    <div className="mt-1.5 flex items-center gap-1 rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1.5">
+                                                // Un único bloque compacto (no 3 tarjetas
+                                                // separadas): cada fila muestra el valor
+                                                // estándar del servicio en gris por default, y
+                                                // el switch "Personalizar" lo vuelve editable
+                                                // con un valor propio para este profesional. Sin
+                                                // personalizar -> hereda el estándar
+                                                // automáticamente (mismo criterio que antes,
+                                                // solo cambia cómo se edita).
+                                                <div className="mt-2 divide-y divide-white/10 rounded-lg bg-white/[0.035] ring-1 ring-white/10 px-3">
+                                                  {/* Duración */}
+                                                  <div className="flex items-center justify-between gap-3 py-2.5">
+                                                    <span className="text-xs text-muted-foreground">Duración</span>
+                                                    <div className="flex items-center gap-2.5">
                                                       {overrideCfg.useStandardDuration ? (
-                                                        <span className="text-sm">
-                                                          {Number(item.duration_min ?? 30) ||
-                                                            30}{" "}
-                                                          min
+                                                        <span className="text-sm text-muted-foreground">
+                                                          {Number(item.duration_min ?? 30) || 30} min
                                                         </span>
                                                       ) : (
-                                                        <>
+                                                        <span className="flex items-center gap-1">
                                                           <input
                                                             type="number"
                                                             min={1}
                                                             value={overrideCfg.duration_min}
                                                             onChange={(e) =>
                                                               updateOverrideCfg({
-                                                                duration_min:
-                                                                  e.target.value,
+                                                                duration_min: e.target.value,
                                                               })
                                                             }
-                                                            className="w-16 bg-transparent text-sm text-left focus:outline-none"
+                                                            className="w-14 bg-transparent text-sm text-right focus:outline-none"
                                                             placeholder="30"
                                                           />
-                                                          <span className="text-xs text-muted-foreground">
-                                                            min
-                                                          </span>
-                                                        </>
+                                                          <span className="text-xs text-muted-foreground">min</span>
+                                                        </span>
                                                       )}
+                                                      <Toggle
+                                                        on={!overrideCfg.useStandardDuration}
+                                                        onChange={(v) =>
+                                                          updateOverrideCfg({ useStandardDuration: !v })
+                                                        }
+                                                      />
                                                     </div>
                                                   </div>
 
-                                                  {/* Precio de lista — valor siempre alineado
-                                                      a la derecha del campo, estándar o
-                                                      personalizado. */}
-                                                  <div className="rounded-lg bg-white/[0.035] ring-1 ring-white/10 p-2.5">
-                                                    <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">
-                                                      Precio de lista
-                                                    </div>
-                                                    <label className="mt-1 flex items-center gap-2 text-xs">
-                                                      <input
-                                                        type="checkbox"
-                                                        checked={overrideCfg.useStandardPrice}
-                                                        onChange={(e) =>
-                                                          updateOverrideCfg({
-                                                            useStandardPrice:
-                                                              e.target.checked,
-                                                          })
-                                                        }
-                                                        className="h-3.5 w-3.5 accent-primary"
-                                                      />
-                                                      <span>Usar precio de lista estándar</span>
-                                                    </label>
-                                                    <div className="mt-1.5 flex items-center justify-end gap-1 rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1.5">
+                                                  {/* Precio de lista */}
+                                                  <div className="flex items-center justify-between gap-3 py-2.5">
+                                                    <span className="text-xs text-muted-foreground">Lista</span>
+                                                    <div className="flex items-center gap-2.5">
                                                       {overrideCfg.useStandardPrice ? (
-                                                        <span className="text-sm">
-                                                          $
-                                                          {Number(
-                                                            item.price ?? 0,
-                                                          ).toLocaleString("es-AR")}
+                                                        <span className="text-sm text-muted-foreground">
+                                                          ${Number(item.price ?? 0).toLocaleString("es-AR")}
                                                         </span>
                                                       ) : (
-                                                        <>
-                                                          <span className="text-xs text-muted-foreground">
-                                                            $
-                                                          </span>
+                                                        <span className="flex items-center gap-1">
+                                                          <span className="text-xs text-muted-foreground">$</span>
                                                           <input
                                                             type="number"
                                                             min={0}
                                                             value={overrideCfg.price}
                                                             onChange={(e) =>
-                                                              updateOverrideCfg({
-                                                                price: e.target.value,
-                                                              })
+                                                              updateOverrideCfg({ price: e.target.value })
                                                             }
                                                             className="w-20 bg-transparent text-sm text-right focus:outline-none"
                                                             placeholder="0"
                                                           />
-                                                        </>
+                                                        </span>
                                                       )}
+                                                      <Toggle
+                                                        on={!overrideCfg.useStandardPrice}
+                                                        onChange={(v) => updateOverrideCfg({ useStandardPrice: !v })}
+                                                      />
                                                     </div>
                                                   </div>
 
@@ -3639,27 +3610,11 @@ export function EquipoSection() {
                                                       configurado en el servicio, no aparece
                                                       "Efectivo" en la Página Pública a menos que
                                                       el profesional lo personalice acá. */}
-                                                  <div className="rounded-lg bg-white/[0.035] ring-1 ring-white/10 p-2.5">
-                                                    <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground/70">
-                                                      Precio efectivo
-                                                    </div>
-                                                    <label className="mt-1 flex items-center gap-2 text-xs">
-                                                      <input
-                                                        type="checkbox"
-                                                        checked={overrideCfg.useStandardEffectivePrice !== false}
-                                                        onChange={(e) =>
-                                                          updateOverrideCfg({
-                                                            useStandardEffectivePrice:
-                                                              e.target.checked,
-                                                          })
-                                                        }
-                                                        className="h-3.5 w-3.5 accent-primary"
-                                                      />
-                                                      <span>Usar precio efectivo estándar</span>
-                                                    </label>
-                                                    <div className="mt-1.5 flex items-center justify-end gap-1 rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1.5">
+                                                  <div className="flex items-center justify-between gap-3 py-2.5">
+                                                    <span className="text-xs text-muted-foreground">Efectivo</span>
+                                                    <div className="flex items-center gap-2.5">
                                                       {overrideCfg.useStandardEffectivePrice !== false ? (
-                                                        <span className="text-sm">
+                                                        <span className="text-sm text-muted-foreground">
                                                           {(() => {
                                                             const standard = computeStandardEffectivePrice(
                                                               item.price,
@@ -3671,10 +3626,8 @@ export function EquipoSection() {
                                                           })()}
                                                         </span>
                                                       ) : (
-                                                        <>
-                                                          <span className="text-xs text-muted-foreground">
-                                                            $
-                                                          </span>
+                                                        <span className="flex items-center gap-1">
+                                                          <span className="text-xs text-muted-foreground">$</span>
                                                           <input
                                                             type="number"
                                                             min={0}
@@ -3687,8 +3640,14 @@ export function EquipoSection() {
                                                             className="w-20 bg-transparent text-sm text-right focus:outline-none"
                                                             placeholder="0"
                                                           />
-                                                        </>
+                                                        </span>
                                                       )}
+                                                      <Toggle
+                                                        on={overrideCfg.useStandardEffectivePrice === false}
+                                                        onChange={(v) =>
+                                                          updateOverrideCfg({ useStandardEffectivePrice: !v })
+                                                        }
+                                                      />
                                                     </div>
                                                   </div>
                                                 </div>
