@@ -3373,7 +3373,26 @@ export function EquipoSection() {
                                               <button
                                                 type="button"
                                                 onClick={() =>
-                                                  updateOverrideCfg({ enabled: !offered })
+                                                  // Al reactivar (estaba apagado), duración,
+                                                  // lista y efectivo vuelven al estándar del
+                                                  // servicio en vez de conservar
+                                                  // personalizaciones previas — es el único
+                                                  // switch que queda para estos campos, así que
+                                                  // "reactivar" tiene que dejarlos en un estado
+                                                  // predecible, no arrastrar lo de antes.
+                                                  updateOverrideCfg(
+                                                    !offered
+                                                      ? {
+                                                          enabled: true,
+                                                          useStandardDuration: true,
+                                                          duration_min: "",
+                                                          useStandardPrice: true,
+                                                          price: "",
+                                                          useStandardEffectivePrice: true,
+                                                          effectivePrice: "",
+                                                        }
+                                                      : { enabled: false },
+                                                  )
                                                 }
                                                 role="switch"
                                                 aria-checked={offered}
@@ -3435,14 +3454,7 @@ export function EquipoSection() {
                                               <div className="text-xs text-muted-foreground">
                                                 {isServiceKind && resolved && (
                                                   <>
-                                                    {resolved.duration_min} min
-                                                    {resolved.durationOverridden && (
-                                                      <span className="text-violet-300">
-                                                        {" "}
-                                                        (personalizado)
-                                                      </span>
-                                                    )}
-                                                    {" · "}
+                                                    {resolved.duration_min} min{" · "}
                                                   </>
                                                 )}
                                                 $
@@ -3450,12 +3462,6 @@ export function EquipoSection() {
                                                   ? resolved.price
                                                   : Number(item.price ?? 0)
                                                 ).toLocaleString("es-AR")}
-                                                {resolved?.priceOverridden && (
-                                                  <span className="text-violet-300">
-                                                    {" "}
-                                                    (personalizado)
-                                                  </span>
-                                                )}
                                               </div>
                                             </div>
 
@@ -3536,94 +3542,100 @@ export function EquipoSection() {
                                                   item.price,
                                                   item.cash_discount,
                                                 );
-                                                // Estilo compartido del input cuando la fila está
-                                                // personalizada: fondo + borde distintos y lápiz,
-                                                // para que "switch encendido" se lea de un vistazo
-                                                // como "esto ahora se puede tocar y editar", sin
-                                                // agregar texto explicativo ni altura.
+                                                // Estilo compartido de la fila cuando está
+                                                // personalizada (input real) vs. mostrando el
+                                                // estándar (botón que al tocarlo la convierte en
+                                                // editable, prellenada con el estándar actual) —
+                                                // en los dos casos el lápiz queda visible como
+                                                // pista de "esto se toca para editar".
                                                 const editableWrapCls =
                                                   "flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 ring-1 ring-primary/50";
+                                                const standardWrapCls =
+                                                  "flex items-center gap-1.5 rounded-md px-2 py-1 -mx-2 hover:bg-white/5";
                                                 return (
                                                   // Un único bloque compacto (no 3 tarjetas
-                                                  // separadas): cada fila muestra el valor
-                                                  // estándar del servicio en gris por default, y
-                                                  // el switch "Personalizar" la vuelve editable
-                                                  // con un valor propio para este profesional. Sin
-                                                  // personalizar -> hereda el estándar
-                                                  // automáticamente.
+                                                  // separadas ni switches individuales): cada
+                                                  // valor se edita tocándolo directamente. El
+                                                  // único switch que decide "estándar vs.
+                                                  // personalizado" para estos 3 campos es el
+                                                  // switch general del servicio, arriba —
+                                                  // desactivarlo y reactivarlo los resetea al
+                                                  // estándar.
                                                   <div className="mt-2 divide-y divide-white/10 rounded-lg bg-white/[0.035] ring-1 ring-white/10 px-3">
                                                     {/* Duración */}
                                                     <div className="flex items-center justify-between gap-3 py-2.5">
                                                       <span className="text-xs text-muted-foreground">Duración</span>
-                                                      <div className="flex items-center gap-2.5">
-                                                        {overrideCfg.useStandardDuration ? (
+                                                      {overrideCfg.useStandardDuration ? (
+                                                        <button
+                                                          type="button"
+                                                          onClick={() =>
+                                                            updateOverrideCfg({
+                                                              useStandardDuration: false,
+                                                              duration_min: String(standardDurationVal),
+                                                            })
+                                                          }
+                                                          className={standardWrapCls}
+                                                        >
                                                           <span className="text-sm text-muted-foreground">
                                                             {standardDurationVal} min
                                                           </span>
-                                                        ) : (
-                                                          <span className={editableWrapCls}>
-                                                            <input
-                                                              type="number"
-                                                              inputMode="numeric"
-                                                              min={1}
-                                                              value={overrideCfg.duration_min}
-                                                              onChange={(e) =>
-                                                                updateOverrideCfg({
-                                                                  duration_min: e.target.value,
-                                                                })
-                                                              }
-                                                              className="w-12 bg-transparent text-sm font-medium text-right focus:outline-none"
-                                                            />
-                                                            <span className="text-xs text-muted-foreground">min</span>
-                                                            <Pencil className="h-3 w-3 shrink-0 text-primary/70" />
-                                                          </span>
-                                                        )}
-                                                        <Toggle
-                                                          on={!overrideCfg.useStandardDuration}
-                                                          onChange={(v) =>
-                                                            updateOverrideCfg({
-                                                              useStandardDuration: !v,
-                                                              duration_min: v ? String(standardDurationVal) : "",
-                                                            })
-                                                          }
-                                                        />
-                                                      </div>
+                                                          <Pencil className="h-3 w-3 shrink-0 text-muted-foreground/60" />
+                                                        </button>
+                                                      ) : (
+                                                        <span className={editableWrapCls}>
+                                                          <input
+                                                            type="number"
+                                                            inputMode="numeric"
+                                                            min={1}
+                                                            value={overrideCfg.duration_min}
+                                                            onChange={(e) =>
+                                                              updateOverrideCfg({
+                                                                duration_min: e.target.value,
+                                                              })
+                                                            }
+                                                            className="w-12 bg-transparent text-sm font-medium text-right focus:outline-none"
+                                                          />
+                                                          <span className="text-xs text-muted-foreground">min</span>
+                                                          <Pencil className="h-3 w-3 shrink-0 text-primary/70" />
+                                                        </span>
+                                                      )}
                                                     </div>
 
                                                     {/* Precio de lista */}
                                                     <div className="flex items-center justify-between gap-3 py-2.5">
                                                       <span className="text-xs text-muted-foreground">Lista</span>
-                                                      <div className="flex items-center gap-2.5">
-                                                        {overrideCfg.useStandardPrice ? (
+                                                      {overrideCfg.useStandardPrice ? (
+                                                        <button
+                                                          type="button"
+                                                          onClick={() =>
+                                                            updateOverrideCfg({
+                                                              useStandardPrice: false,
+                                                              price: String(standardPriceVal),
+                                                            })
+                                                          }
+                                                          className={standardWrapCls}
+                                                        >
                                                           <span className="text-sm text-muted-foreground">
                                                             ${standardPriceVal.toLocaleString("es-AR")}
                                                           </span>
-                                                        ) : (
-                                                          <span className={editableWrapCls}>
-                                                            <span className="text-xs text-muted-foreground">$</span>
-                                                            <input
-                                                              type="number"
-                                                              inputMode="numeric"
-                                                              min={0}
-                                                              value={overrideCfg.price}
-                                                              onChange={(e) =>
-                                                                updateOverrideCfg({ price: e.target.value })
-                                                              }
-                                                              className="w-16 bg-transparent text-sm font-medium text-right focus:outline-none"
-                                                            />
-                                                            <Pencil className="h-3 w-3 shrink-0 text-primary/70" />
-                                                          </span>
-                                                        )}
-                                                        <Toggle
-                                                          on={!overrideCfg.useStandardPrice}
-                                                          onChange={(v) =>
-                                                            updateOverrideCfg({
-                                                              useStandardPrice: !v,
-                                                              price: v ? String(standardPriceVal) : "",
-                                                            })
-                                                          }
-                                                        />
-                                                      </div>
+                                                          <Pencil className="h-3 w-3 shrink-0 text-muted-foreground/60" />
+                                                        </button>
+                                                      ) : (
+                                                        <span className={editableWrapCls}>
+                                                          <span className="text-xs text-muted-foreground">$</span>
+                                                          <input
+                                                            type="number"
+                                                            inputMode="numeric"
+                                                            min={0}
+                                                            value={overrideCfg.price}
+                                                            onChange={(e) =>
+                                                              updateOverrideCfg({ price: e.target.value })
+                                                            }
+                                                            className="w-16 bg-transparent text-sm font-medium text-right focus:outline-none"
+                                                          />
+                                                          <Pencil className="h-3 w-3 shrink-0 text-primary/70" />
+                                                        </span>
+                                                      )}
                                                     </div>
 
                                                     {/* Precio efectivo — reutiliza el "Precio en
@@ -3636,47 +3648,47 @@ export function EquipoSection() {
                                                         el profesional lo personalice acá. */}
                                                     <div className="flex items-center justify-between gap-3 py-2.5">
                                                       <span className="text-xs text-muted-foreground">Efectivo</span>
-                                                      <div className="flex items-center gap-2.5">
-                                                        {overrideCfg.useStandardEffectivePrice !== false ? (
+                                                      {overrideCfg.useStandardEffectivePrice !== false ? (
+                                                        <button
+                                                          type="button"
+                                                          onClick={() =>
+                                                            updateOverrideCfg({
+                                                              useStandardEffectivePrice: false,
+                                                              effectivePrice:
+                                                                standardEffectiveVal != null
+                                                                  ? String(standardEffectiveVal)
+                                                                  : "",
+                                                            })
+                                                          }
+                                                          className={standardWrapCls}
+                                                        >
                                                           <span className="text-sm text-muted-foreground">
                                                             {standardEffectiveVal != null
                                                               ? `$${standardEffectiveVal.toLocaleString("es-AR")}`
                                                               : "Sin definir"}
                                                           </span>
-                                                        ) : (
-                                                          <span className={editableWrapCls}>
-                                                            <span className="text-xs text-muted-foreground">$</span>
-                                                            <input
-                                                              type="number"
-                                                              inputMode="numeric"
-                                                              min={0}
-                                                              value={overrideCfg.effectivePrice ?? ""}
-                                                              onChange={(e) =>
-                                                                updateOverrideCfg({
-                                                                  effectivePrice: e.target.value,
-                                                                })
-                                                              }
-                                                              className="w-16 bg-transparent text-sm font-medium text-right focus:outline-none"
-                                                            />
-                                                            <Pencil className="h-3 w-3 shrink-0 text-primary/70" />
-                                                          </span>
-                                                        )}
-                                                        <Toggle
-                                                          on={overrideCfg.useStandardEffectivePrice === false}
-                                                          onChange={(v) =>
-                                                            updateOverrideCfg({
-                                                              useStandardEffectivePrice: !v,
-                                                              effectivePrice: v
-                                                                ? standardEffectiveVal != null
-                                                                  ? String(standardEffectiveVal)
-                                                                  : ""
-                                                                : "",
-                                                            })
-                                                          }
-                                                        />
+                                                          <Pencil className="h-3 w-3 shrink-0 text-muted-foreground/60" />
+                                                        </button>
+                                                      ) : (
+                                                        <span className={editableWrapCls}>
+                                                          <span className="text-xs text-muted-foreground">$</span>
+                                                          <input
+                                                            type="number"
+                                                            inputMode="numeric"
+                                                            min={0}
+                                                            value={overrideCfg.effectivePrice ?? ""}
+                                                            onChange={(e) =>
+                                                              updateOverrideCfg({
+                                                                effectivePrice: e.target.value,
+                                                              })
+                                                            }
+                                                            className="w-16 bg-transparent text-sm font-medium text-right focus:outline-none"
+                                                          />
+                                                          <Pencil className="h-3 w-3 shrink-0 text-primary/70" />
+                                                        </span>
+                                                      )}
                                                     </div>
                                                   </div>
-                                                </div>
                                                 );
                                               })()}
                                             </div>
