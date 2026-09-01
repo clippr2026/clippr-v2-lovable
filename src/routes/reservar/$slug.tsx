@@ -1717,14 +1717,33 @@ function PublicBookingPage() {
                       },
                       { effectivePrice: null as number | null, listPrice: 0, duration: 0 },
                     );
-                    return { employee, totals, badge: employeeBadges.get(employee.id) ?? null };
+                    // Misma promo (y mismo criterio de aplicabilidad) que
+                    // determina el Total real del turno más abajo — se
+                    // recalcula acá, por profesional, para mostrar el precio
+                    // promocional en la tarjeta de elección en vez de solo
+                    // en el resumen de arriba.
+                    const promo = appliedPromotion;
+                    const promoApplies =
+                      promo != null &&
+                      selectedServices.length > 0 &&
+                      selectedServices.every((service) =>
+                        isPromotionApplicable(promo, {
+                          serviceId: service.id,
+                          employeeId: employee.id,
+                          category: service.category ?? null,
+                        }),
+                      );
+                    const promoPrice = promo && promoApplies ? applyPromotionDiscount(totals.listPrice, promo) : null;
+                    const promoPercent =
+                      promo && promoApplies && promo.discountType === "percent" ? Number(promo.discountValue) || 0 : null;
+                    return { employee, totals, badge: employeeBadges.get(employee.id) ?? null, promoPrice, promoPercent };
                   });
                   // Orden estable (no por precio): dentro de cada grupo se
                   // mantiene el orden original (alfabético).
                   const standardCards = cards.filter((c) => !c.badge);
                   const customCards = cards.filter((c) => c.badge);
 
-                  const renderCard = ({ employee, totals, badge }: (typeof cards)[number]) => {
+                  const renderCard = ({ employee, totals, badge, promoPrice, promoPercent }: (typeof cards)[number]) => {
                     const hasEffectivePrice = totals.effectivePrice != null;
                     return (
                       <button
@@ -1771,15 +1790,31 @@ function PublicBookingPage() {
                               {badge}
                             </span>
                           )}
-                          {/* Orden: lista (gris, peso normal) -> efectivo
-                              (verde oscuro y negrita, lo que más destaca) ->
-                              duración (pastilla gris clara, nunca verde — el
-                              verde es exclusivo del precio efectivo). */}
+                          {/* Orden: lista (gris, peso normal, tachado si hay
+                              promo aplicable) -> promo (color de acento,
+                              negrita, con % si corresponde) -> efectivo
+                              (verde oscuro y negrita) -> duración (pastilla
+                              gris clara, nunca verde — el verde es exclusivo
+                              del precio efectivo). */}
                           {selectedServices.length > 0 && (
                             <>
-                              <span className="block overflow-visible whitespace-nowrap text-[10px] leading-tight tracking-tight text-white/70">
+                              <span
+                                className={cn(
+                                  "block overflow-visible whitespace-nowrap text-[10px] leading-tight tracking-tight text-white/70",
+                                  promoPrice != null && "line-through",
+                                )}
+                              >
                                 Lista {formatMoney(totals.listPrice)}
                               </span>
+                              {promoPrice != null && (
+                                <span
+                                  className="mt-0.5 block overflow-visible whitespace-nowrap text-[10px] font-bold leading-tight tracking-tight"
+                                  style={{ color: accent }}
+                                >
+                                  Promo {formatMoney(promoPrice)}
+                                  {promoPercent != null ? ` (-${promoPercent}%)` : ""}
+                                </span>
+                              )}
                               {hasEffectivePrice && (
                                 <span
                                   className="mt-0.5 block overflow-visible whitespace-nowrap text-[10px] font-bold leading-tight tracking-tight"
