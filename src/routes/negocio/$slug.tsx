@@ -94,6 +94,7 @@ type PublicBranding = {
   website?: string | null;
   description?: string | null;
   profile_note?: string | null;
+  profile_note_active?: boolean | null;
   additional_info?: string[] | null;
   portfolio_urls?: string[] | null;
   featured_clients?: FeaturedClient[] | null;
@@ -732,7 +733,15 @@ function PublicProfilePage() {
           setFeaturedPositions((branding.featured_positions && typeof branding.featured_positions === "object" ? branding.featured_positions : {}) as Record<string, string>);
           setFeaturedClients(normalizeFeaturedClients(branding.featured_clients));
           setDescription(typeof branding.description === "string" ? branding.description.trim() : "");
-          setProfileNote(typeof branding.profile_note === "string" ? branding.profile_note.trim().slice(0, 50) : "");
+          // El switch "Anuncio público" (Configuración → Página de reservas)
+          // manda por sobre el texto: con el switch apagado el anuncio
+          // queda guardado como borrador pero no debe mostrarse acá, aunque
+          // profile_note tenga contenido cargado.
+          setProfileNote(
+            branding.profile_note_active === true && typeof branding.profile_note === "string"
+              ? branding.profile_note.trim().slice(0, 50)
+              : "",
+          );
           setAdditionalInfo(normalizeAdditionalInfo(branding.additional_info));
           setColors((branding.colors && typeof branding.colors === "object" ? branding.colors : {}) as LandingColors);
           setTheme(branding.theme === "light" ? "light" : "dark");
