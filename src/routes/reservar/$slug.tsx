@@ -55,7 +55,6 @@ import {
   isPromotionCurrentlyValid,
   isPromotionApplicable,
   applyPromotionDiscount,
-  formatPromotionConditions,
   normalizeClientKeys,
   hasClientReachedPerClientLimit,
   getPromotionUsesRemaining,
@@ -1632,35 +1631,32 @@ function PublicBookingPage() {
                   className="fixed inset-0 z-50 flex items-center justify-center bg-black/75 p-4"
                   onClick={() => setInfoModalPromo(null)}
                 >
+                  {/* Esta tarjeta es siempre oscura (bg-zinc-950) sin
+                      importar el tema del negocio, así que el texto va con
+                      color inline en vez de clases text-white/*: esas
+                      clases las pisa el override de tema claro (heredan
+                      var(--text)/var(--muted), que en tema claro son casi
+                      negros) y quedaban ilegibles sobre este fondo. */}
                   <div
                     className="flex max-h-[85vh] w-full max-w-sm flex-col overflow-hidden rounded-3xl border border-white/10 bg-zinc-950"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <div className="flex items-start justify-between gap-3 p-5 pb-0">
-                      <h3 className="text-lg font-semibold">{infoModalPromo.name}</h3>
+                    <div className="flex items-start justify-between gap-3 p-5">
+                      <h3 className="text-lg font-semibold" style={{ color: "#ffffff" }}>{infoModalPromo.name}</h3>
                       <button
                         type="button"
                         onClick={() => setInfoModalPromo(null)}
-                        className="shrink-0 rounded-full p-1 text-white/50 hover:bg-white/10 hover:text-white"
+                        className="shrink-0 rounded-full p-1 hover:bg-white/10"
+                        style={{ color: "rgba(255,255,255,0.6)" }}
                       >
                         <X className="h-4 w-4" />
                       </button>
                     </div>
-                    <div className="overflow-y-auto p-5 pt-3">
-                      {infoModalPromo.imageUrl && (
-                        <img
-                          src={infoModalPromo.imageUrl}
-                          alt={infoModalPromo.name}
-                          className="h-40 w-full rounded-2xl object-cover"
-                        />
-                      )}
-                      {infoModalPromo.description && (
-                        <p className="mt-3 text-sm text-white/70">{infoModalPromo.description}</p>
-                      )}
-                      <p className="mt-3 text-xs text-white/50">
-                        {formatPromotionConditions(infoModalPromo, formatMoney)}
-                      </p>
-                    </div>
+                    {infoModalPromo.description && (
+                      <div className="overflow-y-auto px-5 pb-5">
+                        <p className="text-sm" style={{ color: "rgba(255,255,255,0.78)" }}>{infoModalPromo.description}</p>
+                      </div>
+                    )}
                   </div>
                 </div>
               ) : null}
