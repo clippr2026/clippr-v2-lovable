@@ -1748,7 +1748,7 @@ function PublicBookingPage() {
                           )}
                           {badge && (
                             <span
-                              className="mb-1 inline-block break-words rounded-full bg-violet-800 px-2 py-0.5 text-[9px] font-semibold leading-none"
+                              className="mb-1 inline-block max-w-full break-words rounded-full bg-violet-800 px-1.5 py-[3px] text-center text-[8px] font-semibold leading-[1.15] tracking-tight"
                               style={{ color: "#ffffff" }}
                             >
                               {badge}
