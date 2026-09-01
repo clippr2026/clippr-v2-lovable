@@ -3533,33 +3533,9 @@ export function EquipoSection() {
                                                 </div>
                                                 <button
                                                   type="button"
-                                                  onClick={() => {
-                                                    // Mismo criterio que Servicios: al
-                                                    // reactivar, precio de lista y efectivo
-                                                    // vuelven al estándar en vez de conservar
-                                                    // una personalización previa. Un solo
-                                                    // setForm (no dos updateX seguidos) para
-                                                    // no pisar el cambio por closures
-                                                    // desactualizadas.
-                                                    const turningOn = !cfg.enabled;
-                                                    setForm({
-                                                      ...form,
-                                                      commissions: {
-                                                        ...form.commissions,
-                                                        [item.id]: { ...cfg, enabled: turningOn },
-                                                      },
-                                                      serviceOverrides: turningOn
-                                                        ? {
-                                                            ...form.serviceOverrides,
-                                                            [item.id]: {
-                                                              ...overrideCfg,
-                                                              useStandardPrice: true,
-                                                              price: "",
-                                                            },
-                                                          }
-                                                        : form.serviceOverrides,
-                                                    });
-                                                  }}
+                                                  onClick={() =>
+                                                    updateCfg({ enabled: !cfg.enabled })
+                                                  }
                                                   role="switch"
                                                   aria-checked={cfg.enabled}
                                                   className={cn(
@@ -3582,50 +3558,16 @@ export function EquipoSection() {
                                                   Catálogo, sin distinguir lista/efectivo). */}
                                               {cfg.enabled && (() => {
                                                 const standardPriceVal = Number(item.price ?? 0) || 0;
-                                                const editableWrapCls =
-                                                  "group flex items-center gap-1 rounded-md border border-white/10 bg-white/[0.03] px-2 py-1 transition-colors focus-within:border-primary/60 focus-within:bg-primary/10";
-                                                const editablePencilCls =
-                                                  "h-3 w-3 shrink-0 text-muted-foreground/50 transition-colors group-focus-within:text-primary";
-                                                const standardWrapCls =
-                                                  "flex items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-2 py-1 transition-colors hover:border-white/20 hover:bg-white/[0.06]";
                                                 return (
                                                   <div className="mt-2.5 space-y-2.5">
-                                                    {/* Precio */}
+                                                    {/* Precio: solo informativo, viene siempre
+                                                        de Catálogo — no se edita desde acá. */}
                                                     <div className="rounded-lg bg-white/[0.035] ring-1 ring-white/10 px-3">
                                                       <div className="flex items-center justify-between gap-3 py-2.5">
                                                         <span className="text-xs text-muted-foreground">Precio</span>
-                                                        {overrideCfg.useStandardPrice ? (
-                                                          <button
-                                                            type="button"
-                                                            onClick={() =>
-                                                              updateOverrideCfg({
-                                                                useStandardPrice: false,
-                                                                price: String(standardPriceVal),
-                                                              })
-                                                            }
-                                                            className={standardWrapCls}
-                                                          >
-                                                            <span className="text-sm text-muted-foreground">
-                                                              ${standardPriceVal.toLocaleString("es-AR")}
-                                                            </span>
-                                                            <Pencil className="h-3 w-3 shrink-0 text-muted-foreground/60" />
-                                                          </button>
-                                                        ) : (
-                                                          <span className={editableWrapCls}>
-                                                            <span className="text-xs text-muted-foreground">$</span>
-                                                            <input
-                                                              type="number"
-                                                              inputMode="numeric"
-                                                              min={0}
-                                                              value={overrideCfg.price}
-                                                              onChange={(e) =>
-                                                                updateOverrideCfg({ price: e.target.value })
-                                                              }
-                                                              className="w-16 bg-transparent text-sm font-medium text-right focus:outline-none"
-                                                            />
-                                                            <Pencil className={editablePencilCls} />
-                                                          </span>
-                                                        )}
+                                                        <span className="text-sm text-muted-foreground">
+                                                          ${standardPriceVal.toLocaleString("es-AR")}
+                                                        </span>
                                                       </div>
                                                     </div>
 
