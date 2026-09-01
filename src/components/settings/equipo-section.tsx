@@ -15,7 +15,6 @@ import {
   CalendarPlus,
   Globe,
   Camera,
-  ChevronDown,
   Pencil,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -24,7 +23,6 @@ import type {
   EmployeeSpecialDateMap,
 } from "@/components/agenda/use-agenda-data";
 import {
-  resolveServicePricing,
   computeStandardEffectivePrice,
   type ServiceOverrideConfig,
   type EmployeeServiceOverrideMap,
@@ -931,12 +929,6 @@ export function EquipoSection() {
   const [commTab, setCommTab] = useState<"servicios" | "catalogo">(
     "servicios",
   );
-  // Ids de servicios con el bloque "Personalizar duración y precio"
-  // expandido en la pestaña Comisiones — solo estado de UI, no se persiste.
-  const [expandedOverrideIds, setExpandedOverrideIds] = useState<Set<string>>(
-    new Set(),
-  );
-
   const load = useCallback(async () => {
     if (!businessId) {
       setLoading(false);
@@ -3337,205 +3329,72 @@ export function EquipoSection() {
                                       // disponible para reservar con él en la página
                                       // pública (isServiceOfferedByEmployee, $slug.tsx).
                                       const offered = overrideCfg.enabled !== false;
-                                      // Mismo resolver que usan Agenda/Mi Agenda/Caja/Página
-                                      // Pública, para que la vista previa acá coincida
-                                      // exactamente con lo que se va a cobrar/agendar.
-                                      const resolved = isServiceKind
-                                        ? resolveServicePricing(item, "current", {
-                                            current: { [item.id]: overrideCfg },
-                                          })
-                                        : null;
-                                      const overrideExpanded =
-                                        expandedOverrideIds.has(item.id);
-                                      const toggleOverrideExpanded = () =>
-                                        setExpandedOverrideIds((current) => {
-                                          const next = new Set(current);
-                                          if (next.has(item.id)) next.delete(item.id);
-                                          else next.add(item.id);
-                                          return next;
-                                        });
 
                                       return (
                                         <div
                                           key={item.id}
                                           className={cn(
                                             "rounded-xl ring-1 p-3 transition-all duration-200",
-                                            commissionActive
+                                            (isServiceKind ? offered : commissionActive)
                                               ? "bg-white/[0.08] ring-white/[0.14] shadow-[0_0_24px_-10px_rgba(139,92,246,0.45)]"
                                               : "bg-white/[0.02] ring-white/5 opacity-70",
                                           )}
                                         >
-                                          {isServiceKind && (
-                                            <div className="flex items-center justify-between gap-3">
-                                              <div className="text-sm font-medium truncate min-w-0">
-                                                {item.name}
-                                              </div>
-                                              <button
-                                                type="button"
-                                                onClick={() =>
-                                                  // Al reactivar (estaba apagado), duración,
-                                                  // lista y efectivo vuelven al estándar del
-                                                  // servicio en vez de conservar
-                                                  // personalizaciones previas — es el único
-                                                  // switch que queda para estos campos, así que
-                                                  // "reactivar" tiene que dejarlos en un estado
-                                                  // predecible, no arrastrar lo de antes.
-                                                  updateOverrideCfg(
-                                                    !offered
-                                                      ? {
-                                                          enabled: true,
-                                                          useStandardDuration: true,
-                                                          duration_min: "",
-                                                          useStandardPrice: true,
-                                                          price: "",
-                                                          useStandardEffectivePrice: true,
-                                                          effectivePrice: "",
-                                                        }
-                                                      : { enabled: false },
-                                                  )
-                                                }
-                                                role="switch"
-                                                aria-checked={offered}
-                                                className={cn(
-                                                  "h-6 w-11 shrink-0 overflow-hidden rounded-full relative transition-colors",
-                                                  offered ? "bg-primary" : "bg-white/15",
-                                                )}
-                                              >
-                                                <span
-                                                  className={cn(
-                                                    "absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all",
-                                                    offered ? "left-[22px]" : "left-0.5",
-                                                  )}
-                                                />
-                                              </button>
-                                            </div>
-                                          )}
-
-                                          <div
-                                            className={cn(
-                                              "flex flex-col lg:flex-row lg:items-center gap-3",
-                                              isServiceKind && "mt-1.5",
-                                            )}
-                                          >
-                                            {!isServiceKind && (
-                                              <button
-                                                type="button"
-                                                onClick={() =>
-                                                  updateCfg({
-                                                    enabled: !cfg.enabled,
-                                                  })
-                                                }
-                                                role="switch"
-                                                aria-checked={cfg.enabled}
-                                                className={cn(
-                                                  "h-6 w-11 shrink-0 overflow-hidden rounded-full relative transition-colors",
-                                                  cfg.enabled
-                                                    ? "bg-primary"
-                                                    : "bg-white/15",
-                                                )}
-                                              >
-                                                <span
-                                                  className={cn(
-                                                    "absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all",
-                                                    cfg.enabled
-                                                      ? "left-[22px]"
-                                                      : "left-0.5",
-                                                  )}
-                                                />
-                                              </button>
-                                            )}
-
-                                            <div className="flex-1 min-w-0">
-                                              {!isServiceKind && (
-                                                <div className="text-sm font-medium truncate">
+                                          {isServiceKind ? (
+                                            <>
+                                              <div className="flex items-center justify-between gap-3">
+                                                <div className="text-sm font-medium truncate min-w-0">
                                                   {item.name}
                                                 </div>
-                                              )}
-                                              <div className="text-xs text-muted-foreground">
-                                                {isServiceKind && resolved && (
-                                                  <>
-                                                    {resolved.duration_min} min{" · "}
-                                                  </>
-                                                )}
-                                                $
-                                                {(resolved
-                                                  ? resolved.price
-                                                  : Number(item.price ?? 0)
-                                                ).toLocaleString("es-AR")}
-                                              </div>
-                                            </div>
-
-                                            <div
-                                              className={cn(
-                                                "flex items-center overflow-hidden rounded-lg ring-1 ring-white/10 transition",
-                                                commissionActive ? "bg-white/5" : "bg-white/[0.02]",
-                                              )}
-                                            >
-                                              <select
-                                                value={cfg.mode}
-                                                disabled={!commissionActive}
-                                                onChange={(e) =>
-                                                  updateCfg({
-                                                    mode: e.target
-                                                      .value as CommissionMode,
-                                                  })
-                                                }
-                                                className="border-r border-white/10 bg-transparent px-2 py-1.5 text-xs focus:outline-none disabled:opacity-50"
-                                              >
-                                                <option value="percent">
-                                                  % comisión
-                                                </option>
-                                                <option value="fixed">
-                                                  Monto fijo
-                                                </option>
-                                              </select>
-                                              <div className="flex items-center gap-1 px-2 py-1.5">
-                                                <input
-                                                  type="number"
-                                                  min={0}
-                                                  disabled={!commissionActive}
-                                                  value={cfg.value}
-                                                  onChange={(e) =>
-                                                    updateCfg({
-                                                      value: e.target.value,
-                                                    })
+                                                <button
+                                                  type="button"
+                                                  onClick={() =>
+                                                    // Al reactivar (estaba apagado), duración,
+                                                    // lista y efectivo vuelven al estándar del
+                                                    // servicio en vez de conservar
+                                                    // personalizaciones previas — es el único
+                                                    // switch que queda para estos campos, así que
+                                                    // "reactivar" tiene que dejarlos en un estado
+                                                    // predecible, no arrastrar lo de antes.
+                                                    updateOverrideCfg(
+                                                      !offered
+                                                        ? {
+                                                            enabled: true,
+                                                            useStandardDuration: true,
+                                                            duration_min: "",
+                                                            useStandardPrice: true,
+                                                            price: "",
+                                                            useStandardEffectivePrice: true,
+                                                            effectivePrice: "",
+                                                          }
+                                                        : { enabled: false },
+                                                    )
                                                   }
-                                                  className="w-20 bg-transparent text-sm text-right focus:outline-none disabled:opacity-50"
-                                                  placeholder="0"
-                                                />
-                                                <span className="text-xs text-muted-foreground">
-                                                  {cfg.mode === "percent"
-                                                    ? "%"
-                                                    : "$"}
-                                                </span>
-                                              </div>
-                                            </div>
-                                          </div>
-
-                                          {isServiceKind && overrideCfg.enabled !== false && (
-                                            <div className="mt-2.5">
-                                              <button
-                                                type="button"
-                                                onClick={toggleOverrideExpanded}
-                                                className={cn(
-                                                  "inline-flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-xs font-semibold transition",
-                                                  overrideExpanded
-                                                    ? "bg-violet-500/[0.12] text-violet-200 ring-1 ring-violet-400/25"
-                                                    : "bg-white/[0.03] text-violet-200/80 ring-1 ring-white/10 hover:bg-white/[0.06] hover:text-violet-200",
-                                                )}
-                                              >
-                                                <span>
-                                                  Precio y duración
-                                                </span>
-                                                <ChevronDown
+                                                  role="switch"
+                                                  aria-checked={offered}
                                                   className={cn(
-                                                    "h-3.5 w-3.5 shrink-0 transition-transform",
-                                                    overrideExpanded && "rotate-180",
+                                                    "h-6 w-11 shrink-0 overflow-hidden rounded-full relative transition-colors",
+                                                    offered ? "bg-primary" : "bg-white/15",
                                                   )}
-                                                />
-                                              </button>
+                                                >
+                                                  <span
+                                                    className={cn(
+                                                      "absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all",
+                                                      offered ? "left-[22px]" : "left-0.5",
+                                                    )}
+                                                  />
+                                                </button>
+                                              </div>
 
-                                              {overrideExpanded && (() => {
+                                              {/* Con el switch apagado, la tarjeta queda solo
+                                                  con nombre + switch: nada de comisión,
+                                                  duración ni precios a la vista para un
+                                                  profesional que no ofrece este servicio. Al
+                                                  prenderlo aparecen todos los campos
+                                                  directamente acá abajo, sin un paso
+                                                  intermedio de "Precio y duración" para
+                                                  desplegarlos. */}
+                                              {offered && (() => {
                                                 const standardDurationVal = Number(item.duration_min ?? 30) || 30;
                                                 const standardPriceVal = Number(item.price ?? 0) || 0;
                                                 const standardEffectiveVal = computeStandardEffectivePrice(
@@ -3561,15 +3420,48 @@ export function EquipoSection() {
                                                 const standardWrapCls =
                                                   "flex items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-2 py-1 transition-colors hover:border-white/20 hover:bg-white/[0.06]";
                                                 return (
-                                                  // Un único bloque compacto (no 3 tarjetas
-                                                  // separadas ni switches individuales): cada
-                                                  // valor se edita tocándolo directamente. El
-                                                  // único switch que decide "estándar vs.
-                                                  // personalizado" para estos 3 campos es el
-                                                  // switch general del servicio, arriba —
-                                                  // desactivarlo y reactivarlo los resetea al
-                                                  // estándar.
-                                                  <div className="mt-2 divide-y divide-white/10 rounded-lg bg-white/[0.035] ring-1 ring-white/10 px-3">
+                                                  <div className="mt-2.5 space-y-2.5">
+                                                    {/* Comisión */}
+                                                    <div className="flex items-center overflow-hidden rounded-lg ring-1 ring-white/10 bg-white/5">
+                                                      <select
+                                                        value={cfg.mode}
+                                                        onChange={(e) =>
+                                                          updateCfg({
+                                                            mode: e.target.value as CommissionMode,
+                                                          })
+                                                        }
+                                                        className="border-r border-white/10 bg-transparent px-2 py-1.5 text-xs focus:outline-none"
+                                                      >
+                                                        <option value="percent">% comisión</option>
+                                                        <option value="fixed">Monto fijo</option>
+                                                      </select>
+                                                      <div className="flex items-center gap-1 px-2 py-1.5">
+                                                        <input
+                                                          type="number"
+                                                          min={0}
+                                                          value={cfg.value}
+                                                          onChange={(e) =>
+                                                            updateCfg({ value: e.target.value })
+                                                          }
+                                                          className="w-20 bg-transparent text-sm text-right focus:outline-none"
+                                                          placeholder="0"
+                                                        />
+                                                        <span className="text-xs text-muted-foreground">
+                                                          {cfg.mode === "percent" ? "%" : "$"}
+                                                        </span>
+                                                      </div>
+                                                    </div>
+
+                                                    {/* Un único bloque compacto (no 3
+                                                        tarjetas separadas ni switches
+                                                        individuales): cada valor se edita
+                                                        tocándolo directamente. El único
+                                                        switch que decide "estándar vs.
+                                                        personalizado" para estos 3 campos es
+                                                        el switch general del servicio, arriba
+                                                        — desactivarlo y reactivarlo los
+                                                        resetea al estándar. */}
+                                                    <div className="divide-y divide-white/10 rounded-lg bg-white/[0.035] ring-1 ring-white/10 px-3">
                                                     {/* Duración */}
                                                     <div className="flex items-center justify-between gap-3 py-2.5">
                                                       <span className="text-xs text-muted-foreground">Duración</span>
@@ -3696,9 +3588,78 @@ export function EquipoSection() {
                                                         </span>
                                                       )}
                                                     </div>
+                                                    </div>
                                                   </div>
                                                 );
                                               })()}
+                                            </>
+                                          ) : (
+                                            <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  updateCfg({ enabled: !cfg.enabled })
+                                                }
+                                                role="switch"
+                                                aria-checked={cfg.enabled}
+                                                className={cn(
+                                                  "h-6 w-11 shrink-0 overflow-hidden rounded-full relative transition-colors",
+                                                  cfg.enabled ? "bg-primary" : "bg-white/15",
+                                                )}
+                                              >
+                                                <span
+                                                  className={cn(
+                                                    "absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all",
+                                                    cfg.enabled ? "left-[22px]" : "left-0.5",
+                                                  )}
+                                                />
+                                              </button>
+
+                                              <div className="flex-1 min-w-0">
+                                                <div className="text-sm font-medium truncate">
+                                                  {item.name}
+                                                </div>
+                                                <div className="text-xs text-muted-foreground">
+                                                  ${Number(item.price ?? 0).toLocaleString("es-AR")}
+                                                </div>
+                                              </div>
+
+                                              <div
+                                                className={cn(
+                                                  "flex items-center overflow-hidden rounded-lg ring-1 ring-white/10 transition",
+                                                  commissionActive ? "bg-white/5" : "bg-white/[0.02]",
+                                                )}
+                                              >
+                                                <select
+                                                  value={cfg.mode}
+                                                  disabled={!commissionActive}
+                                                  onChange={(e) =>
+                                                    updateCfg({
+                                                      mode: e.target.value as CommissionMode,
+                                                    })
+                                                  }
+                                                  className="border-r border-white/10 bg-transparent px-2 py-1.5 text-xs focus:outline-none disabled:opacity-50"
+                                                >
+                                                  <option value="percent">% comisión</option>
+                                                  <option value="fixed">Monto fijo</option>
+                                                </select>
+                                                <div className="flex items-center gap-1 px-2 py-1.5">
+                                                  <input
+                                                    type="number"
+                                                    min={0}
+                                                    disabled={!commissionActive}
+                                                    value={cfg.value}
+                                                    onChange={(e) =>
+                                                      updateCfg({ value: e.target.value })
+                                                    }
+                                                    className="w-20 bg-transparent text-sm text-right focus:outline-none disabled:opacity-50"
+                                                    placeholder="0"
+                                                  />
+                                                  <span className="text-xs text-muted-foreground">
+                                                    {cfg.mode === "percent" ? "%" : "$"}
+                                                  </span>
+                                                </div>
+                                              </div>
                                             </div>
                                           )}
                                         </div>
