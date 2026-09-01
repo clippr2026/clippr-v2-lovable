@@ -2906,7 +2906,15 @@ export function EquipoSection() {
               reservar el alto real del nav inferior (3.5rem + safe-area
               en mobile, chico en desktop donde ese nav no existe). */}
           <div
-            className="relative flex h-[calc(86dvh-12px)] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-zinc-950 ring-1 ring-white/10 shadow-2xl [max-height:min(888px,calc(100dvh-24px-env(safe-area-inset-top,0px)-3.5rem-env(safe-area-inset-bottom,0px)))] lg:[max-height:min(888px,calc(100dvh-24px-env(safe-area-inset-top,0px)-1rem))]"
+            // height grande a propósito: el max-height de abajo es el que
+            // termina mandando siempre, así el modal ocupa TODO el espacio
+            // disponible hasta ese tope en vez de quedar más bajo (como
+            // pasaba con el h-[calc(86dvh-12px)] anterior, que en la
+            // mayoría de los celulares resolvía a menos que el máximo
+            // permitido) — eso es lo que dejaba a los botones de abajo
+            // "flotando" arriba del borde real, con espacio libre debajo
+            // sin aprovechar.
+            className="relative flex h-[100dvh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl bg-zinc-950 ring-1 ring-white/10 shadow-2xl [max-height:min(888px,calc(100dvh-24px-env(safe-area-inset-top,0px)-3.5rem-env(safe-area-inset-bottom,0px)))] lg:[max-height:min(888px,calc(100dvh-24px-env(safe-area-inset-top,0px)-1rem))]"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Tabs + cerrar — el modal no cambia de tamaño al cambiar de
@@ -2946,7 +2954,14 @@ export function EquipoSection() {
               </button>
             </div>
 
-            <div ref={proModalScrollRef} className="flex-1 overflow-y-auto px-3.5 py-2.5 space-y-4">
+            {/* min-h-0: sin esto, este div no se achica más allá de la
+                altura de su propio contenido (default min-height: auto de
+                flexbox) — con pestañas largas (Comisiones, Horarios)
+                terminaba más alto que el modal, y el overflow-hidden del
+                contenedor recortaba el footer en vez de que el contenido
+                scrolleara adentro. Mismo bug ya encontrado en el modal de
+                promociones. */}
+            <div ref={proModalScrollRef} className="min-h-0 flex-1 overflow-y-auto px-3.5 py-2.5 space-y-4">
               {dlgTab === "perfil" && (
                 <div className="space-y-1.5">
                   <div className="flex items-center gap-3">
