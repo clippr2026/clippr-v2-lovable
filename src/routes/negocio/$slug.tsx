@@ -1227,8 +1227,8 @@ function PublicProfilePage() {
                 href={mapLink}
                 target="_blank"
                 rel="noreferrer"
-                className="flex w-full flex-col items-center gap-1 rounded-2xl px-5 py-3.5 text-center transition hover:brightness-110"
-                style={{ background: cAccent, color: accentButtonText, WebkitTextFillColor: accentButtonText, boxShadow: "0 12px 32px -10px color-mix(in oklch, var(--c-accent) 70%, transparent)" }}
+                className="flex w-full flex-col items-center gap-1 rounded-2xl bg-white px-5 py-3.5 text-center transition hover:brightness-95"
+                style={{ color: "#0a0a0a", WebkitTextFillColor: "#0a0a0a", boxShadow: "0 12px 32px -10px rgba(0,0,0,0.35)" }}
               >
                 <span className="text-sm font-semibold leading-snug">{business.address}</span>
                 <span className="inline-flex items-center gap-1 text-base font-bold">
@@ -1267,22 +1267,6 @@ function PublicProfilePage() {
             ) : (
               <p className="mt-4 text-sm text-white/55">Consultá la disponibilidad al momento de reservar.</p>
             )}
-
-            {business.address ? (
-              <div className="mt-auto border-t border-white/[0.06] pt-5">
-                <div className="flex items-start gap-2 text-sm">
-                  <MapPin className="mt-0.5 h-4 w-4 shrink-0" style={{ color: cAccent }} />
-                  <div className="min-w-0">
-                    <p className="text-white/70">{business.address}</p>
-                    {mapLink ? (
-                      <a href={mapLink} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 font-semibold hover:underline" style={{ color: cAccent }}>
-                        Cómo llegar <ExternalLink className="h-3.5 w-3.5" />
-                      </a>
-                    ) : null}
-                  </div>
-                </div>
-              </div>
-            ) : null}
           </GlowCard>
         </aside>
       </section>
