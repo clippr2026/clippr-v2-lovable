@@ -1754,18 +1754,29 @@ function PublicBookingPage() {
                               {badge}
                             </span>
                           )}
+                          {/* Jerarquía visual: nombre -> efectivo (lo que
+                              más destaca, verde oscuro y negrita) -> lista
+                              (gris, peso normal) -> duración (pastilla gris
+                              clara, nunca verde — el verde es exclusivo del
+                              precio efectivo). */}
                           {selectedServices.length > 0 && (
                             <>
-                              <span className="block overflow-visible whitespace-nowrap text-[10px] leading-tight tracking-tight text-white/70">
-                                Lista {formatMoney(totals.listPrice)}
-                              </span>
                               {hasEffectivePrice && (
-                                <span className="mt-0.5 block overflow-visible whitespace-nowrap text-[10px] font-bold leading-tight tracking-tight">
+                                <span
+                                  className="block overflow-visible whitespace-nowrap text-[10px] font-bold leading-tight tracking-tight"
+                                  style={{ color: "#15803d" }}
+                                >
                                   Efectivo {formatMoney(totals.effectivePrice)}
                                 </span>
                               )}
-                              <span className="mt-0.5 block overflow-visible whitespace-nowrap text-[10px] leading-tight tracking-tight text-white/70">
-                                {totals.duration} min
+                              <span className={cn("block overflow-visible whitespace-nowrap text-[10px] leading-tight tracking-tight text-white/70", hasEffectivePrice && "mt-0.5")}>
+                                Lista {formatMoney(totals.listPrice)}
+                              </span>
+                              <span
+                                className="mt-1 inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[9px] leading-none text-white/70"
+                                style={{ backgroundColor: "rgba(148,163,184,0.16)" }}
+                              >
+                                🕒 {totals.duration} min
                               </span>
                             </>
                           )}
