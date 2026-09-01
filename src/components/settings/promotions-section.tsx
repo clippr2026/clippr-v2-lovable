@@ -9,8 +9,6 @@ import {
   Trash2,
   Loader2,
   Tag,
-  Image as ImageIcon,
-  Camera,
   Info,
   Target,
   Percent,
@@ -25,7 +23,6 @@ import {
   ConfirmDialog,
   Field,
   inputCls,
-  processImage,
 } from "@/components/settings/shared";
 import { DAY_KEYS, type DayKey } from "@/lib/availability";
 import {
@@ -181,7 +178,6 @@ export function PromotionsSection() {
   const [editing, setEditing] = useState<Promotion | null>(null);
   const [form, setForm] = useState<PromoForm>(emptyForm([], []));
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [confirmDel, setConfirmDel] = useState<Promotion | null>(null);
 
   const load = useCallback(async () => {
@@ -283,34 +279,6 @@ export function PromotionsSection() {
         promo.maxUsesPerClient != null ? String(promo.maxUsesPerClient) : "",
     });
     setModalOpen(true);
-  }
-
-  async function handleImageUpload(file: File) {
-    if (!businessId) return;
-    if (!file.type.startsWith("image/")) {
-      toast.error("Subí una imagen JPG, PNG o WEBP");
-      return;
-    }
-    setUploading(true);
-    try {
-      const { blob, ext, type } = await processImage(file, 800, 800, 0.7);
-      const path = `${businessId}/promotions/${Date.now()}.${ext}`;
-      const { error } = await supabase.storage
-        .from("business-assets")
-        .upload(path, blob, { upsert: true, contentType: type });
-      if (error) {
-        toast.error("No se pudo subir la imagen: " + error.message);
-        return;
-      }
-      const { data } = supabase.storage.from("business-assets").getPublicUrl(path);
-      if (data.publicUrl) {
-        setForm((f) => ({ ...f, imageUrl: `${data.publicUrl}?v=${Date.now()}` }));
-      }
-    } catch (error) {
-      toast.error((error as Error).message || "No se pudo procesar la imagen");
-    } finally {
-      setUploading(false);
-    }
   }
 
   async function save() {
@@ -515,39 +483,6 @@ export function PromotionsSection() {
                       onChange={(e) => setForm({ ...form, name: e.target.value })}
                       placeholder="Promo UADE"
                     />
-                  </Field>
-                  <Field label="Imagen (opcional)">
-                    <div className="flex items-center gap-3">
-                      {form.imageUrl ? (
-                        <img
-                          src={form.imageUrl}
-                          alt={form.name}
-                          className="h-14 w-14 rounded-xl object-cover ring-1 ring-white/10"
-                        />
-                      ) : (
-                        <div className="grid h-14 w-14 place-items-center rounded-xl bg-white/5 ring-1 ring-white/10">
-                          <ImageIcon className="h-5 w-5 text-muted-foreground" />
-                        </div>
-                      )}
-                      <label className="inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-white/5 px-3 py-2 text-xs ring-1 ring-white/10 hover:bg-white/10">
-                        {uploading ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                        ) : (
-                          <Camera className="h-3.5 w-3.5" />
-                        )}
-                        Subir imagen
-                        <input
-                          type="file"
-                          accept="image/png,image/jpeg,image/webp"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) void handleImageUpload(file);
-                            e.currentTarget.value = "";
-                          }}
-                        />
-                      </label>
-                    </div>
                   </Field>
                   <Field label="Descripción">
                     <textarea
