@@ -1867,7 +1867,12 @@ function PublicBookingPage() {
                                   {promoPercent != null ? ` (-${promoPercent}%)` : ""}
                                 </span>
                               )}
-                              {hasEffectivePrice && (
+                              {/* "Efectivo" se oculta con promo aplicable —
+                                  mostrar los tres precios juntos (lista,
+                                  promo, efectivo) confundía más de lo que
+                                  ayudaba cuando ya se está reservando por
+                                  una promoción. */}
+                              {hasEffectivePrice && promoPrice == null && (
                                 <span
                                   className="mt-0.5 block overflow-visible whitespace-nowrap text-[10px] font-bold leading-tight tracking-tight"
                                   style={{ color: "#15803d" }}
