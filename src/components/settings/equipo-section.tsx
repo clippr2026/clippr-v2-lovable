@@ -3547,11 +3547,19 @@ export function EquipoSection() {
                                                 // estándar (botón que al tocarlo la convierte en
                                                 // editable, prellenada con el estándar actual) —
                                                 // en los dos casos el lápiz queda visible como
-                                                // pista de "esto se toca para editar".
+                                                // pista de "esto se toca para editar". El input
+                                                // usa borde gris sutil en reposo y solo se marca
+                                                // en celeste (borde + lápiz) mientras está en foco
+                                                // de verdad (focus-within) — antes quedaba
+                                                // permanente y los 3 campos parecían siempre
+                                                // "seleccionados" aunque nadie los estuviera
+                                                // tocando.
                                                 const editableWrapCls =
-                                                  "flex items-center gap-1 rounded-md bg-primary/10 px-2 py-1 ring-1 ring-primary/50";
+                                                  "group flex items-center gap-1 rounded-md border border-white/10 bg-white/[0.03] px-2 py-1 transition-colors focus-within:border-primary/60 focus-within:bg-primary/10";
+                                                const editablePencilCls =
+                                                  "h-3 w-3 shrink-0 text-muted-foreground/50 transition-colors group-focus-within:text-primary";
                                                 const standardWrapCls =
-                                                  "flex items-center gap-1.5 rounded-md px-2 py-1 -mx-2 hover:bg-white/5";
+                                                  "flex items-center gap-1.5 rounded-md border border-white/10 bg-white/[0.03] px-2 py-1 transition-colors hover:border-white/20 hover:bg-white/[0.06]";
                                                 return (
                                                   // Un único bloque compacto (no 3 tarjetas
                                                   // separadas ni switches individuales): cada
@@ -3596,7 +3604,7 @@ export function EquipoSection() {
                                                             className="w-12 bg-transparent text-sm font-medium text-right focus:outline-none"
                                                           />
                                                           <span className="text-xs text-muted-foreground">min</span>
-                                                          <Pencil className="h-3 w-3 shrink-0 text-primary/70" />
+                                                          <Pencil className={editablePencilCls} />
                                                         </span>
                                                       )}
                                                     </div>
@@ -3633,7 +3641,7 @@ export function EquipoSection() {
                                                             }
                                                             className="w-16 bg-transparent text-sm font-medium text-right focus:outline-none"
                                                           />
-                                                          <Pencil className="h-3 w-3 shrink-0 text-primary/70" />
+                                                          <Pencil className={editablePencilCls} />
                                                         </span>
                                                       )}
                                                     </div>
@@ -3684,7 +3692,7 @@ export function EquipoSection() {
                                                             }
                                                             className="w-16 bg-transparent text-sm font-medium text-right focus:outline-none"
                                                           />
-                                                          <Pencil className="h-3 w-3 shrink-0 text-primary/70" />
+                                                          <Pencil className={editablePencilCls} />
                                                         </span>
                                                       )}
                                                     </div>
