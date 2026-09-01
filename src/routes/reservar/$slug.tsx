@@ -307,6 +307,10 @@ function PublicBookingPage() {
   // personalizados) antes de que el cliente elija de verdad.
   const [selectedEmployeeId, setSelectedEmployeeId] = React.useState<string | "any">("");
   const [professionalLocked, setProfessionalLocked] = React.useState(false);
+  // Profesional ya resuelto por query param (?professional=) al entrar —
+  // el paso "Elegí profesional" debe seguir salteándose después de Promo,
+  // no solo en el salto inicial.
+  const professionalPreselectedRef = React.useRef(false);
   const [selectedSlot, setSelectedSlot] = React.useState<{ time: Date; employeeId: string } | null>(null);
   const [clientFirstName, setClientFirstName] = React.useState("");
   const [clientLastName, setClientLastName] = React.useState("");
@@ -824,14 +828,27 @@ function PublicBookingPage() {
           const params = new URLSearchParams(window.location.search);
           const serviceId = params.get("service");
           const professionalId = params.get("professional");
-          if (serviceId && visibleServices.some((service) => service.id === serviceId)) {
-            setSelectedServiceIds([serviceId]);
-            setStep(professionalId ? "datetime" : "professional");
-          }
-          if (professionalId && visibleEmployees.some((employee) => employee.id === professionalId)) {
-            setSelectedEmployeeId(professionalId);
+          const serviceValid = Boolean(serviceId) && visibleServices.some((service) => service.id === serviceId);
+          const professionalValid = Boolean(professionalId) && visibleEmployees.some((employee) => employee.id === professionalId);
+          if (serviceValid) setSelectedServiceIds([serviceId as string]);
+          if (professionalValid) {
+            setSelectedEmployeeId(professionalId as string);
             setProfessionalLocked(false);
-            if (serviceId) setStep("datetime");
+            professionalPreselectedRef.current = true;
+          }
+          // "Reservar" de un servicio puntual o "Elegir" un profesional
+          // puntual (Servicios/Profesionales disponibles del perfil
+          // público) no debe saltear el paso Promo si está habilitado — acá
+          // todavía no existe el estado `promotions` (el setPromotions de
+          // arriba no se refleja hasta el próximo render), así que se
+          // recalcula localmente con el mismo criterio que validPromotions.
+          const hasPromoStepNow = rawPromotions
+            .map(backfillPromotionVigencia)
+            .some((p) => isPromotionCurrentlyValid(p, new Date()));
+          if (serviceValid && professionalValid) {
+            setStep(hasPromoStepNow ? "promo" : "datetime");
+          } else if (serviceValid) {
+            setStep(hasPromoStepNow ? "promo" : "professional");
           }
         }
       } catch (error) {
@@ -867,9 +884,13 @@ function PublicBookingPage() {
   // elegido más adelante, simplemente no se descuenta ahí.
   function confirmPromoChoice() {
     setPromoCodeError("");
+    // Si el profesional ya vino resuelto por ?professional= (deep link),
+    // ese paso sigue salteado después de Promo — solo se pregunta lo que
+    // todavía no se sabe.
+    const stepAfterPromo = professionalPreselectedRef.current ? "datetime" : "professional";
     if (promoChoice === "none") {
       setAppliedPromotion(null);
-      setStep("professional");
+      setStep(stepAfterPromo);
       return;
     }
     if (promoChoice === "code") {
@@ -886,12 +907,12 @@ function PublicBookingPage() {
         return;
       }
       setAppliedPromotion(match);
-      setStep("professional");
+      setStep(stepAfterPromo);
       return;
     }
     const promo = validPromotions.find((p) => p.id === promoChoice) ?? null;
     setAppliedPromotion(promo);
-    setStep("professional");
+    setStep(stepAfterPromo);
   }
 
   // Tras elegir el horario: si hay productos recomendados, mostramos el paso
