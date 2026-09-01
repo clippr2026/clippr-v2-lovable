@@ -1408,6 +1408,15 @@ function PublicBookingPage() {
                 {professionalChosen && promoSavings > 0 && (
                   <span className="text-emerald-400"> (ahorrás {formatMoney(promoSavings)})</span>
                 )}
+                {/* Antes, si la promo elegida no terminaba aplicando (no
+                    incluye el servicio/profesional elegido, por ejemplo),
+                    el resumen quedaba en silencio — igual que "sin
+                    beneficio", sin forma de distinguir un caso del otro.
+                    Genérico para cualquier promoción, no depende de cuál
+                    sea. */}
+                {professionalChosen && promoSavings <= 0 && appliedPromotion && (
+                  <span className="text-white/40"> (la promo no aplica a tu selección)</span>
+                )}
                 {" · "}
                 <span className="font-semibold text-white">Duración: {professionalChosen ? `${totalDuration} min` : "— min"}</span>
               </p>
