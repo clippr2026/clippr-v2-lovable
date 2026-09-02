@@ -623,7 +623,7 @@ export function AppointmentDialog({
   };
 
   const hourOptions = Array.from({ length: 24 }, (_, i) => pad(i));
-  const minuteOptions = ["00", "15", "30", "45"];
+  const minuteOptions = Array.from({ length: 12 }, (_, i) => pad(i * 5));
 
   const previewClientName = newClientMode
     ? `${clientFirstName.trim()} ${clientLastName.trim()}`.trim()
