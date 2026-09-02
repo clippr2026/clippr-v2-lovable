@@ -3,6 +3,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { MapPin, Instagram, MessageCircle, ArrowRight } from "lucide-react";
 import auroStyloLogo from "@/assets/auro-stylo-logo.jpeg";
 import auroRecoletaPhoto from "@/assets/auro-recoleta.png";
+import auroMonserratPhoto from "@/assets/auro-monserrat.jpeg";
 
 export const Route = createFileRoute("/auro-stylo")({
   head: () => ({
@@ -34,6 +35,7 @@ const BRANCHES: Array<{
     address: "Av. Independencia 1255, CABA",
     href: "https://myclippr.com/negocio/auro-stylo",
     external: false,
+    image: auroMonserratPhoto,
   },
   {
     name: "AURO RECOLETA",
