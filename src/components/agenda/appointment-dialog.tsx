@@ -19,6 +19,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Search, X, CalendarDays, Repeat2,
   Scissors, UserPlus, UserRound, Clock3, Phone, Mail } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { cn } from "@/lib/utils";
 import {
   saveAppointment,
   checkOverlap,
@@ -36,7 +37,11 @@ import { AcquisitionSourceField } from "@/components/acquisition-source-field";
 import { acquisitionChannelRequiresText } from "@/lib/acquisition-channels";
 import {
   resolveServicePricing,
+  isPromotionCurrentlyValid,
+  isPromotionApplicable,
+  applyPromotionDiscount,
   type EmployeeServiceOverrideMap,
+  type Promotion,
 } from "@/lib/service-pricing";
 
 type Props = {
@@ -57,6 +62,10 @@ type Props = {
   businessSpecialDates?: import("./use-agenda-data").SpecialDateMap;
   employeeSpecialDates?: import("./use-agenda-data").EmployeeSpecialDateMap;
   employeeServiceOverrides?: EmployeeServiceOverrideMap;
+  // Promociones del negocio — misma fuente y criterio de vigencia/
+  // aplicabilidad que la Página Pública. La seleccionada acá queda como
+  // "prevista" en el turno; no consume uso/límite (eso ocurre en Caja).
+  promotions?: Promotion[];
   // "drawer" (default) = panel lateral, igual que Agenda general.
   // "modal" = modal centrado en pantalla — usado por Mi Agenda, donde un
   // panel lateral no encaja con el resto del layout del profesional.
@@ -257,6 +266,7 @@ export function AppointmentDialog({
   businessSpecialDates = {},
   employeeSpecialDates = {},
   employeeServiceOverrides = {},
+  promotions = [],
   presentation = "drawer",
 }: Props) {
   const Wrapper = presentation === "modal" ? AgendaCenteredModal : AgendaDrawer;
@@ -285,6 +295,8 @@ export function AppointmentDialog({
   const [serviceName, setServiceName] = React.useState("");
   const [price, setPrice] = React.useState<number>(0);
   const [duration, setDuration] = React.useState<number>(30);
+  // "" = sin promoción. Prevista únicamente — no consume uso/límite acá.
+  const [promotionId, setPromotionId] = React.useState<string>("");
   const [dateValue, setDateValue] = React.useState("");
   const [hourValue, setHourValue] = React.useState("09");
   const [minuteValue, setMinuteValue] = React.useState("00");
@@ -338,6 +350,7 @@ export function AppointmentDialog({
       setStatus(appointment.status === "confirmed" ? "confirmed" : "pending");
       setNotes(appointment.notes ?? "");
       setInternalNotes("");
+      setPromotionId(appointment.promotion_id ?? "");
     } else {
       setClientId("");
       setClientName("");
@@ -360,6 +373,7 @@ export function AppointmentDialog({
       setStatus("pending");
       setNotes("");
       setInternalNotes("");
+      setPromotionId("");
       setRepeat({
         enabled: false,
         weekdays: [baseDate.getDay() as RepeatWeekday],
@@ -398,6 +412,36 @@ export function AppointmentDialog({
     () => services.find((s) => s.id === serviceId || s.name === serviceName),
     [services, serviceId, serviceName],
   );
+
+  // Mismo criterio que la Página Pública: vigente ahora (isPromotionCurrentlyValid)
+  // y aplicable al servicio/profesional elegidos (isPromotionApplicable) — nunca
+  // hardcodeado, siempre contra las promos reales del negocio.
+  const validPromotions = React.useMemo(() => {
+    if (!selectedService?.id) return [];
+    const now = new Date();
+    return promotions.filter(
+      (p) =>
+        isPromotionCurrentlyValid(p, now) &&
+        isPromotionApplicable(p, { serviceId: selectedService.id, employeeId: employeeId || null, category: null }),
+    );
+  }, [promotions, selectedService, employeeId]);
+
+  // Si el servicio/profesional cambia y la promo elegida deja de ser válida
+  // para la nueva combinación, se limpia — nunca se deja una promo prevista
+  // que ya no aplicaría.
+  React.useEffect(() => {
+    if (promotionId && !validPromotions.some((p) => p.id === promotionId)) {
+      setPromotionId("");
+    }
+  }, [promotionId, validPromotions]);
+
+  const selectedPromotion = validPromotions.find((p) => p.id === promotionId) ?? null;
+  const discountedPrice = selectedPromotion ? applyPromotionDiscount(price, selectedPromotion) : price;
+  const promotionDiscountLabel = selectedPromotion
+    ? selectedPromotion.discountType === "percent"
+      ? `-${Number(selectedPromotion.discountValue) || 0}%`
+      : `-$${(Number(selectedPromotion.discountValue) || 0).toLocaleString("es-AR")}`
+    : "";
 
   const requiresDeposit = !!(
     senasConfig?.enabled
@@ -599,6 +643,10 @@ export function AppointmentDialog({
           deposit_status: requiresDeposit ? "pending" : null,
           created_by_name: createdByName,
           created_by_role: createdByRole,
+          promotion_id: selectedPromotion?.id ?? null,
+          promotion_snapshot: selectedPromotion
+            ? { name: selectedPromotion.name, discountType: selectedPromotion.discountType, discountValue: selectedPromotion.discountValue }
+            : null,
         });
       }
 
@@ -821,6 +869,22 @@ export function AppointmentDialog({
                   </SelectContent>
                 </Select>
               </div>
+              {selectedService && validPromotions.length > 0 && (
+                <div className="space-y-1.5">
+                  <Label className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground">Promoción</Label>
+                  <Select value={promotionId || "none"} onValueChange={(v) => setPromotionId(v === "none" ? "" : v)}>
+                    <SelectTrigger className="h-9 text-sm w-full"><SelectValue placeholder="Sin promoción" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">Sin promoción</SelectItem>
+                      {validPromotions.map((p) => (
+                        <SelectItem key={p.id} value={p.id}>
+                          {p.name} ({p.discountType === "percent" ? `-${Number(p.discountValue) || 0}%` : `-$${(Number(p.discountValue) || 0).toLocaleString("es-AR")}`})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
             {requiresDeposit && (
               <div className="rounded-lg border border-cyan-400/20 bg-cyan-400/10 px-3 py-2 text-xs">
@@ -869,8 +933,17 @@ export function AppointmentDialog({
                   <span className="truncate font-medium text-foreground">{serviceName}</span>
                 </div>
                 {price ? (
-                  <span className="shrink-0 font-semibold text-foreground">${Number(price).toLocaleString("es-AR")}</span>
+                  <span className={cn("shrink-0 font-semibold text-foreground", selectedPromotion && "text-muted-foreground line-through")}>
+                    ${Number(price).toLocaleString("es-AR")}
+                  </span>
                 ) : null}
+              </div>
+            )}
+
+            {selectedPromotion && (
+              <div className="mt-1.5 flex items-center justify-between gap-3 text-xs">
+                <span className="text-violet-300">{selectedPromotion.name}: {promotionDiscountLabel}</span>
+                <span className="font-semibold text-foreground">Total estimado: ${Math.round(discountedPrice).toLocaleString("es-AR")}</span>
               </div>
             )}
 

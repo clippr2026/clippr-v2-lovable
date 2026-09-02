@@ -1568,6 +1568,7 @@ function AgendaPage() {
           businessSpecialDates={data.businessSpecialDates}
           employeeSpecialDates={data.employeeSpecialDates}
           employeeServiceOverrides={data.employeeServiceOverrides}
+          promotions={data.promotions}
         />
       )}
     </AppShell>

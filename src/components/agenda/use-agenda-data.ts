@@ -17,7 +17,11 @@ import {
   resolveDaySchedule,
   checkDaySchedule,
 } from "@/lib/availability";
-import type { EmployeeServiceOverrideMap } from "@/lib/service-pricing";
+import {
+  type EmployeeServiceOverrideMap,
+  type Promotion,
+  backfillPromotionVigencia,
+} from "@/lib/service-pricing";
 import { appendHistorialCobro } from "@/lib/cobro-historial";
 
 /**
@@ -61,6 +65,11 @@ export type Appointment = {
   deposit_status?: string | null;
   deposit_amount?: number | null;
   deposit_paid?: number | null;
+  // Promoción PREVISTA al agendar — solo informativa, nunca consume uso/
+  // límite (eso pasa recién al confirmar el cobro en Caja). El snapshot
+  // congela nombre/tipo/valor por si la promo se edita o borra después.
+  promotion_id?: string | null;
+  promotion_snapshot?: { name: string; discountType: string; discountValue: string } | null;
 };
 
 export type Employee = { id: string; full_name: string; name?: string; avatar_url?: string | null; is_active?: boolean | null };
@@ -288,6 +297,12 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
   // resolver compartido `resolveServicePricing` — ver src/lib/service-pricing.ts.
   const [employeeServiceOverrides, setEmployeeServiceOverrides] =
     React.useState<EmployeeServiceOverrideMap>({});
+  // Promociones del negocio (Configuración → Promociones) — misma fuente
+  // (`_promotions` dentro de business_settings.schedule) y mismo criterio de
+  // vigencia/aplicabilidad que ya usa la Página Pública. Acá se exponen SIN
+  // filtrar por vigencia: el diálogo de turno decide qué mostrar según
+  // servicio/profesional elegidos en cada momento.
+  const [promotions, setPromotions] = React.useState<Promotion[]>([]);
   const [realtimeStatus, setRealtimeStatus] = React.useState<"connecting" | "connected" | "disconnected">("connecting");
 
   const startIso = rangeStart.toISOString();
@@ -314,7 +329,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
       supabase
         .from("appointments")
         .select(
-          "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,updated_at",
+          "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,updated_at,promotion_id,promotion_snapshot",
         )
         .eq("business_id", businessId)
         .gte("starts_at", startIso)
@@ -412,6 +427,11 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     );
     setEmployeeServiceOverrides(
       (rawSchedule?._employeeServiceOverrides as EmployeeServiceOverrideMap) ?? {},
+    );
+    setPromotions(
+      Array.isArray(rawSchedule?._promotions)
+        ? (rawSchedule!._promotions as Promotion[]).map(backfillPromotionVigencia)
+        : [],
     );
 
     setAppointments(
@@ -574,6 +594,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     employeeApprovalEnabled,
     employeeApprovalMode,
     employeeServiceOverrides,
+    promotions,
     realtimeStatus,
     refresh: () => load({ silent: true }),
   };
@@ -602,6 +623,11 @@ export type SaveAppointmentInput = {
   deposit_status?: string | null;
   created_by_name?: string | null;
   created_by_role?: string | null;
+  // Promoción prevista (o null explícito para quitarla al editar). Siempre
+  // se escribe el par completo — nunca solo el id — así el turno conserva
+  // qué promo vio la recepción aunque la promo real cambie/desaparezca después.
+  promotion_id?: string | null;
+  promotion_snapshot?: { name: string; discountType: string; discountValue: string } | null;
 };
 
 export async function saveAppointment(input: SaveAppointmentInput) {
@@ -621,6 +647,8 @@ export async function saveAppointment(input: SaveAppointmentInput) {
     duration_min: input.duration_min,
     status: input.status ?? "pending",
     notes: input.notes ?? null,
+    promotion_id: input.promotion_id ?? null,
+    promotion_snapshot: input.promotion_snapshot ?? null,
     updated_at: new Date().toISOString(),
   };
   if (!input.id) {
