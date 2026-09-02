@@ -1,6 +1,7 @@
 import * as React from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { MapPin, Instagram, MessageCircle, ArrowRight } from "lucide-react";
+import auroStyloLogo from "@/assets/auro-stylo-logo.jpeg";
 
 export const Route = createFileRoute("/auro-stylo")({
   head: () => ({
@@ -57,10 +58,12 @@ function AuroStyloBranchPage() {
       <div className="relative mx-auto flex min-h-dvh w-full max-w-xl flex-col items-center px-5 py-12 sm:py-16">
         {/* Header */}
         <div className="flex flex-col items-center text-center">
-          <span className="text-xl font-black tracking-[0.32em] sm:text-2xl">
-            AURO <span className="text-violet-300">STYLO</span>
-          </span>
-          <h1 className="mt-9 text-[26px] font-bold tracking-tight sm:text-3xl">Elegí tu sucursal</h1>
+          <img
+            src={auroStyloLogo}
+            alt="Auro Stylo"
+            className="h-20 w-20 shrink-0 rounded-full object-cover sm:h-24 sm:w-24"
+          />
+          <h1 className="mt-8 text-[26px] font-bold tracking-tight sm:text-3xl">Elegí tu sucursal</h1>
           <p className="mt-2 text-sm text-white/50">Seleccioná dónde querés reservar tu turno</p>
         </div>
 
