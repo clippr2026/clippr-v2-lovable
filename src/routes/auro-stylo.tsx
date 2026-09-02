@@ -61,20 +61,20 @@ function AuroStyloBranchPage() {
         style={{ background: "radial-gradient(closest-side, rgba(56,132,255,0.3), transparent)" }}
       />
 
-      <div className="relative mx-auto flex min-h-dvh w-full max-w-xl flex-col items-center px-5 py-12 sm:py-16">
+      <div className="relative mx-auto flex min-h-dvh w-full max-w-xl flex-col items-center px-5 py-6 sm:py-16">
         {/* Header */}
         <div className="flex flex-col items-center text-center">
           <img
             src={auroStyloLogo}
             alt="Auro Stylo"
-            className="h-20 w-20 shrink-0 rounded-full object-cover sm:h-24 sm:w-24"
+            className="h-14 w-14 shrink-0 rounded-full object-cover sm:h-24 sm:w-24"
           />
-          <h1 className="mt-8 text-[26px] font-bold tracking-tight sm:text-3xl">Elegí tu sucursal</h1>
-          <p className="mt-2 text-sm text-white/50">Seleccioná dónde querés reservar tu turno</p>
+          <h1 className="mt-3 text-[26px] font-bold tracking-tight sm:mt-8 sm:text-3xl">Elegí tu sucursal</h1>
+          <p className="mt-1.5 text-sm text-white/50">Seleccioná dónde querés reservar tu turno</p>
         </div>
 
         {/* Tarjetas de sucursal */}
-        <div className="mt-10 w-full space-y-5 sm:mt-12">
+        <div className="mt-5 w-full space-y-3 sm:mt-12 sm:space-y-5">
           {BRANCHES.map((branch) => (
             <a
               key={branch.name}
@@ -87,7 +87,7 @@ function AuroStyloBranchPage() {
                   sin overlay/degradado/filtro encima (imagen real tal cual
                   la mandó el negocio). Sin foto todavía, placeholder
                   degradado violeta/azul. */}
-              <div className="relative h-36 w-full overflow-hidden sm:h-44">
+              <div className="relative h-24 w-full overflow-hidden sm:h-44">
                 {branch.image ? (
                   <img
                     src={branch.image}
@@ -110,12 +110,12 @@ function AuroStyloBranchPage() {
                 )}
               </div>
 
-              <div className="p-5 sm:p-6">
+              <div className="p-3.5 sm:p-6">
                 <div className="text-lg font-bold tracking-wide sm:text-xl">{branch.name}</div>
                 <p className="mt-1 text-sm text-white/50">{branch.address}</p>
 
                 <div
-                  className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-4 text-sm font-bold tracking-wide transition group-hover:brightness-110"
+                  className="mt-3 flex w-full items-center justify-center gap-2 rounded-2xl px-5 py-3 text-sm font-bold tracking-wide transition group-hover:brightness-110"
                   style={{
                     background: "linear-gradient(135deg, #60a5fa, #7c3aed)",
                     boxShadow: "0 16px 36px -14px rgba(124,58,237,0.55)",
@@ -130,7 +130,7 @@ function AuroStyloBranchPage() {
         </div>
 
         {/* Footer discreto — sin ninguna mención a Clippr/AgendaPro */}
-        <div className="mt-16 flex flex-col items-center gap-3 pb-4 text-white/35 sm:mt-20">
+        <div className="mt-6 flex flex-col items-center gap-3 pb-4 text-white/35 sm:mt-20">
           <div className="flex items-center gap-3">
             <Instagram className="h-4 w-4" />
             <span className="text-white/20">·</span>
