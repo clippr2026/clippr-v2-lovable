@@ -1,6 +1,6 @@
 import * as React from "react";
 import { createFileRoute } from "@tanstack/react-router";
-import { MapPin, Instagram, MessageCircle, ArrowRight } from "lucide-react";
+import { MapPin, ArrowRight } from "lucide-react";
 import auroStyloLogo from "@/assets/auro-stylo-logo.jpeg";
 import auroRecoletaPhoto from "@/assets/auro-recoleta.png";
 import auroMonserratPhoto from "@/assets/auro-monserrat.jpeg";
@@ -87,7 +87,7 @@ function AuroStyloBranchPage() {
                   sin overlay/degradado/filtro encima (imagen real tal cual
                   la mandó el negocio). Sin foto todavía, placeholder
                   degradado violeta/azul. */}
-              <div className="relative h-24 w-full overflow-hidden sm:h-44">
+              <div className="relative h-40 w-full overflow-hidden sm:h-56">
                 {branch.image ? (
                   <img
                     src={branch.image}
@@ -130,12 +130,7 @@ function AuroStyloBranchPage() {
         </div>
 
         {/* Footer discreto — sin ninguna mención a Clippr/AgendaPro */}
-        <div className="mt-6 flex flex-col items-center gap-3 pb-4 text-white/35 sm:mt-20">
-          <div className="flex items-center gap-3">
-            <Instagram className="h-4 w-4" />
-            <span className="text-white/20">·</span>
-            <MessageCircle className="h-4 w-4" />
-          </div>
+        <div className="mt-6 flex flex-col items-center pb-4 text-white/35 sm:mt-20">
           <p className="text-xs">© Auro Stylo</p>
         </div>
       </div>
