@@ -2,6 +2,7 @@ import * as React from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { MapPin, Instagram, MessageCircle, ArrowRight } from "lucide-react";
 import auroStyloLogo from "@/assets/auro-stylo-logo.jpeg";
+import auroRecoletaPhoto from "@/assets/auro-recoleta.png";
 
 export const Route = createFileRoute("/auro-stylo")({
   head: () => ({
@@ -25,6 +26,8 @@ const BRANCHES: Array<{
   address: string;
   href: string;
   external: boolean;
+  // Sin foto todavía -> se usa el placeholder degradado.
+  image?: string;
 }> = [
   {
     name: "AURO MONSERRAT",
@@ -37,6 +40,7 @@ const BRANCHES: Array<{
     address: "Paraguay 1268, CABA",
     href: "https://aurostylo.site.agendapro.com/ar/sucursal/307993",
     external: true,
+    image: auroRecoletaPhoto,
   },
 ];
 
@@ -77,19 +81,31 @@ function AuroStyloBranchPage() {
               rel={branch.external ? "noreferrer" : undefined}
               className="group block overflow-hidden rounded-[28px] border border-white/[0.08] bg-white/[0.04] transition-all duration-300 ease-out hover:-translate-y-1 hover:border-violet-400/25 hover:bg-white/[0.06] hover:shadow-[0_28px_70px_-30px_rgba(124,58,237,0.45)] active:scale-[0.985] active:transition-none"
             >
-              {/* Espacio para foto horizontal de la sucursal — placeholder
-                  con degradé violeta/azul hasta que carguen la imagen real. */}
+              {/* Foto horizontal de la sucursal — object-cover, centrada,
+                  sin overlay/degradado/filtro encima (imagen real tal cual
+                  la mandó el negocio). Sin foto todavía, placeholder
+                  degradado violeta/azul. */}
               <div className="relative h-36 w-full overflow-hidden sm:h-44">
-                <div
-                  className="absolute inset-0 transition-transform duration-500 ease-out group-hover:scale-[1.04]"
-                  style={{
-                    background:
-                      "linear-gradient(135deg, rgba(96,165,250,0.20), rgba(124,58,237,0.28))",
-                  }}
-                />
-                <div className="absolute inset-0 grid place-items-center">
-                  <MapPin className="h-7 w-7 text-white/25" strokeWidth={1.5} />
-                </div>
+                {branch.image ? (
+                  <img
+                    src={branch.image}
+                    alt={branch.name}
+                    className="h-full w-full object-cover object-center transition-transform duration-500 ease-out group-hover:scale-[1.04]"
+                  />
+                ) : (
+                  <>
+                    <div
+                      className="absolute inset-0 transition-transform duration-500 ease-out group-hover:scale-[1.04]"
+                      style={{
+                        background:
+                          "linear-gradient(135deg, rgba(96,165,250,0.20), rgba(124,58,237,0.28))",
+                      }}
+                    />
+                    <div className="absolute inset-0 grid place-items-center">
+                      <MapPin className="h-7 w-7 text-white/25" strokeWidth={1.5} />
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="p-5 sm:p-6">
