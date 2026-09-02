@@ -3449,9 +3449,20 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                 </div>
 
                 {appointment.service_price ? (
-                  <div className="shrink-0 text-right text-xl font-display font-semibold tracking-tight">
-                    ${Number(appointment.service_price).toLocaleString("es-AR")}
-                  </div>
+                  promoSnapshot ? (
+                    <div className="shrink-0 text-right leading-none">
+                      <div className="text-sm text-white/40 line-through tabular-nums">
+                        ${serviceTotal.toLocaleString("es-AR")}
+                      </div>
+                      <div className="mt-1 text-xl font-display font-semibold tracking-tight">
+                        ${(promoFinalPrice ?? serviceTotal).toLocaleString("es-AR")}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="shrink-0 text-right text-xl font-display font-semibold tracking-tight">
+                      ${Number(appointment.service_price).toLocaleString("es-AR")}
+                    </div>
+                  )
                 ) : null}
               </div>
 
@@ -3471,19 +3482,8 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
               </div>
 
               {promoSnapshot && (
-                <div className="flex items-start justify-between gap-3 text-sm">
-                  <span className="pt-0.5 text-white/60">Promo</span>
-                  <div className="text-right">
-                    <div className="font-medium text-violet-300 truncate">{promoSnapshot.name}</div>
-                    <div className="mt-0.5 flex items-baseline justify-end gap-1.5">
-                      <span className="text-xs text-white/40 line-through tabular-nums">
-                        ${serviceTotal.toLocaleString("es-AR")}
-                      </span>
-                      <span className="font-semibold text-white tabular-nums">
-                        ${(promoFinalPrice ?? serviceTotal).toLocaleString("es-AR")}
-                      </span>
-                    </div>
-                  </div>
+                <div className="text-sm font-medium text-violet-300 truncate">
+                  {promoSnapshot.name}
                 </div>
               )}
             </div>
