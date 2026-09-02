@@ -23,6 +23,7 @@ import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as ClientsRouteImport } from './routes/clients'
 import { Route as CashRegisterLiquidacionesCompactoRouteImport } from './routes/cash-register-liquidaciones-compacto'
 import { Route as CashRegisterRouteImport } from './routes/cash-register'
+import { Route as AuroStyloRouteImport } from './routes/auro-stylo'
 import { Route as AppointmentsRouteImport } from './routes/appointments'
 import { Route as AgendaRouteImport } from './routes/agenda'
 import { Route as AdvisorlRouteImport } from './routes/advisorl'
@@ -102,6 +103,11 @@ const CashRegisterRoute = CashRegisterRouteImport.update({
   path: '/cash-register',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AuroStyloRoute = AuroStyloRouteImport.update({
+  id: '/auro-stylo',
+  path: '/auro-stylo',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AppointmentsRoute = AppointmentsRouteImport.update({
   id: '/appointments',
   path: '/appointments',
@@ -144,6 +150,7 @@ export interface FileRoutesByFullPath {
   '/advisorl': typeof AdvisorlRoute
   '/agenda': typeof AgendaRoute
   '/appointments': typeof AppointmentsRoute
+  '/auro-stylo': typeof AuroStyloRoute
   '/cash-register': typeof CashRegisterRoute
   '/cash-register-liquidaciones-compacto': typeof CashRegisterLiquidacionesCompactoRoute
   '/clients': typeof ClientsRoute
@@ -167,6 +174,7 @@ export interface FileRoutesByTo {
   '/advisorl': typeof AdvisorlRoute
   '/agenda': typeof AgendaRoute
   '/appointments': typeof AppointmentsRoute
+  '/auro-stylo': typeof AuroStyloRoute
   '/cash-register': typeof CashRegisterRoute
   '/cash-register-liquidaciones-compacto': typeof CashRegisterLiquidacionesCompactoRoute
   '/clients': typeof ClientsRoute
@@ -191,6 +199,7 @@ export interface FileRoutesById {
   '/advisorl': typeof AdvisorlRoute
   '/agenda': typeof AgendaRoute
   '/appointments': typeof AppointmentsRoute
+  '/auro-stylo': typeof AuroStyloRoute
   '/cash-register': typeof CashRegisterRoute
   '/cash-register-liquidaciones-compacto': typeof CashRegisterLiquidacionesCompactoRoute
   '/clients': typeof ClientsRoute
@@ -216,6 +225,7 @@ export interface FileRouteTypes {
     | '/advisorl'
     | '/agenda'
     | '/appointments'
+    | '/auro-stylo'
     | '/cash-register'
     | '/cash-register-liquidaciones-compacto'
     | '/clients'
@@ -239,6 +249,7 @@ export interface FileRouteTypes {
     | '/advisorl'
     | '/agenda'
     | '/appointments'
+    | '/auro-stylo'
     | '/cash-register'
     | '/cash-register-liquidaciones-compacto'
     | '/clients'
@@ -262,6 +273,7 @@ export interface FileRouteTypes {
     | '/advisorl'
     | '/agenda'
     | '/appointments'
+    | '/auro-stylo'
     | '/cash-register'
     | '/cash-register-liquidaciones-compacto'
     | '/clients'
@@ -286,6 +298,7 @@ export interface RootRouteChildren {
   AdvisorlRoute: typeof AdvisorlRoute
   AgendaRoute: typeof AgendaRoute
   AppointmentsRoute: typeof AppointmentsRoute
+  AuroStyloRoute: typeof AuroStyloRoute
   CashRegisterRoute: typeof CashRegisterRoute
   CashRegisterLiquidacionesCompactoRoute: typeof CashRegisterLiquidacionesCompactoRoute
   ClientsRoute: typeof ClientsRoute
@@ -404,6 +417,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof CashRegisterRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/auro-stylo': {
+      id: '/auro-stylo'
+      path: '/auro-stylo'
+      fullPath: '/auro-stylo'
+      preLoaderRoute: typeof AuroStyloRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/appointments': {
       id: '/appointments'
       path: '/appointments'
@@ -462,6 +482,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdvisorlRoute: AdvisorlRoute,
   AgendaRoute: AgendaRoute,
   AppointmentsRoute: AppointmentsRoute,
+  AuroStyloRoute: AuroStyloRoute,
   CashRegisterRoute: CashRegisterRoute,
   CashRegisterLiquidacionesCompactoRoute:
     CashRegisterLiquidacionesCompactoRoute,
