@@ -54,7 +54,12 @@ import {
 } from "lucide-react";
 import { useClientesConfig } from "@/hooks/use-clientes-config";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
-import { resolveServicePricing } from "@/lib/service-pricing";
+import {
+  resolveServicePricing,
+  isPromotionCurrentlyValid,
+  isPromotionApplicable,
+  applyPromotionDiscount,
+} from "@/lib/service-pricing";
 import { AcquisitionSourceField } from "@/components/acquisition-source-field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { acquisitionChannelRequiresText } from "@/lib/acquisition-channels";
@@ -8933,6 +8938,10 @@ export function NuevaVentaTab({
   const [employeeId, setEmployeeId] = React.useState<string>(
     pendingCharge?.employee_id ?? lockedEmployeeId ?? "",
   );
+  // "" = sin promoción. Precargada desde la promo PREVISTA del turno (si
+  // viene de uno) — se puede mantener, cambiar o quitar libremente antes de
+  // cobrar. Esta es la que queda como APLICADA (definitiva) al confirmar.
+  const [promotionId, setPromotionId] = React.useState<string>(pendingCharge?.promotion_id ?? "");
   const [method, setMethod] = React.useState<PayMethod>("cash");
   const [paymentMode, setPaymentMode] = React.useState<"simple" | "multiple">(
     "simple",
@@ -9000,6 +9009,7 @@ export function NuevaVentaTab({
     setReceived("");
     setPaymentMode("simple");
     setSplits([{ method: "cash", amount: "" }]);
+    setPromotionId(pendingCharge.promotion_id ?? "");
   }, [pendingCharge]);
 
   // Servicio principal del pendingCharge + productos ya reservados (turno
@@ -9169,15 +9179,51 @@ export function NuevaVentaTab({
     0,
   );
   const cartCount = cartItems.reduce((acc, { qty }) => acc + qty, 0);
+
+  // Promoción / descuento — mismo motor que Agenda y la Página Pública, sin
+  // duplicar lógica. Solo se muestran promos vigentes y aplicables a ALGÚN
+  // servicio del carrito para el profesional elegido; el descuento se
+  // aplica únicamente a los ítems de servicio que esa promo alcanza (no a
+  // productos de catálogo), sumando el resto del carrito sin tocar.
+  const validPromotions = React.useMemo(() => {
+    if (!employeeId || cartItems.length === 0) return [];
+    const now = new Date();
+    return data.promotions.filter(
+      (p) =>
+        isPromotionCurrentlyValid(p, now) &&
+        cartItems.some(
+          ({ svc }) => !svc.is_catalog && isPromotionApplicable(p, { serviceId: svc.id, employeeId, category: svc.category ?? null }),
+        ),
+    );
+  }, [data.promotions, cartItems, employeeId]);
+
+  React.useEffect(() => {
+    if (promotionId && !validPromotions.some((p) => p.id === promotionId)) {
+      setPromotionId("");
+    }
+  }, [promotionId, validPromotions]);
+
+  const selectedPromotion = validPromotions.find((p) => p.id === promotionId) ?? null;
+  const discountAmount = selectedPromotion
+    ? cartItems.reduce((sum, { svc, qty }) => {
+        if (svc.is_catalog || !isPromotionApplicable(selectedPromotion, { serviceId: svc.id, employeeId, category: svc.category ?? null })) {
+          return sum;
+        }
+        const subtotal = Number(svc.price) * qty;
+        return sum + (subtotal - applyPromotionDiscount(subtotal, selectedPromotion));
+      }, 0)
+    : 0;
+  const finalTotal = total - discountAmount;
+
   const receivedNumber = Number(received || 0);
   const change =
-    method === "cash" && receivedNumber >= total ? receivedNumber - total : 0;
+    method === "cash" && receivedNumber >= finalTotal ? receivedNumber - finalTotal : 0;
   const cashShortfall =
-    method === "cash" && receivedNumber > 0 && receivedNumber < total
-      ? total - receivedNumber
+    method === "cash" && receivedNumber > 0 && receivedNumber < finalTotal
+      ? finalTotal - receivedNumber
       : 0;
   const splitsTotal = splits.reduce((s, sp) => s + Number(sp.amount || 0), 0);
-  const splitsRemaining = total - splitsTotal;
+  const splitsRemaining = finalTotal - splitsTotal;
   const selectedEmployee = data.employees.find((e) => e.id === employeeId);
   const filteredSaleEmployees = React.useMemo(() => {
     const q = professionalSearch.trim().toLowerCase();
@@ -9317,9 +9363,9 @@ export function NuevaVentaTab({
             toast.error("Ingresá el monto abonado.");
             return;
           }
-          if (Number(received) < total) {
+          if (Number(received) < finalTotal) {
             toast.error(
-              `El monto abonado ($${Number(received).toLocaleString("es-AR")}) es menor al total ($${total.toLocaleString("es-AR")}).`,
+              `El monto abonado ($${Number(received).toLocaleString("es-AR")}) es menor al total ($${finalTotal.toLocaleString("es-AR")}).`,
             );
             return;
           }
@@ -9331,9 +9377,9 @@ export function NuevaVentaTab({
           toast.error("Cargá al menos un monto en pago múltiple.");
           return;
         }
-        if (Math.round(splitsTotal) !== Math.round(total)) {
+        if (Math.round(splitsTotal) !== Math.round(finalTotal)) {
           toast.error(
-            `El pago múltiple debe sumar $${total.toLocaleString("es-AR")}. Falta/sobra $${Math.abs(splitsRemaining).toLocaleString("es-AR")}.`,
+            `El pago múltiple debe sumar $${finalTotal.toLocaleString("es-AR")}. Falta/sobra $${Math.abs(splitsRemaining).toLocaleString("es-AR")}.`,
           );
           return;
         }
@@ -9529,6 +9575,13 @@ export function NuevaVentaTab({
           chargedBy: data.profileId,
           chargeOrigin: "manual",
           notes: `${PAY_HIST_MARKER}${JSON.stringify(fullHist)}`,
+          promotionId: selectedPromotion?.id ?? null,
+          promotionName: selectedPromotion?.name ?? null,
+          discountType: selectedPromotion?.discountType ?? null,
+          discountValue: selectedPromotion?.discountValue ?? null,
+          discountAmount,
+          clientPhone: phone,
+          clientEmail: email,
         });
 
         const { error: removeError } = await supabase
@@ -9539,7 +9592,7 @@ export function NuevaVentaTab({
           );
         if (removeError) throw removeError;
 
-        toast.success(`Cobro confirmado · $${total.toLocaleString("es-AR")}`);
+        toast.success(`Cobro confirmado · $${finalTotal.toLocaleString("es-AR")}`);
         onPendingDone?.();
         await data.refresh();
         notifyCajaPendientesChanged();
@@ -9588,6 +9641,13 @@ export function NuevaVentaTab({
           chargedBy: data.profileId,
           chargeOrigin: "manual",
           notes: professionalNote || null,
+          promotionId: selectedPromotion?.id ?? null,
+          promotionName: selectedPromotion?.name ?? null,
+          discountType: selectedPromotion?.discountType ?? null,
+          discountValue: selectedPromotion?.discountValue ?? null,
+          discountAmount,
+          clientPhone: phone,
+          clientEmail: email,
         });
 
         // 3. Registrar en el historial del turno que el usuario de caja cobró el
@@ -9609,7 +9669,7 @@ export function NuevaVentaTab({
         // 4. Limpiar de localStorage
         removeLocalManualPendingCharge(pendingCharge.id);
 
-        toast.success(`Cobro confirmado · $${total.toLocaleString("es-AR")}`);
+        toast.success(`Cobro confirmado · $${finalTotal.toLocaleString("es-AR")}`);
         onPendingDone?.();
         notifyCajaPendientesChanged();
       } else {
@@ -9642,9 +9702,16 @@ export function NuevaVentaTab({
           chargedBy: data.profileId,
           chargeOrigin: "caja",
           notes: `${PAY_HIST_MARKER}${JSON.stringify([chargeEvent])}`,
+          promotionId: selectedPromotion?.id ?? null,
+          promotionName: selectedPromotion?.name ?? null,
+          discountType: selectedPromotion?.discountType ?? null,
+          discountValue: selectedPromotion?.discountValue ?? null,
+          discountAmount,
+          clientPhone: phone,
+          clientEmail: email,
         });
 
-        toast.success(`Cobro confirmado · $${total.toLocaleString("es-AR")}`);
+        toast.success(`Cobro confirmado · $${finalTotal.toLocaleString("es-AR")}`);
         setCart({});
         setClientId(null);
         setClient("");
@@ -9672,7 +9739,7 @@ export function NuevaVentaTab({
     { n: 1, label: "Profesional", hint: selectedEmployee?.name ?? "Elegí quién atiende", icon: Wallet },
     { n: 2, label: "Cliente", hint: clientId ? client || "Cliente seleccionado" : "Buscá o creá cliente", icon: Search },
     { n: 3, label: "Servicios", hint: cartCount > 0 ? `${cartCount} ítem${cartCount === 1 ? "" : "s"}` : "Agregá servicios", icon: ClipboardList },
-    { n: 4, label: "Pago", hint: total > 0 ? `$${total.toLocaleString("es-AR")}` : "Confirmá cobro", icon: CreditCard },
+    { n: 4, label: "Pago", hint: finalTotal > 0 ? `$${finalTotal.toLocaleString("es-AR")}` : "Confirmá cobro", icon: CreditCard },
   ] as const;
   // Con profesional bloqueado (ej. Mi Agenda), ese paso no se muestra: ya
   // viene elegido y no se puede cambiar. hideClienteStep: el cliente ya
@@ -10395,10 +10462,39 @@ export function NuevaVentaTab({
               </div>
             )}
 
+            {validPromotions.length > 0 && (
+              <div className="mt-1.5 border-t border-white/10 pt-1.5">
+                <Select value={promotionId || "none"} onValueChange={(v) => setPromotionId(v === "none" ? "" : v)}>
+                  <SelectTrigger className="h-8 text-xs w-full"><SelectValue placeholder="Sin promoción" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Sin promoción / descuento</SelectItem>
+                    {validPromotions.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name} ({p.discountType === "percent" ? `-${Number(p.discountValue) || 0}%` : `-$${(Number(p.discountValue) || 0).toLocaleString("es-AR")}`})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {selectedPromotion && (
+              <div className="mt-1.5 space-y-0.5 border-t border-white/10 pt-1.5">
+                <div className="flex items-center justify-between gap-3 text-xs text-white/60">
+                  <span>Precio original</span>
+                  <span className="tabular-nums">${total.toLocaleString("es-AR")}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 text-xs text-violet-300">
+                  <span>{selectedPromotion.name}</span>
+                  <span className="tabular-nums">-${Math.round(discountAmount).toLocaleString("es-AR")}</span>
+                </div>
+              </div>
+            )}
+
             <div className="mt-1.5 flex items-center justify-between gap-3 border-t border-white/10 pt-1.5">
               <span className="text-base font-extrabold text-white">Total</span>
               <span className="tabular-nums text-base font-extrabold text-white">
-                ${total.toLocaleString("es-AR")}
+                ${Math.round(finalTotal).toLocaleString("es-AR")}
               </span>
             </div>
           </Card>

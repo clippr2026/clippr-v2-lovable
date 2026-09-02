@@ -1725,6 +1725,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
           businessSpecialDates={agendaData.businessSpecialDates}
           employeeSpecialDates={agendaData.employeeSpecialDates}
           employeeServiceOverrides={agendaData.employeeServiceOverrides}
+          promotions={agendaData.promotions}
           presentation="modal"
         />
       )}

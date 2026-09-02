@@ -1,4 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
+import { normalizeClientKeys, type PromotionDiscountType } from "@/lib/service-pricing";
+import { incrementPromotionUsage } from "@/lib/promotion-usage";
 
 /**
  * Registra una venta en Caja.
@@ -49,6 +51,21 @@ export type RegisterPaymentInput = {
   chargeOrigin?: ChargeOrigin;
   status?: "cobrado" | "pendiente" | "anulado" | "reembolsado";
   notes?: string | null;
+  // Promoción APLICADA (dato definitivo) — se completa recién acá, al
+  // confirmar el cobro. discountAmount ya viene calculado en $ (la UI de
+  // Caja decide a qué ítems del carrito aplica, este módulo solo lo resta
+  // del total y lo deja registrado). Sin promotionId, estos campos no se
+  // escriben y el pago queda exactamente como antes.
+  promotionId?: string | null;
+  promotionName?: string | null;
+  discountType?: PromotionDiscountType | null;
+  discountValue?: string | null;
+  discountAmount?: number;
+  // Para el límite "por cliente" de la promo (normalizeClientKeys) — best
+  // effort: sin estos datos, el incremento de uso igual corre (cupo total),
+  // solo no puede chequear/contar el límite por cliente puntual.
+  clientPhone?: string | null;
+  clientEmail?: string | null;
 };
 
 function formatItemName(item: RegisterPaymentItem) {
@@ -71,10 +88,15 @@ export async function registerPayment(input: RegisterPaymentInput) {
   if (!input.businessId) throw new Error("Falta business_id");
   if (!input.items.length) throw new Error("Carrito vacío");
 
-  const total = input.items.reduce((sum, item) => {
+  const grossTotal = input.items.reduce((sum, item) => {
     const qty = Number(item.qty ?? 1);
     return sum + Number(item.amount ?? 0) * qty;
   }, 0);
+  // discountAmount ya viene resuelto en $ por quien arma el carrito (qué
+  // ítems son alcanzados por la promo es decisión de la UI, acá solo se
+  // resta del total una vez, con tope para nunca dar negativo).
+  const discountAmount = Math.max(0, Math.min(grossTotal, Number(input.discountAmount ?? 0)));
+  const total = input.promotionId ? grossTotal - discountAmount : grossTotal;
 
   const saleSummary = buildSaleSummary(input.items) || "Venta";
 
@@ -120,6 +142,21 @@ export async function registerPayment(input: RegisterPaymentInput) {
   if (chargedByUuid) payload.charged_by = chargedByUuid;
   if (input.notes?.trim()) payload.observations = input.notes.trim();
 
+  // Promoción aplicada — el dato definitivo (no el "previsto" del turno, que
+  // puede haber sido cambiado/quitado acá mismo antes de confirmar). Guarda
+  // precio original + descuento + promo para que Historial/Clientes/
+  // Dashboard/comisiones/liquidaciones puedan reconstruir el desglose
+  // completo sin volver a consultar la promo (que puede editarse/borrarse
+  // después).
+  if (input.promotionId) {
+    payload.promotion_id = input.promotionId;
+    payload.promotion_name = input.promotionName ?? null;
+    payload.discount_type = input.discountType ?? null;
+    payload.discount_value = input.discountValue != null ? Number(input.discountValue) : null;
+    payload.discount = discountAmount;
+    payload.original_amount = grossTotal;
+  }
+
   const { data, error } = await supabase
     .from("payments")
     .insert(payload)
@@ -132,6 +169,15 @@ export async function registerPayment(input: RegisterPaymentInput) {
 
   if (!data?.length) {
     throw new Error("Supabase no devolvió el pago guardado (¿RLS?).");
+  }
+
+  // Uso de la promo: se consume acá, recién con el cobro confirmado (nunca
+  // al agendar/prever) — un solo lugar, así ningún punto de entrada de Caja
+  // puede duplicar ni saltear este paso. Post-insert (nunca antes): si el
+  // pago falla, no se consume uso de nada.
+  if (input.promotionId) {
+    const clientKeys = normalizeClientKeys(input.clientPhone ?? "", input.clientEmail ?? "");
+    await incrementPromotionUsage(input.businessId, input.promotionId, clientKeys);
   }
 
   // Registra la comisión generada por esta venta — fuente de verdad del

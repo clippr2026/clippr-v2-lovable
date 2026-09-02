@@ -38,6 +38,11 @@ import {
   CalendarDays
 } from "lucide-react";
 import { useClientesConfig } from "@/hooks/use-clientes-config";
+import {
+  isPromotionCurrentlyValid,
+  isPromotionApplicable,
+  applyPromotionDiscount,
+} from "@/lib/service-pricing";
 import { ServiceImage } from "@/components/ui/service-image";
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
@@ -3026,6 +3031,9 @@ function NuevaVentaTab({
   const [email, setEmail] = React.useState("");
   const [birthDate, setBirthDate] = React.useState("");
   const [employeeId, setEmployeeId] = React.useState<string>(pendingCharge?.employee_id ?? "");
+  // "" = sin promoción. Precargada desde la promo prevista del turno si
+  // corresponde; se puede mantener, cambiar o quitar antes de cobrar.
+  const [promotionId, setPromotionId] = React.useState<string>(pendingCharge?.promotion_id ?? "");
   const [method, setMethod] = React.useState<PayMethod>("cash");
   const [paymentMode, setPaymentMode] = React.useState<"simple" | "multiple">("simple");
   const [received, setReceived] = React.useState("");
@@ -3140,10 +3148,43 @@ function NuevaVentaTab({
 
   const total = cartItems.reduce((acc, { svc, qty }) => acc + Number(svc.price) * qty, 0);
   const cartCount = cartItems.reduce((acc, { qty }) => acc + qty, 0);
+
+  // Promoción / descuento — mismo motor que Agenda/Página Pública/Caja
+  // principal, sin duplicar lógica. Ver cash-register.tsx NuevaVentaTab.
+  const validPromotions = React.useMemo(() => {
+    if (!employeeId || cartItems.length === 0) return [];
+    const now = new Date();
+    return data.promotions.filter(
+      (p) =>
+        isPromotionCurrentlyValid(p, now) &&
+        cartItems.some(
+          ({ svc }) => !svc.is_catalog && isPromotionApplicable(p, { serviceId: svc.id, employeeId, category: svc.category ?? null }),
+        ),
+    );
+  }, [data.promotions, cartItems, employeeId]);
+
+  React.useEffect(() => {
+    if (promotionId && !validPromotions.some((p) => p.id === promotionId)) {
+      setPromotionId("");
+    }
+  }, [promotionId, validPromotions]);
+
+  const selectedPromotion = validPromotions.find((p) => p.id === promotionId) ?? null;
+  const discountAmount = selectedPromotion
+    ? cartItems.reduce((sum, { svc, qty }) => {
+        if (svc.is_catalog || !isPromotionApplicable(selectedPromotion, { serviceId: svc.id, employeeId, category: svc.category ?? null })) {
+          return sum;
+        }
+        const subtotal = Number(svc.price) * qty;
+        return sum + (subtotal - applyPromotionDiscount(subtotal, selectedPromotion));
+      }, 0)
+    : 0;
+  const finalTotal = total - discountAmount;
+
   const receivedNumber = Number(received || 0);
-  const change = method === "cash" && receivedNumber > total ? receivedNumber - total : 0;
+  const change = method === "cash" && receivedNumber > finalTotal ? receivedNumber - finalTotal : 0;
   const splitsTotal = splits.reduce((s, sp) => s + Number(sp.amount || 0), 0);
-  const splitsRemaining = total - splitsTotal;
+  const splitsRemaining = finalTotal - splitsTotal;
   const selectedEmployee = data.employees.find((e) => e.id === employeeId);
   const hasSelectedClient = Boolean(clientId);
   const serviceSummary = cartItems.length > 0
@@ -3218,8 +3259,8 @@ function NuevaVentaTab({
         if (!received.trim() || Number(received) <= 0) {
           toast.error("Ingresá el monto abonado."); return;
         }
-        if (Number(received) < total) {
-          toast.error(`El monto abonado ($${Number(received).toLocaleString("es-AR")}) es menor al total ($${total.toLocaleString("es-AR")}).`); return;
+        if (Number(received) < finalTotal) {
+          toast.error(`El monto abonado ($${Number(received).toLocaleString("es-AR")}) es menor al total ($${finalTotal.toLocaleString("es-AR")}).`); return;
         }
       }
     }
@@ -3228,8 +3269,8 @@ function NuevaVentaTab({
       if (splits.filter((s) => Number(s.amount) > 0).length < 1) {
         toast.error("Cargá al menos un monto en pago múltiple."); return;
       }
-      if (Math.round(splitsTotal) !== Math.round(total)) {
-        toast.error(`El pago múltiple debe sumar $${total.toLocaleString("es-AR")}. Falta/sobra $${Math.abs(splitsRemaining).toLocaleString("es-AR")}.`); return;
+      if (Math.round(splitsTotal) !== Math.round(finalTotal)) {
+        toast.error(`El pago múltiple debe sumar $${finalTotal.toLocaleString("es-AR")}. Falta/sobra $${Math.abs(splitsRemaining).toLocaleString("es-AR")}.`); return;
       }
     }
 
@@ -3281,6 +3322,13 @@ function NuevaVentaTab({
           chargedBy: data.profileId,
           chargeOrigin: "manual",
           notes: professionalNote || null,
+          promotionId: selectedPromotion?.id ?? null,
+          promotionName: selectedPromotion?.name ?? null,
+          discountType: selectedPromotion?.discountType ?? null,
+          discountValue: selectedPromotion?.discountValue ?? null,
+          discountAmount,
+          clientPhone: phone,
+          clientEmail: email,
         });
 
         // 3. Registrar en el historial del profesional que Caja/Recepción cobró el pendiente manual
@@ -3291,7 +3339,7 @@ function NuevaVentaTab({
         // 4. Limpiar de localStorage
         removeLocalManualPendingCharge(pendingCharge.id);
 
-        toast.success(`Cobro confirmado · $${total.toLocaleString("es-AR")}`);
+        toast.success(`Cobro confirmado · $${finalTotal.toLocaleString("es-AR")}`);
         onPendingDone?.();
       } else {
         // ── FLUJO NORMAL: nueva venta desde cero ──
@@ -3308,9 +3356,16 @@ function NuevaVentaTab({
           sessionId: data.cashSessionId,
           chargedBy: data.profileId,
           chargeOrigin: "caja",
+          promotionId: selectedPromotion?.id ?? null,
+          promotionName: selectedPromotion?.name ?? null,
+          discountType: selectedPromotion?.discountType ?? null,
+          discountValue: selectedPromotion?.discountValue ?? null,
+          discountAmount,
+          clientPhone: phone,
+          clientEmail: email,
         });
 
-        toast.success(`Cobro confirmado · $${total.toLocaleString("es-AR")}`);
+        toast.success(`Cobro confirmado · $${finalTotal.toLocaleString("es-AR")}`);
         setCart({}); setClientId(null); setClient(""); setClientSearch(""); setPhone(""); setEmail(""); setBirthDate(""); setClientNotes("");
         setReceived(""); setSplits([{ method: "cash", amount: "" }]); setPaymentMode("simple"); setStep(1);
         normalSaleCompleted = true;
@@ -3593,9 +3648,37 @@ function NuevaVentaTab({
                 <span className="text-foreground tabular-nums">${(Number(svc.price) * qty).toLocaleString("es-AR")}</span>
               </div>
             ))}
+
+            {validPromotions.length > 0 && (
+              <div className="pt-1">
+                <select value={promotionId} onChange={(e) => setPromotionId(e.target.value)}
+                  className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-foreground outline-none focus:border-blue-300/40">
+                  <option value="">Sin promoción / descuento</option>
+                  {validPromotions.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name} ({p.discountType === "percent" ? `-${Number(p.discountValue) || 0}%` : `-${(Number(p.discountValue) || 0).toLocaleString("es-AR")}`})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {selectedPromotion && (
+              <div className="space-y-1 pt-1">
+                <div className="flex items-center justify-between gap-3 text-xs text-muted-foreground">
+                  <span>Precio original</span>
+                  <span className="tabular-nums">${total.toLocaleString("es-AR")}</span>
+                </div>
+                <div className="flex items-center justify-between gap-3 text-xs text-violet-300">
+                  <span>{selectedPromotion.name}</span>
+                  <span className="tabular-nums">-${Math.round(discountAmount).toLocaleString("es-AR")}</span>
+                </div>
+              </div>
+            )}
+
             <div className="flex items-center justify-between pt-2">
               <span className="text-lg font-semibold text-foreground">Total</span>
-              <Money value={total} />
+              <Money value={finalTotal} />
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-white/[0.03] border border-white/5">

@@ -62,6 +62,7 @@ import {
   type EmployeeServiceOverrideMap,
   type Promotion,
 } from "@/lib/service-pricing";
+import { incrementPromotionUsage } from "@/lib/promotion-usage";
 
 export const Route = createFileRoute("/reservar/$slug")({
   head: () => ({
@@ -1190,38 +1191,11 @@ function PublicBookingPage() {
         }
       }
 
-      // Incremento best-effort del contador de usos de la promo (mismo
-      // read-modify-write que el resto de business_settings.schedule en
-      // esta app — riesgo de concurrencia ya documentado y aceptado en el
-      // plan, no bloqueante para el volumen de un negocio de barbería).
+      // Incremento del contador de usos de la promo — único punto de
+      // escritura, compartido con Caja (registerPayment), ver
+      // src/lib/promotion-usage.ts.
       if (promoNote && effectivePromotion) {
-        try {
-          const { data: bsRow } = await supabase
-            .from("business_settings")
-            .select("schedule")
-            .eq("business_id", business.id)
-            .maybeSingle();
-          const existingSchedule = (bsRow?.schedule ?? {}) as Record<string, unknown>;
-          const existingPromotions = Array.isArray(existingSchedule._promotions)
-            ? (existingSchedule._promotions as Promotion[])
-            : [];
-          const updatedPromotions = existingPromotions.map((p) => {
-            if (p.id !== effectivePromotion!.id) return p;
-            const nextUsedByClient = { ...p.usedByClient };
-            for (const key of clientKeys) {
-              nextUsedByClient[key] = (nextUsedByClient[key] ?? 0) + 1;
-            }
-            return { ...p, usageCount: p.usageCount + 1, usedByClient: nextUsedByClient };
-          });
-          await supabase
-            .from("business_settings")
-            .upsert(
-              { business_id: business.id, schedule: { ...existingSchedule, _promotions: updatedPromotions } },
-              { onConflict: "business_id" },
-            );
-        } catch (usageError) {
-          console.warn("No se pudo actualizar el contador de usos de la promoción:", usageError);
-        }
+        await incrementPromotionUsage(business.id, effectivePromotion.id, clientKeys);
       }
 
       setAppointments((current) => [

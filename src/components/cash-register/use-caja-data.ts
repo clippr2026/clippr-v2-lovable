@@ -2,7 +2,11 @@ import * as React from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { loadCajaSession } from "@/components/cash-register/session-actions";
-import type { EmployeeServiceOverrideMap } from "@/lib/service-pricing";
+import {
+  type EmployeeServiceOverrideMap,
+  type Promotion,
+  backfillPromotionVigencia,
+} from "@/lib/service-pricing";
 import { applyCatalogOrder, extractCatalogOrderMap } from "@/lib/catalog-order";
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
@@ -176,6 +180,10 @@ export type PendingCharge = {
   // Timestamp real de cuándo se envió (ISO) — para ordenar Pendientes por
   // más reciente primero, no por nombre/cliente ni por la fecha del turno.
   sentAt?: string;
+  // Promoción PREVISTA al agendar (Agenda/Mi Agenda) — solo para
+  // preseleccionar en el cobro; Caja decide si se mantiene, cambia o quita.
+  promotion_id?: string | null;
+  promotion_snapshot?: { name: string; discountType: string; discountValue: string } | null;
 };
 
 export type Expense = {
@@ -243,6 +251,11 @@ export function useCajaData() {
   });
   const [services, setServices] = React.useState<Service[]>([]);
   const [employees, setEmployees] = React.useState<Employee[]>([]);
+  // Promociones del negocio — misma fuente/criterio que Agenda y la Página
+  // Pública (business_settings.schedule._promotions). El checkout de Caja
+  // decide qué mostrar según servicio/profesional según isPromotionCurrentlyValid
+  // + isPromotionApplicable, nunca filtrado acá.
+  const [promotions, setPromotions] = React.useState<Promotion[]>([]);
   const [paymentsToday, setPaymentsToday] = React.useState<Payment[]>([]);
   const [expensesToday, setExpensesToday] = React.useState<Expense[]>([]);
   const [cashSessionId, setCashSessionId] = React.useState<string | null>(null);
@@ -346,7 +359,7 @@ export function useCajaData() {
       // única señal real de "enviado, todavía no cobrado".
       supabase
         .from("appointments")
-        .select("id,client_name,service_name,service_price,employee_id,starts_at,notes,status,cobro_events")
+        .select("id,client_name,service_name,service_price,employee_id,starts_at,notes,status,cobro_events,promotion_id,promotion_snapshot")
         .eq("business_id", businessId)
         .ilike("notes", "%[PENDIENTE_CAJA]%")
         .not("status", "in", "(charged,cancelled,blocked)")
@@ -545,6 +558,11 @@ export function useCajaData() {
       bsRes.status === "fulfilled" && !bsRes.value.error && bsRes.value.data
         ? ((bsRes.value.data.schedule ?? {}) as Record<string, unknown>)
         : {};
+    setPromotions(
+      Array.isArray(bsSchedule._promotions)
+        ? (bsSchedule._promotions as Promotion[]).map(backfillPromotionVigencia)
+        : [],
+    );
 
     // Venta de mostrador enviada a Caja en modo "Enviar" sin partir de un
     // turno: no existe un appointment de por medio (no debe ocuparse un
@@ -774,7 +792,7 @@ export function useCajaData() {
     loading, businessId, profileId: profile?.id ?? null,
     approvalMode, setApprovalMode, approvalModeEnabled,
     paymentMethods,
-    services, employees,
+    services, employees, promotions,
     paymentsToday, expensesToday, cashSessionId,
     cajaStatus,
     revHoy, cobros, ticket, totalGastos,
