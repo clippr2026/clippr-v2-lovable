@@ -3292,6 +3292,14 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   const appointmentTotal = serviceTotal + productsSubtotal;
   // Turno pasado (no bloqueo): solo lectura. Se ocultan todas las acciones.
   const isPast = appointment.status !== "blocked" && isPastAppointment(appointment);
+  // Promoción PREVISTA guardada en el turno (snapshot, no se recalcula acá) —
+  // se muestra solo como referencia; el cobro definitivo se decide en Caja.
+  const promoSnapshot = appointment.promotion_id ? appointment.promotion_snapshot ?? null : null;
+  const promoDiscountLabel = promoSnapshot
+    ? promoSnapshot.discountType === "percent"
+      ? `-${Number(promoSnapshot.discountValue) || 0}%`
+      : `-$${(Number(promoSnapshot.discountValue) || 0).toLocaleString("es-AR")}`
+    : null;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange} modal={false}>
@@ -3450,6 +3458,15 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                   <span className="truncate">{employee?.full_name ?? employee?.name ?? "Sin asignar"}</span>
                 </div>
               </div>
+
+              {promoSnapshot && (
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span className="text-white/60">Promo</span>
+                  <span className="font-medium text-violet-300 truncate text-right">
+                    {promoSnapshot.name} · {promoDiscountLabel}
+                  </span>
+                </div>
+              )}
             </div>
 
             {appointment.deposit_status &&
