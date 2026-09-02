@@ -15,6 +15,7 @@ import {
   Mail
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { applyPromotionDiscount, type Promotion } from "@/lib/service-pricing";
 import { appendHistorialCobro, readHistorialCobro, syncHistorialFromDB, attributionLabel } from "@/lib/cobro-historial";
 import { ServiceImage } from "@/components/ui/service-image";
 import { useAuth } from "@/hooks/use-auth";
@@ -2857,6 +2858,15 @@ const ApptCard = React.memo(function ApptCard({
       )}
 
       {/* Quick actions removed — use detail modal instead */}
+
+      {a.promotion_id && (
+        <span
+          className="absolute bottom-0.5 right-1.5 text-[8px] font-semibold uppercase tracking-wide leading-none text-violet-300"
+          aria-label="Turno con promoción"
+        >
+          Promo
+        </span>
+      )}
     </div>
   );
 });
@@ -3294,11 +3304,12 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   const isPast = appointment.status !== "blocked" && isPastAppointment(appointment);
   // Promoción PREVISTA guardada en el turno (snapshot, no se recalcula acá) —
   // se muestra solo como referencia; el cobro definitivo se decide en Caja.
+  // El snapshot solo guarda {name, discountType, discountValue}, que es
+  // exactamente lo que applyPromotionDiscount necesita (mismo motor que
+  // Caja/Página Pública, sin duplicar la fórmula del descuento).
   const promoSnapshot = appointment.promotion_id ? appointment.promotion_snapshot ?? null : null;
-  const promoDiscountLabel = promoSnapshot
-    ? promoSnapshot.discountType === "percent"
-      ? `-${Number(promoSnapshot.discountValue) || 0}%`
-      : `-$${(Number(promoSnapshot.discountValue) || 0).toLocaleString("es-AR")}`
+  const promoFinalPrice = promoSnapshot
+    ? applyPromotionDiscount(serviceTotal, promoSnapshot as unknown as Promotion)
     : null;
 
   return (
@@ -3460,11 +3471,19 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
               </div>
 
               {promoSnapshot && (
-                <div className="flex items-center justify-between gap-3 text-sm">
-                  <span className="text-white/60">Promo</span>
-                  <span className="font-medium text-violet-300 truncate text-right">
-                    {promoSnapshot.name} · {promoDiscountLabel}
-                  </span>
+                <div className="flex items-start justify-between gap-3 text-sm">
+                  <span className="pt-0.5 text-white/60">Promo</span>
+                  <div className="text-right">
+                    <div className="font-medium text-violet-300 truncate">{promoSnapshot.name}</div>
+                    <div className="mt-0.5 flex items-baseline justify-end gap-1.5">
+                      <span className="text-xs text-white/40 line-through tabular-nums">
+                        ${serviceTotal.toLocaleString("es-AR")}
+                      </span>
+                      <span className="font-semibold text-white tabular-nums">
+                        ${(promoFinalPrice ?? serviceTotal).toLocaleString("es-AR")}
+                      </span>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
