@@ -3350,65 +3350,29 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
             </div>
 
             <div className="flex items-center justify-between gap-2 pr-8">
-              <div className="flex items-center gap-1.5 min-w-0">
-                <div
-                  className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.16em]"
-                  style={{
-                    color: appointment.status === "confirmed" ? "rgba(255,255,255,0.92)" : meta.dot,
-                    background:
-                      appointment.status === "confirmed"
-                        ? "rgba(124, 58, 237, 0.18)"
-                        : withAlpha(meta.dot, 0.13),
-                    border:
-                      appointment.status === "confirmed"
-                        ? "1px solid rgba(167, 139, 250, 0.68)"
-                        : `1px solid ${withAlpha(meta.dot, 0.36)}`,
-                    boxShadow:
-                      appointment.status === "confirmed"
-                        ? "0 0 14px rgba(139,92,246,.25), inset 0 0 0 1px rgba(255,255,255,0.045)"
-                        : `0 0 18px ${withAlpha(meta.dot, 0.18)}, inset 0 0 0 1px rgba(255,255,255,0.04)`,
-                  }}
-                >
-                  <span
-                    className="size-1.5 rounded-full"
-                    style={{ background: meta.dot, boxShadow: `0 0 12px ${meta.dot}` }}
-                  />
-                  {statusLabel}
-                </div>
-
-                {/* Acciones de estado (Confirmar / No asistió): van junto al
-                    badge porque cambian el ESTADO del turno, a diferencia de
-                    Cobrar/Cancelar en ACCIONES, que son acciones operativas. */}
-                {!isPast && appointment.status === "pending" && (
-                  <button
-                    onClick={() => onChangeStatus(appointment, "confirmed")}
-                    className="inline-flex h-6 shrink-0 items-center gap-1 rounded-full px-2 text-[10px] font-bold transition hover:brightness-110 active:scale-[0.97]"
-                    style={{
-                      background: "rgba(139, 92, 246, 0.18)",
-                      color: "#A78BFA",
-                      boxShadow: "inset 0 0 0 1px rgba(139, 92, 246, 0.45)",
-                    }}
-                  >
-                    <CheckCircle2 className="h-3 w-3" />
-                    Confirmar
-                  </button>
-                )}
-                {isPast &&
-                  appointment.status !== "cancelled" &&
-                  appointment.status !== "no_show" &&
-                  appointment.status !== "charged" && (
-                    <button
-                      onClick={() => onChangeStatus(appointment, "no_show")}
-                      className="inline-flex h-6 shrink-0 items-center gap-1 rounded-full px-2 text-[10px] font-bold transition hover:brightness-110 active:scale-[0.97]"
-                      style={{
-                        background: withAlpha(STATUS_META.no_show.dot, 0.16),
-                        color: STATUS_META.no_show.dot,
-                        boxShadow: `inset 0 0 0 1px ${withAlpha(STATUS_META.no_show.dot, 0.42)}`,
-                      }}
-                    >
-                      No asistió
-                    </button>
-                  )}
+              <div
+                className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.16em]"
+                style={{
+                  color: appointment.status === "confirmed" ? "rgba(255,255,255,0.92)" : meta.dot,
+                  background:
+                    appointment.status === "confirmed"
+                      ? "rgba(124, 58, 237, 0.18)"
+                      : withAlpha(meta.dot, 0.13),
+                  border:
+                    appointment.status === "confirmed"
+                      ? "1px solid rgba(167, 139, 250, 0.68)"
+                      : `1px solid ${withAlpha(meta.dot, 0.36)}`,
+                  boxShadow:
+                    appointment.status === "confirmed"
+                      ? "0 0 14px rgba(139,92,246,.25), inset 0 0 0 1px rgba(255,255,255,0.045)"
+                      : `0 0 18px ${withAlpha(meta.dot, 0.18)}, inset 0 0 0 1px rgba(255,255,255,0.04)`,
+                }}
+              >
+                <span
+                  className="size-1.5 rounded-full"
+                  style={{ background: meta.dot, boxShadow: `0 0 12px ${meta.dot}` }}
+                />
+                {statusLabel}
               </div>
 
               <div className="flex items-center gap-1.5">
@@ -3647,6 +3611,54 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                   Este turno ya pasó. Podés marcarlo como no asistió.
                 </div>
               )}
+
+              {/* Acciones de estado (Confirmar / No asistió) — debajo de la
+                  tarjeta del turno y antes de ACCIONES: cambian el ESTADO
+                  del turno, a diferencia de Cobrar/Cancelar (operativas). */}
+              {(() => {
+                const status = appointment.status;
+                const showConfirm = !isPast && status === "pending";
+                const showNoShow =
+                  isPast && status !== "cancelled" && status !== "no_show" && status !== "charged";
+                if (!showConfirm && !showNoShow) return null;
+                return (
+                  <div className="space-y-2">
+                    <div className="px-1 text-[10px] uppercase tracking-[0.18em] text-white/35">
+                      Estado
+                    </div>
+
+                    {showConfirm && (
+                      <button
+                        onClick={() => onChangeStatus(appointment, "confirmed")}
+                        className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110 active:scale-[0.99]"
+                        style={{
+                          background: "rgba(139, 92, 246, 0.16)",
+                          color: "#A78BFA",
+                          boxShadow:
+                            "inset 0 0 0 1px rgba(139, 92, 246, 0.42), 0 12px 26px -22px rgba(139, 92, 246, 0.8)",
+                        }}
+                      >
+                        <CheckCircle2 className="h-4 w-4" />
+                        Confirmar turno
+                      </button>
+                    )}
+
+                    {showNoShow && (
+                      <button
+                        onClick={() => onChangeStatus(appointment, "no_show")}
+                        className="w-full h-10 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
+                        style={{
+                          background: "rgba(255,255,255,0.025)",
+                          color: STATUS_META.no_show.dot,
+                          boxShadow: `inset 0 0 0 1px ${withAlpha(STATUS_META.no_show.dot, 0.34)}`,
+                        }}
+                      >
+                        No asistió
+                      </button>
+                    )}
+                  </div>
+                );
+              })()}
 
               <div className="space-y-2 pt-1">
                 <div className="px-1 text-[10px] uppercase tracking-[0.18em] text-white/35">
