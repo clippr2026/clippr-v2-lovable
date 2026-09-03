@@ -361,6 +361,14 @@ function AgendaPage() {
 
   const openNew = (employeeId?: string | null, startsAt?: Date | null) => {
     const target = startsAt ?? cursor;
+    // "Agregar turno" en un horario pasado: el menú del casillero sí se abre
+    // igual que uno futuro (ver openSlotMenu), pero elegir esta opción
+    // puntual queda bloqueada acá — Horario especial y Cliente rechazado no
+    // pasan por este flujo, así que no los afecta.
+    if (isPastSlot(target)) {
+      toast.error(PAST_SLOT_MESSAGE);
+      return;
+    }
     const schedule = getScheduleForDate(data.schedule, target);
     if (!schedule?.enabled) {
       toast.error("Negocio cerrado este día.");

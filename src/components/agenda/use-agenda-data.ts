@@ -631,6 +631,16 @@ export type SaveAppointmentInput = {
 };
 
 export async function saveAppointment(input: SaveAppointmentInput) {
+  // Único punto real de creación de turnos (Agenda, Mi Agenda, cualquier
+  // otro punto de entrada pasan todos por acá) — validar acá, no solo en el
+  // click del menú, para que no se puedan crear turnos retroactivos por otra
+  // vía. Solo aplica a turnos NUEVOS (!input.id): editar o cambiar el estado
+  // de un turno ya existente que quedó en el pasado (confirmar, cobrar, no
+  // asistió, etc.) tiene que seguir funcionando siempre.
+  if (!input.id && new Date(input.starts_at).getTime() < Date.now()) {
+    throw new Error("No podés crear turnos en horarios que ya pasaron.");
+  }
+
   const ends = new Date(
     new Date(input.starts_at).getTime() + input.duration_min * 60_000,
   ).toISOString();
