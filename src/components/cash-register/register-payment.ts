@@ -137,7 +137,30 @@ export async function registerPayment(input: RegisterPaymentInput) {
     created_at: new Date().toISOString(),
   };
 
-  if (input.sessionId) payload.session_id = input.sessionId;
+  // session_id tiene FK a cash_sessions ("payments_session_id_fkey") — un
+  // id que ya no existe ahí (ej. de una sesión vieja que quedó cacheada en
+  // business_settings antes de un reset de datos que vació cash_sessions)
+  // hace fallar el insert del pago con TODOS los métodos por igual, no es
+  // un problema de Efectivo/Transferencia/etc. Se verifica acá, en el
+  // único punto que arma `payments`, en vez de confiar ciegamente en
+  // input.sessionId — si no existe más, se omite (el pago se registra
+  // igual, sin sesión asociada) en lugar de romper el cobro.
+  let verifiedSessionId: string | null = null;
+  if (input.sessionId) {
+    const { data: sessionRow } = await supabase
+      .from("cash_sessions")
+      .select("id")
+      .eq("id", input.sessionId)
+      .maybeSingle();
+    verifiedSessionId = sessionRow?.id ?? null;
+  }
+  // eslint-disable-next-line no-console
+  console.log("[registerPayment] session_id check:", {
+    businessId: input.businessId,
+    sessionIdRecibido: input.sessionId ?? null,
+    sessionIdVerificado: verifiedSessionId,
+  });
+  if (verifiedSessionId) payload.session_id = verifiedSessionId;
   // Only set charged_by if it's a valid UUID (never an email)
   if (chargedByUuid) payload.charged_by = chargedByUuid;
   if (input.notes?.trim()) payload.observations = input.notes.trim();

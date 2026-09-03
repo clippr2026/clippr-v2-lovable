@@ -236,16 +236,26 @@ export async function loadCajaSession(businessId: string): Promise<{
       .limit(1)
       .maybeSingle();
 
-    if (!error && data) {
+    if (!error) {
+      // La tabla respondió: es la fuente de verdad. "Sin filas" (data null,
+      // sin error) significa que NO hay ninguna sesión para este negocio
+      // — nunca hay que caer al fallback de business_settings en ese caso,
+      // porque ahí puede seguir viviendo el sessionId de una sesión vieja
+      // que ya no existe en cash_sessions (por ejemplo, tras un reset de
+      // datos que vació cash_sessions pero no tocó business_settings). Usar
+      // ese id viejo en payments.session_id viola la FK
+      // "payments_session_id_fkey" con cualquier método de pago, siempre.
+      if (!data) return { status: "no_session", sessionId: null, closedAt: null };
       return {
         status: data.status as "open" | "closed",
         sessionId: data.id,
         closedAt: (data as Record<string, unknown>).closed_at as string | null ?? null,
       };
     }
-  } catch { /* table doesn't exist */ }
+  } catch { /* tabla inexistente / error de red — recién acá sí cae al fallback */ }
 
-  // Fallback: business_settings._cajaSession
+  // Fallback: business_settings._cajaSession — SOLO si la consulta de
+  // arriba falló de verdad (no simplemente "0 filas").
   const state = await readCajaState(businessId);
   if (!state) return { status: "no_session", sessionId: null, closedAt: null };
   return {
