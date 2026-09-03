@@ -9057,20 +9057,26 @@ export function NuevaVentaTab({
 
   // If the service from pending is NOT in the catalogue we still need to show it in the cart.
   // We build a synthetic catalogue entry and inject it.
-  // Precio efectivo de cada servicio/producto para el profesional ya elegido
-  // (paso 1), resuelto con el mismo `resolveServicePricing` que usan Agenda,
-  // Mi Agenda y la Página Pública — el picker, el carrito y el total salen
-  // todos de esta lista, así que quedan consistentes por construcción.
+  // Precio de lista + precio en efectivo de cada servicio para el
+  // profesional ya elegido (paso 1), resuelto con el mismo
+  // `resolveServicePricing` que usan Agenda, Mi Agenda y la Página Pública
+  // — el picker, el carrito y el total salen todos de esta lista, así que
+  // quedan consistentes por construcción. cashPrice queda en null cuando
+  // el servicio no tiene "Precio en efectivo" configurado (ver
+  // Configuración → Servicios) — ahí no cambia nada al elegir Efectivo.
   const servicesForEmployee = React.useMemo(() => {
-    if (!employeeId) return data.services;
     return data.services.map((s) => {
       if (s.is_catalog) return s;
       const resolved = resolveServicePricing(
-        { id: s.id, price: s.price, duration_min: s.duration },
-        employeeId,
+        { id: s.id, price: s.price, duration_min: s.duration, cash_discount: s.cash_discount },
+        employeeId || null,
         data.employeeServiceOverrides,
       );
-      return resolved.priceOverridden ? { ...s, price: resolved.price } : s;
+      return {
+        ...s,
+        price: resolved.priceOverridden ? resolved.price : s.price,
+        cashPrice: resolved.effectivePrice,
+      };
     });
   }, [data.services, data.employeeServiceOverrides, employeeId]);
 
@@ -9174,8 +9180,17 @@ export function NuevaVentaTab({
       (x): x is { svc: (typeof data.services)[0]; qty: number } => x !== null,
     );
 
+  // Precio en efectivo: se aplica automáticamente cuando el método de pago
+  // elegido es "cash" (Efectivo) y el servicio tiene precio en efectivo
+  // configurado (cashPrice); con cualquier otro método se vuelve al precio
+  // de lista sin tocar nada más. Única fuente para "total" — de acá bajan
+  // el descuento de promo, "Total" en pantalla, y lo que se guarda en
+  // payments/comisión/liquidación (ver items en handleCobrar más abajo).
+  const isCashMethod = method === "cash";
+  const cartUnitPrice = (svc: (typeof cartItems)[number]["svc"]) =>
+    isCashMethod && svc.cashPrice != null ? Number(svc.cashPrice) : Number(svc.price);
   const total = cartItems.reduce(
-    (acc, { svc, qty }) => acc + Number(svc.price) * qty,
+    (acc, { svc, qty }) => acc + cartUnitPrice(svc) * qty,
     0,
   );
   const cartCount = cartItems.reduce((acc, { qty }) => acc + qty, 0);
@@ -9209,7 +9224,7 @@ export function NuevaVentaTab({
         if (svc.is_catalog || !isPromotionApplicable(selectedPromotion, { serviceId: svc.id, employeeId, category: svc.category ?? null })) {
           return sum;
         }
-        const subtotal = Number(svc.price) * qty;
+        const subtotal = cartUnitPrice(svc) * qty;
         return sum + (subtotal - applyPromotionDiscount(subtotal, selectedPromotion));
       }, 0)
     : 0;
@@ -9392,10 +9407,14 @@ export function NuevaVentaTab({
       const savedClientId = await saveClientIfNeeded();
       if (savedClientId && !clientId) setClientId(savedClientId);
 
+      // amount ya viene con el precio en efectivo aplicado si corresponde
+      // (cartUnitPrice) — lo que se guarda en payments/comisión/liquidación
+      // es siempre el monto realmente cobrado, nunca el de lista si se
+      // cobró con descuento por efectivo.
       const items = cartItems.map(({ svc, qty }) => ({
         serviceId: svc.id,
         serviceName: svc.name,
-        amount: Number(svc.price),
+        amount: cartUnitPrice(svc),
         isCatalog: svc.is_catalog ?? false,
         stock: svc.stock,
         qty,
@@ -10439,17 +10458,31 @@ export function NuevaVentaTab({
                     servicios/productos el resumen no debe crecer solo y
                     empujar todo lo demás fuera de pantalla. "Ver más" lo
                     despliega a pedido del usuario. */}
-                {(summaryExpanded ? cartItems : cartItems.slice(0, 2)).map(({ svc, qty }) => (
+                {(summaryExpanded ? cartItems : cartItems.slice(0, 2)).map(({ svc, qty }) => {
+                  const showCashPrice = isCashMethod && svc.cashPrice != null;
+                  return (
                   <div key={svc.id} className="flex items-start justify-between gap-3">
                     <span className="min-w-0 break-words text-xs text-white/65">
                       {svc.name}
                       {qty > 1 ? ` ×${qty}` : ""}
                     </span>
-                    <span className="shrink-0 tabular-nums text-xs text-white/65">
-                      ${Math.round(Number(svc.price) * qty).toLocaleString("es-AR")}
-                    </span>
+                    {showCashPrice ? (
+                      <span className="shrink-0 whitespace-nowrap text-xs">
+                        <span className="text-white/40 line-through">
+                          ${Math.round(Number(svc.price) * qty).toLocaleString("es-AR")}
+                        </span>{" "}
+                        <span className="font-semibold text-emerald-300">
+                          ${Math.round(Number(svc.cashPrice) * qty).toLocaleString("es-AR")}
+                        </span>
+                      </span>
+                    ) : (
+                      <span className="shrink-0 tabular-nums text-xs text-white/65">
+                        ${Math.round(Number(svc.price) * qty).toLocaleString("es-AR")}
+                      </span>
+                    )}
                   </div>
-                ))}
+                  );
+                })}
                 {cartItems.length > 2 && (
                   <button
                     type="button"

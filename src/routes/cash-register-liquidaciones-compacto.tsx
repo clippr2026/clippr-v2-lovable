@@ -42,6 +42,7 @@ import {
   isPromotionCurrentlyValid,
   isPromotionApplicable,
   applyPromotionDiscount,
+  resolveServicePricing,
 } from "@/lib/service-pricing";
 import { ServiceImage } from "@/components/ui/service-image";
 
@@ -3087,6 +3088,22 @@ function NuevaVentaTab({
     return [synthetic, ...data.services];
   }, [data.services, pendingCharge, syntheticServiceId]);
 
+  // Precio en efectivo (Configuración → Servicios → "Precio en efectivo"),
+  // mismo resolver que el resto de la app — ver cash-register.tsx
+  // NuevaVentaTab. cashPrice queda en null cuando el servicio no tiene
+  // precio en efectivo configurado, ahí no cambia nada al elegir Efectivo.
+  const servicesWithCash = React.useMemo(() => {
+    return servicesWithSynthetic.map((s) => {
+      if (s.is_catalog) return s;
+      const resolved = resolveServicePricing(
+        { id: s.id, price: s.price, duration_min: s.duration, cash_discount: s.cash_discount },
+        employeeId || null,
+        data.employeeServiceOverrides,
+      );
+      return { ...s, cashPrice: resolved.effectivePrice };
+    });
+  }, [servicesWithSynthetic, data.employeeServiceOverrides, employeeId]);
+
   // Inject synthetic into cart once services resolve
   React.useEffect(() => {
     if (!pendingCharge || !syntheticServiceId || pendingInjectedRef.current) return;
@@ -3116,7 +3133,7 @@ function NuevaVentaTab({
     if (categories.length > 0 && !category) setCategory(categories[0]);
   }, [categories, category]);
 
-  const filtered = servicesWithSynthetic.filter((i) => {
+  const filtered = servicesWithCash.filter((i) => {
     const q = query.trim().toLowerCase();
     const matchesText = !q || `${i.name} ${i.category ?? ""}`.toLowerCase().includes(q);
     const matchesCategory = category === "Servicios"
@@ -3143,10 +3160,18 @@ function NuevaVentaTab({
   }, [paymentOptions, method]);
 
   const cartItems = Object.entries(cart)
-    .map(([id, qty]) => { const svc = servicesWithSynthetic.find((s) => s.id === id); return svc ? { svc, qty } : null; })
+    .map(([id, qty]) => { const svc = servicesWithCash.find((s) => s.id === id); return svc ? { svc, qty } : null; })
     .filter((x): x is { svc: typeof data.services[0]; qty: number } => x !== null);
 
-  const total = cartItems.reduce((acc, { svc, qty }) => acc + Number(svc.price) * qty, 0);
+  // Precio en efectivo: se aplica automáticamente cuando el método de pago
+  // elegido es "cash" y el servicio tiene precio en efectivo configurado
+  // (cashPrice); con cualquier otro método vuelve al precio de lista. Única
+  // fuente para "total" — de acá bajan el descuento de promo, "Total" en
+  // pantalla y lo que se guarda en payments/comisión/liquidación.
+  const isCashMethod = method === "cash";
+  const cartUnitPrice = (svc: (typeof cartItems)[number]["svc"]) =>
+    isCashMethod && svc.cashPrice != null ? Number(svc.cashPrice) : Number(svc.price);
+  const total = cartItems.reduce((acc, { svc, qty }) => acc + cartUnitPrice(svc) * qty, 0);
   const cartCount = cartItems.reduce((acc, { qty }) => acc + qty, 0);
 
   // Promoción / descuento — mismo motor que Agenda/Página Pública/Caja
@@ -3175,7 +3200,7 @@ function NuevaVentaTab({
         if (svc.is_catalog || !isPromotionApplicable(selectedPromotion, { serviceId: svc.id, employeeId, category: svc.category ?? null })) {
           return sum;
         }
-        const subtotal = Number(svc.price) * qty;
+        const subtotal = cartUnitPrice(svc) * qty;
         return sum + (subtotal - applyPromotionDiscount(subtotal, selectedPromotion));
       }, 0)
     : 0;
@@ -3280,10 +3305,13 @@ function NuevaVentaTab({
       const savedClientId = await saveClientIfNeeded();
       if (savedClientId && !clientId) setClientId(savedClientId);
 
+      // amount ya viene con el precio en efectivo aplicado si corresponde
+      // (cartUnitPrice) — lo que se guarda en payments/comisión/liquidación
+      // es siempre el monto realmente cobrado.
       const items = cartItems.map(({ svc, qty }) => ({
         serviceId: svc.id,
         serviceName: svc.name,
-        amount: Number(svc.price),
+        amount: cartUnitPrice(svc),
         isCatalog: svc.is_catalog ?? false,
         stock: svc.stock,
         qty,
@@ -3642,12 +3670,26 @@ function NuevaVentaTab({
         <Card className="p-5 space-y-5">
           <div className="space-y-2">
             <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70">RESUMEN</p>
-            {cartItems.map(({ svc, qty }) => (
-              <div key={svc.id} className="flex items-center justify-between gap-3 text-sm border-b border-white/5 pb-2">
-                <span className="text-muted-foreground">{svc.name} x{qty}</span>
-                <span className="text-foreground tabular-nums">${(Number(svc.price) * qty).toLocaleString("es-AR")}</span>
-              </div>
-            ))}
+            {cartItems.map(({ svc, qty }) => {
+              const showCashPrice = isCashMethod && svc.cashPrice != null;
+              return (
+                <div key={svc.id} className="flex items-center justify-between gap-3 text-sm border-b border-white/5 pb-2">
+                  <span className="text-muted-foreground">{svc.name} x{qty}</span>
+                  {showCashPrice ? (
+                    <span className="tabular-nums text-sm">
+                      <span className="text-muted-foreground/60 line-through">
+                        ${(Number(svc.price) * qty).toLocaleString("es-AR")}
+                      </span>{" "}
+                      <span className="font-semibold text-emerald-400">
+                        ${(Number(svc.cashPrice) * qty).toLocaleString("es-AR")}
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="text-foreground tabular-nums">${(Number(svc.price) * qty).toLocaleString("es-AR")}</span>
+                  )}
+                </div>
+              );
+            })}
 
             {validPromotions.length > 0 && (
               <div className="pt-1">

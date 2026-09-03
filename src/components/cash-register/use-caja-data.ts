@@ -113,6 +113,16 @@ export type Service = {
   is_catalog?: boolean;
   image?: string | null;
   image_position?: string | null;
+  // % de descuento por pago en efectivo (Configuración → Servicios →
+  // "Precio en efectivo") — mismo criterio que resolveServicePricing.
+  cash_discount?: number | null;
+  // Precio en efectivo ya resuelto (resolveServicePricing.effectivePrice,
+  // con el override del profesional si corresponde) — null = no tiene
+  // precio en efectivo configurado. No lo completa este hook: cada
+  // NuevaVentaTab lo calcula localmente (necesita el profesional elegido
+  // en el carrito, que es estado propio de esa pantalla, no de la carga
+  // de datos general de Caja).
+  cashPrice?: number | null;
 };
 
 export type Employee = {
@@ -309,7 +319,7 @@ export function useCajaData() {
     const [svcRes, empRes, payRes, expRes, sessRes, bsRes, cliRes, pendingChargeRes, cierresRes] = await Promise.allSettled([
       supabase
         .from("price_catalog")
-        .select("id,name,price,duration_min,category,active,stock")
+        .select("id,name,price,duration_min,category,active,stock,cash_discount")
         .eq("business_id", businessId)
         .eq("active", true)
         .order("category")
@@ -428,7 +438,7 @@ export function useCajaData() {
       return map;
     })();
     setServices(
-      (svcRaw as Array<{ id: string; name: string; price: number; duration_min: number | null; category: string | null; active: boolean | null; stock: number | null }>)
+      (svcRaw as Array<{ id: string; name: string; price: number; duration_min: number | null; category: string | null; active: boolean | null; stock: number | null; cash_discount: number | null }>)
         .map((r) => ({
           id: r.id,
           name: r.name,
@@ -440,6 +450,7 @@ export function useCajaData() {
           is_catalog: r.duration_min == null,
           image: catalogImages[r.id] ?? null,
           image_position: catalogImagePositions[r.id] ?? null,
+          cash_discount: r.cash_discount,
         })),
     );
 
