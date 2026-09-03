@@ -3606,12 +3606,6 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
             </div>
           ) : (
             <div className="space-y-4">
-              {isPast && appointment.status !== "cancelled" && appointment.status !== "no_show" && (
-                <div className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-center text-[12px] text-white/55">
-                  Este turno ya pasó. Podés marcarlo como no asistió.
-                </div>
-              )}
-
               {/* Acciones de estado (Confirmar / No asistió) — debajo de la
                   tarjeta del turno y antes de ACCIONES: cambian el ESTADO
                   del turno, a diferencia de Cobrar/Cancelar (operativas). */}
