@@ -373,13 +373,11 @@ function AgendaPage() {
   };
 
   const openSlotMenu = (employeeId: string | null, startsAt: Date, event: React.MouseEvent) => {
-    // Casillero vacío en el pasado: no se puede crear nada (turno ni bloqueo).
+    // Casillero vacío en el pasado: el menú (Agregar turno / Horario especial
+    // / Cliente rechazado) se abre igual que en un horario futuro, sin toast
+    // ni bloqueo acá — cada opción valida lo que corresponda puertas adentro.
     // Los turnos YA existentes no pasan por acá (usan openDetail), así que se
     // siguen pudiendo abrir/cancelar/eliminar/liberar.
-    if (isPastSlot(startsAt)) {
-      toast.error(PAST_SLOT_MESSAGE);
-      return;
-    }
     // Bloqueo de creación fuera del horario real, resolviendo la prioridad de
     // horarios (especial profesional → normal profesional → especial negocio →
     // normal negocio). (Fase posterior: convertir en confirmación con override.)
