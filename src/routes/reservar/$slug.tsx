@@ -487,13 +487,15 @@ function PublicBookingPage() {
   );
   const productsTotal = selectedProducts.reduce((sum, p) => sum + productFinalPrice(p), 0);
   const grandTotal = totalPrice + productsTotal;
-  // Etiqueta ("Precio diferente" / "Duración diferente" / "Precio y
-  // duración diferentes" / null = estándar) por profesional respecto del
-  // precio y duración estándar del servicio — única fuente de verdad,
-  // usada tanto para agrupar las tarjetas del paso "Elegí profesional"
-  // como para restringir el pool de "Sin preferencia" a solo estándar.
-  const employeeBadges = React.useMemo(() => {
-    const map = new Map<string, string | null>();
+  // Diferencia (precio / duración) por profesional respecto del precio y
+  // duración estándar del servicio — única fuente de verdad, usada tanto
+  // para agrupar/etiquetar las tarjetas del paso "Elegí profesional" como
+  // para restringir el pool de "Sin preferencia" a solo estándar. Solo el
+  // precio distinto lleva etiqueta violeta ("Opciones diferentes"); un
+  // profesional que únicamente tiene duración distinta se muestra como uno
+  // más en "Profesionales", al final del grupo.
+  const employeeDiffs = React.useMemo(() => {
+    const map = new Map<string, { priceChanged: boolean; durationChanged: boolean }>();
     for (const employee of employeesForSelectedServices) {
       let priceChanged = false;
       let durationChanged = false;
@@ -511,25 +513,21 @@ function PublicBookingPage() {
         if (resolved.priceOverridden || resolved.effectivePriceOverridden) priceChanged = true;
         if (resolved.durationOverridden) durationChanged = true;
       }
-      map.set(
-        employee.id,
-        priceChanged && durationChanged
-          ? "Precio y duración diferentes"
-          : priceChanged
-            ? "Precio diferente"
-            : durationChanged
-              ? "Duración diferente"
-              : null,
-      );
+      map.set(employee.id, { priceChanged, durationChanged });
     }
     return map;
   }, [employeesForSelectedServices, selectedServices, employeeServiceOverrides]);
   // Pool elegible para "Sin preferencia": solo profesionales que mantienen
-  // precio y duración estándar — los de "Opciones diferentes" no deben
-  // poder tocarle en suerte a quien elige "Sin preferencia".
+  // precio y duración estándar — los de "Opciones diferentes" (o con
+  // duración distinta) no deben poder tocarle en suerte a quien elige
+  // "Sin preferencia".
   const standardEmployeesForSelectedServices = React.useMemo(
-    () => employeesForSelectedServices.filter((employee) => !employeeBadges.get(employee.id)),
-    [employeesForSelectedServices, employeeBadges],
+    () =>
+      employeesForSelectedServices.filter((employee) => {
+        const diff = employeeDiffs.get(employee.id);
+        return !diff || (!diff.priceChanged && !diff.durationChanged);
+      }),
+    [employeesForSelectedServices, employeeDiffs],
   );
   const slots = React.useMemo(
     () =>
@@ -1712,8 +1710,8 @@ function PublicBookingPage() {
                     professionalOptionCount >= 13 && "grid-cols-3 sm:grid-cols-6",
                   );
                   // Precio y duración reales para CADA profesional (mismo
-                  // resolver que el resto de la app) — la etiqueta ("qué
-                  // cambió" respecto del estándar) sale de employeeBadges,
+                  // resolver que el resto de la app) — la diferencia ("qué
+                  // cambió" respecto del estándar) sale de employeeDiffs,
                   // la misma fuente que restringe el pool de "Sin
                   // preferencia", para que ambos coincidan siempre.
                   const cards = employeesForSelectedServices.map((employee) => {
@@ -1762,14 +1760,26 @@ function PublicBookingPage() {
                     const promoPrice = promo && promoApplies ? applyPromotionDiscount(totals.listPrice, promo) : null;
                     const promoPercent =
                       promo && promoApplies && promo.discountType === "percent" ? Number(promo.discountValue) || 0 : null;
-                    return { employee, totals, badge: employeeBadges.get(employee.id) ?? null, promoPrice, promoPercent };
+                    const diff = employeeDiffs.get(employee.id) ?? { priceChanged: false, durationChanged: false };
+                    return {
+                      employee,
+                      totals,
+                      priceChanged: diff.priceChanged,
+                      durationChanged: diff.durationChanged,
+                      promoPrice,
+                      promoPercent,
+                    };
                   });
                   // Orden estable (no por precio): dentro de cada grupo se
-                  // mantiene el orden original (alfabético).
-                  const standardCards = cards.filter((c) => !c.badge);
-                  const customCards = cards.filter((c) => c.badge);
+                  // mantiene el orden original (alfabético). Los que solo
+                  // tienen duración distinta van en "Profesionales", pero al
+                  // final del grupo estándar (sin etiqueta violeta); "Opciones
+                  // diferentes" queda reservado únicamente para precio distinto.
+                  const standardCards = cards.filter((c) => !c.priceChanged && !c.durationChanged);
+                  const durationOnlyCards = cards.filter((c) => !c.priceChanged && c.durationChanged);
+                  const customCards = cards.filter((c) => c.priceChanged);
 
-                  const renderCard = ({ employee, totals, badge, promoPrice, promoPercent }: (typeof cards)[number]) => {
+                  const renderCard = ({ employee, totals, priceChanged, promoPrice, promoPercent }: (typeof cards)[number]) => {
                     const hasEffectivePrice = totals.effectivePrice != null;
                     return (
                       <button
@@ -1805,15 +1815,16 @@ function PublicBookingPage() {
                               bg-white/NN en un blanco casi opaco, invisible
                               sobre la tarjeta blanca; border-white/10 sí
                               mapea a un gris sutil en los dos temas. */}
-                          {(badge || selectedServices.length > 0) && (
+                          {(priceChanged || selectedServices.length > 0) && (
                             <span className="mb-0.5 mt-0.5 block border-t border-white/10" aria-hidden="true" />
                           )}
-                          {badge && (
+                          {priceChanged && (
                             <span
-                              className="mb-1 inline-block max-w-full break-words rounded-full bg-violet-900 px-1.5 py-[3px] text-center text-[8px] font-semibold leading-[1.15] tracking-tight"
+                              className="mb-1 inline-flex max-w-full flex-col items-center rounded-full bg-violet-900 px-1.5 py-[3px] text-center text-[8px] font-semibold leading-[1.15] tracking-tight"
                               style={{ color: "#ffffff" }}
                             >
-                              {badge}
+                              <span>Precio</span>
+                              <span>diferente</span>
                             </span>
                           )}
                           {/* Orden: lista (gris, peso normal, tachado si hay
@@ -1894,6 +1905,7 @@ function PublicBookingPage() {
                           </span>
                         </button>
                         {standardCards.map(renderCard)}
+                        {durationOnlyCards.map(renderCard)}
                       </div>
 
                       {customCards.length > 0 && (
