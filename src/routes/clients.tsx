@@ -404,13 +404,23 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
       </div>
 
       <div className="p-4 sm:p-5 lg:flex-1 min-h-0 lg:overflow-y-auto">
-        {tab === "resumen" && (
-          <div className="space-y-5">
+        {/* Ambas pestañas quedan montadas y apiladas en la misma celda de grid,
+            así el alto del panel lo define la más alta de las dos y no
+            cambia (ni el modal salta de posición) al alternar resumen/
+            historial — solo se alterna la visibilidad. */}
+        <div className="grid">
+          <div
+            className={cn(
+              "col-start-1 row-start-1 space-y-5",
+              tab !== "resumen" && "invisible pointer-events-none",
+            )}
+            aria-hidden={tab !== "resumen"}
+          >
             {/* Métricas: una sola banda integrada en vez de 4 cajas sueltas */}
             <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-white/[0.06] rounded-2xl bg-white/[0.025] ring-1 ring-white/[0.06] overflow-hidden">
               <div className="px-3 py-3 sm:px-4">
                 <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                  Lifetime value
+                  Valor histórico
                 </div>
                 <div className="mt-1 text-xl font-display tabular-nums">
                   ${client.spent.toLocaleString("es-AR")}
@@ -459,18 +469,17 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
               )}
             </div>
 
-            {/* Notas: integradas a la ficha, sin módulo contenedor propio */}
+            {/* Notas: integradas a la ficha, sin módulo contenedor propio.
+                Solo la nota manual guardada por un usuario (clients.notes) —
+                nunca datos automáticos de reservas/promos/turnos. */}
             <div>
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <div className="mb-2">
                 <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Notas</span>
-                {hasNote && (
-                  <span className="text-[10px] font-semibold uppercase tracking-[0.16em] text-violet-200/70">
-                    Última nota
-                  </span>
-                )}
               </div>
-              {hasNote && (
+              {hasNote ? (
                 <p className="mb-2.5 text-sm italic leading-relaxed text-white/65">“{client.notes}”</p>
+              ) : (
+                <p className="mb-2.5 text-sm text-muted-foreground">Todavía no hay notas.</p>
               )}
               <textarea
                 value={noteDraft}
@@ -489,9 +498,13 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
               </div>
             </div>
           </div>
-        )}
-        {tab === "historial" && (
-          <div className="space-y-2">
+          <div
+            className={cn(
+              "col-start-1 row-start-1 space-y-2",
+              tab !== "historial" && "invisible pointer-events-none",
+            )}
+            aria-hidden={tab !== "historial"}
+          >
             {client.history.length === 0 ? (
               <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-4 text-sm text-muted-foreground">
                 Sin historial de cobros todavía.
@@ -515,7 +528,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
               ))
             )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );
