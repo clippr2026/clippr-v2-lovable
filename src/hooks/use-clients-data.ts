@@ -1,4 +1,10 @@
-import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import {
+  useQuery,
+  useInfiniteQuery,
+  useMutation,
+  useQueryClient,
+  keepPreviousData,
+} from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 /**
@@ -343,6 +349,13 @@ export function useClientsPage(
       return loaded < lastPage.total ? pages.length : undefined;
     },
     staleTime: 30_000,
+    // Al cambiar el orden (o la búsqueda), la query key cambia entera y
+    // dispara una carga "desde cero" — sin esto, la lista se vaciaba y
+    // aparecía el loader de pantalla completa mientras llegaba la primera
+    // página del nuevo orden. Con placeholderData, el listado anterior se
+    // sigue mostrando tal cual hasta que la nueva página está lista, y
+    // recién ahí se reemplaza (isFetching indica ese refetch de fondo).
+    placeholderData: keepPreviousData,
   });
 }
 
