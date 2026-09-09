@@ -290,11 +290,36 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
   const [tab, setTab] = useState<"resumen" | "historial">("resumen");
   const [menuOpen, setMenuOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState(client.notes ?? "");
+  // El cuadro de escritura solo se muestra al crear la primera nota o
+  // mientras se edita una existente — una vez guardada, se ve solo el texto.
+  const [isEditingNote, setIsEditingNote] = useState(false);
 
   useEffect(() => {
     setNoteDraft(client.notes ?? "");
+    setIsEditingNote(false);
     setMenuOpen(false);
   }, [client.id, client.notes]);
+
+  async function handleSaveNote() {
+    await onSaveNotes(client.id, noteDraft);
+    setIsEditingNote(false);
+  }
+
+  function handleEditNote() {
+    setNoteDraft(client.notes ?? "");
+    setIsEditingNote(true);
+  }
+
+  function handleCancelEditNote() {
+    setNoteDraft(client.notes ?? "");
+    setIsEditingNote(false);
+  }
+
+  async function handleDeleteNote() {
+    await onSaveNotes(client.id, "");
+    setNoteDraft("");
+    setIsEditingNote(false);
+  }
 
   const ticket = client.visits ? Math.round(client.spent / client.visits) : 0;
   const since = formatClientSince(client.created_at);
@@ -471,31 +496,63 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
 
             {/* Notas: integradas a la ficha, sin módulo contenedor propio.
                 Solo la nota manual guardada por un usuario (clients.notes) —
-                nunca datos automáticos de reservas/promos/turnos. */}
+                nunca datos automáticos de reservas/promos/turnos. Una sola
+                nota activa por cliente: mientras hay una guardada se ve solo
+                el texto (con Editar/eliminar); el cuadro de escritura solo
+                aparece para crearla o mientras se edita, nunca los dos a la
+                vez. */}
             <div>
               <div className="mb-2">
                 <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Notas</span>
               </div>
-              {hasNote ? (
-                <p className="mb-2.5 text-sm italic leading-relaxed text-white/65">“{client.notes}”</p>
+              {hasNote && !isEditingNote ? (
+                <div className="flex items-start justify-between gap-3 rounded-xl bg-white/[0.03] ring-1 ring-white/10 p-3">
+                  <p className="text-sm leading-relaxed text-white/80 whitespace-pre-wrap">{client.notes}</p>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      onClick={handleEditNote}
+                      className="text-[11px] font-semibold uppercase tracking-[0.1em] text-violet-300 hover:text-violet-200 transition"
+                    >
+                      Editar nota
+                    </button>
+                    <button
+                      onClick={handleDeleteNote}
+                      disabled={savingNotes}
+                      aria-label="Eliminar nota"
+                      className="rounded-full p-1 text-muted-foreground hover:text-rose-300 hover:bg-rose-500/10 transition disabled:opacity-50"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                </div>
               ) : (
-                <p className="mb-2.5 text-sm text-muted-foreground">Todavía no hay notas.</p>
+                <>
+                  <textarea
+                    value={noteDraft}
+                    onChange={(e) => setNoteDraft(e.target.value)}
+                    placeholder="Agregá notas internas del cliente..."
+                    className="w-full min-h-[68px] rounded-xl bg-white/[0.03] ring-1 ring-white/10 p-3 text-sm focus:outline-none focus:ring-violet-400/40 focus:bg-white/[0.045] transition"
+                  />
+                  <div className="flex justify-end gap-2 mt-2">
+                    {hasNote && (
+                      <button
+                        onClick={handleCancelEditNote}
+                        disabled={savingNotes}
+                        className="rounded-xl px-4 py-2 text-sm font-semibold text-muted-foreground hover:text-foreground transition disabled:opacity-50"
+                      >
+                        Cancelar
+                      </button>
+                    )}
+                    <button
+                      onClick={handleSaveNote}
+                      disabled={savingNotes}
+                      className="rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-background px-4 py-2 text-sm font-semibold disabled:opacity-50"
+                    >
+                      {savingNotes ? "Guardando…" : "Guardar nota"}
+                    </button>
+                  </div>
+                </>
               )}
-              <textarea
-                value={noteDraft}
-                onChange={(e) => setNoteDraft(e.target.value)}
-                placeholder="Agregá notas internas del cliente..."
-                className="w-full min-h-[68px] rounded-xl bg-white/[0.03] ring-1 ring-white/10 p-3 text-sm focus:outline-none focus:ring-violet-400/40 focus:bg-white/[0.045] transition"
-              />
-              <div className="flex justify-end mt-2">
-                <button
-                  onClick={() => onSaveNotes(client.id, noteDraft)}
-                  disabled={savingNotes}
-                  className="rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-background px-4 py-2 text-sm font-semibold disabled:opacity-50"
-                >
-                  {savingNotes ? "Guardando…" : "Guardar nota"}
-                </button>
-              </div>
             </div>
           </div>
           <div
