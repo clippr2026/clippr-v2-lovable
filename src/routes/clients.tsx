@@ -251,7 +251,7 @@ function formatClientSince(date?: string | null) {
   if (!date) return "Sin fecha";
   const parsed = new Date(date);
   if (Number.isNaN(parsed.getTime())) return "Sin fecha";
-  return parsed.toLocaleDateString("es-AR", { month: "long", year: "numeric" });
+  return parsed.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 function getClientProfileText(c: Client | null) {
@@ -376,11 +376,6 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                       <span className="font-semibold text-white">
                         {acquisitionChannelLabel(client.acquisitionSource, client.acquisitionSourceCustom)}
                       </span>
-                      {client.acquisitionCapturedAt && (
-                        <span className="text-white/50">
-                          {" "}· {formatClientSince(client.acquisitionCapturedAt)}
-                        </span>
-                      )}
                     </span>
                   </div>
                 )}
