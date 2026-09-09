@@ -17,6 +17,14 @@
 -- Esta es la única lógica de clasificación de clientes de todo Clippr:
 -- ambas RPC la comparten y el frontend (src/hooks/use-clients-data.ts) solo
 -- lee `status`/`vip_tag`/`visits`/`spent` de acá, nunca los recalcula.
+--
+-- Fix 2026-09-09: en `clippr_clients_list`, el CTE `final` comparaba
+-- `status = p_status` sin calificar `status`, y `status` es también una
+-- columna de salida (RETURNS TABLE) de la función — con el filtro sin
+-- calificar, `p_status is null` (sin filtro) devolvía filas pero
+-- `p_status = 'nuevo'` devolvía 0 filas siempre, aunque
+-- `clippr_clients_segment_counts` contaba bien esos mismos clientes. Se
+-- califica explícitamente `ws.status` para sacar la ambigüedad.
 
 CREATE OR REPLACE FUNCTION public.clippr_clients_list(p_business_id uuid, p_search text DEFAULT ''::text, p_sort text DEFAULT 'nombre'::text, p_status text DEFAULT NULL::text, p_limit integer DEFAULT 30, p_offset integer DEFAULT 0)
  RETURNS TABLE(id uuid, full_name text, phone text, email text, created_at timestamp with time zone, visits bigint, spent numeric, last_visit timestamp with time zone, last_visit_days integer, status text, vip_tag text, total_count bigint)
@@ -133,8 +141,10 @@ AS $function$
     from computed c
   ),
   final as (
-    select * from with_status
-    where p_status is null or status = p_status
+    select ws.*
+    from with_status ws
+    where p_status is null
+       or ws.status = p_status
   )
   select
     id, full_name, phone, email, created_at, visits, spent, last_visit,
