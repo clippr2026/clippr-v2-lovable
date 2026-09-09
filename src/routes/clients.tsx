@@ -718,8 +718,17 @@ function ClientsPage() {
   const showGroup = useCallback(
     async (title: string, status: ClientStatus) => {
       setSegmentModal({ title, clients: [], loading: true });
-      const rows = businessId ? await fetchClientsByStatus(businessId, status) : [];
-      setSegmentModal({ title, clients: rows, loading: false });
+      if (!businessId) {
+        setSegmentModal({ title, clients: [], loading: false });
+        return;
+      }
+      try {
+        const rows = await fetchClientsByStatus(businessId, status);
+        setSegmentModal({ title, clients: rows, loading: false });
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Error cargando clientes");
+        setSegmentModal({ title, clients: [], loading: false });
+      }
     },
     [businessId],
   );

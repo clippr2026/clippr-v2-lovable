@@ -44,7 +44,6 @@ export type Client = {
   lastVisit?: string | null;
   lastVisitDays?: number | null;
   status: ClientStatus;
-  isNewThisMonth: boolean;
   vipTag: ClientVipTag;
   rating: number;
   history: ClientPayment[];
@@ -55,67 +54,10 @@ export type Client = {
 
 export type ClientStatus = "vip" | "nuevo" | "activo" | "inactivo" | "perdido";
 
-const ACTIVE_DAYS = 45;
-const LOST_FROM_DAYS = 76;
-
-function isCurrentMonth(date: string | null | undefined): boolean {
-  if (!date) return false;
-  const value = new Date(date);
-  const now = new Date();
-  return (
-    value.getFullYear() === now.getFullYear() &&
-    value.getMonth() === now.getMonth()
-  );
-}
-
-function diffDaysBetween(a: string, b: string): number {
-  const start = new Date(`${a}T00:00:00`).getTime();
-  const end = new Date(`${b}T00:00:00`).getTime();
-  return Math.max(0, Math.round((end - start) / 86_400_000));
-}
-
-function getUniqueVisitDays(history: ClientPayment[]): string[] {
-  const days = history.reduce<string[]>((acc, p) => {
-    const day = p.date?.slice(0, 10);
-    if (day) acc.push(day);
-    return acc;
-  }, []);
-
-  return Array.from(new Set(days)).sort((a, b) => new Date(a).getTime() - new Date(b).getTime());
-}
-
-function isVipSequence(days: string[]): boolean {
-  if (days.length < 4) return false;
-  return days.every((day, index) => index === 0 || diffDaysBetween(days[index - 1], day) <= 15);
-}
-
-function computeVipTag(history: ClientPayment[]): ClientVipTag {
-  const visitDays = getUniqueVisitDays(history);
-  if (visitDays.length < 4) return null;
-
-  const currentWindow = visitDays.slice(-4);
-  if (isVipSequence(currentWindow)) return "vip";
-
-  for (let i = 0; i <= visitDays.length - 4; i += 1) {
-    if (isVipSequence(visitDays.slice(i, i + 4))) return "ex_vip";
-  }
-
-  return null;
-}
-
-function computeStatus(
-  visits: number,
-  lastVisitDays: number | null,
-  vipTag: ClientVipTag,
-  isNewThisMonth: boolean,
-): ClientStatus {
-  if (isNewThisMonth) return "nuevo";
-  if (vipTag === "vip") return "vip";
-  if (lastVisitDays === null) return "perdido";
-  if (lastVisitDays <= ACTIVE_DAYS) return "activo";
-  if (lastVisitDays < LOST_FROM_DAYS) return "inactivo";
-  return "perdido";
-}
+// Nuevo/Activo/Inactivo/Perdido/VIP se calculan en una única lógica central
+// en la base de datos (RPC `clippr_clients_list`, ver supabase/migrations).
+// El frontend nunca vuelve a inferir el status a partir de lastVisit/visits/
+// created_at — solo lee lo que devuelve esa función. Ver fetchStatusRows.
 
 function computeRating(visits: number, spent: number, lastVisitDays: number | null): number {
   let score = 0;
@@ -142,6 +84,30 @@ function formatLastVisit(date: string | null): { label: string | null; days: num
   return { label: `hace ${Math.round(days / 30)} meses`, days };
 }
 
+/**
+ * Trae el status/vip_tag/visits/spent ya resueltos por `clippr_clients_list`
+ * (la única lógica de clasificación) para poder mapearlos por id, en vez de
+ * volver a inferirlos acá. `search` se usa para acotar la consulta cuando
+ * solo hace falta un cliente puntual (ficha de detalle).
+ */
+async function fetchStatusRows(
+  businessId: string,
+  opts: { search?: string; limit: number },
+): Promise<Map<string, RpcClientRow>> {
+  const { data, error } = await supabase.rpc("clippr_clients_list", {
+    p_business_id: businessId,
+    p_search: opts.search?.trim().replace(/[%\\]/g, "") ?? "",
+    p_sort: "nombre",
+    p_status: null,
+    p_limit: opts.limit,
+    p_offset: 0,
+  });
+  if (error) throw new Error("Error cargando estado de clientes: " + error.message);
+  const map = new Map<string, RpcClientRow>();
+  ((data ?? []) as RpcClientRow[]).forEach((r) => map.set(r.id, r));
+  return map;
+}
+
 async function loadClients(businessId: string): Promise<Client[]> {
   const { data: rawClients, error } = await supabase
     .from("clients")
@@ -157,6 +123,7 @@ async function loadClients(businessId: string): Promise<Client[]> {
   const [
     { data: payments, error: paymentsError },
     { data: appointments, error: appointmentsError },
+    statusRows,
   ] = await Promise.all([
     supabase
       .from("payments")
@@ -170,6 +137,7 @@ async function loadClients(businessId: string): Promise<Client[]> {
       .gte("starts_at", new Date().toISOString())
       .neq("status", "cancelled")
       .order("starts_at", { ascending: true }),
+    fetchStatusRows(businessId, { limit: Math.max(rawClients.length, 1) }),
   ]);
 
   if (paymentsError)
@@ -239,11 +207,17 @@ async function loadClients(businessId: string): Promise<Client[]> {
     const nextAppointment =
       appointmentsByClientId.get(c.id) ?? appointmentsByName.get(name.trim().toLowerCase()) ?? null;
     const last = history[0]?.date ?? null;
-    const firstVisitDate = history[history.length - 1]?.date ?? null;
-    // Nuevo = primera visita dentro del mes vigente, aunque haya vuelto más veces en el mismo mes.
-    const isNewThisMonth = isCurrentMonth(firstVisitDate);
-    const lastVisit = formatLastVisit(last);
-    const vipTag = computeVipTag(history);
+
+    // status/vip_tag/visits/spent: fuente única = clippr_clients_list. Si por
+    // algún motivo el RPC no trajo fila para este cliente (no debería pasar,
+    // ya que se pide con el mismo límite que la cantidad de clientes), se cae
+    // a un valor mínimo por visitas en vez de reinventar la clasificación acá.
+    const statusRow = statusRows.get(c.id);
+    const lastVisit = formatLastVisit(statusRow?.last_visit ?? last);
+    const visitsFinal = statusRow ? Number(statusRow.visits ?? 0) : visits;
+    const spentFinal = statusRow ? Number(statusRow.spent ?? 0) : spent;
+    const vipTag: ClientVipTag = statusRow?.vip_tag ?? null;
+    const status: ClientStatus = statusRow?.status ?? (visits === 0 ? "nuevo" : "activo");
 
     return {
       id: c.id,
@@ -253,17 +227,16 @@ async function loadClients(businessId: string): Promise<Client[]> {
       notes: c.notes,
       birth_date: c.birth_date,
       created_at: c.created_at,
-      visits,
-      spent,
+      visits: visitsFinal,
+      spent: spentFinal,
       spentLast12Months,
       favoriteServices,
       nextAppointment,
       lastVisit: lastVisit.label,
       lastVisitDays: lastVisit.days,
-      isNewThisMonth,
       vipTag,
-      status: computeStatus(visits, lastVisit.days, vipTag, isNewThisMonth),
-      rating: computeRating(visits, spent, lastVisit.days),
+      status,
+      rating: computeRating(visitsFinal, spentFinal, lastVisit.days),
       history,
       acquisitionSource: c.acquisition_source,
       acquisitionSourceCustom: c.acquisition_source_custom,
@@ -387,7 +360,7 @@ export async function fetchClientsByStatus(
     p_limit: limit,
     p_offset: 0,
   });
-  if (error) return [];
+  if (error) throw new Error("Error cargando clientes: " + error.message);
   return ((data ?? []) as RpcClientRow[]).map(rpcToListRow);
 }
 
@@ -436,13 +409,14 @@ async function loadClientDetail(businessId: string, clientId: string): Promise<C
   if (!c) return null;
 
   const name = c.full_name ?? "Sin nombre";
-  const [{ data: payments }, { data: appointments }] = await Promise.all([
+  const [{ data: payments }, { data: appointments }, statusRows] = await Promise.all([
     supabase.from("payments").select("id,client_name,service_name,total,amount,created_at")
       .eq("business_id", businessId).eq("client_name", name).order("created_at", { ascending: false }),
     supabase.from("appointments").select("id,client_id,client_name,service_name,starts_at,status")
       .eq("business_id", businessId).eq("client_id", clientId)
       .gte("starts_at", new Date().toISOString()).neq("status", "cancelled")
       .order("starts_at", { ascending: true }).limit(1),
+    fetchStatusRows(businessId, { search: name, limit: 50 }),
   ]);
 
   const history: ClientPayment[] = (payments ?? []).map((p) => ({
@@ -462,17 +436,22 @@ async function loadClientDetail(businessId: string, clientId: string): Promise<C
   const appt = appointments?.[0];
   const nextAppointment = appt ? { id: appt.id, date: appt.starts_at, service: appt.service_name || "Servicio", status: appt.status || "pending" } : null;
   const lastDate = history[0]?.date ?? null;
-  const firstVisitDate = history[history.length - 1]?.date ?? null;
-  const isNewThisMonth = isCurrentMonth(firstVisitDate);
-  const lastVisit = formatLastVisit(lastDate);
-  const vipTag = computeVipTag(history);
+
+  // status/vip_tag/visits/spent: misma fuente única que el listado (RPC
+  // clippr_clients_list), nunca recalculados acá.
+  const statusRow = statusRows.get(clientId);
+  const lastVisit = formatLastVisit(statusRow?.last_visit ?? lastDate);
+  const visitsFinal = statusRow ? Number(statusRow.visits ?? 0) : visits;
+  const spentFinal = statusRow ? Number(statusRow.spent ?? 0) : spent;
+  const vipTag: ClientVipTag = statusRow?.vip_tag ?? null;
+  const status: ClientStatus = statusRow?.status ?? (visits === 0 ? "nuevo" : "activo");
 
   return {
     id: c.id, name, phone: c.phone, email: c.email, notes: c.notes, birth_date: c.birth_date, created_at: c.created_at,
-    visits, spent, spentLast12Months, favoriteServices, nextAppointment,
-    lastVisit: lastVisit.label, lastVisitDays: lastVisit.days, isNewThisMonth, vipTag,
-    status: computeStatus(visits, lastVisit.days, vipTag, isNewThisMonth),
-    rating: computeRating(visits, spent, lastVisit.days), history,
+    visits: visitsFinal, spent: spentFinal, spentLast12Months, favoriteServices, nextAppointment,
+    lastVisit: lastVisit.label, lastVisitDays: lastVisit.days, vipTag,
+    status,
+    rating: computeRating(visitsFinal, spentFinal, lastVisit.days), history,
     acquisitionSource: c.acquisition_source,
     acquisitionSourceCustom: c.acquisition_source_custom,
     acquisitionCapturedAt: c.acquisition_captured_at,

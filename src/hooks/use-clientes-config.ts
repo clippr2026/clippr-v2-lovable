@@ -41,32 +41,10 @@ export const ALL_CLIENT_FIELDS = [
 
 export type ClientFieldKey = typeof ALL_CLIENT_FIELDS[number]["key"];
 
-// ── Status helpers ─────────────────────────────────────────────────────────────
-
-export type ClientStatus = "vip" | "activo" | "inactivo" | "perdido" | "nuevo";
-
-export function computeClientStatus(
-  opts: {
-    lastVisitDays: number | null;
-    visits: number;
-    spent?: number;
-    monthVisits: number;
-    monthSpent: number;
-  },
-  cfg: ClientesConfig,
-): ClientStatus {
-  const { lastVisitDays, visits } = opts;
-
-  if (visits === 0 || lastVisitDays == null) return "nuevo";
-  if (lastVisitDays >= cfg.diasPerdido)   return "perdido";
-  if (lastVisitDays >= cfg.diasInactivo)  return "inactivo";
-
-  const isVipByVisits = cfg.vipVisitasEnabled && opts.monthVisits >= cfg.vipVisitasMin;
-  const isVipByGasto  = cfg.vipGastoEnabled   && opts.monthSpent  >= cfg.vipGastoMin;
-  if (isVipByVisits || isVipByGasto) return "vip";
-
-  return "activo";
-}
+// La clasificación de status de cliente (nuevo/activo/inactivo/perdido/vip) es
+// responsabilidad exclusiva de la RPC `clippr_clients_list` (ver
+// src/hooks/use-clients-data.ts). Este archivo solo maneja qué campos del
+// formulario de alta rápida están habilitados — no calcula status.
 
 // ── Hook ──────────────────────────────────────────────────────────────────────
 
