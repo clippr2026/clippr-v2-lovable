@@ -958,103 +958,11 @@ function PublicProfilePage() {
 
       <section className="mx-auto grid max-w-6xl gap-6 px-4 py-5 lg:grid-cols-[1fr_360px] lg:items-start">
         {/* min-w-0: sin esto, este ítem del grid usa su ancho mínimo de
-            contenido como piso — y el header de "Ellos confían en
-            nosotros" (título+chip en la misma fila, con truncate) reporta
-            como mínimo su ancho SIN truncar, lo que termina empujando toda
-            la columna (y la página en mobile) a desbordar horizontalmente.
-            min-w-0 le devuelve al grid la libertad de angostar esta
-            columna al ancho real disponible; el truncate interno se
-            encarga de recortar el texto ahí adentro. */}
+            contenido como piso, lo que puede empujar la página a desbordar
+            horizontalmente en mobile cuando algún título truncado de acá
+            adentro reporta su ancho sin truncar. */}
         <div className="min-w-0 space-y-6">
 
-          {featuredClients.length > 0 ? (
-            <GlowCard className="overflow-hidden shadow-[0_24px_60px_-28px_rgba(0,0,0,0.45)]">
-              {/* Degradado muy sutil con el color principal del negocio,
-                  limitado a la franja del encabezado (h-28) — no un fondo
-                  fijo violeta: usa var(--c-primary), que ya se resuelve por
-                  negocio y por tema (ver el estilo inline en <main> más
-                  arriba). El overflow-hidden de GlowCard (className) lo
-                  recorta contra las esquinas redondeadas de la tarjeta. */}
-              <div
-                aria-hidden
-                className="pointer-events-none absolute inset-x-0 top-0 h-28"
-                style={{
-                  background: isLight
-                    ? "linear-gradient(120deg, color-mix(in oklch, var(--c-primary) 6%, transparent) 0%, transparent 60%)"
-                    : "linear-gradient(120deg, color-mix(in oklch, var(--c-primary) 10%, transparent) 0%, transparent 60%)",
-                }}
-              />
-
-              {/* Menos padding lateral que el resto de las secciones a
-                  propósito — le da más ancho real a las tarjetas de abajo,
-                  que ya vienen apretadas por tener que entrar 3 por fila.
-                  pt-5/sm:pt-6 (más que el px/pb) para que la corona y el
-                  título respiren arriba, separados de la esquina de la
-                  tarjeta. */}
-              <div className="relative px-4 pb-4 pt-5 sm:px-5 sm:pb-5 sm:pt-6">
-                {/* Fila siempre horizontal (ni siquiera en mobile pasa a
-                    flex-col): título y "Ver todos" comparten renglón para
-                    no gastar una fila entera solo en el botón. truncate +
-                    min-w-0 en el título y shrink-0 en la corona/botón para
-                    que si el nombre no entra en una pantalla muy angosta,
-                    ceda el título (con "…") y no el layout. */}
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
-                    {/* Corona más chica y fina que un ícono normal (h-5 se
-                        sentía grande al lado del título), color PRIMARIO
-                        de marca (cPrimary) — es el que identifica
-                        visualmente a cada negocio, así que la corona,
-                        el degradado de arriba y el chip "Ver todos" de
-                        abajo comparten SIEMPRE ese mismo color dinámico
-                        (nunca el accent, que cada negocio suele
-                        configurar aparte para botones — a veces negro
-                        puro — ni ningún hex fijo). */}
-                    <Crown className="h-[17px] w-[17px] shrink-0" strokeWidth={1.75} style={{ color: cPrimary }} />
-                    {/* text-base (no text-lg) en mobile: con el chip "Ver
-                        todos" compartiendo el mismo renglón, text-lg
-                        llegaba a truncar el título en anchos de celular
-                        típicos (~375-390px). */}
-                    <h2 className="truncate text-base font-semibold sm:text-2xl">Ellos confían en nosotros</h2>
-                  </div>
-
-                  {featuredClients.length > 6 ? (
-                    <button
-                      type="button"
-                      onClick={() => setShowAllFeaturedClients(true)}
-                      className="mr-0.5 inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold transition hover:brightness-110 sm:mr-1 sm:gap-1.5 sm:px-3.5 sm:py-1.5"
-                      style={{ borderColor: "color-mix(in oklch, var(--c-primary) 32%, transparent)", color: cPrimary }}
-                    >
-                      Ver todos <ChevronRight className="h-3.5 w-3.5" />
-                    </button>
-                  ) : null}
-                </div>
-
-                {/* Distribución fija según cuánta gente hay (2/3/2/3/3 arriba
-                    para 2/3/4/5/6 personas — ver featuredCols). flex-wrap +
-                    justify-center (no CSS grid) para que una fila incompleta
-                    —el caso de 5: 3 arriba y 2 abajo— quede centrada en vez
-                    de pegada a la izquierda. Máximo 6 visibles; el resto
-                    (si hay más de 6) solo se ve entrando a "Ver todos".
-                    -mx-1.5/sm:-mx-2 le gana unos px más de ancho real a cada
-                    tarjeta (mismo truco que el padding del bloque, un nivel
-                    más adentro) — imágenes ligeramente más grandes sin
-                    tocar la cantidad de columnas por cantidad de gente
-                    (featuredCols) ni el gap entre tarjetas. */}
-                <div className="-mx-1.5 mt-3 flex flex-wrap justify-center gap-1 sm:-mx-2 sm:gap-1.5">
-                  {featuredClients.slice(0, 6).map((item, index) => (
-                    <FeaturedClientCard
-                      key={item.id || `${item.name}-${index}`}
-                      item={item}
-                      isLight={isLight}
-                      imagePosition={item.id ? featuredPositions[item.id] : undefined}
-                      onZoom={setZoomedFeaturedClient}
-                      className={featuredCardWidthClass(featuredCols(Math.min(featuredClients.length, 6)))}
-                    />
-                  ))}
-                </div>
-              </div>
-            </GlowCard>
-          ) : null}
           <GlowCard>
             <div className="p-5 sm:p-6">
               <div className="flex items-center gap-3">
@@ -1280,6 +1188,70 @@ function PublicProfilePage() {
         </aside>
       </section>
 
+      {/* "Ellos confían en nosotros": una sola hilera horizontal con scroll
+          (antes era una grilla de hasta 3 filas, arriba de todo). Va acá,
+          debajo de Horarios y antes de Beneficios, como sección propia de
+          ancho completo — así queda en el mismo lugar tanto en desktop como
+          en mobile (donde el grid de arriba ya apila todo en orden de DOM).
+          Mismo componente FeaturedClientCard que usa el modal "Ver todos"
+          (fotos/nombre/categoría/club intactos), solo cambia el contenedor:
+          ancho fijo por tarjeta + overflow-x-auto + snap en vez de
+          flex-wrap, para que sea siempre una fila y el resto se recorra
+          deslizando o se vea completo en "Ver todos". */}
+      {featuredClients.length > 0 ? (
+        <section className="mx-auto max-w-6xl px-4 pb-6">
+          <GlowCard className="overflow-hidden shadow-[0_24px_60px_-28px_rgba(0,0,0,0.45)]">
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 top-0 h-16"
+              style={{
+                background: isLight
+                  ? "linear-gradient(120deg, color-mix(in oklch, var(--c-primary) 6%, transparent) 0%, transparent 60%)"
+                  : "linear-gradient(120deg, color-mix(in oklch, var(--c-primary) 10%, transparent) 0%, transparent 60%)",
+              }}
+            />
+            <div className="relative px-4 py-3.5 sm:px-5 sm:py-4">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
+                  <Crown className="h-[15px] w-[15px] shrink-0" strokeWidth={1.75} style={{ color: cPrimary }} />
+                  <h2 className="truncate text-sm font-semibold sm:text-lg">Ellos confían en nosotros</h2>
+                </div>
+                {featuredClients.length > 6 ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllFeaturedClients(true)}
+                    className="mr-0.5 inline-flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-xs font-semibold transition hover:brightness-110 sm:mr-1 sm:gap-1.5 sm:px-3.5 sm:py-1.5"
+                    style={{ borderColor: "color-mix(in oklch, var(--c-primary) 32%, transparent)", color: cPrimary }}
+                  >
+                    Ver todos <ChevronRight className="h-3.5 w-3.5" />
+                  </button>
+                ) : null}
+              </div>
+
+              {/* w-[28%] deja ~3.3 tarjetas visibles en un celular típico
+                  (375-430px) — 3 completas + un borde de la 4ta que insinúa
+                  que hay más para deslizar, sin depender de JS para
+                  detectarlo. snap-x/snap-mandatory + snap-start en cada
+                  tarjeta para que el scroll "encastre" tarjeta por tarjeta
+                  en vez de quedar a mitad de camino. Scrollbar oculta (se
+                  ve igual en los 3 motores) porque el gesto de swipe ya es
+                  la afordancia, no hace falta la barra nativa encima. */}
+              <div className="-mx-1.5 mt-3 flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:-mx-2 sm:gap-2.5 [&::-webkit-scrollbar]:hidden">
+                {featuredClients.slice(0, 6).map((item, index) => (
+                  <FeaturedClientCard
+                    key={item.id || `${item.name}-${index}`}
+                    item={item}
+                    isLight={isLight}
+                    imagePosition={item.id ? featuredPositions[item.id] : undefined}
+                    onZoom={setZoomedFeaturedClient}
+                    className="w-[28%] shrink-0 snap-start sm:w-[19%]"
+                  />
+                ))}
+              </div>
+            </div>
+          </GlowCard>
+        </section>
+      ) : null}
 
       {additionalInfo.length > 0 ? (
         <section className="mx-auto max-w-6xl px-4 pb-6">
