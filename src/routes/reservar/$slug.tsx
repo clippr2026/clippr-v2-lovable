@@ -404,18 +404,24 @@ function PublicBookingPage() {
       ),
     );
   }, [employeesOfferingSelectedServices, appliedPromotion, selectedServices]);
-  // Servicios que al menos un profesional activo ofrece (switch "Ofrece este
-  // servicio" en cada empleado) — si está deshabilitado para todos, no tiene
-  // sentido ofrecerlo como opción reservable en la página pública.
-  const offeredServices = React.useMemo(
-    () =>
-      services.filter((service) =>
-        employees.some((employee) =>
-          isServiceOfferedByEmployee(service.id, employee.id, employeeServiceOverrides),
-        ),
+  // Si el profesional ya viene fijo por deep link (?professional=), el Paso
+  // 1 debe mostrar únicamente lo que ESE profesional tiene habilitado — no
+  // lo que ofrece "algún" profesional del negocio (que es el criterio
+  // correcto cuando todavía no hay nadie elegido, ver el else de abajo).
+  const lockedEmployeeId =
+    professionalLocked && selectedEmployeeId && selectedEmployeeId !== "any" ? selectedEmployeeId : null;
+  const offeredServices = React.useMemo(() => {
+    if (lockedEmployeeId) {
+      return services.filter((service) =>
+        isServiceOfferedByEmployee(service.id, lockedEmployeeId, employeeServiceOverrides),
+      );
+    }
+    return services.filter((service) =>
+      employees.some((employee) =>
+        isServiceOfferedByEmployee(service.id, employee.id, employeeServiceOverrides),
       ),
-    [services, employees, employeeServiceOverrides],
-  );
+    );
+  }, [services, employees, employeeServiceOverrides, lockedEmployeeId]);
   const serviceCategories = React.useMemo(
     () =>
       Array.from(new Set(offeredServices.map((service) => service.category?.trim() || "Otro"))).sort((a, b) =>
@@ -423,6 +429,14 @@ function PublicBookingPage() {
       ),
     [offeredServices],
   );
+  // Si la categoría activa quedó sin servicios (por el filtro de arriba, o
+  // por cualquier otro motivo), volver a "Todos" en vez de mostrar una
+  // pestaña seleccionada con la lista vacía.
+  React.useEffect(() => {
+    if (activeServiceCategory && !serviceCategories.includes(activeServiceCategory)) {
+      setActiveServiceCategory(null);
+    }
+  }, [serviceCategories, activeServiceCategory]);
   const visibleStepServices = activeServiceCategory
     ? offeredServices.filter((service) => (service.category?.trim() || "Otro") === activeServiceCategory)
     : offeredServices;
@@ -849,7 +863,7 @@ function PublicBookingPage() {
           if (serviceValid) setSelectedServiceIds([serviceId as string]);
           if (professionalValid) {
             setSelectedEmployeeId(professionalId as string);
-            setProfessionalLocked(false);
+            setProfessionalLocked(true);
             professionalPreselectedRef.current = true;
           }
           // "Reservar" de un servicio puntual o "Elegir" un profesional
@@ -891,6 +905,12 @@ function PublicBookingPage() {
 
   function nextFromServices() {
     if (selectedServiceIds.length === 0) return toast.error("Elegí al menos un servicio.");
+    // Profesional ya fijo por deep link (?professional=): no volver a
+    // preguntar quién atiende, con o sin paso de Promo en el medio.
+    if (professionalPreselectedRef.current) {
+      setStep(validPromotions.length > 0 ? "promo" : "datetime");
+      return;
+    }
     setStep(validPromotions.length > 0 ? "promo" : "professional");
   }
 
@@ -1443,7 +1463,15 @@ function PublicBookingPage() {
                   onClick={() => {
                     if (step === "promo") setStep("services");
                     if (step === "professional") setStep(hasPromoStep ? "promo" : "services");
-                    if (step === "datetime") setStep("professional");
+                    // Si el profesional vino fijo por deep link, ese paso
+                    // nunca se mostró — volver ahí sería confuso.
+                    if (step === "datetime") {
+                      setStep(
+                        professionalPreselectedRef.current
+                          ? (hasPromoStep ? "promo" : "services")
+                          : "professional",
+                      );
+                    }
                     if (step === "products") setStep("datetime");
                     if (step === "details") setStep(recommendedProducts.length > 0 ? "products" : "datetime");
                   }}
