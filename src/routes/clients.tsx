@@ -9,6 +9,8 @@ import {
   AlertTriangle,
   ArrowRight,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   Crown,
   MoreHorizontal,
   Megaphone,
@@ -115,16 +117,16 @@ const CLIENT_METRIC_INFO = {
   nuevos: {
     title: "Clientes nuevos",
     description:
-      "Clientes cuya primera visita ocurrió durante el mes vigente. Siguen contando como nuevos todo ese mes, aunque vuelvan 2 o 3 veces.",
+      "Clientes con 0 o 1 visita completada, todavía dentro del período inicial (45 días desde esa visita, o desde el turno al que no asistieron si nunca llegaron a visitar).",
     bullets: [
-      "El contador se reinicia cada mes: si es otro mes, arranca de 0.",
-      "Cuando cambia el mes, dejan de ser nuevos y pasan a activo, inactivo, perdido o VIP según su comportamiento.",
-      "Sirve para medir cuántos clientes nuevos captó el negocio este mes.",
+      "Un turno futuro agendado los mantiene como nuevos aunque hayan pasado los 45 días.",
+      "Al completar su segunda visita dejan de ser nuevos y pasan a activos.",
+      "Si tenían 0 visitas y no asistieron a su primer turno, pasan a inactivo (45 días) o perdido (60 días) si no vuelven a agendar.",
     ],
   },
   activos: {
     title: "Clientes activos",
-    description: "Clientes que ya no son nuevos y cuya última visita fue hace 45 días o menos.",
+    description: "Clientes con 2 o más visitas cuya última visita fue hace 45 días o menos, o tienen un turno futuro agendado.",
     bullets: [
       "Representan la base vigente del negocio.",
       "Incluye clientes que siguen viniendo con una frecuencia saludable.",
@@ -133,7 +135,7 @@ const CLIENT_METRIC_INFO = {
   },
   inactivos: {
     title: "Clientes inactivos",
-    description: "Clientes cuya última visita fue entre 46 y 75 días atrás.",
+    description: "Clientes cuya última visita (o el turno al que no asistieron) fue hace entre 46 y 59 días, sin turno futuro agendado.",
     bullets: [
       "Todavía son recuperables con una acción simple.",
       "Conviene contactarlos antes de que pasen a perdidos.",
@@ -142,7 +144,7 @@ const CLIENT_METRIC_INFO = {
   },
   perdidos: {
     title: "Clientes perdidos",
-    description: "Clientes que no visitan el negocio hace 76 días o más.",
+    description: "Clientes cuya última visita (o el turno al que no asistieron) fue hace 60 días o más, sin turno futuro agendado.",
     bullets: [
       "Necesitan una campaña de reconquista más fuerte.",
       "Sirven para medir clientes que el negocio dejó de retener.",
@@ -256,7 +258,7 @@ function formatClientSince(date?: string | null) {
 
 function getClientProfileText(c: Client | null) {
   if (!c) return "Seleccioná un cliente para ver el perfil.";
-  if (c.visits === 0)
+  if (c.status === "nuevo")
     return "Cliente nuevo. Todavía no hay historial suficiente para perfilar su comportamiento.";
   if (c.vipTag === "vip")
     return "Es uno de los clientes más valiosos del negocio. Mantiene 4 visitas seguidas cada 15 días o menos.";
@@ -362,21 +364,30 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                   </span>
                 </div>
                 {client.acquisitionSource && (
-                  <div className="mt-1.5 inline-flex items-center gap-2 text-sm text-white/70">
+                  <div className="mt-1.5 inline-flex items-start gap-2 text-sm text-white/70">
                     {(() => {
                       const channel = ACQUISITION_CHANNELS.find((c) => c.id === client.acquisitionSource);
                       return channel ? (
-                        <AcquisitionChannelIcon channel={channel} className="h-4 w-4 shrink-0" />
+                        <AcquisitionChannelIcon channel={channel} className="h-4 w-4 shrink-0 mt-0.5" />
                       ) : (
-                        <Megaphone className="h-4 w-4 text-white/45" />
+                        <Megaphone className="h-4 w-4 text-white/45 mt-0.5" />
                       );
                     })()}
-                    <span>
-                      Nos conoció por{" "}
-                      <span className="font-semibold text-white">
-                        {acquisitionChannelLabel(client.acquisitionSource, client.acquisitionSourceCustom)}
+                    <div>
+                      <span>
+                        Nos conoció por{" "}
+                        <span className="font-semibold text-white">
+                          {ACQUISITION_CHANNELS.find((c) => c.id === client.acquisitionSource)?.label ??
+                            client.acquisitionSource}
+                        </span>
                       </span>
-                    </span>
+                      {/* Texto libre de "Otro": campo propio de adquisición, nunca una nota. */}
+                      {client.acquisitionSourceCustom?.trim() && (
+                        <div className="mt-0.5 text-xs text-white/50">
+                          {client.acquisitionSourceCustom.trim()}
+                        </div>
+                      )}
+                    </div>
                   </div>
                 )}
               </div>
@@ -703,6 +714,9 @@ function ClientsPage() {
     from.setMonth(from.getMonth() - 6);
     return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
   });
+  // Drilldown de una categoría puntual ("Recomendado", "Instagram", etc.)
+  // dentro del mismo modal — nunca navega a otra pantalla.
+  const [acquisitionDrilldown, setAcquisitionDrilldown] = useState<{ key: string; label: string } | null>(null);
   // Lista completa (no paginada) solo para el panel de estadísticas por canal —
   // el grid principal sigue usando useClientsPage (RPC paginada), sin tocarlo.
   const { data: allClients } = useClientsData(acquisitionModalOpen ? businessId : null);
@@ -756,29 +770,51 @@ function ClientsPage() {
 
   const current = currentDetail ?? null;
 
-  const acquisitionStats = useMemo(() => {
-    if (!allClients) return [];
+  // Una sola pasada: agrupa por canal Y guarda los clientes de cada grupo,
+  // así el conteo de la tarjeta y el listado del drilldown salen siempre de
+  // los mismos datos (nunca pueden mostrar números distintos).
+  const acquisitionGroups = useMemo(() => {
+    const byChannel = new Map<string, { count: number; revenue: number; clients: Client[] }>();
+    if (!allClients) return byChannel;
     const rangeStart = new Date(`${acquisitionRange.from}T00:00:00`).getTime();
     const rangeEnd = new Date(`${acquisitionRange.to}T23:59:59`).getTime();
-    const byChannel = new Map<string, { count: number; revenue: number }>();
     for (const c of allClients) {
       const capturedAt = c.acquisitionCapturedAt ?? c.created_at;
       const capturedTime = new Date(capturedAt).getTime();
       if (Number.isNaN(capturedTime) || capturedTime < rangeStart || capturedTime > rangeEnd) continue;
       const key = c.acquisitionSource ?? "sin_dato";
-      const entry = byChannel.get(key) ?? { count: 0, revenue: 0 };
+      const entry = byChannel.get(key) ?? { count: 0, revenue: 0, clients: [] };
       entry.count += 1;
       entry.revenue += c.spent;
+      entry.clients.push(c);
       byChannel.set(key, entry);
     }
-    return Array.from(byChannel.entries())
-      .map(([value, stats]) => ({
-        value,
-        label: value === "sin_dato" ? "Sin dato" : acquisitionChannelLabel(value),
-        ...stats,
-      }))
-      .sort((a, b) => b.count - a.count);
+    for (const entry of byChannel.values()) {
+      entry.clients.sort((a, b) => {
+        const aTime = new Date(a.acquisitionCapturedAt ?? a.created_at).getTime();
+        const bTime = new Date(b.acquisitionCapturedAt ?? b.created_at).getTime();
+        return bTime - aTime;
+      });
+    }
+    return byChannel;
   }, [allClients, acquisitionRange]);
+
+  const acquisitionStats = useMemo(
+    () =>
+      Array.from(acquisitionGroups.entries())
+        .map(([value, stats]) => ({
+          value,
+          label: value === "sin_dato" ? "Sin dato" : acquisitionChannelLabel(value),
+          count: stats.count,
+          revenue: stats.revenue,
+        }))
+        .sort((a, b) => b.count - a.count),
+    [acquisitionGroups],
+  );
+
+  const acquisitionDrilldownClients = acquisitionDrilldown
+    ? acquisitionGroups.get(acquisitionDrilldown.key)?.clients ?? []
+    : [];
 
   const showGroup = useCallback(
     async (title: string, status: ClientStatus) => {
@@ -1199,15 +1235,33 @@ function ClientsPage() {
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4">
           <div className="w-full max-w-lg rounded-2xl bg-background ring-1 ring-white/10 shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between p-5 border-b border-white/5">
-              <div>
-                <div className="text-lg font-display font-semibold">Cómo nos conocieron</div>
-                <div className="text-xs text-muted-foreground">
-                  Origen de los clientes registrados en el rango elegido.
+              <div className="flex items-center gap-2 min-w-0">
+                {acquisitionDrilldown && (
+                  <button
+                    onClick={() => setAcquisitionDrilldown(null)}
+                    aria-label="Volver"
+                    className="shrink-0 rounded-full p-1.5 hover:bg-white/5 transition"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </button>
+                )}
+                <div className="min-w-0">
+                  <div className="text-lg font-display font-semibold truncate">
+                    {acquisitionDrilldown ? acquisitionDrilldown.label : "Cómo nos conocieron"}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {acquisitionDrilldown
+                      ? `${acquisitionDrilldownClients.length} cliente${acquisitionDrilldownClients.length === 1 ? "" : "s"} en el rango elegido.`
+                      : "Origen de los clientes registrados en el rango elegido."}
+                  </div>
                 </div>
               </div>
               <button
-                onClick={() => setAcquisitionModalOpen(false)}
-                className="rounded-full bg-white/5 px-3 py-1.5 text-sm"
+                onClick={() => {
+                  setAcquisitionModalOpen(false);
+                  setAcquisitionDrilldown(null);
+                }}
+                className="shrink-0 rounded-full bg-white/5 px-3 py-1.5 text-sm"
               >
                 Cerrar
               </button>
@@ -1218,36 +1272,76 @@ function ClientsPage() {
                 to={acquisitionRange.to}
                 onChange={setAcquisitionRange}
               />
-              <div className="space-y-1.5">
-                {acquisitionStats.length === 0 ? (
-                  <div className="rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-4 text-sm text-muted-foreground text-center">
-                    No hay clientes registrados en ese rango de fechas.
-                  </div>
-                ) : (
-                  acquisitionStats.map((stat) => {
-                    const channel = ACQUISITION_CHANNELS.find((c) => c.id === stat.value);
-                    return (
-                    <div
-                      key={stat.value}
-                      className="flex items-center justify-between rounded-xl bg-white/[0.03] ring-1 ring-white/10 px-3 py-2.5"
-                    >
-                      <div className="flex items-center gap-2 text-sm font-medium">
-                        {channel ? <AcquisitionChannelIcon channel={channel} className="h-4 w-4 shrink-0" /> : null}
-                        {stat.label}
-                      </div>
-                      <div className="flex items-center gap-4 text-sm">
-                        <span className="text-muted-foreground">
-                          {stat.count} cliente{stat.count === 1 ? "" : "s"}
-                        </span>
-                        <span className="font-semibold tabular-nums">
-                          ${stat.revenue.toLocaleString("es-AR")}
-                        </span>
-                      </div>
+              {acquisitionDrilldown ? (
+                <div className="space-y-1.5 max-h-[60vh] overflow-y-auto">
+                  {acquisitionDrilldownClients.length === 0 ? (
+                    <div className="rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-4 text-sm text-muted-foreground text-center">
+                      No hay clientes en ese rango de fechas.
                     </div>
-                    );
-                  })
-                )}
-              </div>
+                  ) : (
+                    acquisitionDrilldownClients.map((c) => (
+                      <button
+                        key={c.id}
+                        onClick={() => {
+                          setSelected(c.id);
+                          setAcquisitionModalOpen(false);
+                          setAcquisitionDrilldown(null);
+                        }}
+                        className="w-full flex items-center justify-between gap-3 rounded-xl bg-white/[0.03] ring-1 ring-white/10 px-3 py-2.5 text-left hover:bg-white/[0.06] transition"
+                      >
+                        <div className="min-w-0">
+                          <div className="text-sm font-medium truncate">{c.name}</div>
+                          <div className="text-[11px] text-muted-foreground">
+                            Desde {formatClientSince(c.acquisitionCapturedAt ?? c.created_at)} · {c.visits} visita
+                            {c.visits === 1 ? "" : "s"}
+                          </div>
+                        </div>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <span className="text-sm font-semibold tabular-nums">
+                            ${c.spent.toLocaleString("es-AR")}
+                          </span>
+                          <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                        </div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {acquisitionStats.length === 0 ? (
+                    <div className="rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-4 text-sm text-muted-foreground text-center">
+                      No hay clientes registrados en ese rango de fechas.
+                    </div>
+                  ) : (
+                    acquisitionStats.map((stat) => {
+                      const channel = ACQUISITION_CHANNELS.find((c) => c.id === stat.value);
+                      return (
+                        <button
+                          key={stat.value}
+                          onClick={() => setAcquisitionDrilldown({ key: stat.value, label: stat.label })}
+                          className="w-full flex items-center justify-between rounded-xl bg-white/[0.03] ring-1 ring-white/10 px-3 py-2.5 text-left hover:bg-white/[0.06] transition"
+                        >
+                          <div className="flex items-center gap-2 text-sm font-medium">
+                            {channel ? (
+                              <AcquisitionChannelIcon channel={channel} className="h-4 w-4 shrink-0" />
+                            ) : null}
+                            {stat.label}
+                          </div>
+                          <div className="flex items-center gap-3 text-sm">
+                            <span className="text-muted-foreground">
+                              {stat.count} cliente{stat.count === 1 ? "" : "s"}
+                            </span>
+                            <span className="font-semibold tabular-nums">
+                              ${stat.revenue.toLocaleString("es-AR")}
+                            </span>
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          </div>
+                        </button>
+                      );
+                    })
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

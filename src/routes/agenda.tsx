@@ -2377,11 +2377,41 @@ const DayView = React.memo(function DayView({
           </div>
           {shouldVirtualizeColumns && <div aria-hidden="true" />}
           {renderedColumns.map(({ e }) => {
-            const total = dayAppts.filter((a) => a.employee_id === e.id).length;
-            const inSvc = dayAppts.filter(
-              (a) =>
-                a.employee_id === e.id && (a.status === "completed" || a.status === "confirmed"),
-            ).length;
+            // % de ocupación del día: minutos ocupados por turnos válidos
+            // (por confirmar/confirmado/completado/cobrado) sobre minutos
+            // disponibles reales (horario laboral menos descansos y menos
+            // bloqueos de horario — un bloqueo resta del disponible, no
+            // cuenta como "ocupado"). Cancelados/rechazados/no-show no
+            // restan ni ocupan.
+            const empDayAppts = dayAppts.filter((a) => a.employee_id === e.id);
+            const dayWindow = effectiveWindowFor(e.id);
+            const workingMinutes = dayWindow.closeMin - dayWindow.openMin;
+            const breakMinutes = dayWindow.breaks.reduce(
+              (sum, b) => sum + Math.max(0, b.endMin - b.startMin),
+              0,
+            );
+            const apptMinutes = (a: Appointment) =>
+              Math.max(0, (getApptEnd(a).getTime() - new Date(a.starts_at).getTime()) / 60_000);
+            const blockedMinutes = empDayAppts
+              .filter((a) => a.status === "blocked")
+              .reduce((sum, a) => sum + apptMinutes(a), 0);
+            const occupiedMinutes = empDayAppts
+              .filter((a) =>
+                a.status === "pending" ||
+                a.status === "confirmed" ||
+                a.status === "completed" ||
+                a.status === "charged",
+              )
+              .reduce((sum, a) => sum + apptMinutes(a), 0);
+            const hasSchedule = workingMinutes > 0;
+            const availableMinutes = Math.max(0, workingMinutes - breakMinutes - blockedMinutes);
+            const occupancyPct = !hasSchedule
+              ? null
+              : availableMinutes > 0
+                ? Math.min(100, Math.round((occupiedMinutes / availableMinutes) * 100))
+                : occupiedMinutes > 0
+                  ? 100
+                  : 0;
             const initials = (e.full_name || e.name || "?")
               .split(/\s+/)
               .map((s) => s[0])
@@ -2431,10 +2461,13 @@ const DayView = React.memo(function DayView({
                     <span
                       className="h-1.5 w-1.5 rounded-full"
                       style={{
-                        background: inSvc > 0 ? "oklch(0.76 0.2 155)" : "oklch(0.65 0.025 270)",
+                        background:
+                          occupancyPct !== null && occupancyPct > 0
+                            ? "oklch(0.76 0.2 155)"
+                            : "oklch(0.65 0.025 270)",
                       }}
                     />
-                    {total} turno{total === 1 ? "" : "s"}
+                    {occupancyPct === null ? "Sin horario" : `${occupancyPct}% ocupado`}
                   </div>
                   <div
                     className={cn("mt-0.5 truncate text-[9px] leading-none", chargeBadge.cls)}
