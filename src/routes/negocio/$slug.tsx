@@ -1228,16 +1228,27 @@ function PublicProfilePage() {
                 ) : null}
               </div>
 
-              {/* w-[28%] deja ~3.3 tarjetas visibles en un celular típico
-                  (375-430px) — 3 completas + un borde de la 4ta que insinúa
-                  que hay más para deslizar, sin depender de JS para
-                  detectarlo. snap-x/snap-mandatory + snap-start en cada
-                  tarjeta para que el scroll "encastre" tarjeta por tarjeta
-                  en vez de quedar a mitad de camino. Scrollbar oculta (se
-                  ve igual en los 3 motores) porque el gesto de swipe ya es
-                  la afordancia, no hace falta la barra nativa encima. */}
-              <div className="-mx-1.5 mt-3 flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:-mx-2 sm:gap-2.5 [&::-webkit-scrollbar]:hidden">
-                {featuredClients.slice(0, 6).map((item, index) => (
+              {/* Carrusel con TODAS las personas (no un slice de 6): la idea
+                  es que deslizando se puedan ver todas sin pasar por "Ver
+                  todos" — ese botón queda como alternativa (listado
+                  completo agrupado por categoría), no como el único camino
+                  para ver a los que no entran en la fila. w-[28%] deja
+                  ~3.3 tarjetas visibles en un celular típico (375-430px) —
+                  3 completas + un borde de la 4ta que insinúa que hay más
+                  para deslizar, sin depender de JS para detectarlo.
+                  snap-x/snap-mandatory + snap-start en cada tarjeta para
+                  que el scroll "encastre" tarjeta por tarjeta en vez de
+                  quedar a mitad de camino; scroll-smooth para que ese
+                  encastre se sienta suave y no como un salto. overflow-x
+                  vive únicamente en este div (no en la sección ni en la
+                  página) y el overflow-hidden de la GlowCard que lo
+                  envuelve recorta el sangrado del -mx-1.5/-mx-2, así que
+                  nunca puede aparecer un scroll horizontal de toda la
+                  página. Scrollbar oculta en los 3 motores porque el gesto
+                  de swipe ya es la afordancia, no hace falta la barra
+                  nativa encima. */}
+              <div className="-mx-1.5 mt-3 flex snap-x snap-mandatory scroll-smooth gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] sm:-mx-2 sm:gap-2.5 [&::-webkit-scrollbar]:hidden">
+                {featuredClients.map((item, index) => (
                   <FeaturedClientCard
                     key={item.id || `${item.name}-${index}`}
                     item={item}
