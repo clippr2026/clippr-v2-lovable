@@ -15,7 +15,7 @@ import {
   Mail
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { applyPromotionDiscount, type Promotion } from "@/lib/service-pricing";
+import { applyPromotionDiscount, resolveServicePricing, type Promotion } from "@/lib/service-pricing";
 import { appendHistorialCobro, readHistorialCobro, syncHistorialFromDB, attributionLabel } from "@/lib/cobro-historial";
 import { ServiceImage } from "@/components/ui/service-image";
 import { useAuth } from "@/hooks/use-auth";
@@ -1527,6 +1527,7 @@ function AgendaPage() {
           employees={memoData.employees}
           clients={memoData.clients}
           services={memoData.services}
+          employeeServiceOverrides={memoData.employeeServiceOverrides}
           onEdit={handleEdit}
           onCancel={handleCancel}
           onCobrar={handleCobrar}
@@ -2770,6 +2771,31 @@ function getServiceImagePositionByName(
   return loose?.image_position ?? "50% 50%";
 }
 
+// Mismo matcheo por nombre que getServiceImageByName (el turno no guarda
+// service_id), pero devuelve el servicio del catálogo completo para poder
+// resolver su "Precio en efectivo" (cash_discount) con resolveServicePricing.
+function getServiceMatchByName(
+  serviceName: string | null | undefined,
+  services: ReturnType<typeof useAgendaData>["services"],
+): ReturnType<typeof useAgendaData>["services"][number] | null {
+  const name = serviceName?.trim();
+  if (!name) return null;
+
+  const segments = name
+    .split("+")
+    .map((segment) => segment.trim().toLowerCase())
+    .filter(Boolean);
+
+  for (const segment of segments) {
+    const match = services.find((service) => service.name.trim().toLowerCase() === segment);
+    if (match) return match;
+  }
+
+  return (
+    services.find((service) => name.toLowerCase().includes(service.name.trim().toLowerCase())) ?? null
+  );
+}
+
 const ApptCard = React.memo(function ApptCard({
   a,
   onClick,
@@ -3262,6 +3288,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   employees,
   clients,
   services,
+  employeeServiceOverrides,
   onEdit,
   onCancel,
   onCobrar,
@@ -3277,6 +3304,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   employees: ReturnType<typeof useAgendaData>["employees"];
   clients: ReturnType<typeof useAgendaData>["clients"];
   services: ReturnType<typeof useAgendaData>["services"];
+  employeeServiceOverrides: ReturnType<typeof useAgendaData>["employeeServiceOverrides"];
   onEdit: (a: Appointment) => void;
   onCancel: (a: Appointment) => void;
   onCobrar: (a: Appointment) => void;
@@ -3345,6 +3373,28 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   const promoFinalPrice = promoSnapshot
     ? applyPromotionDiscount(serviceTotal, promoSnapshot as unknown as Promotion)
     : null;
+  // "Precio en efectivo" del turno: el turno no guarda service_id, se
+  // matchea el servicio del catálogo por nombre (getServiceMatchByName,
+  // mismo criterio que la imagen) y se resuelve con resolveServicePricing
+  // — misma fuente que Caja/Página Pública — pasando el precio ya congelado
+  // del turno (serviceTotal) como base, no el precio actual del catálogo.
+  // Con promoción aplicada no se muestra: mismo criterio que la Página
+  // Pública (mostrar lista + promo + efectivo juntos confunde más de lo
+  // que ayuda).
+  const matchedCatalogService = getServiceMatchByName(appointment.service_name, services);
+  const cashPrice =
+    !promoSnapshot && matchedCatalogService
+      ? resolveServicePricing(
+          {
+            id: matchedCatalogService.id,
+            price: serviceTotal,
+            duration_min: appointment.duration_min,
+            cash_discount: matchedCatalogService.cash_discount,
+          },
+          appointment.employee_id,
+          employeeServiceOverrides,
+        ).effectivePrice
+      : null;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange} modal={false}>
@@ -3490,6 +3540,21 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                       </div>
                       <div className="mt-1 text-xl font-display font-semibold tracking-tight">
                         ${(promoFinalPrice ?? serviceTotal).toLocaleString("es-AR")}
+                      </div>
+                    </div>
+                  ) : cashPrice != null && cashPrice > 0 ? (
+                    <div className="shrink-0 text-right leading-none">
+                      <div className="text-xl font-display font-semibold tracking-tight">
+                        ${Number(appointment.service_price).toLocaleString("es-AR")}
+                      </div>
+                      <div className="mt-0.5 text-[10px] font-medium uppercase tracking-wide text-white/40">
+                        Precio de lista
+                      </div>
+                      <div className="mt-1.5 text-base font-display font-semibold tracking-tight text-emerald-400">
+                        ${cashPrice.toLocaleString("es-AR")}
+                      </div>
+                      <div className="mt-0.5 text-[10px] font-medium uppercase tracking-wide text-white/40">
+                        Precio en efectivo
                       </div>
                     </div>
                   ) : (

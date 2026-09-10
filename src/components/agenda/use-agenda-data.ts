@@ -80,6 +80,9 @@ export type Service = {
   duration: number | null;
   image_url?: string | null;
   image_position?: string | null;
+  // % "Precio en efectivo" (Configuración → Servicios) — misma fuente que
+  // resolveServicePricing usa en Página Pública/Caja. Ver service-pricing.ts.
+  cash_discount?: number | null;
 };
 export type Client = {
   id: string;
@@ -342,7 +345,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
         .order("full_name", { ascending: true }),
       supabase
         .from("price_catalog")
-        .select("id,name,price,duration_min,active,category")
+        .select("id,name,price,duration_min,active,category,cash_discount")
         .eq("business_id", businessId)
         .not("duration_min", "is", null)
         .order("name"),
@@ -458,6 +461,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
           duration: Number(s.duration_min) || 30,
           image_url: serviceImageMap[s.id] ?? null,
           image_position: serviceImagePositionMap[s.id] ?? "50% 50%",
+          cash_discount: s.cash_discount ?? null,
         })),
     );
     setClients(
@@ -489,7 +493,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     const [{ data, error }, settingsRes] = await Promise.all([
       supabase
         .from("price_catalog")
-        .select("id,name,price,duration_min,active,category")
+        .select("id,name,price,duration_min,active,category,cash_discount")
         .eq("business_id", businessId)
         .not("duration_min", "is", null)
         .order("name"),
@@ -514,6 +518,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
           duration: Number(s.duration_min) || 30,
           image_url: serviceImageMap[s.id] ?? null,
           image_position: serviceImagePositionMap[s.id] ?? "50% 50%",
+          cash_discount: s.cash_discount ?? null,
         })),
     );
   }, [businessId]);
