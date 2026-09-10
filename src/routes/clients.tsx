@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
@@ -717,6 +717,17 @@ function ClientsPage() {
   // Drilldown de una categoría puntual ("Recomendado", "Instagram", etc.)
   // dentro del mismo modal — nunca navega a otra pantalla.
   const [acquisitionDrilldown, setAcquisitionDrilldown] = useState<{ key: string; label: string } | null>(null);
+  // Estos 4 modales (a diferencia de ClientDetailModal, que ya lo tenía)
+  // no bloqueaban el scroll de fondo: en iOS Safari eso deja moverse a la
+  // página de atrás mientras el modal está abierto, y al reaparecer el body
+  // scrolleado es lo que corre el header/botón Cerrar fuera de vista hasta
+  // hacer scroll. Un solo lock combinado alcanza (el hook ya soporta que
+  // más de un llamador lo pida a la vez, ver use-body-scroll-lock.ts).
+  useBodyScrollLock(newClientOpen || acquisitionModalOpen || Boolean(metricInfo) || Boolean(segmentModal));
+  const acquisitionScrollRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    acquisitionScrollRef.current?.scrollTo(0, 0);
+  }, [acquisitionModalOpen, acquisitionDrilldown]);
   // Lista completa (no paginada) solo para el panel de estadísticas por canal —
   // el grid principal sigue usando useClientsPage (RPC paginada), sin tocarlo.
   const { data: allClients } = useClientsData(acquisitionModalOpen ? businessId : null);
@@ -1153,9 +1164,12 @@ function ClientsPage() {
         )}
 
       {newClientOpen && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-background ring-1 ring-white/10 shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between p-5 border-b border-white/5">
+        <div
+          className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}
+        >
+          <div className="flex w-full max-w-lg max-h-[calc(100dvh-2rem)] flex-col rounded-2xl bg-background ring-1 ring-white/10 shadow-2xl overflow-hidden">
+            <div className="shrink-0 flex items-center justify-between p-5 border-b border-white/5">
               <div className="text-lg font-display font-semibold uppercase tracking-wide">Cliente</div>
               <button
                 onClick={() => setNewClientOpen(false)}
@@ -1164,7 +1178,7 @@ function ClientsPage() {
                 Cancelar
               </button>
             </div>
-            <div className="p-5 space-y-4">
+            <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
               <div className="grid grid-cols-2 gap-3">
                 <label className="block text-xs text-muted-foreground">
                   Nombre *
@@ -1218,7 +1232,7 @@ function ClientsPage() {
                 />
               )}
             </div>
-            <div className="flex justify-end gap-2 p-5 border-t border-white/5">
+            <div className="shrink-0 flex justify-end gap-2 p-5 border-t border-white/5">
               <button
                 onClick={handleCreateClient}
                 disabled={saveClient.isPending}
@@ -1232,9 +1246,12 @@ function ClientsPage() {
       )}
 
       {acquisitionModalOpen && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-lg rounded-2xl bg-background ring-1 ring-white/10 shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between p-5 border-b border-white/5">
+        <div
+          className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}
+        >
+          <div className="flex w-full max-w-lg max-h-[calc(100dvh-2rem)] flex-col rounded-2xl bg-background ring-1 ring-white/10 shadow-2xl overflow-hidden">
+            <div className="shrink-0 flex items-center justify-between p-5 border-b border-white/5">
               <div className="flex items-center gap-2 min-w-0">
                 {acquisitionDrilldown && (
                   <button
@@ -1266,14 +1283,14 @@ function ClientsPage() {
                 Cerrar
               </button>
             </div>
-            <div className="p-5 space-y-4">
+            <div ref={acquisitionScrollRef} className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
               <DateRangePicker
                 from={acquisitionRange.from}
                 to={acquisitionRange.to}
                 onChange={setAcquisitionRange}
               />
               {acquisitionDrilldown ? (
-                <div className="space-y-1.5 max-h-[60vh] overflow-y-auto">
+                <div className="space-y-1.5">
                   {acquisitionDrilldownClients.length === 0 ? (
                     <div className="rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-4 text-sm text-muted-foreground text-center">
                       No hay clientes en ese rango de fechas.
@@ -1348,9 +1365,12 @@ function ClientsPage() {
       )}
 
       {metricInfo && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-2xl bg-background ring-1 ring-white/10 shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between p-5 border-b border-white/5">
+        <div
+          className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}
+        >
+          <div className="flex w-full max-w-md max-h-[calc(100dvh-2rem)] flex-col rounded-2xl bg-background ring-1 ring-white/10 shadow-2xl overflow-hidden">
+            <div className="shrink-0 flex items-center justify-between p-5 border-b border-white/5">
               <div>
                 <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-300">
                   Información
@@ -1364,7 +1384,7 @@ function ClientsPage() {
                 Cerrar
               </button>
             </div>
-            <div className="p-5 space-y-4">
+            <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
               <p className="text-sm leading-relaxed text-muted-foreground">
                 {metricInfo.description}
               </p>
@@ -1384,9 +1404,12 @@ function ClientsPage() {
       )}
 
       {segmentModal && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/60 backdrop-blur-sm p-4">
-          <div className="w-full max-w-xl rounded-2xl bg-background ring-1 ring-white/10 shadow-2xl overflow-hidden">
-            <div className="flex items-center justify-between p-5 border-b border-white/5">
+        <div
+          className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}
+        >
+          <div className="flex w-full max-w-xl max-h-[calc(100dvh-2rem)] flex-col rounded-2xl bg-background ring-1 ring-white/10 shadow-2xl overflow-hidden">
+            <div className="shrink-0 flex items-center justify-between p-5 border-b border-white/5">
               <div className="text-lg font-display font-semibold">{segmentModal.title}</div>
               <button
                 onClick={() => setSegmentModal(null)}
@@ -1395,7 +1418,7 @@ function ClientsPage() {
                 Cerrar
               </button>
             </div>
-            <div className="max-h-[60vh] overflow-y-auto p-3 space-y-2">
+            <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
               {segmentModal.loading ? (
                 <div className="p-8 text-center text-sm text-muted-foreground animate-pulse">
                   Cargando clientes…
