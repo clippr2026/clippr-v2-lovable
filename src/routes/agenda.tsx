@@ -152,10 +152,11 @@ const isPastSlot = (date: Date) => date.getTime() < Date.now();
 const PAST_SLOT_MESSAGE = "No podés crear turnos en horarios que ya pasaron.";
 
 // Un turno está en el pasado cuando ya terminó (ends_at, o start + duración).
-// Los turnos pasados quedan SOLO como historial: no se editan, mueven, cancelan,
-// cobran ni eliminan. `getApptEnd` está declarado más abajo (función hoisteada).
+// Los turnos pasados no se editan, mueven ni cancelan (se marcan "No asistió"
+// en su lugar) — pero sí se pueden cobrar, igual que uno del día actual.
+// Sin aviso: las restricciones se aplican en silencio, sin toast. `getApptEnd`
+// está declarado más abajo (función hoisteada).
 const isPastAppointment = (a: Appointment) => getApptEnd(a).getTime() < Date.now();
-const PAST_APPT_MESSAGE = "Este turno ya pasó: solo se puede ver o marcar como no asistió.";
 const AGENDA_EMPLOYEE_COL_PX = 160;
 const AGENDA_VIRTUALIZE_AFTER = 12;
 const AGENDA_VIRTUAL_OVERSCAN = 4;
@@ -775,9 +776,8 @@ function AgendaPage() {
       openBlockDialog(a.employee_id ?? null, new Date(a.starts_at), a);
       return;
     }
-    // Turno pasado: solo historial, no editable.
+    // Turno pasado: no editable (sin aviso).
     if (isPastAppointment(a)) {
-      toast.error(PAST_APPT_MESSAGE);
       return;
     }
     setEditing(a);
@@ -786,9 +786,9 @@ function AgendaPage() {
   };
 
   const onChangeStatus = async (a: Appointment, status: ApptStatus) => {
-    // Turno pasado: no se cancela; se marca como "No asistió" para conservar historial.
+    // Turno pasado: no se cancela ni confirma; se marca como "No asistió" para
+    // conservar historial (sin aviso).
     if (a.status !== "blocked" && isPastAppointment(a) && status !== "no_show") {
-      toast.error(PAST_APPT_MESSAGE);
       return;
     }
     // Un turno cobrado es estado final: no se permite ningún cambio de estado.
@@ -816,7 +816,6 @@ function AgendaPage() {
 
   const onMarkDeposit = (a: Appointment) => {
     if (isPastAppointment(a)) {
-      toast.error(PAST_APPT_MESSAGE);
       return;
     }
     if (a.deposit_status === "paid") {
@@ -837,11 +836,8 @@ function AgendaPage() {
   };
 
   const goToCobro = async (a: Appointment) => {
-    // No se cobra retroactivamente: un turno pasado queda como historial.
-    if (isPastAppointment(a)) {
-      toast.error(PAST_APPT_MESSAGE);
-      return;
-    }
+    // El cobro no depende de si el turno ya pasó: un turno pasado y todavía
+    // no cobrado se cobra igual que uno del día actual.
     if (a.status === "cancelled") {
       toast.error("No se puede cobrar un turno cancelado.");
       return;
@@ -2018,9 +2014,8 @@ const DayView = React.memo(function DayView({
     if (!apptId) return;
     const appt = data.appointments.find((a) => a.id === apptId);
     if (!appt) return;
-    // Un turno pasado es historial: no se puede mover/reprogramar.
+    // Un turno pasado no se puede mover/reprogramar (sin aviso).
     if (appt.status !== "blocked" && isPastAppointment(appt)) {
-      toast.error(PAST_APPT_MESSAGE);
       return;
     }
     if (appt.status === "charged") {
