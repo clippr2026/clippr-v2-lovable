@@ -442,7 +442,22 @@ type AccessUser = {
   employee_id?: string | null;
   branch_id?: string | null;
   created_at?: string | null;
+  last_invited_at?: string | null;
 };
+
+// Ventana de vigencia de la invitación, solo para decidir si mostrar
+// "Pendiente" o "Venció" en la lista — tiene que reflejar el valor real
+// configurado en Supabase Dashboard → Authentication → Emails → "Email OTP
+// Expiration" (actualmente 24hs). Si cambian ese valor ahí, hay que
+// actualizar esta constante para que coincida.
+const INVITE_EXPIRY_MS = 24 * 60 * 60 * 1000;
+
+function isInviteExpired(user: AccessUser): boolean {
+  if (user.status !== "invited") return false;
+  const reference = user.last_invited_at ?? user.created_at;
+  if (!reference) return false;
+  return Date.now() - new Date(reference).getTime() > INVITE_EXPIRY_MS;
+}
 
 type AccessFormState = {
   name: string;
@@ -908,13 +923,27 @@ export function EquipoSection() {
 
   const loadTeamMembers = useCallback(async () => {
     if (!businessId) return;
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("team_members")
       .select(
-        "id, auth_user_id, full_name, email, role, status, professional_id, branch_id, permissions, created_at",
+        "id, auth_user_id, full_name, email, role, status, professional_id, branch_id, permissions, created_at, last_invited_at",
       )
       .eq("business_id", businessId)
       .order("created_at", { ascending: true });
+    // Si la migración de last_invited_at todavía no corrió en producción,
+    // no se debe romper la carga de todo el equipo por eso — se reintenta
+    // sin esa columna (el badge "Venció" no aparece hasta que exista).
+    if (error && /last_invited_at/i.test(error.message ?? "")) {
+      const retry = await supabase
+        .from("team_members")
+        .select(
+          "id, auth_user_id, full_name, email, role, status, professional_id, branch_id, permissions, created_at",
+        )
+        .eq("business_id", businessId)
+        .order("created_at", { ascending: true });
+      data = retry.data as typeof data;
+      error = retry.error;
+    }
     if (error) {
       toast.error("Error cargando accesos: " + error.message);
       return;
@@ -949,6 +978,7 @@ export function EquipoSection() {
         employee_id: (r.professional_id as string | null) ?? null,
         branch_id: (r.branch_id as string | null) ?? null,
         created_at: (r.created_at as string | null) ?? null,
+        last_invited_at: (r.last_invited_at as string | null) ?? null,
       };
     });
     const perms: Record<string, PermissionMap> = {};
@@ -2462,12 +2492,15 @@ export function EquipoSection() {
                   // la vez). Sin acceso (ninguno de los 3 estados de
                   // arriba) no muestra ningún badge — nada que decir.
                   const isPrincipal = user.id === principalAdminId;
+                  const expired = isInviteExpired(user);
                   const statusBadge = isPrincipal
                     ? { label: "Principal", cls: "bg-white/[0.05] text-muted-foreground ring-white/15" }
                     : user.status === "active"
                       ? { label: "Activo", cls: "bg-emerald-500/10 text-emerald-300 ring-emerald-400/20" }
                       : user.status === "invited"
-                        ? { label: "Pendiente", cls: "bg-cyan-500/10 text-cyan-300 ring-cyan-400/20" }
+                        ? expired
+                          ? { label: "Venció", cls: "bg-amber-500/10 text-amber-300 ring-amber-400/20" }
+                          : { label: "Pendiente", cls: "bg-cyan-500/10 text-cyan-300 ring-cyan-400/20" }
                         : null;
                   return (
                   <div
@@ -2495,6 +2528,16 @@ export function EquipoSection() {
                         {user.email}
                       </div>
                     </div>
+                    {expired && (
+                      <button
+                        type="button"
+                        disabled={resendingAccessId === user.id}
+                        onClick={() => resendAccessInvite(user.id)}
+                        className="rounded-lg bg-amber-500/10 hover:bg-amber-500/20 ring-1 ring-amber-400/25 text-amber-200 px-2.5 py-1.5 text-xs disabled:opacity-60"
+                      >
+                        {resendingAccessId === user.id ? "Enviando…" : "Reenviar"}
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => editAccessUser(user)}
@@ -2502,16 +2545,6 @@ export function EquipoSection() {
                     >
                       Editar
                     </button>
-                    {user.status === "invited" && (
-                      <button
-                        type="button"
-                        disabled={resendingAccessId === user.id}
-                        onClick={() => resendAccessInvite(user.id)}
-                        className="rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 ring-1 ring-cyan-400/25 text-cyan-200 px-2.5 py-1.5 text-xs disabled:opacity-60"
-                      >
-                        {resendingAccessId === user.id ? "Enviando…" : "Reenviar"}
-                      </button>
-                    )}
                     {!isPrincipal && (
                       <button
                         type="button"
