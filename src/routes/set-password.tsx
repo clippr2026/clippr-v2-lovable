@@ -1,6 +1,6 @@
 import * as React from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Lock, Eye, EyeOff, Check, ShieldCheck } from "lucide-react";
+import { Lock, Eye, EyeOff, Check, ShieldCheck, MailWarning, Send } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/set-password")({
@@ -16,6 +16,10 @@ export const Route = createFileRoute("/set-password")({
 function SetPasswordPage() {
   const navigate = useNavigate();
   const [ready, setReady] = React.useState(false);
+  // Invitación vencida (#error_code=otp_expired en el hash que devuelve
+  // Supabase) — estado propio, distinto del error genérico: ese link SÍ era
+  // válido, solo venció, así que no corresponde "volvé a abrir el enlace".
+  const [expired, setExpired] = React.useState(false);
   const [email, setEmail] = React.useState<string | null>(null);
   const [pwd, setPwd] = React.useState("");
   const [pwd2, setPwd2] = React.useState("");
@@ -23,6 +27,40 @@ function SetPasswordPage() {
   const [error, setError] = React.useState<string | null>(null);
   const [saving, setSaving] = React.useState(false);
   const [done, setDone] = React.useState(false);
+
+  // Reenvío self-service de la invitación vencida.
+  const [resendEmail, setResendEmail] = React.useState("");
+  const [resending, setResending] = React.useState(false);
+  const [resendDone, setResendDone] = React.useState(false);
+  const [resendError, setResendError] = React.useState<string | null>(null);
+  const [resendCooldown, setResendCooldown] = React.useState(0);
+
+  React.useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const t = setTimeout(() => setResendCooldown((s) => Math.max(0, s - 1)), 1000);
+    return () => clearTimeout(t);
+  }, [resendCooldown]);
+
+  async function onResend(e: React.FormEvent) {
+    e.preventDefault();
+    const trimmed = resendEmail.trim();
+    if (!trimmed) {
+      setResendError("Ingresá tu email.");
+      return;
+    }
+    setResendError(null);
+    setResending(true);
+    const { error: invokeError } = await supabase.functions.invoke("request-invite-resend", {
+      body: { email: trimmed },
+    });
+    setResending(false);
+    if (invokeError) {
+      setResendError("No pudimos enviar el enlace. Probá de nuevo en unos segundos.");
+      return;
+    }
+    setResendDone(true);
+    setResendCooldown(60);
+  }
 
   // La invitación puede llegar como hash (#access_token=...) o como code (?code=...).
   // En móvil algunos navegadores no disparan detectSessionInUrl de forma consistente,
@@ -35,13 +73,25 @@ function SetPasswordPage() {
       try {
         setError(null);
 
+        const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+
+        // Supabase redirige acá mismo con #error_code=otp_expired cuando el
+        // link de invitación ya venció (no cuando falta o es inválido de
+        // otra forma) — ese caso tiene su propia pantalla, no el mensaje
+        // genérico de "volvé a abrir el enlace" (el enlace SÍ era válido).
+        const errorCode = hash.get("error_code");
+        if (errorCode === "otp_expired") {
+          if (!active) return;
+          setExpired(true);
+          return;
+        }
+
         const url = new URL(window.location.href);
         const code = url.searchParams.get("code");
         if (code) {
           await supabase.auth.exchangeCodeForSession(code);
         }
 
-        const hash = new URLSearchParams(window.location.hash.replace(/^#/, ""));
         const accessToken = hash.get("access_token");
         const refreshToken = hash.get("refresh_token");
         if (accessToken && refreshToken) {
@@ -71,7 +121,7 @@ function SetPasswordPage() {
     hydrateInvitationSession();
 
     validationTimer = setTimeout(() => {
-      if (!active || ready) return;
+      if (!active || ready || expired) return;
       setError("No pudimos validar la invitación. Volvé a abrir el enlace desde el correo.");
     }, 5000);
 
@@ -89,7 +139,7 @@ function SetPasswordPage() {
       if (validationTimer) clearTimeout(validationTimer);
       sub.subscription.unsubscribe();
     };
-  }, [ready]);
+  }, [ready, expired]);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -143,7 +193,55 @@ function SetPasswordPage() {
           </div>
         </div>
 
-        {!ready && !done && (
+        {expired && !done && (
+          <div className="space-y-4">
+            <div className="rounded-xl bg-amber-500/10 ring-1 ring-amber-400/25 p-5 text-center">
+              <div className="mx-auto h-11 w-11 rounded-full grid place-items-center bg-amber-500/15 ring-1 ring-amber-400/30">
+                <MailWarning className="h-5 w-5 text-amber-300" />
+              </div>
+              <div className="mt-3 text-sm font-semibold">Tu enlace de invitación venció</div>
+              <div className="text-xs text-muted-foreground mt-1">
+                Solicitá un nuevo enlace para activar tu cuenta de Clippr.
+              </div>
+            </div>
+
+            {resendDone ? (
+              <div className="rounded-xl bg-emerald-500/10 ring-1 ring-emerald-400/20 p-4 text-center text-sm text-emerald-200">
+                Te enviamos un nuevo enlace a tu correo.
+              </div>
+            ) : (
+              <form onSubmit={onResend} className="space-y-3">
+                <input
+                  type="email"
+                  value={resendEmail}
+                  onChange={(e) => setResendEmail(e.target.value)}
+                  placeholder="tu@email.com"
+                  autoComplete="email"
+                  className="w-full rounded-xl bg-white/[0.04] ring-1 ring-white/10 focus:ring-2 focus:ring-primary/60 outline-none px-3.5 py-2.5 text-sm"
+                />
+                {resendError && (
+                  <div className="rounded-xl bg-red-500/10 ring-1 ring-red-500/30 px-3 py-2 text-xs text-red-300">
+                    {resendError}
+                  </div>
+                )}
+                <button
+                  type="submit"
+                  disabled={resending || resendCooldown > 0}
+                  className="w-full rounded-xl bg-gradient-to-b from-primary to-primary/80 text-primary-foreground font-semibold px-4 py-2.5 text-sm shadow-lg disabled:opacity-60 flex items-center justify-center gap-2"
+                >
+                  <Send className="h-4 w-4" />
+                  {resending
+                    ? "Enviando…"
+                    : resendCooldown > 0
+                      ? `Reenviar invitación (${resendCooldown}s)`
+                      : "Reenviar invitación"}
+                </button>
+              </form>
+            )}
+          </div>
+        )}
+
+        {!ready && !done && !expired && (
           <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 p-6 text-center text-sm text-muted-foreground">
             {error ? "No pudimos validar tu invitación" : "Validando tu invitación…"}
             <div className={`mt-2 text-xs ${error ? "text-red-300" : "text-muted-foreground/70"}`}>

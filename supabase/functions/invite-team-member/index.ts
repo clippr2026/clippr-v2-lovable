@@ -1,7 +1,7 @@
 // ============================================================================
 // Clippr · Edge Function: invite-team-member
 // ----------------------------------------------------------------------------
-// Crea, actualiza y elimina accesos del equipo usando service_role.
+// Crea, actualiza, elimina y reenvía accesos del equipo usando service_role.
 // Permite crear → eliminar → volver a crear desde Clippr sin tocar Supabase.
 // ============================================================================
 
@@ -47,11 +47,55 @@ const corsHeaders = {
 
 const ADMIN_ROLES = new Set(["owner", "admin_general", "socio", "admin_local"]);
 
+// Reenvío: mínimo tiempo entre dos invitaciones al mismo acceso, para que
+// nadie (ni por error, ni a propósito) le spamee la casilla a la persona
+// invitada. Ver también supabase/functions/request-invite-resend (mismo
+// criterio, para el reenvío self-service desde /set-password).
+const RESEND_COOLDOWN_MS = 5 * 60 * 1000;
+
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+// `last_invited_at` es una columna nueva (migración aparte, aplicada a mano
+// en Supabase — ver supabase/migrations/*_team_members_last_invited_at.sql).
+// Si esta función se despliega antes de que esa migración corra, cualquier
+// insert/update que la mencione fallaría con "column does not exist" y
+// rompería el alta de accesos, que es justamente lo que no podemos romper.
+// Estos helpers reintentan sin la columna en ese caso puntual, degradando
+// sin cortar el flujo (sin cooldown hasta que la columna exista).
+function isMissingLastInvitedAtColumn(error: { message?: string } | null | undefined): boolean {
+  const msg = (error?.message ?? "").toLowerCase();
+  return msg.includes("last_invited_at") && (msg.includes("column") || msg.includes("schema cache"));
+}
+
+async function insertTeamMember(
+  admin: SupabaseClient,
+  payload: Record<string, unknown>,
+) {
+  let { error } = await admin.from("team_members").insert(payload);
+  if (error && isMissingLastInvitedAtColumn(error)) {
+    const { last_invited_at: _drop, ...rest } = payload;
+    ({ error } = await admin.from("team_members").insert(rest));
+  }
+  return { error };
+}
+
+async function updateTeamMember(
+  admin: SupabaseClient,
+  id: string,
+  businessId: string,
+  payload: Record<string, unknown>,
+) {
+  let { error } = await admin.from("team_members").update(payload).eq("id", id).eq("business_id", businessId);
+  if (error && isMissingLastInvitedAtColumn(error)) {
+    const { last_invited_at: _drop, ...rest } = payload;
+    ({ error } = await admin.from("team_members").update(rest).eq("id", id).eq("business_id", businessId));
+  }
+  return { error };
 }
 
 async function isAuthorized(
@@ -108,20 +152,34 @@ async function isAuthorized(
   return false;
 }
 
+// Un usuario de Auth queda creado apenas se manda la invitación —
+// auth_user_id no nulo NO significa que la persona ya activó su cuenta.
+// La señal real es la confirmación (email_confirmed_at/confirmed_at), que
+// Supabase recién completa cuando la persona abre el link y se autentica.
+function isUserConfirmed(u: { email_confirmed_at?: string | null; confirmed_at?: string | null }): boolean {
+  return Boolean(u.email_confirmed_at || u.confirmed_at);
+}
+
 async function findAuthUserByEmail(
   admin: SupabaseClient,
   email: string,
-): Promise<{ id: string } | null> {
+): Promise<{ id: string; confirmed: boolean } | null> {
   for (let page = 1; page <= 10; page++) {
     const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
     if (error || !data?.users?.length) return null;
 
     const match = data.users.find((u) => (u.email ?? "").toLowerCase() === email.toLowerCase());
-    if (match) return { id: match.id };
+    if (match) return { id: match.id, confirmed: isUserConfirmed(match) };
     if (data.users.length < 200) return null;
   }
 
   return null;
+}
+
+async function getUserConfirmed(admin: SupabaseClient, userId: string): Promise<boolean> {
+  const { data, error } = await admin.auth.admin.getUserById(userId);
+  if (error || !data?.user) return false;
+  return isUserConfirmed(data.user);
 }
 
 async function resolveActorName(
@@ -250,6 +308,72 @@ Deno.serve(async (req) => {
       return json({ ok: true, auth_deleted: authDeleted });
     }
 
+    // Reenvío disparado por un admin desde Equipo (autenticado — no confundir
+    // con supabase/functions/request-invite-resend, que es el equivalente
+    // anónimo para cuando quien reenvía es la propia persona invitada desde
+    // /set-password con el link vencido). No crea ni duplica nada: reusa el
+    // mismo team_members y el mismo auth_user_id, solo dispara un nuevo
+    // email de Supabase.
+    if (action === "resend") {
+      const memberId = String(body.member_id ?? "");
+      if (!memberId) return json({ error: "member_id requerido" }, 400);
+
+      const { data: target, error: targetErr } = await admin
+        .from("team_members")
+        .select("id, email, full_name, status, auth_user_id, last_invited_at")
+        .eq("id", memberId)
+        .eq("business_id", businessId)
+        .maybeSingle();
+
+      if (targetErr && !isMissingLastInvitedAtColumn(targetErr)) return json({ error: targetErr.message }, 400);
+      let targetRow = target;
+      if (targetErr) {
+        // Reintento sin last_invited_at si la migración todavía no corrió.
+        const retry = await admin
+          .from("team_members")
+          .select("id, email, full_name, status, auth_user_id")
+          .eq("id", memberId)
+          .eq("business_id", businessId)
+          .maybeSingle();
+        if (retry.error) return json({ error: retry.error.message }, 400);
+        targetRow = retry.data as typeof target;
+      }
+
+      if (!targetRow) return json({ error: "El acceso no existe" }, 404);
+      if (targetRow.status !== "invited" || !targetRow.auth_user_id) {
+        return json({ error: "Esta persona ya activó su cuenta." }, 400);
+      }
+
+      const lastInvitedAt = (targetRow as { last_invited_at?: string | null }).last_invited_at ?? null;
+      if (lastInvitedAt && Date.now() - new Date(lastInvitedAt).getTime() < RESEND_COOLDOWN_MS) {
+        return json({ error: "Esperá unos minutos antes de volver a reenviar la invitación." }, 429);
+      }
+
+      const targetEmail = String(targetRow.email ?? "");
+      const { error: inviteErr } = await admin.auth.admin.inviteUserByEmail(targetEmail, {
+        redirectTo: `${SITE_URL}/set-password`,
+      });
+
+      if (inviteErr) {
+        // Si el usuario ya se confirmó justo antes de este reenvío, no lo
+        // tratamos como error silencioso: se lo decimos tal cual al admin.
+        const stillPending = !(await getUserConfirmed(admin, targetRow.auth_user_id as string));
+        console.log("[resend] inviteUserByEmail error:", inviteErr.message, "| stillPending:", stillPending);
+        if (!stillPending) {
+          await updateTeamMember(admin, memberId, businessId, { status: "active" });
+          return json({ error: "Esta persona ya activó su cuenta." }, 400);
+        }
+        return json({ error: "No se pudo reenviar: " + inviteErr.message }, 400);
+      }
+
+      const { error: touchErr } = await updateTeamMember(admin, memberId, businessId, {
+        last_invited_at: new Date().toISOString(),
+      });
+      if (touchErr) console.log("[resend] no se pudo actualizar last_invited_at:", touchErr.message);
+
+      return json({ ok: true });
+    }
+
     const email = String(body.email ?? "").trim().toLowerCase();
     const role = String(body.role ?? "profesional");
     const fullName = body.full_name ? String(body.full_name).trim() : null;
@@ -297,11 +421,16 @@ Deno.serve(async (req) => {
 
       if (["deleted", "removed", "suspended", "inactive"].includes(existingStatus)) {
         let authUserId: string | null = existing.auth_user_id as string | null;
+        let isConfirmed = false;
+        let justSentInvite = false;
 
-        if (!authUserId) {
+        if (authUserId) {
+          isConfirmed = await getUserConfirmed(admin, authUserId);
+        } else {
           const existingAuthUser = await findAuthUserByEmail(admin, email);
           if (existingAuthUser) {
             authUserId = existingAuthUser.id;
+            isConfirmed = existingAuthUser.confirmed;
           } else {
             const { data: invited, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email, {
               data: { full_name: fullName, business_id: businessId, role },
@@ -312,26 +441,26 @@ Deno.serve(async (req) => {
               const fallbackUser = await findAuthUserByEmail(admin, email);
               if (!fallbackUser) return json({ error: "No se pudo invitar: " + inviteErr.message }, 400);
               authUserId = fallbackUser.id;
+              isConfirmed = fallbackUser.confirmed;
             } else {
               authUserId = invited?.user?.id ?? null;
+              isConfirmed = false;
+              justSentInvite = true;
             }
           }
         }
 
-        const { error: reactivateErr } = await admin
-          .from("team_members")
-          .update({
-            auth_user_id: authUserId,
-            email,
-            full_name: fullName,
-            role,
-            permissions,
-            professional_id: professionalId,
-            branch_id: branchId,
-            status: "active",
-          })
-          .eq("id", existing.id)
-          .eq("business_id", businessId);
+        const { error: reactivateErr } = await updateTeamMember(admin, existing.id as string, businessId, {
+          auth_user_id: authUserId,
+          email,
+          full_name: fullName,
+          role,
+          permissions,
+          professional_id: professionalId,
+          branch_id: branchId,
+          status: isConfirmed ? "active" : "invited",
+          ...(justSentInvite ? { last_invited_at: new Date().toISOString() } : {}),
+        });
 
         if (reactivateErr) return json({ error: reactivateErr.message }, 400);
         return json({ ok: true, reactivated: true, auth_user_id: authUserId });
@@ -341,10 +470,13 @@ Deno.serve(async (req) => {
     }
 
     let authUserId: string | null = null;
+    let isConfirmed = false;
+    let justSentInvite = false;
 
     const existingAuthUser = await findAuthUserByEmail(admin, email);
     if (existingAuthUser) {
       authUserId = existingAuthUser.id;
+      isConfirmed = existingAuthUser.confirmed;
     } else {
       const { data: invited, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email, {
         data: { full_name: fullName, business_id: businessId, role },
@@ -355,12 +487,15 @@ Deno.serve(async (req) => {
         const fallbackUser = await findAuthUserByEmail(admin, email);
         if (!fallbackUser) return json({ error: "No se pudo invitar: " + inviteErr.message }, 400);
         authUserId = fallbackUser.id;
+        isConfirmed = fallbackUser.confirmed;
       } else {
         authUserId = invited?.user?.id ?? null;
+        isConfirmed = false;
+        justSentInvite = true;
       }
     }
 
-    const { error: insErr } = await admin.from("team_members").insert({
+    const { error: insErr } = await insertTeamMember(admin, {
       business_id: businessId,
       auth_user_id: authUserId,
       email,
@@ -369,7 +504,9 @@ Deno.serve(async (req) => {
       permissions,
       professional_id: professionalId,
       branch_id: branchId,
-status: "active",    });
+      status: isConfirmed ? "active" : "invited",
+      ...(justSentInvite ? { last_invited_at: new Date().toISOString() } : {}),
+    });
 
     if (insErr) return json({ error: insErr.message }, 400);
     return json({ ok: true, auth_user_id: authUserId });

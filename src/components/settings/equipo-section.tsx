@@ -776,6 +776,7 @@ export function EquipoSection() {
     null,
   );
   const [deletingAccess, setDeletingAccess] = useState(false);
+  const [resendingAccessId, setResendingAccessId] = useState<string | null>(null);
   const [accessTouched, setAccessTouched] = useState(false);
   const [accessModalOpen, setAccessModalOpen] = useState(false);
   useBodyScrollLock(accessModalOpen);
@@ -2182,6 +2183,29 @@ export function EquipoSection() {
     await loadTeamMembers();
   }
 
+  // Reenvía la invitación a un acceso todavía "Pendiente" (nunca activó su
+  // cuenta) — mismo integrante, mismo negocio, mismos permisos: no crea ni
+  // duplica nada, solo dispara un nuevo email de Supabase (ver acción
+  // "resend" en la función invite-team-member).
+  async function resendAccessInvite(id: string) {
+    if (!businessId) return;
+    setResendingAccessId(id);
+    const { data, error } = await supabase.functions.invoke("invite-team-member", {
+      body: {
+        action: "resend",
+        business_id: businessId,
+        member_id: id,
+      },
+    });
+    setResendingAccessId(null);
+
+    const errMsg =
+      error?.message ?? (data as { error?: string } | null)?.error ?? null;
+    if (errMsg) return toast.error(errMsg);
+
+    toast.success("Invitación reenviada");
+  }
+
   // Admin principal = el admin_general más antiguo del negocio (no se puede eliminar).
   const principalAdminId = (() => {
     const admins = accessUsers
@@ -2478,6 +2502,16 @@ export function EquipoSection() {
                     >
                       Editar
                     </button>
+                    {user.status === "invited" && (
+                      <button
+                        type="button"
+                        disabled={resendingAccessId === user.id}
+                        onClick={() => resendAccessInvite(user.id)}
+                        className="rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 ring-1 ring-cyan-400/25 text-cyan-200 px-2.5 py-1.5 text-xs disabled:opacity-60"
+                      >
+                        {resendingAccessId === user.id ? "Enviando…" : "Reenviar"}
+                      </button>
+                    )}
                     {!isPrincipal && (
                       <button
                         type="button"

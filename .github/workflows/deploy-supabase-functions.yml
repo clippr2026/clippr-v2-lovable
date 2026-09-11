@@ -1,7 +1,8 @@
 name: Deploy Supabase Functions
 
-# Despliega la Edge Function `send-booking-email` a Supabase automáticamente.
-# Corre cuando cambian archivos de funciones (o manualmente desde Actions).
+# Despliega las Edge Functions públicas/administrativas de Clippr a Supabase
+# automáticamente. Corre cuando cambian archivos de funciones (o manualmente
+# desde Actions).
 
 on:
   push:
@@ -13,7 +14,7 @@ on:
 
 jobs:
   deploy:
-    name: Deploy send-booking-email
+    name: Deploy Edge Functions
     runs-on: ubuntu-latest
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
@@ -31,5 +32,23 @@ jobs:
         # --no-verify-jwt: la página de reservas es pública (cliente anónimo).
         run: |
           supabase functions deploy send-booking-email \
+            --project-ref "$PROJECT_ID" \
+            --no-verify-jwt
+
+      - name: Deploy invite-team-member
+        # Verificación de JWT normal (SIN --no-verify-jwt): la función es
+        # administrativa, valida el Authorization por su cuenta (JWT +
+        # isAuthorized sobre el negocio) para las acciones create/update/
+        # delete/resend.
+        run: |
+          supabase functions deploy invite-team-member \
+            --project-ref "$PROJECT_ID"
+
+      - name: Deploy request-invite-resend
+        # --no-verify-jwt: reenvío self-service de invitación vencida,
+        # llamado sin sesión desde /set-password. Ver comentario de seguridad
+        # en supabase/functions/request-invite-resend/index.ts.
+        run: |
+          supabase functions deploy request-invite-resend \
             --project-ref "$PROJECT_ID" \
             --no-verify-jwt
