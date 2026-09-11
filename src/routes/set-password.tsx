@@ -199,15 +199,15 @@ function SetPasswordPage() {
               <div className="mx-auto h-11 w-11 rounded-full grid place-items-center bg-amber-500/15 ring-1 ring-amber-400/30">
                 <MailWarning className="h-5 w-5 text-amber-300" />
               </div>
-              <div className="mt-3 text-sm font-semibold">Tu enlace de invitación venció</div>
+              <div className="mt-3 text-sm font-semibold">Tu invitación venció</div>
               <div className="text-xs text-muted-foreground mt-1">
-                Solicitá un nuevo enlace para activar tu cuenta de Clippr.
+                Pedí un nuevo enlace para crear tu contraseña.
               </div>
             </div>
 
             {resendDone ? (
               <div className="rounded-xl bg-emerald-500/10 ring-1 ring-emerald-400/20 p-4 text-center text-sm text-emerald-200">
-                Te enviamos un nuevo enlace a tu correo.
+                Te enviamos un nuevo enlace a tu correo. Revisá tu bandeja de entrada.
               </div>
             ) : (
               <form onSubmit={onResend} className="space-y-3">
