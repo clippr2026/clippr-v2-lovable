@@ -1,6 +1,6 @@
 import * as React from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Lock, Eye, EyeOff, Check, ShieldCheck, MailWarning, Send } from "lucide-react";
+import { Lock, Eye, EyeOff, Check, ShieldCheck, MailWarning } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 export const Route = createFileRoute("/set-password")({
@@ -27,40 +27,6 @@ function SetPasswordPage() {
   const [error, setError] = React.useState<string | null>(null);
   const [saving, setSaving] = React.useState(false);
   const [done, setDone] = React.useState(false);
-
-  // Reenvío self-service de la invitación vencida.
-  const [resendEmail, setResendEmail] = React.useState("");
-  const [resending, setResending] = React.useState(false);
-  const [resendDone, setResendDone] = React.useState(false);
-  const [resendError, setResendError] = React.useState<string | null>(null);
-  const [resendCooldown, setResendCooldown] = React.useState(0);
-
-  React.useEffect(() => {
-    if (resendCooldown <= 0) return;
-    const t = setTimeout(() => setResendCooldown((s) => Math.max(0, s - 1)), 1000);
-    return () => clearTimeout(t);
-  }, [resendCooldown]);
-
-  async function onResend(e: React.FormEvent) {
-    e.preventDefault();
-    const trimmed = resendEmail.trim();
-    if (!trimmed) {
-      setResendError("Ingresá tu email.");
-      return;
-    }
-    setResendError(null);
-    setResending(true);
-    const { error: invokeError } = await supabase.functions.invoke("request-invite-resend", {
-      body: { email: trimmed },
-    });
-    setResending(false);
-    if (invokeError) {
-      setResendError("No pudimos enviar el enlace. Probá de nuevo en unos segundos.");
-      return;
-    }
-    setResendDone(true);
-    setResendCooldown(60);
-  }
 
   // La invitación puede llegar como hash (#access_token=...) o como code (?code=...).
   // En móvil algunos navegadores no disparan detectSessionInUrl de forma consistente,
@@ -194,50 +160,14 @@ function SetPasswordPage() {
         </div>
 
         {expired && !done && (
-          <div className="space-y-4">
-            <div className="rounded-xl bg-amber-500/10 ring-1 ring-amber-400/25 p-5 text-center">
-              <div className="mx-auto h-11 w-11 rounded-full grid place-items-center bg-amber-500/15 ring-1 ring-amber-400/30">
-                <MailWarning className="h-5 w-5 text-amber-300" />
-              </div>
-              <div className="mt-3 text-sm font-semibold">Tu invitación venció</div>
-              <div className="text-xs text-muted-foreground mt-1">
-                Pedí un nuevo enlace para crear tu contraseña.
-              </div>
+          <div className="rounded-xl bg-amber-500/10 ring-1 ring-amber-400/25 p-5 text-center">
+            <div className="mx-auto h-11 w-11 rounded-full grid place-items-center bg-amber-500/15 ring-1 ring-amber-400/30">
+              <MailWarning className="h-5 w-5 text-amber-300" />
             </div>
-
-            {resendDone ? (
-              <div className="rounded-xl bg-emerald-500/10 ring-1 ring-emerald-400/20 p-4 text-center text-sm text-emerald-200">
-                Te enviamos un nuevo enlace a tu correo. Revisá tu bandeja de entrada.
-              </div>
-            ) : (
-              <form onSubmit={onResend} className="space-y-3">
-                <input
-                  type="email"
-                  value={resendEmail}
-                  onChange={(e) => setResendEmail(e.target.value)}
-                  placeholder="tu@email.com"
-                  autoComplete="email"
-                  className="w-full rounded-xl bg-white/[0.04] ring-1 ring-white/10 focus:ring-2 focus:ring-primary/60 outline-none px-3.5 py-2.5 text-sm"
-                />
-                {resendError && (
-                  <div className="rounded-xl bg-red-500/10 ring-1 ring-red-500/30 px-3 py-2 text-xs text-red-300">
-                    {resendError}
-                  </div>
-                )}
-                <button
-                  type="submit"
-                  disabled={resending || resendCooldown > 0}
-                  className="w-full rounded-xl bg-gradient-to-b from-primary to-primary/80 text-primary-foreground font-semibold px-4 py-2.5 text-sm shadow-lg disabled:opacity-60 flex items-center justify-center gap-2"
-                >
-                  <Send className="h-4 w-4" />
-                  {resending
-                    ? "Enviando…"
-                    : resendCooldown > 0
-                      ? `Reenviar invitación (${resendCooldown}s)`
-                      : "Reenviar invitación"}
-                </button>
-              </form>
-            )}
+            <div className="mt-3 text-sm font-semibold">Tu invitación venció</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Este enlace ya no está disponible. Pedile al administrador de la barbería que te envíe una nueva invitación.
+            </div>
           </div>
         )}
 

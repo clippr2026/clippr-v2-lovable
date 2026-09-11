@@ -39,16 +39,9 @@ jobs:
         # Verificación de JWT normal (SIN --no-verify-jwt): la función es
         # administrativa, valida el Authorization por su cuenta (JWT +
         # isAuthorized sobre el negocio) para las acciones create/update/
-        # delete/resend.
+        # delete/resend. El reenvío de invitaciones vencidas se hace SOLO
+        # desde acá (Configuración → Equipo → "Reenviar"), no hay endpoint
+        # anónimo de auto-reenvío.
         run: |
           supabase functions deploy invite-team-member \
             --project-ref "$PROJECT_ID"
-
-      - name: Deploy request-invite-resend
-        # --no-verify-jwt: reenvío self-service de invitación vencida,
-        # llamado sin sesión desde /set-password. Ver comentario de seguridad
-        # en supabase/functions/request-invite-resend/index.ts.
-        run: |
-          supabase functions deploy request-invite-resend \
-            --project-ref "$PROJECT_ID" \
-            --no-verify-jwt
