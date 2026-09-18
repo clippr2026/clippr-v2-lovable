@@ -38,6 +38,7 @@ import {
   type EmployeeSpecialDateMap,
   DAY_KEYS,
   DEFAULT_SCHEDULE,
+  DEFAULT_TIMEZONE,
   parseTime,
   addMinutes,
   startOfDay,
@@ -86,6 +87,7 @@ type Business = {
   avatar_url?: string | null;
   cover_url?: string | null;
   accent_color?: string | null;
+  timezone?: string | null;
 };
 
 type Employee = {
@@ -204,16 +206,20 @@ function normalizeRecommendedProducts(schedule: unknown): RecommendedProduct[] {
     .slice(0, 3) as RecommendedProduct[];
 }
 
-function formatDay(date: Date) {
-  return date.toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "long" });
+// El horario a mostrar es siempre la hora local DEL NEGOCIO (`timeZone`), no
+// la del dispositivo de quien está mirando la página — si no, un visitante
+// en otro huso vería un horario convertido a su propia zona en vez de la
+// hora real a la que tiene que presentarse en el local.
+function formatDay(date: Date, timeZone: string = DEFAULT_TIMEZONE) {
+  return date.toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "long", timeZone });
 }
 
-function formatShortDay(date: Date) {
-  return date.toLocaleDateString("es-AR", { weekday: "short", day: "2-digit", month: "2-digit" });
+function formatShortDay(date: Date, timeZone: string = DEFAULT_TIMEZONE) {
+  return date.toLocaleDateString("es-AR", { weekday: "short", day: "2-digit", month: "2-digit", timeZone });
 }
 
-function formatTime(date: Date) {
-  return date.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+function formatTime(date: Date, timeZone: string = DEFAULT_TIMEZONE) {
+  return date.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", timeZone });
 }
 
 function isUuid(value: string) {
@@ -260,6 +266,7 @@ function PublicBookingPage() {
   const [loading, setLoading] = React.useState(true);
   const [submitting, setSubmitting] = React.useState(false);
   const [business, setBusiness] = React.useState<Business | null>(null);
+  const businessTimeZone = business?.timezone || DEFAULT_TIMEZONE;
   const [employees, setEmployees] = React.useState<Employee[]>([]);
   const [services, setServices] = React.useState<Service[]>([]);
   const [appointments, setAppointments] = React.useState<Appointment[]>([]);
@@ -555,14 +562,18 @@ function PublicBookingPage() {
         employeeSchedules,
         businessSpecial,
         employeeSpecial,
-        // El espaciado entre horarios ofrecidos es la propia duración
-        // resuelta (personalizada del profesional para este servicio si
-        // existe, si no la estándar del servicio — mismo criterio que
-        // totalDuration/resolveServicePricing) y no un intervalo fijo de
-        // negocio: turnos de 60 min se ofrecen cada 60 min, de 40 cada 40,
-        // etc., en vez de superponer duraciones distintas con una grilla
-        // pareja.
-        totalDuration,
+        // Paso de la grilla = intervalo configurado del negocio (Config →
+        // Horarios → "Intervalo de turnos"), NO la duración del servicio
+        // elegido. Si el paso fuera la propia duración, dos servicios de
+        // duración distinta prueban horarios candidatos distintos contra
+        // los mismos turnos ocupados y pueden "saltear" un turno bloqueado
+        // de forma diferente, dando disponibilidad distinta sin ninguna
+        // razón real (bug real observado: un servicio de 40 min mostraba
+        // horarios hasta las 17:00 y uno de 60 min hasta las 20:00, mismo
+        // profesional y día). Con un paso fijo, ambos prueban exactamente
+        // los mismos horarios candidatos.
+        reservationSettings.interval,
+        businessTimeZone,
       ),
     [
       schedule,
@@ -575,6 +586,8 @@ function PublicBookingPage() {
       businessSpecial,
       employeeSpecial,
       reservationSettings.maxAdvance,
+      reservationSettings.interval,
+      businessTimeZone,
     ],
   );
   const availableDays = React.useMemo(() => slots.filter((day) => day.slots.length > 0), [slots]);
@@ -603,7 +616,7 @@ function PublicBookingPage() {
         const fetchBusiness = () => {
           const businessQuery = supabase
             .from("public_booking_businesses")
-            .select("id,name,slug,address,phone,email,instagram,logo_url,avatar_url,cover_url,accent_color");
+            .select("id,name,slug,address,phone,email,instagram,logo_url,avatar_url,cover_url,accent_color,timezone");
           return isUuid(slug)
             ? businessQuery.eq("id", slug).maybeSingle()
             : businessQuery.eq("slug", slug).maybeSingle();
@@ -1095,8 +1108,8 @@ function PublicBookingPage() {
     const confirmationSnapshot = {
       services: selectedServices.map((service) => service.name).join(" + "),
       professional: selectedEmployee?.full_name ?? "Sin preferencia",
-      date: formatDay(selectedSlot.time),
-      time: formatTime(selectedSlot.time),
+      date: formatDay(selectedSlot.time, businessTimeZone),
+      time: formatTime(selectedSlot.time, businessTimeZone),
       duration: totalDuration,
       total: finalServicesPrice + productsTotal,
       originalTotal: originalServicesPrice + productsTotal,
@@ -1411,7 +1424,7 @@ function PublicBookingPage() {
                   primera línea, que en pantallas chicas no siempre alcanza
                   para las tres cosas juntas. */}
               <p className="mt-0.5 text-xs text-white/40">
-                {selectedSlot ? `${formatShortDay(selectedSlot.time)} · ${formatTime(selectedSlot.time)}` : "Sin horario"}
+                {selectedSlot ? `${formatShortDay(selectedSlot.time, businessTimeZone)} · ${formatTime(selectedSlot.time, businessTimeZone)}` : "Sin horario"}
               </p>
               <p className="mt-0.5 truncate text-xs text-white/40">
                 <span className="font-semibold text-white">Total: {professionalChosen ? formatMoney(grandTotal) : "$—"}</span>
@@ -2005,7 +2018,7 @@ function PublicBookingPage() {
                             onClick={() => { selectSlot(slot); }}
                             className="slot-button flex w-full items-center rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 pl-7 text-left text-base font-semibold transition hover:border-white/25 hover:bg-white/[0.08] sm:px-6 sm:py-4 sm:pl-8"
                           >
-                            {formatTime(slot.time)}
+                            {formatTime(slot.time, businessTimeZone)}
                           </button>
                         ))}
                       </div>
@@ -2276,8 +2289,8 @@ function PublicBookingPage() {
                           { label: "Profesional", value: confirmedBooking?.professional || selectedEmployee?.full_name || "Sin preferencia", icon: UserRound },
                           { label: "Cliente", value: confirmedBooking?.clientName || clientName, icon: UsersRound },
                           { label: "Teléfono", value: confirmedBooking?.clientPhone || clientPhone, icon: Phone },
-                          { label: "Fecha", value: confirmedBooking?.date || (selectedSlot ? formatDay(selectedSlot.time) : "-"), icon: CalendarDays },
-                          { label: "Horario", value: confirmedBooking?.time || (selectedSlot ? formatTime(selectedSlot.time) : "-"), icon: Clock3 },
+                          { label: "Fecha", value: confirmedBooking?.date || (selectedSlot ? formatDay(selectedSlot.time, businessTimeZone) : "-"), icon: CalendarDays },
+                          { label: "Horario", value: confirmedBooking?.time || (selectedSlot ? formatTime(selectedSlot.time, businessTimeZone) : "-"), icon: Clock3 },
                         ].map((item) => (
                           <div key={item.label} className={cn("rounded-2xl border p-4", isLight ? "border-slate-200 bg-white" : "border-white/[0.06] bg-black/20")}>
                             <div className="flex items-center gap-3">
