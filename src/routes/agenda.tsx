@@ -158,6 +158,15 @@ const PAST_SLOT_MESSAGE = "No podés crear turnos en horarios que ya pasaron.";
 // Sin aviso: las restricciones se aplican en silencio, sin toast. `getApptEnd`
 // está declarado más abajo (función hoisteada).
 const isPastAppointment = (a: Appointment) => getApptEnd(a).getTime() < Date.now();
+// Ya arrancó la hora de inicio del turno (aunque todavía no haya terminado).
+// starts_at es timestamptz — comparar instantes absolutos (.getTime()) es
+// correcto sin importar la zona horaria del negocio o de quien mira la
+// pantalla, no hace falta convertir a hora local de nadie. Se usa
+// específicamente para la acción "Confirmar turno": a partir de que arranca
+// el horario, ya no tiene sentido "confirmar" — la única acción de estado
+// que queda es "No asistió", elegida a mano por el usuario (nunca se cambia
+// el estado solo).
+const hasAppointmentStarted = (a: Appointment) => new Date(a.starts_at).getTime() <= Date.now();
 const AGENDA_EMPLOYEE_COL_PX = 160;
 const AGENDA_VIRTUALIZE_AFTER = 12;
 const AGENDA_VIRTUAL_OVERSCAN = 4;
@@ -806,9 +815,16 @@ function AgendaPage() {
   };
 
   const onChangeStatus = async (a: Appointment, status: ApptStatus) => {
-    // Turno pasado: no se cancela ni confirma; se marca como "No asistió" para
-    // conservar historial (sin aviso).
+    // Turno pasado (ya terminó): no se cancela ni confirma; se marca como
+    // "No asistió" para conservar historial (sin aviso).
     if (a.status !== "blocked" && isPastAppointment(a) && status !== "no_show") {
+      return;
+    }
+    // Desde que ARRANCA el turno (aunque todavía no haya terminado) ya no se
+    // puede "Confirmar" — el botón correspondiente ya está oculto en la UI
+    // (ver showConfirm en AppointmentDetailDialog), esto es el respaldo del
+    // lado de la escritura.
+    if (a.status !== "blocked" && hasAppointmentStarted(a) && status === "confirmed") {
       return;
     }
     // Un turno cobrado es estado final: no se permite ningún cambio de estado.
@@ -3839,9 +3855,15 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                   del turno, a diferencia de Cobrar/Cancelar (operativas). */}
               {(() => {
                 const status = appointment.status;
-                const showConfirm = !isPast && status === "pending";
+                // Basado en la hora de INICIO del turno, no en la de fin
+                // (isPast, usado para el resto de las acciones): apenas
+                // arranca el horario ya no corresponde "Confirmar" — la
+                // acción disponible pasa a ser "No asistió", que el usuario
+                // elige a mano (el estado nunca cambia solo).
+                const started = hasAppointmentStarted(appointment);
+                const showConfirm = !started && status === "pending";
                 const showNoShow =
-                  isPast && status !== "cancelled" && status !== "no_show" && status !== "charged";
+                  started && status !== "cancelled" && status !== "no_show" && status !== "charged";
                 if (!showConfirm && !showNoShow) return null;
                 return (
                   <div className="space-y-2">
