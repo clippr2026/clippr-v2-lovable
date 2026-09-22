@@ -580,9 +580,20 @@ export function AppointmentDialog({
     if (!serviceName.trim()) return toast.error("Elegí un servicio.");
     if (!dateValue || !hourValue || !minuteValue) return toast.error("Falta la fecha y hora.");
 
+    const start = buildLocalDate(dateValue, hourValue, minuteValue);
+    // El casillero que se tocó en la Agenda para abrir este formulario solo
+    // preseleccionó una hora inicial — nunca decidió que el turno fuera
+    // inválido. La validación de "horario que ya pasó" se hace acá, recién
+    // al confirmar, contra la hora FINAL que el usuario dejó cargada (pudo
+    // haberla cambiado dentro del formulario). Solo aplica a turnos nuevos:
+    // editar un turno que ya ocurrió (agregar notas, marcarlo cobrado, etc.)
+    // tiene que seguir funcionando sin este bloqueo.
+    if (!isEdit && start.getTime() < Date.now()) {
+      return toast.error("No podés crear turnos en horarios que ya pasaron.");
+    }
+
     setBusy(true);
     try {
-      const start = buildLocalDate(dateValue, hourValue, minuteValue);
       const dates = isEdit ? [start] : getRepeatDates(start, repeat);
 
       // ── Schedule validation (ANTES de crear el cliente, para poder
