@@ -79,66 +79,55 @@ const WEEKDAYS = [
 ] as const;
 
 type DayKey = (typeof WEEKDAYS)[number][0];
+// breakStart/breakEnd opcionales: su AUSENCIA es la señal de "sin descanso
+// este día" en todo el motor de disponibilidad (@/lib/availability) — nunca
+// se asume un descanso por default. La presencia de ambos campos es lo que
+// representa "Descanso" prendido; no hay un booleano separado persistido.
 type DaySchedule = {
   enabled: boolean;
   start: string;
   end: string;
-  breakStart: string;
-  breakEnd: string;
+  breakStart?: string;
+  breakEnd?: string;
 };
 type ScheduleMap = Record<DayKey, DaySchedule>;
 
 const DEFAULT_SCHEDULE: ScheduleMap = {
-  mon: {
-    enabled: true,
-    start: "11:00",
-    end: "20:00",
-    breakStart: "12:00",
-    breakEnd: "13:00",
-  },
-  tue: {
-    enabled: true,
-    start: "11:00",
-    end: "20:00",
-    breakStart: "12:00",
-    breakEnd: "13:00",
-  },
-  wed: {
-    enabled: true,
-    start: "11:00",
-    end: "20:00",
-    breakStart: "12:00",
-    breakEnd: "13:00",
-  },
-  thu: {
-    enabled: true,
-    start: "11:00",
-    end: "20:00",
-    breakStart: "12:00",
-    breakEnd: "13:00",
-  },
-  fri: {
-    enabled: true,
-    start: "11:00",
-    end: "20:00",
-    breakStart: "12:00",
-    breakEnd: "13:00",
-  },
-  sat: {
-    enabled: true,
-    start: "11:00",
-    end: "20:00",
-    breakStart: "12:00",
-    breakEnd: "13:00",
-  },
-  sun: {
-    enabled: false,
-    start: "11:00",
-    end: "20:00",
-    breakStart: "12:00",
-    breakEnd: "13:00",
-  },
+  mon: { enabled: true, start: "11:00", end: "20:00" },
+  tue: { enabled: true, start: "11:00", end: "20:00" },
+  wed: { enabled: true, start: "11:00", end: "20:00" },
+  thu: { enabled: true, start: "11:00", end: "20:00" },
+  fri: { enabled: true, start: "11:00", end: "20:00" },
+  sat: { enabled: true, start: "11:00", end: "20:00" },
+  sun: { enabled: false, start: "11:00", end: "20:00" },
 };
+
+function scheduleTimeToMinutes(value: string): number {
+  const [h, m] = String(value || "0:00").split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
+// Valida el horario semanal completo antes de guardar. Solo exige reglas
+// sobre el descanso (Desde < Hasta, dentro del horario laboral del día) —
+// el horario laboral en sí no se toca acá, no es parte de este fix.
+function validateEmployeeSchedule(schedule: ScheduleMap): string | null {
+  for (const [key, label] of WEEKDAYS) {
+    const d = schedule[key];
+    if (!d?.enabled) continue;
+    if (!d.breakStart || !d.breakEnd) continue;
+    const dayStart = scheduleTimeToMinutes(d.start);
+    const dayEnd = scheduleTimeToMinutes(d.end);
+    const breakStart = scheduleTimeToMinutes(d.breakStart);
+    const breakEnd = scheduleTimeToMinutes(d.breakEnd);
+    if (breakEnd <= breakStart) {
+      return `El descanso del ${label.toLowerCase()} debe tener un horario de fin posterior al de inicio.`;
+    }
+    if (breakStart < dayStart || breakEnd > dayEnd) {
+      return `El descanso del ${label.toLowerCase()} tiene que estar dentro del horario laboral (${d.start} a ${d.end}).`;
+    }
+  }
+  return null;
+}
 
 type EmployeeRow = {
   id: string;
@@ -1492,6 +1481,12 @@ export function EquipoSection() {
     if (!name) {
       setDlgTab("perfil");
       return toast.error("Ingresá el nombre completo");
+    }
+
+    const scheduleErr = validateEmployeeSchedule(form.schedule);
+    if (scheduleErr) {
+      setDlgTab("horarios");
+      return toast.error(scheduleErr);
     }
 
     const commission = form.commissionPct ? Number(form.commissionPct) : null;
@@ -3192,34 +3187,66 @@ export function EquipoSection() {
                             />
                           </div>
                         </div>
-                        <div className={cn("space-y-1.5", !d.enabled && "opacity-40")}>
-                          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
-                            Descanso
+                        {d.enabled && (
+                          <div className="space-y-1.5 border-t border-white/5 pt-3">
+                            <div className="flex items-center justify-between">
+                              <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+                                Descanso
+                              </div>
+                              <button
+                                type="button"
+                                role="switch"
+                                aria-checked={Boolean(d.breakStart && d.breakEnd)}
+                                onClick={() =>
+                                  setDay(
+                                    key,
+                                    d.breakStart && d.breakEnd
+                                      ? { breakStart: undefined, breakEnd: undefined }
+                                      : { breakStart: "13:00", breakEnd: "14:00" },
+                                  )
+                                }
+                                className={cn(
+                                  "h-5 w-9 shrink-0 overflow-hidden rounded-full relative transition-colors",
+                                  d.breakStart && d.breakEnd ? "bg-primary" : "bg-white/15",
+                                )}
+                              >
+                                <span
+                                  className={cn(
+                                    "absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all",
+                                    d.breakStart && d.breakEnd ? "left-[18px]" : "left-0.5",
+                                  )}
+                                />
+                              </button>
+                            </div>
+                            {/* Con Descanso apagado no hay ningún rango elegido —
+                                se oculta toda la sección en vez de mostrar
+                                campos deshabilitados, igual que en Horario
+                                especial. */}
+                            {d.breakStart && d.breakEnd && (
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="time"
+                                  value={d.breakStart}
+                                  onChange={(e) =>
+                                    setDay(key, { breakStart: e.target.value })
+                                  }
+                                  className={timeCls}
+                                />
+                                <span className="shrink-0 text-xs text-muted-foreground">
+                                  a
+                                </span>
+                                <input
+                                  type="time"
+                                  value={d.breakEnd}
+                                  onChange={(e) =>
+                                    setDay(key, { breakEnd: e.target.value })
+                                  }
+                                  className={timeCls}
+                                />
+                              </div>
+                            )}
                           </div>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="time"
-                              value={d.breakStart}
-                              disabled={!d.enabled}
-                              onChange={(e) =>
-                                setDay(key, { breakStart: e.target.value })
-                              }
-                              className={timeCls}
-                            />
-                            <span className="shrink-0 text-xs text-muted-foreground">
-                              a
-                            </span>
-                            <input
-                              type="time"
-                              value={d.breakEnd}
-                              disabled={!d.enabled}
-                              onChange={(e) =>
-                                setDay(key, { breakEnd: e.target.value })
-                              }
-                              className={timeCls}
-                            />
-                          </div>
-                        </div>
+                        )}
                       </div>
                     );
                   })}
