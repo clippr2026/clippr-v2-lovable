@@ -256,42 +256,18 @@ export function resolveSingleDay(schedule: ScheduleMap | null, special: SpecialD
 
 const CLOSED_DAY: DaySchedule = { enabled: false, start: "00:00", end: "00:00" };
 
-// Intersección de dos ventanas horarias + unión de sus descansos. Si alguna
-// ventana es inválida (horas mal cargadas) o la intersección queda vacía,
-// el día se trata como cerrado — nunca se inventa un horario por default.
-function intersectDaySchedule(a: DaySchedule, b: DaySchedule): DaySchedule {
-  const aOpen = parseTimeStrict(a.start);
-  const aClose = parseTimeStrict(a.end);
-  const bOpen = parseTimeStrict(b.start);
-  const bClose = parseTimeStrict(b.end);
-  if (aOpen === null || aClose === null || bOpen === null || bClose === null) {
-    return CLOSED_DAY;
-  }
-  const open = Math.max(aOpen, bOpen);
-  const close = Math.min(aClose, bClose);
-  if (open >= close) return CLOSED_DAY;
-
-  const breaks: Array<{ start: string; end: string }> = [];
-  if (a.breakStart && a.breakEnd) breaks.push({ start: a.breakStart, end: a.breakEnd });
-  if (b.breakStart && b.breakEnd) breaks.push({ start: b.breakStart, end: b.breakEnd });
-
-  return {
-    enabled: true,
-    start: minutesToTimeString(open),
-    end: minutesToTimeString(close),
-    breakStart: breaks[0]?.start,
-    breakEnd: breaks[0]?.end,
-    breaks,
-  };
-}
-
-// Igual que intersectDaySchedule (intersección de ventana con el negocio),
-// pero el descanso queda determinado ÚNICAMENTE por `override`: un "Horario
-// especial" cargado para (profesional, fecha) es un reemplazo completo de ese
-// día, no una capa que se SUMA al descanso del negocio. Sin esto, apagar el
-// switch "Descanso" (o "Eliminar descanso" desde la Agenda) no podía sacar un
-// descanso heredado del negocio — el descanso propio se borraba pero el del
-// negocio seguía uniéndose y el bloque reaparecía igual.
+// Intersección de la ventana horaria (negocio ∩ profesional) — el profesional
+// nunca puede trabajar fuera del horario del negocio — pero el descanso sale
+// ÚNICAMENTE de `override` (el horario del profesional: especial de la fecha
+// si existe, si no el semanal recurrente). Un profesional + día = como máximo
+// UN descanso recurrente activo: si el profesional tiene su propio horario
+// configurado ese día, SU descanso (o la ausencia de descanso) manda, nunca
+// se SUMA al descanso del negocio. Antes esta función unía ambos descansos —
+// eso hacía que, por ejemplo, cambiar el descanso de un profesional de
+// 12:00-13:00 a 13:00-14:00 dejara los DOS bloques visibles en la Agenda (el
+// del negocio seguía uniéndose), y que apagar un descanso no lo sacara si el
+// negocio tenía uno heredado. Si alguna ventana es inválida o la intersección
+// queda vacía, el día se trata como cerrado — nunca se inventa un horario.
 function applyBreakOverride(bizDay: DaySchedule, override: DaySchedule): DaySchedule {
   const bizOpen = parseTimeStrict(bizDay.start);
   const bizClose = parseTimeStrict(bizDay.end);
@@ -330,20 +306,13 @@ export function resolveDaySchedule(
 
   if (!employeeId) return bizDay;
 
-  // Horario especial del profesional para ESTA fecha exacta: override
-  // completo — manda su descanso (o la ausencia de descanso), sin heredar el
-  // del negocio ni el de su horario semanal recurrente.
-  const empSpecialForDate = employeeSpecial[employeeId]?.[toDateKey(date)];
-  if (empSpecialForDate) {
-    if (empSpecialForDate.enabled === false) return { ...empSpecialForDate, enabled: false };
-    return applyBreakOverride(bizDay, empSpecialForDate);
-  }
-
-  const empDay = scheduleForWeekday(employeeSchedules[employeeId] ?? null, date);
+  // Horario propio del profesional para este día (especial de la fecha
+  // exacta → si no, semanal recurrente — misma prioridad que resolveSingleDay).
+  const empDay = resolveSingleDay(employeeSchedules[employeeId] ?? null, employeeSpecial[employeeId] ?? {}, date);
   if (!empDay) return bizDay; // profesional sin horario propio configurado → hereda el del negocio
   if (empDay.enabled === false) return { ...empDay, enabled: false };
 
-  return intersectDaySchedule(bizDay, empDay);
+  return applyBreakOverride(bizDay, empDay);
 }
 
 // Todos los descansos configurados para un DaySchedule ya resuelto (soporta

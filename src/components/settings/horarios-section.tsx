@@ -147,12 +147,19 @@ export function HorariosSection() {
 
     const schedule: Record<string, any> = { ...existing };
     days.forEach((day, i) => {
+      // Esta pantalla no tiene control de "descanso" del negocio (eso vive
+      // en Equipo → Horarios, por profesional). Antes se pisaba acá un
+      // breakStart/breakEnd fijo en 12:00-13:00 en CADA guardado, invisible
+      // para el usuario — resolveDaySchedule lo unía al descanso propio de
+      // cada profesional y terminaba mostrando dos bloques de descanso en la
+      // Agenda. Se preserva lo que ya hubiera (si alguna vez se cargó por
+      // otra vía) en vez de reescribirlo con un valor inventado.
+      const prevDay = (existing[dayKeys[i]] ?? {}) as Record<string, unknown>;
       schedule[dayKeys[i]] = {
+        ...prevDay,
         enabled: day.enabled,
         start: day.open,
         end: day.close,
-        breakStart: "12:00",
-        breakEnd: "13:00",
       };
     });
 
