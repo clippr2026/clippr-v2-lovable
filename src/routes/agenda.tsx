@@ -291,6 +291,7 @@ function AgendaPage() {
   const [blockDialog, setBlockDialog] = React.useState<{
     employeeId: string | null;
     startsAt: Date;
+    endsAt?: Date | null;
     appointment?: Appointment | null;
   } | null>(null);
   const [newMenu, setNewMenu] = React.useState(false);
@@ -459,9 +460,10 @@ function AgendaPage() {
     employeeId: string | null,
     startsAt: Date,
     appointment?: Appointment | null,
+    endsAt?: Date | null,
   ) => {
     setSlotMenu(null);
-    setBlockDialog({ employeeId, startsAt, appointment });
+    setBlockDialog({ employeeId, startsAt, endsAt: endsAt ?? null, appointment });
     setActiveDrawer("block");
   };
 
@@ -523,14 +525,28 @@ function AgendaPage() {
     });
   };
 
-  const openBlockFromSpecial = () => {
+  // Bloquea EXACTAMENTE el rango desde/hasta que el usuario tipeó en el
+  // switch "Descanso" del editor de horario especial — no la hora en la que
+  // se abrió el modal (`specialEditor.startsAt`), que podía no tener nada
+  // que ver con el rango elegido y terminaba guardando un bloqueo en un
+  // horario distinto al seleccionado.
+  const openBlockFromSpecial = (breakStart: string, breakEnd: string) => {
     if (!specialEditor?.employeeId) {
       toast.error("Seleccioná un profesional para bloquear horario.");
       return;
     }
-    const start = specialEditor.startsAt ?? specialEditor.date;
+    if (!breakStart || !breakEnd) {
+      toast.error("Completá el horario de descanso (desde/hasta) para poder bloquearlo.");
+      return;
+    }
+    const dateKey = toDateKey(specialEditor.date);
+    const [startHour, startMinute] = breakStart.split(":");
+    const [endHour, endMinute] = breakEnd.split(":");
+    const start = combineLocalDateTime(dateKey, startHour, startMinute);
+    const end = combineLocalDateTime(dateKey, endHour, endMinute);
+    const employeeId = specialEditor.employeeId;
     setSpecialEditor(null);
-    openBlockDialog(specialEditor.employeeId, start);
+    openBlockDialog(employeeId, start, null, end);
   };
 
   const openSpecialFromBreak = () => {
@@ -580,6 +596,34 @@ function AgendaPage() {
     setNewMenu(false);
   };
 
+  // Persiste el DaySchedule de (profesional, fecha) en
+  // business_settings.schedule._employeeSpecialDates. Única fuente de verdad
+  // de "horario especial"/"descanso" a nivel agenda — la usan tanto guardar
+  // desde el editor como el borrado directo de un descanso.
+  const persistEmployeeSpecialDay = async (employeeId: string, dateKey: string, day: DaySchedule) => {
+    if (!data.businessId) return false;
+    const { data: row } = await supabase
+      .from("business_settings")
+      .select("schedule")
+      .eq("business_id", data.businessId)
+      .maybeSingle();
+    const sched = (row?.schedule ?? {}) as Record<string, any>;
+    const empSpecial = (sched._employeeSpecialDates ?? {}) as Record<string, Record<string, unknown>>;
+    const forEmp = (empSpecial[employeeId] ?? {}) as Record<string, unknown>;
+    const next = {
+      ...sched,
+      _employeeSpecialDates: {
+        ...empSpecial,
+        [employeeId]: { ...forEmp, [dateKey]: day },
+      },
+    };
+    const { error } = await supabase
+      .from("business_settings")
+      .upsert({ business_id: data.businessId, schedule: next }, { onConflict: "business_id" });
+    if (error) throw error;
+    return true;
+  };
+
   const saveSpecialFromAgenda = async (day: DaySchedule) => {
     if (!specialEditor || !data.businessId) return;
     if (!specialEditor.employeeId) {
@@ -587,36 +631,55 @@ function AgendaPage() {
       return;
     }
     setSpecialEditor((s) => (s ? { ...s, saving: true } : s));
-    const key = toDateKey(specialEditor.date);
     try {
-      const { data: row } = await supabase
-        .from("business_settings")
-        .select("schedule")
-        .eq("business_id", data.businessId)
-        .maybeSingle();
-      const sched = (row?.schedule ?? {}) as Record<string, any>;
-      const empSpecial = (sched._employeeSpecialDates ?? {}) as Record<
-        string,
-        Record<string, unknown>
-      >;
-      const forEmp = (empSpecial[specialEditor.employeeId] ?? {}) as Record<string, unknown>;
-      const next = {
-        ...sched,
-        _employeeSpecialDates: {
-          ...empSpecial,
-          [specialEditor.employeeId]: { ...forEmp, [key]: day },
-        },
-      };
-      const { error } = await supabase
-        .from("business_settings")
-        .upsert({ business_id: data.businessId, schedule: next }, { onConflict: "business_id" });
-      if (error) throw error;
+      await persistEmployeeSpecialDay(specialEditor.employeeId, toDateKey(specialEditor.date), day);
       toast.success("Horario especial guardado.");
       setSpecialEditor(null);
       data.refresh();
     } catch {
       toast.error("No se pudo guardar el horario especial. Probá de nuevo.");
       setSpecialEditor((s) => (s ? { ...s, saving: false } : s));
+    }
+  };
+
+  // Elimina el descanso de (profesional, fecha) directamente desde el modal
+  // de la grilla, sin pasar por el editor de horario especial. Conserva el
+  // horario disponible propio del profesional (start/end), solo borra
+  // breakStart/breakEnd.
+  const deleteBreakFromAgenda = async () => {
+    if (!breakModal?.employeeId || !data.businessId) {
+      setBreakModal(null);
+      return;
+    }
+    const employeeId = breakModal.employeeId;
+    const dateKey = toDateKey(breakModal.date);
+    const day = resolveDaySchedule(
+      data.schedule,
+      data.employeeSchedules ?? {},
+      data.businessSpecialDates ?? {},
+      data.employeeSpecialDates ?? {},
+      employeeId,
+      breakModal.date,
+    );
+    const empOwn = resolveSingleDay(
+      data.employeeSchedules[employeeId] ?? null,
+      data.employeeSpecialDates?.[employeeId] ?? {},
+      breakModal.date,
+    );
+    const bizOwn = resolveSingleDay(data.schedule, data.businessSpecialDates ?? {}, breakModal.date);
+    const base = empOwn ?? bizOwn ?? day;
+    const next: DaySchedule = {
+      enabled: base?.enabled !== false,
+      start: base?.start ?? "11:00",
+      end: base?.end ?? "20:00",
+    };
+    setBreakModal(null);
+    try {
+      await persistEmployeeSpecialDay(employeeId, dateKey, next);
+      toast.success("Descanso eliminado.");
+      data.refresh();
+    } catch {
+      toast.error("No se pudo eliminar el descanso. Probá de nuevo.");
     }
   };
 
@@ -1440,10 +1503,10 @@ function AgendaPage() {
                   Editar horario
                 </button>
                 <button
-                  onClick={() => setBreakModal(null)}
-                  className="w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-4 py-2.5 text-sm hover:bg-white/10"
+                  onClick={deleteBreakFromAgenda}
+                  className="w-full rounded-xl border border-red-400/30 bg-red-500/10 px-4 py-2.5 text-sm font-semibold text-red-300 hover:bg-red-500/20"
                 >
-                  Cerrar
+                  Eliminar descanso
                 </button>
               </div>
             </div>
@@ -1550,6 +1613,7 @@ function AgendaPage() {
           employees={data.employees}
           initialEmployeeId={blockDialog?.employeeId ?? null}
           initialStartsAt={blockDialog?.startsAt ?? cursor}
+          initialEndsAt={blockDialog?.endsAt ?? null}
           appointment={blockDialog?.appointment ?? null}
           onSave={saveBlock}
         />
@@ -1601,6 +1665,29 @@ const draggedBreakRef: {
 function getApptEnd(a: Appointment) {
   if (a.ends_at) return new Date(a.ends_at);
   return new Date(new Date(a.starts_at).getTime() + Number(a.duration_min ?? 30) * 60_000);
+}
+
+// Suma la duración total cubierta por una lista de rangos [start, end] en ms,
+// fusionando los que se superponen (para no contar dos veces el tramo
+// compartido por turnos solapados). Devuelve el total en milisegundos.
+function unionRangeMinutes(ranges: { start: number; end: number }[]): number {
+  if (ranges.length === 0) return 0;
+  const sorted = [...ranges].sort((a, b) => a.start - b.start);
+  let total = 0;
+  let curStart = sorted[0].start;
+  let curEnd = sorted[0].end;
+  for (let i = 1; i < sorted.length; i++) {
+    const r = sorted[i];
+    if (r.start <= curEnd) {
+      curEnd = Math.max(curEnd, r.end);
+    } else {
+      total += curEnd - curStart;
+      curStart = r.start;
+      curEnd = r.end;
+    }
+  }
+  total += curEnd - curStart;
+  return total;
 }
 
 function computeOverlapLayouts(appts: Appointment[]) {
@@ -2416,19 +2503,28 @@ const DayView = React.memo(function DayView({
               (sum, b) => sum + Math.max(0, b.endMin - b.startMin),
               0,
             );
-            const apptMinutes = (a: Appointment) =>
-              Math.max(0, (getApptEnd(a).getTime() - new Date(a.starts_at).getTime()) / 60_000);
-            const blockedMinutes = empDayAppts
-              .filter((a) => a.status === "blocked")
-              .reduce((sum, a) => sum + apptMinutes(a), 0);
-            const occupiedMinutes = empDayAppts
-              .filter((a) =>
-                a.status === "pending" ||
-                a.status === "confirmed" ||
-                a.status === "completed" ||
-                a.status === "charged",
-              )
-              .reduce((sum, a) => sum + apptMinutes(a), 0);
+            // Unión de rangos (no suma naive): dos turnos superpuestos para
+            // el mismo profesional no deben contar el minuto compartido dos
+            // veces, o el % de ocupación queda inflado por encima de lo real
+            // (podía llegar a "100% ocupado" con huecos reales en el día).
+            const apptRange = (a: Appointment) => ({
+              start: new Date(a.starts_at).getTime(),
+              end: getApptEnd(a).getTime(),
+            });
+            const blockedMinutes =
+              unionRangeMinutes(empDayAppts.filter((a) => a.status === "blocked").map(apptRange)) / 60_000;
+            const occupiedMinutes =
+              unionRangeMinutes(
+                empDayAppts
+                  .filter(
+                    (a) =>
+                      a.status === "pending" ||
+                      a.status === "confirmed" ||
+                      a.status === "completed" ||
+                      a.status === "charged",
+                  )
+                  .map(apptRange),
+              ) / 60_000;
             const hasSchedule = workingMinutes > 0;
             const availableMinutes = Math.max(0, workingMinutes - breakMinutes - blockedMinutes);
             const occupancyPct = !hasSchedule
@@ -3005,6 +3101,7 @@ function BlockHoursDialog({
   employees,
   initialEmployeeId,
   initialStartsAt,
+  initialEndsAt,
   appointment,
   onSave,
 }: {
@@ -3013,6 +3110,7 @@ function BlockHoursDialog({
   employees: ReturnType<typeof useAgendaData>["employees"];
   initialEmployeeId: string | null;
   initialStartsAt: Date;
+  initialEndsAt?: Date | null;
   appointment: Appointment | null;
   onSave: (payload: {
     appointmentId?: string | null;
@@ -3028,7 +3126,7 @@ function BlockHoursDialog({
   const start = appointment ? new Date(appointment.starts_at) : initialStartsAt;
   const end = appointment?.ends_at
     ? new Date(appointment.ends_at)
-    : new Date(start.getTime() + 60 * 60_000);
+    : (initialEndsAt ?? new Date(start.getTime() + 60 * 60_000));
   const startTime = timeParts(start);
   const endTime = timeParts(end);
   const [label, setLabel] = React.useState(
@@ -3050,7 +3148,7 @@ function BlockHoursDialog({
     const nextStart = appointment ? new Date(appointment.starts_at) : initialStartsAt;
     const nextEnd = appointment?.ends_at
       ? new Date(appointment.ends_at)
-      : new Date(nextStart.getTime() + 60 * 60_000);
+      : (initialEndsAt ?? new Date(nextStart.getTime() + 60 * 60_000));
     const nextStartTime = timeParts(nextStart);
     const nextEndTime = timeParts(nextEnd);
     setLabel(
@@ -3066,7 +3164,7 @@ function BlockHoursDialog({
     setRepeatEnabled(false);
     setRepeatEvery("1");
     setRepeatCount("5");
-  }, [open, appointment, initialEmployeeId, initialStartsAt]);
+  }, [open, appointment, initialEmployeeId, initialStartsAt, initialEndsAt]);
 
   const hours = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
   const minutes = ["00", "15", "30", "45"];
