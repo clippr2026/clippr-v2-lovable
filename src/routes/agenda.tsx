@@ -525,26 +525,29 @@ function AgendaPage() {
     });
   };
 
-  // Bloquea EXACTAMENTE el rango desde/hasta que el usuario tipeó en el
-  // switch "Descanso" del editor de horario especial — no la hora en la que
-  // se abrió el modal (`specialEditor.startsAt`), que podía no tener nada
-  // que ver con el rango elegido y terminaba guardando un bloqueo en un
-  // horario distinto al seleccionado.
+  // "Bloquear horas" es una acción independiente del switch Descanso — no
+  // requiere que Descanso esté prendido ni un rango cargado ahí. Si Descanso
+  // sí tiene un rango válido, se usa como sugerencia inicial (conveniencia:
+  // si el usuario ya tipeó 13:00-14:00 ahí, arrancar el diálogo de bloqueo
+  // en ese mismo rango); si no, arranca desde el horario laboral del día. En
+  // ambos casos el usuario ajusta el rango final en el diálogo que se abre a
+  // continuación (BlockHoursDialog, con selects de hora/minuto editables) —
+  // acá solo se define un punto de partida, nunca el valor final guardado.
   const openBlockFromSpecial = (breakStart: string, breakEnd: string) => {
     if (!specialEditor?.employeeId) {
       toast.error("Seleccioná un profesional para bloquear horario.");
       return;
     }
-    if (!breakStart || !breakEnd) {
-      toast.error("Completá el horario de descanso (desde/hasta) para poder bloquearlo.");
-      return;
-    }
-    const dateKey = toDateKey(specialEditor.date);
-    const [startHour, startMinute] = breakStart.split(":");
-    const [endHour, endMinute] = breakEnd.split(":");
-    const start = combineLocalDateTime(dateKey, startHour, startMinute);
-    const end = combineLocalDateTime(dateKey, endHour, endMinute);
     const employeeId = specialEditor.employeeId;
+    const dateKey = toDateKey(specialEditor.date);
+    const hasBreakRange = Boolean(breakStart && breakEnd && breakEnd > breakStart);
+    const [startHour, startMinute] = (hasBreakRange ? breakStart : specialEditor.start).split(":");
+    const start = combineLocalDateTime(dateKey, startHour, startMinute);
+    let end: Date | null = null;
+    if (hasBreakRange) {
+      const [endHour, endMinute] = breakEnd.split(":");
+      end = combineLocalDateTime(dateKey, endHour, endMinute);
+    }
     setSpecialEditor(null);
     openBlockDialog(employeeId, start, null, end);
   };

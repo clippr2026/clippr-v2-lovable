@@ -197,8 +197,6 @@ export function SpecialDayEditor({
 }) {
   const [state, setState] = React.useState<SpecialFormState>(() => specialStateFromDay(value));
   const patch = (p: Partial<SpecialFormState>) => setState((s) => ({ ...s, ...p }));
-  const canBlock =
-    state.breakEnabled && !!state.breakStart && !!state.breakEnd && toMin(state.breakEnd) > toMin(state.breakStart);
 
   const handleSave = () => {
     const err = validateSpecial(state, allowBreak);
@@ -248,16 +246,18 @@ export function SpecialDayEditor({
           <SpecialDayFields state={state} onChange={patch} allowBreak={allowBreak} closedLabel={closedLabel} />
         </div>
 
-        {/* "Bloquear horas" depende por completo del Descanso: con el switch
-            apagado no hay ningún rango elegido, así que no tiene sentido
-            mostrar el botón (ni deshabilitado) ni ningún texto al respecto —
-            toda la sección desaparece hasta que el usuario prenda Descanso. */}
-        {onBlock && state.breakEnabled && (
+        {/* Acción independiente del switch Descanso: Descanso configura un
+            descanso recurrente, Bloquear horas bloquea una franja puntual —
+            son dos conceptos separados. Siempre visible debajo de Descanso,
+            esté ON u OFF; si Descanso tiene un rango cargado se usa como
+            sugerencia inicial al abrir el diálogo de bloqueo, pero nunca es
+            un requisito para poder bloquear. */}
+        {onBlock && (
           <button
             type="button"
             onClick={() => onBlock(state.breakStart, state.breakEnd)}
-            disabled={saving || !canBlock}
-            className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-amber-500 px-3 text-sm font-semibold text-[#1a1300] shadow-md shadow-amber-500/25 transition hover:bg-amber-400 active:bg-amber-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#15161c] disabled:cursor-not-allowed disabled:bg-amber-500/20 disabled:text-amber-200/40 disabled:shadow-none"
+            disabled={saving}
+            className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-amber-500 px-3 text-sm font-semibold text-[#1a1300] shadow-md shadow-amber-500/25 transition hover:bg-amber-400 active:bg-amber-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#15161c] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <XCircle className="h-4 w-4" />
             Bloquear horas
