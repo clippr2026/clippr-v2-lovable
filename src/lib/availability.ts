@@ -248,7 +248,7 @@ function scheduleForWeekday(schedule: ScheduleMap | null, date: Date): DaySchedu
 // Especial de la fecha (si existe) → si no, semanal. Resolución de UNA sola
 // entidad (negocio o profesional); la intersección de ambas pasa por
 // resolveDaySchedule.
-function resolveSingleDay(schedule: ScheduleMap | null, special: SpecialDateMap, date: Date): DaySchedule | null {
+export function resolveSingleDay(schedule: ScheduleMap | null, special: SpecialDateMap, date: Date): DaySchedule | null {
   const key = toDateKey(date);
   if (special[key]) return special[key];
   return scheduleForWeekday(schedule, date);

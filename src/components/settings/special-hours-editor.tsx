@@ -3,10 +3,10 @@ import { Plus, X, Pencil, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { DarkCalendar } from "@/components/agenda/dark-calendar";
 import { toDateKey, type SpecialDateMap, type DaySchedule } from "@/components/agenda/use-agenda-data";
-import { cn } from "@/lib/utils";
+import { Toggle } from "@/components/settings/shared";
 
 const timeCls =
-  "rounded-lg bg-white/5 ring-1 ring-white/10 px-2.5 py-1.5 text-sm focus:outline-none focus:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50";
+  "h-10 rounded-lg bg-white/5 ring-1 ring-white/10 px-2.5 text-sm focus:outline-none focus:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-50";
 
 // "YYYY-MM-DD" → Date local (mediodía para evitar saltos por zona horaria).
 function keyToDate(key: string): Date {
@@ -30,6 +30,11 @@ export type SpecialFormState = {
   available: boolean;
   start: string;
   end: string;
+  // Switch independiente: el descanso no tiene que estar siempre habilitado.
+  // Cuando está apagado, breakStart/breakEnd se preservan en el estado local
+  // (para no perder lo tipeado si el usuario reactiva el switch) pero NO se
+  // persisten — ver buildSpecialDay.
+  breakEnabled: boolean;
   breakStart: string;
   breakEnd: string;
 };
@@ -37,15 +42,18 @@ export type SpecialFormState = {
 // Construye el DaySchedule canónico desde el estado del formulario. Es la MISMA
 // forma que persiste Configuración → Equipo → Horario especial:
 //   { enabled, start, end, breakStart?, breakEnd? }
-// Si no hay descanso, no se incluyen breakStart/breakEnd.
+// Si no hay descanso (switch apagado o campos incompletos), no se incluyen
+// breakStart/breakEnd — su ausencia es la señal de "sin descanso" en todo el
+// motor de disponibilidad (@/lib/availability).
 export function buildSpecialDay(state: SpecialFormState, allowBreak: boolean): DaySchedule {
   if (!state.available) return { enabled: false, start: "00:00", end: "00:00" };
+  const hasBreak = allowBreak && state.breakEnabled && !!state.breakStart && !!state.breakEnd;
   return {
     enabled: true,
     start: state.start,
     end: state.end,
-    breakStart: allowBreak && state.breakStart ? state.breakStart : undefined,
-    breakEnd: allowBreak && state.breakEnd ? state.breakEnd : undefined,
+    breakStart: hasBreak ? state.breakStart : undefined,
+    breakEnd: hasBreak ? state.breakEnd : undefined,
   };
 }
 
@@ -56,6 +64,7 @@ export function specialStateFromDay(day: DaySchedule | null | undefined): Specia
     available: day?.enabled !== false,
     start: day?.start || "09:00",
     end: day?.end || "15:00",
+    breakEnabled: Boolean(day?.breakStart && day?.breakEnd),
     breakStart: day?.breakStart || "",
     breakEnd: day?.breakEnd || "",
   };
@@ -77,22 +86,8 @@ function SpecialDayFields({
 }) {
   return (
     <div className="space-y-3">
-      <div className="flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => onChange({ available: !state.available })}
-          className={cn(
-            "h-5 w-9 rounded-full relative transition-colors shrink-0",
-            state.available ? "bg-primary" : "bg-white/15",
-          )}
-        >
-          <span
-            className={cn(
-              "absolute top-0.5 h-4 w-4 rounded-full bg-white transition-all",
-              state.available ? "left-[18px]" : "left-0.5",
-            )}
-          />
-        </button>
+      <div className="flex items-center gap-2.5 py-0.5">
+        <Toggle on={state.available} onChange={(v) => onChange({ available: v })} />
         <span className="text-sm">{state.available ? "Disponible" : closedLabel}</span>
       </div>
 
@@ -116,23 +111,34 @@ function SpecialDayFields({
             />
           </div>
 
-          {/* Fila 2 — Descanso: desde / hasta */}
+          {/* Fila 2 — Descanso: switch independiente + desde / hasta.
+              El descanso no tiene que estar siempre habilitado; con el
+              switch apagado no hay descanso ese día y los campos quedan
+              ocultos. */}
           {allowBreak && (
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-              <span className="w-20 shrink-0 text-xs text-muted-foreground">Descanso:</span>
-              <input
-                type="time"
-                value={state.breakStart}
-                onChange={(e) => onChange({ breakStart: e.target.value })}
-                className={timeCls}
-              />
-              <span className="text-muted-foreground text-xs">-</span>
-              <input
-                type="time"
-                value={state.breakEnd}
-                onChange={(e) => onChange({ breakEnd: e.target.value })}
-                className={timeCls}
-              />
+            <div className="space-y-2 border-t border-white/5 pt-3">
+              <div className="flex items-center gap-2.5 py-0.5">
+                <Toggle on={state.breakEnabled} onChange={(v) => onChange({ breakEnabled: v })} />
+                <span className="text-sm">Descanso</span>
+              </div>
+              {state.breakEnabled && (
+                <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                  <span className="w-20 shrink-0 text-xs text-muted-foreground">Desde/hasta:</span>
+                  <input
+                    type="time"
+                    value={state.breakStart}
+                    onChange={(e) => onChange({ breakStart: e.target.value })}
+                    className={timeCls}
+                  />
+                  <span className="text-muted-foreground text-xs">-</span>
+                  <input
+                    type="time"
+                    value={state.breakEnd}
+                    onChange={(e) => onChange({ breakEnd: e.target.value })}
+                    className={timeCls}
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>
@@ -147,8 +153,13 @@ function validateSpecial(state: SpecialFormState, allowBreak: boolean): string |
   if (toMin(state.end) <= toMin(state.start)) {
     return "La hora de fin debe ser posterior a la de inicio.";
   }
-  if (allowBreak && state.breakStart && state.breakEnd && toMin(state.breakEnd) <= toMin(state.breakStart)) {
-    return "El descanso hasta debe ser posterior al descanso desde.";
+  if (allowBreak && state.breakEnabled) {
+    if (!state.breakStart || !state.breakEnd) {
+      return "Completá el horario de descanso o desactivá el interruptor.";
+    }
+    if (toMin(state.breakEnd) <= toMin(state.breakStart)) {
+      return "El descanso hasta debe ser posterior al descanso desde.";
+    }
   }
   return null;
 }
@@ -240,19 +251,19 @@ export function SpecialDayEditor({
             type="button"
             onClick={onBlock}
             disabled={saving}
-            className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-xl border border-amber-300/25 bg-amber-300/10 px-3 text-sm font-semibold text-amber-200 transition hover:bg-amber-300/15 disabled:opacity-50"
+            className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-amber-400/40 bg-amber-500/15 px-3 text-sm font-semibold text-amber-200 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] transition hover:border-amber-400/60 hover:bg-amber-500/25 active:bg-amber-500/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/50 focus-visible:ring-offset-2 focus-visible:ring-offset-[#15161c] disabled:opacity-50"
           >
             <XCircle className="h-4 w-4" />
-            Bloquear horario
+            Bloquear este horario
           </button>
         )}
 
-        <div className="mt-5 flex items-center gap-2">
+        <div className="mt-4 flex items-center gap-2">
           <button
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="flex-1 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 py-2.5 text-sm disabled:opacity-50"
+            className="h-11 flex-1 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 text-sm shadow-lg shadow-violet-500/20 disabled:opacity-50"
           >
             {saving ? "Guardando…" : "Guardar"}
           </button>
@@ -260,7 +271,7 @@ export function SpecialDayEditor({
             type="button"
             onClick={onCancel}
             disabled={saving}
-            className="rounded-xl bg-white/5 ring-1 ring-white/10 px-4 py-2.5 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
+            className="h-11 rounded-xl bg-white/5 ring-1 ring-white/10 px-4 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
           >
             Cancelar
           </button>

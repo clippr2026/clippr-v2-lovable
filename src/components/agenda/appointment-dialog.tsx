@@ -274,6 +274,18 @@ export function AppointmentDialog({
   const isEdit = !!appointment?.id;
   const [busy, setBusy] = React.useState(false);
   const [repeatOpen, setRepeatOpen] = React.useState(false);
+  // Advertencia al agendar manualmente dentro de un descanso (no bloquea, a
+  // diferencia de "fuera de horario laboral" que sigue siendo un bloqueo
+  // duro). "Continuar" reintenta submit() salteando solo ese chequeo.
+  const [breakConfirmOpen, setBreakConfirmOpen] = React.useState(false);
+  const [pendingSubmit, setPendingSubmit] = React.useState<{ addAnother: boolean } | null>(null);
+
+  React.useEffect(() => {
+    if (!open) {
+      setBreakConfirmOpen(false);
+      setPendingSubmit(null);
+    }
+  }, [open]);
 
   // Client config — controls which fields appear in "nuevo cliente"
 
@@ -553,7 +565,7 @@ export function AppointmentDialog({
     return newClient?.id ?? null;
   };
 
-  const submit = async (addAnother = false) => {
+  const submit = async (addAnother = false, skipBreakConfirm = false) => {
     const fullClientName = newClientMode
       ? `${clientFirstName.trim()} ${clientLastName.trim()}`.trim()
       : clientName.trim();
@@ -570,16 +582,16 @@ export function AppointmentDialog({
 
     setBusy(true);
     try {
-      const resolvedClientId = await createClientIfNeeded();
       const start = buildLocalDate(dateValue, hourValue, minuteValue);
       const dates = isEdit ? [start] : getRepeatDates(start, repeat);
-      const mergedNotes = [notes.trim(), internalNotes.trim() ? `Observación interna: ${internalNotes.trim()}` : ""]
-        .filter(Boolean)
-        .join("\n");
 
-      // ── Schedule validation ───────────────────────────────────────────────
+      // ── Schedule validation (ANTES de crear el cliente, para poder
+      // reintentar tras confirmar sin duplicar el cliente nuevo) ───────────
       // Resuelve la prioridad de horarios (especial profesional → normal
       // profesional → especial negocio → normal negocio) para cada fecha.
+      // "Fuera de horario laboral" sigue siendo un bloqueo duro sin
+      // excepción; "dentro de un descanso" se puede confirmar y continuar.
+      let hitsBreak = false;
       for (const date of dates) {
         const day = resolveDaySchedule(
           schedule,
@@ -590,13 +602,28 @@ export function AppointmentDialog({
           date,
         );
         const schedErr = checkDaySchedule(day, date, Number(duration) || 30);
-        if (schedErr) {
-          toast.error(schedErr);
-          setBusy(false);
-          return;
+        if (!schedErr) continue;
+        if (schedErr.includes("descanso")) {
+          if (skipBreakConfirm) continue;
+          hitsBreak = true;
+          continue;
         }
+        toast.error(schedErr);
+        setBusy(false);
+        return;
+      }
+      if (hitsBreak) {
+        setBusy(false);
+        setPendingSubmit({ addAnother });
+        setBreakConfirmOpen(true);
+        return;
       }
       // ─────────────────────────────────────────────────────────────────────
+
+      const resolvedClientId = await createClientIfNeeded();
+      const mergedNotes = [notes.trim(), internalNotes.trim() ? `Observación interna: ${internalNotes.trim()}` : ""]
+        .filter(Boolean)
+        .join("\n");
 
       // ── Overlap validation ────────────────────────────────────────────────
       if (employeeId) {
@@ -1032,6 +1059,49 @@ export function AppointmentDialog({
             </div>
           </div>
       </Wrapper>
+
+      {breakConfirmOpen && (
+        <div
+          className="fixed inset-0 z-[130] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={() => {
+            setBreakConfirmOpen(false);
+            setPendingSubmit(null);
+          }}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-[#15161c] ring-1 ring-white/10 p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-lg font-semibold">Horario de descanso</div>
+            <p className="mt-2 text-sm text-muted-foreground">
+              Estás agendando en un horario de descanso. ¿Querés continuar?
+            </p>
+            <div className="mt-5 flex items-center gap-2">
+              <Button
+                variant="outline"
+                className="h-11 flex-1"
+                onClick={() => {
+                  setBreakConfirmOpen(false);
+                  setPendingSubmit(null);
+                }}
+              >
+                Cancelar
+              </Button>
+              <Button
+                className="h-11 flex-1"
+                onClick={() => {
+                  const addAnother = pendingSubmit?.addAnother ?? false;
+                  setBreakConfirmOpen(false);
+                  setPendingSubmit(null);
+                  submit(addAnother, true);
+                }}
+              >
+                Continuar
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </>
   );
 }

@@ -15,6 +15,7 @@ import {
   parseScheduleTime,
   normalizeDaySchedule,
   resolveDaySchedule,
+  resolveSingleDay,
   checkDaySchedule,
 } from "@/lib/availability";
 import {
@@ -94,7 +95,7 @@ export type Client = {
 };
 
 // Reexport de tipos y resolución compartidos (definidos en @/lib/availability).
-export { DAY_KEYS, toDateKey, parseScheduleTime, normalizeDaySchedule, resolveDaySchedule, checkDaySchedule };
+export { DAY_KEYS, toDateKey, parseScheduleTime, normalizeDaySchedule, resolveDaySchedule, resolveSingleDay, checkDaySchedule };
 export type { DayKey, DaySchedule, ScheduleMap, SpecialDateMap, EmployeeSpecialDateMap };
 
 // (toDateKey y normalizeDaySchedule se importan de @/lib/availability)

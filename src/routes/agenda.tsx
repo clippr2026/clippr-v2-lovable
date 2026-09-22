@@ -25,6 +25,7 @@ import {
   setAppointmentStatus,
   checkDaySchedule,
   resolveDaySchedule,
+  resolveSingleDay,
   toDateKey,
   type Appointment,
   type ApptStatus,
@@ -298,12 +299,21 @@ function AgendaPage() {
   // Descansos habilitados temporalmente (solo en esta sesión, sin tocar la
   // config permanente). Clave: `${employeeId}|${YYYY-MM-DD}`.
   const [enabledBreaks, setEnabledBreaks] = React.useState<Set<string>>(() => new Set());
-  // Modal al tocar un bloque de descanso.
+  // Modal al tocar el bloque DESCANSO ya visible en la grilla (gestionarlo).
   const [breakModal, setBreakModal] = React.useState<{
     employeeId: string | null;
     date: Date;
     breakStart: string;
     breakEnd: string;
+  } | null>(null);
+  // Advertencia al clickear un casillero VACÍO que cae dentro de un descanso
+  // (intención de agendar ahí). Distinta de breakModal: no persiste nada, solo
+  // habilita el slot para ESTA sesión vía `enabledBreaks`.
+  const [breakConfirm, setBreakConfirm] = React.useState<{
+    employeeId: string | null;
+    startsAt: Date;
+    x: number;
+    y: number;
   } | null>(null);
   // Editor de horario especial para (profesional, fecha) desde la Agenda.
   const [specialEditor, setSpecialEditor] = React.useState<{
@@ -402,16 +412,15 @@ function AgendaPage() {
     const breakEnabled = enabledBreaks.has(breakKey);
     const guardErr = checkDaySchedule(resolvedDay, startsAt, 1);
     if (guardErr) {
-      // Descanso: si no está habilitado temporalmente, abrir el modal de
-      // descanso (Cancelar / Habilitar / Editar). Si ya está habilitado, dejar
-      // pasar (cae al setSlotMenu de abajo).
+      // Descanso: si no está habilitado para esta sesión, mostrar la
+      // advertencia (Cancelar / Continuar). Si ya se confirmó, dejar pasar
+      // (cae al setSlotMenu de abajo).
       if (guardErr.includes("descanso") && !breakEnabled) {
-        const br = breakRangeMin(resolvedDay);
-        setBreakModal({
+        setBreakConfirm({
           employeeId,
-          date: startsAt,
-          breakStart: br ? minToHHMM(br.startMin) : (resolvedDay?.breakStart ?? ""),
-          breakEnd: br ? minToHHMM(br.endMin) : (resolvedDay?.breakEnd ?? ""),
+          startsAt,
+          x: event.clientX,
+          y: event.clientY,
         });
         return;
       }
@@ -480,10 +489,19 @@ function AgendaPage() {
       date,
     );
 
-    const base =
-      day?.enabled !== false
-        ? day
-        : resolveDaySchedule(data.schedule, data.employeeSchedules ?? {}, {}, {}, employeeId, date);
+    // Precarga con el horario PROPIO del profesional (especial → semanal),
+    // sin intersectar con el negocio — así, si negocio y profesional tienen
+    // descansos distintos ese día, el formulario muestra y guarda el del
+    // profesional, no el del negocio (que ganaba por orden en el `breaks[]`
+    // combinado de resolveDaySchedule). Si el profesional no tiene nada
+    // propio configurado, cae al horario del negocio como sugerencia inicial.
+    const empOwn = resolveSingleDay(
+      data.employeeSchedules[employeeId] ?? null,
+      data.employeeSpecialDates?.[employeeId] ?? {},
+      date,
+    );
+    const bizOwn = resolveSingleDay(data.schedule, data.businessSpecialDates ?? {}, date);
+    const base = empOwn ?? bizOwn ?? day;
 
     return {
       employeeId,
@@ -515,77 +533,6 @@ function AgendaPage() {
     openBlockDialog(specialEditor.employeeId, start);
   };
 
-  // ── Descanso: habilitar temporalmente / editar horario especial ────────────
-  const enableBreakTemporarily = async () => {
-    if (!breakModal || !breakModal.employeeId || !data.businessId) return;
-
-    const key = toDateKey(breakModal.date);
-
-    const day = resolveDaySchedule(
-      data.schedule,
-      data.employeeSchedules ?? {},
-      data.businessSpecialDates ?? {},
-      data.employeeSpecialDates ?? {},
-      breakModal.employeeId,
-      breakModal.date,
-    );
-
-    if (!day) return;
-
-    try {
-      const { data: row, error: readError } = await supabase
-        .from("business_settings")
-        .select("schedule")
-        .eq("business_id", data.businessId)
-        .maybeSingle();
-
-      if (readError) throw readError;
-
-      const sched = (row?.schedule ?? {}) as Record<string, any>;
-
-      const empSpecial = (sched._employeeSpecialDates ?? {}) as Record<
-        string,
-        Record<string, unknown>
-      >;
-
-      const forEmp = (empSpecial[breakModal.employeeId] ?? {}) as Record<string, unknown>;
-
-      const nextDay = {
-        enabled: day.enabled !== false,
-        start: day.start,
-        end: day.end,
-      };
-
-      const nextSchedule = {
-        ...sched,
-        _employeeSpecialDates: {
-          ...empSpecial,
-          [breakModal.employeeId]: {
-            ...forEmp,
-            [key]: nextDay,
-          },
-        },
-      };
-
-      const { error } = await supabase.from("business_settings").upsert(
-        {
-          business_id: data.businessId,
-          schedule: nextSchedule,
-        },
-        {
-          onConflict: "business_id",
-        },
-      );
-
-      if (error) throw error;
-
-      setBreakModal(null);
-      data.refresh();
-    } catch (error) {
-      console.error(error);
-      toast.error("No se pudo habilitar el descanso. Probá de nuevo.");
-    }
-  };
   const openSpecialFromBreak = () => {
     if (!breakModal || !breakModal.employeeId) {
       setBreakModal(null);
@@ -605,15 +552,24 @@ function AgendaPage() {
       breakModal.employeeId,
       breakModal.date,
     );
+    // Mismo criterio que buildSpecialEditorState: precargar con el horario
+    // PROPIO del profesional, no el intersectado con el negocio.
+    const empOwn = resolveSingleDay(
+      data.employeeSchedules[breakModal.employeeId] ?? null,
+      data.employeeSpecialDates?.[breakModal.employeeId] ?? {},
+      breakModal.date,
+    );
+    const bizOwn = resolveSingleDay(data.schedule, data.businessSpecialDates ?? {}, breakModal.date);
+    const base = empOwn ?? bizOwn ?? day;
     setSpecialEditor({
       employeeId: breakModal.employeeId,
       date: breakModal.date,
       startsAt: breakModal.date,
       available: day?.enabled !== false,
-      start: day?.start ?? "11:00",
-      end: day?.end ?? "20:00",
-      breakStart: day?.breakStart ?? "",
-      breakEnd: day?.breakEnd ?? "",
+      start: base?.start ?? "11:00",
+      end: base?.end ?? "20:00",
+      breakStart: base?.breakStart ?? "",
+      breakEnd: base?.breakEnd ?? "",
       saving: false,
     });
     setBreakModal(null);
@@ -1453,7 +1409,7 @@ function AgendaPage() {
           </>
         ) : null}
 
-        {/* Modal de descanso (Habilitar descanso / Editar horario) */}
+        {/* Modal al tocar el bloque DESCANSO ya visible en la grilla. */}
         {breakModal ? (
           <div
             className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
@@ -1478,16 +1434,64 @@ function AgendaPage() {
               </div>
               <div className="mt-4 flex flex-col gap-2">
                 <button
-                  onClick={enableBreakTemporarily}
+                  onClick={openSpecialFromBreak}
                   className="w-full rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 py-2.5 text-sm"
                 >
-                  Habilitar descanso
+                  Editar horario
                 </button>
                 <button
-                  onClick={openSpecialFromBreak}
+                  onClick={() => setBreakModal(null)}
                   className="w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-4 py-2.5 text-sm hover:bg-white/10"
                 >
-                  Editar horario
+                  Cerrar
+                </button>
+              </div>
+            </div>
+          </div>
+        ) : null}
+
+        {/* Advertencia al agendar manualmente dentro de un descanso (click en
+          casillero vacío). No persiste nada — "Continuar" solo habilita el
+          slot para esta sesión (enabledBreaks) y abre el menú normal. */}
+        {breakConfirm ? (
+          <div
+            className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={() => setBreakConfirm(null)}
+          >
+            <div
+              className="w-full max-w-sm rounded-2xl bg-[#15161c] ring-1 ring-white/10 p-5 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-lg font-semibold">Horario de descanso</div>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Estás agendando en un horario de descanso. ¿Querés continuar?
+              </p>
+              <div className="mt-5 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setBreakConfirm(null)}
+                  className="h-11 flex-1 rounded-xl bg-white/5 ring-1 ring-white/10 px-4 text-sm text-muted-foreground hover:text-foreground"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!breakConfirm) return;
+                    const key = `${breakConfirm.employeeId ?? "__none__"}|${toDateKey(breakConfirm.startsAt)}`;
+                    setEnabledBreaks((prev) => new Set(prev).add(key));
+                    setSlotMenu({
+                      employeeId: breakConfirm.employeeId,
+                      startsAt: breakConfirm.startsAt,
+                      x: breakConfirm.x,
+                      y: breakConfirm.y,
+                      restricted: false,
+                    });
+                    setBreakConfirm(null);
+                  }}
+                  className="h-11 flex-1 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 text-sm"
+                >
+                  Continuar
                 </button>
               </div>
             </div>
@@ -1647,15 +1651,30 @@ function computeOverlapLayouts(appts: Appointment[]) {
 // Day view: columnas por profesional
 // ---------------------------------------------------------------------------
 
-// Devuelve el rango de descanso del día en minutos, o null si no hay descanso
-// válido configurado (o el día está deshabilitado).
-function breakRangeMin(
-  day: { enabled?: boolean; breakStart?: string; breakEnd?: string } | null | undefined,
-): { startMin: number; endMin: number } | null {
-  if (!day || day.enabled === false || !day.breakStart || !day.breakEnd) return null;
-  const startMin = Math.round(parseScheduleTime(day.breakStart) * 60);
-  const endMin = Math.round(parseScheduleTime(day.breakEnd) * 60);
-  return endMin > startMin ? { startMin, endMin } : null;
+// Todos los descansos del día en minutos (negocio + profesional cuando
+// difieren el mismo día — resolveDaySchedule ya los combina en `breaks[]`).
+// Antes solo se leía breakStart/breakEnd (el primero de la combinación), lo
+// que dejaba sin pintar/bloquear el segundo descanso cuando negocio y
+// profesional tenían horarios de descanso distintos ese día.
+function breakRangesMin(
+  day:
+    | { enabled?: boolean; breakStart?: string; breakEnd?: string; breaks?: Array<{ start: string; end: string }> }
+    | null
+    | undefined,
+): { startMin: number; endMin: number }[] {
+  if (!day || day.enabled === false) return [];
+  const raw =
+    day.breaks && day.breaks.length > 0
+      ? day.breaks
+      : day.breakStart && day.breakEnd
+        ? [{ start: day.breakStart, end: day.breakEnd }]
+        : [];
+  return raw
+    .map((b) => ({
+      startMin: Math.round(parseScheduleTime(b.start) * 60),
+      endMin: Math.round(parseScheduleTime(b.end) * 60),
+    }))
+    .filter((b) => b.endMin > b.startMin);
 }
 
 // Minutos del día → "HH:MM".
@@ -1928,9 +1947,22 @@ const DayView = React.memo(function DayView({
       const forEmp = (empSpecial[targetEmpId] ?? {}) as Record<string, unknown>;
       const key = toDateKey(date);
 
+      // No spreadear `day` (el día RESUELTO/intersectado negocio∩profesional,
+      // que puede traer start/end ya recortados y un `breaks[]` residual de
+      // dos entradas) — reconstruir con el horario PROPIO del profesional
+      // como base, igual que buildSpecialEditorState/openSpecialFromBreak.
+      const empOwn = resolveSingleDay(
+        data.employeeSchedules[targetEmpId] ?? null,
+        data.employeeSpecialDates?.[targetEmpId] ?? {},
+        date,
+      );
+      const bizOwn = resolveSingleDay(data.schedule, data.businessSpecialDates ?? {}, date);
+      const base = empOwn ?? bizOwn ?? day;
+
       const nextDay: DaySchedule = {
-        ...day,
-        enabled: day.enabled !== false,
+        enabled: true,
+        start: base.start,
+        end: base.end,
         breakStart: minToHHMM(args.startMin),
         breakEnd: minToHHMM(args.endMin),
       };
@@ -2272,7 +2304,6 @@ const DayView = React.memo(function DayView({
   // normal negocio). Devuelve también los descansos a bloquear.
   const effectiveWindowFor = React.useCallback(
     (empId: string) => {
-      const breaks: { startMin: number; endMin: number }[] = [];
       const day = resolveDaySchedule(
         data.schedule,
         data.employeeSchedules ?? {},
@@ -2285,9 +2316,8 @@ const DayView = React.memo(function DayView({
         // No atiende este día (libre / cerrado) → columna entera bloqueada.
         return { openMin: HOUR_START * 60, closeMin: HOUR_START * 60, breaks: [] };
       }
-      const br = breakRangeMin(day);
       const breakKey = `${empId}|${toDateKey(date)}`;
-      if (br && !enabledBreaks.has(breakKey)) breaks.push(br);
+      const breaks = enabledBreaks.has(breakKey) ? [] : breakRangesMin(day);
       return {
         openMin: Math.round(parseScheduleTime(day.start) * 60),
         closeMin: Math.round(parseScheduleTime(day.end) * 60),
