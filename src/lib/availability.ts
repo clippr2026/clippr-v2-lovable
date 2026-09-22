@@ -285,6 +285,36 @@ function intersectDaySchedule(a: DaySchedule, b: DaySchedule): DaySchedule {
   };
 }
 
+// Igual que intersectDaySchedule (intersección de ventana con el negocio),
+// pero el descanso queda determinado ÚNICAMENTE por `override`: un "Horario
+// especial" cargado para (profesional, fecha) es un reemplazo completo de ese
+// día, no una capa que se SUMA al descanso del negocio. Sin esto, apagar el
+// switch "Descanso" (o "Eliminar descanso" desde la Agenda) no podía sacar un
+// descanso heredado del negocio — el descanso propio se borraba pero el del
+// negocio seguía uniéndose y el bloque reaparecía igual.
+function applyBreakOverride(bizDay: DaySchedule, override: DaySchedule): DaySchedule {
+  const bizOpen = parseTimeStrict(bizDay.start);
+  const bizClose = parseTimeStrict(bizDay.end);
+  const ovOpen = parseTimeStrict(override.start);
+  const ovClose = parseTimeStrict(override.end);
+  if (bizOpen === null || bizClose === null || ovOpen === null || ovClose === null) {
+    return CLOSED_DAY;
+  }
+  const open = Math.max(bizOpen, ovOpen);
+  const close = Math.min(bizClose, ovClose);
+  if (open >= close) return CLOSED_DAY;
+
+  const hasBreak = Boolean(override.breakStart && override.breakEnd);
+  return {
+    enabled: true,
+    start: minutesToTimeString(open),
+    end: minutesToTimeString(close),
+    breakStart: hasBreak ? override.breakStart : undefined,
+    breakEnd: hasBreak ? override.breakEnd : undefined,
+    breaks: hasBreak ? [{ start: override.breakStart!, end: override.breakEnd! }] : [],
+  };
+}
+
 export function resolveDaySchedule(
   businessSchedule: ScheduleMap | null,
   employeeSchedules: Record<string, ScheduleMap>,
@@ -300,7 +330,16 @@ export function resolveDaySchedule(
 
   if (!employeeId) return bizDay;
 
-  const empDay = resolveSingleDay(employeeSchedules[employeeId] ?? null, employeeSpecial[employeeId] ?? {}, date);
+  // Horario especial del profesional para ESTA fecha exacta: override
+  // completo — manda su descanso (o la ausencia de descanso), sin heredar el
+  // del negocio ni el de su horario semanal recurrente.
+  const empSpecialForDate = employeeSpecial[employeeId]?.[toDateKey(date)];
+  if (empSpecialForDate) {
+    if (empSpecialForDate.enabled === false) return { ...empSpecialForDate, enabled: false };
+    return applyBreakOverride(bizDay, empSpecialForDate);
+  }
+
+  const empDay = scheduleForWeekday(employeeSchedules[employeeId] ?? null, date);
   if (!empDay) return bizDay; // profesional sin horario propio configurado → hereda el del negocio
   if (empDay.enabled === false) return { ...empDay, enabled: false };
 

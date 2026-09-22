@@ -248,24 +248,20 @@ export function SpecialDayEditor({
           <SpecialDayFields state={state} onChange={patch} allowBreak={allowBreak} closedLabel={closedLabel} />
         </div>
 
-        {onBlock && (
-          <>
-            <button
-              type="button"
-              onClick={() => onBlock(state.breakStart, state.breakEnd)}
-              disabled={saving || !canBlock}
-              title={canBlock ? undefined : "Activá el Descanso y completá desde/hasta para bloquear ese rango"}
-              className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-amber-500 px-3 text-sm font-semibold text-[#1a1300] shadow-md shadow-amber-500/25 transition hover:bg-amber-400 active:bg-amber-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#15161c] disabled:cursor-not-allowed disabled:bg-amber-500/20 disabled:text-amber-200/40 disabled:shadow-none"
-            >
-              <XCircle className="h-4 w-4" />
-              Bloquear horas
-            </button>
-            {!canBlock && (
-              <p className="mt-1.5 text-[11px] text-muted-foreground">
-                Activá el Descanso arriba y completá desde/hasta para poder bloquear ese rango.
-              </p>
-            )}
-          </>
+        {/* "Bloquear horas" depende por completo del Descanso: con el switch
+            apagado no hay ningún rango elegido, así que no tiene sentido
+            mostrar el botón (ni deshabilitado) ni ningún texto al respecto —
+            toda la sección desaparece hasta que el usuario prenda Descanso. */}
+        {onBlock && state.breakEnabled && (
+          <button
+            type="button"
+            onClick={() => onBlock(state.breakStart, state.breakEnd)}
+            disabled={saving || !canBlock}
+            className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-amber-500 px-3 text-sm font-semibold text-[#1a1300] shadow-md shadow-amber-500/25 transition hover:bg-amber-400 active:bg-amber-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#15161c] disabled:cursor-not-allowed disabled:bg-amber-500/20 disabled:text-amber-200/40 disabled:shadow-none"
+          >
+            <XCircle className="h-4 w-4" />
+            Bloquear horas
+          </button>
         )}
 
         <div className="mt-4 flex items-center gap-2">
