@@ -284,6 +284,19 @@ function AgendaPage() {
     "detail" | "new" | "edit" | "block" | "filter" | null
   >(null);
   const [selected, setSelected] = React.useState<Appointment | null>(null);
+  // Solo para forzar el recálculo de "Confirmar/No asistió/Cancelar" en
+  // AppointmentDetailDialog (memoizado) mientras el drawer sigue abierto y
+  // el reloj cruza la hora de inicio del turno — sin esto, el panel queda
+  // con el botón viejo hasta cerrar y reabrir. Nadie lee el valor de `now`
+  // dentro del diálogo: alcanza con que la referencia cambie cada minuto
+  // para que el memo deje pasar el re-render y hasStarted/isPast (que usan
+  // Date.now() internamente) se vuelvan a evaluar con la hora real.
+  const [now, setNow] = React.useState(() => new Date());
+  React.useEffect(() => {
+    if (activeDrawer !== "detail") return;
+    const id = window.setInterval(() => setNow(new Date()), 30_000);
+    return () => window.clearInterval(id);
+  }, [activeDrawer]);
   const [editing, setEditing] = React.useState<Appointment | null>(null);
   const [dlgDefaults, setDlgDefaults] = React.useState<{
     employeeId?: string | null;
@@ -1608,6 +1621,7 @@ function AgendaPage() {
             if (!open) setActiveDrawer(null);
           }}
           appointment={selected}
+          now={now}
           employees={memoData.employees}
           clients={memoData.clients}
           services={memoData.services}
@@ -3430,6 +3444,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   open,
   onOpenChange,
   appointment,
+  now,
   employees,
   clients,
   services,
@@ -3446,6 +3461,10 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   open: boolean;
   onOpenChange: (v: boolean) => void;
   appointment: Appointment | null;
+  // Solo dispara el re-render del memo cada vez que cambia (ver comentario
+  // en AgendaPage) — hasStarted/isPast siguen leyendo Date.now() por su
+  // cuenta, no el valor de este prop.
+  now: Date;
   employees: ReturnType<typeof useAgendaData>["employees"];
   clients: ReturnType<typeof useAgendaData>["clients"];
   services: ReturnType<typeof useAgendaData>["services"];
@@ -3509,6 +3528,11 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   const appointmentTotal = serviceTotal + productsSubtotal;
   // Turno pasado (no bloqueo): solo lectura. Se ocultan todas las acciones.
   const isPast = appointment.status !== "blocked" && isPastAppointment(appointment);
+  // Ya arrancó la hora de inicio (aunque todavía no haya terminado). Umbral
+  // más temprano que isPast (que usa el FIN): "Confirmar" y "Cancelar"
+  // dejan de tener sentido apenas arranca el horario, no recién cuando
+  // termina — a partir de ahí la única acción de estado es "No asistió".
+  const hasStarted = appointment.status !== "blocked" && hasAppointmentStarted(appointment);
   // Promoción PREVISTA guardada en el turno (snapshot, no se recalcula acá) —
   // se muestra solo como referencia; el cobro definitivo se decide en Caja.
   // El snapshot solo guarda {name, discountType, discountValue}, que es
@@ -3855,15 +3879,9 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                   del turno, a diferencia de Cobrar/Cancelar (operativas). */}
               {(() => {
                 const status = appointment.status;
-                // Basado en la hora de INICIO del turno, no en la de fin
-                // (isPast, usado para el resto de las acciones): apenas
-                // arranca el horario ya no corresponde "Confirmar" — la
-                // acción disponible pasa a ser "No asistió", que el usuario
-                // elige a mano (el estado nunca cambia solo).
-                const started = hasAppointmentStarted(appointment);
-                const showConfirm = !started && status === "pending";
+                const showConfirm = !hasStarted && status === "pending";
                 const showNoShow =
-                  started && status !== "cancelled" && status !== "no_show" && status !== "charged";
+                  hasStarted && status !== "cancelled" && status !== "no_show" && status !== "charged";
                 if (!showConfirm && !showNoShow) return null;
                 return (
                   <div className="space-y-2">
@@ -3951,8 +3969,10 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                   )}
 
                 {/* Cancelar turno — acción operativa, solo mientras el turno
-                    no haya pasado (una vez pasado no se "cancela": o se
-                    cobra, arriba, o se marca "No asistió" junto al estado).
+                    todavía no ARRANCÓ (hasStarted, misma hora de inicio que
+                    Confirmar/No asistió — no la hora de fin de isPast): una
+                    vez que llegó la hora, cancelar ya no tiene sentido, o se
+                    cobra, arriba, o se marca "No asistió" junto al estado.
                     Si ya está cancelado/no asistió, se muestra el estado +
                     quién lo canceló, sin botón. */}
                 {(() => {
@@ -3995,7 +4015,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                     );
                   }
 
-                  if (isPast) return null;
+                  if (hasStarted) return null;
 
                   return confirmCancel ? (
                     <div
