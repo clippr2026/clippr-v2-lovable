@@ -104,6 +104,38 @@ export function normalizeSchedule(value: unknown): ScheduleMap {
   return next;
 }
 
+// Normaliza el horario PROPIO de un profesional (`_employeeSchedules[empId]`).
+// A diferencia de normalizeSchedule (horario del NEGOCIO, que siempre debe
+// devolver los 7 días con algún fallback razonable — un negocio siempre tiene
+// que tener alguna hora), acá un día ausente o mal cargado NUNCA se fabrica:
+// significa "este profesional no tiene horario propio ESE día", y
+// resolveDaySchedule debe heredar el horario real del negocio para ese día
+// en vez de un 11:00-20:00 inventado que puede no tener nada que ver con el
+// negocio real. Bug real que esto corrige: un profesional con horario propio
+// PARCIAL (ej. solo cargó un descanso un día puntual) quedaba con el resto
+// de la semana silenciosamente reemplazado por ese horario de relleno en la
+// reserva pública — mientras la Agenda, que nunca hacía este relleno, sí lo
+// mostraba libre. Días individuales inválidos se descartan uno por uno, sin
+// tirar el resto del horario configurado.
+export function normalizeEmployeeSchedule(value: unknown): ScheduleMap | null {
+  if (!value || typeof value !== "object") return null;
+  const source = value as Record<string, any>;
+  const next: Partial<Record<DayKey, DaySchedule>> = {};
+  for (const key of DAY_KEYS) {
+    const day = source[key];
+    if (!day || typeof day !== "object") continue;
+    if (typeof day.start !== "string" || typeof day.end !== "string") continue;
+    next[key] = {
+      enabled: day.enabled !== false,
+      start: day.start,
+      end: day.end,
+      breakStart: typeof day.breakStart === "string" ? day.breakStart : undefined,
+      breakEnd: typeof day.breakEnd === "string" ? day.breakEnd : undefined,
+    };
+  }
+  return Object.keys(next).length > 0 ? (next as ScheduleMap) : null;
+}
+
 // ───────────────────────────────────────────────────────────────────────────
 // Zona horaria del negocio. Los horarios configurados ("abre 11:00") son hora
 // local DEL NEGOCIO, no del dispositivo de quien está mirando la página — sin

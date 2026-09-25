@@ -14,6 +14,7 @@ import {
   toDateKey,
   parseScheduleTime,
   normalizeDaySchedule,
+  normalizeEmployeeSchedule,
   resolveDaySchedule,
   resolveSingleDay,
   checkDaySchedule,
@@ -256,6 +257,10 @@ export function checkSchedule(
   return checkDaySchedule(schedule[DAY_KEYS[startsAt.getDay()]] ?? null, startsAt, durationMin);
 }
 
+// Horario del NEGOCIO (top-level `schedule`) únicamente — exige los 7 días
+// completos, si falta uno se trata como "sin cargar" (null). El horario
+// propio de cada profesional usa normalizeEmployeeSchedule (importado del
+// motor compartido), NO esta función — ver comentario donde se usa más abajo.
 function normalizeSchedule(value: unknown): ScheduleMap | null {
   if (!value || typeof value !== "object") return null;
   const source = value as Record<string, any>;
@@ -387,9 +392,14 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
       rawSchedule && typeof rawSchedule._employeeSchedules === "object" && rawSchedule._employeeSchedules
         ? (rawSchedule._employeeSchedules as Record<string, unknown>)
         : {};
+    // Horario propio de cada profesional: usa el mismo normalizador que la
+    // reserva pública (normalizeEmployeeSchedule, en el motor compartido) —
+    // antes esta pantalla tenía su propia versión "todo o nada" (un solo día
+    // mal cargado tiraba el horario entero de la semana), distinta de la que
+    // usaba la Página Pública. Única fuente de verdad para las dos.
     const normalizedEmployeeSchedules: Record<string, ScheduleMap> = {};
     for (const [empId, value] of Object.entries(rawEmployeeSchedules)) {
-      const ns = normalizeSchedule(value);
+      const ns = normalizeEmployeeSchedule(value);
       if (ns) normalizedEmployeeSchedules[empId] = ns;
     }
     setEmployeeSchedules(normalizedEmployeeSchedules);

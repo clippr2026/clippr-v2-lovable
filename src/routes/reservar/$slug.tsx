@@ -44,6 +44,7 @@ import {
   startOfDay,
   overlaps,
   normalizeSchedule,
+  normalizeEmployeeSchedule,
   normalizeDaySchedule,
   buildSlots,
 } from "@/lib/availability";
@@ -802,7 +803,8 @@ function PublicBookingPage() {
               : {};
           const empScheds: Record<string, ScheduleMap> = {};
           for (const [empId, value] of Object.entries(rawEmpScheds)) {
-            if (value && typeof value === "object") empScheds[empId] = normalizeSchedule(value);
+            const normalized = normalizeEmployeeSchedule(value);
+            if (normalized) empScheds[empId] = normalized;
           }
           setEmployeeSchedules(empScheds);
 
