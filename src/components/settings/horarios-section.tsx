@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { Timer, CalendarDays, AlarmClock } from "lucide-react";
+import { CalendarDays, AlarmClock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 import { SectionCard, reportSaveStatus, Toggle } from "@/components/settings/shared";
@@ -19,13 +19,11 @@ const DAYS = [
 ];
 
 type ReservationSettings = {
-  interval: string;
   maxAdvance: string;
   minCancel: string;
 };
 
 const DEFAULT_RESERVATION_SETTINGS: ReservationSettings = {
-  interval: "30",
   maxAdvance: "30",
   minCancel: "2",
 };
@@ -95,9 +93,6 @@ export function HorariosSection() {
           const settings = schedule._settings;
           if (settings && typeof settings === "object") {
             setReservationSettings({
-              interval: String(
-                settings.interval ?? DEFAULT_RESERVATION_SETTINGS.interval,
-              ),
               maxAdvance: String(
                 settings.maxAdvance ?? DEFAULT_RESERVATION_SETTINGS.maxAdvance,
               ),
@@ -164,7 +159,6 @@ export function HorariosSection() {
     });
 
     schedule._settings = {
-      interval: Number(reservationSettings.interval) || 30,
       maxAdvance: Number(reservationSettings.maxAdvance) || 30,
       minCancel: Number(reservationSettings.minCancel) || 2,
     };
@@ -213,13 +207,6 @@ export function HorariosSection() {
   }, []);
 
   const reservationRows = [
-    {
-      key: "interval" as const,
-      icon: Timer,
-      title: "Intervalo de turnos",
-      hint: "Cada cuántos minutos se pueden crear turnos",
-      suffix: "min",
-    },
     {
       key: "maxAdvance" as const,
       icon: CalendarDays,

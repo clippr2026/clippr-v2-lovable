@@ -191,6 +191,16 @@ export function zonedTimeToInstant(calendarDate: Date, minutesFromMidnight: numb
   return new Date(guess - offsetMin * 60_000);
 }
 
+// Inversa de zonedTimeToInstant: minutos transcurridos entre la medianoche
+// local (hora del negocio) del día calendario `originDate` y el instante
+// `instant`. Sirve para proyectar turnos/bloqueos reales (instantes
+// absolutos) al mismo espacio "minutos del día" en el que viven horario y
+// descansos, para poder recortar huecos libres reales contra ellos.
+export function minutesSinceLocalMidnight(instant: Date, originDate: Date, timeZone: string): number {
+  const midnight = zonedTimeToInstant(originDate, 0, timeZone);
+  return Math.round((instant.getTime() - midnight.getTime()) / 60_000);
+}
+
 // ───────────────────────────────────────────────────────────────────────────
 // Resolución de horarios (fuente única para Agenda y reserva). Disponibilidad
 // real = horario del NEGOCIO ∩ horario del PROFESIONAL para ese día, cada uno
@@ -352,13 +362,87 @@ export function checkDaySchedule(
   return null;
 }
 
+// Combina descansos + turnos/bloqueos reales (proyectados a minutos del día)
+// en una lista de intervalos ocupados sin superposiciones, recortada a
+// [open, close]. Base para calcular los huecos libres reales del día.
+function mergeBusyIntervals(
+  intervals: Array<{ start: number; end: number }>,
+  open: number,
+  close: number,
+): Array<{ start: number; end: number }> {
+  const clipped = intervals
+    .map((iv) => ({ start: Math.max(iv.start, open), end: Math.min(iv.end, close) }))
+    .filter((iv) => iv.end > iv.start)
+    .sort((a, b) => a.start - b.start);
+
+  const merged: Array<{ start: number; end: number }> = [];
+  for (const iv of clipped) {
+    const last = merged[merged.length - 1];
+    if (last && iv.start <= last.end) {
+      last.end = Math.max(last.end, iv.end);
+    } else {
+      merged.push({ ...iv });
+    }
+  }
+  return merged;
+}
+
+// Huecos libres reales de [open, close] una vez descontados los intervalos
+// ocupados (ya fusionados y ordenados).
+function freeBlocksOf(
+  busy: Array<{ start: number; end: number }>,
+  open: number,
+  close: number,
+): Array<{ start: number; end: number }> {
+  const blocks: Array<{ start: number; end: number }> = [];
+  let cursor = open;
+  for (const iv of busy) {
+    if (iv.start > cursor) blocks.push({ start: cursor, end: iv.start });
+    cursor = Math.max(cursor, iv.end);
+  }
+  if (cursor < close) blocks.push({ start: cursor, end: close });
+  return blocks;
+}
+
+// Candidatos de un hueco libre: la duración del servicio se aplica desde
+// el inicio del bloque (hacia adelante) y, cuando corresponde, también desde
+// el final (hacia atrás) — nunca en pasos arbitrarios. Cada candidato nace de
+// un punto lógico real de la agenda: el inicio/final del bloque siempre es el
+// límite de un turno, descanso, bloqueo o el horario laboral, nunca un
+// desplazamiento fijo tipo "cada 30 minutos".
+//
+// `allowBackward` se apaga únicamente para el caso trivial de un día 100%
+// libre (el único bloque va de apertura a cierre, sin ningún turno/descanso/
+// bloqueo real ese día): ahí generar también la cadena hacia atrás produciría
+// una segunda grilla en otra fase (ej. 11:20, 12:00, 12:40... para un
+// servicio de 40 min en 11:00-20:00) sin que exista ningún evento real que
+// la justifique. En cuanto el día tiene al menos un evento real, cada hueco
+// que resulta de él (incluido el que llega hasta el cierre) sí aprovecha
+// ambos extremos — ver el caso de ejemplo documentado en buildSlots.
+function blockCandidates(block: { start: number; end: number }, duration: number, allowBackward: boolean): number[] {
+  if (block.end - block.start < duration) return [];
+  const candidates = new Set<number>();
+  for (let t = block.start; t + duration <= block.end; t += duration) candidates.add(t);
+  if (allowBackward) {
+    for (let t = block.end - duration; t >= block.start; t -= duration) candidates.add(t);
+  }
+  return [...candidates].sort((a, b) => a - b);
+}
+
 // ───────────────────────────────────────────────────────────────────────────
 // Generación de slots reservables. Resuelve la disponibilidad POR PROFESIONAL Y
 // FECHA con la misma prioridad que la Agenda (horario especial del profesional →
 // semanal del profesional → especial del negocio → semanal del negocio,
 // siempre intersectado contra el horario del negocio — ver resolveDaySchedule),
-// respeta descansos y descarta los horarios ya ocupados por turnos reales. Así
-// la reserva online ofrece exactamente lo mismo que muestra la Agenda interna.
+// respeta descansos y descarta los horarios ya ocupados por turnos/bloqueos
+// reales. Así la reserva online ofrece exactamente lo mismo que muestra la
+// Agenda interna.
+//
+// La disponibilidad se calcula sobre los huecos libres REALES del día (ver
+// mergeBusyIntervals/freeBlocksOf) y no sobre un paso fijo tipo "cada N
+// minutos": eso aprovecha al máximo cada hueco (ver blockCandidates) en vez de
+// dejar sin ofrecer un horario que sí entra completo antes del cierre o de un
+// turno/descanso/bloqueo siguiente.
 //
 // Todos los horarios configurados ("abre 11:00") son hora local DEL NEGOCIO:
 // `timeZone` (IANA, ej. "America/Argentina/Buenos_Aires") ancla ese cálculo a
@@ -375,11 +459,9 @@ export function buildSlots<T extends { id: string }>(
   employeeSchedules: Record<string, ScheduleMap> = {},
   businessSpecial: SpecialDateMap = {},
   employeeSpecial: EmployeeSpecialDateMap = {},
-  intervalMinutes = 30,
   timeZone: string = DEFAULT_TIMEZONE,
 ) {
   const now = new Date();
-  const step = Number.isFinite(intervalMinutes) && intervalMinutes > 0 ? intervalMinutes : 30;
   const result: Array<{ date: Date; slots: Array<{ time: Date; employeeId: string }> }> = [];
   const pool =
     selectedEmployeeId && selectedEmployeeId !== "any"
@@ -411,38 +493,52 @@ export function buildSlots<T extends { id: string }>(
       const close = parseTimeStrict(day.end);
       if (open === null || close === null) continue; // horario mal cargado → sin disponibilidad, no se inventa
 
-      const breaks = dayBreaks(day)
+      const breakIntervals = dayBreaks(day)
         .map((brk) => ({ start: parseTimeStrict(brk.start), end: parseTimeStrict(brk.end) }))
         .filter((brk): brk is { start: number; end: number } => brk.start !== null && brk.end !== null && brk.end > brk.start);
 
-      for (let minute = open; minute + duration <= close; minute += step) {
-        const inBreak = breaks.some((brk) => minute < brk.end && minute + duration > brk.start);
-        if (inBreak) continue;
-
-        const slotStart = zonedTimeToInstant(date, minute, timeZone);
-        if (slotStart < addMinutes(now, 60)) continue;
-        const key = slotStart.getTime();
-        if (slotMap.has(key)) continue; // ya hay un profesional para ese horario
-
-        const slotEnd = addMinutes(slotStart, duration);
-        const busy = appointments.some((appt) => {
-          if (appt.status === "cancelled") return false;
-          if (appt.employee_id !== employee.id) return false;
+      // Turnos/bloqueos reales de este profesional, proyectados a minutos del
+      // día calendario que se está evaluando (mismo espacio que open/close).
+      const apptIntervals = appointments
+        .filter((appt) => appt.status !== "cancelled" && appt.employee_id === employee.id)
+        .map((appt) => {
           const apptStart = new Date(appt.starts_at);
           const apptEnd = appt.ends_at
             ? new Date(appt.ends_at)
             : addMinutes(apptStart, Number(appt.duration_min ?? duration));
-          return overlaps(slotStart, slotEnd, apptStart, apptEnd);
+          return {
+            start: minutesSinceLocalMidnight(apptStart, date, timeZone),
+            end: minutesSinceLocalMidnight(apptEnd, date, timeZone),
+          };
         });
-        if (!busy) slotMap.set(key, employee.id);
+
+      const busy = mergeBusyIntervals([...breakIntervals, ...apptIntervals], open, close);
+      const freeBlocks = freeBlocksOf(busy, open, close);
+      // Día sin ningún evento real (ni descanso, ni turno, ni bloqueo): un
+      // único hueco de apertura a cierre. Ver nota en blockCandidates.
+      const isCleanDay = busy.length === 0;
+
+      for (const block of freeBlocks) {
+        for (const minute of blockCandidates(block, duration, !isCleanDay)) {
+          const slotStart = zonedTimeToInstant(date, minute, timeZone);
+          if (slotStart < addMinutes(now, 60)) continue;
+          const key = slotStart.getTime();
+          if (slotMap.has(key)) continue; // ya hay un profesional para ese horario
+          slotMap.set(key, employee.id);
+        }
       }
     }
 
+    // Sin límite fijo de cantidad: con huecos aprovechados al máximo (adelante
+    // + atrás) un día puede tener legítimamente más de 10 horarios válidos
+    // (ver ejemplo del bloque 12:20-20:00 en el comentario de arriba); cortar
+    // a los primeros 10 cronológicos escondería justamente las horas de la
+    // tarde/noche que este cálculo existe para recuperar.
     const daySlots = [...slotMap.entries()]
       .sort((a, b) => a[0] - b[0])
       .map(([time, employeeId]) => ({ time: new Date(time), employeeId }));
 
-    result.push({ date, slots: daySlots.slice(0, 10) });
+    result.push({ date, slots: daySlots });
   }
 
   return result;

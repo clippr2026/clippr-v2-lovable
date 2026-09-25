@@ -286,13 +286,12 @@ function PublicBookingPage() {
   // se recalcula el descuento con otra lógica.
   const [promotions, setPromotions] = React.useState<Promotion[]>([]);
   const [clientFields, setClientFields] = React.useState<ClientFields>(DEFAULT_CLIENT_FIELDS);
-  // Intervalo de turnos y anticipación máxima configurados en Configuración →
-  // Horarios (business_settings.schedule._settings). Los defaults acá abajo
-  // son solo el fallback antes de que responda la primera consulta.
+  // Anticipación máxima configurada en Configuración → Horarios
+  // (business_settings.schedule._settings.maxAdvance). El default acá abajo
+  // es solo el fallback antes de que responda la primera consulta.
   const [reservationSettings, setReservationSettings] = React.useState<{
-    interval: number;
     maxAdvance: number;
-  }>({ interval: 30, maxAdvance: 10 });
+  }>({ maxAdvance: 10 });
   const [recommendedProducts, setRecommendedProducts] = React.useState<RecommendedProduct[]>([]);
   const [selectedProductIds, setSelectedProductIds] = React.useState<string[]>([]);
 
@@ -562,17 +561,6 @@ function PublicBookingPage() {
         employeeSchedules,
         businessSpecial,
         employeeSpecial,
-        // Paso de la grilla = intervalo configurado del negocio (Config →
-        // Horarios → "Intervalo de turnos"), NO la duración del servicio
-        // elegido. Si el paso fuera la propia duración, dos servicios de
-        // duración distinta prueban horarios candidatos distintos contra
-        // los mismos turnos ocupados y pueden "saltear" un turno bloqueado
-        // de forma diferente, dando disponibilidad distinta sin ninguna
-        // razón real (bug real observado: un servicio de 40 min mostraba
-        // horarios hasta las 17:00 y uno de 60 min hasta las 20:00, mismo
-        // profesional y día). Con un paso fijo, ambos prueban exactamente
-        // los mismos horarios candidatos.
-        reservationSettings.interval,
         businessTimeZone,
       ),
     [
@@ -586,7 +574,6 @@ function PublicBookingPage() {
       businessSpecial,
       employeeSpecial,
       reservationSettings.maxAdvance,
-      reservationSettings.interval,
       businessTimeZone,
     ],
   );
@@ -791,14 +778,13 @@ function PublicBookingPage() {
           setAppointments((appointmentsRes.error ? [] : (appointmentsRes.data ?? [])) as Appointment[]);
           setSchedule(normalizeSchedule(settingsSchedule));
 
-          // Intervalo de turnos y anticipación máxima: siempre desde lo
-          // configurado en el negocio, nunca un valor fijo.
+          // Anticipación máxima: siempre desde lo configurado en el negocio,
+          // nunca un valor fijo.
           const rawReservationSettings =
             settingsSchedule && typeof settingsSchedule === "object"
               ? ((settingsSchedule as Record<string, any>)._settings ?? {})
               : {};
           setReservationSettings({
-            interval: Number(rawReservationSettings.interval) || 30,
             maxAdvance: Math.max(1, Number(rawReservationSettings.maxAdvance) || 10),
           });
 
