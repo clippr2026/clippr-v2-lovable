@@ -10,7 +10,6 @@ import {
   CheckCircle2,
   UserRound,
   Clock3,
-  UserX,
   Scissors,
   Mail
 } from "lucide-react";
@@ -433,8 +432,8 @@ function AgendaPage() {
   };
 
   const openSlotMenu = (employeeId: string | null, startsAt: Date, event: React.MouseEvent) => {
-    // Casillero vacío en el pasado: el menú (Agregar turno / Horario especial
-    // / Cliente rechazado) se abre igual que en un horario futuro, sin toast
+    // Casillero vacío en el pasado: el menú (Agregar turno / Horario especial)
+    // se abre igual que en un horario futuro, sin toast
     // ni bloqueo acá — cada opción valida lo que corresponda puertas adentro.
     // Los turnos YA existentes no pasan por acá (usan openDetail), así que se
     // siguen pudiendo abrir/cancelar/eliminar/liberar.
@@ -1131,7 +1130,7 @@ function AgendaPage() {
         {/* Unified glass banner — compact control bar (counts · Hoy · date nav · Nuevo turno).
             En mobile (sm-) queda solo Hoy + navegación de fecha + el botón "+" (en el lugar
             del indicador de tiempo real) — sin scroll horizontal. Los conteos de estado y
-            "Clientes rechazados" se ocultan acá y reaparecen debajo, en bloques propios. */}
+            "No atendidos" se ocultan acá y reaparecen debajo, en bloques propios. */}
         <div
           // relative + z-index alto: ".glass" usa backdrop-filter, que crea su
           // propio stacking context — sin esto, el menú del "+" (adentro, con
@@ -1261,12 +1260,20 @@ function AgendaPage() {
           <div className="hidden sm:block h-5 w-px bg-white/10 shrink-0" />
 
           <div className="hidden sm:block">
-            <RejectedClientsButton businessId={data.businessId} date={cursor} services={data.services} />
+            <RejectedClientsButton
+              businessId={data.businessId}
+              date={cursor}
+              services={data.services}
+              onRegisterNew={() => {
+                setRejectAt(cursor);
+                setRejectOpen(true);
+              }}
+            />
           </div>
 
           <div className="hidden sm:block h-5 w-px bg-white/10 shrink-0" />
 
-          {/* Nuevo — square button with menu (Agregar turno / Horario especial / Cliente rechazado), solo desktop/tablet */}
+          {/* Nuevo — square button with menu (Agregar turno / Horario especial), solo desktop/tablet */}
           <Button
             ref={newBtnRef}
             className="hidden sm:inline-flex h-7 w-7 p-0 shrink-0"
@@ -1306,23 +1313,13 @@ function AgendaPage() {
                 >
                   <Pencil className="h-4 w-4 shrink-0 text-violet-300" /> <span className="whitespace-nowrap">Horario especial</span>
                 </button>
-                <button
-                  className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition flex items-center gap-2"
-                  onClick={() => {
-                    setNewMenu(false);
-                    setRejectAt(cursor);
-                    setRejectOpen(true);
-                  }}
-                >
-                  <UserX className="h-4 w-4 shrink-0 text-orange-300" /> <span className="whitespace-nowrap">Cliente rechazado</span>
-                </button>
               </div>
             </>
           )}
         </div>
 
         {/* Estados — mobile: grilla fija de 3 columnas, 3 arriba + 3 abajo (5 estados +
-            "Clientes rechazados" en la 6ª celda), sin scroll horizontal. */}
+            "No atendidos" en la 6ª celda), sin scroll horizontal. */}
         <div className="grid grid-cols-3 gap-1.5 mb-2 sm:hidden">
           {STATUS_FILTERS.map(([k, label, color, bg, ring]) => (
             <button
@@ -1345,6 +1342,10 @@ function AgendaPage() {
             date={cursor}
             services={data.services}
             compact
+            onRegisterNew={() => {
+              setRejectAt(cursor);
+              setRejectOpen(true);
+            }}
           />
         </div>
 
@@ -1438,7 +1439,7 @@ function AgendaPage() {
             );
           })()}
 
-        {/* Modal de captura rápida (desde el menú +) */}
+        {/* Modal de captura rápida (desde "+ Registrar cliente no atendido" en la ficha No atendidos) */}
         <RejectedClientCaptureModal
           open={rejectOpen}
           onClose={() => {
@@ -1525,18 +1526,6 @@ function AgendaPage() {
               >
                 <Pencil className="h-4 w-4 shrink-0 text-violet-300" />
                 <span className="whitespace-nowrap">Horario especial</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setRejectAt(slotMenu.startsAt);
-                  setSlotMenu(null);
-                  setRejectOpen(true);
-                }}
-                className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-foreground transition hover:bg-white/[0.06]"
-              >
-                <UserX className="h-4 w-4 shrink-0 text-orange-300" />
-                <span className="whitespace-nowrap">Cliente rechazado</span>
               </button>
             </div>
           </>

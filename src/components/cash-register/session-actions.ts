@@ -173,9 +173,9 @@ export async function closeCashSession(params: {
     } catch { /* ignore */ }
   }
 
-  // 3. Log event (best effort) + snapshot de clientes rechazados del día.
+  // 3. Log event (best effort) + snapshot de clientes no atendidos del día.
   const rejectedSummary = await getRejectedCloseSummary(params.businessId);
-  const rejectedLine = `Clientes rechazados: ${rejectedSummary.count} · Facturación potencial perdida: $${Math.round(rejectedSummary.lostRevenue).toLocaleString("es-AR")}`;
+  const rejectedLine = `Clientes no atendidos: ${rejectedSummary.count} · Facturación potencial perdida: $${Math.round(rejectedSummary.lostRevenue).toLocaleString("es-AR")}`;
   const observation = [params.observation, rejectedLine].filter(Boolean).join("\n");
 
   await logSessionEvent({

@@ -24,7 +24,7 @@ function usePriceCatalog(businessId: string | null | undefined) {
 }
 
 /**
- * Analítica de demanda no atendida (clientes rechazados).
+ * Analítica de demanda no atendida (clientes no atendidos).
  * Trae ~6 meses de registros + precios y devuelve todas las métricas.
  * Consumido por el Dashboard y el Asesor IA.
  */

@@ -132,7 +132,7 @@ export function useRejectedRange(
   });
 }
 
-/** Registrar un cliente rechazado. Los errores se propagan (sin fallback silencioso). */
+/** Registrar un cliente no atendido. Los errores se propagan (sin fallback silencioso). */
 export function useInsertRejectedClient(businessId: string | null | undefined) {
   const qc = useQueryClient();
   return useMutation({
@@ -177,7 +177,7 @@ export function useInsertRejectedClient(businessId: string | null | undefined) {
       const { error } = await supabase.from("rejected_clients").insert(row);
       if (error) {
         console.error("[rejected_clients] insert error", error);
-        throw new Error(error.message || "No se pudo registrar el cliente rechazado.");
+        throw new Error(error.message || "No se pudo registrar el cliente no atendido.");
       }
 
       return {

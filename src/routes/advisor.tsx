@@ -127,7 +127,7 @@ const INFO_CONTENT = {
       "Cada simulador proyecta qué pasaría con tu negocio si tomás una decisión concreta (subir precios, contratar, invertir en publicidad, etc.), antes de que la tomes.",
     points: [
       "Qué analiza: el impacto esperado de la decisión en facturación, utilidad y ocupación, comparado contra seguir como estás hoy.",
-      "Qué datos usa: tus servicios, clientes, agenda, horarios y la demanda no atendida (turnos rechazados o sin disponibilidad).",
+      "Qué datos usa: tus servicios, clientes, agenda, horarios y la demanda no atendida (clientes no atendidos o sin disponibilidad).",
       "Cómo calcula: proyecciones con supuestos conservadores — utilidad ~45% sobre facturación y ~55% en productos.",
       "Qué beneficio aporta: te deja comparar escenarios reales de tu propio negocio antes de invertir tiempo o plata en una decisión.",
     ],
@@ -2913,15 +2913,15 @@ function LabProfesional({
   if (occ >= 85 || (rechazados >= 20 && saturados >= 1)) {
     nivel = "recomendado";
     titulo = "Conviene contratar";
-    verdict = `Con ${occ}% de ocupación${rechazados > 0 ? ` y ${rechazados} clientes rechazados este mes` : ""}, ya estás dejando demanda afuera. Un profesional nuevo podría recuperar ~${recuperables} servicios/mes (${fmtAR(facturacion)})${saturados >= 1 ? ` y descomprimir a ${saturados} profesional${saturados === 1 ? "" : "es"} saturado${saturados === 1 ? "" : "s"}` : ""}.`;
+    verdict = `Con ${occ}% de ocupación${rechazados > 0 ? ` y ${rechazados} clientes no atendidos este mes` : ""}, ya estás dejando demanda afuera. Un profesional nuevo podría recuperar ~${recuperables} servicios/mes (${fmtAR(facturacion)})${saturados >= 1 ? ` y descomprimir a ${saturados} profesional${saturados === 1 ? "" : "es"} saturado${saturados === 1 ? "" : "s"}` : ""}.`;
   } else if (occ >= 70 || rechazados >= 10) {
     nivel = "progresivo";
     titulo = "Esperar un poco más";
-    verdict = `Ocupación ${occ}%${rechazados > 0 ? ` con ${rechazados} rechazos/mes` : ""}: estás cerca, pero todavía hay margen para llenar la agenda actual. Si el rechazo sigue subiendo 1–2 meses, sumá un profesional.`;
+    verdict = `Ocupación ${occ}%${rechazados > 0 ? ` con ${rechazados} clientes no atendidos/mes` : ""}: estás cerca, pero todavía hay margen para llenar la agenda actual. Si la demanda no atendida sigue subiendo 1–2 meses, sumá un profesional.`;
   } else {
     nivel = "no_recomendado";
     titulo = "Todavía no conviene";
-    verdict = `Con ${occ}% de ocupación${rechazados === 0 ? " y sin clientes rechazados registrados" : ` y solo ${rechazados} rechazos/mes`}, todavía tenés sillones libres. Sumar gente ahora divide tu demanda. Primero llená la agenda que ya tenés.`;
+    verdict = `Con ${occ}% de ocupación${rechazados === 0 ? " y sin clientes no atendidos registrados" : ` y solo ${rechazados} clientes no atendidos/mes`}, todavía tenés sillones libres. Sumar gente ahora divide tu demanda. Primero llená la agenda que ya tenés.`;
   }
 
   return (
@@ -2938,7 +2938,7 @@ function LabProfesional({
       <LabSignals
         items={[
           { label: "Agenda ocupada", value: `${occ}%`, tone: occ >= 85 ? "alert" : "neutral" },
-          { label: "Clientes rechazados", value: rechazados, tone: rechazados > 0 ? "alert" : "neutral" },
+          { label: "Clientes no atendidos", value: rechazados, tone: rechazados > 0 ? "alert" : "neutral" },
           { label: "Profesionales completos", value: saturados, tone: saturados > 0 ? "alert" : "neutral" },
           { label: "Demanda perdida (mes)", value: fmtDemandARS(perdida), tone: perdida > 0 ? "alert" : "neutral" },
         ]}
@@ -2992,8 +2992,8 @@ function LabHorario({ data, demand }: { data: LabData; demand: DemandSlice }) {
     titulo = "No conviene extender horario";
     verdict =
       opt === "antes"
-        ? "No detectamos clientes rechazados ni una alta demanda durante el primer horario del día. La agenda tiene disponibilidad al inicio de la jornada, por lo que abrir antes no generaría más reservas en este momento."
-        : "No detectamos clientes rechazados ni una alta demanda durante el último horario del día. Los últimos turnos disponibles no están completamente ocupados, por lo que extender el cierre no aportaría más reservas por ahora.";
+        ? "No detectamos clientes no atendidos ni una alta demanda durante el primer horario del día. La agenda tiene disponibilidad al inicio de la jornada, por lo que abrir antes no generaría más reservas en este momento."
+        : "No detectamos clientes no atendidos ni una alta demanda durante el último horario del día. Los últimos turnos disponibles no están completamente ocupados, por lo que extender el cierre no aportaría más reservas por ahora.";
   } else if (opt === "antes" && beforeHasDemand) {
     nivel = "recomendado";
     titulo = "Conviene abrir 1 hora antes";
@@ -3001,14 +3001,14 @@ function LabHorario({ data, demand }: { data: LabData; demand: DemandSlice }) {
   } else if (opt === "tarde" && afterHasDemand) {
     nivel = "recomendado";
     titulo = "Conviene cerrar 1 hora después";
-    verdict = `Detectamos una alta demanda durante el último horario del día. Se registraron clientes rechazados o falta de disponibilidad en el cierre de la jornada. Extender el horario una hora podría sumar aproximadamente ${benefitTarde} clientes más por mes y generar ${fmtAR(facturacion)} de facturación.`;
+    verdict = `Detectamos una alta demanda durante el último horario del día. Se registraron clientes no atendidos o falta de disponibilidad en el cierre de la jornada. Extender el horario una hora podría sumar aproximadamente ${benefitTarde} clientes más por mes y generar ${fmtAR(facturacion)} de facturación.`;
   } else {
     nivel = "evaluar";
     titulo = benefitAntes > benefitTarde ? "Mejor abrir 1 hora antes" : "Mejor cerrar 1 hora después";
     verdict =
       opt === "antes"
-        ? "No detectamos clientes rechazados ni una alta demanda durante el primer horario del día. La oportunidad más fuerte aparece al final de la jornada, por eso conviene evaluar cerrar más tarde antes que abrir antes."
-        : "No detectamos clientes rechazados ni una alta demanda durante el último horario del día. La oportunidad más fuerte aparece al inicio de la jornada, por eso conviene evaluar abrir antes antes que cerrar más tarde.";
+        ? "No detectamos clientes no atendidos ni una alta demanda durante el primer horario del día. La oportunidad más fuerte aparece al final de la jornada, por eso conviene evaluar cerrar más tarde antes que abrir antes."
+        : "No detectamos clientes no atendidos ni una alta demanda durante el último horario del día. La oportunidad más fuerte aparece al inicio de la jornada, por eso conviene evaluar abrir antes antes que cerrar más tarde.";
   }
 
   return (
@@ -3046,11 +3046,11 @@ function LabHorario({ data, demand }: { data: LabData; demand: DemandSlice }) {
               <span className="block text-[11px] leading-snug text-white/45">
                 {o.key === "antes"
                   ? o.n > 0
-                    ? `${o.n} rechazados en el primer horario`
-                    : "Sin rechazos ni alta demanda al inicio"
+                    ? `${o.n} no atendidos en el primer horario`
+                    : "Sin clientes no atendidos ni alta demanda al inicio"
                   : o.n > 0
-                    ? `${o.n} rechazados en el último horario`
-                    : "Sin rechazos ni alta demanda al cierre"}
+                    ? `${o.n} no atendidos en el último horario`
+                    : "Sin clientes no atendidos ni alta demanda al cierre"}
               </span>
             </span>
           </button>
@@ -3592,7 +3592,7 @@ function LaboratorioDecisiones(props: SimuladorProps) {
 }
 
 // ════════════════════════════════════════════════════════════════════════════
-// Demanda no atendida (clientes rechazados) — inline en advisor para evitar
+// Demanda no atendida (clientes no atendidos) — inline en advisor para evitar
 // dependencias de archivos externos. Toda la inteligencia vive acá.
 // ════════════════════════════════════════════════════════════════════════════
 function fmtDemandARS(n: number): string {
@@ -3683,14 +3683,14 @@ function DemandaNoAtendidaSection({
 
   const narrative: string[] = [];
   if (month > 0)
-    narrative.push(`Durante este mes rechazaste ${month} clientes por falta de disponibilidad.`);
+    narrative.push(`Durante este mes no atendiste a ${month} clientes por falta de disponibilidad.`);
   if (topProf)
     narrative.push(
       `${topProf.label} recibió ${topProf.count} solicitudes que no pudieron concretarse.`,
     );
   if (windowShare != null && a.peakRangeLabel)
     narrative.push(
-      `El ${windowShare}% de los rechazos ocurrió entre las ${a.peakRangeLabel.replace(" y ", " y las ")}.`,
+      `El ${windowShare}% de los clientes no atendidos se concentró entre las ${a.peakRangeLabel.replace(" y ", " y las ")}.`,
     );
   if (topDay && topDayShare > 0)
     narrative.push(
@@ -3715,8 +3715,8 @@ function DemandaNoAtendidaSection({
 
       {a.total === 0 && !isLoading ? (
         <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-6 text-center text-sm text-white/50">
-          Todavía no hay clientes rechazados registrados. Usá{" "}
-          <span className="font-semibold text-rose-200/80">+ Cliente rechazado</span> en la Agenda
+          Todavía no hay clientes no atendidos registrados. Usá{" "}
+          <span className="font-semibold text-rose-200/80">No atendidos → Registrar cliente no atendido</span> en la Agenda
           para empezar a medir la demanda que el negocio no pudo atender. A medida que se acumulen
           datos, las recomendaciones se vuelven más precisas.
         </div>
@@ -3743,7 +3743,7 @@ function DemandaNoAtendidaSection({
               <div className="text-3xl font-extrabold tabular-nums text-rose-300">
                 {a.counts.today}
               </div>
-              <div className="mt-0.5 text-[11px] text-white/45">Rechazados hoy</div>
+              <div className="mt-0.5 text-[11px] text-white/45">No atendidos hoy</div>
             </div>
             <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
               <div className="text-3xl font-extrabold tabular-nums text-white">{a.counts.week}</div>

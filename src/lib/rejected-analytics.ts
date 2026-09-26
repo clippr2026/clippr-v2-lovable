@@ -300,14 +300,14 @@ export function staffingVerdict(
     return {
       tier: "incorporar",
       nivel: "recomendado",
-      text: `Tu agenda mantiene una ocupación del ${occTxt} y rechazaste ${monthRejected} clientes este mes. La demanda supera la capacidad del equipo: probablemente estés perdiendo ventas por falta de disponibilidad. Conviene incorporar un profesional.`,
+      text: `Tu agenda mantiene una ocupación del ${occTxt} y no atendiste a ${monthRejected} clientes este mes. La demanda supera la capacidad del equipo: probablemente estés perdiendo ventas por falta de disponibilidad. Conviene incorporar un profesional.`,
     };
   }
   if (monthRejected >= 8) {
     return {
       tier: "evaluar",
       nivel: "evaluar",
-      text: `Ocupación del ${occTxt} y ${monthRejected} clientes rechazados este mes${
+      text: `Ocupación del ${occTxt} y ${monthRejected} clientes no atendidos este mes${
         peakHourLabel ? `, la mayoría entre las ${peakHourLabel}` : ""
       }. Antes de incorporar un profesional, evaluá ampliar horarios en esa franja.`,
     };
@@ -315,7 +315,7 @@ export function staffingVerdict(
   return {
     tier: "no",
     nivel: "no_recomendado",
-    text: `Tu ocupación es del ${occTxt} y este mes solo rechazaste ${monthRejected} ${
+    text: `Tu ocupación es del ${occTxt} y este mes no atendiste a ${monthRejected} ${
       monthRejected === 1 ? "cliente" : "clientes"
     }. Todavía no hay evidencia suficiente para incorporar un profesional: tenés capacidad para crecer con el equipo actual.`,
   };
@@ -334,10 +334,11 @@ export type DemandRecommendation = {
 
 /**
  * Genera recomendaciones cruzando TODAS las señales disponibles
- * (ocupación, volumen de rechazos, horarios, días, motivos, profesional
- * solicitado, profesionales trabajando, servicios y tendencia), en lugar de
- * un único umbral fijo. La confianza escala con el volumen de datos, así las
- * recomendaciones se vuelven más precisas a medida que se acumula historial.
+ * (ocupación, volumen de clientes no atendidos, horarios, días, motivos,
+ * profesional solicitado, profesionales trabajando, servicios y tendencia),
+ * en lugar de un único umbral fijo. La confianza escala con el volumen de
+ * datos, así las recomendaciones se vuelven más precisas a medida que se
+ * acumula historial.
  */
 export function buildDemandRecommendations(
   a: RejectedAnalytics,
@@ -352,14 +353,14 @@ export function buildDemandRecommendations(
 
   const trendNote =
     a.trend === "up" && a.trendPct != null && a.prevMonthCount > 0
-      ? ` Además, los rechazos crecieron ${a.trendPct}% respecto del período anterior.`
+      ? ` Además, los clientes no atendidos crecieron ${a.trendPct}% respecto del período anterior.`
       : a.trend === "down" && a.trendPct != null
         ? ` La tendencia viene bajando (${a.trendPct}% vs el período anterior).`
         : "";
 
   const fuera = a.reasonsMonth["fuera_horario"] ?? 0;
   const lateOrFuera = Math.max(a.lateShare, month > 0 ? fuera / month : 0);
-  const broad = lateOrFuera < 0.6; // los rechazos NO son solo por horario tardío
+  const broad = lateOrFuera < 0.6; // los clientes no atendidos NO son solo por horario tardío
 
   const recs: DemandRecommendation[] = [];
 
@@ -385,7 +386,7 @@ export function buildDemandRecommendations(
       priority: month >= 15 ? "alta" : "media",
       nivel: "evaluar",
       title: "Conviene ampliar horarios antes de contratar",
-      reasoning: `El ${Math.round(lateOrFuera * 100)}% de los clientes rechazados llegó después de las ${a.lateCutoffLabel}${a.peakDayLabels.length ? `, sobre todo${dias}` : ""}. Antes de contratar un nuevo profesional, podría ser más conveniente extender el horario de atención una hora${dias}.${trendNote}`,
+      reasoning: `El ${Math.round(lateOrFuera * 100)}% de los clientes no atendidos llegó después de las ${a.lateCutoffLabel}${a.peakDayLabels.length ? `, sobre todo${dias}` : ""}. Antes de contratar un nuevo profesional, podría ser más conveniente extender el horario de atención una hora${dias}.${trendNote}`,
       confidence,
     });
   }
@@ -397,7 +398,7 @@ export function buildDemandRecommendations(
       priority: "alta",
       nivel: "recomendado",
       title: "Conviene incorporar un profesional",
-      reasoning: `Durante ${period} rechazaste ${month} clientes por falta de disponibilidad. La ocupación promedio fue del ${occTxt}${a.peakRangeLabel ? ` y la mayoría de los rechazos ocurrió entre las ${a.peakRangeLabel}` : ""}. Clippr recomienda incorporar un nuevo profesional o sumar un refuerzo en los horarios de mayor demanda.${trendNote}`,
+      reasoning: `Durante ${period} no atendiste a ${month} clientes por falta de disponibilidad. La ocupación promedio fue del ${occTxt}${a.peakRangeLabel ? ` y la mayoría de los clientes no atendidos se concentró entre las ${a.peakRangeLabel}` : ""}. Clippr recomienda incorporar un nuevo profesional o sumar un refuerzo en los horarios de mayor demanda.${trendNote}`,
       confidence,
     });
   } else if (occ >= 80 && month >= 12 && broad) {
@@ -406,7 +407,7 @@ export function buildDemandRecommendations(
       priority: "media",
       nivel: "evaluar",
       title: "Evaluá un refuerzo parcial",
-      reasoning: `Ocupación del ${occTxt} y ${month} rechazos ${period}${a.peakRangeLabel ? `, concentrados entre las ${a.peakRangeLabel}` : ""}. Hay presión sobre la agenda, pero todavía no es concluyente: evaluá un refuerzo parcial en la franja pico antes de una contratación full-time.${trendNote}`,
+      reasoning: `Ocupación del ${occTxt} y ${month} clientes no atendidos ${period}${a.peakRangeLabel ? `, concentrados entre las ${a.peakRangeLabel}` : ""}. Hay presión sobre la agenda, pero todavía no es concluyente: evaluá un refuerzo parcial en la franja pico antes de una contratación full-time.${trendNote}`,
       confidence,
     });
   }
@@ -419,7 +420,7 @@ export function buildDemandRecommendations(
       priority: "baja",
       nivel: "no_recomendado",
       title: "Todavía no conviene incorporar",
-      reasoning: `La ocupación promedio es del ${occTxt} y ${month === 0 ? "no se registraron" : `solo se registraron ${month}`} clientes rechazados ${period}. El equipo todavía tiene capacidad para seguir creciendo sin incorporar un nuevo profesional.${trendNote}`,
+      reasoning: `La ocupación promedio es del ${occTxt} y ${month === 0 ? "no se registraron" : `solo se registraron ${month}`} clientes no atendidos ${period}. El equipo todavía tiene capacidad para seguir creciendo sin incorporar un nuevo profesional.${trendNote}`,
       confidence,
     });
   }
