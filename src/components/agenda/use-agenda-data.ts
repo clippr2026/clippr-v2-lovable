@@ -63,6 +63,7 @@ export type Appointment = {
   notes: string | null;
   created_by_name: string | null;
   created_by_role: string | null;
+  created_at: string | null;
   updated_at: string | null;
   deposit_status?: string | null;
   deposit_amount?: number | null;
@@ -338,7 +339,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
       supabase
         .from("appointments")
         .select(
-          "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,updated_at,promotion_id,promotion_snapshot",
+          "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,created_at,updated_at,promotion_id,promotion_snapshot",
         )
         .eq("business_id", businessId)
         .gte("starts_at", startIso)
@@ -448,11 +449,29 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
         : [],
     );
 
-    setAppointments(
-      aRes.status === "fulfilled" && !aRes.value.error
-        ? ((aRes.value.data ?? []) as Appointment[])
-        : [],
-    );
+    if (aRes.status === "fulfilled" && aRes.value.error) {
+      // created_at puede no existir todavía en algunos negocios (columna
+      // agregada por migración — ver 20260926040000_appointments_created_at)
+      // — reintenta sin ella para no perder TODOS los turnos del día por un
+      // campo secundario. Best-effort: si esto también falla, se mantiene
+      // el comportamiento previo (appointments vacío).
+      const retry = await supabase
+        .from("appointments")
+        .select(
+          "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,updated_at,promotion_id,promotion_snapshot",
+        )
+        .eq("business_id", businessId)
+        .gte("starts_at", startIso)
+        .lte("starts_at", endIso)
+        .order("starts_at");
+      setAppointments(!retry.error ? ((retry.data ?? []) as Appointment[]) : []);
+    } else {
+      setAppointments(
+        aRes.status === "fulfilled" && !aRes.value.error
+          ? ((aRes.value.data ?? []) as Appointment[])
+          : [],
+      );
+    }
     setEmployees(
       eRes.status === "fulfilled" && !eRes.value.error
         ? ((eRes.value.data ?? []) as Employee[])
@@ -490,13 +509,29 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     const { data, error } = await supabase
       .from("appointments")
       .select(
+        "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,created_at,updated_at",
+      )
+      .eq("business_id", businessId)
+      .gte("starts_at", startIso)
+      .lte("starts_at", endIso)
+      .order("starts_at");
+    if (!error) {
+      setAppointments((data ?? []) as Appointment[]);
+      return;
+    }
+    // created_at puede no existir todavía (ver comentario en `load` más
+    // arriba) — reintenta sin ella para que los reloads de realtime sigan
+    // funcionando en vez de quedarse pegados con datos viejos.
+    const retry = await supabase
+      .from("appointments")
+      .select(
         "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,updated_at",
       )
       .eq("business_id", businessId)
       .gte("starts_at", startIso)
       .lte("starts_at", endIso)
       .order("starts_at");
-    if (!error) setAppointments((data ?? []) as Appointment[]);
+    if (!retry.error) setAppointments((retry.data ?? []) as Appointment[]);
   }, [businessId, startIso, endIso]);
 
   const loadServices = React.useCallback(async () => {

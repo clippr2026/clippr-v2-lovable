@@ -3860,6 +3860,22 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
               })()}
           </div>
 
+          {/* Fecha/hora real en que se creó la reserva (created_at) — no
+              confundir con el horario del turno (starts_at). Secundario y
+              discreto, sin tarjeta propia, para no competir visualmente con
+              la info principal de arriba. Funciona igual para turnos
+              creados desde la web pública o desde el panel: ambos escriben
+              la misma tabla `appointments`, cuyo created_at lo pone la
+              base de datos automáticamente en el momento del insert. */}
+          {appointment.created_at && (
+            <div className="px-1 text-[11px] text-white/35">
+              Reserva creada:{" "}
+              {new Date(appointment.created_at).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}
+              {" · "}
+              {new Date(appointment.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}
+            </div>
+          )}
+
           {appointmentProducts.length > 0 && (
             <div
               className="rounded-2xl border p-3.5"
