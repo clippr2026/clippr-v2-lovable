@@ -1,4 +1,5 @@
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { AgendaDrawer, AgendaCenteredModal } from "@/components/agenda/agenda-drawer";
 import { DarkCalendar } from "@/components/agenda/dark-calendar";
@@ -1071,7 +1072,13 @@ export function AppointmentDialog({
           </div>
       </Wrapper>
 
-      {breakConfirmOpen && (
+      {breakConfirmOpen && typeof document !== "undefined" && createPortal(
+        // createPortal: a diferencia de los <Wrapper> de arriba (que ya
+        // portalean vía AgendaCenteredModal/Radix Sheet), este div vive
+        // directo dentro de <AppShell>, que envuelve la página en un <div
+        // className="relative z-10"> — sin portal queda atrapado compitiendo
+        // solo contra sus hermanos ahí adentro, nunca contra la barra
+        // inferior de navegación (fixed, z-40, hermana de <main>).
         <div
           className="fixed inset-0 z-[130] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
           onClick={() => {
@@ -1111,7 +1118,8 @@ export function AppointmentDialog({
               </Button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

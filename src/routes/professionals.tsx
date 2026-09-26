@@ -2890,16 +2890,20 @@ function LiquidacionesPanelView({
         )}
       </AgendaCenteredModal>
 
-      {detailRunId && (
+      {/* createPortal: sin esto, el <div className="relative z-10"> con el
+          que <AppShell> envuelve la página atrapa este bottom sheet en su
+          propio stacking context, y la barra inferior de navegación (fixed,
+          z-40, hermana de <main>) termina pintando encima. */}
+      {detailRunId && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm p-0 sm:p-4">
-          <div className="w-full sm:max-w-lg sm:rounded-2xl rounded-t-2xl glass max-h-[85vh] flex flex-col">
-            <div className="flex items-center justify-between px-5 py-4 border-b border-white/10">
+          <div className="flex max-h-[85dvh] w-full flex-col glass sm:max-w-lg sm:rounded-2xl rounded-t-2xl">
+            <div className="flex shrink-0 items-center justify-between px-5 py-4 border-b border-white/10">
               <div className="text-sm font-semibold">Servicios incluidos</div>
               <button onClick={() => setDetailRunId(null)} className="text-muted-foreground hover:text-white text-sm">
                 Cerrar
               </button>
             </div>
-            <div className="overflow-y-auto p-4 space-y-2">
+            <div className="overflow-y-auto p-4 pb-[max(1rem,env(safe-area-inset-bottom))] space-y-2">
               {loadingDetail ? (
                 <div className="text-center text-sm text-muted-foreground py-6 animate-pulse">Cargando…</div>
               ) : !detailRows || detailRows.length === 0 ? (
@@ -2919,7 +2923,8 @@ function LiquidacionesPanelView({
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );

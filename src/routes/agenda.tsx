@@ -1,6 +1,6 @@
 import {
   createFileRoute,
-  useNavigate } from "@tanstack/react-router"; import * as React from "react"; import { supabase } from "@/integrations/supabase/client"; import { toast } from "sonner"; import { AppShell } from "@/components/app-shell"; import {   ChevronLeft,
+  useNavigate } from "@tanstack/react-router"; import * as React from "react"; import { createPortal } from "react-dom"; import { supabase } from "@/integrations/supabase/client"; import { toast } from "sonner"; import { AppShell } from "@/components/app-shell"; import {   ChevronLeft,
   ChevronRight,
   Plus,
   Calendar as CalendarIcon,
@@ -218,6 +218,25 @@ function fmtShortDow(d: Date) {
 function fmtTime(d: Date) {
   return `${d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}hs`;
 }
+
+// AppShell envuelve el contenido de la página en un <div className="relative
+// z-10">, que crea su propio stacking context. Cualquier "fixed" adentro
+// queda atrapado compitiendo solo contra sus hermanos DENTRO de ese
+// contexto, nunca contra la barra inferior de navegación (fixed, z-40, pero
+// hermana de <main> en el árbol raíz) — sin importar cuánto z-index se le
+// ponga. Portalear a document.body saca el elemento de ese contenedor por
+// completo. Mismo bug y misma solución ya usada en AgendaCenteredModal
+// (agenda-drawer.tsx).
+function MobileSafePortal({ children }: { children: React.ReactNode }) {
+  if (typeof document === "undefined") return null;
+  return createPortal(children, document.body);
+}
+
+// Altura de la barra inferior fija de Clippr (56px, h-14) + margen para el
+// home indicator / safe-area-inset-bottom de iPhone. Se usa para que los
+// popovers posicionados cerca del punto de tap (ej. menú de casillero) nunca
+// calculen un "top" que deje su borde inferior por detrás de esa barra.
+const MOBILE_BOTTOM_NAV_CLEARANCE = 96;
 
 // ---------------------------------------------------------------------------
 // Page
@@ -1181,7 +1200,7 @@ function AgendaPage() {
 
           {/* Calendario oscuro — popover para saltar a cualquier fecha */}
           {calOpen && (
-            <>
+            <MobileSafePortal>
               <div className="fixed inset-0 z-[60]" onClick={() => setCalOpen(false)} />
               <div
                 className="fixed z-[61]"
@@ -1195,7 +1214,7 @@ function AgendaPage() {
                   }}
                 />
               </div>
-            </>
+            </MobileSafePortal>
           )}
 
           {data.loading && (
@@ -1285,7 +1304,7 @@ function AgendaPage() {
 
           {/* Menú del "+" — un solo popover, compartido por el trigger de desktop y el de mobile. */}
           {newMenu && (
-            <>
+            <MobileSafePortal>
               <div className="fixed inset-0 z-[60]" onClick={() => setNewMenu(false)} />
               <div
                 className={cn(
@@ -1314,7 +1333,7 @@ function AgendaPage() {
                   <Pencil className="h-4 w-4 shrink-0 text-violet-300" /> <span className="whitespace-nowrap">Horario especial</span>
                 </button>
               </div>
-            </>
+            </MobileSafePortal>
           )}
         </div>
 
@@ -1481,7 +1500,7 @@ function AgendaPage() {
         )}
 
         {slotMenu ? (
-          <>
+          <MobileSafePortal>
             <button
               type="button"
               className="fixed inset-0 z-40 cursor-default"
@@ -1492,7 +1511,7 @@ function AgendaPage() {
               className="fixed z-50 w-64 overflow-hidden rounded-2xl border border-white/10 bg-background/95 shadow-2xl backdrop-blur-xl"
               style={{
                 left: Math.min(slotMenu.x, window.innerWidth - 272),
-                top: Math.min(slotMenu.y, window.innerHeight - 150),
+                top: Math.max(8, Math.min(slotMenu.y, window.innerHeight - 150 - MOBILE_BOTTOM_NAV_CLEARANCE)),
               }}
             >
               <div className="border-b border-white/10 px-3 py-2 text-xs text-muted-foreground">
@@ -1528,11 +1547,12 @@ function AgendaPage() {
                 <span className="whitespace-nowrap">Horario especial</span>
               </button>
             </div>
-          </>
+          </MobileSafePortal>
         ) : null}
 
         {/* Modal al tocar el bloque DESCANSO ya visible en la grilla. */}
         {breakModal ? (
+          <MobileSafePortal>
           <div
             className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
             onClick={() => setBreakModal(null)}
@@ -1570,12 +1590,14 @@ function AgendaPage() {
               </div>
             </div>
           </div>
+          </MobileSafePortal>
         ) : null}
 
         {/* Advertencia al agendar manualmente dentro de un descanso (click en
           casillero vacío). No persiste nada — "Continuar" solo habilita el
           slot para esta sesión (enabledBreaks) y abre el menú normal. */}
         {breakConfirm ? (
+          <MobileSafePortal>
           <div
             className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
             onClick={() => setBreakConfirm(null)}
@@ -1618,6 +1640,7 @@ function AgendaPage() {
               </div>
             </div>
           </div>
+          </MobileSafePortal>
         ) : null}
 
         {/* Editor de horario especial para (profesional, fecha) — mismo editor que

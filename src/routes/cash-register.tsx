@@ -1668,7 +1668,7 @@ function ResumenTab({
         </div>
       )}
     
-      {gastosHistoryOpen && (
+      {gastosHistoryOpen && typeof document !== "undefined" && createPortal(
         <div
           className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm"
           onClick={() => setGastosHistoryOpen(false)}
@@ -1842,7 +1842,8 @@ function ResumenTab({
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
     </div>
@@ -3109,7 +3110,7 @@ function InventarioTab({
       {/* Mobile: modal de "Últimos movimientos" — mismos datos y lógica que
           la sección de escritorio (filteredMovements/movementQuery), solo
           cambia dónde se muestran en mobile: acá, con scroll interno. */}
-      {movementsModalOpen && (
+      {movementsModalOpen && typeof document !== "undefined" && createPortal(
         <div
           className="fixed inset-0 z-50 flex flex-col bg-black/70 p-3 backdrop-blur-sm sm:hidden"
           onClick={() => setMovementsModalOpen(false)}
@@ -3201,10 +3202,11 @@ function InventarioTab({
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
-      {stockAdjustment && (
+      {stockAdjustment && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm">
           <div className="w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-[linear-gradient(180deg,rgba(12,16,30,0.98),rgba(5,7,16,0.99))] shadow-[0_30px_100px_-45px_rgba(139,92,246,0.55)]">
             <div className="border-b border-white/[0.065] px-5 py-5">
@@ -3286,7 +3288,8 @@ function InventarioTab({
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
@@ -6274,7 +6277,7 @@ function CierreCajaBtn({
         Cerrar caja
       </button>
 
-      {open && (
+      {open && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4">
           <div className="w-full max-w-lg rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
@@ -6387,7 +6390,8 @@ function CierreCajaBtn({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
@@ -6944,7 +6948,7 @@ function CierresTab({
         )}
       </section>
 
-      {selected && (
+      {selected && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm">
           <div className="max-h-[88vh] w-full max-w-4xl overflow-hidden rounded-3xl border border-white/[0.10] bg-[linear-gradient(135deg,rgba(5,8,15,0.99),rgba(10,12,24,0.98),rgba(2,4,12,0.99))] shadow-2xl">
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-black/35 px-5 py-4">
@@ -7119,10 +7123,15 @@ function CierresTab({
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
-      {reopenTarget && (
+      {/* createPortal: sin esto, el <div className="relative z-10"> con el
+          que <AppShell> envuelve la página atrapa este modal en su propio
+          stacking context, y la barra inferior de navegación (fixed, z-40,
+          hermana de <main>) termina pintando encima en mobile. */}
+      {reopenTarget && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-[60] grid place-items-center bg-black/75 p-4 backdrop-blur-sm">
           <div className="w-full max-w-lg overflow-hidden rounded-3xl border border-white/[0.10] bg-[linear-gradient(135deg,rgba(5,8,15,0.99),rgba(10,12,24,0.98),rgba(2,4,12,0.99))] shadow-2xl">
             <div className="border-b border-white/[0.08] px-5 py-4">
@@ -7160,7 +7169,8 @@ function CierresTab({
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </div>
   );
@@ -7340,7 +7350,9 @@ function DetailModal({
     ? `#${String(paymentNumber).padStart(6, "0")}`
     : `#${payment.id.slice(-6).toUpperCase()}`;
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div
       className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4"
       onClick={onClose}
@@ -7486,7 +7498,8 @@ function DetailModal({
           <div className="h-4" />
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -8218,7 +8231,7 @@ function History({
         />
       )}
 
-      {pendingNoteModal && (
+      {pendingNoteModal && typeof document !== "undefined" && createPortal(
         <div
           className="fixed inset-0 z-[80] grid place-items-center bg-black/70 backdrop-blur-sm p-4"
           onClick={() => setPendingNoteModal(null)}
@@ -8253,13 +8266,14 @@ function History({
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
       {/* Pendientes de días anteriores — mismos datos (data.pendingChargesPrevious)
           y mismas acciones (Cobrar/Rechazar) que la lista de hoy, separados
           nada más para no mezclarlos en la vista principal. */}
-      {previousPendingOpen && (
+      {previousPendingOpen && typeof document !== "undefined" && createPortal(
         <div
           className="fixed inset-0 z-[80] grid place-items-center bg-black/70 backdrop-blur-sm p-4"
           onClick={() => setPreviousPendingOpen(false)}
@@ -8347,11 +8361,12 @@ function History({
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
       {/* Historial completo */}
-      {closeoutOpen && (
+      {closeoutOpen && typeof document !== "undefined" && createPortal(
         <div
           className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm"
           onClick={() => setCloseoutOpen(false)}
@@ -8824,7 +8839,8 @@ function History({
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
     </>

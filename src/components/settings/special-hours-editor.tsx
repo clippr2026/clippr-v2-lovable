@@ -1,4 +1,5 @@
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { Plus, X, Pencil, XCircle } from "lucide-react";
 import { toast } from "sonner";
 import { DarkCalendar } from "@/components/agenda/dark-calendar";
@@ -207,7 +208,16 @@ export function SpecialDayEditor({
     onSave(buildSpecialDay(state, allowBreak));
   };
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  // createPortal a document.body: este editor se abre tanto desde la Agenda
+  // (dentro de <AppShell>, que envuelve la página en un <div className="relative
+  // z-10">) como desde Configuración → Equipo. Sin portal, ese wrapper crea su
+  // propio stacking context y este modal queda atrapado compitiendo solo
+  // contra sus hermanos ahí adentro, nunca contra la barra inferior de
+  // navegación (fixed, z-40, pero hermana de <main> en el árbol raíz) — sin
+  // importar el z-index que tenga.
+  return createPortal(
     <div
       className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
       onClick={() => !saving && onCancel()}
@@ -283,7 +293,8 @@ export function SpecialDayEditor({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

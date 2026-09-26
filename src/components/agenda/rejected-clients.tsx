@@ -1,4 +1,5 @@
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { UserX, X, Info } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -96,6 +97,7 @@ export function RejectedClientCaptureModal({
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!open) return null;
+  if (typeof document === "undefined") return null;
 
   async function save() {
     if (!businessId) {
@@ -126,11 +128,14 @@ export function RejectedClientCaptureModal({
     }
   }
 
-  return (
+  // createPortal a document.body: este modal se abre dentro de <AppShell>,
+  // que envuelve la página en un <div className="relative z-10">. Sin
+  // portal, ese wrapper crea su propio stacking context y el modal queda
+  // atrapado compitiendo solo contra sus hermanos ahí adentro, nunca contra
+  // la barra inferior de navegación (fixed, z-40, hermana de <main> en el
+  // árbol raíz) — sin importar el z-index que tenga.
+  return createPortal(
     <>
-      {/* z-[110]/[111]: por encima de la barra superior de Agenda, que en
-          mobile tiene z-[100] propio (backdrop-filter de .glass crea su
-          stacking context — ver comentario en agenda.tsx). */}
       <div className="fixed inset-0 z-[110] bg-black/55 backdrop-blur-sm" onClick={onClose} />
       <div className="fixed inset-0 z-[111] grid place-items-center p-4" onClick={onClose}>
         <div className="w-full max-w-md overflow-hidden rounded-2xl bg-background shadow-2xl ring-1 ring-white/10" onClick={(e) => e.stopPropagation()}>
@@ -225,7 +230,8 @@ export function RejectedClientCaptureModal({
           </div>
         </div>
       </div>
-    </>
+    </>,
+    document.body,
   );
 }
 
@@ -301,10 +307,14 @@ export function RejectedClientsButton({
         </span>
       </button>
 
-      {open && (
+      {/* createPortal: este modal se abre dentro de <AppShell>, que envuelve
+          la página en un <div className="relative z-10">. Sin portal, ese
+          wrapper crea su propio stacking context y el modal queda atrapado
+          compitiendo solo contra sus hermanos ahí adentro, nunca contra la
+          barra inferior de navegación (fixed, z-40, hermana de <main> en el
+          árbol raíz) — sin importar el z-index que tenga. */}
+      {open && typeof document !== "undefined" && createPortal(
         <>
-          {/* z-[110]/[111]: por encima de la barra superior de Agenda (con
-              su propio z-[100] en mobile — ver comentario en agenda.tsx). */}
           <div className="fixed inset-0 z-[110] bg-black/55 backdrop-blur-sm" onClick={() => setOpen(false)} />
           {/* Mobile: hoja de pantalla completa (h-full de un fixed inset-0,
               no vh) para que el header con la X nunca quede fuera de la
@@ -412,7 +422,8 @@ export function RejectedClientsButton({
               </div>
             </div>
           </div>
-        </>
+        </>,
+        document.body,
       )}
     </>
   );
