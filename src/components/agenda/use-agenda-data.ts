@@ -766,7 +766,7 @@ export async function markAppointmentDeposit(id: string, currentNotes?: string |
 
 export async function cancelAppointment(
   id: string,
-  by: { userId?: string | null; name?: string | null; role?: string | null },
+  by: { userId?: string | null; name?: string | null; role?: string | null; reason?: string | null },
 ) {
   const { error } = await supabase
     .from("appointments")
@@ -790,6 +790,7 @@ export async function cancelAppointment(
         user: by.name,
         role: by.role === "profesional" || by.role === "cliente" ? by.role : "recepcion",
         action: "Canceló",
+        reason: by.reason?.trim() || undefined,
       });
     } catch {
       // No bloquear la cancelación (ya confirmada arriba) si esto falla.

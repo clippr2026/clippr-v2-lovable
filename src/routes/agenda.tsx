@@ -865,7 +865,7 @@ function AgendaPage() {
     setActiveDrawer("edit");
   };
 
-  const onChangeStatus = async (a: Appointment, status: ApptStatus) => {
+  const onChangeStatus = async (a: Appointment, status: ApptStatus, reason?: string) => {
     // Turno pasado (ya terminó): no se cancela ni confirma; se marca como
     // "No asistió" para conservar historial (sin aviso).
     if (a.status !== "blocked" && isPastAppointment(a) && status !== "no_show") {
@@ -889,6 +889,7 @@ function AgendaPage() {
           userId: session?.user.id,
           name: profile?.full_name,
           role: profile?.role,
+          reason,
         });
       } else {
         await setAppointmentStatus(a.id, status);
@@ -950,15 +951,13 @@ function AgendaPage() {
     });
   };
 
-  const onCancelWithDeposit = async (a: Appointment, action: "keep" | "return") => {
+  const onCancelWithDeposit = async (a: Appointment, action: "keep" | "return", reason: string) => {
     if (action === "return") {
-      // Motivo - prompt para más detalle
-      const motivo = window.prompt("Ingresá el motivo de la devolución (opcional):", "") ?? "";
       try {
         // Register refund in expenses
         await supabase.from("expenses").insert({
           business_id: a.business_id,
-          description: `Devolución de seña – ${a.client_name ?? "cliente"} – ${a.service_name ?? ""}${motivo ? " – " + motivo : ""}`,
+          description: `Devolución de seña – ${a.client_name ?? "cliente"} – ${a.service_name ?? ""}${reason ? " – " + reason : ""}`,
           amount: Number(a.deposit_paid ?? 0),
           type: "devolucion_sena",
           date: new Date().toISOString().slice(0, 10),
@@ -980,6 +979,7 @@ function AgendaPage() {
             user: profile.full_name,
             role: profile?.role === "profesional" ? "profesional" : "recepcion",
             action: "Canceló",
+            reason: reason.trim() || undefined,
           }).catch(() => {});
         }
         toast.success("Seña devuelta y egreso registrado en Caja");
@@ -1003,6 +1003,7 @@ function AgendaPage() {
             user: profile.full_name,
             role: profile?.role === "profesional" ? "profesional" : "recepcion",
             action: "Canceló",
+            reason: reason.trim() || undefined,
           }).catch(() => {});
         }
         // If prof share > 0, register compensation
@@ -1074,9 +1075,10 @@ function AgendaPage() {
 
   // Stable handlers passed to the (memoized) detail drawer.
   const handleEdit = useStableCallback(openEdit);
-  const handleCancel = useStableCallback((a: Appointment) => {
-    if (window.confirm("¿Cancelar este turno? No se puede deshacer."))
-      onChangeStatus(a, "cancelled");
+  // El motivo (obligatorio, ver AppointmentDetailDialog) ya funciona como
+  // confirmación deliberada — no hace falta un window.confirm() más encima.
+  const handleCancel = useStableCallback((a: Appointment, reason: string) => {
+    onChangeStatus(a, "cancelled", reason);
   });
   // Abre directamente la ficha del cliente de ESE turno (nunca el listado
   // general) — usa client_id, el identificador estable, nunca el nombre
@@ -3533,18 +3535,20 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   services: ReturnType<typeof useAgendaData>["services"];
   employeeServiceOverrides: ReturnType<typeof useAgendaData>["employeeServiceOverrides"];
   onEdit: (a: Appointment) => void;
-  onCancel: (a: Appointment) => void;
+  onCancel: (a: Appointment, reason: string) => void;
   onCobrar: (a: Appointment) => void;
   onFicha: (a: Appointment) => void;
   onChangeStatus: (a: Appointment, s: ApptStatus) => void;
   onMarkDeposit: (a: Appointment) => void;
-  onCancelWithDeposit: (a: Appointment, action: "keep" | "return") => void;
+  onCancelWithDeposit: (a: Appointment, action: "keep" | "return", reason: string) => void;
   onReleaseBlock: (a: Appointment) => void;
 }) {
   const [confirmCancel, setConfirmCancel] = React.useState(false);
+  const [cancelReason, setCancelReason] = React.useState("");
   const apptId = appointment?.id;
   React.useEffect(() => {
     setConfirmCancel(false);
+    setCancelReason("");
   }, [apptId]);
   if (!appointment) return null;
 
@@ -4090,12 +4094,21 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                             {" · "}{cancelEvent.time}
                           </div>
                         )}
+                        {cancelEvent?.reason && (
+                          <div className="text-center text-xs text-muted-foreground/80">
+                            Motivo: {cancelEvent.reason}
+                          </div>
+                        )}
                       </div>
                     );
                   }
 
                   if (hasStarted) return null;
 
+                  // Motivo obligatorio antes de poder confirmar — nada se
+                  // cancela con un solo toque. El textarea vacío bloquea los
+                  // botones de acción en ambas ramas (con/sin seña).
+                  const cancelReasonMissing = !cancelReason.trim();
                   return confirmCancel ? (
                     <div
                       className="rounded-xl p-2.5 space-y-2"
@@ -4107,49 +4120,77 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                       <div className="text-xs text-center" style={{ color: dot }}>
                         {appointment.deposit_status === "paid"
                           ? "Tiene seña pagada. ¿Qué hacés con la seña?"
-                          : "¿Cancelar este turno?"}
+                          : "Motivo de cancelación"}
                       </div>
+                      <textarea
+                        value={cancelReason}
+                        onChange={(e) => setCancelReason(e.target.value)}
+                        placeholder="Escribí por qué se cancela el turno..."
+                        rows={2}
+                        className="w-full resize-none rounded-lg bg-white/5 px-2.5 py-2 text-xs text-foreground outline-none ring-1 ring-white/10 placeholder:text-white/35 focus:ring-white/25"
+                      />
                       {appointment.deposit_status === "paid" ? (
-                        <div className="grid grid-cols-2 gap-2">
-                          <Button
-                            variant="destructive"
-                            className="h-9"
+                        <>
+                          <div className="grid grid-cols-2 gap-2">
+                            <Button
+                              variant="destructive"
+                              className="h-9"
+                              disabled={cancelReasonMissing}
+                              onClick={() => {
+                                onCancelWithDeposit(appointment, "keep", cancelReason.trim());
+                                setConfirmCancel(false);
+                                setCancelReason("");
+                              }}
+                            >
+                              Perder seña
+                            </Button>
+                            <Button
+                              variant="secondary"
+                              className="h-9"
+                              disabled={cancelReasonMissing}
+                              onClick={() => {
+                                onCancelWithDeposit(appointment, "return", cancelReason.trim());
+                                setConfirmCancel(false);
+                                setCancelReason("");
+                              }}
+                            >
+                              Devolver seña
+                            </Button>
+                          </div>
+                          <button
+                            type="button"
+                            className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition"
                             onClick={() => {
-                              onCancelWithDeposit(appointment, "keep");
                               setConfirmCancel(false);
+                              setCancelReason("");
                             }}
                           >
-                            Perder seña
-                          </Button>
-                          <Button
-                            variant="secondary"
-                            className="h-9"
-                            onClick={() => {
-                              onCancelWithDeposit(appointment, "return");
-                              setConfirmCancel(false);
-                            }}
-                          >
-                            Devolver seña
-                          </Button>
-                        </div>
+                            Volver
+                          </button>
+                        </>
                       ) : (
                         <div className="grid grid-cols-2 gap-2">
                           <Button
-                            variant="destructive"
-                            className="h-9"
-                            onClick={() => {
-                              onCancel(appointment);
-                              setConfirmCancel(false);
-                            }}
-                          >
-                            Sí, cancelar
-                          </Button>
-                          <Button
                             variant="secondary"
                             className="h-9"
-                            onClick={() => setConfirmCancel(false)}
+                            onClick={() => {
+                              setConfirmCancel(false);
+                              setCancelReason("");
+                            }}
                           >
-                            No
+                            Volver
+                          </Button>
+                          <Button
+                            variant="destructive"
+                            className="h-9"
+                            disabled={cancelReasonMissing}
+                            onClick={() => {
+                              onCancel(appointment, cancelReason.trim());
+                              setConfirmCancel(false);
+                              setCancelReason("");
+                            }}
+                          >
+                            Confirmar cancelación
                           </Button>
                         </div>
                       )}

@@ -21,6 +21,10 @@ export type HistorialEvento = {
   user: string;
   role: "profesional" | "recepcion" | "cliente" | "sistema";
   action: "Envió a caja" | "Cobró" | "Canceló" | "Anuló cobro" | "Reembolsó" | "Rechazó";
+  // Motivo de cancelación — solo se completa cuando action === "Canceló".
+  // Obligatorio en la UI (ver AppointmentDetailDialog), pero opcional acá
+  // porque eventos viejos (cancelados antes de este campo) no lo tienen.
+  reason?: string;
 };
 
 // Texto de atribución ("Cancelado por Alan" / "Cancelado por cliente"),

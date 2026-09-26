@@ -1839,6 +1839,9 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                         </div>
                         <div className="text-sm text-muted-foreground">{t.service_name ?? "—"}</div>
                         <div className="text-xs text-muted-foreground">{formatDate(t.starts_at)} · {formatTime(t.starts_at)}</div>
+                        {cancelEvent?.reason && (
+                          <div className="text-xs text-muted-foreground/80">Motivo: {cancelEvent.reason}</div>
+                        )}
                       </div>
                       {cancelEvent && (
                         <div className="text-right space-y-0.5 shrink-0">
