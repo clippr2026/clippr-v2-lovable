@@ -74,6 +74,12 @@ function WhatsAppIcon(props: React.SVGProps<SVGSVGElement>) {
 }
 
 export const Route = createFileRoute("/agenda")({
+  // `date` ("YYYY-MM-DD"): permite volver a Agenda desde otra pantalla (ej.
+  // "Ficha" de un turno, ver handleFicha) conservando el día que se estaba
+  // viendo en vez de resetear siempre a hoy.
+  validateSearch: (search: Record<string, unknown>): { date?: string } => ({
+    date: typeof search.date === "string" ? search.date : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Agenda — Clippr" },
@@ -82,6 +88,17 @@ export const Route = createFileRoute("/agenda")({
   }),
   component: AgendaPage,
 });
+
+// "YYYY-MM-DD" → Date a medianoche LOCAL (no usar `new Date("YYYY-MM-DD")`
+// directo: eso lo interpreta como UTC y corre el día según la zona horaria
+// del dispositivo).
+function parseDateKey(value: string | undefined): Date | null {
+  if (!value) return null;
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return null;
+  const d = new Date(Number(match[1]), Number(match[2]) - 1, Number(match[3]));
+  return Number.isNaN(d.getTime()) ? null : d;
+}
 
 // ---------------------------------------------------------------------------
 // Status visuals (mismos buckets que app.js)
@@ -208,9 +225,12 @@ function fmtTime(d: Date) {
 // ---------------------------------------------------------------------------
 function AgendaPage() {
   const navigate = useNavigate();
+  const search = Route.useSearch();
   const { session, profile, loading: authLoading } = useAuth();
   const [view, setView] = React.useState<"day" | "week" | "month">("day");
-  const [cursor, setCursor] = React.useState<Date>(startOfDay(new Date()));
+  const [cursor, setCursor] = React.useState<Date>(
+    () => parseDateKey(search.date) ?? startOfDay(new Date()),
+  );
 
   React.useEffect(() => {
     if (!authLoading && !session) navigate({ to: "/login", replace: true });
@@ -1040,7 +1060,27 @@ function AgendaPage() {
     if (window.confirm("¿Cancelar este turno? No se puede deshacer."))
       onChangeStatus(a, "cancelled");
   });
-  const handleFicha = useStableCallback(() => navigate({ to: "/clients" }));
+  // Abre directamente la ficha del cliente de ESE turno (nunca el listado
+  // general) — usa client_id, el identificador estable, nunca el nombre
+  // (puede haber homónimos). Sin client_id (turno viejo o mal cargado, ej.
+  // "Horario bloqueado") no hay ningún ID confiable para abrir una ficha
+  // puntual: cae al listado general en vez de arriesgar abrir la de otra
+  // persona. Al cerrar la ficha en /clients, si llegó desde acá, vuelve a
+  // Agenda con la misma fecha que se estaba viendo (ver validateSearch de
+  // esta ruta y el onClose de ClientDetailModal en clients.tsx).
+  const handleFicha = useStableCallback((a: Appointment) => {
+    if (!a.client_id) {
+      // Sin ID confiable: cae al listado general (nunca se adivina una
+      // ficha por nombre), pero al menos precarga la búsqueda con el
+      // nombre del turno para no obligar a tipearlo de nuevo.
+      navigate({ to: "/clients", search: (a.client_name ? { q: a.client_name } : {}) as never });
+      return;
+    }
+    navigate({
+      to: "/clients",
+      search: { clientId: a.client_id, agendaDate: toDateKey(cursor) } as never,
+    });
+  });
   const handleMarkDeposit = useStableCallback(onMarkDeposit);
   const handleCancelWithDeposit = useStableCallback(onCancelWithDeposit);
   const handleReleaseBlock = useStableCallback(releaseBlock);

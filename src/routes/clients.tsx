@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
@@ -45,7 +45,22 @@ import {
 } from "@/hooks/use-clients-data";
 import { useAuth } from "@/hooks/use-auth";
 
-export const Route = createFileRoute("/clients")({ component: ClientsPage });
+export const Route = createFileRoute("/clients")({
+  // Deep link desde Agenda ("Ficha" de un turno, ver handleFicha en
+  // agenda.tsx): clientId abre esa ficha directo al entrar, sin pasar por
+  // el listado general. agendaDate ("YYYY-MM-DD") es solo para volver a
+  // Agenda con la misma fecha al cerrar esa ficha puntual.
+  validateSearch: (
+    search: Record<string, unknown>,
+  ): { clientId?: string; agendaDate?: string; q?: string } => ({
+    clientId: typeof search.clientId === "string" ? search.clientId : undefined,
+    agendaDate: typeof search.agendaDate === "string" ? search.agendaDate : undefined,
+    // Fallback cuando el turno de origen no tenía client_id: solo precarga
+    // la búsqueda, nunca abre una ficha por nombre (puede haber homónimos).
+    q: typeof search.q === "string" ? search.q : undefined,
+  }),
+  component: ClientsPage,
+});
 
 const avatarTints = [
   "from-sky-400/30 to-violet-600/10 text-sky-100 ring-violet-400/30",
@@ -684,13 +699,21 @@ function ClientDetailModal({
 
 function ClientsPage() {
   const { businessId } = useAuth();
+  const navigate = useNavigate();
+  const search = Route.useSearch();
   const saveClient = useSaveClient(businessId);
   const deleteClient = useDeleteClient(businessId);
   const updateNotes = useUpdateClientNotes(businessId);
+  // Deep link desde Agenda ("Ficha" de un turno): abre esa ficha puntual sin
+  // pasar por el listado. Se capturan en el primer render y no se vuelven a
+  // leer del search param — si el usuario cierra la ficha y abre otra desde
+  // la lista normal, esa segunda ya no "vuelve a Agenda" al cerrarla (ver
+  // onClose de ClientDetailModal más abajo).
+  const [deepLink] = useState(() => ({ clientId: search.clientId, agendaDate: search.agendaDate }));
 
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(() => search.q ?? "");
   const [sort, setSort] = useState<"gasto" | "recientes" | "nombre">("gasto");
-  const [selected, setSelected] = useState<string | null>(null);
+  const [selected, setSelected] = useState<string | null>(() => deepLink.clientId ?? null);
   const [newClientOpen, setNewClientOpen] = useState(false);
   const [segmentModal, setSegmentModal] = useState<{ title: string; clients: ClientListRow[]; loading?: boolean } | null>(
     null,
@@ -921,6 +944,19 @@ function ClientsPage() {
     },
     [updateNotes],
   );
+
+  // Cierra la ficha. Si es la que se abrió por deep link desde Agenda, vuelve
+  // ahí con la misma fecha que se estaba viendo en vez de dejar al usuario
+  // en el listado general de Clientes — si mientras tanto abrió otra ficha
+  // distinta desde la lista normal, `selected` ya no coincide con
+  // `deepLink.clientId` y este cierre se comporta como cualquier otro.
+  const closeClientDetail = useCallback(() => {
+    if (deepLink.clientId && deepLink.agendaDate && selected === deepLink.clientId) {
+      navigate({ to: "/agenda", search: { date: deepLink.agendaDate } as never });
+      return;
+    }
+    setSelected(null);
+  }, [deepLink, selected, navigate]);
 
   if (isLoading && clients.length === 0) {
     return (
@@ -1155,7 +1191,7 @@ function ClientsPage() {
             open
             loading={detailLoading}
             client={current}
-            onClose={() => setSelected(null)}
+            onClose={closeClientDetail}
             onDelete={handleDeleteClient}
             onSaveNotes={saveNotes}
             savingNotes={updateNotes.isPending}
