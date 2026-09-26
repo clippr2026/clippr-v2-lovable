@@ -171,15 +171,22 @@ export function useInsertRejectedClient(businessId: string | null | undefined) {
         working_professionals: input.working_professionals,
         day_appointments: input.day_appointments,
         recorded_by: recordedBy,
-        reason_detail: input.reason === "otro" ? (input.reason_detail?.trim() || null) : null,
       };
+      const reasonDetail = input.reason === "otro" ? (input.reason_detail?.trim() || null) : null;
 
-      console.info("[rejected_clients] insert payload", row);
+      console.info("[rejected_clients] insert payload", { ...row, reason_detail: reasonDetail });
 
       // Importante: no encadenar .select().single() después del insert.
       // Con RLS, el INSERT puede estar permitido pero el RETURNING/SELECT posterior
       // puede devolver 403. Para esta acción alcanza con guardar y luego invalidar queries.
-      const { error } = await supabase.from("rejected_clients").insert(row);
+      let { error } = await supabase.from("rejected_clients").insert({ ...row, reason_detail: reasonDetail });
+      if (error) {
+        // reason_detail es una columna nueva — si la migración todavía no
+        // corrió en este negocio, reintenta sin ella para no bloquear el
+        // registro (que funcionaba antes) por un campo secundario.
+        console.warn("[rejected_clients] insert con reason_detail falló, reintentando sin ella:", error.message);
+        ({ error } = await supabase.from("rejected_clients").insert(row));
+      }
       if (error) {
         console.error("[rejected_clients] insert error", error);
         throw new Error(error.message || "No se pudo registrar el cliente no atendido.");
@@ -189,6 +196,7 @@ export function useInsertRejectedClient(businessId: string | null | undefined) {
         id: crypto.randomUUID(),
         created_at: new Date().toISOString(),
         ...row,
+        reason_detail: reasonDetail,
       } as RejectedClient;
     },
     onSuccess: () => {
