@@ -123,6 +123,11 @@ export async function registerPayment(input: RegisterPaymentInput) {
   const payload: Record<string, unknown> = {
     business_id: input.businessId,
     employee_id: input.employeeId ?? null,
+    // Relación principal con `clients` — antes se recibía pero nunca se
+    // guardaba, y la ficha/RPC de Clientes solo podían matchear este pago
+    // por client_name (texto), perdiendo/mezclando historial ante
+    // homónimos o nombres editados después de cobrar.
+    client_id: input.clientId ?? null,
     client_name: input.clientName || "Cliente del mostrador",
     service_name: saleSummary,
     amount: total,

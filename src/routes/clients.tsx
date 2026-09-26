@@ -8,13 +8,16 @@ import { ClipprLoader } from "@/components/ui/clippr-loader";
 import {
   AlertTriangle,
   ArrowRight,
+  Cake,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
   Crown,
+  Mail,
   MoreHorizontal,
   Megaphone,
   PauseCircle,
+  Phone,
   Plus,
   Search,
   Sparkles,
@@ -44,6 +47,7 @@ import {
   type ClientStatus,
 } from "@/hooks/use-clients-data";
 import { useAuth } from "@/hooks/use-auth";
+import { PAY_METHOD_LABEL, type PayMethod } from "@/components/cash-register/register-payment";
 
 export const Route = createFileRoute("/clients")({
   // Deep link desde Agenda ("Ficha" de un turno, ver handleFicha en
@@ -271,6 +275,59 @@ function formatClientSince(date?: string | null) {
   return parsed.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
+// Solo día y mes — un cumpleaños no necesita mostrar la edad.
+function formatBirthday(date?: string | null): string | null {
+  if (!date) return null;
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return parsed.toLocaleDateString("es-AR", { day: "2-digit", month: "long" });
+}
+
+function formatApptDateTime(date: string): string {
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return "—";
+  return parsed.toLocaleString("es-AR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+const APPT_STATUS_LABEL: Record<string, string> = {
+  pending: "Pendiente",
+  confirmed: "Confirmado",
+  completed: "Completado",
+  charged: "Cobrado",
+  cancelled: "Cancelado",
+  no_show: "No asistió",
+  blocked: "Bloqueado",
+};
+
+const APPT_STATUS_TONE: Record<string, string> = {
+  pending: "text-sky-300",
+  confirmed: "text-violet-300",
+  completed: "text-emerald-300",
+  charged: "text-emerald-300",
+  cancelled: "text-white/40",
+  no_show: "text-rose-300",
+  blocked: "text-white/40",
+};
+
+// "10%" o "$5.000" — null si no hay descuento real para no mostrar "0%".
+function formatDiscountLabel(discountType?: string | null, discountValue?: string | null): string | null {
+  if (!discountType || discountValue == null) return null;
+  const value = Number(discountValue);
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return discountType === "percent" ? `${value}%` : `$${value.toLocaleString("es-AR")}`;
+}
+
+function formatPayMethodLabel(method?: string | null): string | null {
+  if (!method) return null;
+  return PAY_METHOD_LABEL[method as PayMethod] ?? method;
+}
+
 function getClientProfileText(c: Client | null) {
   if (!c) return "Seleccioná un cliente para ver el perfil.";
   if (c.status === "nuevo")
@@ -304,7 +361,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
   onSaveNotes,
   savingNotes,
 }: ClientDetailPanelProps) {
-  const [tab, setTab] = useState<"resumen" | "historial">("resumen");
+  const [tab, setTab] = useState<"resumen" | "reservas" | "pagos">("resumen");
   const [menuOpen, setMenuOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState(client.notes ?? "");
   // El cuadro de escritura solo se muestra al crear la primera nota o
@@ -340,6 +397,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
 
   const ticket = client.visits ? Math.round(client.spent / client.visits) : 0;
   const since = formatClientSince(client.created_at);
+  const birthday = formatBirthday(client.birth_date);
   const profileText = getClientProfileText(client);
   const favoriteServices = client.favoriteServices;
   const hasNote = Boolean((client.notes ?? "").trim());
@@ -405,6 +463,28 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                     </div>
                   </div>
                 )}
+                {(client.phone || client.email) && (
+                  <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-white/70">
+                    {client.phone && (
+                      <span className="inline-flex items-center gap-1.5">
+                        <Phone className="h-3.5 w-3.5 text-white/45" />
+                        {client.phone}
+                      </span>
+                    )}
+                    {client.email && (
+                      <span className="inline-flex items-center gap-1.5 truncate">
+                        <Mail className="h-3.5 w-3.5 shrink-0 text-white/45" />
+                        <span className="truncate">{client.email}</span>
+                      </span>
+                    )}
+                  </div>
+                )}
+                {birthday && (
+                  <div className="mt-1.5 inline-flex items-center gap-2 text-sm text-white/70">
+                    <Cake className="h-4 w-4 text-white/45" />
+                    <span>{birthday}</span>
+                  </div>
+                )}
               </div>
               <div className="relative">
                 <button
@@ -432,7 +512,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
 
       <div className="px-6 pt-3 shrink-0">
         <div className="inline-flex rounded-full bg-white/5 ring-1 ring-white/10 p-1">
-          {(["resumen", "historial"] as const).map((t) => (
+          {(["resumen", "reservas", "pagos"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -579,31 +659,93 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
           <div
             className={cn(
               "col-start-1 row-start-1 space-y-2",
-              tab !== "historial" && "invisible pointer-events-none",
+              tab !== "reservas" && "invisible pointer-events-none",
             )}
-            aria-hidden={tab !== "historial"}
+            aria-hidden={tab !== "reservas"}
+          >
+            {client.reservations.length === 0 ? (
+              <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-4 text-sm text-muted-foreground">
+                Sin turnos todavía.
+              </div>
+            ) : (
+              client.reservations.map((r) => {
+                const discount = formatDiscountLabel(r.discountType, r.discountValue);
+                return (
+                  <div
+                    key={r.id}
+                    className="flex items-center justify-between gap-3 rounded-xl bg-white/5 ring-1 ring-white/10 p-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate">{r.service}</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {formatApptDateTime(r.date)}
+                        {r.employeeName ? ` · ${r.employeeName}` : ""}
+                      </div>
+                      {(r.promotionName || discount) && (
+                        <div className="mt-0.5 text-[11px] text-violet-300/80 truncate">
+                          {r.promotionName ?? "Promo"}
+                          {discount ? ` (${discount})` : ""}
+                        </div>
+                      )}
+                    </div>
+                    <div className="shrink-0 text-right">
+                      {r.price != null && (
+                        <div className="text-sm font-semibold tabular-nums">
+                          ${r.price.toLocaleString("es-AR")}
+                        </div>
+                      )}
+                      <div className={cn("text-[11px] font-semibold", APPT_STATUS_TONE[r.status] ?? "text-white/60")}>
+                        {APPT_STATUS_LABEL[r.status] ?? r.status}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+          <div
+            className={cn(
+              "col-start-1 row-start-1 space-y-2",
+              tab !== "pagos" && "invisible pointer-events-none",
+            )}
+            aria-hidden={tab !== "pagos"}
           >
             {client.history.length === 0 ? (
               <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-4 text-sm text-muted-foreground">
-                Sin historial de cobros todavía.
+                Sin pagos todavía.
               </div>
             ) : (
-              client.history.map((h) => (
-                <div
-                  key={h.id}
-                  className="flex items-center justify-between rounded-xl bg-white/5 ring-1 ring-white/10 p-3"
-                >
-                  <div>
-                    <div className="text-sm font-medium">{h.service}</div>
-                    <div className="text-[11px] text-muted-foreground">
-                      {new Date(h.date).toLocaleString("es-AR")}
+              client.history.map((h) => {
+                const discount = formatDiscountLabel(h.discountType, h.discountValue);
+                const methodLabel = formatPayMethodLabel(h.method);
+                return (
+                  <div
+                    key={h.id}
+                    className="flex items-center justify-between gap-3 rounded-xl bg-white/5 ring-1 ring-white/10 p-3"
+                  >
+                    <div className="min-w-0">
+                      <div className="text-sm font-medium truncate">{h.service}</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {new Date(h.date).toLocaleString("es-AR")}
+                        {h.employeeName ? ` · ${h.employeeName}` : ""}
+                        {methodLabel ? ` · ${methodLabel}` : ""}
+                      </div>
+                      {(h.promotionName || discount) && (
+                        <div className="mt-0.5 text-[11px] text-violet-300/80 truncate">
+                          {h.promotionName ?? "Promo"}
+                          {discount ? ` (${discount})` : ""}
+                        </div>
+                      )}
+                      {h.reference && (
+                        <div className="mt-0.5 text-[11px] text-muted-foreground truncate">Nº op. {h.reference}</div>
+                      )}
+                    </div>
+                    <div className="shrink-0 text-sm font-semibold tabular-nums">
+                      ${h.amount.toLocaleString("es-AR")}
                     </div>
                   </div>
-                  <div className="text-sm font-semibold tabular-nums">
-                    ${h.amount.toLocaleString("es-AR")}
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>

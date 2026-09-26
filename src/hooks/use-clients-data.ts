@@ -17,6 +17,12 @@ export type ClientPayment = {
   date: string;
   service: string;
   amount: number;
+  employeeName?: string | null;
+  method?: string | null;
+  promotionName?: string | null;
+  discountType?: string | null;
+  discountValue?: string | null;
+  reference?: string | null;
 };
 
 export type ClientAppointment = {
@@ -24,6 +30,11 @@ export type ClientAppointment = {
   date: string;
   service: string;
   status: string;
+  employeeName?: string | null;
+  price?: number | null;
+  promotionName?: string | null;
+  discountType?: string | null;
+  discountValue?: string | null;
 };
 
 export type ClientFavoriteService = {
@@ -53,6 +64,10 @@ export type Client = {
   vipTag: ClientVipTag;
   rating: number;
   history: ClientPayment[];
+  // Historial COMPLETO de turnos (todos los estados, más reciente primero) —
+  // para la pestaña "Reservas" de la ficha. Solo se carga en el detalle
+  // puntual (loadClientDetail); loadClients (listado masivo) no la completa.
+  reservations: ClientAppointment[];
   acquisitionSource?: string | null;
   acquisitionSourceCustom?: string | null;
   acquisitionCapturedAt?: string | null;
@@ -133,7 +148,7 @@ async function loadClients(businessId: string): Promise<Client[]> {
   ] = await Promise.all([
     supabase
       .from("payments")
-      .select("id,client_name,service_name,total,amount,created_at")
+      .select("id,client_id,client_name,service_name,total,amount,created_at")
       .eq("business_id", businessId)
       .order("created_at", { ascending: false }),
     supabase
@@ -151,19 +166,28 @@ async function loadClients(businessId: string): Promise<Client[]> {
   if (appointmentsError)
     throw new Error("Error cargando próximos turnos de clientes: " + appointmentsError.message);
 
+  // client_id es la relación principal (pagos nuevos siempre lo tienen); el
+  // nombre normalizado es solo el fallback para pagos legacy sin cliente
+  // asociado — mismo criterio que clippr_clients_list.
+  const paymentsByClientId = new Map<string, ClientPayment[]>();
   const paymentsByName = new Map<string, ClientPayment[]>();
 
   (payments ?? []).forEach((p) => {
-    const key = (p.client_name ?? "").trim().toLowerCase();
-    if (!key) return;
-
-    if (!paymentsByName.has(key)) paymentsByName.set(key, []);
-    paymentsByName.get(key)!.push({
+    const entry: ClientPayment = {
       id: p.id,
       date: p.created_at,
       service: p.service_name || "Servicio",
       amount: Number(p.total ?? p.amount ?? 0),
-    });
+    };
+    if (p.client_id) {
+      if (!paymentsByClientId.has(p.client_id)) paymentsByClientId.set(p.client_id, []);
+      paymentsByClientId.get(p.client_id)!.push(entry);
+      return;
+    }
+    const key = (p.client_name ?? "").trim().toLowerCase();
+    if (!key) return;
+    if (!paymentsByName.has(key)) paymentsByName.set(key, []);
+    paymentsByName.get(key)!.push(entry);
   });
 
   const appointmentsByClientId = new Map<string, ClientAppointment>();
@@ -187,7 +211,7 @@ async function loadClients(businessId: string): Promise<Client[]> {
 
   return rawClients.map((c) => {
     const name = c.full_name ?? "Sin nombre";
-    const history = paymentsByName.get(name.trim().toLowerCase()) ?? [];
+    const history = paymentsByClientId.get(c.id) ?? paymentsByName.get(name.trim().toLowerCase()) ?? [];
     const visits = history.length;
     const spent = history.reduce((sum, p) => sum + p.amount, 0);
     const last12Cutoff = new Date();
@@ -244,6 +268,10 @@ async function loadClients(businessId: string): Promise<Client[]> {
       status,
       rating: computeRating(visitsFinal, spentFinal, lastVisit.days),
       history,
+      // Listado masivo: no carga el historial completo de turnos (sería
+      // traer todos los appointments de todos los clientes de una sola vez).
+      // Ver loadClientDetail para la ficha puntual, que sí la completa.
+      reservations: [],
       acquisitionSource: c.acquisition_source,
       acquisitionSourceCustom: c.acquisition_source_custom,
       acquisitionCapturedAt: c.acquisition_captured_at,
@@ -422,18 +450,54 @@ async function loadClientDetail(businessId: string, clientId: string): Promise<C
   if (!c) return null;
 
   const name = c.full_name ?? "Sin nombre";
-  const [{ data: payments }, { data: appointments }, statusRows] = await Promise.all([
-    supabase.from("payments").select("id,client_name,service_name,total,amount,created_at")
-      .eq("business_id", businessId).eq("client_name", name).order("created_at", { ascending: false }),
-    supabase.from("appointments").select("id,client_id,client_name,service_name,starts_at,status")
-      .eq("business_id", businessId).eq("client_id", clientId)
-      .gte("starts_at", new Date().toISOString()).neq("status", "cancelled")
-      .order("starts_at", { ascending: true }).limit(1),
+  // Pagos: client_id es la relación principal — ver migración
+  // 20260925010000_payments_client_id (agrega la columna, backfillea las
+  // filas existentes por nombre, y hace que clippr_clients_list la prefiera
+  // también). Turnos: TODOS los estados y fechas (no solo próximos/activos)
+  // para la pestaña "Reservas" — antes esta función solo traía como máximo
+  // 1 turno futuro no cancelado, así que un turno pendiente/pasado/cancelado
+  // nunca aparecía en ningún lado de la ficha.
+  const [{ data: payments }, { data: appointments }, { data: employees }, statusRows] = await Promise.all([
+    supabase
+      .from("payments")
+      // splits (pago dividido en varios métodos) queda afuera: es una
+      // columna agregada por separado y register-payment.ts la escribe con
+      // manejo defensivo por si todavía no existe en algún ambiente — no es
+      // seguro asumir que siempre está, y romper el select entero por eso
+      // dejaría la ficha sin abrir. `method`/`payment_method` sí son parte
+      // del insert principal, siempre presentes.
+      .select(
+        "id,client_id,client_name,service_name,employee_id,total,amount,method,payment_method,promotion_name,discount_type,discount_value,reference,created_at",
+      )
+      .eq("business_id", businessId)
+      .eq("client_id", clientId)
+      .order("created_at", { ascending: false }),
+    supabase
+      .from("appointments")
+      .select("id,service_name,employee_id,starts_at,status,service_price,promotion_snapshot")
+      .eq("business_id", businessId)
+      .eq("client_id", clientId)
+      .order("starts_at", { ascending: false }),
+    supabase.from("employees").select("id,full_name").eq("business_id", businessId),
     fetchStatusRows(businessId, { search: name, limit: 50 }),
   ]);
 
+  const employeeNameById = new Map<string, string>();
+  (employees ?? []).forEach((e) => {
+    if (e.full_name) employeeNameById.set(e.id, e.full_name);
+  });
+
   const history: ClientPayment[] = (payments ?? []).map((p) => ({
-    id: p.id, date: p.created_at, service: p.service_name || "Servicio", amount: Number(p.total ?? p.amount ?? 0),
+    id: p.id,
+    date: p.created_at,
+    service: p.service_name || "Servicio",
+    amount: Number(p.total ?? p.amount ?? 0),
+    employeeName: p.employee_id ? employeeNameById.get(p.employee_id) ?? null : null,
+    method: p.method ?? p.payment_method ?? null,
+    promotionName: p.promotion_name ?? null,
+    discountType: p.discount_type ?? null,
+    discountValue: p.discount_value != null ? String(p.discount_value) : null,
+    reference: p.reference ?? null,
   }));
   const visits = history.length;
   const spent = history.reduce((s, p) => s + p.amount, 0);
@@ -446,8 +510,30 @@ async function loadClientDetail(businessId: string, clientId: string): Promise<C
   });
   const favoriteServices = Array.from(favMap.entries()).map(([service, v]) => ({ service, ...v }))
     .sort((a, b) => b.count - a.count || b.amount - a.amount).slice(0, 3);
-  const appt = appointments?.[0];
-  const nextAppointment = appt ? { id: appt.id, date: appt.starts_at, service: appt.service_name || "Servicio", status: appt.status || "pending" } : null;
+
+  const reservations: ClientAppointment[] = (appointments ?? []).map((a) => {
+    const promo = a.promotion_snapshot as { name?: string; discountType?: string; discountValue?: string } | null;
+    return {
+      id: a.id,
+      date: a.starts_at,
+      service: a.service_name || "Servicio",
+      status: a.status || "pending",
+      employeeName: a.employee_id ? employeeNameById.get(a.employee_id) ?? null : null,
+      price: a.service_price != null ? Number(a.service_price) : null,
+      promotionName: promo?.name ?? null,
+      discountType: promo?.discountType ?? null,
+      discountValue: promo?.discountValue ?? null,
+    };
+  });
+  // El próximo turno se deriva del mismo historial completo (no una query
+  // aparte): el más cercano a hoy entre los no cancelados y todavía no
+  // pasados. `reservations` está ordenado por fecha descendente, así que no
+  // alcanza con tomar el primero — hay que buscar el mínimo entre los futuros.
+  const now = Date.now();
+  const upcoming = reservations.filter((r) => r.status !== "cancelled" && new Date(r.date).getTime() >= now);
+  const nextAppointment = upcoming.length
+    ? upcoming.reduce((soonest, r) => (new Date(r.date) < new Date(soonest.date) ? r : soonest))
+    : null;
   const lastDate = history[0]?.date ?? null;
 
   // status/vip_tag/visits/spent: misma fuente única que el listado (RPC
@@ -464,7 +550,7 @@ async function loadClientDetail(businessId: string, clientId: string): Promise<C
     visits: visitsFinal, spent: spentFinal, spentLast12Months, favoriteServices, nextAppointment,
     lastVisit: lastVisit.label, lastVisitDays: lastVisit.days, vipTag,
     status,
-    rating: computeRating(visitsFinal, spentFinal, lastVisit.days), history,
+    rating: computeRating(visitsFinal, spentFinal, lastVisit.days), history, reservations,
     acquisitionSource: c.acquisition_source,
     acquisitionSourceCustom: c.acquisition_source_custom,
     acquisitionCapturedAt: c.acquisition_captured_at,
