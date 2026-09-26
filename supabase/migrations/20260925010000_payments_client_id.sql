@@ -8,33 +8,47 @@
 -- en cada cobro (todos los llamadores de src/routes/cash-register.tsx ya lo
 -- pasaban) pero nunca lo guardaba — el dato estaba disponible y se
 -- descartaba. Esta migración agrega la columna, la completa para los pagos
--- ya existentes que hoy matchean por nombre (mismo criterio que ya usa el
--- sistema, no cambia ninguna atribución vigente) y hace que los RPC de
--- Clientes prioricen `client_id` cuando está presente, cayendo al match por
--- nombre solo para filas legacy que quedaron sin cliente asociado (ej.
--- "Cliente del mostrador", o un nombre que nunca matcheó ningún cliente).
+-- ya existentes SOLO cuando el nombre identifica a un único cliente del
+-- negocio (si hay homónimos, ninguno se auto-vincula — ver el backfill más
+-- abajo), y hace que los RPC de Clientes prioricen `client_id` cuando está
+-- presente, cayendo al match por nombre solo para filas legacy que quedaron
+-- sin cliente asociado (ej. "Cliente del mostrador", o un nombre ambiguo/que
+-- nunca matcheó ningún cliente).
 
 alter table public.payments
   add column if not exists client_id uuid references public.clients(id) on delete set null;
 
 create index if not exists payments_client_id_idx on public.payments(client_id);
 
--- Backfill best-effort: mismo criterio de matching (lower/btrim del nombre)
--- que ya usan los RPC hoy, así no se reatribuye nada distinto a lo que el
--- sistema ya consideraba "de este cliente" — solo lo deja explícito en una
--- FK real en vez de depender de comparar texto en cada consulta. Si dos
--- clientes del mismo negocio comparten nombre exacto, esta UPDATE puede
--- asociar el pago a cualquiera de los dos (misma ambigüedad que ya existe
--- hoy en el match por nombre); los pagos nuevos ya no tienen ese problema
--- porque se registran con el client_id real desde el momento del cobro.
+-- Backfill SOLO cuando el nombre identifica a un único cliente dentro del
+-- negocio (subconsulta with_unique_names): si dos o más clientes del mismo
+-- negocio comparten nombre exacto (mismo lower/btrim), ninguno de los dos se
+-- auto-vincula — esos pagos quedan con client_id null en vez de asignarse a
+-- cualquiera de los homónimos. No es una regresión: hoy esos pagos ya son
+-- ambiguos por nombre para los RPC; esta migración simplemente no agrava esa
+-- ambigüedad con una asignación incorrecta y silenciosa. Los pagos NUEVOS no
+-- tienen este problema en absoluto: se registran con el client_id real y
+-- exacto desde el momento del cobro (ver register-payment.ts), sin pasar
+-- nunca por este backfill de nombre.
+with unique_name_matches as (
+  select c.id as client_id, c.business_id, lower(btrim(c.full_name)) as name_key
+  from public.clients c
+  where lower(btrim(c.full_name)) in (
+    select lower(btrim(c2.full_name))
+    from public.clients c2
+    where c2.business_id = c.business_id
+    group by lower(btrim(c2.full_name))
+    having count(*) = 1
+  )
+)
 update public.payments p
-set client_id = c.id
-from public.clients c
+set client_id = m.client_id
+from unique_name_matches m
 where p.client_id is null
   and p.client_name is not null
   and btrim(p.client_name) <> ''
-  and c.business_id = p.business_id
-  and lower(btrim(c.full_name)) = lower(btrim(p.client_name));
+  and m.business_id = p.business_id
+  and m.name_key = lower(btrim(p.client_name));
 
 create or replace function public.clippr_clients_list(p_business_id uuid, p_search text DEFAULT ''::text, p_sort text DEFAULT 'nombre'::text, p_status text DEFAULT NULL::text, p_limit integer DEFAULT 30, p_offset integer DEFAULT 0)
  returns table(id uuid, full_name text, phone text, email text, created_at timestamp with time zone, visits bigint, spent numeric, last_visit timestamp with time zone, last_visit_days integer, status text, vip_tag text, total_count bigint)
