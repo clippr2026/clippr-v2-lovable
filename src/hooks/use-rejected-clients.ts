@@ -34,6 +34,8 @@ export type RejectedClient = {
   working_professionals: number | null;
   day_appointments: number | null;
   recorded_by: string | null;
+  /** Texto libre cuando reason === "otro". null para el resto de los motivos. */
+  reason_detail: string | null;
 };
 
 export type NewRejectedClient = {
@@ -45,6 +47,8 @@ export type NewRejectedClient = {
   occupancy_pct: number | null;
   working_professionals: number | null;
   day_appointments: number | null;
+  /** Obligatorio (en la UI) solo cuando reason === "otro". */
+  reason_detail?: string | null;
   /** Momento del rechazo. Por defecto, ahora. */
   at?: Date;
 };
@@ -167,6 +171,7 @@ export function useInsertRejectedClient(businessId: string | null | undefined) {
         working_professionals: input.working_professionals,
         day_appointments: input.day_appointments,
         recorded_by: recordedBy,
+        reason_detail: input.reason === "otro" ? (input.reason_detail?.trim() || null) : null,
       };
 
       console.info("[rejected_clients] insert payload", row);

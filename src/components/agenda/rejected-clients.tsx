@@ -86,6 +86,7 @@ export function RejectedClientCaptureModal({
   const [serviceId, setServiceId] = React.useState<string | null>(null);
   const [reason, setReason] = React.useState<RejectReason>("sin_turnos");
   const [employeeId, setEmployeeId] = React.useState<string | null>(null);
+  const [otherReason, setOtherReason] = React.useState("");
 
   // Reset cada vez que se abre
   React.useEffect(() => {
@@ -93,8 +94,12 @@ export function RejectedClientCaptureModal({
       setServiceId(services[0]?.id ?? null);
       setReason("sin_turnos");
       setEmployeeId(null);
+      setOtherReason("");
     }
   }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // "Otro" exige texto — el resto de los motivos no lo necesitan.
+  const otherReasonMissing = reason === "otro" && !otherReason.trim();
 
   if (!open) return null;
   if (typeof document === "undefined") return null;
@@ -102,6 +107,10 @@ export function RejectedClientCaptureModal({
   async function save() {
     if (!businessId) {
       toast.error("No hay un negocio activo.");
+      return;
+    }
+    if (otherReasonMissing) {
+      toast.error("Escribí el motivo.");
       return;
     }
     const svc = services.find((s) => s.id === serviceId) ?? null;
@@ -113,6 +122,7 @@ export function RejectedClientCaptureModal({
         service_id: svc?.id ?? null,
         service_name: svc?.name ?? null,
         reason,
+        reason_detail: reason === "otro" ? otherReason.trim() : null,
         requested_employee_id: emp?.id ?? null,
         requested_employee_name: emp ? empName(emp) : null,
         occupancy_pct: snap.occupancyPct,
@@ -144,10 +154,7 @@ export function RejectedClientCaptureModal({
               <span className="grid h-8 w-8 place-items-center rounded-xl bg-rose-500/12 text-rose-200 ring-1 ring-rose-400/25">
                 <UserX className="h-4 w-4" />
               </span>
-              <div>
-                <div className="text-sm font-bold text-white">Cliente no atendido</div>
-                <div className="text-[11px] text-white/45">Sin datos del cliente · solo demanda</div>
-              </div>
+              <div className="text-sm font-bold text-white">Cliente no atendido</div>
             </div>
             <button type="button" onClick={onClose} className="rounded-full p-1.5 text-white/50 transition hover:bg-white/5 hover:text-white" aria-label="Cerrar">
               <X className="h-4 w-4" />
@@ -192,6 +199,15 @@ export function RejectedClientCaptureModal({
                   </button>
                 ))}
               </div>
+              {reason === "otro" && (
+                <textarea
+                  value={otherReason}
+                  onChange={(e) => setOtherReason(e.target.value)}
+                  placeholder="Escribí el motivo..."
+                  rows={2}
+                  className="mt-1.5 w-full resize-none rounded-xl bg-white/5 px-3 py-2.5 text-sm text-foreground outline-none ring-1 ring-white/10 placeholder:text-white/35 focus:ring-rose-400/40"
+                />
+              )}
             </div>
 
             {reason === "profesional" && (
@@ -222,7 +238,7 @@ export function RejectedClientCaptureModal({
             <button
               type="button"
               onClick={save}
-              disabled={insert.isPending}
+              disabled={insert.isPending || otherReasonMissing}
               className="rounded-xl bg-gradient-to-r from-rose-500 to-rose-400 px-4 py-2 text-sm font-semibold text-white shadow-[0_0_30px_-12px_rgba(244,63,94,0.8)] transition hover:brightness-110 disabled:opacity-50"
             >
               {insert.isPending ? "Registrando…" : "Registrar"}
@@ -376,11 +392,11 @@ export function RejectedClientsButton({
                     ¿Qué es un cliente no atendido?
                   </div>
                   <p>
-                    Es una persona que quiso atenderse pero no pudo concretar un turno por falta de
-                    disponibilidad, horarios ocupados, precio u otros motivos.
+                    Es una persona que quiso atenderse en el negocio pero finalmente no lo hizo porque
+                    no había turnos disponibles, solo consultó precios u ocurrió otro motivo.
                   </p>
                   <p className="mt-2">
-                    Clippr utiliza esta información para medir demanda que el negocio no pudo absorber
+                    Clippr utiliza esta información para medir la demanda que el negocio no pudo atender
                     y detectar oportunidades de mejora.
                   </p>
                 </div>
@@ -405,7 +421,9 @@ export function RejectedClientsButton({
                         const motivo =
                           r.reason === "profesional" && r.requested_employee_name
                             ? `Quería a ${r.requested_employee_name}`
-                            : reasonLabel(r.reason);
+                            : r.reason === "otro" && r.reason_detail
+                              ? r.reason_detail
+                              : reasonLabel(r.reason);
                         return (
                           <div key={r.id} className="flex items-center gap-2 rounded-xl bg-white/[0.03] px-3 py-2 text-sm ring-1 ring-white/8">
                             <span className="shrink-0 font-semibold tabular-nums text-white/80">{hhmm(r.rejected_time)}</span>
