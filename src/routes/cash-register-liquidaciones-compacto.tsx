@@ -2533,8 +2533,15 @@ function DetailModal({ payment, employees, onClose }: {
   const discount = (payment as Record<string, unknown>).discount_amount as number | null ?? null;
   const depositApplied = (payment as Record<string, unknown>).deposit_paid as number | null ?? null;
 
-  const commission = payment.employee_id && employees.find(e => e.id === payment.employee_id)?.commission_pct
-    ? Math.round(Number(payment.total ?? payment.amount ?? 0) * (employees.find(e => e.id === payment.employee_id)!.commission_pct! / 100))
+  const commissionEmployee = payment.employee_id
+    ? employees.find(e => e.id === payment.employee_id)
+    : null;
+  const commission = commissionEmployee
+    ? Number(commissionEmployee.commission_fixed ?? 0) > 0
+      ? Math.round(Number(commissionEmployee.commission_fixed))
+      : commissionEmployee.commission_pct
+        ? Math.round(Number(payment.total ?? payment.amount ?? 0) * (commissionEmployee.commission_pct / 100))
+        : null
     : null;
 
   const fmtDT = (iso: string | null) => iso
@@ -3340,6 +3347,7 @@ function NuevaVentaTab({
           employeeId: employeeId || null,
           employeeName: selectedEmployee?.name ?? null,
           commissionPct: selectedEmployee?.commission_pct ?? null,
+          commissionFixed: selectedEmployee?.commission_fixed ?? null,
           clientName: client.trim() || pendingCharge.client_name || "Cliente del mostrador",
           clientId: savedClientId,
           items,
@@ -3376,6 +3384,7 @@ function NuevaVentaTab({
           employeeId: employeeId || null,
           employeeName: selectedEmployee?.name ?? null,
           commissionPct: selectedEmployee?.commission_pct ?? null,
+          commissionFixed: selectedEmployee?.commission_fixed ?? null,
           clientName: client.trim() || "Cliente del mostrador",
           clientId: savedClientId,
           items,

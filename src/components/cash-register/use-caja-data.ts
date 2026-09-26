@@ -129,6 +129,7 @@ export type Employee = {
   id: string;
   name: string;
   commission_pct: number | null;
+  commission_fixed: number | null;
   avatar_url?: string | null;
 };
 
@@ -334,7 +335,7 @@ export function useCajaData() {
       // — ninguna otra consulta de employees del proyecto filtra por esto.
       supabase
         .from("employees")
-        .select("id,full_name,avatar_url,is_active,commission_pct")
+        .select("id,full_name,avatar_url,is_active,commission_pct,commission_fixed")
         .eq("business_id", businessId)
         .order("full_name", { ascending: true }),
       supabase
@@ -457,8 +458,8 @@ export function useCajaData() {
     // Employees
     setEmployees(
       empRes.status === "fulfilled" && !empRes.value.error
-        ? ((empRes.value.data ?? []) as Array<{ id: string; full_name: string | null; avatar_url?: string | null; commission_pct: number | null }>)
-            .map((r) => ({ id: r.id, name: r.full_name ?? "Sin nombre", commission_pct: r.commission_pct ?? null, avatar_url: r.avatar_url ?? null }))
+        ? ((empRes.value.data ?? []) as Array<{ id: string; full_name: string | null; avatar_url?: string | null; commission_pct: number | null; commission_fixed: number | null }>)
+            .map((r) => ({ id: r.id, name: r.full_name ?? "Sin nombre", commission_pct: r.commission_pct ?? null, commission_fixed: r.commission_fixed ?? null, avatar_url: r.avatar_url ?? null }))
         : []
     );
 

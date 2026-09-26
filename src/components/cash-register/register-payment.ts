@@ -45,6 +45,10 @@ export type RegisterPaymentInput = {
   method: PayMethod;
   splits?: Array<{ method: PayMethod; amount: number }>;
   commissionPct?: number | null;
+  // Comisión fija en $ por venta — cuando está configurada (> 0), tiene
+  // prioridad sobre commissionPct. Mismo criterio que ya usan Profesionales
+  // (Desglose) y la pestaña legacy de Profesionales de Caja.
+  commissionFixed?: number | null;
   sessionId?: string | null;
   chargedBy?: string | null;
   appointmentId?: string | null;
@@ -212,9 +216,18 @@ export async function registerPayment(input: RegisterPaymentInput) {
   // saldo pendiente del profesional (Caja > Liquidaciones), independiente
   // de cualquier rango de fechas. Best-effort: si falla (ej. la migración
   // de liquidaciones todavía no corrió), no aborta la venta ya confirmada.
+  //
+  // Comisión fija ($ por venta) tiene prioridad sobre el %, mismo criterio
+  // que ya usan Profesionales (Desglose) y la pestaña legacy de
+  // Profesionales de Caja — antes acá SOLO se miraba commissionPct, así que
+  // un profesional configurado con comisión fija nunca generaba fila en
+  // commission_records y su "Comisiones generadas" en Liquidaciones
+  // quedaba siempre en $0, sin importar el rango de fechas elegido.
+  const commissionFixed = Number(input.commissionFixed ?? 0);
   const commissionPct = Number(input.commissionPct ?? 0);
-  if (input.employeeId && commissionPct > 0) {
-    const commissionAmount = Math.round(total * (commissionPct / 100));
+  if (input.employeeId && (commissionFixed > 0 || commissionPct > 0)) {
+    const commissionAmount =
+      commissionFixed > 0 ? Math.round(commissionFixed) : Math.round(total * (commissionPct / 100));
     if (commissionAmount > 0) {
       const { error: commissionError } = await supabase
         .from("commission_records" as any)
@@ -231,8 +244,8 @@ export async function registerPayment(input: RegisterPaymentInput) {
           created_at: payload.created_at,
           // Congela el % usado en esta venta puntual — "Ver detalle" no
           // puede recalcular con el % actual del profesional si cambia
-          // después.
-          commission_pct: commissionPct,
+          // después. null cuando la comisión fue fija (no aplica un %).
+          commission_pct: commissionFixed > 0 ? null : commissionPct,
         });
       if (commissionError) {
         console.warn(
