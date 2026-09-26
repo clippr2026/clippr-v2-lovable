@@ -25,6 +25,16 @@ export type ClientPayment = {
   reference?: string | null;
 };
 
+export type ClientAppointmentPayment = {
+  method: string | null;
+  amount: number;
+  promotionName: string | null;
+  discountType: string | null;
+  discountValue: string | null;
+  reference: string | null;
+  paidAt: string;
+};
+
 export type ClientAppointment = {
   id: string;
   date: string;
@@ -35,6 +45,11 @@ export type ClientAppointment = {
   promotionName?: string | null;
   discountType?: string | null;
   discountValue?: string | null;
+  // Detalle del pago real vinculado a este turno (por payments.appointment_id)
+  // — solo presente cuando el turno ya se cobró Y existe un pago con ese
+  // appointment_id. La ficha lo muestra al expandir la reserva, en vez de en
+  // una pestaña "Pagos" separada (evita duplicar el mismo turno dos veces).
+  payment?: ClientAppointmentPayment | null;
 };
 
 export type ClientFavoriteService = {
@@ -467,7 +482,7 @@ async function loadClientDetail(businessId: string, clientId: string): Promise<C
       // dejaría la ficha sin abrir. `method`/`payment_method` sí son parte
       // del insert principal, siempre presentes.
       .select(
-        "id,client_id,client_name,service_name,employee_id,total,amount,method,payment_method,promotion_name,discount_type,discount_value,reference,created_at",
+        "id,client_id,client_name,service_name,employee_id,appointment_id,total,amount,method,payment_method,promotion_name,discount_type,discount_value,reference,created_at",
       )
       .eq("business_id", businessId)
       .eq("client_id", clientId)
@@ -511,6 +526,23 @@ async function loadClientDetail(businessId: string, clientId: string): Promise<C
   const favoriteServices = Array.from(favMap.entries()).map(([service, v]) => ({ service, ...v }))
     .sort((a, b) => b.count - a.count || b.amount - a.amount).slice(0, 3);
 
+  // Pago real vinculado a un turno puntual (por payments.appointment_id) —
+  // la ficha lo muestra al expandir la reserva cobrada, en vez de en una
+  // pestaña "Pagos" separada que repetiría el mismo turno dos veces.
+  const paymentByAppointmentId = new Map<string, ClientAppointmentPayment>();
+  (payments ?? []).forEach((p) => {
+    if (!p.appointment_id) return;
+    paymentByAppointmentId.set(p.appointment_id, {
+      method: p.method ?? p.payment_method ?? null,
+      amount: Number(p.total ?? p.amount ?? 0),
+      promotionName: p.promotion_name ?? null,
+      discountType: p.discount_type ?? null,
+      discountValue: p.discount_value != null ? String(p.discount_value) : null,
+      reference: p.reference ?? null,
+      paidAt: p.created_at,
+    });
+  });
+
   const reservations: ClientAppointment[] = (appointments ?? []).map((a) => {
     const promo = a.promotion_snapshot as { name?: string; discountType?: string; discountValue?: string } | null;
     return {
@@ -523,6 +555,7 @@ async function loadClientDetail(businessId: string, clientId: string): Promise<C
       promotionName: promo?.name ?? null,
       discountType: promo?.discountType ?? null,
       discountValue: promo?.discountValue ?? null,
+      payment: paymentByAppointmentId.get(a.id) ?? null,
     };
   });
   // El próximo turno se deriva del mismo historial completo (no una query

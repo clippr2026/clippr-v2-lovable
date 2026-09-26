@@ -10,6 +10,7 @@ import {
   ArrowRight,
   Cake,
   CheckCircle2,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   Crown,
@@ -295,10 +296,13 @@ function formatApptDateTime(date: string): string {
   });
 }
 
+// Mismas etiquetas que STATUS_META en agenda.tsx — "completed" muestra
+// "Confirmado" igual que ahí (es el mismo status, la Agenda nunca lo llama
+// "Completado" en la UI).
 const APPT_STATUS_LABEL: Record<string, string> = {
-  pending: "Pendiente",
+  pending: "Por confirmar",
   confirmed: "Confirmado",
-  completed: "Completado",
+  completed: "Confirmado",
   charged: "Cobrado",
   cancelled: "Cancelado",
   no_show: "No asistió",
@@ -361,7 +365,11 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
   onSaveNotes,
   savingNotes,
 }: ClientDetailPanelProps) {
-  const [tab, setTab] = useState<"resumen" | "reservas" | "pagos">("resumen");
+  const [tab, setTab] = useState<"resumen" | "reservas">("resumen");
+  // Reserva cobrada actualmente expandida (para ver el detalle del pago) —
+  // una sola a la vez, se resetea al cambiar de cliente igual que el resto
+  // del estado local del panel.
+  const [expandedReservationId, setExpandedReservationId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState(client.notes ?? "");
   // El cuadro de escritura solo se muestra al crear la primera nota o
@@ -372,6 +380,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
     setNoteDraft(client.notes ?? "");
     setIsEditingNote(false);
     setMenuOpen(false);
+    setExpandedReservationId(null);
   }, [client.id, client.notes]);
 
   async function handleSaveNote() {
@@ -512,7 +521,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
 
       <div className="px-6 pt-3 shrink-0">
         <div className="inline-flex rounded-full bg-white/5 ring-1 ring-white/10 p-1">
-          {(["resumen", "reservas", "pagos"] as const).map((t) => (
+          {(["resumen", "reservas"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -669,80 +678,89 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
               </div>
             ) : (
               client.reservations.map((r) => {
-                const discount = formatDiscountLabel(r.discountType, r.discountValue);
-                return (
-                  <div
-                    key={r.id}
-                    className="flex items-center justify-between gap-3 rounded-xl bg-white/5 ring-1 ring-white/10 p-3"
-                  >
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium truncate">{r.service}</div>
-                      <div className="text-[11px] text-muted-foreground">
-                        {formatApptDateTime(r.date)}
-                        {r.employeeName ? ` · ${r.employeeName}` : ""}
-                      </div>
-                      {(r.promotionName || discount) && (
-                        <div className="mt-0.5 text-[11px] text-violet-300/80 truncate">
-                          {r.promotionName ?? "Promo"}
-                          {discount ? ` (${discount})` : ""}
-                        </div>
-                      )}
-                    </div>
-                    <div className="shrink-0 text-right">
-                      {r.price != null && (
-                        <div className="text-sm font-semibold tabular-nums">
-                          ${r.price.toLocaleString("es-AR")}
-                        </div>
-                      )}
-                      <div className={cn("text-[11px] font-semibold", APPT_STATUS_TONE[r.status] ?? "text-white/60")}>
-                        {APPT_STATUS_LABEL[r.status] ?? r.status}
-                      </div>
-                    </div>
-                  </div>
+                // El detalle de pago solo existe (y solo se puede expandir)
+                // para turnos ya cobrados con un pago real vinculado — el
+                // resto de los estados no tiene nada más que mostrar que su
+                // propio estado, ya visible en la fila.
+                const canExpand = r.status === "charged" && Boolean(r.payment);
+                const isExpanded = canExpand && expandedReservationId === r.id;
+                const discount = formatDiscountLabel(
+                  r.payment?.discountType ?? r.discountType,
+                  r.payment?.discountValue ?? r.discountValue,
                 );
-              })
-            )}
-          </div>
-          <div
-            className={cn(
-              "col-start-1 row-start-1 space-y-2",
-              tab !== "pagos" && "invisible pointer-events-none",
-            )}
-            aria-hidden={tab !== "pagos"}
-          >
-            {client.history.length === 0 ? (
-              <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-4 text-sm text-muted-foreground">
-                Sin pagos todavía.
-              </div>
-            ) : (
-              client.history.map((h) => {
-                const discount = formatDiscountLabel(h.discountType, h.discountValue);
-                const methodLabel = formatPayMethodLabel(h.method);
+                const methodLabel = formatPayMethodLabel(r.payment?.method);
                 return (
-                  <div
-                    key={h.id}
-                    className="flex items-center justify-between gap-3 rounded-xl bg-white/5 ring-1 ring-white/10 p-3"
-                  >
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium truncate">{h.service}</div>
-                      <div className="text-[11px] text-muted-foreground">
-                        {new Date(h.date).toLocaleString("es-AR")}
-                        {h.employeeName ? ` · ${h.employeeName}` : ""}
-                        {methodLabel ? ` · ${methodLabel}` : ""}
-                      </div>
-                      {(h.promotionName || discount) && (
-                        <div className="mt-0.5 text-[11px] text-violet-300/80 truncate">
-                          {h.promotionName ?? "Promo"}
-                          {discount ? ` (${discount})` : ""}
+                  <div key={r.id} className="rounded-xl bg-white/5 ring-1 ring-white/10 overflow-hidden">
+                    <button
+                      type="button"
+                      disabled={!canExpand}
+                      onClick={() => setExpandedReservationId((cur) => (cur === r.id ? null : r.id))}
+                      className={cn(
+                        "flex w-full items-center justify-between gap-3 p-3 text-left",
+                        canExpand && "cursor-pointer hover:bg-white/[0.04] transition-colors",
+                      )}
+                    >
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium truncate">{r.service}</div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {formatApptDateTime(r.date)}
+                          {r.employeeName ? ` · ${r.employeeName}` : ""}
                         </div>
-                      )}
-                      {h.reference && (
-                        <div className="mt-0.5 text-[11px] text-muted-foreground truncate">Nº op. {h.reference}</div>
-                      )}
-                    </div>
-                    <div className="shrink-0 text-sm font-semibold tabular-nums">
-                      ${h.amount.toLocaleString("es-AR")}
-                    </div>
+                      </div>
+                      <div className="shrink-0 flex items-center gap-2">
+                        <div className="text-right">
+                          {r.price != null && (
+                            <div className="text-sm font-semibold tabular-nums">
+                              ${r.price.toLocaleString("es-AR")}
+                            </div>
+                          )}
+                          <div className={cn("text-[11px] font-semibold", APPT_STATUS_TONE[r.status] ?? "text-white/60")}>
+                            {APPT_STATUS_LABEL[r.status] ?? r.status}
+                          </div>
+                        </div>
+                        {canExpand && (
+                          <ChevronDown
+                            className={cn(
+                              "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
+                              isExpanded && "rotate-180",
+                            )}
+                          />
+                        )}
+                      </div>
+                    </button>
+                    {isExpanded && r.payment && (
+                      <div className="space-y-1 border-t border-white/10 bg-white/[0.02] px-3 py-2.5 text-[11px]">
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Medio de pago</span>
+                          <span className="text-white/85">{methodLabel ?? "—"}</span>
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Importe final</span>
+                          <span className="font-semibold text-white/85 tabular-nums">
+                            ${r.payment.amount.toLocaleString("es-AR")}
+                          </span>
+                        </div>
+                        {(r.payment.promotionName || discount) && (
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-muted-foreground">Promo</span>
+                            <span className="truncate text-right text-violet-300/90">
+                              {r.payment.promotionName ?? "Promo"}
+                              {discount ? ` (${discount})` : ""}
+                            </span>
+                          </div>
+                        )}
+                        {r.payment.reference && (
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-muted-foreground">Nº operación</span>
+                            <span className="truncate text-right text-white/85">{r.payment.reference}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Fecha de cobro</span>
+                          <span className="text-white/85">{new Date(r.payment.paidAt).toLocaleString("es-AR")}</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 );
               })
