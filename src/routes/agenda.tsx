@@ -1172,12 +1172,23 @@ function AgendaPage() {
 
           <div className="h-5 w-px bg-white/10 shrink-0" />
 
-          {/* Date navigation — prev/next one day, fecha abre calendario */}
-          <div className="flex items-center gap-1.5 shrink-0">
+          {/* Date navigation — prev/next one day, fecha abre calendario.
+              min-w-0 + flex-1 en mobile (donde este grupo es el único
+              elemento elástico de la fila): el nombre del día varía mucho
+              de ancho ("Martes" vs "Miércoles", "Junio" vs "Septiembre") y
+              antes empujaba/tapaba la flecha derecha y el "+" en días
+              largos, porque el botón de fecha crecía sin límite
+              (whitespace-nowrap) dentro de un grupo shrink-0. Ahora el
+              grupo se estira/encoge con el espacio disponible y el texto
+              trunca con ellipsis en vez de forzar overflow horizontal —
+              las flechas quedan shrink-0 así nunca se comprimen. En sm+
+              (donde el ancho sobra) se vuelve al comportamiento original:
+              ancho fijo por contenido, sin truncar. */}
+          <div className="flex min-w-0 flex-1 items-center gap-1.5 sm:flex-none">
             <button
               onClick={() => move(-1)}
               aria-label="Día anterior"
-              className="h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition"
+              className="h-6 w-6 shrink-0 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
@@ -1185,14 +1196,14 @@ function AgendaPage() {
               ref={dateBtnRef}
               onClick={openCalendar}
               aria-label="Elegir fecha"
-              className="text-sm font-semibold whitespace-nowrap min-w-0 sm:min-w-[205px] text-center rounded-md px-1 py-0.5 hover:bg-white/[0.06] transition"
+              className="min-w-0 flex-1 overflow-hidden text-ellipsis whitespace-nowrap text-[13px] sm:text-sm font-semibold sm:min-w-[205px] sm:flex-none sm:overflow-visible text-center rounded-md px-1 py-0.5 hover:bg-white/[0.06] transition"
             >
               {fullDate}
             </button>
             <button
               onClick={() => move(1)}
               aria-label="Día siguiente"
-              className="h-6 w-6 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition"
+              className="h-6 w-6 shrink-0 rounded-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
