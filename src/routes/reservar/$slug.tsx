@@ -1170,41 +1170,30 @@ function PublicBookingPage() {
       confirmationSnapshot.appointmentId = returnedBooking?.id ?? returnedBooking?.appointment_id ?? undefined;
       confirmationSnapshot.manageToken = returnedBooking?.manage_token ?? returnedBooking?.manageToken ?? undefined;
 
-      // El RPC create_public_booking_public_v3 (no versionado en este repo)
-      // calcula precio/duración del lado del servidor a partir del precio
-      // estándar de price_catalog, sin conocer los overrides por
-      // profesional ni las promociones. Si el profesional elegido tiene un
-      // override para algún servicio, o se aplicó una promoción,
-      // corregimos acá con un UPDATE normal — mismo mecanismo que usa el
-      // resto de la app — para que el turno creado quede con el
-      // precio/duración reales. Si las políticas RLS no permiten que un
-      // cliente público actualice la fila que el propio RPC acaba de crear,
-      // este update va a fallar en silencio (solo un warning en consola) y
-      // el turno queda con el precio estándar del RPC — haría falta un
-      // ajuste de RLS/RPC del lado de Supabase para cerrar ese caso.
-      const hasEmployeeOverride = selectedServices.some((service) => {
-        const resolved = resolveServicePricing(
-          { id: service.id, price: service.price, duration_min: service.duration_min ?? service.duration },
-          selectedSlot.employeeId,
-          employeeServiceOverrides,
-        );
-        return resolved.priceOverridden || resolved.durationOverridden;
-      });
-      const needsPriceCorrection =
-        hasEmployeeOverride || finalServicesPrice !== originalServicesPrice;
+      // El RPC create_public_booking_public_v3 ya resuelve del lado del
+      // servidor el precio Y la duración efectivos por profesional
+      // (_employeeServiceOverrides, misma prioridad personalizada→estándar
+      // que resolveServicePricing acá) y crea el turno con el
+      // ends_at/duration_min correctos desde el INSERT — nunca hay que
+      // "generar con la duración general y corregir después": el turno ya
+      // nace con la duración real de este profesional. Lo ÚNICO que el RPC
+      // no puede conocer es la promoción aplicada (_promotions es un
+      // concepto 100% del cliente, con cupos/vigencia que dependen del
+      // momento exacto de la reserva) — si hay una vigente, se ajusta acá
+      // solo el precio. Si las políticas RLS no permiten que un cliente
+      // público actualice la fila que el propio RPC acaba de crear, este
+      // update va a fallar en silencio (solo un warning en consola) y el
+      // turno queda con el precio sin el descuento de la promo — el resto
+      // (profesional, horario, duración) ya está bien desde el RPC.
+      const needsPriceCorrection = finalServicesPrice !== originalServicesPrice;
       if (needsPriceCorrection && confirmationSnapshot.appointmentId) {
         const { error: overrideUpdateError } = await supabase
           .from("appointments")
-          .update({
-            service_price: finalServicesPrice,
-            duration_min: totalDuration,
-            ends_at: end.toISOString(),
-            notes: publicNotes || null,
-          })
+          .update({ service_price: finalServicesPrice })
           .eq("id", confirmationSnapshot.appointmentId);
         if (overrideUpdateError) {
           console.warn(
-            "No se pudo aplicar el precio/duración/promoción del turno de reserva pública (posible restricción de RLS):",
+            "No se pudo aplicar el precio de la promoción al turno de reserva pública (posible restricción de RLS):",
             overrideUpdateError.message,
           );
         }
