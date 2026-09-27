@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { loadCajaSession } from "@/components/cash-register/session-actions";
 import {
   type EmployeeServiceOverrideMap,
+  type EmployeeCommissionMap,
   type Promotion,
   backfillPromotionVigencia,
 } from "@/lib/service-pricing";
@@ -286,6 +287,14 @@ export function useCajaData() {
   // compartido `resolveServicePricing` — ver src/lib/service-pricing.ts.
   const [employeeServiceOverrides, setEmployeeServiceOverrides] =
     React.useState<EmployeeServiceOverrideMap>({});
+  // Comisión por servicio (Equipo → [profesional] → Servicios → "%
+  // comisión"/"Monto fijo" por cada uno) — mapa SEPARADO del de arriba (ese
+  // es precio/duración, este es comisión). Ya se guardaba pero nada lo leía
+  // al cobrar: registerPayment() solo miraba employees.commission_pct/
+  // commission_fixed (general), así que un profesional con comisión
+  // configurada por servicio nunca generaba fila en commission_records.
+  const [employeeCommissions, setEmployeeCommissions] =
+    React.useState<EmployeeCommissionMap>({});
   // Numera cada llamada a load() para poder descartar respuestas que
   // lleguen desordenadas (ver el chequeo más abajo, después del
   // Promise.allSettled) — importante porque el canal realtime puede
@@ -651,6 +660,9 @@ export function useCajaData() {
       setEmployeeServiceOverrides(
         (bsSchedule._employeeServiceOverrides as EmployeeServiceOverrideMap) ?? {},
       );
+      setEmployeeCommissions(
+        (bsSchedule._employeeCommissions as EmployeeCommissionMap) ?? {},
+      );
       if (caja.methods && typeof caja.methods === "object") {
         const m = caja.methods as Record<string, boolean>;
         setPaymentMethods({
@@ -811,6 +823,7 @@ export function useCajaData() {
     pendingCount, pendingAmount, pendingCharges,
     pendingCountPrevious, pendingAmountPrevious, pendingChargesPrevious,
     employeeServiceOverrides,
+    employeeCommissions,
     refresh: (reason?: string) => load(reason ?? "manual refresh() call"),
   };
 }

@@ -9601,6 +9601,7 @@ export function NuevaVentaTab({
           employeeName: selectedEmployee?.name ?? null,
           commissionPct: selectedEmployee?.commission_pct ?? null,
           commissionFixed: selectedEmployee?.commission_fixed ?? null,
+          employeeCommissions: data.employeeCommissions,
           clientName: client.trim() || pendingCharge.client_name || "Cliente del mostrador",
           clientId: savedClientId?.startsWith?.("__pending_client__") ? null : savedClientId,
           items,
@@ -9665,6 +9666,7 @@ export function NuevaVentaTab({
           employeeName: selectedEmployee?.name ?? null,
           commissionPct: selectedEmployee?.commission_pct ?? null,
           commissionFixed: selectedEmployee?.commission_fixed ?? null,
+          employeeCommissions: data.employeeCommissions,
           clientName:
             client.trim() ||
             pendingCharge.client_name ||
@@ -9731,6 +9733,7 @@ export function NuevaVentaTab({
           employeeName: selectedEmployee?.name ?? null,
           commissionPct: selectedEmployee?.commission_pct ?? null,
           commissionFixed: selectedEmployee?.commission_fixed ?? null,
+          employeeCommissions: data.employeeCommissions,
           clientName: client.trim() || "Cliente del mostrador",
           clientId: savedClientId,
           items,

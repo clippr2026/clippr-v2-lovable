@@ -1,5 +1,10 @@
 import { supabase } from "@/integrations/supabase/client";
-import { normalizeClientKeys, type PromotionDiscountType } from "@/lib/service-pricing";
+import {
+  normalizeClientKeys,
+  computeCommissionAmount,
+  type PromotionDiscountType,
+  type EmployeeCommissionMap,
+} from "@/lib/service-pricing";
 import { incrementPromotionUsage } from "@/lib/promotion-usage";
 
 /**
@@ -49,6 +54,10 @@ export type RegisterPaymentInput = {
   // prioridad sobre commissionPct. Mismo criterio que ya usan Profesionales
   // (Desglose) y la pestaña legacy de Profesionales de Caja.
   commissionFixed?: number | null;
+  // Comisión por servicio (Equipo → [profesional] → Servicios) — tiene
+  // prioridad sobre commissionPct/commissionFixed para el/los ítems que
+  // tengan su propio override configurado. Ver computeCommissionAmount.
+  employeeCommissions?: EmployeeCommissionMap | null;
   sessionId?: string | null;
   chargedBy?: string | null;
   appointmentId?: string | null;
@@ -217,18 +226,47 @@ export async function registerPayment(input: RegisterPaymentInput) {
   // de cualquier rango de fechas. Best-effort: si falla (ej. la migración
   // de liquidaciones todavía no corrió), no aborta la venta ya confirmada.
   //
-  // Comisión fija ($ por venta) tiene prioridad sobre el %, mismo criterio
-  // que ya usan Profesionales (Desglose) y la pestaña legacy de
-  // Profesionales de Caja — antes acá SOLO se miraba commissionPct, así que
-  // un profesional configurado con comisión fija nunca generaba fila en
-  // commission_records y su "Comisiones generadas" en Liquidaciones
-  // quedaba siempre en $0, sin importar el rango de fechas elegido.
+  // computeCommissionAmount (service-pricing.ts) resuelve, ítem por ítem,
+  // si ese servicio puntual tiene comisión propia configurada en Equipo
+  // (prioridad) y si no, aplica el fallback general del profesional
+  // (monto fijo por venta si está configurado, si no el %) — antes acá
+  // SOLO se miraba el % o el monto fijo GENERALES (employees.commission_pct/
+  // commission_fixed): un profesional con comisión configurada por
+  // servicio nunca generaba fila en commission_records, así que
+  // "Comisiones generadas" en Liquidaciones le quedaba siempre en $0 sin
+  // importar cuánto facturara ni qué rango de fechas se eligiera.
   const commissionFixed = Number(input.commissionFixed ?? 0);
   const commissionPct = Number(input.commissionPct ?? 0);
-  if (input.employeeId && (commissionFixed > 0 || commissionPct > 0)) {
-    const commissionAmount =
-      commissionFixed > 0 ? Math.round(commissionFixed) : Math.round(total * (commissionPct / 100));
+  if (input.employeeId) {
+    const grossCommission = computeCommissionAmount(
+      input.items.map((item) => ({
+        amount: Number(item.amount ?? 0),
+        qty: item.qty,
+        serviceId: item.serviceId,
+      })),
+      input.employeeId,
+      input.employeeCommissions ?? null,
+      { commissionFixed, commissionPct },
+    );
+    // Con promoción aplicada, la comisión se calcula sobre el monto
+    // efectivamente cobrado (post-descuento) — mismo criterio que ya tenía
+    // el cálculo plano de antes (usaba `total`, nunca `grossTotal`). Se
+    // escala proporcionalmente en vez de recalcular ítem por ítem porque el
+    // descuento se aplica al carrito completo, no a un ítem puntual.
+    const commissionAmount = Math.round(
+      input.promotionId && grossTotal > 0 && total !== grossTotal
+        ? grossCommission * (total / grossTotal)
+        : grossCommission,
+    );
     if (commissionAmount > 0) {
+      // Si algún ítem usó su propia comisión por servicio (o se usó el
+      // monto fijo general), no hay un único % que represente el total —
+      // queda null, mismo criterio que ya existía para comisión fija.
+      const usedSpecificOverride = input.items.some((item) => {
+        if (!item.serviceId) return false;
+        const cfg = input.employeeCommissions?.[input.employeeId!]?.[item.serviceId];
+        return !!cfg && cfg.enabled !== false;
+      });
       const { error: commissionError } = await supabase
         .from("commission_records" as any)
         .insert({
@@ -244,8 +282,9 @@ export async function registerPayment(input: RegisterPaymentInput) {
           created_at: payload.created_at,
           // Congela el % usado en esta venta puntual — "Ver detalle" no
           // puede recalcular con el % actual del profesional si cambia
-          // después. null cuando la comisión fue fija (no aplica un %).
-          commission_pct: commissionFixed > 0 ? null : commissionPct,
+          // después. null cuando la comisión no vino de un único % general
+          // (fue por servicio y/o monto fijo).
+          commission_pct: usedSpecificOverride || commissionFixed > 0 ? null : commissionPct,
         });
       if (commissionError) {
         console.warn(

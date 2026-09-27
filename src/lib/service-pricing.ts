@@ -132,6 +132,84 @@ export function resolveServicePricing(
   };
 }
 
+// ─────────────────────── Comisión por servicio (Equipo) ────────────────────
+// Configuración → Equipo → [profesional] → Servicios: cada servicio puede
+// tener su propia comisión ("% comisión" / "Monto fijo"), guardada en
+// business_settings.schedule._employeeCommissions[employeeId][serviceId].
+// Es un mapa SEPARADO de EmployeeServiceOverrideMap (ese es precio/duración,
+// este es comisión) — antes existía pero ningún cobro lo leía: Caja siempre
+// aplicaba únicamente el % o monto fijo GENERAL de employees.commission_pct/
+// commission_fixed, así que un profesional con comisión configurada por
+// servicio nunca generaba fila en commission_records (Liquidaciones le
+// quedaba en $0 sin importar cuánto facturara). computeCommissionAmount es
+// la única fuente de verdad para resolver esto — la usa registerPayment()
+// al cobrar (fuente real de commission_records) y debe usarla cualquier
+// otro lugar que quiera mostrar "cuánto de comisión generó esta venta".
+export type CommissionMode = "percent" | "fixed";
+export type CommissionConfig = { enabled?: boolean; mode: CommissionMode; value: string };
+export type EmployeeCommissionMap = Record<string, Record<string, CommissionConfig>>;
+
+// undefined/sin entrada = no hay override para ESE servicio puntual (cae al
+// fallback general). Un enabled === false explícito también lo ignora —
+// mismo criterio que isServiceOfferedByEmployee, aunque en la práctica la UI
+// de Equipo no expone ese switch para comisión de servicios (ver comentario
+// en equipo-section.tsx: siempre queda enabled:true al guardar).
+export function resolveServiceCommission(
+  serviceId: string | null | undefined,
+  employeeId: string | null | undefined,
+  commissionsMap: EmployeeCommissionMap | null | undefined,
+): CommissionConfig | null {
+  if (!serviceId || !employeeId) return null;
+  const cfg = commissionsMap?.[employeeId]?.[serviceId];
+  if (!cfg || cfg.enabled === false) return null;
+  return cfg;
+}
+
+export type CommissionableItem = {
+  amount: number; // precio unitario (NO multiplicado por qty)
+  qty?: number;
+  serviceId?: string | null;
+};
+
+// Comisión total de una venta con uno o más ítems. Cada ítem resuelve su
+// propia comisión por servicio si existe; los que no tienen override propio
+// caen en un único fallback general (fixed toma prioridad sobre pct, mismo
+// criterio que ya usa registerPayment) aplicado sobre la suma de esos ítems
+// sin override — así una venta sin ningún override por servicio da
+// EXACTAMENTE el mismo resultado que el cálculo plano de antes (fixed una
+// sola vez por venta, no una vez por ítem), y una venta mixta combina ambos
+// correctamente sin duplicar ni perder nada.
+export function computeCommissionAmount(
+  items: CommissionableItem[],
+  employeeId: string | null | undefined,
+  commissionsMap: EmployeeCommissionMap | null | undefined,
+  fallback: { commissionFixed?: number | null; commissionPct?: number | null },
+): number {
+  let total = 0;
+  let remainder = 0;
+  for (const item of items) {
+    const qty = Number(item.qty ?? 1) || 1;
+    const lineAmount = Number(item.amount ?? 0) * qty;
+    const cfg = resolveServiceCommission(item.serviceId, employeeId, commissionsMap);
+    if (cfg) {
+      const val = Number(cfg.value) || 0;
+      total += cfg.mode === "fixed" ? val : lineAmount * (val / 100);
+    } else {
+      remainder += lineAmount;
+    }
+  }
+  if (remainder > 0) {
+    const fixed = Number(fallback.commissionFixed ?? 0);
+    if (fixed > 0) {
+      total += fixed;
+    } else {
+      const pct = Number(fallback.commissionPct ?? 0);
+      if (pct > 0) total += remainder * (pct / 100);
+    }
+  }
+  return Math.round(total);
+}
+
 // Si el profesional ofrece este servicio para reserva online. Sin
 // configuración guardada (o guardada antes de que existiera este campo) =
 // lo ofrece, igual que el resto de los switches "activo por default" de la
