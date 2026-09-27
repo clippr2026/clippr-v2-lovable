@@ -501,6 +501,12 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
         : [],
     );
     setLoading(false);
+
+    // Fire-and-forget: completa series "sin fecha de finalización" que se
+    // estén por quedar sin turnos generados. Nunca bloquea el render de la
+    // Agenda ni muestra error al usuario (best-effort silencioso — ver
+    // comentario en topUpRecurringSeries).
+    topUpRecurringSeries(businessId, loadedSchedule, normalizedEmployeeSchedules, normalizedBizSpecial, normalizedEmpSpecial).catch(() => {});
   }, [businessId, startIso, endIso]);
 
   // Narrow reloads used by realtime so a single appointment change does NOT
@@ -822,6 +828,104 @@ export async function rescheduleAppointment(
     })
     .eq("id", id);
   if (error) throw new Error(error.message);
+}
+
+function addCalendarDays(date: Date, days: number): Date {
+  const next = new Date(date);
+  next.setDate(next.getDate() + days);
+  return next;
+}
+
+// Completa la ventana de reservas ya generadas para series "sin fecha de
+// finalización" (recurring_series.end_mode = 'none') cuando quedan menos de
+// 28 días de turnos ya creados por delante — genera el próximo bloque de 56
+// días (mismo tamaño que la ventana inicial, ver RECURRING_WINDOW_DAYS en
+// appointment-dialog.tsx) y avanza last_generated_until.
+//
+// Best-effort y silencioso a propósito: corre solo (fire-and-forget) cada
+// vez que carga la Agenda — no hay a quién preguntarle si una fecha puntual
+// choca con otro turno, así que esa fecha simplemente se saltea (una
+// ocurrencia menos esa semana) en vez de bloquear el resto de la serie.
+//
+// Usar `last_generated_until` como ancla local para contar "cada N
+// semanas" es matemáticamente equivalente a contar desde la fecha original
+// de la serie: last_generated_until siempre es una fecha que SÍ se generó
+// (fase 0 del ciclo de every_weeks), así que reiniciar el conteo ahí
+// preserva el mismo patrón sin necesitar guardar la fecha ancla original.
+export async function topUpRecurringSeries(
+  businessId: string,
+  schedule: ScheduleMap | null,
+  employeeSchedules: Record<string, ScheduleMap>,
+  businessSpecialDates: SpecialDateMap,
+  employeeSpecialDates: EmployeeSpecialDateMap,
+): Promise<void> {
+  const TOP_UP_THRESHOLD_DAYS = 28;
+  const WINDOW_DAYS = 56;
+  const thresholdIso = addCalendarDays(new Date(), TOP_UP_THRESHOLD_DAYS).toISOString().slice(0, 10);
+
+  const { data: seriesRows, error } = await supabase
+    .from("recurring_series" as any)
+    .select("*")
+    .eq("business_id", businessId)
+    .eq("status", "active")
+    .eq("end_mode", "none")
+    .lte("last_generated_until", thresholdIso);
+  if (error || !seriesRows?.length) return;
+
+  for (const s of seriesRows as any[]) {
+    try {
+      const weekdays: number[] = Array.isArray(s.weekdays) ? s.weekdays : [];
+      if (!weekdays.length) continue;
+      const everyWeeks = Math.max(1, Number(s.every_weeks) || 1);
+      const [h, m] = String(s.start_time || "09:00").split(":").map((x: string) => Number(x) || 0);
+      const durationMin = Number(s.duration_min) || 30;
+
+      const anchor = s.last_generated_until ? new Date(`${s.last_generated_until}T00:00:00`) : new Date();
+      const windowEnd = addCalendarDays(anchor, WINDOW_DAYS);
+
+      const candidates: Date[] = [];
+      for (let i = 1; i <= WINDOW_DAYS; i++) {
+        if (Math.floor(i / 7) % everyWeeks !== 0) continue;
+        const day = addCalendarDays(anchor, i);
+        if (!weekdays.includes(day.getDay())) continue;
+        day.setHours(h, m, 0, 0);
+        candidates.push(day);
+      }
+
+      for (const date of candidates) {
+        try {
+          if (s.employee_id) {
+            const day = resolveDaySchedule(schedule, employeeSchedules, businessSpecialDates, employeeSpecialDates, s.employee_id, date);
+            if (checkDaySchedule(day, date, durationMin)) continue;
+            const conflict = await checkOverlap(s.employee_id, date.toISOString(), durationMin, null);
+            if (conflict) continue;
+          }
+          await saveAppointment({
+            business_id: businessId,
+            client_id: s.client_id ?? null,
+            client_name: s.client_name,
+            employee_id: s.employee_id ?? null,
+            service_name: s.service_name,
+            service_price: Number(s.service_price) || 0,
+            duration_min: durationMin,
+            starts_at: date.toISOString(),
+            status: "pending",
+            recurring_series_id: s.id,
+          });
+        } catch {
+          // Una fecha puntual que falla (choque, etc.) no debe frenar el
+          // resto de la ventana — se saltea, sin UI a quién preguntarle.
+        }
+      }
+
+      await supabase
+        .from("recurring_series" as any)
+        .update({ last_generated_until: windowEnd.toISOString().slice(0, 10), updated_at: new Date().toISOString() })
+        .eq("id", s.id);
+    } catch {
+      // Una serie con error no debe frenar el top-up del resto.
+    }
+  }
 }
 
 /**
