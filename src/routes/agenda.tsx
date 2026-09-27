@@ -11,7 +11,8 @@ import {
   UserRound,
   Clock3,
   Scissors,
-  Mail
+  Mail,
+  Repeat2
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { applyPromotionDiscount, resolveServicePricing, type Promotion } from "@/lib/service-pricing";
@@ -1104,6 +1105,17 @@ function AgendaPage() {
   const handleMarkDeposit = useStableCallback(onMarkDeposit);
   const handleCancelWithDeposit = useStableCallback(onCancelWithDeposit);
   const handleReleaseBlock = useStableCallback(releaseBlock);
+  // "Ver recurrencia" — misma navegación que handleFicha, pero directo a la
+  // sección "Reservas recurrentes" (ver openRecurring en clients.tsx). Sin
+  // client_id no hay ficha confiable a la que ir — el botón ni se muestra
+  // en ese caso (ver AppointmentDetailDialog).
+  const handleViewRecurring = useStableCallback((a: Appointment) => {
+    if (!a.client_id || !a.recurring_series_id) return;
+    navigate({
+      to: "/clients",
+      search: { clientId: a.client_id, agendaDate: toDateKey(cursor), openRecurring: a.recurring_series_id } as never,
+    });
+  });
 
   if (authLoading || !session) {
     return (
@@ -1695,6 +1707,7 @@ function AgendaPage() {
           onCancel={handleCancel}
           onCobrar={handleCobrar}
           onFicha={handleFicha}
+          onViewRecurring={handleViewRecurring}
           onChangeStatus={handleChangeStatus}
           onMarkDeposit={handleMarkDeposit}
           onCancelWithDeposit={handleCancelWithDeposit}
@@ -3518,6 +3531,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   onCancel,
   onCobrar,
   onFicha,
+  onViewRecurring,
   onChangeStatus,
   onMarkDeposit,
   onCancelWithDeposit,
@@ -3538,6 +3552,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   onCancel: (a: Appointment, reason: string) => void;
   onCobrar: (a: Appointment) => void;
   onFicha: (a: Appointment) => void;
+  onViewRecurring: (a: Appointment) => void;
   onChangeStatus: (a: Appointment, s: ApptStatus) => void;
   onMarkDeposit: (a: Appointment) => void;
   onCancelWithDeposit: (a: Appointment, action: "keep" | "return", reason: string) => void;
@@ -3726,6 +3741,16 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                 >
                   <UserRound className="h-3.5 w-3.5 mr-1" /> Ficha
                 </Button>
+                {appointment.recurring_series_id && (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    className="h-7 rounded-full border-white/10 bg-white/[0.06] px-2.5 text-xs hover:bg-white/[0.1]"
+                    onClick={() => onViewRecurring(appointment)}
+                  >
+                    <Repeat2 className="h-3.5 w-3.5 mr-1" /> Ver recurrencia
+                  </Button>
+                )}
                 {!isPast && (
                   <Button
                     size="sm"

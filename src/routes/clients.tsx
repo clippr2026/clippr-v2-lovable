@@ -49,6 +49,42 @@ import {
 } from "@/hooks/use-clients-data";
 import { useAuth } from "@/hooks/use-auth";
 import { PAY_METHOD_LABEL, type PayMethod } from "@/components/cash-register/register-payment";
+import { cancelAppointment } from "@/components/agenda/use-agenda-data";
+
+// "Reservas recurrentes" (ficha del cliente) — misma tabla que arma
+// appointment-dialog.tsx al confirmar "Repetir turno".
+type RecurringSeriesRow = {
+  id: string;
+  employee_id: string | null;
+  service_name: string;
+  service_price: number | null;
+  duration_min: number;
+  weekdays: number[];
+  every_weeks: number;
+  start_time: string;
+  end_mode: "count" | "until" | "none";
+  end_count: number | null;
+  end_until: string | null;
+  status: "active" | "finished";
+};
+
+const RECURRING_WEEKDAY_LABEL: Record<number, string> = {
+  0: "domingos", 1: "lunes", 2: "martes", 3: "miércoles", 4: "jueves", 5: "viernes", 6: "sábados",
+};
+
+function recurringSeriesSummary(s: RecurringSeriesRow): string {
+  const days = (s.weekdays ?? []).map((d) => RECURRING_WEEKDAY_LABEL[d] ?? "").filter(Boolean).join(", ");
+  const cadence = s.every_weeks > 1 ? ` (cada ${s.every_weeks} semanas)` : "";
+  const end =
+    s.end_mode === "none"
+      ? "Sin fecha de finalización"
+      : s.end_mode === "until" && s.end_until
+        ? `Hasta ${new Date(`${s.end_until}T12:00:00`).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })}`
+        : s.end_mode === "count" && s.end_count
+          ? `${s.end_count} visitas`
+          : "";
+  return `${days ? `${days.charAt(0).toUpperCase()}${days.slice(1)}` : "Sin días"}${cadence} · ${s.start_time}hs${end ? ` · ${end}` : ""}`;
+}
 
 export const Route = createFileRoute("/clients")({
   // Deep link desde Agenda ("Ficha" de un turno, ver handleFicha en
@@ -57,12 +93,16 @@ export const Route = createFileRoute("/clients")({
   // Agenda con la misma fecha al cerrar esa ficha puntual.
   validateSearch: (
     search: Record<string, unknown>,
-  ): { clientId?: string; agendaDate?: string; q?: string } => ({
+  ): { clientId?: string; agendaDate?: string; q?: string; openRecurring?: string } => ({
     clientId: typeof search.clientId === "string" ? search.clientId : undefined,
     agendaDate: typeof search.agendaDate === "string" ? search.agendaDate : undefined,
     // Fallback cuando el turno de origen no tenía client_id: solo precarga
     // la búsqueda, nunca abre una ficha por nombre (puede haber homónimos).
     q: typeof search.q === "string" ? search.q : undefined,
+    // "Ver recurrencia" desde el detalle del turno (agenda.tsx): abre la
+    // ficha directo en la pestaña "reservas" para ver la sección de
+    // Reservas recurrentes sin un paso extra.
+    openRecurring: typeof search.openRecurring === "string" ? search.openRecurring : undefined,
   }),
   component: ClientsPage,
 });
@@ -352,6 +392,9 @@ type ClientDetailPanelProps = {
   onDelete: (client: Client) => void;
   onSaveNotes: (clientId: string, notes: string) => Promise<void>;
   savingNotes: boolean;
+  businessId: string | null;
+  profile: ReturnType<typeof useAuth>["profile"];
+  initialTab?: "resumen" | "reservas";
 };
 
 // Memoizado: el padre re-renderiza en cada tecla de búsqueda, cambio de orden,
@@ -364,8 +407,11 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
   onDelete,
   onSaveNotes,
   savingNotes,
+  businessId,
+  profile,
+  initialTab,
 }: ClientDetailPanelProps) {
-  const [tab, setTab] = useState<"resumen" | "reservas">("resumen");
+  const [tab, setTab] = useState<"resumen" | "reservas">(initialTab ?? "resumen");
   // Reserva cobrada actualmente expandida (para ver el detalle del pago) —
   // una sola a la vez, se resetea al cambiar de cliente igual que el resto
   // del estado local del panel.
@@ -381,7 +427,147 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
     setIsEditingNote(false);
     setMenuOpen(false);
     setExpandedReservationId(null);
+    if (initialTab) setTab(initialTab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client.id, client.notes]);
+
+  // ── Reservas recurrentes ("Repetir turno") ──────────────────────────────
+  const [recurringSeries, setRecurringSeries] = useState<RecurringSeriesRow[]>([]);
+  const [seriesEmployees, setSeriesEmployees] = useState<{ id: string; name: string }[]>([]);
+  const [finalizingSeriesId, setFinalizingSeriesId] = useState<string | null>(null);
+  const [editingSeries, setEditingSeries] = useState<RecurringSeriesRow | null>(null);
+
+  useEffect(() => {
+    if (!businessId) {
+      setRecurringSeries([]);
+      return;
+    }
+    let cancelled = false;
+    supabase
+      .from("recurring_series" as any)
+      .select("*")
+      .eq("business_id", businessId)
+      .eq("client_id", client.id)
+      .eq("status", "active")
+      .then(({ data, error }: any) => {
+        if (!cancelled) setRecurringSeries(!error && data ? (data as RecurringSeriesRow[]) : []);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [client.id, businessId]);
+
+  // Profesionales — solo se piden si hace falta (hay al menos una serie
+  // activa), para no sumar una consulta más a la ficha en el caso común.
+  useEffect(() => {
+    if (!businessId || recurringSeries.length === 0 || seriesEmployees.length > 0) return;
+    supabase
+      .from("employees")
+      .select("id,full_name")
+      .eq("business_id", businessId)
+      .then(({ data, error }) => {
+        if (!error && data) {
+          setSeriesEmployees(data.map((e) => ({ id: e.id, name: e.full_name ?? "Profesional" })));
+        }
+      });
+  }, [businessId, recurringSeries.length, seriesEmployees.length]);
+
+  async function handleFinalizeSeries(series: RecurringSeriesRow) {
+    if (!window.confirm("¿Detener las reservas futuras de esta recurrencia? No afecta turnos pasados ni ya cobrados.")) return;
+    setFinalizingSeriesId(series.id);
+    try {
+      const nowIso = new Date().toISOString();
+      const { data: futureAppts, error: fetchError } = await supabase
+        .from("appointments")
+        .select("id")
+        .eq("recurring_series_id", series.id)
+        .gt("starts_at", nowIso)
+        .not("status", "in", "(charged,cancelled)");
+      if (fetchError) throw new Error(fetchError.message);
+
+      for (const a of futureAppts ?? []) {
+        try {
+          await cancelAppointment(a.id, {
+            userId: profile?.id ?? null,
+            name: profile?.full_name ?? "Recepción",
+            role: profile?.role ?? null,
+            reason: "Recurrencia finalizada",
+          });
+        } catch {
+          // Best-effort: un turno que falle no debe frenar el resto.
+        }
+      }
+
+      const { error: seriesError } = await supabase
+        .from("recurring_series" as any)
+        .update({ status: "finished", updated_at: new Date().toISOString() })
+        .eq("id", series.id);
+      if (seriesError) throw new Error(seriesError.message);
+
+      setRecurringSeries((prev) => prev.filter((s) => s.id !== series.id));
+      toast.success("Recurrencia finalizada");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setFinalizingSeriesId(null);
+    }
+  }
+
+  // "Editar recurrencia" — a propósito solo edita servicio/precio/duración/
+  // profesional (mismos campos que "Este y los siguientes" al editar un
+  // turno puntual, ver appointment-dialog.tsx). Cambiar el patrón de
+  // días/horario/finalización de una serie ya activa implicaría reconciliar
+  // turnos ya generados contra el patrón viejo vs. nuevo — no está
+  // soportado desde acá; para eso hay que finalizar esta recurrencia y
+  // crear una nueva desde "Repetir turno".
+  const [seriesEditForm, setSeriesEditForm] = useState({ serviceName: "", price: "0", duration: "30", employeeId: "" });
+  const [savingSeriesEdit, setSavingSeriesEdit] = useState(false);
+
+  useEffect(() => {
+    if (!editingSeries) return;
+    setSeriesEditForm({
+      serviceName: editingSeries.service_name,
+      price: String(editingSeries.service_price ?? 0),
+      duration: String(editingSeries.duration_min ?? 30),
+      employeeId: editingSeries.employee_id ?? "",
+    });
+  }, [editingSeries]);
+
+  async function handleSaveSeriesEdit() {
+    if (!editingSeries) return;
+    setSavingSeriesEdit(true);
+    try {
+      const patch = {
+        service_name: seriesEditForm.serviceName.trim() || editingSeries.service_name,
+        service_price: Number(seriesEditForm.price) || 0,
+        duration_min: Number(seriesEditForm.duration) || 30,
+        employee_id: seriesEditForm.employeeId || null,
+      };
+      const { error: seriesError } = await supabase
+        .from("recurring_series" as any)
+        .update({ ...patch, updated_at: new Date().toISOString() })
+        .eq("id", editingSeries.id);
+      if (seriesError) throw new Error(seriesError.message);
+
+      // Solo turnos futuros y todavía no cobrados/cancelados — pasados y
+      // cobrados nunca se tocan.
+      const { error: apptError } = await supabase
+        .from("appointments")
+        .update(patch)
+        .eq("recurring_series_id", editingSeries.id)
+        .gt("starts_at", new Date().toISOString())
+        .not("status", "in", "(charged,cancelled)");
+      if (apptError) throw new Error(apptError.message);
+
+      setRecurringSeries((prev) => prev.map((s) => (s.id === editingSeries.id ? { ...s, ...patch } : s)));
+      toast.success("Recurrencia actualizada");
+      setEditingSeries(null);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSavingSeriesEdit(false);
+    }
+  }
 
   async function handleSaveNote() {
     await onSaveNotes(client.id, noteDraft);
@@ -412,6 +598,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
   const hasNote = Boolean((client.notes ?? "").trim());
 
   return (
+    <>
     <div className="flex flex-col lg:h-full">
       <div
         className={cn(
@@ -672,6 +859,44 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
             )}
             aria-hidden={tab !== "reservas"}
           >
+            {recurringSeries.length > 0 && (
+              <div className="space-y-2">
+                <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
+                  Reservas recurrentes
+                </div>
+                {recurringSeries.map((s) => {
+                  const empName = s.employee_id ? seriesEmployees.find((e) => e.id === s.employee_id)?.name : null;
+                  return (
+                    <div key={s.id} className="rounded-xl bg-violet-500/[0.06] ring-1 ring-violet-400/20 p-3 space-y-2">
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium truncate">{s.service_name}</div>
+                        <div className="text-[11px] text-muted-foreground">
+                          {recurringSeriesSummary(s)}
+                          {empName ? ` · ${empName}` : ""}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setEditingSeries(s)}
+                          className="rounded-lg bg-white/5 px-2.5 py-1.5 text-[11px] font-medium text-white/80 ring-1 ring-white/10 transition hover:bg-white/10"
+                        >
+                          Editar recurrencia
+                        </button>
+                        <button
+                          type="button"
+                          disabled={finalizingSeriesId === s.id}
+                          onClick={() => handleFinalizeSeries(s)}
+                          className="rounded-lg bg-rose-500/10 px-2.5 py-1.5 text-[11px] font-medium text-rose-300 ring-1 ring-rose-400/25 transition hover:bg-rose-500/15 disabled:opacity-50"
+                        >
+                          {finalizingSeriesId === s.id ? "Finalizando…" : "Finalizar recurrencia"}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             {client.reservations.length === 0 ? (
               <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-4 text-sm text-muted-foreground">
                 Sin turnos todavía.
@@ -769,6 +994,87 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
         </div>
       </div>
     </div>
+
+    {editingSeries && (
+      <div
+        className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+        onClick={() => setEditingSeries(null)}
+      >
+        <div
+          className="w-full max-w-sm rounded-2xl bg-[#15161c] ring-1 ring-white/10 p-5 shadow-2xl space-y-3"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="text-lg font-semibold">Editar recurrencia</div>
+          <p className="text-xs text-muted-foreground">
+            Se aplica a los turnos futuros de esta serie que todavía no pasaron ni se cobraron.
+            No cambia los días ni el horario — para eso, finalizá esta recurrencia y creá una nueva.
+          </p>
+          <div className="space-y-1">
+            <label className="text-[11px] font-semibold uppercase tracking-wider text-white/40">Servicio</label>
+            <input
+              value={seriesEditForm.serviceName}
+              onChange={(e) => setSeriesEditForm((f) => ({ ...f, serviceName: e.target.value }))}
+              className="w-full rounded-lg bg-white/5 px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-primary/40"
+            />
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div className="space-y-1">
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-white/40">Precio</label>
+              <input
+                type="number"
+                min={0}
+                value={seriesEditForm.price}
+                onChange={(e) => setSeriesEditForm((f) => ({ ...f, price: e.target.value }))}
+                className="w-full rounded-lg bg-white/5 px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-primary/40"
+              />
+            </div>
+            <div className="space-y-1">
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-white/40">Duración (min)</label>
+              <input
+                type="number"
+                min={5}
+                value={seriesEditForm.duration}
+                onChange={(e) => setSeriesEditForm((f) => ({ ...f, duration: e.target.value }))}
+                className="w-full rounded-lg bg-white/5 px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-primary/40"
+              />
+            </div>
+          </div>
+          {seriesEmployees.length > 0 && (
+            <div className="space-y-1">
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-white/40">Profesional</label>
+              <select
+                value={seriesEditForm.employeeId}
+                onChange={(e) => setSeriesEditForm((f) => ({ ...f, employeeId: e.target.value }))}
+                className="w-full rounded-lg bg-white/5 px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-primary/40"
+              >
+                <option value="">Sin asignar</option>
+                {seriesEmployees.map((e) => (
+                  <option key={e.id} value={e.id}>{e.name}</option>
+                ))}
+              </select>
+            </div>
+          )}
+          <div className="flex items-center gap-2 pt-1">
+            <button
+              type="button"
+              onClick={() => setEditingSeries(null)}
+              className="h-10 flex-1 rounded-xl bg-white/5 ring-1 ring-white/10 text-sm text-muted-foreground hover:text-foreground"
+            >
+              Cancelar
+            </button>
+            <button
+              type="button"
+              disabled={savingSeriesEdit}
+              onClick={handleSaveSeriesEdit}
+              className="h-10 flex-1 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-sm font-semibold text-white disabled:opacity-50"
+            >
+              {savingSeriesEdit ? "Guardando…" : "Guardar"}
+            </button>
+          </div>
+        </div>
+      </div>
+    )}
+    </>
   );
 });
 
@@ -780,6 +1086,11 @@ type ClientDetailModalProps = {
   onDelete: (client: Client) => void;
   onSaveNotes: (clientId: string, notes: string) => Promise<void>;
   savingNotes: boolean;
+  businessId: string | null;
+  profile: ReturnType<typeof useAuth>["profile"];
+  // "Ver recurrencia" desde el detalle del turno — fuerza la pestaña
+  // "reservas" al abrir esta ficha puntual.
+  initialTab?: "resumen" | "reservas";
 };
 
 function ClientDetailModal({
@@ -790,6 +1101,9 @@ function ClientDetailModal({
   onDelete,
   onSaveNotes,
   savingNotes,
+  businessId,
+  profile,
+  initialTab,
 }: ClientDetailModalProps) {
   useBodyScrollLock(open);
 
@@ -833,6 +1147,9 @@ function ClientDetailModal({
               onDelete={onDelete}
               onSaveNotes={onSaveNotes}
               savingNotes={savingNotes}
+              businessId={businessId}
+              profile={profile}
+              initialTab={initialTab}
             />
           ) : (
             <div className="grid min-h-[280px] place-items-center p-6">
@@ -858,7 +1175,7 @@ function ClientDetailModal({
 }
 
 function ClientsPage() {
-  const { businessId } = useAuth();
+  const { businessId, profile } = useAuth();
   const navigate = useNavigate();
   const search = Route.useSearch();
   const saveClient = useSaveClient(businessId);
@@ -868,8 +1185,13 @@ function ClientsPage() {
   // pasar por el listado. Se capturan en el primer render y no se vuelven a
   // leer del search param — si el usuario cierra la ficha y abre otra desde
   // la lista normal, esa segunda ya no "vuelve a Agenda" al cerrarla (ver
-  // onClose de ClientDetailModal más abajo).
-  const [deepLink] = useState(() => ({ clientId: search.clientId, agendaDate: search.agendaDate }));
+  // onClose de ClientDetailModal más abajo). openRecurring: mismo criterio,
+  // para "Ver recurrencia" desde el detalle del turno.
+  const [deepLink] = useState(() => ({
+    clientId: search.clientId,
+    agendaDate: search.agendaDate,
+    openRecurring: search.openRecurring,
+  }));
 
   const [query, setQuery] = useState(() => search.q ?? "");
   const [sort, setSort] = useState<"gasto" | "recientes" | "nombre">("gasto");
@@ -1355,6 +1677,9 @@ function ClientsPage() {
             onDelete={handleDeleteClient}
             onSaveNotes={saveNotes}
             savingNotes={updateNotes.isPending}
+            businessId={businessId}
+            profile={profile}
+            initialTab={deepLink.openRecurring && current?.id === deepLink.clientId ? "reservas" : undefined}
           />,
           document.body,
         )}
