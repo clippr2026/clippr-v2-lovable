@@ -68,7 +68,7 @@ import { AgendaCenteredModal } from "@/components/agenda/agenda-drawer";
 import { fetchSettlementRunServices } from "@/hooks/use-professionals-data";
 import { MultiMethodPaymentSplit, type MultiSplit } from "@/components/cash-register/multi-method-payment-split";
 import { buildHistorialMovimientos, type MovimientoAjuste, type MovimientoDeduccion } from "@/lib/historial-movimientos";
-import { MovimientoCard } from "@/components/liquidaciones/movimiento-card";
+import { MovimientoCard, MovimientoListHeader } from "@/components/liquidaciones/movimiento-card";
 import {
   PagoDetalleContent,
   AdelantoDetalleContent,
@@ -385,15 +385,6 @@ function chargedByUsername(email?: string | null) {
   const raw = String(email ?? "").trim();
   if (!raw) return "Recepción";
   return raw.includes("@") ? raw.split("@")[0] || "Recepción" : raw;
-}
-
-// "DD/MM/AAAA • HH:MM h" — formato de fecha y hora exacta usado en el
-// detalle de Historial (período liquidado, datos del pago, adelantos).
-function fmtDetalleDateTime(iso: string) {
-  const d = new Date(iso);
-  const date = d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" });
-  const time = d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false });
-  return `${date} • ${time} h`;
 }
 
 // "HH:MM" en zona horaria de Argentina, sin importar en qué huso horario
@@ -4345,7 +4336,7 @@ function ProfesionalesTab({
     }[tone];
 
     return (
-      <div className={cn("rounded-2xl border px-4 py-3", toneClass, className)}>
+      <div className={cn("rounded-2xl border px-3.5 py-2.5", toneClass, className)}>
         <div
           className={cn(
             "flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.16em]",
@@ -4360,7 +4351,7 @@ function ProfesionalesTab({
             {sublabel}
           </div>
         )}
-        <div className="mt-1 text-xl font-bold tabular-nums">{value}</div>
+        <div className="mt-0.5 text-lg font-bold tabular-nums">{value}</div>
       </div>
     );
   };
@@ -4489,7 +4480,7 @@ function ProfesionalesTab({
           "prende la luz" al cargar. Desktop no cambia (shadow doble original
           vía `sm:`). */}
       <section className="flex flex-col overflow-visible rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(10,14,26,0.96),rgba(4,6,14,0.985))] shadow-[0_24px_85px_-50px_rgba(139,92,246,0.42)] sm:h-full sm:overflow-hidden sm:shadow-[0_32px_100px_-58px_rgba(0,0,0,0.95),0_24px_85px_-62px_rgba(139,92,246,0.42)]">
-        <div className="flex flex-col gap-4 border-b border-white/[0.065] px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex flex-col gap-3 border-b border-white/[0.065] px-5 py-3.5 lg:flex-row lg:items-center lg:justify-between">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <select
               value={selectedEmployeeId}
@@ -4552,35 +4543,67 @@ function ProfesionalesTab({
         </div>
 
         {selectedRow && (
-          <div className="grid grid-cols-2 gap-3 border-b border-white/[0.055] px-5 py-3">
-            <StatCard
-              label="Comisiones generadas"
-              sublabel={totals.previousBalance > 0 ? "Período actual" : undefined}
-              value={money(liquidarNewCommissions)}
-              tone="violet"
-              info={COMISIONES_NUEVAS_INFO_TEXT}
-              className={totals.previousBalance > 0 ? undefined : "col-span-2"}
-            />
-            {totals.previousBalance > 0 && (
+          <div className="flex flex-col gap-2.5 border-b border-white/[0.055] px-5 py-3 lg:flex-row lg:items-stretch">
+            <div
+              className={cn(
+                "grid flex-1 grid-cols-2 gap-2.5",
+                totals.previousBalance > 0 ? "sm:grid-cols-3" : "sm:grid-cols-2",
+              )}
+            >
               <StatCard
-                label="Comisiones pendientes"
-                sublabel="Período anterior"
-                value={money(totals.previousBalance)}
-                tone="neutral"
-                info={LIQUIDACION_ANTERIOR_INFO_TEXT}
+                label="Comisiones generadas"
+                sublabel={totals.previousBalance > 0 ? "Período actual" : undefined}
+                value={money(liquidarNewCommissions)}
+                tone="violet"
+                info={COMISIONES_NUEVAS_INFO_TEXT}
               />
-            )}
-            <StatCard
-              label="Adelantos"
-              value={liquidarPendingAdvances > 0 ? `−${money(liquidarPendingAdvances)}` : money(0)}
-              tone="rose"
-              info={ADELANTOS_INFO_TEXT}
-            />
-            <StatCard
-              label="Total final"
-              value={money(Math.max(totals.previousBalance + liquidarNewCommissions - liquidarPendingAdvances, 0))}
-              tone="green"
-            />
+              {totals.previousBalance > 0 && (
+                <StatCard
+                  label="Comisiones pendientes"
+                  sublabel="Período anterior"
+                  value={money(totals.previousBalance)}
+                  tone="neutral"
+                  info={LIQUIDACION_ANTERIOR_INFO_TEXT}
+                />
+              )}
+              <StatCard
+                label="Adelantos"
+                value={liquidarPendingAdvances > 0 ? `−${money(liquidarPendingAdvances)}` : money(0)}
+                tone="rose"
+                info={ADELANTOS_INFO_TEXT}
+              />
+            </div>
+
+            {/* Total a pagar: mayor jerarquía visual que el resto de las
+                tarjetas (más grande, tono propio) y con Adelantar/Pagar
+                integrados en la misma zona — Pagar queda pegado al total,
+                en vez de una barra de botones flotante aparte. */}
+            <div className="flex items-center gap-3 rounded-2xl border border-emerald-400/25 bg-emerald-400/[0.07] px-4 py-2.5 shadow-[0_0_28px_rgba(16,185,129,0.10)] lg:min-w-[300px]">
+              <div className="min-w-0 flex-1">
+                <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-200/70">
+                  Total a pagar
+                </div>
+                <div className="mt-0.5 text-xl font-bold tabular-nums text-emerald-300 sm:text-2xl">
+                  {money(Math.max(totals.previousBalance + liquidarNewCommissions - liquidarPendingAdvances, 0))}
+                </div>
+              </div>
+              <div className="flex shrink-0 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAdelantoModalOpen(true)}
+                  className="rounded-xl bg-rose-500 px-3 py-2 text-xs font-bold text-white shadow-[0_0_18px_rgba(244,63,94,0.26)] transition hover:brightness-110"
+                >
+                  Adelantar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => openLiquidarModal(selectedRow)}
+                  className="rounded-xl bg-emerald-500 px-3 py-2 text-xs font-bold text-white shadow-[0_0_18px_rgba(16,185,129,0.28)] transition hover:brightness-110"
+                >
+                  Pagar
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -4663,24 +4686,9 @@ function ProfesionalesTab({
           </>
         ) : selectedRow ? (
           <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-            {/* Adelantar y Pagar: acciones principales, compactas y
-                centradas (no estiradas a lo ancho de una columna). */}
-            <div className="flex items-center justify-center gap-4 border-b border-white/[0.06] bg-white/[0.018] px-5 py-2">
-              <button
-                type="button"
-                onClick={() => setAdelantoModalOpen(true)}
-                className="w-28 rounded-xl bg-rose-500 px-3 py-2 text-xs font-bold text-white shadow-[0_0_18px_rgba(244,63,94,0.26)] transition hover:brightness-110"
-              >
-                Adelantar
-              </button>
-              <button
-                type="button"
-                onClick={() => openLiquidarModal(selectedRow)}
-                className="w-28 rounded-xl bg-emerald-500 px-3 py-2 text-xs font-bold text-white shadow-[0_0_18px_rgba(16,185,129,0.28)] transition hover:brightness-110"
-              >
-                Pagar
-              </button>
-            </div>
+            {/* Adelantar/Pagar ahora viven integrados en la tarjeta "Total
+                a pagar" de arriba (ver bloque de resumen) — no hay una
+                barra de botones aparte acá. */}
 
             {/* Selector Comisiones | Historial: una sola pieza partida al
                 medio (borde/fondo compartidos acá, divide-x como línea
@@ -4702,16 +4710,14 @@ function ProfesionalesTab({
                 )}
                 {/* Desktop: tabla. En mobile, tarjetas verticales debajo. */}
                 <div className="hidden overflow-hidden rounded-2xl border border-white/[0.07] bg-black/18 sm:block">
-                  <div className="grid grid-cols-[92px_minmax(110px,1fr)_minmax(140px,1.2fr)_90px_70px_60px_90px_100px_90px] gap-3 border-b border-white/[0.06] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
+                  <div className="grid grid-cols-[92px_minmax(110px,1fr)_minmax(140px,1.2fr)_90px_90px_110px_100px] gap-3 border-b border-white/[0.06] px-4 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
                     <div>Fecha y hora</div>
                     <div>Cliente</div>
                     <div>Servicio</div>
                     <div className="text-right">Precio</div>
-                    <div className="text-right">Desc.</div>
-                    <div className="text-right">%Com.</div>
+                    <div className="text-right">Descuento</div>
                     <div className="text-right">Comisión</div>
                     <div>Método</div>
-                    <div>Estado</div>
                   </div>
                   {loadingDetail ? (
                     <div className="px-4 py-10 text-center text-sm text-white/45">
@@ -4743,7 +4749,7 @@ function ProfesionalesTab({
                           <div
                             key={c.id}
                             title={`ID: ${c.id}`}
-                            className="grid grid-cols-[92px_minmax(110px,1fr)_minmax(140px,1.2fr)_90px_70px_60px_90px_100px_90px] gap-3 px-4 py-3 text-sm transition hover:bg-white/[0.025]"
+                            className="grid grid-cols-[92px_minmax(110px,1fr)_minmax(140px,1.2fr)_90px_90px_110px_100px] gap-3 px-4 py-3 text-sm transition hover:bg-white/[0.025]"
                           >
                             <div className="text-white/52">
                               {date}
@@ -4759,14 +4765,15 @@ function ProfesionalesTab({
                               {money(Number(sale.total ?? sale.amount ?? 0))}
                             </div>
                             <div className="text-right tabular-nums text-white/52">—</div>
-                            <div className="text-right tabular-nums text-white/52">
-                              {c.commission_pct != null ? `${c.commission_pct}%` : "—"}
-                            </div>
-                            <div className="text-right font-bold tabular-nums text-violet-300">
-                              {money(Number(c.pending_amount ?? c.amount ?? 0))}
+                            <div className="text-right">
+                              <div className="font-bold tabular-nums text-violet-300">
+                                {money(Number(c.pending_amount ?? c.amount ?? 0))}
+                              </div>
+                              {c.commission_pct != null && (
+                                <div className="text-[10px] tabular-nums text-white/35">{c.commission_pct}%</div>
+                              )}
                             </div>
                             <div className="text-white/52">{method}</div>
-                            <div className="text-white/52 capitalize">{c.status}</div>
                           </div>
                         );
                       })}
@@ -4845,46 +4852,94 @@ function ProfesionalesTab({
                     Todavía no se registró ningún pago ni adelanto.
                   </div>
                 ) : (
-                  <div className="flex flex-col gap-2.5">
+                  <div className="flex flex-col gap-2">
+                    <MovimientoListHeader />
                     {historialItems.map((item) => {
                       if (item.kind === "adelanto") {
+                        const isExpanded = historialDetailAdvance?.id === item.data.id;
                         return (
                           <MovimientoCard
                             key={`adelanto-${item.data.id}`}
                             item={item}
                             professionalName={selectedRow.name}
-                            onVerDetalle={() => setHistorialDetailAdvance(item.data)}
+                            variant="row"
+                            expanded={isExpanded}
+                            detail={
+                              <AdelantoDetalleContent professionalName={selectedRow.name} advance={item.data} />
+                            }
+                            onVerDetalle={() => setHistorialDetailAdvance(isExpanded ? null : item.data)}
                           />
                         );
                       }
-                      if (item.kind === "ajuste") {
+                      if (item.kind === "ajuste" || item.kind === "deduccion") {
+                        const isAjuste = item.kind === "ajuste";
+                        const isExpanded = isAjuste
+                          ? historialDetailAjuste?.runId === item.runId
+                          : historialDetailDeduccion?.runId === item.runId;
+                        const detalleData = {
+                          professionalName: item.professionalName,
+                          preparedByName: item.preparedByName,
+                          preparedAt: item.at,
+                          amount: item.amount,
+                          items: item.items,
+                        };
                         return (
                           <MovimientoCard
-                            key={`ajuste-${item.runId}`}
+                            key={`${item.kind}-${item.runId}`}
                             item={item}
                             professionalName={selectedRow.name}
-                            onVerDetalle={() => setHistorialDetailAjuste(item)}
-                          />
-                        );
-                      }
-                      if (item.kind === "deduccion") {
-                        return (
-                          <MovimientoCard
-                            key={`deduccion-${item.runId}`}
-                            item={item}
-                            professionalName={selectedRow.name}
-                            onVerDetalle={() => setHistorialDetailDeduccion(item)}
+                            variant="row"
+                            expanded={isExpanded}
+                            detail={
+                              isAjuste ? (
+                                <AjusteDetalleContent data={detalleData} />
+                              ) : (
+                                <DeduccionDetalleContent data={detalleData} />
+                              )
+                            }
+                            onVerDetalle={() => {
+                              if (isAjuste) setHistorialDetailAjuste(isExpanded ? null : item);
+                              else setHistorialDetailDeduccion(isExpanded ? null : item);
+                            }}
                           />
                         );
                       }
                       const run = runById.get(item.settlementRunId);
+                      const isExpanded =
+                        historialDetailMovementNumber === item.movementNumber && Boolean(historialDetailRun);
                       return (
                         <MovimientoCard
                           key={`pago-${item.movementNumber ?? item.splits[0].id}`}
                           item={item}
                           professionalName={selectedRow.name}
                           run={run}
-                          onVerDetalle={() => run && openHistorialDetail(run, item.movementNumber)}
+                          variant="row"
+                          expanded={isExpanded}
+                          loadingDetail={isExpanded && loadingHistorialDetail}
+                          detail={
+                            isExpanded && historialDetailRun ? (
+                              <PagoDetalleContent
+                                run={historialDetailRun}
+                                payments={allRunPayments
+                                  .filter((p: any) => p.settlement_run_id === item.settlementRunId)
+                                  .sort((a: any, b: any) => String(a.paid_at ?? "").localeCompare(String(b.paid_at ?? "")))}
+                                advances={allAdvances
+                                  .filter((a: any) => a.settlement_run_id === item.settlementRunId)
+                                  .sort((a: any, b: any) => String(a.advanced_at ?? "").localeCompare(String(b.advanced_at ?? "")))}
+                                services={historialDetailServices}
+                                loadingServices={loadingHistorialDetail}
+                              />
+                            ) : null
+                          }
+                          onVerDetalle={() => {
+                            if (isExpanded) {
+                              setHistorialDetailRun(null);
+                              setHistorialDetailMovementNumber(null);
+                              setHistorialDetailServices(null);
+                            } else if (run) {
+                              openHistorialDetail(run, item.movementNumber);
+                            }
+                          }}
                         />
                       );
                     })}
@@ -5074,123 +5129,11 @@ function ProfesionalesTab({
         </AgendaCenteredModal>
       )}
 
-      <AgendaCenteredModal
-        open={Boolean(historialDetailRun)}
-        onOpenChange={(v) => {
-          if (!v) {
-            setHistorialDetailRun(null);
-            setHistorialDetailMovementNumber(null);
-            setHistorialDetailServices(null);
-          }
-        }}
-        lockOutside={false}
-        title={historialDetailMovementNumber != null ? `Movimiento #${historialDetailMovementNumber}` : ""}
-        subtitle={
-          historialDetailRun ? (
-            <div className="space-y-0.5">
-              <div className="text-[10px] font-bold uppercase tracking-wider text-white/35">Período liquidado</div>
-              <div>
-                {historialDetailRun.period_start_at
-                  ? `Desde ${fmtDetalleDateTime(historialDetailRun.period_start_at)}`
-                  : "Primera liquidación"}
-              </div>
-              <div>{`Hasta ${fmtDetalleDateTime(historialDetailRun.prepared_at)}`}</div>
-            </div>
-          ) : undefined
-        }
-      >
-        {historialDetailRun && (() => {
-          const run = historialDetailRun;
-          // Con pago múltiple un mismo run puede tener varios pagos (uno
-          // por método usado en esa tanda) — se listan todos, no solo el
-          // último.
-          const runPayments = allRunPayments
-            .filter((p: any) => p.settlement_run_id === run.id)
-            .sort((a: any, b: any) => String(a.paid_at ?? "").localeCompare(String(b.paid_at ?? "")));
-          const runAdvancesForRun = allAdvances
-            .filter((a: any) => a.settlement_run_id === run.id)
-            .sort((a: any, b: any) => String(a.advanced_at ?? "").localeCompare(String(b.advanced_at ?? "")));
-          return (
-            <PagoDetalleContent
-              run={run}
-              payments={runPayments}
-              advances={runAdvancesForRun}
-              services={historialDetailServices}
-              loadingServices={loadingHistorialDetail}
-            />
-          );
-        })()}
-      </AgendaCenteredModal>
-
-      <AgendaCenteredModal
-        open={Boolean(historialDetailAdvance)}
-        onOpenChange={(v) => {
-          if (!v) setHistorialDetailAdvance(null);
-        }}
-        lockOutside={false}
-        title={
-          historialDetailAdvance?.movement_number != null
-            ? `Movimiento #${historialDetailAdvance.movement_number}`
-            : "Adelanto"
-        }
-        subtitle={
-          historialDetailAdvance
-            ? fmtDetalleDateTime(historialDetailAdvance.advanced_at)
-            : undefined
-        }
-      >
-        {historialDetailAdvance && (
-          <AdelantoDetalleContent professionalName={selectedRow?.name ?? "—"} advance={historialDetailAdvance} />
-        )}
-      </AgendaCenteredModal>
-
-      <AgendaCenteredModal
-        open={Boolean(historialDetailAjuste)}
-        onOpenChange={(v) => {
-          if (!v) setHistorialDetailAjuste(null);
-        }}
-        lockOutside={false}
-        title={historialDetailAjuste?.movementNumber != null ? `Movimiento #${historialDetailAjuste.movementNumber}` : "Ajuste"}
-        subtitle={historialDetailAjuste ? fmtDetalleDateTime(historialDetailAjuste.at) : undefined}
-      >
-        {historialDetailAjuste && (
-          <AjusteDetalleContent
-            data={{
-              professionalName: historialDetailAjuste.professionalName,
-              preparedByName: historialDetailAjuste.preparedByName,
-              preparedAt: historialDetailAjuste.at,
-              amount: historialDetailAjuste.amount,
-              items: historialDetailAjuste.items,
-            }}
-          />
-        )}
-      </AgendaCenteredModal>
-
-      <AgendaCenteredModal
-        open={Boolean(historialDetailDeduccion)}
-        onOpenChange={(v) => {
-          if (!v) setHistorialDetailDeduccion(null);
-        }}
-        lockOutside={false}
-        title={
-          historialDetailDeduccion?.movementNumber != null
-            ? `Movimiento #${historialDetailDeduccion.movementNumber}`
-            : "Deducción"
-        }
-        subtitle={historialDetailDeduccion ? fmtDetalleDateTime(historialDetailDeduccion.at) : undefined}
-      >
-        {historialDetailDeduccion && (
-          <DeduccionDetalleContent
-            data={{
-              professionalName: historialDetailDeduccion.professionalName,
-              preparedByName: historialDetailDeduccion.preparedByName,
-              preparedAt: historialDetailDeduccion.at,
-              amount: historialDetailDeduccion.amount,
-              items: historialDetailDeduccion.items,
-            }}
-          />
-        )}
-      </AgendaCenteredModal>
+      {/* El detalle de cada Movimiento (pago/adelanto/ajuste/deducción) ya
+          no abre en un modal aparte — se expande inline dentro de la misma
+          fila/tarjeta en la lista de Movimientos (variant="row" de
+          MovimientoCard), así no queda tanto espacio vacío alrededor de
+          poca información. */}
 
       {selectedRow && (() => {
         // Un solo flujo para todos los profesionales, tengan o no una
