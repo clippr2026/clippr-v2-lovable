@@ -1042,6 +1042,11 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
   }, [turnos]);
 
   const [cobroTurno, setCobroTurno] = useState<import("@/hooks/use-professionals-data").ProfTurno | null>(null);
+  // Cancelar turno con motivo obligatorio — mismo criterio que Agenda
+  // (agenda.tsx): un solo toque nunca cancela, el motivo es la confirmación.
+  const [cancelingTurno, setCancelingTurno] = useState<import("@/hooks/use-professionals-data").ProfTurno | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
+  const [cancelingBusy, setCancelingBusy] = useState(false);
   const [walkInChargeOpen, setWalkInChargeOpen] = useState(false);
   // Los dos modales de cobro ("+ Venta" y cobrar un turno pendiente) son
   // divs fixed a mano (no Radix), así que no bloquean el scroll de fondo
@@ -1512,22 +1517,9 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                 <button
                   type="button"
                   title="Cancelar turno"
-                  onClick={async () => {
-                    if (!window.confirm("¿Cancelar este turno?")) return;
-                    try {
-                      // name: nombre visible real (profile.full_name), no el
-                      // email — cancelAppointment ahora escribe el evento
-                      // "Canceló" del historial internamente con este valor.
-                      await cancelAppointment(t.id, {
-                        userId: profile?.id ?? null,
-                        name: profile?.full_name ?? emailUsername(profile?.email ?? null),
-                        role: "profesional",
-                      });
-                      toast.success("Turno cancelado");
-                      refetch();
-                    } catch (e) {
-                      toast.error((e as Error).message);
-                    }
+                  onClick={() => {
+                    setCancelReason("");
+                    setCancelingTurno(t);
                   }}
                   className="shrink-0 rounded-lg px-1.5 text-rose-400/70 transition hover:bg-rose-500/10 hover:text-rose-300"
                 >
@@ -1698,6 +1690,66 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                 cajaData.refresh();
               }}
             />
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {cancelingTurno && typeof document !== "undefined" && createPortal(
+        <div
+          className="fixed inset-0 z-[130] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={() => setCancelingTurno(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-[#15161c] ring-1 ring-white/10 p-5 shadow-2xl space-y-3"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-lg font-semibold">Motivo de cancelación</div>
+            <textarea
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              placeholder="Escribí por qué se cancela el turno..."
+              rows={3}
+              className="w-full resize-none rounded-lg bg-white/5 px-3 py-2 text-sm text-foreground outline-none ring-1 ring-white/10 placeholder:text-white/35 focus:ring-white/25"
+            />
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setCancelingTurno(null)}
+                className="h-10 flex-1 rounded-xl bg-white/5 ring-1 ring-white/10 text-sm text-muted-foreground hover:text-foreground"
+              >
+                Volver
+              </button>
+              <button
+                type="button"
+                disabled={cancelingBusy || !cancelReason.trim()}
+                onClick={async () => {
+                  if (!cancelingTurno) return;
+                  setCancelingBusy(true);
+                  try {
+                    // name: nombre visible real (profile.full_name), no el
+                    // email — cancelAppointment escribe el evento "Canceló"
+                    // del historial internamente con este valor.
+                    await cancelAppointment(cancelingTurno.id, {
+                      userId: profile?.id ?? null,
+                      name: profile?.full_name ?? emailUsername(profile?.email ?? null),
+                      role: "profesional",
+                      reason: cancelReason.trim(),
+                    });
+                    toast.success("Turno cancelado");
+                    setCancelingTurno(null);
+                    refetch();
+                  } catch (e) {
+                    toast.error((e as Error).message);
+                  } finally {
+                    setCancelingBusy(false);
+                  }
+                }}
+                className="h-10 flex-1 rounded-xl bg-gradient-to-r from-rose-500 to-rose-400 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {cancelingBusy ? "Cancelando…" : "Confirmar cancelación"}
+              </button>
+            </div>
           </div>
         </div>,
         document.body,

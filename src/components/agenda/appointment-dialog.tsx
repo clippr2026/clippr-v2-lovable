@@ -38,6 +38,12 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { AcquisitionSourceField } from "@/components/acquisition-source-field";
 import { acquisitionChannelRequiresText } from "@/lib/acquisition-channels";
 import {
+  type RepeatWeekday,
+  type RepeatEndMode,
+  WEEKDAYS,
+  computeRepeatDates,
+} from "@/lib/recurring-schedule";
+import {
   resolveServicePricing,
   isPromotionCurrentlyValid,
   isPromotionApplicable,
@@ -119,23 +125,14 @@ type SenasConfig = {
   message?: string;
 };
 
-type RepeatWeekday = 0 | 1 | 2 | 3 | 4 | 5 | 6;
-
 type RepeatConfig = {
   enabled: boolean;
   weekdays: RepeatWeekday[];
   everyWeeks: number;
-  endMode: "count" | "until" | "none";
+  endMode: RepeatEndMode;
   count: number;
   until: string;
 };
-
-// Tope duro para series "sin fecha de finalización": generamos de a
-// ventanas de 8 semanas (56 días) en vez de todo de una — evita crear
-// meses/años de reservas de golpe. El resto se completa solo (ver
-// topUpRecurringSeries en use-agenda-data.ts) a medida que se acerca la
-// fecha límite ya generada.
-const RECURRING_WINDOW_DAYS = 56;
 
 function pad(n: number) {
   return String(n).padStart(2, "0");
@@ -164,53 +161,14 @@ function formatReadableDate(date: string) {
   });
 }
 
-function addDays(date: Date, days: number) {
-  const next = new Date(date);
-  next.setDate(next.getDate() + days);
-  return next;
+// Wrapper local: la config de acá agrega "enabled" (toggle de UI) sobre el
+// RepeatConfig compartido — computeRepeatDates (recurring-schedule.ts) es la
+// única fuente de verdad del algoritmo, reusada también al editar el
+// patrón de una serie desde la ficha del cliente (clients.tsx).
+function getRepeatDates(firstDate: Date, repeat: RepeatConfig): Date[] {
+  if (!repeat.enabled) return [firstDate];
+  return computeRepeatDates(firstDate, repeat);
 }
-
-function getRepeatDates(firstDate: Date, repeat: RepeatConfig) {
-  if (!repeat.enabled || repeat.weekdays.length === 0) return [firstDate];
-
-  const results: Date[] = [];
-  const maxIterations = 370;
-  const start = new Date(firstDate);
-  start.setHours(firstDate.getHours(), firstDate.getMinutes(), 0, 0);
-
-  const untilDate = repeat.endMode === "until" && repeat.until
-    ? new Date(`${repeat.until}T23:59:59`)
-    : repeat.endMode === "none"
-      // "Sin fecha de finalización": no generamos todo de una — solo la
-      // primera ventana (RECURRING_WINDOW_DAYS). El resto se completa solo
-      // más adelante (topUpRecurringSeries), sin crear años de reservas.
-      ? addDays(start, RECURRING_WINDOW_DAYS)
-      : null;
-
-  for (let i = 0; i < maxIterations; i++) {
-    const candidate = addDays(start, i);
-    const weeksFromStart = Math.floor(i / 7);
-    if (weeksFromStart % Math.max(1, repeat.everyWeeks) !== 0) continue;
-    if (!repeat.weekdays.includes(candidate.getDay() as RepeatWeekday)) continue;
-    if (candidate < start) continue;
-    if (untilDate && candidate > untilDate) break;
-
-    results.push(candidate);
-    if (repeat.endMode === "count" && results.length >= Math.max(1, repeat.count)) break;
-  }
-
-  return results.length ? results : [firstDate];
-}
-
-const WEEKDAYS: { value: RepeatWeekday; label: string }[] = [
-  { value: 1, label: "Lunes" },
-  { value: 2, label: "Martes" },
-  { value: 3, label: "Miércoles" },
-  { value: 4, label: "Jueves" },
-  { value: 5, label: "Viernes" },
-  { value: 6, label: "Sábado" },
-  { value: 0, label: "Domingo" },
-];
 
 // Inline date picker — usa el DarkCalendar compartido (con botón Hoy), en un
 // popover fixed para que no lo recorte el overflow del drawer.

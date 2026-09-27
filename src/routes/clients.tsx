@@ -49,7 +49,8 @@ import {
 } from "@/hooks/use-clients-data";
 import { useAuth } from "@/hooks/use-auth";
 import { PAY_METHOD_LABEL, type PayMethod } from "@/components/cash-register/register-payment";
-import { cancelAppointment } from "@/components/agenda/use-agenda-data";
+import { cancelAppointment, checkOverlap, saveAppointment } from "@/components/agenda/use-agenda-data";
+import { computeRepeatDates, WEEKDAYS, type RepeatWeekday } from "@/lib/recurring-schedule";
 
 // "Reservas recurrentes" (ficha del cliente) — misma tabla que arma
 // appointment-dialog.tsx al confirmar "Repetir turno".
@@ -513,14 +514,25 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
     }
   }
 
-  // "Editar recurrencia" — a propósito solo edita servicio/precio/duración/
-  // profesional (mismos campos que "Este y los siguientes" al editar un
-  // turno puntual, ver appointment-dialog.tsx). Cambiar el patrón de
-  // días/horario/finalización de una serie ya activa implicaría reconciliar
-  // turnos ya generados contra el patrón viejo vs. nuevo — no está
-  // soportado desde acá; para eso hay que finalizar esta recurrencia y
-  // crear una nueva desde "Repetir turno".
-  const [seriesEditForm, setSeriesEditForm] = useState({ serviceName: "", price: "0", duration: "30", employeeId: "" });
+  // "Editar recurrencia" — edita TODO el patrón (días, cada cuántas
+  // semanas, horario, condición de finalización) además de
+  // servicio/precio/duración/profesional. Si el patrón no cambió, solo
+  // actualiza contenido en los turnos futuros ya generados (rápido, no
+  // toca fechas). Si el patrón SÍ cambió, borra las ocurrencias futuras
+  // viejas (nunca pasadas/cobradas/completadas) y genera las nuevas según
+  // el patrón nuevo, validando que no choquen con otro turno.
+  const [seriesEditForm, setSeriesEditForm] = useState({
+    serviceName: "",
+    price: "0",
+    duration: "30",
+    employeeId: "",
+    weekdays: [] as number[],
+    everyWeeks: "1",
+    startTime: "09:00",
+    endMode: "count" as "count" | "until" | "none",
+    count: "4",
+    until: "",
+  });
   const [savingSeriesEdit, setSavingSeriesEdit] = useState(false);
 
   useEffect(() => {
@@ -530,37 +542,160 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
       price: String(editingSeries.service_price ?? 0),
       duration: String(editingSeries.duration_min ?? 30),
       employeeId: editingSeries.employee_id ?? "",
+      weekdays: editingSeries.weekdays ?? [],
+      everyWeeks: String(editingSeries.every_weeks ?? 1),
+      startTime: editingSeries.start_time ?? "09:00",
+      endMode: editingSeries.end_mode,
+      count: String(editingSeries.end_count ?? 4),
+      until: editingSeries.end_until ?? "",
     });
   }, [editingSeries]);
 
   async function handleSaveSeriesEdit() {
-    if (!editingSeries) return;
+    if (!editingSeries || !businessId) return;
+    const newWeekdays = [...seriesEditForm.weekdays].sort();
+    if (newWeekdays.length === 0) {
+      toast.error("Elegí al menos un día de la semana.");
+      return;
+    }
+    const contentPatch = {
+      service_name: seriesEditForm.serviceName.trim() || editingSeries.service_name,
+      service_price: Number(seriesEditForm.price) || 0,
+      duration_min: Number(seriesEditForm.duration) || 30,
+      employee_id: seriesEditForm.employeeId || null,
+    };
+    const oldWeekdays = [...(editingSeries.weekdays ?? [])].sort();
+    const patternChanged =
+      JSON.stringify(newWeekdays) !== JSON.stringify(oldWeekdays) ||
+      Number(seriesEditForm.everyWeeks) !== editingSeries.every_weeks ||
+      seriesEditForm.startTime !== editingSeries.start_time ||
+      seriesEditForm.endMode !== editingSeries.end_mode ||
+      (seriesEditForm.endMode === "count" && Number(seriesEditForm.count) !== editingSeries.end_count) ||
+      (seriesEditForm.endMode === "until" && seriesEditForm.until !== editingSeries.end_until);
+
     setSavingSeriesEdit(true);
     try {
-      const patch = {
-        service_name: seriesEditForm.serviceName.trim() || editingSeries.service_name,
-        service_price: Number(seriesEditForm.price) || 0,
-        duration_min: Number(seriesEditForm.duration) || 30,
-        employee_id: seriesEditForm.employeeId || null,
+      if (!patternChanged) {
+        // Camino liviano: solo contenido, no toca fechas ni recalcula nada.
+        const { error: seriesError } = await supabase
+          .from("recurring_series" as any)
+          .update({ ...contentPatch, updated_at: new Date().toISOString() })
+          .eq("id", editingSeries.id);
+        if (seriesError) throw new Error(seriesError.message);
+
+        const { error: apptError } = await supabase
+          .from("appointments")
+          .update(contentPatch)
+          .eq("recurring_series_id", editingSeries.id)
+          .gt("starts_at", new Date().toISOString())
+          .not("status", "in", "(charged,cancelled,completed)");
+        if (apptError) throw new Error(apptError.message);
+
+        setRecurringSeries((prev) => prev.map((s) => (s.id === editingSeries.id ? { ...s, ...contentPatch } : s)));
+        toast.success("Recurrencia actualizada");
+        setEditingSeries(null);
+        return;
+      }
+
+      // Patrón cambiado: recalcula SOLO las ocurrencias futuras. Arranca
+      // desde ahora (o mañana, si la hora nueva ya pasó hoy) — nunca desde
+      // la fecha original de la serie, que puede estar en el pasado.
+      const now = new Date();
+      const [h, m] = seriesEditForm.startTime.split(":").map((x) => Number(x) || 0);
+      const anchor = new Date(now);
+      anchor.setHours(h, m, 0, 0);
+      if (anchor.getTime() <= now.getTime()) anchor.setDate(anchor.getDate() + 1);
+
+      const everyWeeks = Math.max(1, Number(seriesEditForm.everyWeeks) || 1);
+      const candidateDates = computeRepeatDates(anchor, {
+        weekdays: newWeekdays as RepeatWeekday[],
+        everyWeeks,
+        endMode: seriesEditForm.endMode,
+        count: Number(seriesEditForm.count) || 1,
+        until: seriesEditForm.until,
+      });
+
+      // Valida que no choque con otro turno del mismo profesional — no
+      // repite acá la validación de horario laboral/descansos de Agenda
+      // (evitaría duplicar esa lógica fuera de la Agenda); si programás una
+      // recurrencia fuera del horario configurado, Agenda lo va a avisar
+      // recién si después tocás ese turno puntual ahí.
+      const okDates: Date[] = [];
+      let skipped = 0;
+      for (const date of candidateDates) {
+        if (contentPatch.employee_id) {
+          const conflict = await checkOverlap(contentPatch.employee_id, date.toISOString(), contentPatch.duration_min, null);
+          if (conflict) {
+            skipped++;
+            continue;
+          }
+        }
+        okDates.push(date);
+      }
+
+      const confirmMsg =
+        `Esto va a reemplazar las reservas futuras de esta serie por el nuevo patrón — ` +
+        `se van a crear ${okDates.length} turno${okDates.length === 1 ? "" : "s"} nuevo${okDates.length === 1 ? "" : "s"}` +
+        `${skipped > 0 ? ` (${skipped} fecha${skipped === 1 ? "" : "s"} no se pudo${skipped === 1 ? "" : "ieron"} generar por choque de horario)` : ""}. ` +
+        `Las reservas pasadas, cobradas o completadas no se tocan. ¿Confirmás?`;
+      if (!window.confirm(confirmMsg)) {
+        setSavingSeriesEdit(false);
+        return;
+      }
+
+      // Borra (no cancela) las ocurrencias futuras viejas: son placeholders
+      // generados por la serie, no cancelaciones reales que deban quedar en
+      // el historial — mismo criterio que clearOverlappingBlocks con los
+      // bloqueos horarios. Pasadas/cobradas/completadas nunca se tocan.
+      const nowIso = now.toISOString();
+      const { error: deleteError } = await supabase
+        .from("appointments")
+        .delete()
+        .eq("recurring_series_id", editingSeries.id)
+        .gt("starts_at", nowIso)
+        .not("status", "in", "(charged,cancelled,completed)");
+      if (deleteError) throw new Error(deleteError.message);
+
+      for (const date of okDates) {
+        try {
+          await saveAppointment({
+            business_id: businessId,
+            client_id: client.id,
+            client_name: client.name,
+            employee_id: contentPatch.employee_id,
+            service_name: contentPatch.service_name,
+            service_price: contentPatch.service_price,
+            duration_min: contentPatch.duration_min,
+            starts_at: date.toISOString(),
+            status: "pending",
+            recurring_series_id: editingSeries.id,
+          });
+        } catch {
+          // Best-effort — una fecha con conflicto de último momento (carrera)
+          // no debe frenar el resto de la regeneración.
+        }
+      }
+
+      const seriesPatch = {
+        ...contentPatch,
+        weekdays: newWeekdays,
+        every_weeks: everyWeeks,
+        start_time: seriesEditForm.startTime,
+        end_mode: seriesEditForm.endMode,
+        end_count: seriesEditForm.endMode === "count" ? Number(seriesEditForm.count) || null : null,
+        end_until: seriesEditForm.endMode === "until" && seriesEditForm.until ? seriesEditForm.until : null,
+        last_generated_until: okDates.length
+          ? okDates[okDates.length - 1].toISOString().slice(0, 10)
+          : null,
       };
       const { error: seriesError } = await supabase
         .from("recurring_series" as any)
-        .update({ ...patch, updated_at: new Date().toISOString() })
+        .update({ ...seriesPatch, updated_at: new Date().toISOString() })
         .eq("id", editingSeries.id);
       if (seriesError) throw new Error(seriesError.message);
 
-      // Solo turnos futuros y todavía no cobrados/cancelados — pasados y
-      // cobrados nunca se tocan.
-      const { error: apptError } = await supabase
-        .from("appointments")
-        .update(patch)
-        .eq("recurring_series_id", editingSeries.id)
-        .gt("starts_at", new Date().toISOString())
-        .not("status", "in", "(charged,cancelled)");
-      if (apptError) throw new Error(apptError.message);
-
-      setRecurringSeries((prev) => prev.map((s) => (s.id === editingSeries.id ? { ...s, ...patch } : s)));
-      toast.success("Recurrencia actualizada");
+      setRecurringSeries((prev) => prev.map((s) => (s.id === editingSeries.id ? { ...s, ...seriesPatch } : s)));
+      toast.success(`Recurrencia actualizada — ${okDates.length} turno${okDates.length === 1 ? "" : "s"} nuevo${okDates.length === 1 ? "" : "s"}`);
       setEditingSeries(null);
     } catch (e) {
       toast.error((e as Error).message);
@@ -1001,60 +1136,135 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
         onClick={() => setEditingSeries(null)}
       >
         <div
-          className="w-full max-w-sm rounded-2xl bg-[#15161c] ring-1 ring-white/10 p-5 shadow-2xl space-y-3"
+          className="flex max-h-[85dvh] w-full max-w-sm flex-col rounded-2xl bg-[#15161c] ring-1 ring-white/10 shadow-2xl"
           onClick={(e) => e.stopPropagation()}
         >
-          <div className="text-lg font-semibold">Editar recurrencia</div>
-          <p className="text-xs text-muted-foreground">
-            Se aplica a los turnos futuros de esta serie que todavía no pasaron ni se cobraron.
-            No cambia los días ni el horario — para eso, finalizá esta recurrencia y creá una nueva.
-          </p>
-          <div className="space-y-1">
-            <label className="text-[11px] font-semibold uppercase tracking-wider text-white/40">Servicio</label>
-            <input
-              value={seriesEditForm.serviceName}
-              onChange={(e) => setSeriesEditForm((f) => ({ ...f, serviceName: e.target.value }))}
-              className="w-full rounded-lg bg-white/5 px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-primary/40"
-            />
+          <div className="shrink-0 px-5 pt-5">
+            <div className="text-lg font-semibold">Editar recurrencia</div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Se aplica solo a los turnos futuros de esta serie — nunca a pasados, cobrados o completados.
+              Si cambiás días, horario o cada cuánto se repite, esos turnos futuros se regeneran con el patrón nuevo.
+            </p>
           </div>
-          <div className="grid grid-cols-2 gap-2">
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold uppercase tracking-wider text-white/40">Precio</label>
-              <input
-                type="number"
-                min={0}
-                value={seriesEditForm.price}
-                onChange={(e) => setSeriesEditForm((f) => ({ ...f, price: e.target.value }))}
-                className="w-full rounded-lg bg-white/5 px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-primary/40"
-              />
+          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-5 py-3">
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-white/40">Repetir todos los:</label>
+              <div className="grid grid-cols-2 gap-1.5">
+                {WEEKDAYS.map((day) => (
+                  <label key={day.value} className="flex items-center gap-2 rounded-lg border border-white/10 px-2.5 py-1.5 text-xs">
+                    <input
+                      type="checkbox"
+                      checked={seriesEditForm.weekdays.includes(day.value)}
+                      onChange={(e) =>
+                        setSeriesEditForm((f) => ({
+                          ...f,
+                          weekdays: e.target.checked
+                            ? Array.from(new Set([...f.weekdays, day.value]))
+                            : f.weekdays.filter((d) => d !== day.value),
+                        }))
+                      }
+                    />
+                    {day.label}
+                  </label>
+                ))}
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-white/40">Horario</label>
+                <input
+                  type="time"
+                  value={seriesEditForm.startTime}
+                  onChange={(e) => setSeriesEditForm((f) => ({ ...f, startTime: e.target.value }))}
+                  className="w-full rounded-lg bg-white/5 px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-primary/40"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-white/40">Cada cuántas semanas</label>
+                <input
+                  type="number"
+                  min={1}
+                  value={seriesEditForm.everyWeeks}
+                  onChange={(e) => setSeriesEditForm((f) => ({ ...f, everyWeeks: e.target.value }))}
+                  className="w-full rounded-lg bg-white/5 px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-primary/40"
+                />
+              </div>
             </div>
             <div className="space-y-1">
-              <label className="text-[11px] font-semibold uppercase tracking-wider text-white/40">Duración (min)</label>
-              <input
-                type="number"
-                min={5}
-                value={seriesEditForm.duration}
-                onChange={(e) => setSeriesEditForm((f) => ({ ...f, duration: e.target.value }))}
-                className="w-full rounded-lg bg-white/5 px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-primary/40"
-              />
-            </div>
-          </div>
-          {seriesEmployees.length > 0 && (
-            <div className="space-y-1">
-              <label className="text-[11px] font-semibold uppercase tracking-wider text-white/40">Profesional</label>
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-white/40">Finaliza</label>
               <select
-                value={seriesEditForm.employeeId}
-                onChange={(e) => setSeriesEditForm((f) => ({ ...f, employeeId: e.target.value }))}
+                value={seriesEditForm.endMode}
+                onChange={(e) => setSeriesEditForm((f) => ({ ...f, endMode: e.target.value as "count" | "until" | "none" }))}
                 className="w-full rounded-lg bg-white/5 px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-primary/40"
               >
-                <option value="">Sin asignar</option>
-                {seriesEmployees.map((e) => (
-                  <option key={e.id} value={e.id}>{e.name}</option>
-                ))}
+                <option value="count">Después de X visitas</option>
+                <option value="until">En una fecha</option>
+                <option value="none">Sin fecha de finalización</option>
               </select>
+              {seriesEditForm.endMode === "count" ? (
+                <input
+                  type="number"
+                  min={1}
+                  value={seriesEditForm.count}
+                  onChange={(e) => setSeriesEditForm((f) => ({ ...f, count: e.target.value }))}
+                  className="w-full rounded-lg bg-white/5 px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-primary/40"
+                />
+              ) : seriesEditForm.endMode === "until" ? (
+                <input
+                  type="date"
+                  value={seriesEditForm.until}
+                  onChange={(e) => setSeriesEditForm((f) => ({ ...f, until: e.target.value }))}
+                  className="w-full rounded-lg bg-white/5 px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-primary/40"
+                />
+              ) : null}
             </div>
-          )}
-          <div className="flex items-center gap-2 pt-1">
+            <div className="space-y-1">
+              <label className="text-[11px] font-semibold uppercase tracking-wider text-white/40">Servicio</label>
+              <input
+                value={seriesEditForm.serviceName}
+                onChange={(e) => setSeriesEditForm((f) => ({ ...f, serviceName: e.target.value }))}
+                className="w-full rounded-lg bg-white/5 px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-primary/40"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-white/40">Precio</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={seriesEditForm.price}
+                  onChange={(e) => setSeriesEditForm((f) => ({ ...f, price: e.target.value }))}
+                  className="w-full rounded-lg bg-white/5 px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-primary/40"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-white/40">Duración (min)</label>
+                <input
+                  type="number"
+                  min={5}
+                  value={seriesEditForm.duration}
+                  onChange={(e) => setSeriesEditForm((f) => ({ ...f, duration: e.target.value }))}
+                  className="w-full rounded-lg bg-white/5 px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-primary/40"
+                />
+              </div>
+            </div>
+            {seriesEmployees.length > 0 && (
+              <div className="space-y-1">
+                <label className="text-[11px] font-semibold uppercase tracking-wider text-white/40">Profesional</label>
+                <select
+                  value={seriesEditForm.employeeId}
+                  onChange={(e) => setSeriesEditForm((f) => ({ ...f, employeeId: e.target.value }))}
+                  className="w-full rounded-lg bg-white/5 px-3 py-2 text-sm outline-none ring-1 ring-white/10 focus:ring-primary/40"
+                >
+                  <option value="">Sin asignar</option>
+                  {seriesEmployees.map((e) => (
+                    <option key={e.id} value={e.id}>{e.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
+          <div className="flex shrink-0 items-center gap-2 border-t border-white/10 px-5 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
             <button
               type="button"
               onClick={() => setEditingSeries(null)}
