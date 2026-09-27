@@ -3901,6 +3901,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
           {appointment.created_at && (
             <div className="px-1 text-[11px] text-white/35">
               Reserva creada:{" "}
+              {new Date(appointment.created_at).toLocaleDateString("es-AR", { weekday: "long" })}{" "}
               {new Date(appointment.created_at).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}
               {" · "}
               {new Date(appointment.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}
