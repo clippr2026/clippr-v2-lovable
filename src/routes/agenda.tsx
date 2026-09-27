@@ -1151,9 +1151,11 @@ function AgendaPage() {
     setCursor((c) => new Date(c.getTime() + delta * DAY_MS));
   };
 
-  // Full date label for the unified banner — "Sábado, 20 de Junio de 2026"
+  // Full date label for the unified banner — "Sábado, 20 de Junio" (sin
+  // año: agenda de uso diario, casi siempre es el año actual y no aporta
+  // nada ocupando espacio en el header).
   const cap = (x: string) => x.charAt(0).toUpperCase() + x.slice(1);
-  const fullDate = `${cap(cursor.toLocaleDateString("es-AR", { weekday: "long" }))}, ${cursor.getDate()} de ${cap(cursor.toLocaleDateString("es-AR", { month: "long" }))} de ${cursor.getFullYear()}`;
+  const fullDate = `${cap(cursor.toLocaleDateString("es-AR", { weekday: "long" }))}, ${cursor.getDate()} de ${cap(cursor.toLocaleDateString("es-AR", { month: "long" }))}`;
   const isCursorToday = startOfDay(cursor).getTime() === startOfDay(new Date()).getTime();
 
   return (
