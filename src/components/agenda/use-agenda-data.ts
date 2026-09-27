@@ -73,6 +73,7 @@ export type Appointment = {
   // congela nombre/tipo/valor por si la promo se edita o borra después.
   promotion_id?: string | null;
   promotion_snapshot?: { name: string; discountType: string; discountValue: string } | null;
+  recurring_series_id?: string | null;
 };
 
 export type Employee = { id: string; full_name: string; name?: string; avatar_url?: string | null; is_active?: boolean | null };
@@ -339,7 +340,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
       supabase
         .from("appointments")
         .select(
-          "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,created_at,updated_at,promotion_id,promotion_snapshot",
+          "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,created_at,updated_at,promotion_id,promotion_snapshot,recurring_series_id",
         )
         .eq("business_id", businessId)
         .gte("starts_at", startIso)
@@ -509,7 +510,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     const { data, error } = await supabase
       .from("appointments")
       .select(
-        "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,created_at,updated_at",
+        "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,created_at,updated_at,recurring_series_id",
       )
       .eq("business_id", businessId)
       .gte("starts_at", startIso)
@@ -679,6 +680,10 @@ export type SaveAppointmentInput = {
   // qué promo vio la recepción aunque la promo real cambie/desaparezca después.
   promotion_id?: string | null;
   promotion_snapshot?: { name: string; discountType: string; discountValue: string } | null;
+  // Vincula este turno a una serie de "Repetir turno" (recurring_series).
+  // Solo se pasa al CREAR turnos generados desde una recurrencia — nunca se
+  // sobreescribe en un update salvo que el caller lo pida explícitamente.
+  recurring_series_id?: string | null;
 };
 
 export async function saveAppointment(input: SaveAppointmentInput) {
@@ -710,6 +715,7 @@ export async function saveAppointment(input: SaveAppointmentInput) {
     notes: input.notes ?? null,
     promotion_id: input.promotion_id ?? null,
     promotion_snapshot: input.promotion_snapshot ?? null,
+    recurring_series_id: input.recurring_series_id ?? null,
     updated_at: new Date().toISOString(),
   };
   if (!input.id) {

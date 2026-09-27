@@ -124,10 +124,17 @@ type RepeatConfig = {
   enabled: boolean;
   weekdays: RepeatWeekday[];
   everyWeeks: number;
-  endMode: "count" | "until";
+  endMode: "count" | "until" | "none";
   count: number;
   until: string;
 };
+
+// Tope duro para series "sin fecha de finalización": generamos de a
+// ventanas de 8 semanas (56 días) en vez de todo de una — evita crear
+// meses/años de reservas de golpe. El resto se completa solo (ver
+// topUpRecurringSeries en use-agenda-data.ts) a medida que se acerca la
+// fecha límite ya generada.
+const RECURRING_WINDOW_DAYS = 56;
 
 function pad(n: number) {
   return String(n).padStart(2, "0");
@@ -172,7 +179,12 @@ function getRepeatDates(firstDate: Date, repeat: RepeatConfig) {
 
   const untilDate = repeat.endMode === "until" && repeat.until
     ? new Date(`${repeat.until}T23:59:59`)
-    : null;
+    : repeat.endMode === "none"
+      // "Sin fecha de finalización": no generamos todo de una — solo la
+      // primera ventana (RECURRING_WINDOW_DAYS). El resto se completa solo
+      // más adelante (topUpRecurringSeries), sin crear años de reservas.
+      ? addDays(start, RECURRING_WINDOW_DAYS)
+      : null;
 
   for (let i = 0; i < maxIterations; i++) {
     const candidate = addDays(start, i);
@@ -280,11 +292,22 @@ export function AppointmentDialog({
   // duro). "Continuar" reintenta submit() salteando solo ese chequeo.
   const [breakConfirmOpen, setBreakConfirmOpen] = React.useState(false);
   const [pendingSubmit, setPendingSubmit] = React.useState<{ addAnother: boolean } | null>(null);
+  // Resumen previo a crear una serie (repeat.enabled con más de 1 fecha) —
+  // nunca se inserta nada hasta que el usuario confirma acá. okDates ya
+  // pasaron validación de horario/superposición; failedDates quedaron
+  // afuera y se muestran con el motivo para que el usuario decida si
+  // igual quiere continuar con el resto.
+  const [repeatSummary, setRepeatSummary] = React.useState<{
+    addAnother: boolean;
+    okDates: Date[];
+    failedDates: { date: Date; reason: string }[];
+  } | null>(null);
 
   React.useEffect(() => {
     if (!open) {
       setBreakConfirmOpen(false);
       setPendingSubmit(null);
+      setRepeatSummary(null);
     }
   }, [open]);
 
@@ -566,6 +589,74 @@ export function AppointmentDialog({
     return newClient?.id ?? null;
   };
 
+  // Inserta (o actualiza, si isEdit) cada fecha ya validada. `resolvedClientId`
+  // se resuelve una sola vez antes de llamar acá (nunca duplica el cliente
+  // nuevo aunque se reintente). `seriesId` se pasa solo para series nuevas —
+  // en cualquier otro caso se preserva el recurring_series_id que el turno
+  // ya tuviera (nunca se desvincula por accidente al editar un campo suelto).
+  const commitCreate = async (
+    dates: Date[],
+    addAnother: boolean,
+    resolvedClientId: string,
+    seriesId: string | null,
+  ) => {
+    const fullClientName = newClientMode
+      ? `${clientFirstName.trim()} ${clientLastName.trim()}`.trim()
+      : clientName.trim();
+    const mergedNotes = [notes.trim(), internalNotes.trim() ? `Observación interna: ${internalNotes.trim()}` : ""]
+      .filter(Boolean)
+      .join("\n");
+
+    if (employeeId) {
+      // Si el horario estaba bloqueado y ahora se carga un turno real, el
+      // bloqueo se libera. Así nunca quedan el bloqueo y el turno
+      // superpuestos en la misma columna.
+      for (const date of dates) {
+        await clearOverlappingBlocks(employeeId, date.toISOString(), Number(duration) || 30);
+      }
+    }
+
+    for (const date of dates) {
+      await saveAppointment({
+        id: isEdit ? appointment?.id ?? null : null,
+        business_id: businessId,
+        client_id: resolvedClientId || null,
+        client_name: fullClientName,
+        employee_id: employeeId || null,
+        service_name: serviceName.trim(),
+        service_price: Number(price) || 0,
+        duration_min: Number(duration) || 30,
+        starts_at: date.toISOString(),
+        status,
+        notes: mergedNotes || null,
+        deposit_amount: requiresDeposit ? depositAmount : null,
+        deposit_paid: requiresDeposit ? 0 : null,
+        deposit_status: requiresDeposit ? "pending" : null,
+        created_by_name: createdByName,
+        created_by_role: createdByRole,
+        promotion_id: selectedPromotion?.id ?? null,
+        promotion_snapshot: selectedPromotion
+          ? { name: selectedPromotion.name, discountType: selectedPromotion.discountType, discountValue: selectedPromotion.discountValue }
+          : null,
+        recurring_series_id: seriesId ?? (isEdit ? appointment?.recurring_series_id ?? null : null),
+      });
+    }
+
+    const suffix = dates.length > 1 ? ` (${dates.length} reservas)` : "";
+    toast.success(isEdit ? "Reserva actualizada" : `Reserva guardada${suffix}`);
+
+    if (requiresDeposit && !isEdit) {
+      toast.info(senasConfig?.message || "Este servicio requiere seña. La reserva queda con seña pendiente.");
+    }
+
+    onSaved();
+    if (addAnother && !isEdit) {
+      resetForAnother();
+    } else {
+      onOpenChange(false);
+    }
+  };
+
   const submit = async (addAnother = false, skipBreakConfirm = false) => {
     const fullClientName = newClientMode
       ? `${clientFirstName.trim()} ${clientLastName.trim()}`.trim()
@@ -596,14 +687,21 @@ export function AppointmentDialog({
     setBusy(true);
     try {
       const dates = isEdit ? [start] : getRepeatDates(start, repeat);
+      // Serie de verdad (>1 fecha) solo aplica a turnos nuevos — editar
+      // siempre es una sola fecha (§ handleEdit más abajo cubre "este y los
+      // siguientes" como una operación aparte, no acá).
+      const isSeries = !isEdit && dates.length > 1;
 
-      // ── Schedule validation (ANTES de crear el cliente, para poder
-      // reintentar tras confirmar sin duplicar el cliente nuevo) ───────────
+      // ── Schedule validation ──────────────────────────────────────────────
       // Resuelve la prioridad de horarios (especial profesional → normal
       // profesional → especial negocio → normal negocio) para cada fecha.
-      // "Fuera de horario laboral" sigue siendo un bloqueo duro sin
-      // excepción; "dentro de un descanso" se puede confirmar y continuar.
+      // "Fuera de horario laboral" sigue siendo un bloqueo duro; "dentro de
+      // un descanso" se puede confirmar y continuar (gate global, sin
+      // cambios). En una serie, una fecha con bloqueo duro NO aborta todo
+      // el lote — se descarta esa fecha puntual y se sigue con el resto.
       let hitsBreak = false;
+      const failedDates: { date: Date; reason: string }[] = [];
+      const scheduleOkDates: Date[] = [];
       for (const date of dates) {
         const day = resolveDaySchedule(
           schedule,
@@ -614,10 +712,17 @@ export function AppointmentDialog({
           date,
         );
         const schedErr = checkDaySchedule(day, date, Number(duration) || 30);
-        if (!schedErr) continue;
+        if (!schedErr) {
+          scheduleOkDates.push(date);
+          continue;
+        }
         if (schedErr.includes("descanso")) {
-          if (skipBreakConfirm) continue;
-          hitsBreak = true;
+          if (skipBreakConfirm) scheduleOkDates.push(date);
+          else hitsBreak = true;
+          continue;
+        }
+        if (isSeries) {
+          failedDates.push({ date, reason: schedErr });
           continue;
         }
         toast.error(schedErr);
@@ -632,20 +737,12 @@ export function AppointmentDialog({
       }
       // ─────────────────────────────────────────────────────────────────────
 
-      const resolvedClientId = await createClientIfNeeded();
-      const mergedNotes = [notes.trim(), internalNotes.trim() ? `Observación interna: ${internalNotes.trim()}` : ""]
-        .filter(Boolean)
-        .join("\n");
-
-      // ── Overlap validation ────────────────────────────────────────────────
+      // ── Overlap validation (solo lectura acá — no crea ni borra nada
+      //    todavía, para poder mostrar el resumen de la serie sin haber
+      //    tocado la base) ─────────────────────────────────────────────────
+      const okDates: Date[] = [];
       if (employeeId) {
-        // Si el horario estaba bloqueado y ahora se carga un turno real, el bloqueo se libera.
-        // Así nunca quedan el bloqueo y el turno superpuestos en la misma columna.
-        for (const date of dates) {
-          await clearOverlappingBlocks(employeeId, date.toISOString(), Number(duration) || 30);
-        }
-
-        for (const date of dates) {
+        for (const date of scheduleOkDates) {
           const conflict = await checkOverlap(
             employeeId,
             date.toISOString(),
@@ -654,19 +751,62 @@ export function AppointmentDialog({
           );
           if (conflict) {
             const conflictTime = new Date(conflict.starts_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
-            toast.error(
-              `Este profesional ya tiene un turno en ese horario (${conflictTime}${conflict.client_name ? ` · ${conflict.client_name}` : ""}).`,
-            );
+            const reason = `Ya hay un turno en ese horario (${conflictTime}${conflict.client_name ? ` · ${conflict.client_name}` : ""})`;
+            if (isSeries) {
+              failedDates.push({ date, reason });
+              continue;
+            }
+            toast.error(`Este profesional ya tiene un turno en ese horario (${conflictTime}${conflict.client_name ? ` · ${conflict.client_name}` : ""}).`);
             setBusy(false);
             return;
           }
+          okDates.push(date);
         }
+      } else {
+        okDates.push(...scheduleOkDates);
       }
       // ─────────────────────────────────────────────────────────────────────
 
-      for (const date of dates) {
-        await saveAppointment({
-          id: isEdit ? appointment?.id ?? null : null,
+      if (isSeries) {
+        // Nada se crea todavía — se confirma desde el panel de resumen
+        // (ver confirmRepeatSummary), donde recién ahí se resuelve/crea el
+        // cliente y se insertan las reservas.
+        setBusy(false);
+        setRepeatSummary({ addAnother, okDates, failedDates });
+        return;
+      }
+
+      const resolvedClientId = await createClientIfNeeded();
+      await commitCreate(okDates, addAnother, resolvedClientId, isEdit ? (appointment?.recurring_series_id ?? null) : null);
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Confirma la creación de la serie desde el resumen: crea primero el row
+  // en recurring_series (fuente de verdad para "editar/finalizar
+  // recurrencia" y para el top-up de series sin fecha de finalización) y
+  // recién después cada turno ya validado, vinculado a esa serie.
+  const confirmRepeatSummary = async () => {
+    if (!repeatSummary) return;
+    if (repeatSummary.okDates.length === 0) {
+      toast.error("Ninguna fecha pudo generarse — no se creó nada.");
+      setRepeatSummary(null);
+      return;
+    }
+    setBusy(true);
+    try {
+      const resolvedClientId = await createClientIfNeeded();
+      const fullClientName = newClientMode
+        ? `${clientFirstName.trim()} ${clientLastName.trim()}`.trim()
+        : clientName.trim();
+      const lastDate = repeatSummary.okDates[repeatSummary.okDates.length - 1];
+
+      const { data: seriesRow, error: seriesError } = await supabase
+        .from("recurring_series")
+        .insert({
           business_id: businessId,
           client_id: resolvedClientId || null,
           client_name: fullClientName,
@@ -674,34 +814,22 @@ export function AppointmentDialog({
           service_name: serviceName.trim(),
           service_price: Number(price) || 0,
           duration_min: Number(duration) || 30,
-          starts_at: date.toISOString(),
-          status,
-          notes: mergedNotes || null,
-          deposit_amount: requiresDeposit ? depositAmount : null,
-          deposit_paid: requiresDeposit ? 0 : null,
-          deposit_status: requiresDeposit ? "pending" : null,
+          weekdays: repeat.weekdays,
+          every_weeks: repeat.everyWeeks,
+          start_time: `${hourValue}:${minuteValue}`,
+          end_mode: repeat.endMode,
+          end_count: repeat.endMode === "count" ? Number(repeat.count) || null : null,
+          end_until: repeat.endMode === "until" && repeat.until ? repeat.until : null,
+          last_generated_until: lastDate ? lastDate.toISOString().slice(0, 10) : null,
           created_by_name: createdByName,
           created_by_role: createdByRole,
-          promotion_id: selectedPromotion?.id ?? null,
-          promotion_snapshot: selectedPromotion
-            ? { name: selectedPromotion.name, discountType: selectedPromotion.discountType, discountValue: selectedPromotion.discountValue }
-            : null,
-        });
-      }
+        } as Record<string, unknown>)
+        .select()
+        .single();
+      if (seriesError) throw new Error(seriesError.message);
 
-      const suffix = dates.length > 1 ? ` (${dates.length} reservas)` : "";
-      toast.success(isEdit ? "Reserva actualizada" : `Reserva guardada${suffix}`);
-
-      if (requiresDeposit && !isEdit) {
-        toast.info(senasConfig?.message || "Este servicio requiere seña. La reserva queda con seña pendiente.");
-      }
-
-      onSaved();
-      if (addAnother && !isEdit) {
-        resetForAnother();
-      } else {
-        onOpenChange(false);
-      }
+      await commitCreate(repeatSummary.okDates, repeatSummary.addAnother, resolvedClientId, seriesRow.id as string);
+      setRepeatSummary(null);
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -1033,7 +1161,7 @@ export function AppointmentDialog({
       >
           <div className="grid gap-5">
             <div className="grid gap-2">
-              <Label>Se repite el</Label>
+              <Label>Repetir todos los:</Label>
               <div className="grid grid-cols-2 gap-2">
                 {WEEKDAYS.map((day) => (
                   <label key={day.value} className="flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm">
@@ -1056,17 +1184,23 @@ export function AppointmentDialog({
 
             <div className="grid gap-2">
               <Label>Finaliza</Label>
-              <Select value={repeat.endMode} onValueChange={(v) => setRepeat((r) => ({ ...r, endMode: v as "count" | "until" }))}>
+              <Select value={repeat.endMode} onValueChange={(v) => setRepeat((r) => ({ ...r, endMode: v as "count" | "until" | "none" }))}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="count">Después de X repeticiones</SelectItem>
-                  <SelectItem value="until">Hasta la fecha</SelectItem>
+                  <SelectItem value="count">Después de X visitas</SelectItem>
+                  <SelectItem value="until">En una fecha</SelectItem>
+                  <SelectItem value="none">Sin fecha de finalización</SelectItem>
                 </SelectContent>
               </Select>
               {repeat.endMode === "count" ? (
                 <Input type="number" min={1} value={repeat.count} onChange={(e) => setRepeat((r) => ({ ...r, count: Number(e.target.value) || 1 }))} />
-              ) : (
+              ) : repeat.endMode === "until" ? (
                 <Input type="date" value={repeat.until} onChange={(e) => setRepeat((r) => ({ ...r, until: e.target.value }))} />
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  La recurrencia queda activa y se va completando sola — se puede
+                  detener en cualquier momento desde la ficha del cliente.
+                </p>
               )}
             </div>
           </div>
@@ -1115,6 +1249,56 @@ export function AppointmentDialog({
                 }}
               >
                 Continuar
+              </Button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {repeatSummary && typeof document !== "undefined" && createPortal(
+        // Mismo motivo de portal que breakConfirmOpen — ver comentario arriba.
+        <div
+          className="fixed inset-0 z-[130] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          onClick={() => setRepeatSummary(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-[#15161c] ring-1 ring-white/10 p-5 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="text-lg font-semibold">
+              {repeatSummary.okDates.length > 0
+                ? `Se ${repeatSummary.okDates.length === 1 ? "creará" : "crearán"} ${repeatSummary.okDates.length} reserva${repeatSummary.okDates.length === 1 ? "" : "s"}`
+                : "No se puede crear la recurrencia"}
+            </div>
+            {repeatSummary.failedDates.length > 0 && (
+              <div className="mt-3 max-h-48 space-y-1.5 overflow-y-auto rounded-xl bg-amber-500/[0.06] p-2.5 ring-1 ring-amber-400/20">
+                <p className="text-xs font-semibold text-amber-300">
+                  {repeatSummary.failedDates.length} fecha{repeatSummary.failedDates.length === 1 ? "" : "s"} no se {repeatSummary.failedDates.length === 1 ? "pudo" : "pudieron"} generar:
+                </p>
+                {repeatSummary.failedDates.map(({ date, reason }, i) => (
+                  <p key={i} className="text-xs text-muted-foreground">
+                    {date.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}: {reason}
+                  </p>
+                ))}
+              </div>
+            )}
+            <div className="mt-5 flex items-center gap-2">
+              <Button
+                variant="outline"
+                className="h-11 flex-1"
+                onClick={() => setRepeatSummary(null)}
+                disabled={busy}
+              >
+                Volver
+              </Button>
+              <Button
+                className="h-11 flex-1"
+                onClick={confirmRepeatSummary}
+                disabled={busy || repeatSummary.okDates.length === 0}
+              >
+                {busy ? <Loader2 className="size-4 mr-2 animate-spin" /> : null}
+                Confirmar
               </Button>
             </div>
           </div>
