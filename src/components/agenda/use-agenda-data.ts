@@ -810,6 +810,34 @@ export async function cancelAppointment(
   }
 }
 
+// "Este y los siguientes" al editar un turno de una recurrencia — propaga
+// SOLO los campos de contenido (servicio, precio, duración, profesional,
+// notas) a los demás turnos de la misma serie con fecha >= la de este
+// turno. Nunca toca el patrón de días/horario (eso es "Editar recurrencia"
+// desde la ficha del cliente) ni turnos pasados/cobrados/ya cancelados —
+// cada uno conserva su propio starts_at.
+export async function applyToFollowingInSeries(
+  seriesId: string,
+  fromStartsAtIso: string,
+  excludeId: string,
+  patch: {
+    service_name: string;
+    service_price: number;
+    duration_min: number;
+    employee_id: string | null;
+    notes: string | null;
+  },
+) {
+  const { error } = await supabase
+    .from("appointments")
+    .update({ ...patch, updated_at: new Date().toISOString() })
+    .eq("recurring_series_id", seriesId)
+    .gte("starts_at", fromStartsAtIso)
+    .neq("id", excludeId)
+    .not("status", "in", "(charged,cancelled)");
+  if (error) throw new Error(error.message);
+}
+
 export async function rescheduleAppointment(
   id: string,
   startsAt: string,

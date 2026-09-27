@@ -26,6 +26,7 @@ import {
   checkOverlap,
   checkDaySchedule,
   resolveDaySchedule,
+  applyToFollowingInSeries,
   type Appointment,
   type ApptStatus,
   type Client,
@@ -340,6 +341,13 @@ export function AppointmentDialog({
   const [notes, setNotes] = React.useState("");
   const [internalNotes, setInternalNotes] = React.useState("");
   const [senasConfig, setSenasConfig] = React.useState<SenasConfig | null>(null);
+  // Al editar un turno que pertenece a una recurrencia: "Solo este turno"
+  // (default, mismo comportamiento de siempre) o "Este y los siguientes"
+  // (propaga servicio/precio/duración/profesional/notas a los turnos de la
+  // misma serie con fecha >= esta, sin tocar pasados ni cobrados/cancelados
+  // — nunca el patrón de días/horario, eso es "Editar recurrencia" desde
+  // la ficha del cliente).
+  const [editScope, setEditScope] = React.useState<"only" | "following">("only");
   const [repeat, setRepeat] = React.useState<RepeatConfig>({
     enabled: false,
     weekdays: [],
@@ -365,6 +373,7 @@ export function AppointmentDialog({
     if (!open) return;
     const baseDate = appointment ? new Date(appointment.starts_at) : (defaultStartsAt ?? new Date());
     const parts = toLocalDateParts(baseDate);
+    setEditScope("only");
 
     if (appointment) {
       setClientId(appointment.client_id ?? "");
@@ -642,6 +651,24 @@ export function AppointmentDialog({
       });
     }
 
+    // "Este y los siguientes": propaga los mismos campos de contenido a los
+    // demás turnos de la serie con fecha >= la de este turno (nunca el
+    // patrón de días/horario ni turnos pasados/cobrados/cancelados — ver
+    // applyToFollowingInSeries).
+    if (isEdit && editScope === "following" && appointment?.recurring_series_id && appointment.id) {
+      try {
+        await applyToFollowingInSeries(appointment.recurring_series_id, appointment.starts_at, appointment.id, {
+          service_name: serviceName.trim(),
+          service_price: Number(price) || 0,
+          duration_min: Number(duration) || 30,
+          employee_id: employeeId || null,
+          notes: mergedNotes || null,
+        });
+      } catch (e) {
+        toast.error(`Se guardó este turno, pero no se pudo actualizar el resto de la serie: ${(e as Error).message}`);
+      }
+    }
+
     const suffix = dates.length > 1 ? ` (${dates.length} reservas)` : "";
     toast.success(isEdit ? "Reserva actualizada" : `Reserva guardada${suffix}`);
 
@@ -913,6 +940,40 @@ export function AppointmentDialog({
               <Badge variant="secondary" className="w-fit text-xs">Repite {repeat.weekdays.length} día(s)</Badge>
             )}
           </section>
+
+          {/* Este turno pertenece a una recurrencia — elegir si el cambio
+              aplica solo acá o también a los siguientes de la serie. Nunca
+              afecta el patrón de días/horario (eso es "Editar recurrencia"
+              desde la ficha del cliente). */}
+          {isEdit && appointment?.recurring_series_id && (
+            <section className="rounded-xl border border-white/10 bg-white/[0.025] p-3 space-y-2">
+              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                Este turno es parte de una recurrencia
+              </h3>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setEditScope("only")}
+                  className={cn(
+                    "rounded-lg border px-3 py-2 text-xs font-medium transition",
+                    editScope === "only" ? "border-primary bg-primary/10 text-foreground" : "border-white/10 text-muted-foreground hover:bg-white/5",
+                  )}
+                >
+                  Solo este turno
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setEditScope("following")}
+                  className={cn(
+                    "rounded-lg border px-3 py-2 text-xs font-medium transition",
+                    editScope === "following" ? "border-primary bg-primary/10 text-foreground" : "border-white/10 text-muted-foreground hover:bg-white/5",
+                  )}
+                >
+                  Este y los siguientes
+                </button>
+              </div>
+            </section>
+          )}
 
           {/* Cliente */}
           <section className="rounded-xl border border-white/10 bg-white/[0.02] p-3 space-y-3">
