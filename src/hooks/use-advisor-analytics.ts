@@ -77,6 +77,7 @@ type RawAppt = {
   service_name: string | null;
   service_price: number | null;
   employee_id: string | null;
+  recurring_series_id?: string | null;
 };
 
 type RawExpense = { amount: number | null; date: string | null };
@@ -122,7 +123,7 @@ async function loadAdvisorAnalytics(businessId: string): Promise<{
       .gte("created_at", sinceIso),
     supabase
       .from("appointments")
-      .select("id,status,starts_at,service_name,service_price,employee_id")
+      .select("id,status,starts_at,service_name,service_price,employee_id,recurring_series_id")
       .eq("business_id", businessId)
       .gte("starts_at", sinceIso),
     supabase
@@ -138,9 +139,24 @@ async function loadAdvisorAnalytics(businessId: string): Promise<{
       .eq("active", true),
   ]);
 
+  // recurring_series_id puede no existir todavía (columna nueva) — reintenta
+  // sin ella en vez de perder TODOS los turnos del Asesor IA por un campo
+  // secundario que solo afecta el cálculo de Ocupación.
+  let apptData: RawAppt[] | null = apptRes.data as RawAppt[] | null;
+  let apptError = apptRes.error;
+  if (apptError) {
+    const retry = await supabase
+      .from("appointments")
+      .select("id,status,starts_at,service_name,service_price,employee_id")
+      .eq("business_id", businessId)
+      .gte("starts_at", sinceIso);
+    apptData = retry.data as RawAppt[] | null;
+    apptError = retry.error;
+  }
+
   return {
     payments: payRes.error ? [] : ((payRes.data ?? []) as RawPayment[]),
-    appts: apptRes.error ? [] : ((apptRes.data ?? []) as RawAppt[]),
+    appts: apptError ? [] : ((apptData ?? []) as RawAppt[]),
     expenses: expRes.error ? [] : ((expRes.data ?? []) as RawExpense[]),
     employees: empRes.error ? [] : ((empRes.data ?? []) as RawEmployee[]),
     catalog: catRes.error ? [] : ((catRes.data ?? []) as RawCatalogItem[]),
@@ -167,7 +183,16 @@ function buildMonthSnapshot(
 
   const cancellations = monthAppts.filter((a) => a.status === "cancelled").length;
   const doneCount = monthAppts.filter((a) => DONE_STATUSES.includes(a.status)).length;
-  const usable = monthAppts.filter((a) => !["cancelled", "blocked"].includes(a.status)).length;
+  // Ocupación: no cuenta turnos generados por una recurrencia ("Repetir
+  // turno") que todavía no ocurrieron ni se cobraron — son compromisos
+  // futuros, no ocupación real de la agenda actual. Un turno de la misma
+  // serie que ya pasó/se cobró sí cuenta, igual que cualquier otro.
+  const now = Date.now();
+  const usable = monthAppts.filter((a) => {
+    if (["cancelled", "blocked"].includes(a.status)) return false;
+    const isFutureRecurring = Boolean(a.recurring_series_id) && new Date(a.starts_at).getTime() > now && !DONE_STATUSES.includes(a.status);
+    return !isFutureRecurring;
+  }).length;
   const [y, m] = monthKey.split("-").map(Number);
   const daysInMonth = new Date(y, m, 0).getDate();
   const totalSlots = Math.max(employeeCount, 1) * daysInMonth * 8; // 8 turnos/día por profesional, mismo criterio que el Dashboard
