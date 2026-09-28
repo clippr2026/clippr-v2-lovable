@@ -367,3 +367,47 @@ export async function registerPayment(input: RegisterPaymentInput) {
 
   return data;
 }
+
+/**
+ * Elimina un cobro (Caja → Últimos ingresos → detalle → "Eliminar cobro").
+ * `commission_records.sale_id`/`tip_records.sale_id` referencian
+ * `payments(id) on delete cascade` — borrar el pago se lleva puestas su
+ * comisión y su propina asociadas en la misma operación, sin dejar filas
+ * huérfanas ni necesitar un segundo delete.
+ *
+ * Si esa comisión o propina ya quedó bloqueada dentro de una liquidación
+ * (`settlement_run_id` no nulo), se aborta: `prepare_settlement_run`
+ * congela el total de esa liquidación en `settlement_runs` en el momento
+ * de crearla (no se recalcula de `commission_records` después), así que
+ * borrar la fila no corrompe ningún saldo — pero sí borraría el detalle
+ * histórico de qué venta puntual compuso esa liquidación ya cerrada.
+ */
+export async function deletePayment(paymentId: string, businessId: string) {
+  const [{ data: commissionRows }, { data: tipRows }] = await Promise.all([
+    supabase
+      .from("commission_records" as any)
+      .select("settlement_run_id")
+      .eq("sale_id", paymentId),
+    supabase
+      .from("tip_records" as any)
+      .select("settlement_run_id")
+      .eq("sale_id", paymentId),
+  ]);
+  const alreadySettled =
+    (commissionRows ?? []).some((r: any) => r.settlement_run_id) ||
+    (tipRows ?? []).some((r: any) => r.settlement_run_id);
+  if (alreadySettled) {
+    throw new Error(
+      "Este cobro ya forma parte de una liquidación cerrada — no se puede eliminar desde acá sin perder ese detalle histórico.",
+    );
+  }
+
+  const { error } = await supabase
+    .from("payments")
+    .delete()
+    .eq("id", paymentId)
+    .eq("business_id", businessId);
+  if (error) {
+    throw new Error(error.message || "No se pudo eliminar el cobro");
+  }
+}

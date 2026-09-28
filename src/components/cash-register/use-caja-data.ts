@@ -146,6 +146,7 @@ export type HistorialEvento = { time: string; user: string; action: string; ts?:
 
 export type Payment = {
   id: string;
+  business_id?: string | null;
   total: number | null;
   amount: number | null;
   method: string | null;
@@ -160,6 +161,13 @@ export type Payment = {
   charge_type?: "auto" | "manual" | "caja" | string | null;
   status?: string | null;
   observations?: string | null;
+  // Descuento aplicado ($) y precio de lista previo, mismas columnas que
+  // escribe registerPayment (register-payment.ts) — discount, no
+  // discount_amount (esa columna no existe en payments). Propina: nunca
+  // sumada dentro de total/amount, columna aparte.
+  discount?: number | null;
+  original_amount?: number | null;
+  tip_amount?: number | null;
   // Historial completo ("Envió a caja"/"Cobró"/"Rechazó", con el usuario
   // real de cada acción) — para turnos sale de appointments.cobro_events
   // (traído acá con una consulta aparte, ver load()); para ventas de
@@ -349,7 +357,14 @@ export function useCajaData() {
         .order("full_name", { ascending: true }),
       supabase
         .from("payments")
-        .select("id,total,amount,method,payment_method,client_name,service_name,created_at,employee_id,appointment_id,charged_by,charge_type,status,charged_at,observations")
+        // business_id: hace falta acá (no solo el .eq de abajo) para poder
+        // eliminar el cobro desde el detalle sin otra consulta. discount/
+        // original_amount/tip_amount: el modal de detalle ("Últimos
+        // ingresos" → tocar una fila) los necesita para mostrar el
+        // desglose Servicio/Descuento/Propina/Total cobrado — antes no se
+        // pedían acá, así que esas filas quedaban siempre en null aunque
+        // el pago sí los tuviera guardados en la base.
+        .select("id,business_id,total,amount,method,payment_method,client_name,service_name,created_at,employee_id,appointment_id,charged_by,charge_type,status,charged_at,observations,discount,original_amount,tip_amount")
         .eq("business_id", businessId)
         .gte("created_at", today.toISOString())
         .lte("created_at", todayEnd.toISOString())

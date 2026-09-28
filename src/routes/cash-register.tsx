@@ -21,6 +21,7 @@ import {
 import {
   PAY_METHOD_LABEL,
   registerPayment,
+  deletePayment,
   type PayMethod,
 } from "@/components/cash-register/register-payment";
 import {
@@ -7398,11 +7399,14 @@ function DetailModal({
   payment,
   employees,
   onClose,
+  onDeleted,
 }: {
   payment: ReturnType<typeof useCajaData>["paymentsToday"][number];
   employees: ReturnType<typeof useCajaData>["employees"];
   onClose: () => void;
+  onDeleted: () => void;
 }) {
+  const [deleting, setDeleting] = React.useState(false);
   const method = (payment.method ??
     payment.payment_method ??
     "cash") as PayMethod;
@@ -7433,9 +7437,22 @@ function DetailModal({
       | number
       | string
       | null) ?? null;
-  const discount =
-    ((payment as Record<string, unknown>).discount_amount as number | null) ??
-    null;
+  // "discount", no "discount_amount" — esa columna no existe en `payments`
+  // (registerPayment escribe en `discount`, ver register-payment.ts). Leer
+  // el nombre que no existe hacía que "Descuento aplicado" nunca se
+  // mostrara sin importar cuánto descuento hubiera tenido el cobro.
+  const discountAmount = Number((payment as Record<string, unknown>).discount ?? 0) || 0;
+  const tipAmount = Number((payment as Record<string, unknown>).tip_amount ?? 0) || 0;
+  // Precio de lista antes del descuento: original_amount solo se guarda
+  // cuando hubo descuento (ver register-payment.ts); sin descuento, el
+  // "precio de lista" es directamente el total cobrado por servicios.
+  const servicioAmount =
+    Number((payment as Record<string, unknown>).original_amount ?? 0) ||
+    Number(payment.total ?? payment.amount ?? 0);
+  // Total efectivamente cobrado al cliente: total (ya post-descuento, sin
+  // propina — pura facturación de servicios) + propina, que nunca se suma
+  // dentro de total/amount en ningún otro lugar de la app.
+  const totalCobrado = Number(payment.total ?? payment.amount ?? 0) + tipAmount;
   const depositApplied =
     ((payment as Record<string, unknown>).deposit_paid as number | null) ??
     null;
@@ -7472,6 +7489,26 @@ function DetailModal({
     ? `#${String(paymentNumber).padStart(6, "0")}`
     : `#${payment.id.slice(-6).toUpperCase()}`;
 
+  async function handleDelete() {
+    if (deleting) return;
+    const confirmed = window.confirm(
+      `¿Eliminar este cobro de ${payment.client_name ?? "cliente"} por $${totalCobrado.toLocaleString("es-AR")}? No se puede deshacer: se borra el pago junto con su comisión y su propina asociadas.`,
+    );
+    if (!confirmed) return;
+    setDeleting(true);
+    try {
+      const businessId = (payment as Record<string, unknown>).business_id as string | null;
+      if (!businessId) throw new Error("Falta business_id en este cobro");
+      await deletePayment(payment.id, businessId);
+      toast.success("Cobro eliminado");
+      onDeleted();
+    } catch (e) {
+      toast.error((e as Error).message || "No se pudo eliminar el cobro");
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   if (typeof document === "undefined") return null;
 
   return createPortal(
@@ -7496,22 +7533,32 @@ function DetailModal({
               {fmtDT(payment.created_at)}
             </p>
           </div>
-          <button
-            onClick={onClose}
-            className="rounded-lg bg-white/5 hover:bg-white/10 px-3 py-1.5 text-xs transition"
-          >
-            Cerrar
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            <button
+              onClick={handleDelete}
+              disabled={deleting}
+              className="rounded-lg bg-rose-500/10 hover:bg-rose-500/20 px-3 py-1.5 text-xs font-semibold text-rose-300 transition disabled:opacity-50"
+            >
+              {deleting ? "Eliminando…" : "Eliminar cobro"}
+            </button>
+            <button
+              onClick={onClose}
+              className="rounded-lg bg-white/5 hover:bg-white/10 px-3 py-1.5 text-xs transition"
+            >
+              Cerrar
+            </button>
+          </div>
         </div>
 
         <div className="px-5 py-1 max-h-[72vh] overflow-y-auto">
-          {/* Total + estado */}
+          {/* Total + estado — el importe grande es el TOTAL EFECTIVAMENTE
+              COBRADO al cliente (servicio - descuento + propina), no solo
+              payment.total (que es pura facturación de servicios, sin
+              propina — la base correcta de Facturación/comisión, pero no
+              lo que el cliente pagó en mano). */}
           <div className="py-2 border-b border-white/5 flex items-center justify-between gap-3 flex-wrap">
             <span className="font-display text-2xl font-semibold tabular-nums">
-              $
-              {Number(payment.total ?? payment.amount ?? 0).toLocaleString(
-                "es-AR",
-              )}
+              ${totalCobrado.toLocaleString("es-AR")}
             </span>
             <div className="flex gap-2 flex-wrap">
               <StatusPill status={status} />
@@ -7539,12 +7586,39 @@ function DetailModal({
               label="Servicio / Producto"
               value={payment.service_name ?? "—"}
             />
-            {discount && discount > 0 && (
+            {/* Desglose Servicio/Descuento/Propina/Total cobrado — las
+                filas de Descuento y Propina solo aparecen si hubo alguno de
+                los dos, para no ensuciar el detalle de un cobro simple. */}
+            <Row
+              label="Servicio"
+              value={`$${servicioAmount.toLocaleString("es-AR")}`}
+            />
+            {discountAmount > 0 && (
               <Row
-                label="Descuento aplicado"
+                label="Descuento"
                 value={
                   <span className="text-blue-300">
-                    −${discount.toLocaleString("es-AR")}
+                    −${discountAmount.toLocaleString("es-AR")}
+                  </span>
+                }
+              />
+            )}
+            {tipAmount > 0 && (
+              <Row
+                label="Propina"
+                value={
+                  <span className="text-emerald-300">
+                    +${tipAmount.toLocaleString("es-AR")}
+                  </span>
+                }
+              />
+            )}
+            {(discountAmount > 0 || tipAmount > 0) && (
+              <Row
+                label="Total cobrado"
+                value={
+                  <span className="font-bold text-foreground">
+                    ${totalCobrado.toLocaleString("es-AR")}
                   </span>
                 }
               />
@@ -8023,10 +8097,13 @@ function History({
                         )}
                       </div>
                       <div className="text-emerald-300 tabular-nums font-bold text-right">
+                        {/* Total efectivamente cobrado (incluye propina) —
+                            no payment.total, que es pura facturación de
+                            servicios sin propina. */}
                         $
-                        {Number(p.total ?? p.amount ?? 0).toLocaleString(
-                          "es-AR",
-                        )}
+                        {(
+                          Number(p.total ?? p.amount ?? 0) + Number(p.tip_amount ?? 0)
+                        ).toLocaleString("es-AR")}
                       </div>
                       <div className="text-muted-foreground truncate">
                         {methodLabel}
@@ -8122,9 +8199,9 @@ function History({
                         </span>
                         <span className="text-sm font-bold tabular-nums text-emerald-300">
                           $
-                          {Number(p.total ?? p.amount ?? 0).toLocaleString(
-                            "es-AR",
-                          )}
+                          {(
+                            Number(p.total ?? p.amount ?? 0) + Number(p.tip_amount ?? 0)
+                          ).toLocaleString("es-AR")}
                         </span>
                       </div>
                       <div className="mt-2 space-y-1.5">
@@ -8350,6 +8427,10 @@ function History({
           payment={detailPayment}
           employees={data.employees}
           onClose={() => setDetailPayment(null)}
+          onDeleted={() => {
+            setDetailPayment(null);
+            data.refresh();
+          }}
         />
       )}
 
@@ -8571,7 +8652,10 @@ function History({
                               hour12: false,
                             })}hs`
                           : "—";
-                        const amount = Number(p.total ?? p.amount ?? 0);
+                        // Incluye propina: es el total efectivamente
+                        // cobrado al cliente, no solo la facturación pura
+                        // de servicios (payment.total).
+                        const amount = Number(p.total ?? p.amount ?? 0) + Number(p.tip_amount ?? 0);
                         const methodLabel = paymentMethodLabel(p.method ?? p.payment_method);
                         const paymentNote = getCashRowNote(p, p.service_name);
                         // Misma lógica que "Últimos ingresos" (no el genérico
@@ -8757,7 +8841,10 @@ function History({
                               hour12: false,
                             })}hs`
                           : "—";
-                        const amount = Number(p.total ?? p.amount ?? 0);
+                        // Incluye propina: es el total efectivamente
+                        // cobrado al cliente, no solo la facturación pura
+                        // de servicios (payment.total).
+                        const amount = Number(p.total ?? p.amount ?? 0) + Number(p.tip_amount ?? 0);
                         const methodLabel = paymentMethodLabel(p.method ?? p.payment_method);
                         const paymentNote = getCashRowNote(p, p.service_name);
                         const paymentRecord = p as Record<string, unknown>;
