@@ -7417,6 +7417,13 @@ function DetailModal({
   onClose: () => void;
   onDeleted: () => void;
 }) {
+  // Mismo patrón ya probado en el resto de la app (Agenda, Clientes,
+  // Asesor, Equipo, Promociones, Catálogo) — overflow:hidden solo en el
+  // body no alcanza en iOS Safari, el rubber-band del viewport sigue
+  // moviendo el fondo por debajo del modal. Este componente solo se
+  // monta mientras el detalle está abierto (ver detailPayment && <...>
+  // en History), así que el lock es simplemente "true" mientras exista.
+  useBodyScrollLock(true);
   const [deleting, setDeleting] = React.useState(false);
   const method = (payment.method ??
     payment.payment_method ??
@@ -7587,7 +7594,11 @@ function DetailModal({
           </div>
         </div>
 
-        <div className="px-5 py-1 max-h-[72vh] overflow-y-auto">
+        {/* overscroll-contain: aunque el body ya está bloqueado (arriba),
+            esto evita que llegar al principio/final de ESTE scroll
+            encadene el gesto hacia algún ancestro — mismo criterio que ya
+            usan las listas scrolleables de Pago múltiple. */}
+        <div className="px-5 py-1 max-h-[72vh] overflow-y-auto overscroll-contain">
           {/* Total + estado — el importe grande es el TOTAL EFECTIVAMENTE
               COBRADO al cliente (servicio - descuento + propina), no solo
               payment.total (que es pura facturación de servicios, sin
