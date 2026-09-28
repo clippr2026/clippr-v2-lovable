@@ -10898,8 +10898,14 @@ export function NuevaVentaTab({
                         $
                       </span>
                       <input
-                        value={received}
-                        onChange={(e) => setReceived(e.target.value)}
+                        // received en sí sigue guardando solo dígitos
+                        // crudos ("20000") — lo único que cambia es cómo
+                        // se MUESTRA (con separador de miles, mismo
+                        // patrón que ya usa formatThousands en Liquidaciones
+                        // y Precios/Catálogo). change/cashShortfall siguen
+                        // calculando sobre Number(received), sin cambios.
+                        value={received ? Number(received).toLocaleString("es-AR") : ""}
+                        onChange={(e) => setReceived(e.target.value.replace(/\D/g, ""))}
                         inputMode="numeric"
                         placeholder="Monto recibido"
                         aria-label="Monto recibido"
