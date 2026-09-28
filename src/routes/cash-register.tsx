@@ -10018,12 +10018,17 @@ export function NuevaVentaTab({
           // svh, no vh: mismo bug que ya se resolvió abajo para el
           // variant="modal" — 100vh en iOS Safari mide el viewport GRANDE
           // (como si la barra de direcciones ya estuviera colapsada), más
-          // alto que lo que realmente se ve. Eso dejaba la barra
-          // Volver/COBRAR (y el contenido justo arriba, ej. "Vuelto")
-          // parcialmente tapados por la barra de direcciones/home
-          // indicator reales. svh es el viewport más chico posible,
-          // estable desde el primer render.
-          : "h-[calc(100svh-235px)] min-h-[560px] sm:h-[calc(100svh-262px)] sm:mb-6",
+          // alto que lo que realmente se ve. svh es el viewport más chico
+          // posible, estable desde el primer render.
+          // 235px → 210px SOLO en mobile (desktop/sm: sin cambios): había
+          // ~25px de espacio negro sin usar entre Volver/COBRAR y la barra
+          // de navegación inferior de la app — el offset restaba de más.
+          // Bajar el número le da esa altura real al componente (empuja
+          // Volver/COBRAR hacia abajo, más cerca de la nav) y libera esos
+          // mismos px para la tarjeta scrolleable de arriba (Monto
+          // recibido/Faltan/Vuelto) — no agranda el modal más allá del
+          // espacio que ya estaba vacío, solo deja de desperdiciarlo.
+          : "h-[calc(100svh-210px)] min-h-[560px] sm:h-[calc(100svh-262px)] sm:mb-6",
       )}
       style={
         variant === "modal"
