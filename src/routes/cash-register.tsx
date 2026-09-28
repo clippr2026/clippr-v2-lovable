@@ -10966,23 +10966,30 @@ export function NuevaVentaTab({
               </div>
               {method === "cash" && (
                 <div className="rounded-2xl border border-blue-300/35 bg-[linear-gradient(135deg,rgba(37,99,235,0.16),rgba(8,11,20,0.96),rgba(2,4,12,0.98))] p-2.5 shadow-[0_0_34px_rgba(96,165,250,0.14),0_18px_55px_-34px_rgba(0,0,0,1)]">
-                  <label className="block">
-                    <span className="mb-1 block text-xs font-bold uppercase tracking-[0.18em] text-blue-200/85">
-                      Monto recibido
+                  {/* Un solo campo compacto, sin título aparte arriba: $ +
+                      "Monto recibido" como hint a la izquierda (visible
+                      solo mientras está vacío — nunca un placeholder tipo
+                      "0" que se lea como un monto precargado), lo tipeado
+                      alineado a la derecha. Nunca se autocompleta con el
+                      total — received arranca "" y solo lo cambia el
+                      usuario tipeando (ver setReceived). */}
+                  <div className="relative">
+                    <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-base font-bold text-white/55">
+                      $
                     </span>
-                    <div className="relative">
-                      <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-base font-bold text-white/55">
-                        $
+                    {!received && (
+                      <span className="pointer-events-none absolute left-8 top-1/2 -translate-y-1/2 text-sm text-white/30">
+                        Monto recibido
                       </span>
-                      <input
-                        value={received}
-                        onChange={(e) => setReceived(e.target.value)}
-                        inputMode="numeric"
-                        placeholder="0"
-                        className="h-10 w-full rounded-xl border border-blue-300/30 bg-black/45 pl-8 pr-4 text-lg font-extrabold tabular-nums text-white outline-none placeholder:text-white/30 focus:border-blue-300/65 focus:ring-2 focus:ring-blue-400/20"
-                      />
-                    </div>
-                  </label>
+                    )}
+                    <input
+                      value={received}
+                      onChange={(e) => setReceived(e.target.value)}
+                      inputMode="numeric"
+                      aria-label="Monto recibido"
+                      className="h-10 w-full rounded-xl border border-blue-300/30 bg-black/45 pl-8 pr-4 text-right text-lg font-extrabold tabular-nums text-white outline-none focus:border-blue-300/65 focus:ring-2 focus:ring-blue-400/20"
+                    />
+                  </div>
                   {receivedNumber > 0 && (
                     <div className="mt-1.5 flex items-center justify-end">
                       {/* "Entregado" y el texto explicativo eran
