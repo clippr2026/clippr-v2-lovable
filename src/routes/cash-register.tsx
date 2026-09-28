@@ -10615,14 +10615,16 @@ export function NuevaVentaTab({
       )}
 
       {step === 4 && (
-        <Card className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain rounded-3xl p-3 pt-0 space-y-2 border-white/[0.075] bg-[radial-gradient(circle_at_16%_0%,rgba(59,130,246,0.10),transparent_34%),radial-gradient(circle_at_90%_0%,rgba(139,92,246,0.12),transparent_40%),linear-gradient(135deg,rgba(3,6,14,0.98),rgba(8,9,22,0.96),rgba(1,3,10,0.99))] shadow-[0_38px_110px_-62px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.62)] sm:px-3.5 sm:pb-3.5">
+        <Card className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl p-3 pt-0 border-white/[0.075] bg-[radial-gradient(circle_at_16%_0%,rgba(59,130,246,0.10),transparent_34%),radial-gradient(circle_at_90%_0%,rgba(139,92,246,0.12),transparent_40%),linear-gradient(135deg,rgba(3,6,14,0.98),rgba(8,9,22,0.96),rgba(1,3,10,0.99))] shadow-[0_38px_110px_-62px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.62)] sm:px-3.5 sm:pb-3.5">
           {/* Barra de punta a punta pegada al borde superior del módulo
               (márgenes negativos cancelan el padding del Card) — recta,
               sin puntas redondeadas propias salvo las que hacen juego con
               las esquinas superiores del Card. Arriba de todo, como en la
               referencia: primero se elige simple/múltiple, después se ve
-              el resumen del cobro. */}
-          <div className="sticky top-0 z-10 -mx-3.5 grid shrink-0 grid-cols-2 rounded-t-3xl border-b border-white/[0.07] bg-black/50 backdrop-blur-sm">
+              el resumen del cobro. Ya no "sticky": esta Card dejó de
+              scrollear como bloque único (ver más abajo), así que no hay
+              contenedor scrolleable del que despegarse. */}
+          <div className="shrink-0 -mx-3.5 grid grid-cols-2 rounded-t-3xl border-b border-white/[0.07] bg-black/50 backdrop-blur-sm">
             <button
               onClick={() => setPaymentMode("simple")}
               className={cn(
@@ -10647,18 +10649,21 @@ export function NuevaVentaTab({
             </button>
           </div>
 
-          <div className="space-y-1.5 pt-1.5">
+          <div className="shrink-0 pt-1.5">
           {/* Resumen arriba de todo — lo primero que se ve al entrar al
               Paso 4, antes de configurar el pago: profesional/cliente,
               servicio con precio de lista tachado + precio en efectivo, y
               Total a cobrar (reactivo, adentro de esta misma tarjeta — no
               aislado más abajo). Después Ajustes (descuento/propina,
-              mismo card) y recién debajo cómo se paga. Espaciado
-              compactado a propósito (pt-1.5 pegado a las tabs, gaps
-              chicos entre filas) para que en mobile entre lo más posible
-              sin scroll, sin perder legibilidad ni área táctil. */}
-          <Card className="rounded-2xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(2,4,10,0.98),rgba(5,8,18,0.97),rgba(1,3,9,0.99))] px-3.5 py-2.5 space-y-2 shadow-[0_20px_60px_-40px_rgba(0,0,0,0.9)]">
-            <div className="space-y-1.5">
+              mismo card) y recién debajo cómo se paga. shrink-0: este
+              bloque NUNCA scrollea ni se achica, siempre completo y
+              visible — el único que puede llegar a scrollear es el de
+              "cómo se paga", más abajo. Espaciado compactado a propósito
+              (pt-1.5 pegado a las tabs, gaps chicos entre filas) para que
+              en mobile entre lo más posible sin scroll, sin perder
+              legibilidad ni área táctil. */}
+          <Card className="rounded-2xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(2,4,10,0.98),rgba(5,8,18,0.97),rgba(1,3,9,0.99))] px-3.5 py-2 space-y-1.5 shadow-[0_20px_60px_-40px_rgba(0,0,0,0.9)]">
+            <div className="space-y-1">
               <div className={cn("grid gap-x-3 gap-y-1", !lockedEmployeeId ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1")}>
                 {!lockedEmployeeId && (
                   <div className="flex min-w-0 items-center gap-2 text-sm">
@@ -10781,7 +10786,7 @@ export function NuevaVentaTab({
                 descuento activo (promoción O manual), la propina siempre
                 aparte. Los campos quedan colapsados hasta tocar el botón —
                 nunca abiertos por default. */}
-            <div className="border-t border-white/10 pt-2">
+            <div className="border-t border-white/10 pt-1.5">
               {/* Descuento/Propina: el botón SE CONVIERTE en un input al
                   tocarlo, sin panel desplegable debajo — una sola fila
                   compacta en los dos estados. Sin promoción/% en la UI
@@ -10793,7 +10798,7 @@ export function NuevaVentaTab({
                   de un turno con promo asociada — si eso pasa, el botón
                   queda de solo lectura con el nombre de esa promo en vez de
                   ser editable, un toque más la limpia y vuelve a manual. */}
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-1.5">
                 {discountPanelOpen ? (
                   <div className="flex items-center gap-1 rounded-xl border border-violet-300/35 bg-violet-400/10 px-2.5 py-2">
                     <Tag className="size-3.5 shrink-0 text-violet-200" />
@@ -10877,7 +10882,15 @@ export function NuevaVentaTab({
               </div>
             </div>
           </Card>
+          </div>
 
+          {/* Único bloque que scrollea en Paso 4: acotado a "cómo se
+              paga" (método + monto recibido, o Pago múltiple). Resumen,
+              Ajustes y tabs quedan shrink-0 arriba, siempre completos y
+              visibles — nunca hace falta buscar el scroll ahí. Así,
+              Volver/Cobrar (fixed, más abajo) solo compiten por espacio
+              con este bloque puntual, nunca con toda la pantalla. */}
+          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pt-1.5 pr-0.5 [scrollbar-width:thin] [scrollbar-color:rgba(96,165,250,0.35)_transparent]">
           {paymentMode === "simple" ? (
             <>
               <div>
