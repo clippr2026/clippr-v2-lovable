@@ -10602,7 +10602,7 @@ export function NuevaVentaTab({
             </button>
           </div>
 
-          <div className="space-y-2 pt-1.5">
+          <div className="space-y-1.5 pt-1.5">
           {/* Resumen arriba de todo — lo primero que se ve al entrar al
               Paso 4, antes de configurar el pago: profesional/cliente,
               servicio con precio de lista tachado + precio en efectivo, y
@@ -10914,11 +10914,19 @@ export function NuevaVentaTab({
         </Card>
       )}
 
-      {/* pb: al menos 1rem, más en dispositivos con home indicator (mismo
-          patrón que ya usa el variant="modal" más arriba) — sin esto
-          Volver/COBRAR podían quedar pegados o parcialmente tapados por
-          la zona de gesto del home indicator en iPhones con notch. */}
-      <div className="relative z-20 mt-auto shrink-0 space-y-3 pt-3 pb-[max(1rem,env(safe-area-inset-bottom,0px))]">
+      {/* mt-2 fijo, NO mt-auto: con la tarjeta scrolleable de arriba en
+          flex-1, mt-auto ya no aportaba nada (el flex-1 solo ya empuja
+          esta barra al fondo) — pero tampoco GARANTIZABA separación
+          mínima. Si el contenido de arriba llena toda la altura
+          disponible (ej. Paso 4 con Monto recibido + Faltan/Vuelto), el
+          gap quedaba en 0 y el último renglón scrolleado terminaba
+          pegado a esta barra, leyéndose como superpuesto aunque no había
+          ningún position:absolute/fixed/sticky de por medio. mt-2 fuerza
+          un mínimo de 8px siempre, a costa únicamente del espacio de la
+          tarjeta scrolleable (nunca agranda el modal entero).
+          pb: al menos 1rem, más en dispositivos con home indicator (mismo
+          patrón que ya usa el variant="modal" más arriba). */}
+      <div className="relative z-20 mt-2 shrink-0 space-y-3 pt-3 pb-[max(1rem,env(safe-area-inset-bottom,0px))]">
         {/* "Total a cobrar" ya vive dentro de la tarjeta de resumen, arriba
             del todo en el Paso 4 — no se repite acá abajo. */}
         <div className="flex items-stretch gap-2">
