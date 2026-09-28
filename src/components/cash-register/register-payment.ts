@@ -64,16 +64,30 @@ export type RegisterPaymentInput = {
   chargeOrigin?: ChargeOrigin;
   status?: "cobrado" | "pendiente" | "anulado" | "reembolsado";
   notes?: string | null;
-  // Promoción APLICADA (dato definitivo) — se completa recién acá, al
+  // Descuento APLICADO (dato definitivo) — se completa recién acá, al
   // confirmar el cobro. discountAmount ya viene calculado en $ (la UI de
   // Caja decide a qué ítems del carrito aplica, este módulo solo lo resta
-  // del total y lo deja registrado). Sin promotionId, estos campos no se
-  // escriben y el pago queda exactamente como antes.
+  // del total y lo deja registrado). Dos orígenes posibles, misma forma:
+  // - Promoción real: promotionId + promotionName = nombre de la promo.
+  //   Incrementa el uso de la promo (incrementPromotionUsage) al confirmar.
+  // - Descuento manual (sin promoción): promotionId queda null,
+  //   promotionName pasa a ser el MOTIVO tipeado por quien cobra (ej.
+  //   "Cortesía") — misma columna, reutilizada como "etiqueta del
+  //   descuento" en vez de "nombre de promoción", así no hace falta una
+  //   columna nueva. No incrementa uso de ninguna promo.
+  // Sin discountAmount > 0, ninguno de estos campos se escribe y el pago
+  // queda exactamente como antes.
   promotionId?: string | null;
   promotionName?: string | null;
   discountType?: PromotionDiscountType | null;
   discountValue?: string | null;
   discountAmount?: number;
+  // Propina — plata del profesional, nunca del negocio. Se guarda en su
+  // propia columna (tip_amount) y en tip_records (ver más abajo): jamás se
+  // suma dentro de amount/total, así Facturación/Ticket promedio/base de
+  // comisión la excluyen automáticamente sin tener que restarla en ningún
+  // otro punto de la app.
+  tipAmount?: number | null;
   // Para el límite "por cliente" de la promo (normalizeClientKeys) — best
   // effort: sin estos datos, el incremento de uso igual corre (cupo total),
   // solo no puede chequear/contar el límite por cliente puntual.
@@ -106,10 +120,13 @@ export async function registerPayment(input: RegisterPaymentInput) {
     return sum + Number(item.amount ?? 0) * qty;
   }, 0);
   // discountAmount ya viene resuelto en $ por quien arma el carrito (qué
-  // ítems son alcanzados por la promo es decisión de la UI, acá solo se
-  // resta del total una vez, con tope para nunca dar negativo).
+  // ítems son alcanzados por la promo/descuento manual es decisión de la
+  // UI, acá solo se resta del total una vez, con tope para nunca dar
+  // negativo). Se aplica siempre que haya descuento, sea de una promoción
+  // real o manual — antes solo se restaba con promotionId presente, lo que
+  // dejaba sin efecto cualquier descuento manual (no existía todavía).
   const discountAmount = Math.max(0, Math.min(grossTotal, Number(input.discountAmount ?? 0)));
-  const total = input.promotionId ? grossTotal - discountAmount : grossTotal;
+  const total = grossTotal - discountAmount;
 
   const saleSummary = buildSaleSummary(input.items) || "Venta";
 
@@ -145,6 +162,11 @@ export async function registerPayment(input: RegisterPaymentInput) {
     service_name: saleSummary,
     amount: total,
     total,
+    // Nunca incluye la propina — total/amount son pura facturación de
+    // servicios/productos post-descuento, la base de todo lo que ya suma
+    // Facturación/Ticket promedio/Cierre de Caja/comisión. La propina vive
+    // aparte, en su propia columna.
+    tip_amount: Math.max(0, Number(input.tipAmount ?? 0)),
     items: savedItems,
     method: input.method,
     payment_method: input.method,
@@ -183,14 +205,16 @@ export async function registerPayment(input: RegisterPaymentInput) {
   if (chargedByUuid) payload.charged_by = chargedByUuid;
   if (input.notes?.trim()) payload.observations = input.notes.trim();
 
-  // Promoción aplicada — el dato definitivo (no el "previsto" del turno, que
+  // Descuento aplicado — el dato definitivo (no el "previsto" del turno, que
   // puede haber sido cambiado/quitado acá mismo antes de confirmar). Guarda
-  // precio original + descuento + promo para que Historial/Clientes/
+  // precio original + descuento + etiqueta para que Historial/Clientes/
   // Dashboard/comisiones/liquidaciones puedan reconstruir el desglose
   // completo sin volver a consultar la promo (que puede editarse/borrarse
-  // después).
-  if (input.promotionId) {
-    payload.promotion_id = input.promotionId;
+  // después) — funciona igual para promoción real o descuento manual, la
+  // única diferencia es si promotion_id queda seteado o no (ver el tipo
+  // RegisterPaymentInput arriba).
+  if (input.promotionId || discountAmount > 0) {
+    if (input.promotionId) payload.promotion_id = input.promotionId;
     payload.promotion_name = input.promotionName ?? null;
     payload.discount_type = input.discountType ?? null;
     payload.discount_value = input.discountValue != null ? Number(input.discountValue) : null;
@@ -248,13 +272,18 @@ export async function registerPayment(input: RegisterPaymentInput) {
       input.employeeCommissions ?? null,
       { commissionFixed, commissionPct },
     );
-    // Con promoción aplicada, la comisión se calcula sobre el monto
-    // efectivamente cobrado (post-descuento) — mismo criterio que ya tenía
-    // el cálculo plano de antes (usaba `total`, nunca `grossTotal`). Se
-    // escala proporcionalmente en vez de recalcular ítem por ítem porque el
-    // descuento se aplica al carrito completo, no a un ítem puntual.
+    // Con descuento aplicado (promoción o manual), la comisión se calcula
+    // sobre el monto efectivamente cobrado (post-descuento) — mismo
+    // criterio que ya tenía el cálculo plano de antes (usaba `total`, nunca
+    // `grossTotal`). Se escala proporcionalmente en vez de recalcular ítem
+    // por ítem porque el descuento se aplica al carrito completo, no a un
+    // ítem puntual. Antes este escalado solo se activaba con
+    // input.promotionId, dejando la comisión sin descontar en un cobro con
+    // descuento manual (bug real que este cambio corrige de paso) — la
+    // condición correcta es simplemente "hubo descuento", sin importar el
+    // origen.
     const commissionAmount = Math.round(
-      input.promotionId && grossTotal > 0 && total !== grossTotal
+      grossTotal > 0 && total !== grossTotal
         ? grossCommission * (total / grossTotal)
         : grossCommission,
     );
@@ -292,6 +321,31 @@ export async function registerPayment(input: RegisterPaymentInput) {
           commissionError.message,
         );
       }
+    }
+  }
+
+  // Propina — fila propia en tip_records (NUNCA en commission_records: son
+  // dos conceptos que Liquidaciones tiene que poder mostrar y liquidar por
+  // separado, "Comisiones generadas" vs "Propinas"). Independiente de si
+  // hubo comisión — un profesional sin comisión configurada igual puede
+  // recibir propina. Sin profesional asignado no se genera fila (no hay a
+  // quién liquidarle), pero tip_amount ya quedó guardado en payments para
+  // el registro igual. Best-effort, mismo criterio que commission_records:
+  // si falla, no aborta el cobro ya confirmado.
+  const tipAmount = Math.max(0, Number(input.tipAmount ?? 0));
+  if (input.employeeId && tipAmount > 0) {
+    const { error: tipError } = await supabase
+      .from("tip_records" as any)
+      .insert({
+        business_id: input.businessId,
+        professional_id: input.employeeId,
+        sale_id: data[0].id,
+        amount: tipAmount,
+        sale_date: (payload.created_at as string).slice(0, 10),
+        created_at: payload.created_at,
+      });
+    if (tipError) {
+      console.warn("[registerPayment] no se pudo registrar la propina:", tipError.message);
     }
   }
 

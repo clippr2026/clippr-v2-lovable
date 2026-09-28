@@ -51,6 +51,8 @@ import {
   X,
   Scissors,
   Info,
+  Tag,
+  Gift,
 } from "lucide-react";
 import { useClientesConfig } from "@/hooks/use-clientes-config";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
@@ -518,6 +520,7 @@ export const Route = createFileRoute("/cash-register")({
     finalAmount: cleanSearchParam(search.finalAmount),
     depositPaid: cleanSearchParam(search.depositPaid),
     totalPrice: cleanSearchParam(search.totalPrice),
+    chargeStep: cleanSearchParam(search.chargeStep),
   }),
   head: () => ({
     meta: [
@@ -872,6 +875,11 @@ function CashRegisterPage() {
             <NuevaVentaTab
               data={data}
               pendingCharge={activePendingCharge}
+              // "Cobrar turno" desde Agenda manda chargeStep=3 por URL para
+              // entrar al Paso Servicios con el turno precargado, en vez de
+              // ir directo a Pago — mismo prop que ya usa professionals.tsx
+              // al llamar a este mismo componente.
+              pendingChargeInitialStep={search.chargeStep === "3" ? 3 : undefined}
               userEmail={session.user.email ?? null}
               chargedByName={profile?.full_name || chargedByUsername(session.user.email)}
               onCancel={() => {
@@ -3559,6 +3567,8 @@ function ProfesionalesTab({
   // "todo en $0" tiene que distinguirse de "no hay datos" de un error real.
   const [commissionsError, setCommissionsError] = React.useState<string | null>(null);
   const [runsError, setRunsError] = React.useState<string | null>(null);
+  const [loadingTips, setLoadingTips] = React.useState(true);
+  const [tipsError, setTipsError] = React.useState<string | null>(null);
   const [preparingRunFor, setPreparingRunFor] = React.useState<string | null>(null);
   // "detalle"/"historial" son las únicas vistas de consulta (pestañas
   // reales) — Pagar y Adelantar son botones de acción que abren su
@@ -3626,6 +3636,11 @@ function ProfesionalesTab({
   // el lote preparado (inmutable) y settlement_payments los pagos contra
   // cada uno.
   const [allCommissions, setAllCommissions] = React.useState<any[]>([]);
+  // tip_records: mismo patrón que commission_records pero SIEMPRE sumado
+  // aparte — "Comisiones generadas" y "Propinas" nunca se mezclan en una
+  // sola cifra, ni acá ni en prepare_settlement_run (ver migración
+  // 20260927010000_tips_system.sql).
+  const [allTips, setAllTips] = React.useState<any[]>([]);
   const [allRuns, setAllRuns] = React.useState<any[]>([]);
   const [allRunPayments, setAllRunPayments] = React.useState<any[]>([]);
   const [allAdvances, setAllAdvances] = React.useState<any[]>([]);
@@ -3701,6 +3716,48 @@ function ProfesionalesTab({
     };
   }, [businessId, commissionsVersion]);
 
+  // Todas las propinas del negocio (bloqueadas o no) — misma forma que
+  // commission_records, tabla separada. Fetch con su propio try/catch: si
+  // la migración de propinas todavía no corrió (tabla inexistente), no
+  // tira abajo comisiones/liquidaciones que sí cargaron bien.
+  React.useEffect(() => {
+    let cancelled = false;
+    async function loadTips() {
+      if (!businessId) {
+        if (!cancelled) {
+          setAllTips([]);
+          setLoadingTips(false);
+        }
+        return;
+      }
+      setLoadingTips(true);
+      try {
+        const { data: rows, error } = await supabase
+          .from("tip_records" as any)
+          .select("id,professional_id,amount,paid_amount,pending_amount,status,sale_date,created_at,settlement_run_id,sale_id")
+          .eq("business_id", businessId);
+        if (error) throw error;
+        if (!cancelled) {
+          setAllTips(rows ?? []);
+          setTipsError(null);
+        }
+      } catch (e) {
+        const message = (e as Error).message;
+        if (!cancelled) {
+          setAllTips([]);
+          setTipsError(message);
+        }
+        console.warn("[caja] no se pudieron cargar las propinas:", message);
+      } finally {
+        if (!cancelled) setLoadingTips(false);
+      }
+    }
+    loadTips();
+    return () => {
+      cancelled = true;
+    };
+  }, [businessId, commissionsVersion]);
+
   // Todas las liquidaciones (settlement_runs) y sus pagos (settlement_payments).
   React.useEffect(() => {
     let cancelled = false;
@@ -3719,7 +3776,7 @@ function ProfesionalesTab({
           supabase
             .from("settlement_runs" as any)
             .select(
-              "id,professional_id,professional_name,run_number,cutoff_date,period_start,period_start_at,previous_settlement_run_id,previous_balance,new_commissions,adjustments,deductions,advances,adjustment_items,deduction_items,adjustment_movement_number,adjustment_movement_id,deduction_movement_number,deduction_movement_id,total_to_settle,amount_paid,service_count,total_sold,status,prepared_by_name,prepared_at",
+              "id,professional_id,professional_name,run_number,cutoff_date,period_start,period_start_at,previous_settlement_run_id,previous_balance,new_commissions,new_tips,adjustments,deductions,advances,adjustment_items,deduction_items,adjustment_movement_number,adjustment_movement_id,deduction_movement_number,deduction_movement_id,total_to_settle,amount_paid,service_count,total_sold,status,prepared_by_name,prepared_at",
             )
             .eq("business_id", businessId)
             .order("cutoff_date", { ascending: false }),
@@ -3942,7 +3999,9 @@ function ProfesionalesTab({
       if (saleIds.length > 0) {
         const { data: pays, error: payError } = await supabase
           .from("payments" as any)
-          .select("id,client_name,service_name,total,amount,method,payment_method,created_at")
+          .select(
+            "id,client_name,service_name,total,amount,method,payment_method,created_at,discount,original_amount,promotion_name,tip_amount",
+          )
           .in("id", saleIds);
         if (payError) throw payError;
         paymentsById = Object.fromEntries((pays ?? []).map((p: any) => [p.id, p]));
@@ -4429,6 +4488,27 @@ function ProfesionalesTab({
       .reduce((sum: number, c: any) => sum + Number(c.pending_amount ?? 0), 0);
   }, [allCommissions, selectedRow, liquidarCutoffAt]);
 
+  // Propinas pendientes del mismo profesional/período/corte — mismo
+  // criterio exacto que liquidarNewCommissions, pero sobre tip_records.
+  // Se suma a liquidarBaseTotal (abajo) pero SIEMPRE se muestra como cifra
+  // aparte en la UI (tarjeta "Propinas" propia) — nunca dentro de
+  // "Comisiones generadas".
+  const liquidarNewTips = React.useMemo(() => {
+    if (!selectedRow) return 0;
+    const periodStartAt = selectedRow.periodStartAt;
+    const cutoffIso = liquidarCutoffAt.toISOString();
+    return allTips
+      .filter(
+        (t: any) =>
+          String(t.professional_id) === selectedRow.id &&
+          !t.settlement_run_id &&
+          (!periodStartAt || String(t.created_at ?? "") > periodStartAt) &&
+          String(t.created_at ?? "") <= cutoffIso &&
+          Number(t.pending_amount ?? 0) > 0,
+      )
+      .reduce((sum: number, t: any) => sum + Number(t.pending_amount ?? 0), 0);
+  }, [allTips, selectedRow, liquidarCutoffAt]);
+
   const liquidarPendingAdvances = React.useMemo(() => {
     if (!selectedRow) return 0;
     const cutoffIso = liquidarCutoffAt.toISOString();
@@ -4454,7 +4534,7 @@ function ProfesionalesTab({
     0,
   );
   const liquidarBaseTotal = selectedRow
-    ? selectedRow.previousBalance + liquidarNewCommissions - liquidarPendingAdvances
+    ? selectedRow.previousBalance + liquidarNewCommissions + liquidarNewTips - liquidarPendingAdvances
     : 0;
   const liquidarFinalTotal = liquidarBaseTotal + liquidarAdjustmentsSum - liquidarDeductionsSum;
   const liquidarValidAdjustmentsCount = validSettlementItems(adjustmentItems).length;
@@ -4547,7 +4627,15 @@ function ProfesionalesTab({
             <div
               className={cn(
                 "grid flex-1 grid-cols-2 gap-2.5",
-                totals.previousBalance > 0 ? "sm:grid-cols-3" : "sm:grid-cols-2",
+                // Comisiones generadas + Adelantos son siempre fijas;
+                // Comisiones pendientes y Propinas son condicionales — la
+                // cantidad de columnas en desktop sigue la cantidad real de
+                // tarjetas visibles para que no queden huecos.
+                2 + (totals.previousBalance > 0 ? 1 : 0) + (liquidarNewTips > 0 ? 1 : 0) >= 4
+                  ? "sm:grid-cols-4"
+                  : totals.previousBalance > 0 || liquidarNewTips > 0
+                    ? "sm:grid-cols-3"
+                    : "sm:grid-cols-2",
               )}
             >
               <StatCard
@@ -4564,6 +4652,14 @@ function ProfesionalesTab({
                   value={money(totals.previousBalance)}
                   tone="neutral"
                   info={LIQUIDACION_ANTERIOR_INFO_TEXT}
+                />
+              )}
+              {liquidarNewTips > 0 && (
+                <StatCard
+                  label="Propinas"
+                  value={money(liquidarNewTips)}
+                  tone="violet"
+                  info="Propinas cobradas junto con ventas de este profesional, pendientes de liquidar. Nunca forman parte de las comisiones ni de la facturación del negocio."
                 />
               )}
               <StatCard
@@ -4584,7 +4680,12 @@ function ProfesionalesTab({
                   Total a pagar
                 </div>
                 <div className="mt-0.5 text-xl font-bold tabular-nums text-emerald-300 sm:text-2xl">
-                  {money(Math.max(totals.previousBalance + liquidarNewCommissions - liquidarPendingAdvances, 0))}
+                  {money(
+                    Math.max(
+                      totals.previousBalance + liquidarNewCommissions + liquidarNewTips - liquidarPendingAdvances,
+                      0,
+                    ),
+                  )}
                 </div>
               </div>
               <div className="flex shrink-0 gap-2">
@@ -4745,6 +4846,11 @@ function ProfesionalesTab({
                           sale.method ??
                           sale.payment_method ??
                           "—";
+                        const saleTotal = Number(sale.total ?? sale.amount ?? 0);
+                        const hasDiscount = Number(sale.discount ?? 0) > 0;
+                        const hasTip = Number(sale.tip_amount ?? 0) > 0;
+                        const originalAmount = Number(sale.original_amount ?? saleTotal);
+                        const totalCobrado = saleTotal + Number(sale.tip_amount ?? 0);
                         return (
                           <div
                             key={c.id}
@@ -4762,9 +4868,59 @@ function ProfesionalesTab({
                               {sale.service_name ?? "Servicio"}
                             </div>
                             <div className="text-right tabular-nums text-white/72">
-                              {money(Number(sale.total ?? sale.amount ?? 0))}
+                              {hasDiscount ? (
+                                <>
+                                  <span className="text-white/35 line-through">{money(originalAmount)}</span>{" "}
+                                  <span>{money(saleTotal)}</span>
+                                </>
+                              ) : (
+                                money(saleTotal)
+                              )}
+                              {hasTip && (
+                                <div className="text-[10px] tabular-nums text-emerald-300">
+                                  +propina {money(Number(sale.tip_amount))}
+                                </div>
+                              )}
                             </div>
-                            <div className="text-right tabular-nums text-white/52">—</div>
+                            <div className="text-right tabular-nums text-white/52">
+                              {hasDiscount ? (
+                                <span className="text-rose-300">-{money(Number(sale.discount))}</span>
+                              ) : (
+                                "—"
+                              )}
+                              {(hasDiscount || hasTip) && (
+                                <InfoPopover
+                                  text={
+                                    <div className="space-y-1.5">
+                                      <div className="flex items-center justify-between gap-3">
+                                        <span className="text-white/60">Precio original</span>
+                                        <span className="font-semibold text-white">{money(originalAmount)}</span>
+                                      </div>
+                                      {hasDiscount && (
+                                        <div className="flex items-center justify-between gap-3">
+                                          <span className="text-white/60">{sale.promotion_name || "Descuento"}</span>
+                                          <span className="font-semibold text-rose-300">
+                                            -{money(Number(sale.discount))}
+                                          </span>
+                                        </div>
+                                      )}
+                                      {hasTip && (
+                                        <div className="flex items-center justify-between gap-3">
+                                          <span className="text-white/60">Propina</span>
+                                          <span className="font-semibold text-emerald-300">
+                                            +{money(Number(sale.tip_amount))}
+                                          </span>
+                                        </div>
+                                      )}
+                                      <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-1">
+                                        <span className="text-white/60">Total cobrado</span>
+                                        <span className="font-semibold text-white">{money(totalCobrado)}</span>
+                                      </div>
+                                    </div>
+                                  }
+                                />
+                              )}
+                            </div>
                             <div className="text-right">
                               <div className="font-bold tabular-nums text-violet-300">
                                 {money(Number(c.pending_amount ?? c.amount ?? 0))}
@@ -4808,6 +4964,10 @@ function ProfesionalesTab({
                           sale.method ??
                           sale.payment_method ??
                           "—";
+                        const saleTotal = Number(sale.total ?? sale.amount ?? 0);
+                        const hasDiscount = Number(sale.discount ?? 0) > 0;
+                        const hasTip = Number(sale.tip_amount ?? 0) > 0;
+                        const originalAmount = Number(sale.original_amount ?? saleTotal);
                         return (
                           <div
                             key={`mobile-${c.id}`}
@@ -4822,8 +4982,24 @@ function ProfesionalesTab({
                                   {sale.service_name ?? "Servicio"}
                                 </div>
                                 <div className="mt-1 text-white/45">
-                                  Precio: {money(Number(sale.total ?? sale.amount ?? 0))}
+                                  Precio:{" "}
+                                  {hasDiscount ? (
+                                    <>
+                                      <span className="text-white/30 line-through">{money(originalAmount)}</span>{" "}
+                                      {money(saleTotal)}
+                                    </>
+                                  ) : (
+                                    money(saleTotal)
+                                  )}
                                 </div>
+                                {hasDiscount && (
+                                  <div className="text-rose-300">
+                                    {sale.promotion_name || "Descuento"}: -{money(Number(sale.discount))}
+                                  </div>
+                                )}
+                                {hasTip && (
+                                  <div className="text-emerald-300">Propina: +{money(Number(sale.tip_amount))}</div>
+                                )}
                               </div>
                               <div className="shrink-0 space-y-0.5 text-right">
                                 <div className="text-[10px] font-semibold uppercase tracking-wider text-white/45">
@@ -8901,6 +9077,17 @@ export function NuevaVentaTab({
   // viene de uno) — se puede mantener, cambiar o quitar libremente antes de
   // cobrar. Esta es la que queda como APLICADA (definitiva) al confirmar.
   const [promotionId, setPromotionId] = React.useState<string>(pendingCharge?.promotion_id ?? "");
+  // Descuento manual (sin promoción) — monto fijo + motivo, se aplica en
+  // vez de una promoción (elegir uno limpia el otro). discountPanelOpen
+  // controla el panel inline del Paso 3, no un modal.
+  const [manualDiscountAmount, setManualDiscountAmount] = React.useState("");
+  const [manualDiscountReason, setManualDiscountReason] = React.useState("Descuento manual");
+  const [discountPanelOpen, setDiscountPanelOpen] = React.useState(false);
+  const [discountTab, setDiscountTab] = React.useState<"promo" | "manual">("promo");
+  // Propina — monto manual, plata del profesional (nunca se suma a
+  // facturación/comisión, ver register-payment.ts).
+  const [tipAmountInput, setTipAmountInput] = React.useState("");
+  const [tipPanelOpen, setTipPanelOpen] = React.useState(false);
   const [method, setMethod] = React.useState<PayMethod>("cash");
   const [paymentMode, setPaymentMode] = React.useState<"simple" | "multiple">(
     "simple",
@@ -8969,6 +9156,12 @@ export function NuevaVentaTab({
     setPaymentMode("simple");
     setSplits([{ method: "cash", amount: "" }]);
     setPromotionId(pendingCharge.promotion_id ?? "");
+    setManualDiscountAmount("");
+    setManualDiscountReason("Descuento manual");
+    setDiscountPanelOpen(false);
+    setDiscountTab("promo");
+    setTipAmountInput("");
+    setTipPanelOpen(false);
   }, [pendingCharge]);
 
   // Servicio principal del pendingCharge + productos ya reservados (turno
@@ -9178,7 +9371,17 @@ export function NuevaVentaTab({
   }, [promotionId, validPromotions]);
 
   const selectedPromotion = validPromotions.find((p) => p.id === promotionId) ?? null;
-  const discountAmount = selectedPromotion
+  // Un solo descuento activo a la vez: promoción O manual, nunca los dos
+  // sumados — elegir uno limpia el otro (ver los onChange del panel del
+  // Paso 3). El monto de la promo se calcula sobre cartUnitPrice, que ya
+  // eligió precio de lista o precio en efectivo según el método actual —
+  // por eso el descuento nunca se "duplica" con el precio en efectivo: son
+  // dos pasos secuenciales (1. precio base según método, 2. descuento sobre
+  // ese precio base), no dos descuentos independientes. Como todo acá es
+  // estado derivado (no un $ congelado al elegir la promo), si el método de
+  // pago cambia después en el Paso 4 esto se recalcula solo, siempre sobre
+  // el precio base correcto.
+  const promoDiscountAmount = selectedPromotion
     ? cartItems.reduce((sum, { svc, qty }) => {
         if (svc.is_catalog || !isPromotionApplicable(selectedPromotion, { serviceId: svc.id, employeeId, category: svc.category ?? null })) {
           return sum;
@@ -9187,7 +9390,21 @@ export function NuevaVentaTab({
         return sum + (subtotal - applyPromotionDiscount(subtotal, selectedPromotion));
       }, 0)
     : 0;
-  const finalTotal = total - discountAmount;
+  const manualDiscountValue = Math.max(0, Math.min(total, Number(manualDiscountAmount) || 0));
+  const discountAmount = selectedPromotion ? promoDiscountAmount : manualDiscountValue;
+  const discountLabel = selectedPromotion
+    ? selectedPromotion.name
+    : manualDiscountValue > 0
+      ? manualDiscountReason.trim() || "Descuento manual"
+      : null;
+  const subtotalAfterDiscount = Math.max(0, total - discountAmount);
+  // Propina: plata del profesional, se suma SOLO acá (lo que hay que
+  // cobrarle al cliente) — nunca entra en `total`/`finalTotal` de
+  // facturación server-side (ver register-payment.ts, tip_amount es una
+  // columna aparte). finalTotal sigue siendo la única fuente para vuelto,
+  // validación de monto recibido/pago múltiple y el resumen del Paso 4.
+  const tipAmount = Math.max(0, Number(tipAmountInput) || 0);
+  const finalTotal = subtotalAfterDiscount + tipAmount;
 
   const receivedNumber = Number(received || 0);
   const change =
@@ -9556,10 +9773,14 @@ export function NuevaVentaTab({
           chargeOrigin: "manual",
           notes: `${PAY_HIST_MARKER}${JSON.stringify(fullHist)}`,
           promotionId: selectedPromotion?.id ?? null,
-          promotionName: selectedPromotion?.name ?? null,
-          discountType: selectedPromotion?.discountType ?? null,
-          discountValue: selectedPromotion?.discountValue ?? null,
+          // Sin promoción, promotionName pasa a ser el motivo del
+          // descuento manual (ej. "Cortesía") — misma columna, ver
+          // register-payment.ts.
+          promotionName: discountLabel,
+          discountType: selectedPromotion?.discountType ?? (manualDiscountValue > 0 ? "fixed" : null),
+          discountValue: selectedPromotion?.discountValue ?? (manualDiscountValue > 0 ? String(manualDiscountValue) : null),
           discountAmount,
+          tipAmount,
           clientPhone: phone,
           clientEmail: email,
         });
@@ -9624,10 +9845,14 @@ export function NuevaVentaTab({
           chargeOrigin: "manual",
           notes: professionalNote || null,
           promotionId: selectedPromotion?.id ?? null,
-          promotionName: selectedPromotion?.name ?? null,
-          discountType: selectedPromotion?.discountType ?? null,
-          discountValue: selectedPromotion?.discountValue ?? null,
+          // Sin promoción, promotionName pasa a ser el motivo del
+          // descuento manual (ej. "Cortesía") — misma columna, ver
+          // register-payment.ts.
+          promotionName: discountLabel,
+          discountType: selectedPromotion?.discountType ?? (manualDiscountValue > 0 ? "fixed" : null),
+          discountValue: selectedPromotion?.discountValue ?? (manualDiscountValue > 0 ? String(manualDiscountValue) : null),
           discountAmount,
+          tipAmount,
           clientPhone: phone,
           clientEmail: email,
         });
@@ -9687,10 +9912,14 @@ export function NuevaVentaTab({
           chargeOrigin: "caja",
           notes: `${PAY_HIST_MARKER}${JSON.stringify([chargeEvent])}`,
           promotionId: selectedPromotion?.id ?? null,
-          promotionName: selectedPromotion?.name ?? null,
-          discountType: selectedPromotion?.discountType ?? null,
-          discountValue: selectedPromotion?.discountValue ?? null,
+          // Sin promoción, promotionName pasa a ser el motivo del
+          // descuento manual (ej. "Cortesía") — misma columna, ver
+          // register-payment.ts.
+          promotionName: discountLabel,
+          discountType: selectedPromotion?.discountType ?? (manualDiscountValue > 0 ? "fixed" : null),
+          discountValue: selectedPromotion?.discountValue ?? (manualDiscountValue > 0 ? String(manualDiscountValue) : null),
           discountAmount,
+          tipAmount,
           clientPhone: phone,
           clientEmail: email,
         });
@@ -9707,6 +9936,13 @@ export function NuevaVentaTab({
         setReceived("");
         setSplits([{ method: "cash", amount: "" }]);
         setPaymentMode("simple");
+        setPromotionId("");
+        setManualDiscountAmount("");
+        setManualDiscountReason("Descuento manual");
+        setDiscountPanelOpen(false);
+        setDiscountTab("promo");
+        setTipAmountInput("");
+        setTipPanelOpen(false);
         normalSaleCompleted = true;
       }
 
@@ -10268,6 +10504,207 @@ export function NuevaVentaTab({
               })
             )}
           </div>
+
+          {/* Resumen + Descuento/Propina — antes de pasar a elegir método
+              de pago. Un solo descuento activo (promoción O manual, nunca
+              los dos), propina siempre aparte del subtotal. */}
+          {cartItems.length > 0 && (
+            <Card className="rounded-2xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(255,255,255,0.04),rgba(2,6,23,0.70))] px-4 py-3 space-y-2.5 shadow-[0_16px_44px_-34px_rgba(0,0,0,0.85)]">
+              <div className="space-y-1 text-xs">
+                <div className="flex items-center justify-between text-white/60">
+                  <span>Servicio{cartItems.length > 1 ? "s" : ""}</span>
+                  <span className="tabular-nums">${Math.round(total).toLocaleString("es-AR")}</span>
+                </div>
+                {discountAmount > 0 && (
+                  <div className="flex items-center justify-between text-violet-300">
+                    <span>{discountLabel}</span>
+                    <span className="tabular-nums">-${Math.round(discountAmount).toLocaleString("es-AR")}</span>
+                  </div>
+                )}
+                {(discountAmount > 0 || tipAmount > 0) && (
+                  <div className="flex items-center justify-between text-white/60">
+                    <span>Subtotal</span>
+                    <span className="tabular-nums">${Math.round(subtotalAfterDiscount).toLocaleString("es-AR")}</span>
+                  </div>
+                )}
+                {tipAmount > 0 && (
+                  <div className="flex items-center justify-between text-emerald-300">
+                    <span>Propina</span>
+                    <span className="tabular-nums">+${Math.round(tipAmount).toLocaleString("es-AR")}</span>
+                  </div>
+                )}
+                <div className="flex items-center justify-between border-t border-white/10 pt-1 text-sm font-extrabold text-white">
+                  <span>Total</span>
+                  <span className="tabular-nums">${Math.round(finalTotal).toLocaleString("es-AR")}</span>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-2 border-t border-white/10 pt-2.5">
+                <button
+                  type="button"
+                  onClick={() => setDiscountPanelOpen((v) => !v)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition",
+                    discountAmount > 0
+                      ? "border-violet-300/35 bg-violet-400/10 text-violet-200"
+                      : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <Tag className="size-3.5" />
+                  {discountAmount > 0
+                    ? `${discountLabel}: -$${Math.round(discountAmount).toLocaleString("es-AR")}`
+                    : "Agregar descuento"}
+                </button>
+                {discountAmount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPromotionId("");
+                      setManualDiscountAmount("");
+                    }}
+                    aria-label="Quitar descuento"
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setTipPanelOpen((v) => !v)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition",
+                    tipAmount > 0
+                      ? "border-emerald-300/35 bg-emerald-400/10 text-emerald-200"
+                      : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <Gift className="size-3.5" />
+                  {tipAmount > 0 ? `Propina: +$${Math.round(tipAmount).toLocaleString("es-AR")}` : "Agregar propina"}
+                </button>
+                {tipAmount > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setTipAmountInput("")}
+                    aria-label="Quitar propina"
+                    className="text-muted-foreground hover:text-foreground"
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {discountPanelOpen && (
+                <div className="space-y-2 rounded-xl border border-white/10 bg-black/20 p-3">
+                  <div className="grid grid-cols-2 gap-1.5 rounded-lg border border-white/10 p-1">
+                    <button
+                      type="button"
+                      onClick={() => setDiscountTab("promo")}
+                      className={cn(
+                        "rounded-md py-1.5 text-xs font-semibold transition",
+                        discountTab === "promo" ? "bg-violet-400/20 text-violet-200" : "text-muted-foreground",
+                      )}
+                    >
+                      Promoción
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDiscountTab("manual")}
+                      className={cn(
+                        "rounded-md py-1.5 text-xs font-semibold transition",
+                        discountTab === "manual" ? "bg-violet-400/20 text-violet-200" : "text-muted-foreground",
+                      )}
+                    >
+                      Manual
+                    </button>
+                  </div>
+
+                  {discountTab === "promo" ? (
+                    validPromotions.length === 0 ? (
+                      <p className="px-1 text-xs text-muted-foreground">
+                        No hay promociones vigentes para este carrito/profesional.
+                      </p>
+                    ) : (
+                      <Select
+                        value={promotionId || "none"}
+                        onValueChange={(v) => {
+                          setManualDiscountAmount("");
+                          setPromotionId(v === "none" ? "" : v);
+                        }}
+                      >
+                        <SelectTrigger className="h-9 w-full text-xs">
+                          <SelectValue placeholder="Sin promoción" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="none">Sin promoción</SelectItem>
+                          {validPromotions.map((p) => (
+                            <SelectItem key={p.id} value={p.id}>
+                              {p.name} (
+                              {p.discountType === "percent"
+                                ? `-${Number(p.discountValue) || 0}%`
+                                : `-$${(Number(p.discountValue) || 0).toLocaleString("es-AR")}`}
+                              )
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )
+                  ) : (
+                    <div className="space-y-2">
+                      <input
+                        type="number"
+                        inputMode="decimal"
+                        value={manualDiscountAmount}
+                        onChange={(e) => {
+                          setPromotionId("");
+                          setManualDiscountAmount(e.target.value);
+                        }}
+                        placeholder="Monto del descuento"
+                        className="h-9 w-full rounded-lg border border-white/10 bg-black/30 px-3 text-xs text-white outline-none focus:border-violet-300/35"
+                      />
+                      <div className="flex flex-wrap gap-1.5">
+                        {["Cortesía", "Descuento manual", "Promo especial"].map((r) => (
+                          <button
+                            key={r}
+                            type="button"
+                            onClick={() => setManualDiscountReason(r)}
+                            className={cn(
+                              "rounded-full border px-2.5 py-1 text-[11px] font-medium transition",
+                              manualDiscountReason === r
+                                ? "border-violet-300/40 bg-violet-400/15 text-violet-200"
+                                : "border-white/10 text-muted-foreground hover:text-foreground",
+                            )}
+                          >
+                            {r}
+                          </button>
+                        ))}
+                      </div>
+                      <input
+                        type="text"
+                        value={manualDiscountReason}
+                        onChange={(e) => setManualDiscountReason(e.target.value)}
+                        placeholder="Motivo del descuento"
+                        className="h-9 w-full rounded-lg border border-white/10 bg-black/30 px-3 text-xs text-white outline-none focus:border-violet-300/35"
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {tipPanelOpen && (
+                <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    value={tipAmountInput}
+                    onChange={(e) => setTipAmountInput(e.target.value)}
+                    placeholder="Monto de la propina"
+                    className="h-9 w-full rounded-lg border border-white/10 bg-black/30 px-3 text-xs text-white outline-none focus:border-emerald-300/35"
+                  />
+                </div>
+              )}
+            </Card>
+          )}
         </div>
       )}
 
@@ -10460,32 +10897,26 @@ export function NuevaVentaTab({
               </div>
             )}
 
-            {validPromotions.length > 0 && (
-              <div className="mt-1.5 border-t border-white/10 pt-1.5">
-                <Select value={promotionId || "none"} onValueChange={(v) => setPromotionId(v === "none" ? "" : v)}>
-                  <SelectTrigger className="h-8 text-xs w-full"><SelectValue placeholder="Sin promoción" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="none">Sin promoción / descuento</SelectItem>
-                    {validPromotions.map((p) => (
-                      <SelectItem key={p.id} value={p.id}>
-                        {p.name} ({p.discountType === "percent" ? `-${Number(p.discountValue) || 0}%` : `-$${(Number(p.discountValue) || 0).toLocaleString("es-AR")}`})
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {selectedPromotion && (
+            {/* El descuento (promoción o manual) y la propina ya se eligen
+                en el Paso 3 — acá es resumen de solo lectura, no hay
+                selector interactivo. */}
+            {discountAmount > 0 && (
               <div className="mt-1.5 space-y-0.5 border-t border-white/10 pt-1.5">
                 <div className="flex items-center justify-between gap-3 text-xs text-white/60">
                   <span>Precio original</span>
                   <span className="tabular-nums">${total.toLocaleString("es-AR")}</span>
                 </div>
                 <div className="flex items-center justify-between gap-3 text-xs text-violet-300">
-                  <span>{selectedPromotion.name}</span>
+                  <span>{discountLabel}</span>
                   <span className="tabular-nums">-${Math.round(discountAmount).toLocaleString("es-AR")}</span>
                 </div>
+              </div>
+            )}
+
+            {tipAmount > 0 && (
+              <div className="mt-1.5 flex items-center justify-between gap-3 border-t border-white/10 pt-1.5 text-xs text-emerald-300">
+                <span>Propina</span>
+                <span className="tabular-nums">+${Math.round(tipAmount).toLocaleString("es-AR")}</span>
               </div>
             )}
 

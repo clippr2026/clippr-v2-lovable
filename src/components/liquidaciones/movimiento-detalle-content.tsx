@@ -103,6 +103,9 @@ export type PagoDetalleRun = {
   professional_name: string | null;
   previous_balance: number;
   new_commissions: number;
+  // Propinas de este período — siempre separadas de new_commissions, tanto
+  // acá como en prepare_settlement_run (nunca se suman en una sola cifra).
+  new_tips?: number;
   adjustments: number;
   adjustment_items: { amount: number; reason: string }[] | null;
   deductions: number;
@@ -167,6 +170,7 @@ export function PagoDetalleContent({
   const hasAdjustments = Number(run.adjustments ?? 0) > 0;
   const hasDeductions = Number(run.deductions ?? 0) > 0;
   const hasAdvancesAmount = Number(run.advances ?? 0) > 0;
+  const hasTips = Number(run.new_tips ?? 0) > 0;
 
   return (
     <div className="space-y-4">
@@ -195,6 +199,13 @@ export function PagoDetalleContent({
             </div>
             <span className="font-semibold text-white">{money(Number(run.new_commissions ?? 0))}</span>
           </div>
+
+          {hasTips && (
+            <div className="flex items-end justify-between px-3.5 py-2.5">
+              <div className="text-white/70">Propinas</div>
+              <span className="font-semibold text-white">{money(Number(run.new_tips ?? 0))}</span>
+            </div>
+          )}
 
           {hasAdjustments && (
             <div className="flex items-center justify-between px-3.5 py-2.5">

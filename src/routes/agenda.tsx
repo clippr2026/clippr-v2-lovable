@@ -948,6 +948,11 @@ function AgendaPage() {
         clientName: a.client_name ?? "",
         serviceName: a.service_name ?? "",
         employeeId: a.employee_id ?? "",
+        // Entra al Paso 3 (Servicios) con el servicio del turno ya
+        // precargado en el carrito, no directo al Paso 4 (Pago) — así se
+        // puede agregar/quitar ítems, aplicar descuento y cargar propina
+        // antes de cobrar. Mismo mecanismo que ya usa professionals.tsx.
+        chargeStep: "3",
       } as never,
     });
   };

@@ -451,6 +451,9 @@ export type SettlementRun = {
   previous_settlement_run_id: string | null;
   previous_balance: number;
   new_commissions: number;
+  // Propinas de este período — siempre separadas de new_commissions (ver
+  // prepare_settlement_run en 20260927010000_tips_system.sql).
+  new_tips: number;
   adjustments: number;
   deductions: number;
   adjustment_items: { amount: number; reason: string }[];
@@ -478,7 +481,7 @@ export function useProfSettlementRuns(businessId: string | null, empId: string |
       const { data, error } = await supabase
         .from("settlement_runs" as any)
         .select(
-          "id,run_number,professional_name,cutoff_date,period_start,period_start_at,previous_settlement_run_id,previous_balance,new_commissions,adjustments,deductions,adjustment_items,deduction_items,adjustment_movement_number,deduction_movement_number,advances,total_to_settle,amount_paid,service_count,status,prepared_by_name,prepared_at,professional_confirmed_at,professional_observation,professional_observed_at",
+          "id,run_number,professional_name,cutoff_date,period_start,period_start_at,previous_settlement_run_id,previous_balance,new_commissions,new_tips,adjustments,deductions,adjustment_items,deduction_items,adjustment_movement_number,deduction_movement_number,advances,total_to_settle,amount_paid,service_count,status,prepared_by_name,prepared_at,professional_confirmed_at,professional_observation,professional_observed_at",
         )
         .eq("business_id", businessId!)
         .eq("professional_id", empId!)

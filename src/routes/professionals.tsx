@@ -2685,7 +2685,7 @@ function LiquidacionesPanelView({
                 </span>
               </div>
 
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+              <div className={cn("grid grid-cols-2 gap-2 text-xs", run.new_tips > 0 ? "sm:grid-cols-5" : "sm:grid-cols-4")}>
                 <div className="rounded-xl bg-white/[0.03] p-2.5">
                   <div className="text-muted-foreground">Liquidación anterior pendiente</div>
                   <div className="text-sm font-semibold tabular-nums">${run.previous_balance.toLocaleString("es-AR")}</div>
@@ -2694,6 +2694,12 @@ function LiquidacionesPanelView({
                   <div className="text-muted-foreground">Comisiones nuevas</div>
                   <div className="text-sm font-semibold tabular-nums">${run.new_commissions.toLocaleString("es-AR")}</div>
                 </div>
+                {run.new_tips > 0 && (
+                  <div className="rounded-xl bg-white/[0.03] p-2.5">
+                    <div className="text-muted-foreground">Propinas</div>
+                    <div className="text-sm font-semibold tabular-nums">${run.new_tips.toLocaleString("es-AR")}</div>
+                  </div>
+                )}
                 <div className="rounded-xl bg-white/[0.03] p-2.5">
                   <div className="text-muted-foreground">Total a liquidar</div>
                   <div className="text-sm font-semibold tabular-nums">${run.total_to_settle.toLocaleString("es-AR")}</div>
