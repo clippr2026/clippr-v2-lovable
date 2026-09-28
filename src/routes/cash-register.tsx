@@ -9077,10 +9077,14 @@ export function NuevaVentaTab({
   // viene de uno) — se puede mantener, cambiar o quitar libremente antes de
   // cobrar. Esta es la que queda como APLICADA (definitiva) al confirmar.
   const [promotionId, setPromotionId] = React.useState<string>(pendingCharge?.promotion_id ?? "");
-  // Descuento manual (sin promoción) — monto fijo + motivo, se aplica en
+  // Descuento manual (sin promoción) — monto ($ o %) + motivo, se aplica en
   // vez de una promoción (elegir uno limpia el otro). discountPanelOpen
-  // controla el panel inline del Paso 3, no un modal.
+  // controla el panel inline del Paso 3, no un modal. manualDiscountMode
+  // decide si manualDiscountAmount se interpreta como $ fijo o como %.
   const [manualDiscountAmount, setManualDiscountAmount] = React.useState("");
+  // "fixed" | "percent" — mismos valores que PromotionDiscountType
+  // (service-pricing.ts), así discountType se pasa directo sin mapear.
+  const [manualDiscountMode, setManualDiscountMode] = React.useState<"fixed" | "percent">("fixed");
   const [manualDiscountReason, setManualDiscountReason] = React.useState("Descuento manual");
   const [discountPanelOpen, setDiscountPanelOpen] = React.useState(false);
   const [discountTab, setDiscountTab] = React.useState<"promo" | "manual">("promo");
@@ -9157,6 +9161,7 @@ export function NuevaVentaTab({
     setSplits([{ method: "cash", amount: "" }]);
     setPromotionId(pendingCharge.promotion_id ?? "");
     setManualDiscountAmount("");
+    setManualDiscountMode("fixed");
     setManualDiscountReason("Descuento manual");
     setDiscountPanelOpen(false);
     setDiscountTab("promo");
@@ -9345,6 +9350,12 @@ export function NuevaVentaTab({
     (acc, { svc, qty }) => acc + cartUnitPrice(svc) * qty,
     0,
   );
+  // Precio de lista del carrito (ignora precio en efectivo) — solo para
+  // mostrar el tachado "lista → efectivo" en el resumen del Paso 3, igual
+  // que ya se muestra por ítem en el resumen del Paso 4. `total` sigue
+  // siendo la única fuente real (ya resuelta según método) para todo lo
+  // demás: descuento, subtotal, total a cobrar.
+  const listTotal = cartItems.reduce((acc, { svc, qty }) => acc + Number(svc.price) * qty, 0);
   const cartCount = cartItems.reduce((acc, { qty }) => acc + qty, 0);
 
   // Promoción / descuento — mismo motor que Agenda y la Página Pública, sin
@@ -9390,7 +9401,18 @@ export function NuevaVentaTab({
         return sum + (subtotal - applyPromotionDiscount(subtotal, selectedPromotion));
       }, 0)
     : 0;
-  const manualDiscountValue = Math.max(0, Math.min(total, Number(manualDiscountAmount) || 0));
+  // "total" ya es el precio con el método actual resuelto (efectivo si
+  // corresponde) — un % manual se calcula sobre ESE monto, nunca sobre el
+  // precio de lista, mismo criterio que el descuento de una promoción.
+  const manualDiscountValue = Math.max(
+    0,
+    Math.min(
+      total,
+      manualDiscountMode === "percent"
+        ? (total * (Number(manualDiscountAmount) || 0)) / 100
+        : Number(manualDiscountAmount) || 0,
+    ),
+  );
   const discountAmount = selectedPromotion ? promoDiscountAmount : manualDiscountValue;
   const discountLabel = selectedPromotion
     ? selectedPromotion.name
@@ -9777,8 +9799,10 @@ export function NuevaVentaTab({
           // descuento manual (ej. "Cortesía") — misma columna, ver
           // register-payment.ts.
           promotionName: discountLabel,
-          discountType: selectedPromotion?.discountType ?? (manualDiscountValue > 0 ? "fixed" : null),
-          discountValue: selectedPromotion?.discountValue ?? (manualDiscountValue > 0 ? String(manualDiscountValue) : null),
+          discountType: selectedPromotion?.discountType ?? (manualDiscountValue > 0 ? manualDiscountMode : null),
+          discountValue:
+            selectedPromotion?.discountValue ??
+            (manualDiscountValue > 0 ? String(Number(manualDiscountAmount) || 0) : null),
           discountAmount,
           tipAmount,
           clientPhone: phone,
@@ -9849,8 +9873,10 @@ export function NuevaVentaTab({
           // descuento manual (ej. "Cortesía") — misma columna, ver
           // register-payment.ts.
           promotionName: discountLabel,
-          discountType: selectedPromotion?.discountType ?? (manualDiscountValue > 0 ? "fixed" : null),
-          discountValue: selectedPromotion?.discountValue ?? (manualDiscountValue > 0 ? String(manualDiscountValue) : null),
+          discountType: selectedPromotion?.discountType ?? (manualDiscountValue > 0 ? manualDiscountMode : null),
+          discountValue:
+            selectedPromotion?.discountValue ??
+            (manualDiscountValue > 0 ? String(Number(manualDiscountAmount) || 0) : null),
           discountAmount,
           tipAmount,
           clientPhone: phone,
@@ -9916,8 +9942,10 @@ export function NuevaVentaTab({
           // descuento manual (ej. "Cortesía") — misma columna, ver
           // register-payment.ts.
           promotionName: discountLabel,
-          discountType: selectedPromotion?.discountType ?? (manualDiscountValue > 0 ? "fixed" : null),
-          discountValue: selectedPromotion?.discountValue ?? (manualDiscountValue > 0 ? String(manualDiscountValue) : null),
+          discountType: selectedPromotion?.discountType ?? (manualDiscountValue > 0 ? manualDiscountMode : null),
+          discountValue:
+            selectedPromotion?.discountValue ??
+            (manualDiscountValue > 0 ? String(Number(manualDiscountAmount) || 0) : null),
           discountAmount,
           tipAmount,
           clientPhone: phone,
@@ -9938,6 +9966,7 @@ export function NuevaVentaTab({
         setPaymentMode("simple");
         setPromotionId("");
         setManualDiscountAmount("");
+        setManualDiscountMode("fixed");
         setManualDiscountReason("Descuento manual");
         setDiscountPanelOpen(false);
         setDiscountTab("promo");
@@ -10505,204 +10534,28 @@ export function NuevaVentaTab({
             )}
           </div>
 
-          {/* Resumen + Descuento/Propina — antes de pasar a elegir método
-              de pago. Un solo descuento activo (promoción O manual, nunca
-              los dos), propina siempre aparte del subtotal. */}
+          {/* Paso 3 solo selecciona qué se cobra — muestra el subtotal, sin
+              descuento ni propina (eso se agrega en el Paso 4, una vez
+              elegido el método de pago). */}
           {cartItems.length > 0 && (
-            <Card className="rounded-2xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(255,255,255,0.04),rgba(2,6,23,0.70))] px-4 py-3 space-y-2.5 shadow-[0_16px_44px_-34px_rgba(0,0,0,0.85)]">
-              <div className="space-y-1 text-xs">
-                <div className="flex items-center justify-between text-white/60">
-                  <span>Servicio{cartItems.length > 1 ? "s" : ""}</span>
-                  <span className="tabular-nums">${Math.round(total).toLocaleString("es-AR")}</span>
-                </div>
-                {discountAmount > 0 && (
-                  <div className="flex items-center justify-between text-violet-300">
-                    <span>{discountLabel}</span>
-                    <span className="tabular-nums">-${Math.round(discountAmount).toLocaleString("es-AR")}</span>
-                  </div>
-                )}
-                {(discountAmount > 0 || tipAmount > 0) && (
-                  <div className="flex items-center justify-between text-white/60">
-                    <span>Subtotal</span>
-                    <span className="tabular-nums">${Math.round(subtotalAfterDiscount).toLocaleString("es-AR")}</span>
-                  </div>
-                )}
-                {tipAmount > 0 && (
-                  <div className="flex items-center justify-between text-emerald-300">
-                    <span>Propina</span>
-                    <span className="tabular-nums">+${Math.round(tipAmount).toLocaleString("es-AR")}</span>
-                  </div>
-                )}
-                <div className="flex items-center justify-between border-t border-white/10 pt-1 text-sm font-extrabold text-white">
-                  <span>Total</span>
-                  <span className="tabular-nums">${Math.round(finalTotal).toLocaleString("es-AR")}</span>
-                </div>
-              </div>
-
-              <div className="flex flex-wrap items-center gap-2 border-t border-white/10 pt-2.5">
-                <button
-                  type="button"
-                  onClick={() => setDiscountPanelOpen((v) => !v)}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition",
-                    discountAmount > 0
-                      ? "border-violet-300/35 bg-violet-400/10 text-violet-200"
-                      : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  <Tag className="size-3.5" />
-                  {discountAmount > 0
-                    ? `${discountLabel}: -$${Math.round(discountAmount).toLocaleString("es-AR")}`
-                    : "Agregar descuento"}
-                </button>
-                {discountAmount > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setPromotionId("");
-                      setManualDiscountAmount("");
-                    }}
-                    aria-label="Quitar descuento"
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="size-3.5" />
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  onClick={() => setTipPanelOpen((v) => !v)}
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition",
-                    tipAmount > 0
-                      ? "border-emerald-300/35 bg-emerald-400/10 text-emerald-200"
-                      : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  <Gift className="size-3.5" />
-                  {tipAmount > 0 ? `Propina: +$${Math.round(tipAmount).toLocaleString("es-AR")}` : "Agregar propina"}
-                </button>
-                {tipAmount > 0 && (
-                  <button
-                    type="button"
-                    onClick={() => setTipAmountInput("")}
-                    aria-label="Quitar propina"
-                    className="text-muted-foreground hover:text-foreground"
-                  >
-                    <X className="size-3.5" />
-                  </button>
+            <Card className="rounded-2xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(255,255,255,0.04),rgba(2,6,23,0.70))] px-4 py-3 shadow-[0_16px_44px_-34px_rgba(0,0,0,0.85)]">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-white/60">Subtotal</span>
+                {listTotal !== total ? (
+                  <span className="tabular-nums">
+                    <span className="text-white/30 line-through">
+                      ${Math.round(listTotal).toLocaleString("es-AR")}
+                    </span>{" "}
+                    <span className="font-extrabold text-emerald-300">
+                      ${Math.round(total).toLocaleString("es-AR")}
+                    </span>
+                  </span>
+                ) : (
+                  <span className="font-extrabold text-white tabular-nums">
+                    ${Math.round(total).toLocaleString("es-AR")}
+                  </span>
                 )}
               </div>
-
-              {discountPanelOpen && (
-                <div className="space-y-2 rounded-xl border border-white/10 bg-black/20 p-3">
-                  <div className="grid grid-cols-2 gap-1.5 rounded-lg border border-white/10 p-1">
-                    <button
-                      type="button"
-                      onClick={() => setDiscountTab("promo")}
-                      className={cn(
-                        "rounded-md py-1.5 text-xs font-semibold transition",
-                        discountTab === "promo" ? "bg-violet-400/20 text-violet-200" : "text-muted-foreground",
-                      )}
-                    >
-                      Promoción
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setDiscountTab("manual")}
-                      className={cn(
-                        "rounded-md py-1.5 text-xs font-semibold transition",
-                        discountTab === "manual" ? "bg-violet-400/20 text-violet-200" : "text-muted-foreground",
-                      )}
-                    >
-                      Manual
-                    </button>
-                  </div>
-
-                  {discountTab === "promo" ? (
-                    validPromotions.length === 0 ? (
-                      <p className="px-1 text-xs text-muted-foreground">
-                        No hay promociones vigentes para este carrito/profesional.
-                      </p>
-                    ) : (
-                      <Select
-                        value={promotionId || "none"}
-                        onValueChange={(v) => {
-                          setManualDiscountAmount("");
-                          setPromotionId(v === "none" ? "" : v);
-                        }}
-                      >
-                        <SelectTrigger className="h-9 w-full text-xs">
-                          <SelectValue placeholder="Sin promoción" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="none">Sin promoción</SelectItem>
-                          {validPromotions.map((p) => (
-                            <SelectItem key={p.id} value={p.id}>
-                              {p.name} (
-                              {p.discountType === "percent"
-                                ? `-${Number(p.discountValue) || 0}%`
-                                : `-$${(Number(p.discountValue) || 0).toLocaleString("es-AR")}`}
-                              )
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    )
-                  ) : (
-                    <div className="space-y-2">
-                      <input
-                        type="number"
-                        inputMode="decimal"
-                        value={manualDiscountAmount}
-                        onChange={(e) => {
-                          setPromotionId("");
-                          setManualDiscountAmount(e.target.value);
-                        }}
-                        placeholder="Monto del descuento"
-                        className="h-9 w-full rounded-lg border border-white/10 bg-black/30 px-3 text-xs text-white outline-none focus:border-violet-300/35"
-                      />
-                      <div className="flex flex-wrap gap-1.5">
-                        {["Cortesía", "Descuento manual", "Promo especial"].map((r) => (
-                          <button
-                            key={r}
-                            type="button"
-                            onClick={() => setManualDiscountReason(r)}
-                            className={cn(
-                              "rounded-full border px-2.5 py-1 text-[11px] font-medium transition",
-                              manualDiscountReason === r
-                                ? "border-violet-300/40 bg-violet-400/15 text-violet-200"
-                                : "border-white/10 text-muted-foreground hover:text-foreground",
-                            )}
-                          >
-                            {r}
-                          </button>
-                        ))}
-                      </div>
-                      <input
-                        type="text"
-                        value={manualDiscountReason}
-                        onChange={(e) => setManualDiscountReason(e.target.value)}
-                        placeholder="Motivo del descuento"
-                        className="h-9 w-full rounded-lg border border-white/10 bg-black/30 px-3 text-xs text-white outline-none focus:border-violet-300/35"
-                      />
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {tipPanelOpen && (
-                <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-                  <input
-                    type="number"
-                    inputMode="decimal"
-                    value={tipAmountInput}
-                    onChange={(e) => setTipAmountInput(e.target.value)}
-                    placeholder="Monto de la propina"
-                    className="h-9 w-full rounded-lg border border-white/10 bg-black/30 px-3 text-xs text-white outline-none focus:border-emerald-300/35"
-                  />
-                </div>
-              )}
             </Card>
           )}
         </div>
@@ -10737,6 +10590,249 @@ export function NuevaVentaTab({
             >
               Pago múltiple
             </button>
+          </div>
+
+          {/* Descuento y propina — acá, no en el Paso 3: recién elegido el
+              método de pago tiene sentido ajustar el cobro (el descuento
+              manual se calcula sobre el precio YA resuelto según método,
+              ver "total" más abajo). Compartido entre Pago simple y Pago
+              múltiple (vive afuera de ese if), así el monto a conciliar
+              (finalTotal) ya incluye descuento/propina antes de que se
+              cargue el monto recibido o los splits. Un solo descuento
+              activo (promoción O manual), la propina siempre aparte. */}
+          <div className="space-y-2">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-white/60">Servicio{cartItems.length > 1 ? "s" : ""}</span>
+              {listTotal !== total ? (
+                <span className="tabular-nums">
+                  <span className="text-white/30 line-through">
+                    ${Math.round(listTotal).toLocaleString("es-AR")}
+                  </span>{" "}
+                  <span className="font-semibold text-emerald-300">
+                    ${Math.round(total).toLocaleString("es-AR")}
+                  </span>
+                </span>
+              ) : (
+                <span className="font-semibold text-white tabular-nums">
+                  ${Math.round(total).toLocaleString("es-AR")}
+                </span>
+              )}
+            </div>
+            {discountAmount > 0 && (
+              <div className="flex items-center justify-between text-xs text-violet-300">
+                <span>{discountLabel}</span>
+                <span className="tabular-nums">-${Math.round(discountAmount).toLocaleString("es-AR")}</span>
+              </div>
+            )}
+            {(discountAmount > 0 || tipAmount > 0) && (
+              <div className="flex items-center justify-between text-xs text-white/60">
+                <span>Subtotal</span>
+                <span className="tabular-nums">${Math.round(subtotalAfterDiscount).toLocaleString("es-AR")}</span>
+              </div>
+            )}
+            {tipAmount > 0 && (
+              <div className="flex items-center justify-between text-xs text-emerald-300">
+                <span>Propina{selectedEmployee?.name ? ` para ${selectedEmployee.name}` : ""}</span>
+                <span className="tabular-nums">+${Math.round(tipAmount).toLocaleString("es-AR")}</span>
+              </div>
+            )}
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setDiscountPanelOpen((v) => !v)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition",
+                  discountAmount > 0
+                    ? "border-violet-300/35 bg-violet-400/10 text-violet-200"
+                    : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Tag className="size-3.5" />
+                {discountAmount > 0
+                  ? `${discountLabel}: -$${Math.round(discountAmount).toLocaleString("es-AR")}`
+                  : "Agregar descuento"}
+              </button>
+              {discountAmount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPromotionId("");
+                    setManualDiscountAmount("");
+                  }}
+                  aria-label="Quitar descuento"
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setTipPanelOpen((v) => !v)}
+                className={cn(
+                  "inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition",
+                  tipAmount > 0
+                    ? "border-emerald-300/35 bg-emerald-400/10 text-emerald-200"
+                    : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground",
+                )}
+              >
+                <Gift className="size-3.5" />
+                {tipAmount > 0 ? `Propina: +$${Math.round(tipAmount).toLocaleString("es-AR")}` : "Agregar propina"}
+              </button>
+              {tipAmount > 0 && (
+                <button
+                  type="button"
+                  onClick={() => setTipAmountInput("")}
+                  aria-label="Quitar propina"
+                  className="text-muted-foreground hover:text-foreground"
+                >
+                  <X className="size-3.5" />
+                </button>
+              )}
+            </div>
+
+            {discountPanelOpen && (
+              <div className="space-y-2 rounded-xl border border-white/10 bg-black/20 p-3">
+                <div className="grid grid-cols-2 gap-1.5 rounded-lg border border-white/10 p-1">
+                  <button
+                    type="button"
+                    onClick={() => setDiscountTab("promo")}
+                    className={cn(
+                      "rounded-md py-1.5 text-xs font-semibold transition",
+                      discountTab === "promo" ? "bg-violet-400/20 text-violet-200" : "text-muted-foreground",
+                    )}
+                  >
+                    Promoción
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setDiscountTab("manual")}
+                    className={cn(
+                      "rounded-md py-1.5 text-xs font-semibold transition",
+                      discountTab === "manual" ? "bg-violet-400/20 text-violet-200" : "text-muted-foreground",
+                    )}
+                  >
+                    Manual
+                  </button>
+                </div>
+
+                {discountTab === "promo" ? (
+                  validPromotions.length === 0 ? (
+                    <p className="px-1 text-xs text-muted-foreground">
+                      No hay promociones vigentes para este carrito/profesional.
+                    </p>
+                  ) : (
+                    <Select
+                      value={promotionId || "none"}
+                      onValueChange={(v) => {
+                        setManualDiscountAmount("");
+                        setPromotionId(v === "none" ? "" : v);
+                      }}
+                    >
+                      <SelectTrigger className="h-9 w-full text-xs">
+                        <SelectValue placeholder="Sin promoción" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Sin promoción</SelectItem>
+                        {validPromotions.map((p) => (
+                          <SelectItem key={p.id} value={p.id}>
+                            {p.name} (
+                            {p.discountType === "percent"
+                              ? `-${Number(p.discountValue) || 0}%`
+                              : `-$${(Number(p.discountValue) || 0).toLocaleString("es-AR")}`}
+                            )
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )
+                ) : (
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-1.5 rounded-lg border border-white/10 p-1">
+                      <button
+                        type="button"
+                        onClick={() => setManualDiscountMode("fixed")}
+                        className={cn(
+                          "rounded-md py-1.5 text-xs font-semibold transition",
+                          manualDiscountMode === "fixed" ? "bg-violet-400/20 text-violet-200" : "text-muted-foreground",
+                        )}
+                      >
+                        $ Importe
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setManualDiscountMode("percent")}
+                        className={cn(
+                          "rounded-md py-1.5 text-xs font-semibold transition",
+                          manualDiscountMode === "percent"
+                            ? "bg-violet-400/20 text-violet-200"
+                            : "text-muted-foreground",
+                        )}
+                      >
+                        % Porcentaje
+                      </button>
+                    </div>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      value={manualDiscountAmount}
+                      onChange={(e) => {
+                        setPromotionId("");
+                        setManualDiscountAmount(e.target.value);
+                      }}
+                      placeholder={manualDiscountMode === "percent" ? "% de descuento" : "Monto del descuento"}
+                      autoFocus
+                      className="h-9 w-full rounded-lg border border-white/10 bg-black/30 px-3 text-xs text-white outline-none focus:border-violet-300/35"
+                    />
+                    {manualDiscountMode === "percent" && Number(manualDiscountAmount) > 0 && (
+                      <div className="text-[11px] text-white/40">
+                        Equivale a ${Math.round(manualDiscountValue).toLocaleString("es-AR")} sobre $
+                        {Math.round(total).toLocaleString("es-AR")}
+                      </div>
+                    )}
+                    <div className="flex flex-wrap gap-1.5">
+                      {["Cortesía", "Descuento manual", "Promo especial"].map((r) => (
+                        <button
+                          key={r}
+                          type="button"
+                          onClick={() => setManualDiscountReason(r)}
+                          className={cn(
+                            "rounded-full border px-2.5 py-1 text-[11px] font-medium transition",
+                            manualDiscountReason === r
+                              ? "border-violet-300/40 bg-violet-400/15 text-violet-200"
+                              : "border-white/10 text-muted-foreground hover:text-foreground",
+                          )}
+                        >
+                          {r}
+                        </button>
+                      ))}
+                    </div>
+                    <input
+                      type="text"
+                      value={manualDiscountReason}
+                      onChange={(e) => setManualDiscountReason(e.target.value)}
+                      placeholder="Motivo del descuento"
+                      className="h-9 w-full rounded-lg border border-white/10 bg-black/30 px-3 text-xs text-white outline-none focus:border-violet-300/35"
+                    />
+                  </div>
+                )}
+              </div>
+            )}
+
+            {tipPanelOpen && (
+              <div className="rounded-xl border border-white/10 bg-black/20 p-3">
+                <input
+                  type="number"
+                  inputMode="decimal"
+                  value={tipAmountInput}
+                  onChange={(e) => setTipAmountInput(e.target.value)}
+                  placeholder="Monto de la propina"
+                  autoFocus
+                  className="h-9 w-full rounded-lg border border-white/10 bg-black/30 px-3 text-xs text-white outline-none focus:border-emerald-300/35"
+                />
+              </div>
+            )}
           </div>
 
           {paymentMode === "simple" ? (
@@ -10817,7 +10913,7 @@ export function NuevaVentaTab({
               splits={splits}
               onChange={setSplits}
               paymentOptions={paymentOptions}
-              total={total}
+              total={finalTotal}
             />
           )}
         </Card>
@@ -10915,13 +11011,13 @@ export function NuevaVentaTab({
 
             {tipAmount > 0 && (
               <div className="mt-1.5 flex items-center justify-between gap-3 border-t border-white/10 pt-1.5 text-xs text-emerald-300">
-                <span>Propina</span>
+                <span>Propina{selectedEmployee?.name ? ` para ${selectedEmployee.name}` : ""}</span>
                 <span className="tabular-nums">+${Math.round(tipAmount).toLocaleString("es-AR")}</span>
               </div>
             )}
 
             <div className="mt-1.5 flex items-center justify-between gap-3 border-t border-white/10 pt-1.5">
-              <span className="text-base font-extrabold text-white">Total</span>
+              <span className="text-base font-extrabold text-white">Total a cobrar</span>
               <span className="tabular-nums text-base font-extrabold text-white">
                 ${Math.round(finalTotal).toLocaleString("es-AR")}
               </span>
