@@ -9095,6 +9095,13 @@ export function NuevaVentaTab({
   const [tipAmountInput, setTipAmountInput] = React.useState("");
   const [tipPanelOpen, setTipPanelOpen] = React.useState(false);
   const [method, setMethod] = React.useState<PayMethod>("cash");
+  // Método preferido por defecto: Transferencia > Efectivo > primero
+  // disponible — se aplica UNA vez por cobro (carga inicial de la
+  // pantalla y cada vez que arranca un cobro nuevo, ver los dos puntos
+  // donde se resetea este ref más abajo), nunca pisa una elección manual
+  // del usuario hecha después. No cambia qué métodos tiene habilitados el
+  // negocio, solo cuál queda seleccionado al entrar al Paso 4.
+  const methodDefaultAppliedRef = React.useRef(false);
   const [paymentMode, setPaymentMode] = React.useState<"simple" | "multiple">(
     "simple",
   );
@@ -9161,6 +9168,7 @@ export function NuevaVentaTab({
     setReceived("");
     setPaymentMode("simple");
     setSplits([{ method: "cash", amount: "" }]);
+    methodDefaultAppliedRef.current = false;
     setPromotionId(pendingCharge.promotion_id ?? "");
     setManualDiscountAmount("");
     setManualDiscountMode("fixed");
@@ -9328,6 +9336,26 @@ export function NuevaVentaTab({
       setMethod((paymentOptions[0]?.id ?? "cash") as PayMethod);
     }
   }, [paymentOptions, method]);
+
+  // Aplica el método preferido por defecto (Transferencia > Efectivo >
+  // primero disponible) apenas se conocen los métodos realmente
+  // habilitados del negocio — espera a que paymentOptions deje de estar
+  // vacío (data.paymentMethods recién cargado) para no aplicar el default
+  // sobre una config todavía sin resolver. Se ejecuta una sola vez por
+  // cobro: methodDefaultAppliedRef se resetea a false en los dos puntos
+  // donde arranca un cobro nuevo (hidratación de pendingCharge y reset
+  // post-venta), así que no vuelve a pisar la elección del usuario dentro
+  // del mismo cobro.
+  React.useEffect(() => {
+    if (methodDefaultAppliedRef.current || paymentOptions.length === 0) return;
+    const preferred = paymentOptions.some((m) => m.id === "transfer")
+      ? "transfer"
+      : paymentOptions.some((m) => m.id === "cash")
+        ? "cash"
+        : paymentOptions[0].id;
+    setMethod(preferred as PayMethod);
+    methodDefaultAppliedRef.current = true;
+  }, [paymentOptions]);
 
   const cartItems = Object.entries(cart)
     .map(([id, qty]) => {
@@ -9965,6 +9993,7 @@ export function NuevaVentaTab({
         setReceived("");
         setSplits([{ method: "cash", amount: "" }]);
         setPaymentMode("simple");
+        methodDefaultAppliedRef.current = false;
         setPromotionId("");
         setManualDiscountAmount("");
         setManualDiscountMode("fixed");
