@@ -10012,23 +10012,24 @@ export function NuevaVentaTab({
   return (
     <div
       className={cn(
-        "relative mx-auto flex w-full max-w-5xl flex-col overflow-hidden rounded-[30px] border border-white/[0.085] bg-[linear-gradient(135deg,rgba(5,8,15,0.97),rgba(10,12,24,0.95),rgba(2,4,12,0.99))] p-3 md:p-3.5 shadow-[0_44px_130px_-55px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.60)] backdrop-blur-2xl",
+        "relative mx-auto flex w-full max-w-5xl flex-col overflow-hidden rounded-[30px] border border-white/[0.085] bg-[linear-gradient(135deg,rgba(5,8,15,0.97),rgba(10,12,24,0.95),rgba(2,4,12,0.99))] px-3 pt-3 md:px-3.5 md:pt-3.5 shadow-[0_44px_130px_-55px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.60)] backdrop-blur-2xl",
         variant === "modal"
-          ? "min-h-[420px]"
-          // svh, no vh: mismo bug que ya se resolvió abajo para el
-          // variant="modal" — 100vh en iOS Safari mide el viewport GRANDE
-          // (como si la barra de direcciones ya estuviera colapsada), más
-          // alto que lo que realmente se ve. svh es el viewport más chico
-          // posible, estable desde el primer render.
-          // 235px → 210px SOLO en mobile (desktop/sm: sin cambios): había
-          // ~25px de espacio negro sin usar entre Volver/COBRAR y la barra
-          // de navegación inferior de la app — el offset restaba de más.
-          // Bajar el número le da esa altura real al componente (empuja
-          // Volver/COBRAR hacia abajo, más cerca de la nav) y libera esos
-          // mismos px para la tarjeta scrolleable de arriba (Monto
-          // recibido/Faltan/Vuelto) — no agranda el modal más allá del
-          // espacio que ya estaba vacío, solo deja de desperdiciarlo.
-          : "h-[calc(100svh-210px)] min-h-[560px] sm:h-[calc(100svh-262px)] sm:mb-6",
+          ? "min-h-[420px] pb-3 md:pb-3.5"
+          : cn(
+              // svh, no vh: 100vh en iOS Safari mide el viewport GRANDE
+              // (como si la barra de direcciones ya estuviera colapsada),
+              // más alto que lo realmente visible. svh es el viewport más
+              // chico posible, estable desde el primer render.
+              "h-[calc(100svh-210px)] min-h-[560px] sm:h-[calc(100svh-262px)] sm:mb-6",
+              // pb-24 (96px) SOLO hasta lg: Volver/COBRAR pasa a
+              // position:fixed en mobile (ver más abajo), sale del flujo
+              // normal — sin este padding, el contenido scrolleable de
+              // cada paso podría renderizar por DEBAJO de donde esa barra
+              // fija termina quedando, tapado. En lg: la barra vuelve al
+              // flujo normal (no hay nav inferior de Clippr ahí, es
+              // lg:hidden), así que el padding también vuelve al normal.
+              "pb-24 lg:pb-3.5",
+            ),
       )}
       style={
         variant === "modal"
@@ -10919,21 +10920,42 @@ export function NuevaVentaTab({
         </Card>
       )}
 
-      {/* mt-2 fijo, NO mt-auto: con la tarjeta scrolleable de arriba en
-          flex-1, mt-auto ya no aportaba nada (el flex-1 solo ya empuja
-          esta barra al fondo) — pero tampoco GARANTIZABA separación
-          mínima. Si el contenido de arriba llena toda la altura
-          disponible (ej. Paso 4 con Monto recibido + Faltan/Vuelto), el
-          gap quedaba en 0 y el último renglón scrolleado terminaba
-          pegado a esta barra, leyéndose como superpuesto aunque no había
-          ningún position:absolute/fixed/sticky de por medio. mt-2 fuerza
-          un mínimo de 8px siempre, a costa únicamente del espacio de la
-          tarjeta scrolleable (nunca agranda el modal entero).
-          pb: al menos 1rem, más en dispositivos con home indicator (mismo
-          patrón que ya usa el variant="modal" más arriba). */}
-      <div className="relative z-20 mt-2 shrink-0 space-y-3 pt-3 pb-[max(1rem,env(safe-area-inset-bottom,0px))]">
+      {/* Volver/COBRAR: en variant="page" (el que usa "Cobrar turno" desde
+          Agenda) esta barra pasa a ser position:fixed en mobile — NO forma
+          más parte del flujo normal del contenido. Rondas anteriores
+          intentaron resolver esto con flex-1/min-h-0/overflow-y-auto +
+          gaps (mt-auto → mt-2), pero el usuario confirmó con capturas que
+          el contenedor scrolleable igual empuja/mueve la barra cuando
+          aparece contenido nuevo (ej. "Vuelto" al tipear el monto
+          recibido) — la contención por flexbox no alcanzaba en la
+          práctica. position:fixed ancla la barra al VIEWPORT, no al
+          contenido: estructuralmente no puede moverse sin importar qué
+          aparezca/desaparezca arriba. bottom = calc(3.5rem +
+          safe-area-inset-bottom) + 8px de margen — mismo patrón exacto
+          que ya usa la nav inferior real de Clippr (MobileBottomNav,
+          h-14 = 3.5rem + safe-area propio) y que reutilizan otros modales
+          del código (price-catalog-section.tsx, equipo-section.tsx,
+          promotions-section.tsx) — así queda pegada justo arriba de esa
+          nav, nunca superpuesta ni flotando a mitad de pantalla.
+          variant="modal" (usado por professionals.tsx) NO se toca: sigue
+          en flujo normal, con su propio manejo de alto ya resuelto. */}
+      <div
+        className={cn(
+          "z-40",
+          variant === "page"
+            ? "fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px)+8px)] mx-auto w-full max-w-5xl px-3 md:px-3.5 lg:static lg:inset-auto lg:z-20 lg:mx-0 lg:w-auto lg:max-w-none lg:px-0 lg:pb-0"
+            : "relative mt-2 shrink-0 pb-[max(1rem,env(safe-area-inset-bottom,0px))]",
+        )}
+      >
         {/* "Total a cobrar" ya vive dentro de la tarjeta de resumen, arriba
-            del todo en el Paso 4 — no se repite acá abajo. */}
+            del todo en el Paso 4 — no se repite acá abajo. Card de fondo
+            solo en mobile+variant="page" (fixed sobre contenido, necesita
+            su propio fondo/blur); en flujo normal no hace falta. */}
+        <div
+          className={cn(
+            variant === "page" && "rounded-2xl border border-white/[0.09] bg-[linear-gradient(135deg,rgba(8,11,20,0.97),rgba(4,6,14,0.98))] p-2 shadow-[0_-14px_40px_-20px_rgba(0,0,0,0.85)] backdrop-blur-xl lg:border-0 lg:bg-transparent lg:p-0 lg:shadow-none lg:backdrop-blur-none",
+          )}
+        >
         <div className="flex items-stretch gap-2">
           {/* Volver/Cancelar — siempre montado (nunca se saca del DOM) para
               que Continuar no se corra de lugar al llegar al primer paso:
@@ -11022,6 +11044,7 @@ export function NuevaVentaTab({
               )}
             </button>
           )}
+        </div>
         </div>
       </div>
     </div>
