@@ -125,7 +125,7 @@ export function MultiMethodPaymentSplit({
         </div>
       ) : (
         <div className="flex items-center justify-between text-sm rounded-xl border border-blue-300/20 bg-black/35 px-3 py-2">
-          <span className="text-muted-foreground">Total cargado: ${splitsTotal.toLocaleString("es-AR")}</span>
+          <span className="text-muted-foreground">Restante</span>
           <span
             className={cn(
               "font-semibold",
@@ -133,10 +133,10 @@ export function MultiMethodPaymentSplit({
             )}
           >
             {splitsRemaining === 0
-              ? "Completo ✓"
+              ? "$0 · Completo ✓"
               : splitsRemaining > 0
-                ? `Falta $${splitsRemaining.toLocaleString("es-AR")}`
-                : `Sobra $${Math.abs(splitsRemaining).toLocaleString("es-AR")}`}
+                ? `$${splitsRemaining.toLocaleString("es-AR")}`
+                : `Excedente $${Math.abs(splitsRemaining).toLocaleString("es-AR")}`}
           </span>
         </div>
       )}
