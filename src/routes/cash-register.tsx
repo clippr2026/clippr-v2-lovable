@@ -10873,48 +10873,49 @@ export function NuevaVentaTab({
               </div>
               {method === "cash" && (
                 <div className="rounded-2xl border border-blue-300/35 bg-[linear-gradient(135deg,rgba(37,99,235,0.16),rgba(8,11,20,0.96),rgba(2,4,12,0.98))] p-2.5 shadow-[0_0_34px_rgba(96,165,250,0.14),0_18px_55px_-34px_rgba(0,0,0,1)]">
-                  {/* Un solo campo compacto, sin título aparte arriba: $ +
-                      "Monto recibido" como hint a la izquierda (visible
-                      solo mientras está vacío — nunca un placeholder tipo
-                      "0" que se lea como un monto precargado), lo tipeado
-                      alineado a la derecha. Nunca se autocompleta con el
-                      total — received arranca "" y solo lo cambia el
-                      usuario tipeando (ver setReceived). */}
-                  <div className="relative">
-                    <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-base font-bold text-white/55">
-                      $
-                    </span>
-                    {!received && (
-                      <span className="pointer-events-none absolute left-8 top-1/2 -translate-y-1/2 text-sm text-white/30">
-                        Monto recibido
+                  {/* Una sola fila: campo a la izquierda ($ + hint "Monto
+                      recibido", visible solo mientras está vacío — nunca
+                      un placeholder tipo "0" que se lea como precargado;
+                      nunca se autocompleta con el total, received arranca
+                      "" y solo lo cambia el usuario tipeando) y el
+                      resultado a la derecha, en la MISMA fila (antes
+                      quedaba en un renglón aparte debajo, agrandando el
+                      bloque). Si entrega el importe exacto no se muestra
+                      absolutamente nada a la derecha (ni "$0" ni
+                      "Exacto") — cashShortfall y change dan 0 en ese caso
+                      igual, así que alcanza con gatear el render en
+                      "> 0" en vez de en receivedNumber > 0. */}
+                  <div className="flex items-center gap-2">
+                    <div className="relative min-w-0 flex-1">
+                      <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-base font-bold text-white/55">
+                        $
+                      </span>
+                      {!received && (
+                        <span className="pointer-events-none absolute left-8 top-1/2 -translate-y-1/2 text-sm text-white/30">
+                          Monto recibido
+                        </span>
+                      )}
+                      <input
+                        value={received}
+                        onChange={(e) => setReceived(e.target.value)}
+                        inputMode="numeric"
+                        aria-label="Monto recibido"
+                        className="h-10 w-full rounded-xl border border-blue-300/30 bg-black/45 pl-8 pr-3 text-right text-lg font-extrabold tabular-nums text-white outline-none focus:border-blue-300/65 focus:ring-2 focus:ring-blue-400/20"
+                      />
+                    </div>
+                    {(cashShortfall > 0 || change > 0) && (
+                      <span
+                        className={cn(
+                          "shrink-0 whitespace-nowrap text-sm font-bold",
+                          cashShortfall > 0 ? "text-red-300" : "text-emerald-300",
+                        )}
+                      >
+                        {cashShortfall > 0
+                          ? `Falta $${cashShortfall.toLocaleString("es-AR")}`
+                          : `Vuelto $${change.toLocaleString("es-AR")}`}
                       </span>
                     )}
-                    <input
-                      value={received}
-                      onChange={(e) => setReceived(e.target.value)}
-                      inputMode="numeric"
-                      aria-label="Monto recibido"
-                      className="h-10 w-full rounded-xl border border-blue-300/30 bg-black/45 pl-8 pr-4 text-right text-lg font-extrabold tabular-nums text-white outline-none focus:border-blue-300/65 focus:ring-2 focus:ring-blue-400/20"
-                    />
                   </div>
-                  {receivedNumber > 0 && (
-                    <div className="mt-1.5 flex items-center justify-end">
-                      {/* "Entregado" y el texto explicativo eran
-                          redundantes — el monto recibido ya se lee arriba.
-                          Lo único útil acá es el resultado, bien visible:
-                          cuánto vuelto dar, o cuánto falta si no alcanza
-                          (y en ese caso no se deja confirmar el cobro). */}
-                      {cashShortfall > 0 ? (
-                        <p className="text-base font-bold text-red-300">
-                          Faltan: ${cashShortfall.toLocaleString("es-AR")}
-                        </p>
-                      ) : (
-                        <p className="text-base font-bold text-emerald-300">
-                          Vuelto: ${change.toLocaleString("es-AR")}
-                        </p>
-                      )}
-                    </div>
-                  )}
                 </div>
               )}
             </>
