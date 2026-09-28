@@ -7457,16 +7457,35 @@ function DetailModal({
     ((payment as Record<string, unknown>).deposit_paid as number | null) ??
     null;
 
-  const commissionEmployee = payment.employee_id
-    ? employees.find((e) => e.id === payment.employee_id)
-    : null;
-  const commission = commissionEmployee
-    ? Number(commissionEmployee.commission_fixed ?? 0) > 0
-      ? Math.round(Number(commissionEmployee.commission_fixed))
-      : commissionEmployee.commission_pct
-        ? Math.round(Number(payment.total ?? payment.amount ?? 0) * (commissionEmployee.commission_pct / 100))
-        : null
-    : null;
+  // Comisión REAL de esta venta puntual — nunca recalculada acá. Antes este
+  // bloque adivinaba "precio × commission_pct ACTUAL del profesional" (o
+  // ni siquiera eso: caía directo a %, ignorando si esa venta en realidad
+  // usó una comisión por servicio específica), lo que podía mostrar un
+  // número que no tenía nada que ver con lo que se le pagó/debe a ese
+  // profesional — y cambiaba solo si el % general del profesional se
+  // editaba después, aunque esta venta ya estuviera cobrada. commission_
+  // records.amount es la comisión efectivamente calculada y guardada al
+  // momento del cobro (computeCommissionAmount, con prioridad servicio >
+  // fijo > %, ver register-payment.ts) — un snapshot fijo que ninguna
+  // liquidación ni edición posterior del profesional vuelve a tocar.
+  const [commissionRecord, setCommissionRecord] = React.useState<{
+    amount: number;
+    commission_pct: number | null;
+  } | null>(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from("commission_records" as any)
+      .select("amount,commission_pct")
+      .eq("sale_id", payment.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setCommissionRecord((data as { amount: number; commission_pct: number | null } | null) ?? null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [payment.id]);
 
   const fmtDT = (iso: string | null) =>
     iso
@@ -7633,10 +7652,17 @@ function DetailModal({
                 }
               />
             )}
-            {commission !== null && (
+            {commissionRecord && (
               <Row
                 label="Comisión profesional"
-                value={`$${commission.toLocaleString("es-AR")}`}
+                value={
+                  <>
+                    ${Math.round(commissionRecord.amount).toLocaleString("es-AR")}
+                    {commissionRecord.commission_pct != null && (
+                      <span className="text-muted-foreground"> ({commissionRecord.commission_pct}%)</span>
+                    )}
+                  </>
+                }
               />
             )}
           </div>
