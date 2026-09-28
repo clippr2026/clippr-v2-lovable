@@ -9090,7 +9090,6 @@ export function NuevaVentaTab({
   const [manualDiscountMode, setManualDiscountMode] = React.useState<"fixed" | "percent">("fixed");
   const [manualDiscountReason, setManualDiscountReason] = React.useState("Descuento manual");
   const [discountPanelOpen, setDiscountPanelOpen] = React.useState(false);
-  const [discountTab, setDiscountTab] = React.useState<"promo" | "manual">("promo");
   // Propina — monto manual, plata del profesional (nunca se suma a
   // facturación/comisión, ver register-payment.ts).
   const [tipAmountInput, setTipAmountInput] = React.useState("");
@@ -9167,7 +9166,6 @@ export function NuevaVentaTab({
     setManualDiscountMode("fixed");
     setManualDiscountReason("Descuento manual");
     setDiscountPanelOpen(false);
-    setDiscountTab("promo");
     setTipAmountInput("");
     setTipPanelOpen(false);
   }, [pendingCharge]);
@@ -9972,7 +9970,6 @@ export function NuevaVentaTab({
         setManualDiscountMode("fixed");
         setManualDiscountReason("Descuento manual");
         setDiscountPanelOpen(false);
-        setDiscountTab("promo");
         setTipAmountInput("");
         setTipPanelOpen(false);
         normalSaleCompleted = true;
@@ -10720,215 +10717,101 @@ export function NuevaVentaTab({
                 descuento activo (promoción O manual), la propina siempre
                 aparte. Los campos quedan colapsados hasta tocar el botón —
                 nunca abiertos por default. */}
-            <div className="space-y-1.5 border-t border-white/10 pt-2">
+            <div className="border-t border-white/10 pt-2">
+              {/* Descuento/Propina: el botón SE CONVIERTE en un input al
+                  tocarlo, sin panel desplegable debajo — una sola fila
+                  compacta en los dos estados. Sin promoción/% en la UI
+                  (simplificado a pedido): el input es siempre un monto $
+                  fijo, aplicado sobre "total" (precio ya resuelto según
+                  método de pago). Vacío o $0 vuelve a verse como el botón
+                  original. manualDiscountMode se queda fijo en "fixed" (ya
+                  no hay toggle %) y promotionId solo puede venir prellenado
+                  de un turno con promo asociada — si eso pasa, el botón
+                  queda de solo lectura con el nombre de esa promo en vez de
+                  ser editable, un toque más la limpia y vuelve a manual. */}
               <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setDiscountPanelOpen((v) => !v)}
-                  className={cn(
-                    "flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left text-xs font-semibold transition",
-                    discountAmount > 0
-                      ? "border-violet-300/35 bg-violet-400/10 text-violet-200"
-                      : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  <span className="flex min-w-0 items-center gap-1.5">
-                    <Tag className="size-3.5 shrink-0" />
-                    <span className="truncate">{discountAmount > 0 ? discountLabel : "Descuento"}</span>
-                  </span>
-                  {discountAmount > 0 && (
-                    <span className="shrink-0">-${Math.round(discountAmount).toLocaleString("es-AR")}</span>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => setTipPanelOpen((v) => !v)}
-                  className={cn(
-                    "flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left text-xs font-semibold transition",
-                    tipAmount > 0
-                      ? "border-emerald-300/35 bg-emerald-400/10 text-emerald-200"
-                      : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  <span className="flex min-w-0 items-center gap-1.5">
-                    <Gift className="size-3.5 shrink-0" />
-                    <span className="truncate">Propina</span>
-                  </span>
-                  {tipAmount > 0 && (
-                    <span className="shrink-0">+${Math.round(tipAmount).toLocaleString("es-AR")}</span>
-                  )}
-                </button>
-              </div>
-
-              {(discountAmount > 0 || tipAmount > 0) && (
-                <div className="flex flex-wrap gap-x-4 gap-y-1 px-1 text-[11px]">
-                  {discountAmount > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setPromotionId("");
-                        setManualDiscountAmount("");
-                      }}
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      Quitar descuento
-                    </button>
-                  )}
-                  {tipAmount > 0 && (
-                    <button
-                      type="button"
-                      onClick={() => setTipAmountInput("")}
-                      className="text-muted-foreground hover:text-foreground"
-                    >
-                      Quitar propina
-                    </button>
-                  )}
-                </div>
-              )}
-
-            {discountPanelOpen && (
-              <div className="space-y-2 rounded-xl border border-white/10 bg-black/20 p-3">
-                <div className="grid grid-cols-2 gap-1.5 rounded-lg border border-white/10 p-1">
-                  <button
-                    type="button"
-                    onClick={() => setDiscountTab("promo")}
-                    className={cn(
-                      "rounded-md py-1.5 text-xs font-semibold transition",
-                      discountTab === "promo" ? "bg-violet-400/20 text-violet-200" : "text-muted-foreground",
-                    )}
-                  >
-                    Promoción
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setDiscountTab("manual")}
-                    className={cn(
-                      "rounded-md py-1.5 text-xs font-semibold transition",
-                      discountTab === "manual" ? "bg-violet-400/20 text-violet-200" : "text-muted-foreground",
-                    )}
-                  >
-                    Manual
-                  </button>
-                </div>
-
-                {discountTab === "promo" ? (
-                  validPromotions.length === 0 ? (
-                    <p className="px-1 text-xs text-muted-foreground">
-                      No hay promociones vigentes para este carrito/profesional.
-                    </p>
-                  ) : (
-                    <Select
-                      value={promotionId || "none"}
-                      onValueChange={(v) => {
-                        setManualDiscountAmount("");
-                        setPromotionId(v === "none" ? "" : v);
-                      }}
-                    >
-                      <SelectTrigger className="h-9 w-full text-xs">
-                        <SelectValue placeholder="Sin promoción" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="none">Sin promoción</SelectItem>
-                        {validPromotions.map((p) => (
-                          <SelectItem key={p.id} value={p.id}>
-                            {p.name} (
-                            {p.discountType === "percent"
-                              ? `-${Number(p.discountValue) || 0}%`
-                              : `-$${(Number(p.discountValue) || 0).toLocaleString("es-AR")}`}
-                            )
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )
-                ) : (
-                  <div className="space-y-2">
-                    <div className="grid grid-cols-2 gap-1.5 rounded-lg border border-white/10 p-1">
-                      <button
-                        type="button"
-                        onClick={() => setManualDiscountMode("fixed")}
-                        className={cn(
-                          "rounded-md py-1.5 text-xs font-semibold transition",
-                          manualDiscountMode === "fixed" ? "bg-violet-400/20 text-violet-200" : "text-muted-foreground",
-                        )}
-                      >
-                        $ Importe
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setManualDiscountMode("percent")}
-                        className={cn(
-                          "rounded-md py-1.5 text-xs font-semibold transition",
-                          manualDiscountMode === "percent"
-                            ? "bg-violet-400/20 text-violet-200"
-                            : "text-muted-foreground",
-                        )}
-                      >
-                        % Porcentaje
-                      </button>
-                    </div>
+                {discountPanelOpen ? (
+                  <div className="flex items-center gap-1 rounded-xl border border-violet-300/35 bg-violet-400/10 px-2.5 py-2">
+                    <Tag className="size-3.5 shrink-0 text-violet-200" />
+                    <span className="shrink-0 text-xs font-semibold text-violet-200/70">$</span>
                     <input
                       type="number"
                       inputMode="decimal"
+                      autoFocus
                       value={manualDiscountAmount}
                       onChange={(e) => {
                         setPromotionId("");
                         setManualDiscountAmount(e.target.value);
                       }}
-                      placeholder={manualDiscountMode === "percent" ? "% de descuento" : "Monto del descuento"}
-                      autoFocus
-                      className="h-9 w-full rounded-lg border border-white/10 bg-black/30 px-3 text-xs text-white outline-none focus:border-violet-300/35"
-                    />
-                    {manualDiscountMode === "percent" && Number(manualDiscountAmount) > 0 && (
-                      <div className="text-[11px] text-white/40">
-                        Equivale a ${Math.round(manualDiscountValue).toLocaleString("es-AR")} sobre $
-                        {Math.round(total).toLocaleString("es-AR")}
-                      </div>
-                    )}
-                    <div className="flex flex-wrap gap-1.5">
-                      {["Cortesía", "Descuento manual", "Promo especial"].map((r) => (
-                        <button
-                          key={r}
-                          type="button"
-                          onClick={() => setManualDiscountReason(r)}
-                          className={cn(
-                            "rounded-full border px-2.5 py-1 text-[11px] font-medium transition",
-                            manualDiscountReason === r
-                              ? "border-violet-300/40 bg-violet-400/15 text-violet-200"
-                              : "border-white/10 text-muted-foreground hover:text-foreground",
-                          )}
-                        >
-                          {r}
-                        </button>
-                      ))}
-                    </div>
-                    <input
-                      type="text"
-                      value={manualDiscountReason}
-                      onChange={(e) => setManualDiscountReason(e.target.value)}
-                      placeholder="Motivo del descuento"
-                      className="h-9 w-full rounded-lg border border-white/10 bg-black/30 px-3 text-xs text-white outline-none focus:border-violet-300/35"
+                      onBlur={() => setDiscountPanelOpen(false)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                      }}
+                      placeholder="0"
+                      className="min-w-0 flex-1 bg-transparent text-right text-xs font-bold text-white outline-none"
                     />
                   </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => (selectedPromotion ? setPromotionId("") : setDiscountPanelOpen(true))}
+                    className={cn(
+                      "flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left text-xs font-semibold transition",
+                      discountAmount > 0
+                        ? "border-violet-300/35 bg-violet-400/10 text-violet-200"
+                        : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <Tag className="size-3.5 shrink-0" />
+                      <span className="truncate">{discountAmount > 0 ? discountLabel : "Descuento"}</span>
+                    </span>
+                    {discountAmount > 0 && (
+                      <span className="shrink-0">-${Math.round(discountAmount).toLocaleString("es-AR")}</span>
+                    )}
+                  </button>
+                )}
+
+                {tipPanelOpen ? (
+                  <div className="flex items-center gap-1 rounded-xl border border-emerald-300/35 bg-emerald-400/10 px-2.5 py-2">
+                    <Gift className="size-3.5 shrink-0 text-emerald-200" />
+                    <span className="shrink-0 text-xs font-semibold text-emerald-200/70">$</span>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      autoFocus
+                      value={tipAmountInput}
+                      onChange={(e) => setTipAmountInput(e.target.value)}
+                      onBlur={() => setTipPanelOpen(false)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                      }}
+                      placeholder="0"
+                      className="min-w-0 flex-1 bg-transparent text-right text-xs font-bold text-white outline-none"
+                    />
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setTipPanelOpen(true)}
+                    className={cn(
+                      "flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left text-xs font-semibold transition",
+                      tipAmount > 0
+                        ? "border-emerald-300/35 bg-emerald-400/10 text-emerald-200"
+                        : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground",
+                    )}
+                  >
+                    <span className="flex min-w-0 items-center gap-1.5">
+                      <Gift className="size-3.5 shrink-0" />
+                      <span className="truncate">Propina</span>
+                    </span>
+                    {tipAmount > 0 && (
+                      <span className="shrink-0">+${Math.round(tipAmount).toLocaleString("es-AR")}</span>
+                    )}
+                  </button>
                 )}
               </div>
-            )}
-
-            {tipPanelOpen && (
-              <div className="rounded-xl border border-white/10 bg-black/20 p-3">
-                <input
-                  type="number"
-                  inputMode="decimal"
-                  value={tipAmountInput}
-                  onChange={(e) => setTipAmountInput(e.target.value)}
-                  placeholder="Monto de la propina"
-                  autoFocus
-                  className="h-9 w-full rounded-lg border border-white/10 bg-black/30 px-3 text-xs text-white outline-none focus:border-emerald-300/35"
-                />
-              </div>
-            )}
-          </div>
+            </div>
           </Card>
 
           {paymentMode === "simple" ? (
