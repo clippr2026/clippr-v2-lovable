@@ -10934,7 +10934,11 @@ export function NuevaVentaTab({
                         // y Precios/Catálogo). change/cashShortfall siguen
                         // calculando sobre Number(received), sin cambios.
                         value={received ? Number(received).toLocaleString("es-AR") : ""}
-                        onChange={(e) => setReceived(e.target.value.replace(/\D/g, ""))}
+                        // Tope de 9 dígitos (hasta $999.999.999) — evita
+                        // escribir un número interminable que rompa el
+                        // layout o el cálculo, mismo criterio que Pago
+                        // múltiple (multi-method-payment-split.tsx).
+                        onChange={(e) => setReceived(e.target.value.replace(/\D/g, "").slice(0, 9))}
                         inputMode="numeric"
                         placeholder="Monto recibido"
                         aria-label="Monto recibido"
