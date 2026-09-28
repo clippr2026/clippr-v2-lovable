@@ -10703,17 +10703,28 @@ export function NuevaVentaTab({
                   </span>
                 </div>
               ) : cartItems.length > 1 ? (
+                // Sin subtítulo "Servicios" aparte: la lista arranca
+                // directo después de Cliente, con la tijera pegada al
+                // primer servicio (mismo lugar que ocupaba antes el
+                // ícono de la fila del título) — ahorra una fila entera
+                // de alto. Las filas siguientes llevan un espaciador del
+                // mismo ancho que la tijera para que el texto quede
+                // alineado en columna, no la tijera en sí.
                 <div className="space-y-1 border-t border-white/10 pt-1.5">
-                  <p className="flex items-center gap-2 text-xs text-white/45">
-                    <Scissors className="size-3.5 shrink-0" /> Servicios
-                  </p>
-                  {(summaryExpanded ? cartItems : cartItems.slice(0, 2)).map(({ svc, qty }) => {
+                  {(summaryExpanded ? cartItems : cartItems.slice(0, 2)).map(({ svc, qty }, idx) => {
                     const showCashPrice = isCashMethod && svc.cashPrice != null;
                     return (
-                      <div key={svc.id} className="flex items-start justify-between gap-3 pl-2">
-                        <span className="min-w-0 break-words text-xs text-white/70">
-                          {svc.name}
-                          {qty > 1 ? ` ×${qty}` : ""}
+                      <div key={svc.id} className="flex items-start justify-between gap-2">
+                        <span className="flex min-w-0 items-start gap-2 text-xs text-white/70">
+                          {idx === 0 ? (
+                            <Scissors className="size-3.5 shrink-0 text-white/35" />
+                          ) : (
+                            <span className="size-3.5 shrink-0" aria-hidden="true" />
+                          )}
+                          <span className="min-w-0 break-words">
+                            {svc.name}
+                            {qty > 1 ? ` ×${qty}` : ""}
+                          </span>
                         </span>
                         {showCashPrice ? (
                           <span className="shrink-0 whitespace-nowrap text-xs">
@@ -10736,7 +10747,7 @@ export function NuevaVentaTab({
                     <button
                       type="button"
                       onClick={() => setSummaryExpanded((v) => !v)}
-                      className="pl-2 text-xs font-semibold text-blue-300 hover:text-blue-200 transition-colors"
+                      className="pl-[22px] text-xs font-semibold text-blue-300 hover:text-blue-200 transition-colors"
                     >
                       {summaryExpanded ? "Ver menos" : "Ver más"}
                     </button>
@@ -10901,7 +10912,10 @@ export function NuevaVentaTab({
                 </div>
               </div>
               {method === "cash" && (
-                <div className="rounded-2xl border border-blue-300/35 bg-[linear-gradient(135deg,rgba(37,99,235,0.16),rgba(8,11,20,0.96),rgba(2,4,12,0.98))] p-2.5 shadow-[0_0_34px_rgba(96,165,250,0.14),0_18px_55px_-34px_rgba(0,0,0,1)]">
+                // Sin borde propio acá (antes tenía uno, más el del input
+                // de adentro — se veían dos círculos/bordes concéntricos).
+                // Queda solo el borde del input, el único que hace falta.
+                <div className="rounded-2xl bg-[linear-gradient(135deg,rgba(37,99,235,0.16),rgba(8,11,20,0.96),rgba(2,4,12,0.98))] p-2.5 shadow-[0_0_34px_rgba(96,165,250,0.14),0_18px_55px_-34px_rgba(0,0,0,1)]">
                   {/* Una sola fila: campo a la izquierda ($ + hint "Monto
                       recibido", visible solo mientras está vacío — nunca
                       un placeholder tipo "0" que se lea como precargado;
