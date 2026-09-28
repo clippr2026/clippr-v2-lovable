@@ -10015,7 +10015,15 @@ export function NuevaVentaTab({
         "relative mx-auto flex w-full max-w-5xl flex-col overflow-hidden rounded-[30px] border border-white/[0.085] bg-[linear-gradient(135deg,rgba(5,8,15,0.97),rgba(10,12,24,0.95),rgba(2,4,12,0.99))] p-3 md:p-3.5 shadow-[0_44px_130px_-55px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.60)] backdrop-blur-2xl",
         variant === "modal"
           ? "min-h-[420px]"
-          : "h-[calc(100vh-235px)] min-h-[560px] sm:h-[calc(100vh-262px)] sm:mb-6",
+          // svh, no vh: mismo bug que ya se resolvió abajo para el
+          // variant="modal" — 100vh en iOS Safari mide el viewport GRANDE
+          // (como si la barra de direcciones ya estuviera colapsada), más
+          // alto que lo que realmente se ve. Eso dejaba la barra
+          // Volver/COBRAR (y el contenido justo arriba, ej. "Vuelto")
+          // parcialmente tapados por la barra de direcciones/home
+          // indicator reales. svh es el viewport más chico posible,
+          // estable desde el primer render.
+          : "h-[calc(100svh-235px)] min-h-[560px] sm:h-[calc(100svh-262px)] sm:mb-6",
       )}
       style={
         variant === "modal"
@@ -10906,7 +10914,11 @@ export function NuevaVentaTab({
         </Card>
       )}
 
-      <div className="relative z-20 mt-auto shrink-0 space-y-3 pt-3 pb-4">
+      {/* pb: al menos 1rem, más en dispositivos con home indicator (mismo
+          patrón que ya usa el variant="modal" más arriba) — sin esto
+          Volver/COBRAR podían quedar pegados o parcialmente tapados por
+          la zona de gesto del home indicator en iPhones con notch. */}
+      <div className="relative z-20 mt-auto shrink-0 space-y-3 pt-3 pb-[max(1rem,env(safe-area-inset-bottom,0px))]">
         {/* "Total a cobrar" ya vive dentro de la tarjeta de resumen, arriba
             del todo en el Paso 4 — no se repite acá abajo. */}
         <div className="flex items-stretch gap-2">
