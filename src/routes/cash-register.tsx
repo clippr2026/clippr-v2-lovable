@@ -382,6 +382,12 @@ function displayResponsibleUser(value?: string | null) {
   // Si viene email, mostrar solo antes del @.
   if (raw.includes("@")) return raw.split("@")[0] || "Caja";
 
+  // Nunca un UUID crudo — cash_sessions.opened_by/closed_by (y el
+  // "usuario" de un cobros_snapshot viejo, que cae a payment.charged_by)
+  // guardan el id de profiles cuando no hay todavía un nombre ya
+  // resuelto en ese registro. Mismo criterio que getChargedByLabel.
+  if (/^[0-9a-f]{8}-[0-9a-f-]{13,}$/i.test(raw)) return "Caja";
+
   return raw;
 }
 
@@ -2823,27 +2829,32 @@ function InventarioTab({
           ).toLowerCase(),
         ),
       )
-      .map((payment: any) => ({
-        id: `sale-${payment.id}`,
-        created_at: payment.created_at ?? new Date().toISOString(),
-        product:
-          payment.service_name ??
-          payment.service ??
-          payment.item_name ??
-          payment.name ??
-          "Venta",
-        type: "Egreso" as const,
-        qty: -Number(payment.quantity ?? payment.qty ?? 1),
-        stockFrom: null,
-        stockTo: null,
-        note: "Venta en caja",
-        user:
-          payment.user_name ??
-          payment.charged_by ??
-          payment.created_by ??
-          userEmail ??
-          "Caja",
-      }));
+      .map((payment: any) => {
+        // Antes caía a payment.charged_by/created_by crudos (uuid de
+        // profiles) cuando no había user_name — un movimiento de
+        // inventario terminaba mostrando un UUID en vez de un nombre.
+        // getChargedByLabel es la misma resolución que ya usa "Cobrado
+        // por"/"Cobró" en el resto de Caja: nunca devuelve algo con forma
+        // de UUID.
+        const empName =
+          data.employees.find((e) => e.id === payment.employee_id)?.name ?? null;
+        return {
+          id: `sale-${payment.id}`,
+          created_at: payment.created_at ?? new Date().toISOString(),
+          product:
+            payment.service_name ??
+            payment.service ??
+            payment.item_name ??
+            payment.name ??
+            "Venta",
+          type: "Egreso" as const,
+          qty: -Number(payment.quantity ?? payment.qty ?? 1),
+          stockFrom: null,
+          stockTo: null,
+          note: "Venta en caja",
+          user: getChargedByLabel(payment, empName, getChargeType(payment)),
+        };
+      });
   }, [data.paymentsToday, catalogItems, userEmail]);
 
   const inventoryMovements = React.useMemo(() => {
@@ -7412,16 +7423,23 @@ function DetailModal({
     "cash") as PayMethod;
   const empName =
     employees.find((e) => e.id === payment.employee_id)?.name ?? null;
-  const chargedById =
-    ((payment as Record<string, unknown>).charged_by as string | null) ?? null;
-  const chargedBy = chargedById
-    ? (employees.find((e) => e.id === chargedById)?.name ??
-      (chargedById.length < 40 ? chargedById : null) ??
-      "—")
-    : "—";
   const chargeType =
     ((payment as Record<string, unknown>).charge_type as string | null) ??
     "caja";
+  // "Cobrado por": payment.charged_by es el uuid de profiles (quien cobró
+  // logueado), no un employees.id — buscarlo en `employees` nunca
+  // matcheaba, y el fallback de antes ("si el string mide menos de 40
+  // caracteres, mostralo tal cual") terminaba mostrando el UUID crudo en
+  // pantalla, porque un uuid mide 36. getChargedByLabel es la misma
+  // función que ya resuelve "Cobró" en las filas de Últimos ingresos —
+  // usa el nombre real ya resuelto en cobro_events (guardado ahí en el
+  // momento del cobro, nunca un id) y explícitamente nunca devuelve algo
+  // con forma de UUID.
+  const chargedBy = getChargedByLabel(
+    payment as Record<string, unknown>,
+    empName,
+    chargeType,
+  );
   const status =
     ((payment as Record<string, unknown>).status as string | null) ?? "cobrado";
   const comprobante =
