@@ -10886,21 +10886,24 @@ export function NuevaVentaTab({
                       igual, así que alcanza con gatear el render en
                       "> 0" en vez de en receivedNumber > 0. */}
                   <div className="flex items-center gap-2">
+                    {/* Valor Y hint van al mismo lado (izquierda) ahora —
+                        ya no hace falta el span superpuesto de antes (que
+                        existía solo para poder tener hint a la izquierda
+                        + valor a la derecha con alineaciones distintas).
+                        Con los dos a la izquierda alcanza con el
+                        placeholder nativo, que ya se alinea solo con el
+                        texto que se escribe. */}
                     <div className="relative min-w-0 flex-1">
                       <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-base font-bold text-white/55">
                         $
                       </span>
-                      {!received && (
-                        <span className="pointer-events-none absolute left-8 top-1/2 -translate-y-1/2 text-sm text-white/30">
-                          Monto recibido
-                        </span>
-                      )}
                       <input
                         value={received}
                         onChange={(e) => setReceived(e.target.value)}
                         inputMode="numeric"
+                        placeholder="Monto recibido"
                         aria-label="Monto recibido"
-                        className="h-10 w-full rounded-xl border border-blue-300/30 bg-black/45 pl-8 pr-3 text-right text-lg font-extrabold tabular-nums text-white outline-none focus:border-blue-300/65 focus:ring-2 focus:ring-blue-400/20"
+                        className="h-10 w-full rounded-xl border border-blue-300/30 bg-black/45 pl-8 pr-3 text-left text-lg font-extrabold tabular-nums text-white outline-none placeholder:text-sm placeholder:font-normal placeholder:text-white/30 focus:border-blue-300/65 focus:ring-2 focus:ring-blue-400/20"
                       />
                     </div>
                     {(cashShortfall > 0 || change > 0) && (
