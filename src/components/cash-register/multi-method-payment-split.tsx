@@ -127,53 +127,61 @@ export function MultiMethodPaymentSplit({
           );
         })}
       </div>
-      <button
-        onClick={addSplit}
-        disabled={splits.length >= paymentOptions.length}
-        className="inline-flex items-center gap-2 rounded-xl border border-blue-300/20 bg-blue-400/10 px-3 py-1.5 text-xs font-semibold text-blue-100 hover:bg-blue-400/15 disabled:opacity-30 transition-colors"
-        type="button"
-      >
-        <Plus className="size-3.5" /> Agregar método de pago
-      </button>
-
       {allowPartial ? (
-        // Un solo renglón dinámico — Total final y Monto del pago ya se
-        // muestran en el resumen de arriba del modal, no hace falta
-        // repetirlos acá.
-        <div className="px-1 text-sm font-semibold">
-          {splitsRemaining === 0 ? (
-            <div className="space-y-0.5">
-              <div className="font-bold text-emerald-300">Liquidación completa</div>
-              <div className="text-xs font-semibold text-emerald-300/80">Saldo pendiente: $0</div>
-            </div>
-          ) : splitsRemaining > 0 ? (
-            <span className="text-rose-300">Saldo pendiente: ${splitsRemaining.toLocaleString("es-AR")}</span>
-          ) : (
-            <span className="text-rose-300">
-              Sobra ${Math.abs(splitsRemaining).toLocaleString("es-AR")} — no puede superar el total
-            </span>
-          )}
-        </div>
-      ) : (
-        // "Sobra", nunca "Vuelto": con varios métodos combinados el
-        // excedente no necesariamente es efectivo que se le devuelve al
-        // cliente en mano — "Vuelto" es un concepto específico de Pago
-        // simple en efectivo, acá sería ambiguo/incorrecto.
-        <div className="flex items-center justify-between text-sm rounded-xl border border-blue-300/20 bg-black/35 px-3 py-2">
-          {splitsRemaining === 0 ? (
-            <span className="font-semibold text-emerald-300">Pago completo ✓</span>
-          ) : splitsRemaining > 0 ? (
-            <>
-              <span className="text-muted-foreground">Restante</span>
-              <span className="font-semibold text-blue-200">${splitsRemaining.toLocaleString("es-AR")}</span>
-            </>
-          ) : (
-            <>
-              <span className="text-muted-foreground">Sobra</span>
-              <span className="font-semibold text-rose-300">
-                ${Math.abs(splitsRemaining).toLocaleString("es-AR")}
+        <>
+          <button
+            onClick={addSplit}
+            disabled={splits.length >= paymentOptions.length}
+            className="inline-flex items-center gap-2 rounded-xl border border-blue-300/20 bg-blue-400/10 px-3 py-1.5 text-xs font-semibold text-blue-100 hover:bg-blue-400/15 disabled:opacity-30 transition-colors"
+            type="button"
+          >
+            <Plus className="size-3.5" /> Agregar método de pago
+          </button>
+          {/* Un solo renglón dinámico — Total final y Monto del pago ya se
+              muestran en el resumen de arriba del modal, no hace falta
+              repetirlos acá. */}
+          <div className="px-1 text-sm font-semibold">
+            {splitsRemaining === 0 ? (
+              <div className="space-y-0.5">
+                <div className="font-bold text-emerald-300">Liquidación completa</div>
+                <div className="text-xs font-semibold text-emerald-300/80">Saldo pendiente: $0</div>
+              </div>
+            ) : splitsRemaining > 0 ? (
+              <span className="text-rose-300">Saldo pendiente: ${splitsRemaining.toLocaleString("es-AR")}</span>
+            ) : (
+              <span className="text-rose-300">
+                Sobra ${Math.abs(splitsRemaining).toLocaleString("es-AR")} — no puede superar el total
               </span>
-            </>
+            )}
+          </div>
+        </>
+      ) : (
+        // Botón + estado en una sola fila compacta — antes eran dos
+        // bloques apilados ("+ Agregar método de pago" arriba, estado
+        // abajo en su propia fila). "Otro método" (antes "Agregar método
+        // de pago") para que entre cómodo junto al estado en móvil. Nunca
+        // "Vuelto": con varios métodos combinados el excedente no
+        // necesariamente es efectivo que se le devuelve al cliente en
+        // mano — "Vuelto" es específico de Pago simple en efectivo.
+        <div className="flex items-center justify-between gap-2 rounded-xl border border-blue-300/20 bg-black/35 py-1.5 pl-2.5 pr-3">
+          <button
+            onClick={addSplit}
+            disabled={splits.length >= paymentOptions.length}
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-blue-300/20 bg-blue-400/10 px-2.5 py-1 text-xs font-semibold text-blue-100 hover:bg-blue-400/15 disabled:opacity-30 transition-colors"
+            type="button"
+          >
+            <Plus className="size-3.5" /> Otro método
+          </button>
+          {splitsRemaining === 0 ? (
+            <span className="whitespace-nowrap text-sm font-semibold text-emerald-300">Pago completo ✓</span>
+          ) : splitsRemaining > 0 ? (
+            <span className="whitespace-nowrap text-sm font-semibold text-blue-200">
+              Restante ${splitsRemaining.toLocaleString("es-AR")}
+            </span>
+          ) : (
+            <span className="whitespace-nowrap text-sm font-semibold text-rose-300">
+              Sobra ${Math.abs(splitsRemaining).toLocaleString("es-AR")}
+            </span>
           )}
         </div>
       )}
