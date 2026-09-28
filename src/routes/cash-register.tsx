@@ -10012,7 +10012,17 @@ export function NuevaVentaTab({
   return (
     <div
       className={cn(
-        "relative mx-auto flex w-full max-w-5xl flex-col overflow-hidden rounded-[30px] border border-white/[0.085] bg-[linear-gradient(135deg,rgba(5,8,15,0.97),rgba(10,12,24,0.95),rgba(2,4,12,0.99))] px-3 pt-3 md:px-3.5 md:pt-3.5 shadow-[0_44px_130px_-55px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.60)] backdrop-blur-2xl",
+        // backdrop-blur-2xl SOLO desde lg: (no en mobile/md). backdrop-filter
+        // en un ancestro crea su propio "containing block" para hijos
+        // position:fixed — la barra Volver/COBRAR de abajo (fixed en
+        // mobile) estaba resolviendo su bottom relativo a ESTA tarjeta
+        // (que mide 100svh-210px, no la pantalla completa) en vez del
+        // viewport real, por eso quedaba "flotando" muy por encima de la
+        // nav inferior real con un hueco vacío debajo. El fondo ya es casi
+        // opaco (alpha 0.95-0.99), así que sacar el blur en mobile no se
+        // nota visualmente — y en lg: (donde esa barra vuelve a flujo
+        // normal, sin fixed) el blur se mantiene exactamente igual.
+        "relative mx-auto flex w-full max-w-5xl flex-col overflow-hidden rounded-[30px] border border-white/[0.085] bg-[linear-gradient(135deg,rgba(5,8,15,0.97),rgba(10,12,24,0.95),rgba(2,4,12,0.99))] px-3 pt-3 md:px-3.5 md:pt-3.5 shadow-[0_44px_130px_-55px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.60)] lg:backdrop-blur-2xl",
         variant === "modal"
           ? "min-h-[420px] pb-3 md:pb-3.5"
           : cn(
