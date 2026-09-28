@@ -10564,86 +10564,103 @@ export function NuevaVentaTab({
       {step === 4 && (
         <Card className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain rounded-3xl p-3.5 pt-3 space-y-3 border-white/[0.075] bg-[radial-gradient(circle_at_16%_0%,rgba(59,130,246,0.10),transparent_34%),radial-gradient(circle_at_90%_0%,rgba(139,92,246,0.12),transparent_40%),linear-gradient(135deg,rgba(3,6,14,0.98),rgba(8,9,22,0.96),rgba(1,3,10,0.99))] shadow-[0_38px_110px_-62px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.62)]">
           {/* Resumen arriba de todo — lo primero que se ve al entrar al
-              Paso 4, antes de configurar el pago. Profesional/Cliente,
-              cada ítem con precio de lista tachado + precio en efectivo
-              cuando corresponde, y Total a cobrar (reactivo: ya refleja
-              cualquier descuento/propina cargado más abajo en Ajustes). */}
-          <Card className="rounded-2xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(2,4,10,0.98),rgba(5,8,18,0.97),rgba(1,3,9,0.99))] px-4 py-2.5 shadow-[0_20px_60px_-40px_rgba(0,0,0,0.9)]">
-            <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+              Paso 4, antes de configurar el pago: qué se está cobrando
+              (profesional/cliente/servicio/precio), después Ajustes
+              (descuento/propina, mismo card) y recién más abajo cómo se
+              paga. "Total a cobrar" final vive solo al pie, junto a
+              COBRAR — acá no se repite. */}
+          <Card className="rounded-2xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(2,4,10,0.98),rgba(5,8,18,0.97),rgba(1,3,9,0.99))] px-4 py-3 space-y-3 shadow-[0_20px_60px_-40px_rgba(0,0,0,0.9)]">
+            {/* Resumen: una fila por dato, nunca dos compitiendo por ancho
+                en la misma línea — eso era lo que cortaba "Profesional"/
+                "Cliente" en pantallas angostas. */}
+            <div className="space-y-1 text-sm">
               {!lockedEmployeeId && (
-                <p className="min-w-0 flex-1 break-words text-xs font-semibold text-white">
-                  Profesional: {selectedEmployee?.name ?? "—"}
+                <p className="text-white">
+                  <span className="text-white/45">Profesional: </span>
+                  <span className="font-semibold">{selectedEmployee?.name ?? "—"}</span>
                 </p>
               )}
-              <p
-                className={cn(
-                  "min-w-0 flex-1 break-words text-xs font-semibold text-white",
-                  !lockedEmployeeId && "text-right",
-                )}
-              >
-                Cliente: {client || "Cliente seleccionado"}
+              <p className="text-white">
+                <span className="text-white/45">Cliente: </span>
+                <span className="font-semibold">{client || "Cliente seleccionado"}</span>
               </p>
-            </div>
-
-            {cartItems.length > 0 && (
-              <div className="mt-1.5 space-y-1 border-t border-white/10 pt-1.5">
-                {(summaryExpanded ? cartItems : cartItems.slice(0, 2)).map(({ svc, qty }) => {
-                  const showCashPrice = isCashMethod && svc.cashPrice != null;
-                  return (
-                    <div key={svc.id} className="flex items-start justify-between gap-3">
-                      <span className="min-w-0 break-words text-xs text-white/65">
-                        {svc.name}
-                        {qty > 1 ? ` ×${qty}` : ""}
-                      </span>
-                      {showCashPrice ? (
-                        <span className="shrink-0 whitespace-nowrap text-xs">
-                          <span className="text-white/40 line-through">
-                            ${Math.round(Number(svc.price) * qty).toLocaleString("es-AR")}
-                          </span>{" "}
-                          <span className="font-semibold text-emerald-300">
-                            ${Math.round(Number(svc.cashPrice) * qty).toLocaleString("es-AR")}
+              {cartItems.length === 1 ? (
+                <>
+                  <p className="text-white">
+                    <span className="text-white/45">Servicio: </span>
+                    <span className="font-semibold">{cartItems[0].svc.name}</span>
+                  </p>
+                  <p className="text-white">
+                    <span className="text-white/45">Precio: </span>
+                    {listTotal !== total ? (
+                      <>
+                        <span className="text-white/30 line-through">
+                          ${Math.round(listTotal).toLocaleString("es-AR")}
+                        </span>{" "}
+                        <span className="font-semibold text-emerald-300">
+                          ${Math.round(total).toLocaleString("es-AR")}
+                        </span>
+                      </>
+                    ) : (
+                      <span className="font-semibold">${Math.round(total).toLocaleString("es-AR")}</span>
+                    )}
+                  </p>
+                </>
+              ) : cartItems.length > 1 ? (
+                <div className="space-y-1 pt-0.5">
+                  <p className="text-white/45">Servicios:</p>
+                  {(summaryExpanded ? cartItems : cartItems.slice(0, 2)).map(({ svc, qty }) => {
+                    const showCashPrice = isCashMethod && svc.cashPrice != null;
+                    return (
+                      <div key={svc.id} className="flex items-start justify-between gap-3 pl-2">
+                        <span className="min-w-0 break-words text-xs text-white/70">
+                          {svc.name}
+                          {qty > 1 ? ` ×${qty}` : ""}
+                        </span>
+                        {showCashPrice ? (
+                          <span className="shrink-0 whitespace-nowrap text-xs">
+                            <span className="text-white/30 line-through">
+                              ${Math.round(Number(svc.price) * qty).toLocaleString("es-AR")}
+                            </span>{" "}
+                            <span className="font-semibold text-emerald-300">
+                              ${Math.round(Number(svc.cashPrice) * qty).toLocaleString("es-AR")}
+                            </span>
                           </span>
-                        </span>
-                      ) : (
-                        <span className="shrink-0 tabular-nums text-xs text-white/65">
-                          ${Math.round(Number(svc.price) * qty).toLocaleString("es-AR")}
-                        </span>
-                      )}
-                    </div>
-                  );
-                })}
-                {cartItems.length > 2 && (
-                  <button
-                    type="button"
-                    onClick={() => setSummaryExpanded((v) => !v)}
-                    className="text-xs font-semibold text-blue-300 hover:text-blue-200 transition-colors"
-                  >
-                    {summaryExpanded ? "Ver menos" : "Ver más"}
-                  </button>
-                )}
-              </div>
-            )}
-
-            <div className="mt-1.5 flex items-center justify-between gap-3 border-t border-white/10 pt-1.5">
-              <span className="text-base font-extrabold text-white">Total a cobrar</span>
-              <span className="tabular-nums text-base font-extrabold text-white">
-                ${Math.round(finalTotal).toLocaleString("es-AR")}
-              </span>
+                        ) : (
+                          <span className="shrink-0 tabular-nums text-xs text-white/70">
+                            ${Math.round(Number(svc.price) * qty).toLocaleString("es-AR")}
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {cartItems.length > 2 && (
+                    <button
+                      type="button"
+                      onClick={() => setSummaryExpanded((v) => !v)}
+                      className="pl-2 text-xs font-semibold text-blue-300 hover:text-blue-200 transition-colors"
+                    >
+                      {summaryExpanded ? "Ver menos" : "Ver más"}
+                    </button>
+                  )}
+                </div>
+              ) : null}
             </div>
-          </Card>
 
-          {/* Ajustes: descuento y propina — acá, no en el Paso 3: recién
-              elegido método de pago tiene sentido ajustar el cobro (el
-              descuento manual se calcula sobre el precio YA resuelto según
-              método, ver "total"). Compartido entre Pago simple y Pago
-              múltiple (vive afuera de ese if y antes de la barra de tabs),
-              así el monto a conciliar (finalTotal) ya los incluye antes de
-              que se cargue el monto recibido o los splits. Un solo
-              descuento activo (promoción O manual), la propina siempre
-              aparte. Los campos quedan colapsados hasta tocar el botón —
-              nunca abiertos por default. */}
-          <div className="space-y-2">
-            <div className="flex flex-wrap items-center gap-2">
+            {/* Ajustes: descuento y propina, dentro del MISMO card que el
+                resumen — se sienten parte de "qué estoy cobrando", no
+                flotando sin contexto aparte. Acá y no en el Paso 3: recién
+                elegido método de pago tiene sentido ajustar el cobro (el
+                descuento manual se calcula sobre el precio YA resuelto
+                según método, ver "total"). Compartido entre Pago simple y
+                Pago múltiple (vive antes de la barra de tabs), así el
+                monto a conciliar (finalTotal) ya los incluye antes de que
+                se cargue el monto recibido o los splits. Un solo
+                descuento activo (promoción O manual), la propina siempre
+                aparte. Los campos quedan colapsados hasta tocar el botón —
+                nunca abiertos por default. */}
+            <div className="space-y-2 border-t border-white/10 pt-3">
+              <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => setDiscountPanelOpen((v) => !v)}
@@ -10840,6 +10857,7 @@ export function NuevaVentaTab({
               </div>
             )}
           </div>
+          </Card>
 
           <div className="-mx-3.5 grid shrink-0 grid-cols-2 border-y border-white/[0.07] bg-black/50">
             <button
