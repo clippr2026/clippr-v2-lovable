@@ -10565,7 +10565,7 @@ export function NuevaVentaTab({
       )}
 
       {step === 4 && (
-        <Card className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain rounded-3xl p-3.5 pt-0 space-y-3 border-white/[0.075] bg-[radial-gradient(circle_at_16%_0%,rgba(59,130,246,0.10),transparent_34%),radial-gradient(circle_at_90%_0%,rgba(139,92,246,0.12),transparent_40%),linear-gradient(135deg,rgba(3,6,14,0.98),rgba(8,9,22,0.96),rgba(1,3,10,0.99))] shadow-[0_38px_110px_-62px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.62)]">
+        <Card className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain rounded-3xl p-3 pt-0 space-y-2 border-white/[0.075] bg-[radial-gradient(circle_at_16%_0%,rgba(59,130,246,0.10),transparent_34%),radial-gradient(circle_at_90%_0%,rgba(139,92,246,0.12),transparent_40%),linear-gradient(135deg,rgba(3,6,14,0.98),rgba(8,9,22,0.96),rgba(1,3,10,0.99))] shadow-[0_38px_110px_-62px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.62)] sm:px-3.5 sm:pb-3.5">
           {/* Barra de punta a punta pegada al borde superior del módulo
               (márgenes negativos cancelan el padding del Card) — recta,
               sin puntas redondeadas propias salvo las que hacen juego con
@@ -10597,16 +10597,19 @@ export function NuevaVentaTab({
             </button>
           </div>
 
-          <div className="space-y-3 pt-3">
+          <div className="space-y-2 pt-1.5">
           {/* Resumen arriba de todo — lo primero que se ve al entrar al
               Paso 4, antes de configurar el pago: profesional/cliente,
               servicio con precio de lista tachado + precio en efectivo, y
               Total a cobrar (reactivo, adentro de esta misma tarjeta — no
               aislado más abajo). Después Ajustes (descuento/propina,
-              mismo card) y recién debajo cómo se paga. */}
-          <Card className="rounded-2xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(2,4,10,0.98),rgba(5,8,18,0.97),rgba(1,3,9,0.99))] px-4 py-3 space-y-3 shadow-[0_20px_60px_-40px_rgba(0,0,0,0.9)]">
-            <div className="space-y-2">
-              <div className={cn("grid gap-x-3 gap-y-1.5", !lockedEmployeeId ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1")}>
+              mismo card) y recién debajo cómo se paga. Espaciado
+              compactado a propósito (pt-1.5 pegado a las tabs, gaps
+              chicos entre filas) para que en mobile entre lo más posible
+              sin scroll, sin perder legibilidad ni área táctil. */}
+          <Card className="rounded-2xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(2,4,10,0.98),rgba(5,8,18,0.97),rgba(1,3,9,0.99))] px-3.5 py-2.5 space-y-2 shadow-[0_20px_60px_-40px_rgba(0,0,0,0.9)]">
+            <div className="space-y-1.5">
+              <div className={cn("grid gap-x-3 gap-y-1", !lockedEmployeeId ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1")}>
                 {!lockedEmployeeId && (
                   <div className="flex min-w-0 items-center gap-2 text-sm">
                     <User className="size-4 shrink-0 text-white/35" />
@@ -10626,7 +10629,7 @@ export function NuevaVentaTab({
               </div>
 
               {cartItems.length === 1 ? (
-                <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-2 text-sm">
+                <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-1.5 text-sm">
                   <span className="flex min-w-0 items-center gap-2 text-white">
                     <Scissors className="size-4 shrink-0 text-white/35" />
                     <span className="min-w-0 truncate">
@@ -10650,7 +10653,7 @@ export function NuevaVentaTab({
                   </span>
                 </div>
               ) : cartItems.length > 1 ? (
-                <div className="space-y-1 border-t border-white/10 pt-2">
+                <div className="space-y-1 border-t border-white/10 pt-1.5">
                   <p className="flex items-center gap-2 text-xs text-white/45">
                     <Scissors className="size-3.5 shrink-0" /> Servicios
                   </p>
@@ -10695,11 +10698,11 @@ export function NuevaVentaTab({
                   jerarquía visual que el resto de las filas (fondo propio,
                   texto más grande). Reactivo: ya incluye cualquier
                   descuento/propina cargado en Ajustes, debajo. */}
-              <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.07] px-3 py-2">
-                <span className="flex items-center gap-2 text-sm font-bold text-white">
-                  <Receipt className="size-4 text-emerald-300" /> Total a cobrar
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.07] px-3 py-1.5">
+                <span className="flex items-center gap-1.5 text-xs font-bold text-white">
+                  <Receipt className="size-3.5 text-emerald-300" /> Total a cobrar
                 </span>
-                <span className="tabular-nums text-lg font-extrabold text-white">
+                <span className="tabular-nums text-base font-extrabold text-white">
                   ${Math.round(finalTotal).toLocaleString("es-AR")}
                 </span>
               </div>
@@ -10717,14 +10720,13 @@ export function NuevaVentaTab({
                 descuento activo (promoción O manual), la propina siempre
                 aparte. Los campos quedan colapsados hasta tocar el botón —
                 nunca abiertos por default. */}
-            <div className="space-y-2 border-t border-white/10 pt-3">
-              <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70">AJUSTES DEL COBRO</p>
+            <div className="space-y-1.5 border-t border-white/10 pt-2">
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
                   onClick={() => setDiscountPanelOpen((v) => !v)}
                   className={cn(
-                    "flex items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-left text-xs font-semibold transition",
+                    "flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left text-xs font-semibold transition",
                     discountAmount > 0
                       ? "border-violet-300/35 bg-violet-400/10 text-violet-200"
                       : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground",
@@ -10734,16 +10736,16 @@ export function NuevaVentaTab({
                     <Tag className="size-3.5 shrink-0" />
                     <span className="truncate">{discountAmount > 0 ? discountLabel : "Descuento"}</span>
                   </span>
-                  <span className="shrink-0">
-                    {discountAmount > 0 ? `-$${Math.round(discountAmount).toLocaleString("es-AR")}` : "+ Agregar"}
-                  </span>
+                  {discountAmount > 0 && (
+                    <span className="shrink-0">-${Math.round(discountAmount).toLocaleString("es-AR")}</span>
+                  )}
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setTipPanelOpen((v) => !v)}
                   className={cn(
-                    "flex items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-left text-xs font-semibold transition",
+                    "flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left text-xs font-semibold transition",
                     tipAmount > 0
                       ? "border-emerald-300/35 bg-emerald-400/10 text-emerald-200"
                       : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground",
@@ -10753,9 +10755,9 @@ export function NuevaVentaTab({
                     <Gift className="size-3.5 shrink-0" />
                     <span className="truncate">Propina</span>
                   </span>
-                  <span className="shrink-0">
-                    {tipAmount > 0 ? `+$${Math.round(tipAmount).toLocaleString("es-AR")}` : "+ Agregar"}
-                  </span>
+                  {tipAmount > 0 && (
+                    <span className="shrink-0">+${Math.round(tipAmount).toLocaleString("es-AR")}</span>
+                  )}
                 </button>
               </div>
 
@@ -10932,14 +10934,14 @@ export function NuevaVentaTab({
           {paymentMode === "simple" ? (
             <>
               <div>
-                <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70 mb-2">
+                <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70 mb-1.5">
                   MÉTODO DE PAGO
                 </p>
                 {/* Ícono a la izquierda, nombre a la derecha, en una sola
                     fila — antes iban apilados (ícono arriba, nombre abajo),
                     lo que hacía cada tarjeta mucho más alta de lo
                     necesario. 2 columnas en mobile, 4 en desktop ancho. */}
-                <div className="grid grid-cols-2 xl:grid-cols-4 gap-2">
+                <div className="grid grid-cols-2 xl:grid-cols-4 gap-1.5">
                   {paymentOptions.map((m) => {
                     const active = method === m.id;
                     return (
@@ -10947,7 +10949,7 @@ export function NuevaVentaTab({
                         key={m.id}
                         onClick={() => setMethod(m.id as PayMethod)}
                         className={cn(
-                          "flex items-center gap-2.5 rounded-xl border px-3 py-2 text-left transition-all duration-200 shadow-[0_18px_50px_-34px_rgba(0,0,0,1)]",
+                          "flex items-center gap-2 rounded-xl border px-2.5 py-1.5 text-left transition-all duration-200 shadow-[0_18px_50px_-34px_rgba(0,0,0,1)]",
                           active
                             ? "border-blue-300/48 bg-[linear-gradient(135deg,rgba(37,99,235,0.22),rgba(8,11,20,0.94))] text-white ring-1 ring-blue-300/20 shadow-[0_0_26px_rgba(96,165,250,0.13)]"
                             : "border-white/[0.065] bg-[linear-gradient(135deg,rgba(8,11,20,0.92),rgba(2,6,23,0.90))] text-muted-foreground hover:border-white/[0.12] hover:bg-white/[0.045] hover:text-foreground",
@@ -10963,13 +10965,13 @@ export function NuevaVentaTab({
                 </div>
               </div>
               {method === "cash" && (
-                <div className="rounded-2xl border border-blue-300/35 bg-[linear-gradient(135deg,rgba(37,99,235,0.16),rgba(8,11,20,0.96),rgba(2,4,12,0.98))] p-3 shadow-[0_0_34px_rgba(96,165,250,0.14),0_18px_55px_-34px_rgba(0,0,0,1)]">
+                <div className="rounded-2xl border border-blue-300/35 bg-[linear-gradient(135deg,rgba(37,99,235,0.16),rgba(8,11,20,0.96),rgba(2,4,12,0.98))] p-2.5 shadow-[0_0_34px_rgba(96,165,250,0.14),0_18px_55px_-34px_rgba(0,0,0,1)]">
                   <label className="block">
-                    <span className="mb-1.5 block text-xs font-bold uppercase tracking-[0.18em] text-blue-200/85">
+                    <span className="mb-1 block text-xs font-bold uppercase tracking-[0.18em] text-blue-200/85">
                       Monto recibido
                     </span>
                     <div className="relative">
-                      <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-lg font-bold text-white/55">
+                      <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-base font-bold text-white/55">
                         $
                       </span>
                       <input
@@ -10977,12 +10979,12 @@ export function NuevaVentaTab({
                         onChange={(e) => setReceived(e.target.value)}
                         inputMode="numeric"
                         placeholder="0"
-                        className="h-12 w-full rounded-xl border border-blue-300/30 bg-black/45 pl-9 pr-4 text-xl font-extrabold tabular-nums text-white outline-none placeholder:text-white/30 focus:border-blue-300/65 focus:ring-2 focus:ring-blue-400/20"
+                        className="h-10 w-full rounded-xl border border-blue-300/30 bg-black/45 pl-8 pr-4 text-lg font-extrabold tabular-nums text-white outline-none placeholder:text-white/30 focus:border-blue-300/65 focus:ring-2 focus:ring-blue-400/20"
                       />
                     </div>
                   </label>
                   {receivedNumber > 0 && (
-                    <div className="mt-2 flex items-center justify-end">
+                    <div className="mt-1.5 flex items-center justify-end">
                       {/* "Entregado" y el texto explicativo eran
                           redundantes — el monto recibido ya se lee arriba.
                           Lo único útil acá es el resultado, bien visible:
