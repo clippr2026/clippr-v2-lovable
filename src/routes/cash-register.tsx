@@ -53,6 +53,9 @@ import {
   Info,
   Tag,
   Gift,
+  User,
+  Users,
+  Receipt,
 } from "lucide-react";
 import { useClientesConfig } from "@/hooks/use-clientes-config";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
@@ -10562,53 +10565,95 @@ export function NuevaVentaTab({
       )}
 
       {step === 4 && (
-        <Card className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain rounded-3xl p-3.5 pt-3 space-y-3 border-white/[0.075] bg-[radial-gradient(circle_at_16%_0%,rgba(59,130,246,0.10),transparent_34%),radial-gradient(circle_at_90%_0%,rgba(139,92,246,0.12),transparent_40%),linear-gradient(135deg,rgba(3,6,14,0.98),rgba(8,9,22,0.96),rgba(1,3,10,0.99))] shadow-[0_38px_110px_-62px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.62)]">
-          {/* Resumen arriba de todo — lo primero que se ve al entrar al
-              Paso 4, antes de configurar el pago: qué se está cobrando
-              (profesional/cliente/servicio/precio), después Ajustes
-              (descuento/propina, mismo card) y recién más abajo cómo se
-              paga. "Total a cobrar" final vive solo al pie, junto a
-              COBRAR — acá no se repite. */}
-          <Card className="rounded-2xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(2,4,10,0.98),rgba(5,8,18,0.97),rgba(1,3,9,0.99))] px-4 py-3 space-y-3 shadow-[0_20px_60px_-40px_rgba(0,0,0,0.9)]">
-            {/* Resumen: una fila por dato, nunca dos compitiendo por ancho
-                en la misma línea — eso era lo que cortaba "Profesional"/
-                "Cliente" en pantallas angostas. */}
-            <div className="space-y-1 text-sm">
-              {!lockedEmployeeId && (
-                <p className="text-white">
-                  <span className="text-white/45">Profesional: </span>
-                  <span className="font-semibold">{selectedEmployee?.name ?? "—"}</span>
-                </p>
+        <Card className="relative z-10 flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain rounded-3xl p-3.5 pt-0 space-y-3 border-white/[0.075] bg-[radial-gradient(circle_at_16%_0%,rgba(59,130,246,0.10),transparent_34%),radial-gradient(circle_at_90%_0%,rgba(139,92,246,0.12),transparent_40%),linear-gradient(135deg,rgba(3,6,14,0.98),rgba(8,9,22,0.96),rgba(1,3,10,0.99))] shadow-[0_38px_110px_-62px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.62)]">
+          {/* Barra de punta a punta pegada al borde superior del módulo
+              (márgenes negativos cancelan el padding del Card) — recta,
+              sin puntas redondeadas propias salvo las que hacen juego con
+              las esquinas superiores del Card. Arriba de todo, como en la
+              referencia: primero se elige simple/múltiple, después se ve
+              el resumen del cobro. */}
+          <div className="sticky top-0 z-10 -mx-3.5 grid shrink-0 grid-cols-2 rounded-t-3xl border-b border-white/[0.07] bg-black/50 backdrop-blur-sm">
+            <button
+              onClick={() => setPaymentMode("simple")}
+              className={cn(
+                "py-2 text-sm font-semibold first:rounded-tl-3xl",
+                paymentMode === "simple"
+                  ? "bg-[linear-gradient(135deg,rgba(96,165,250,0.55),rgba(139,92,246,0.62))] text-white"
+                  : "text-muted-foreground hover:text-foreground",
               )}
-              <p className="text-white">
-                <span className="text-white/45">Cliente: </span>
-                <span className="font-semibold">{client || "Cliente seleccionado"}</span>
-              </p>
+            >
+              Pago simple
+            </button>
+            <button
+              onClick={() => setPaymentMode("multiple")}
+              className={cn(
+                "py-2 text-sm font-semibold last:rounded-tr-3xl",
+                paymentMode === "multiple"
+                  ? "bg-[linear-gradient(135deg,rgba(96,165,250,0.55),rgba(139,92,246,0.62))] text-white"
+                  : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              Pago múltiple
+            </button>
+          </div>
+
+          <div className="space-y-3 pt-3">
+          {/* Resumen arriba de todo — lo primero que se ve al entrar al
+              Paso 4, antes de configurar el pago: profesional/cliente,
+              servicio con precio de lista tachado + precio en efectivo, y
+              Total a cobrar (reactivo, adentro de esta misma tarjeta — no
+              aislado más abajo). Después Ajustes (descuento/propina,
+              mismo card) y recién debajo cómo se paga. */}
+          <Card className="rounded-2xl border-white/[0.075] bg-[linear-gradient(135deg,rgba(2,4,10,0.98),rgba(5,8,18,0.97),rgba(1,3,9,0.99))] px-4 py-3 space-y-3 shadow-[0_20px_60px_-40px_rgba(0,0,0,0.9)]">
+            <div className="space-y-2">
+              <div className={cn("grid gap-x-3 gap-y-1.5", !lockedEmployeeId ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1")}>
+                {!lockedEmployeeId && (
+                  <div className="flex min-w-0 items-center gap-2 text-sm">
+                    <User className="size-4 shrink-0 text-white/35" />
+                    <span className="min-w-0 truncate text-white">
+                      <span className="text-white/45">Profesional: </span>
+                      <span className="font-semibold">{selectedEmployee?.name ?? "—"}</span>
+                    </span>
+                  </div>
+                )}
+                <div className="flex min-w-0 items-center gap-2 text-sm">
+                  <Users className="size-4 shrink-0 text-white/35" />
+                  <span className="min-w-0 truncate text-white">
+                    <span className="text-white/45">Cliente: </span>
+                    <span className="font-semibold">{client || "Cliente seleccionado"}</span>
+                  </span>
+                </div>
+              </div>
+
               {cartItems.length === 1 ? (
-                <>
-                  <p className="text-white">
-                    <span className="text-white/45">Servicio: </span>
-                    <span className="font-semibold">{cartItems[0].svc.name}</span>
-                  </p>
-                  <p className="text-white">
-                    <span className="text-white/45">Precio: </span>
+                <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-2 text-sm">
+                  <span className="flex min-w-0 items-center gap-2 text-white">
+                    <Scissors className="size-4 shrink-0 text-white/35" />
+                    <span className="min-w-0 truncate">
+                      <span className="text-white/45">Servicio: </span>
+                      <span className="font-semibold">{cartItems[0].svc.name}</span>
+                    </span>
+                  </span>
+                  <span className="shrink-0 tabular-nums">
                     {listTotal !== total ? (
                       <>
                         <span className="text-white/30 line-through">
                           ${Math.round(listTotal).toLocaleString("es-AR")}
                         </span>{" "}
-                        <span className="font-semibold text-emerald-300">
+                        <span className="font-bold text-emerald-300">
                           ${Math.round(total).toLocaleString("es-AR")}
                         </span>
                       </>
                     ) : (
-                      <span className="font-semibold">${Math.round(total).toLocaleString("es-AR")}</span>
+                      <span className="font-bold text-white">${Math.round(total).toLocaleString("es-AR")}</span>
                     )}
-                  </p>
-                </>
+                  </span>
+                </div>
               ) : cartItems.length > 1 ? (
-                <div className="space-y-1 pt-0.5">
-                  <p className="text-white/45">Servicios:</p>
+                <div className="space-y-1 border-t border-white/10 pt-2">
+                  <p className="flex items-center gap-2 text-xs text-white/45">
+                    <Scissors className="size-3.5 shrink-0" /> Servicios
+                  </p>
                   {(summaryExpanded ? cartItems : cartItems.slice(0, 2)).map(({ svc, qty }) => {
                     const showCashPrice = isCashMethod && svc.cashPrice != null;
                     return (
@@ -10645,75 +10690,100 @@ export function NuevaVentaTab({
                   )}
                 </div>
               ) : null}
+
+              {/* Total a cobrar — DENTRO de la tarjeta de resumen, con más
+                  jerarquía visual que el resto de las filas (fondo propio,
+                  texto más grande). Reactivo: ya incluye cualquier
+                  descuento/propina cargado en Ajustes, debajo. */}
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.07] px-3 py-2">
+                <span className="flex items-center gap-2 text-sm font-bold text-white">
+                  <Receipt className="size-4 text-emerald-300" /> Total a cobrar
+                </span>
+                <span className="tabular-nums text-lg font-extrabold text-white">
+                  ${Math.round(finalTotal).toLocaleString("es-AR")}
+                </span>
+              </div>
             </div>
 
-            {/* Ajustes: descuento y propina, dentro del MISMO card que el
-                resumen — se sienten parte de "qué estoy cobrando", no
-                flotando sin contexto aparte. Acá y no en el Paso 3: recién
-                elegido método de pago tiene sentido ajustar el cobro (el
-                descuento manual se calcula sobre el precio YA resuelto
-                según método, ver "total"). Compartido entre Pago simple y
-                Pago múltiple (vive antes de la barra de tabs), así el
-                monto a conciliar (finalTotal) ya los incluye antes de que
-                se cargue el monto recibido o los splits. Un solo
+            {/* Ajustes del cobro: descuento y propina, dentro del MISMO
+                card que el resumen — se sienten parte de "qué estoy
+                cobrando", no flotando sin contexto aparte. Acá y no en el
+                Paso 3: recién elegido método de pago tiene sentido ajustar
+                el cobro (el descuento manual se calcula sobre el precio YA
+                resuelto según método, ver "total"). Compartido entre Pago
+                simple y Pago múltiple (vive antes de la barra de tabs), así
+                el monto a conciliar (finalTotal) ya los incluye antes de
+                que se cargue el monto recibido o los splits. Un solo
                 descuento activo (promoción O manual), la propina siempre
                 aparte. Los campos quedan colapsados hasta tocar el botón —
                 nunca abiertos por default. */}
             <div className="space-y-2 border-t border-white/10 pt-3">
-              <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setDiscountPanelOpen((v) => !v)}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition",
-                  discountAmount > 0
-                    ? "border-violet-300/35 bg-violet-400/10 text-violet-200"
-                    : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground",
-                )}
-              >
-                <Tag className="size-3.5" />
-                {discountAmount > 0
-                  ? `${discountLabel}: -$${Math.round(discountAmount).toLocaleString("es-AR")}`
-                  : "Agregar descuento"}
-              </button>
-              {discountAmount > 0 && (
+              <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70">AJUSTES DEL COBRO</p>
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    setPromotionId("");
-                    setManualDiscountAmount("");
-                  }}
-                  aria-label="Quitar descuento"
-                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => setDiscountPanelOpen((v) => !v)}
+                  className={cn(
+                    "flex items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-left text-xs font-semibold transition",
+                    discountAmount > 0
+                      ? "border-violet-300/35 bg-violet-400/10 text-violet-200"
+                      : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground",
+                  )}
                 >
-                  <X className="size-3.5" />
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <Tag className="size-3.5 shrink-0" />
+                    <span className="truncate">{discountAmount > 0 ? discountLabel : "Descuento"}</span>
+                  </span>
+                  <span className="shrink-0">
+                    {discountAmount > 0 ? `-$${Math.round(discountAmount).toLocaleString("es-AR")}` : "+ Agregar"}
+                  </span>
                 </button>
-              )}
 
-              <button
-                type="button"
-                onClick={() => setTipPanelOpen((v) => !v)}
-                className={cn(
-                  "inline-flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-xs font-semibold transition",
-                  tipAmount > 0
-                    ? "border-emerald-300/35 bg-emerald-400/10 text-emerald-200"
-                    : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground",
-                )}
-              >
-                <Gift className="size-3.5" />
-                {tipAmount > 0 ? `Propina: +$${Math.round(tipAmount).toLocaleString("es-AR")}` : "Agregar propina"}
-              </button>
-              {tipAmount > 0 && (
                 <button
                   type="button"
-                  onClick={() => setTipAmountInput("")}
-                  aria-label="Quitar propina"
-                  className="text-muted-foreground hover:text-foreground"
+                  onClick={() => setTipPanelOpen((v) => !v)}
+                  className={cn(
+                    "flex items-center justify-between gap-2 rounded-xl border px-3 py-2.5 text-left text-xs font-semibold transition",
+                    tipAmount > 0
+                      ? "border-emerald-300/35 bg-emerald-400/10 text-emerald-200"
+                      : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground",
+                  )}
                 >
-                  <X className="size-3.5" />
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    <Gift className="size-3.5 shrink-0" />
+                    <span className="truncate">Propina</span>
+                  </span>
+                  <span className="shrink-0">
+                    {tipAmount > 0 ? `+$${Math.round(tipAmount).toLocaleString("es-AR")}` : "+ Agregar"}
+                  </span>
                 </button>
+              </div>
+
+              {(discountAmount > 0 || tipAmount > 0) && (
+                <div className="flex flex-wrap gap-x-4 gap-y-1 px-1 text-[11px]">
+                  {discountAmount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPromotionId("");
+                        setManualDiscountAmount("");
+                      }}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      Quitar descuento
+                    </button>
+                  )}
+                  {tipAmount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setTipAmountInput("")}
+                      className="text-muted-foreground hover:text-foreground"
+                    >
+                      Quitar propina
+                    </button>
+                  )}
+                </div>
               )}
-            </div>
 
             {discountPanelOpen && (
               <div className="space-y-2 rounded-xl border border-white/10 bg-black/20 p-3">
@@ -10859,31 +10929,6 @@ export function NuevaVentaTab({
           </div>
           </Card>
 
-          <div className="-mx-3.5 grid shrink-0 grid-cols-2 border-y border-white/[0.07] bg-black/50">
-            <button
-              onClick={() => setPaymentMode("simple")}
-              className={cn(
-                "py-2 text-sm font-semibold",
-                paymentMode === "simple"
-                  ? "bg-[linear-gradient(135deg,rgba(96,165,250,0.55),rgba(139,92,246,0.62))] text-white"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              Pago simple
-            </button>
-            <button
-              onClick={() => setPaymentMode("multiple")}
-              className={cn(
-                "py-2 text-sm font-semibold",
-                paymentMode === "multiple"
-                  ? "bg-[linear-gradient(135deg,rgba(96,165,250,0.55),rgba(139,92,246,0.62))] text-white"
-                  : "text-muted-foreground hover:text-foreground",
-              )}
-            >
-              Pago múltiple
-            </button>
-          </div>
-
           {paymentMode === "simple" ? (
             <>
               <div>
@@ -10965,22 +11010,13 @@ export function NuevaVentaTab({
               total={finalTotal}
             />
           )}
+          </div>
         </Card>
       )}
 
       <div className="relative z-20 mt-auto shrink-0 space-y-3 pt-3 pb-4">
-        {/* Solo el total, pegado a Volver/COBRAR como última confirmación —
-            Profesional/Cliente/Servicio ya se muestran una sola vez, arriba
-            del todo en el Paso 4 (no se duplican acá). */}
-        {step === 4 && (
-          <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/[0.075] bg-[linear-gradient(135deg,rgba(2,4,10,0.98),rgba(5,8,18,0.97),rgba(1,3,9,0.99))] px-4 py-2.5 shadow-[0_36px_110px_-52px_rgba(0,0,0,1),0_0_60px_-40px_rgba(139,92,246,0.60)]">
-            <span className="text-sm font-extrabold text-white">Total a cobrar</span>
-            <span className="tabular-nums text-lg font-extrabold text-white">
-              ${Math.round(finalTotal).toLocaleString("es-AR")}
-            </span>
-          </div>
-        )}
-
+        {/* "Total a cobrar" ya vive dentro de la tarjeta de resumen, arriba
+            del todo en el Paso 4 — no se repite acá abajo. */}
         <div className="flex items-stretch gap-2">
           {/* Volver/Cancelar — siempre montado (nunca se saca del DOM) para
               que Continuar no se corra de lugar al llegar al primer paso:
