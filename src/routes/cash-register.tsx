@@ -2499,14 +2499,17 @@ function InventarioTab({
   const [adjustQty, setAdjustQty] = React.useState("");
   const [adjustNote, setAdjustNote] = React.useState("");
   // Flujo nuevo de "Retirar stock" (direction === "out" únicamente):
-  // withdrawWho = id de employees, o el sentinel "__other__" (persona/
-  // motivo libre, ej. Invitado/Proveedor/Limpieza). withdrawMode: cómo se
-  // resuelve ese consumo — "pay" genera un ingreso real en Caja, "advance"
-  // un adelanto al profesional (sistema existente de Liquidaciones, no una
-  // lógica paralela), "courtesy" no mueve plata en ningún lado.
+  // withdrawWho = id de employees, o el sentinel "__other__" (sin texto
+  // libre — un profesional real siempre va por su nombre; cualquier otro
+  // caso, incluido un ajuste de stock sin persona, va por "Otro").
+  // withdrawMode: cómo se resuelve ese consumo — "pay" genera un ingreso
+  // real en Caja, "advance" un adelanto al profesional (sistema existente
+  // de Liquidaciones, no una lógica paralela, solo disponible con un
+  // profesional real), "courtesy" no mueve plata en ningún lado, "adjust"
+  // (solo con "Otro") es un ajuste de inventario puro — ni ingreso, ni
+  // adelanto, ni cliente/profesional asociado.
   const [withdrawWho, setWithdrawWho] = React.useState("");
-  const [withdrawOtherLabel, setWithdrawOtherLabel] = React.useState("");
-  const [withdrawMode, setWithdrawMode] = React.useState<"pay" | "advance" | "courtesy" | "">("");
+  const [withdrawMode, setWithdrawMode] = React.useState<"pay" | "advance" | "courtesy" | "adjust" | "">("");
   const [withdrawPayMethod, setWithdrawPayMethod] = React.useState<"cash" | "transfer" | "">("");
   const INVENTORY_MOVEMENTS_KEY = "clippr_inventory_movements_v1";
 
@@ -2668,7 +2671,7 @@ function InventarioTab({
     // persona/motivo) — el resto de los movimientos (ingresos, ventas,
     // ajustes viejos) los deja undefined.
     withdrawnBy?: string | null;
-    withdrawnKind?: "pagado" | "adelanto" | "cortesia" | null;
+    withdrawnKind?: "pagado" | "adelanto" | "cortesia" | "ajuste" | null;
     withdrawnMethod?: "cash" | "transfer" | null;
     unitPrice?: number | null;
   };
@@ -2763,7 +2766,7 @@ function InventarioTab({
         ? "border-violet-300/45 bg-violet-400/14 text-violet-100 ring-1 ring-violet-300/20"
         : "border-white/10 bg-white/[0.035] text-white/65 hover:border-white/20 hover:text-white",
     );
-  const withdrawModeClass = (active: boolean, tone: "emerald" | "amber" | "sky") =>
+  const withdrawModeClass = (active: boolean, tone: "emerald" | "amber" | "sky" | "slate") =>
     cn(
       "flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm font-bold transition",
       active
@@ -2771,6 +2774,7 @@ function InventarioTab({
             emerald: "border-emerald-300/45 bg-emerald-400/14 text-emerald-100 ring-1 ring-emerald-300/20",
             amber: "border-amber-300/45 bg-amber-400/14 text-amber-100 ring-1 ring-amber-300/20",
             sky: "border-sky-300/45 bg-sky-400/14 text-sky-100 ring-1 ring-sky-300/20",
+            slate: "border-white/25 bg-white/[0.09] text-white ring-1 ring-white/15",
           }[tone]
         : "border-white/10 bg-white/[0.035] text-white/65 hover:border-white/20 hover:text-white",
     );
@@ -2783,7 +2787,6 @@ function InventarioTab({
     setAdjustQty(direction === "out" ? "1" : "");
     setAdjustNote("");
     setWithdrawWho("");
-    setWithdrawOtherLabel("");
     setWithdrawMode("");
     setWithdrawPayMethod("");
   }
@@ -2826,7 +2829,6 @@ function InventarioTab({
     setAdjustQty("");
     setAdjustNote("");
     setWithdrawWho("");
-    setWithdrawOtherLabel("");
     setWithdrawMode("");
     setWithdrawPayMethod("");
   }
@@ -2919,10 +2921,6 @@ function InventarioTab({
       return;
     }
     const isOther = withdrawWho === "__other__";
-    if (isOther && !withdrawOtherLabel.trim()) {
-      toast.error("Ingresá un nombre o motivo");
-      return;
-    }
     if (!withdrawMode) {
       toast.error("Elegí cómo se registra el retiro");
       return;
@@ -2934,11 +2932,20 @@ function InventarioTab({
 
     const nextStock = currentStock - qty;
     const employee = isOther ? null : (data.employees.find((e) => e.id === withdrawWho) ?? null);
-    const whoLabel = isOther ? withdrawOtherLabel.trim() : (employee?.name ?? "—");
+    // "Otro" ya no tiene texto libre — el label es literalmente "Otro".
+    // "Ajuste de stock" (solo con "Otro") no se asocia a nadie: sin
+    // whoLabel, sin cliente, sin profesional.
+    const whoLabel = withdrawMode === "adjust" ? null : isOther ? "Otro" : (employee?.name ?? "—");
     const unitPrice = Number(item.price ?? item.cash_discount ?? 0) || 0;
     const totalAmount = unitPrice * qty;
-    const kind: "pagado" | "adelanto" | "cortesia" =
-      withdrawMode === "pay" ? "pagado" : withdrawMode === "advance" ? "adelanto" : "cortesia";
+    const kind: "pagado" | "adelanto" | "cortesia" | "ajuste" =
+      withdrawMode === "pay"
+        ? "pagado"
+        : withdrawMode === "advance"
+          ? "adelanto"
+          : withdrawMode === "adjust"
+            ? "ajuste"
+            : "cortesia";
 
     setAdjustingId(id);
     try {
@@ -2995,7 +3002,9 @@ function InventarioTab({
         );
         if (advanceError) throw advanceError;
       }
-      // "courtesy": no genera ingreso ni adelanto — solo stock + movimiento.
+      // "courtesy"/"adjust": no genera ingreso ni adelanto — solo stock +
+      // movimiento. "adjust" además nunca pasa por acá con whoLabel: no
+      // se asocia a cliente ni profesional en ningún lado.
 
       // 2. Stock.
       await persistCatalogStock(id, nextStock);
@@ -3123,6 +3132,7 @@ function InventarioTab({
     if (movement.withdrawnKind === "pagado") return `Pagado (${method})`;
     if (movement.withdrawnKind === "adelanto") return "Adelanto";
     if (movement.withdrawnKind === "cortesia") return "Cortesía";
+    if (movement.withdrawnKind === "ajuste") return "Ajuste de stock";
     return null;
   };
   const withdrawKindClass = (kind: InventoryMovement["withdrawnKind"]) =>
@@ -3130,7 +3140,9 @@ function InventarioTab({
       ? "bg-emerald-400/12 text-emerald-300 ring-emerald-400/22"
       : kind === "adelanto"
         ? "bg-amber-400/12 text-amber-300 ring-amber-400/22"
-        : "bg-sky-400/12 text-sky-300 ring-sky-400/22";
+        : kind === "ajuste"
+          ? "bg-white/10 text-white/60 ring-white/15"
+          : "bg-sky-400/12 text-sky-300 ring-sky-400/22";
 
   return (
     <div className="mt-3 grid h-auto grid-cols-1 gap-5 overflow-visible pb-6 xl:grid-cols-2 sm:-mt-5 sm:h-[calc(100vh-270px)] sm:min-h-[470px] sm:overflow-hidden">
@@ -3589,8 +3601,10 @@ function InventarioTab({
                     <>
                       {/* Quién retira: gente real de Equipo (data.employees,
                           sin opciones genéricas como "Recepción") + "Otro"
-                          al final, para casos sin persona/liquidación
-                          asociada (invitado, proveedor, limpieza, rotura). */}
+                          al final — sin texto libre: "Otro" alcanza para
+                          cubrir cualquier caso sin persona/liquidación
+                          asociada (invitado, proveedor, limpieza, o un
+                          ajuste de stock puro vía "Cómo se registra"). */}
                       <div>
                         <label className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
                           Quién retira
@@ -3620,24 +3634,20 @@ function InventarioTab({
                             Otro
                           </button>
                         </div>
-                        {withdrawWho === "__other__" && (
-                          <input
-                            value={withdrawOtherLabel}
-                            onChange={(event) => setWithdrawOtherLabel(event.target.value)}
-                            placeholder="Nombre o motivo (invitado, proveedor, limpieza…)"
-                            className="mt-2 h-11 w-full rounded-2xl border border-white/10 bg-white/[0.035] px-4 text-base text-white outline-none placeholder:text-white/35 focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
-                          />
-                        )}
                       </div>
 
                       {/* Cómo se registra: recién visible con "quién"
-                          resuelto (persona elegida, u "Otro" con su texto ya
-                          cargado) — progresivo, no todo junto. Sin adelanto
-                          para "Otro": no hay profesional/liquidación a la
-                          que asociarlo. El total ($unitPrice × cantidad) se
-                          ve siempre, tachado en Cortesía para dejar
-                          registrado cuánto valía sin cobrarlo. */}
-                      {withdrawWho && (withdrawWho !== "__other__" || withdrawOtherLabel.trim()) && (
+                          elegido — progresivo, no todo junto. Con "Otro":
+                          Pagar ahora / Cortesía / Ajuste de stock (nunca
+                          Adelanto, no hay profesional/liquidación a la que
+                          asociarlo). Con un profesional real: Pagar ahora /
+                          Anotar como adelanto / Cortesía (nunca Ajuste de
+                          stock, ese caso siempre es "Otro"). El total
+                          ($unitPrice × cantidad) se ve en todas salvo
+                          Ajuste de stock (no es una transacción de valor),
+                          tachado en Cortesía para dejar registrado cuánto
+                          valía sin cobrarlo. */}
+                      {withdrawWho && (
                         <div>
                           <label className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
                             ¿Cómo se registra?
@@ -3669,6 +3679,15 @@ function InventarioTab({
                               <span>Cortesía</span>
                               <span className="tabular-nums text-white/40 line-through">{fmtTotal}</span>
                             </button>
+                            {withdrawWho === "__other__" && (
+                              <button
+                                type="button"
+                                onClick={() => setWithdrawMode("adjust")}
+                                className={withdrawModeClass(withdrawMode === "adjust", "slate")}
+                              >
+                                <span>Ajuste de stock</span>
+                              </button>
+                            )}
                           </div>
                         </div>
                       )}
@@ -3736,7 +3755,6 @@ function InventarioTab({
                       Boolean(adjustingId) ||
                       (isOut &&
                         (!withdrawWho ||
-                          (withdrawWho === "__other__" && !withdrawOtherLabel.trim()) ||
                           !withdrawMode ||
                           (withdrawMode === "pay" && !withdrawPayMethod)))
                     }
