@@ -101,12 +101,13 @@ const STOCK_WITHDRAWAL_NOTE_MARKER = "[[STOCK_WITHDRAWAL]]";
 // Selector de métodos de pago de Nueva venta/Pago múltiple — fijo, a nivel
 // de módulo (nunca cambia entre renders, no depende de ningún prop/state,
 // no hace falta useMemo). Ya no depende de business_settings.schedule.
-// _caja.methods (esa configuración se sacó de Configuración > Caja por
-// completo, ver caja-section.tsx). Fila 1: Efectivo/Transferencia. Fila
-// 2: Débito/Crédito/QR — tres métodos independientes (antes "Tarjeta
-// débito/crédito" combinada + Mercado Pago), cada uno con su propio
-// PayMethod (register-payment.ts) para poder tener a futuro su propia
-// comisión/configuración.
+// _caja.methods — esa configuración se sacó por completo, junto con la
+// sección "Caja" de Configuración (que solo existía para esos switches;
+// ver settings.tsx, grupo "Sistema"). Fila 1: Efectivo/Transferencia.
+// Fila 2: Débito/Crédito/QR — tres métodos independientes (antes
+// "Tarjeta débito/crédito" combinada + Mercado Pago), cada uno con su
+// propio PayMethod (register-payment.ts) para poder tener a futuro su
+// propia comisión/configuración.
 const PAYMENT_OPTIONS = [
   { id: "cash", label: "Efectivo", icon: Banknote },
   { id: "transfer", label: "Transferencia", icon: Smartphone },

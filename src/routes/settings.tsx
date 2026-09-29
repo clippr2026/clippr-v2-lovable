@@ -27,11 +27,7 @@ import {
   Instagram,
   GripVertical,
   Zap,
-  Banknote,
-  Landmark,
   CreditCard,
-  Wallet,
-  PiggyBank,
   Rocket,
   Sparkles,
   ChevronRight,
@@ -67,7 +63,6 @@ import { EquipoSection } from "@/components/settings/equipo-section";
 import { ServiciosSection, CatalogoSection } from "@/components/settings/price-catalog-section";
 import { PromotionsSection } from "@/components/settings/promotions-section";
 import { CuentaSection } from "@/components/settings/cuenta-section";
-import { CajaSection } from "@/components/settings/caja-section";
 import { PlanSection } from "@/components/settings/plan-section";
 import {
   SectionCard,
@@ -92,7 +87,6 @@ type SectionId =
   | "servicios"
   | "catalogo"
   | "promociones"
-  | "caja"
   | "cuenta"
   | "plan";
 
@@ -160,13 +154,6 @@ const groups: { label: string; items: NavItem[] }[] = [
   {
     label: "Sistema",
     items: [
-      {
-        id: "caja" as const,
-        label: "Caja",
-        icon: Banknote,
-        tint: "text-[oklch(0.80_0.18_45)]",
-        glow: "from-[oklch(0.80_0.18_45/0.25)] to-[oklch(0.75_0.2_35/0.05)]",
-      },
       {
         id: "cuenta" as const,
         label: "Cuenta",
@@ -406,7 +393,6 @@ function SettingsPage() {
                 {active === "catalogo" && <CatalogoSection />}
                 {active === "promociones" && <PromotionsSection />}
                 {active === "cuenta" && <CuentaSection />}
-                {active === "caja" && <CajaSection />}
                 {active === "plan" && <PlanSection />}
               </section>
             </div>
