@@ -2933,11 +2933,18 @@ function InventarioTab({
       if (withdrawMode === "pay") {
         await registerPayment({
           businessId: data.businessId,
-          // Nunca el empleado que retira: esto es un producto que se
-          // lleva, no un servicio que prestó — asignarle employeeId acá
-          // generaría una comisión sobre su propio consumo.
-          employeeId: null,
-          clientName: whoLabel || "Cliente del mostrador",
+          // Profesional real → va en employeeId (columna real de
+          // trazabilidad), nunca en clientName — así "Últimos ingresos"
+          // lo muestra en Profesional, con Cliente en "—", en vez de
+          // aparecer como si fuera un cliente que compró. "Otro" (sin
+          // employees.id real) sigue yendo en clientName, como antes.
+          //
+          // Sin employeeCommissions/commissionPct/commissionFixed: aunque
+          // employeeId quede seteado, computeCommissionAmount no tiene con
+          // qué calcular nada (cae a 0 en todos los casos) — no genera
+          // comisión sobre su propio consumo.
+          employeeId: isOther ? null : withdrawWho,
+          clientName: isOther ? whoLabel || "Cliente del mostrador" : null,
           items: [
             {
               serviceId: id,
@@ -7977,7 +7984,7 @@ function DetailModal({
   async function handleDelete() {
     if (deleting) return;
     const confirmed = window.confirm(
-      `¿Eliminar este cobro de ${payment.client_name ?? "cliente"} por $${totalCobrado.toLocaleString("es-AR")}? No se puede deshacer: se borra el pago junto con su comisión y su propina asociadas.`,
+      `¿Eliminar este cobro de ${payment.client_name ?? empName ?? "cliente"} por $${totalCobrado.toLocaleString("es-AR")}? No se puede deshacer: se borra el pago junto con su comisión y su propina asociadas.`,
     );
     if (!confirmed) return;
     setDeleting(true);
@@ -8060,7 +8067,10 @@ function DetailModal({
               <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">
                 Retiro
               </p>
-              <Row label="Retiró" value={payment.client_name ?? "—"} />
+              {/* Profesional real: client_name queda null a propósito
+                  (ver register-payment.ts), el nombre sale de empName vía
+                  employee_id. "Otro": sigue en client_name, como antes. */}
+              <Row label="Retiró" value={payment.client_name ?? empName ?? "—"} />
             </div>
 
             <div className="mt-2 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3 space-y-0">

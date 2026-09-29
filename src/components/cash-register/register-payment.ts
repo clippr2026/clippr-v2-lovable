@@ -44,7 +44,13 @@ export type RegisterPaymentInput = {
   businessId: string;
   employeeId?: string | null;
   employeeName?: string | null;
-  clientName: string;
+  // null explícito (no "" ni undefined) = sin cliente real, no
+  // defaultear a "Cliente del mostrador" — caso de un profesional que
+  // retira/compra stock para sí mismo (Inventario → Retirar stock): va
+  // en employeeId, nunca en clientName. payments.client_name ya es
+  // nullable (el resto de la app lo lee con "?? \"—\""), así que esto no
+  // rompe ninguna consulta existente.
+  clientName: string | null;
   clientId?: string | null;
   items: RegisterPaymentItem[];
   method: PayMethod;
@@ -158,7 +164,7 @@ export async function registerPayment(input: RegisterPaymentInput) {
     // por client_name (texto), perdiendo/mezclando historial ante
     // homónimos o nombres editados después de cobrar.
     client_id: input.clientId ?? null,
-    client_name: input.clientName || "Cliente del mostrador",
+    client_name: input.clientName === null ? null : input.clientName || "Cliente del mostrador",
     service_name: saleSummary,
     amount: total,
     total,
