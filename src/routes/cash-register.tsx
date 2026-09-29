@@ -1426,7 +1426,16 @@ function ResumenTab({
                     {s.label}
                   </p>
                   <div className="mt-0.5 sm:mt-1">
-                    <Money value={Number(s.value)} large />
+                    {/* Skeleton en vez de "$0": data.loading solo es true
+                        en la carga inicial sin cache todavía (ver
+                        useCajaData) — mostrar $0/"0 cobros hoy" ahí hacía
+                        parecer que realmente no había movimientos, para
+                        recién un instante después saltar al valor real. */}
+                    {data.loading ? (
+                      <div className="h-6 w-20 animate-pulse rounded-lg bg-white/[0.08] sm:h-8 sm:w-28" />
+                    ) : (
+                      <Money value={Number(s.value)} large />
+                    )}
                   </div>
                   <div
                     className={cn(
@@ -1434,8 +1443,14 @@ function ResumenTab({
                       isActive ? s.chipClass : "bg-white/[0.045] text-white/70 ring-white/10",
                     )}
                   >
-                    <span className="size-1 sm:size-1.5 rounded-full bg-current" />
-                    {s.sub}
+                    {data.loading ? (
+                      <span className="h-2.5 w-16 animate-pulse rounded-full bg-white/20" />
+                    ) : (
+                      <>
+                        <span className="size-1 sm:size-1.5 rounded-full bg-current" />
+                        {s.sub}
+                      </>
+                    )}
                   </div>
                 </div>
               </div>

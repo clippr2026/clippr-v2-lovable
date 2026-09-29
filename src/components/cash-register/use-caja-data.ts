@@ -272,6 +272,40 @@ function computeCajaStatus(params: {
   return "closed"; // different day
 }
 
+// Cache en memoria, a nivel de módulo (no useState/useRef: tiene que
+// sobrevivir a que este hook se desmonte y vuelva a montar, ej. salir de
+// Caja y volver) — el último snapshot completo de datos por negocio.
+// Al volver a montar, si hay un snapshot de ESTE MISMO negocio, se
+// hidrata sincrónicamente antes de lanzar la carga real (ver load() más
+// abajo), así la pantalla muestra los últimos valores conocidos al
+// instante en vez de otra vez $0/loading — la carga real sigue
+// corriendo de fondo y termina reemplazando estos valores sin parpadeo
+// (mismo mecanismo que ya usa hasLoadedRef para los refrescos silenciosos
+// dentro de un mismo montaje). Nunca se sirve el cache de OTRO negocio —
+// el chequeo `cached.businessId === businessId` de abajo lo garantiza.
+type CajaDataCache = {
+  businessId: string;
+  services: Service[];
+  employees: Employee[];
+  promotions: Promotion[];
+  paymentsToday: Payment[];
+  expensesToday: Expense[];
+  cashSessionId: string | null;
+  cajaStatus: CajaStatus;
+  pendingCount: number;
+  pendingAmount: number;
+  pendingCharges: PendingCharge[];
+  pendingCountPrevious: number;
+  pendingAmountPrevious: number;
+  pendingChargesPrevious: PendingCharge[];
+  employeeServiceOverrides: EmployeeServiceOverrideMap;
+  employeeCommissions: EmployeeCommissionMap;
+  approvalMode: ApprovalMode;
+  approvalModeEnabled: boolean;
+  paymentMethods: PaymentMethodsConfig;
+};
+let cajaDataCache: CajaDataCache | null = null;
+
 export function useCajaData() {
   const { businessId, profile } = useAuth();
   const [loading, setLoading] = React.useState(true);
@@ -337,6 +371,32 @@ export function useCajaData() {
     if (loadedBusinessIdRef.current !== businessId) {
       loadedBusinessIdRef.current = businessId;
       hasLoadedRef.current = false;
+      // Volver a Caja (o el primer montaje de este componente en la
+      // sesión) con un cache de ESTE negocio disponible: hidratar todo
+      // de una — nunca el de otro negocio, evita mostrar datos viejos
+      // ajenos aunque sea por un instante.
+      if (cajaDataCache && cajaDataCache.businessId === businessId) {
+        const cached = cajaDataCache;
+        setServices(cached.services);
+        setEmployees(cached.employees);
+        setPromotions(cached.promotions);
+        setPaymentsToday(cached.paymentsToday);
+        setExpensesToday(cached.expensesToday);
+        setCashSessionId(cached.cashSessionId);
+        setCajaStatus(cached.cajaStatus);
+        setPendingCount(cached.pendingCount);
+        setPendingAmount(cached.pendingAmount);
+        setPendingCharges(cached.pendingCharges);
+        setPendingCountPrevious(cached.pendingCountPrevious);
+        setPendingAmountPrevious(cached.pendingAmountPrevious);
+        setPendingChargesPrevious(cached.pendingChargesPrevious);
+        setEmployeeServiceOverrides(cached.employeeServiceOverrides);
+        setEmployeeCommissions(cached.employeeCommissions);
+        setApprovalModeState(cached.approvalMode);
+        setApprovalModeEnabled(cached.approvalModeEnabled);
+        setPaymentMethods(cached.paymentMethods);
+        hasLoadedRef.current = true;
+      }
     }
     const mySeq = ++loadSeqRef.current;
     if (!hasLoadedRef.current) setLoading(true);
@@ -344,6 +404,13 @@ export function useCajaData() {
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
     const dateStr = new Date().toISOString().slice(0, 10);
+
+    // Arranca ya, en paralelo con el Promise.allSettled de abajo — antes
+    // se esperaba (await) recién DESPUÉS de que todo ese batch terminara,
+    // una consulta más completamente en serie sin necesidad (no depende
+    // de ningún resultado del batch, ni el batch depende de ella). Se
+    // resuelve más abajo, justo donde antes estaba el await.
+    const sessionPromise = loadCajaSession(businessId);
 
     const [svcRes, empRes, payRes, expRes, sessRes, bsRes, cliRes, pendingChargeRes, cierresRes] = await Promise.allSettled([
       supabase
@@ -501,8 +568,9 @@ export function useCajaData() {
         : []
     );
 
-    // Session status — use loadCajaSession which checks both cash_sessions table and business_settings fallback
-    const sessionData = await loadCajaSession(businessId);
+    // Session status — se lanzó en paralelo con el batch de arriba (ver
+    // sessionPromise), acá solo se espera a que termine.
+    const sessionData = await sessionPromise;
     const sessionId = sessionData.sessionId;
     const sessionStatus = sessionData.status;
     const closedAt = sessionData.closedAt;
@@ -709,6 +777,31 @@ export function useCajaData() {
   }, [businessId]);
 
   React.useEffect(() => { load("component mount / businessId cambió"); }, [load]);
+
+  // Mantiene cajaDataCache al día con el estado actual — cualquier cambio
+  // (carga real terminada, realtime, refresh() manual) queda disponible
+  // para la próxima vez que este hook se monte con el mismo negocio. Solo
+  // después del primer load real (hasLoadedRef): nunca cachea el estado
+  // default/vacío de antes de la primera carga.
+  React.useEffect(() => {
+    if (!businessId || !hasLoadedRef.current) return;
+    cajaDataCache = {
+      businessId,
+      services, employees, promotions, paymentsToday, expensesToday,
+      cashSessionId, cajaStatus,
+      pendingCount, pendingAmount, pendingCharges,
+      pendingCountPrevious, pendingAmountPrevious, pendingChargesPrevious,
+      employeeServiceOverrides, employeeCommissions,
+      approvalMode, approvalModeEnabled, paymentMethods,
+    };
+  }, [
+    businessId, services, employees, promotions, paymentsToday, expensesToday,
+    cashSessionId, cajaStatus,
+    pendingCount, pendingAmount, pendingCharges,
+    pendingCountPrevious, pendingAmountPrevious, pendingChargesPrevious,
+    employeeServiceOverrides, employeeCommissions,
+    approvalMode, approvalModeEnabled, paymentMethods,
+  ]);
 
   React.useEffect(() => {
     const onManualPending = () => load("custom event: clippr:manual-pending-updated");
