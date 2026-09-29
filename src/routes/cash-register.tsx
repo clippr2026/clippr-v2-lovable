@@ -89,6 +89,12 @@ const HISTORIAL_KEY = "clippr_cobros_historial_v2";
 // appointment al que asociar appointments.cobro_events en ese caso, así que
 // se usa esta columna de texto libre (ya probada, sin columnas nuevas).
 const PAY_HIST_MARKER = "[[HIST]]";
+// Marca los pagos que nacen de "Retirar stock → Pagar ahora" (Caja >
+// Inventario) — ese ingreso ya se muestra con todo su detalle (quién
+// retiró, método, etc.) en "Últimos movimientos"; sin esta marca,
+// salesMovements (más abajo) lo volvía a listar ahí una segunda vez,
+// cruzándolo por nombre de producto contra data.paymentsToday.
+const STOCK_WITHDRAWAL_NOTE_MARKER = "[[STOCK_WITHDRAWAL]]";
 
 type HistorialEvento = {
   time: string;
@@ -430,6 +436,7 @@ function getManualPendingNote(notes?: string | null, serviceName?: string | null
     .replace("[PENDIENTE_CAJA]", "")
     .replace("[MANUAL_PENDING]", "")
     .replace("[ENVIADO_CAJA]", "")
+    .replace(STOCK_WITHDRAWAL_NOTE_MARKER, "")
     .trim();
 
   // Panel Profesional puede guardar: "nota real | Servicio $18.900".
@@ -914,6 +921,7 @@ function CashRegisterPage() {
             <InventarioTab
               businessId={data.businessId}
               userEmail={session.user.email ?? null}
+              chargedByName={profile?.full_name || chargedByUsername(session.user.email)}
               data={data}
             />
           )}
@@ -2433,10 +2441,12 @@ function PreciosTab({
 function InventarioTab({
   businessId: _businessId,
   userEmail,
+  chargedByName,
   data,
 }: {
   businessId: string | null;
   userEmail: string | null;
+  chargedByName: string;
   data: ReturnType<typeof useCajaData>;
 }) {
   // Reutiliza el `data` que ya cargó CashRegisterPage (mismo fix que
@@ -2468,6 +2478,16 @@ function InventarioTab({
   } | null>(null);
   const [adjustQty, setAdjustQty] = React.useState("");
   const [adjustNote, setAdjustNote] = React.useState("");
+  // Flujo nuevo de "Retirar stock" (direction === "out" únicamente):
+  // withdrawWho = id de employees, o el sentinel "__other__" (persona/
+  // motivo libre, ej. Invitado/Proveedor/Limpieza). withdrawMode: cómo se
+  // resuelve ese consumo — "pay" genera un ingreso real en Caja, "advance"
+  // un adelanto al profesional (sistema existente de Liquidaciones, no una
+  // lógica paralela), "courtesy" no mueve plata en ningún lado.
+  const [withdrawWho, setWithdrawWho] = React.useState("");
+  const [withdrawOtherLabel, setWithdrawOtherLabel] = React.useState("");
+  const [withdrawMode, setWithdrawMode] = React.useState<"pay" | "advance" | "courtesy" | "">("");
+  const [withdrawPayMethod, setWithdrawPayMethod] = React.useState<"cash" | "transfer" | "">("");
   const INVENTORY_MOVEMENTS_KEY = "clippr_inventory_movements_v1";
 
   React.useEffect(() => {
@@ -2624,6 +2644,13 @@ function InventarioTab({
     stockTo: number | null;
     note: string | null;
     user: string | null;
+    // Solo presentes en retiros del flujo nuevo ("Retirar stock" con
+    // persona/motivo) — el resto de los movimientos (ingresos, ventas,
+    // ajustes viejos) los deja undefined.
+    withdrawnBy?: string | null;
+    withdrawnKind?: "pagado" | "adelanto" | "cortesia" | null;
+    withdrawnMethod?: "cash" | "transfer" | null;
+    unitPrice?: number | null;
   };
 
   const readLocalMovements = React.useCallback((): InventoryMovement[] => {
@@ -2707,11 +2734,71 @@ function InventarioTab({
     />
   );
 
+  // Estilos del modal "Retirar stock" — chip (Quién retira) y botón de
+  // modo (Cómo se registra), reutilizados 2-3 veces cada uno en el JSX.
+  const withdrawChipClass = (active: boolean) =>
+    cn(
+      "rounded-xl border px-3 py-1.5 text-sm font-semibold transition",
+      active
+        ? "border-violet-300/45 bg-violet-400/14 text-violet-100 ring-1 ring-violet-300/20"
+        : "border-white/10 bg-white/[0.035] text-white/65 hover:border-white/20 hover:text-white",
+    );
+  const withdrawModeClass = (active: boolean, tone: "emerald" | "amber" | "sky") =>
+    cn(
+      "flex w-full items-center justify-between rounded-2xl border px-4 py-3 text-left text-sm font-bold transition",
+      active
+        ? {
+            emerald: "border-emerald-300/45 bg-emerald-400/14 text-emerald-100 ring-1 ring-emerald-300/20",
+            amber: "border-amber-300/45 bg-amber-400/14 text-amber-100 ring-1 ring-amber-300/20",
+            sky: "border-sky-300/45 bg-sky-400/14 text-sky-100 ring-1 ring-sky-300/20",
+          }[tone]
+        : "border-white/10 bg-white/[0.035] text-white/65 hover:border-white/20 hover:text-white",
+    );
+
   function openStockAdjustment(item: any, direction: "in" | "out") {
     if (adjustingId) return;
     setStockAdjustment({ item, direction });
     setAdjustQty("");
     setAdjustNote("");
+    setWithdrawWho("");
+    setWithdrawOtherLabel("");
+    setWithdrawMode("");
+    setWithdrawPayMethod("");
+  }
+
+  // Único lugar que persiste stock en Supabase — antes apuntaba a
+  // "services" (tabla que no existe; el catálogo vive en price_catalog,
+  // ver use-caja-data.ts), así que el update fallaba SIEMPRE y todo
+  // ajuste de stock quedaba solo guardado en localStorage sin que nadie
+  // se enterara (el catch de abajo mostraba éxito igual). Se corrige de
+  // paso acá, ya que este flujo nuevo depende de que el stock se
+  // descuente de verdad.
+  async function persistCatalogStock(id: string, nextStock: number) {
+    const { error } = await supabase
+      .from("price_catalog")
+      .update({ stock: nextStock, updated_at: new Date().toISOString() } as any)
+      .eq("id", id);
+    if (error) throw error;
+    setStockById((prev) => {
+      const next = { ...prev, [id]: nextStock };
+      try {
+        window.localStorage.setItem(INVENTORY_STOCK_KEY, JSON.stringify(next));
+        window.dispatchEvent(new CustomEvent("clippr:inventory-stock-updated"));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  }
+
+  function resetStockAdjustmentForm() {
+    setStockAdjustment(null);
+    setAdjustQty("");
+    setAdjustNote("");
+    setWithdrawWho("");
+    setWithdrawOtherLabel("");
+    setWithdrawMode("");
+    setWithdrawPayMethod("");
   }
 
   async function confirmStockAdjustment() {
@@ -2733,79 +2820,179 @@ function InventarioTab({
       toast.error("No podés retirar más stock del disponible");
       return;
     }
-    const nextStock =
-      direction === "in" ? currentStock + qty : currentStock - qty;
+
+    // "Agregar stock" (direction === "in") no cambia: mismo flujo simple
+    // de siempre (Cantidad + Nota), solo con el fix de tabla de arriba.
+    if (direction === "in") {
+      const nextStock = currentStock + qty;
+      setAdjustingId(id);
+      try {
+        await persistCatalogStock(id, nextStock);
+        saveLocalMovement({
+          id: `${Date.now()}-${id}`,
+          created_at: new Date().toISOString(),
+          product: item.name ?? "Producto",
+          type: "Ingreso",
+          qty,
+          stockFrom: currentStock,
+          stockTo: nextStock,
+          note: adjustNote.trim() || null,
+          user: userEmail ?? "Caja",
+        });
+        toast.success("Stock agregado");
+        resetStockAdjustmentForm();
+        await data.refresh();
+      } catch (error: any) {
+        // Fallback local: si por lo que sea el update a Supabase falla,
+        // igual dejamos persistido el ajuste en este dispositivo — sin
+        // plata ni adelantos de por medio, un ingreso de stock no tiene
+        // el mismo riesgo que un retiro pagado/adelanto (ver abajo).
+        setStockById((prev) => {
+          const next = { ...prev, [id]: nextStock };
+          try {
+            window.localStorage.setItem(INVENTORY_STOCK_KEY, JSON.stringify(next));
+            window.dispatchEvent(new CustomEvent("clippr:inventory-stock-updated"));
+          } catch {
+            // ignore
+          }
+          return next;
+        });
+        saveLocalMovement({
+          id: `${Date.now()}-${id}`,
+          created_at: new Date().toISOString(),
+          product: item.name ?? "Producto",
+          type: "Ingreso",
+          qty,
+          stockFrom: currentStock,
+          stockTo: nextStock,
+          note: adjustNote.trim() || null,
+          user: userEmail ?? "Caja",
+        });
+        toast.success("Stock agregado");
+        resetStockAdjustmentForm();
+      } finally {
+        setAdjustingId(null);
+      }
+      return;
+    }
+
+    // "Retirar stock" (direction === "out"): quién retira + cómo se
+    // registra son obligatorios — reemplazan la nota libre de antes como
+    // forma de dejar registrado el motivo, con casos reales (Pagar ahora/
+    // Adelanto/Cortesía) en vez de solo texto suelto.
+    if (!data.businessId) {
+      toast.error("Falta el negocio — recargá la página");
+      return;
+    }
+    if (!withdrawWho) {
+      toast.error("Elegí quién retira");
+      return;
+    }
+    const isOther = withdrawWho === "__other__";
+    if (isOther && !withdrawOtherLabel.trim()) {
+      toast.error("Ingresá un nombre o motivo");
+      return;
+    }
+    if (!withdrawMode) {
+      toast.error("Elegí cómo se registra el retiro");
+      return;
+    }
+    if (withdrawMode === "pay" && !withdrawPayMethod) {
+      toast.error("Elegí el método de pago");
+      return;
+    }
+
+    const nextStock = currentStock - qty;
+    const employee = isOther ? null : (data.employees.find((e) => e.id === withdrawWho) ?? null);
+    const whoLabel = isOther ? withdrawOtherLabel.trim() : (employee?.name ?? "—");
+    const unitPrice = Number(item.price ?? item.cash_discount ?? 0) || 0;
+    const totalAmount = unitPrice * qty;
+    const kind: "pagado" | "adelanto" | "cortesia" =
+      withdrawMode === "pay" ? "pagado" : withdrawMode === "advance" ? "adelanto" : "cortesia";
+    const noteText = adjustNote.trim();
 
     setAdjustingId(id);
     try {
-      const { error } = await supabase
-        .from("services" as any)
-        .update({
-          stock: nextStock,
-          updated_at: new Date().toISOString(),
-        } as any)
-        .eq("id", id);
+      // 1. Plata primero (si corresponde) — si esto falla, el stock queda
+      //    sin tocar en vez de quedar descontado sin que se haya
+      //    registrado el ingreso/adelanto correspondiente.
+      if (withdrawMode === "pay") {
+        await registerPayment({
+          businessId: data.businessId,
+          // Nunca el empleado que retira: esto es un producto que se
+          // lleva, no un servicio que prestó — asignarle employeeId acá
+          // generaría una comisión sobre su propio consumo.
+          employeeId: null,
+          clientName: whoLabel || "Cliente del mostrador",
+          items: [
+            {
+              serviceId: id,
+              serviceName: item.name ?? "Producto",
+              amount: unitPrice,
+              isCatalog: true,
+              qty,
+            },
+          ],
+          method: withdrawPayMethod === "transfer" ? "transfer" : "cash",
+          sessionId: data.cashSessionId,
+          chargedBy: data.profileId,
+          chargeOrigin: "caja",
+          notes: `${STOCK_WITHDRAWAL_NOTE_MARKER}${noteText ? ` ${noteText}` : ""}`,
+        });
+      } else if (withdrawMode === "advance") {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (!user?.id) throw new Error("Sesión inválida — volvé a iniciar sesión");
+        const { error: advanceError } = await supabase.rpc(
+          "register_professional_advance" as any,
+          {
+            p_business_id: data.businessId,
+            p_professional_id: withdrawWho,
+            p_amount: totalAmount,
+            p_payment_method: null,
+            p_note: `Retiro de stock: ${item.name ?? "Producto"} x${qty}${noteText ? ` — ${noteText}` : ""}`,
+            p_advanced_at: new Date().toISOString(),
+            p_registered_by: user.id,
+            p_registered_by_name: chargedByName,
+          },
+        );
+        if (advanceError) throw advanceError;
+      }
+      // "courtesy": no genera ingreso ni adelanto — solo stock + movimiento.
 
-      if (error) throw error;
+      // 2. Stock.
+      await persistCatalogStock(id, nextStock);
 
-      setStockById((prev) => {
-        const next = { ...prev, [id]: nextStock };
-        try {
-          window.localStorage.setItem(INVENTORY_STOCK_KEY, JSON.stringify(next));
-          window.dispatchEvent(new CustomEvent("clippr:inventory-stock-updated"));
-        } catch {
-          // ignore
-        }
-        return next;
-      });
-
+      // 3. Movimiento — siempre el detalle completo, para "Pagar ahora"
+      //    reemplaza (vía STOCK_WITHDRAWAL_NOTE_MARKER, filtrado en
+      //    salesMovements) al que se hubiera generado solo por cruzar el
+      //    pago recién insertado contra el nombre del producto.
       saveLocalMovement({
         id: `${Date.now()}-${id}`,
         created_at: new Date().toISOString(),
         product: item.name ?? "Producto",
-        type: direction === "in" ? "Ingreso" : "Egreso",
-        qty: direction === "in" ? qty : -qty,
+        type: "Egreso",
+        qty: -qty,
         stockFrom: currentStock,
         stockTo: nextStock,
-        note: adjustNote.trim() || null,
-        user: userEmail ?? "Caja",
+        note: noteText || null,
+        user: chargedByName || userEmail || "Caja",
+        withdrawnBy: whoLabel || null,
+        withdrawnKind: kind,
+        withdrawnMethod: withdrawMode === "pay" ? withdrawPayMethod || null : null,
+        unitPrice,
       });
 
-      toast.success(direction === "in" ? "Stock agregado" : "Stock retirado");
-      setStockAdjustment(null);
-      setAdjustQty("");
-      setAdjustNote("");
+      toast.success("Stock retirado");
+      resetStockAdjustmentForm();
       await data.refresh();
     } catch (error: any) {
-      // Fallback local: si la tabla no permite guardar stock todavía,
-      // igual dejamos persistido el ajuste en este dispositivo.
-      setStockById((prev) => {
-        const next = { ...prev, [id]: nextStock };
-        try {
-          window.localStorage.setItem(INVENTORY_STOCK_KEY, JSON.stringify(next));
-          window.dispatchEvent(new CustomEvent("clippr:inventory-stock-updated"));
-        } catch {
-          // ignore
-        }
-        return next;
-      });
-
-      saveLocalMovement({
-        id: `${Date.now()}-${id}`,
-        created_at: new Date().toISOString(),
-        product: item.name ?? "Producto",
-        type: direction === "in" ? "Ingreso" : "Egreso",
-        qty: direction === "in" ? qty : -qty,
-        stockFrom: currentStock,
-        stockTo: nextStock,
-        note: adjustNote.trim() || null,
-        user: userEmail ?? "Caja",
-      });
-
-      toast.success(direction === "in" ? "Stock agregado" : "Stock retirado");
-      setStockAdjustment(null);
-      setAdjustQty("");
-      setAdjustNote("");
+      // A diferencia de "Agregar stock", acá NO hay fallback silencioso a
+      // localStorage: si el ingreso/adelanto o el update de stock fallan,
+      // hay plata o deuda de por medio — mejor mostrar el error real y
+      // dejar el modal abierto que fingir éxito con datos a medias.
+      toast.error(error?.message || "No se pudo registrar el retiro");
     } finally {
       setAdjustingId(null);
     }
@@ -2818,16 +3005,24 @@ function InventarioTab({
         .filter(Boolean),
     );
     return (data.paymentsToday ?? [])
-      .filter((payment: any) =>
-        catalogNames.has(
-          String(
-            payment.service_name ??
-              payment.service ??
-              payment.item_name ??
-              payment.name ??
-              "",
-          ).toLowerCase(),
-        ),
+      .filter(
+        (payment: any) =>
+          // Excluye los pagos que ya vienen del flujo "Retirar stock →
+          // Pagar ahora" (ver STOCK_WITHDRAWAL_NOTE_MARKER) — esos ya se
+          // guardan como movimiento propio, con todo el detalle
+          // (quién retiró, método), en confirmStockAdjustment. Sin este
+          // filtro aparecían acá DE NUEVO, cruzados solo por nombre de
+          // producto, duplicando la fila en "Últimos movimientos".
+          !String(payment.observations ?? "").startsWith(STOCK_WITHDRAWAL_NOTE_MARKER) &&
+          catalogNames.has(
+            String(
+              payment.service_name ??
+                payment.service ??
+                payment.item_name ??
+                payment.name ??
+                "",
+            ).toLowerCase(),
+          ),
       )
       .map((payment: any) => {
         // Antes caía a payment.charged_by/created_by crudos (uuid de
@@ -2866,7 +3061,7 @@ function InventarioTab({
   const filteredMovements = inventoryMovements.filter(
     (item: InventoryMovement) => {
       if (!normalizedMovementQuery) return true;
-      return `${item.product ?? ""} ${item.note ?? ""} ${item.type ?? ""} ${item.user ?? ""}`
+      return `${item.product ?? ""} ${item.note ?? ""} ${item.type ?? ""} ${item.user ?? ""} ${item.withdrawnBy ?? ""}`
         .toLowerCase()
         .includes(normalizedMovementQuery);
     },
@@ -2882,6 +3077,24 @@ function InventarioTab({
     movement.stockFrom === null || movement.stockTo === null
       ? "—"
       : `${movement.stockFrom} → ${movement.stockTo}`;
+
+  // Etiqueta/color del "Tipo" de retiro (Pagado/Adelanto/Cortesía) que
+  // pide el flujo nuevo de "Retirar stock" — se muestra en vez de la nota
+  // libre cuando el movimiento tiene withdrawnKind (nunca para ingresos,
+  // ventas normales, o ajustes viejos sin persona asociada).
+  const withdrawKindLabel = (movement: InventoryMovement) => {
+    const method = movement.withdrawnMethod === "transfer" ? "Transferencia" : "Efectivo";
+    if (movement.withdrawnKind === "pagado") return `Pagado (${method})`;
+    if (movement.withdrawnKind === "adelanto") return "Adelanto";
+    if (movement.withdrawnKind === "cortesia") return "Cortesía";
+    return null;
+  };
+  const withdrawKindClass = (kind: InventoryMovement["withdrawnKind"]) =>
+    kind === "pagado"
+      ? "bg-emerald-400/12 text-emerald-300 ring-emerald-400/22"
+      : kind === "adelanto"
+        ? "bg-amber-400/12 text-amber-300 ring-amber-400/22"
+        : "bg-sky-400/12 text-sky-300 ring-sky-400/22";
 
   return (
     <div className="mt-3 grid h-auto grid-cols-1 gap-5 overflow-visible pb-6 xl:grid-cols-2 sm:-mt-5 sm:h-[calc(100vh-270px)] sm:min-h-[470px] sm:overflow-hidden">
@@ -3108,8 +3321,22 @@ function InventarioTab({
                     {qtyText(item.qty)}
                   </div>
                   <div className="text-white/60">{stockFlow(item)}</div>
-                  <div className="truncate text-white/50">
-                    {item.note || "—"}
+                  <div className="min-w-0 truncate text-white/50">
+                    {item.withdrawnKind ? (
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span
+                          className={cn(
+                            "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ring-1",
+                            withdrawKindClass(item.withdrawnKind),
+                          )}
+                        >
+                          {withdrawKindLabel(item)}
+                        </span>
+                        <span className="truncate text-white/60">{item.withdrawnBy}</span>
+                      </span>
+                    ) : (
+                      item.note || "—"
+                    )}
                   </div>
                   <div className="truncate text-white/50">
                     {item.user || "Caja"}
@@ -3207,6 +3434,24 @@ function InventarioTab({
                         <span className="text-white/60">{stockFlow(item)}</span>
                         <span className="truncate text-white/50">{item.user || "Caja"}</span>
                       </div>
+                      {item.withdrawnKind && (
+                        <div className="mt-1.5 flex min-w-0 items-center gap-1.5">
+                          <span
+                            className={cn(
+                              "shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold ring-1",
+                              withdrawKindClass(item.withdrawnKind),
+                            )}
+                          >
+                            {withdrawKindLabel(item)}
+                          </span>
+                          <span className="truncate text-white/60">{item.withdrawnBy}</span>
+                          {Boolean(item.unitPrice) && (
+                            <span className="ml-auto shrink-0 text-white/45">
+                              ${(Number(item.unitPrice) * Math.abs(item.qty)).toLocaleString("es-AR")}
+                            </span>
+                          )}
+                        </div>
+                      )}
                       {item.note && (
                         <div className="mt-1 truncate text-white/50">{item.note}</div>
                       )}
@@ -3222,8 +3467,13 @@ function InventarioTab({
 
       {stockAdjustment && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="w-full max-w-md overflow-hidden rounded-3xl border border-white/10 bg-[linear-gradient(180deg,rgba(12,16,30,0.98),rgba(5,7,16,0.99))] shadow-[0_30px_100px_-45px_rgba(139,92,246,0.55)]">
-            <div className="border-b border-white/[0.065] px-5 py-5">
+          {/* max-h + overflow-y-auto en el body: el flujo de Retirar stock
+              agrega pasos progresivos (Quién retira/Cómo se registra/
+              Método), así que en pantallas chicas puede llegar a no entrar
+              entero — esto evita que el modal se corte contra los bordes
+              del viewport en vez de simplemente scrollear su contenido. */}
+          <div className="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-3xl border border-white/10 bg-[linear-gradient(180deg,rgba(12,16,30,0.98),rgba(5,7,16,0.99))] shadow-[0_30px_100px_-45px_rgba(139,92,246,0.55)]">
+            <div className="shrink-0 border-b border-white/[0.065] px-5 py-5">
               <div className="text-lg font-bold text-white">
                 {stockAdjustment.direction === "in"
                   ? "Agregar stock"
@@ -3233,7 +3483,7 @@ function InventarioTab({
                 {stockAdjustment.item?.name ?? "Producto"}
               </div>
             </div>
-            <div className="space-y-3 p-5">
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-5">
               <div>
                 <label className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
                   Cantidad
@@ -3256,14 +3506,127 @@ function InventarioTab({
                   className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-white/[0.035] px-4 text-base font-semibold text-white outline-none placeholder:text-white/35 focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
                 />
               </div>
+
+              {stockAdjustment.direction === "out" && (
+                <>
+                  {/* Quién retira: gente real de Equipo (data.employees, sin
+                      opciones genéricas como "Recepción") + "Otro" al
+                      final, para casos sin persona/liquidación asociada
+                      (invitado, proveedor, limpieza, rotura, etc). */}
+                  <div>
+                    <label className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
+                      Quién retira
+                    </label>
+                    <div className="mt-2 flex flex-wrap gap-1.5">
+                      {data.employees.map((emp) => (
+                        <button
+                          key={emp.id}
+                          type="button"
+                          onClick={() => {
+                            setWithdrawWho(emp.id);
+                            setWithdrawMode("");
+                          }}
+                          className={withdrawChipClass(withdrawWho === emp.id)}
+                        >
+                          {emp.name}
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setWithdrawWho("__other__");
+                          setWithdrawMode("");
+                        }}
+                        className={withdrawChipClass(withdrawWho === "__other__")}
+                      >
+                        Otro
+                      </button>
+                    </div>
+                    {withdrawWho === "__other__" && (
+                      <input
+                        value={withdrawOtherLabel}
+                        onChange={(event) => setWithdrawOtherLabel(event.target.value)}
+                        placeholder="Nombre o motivo (invitado, proveedor, limpieza…)"
+                        className="mt-2 h-11 w-full rounded-2xl border border-white/10 bg-white/[0.035] px-4 text-base text-white outline-none placeholder:text-white/35 focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
+                      />
+                    )}
+                  </div>
+
+                  {/* Cómo se registra: recién visible con "quién" resuelto
+                      (persona elegida, u "Otro" con su texto ya cargado) —
+                      progresivo, no todo junto. Sin adelanto para "Otro":
+                      no hay profesional/liquidación a la que asociarlo. */}
+                  {withdrawWho && (withdrawWho !== "__other__" || withdrawOtherLabel.trim()) && (
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
+                        ¿Cómo se registra?
+                      </label>
+                      <div className="mt-2 space-y-1.5">
+                        <button
+                          type="button"
+                          onClick={() => setWithdrawMode("pay")}
+                          className={withdrawModeClass(withdrawMode === "pay", "emerald")}
+                        >
+                          Pagar ahora
+                        </button>
+                        {withdrawWho !== "__other__" && (
+                          <button
+                            type="button"
+                            onClick={() => setWithdrawMode("advance")}
+                            className={withdrawModeClass(withdrawMode === "advance", "amber")}
+                          >
+                            Anotar como adelanto
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setWithdrawMode("courtesy")}
+                          className={withdrawModeClass(withdrawMode === "courtesy", "sky")}
+                        >
+                          Cortesía
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Método de pago: solo si se eligió "Pagar ahora". */}
+                  {withdrawMode === "pay" && (
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
+                        Método de pago
+                      </label>
+                      <div className="mt-2 grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => setWithdrawPayMethod("cash")}
+                          className={withdrawModeClass(withdrawPayMethod === "cash", "emerald")}
+                        >
+                          Efectivo
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setWithdrawPayMethod("transfer")}
+                          className={withdrawModeClass(withdrawPayMethod === "transfer", "emerald")}
+                        >
+                          Transferencia
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
+
               <div>
                 <label className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
-                  Nota
+                  Nota{" "}
+                  {stockAdjustment.direction === "out" && (
+                    <span className="normal-case text-white/30">(opcional)</span>
+                  )}
                 </label>
                 <textarea
                   value={adjustNote}
                   onChange={(event) => setAdjustNote(event.target.value)}
-                  rows={3}
+                  rows={2}
                   placeholder="Motivo del movimiento, proveedor, corrección, etc."
                   className="mt-2 w-full resize-none rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3 text-base text-white outline-none placeholder:text-white/35 focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
                 />
@@ -3274,32 +3637,39 @@ function InventarioTab({
                   {stockNumber(stockAdjustment.item)}
                 </span>
               </div>
-              <div className="flex justify-end gap-3 pt-1">
-                <button
-                  type="button"
-                  onClick={() => setStockAdjustment(null)}
-                  className="rounded-2xl border border-white/10 bg-white/[0.035] px-5 py-3 text-sm font-bold text-white/70 transition hover:bg-white/[0.07] hover:text-white"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="button"
-                  onClick={confirmStockAdjustment}
-                  disabled={Boolean(adjustingId)}
-                  className={cn(
-                    "rounded-2xl px-4 py-2 text-sm font-bold transition disabled:opacity-50",
-                    stockAdjustment.direction === "in"
-                      ? "bg-emerald-400/12 text-emerald-200 ring-1 ring-emerald-400/24 shadow-[0_0_26px_rgba(16,185,129,0.22)] hover:bg-emerald-400/18"
-                      : "bg-rose-500/12 text-rose-200 ring-1 ring-rose-400/24 shadow-[0_0_26px_rgba(244,63,94,0.20)] hover:bg-rose-500/18",
-                  )}
-                >
-                  {adjustingId
-                    ? "Guardando…"
-                    : stockAdjustment.direction === "in"
-                      ? "Agregar"
-                      : "Retirar"}
-                </button>
-              </div>
+            </div>
+            <div className="flex shrink-0 justify-end gap-3 border-t border-white/[0.065] p-5 pt-4">
+              <button
+                type="button"
+                onClick={() => setStockAdjustment(null)}
+                className="rounded-2xl border border-white/10 bg-white/[0.035] px-5 py-3 text-sm font-bold text-white/70 transition hover:bg-white/[0.07] hover:text-white"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmStockAdjustment}
+                disabled={
+                  Boolean(adjustingId) ||
+                  (stockAdjustment.direction === "out" &&
+                    (!withdrawWho ||
+                      (withdrawWho === "__other__" && !withdrawOtherLabel.trim()) ||
+                      !withdrawMode ||
+                      (withdrawMode === "pay" && !withdrawPayMethod)))
+                }
+                className={cn(
+                  "rounded-2xl px-4 py-2 text-sm font-bold transition disabled:opacity-50",
+                  stockAdjustment.direction === "in"
+                    ? "bg-emerald-400/12 text-emerald-200 ring-1 ring-emerald-400/24 shadow-[0_0_26px_rgba(16,185,129,0.22)] hover:bg-emerald-400/18"
+                    : "bg-rose-500/12 text-rose-200 ring-1 ring-rose-400/24 shadow-[0_0_26px_rgba(244,63,94,0.20)] hover:bg-rose-500/18",
+                )}
+              >
+                {adjustingId
+                  ? "Guardando…"
+                  : stockAdjustment.direction === "in"
+                    ? "Agregar"
+                    : "Retirar"}
+              </button>
             </div>
           </div>
         </div>,
