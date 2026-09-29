@@ -7964,6 +7964,16 @@ function DetailModal({
     ? `#${String(paymentNumber).padStart(6, "0")}`
     : `#${payment.id.slice(-6).toUpperCase()}`;
 
+  // Retiro de stock pagado (Inventario → Retirar stock → Pagar ahora):
+  // este payment no tiene cliente/profesional/servicio real — reusar el
+  // detalle de venta normal mostraba campos que no aplican ("Servicio",
+  // "Profesional", Trazabilidad, etc). STOCK_WITHDRAWAL_NOTE_MARKER es
+  // interno (nunca se muestra) — ver más abajo el branch corto para este
+  // caso.
+  const isStockWithdrawal = String(
+    (payment as Record<string, unknown>).observations ?? "",
+  ).startsWith(STOCK_WITHDRAWAL_NOTE_MARKER);
+
   async function handleDelete() {
     if (deleting) return;
     const confirmed = window.confirm(
@@ -7985,6 +7995,110 @@ function DetailModal({
   }
 
   if (typeof document === "undefined") return null;
+
+  if (isStockWithdrawal) {
+    const items = (payment as Record<string, unknown>).items as
+      | Array<{ name?: string; amount?: number; qty?: number }>
+      | null
+      | undefined;
+    const lineItem = items?.[0] ?? null;
+    const qty = Number(lineItem?.qty ?? 1) || 1;
+    // lineItem.amount ya viene multiplicado por qty (ver register-payment.ts:
+    // savedItems) — es el TOTAL de esa línea, no el precio unitario.
+    const lineTotal = Number(lineItem?.amount ?? payment.total ?? payment.amount ?? 0);
+    const unitPrice = qty > 0 ? lineTotal / qty : lineTotal;
+    const productName = lineItem?.name ?? payment.service_name ?? "Producto";
+
+    return createPortal(
+      <div
+        className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4"
+        onClick={onClose}
+      >
+        <div
+          className="w-full max-w-lg rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+            <div>
+              <div className="flex items-center gap-2.5">
+                <h3 className="text-sm font-semibold">Detalle de venta</h3>
+                <span className="text-[11px] font-mono text-primary/80 bg-primary/10 px-2 py-0.5 rounded-lg">
+                  {ventaNum}
+                </span>
+              </div>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {fmtDT(payment.created_at)}
+              </p>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <button
+                onClick={handleDelete}
+                disabled={deleting}
+                className="rounded-lg bg-rose-500/10 hover:bg-rose-500/20 px-3 py-1.5 text-xs font-semibold text-rose-300 transition disabled:opacity-50"
+              >
+                {deleting ? "Eliminando…" : "Eliminar cobro"}
+              </button>
+              <button
+                onClick={onClose}
+                className="rounded-lg bg-white/5 hover:bg-white/10 px-3 py-1.5 text-xs transition"
+              >
+                Cerrar
+              </button>
+            </div>
+          </div>
+
+          <div className="px-5 py-1 max-h-[72vh] overflow-y-auto overscroll-contain">
+            {/* Solo el importe — sin pills de "Cobrado"/"Caja": acá no es
+                una venta de servicio, esos conceptos no aplican. */}
+            <div className="py-2 border-b border-white/5">
+              <span className="font-display text-2xl font-semibold tabular-nums">
+                ${Number(payment.total ?? payment.amount ?? 0).toLocaleString("es-AR")}
+              </span>
+            </div>
+
+            <div className="mt-2 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3 space-y-0">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">
+                Retiro
+              </p>
+              <Row label="Retiró" value={payment.client_name ?? "—"} />
+            </div>
+
+            <div className="mt-2 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3 space-y-0">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">
+                Detalle del producto
+              </p>
+              <Row label="Producto" value={productName} />
+              {qty > 1 ? (
+                <>
+                  <Row label="Cantidad" value={String(qty)} />
+                  <Row
+                    label="Precio unitario"
+                    value={`$${Math.round(unitPrice).toLocaleString("es-AR")}`}
+                  />
+                  <Row
+                    label="Total"
+                    value={`$${Math.round(lineTotal).toLocaleString("es-AR")}`}
+                  />
+                </>
+              ) : (
+                <Row label="Precio" value={`$${Math.round(unitPrice).toLocaleString("es-AR")}`} />
+              )}
+            </div>
+
+            <div className="mt-2 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3 space-y-0">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">
+                Método de pago
+              </p>
+              <Row label="Método de pago" value={PAY_METHOD_LABEL[method] ?? method} />
+            </div>
+
+            <div className="h-4" />
+          </div>
+        </div>
+      </div>,
+      document.body,
+    );
+  }
 
   return createPortal(
     <div

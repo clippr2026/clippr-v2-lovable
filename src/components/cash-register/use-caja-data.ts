@@ -168,6 +168,17 @@ export type Payment = {
   discount?: number | null;
   original_amount?: number | null;
   tip_amount?: number | null;
+  // Ítems de la venta (registerPayment los guarda siempre) — id/nombre/
+  // monto YA multiplicado por cantidad/qty/is_catalog. Detalle de venta
+  // lo usa para un retiro de stock pagado (producto/cantidad/precio
+  // unitario/total), sin depender de parsear service_name como texto.
+  items?: Array<{
+    id: string | null;
+    name: string;
+    amount: number;
+    qty: number;
+    is_catalog: boolean;
+  }> | null;
   // Historial completo ("Envió a caja"/"Cobró"/"Rechazó", con el usuario
   // real de cada acción) — para turnos sale de appointments.cobro_events
   // (traído acá con una consulta aparte, ver load()); para ventas de
@@ -363,8 +374,11 @@ export function useCajaData() {
         // ingresos" → tocar una fila) los necesita para mostrar el
         // desglose Servicio/Descuento/Propina/Total cobrado — antes no se
         // pedían acá, así que esas filas quedaban siempre en null aunque
-        // el pago sí los tuviera guardados en la base.
-        .select("id,business_id,total,amount,method,payment_method,client_name,service_name,created_at,employee_id,appointment_id,charged_by,charge_type,status,charged_at,observations,discount,original_amount,tip_amount")
+        // el pago sí los tuviera guardados en la base. items: el detalle
+        // de "Retirar stock → Pagar ahora" lo necesita para separar
+        // cantidad/precio unitario/total sin parsear service_name (que
+        // puede traer "Cepita x2" como texto).
+        .select("id,business_id,total,amount,method,payment_method,client_name,service_name,created_at,employee_id,appointment_id,charged_by,charge_type,status,charged_at,observations,discount,original_amount,tip_amount,items")
         .eq("business_id", businessId)
         .gte("created_at", today.toISOString())
         .lte("created_at", todayEnd.toISOString())
