@@ -2476,6 +2476,11 @@ function InventarioTab({
     item: any;
     direction: "in" | "out";
   } | null>(null);
+  // Fondo bloqueado mientras el modal de Agregar/Retirar stock está
+  // abierto — mismo hook que el resto de los modales de esta pantalla
+  // (movementsModalOpen arriba, DetailModal en History), evita el
+  // rubber-band de iOS Safari moviendo la pantalla de atrás.
+  useBodyScrollLock(Boolean(stockAdjustment));
   const [adjustQty, setAdjustQty] = React.useState("");
   const [adjustNote, setAdjustNote] = React.useState("");
   // Flujo nuevo de "Retirar stock" (direction === "out" únicamente):
@@ -2758,7 +2763,9 @@ function InventarioTab({
   function openStockAdjustment(item: any, direction: "in" | "out") {
     if (adjustingId) return;
     setStockAdjustment({ item, direction });
-    setAdjustQty("");
+    // "out": selector −/1/+, siempre arranca en 1. "in": sigue siendo un
+    // input numérico libre, vacío hasta que se escribe algo.
+    setAdjustQty(direction === "out" ? "1" : "");
     setAdjustNote("");
     setWithdrawWho("");
     setWithdrawOtherLabel("");
@@ -2773,10 +2780,18 @@ function InventarioTab({
   // se enterara (el catch de abajo mostraba éxito igual). Se corrige de
   // paso acá, ya que este flujo nuevo depende de que el stock se
   // descuente de verdad.
+  //
+  // Sin "updated_at": esa columna no existe en price_catalog en
+  // producción (confirmado — ningún otro punto de la app que actualiza
+  // price_catalog, ej. price-catalog-section.tsx, la envía tampoco).
+  // Mandarla rompía el update con "Could not find the 'updated_at'
+  // column... in the schema cache" en TODOS los casos, incluido
+  // Cortesía (que no pasa por ningún otro punto de fallo visible, así
+  // que el error quedaba fácil de atribuir mal a otra parte del flujo).
   async function persistCatalogStock(id: string, nextStock: number) {
     const { error } = await supabase
       .from("price_catalog")
-      .update({ stock: nextStock, updated_at: new Date().toISOString() } as any)
+      .update({ stock: nextStock } as any)
       .eq("id", id);
     if (error) throw error;
     setStockById((prev) => {
@@ -2909,7 +2924,6 @@ function InventarioTab({
     const totalAmount = unitPrice * qty;
     const kind: "pagado" | "adelanto" | "cortesia" =
       withdrawMode === "pay" ? "pagado" : withdrawMode === "advance" ? "adelanto" : "cortesia";
-    const noteText = adjustNote.trim();
 
     setAdjustingId(id);
     try {
@@ -2937,7 +2951,7 @@ function InventarioTab({
           sessionId: data.cashSessionId,
           chargedBy: data.profileId,
           chargeOrigin: "caja",
-          notes: `${STOCK_WITHDRAWAL_NOTE_MARKER}${noteText ? ` ${noteText}` : ""}`,
+          notes: STOCK_WITHDRAWAL_NOTE_MARKER,
         });
       } else if (withdrawMode === "advance") {
         const {
@@ -2951,7 +2965,7 @@ function InventarioTab({
             p_professional_id: withdrawWho,
             p_amount: totalAmount,
             p_payment_method: null,
-            p_note: `Retiro de stock: ${item.name ?? "Producto"} x${qty}${noteText ? ` — ${noteText}` : ""}`,
+            p_note: `Retiro de stock: ${item.name ?? "Producto"} x${qty}`,
             p_advanced_at: new Date().toISOString(),
             p_registered_by: user.id,
             p_registered_by_name: chargedByName,
@@ -2976,7 +2990,7 @@ function InventarioTab({
         qty: -qty,
         stockFrom: currentStock,
         stockTo: nextStock,
-        note: noteText || null,
+        note: null,
         user: chargedByName || userEmail || "Caja",
         withdrawnBy: whoLabel || null,
         withdrawnKind: kind,
@@ -3466,213 +3480,260 @@ function InventarioTab({
       )}
 
       {stockAdjustment && typeof document !== "undefined" && createPortal(
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm">
-          {/* max-h + overflow-y-auto en el body: el flujo de Retirar stock
-              agrega pasos progresivos (Quién retira/Cómo se registra/
-              Método), así que en pantallas chicas puede llegar a no entrar
-              entero — esto evita que el modal se corte contra los bordes
-              del viewport en vez de simplemente scrollear su contenido. */}
-          <div className="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-3xl border border-white/10 bg-[linear-gradient(180deg,rgba(12,16,30,0.98),rgba(5,7,16,0.99))] shadow-[0_30px_100px_-45px_rgba(139,92,246,0.55)]">
-            <div className="shrink-0 border-b border-white/[0.065] px-5 py-5">
-              <div className="text-lg font-bold text-white">
-                {stockAdjustment.direction === "in"
-                  ? "Agregar stock"
-                  : "Retirar stock"}
-              </div>
-              <div className="mt-1 text-sm text-white/55">
-                {stockAdjustment.item?.name ?? "Producto"}
-              </div>
-            </div>
-            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-5">
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
-                  Cantidad
-                </label>
-                <input
-                  value={adjustQty}
-                  onChange={(event) => setAdjustQty(event.target.value)}
-                  type="number"
-                  min={1}
-                  autoFocus
-                  placeholder={
-                    stockAdjustment.direction === "in"
-                      ? "Cantidad a agregar"
-                      : "Cantidad a retirar"
-                  }
-                  // text-base (16px): con autoFocus, este input se enfoca
-                  // apenas se toca +/- para abrir el modal — con menos de
-                  // 16px, iOS hace zoom automático de la pantalla entera al
-                  // enfocar. Mismo fix ya aplicado en login/Nuevo gasto.
-                  className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-white/[0.035] px-4 text-base font-semibold text-white outline-none placeholder:text-white/35 focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
-                />
-              </div>
-
-              {stockAdjustment.direction === "out" && (
-                <>
-                  {/* Quién retira: gente real de Equipo (data.employees, sin
-                      opciones genéricas como "Recepción") + "Otro" al
-                      final, para casos sin persona/liquidación asociada
-                      (invitado, proveedor, limpieza, rotura, etc). */}
-                  <div>
-                    <label className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
-                      Quién retira
-                    </label>
-                    <div className="mt-2 flex flex-wrap gap-1.5">
-                      {data.employees.map((emp) => (
-                        <button
-                          key={emp.id}
-                          type="button"
-                          onClick={() => {
-                            setWithdrawWho(emp.id);
-                            setWithdrawMode("");
-                          }}
-                          className={withdrawChipClass(withdrawWho === emp.id)}
-                        >
-                          {emp.name}
-                        </button>
-                      ))}
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setWithdrawWho("__other__");
-                          setWithdrawMode("");
-                        }}
-                        className={withdrawChipClass(withdrawWho === "__other__")}
-                      >
-                        Otro
-                      </button>
-                    </div>
-                    {withdrawWho === "__other__" && (
-                      <input
-                        value={withdrawOtherLabel}
-                        onChange={(event) => setWithdrawOtherLabel(event.target.value)}
-                        placeholder="Nombre o motivo (invitado, proveedor, limpieza…)"
-                        className="mt-2 h-11 w-full rounded-2xl border border-white/10 bg-white/[0.035] px-4 text-base text-white outline-none placeholder:text-white/35 focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
-                      />
-                    )}
+        (() => {
+          const isOut = stockAdjustment.direction === "out";
+          const stockMax = stockNumber(stockAdjustment.item);
+          const qtyNum = Math.max(1, Number(adjustQty) || 1);
+          const unitPrice = Number(stockAdjustment.item?.price ?? stockAdjustment.item?.cash_discount ?? 0) || 0;
+          const withdrawTotal = unitPrice * qtyNum;
+          const fmtTotal = `$${withdrawTotal.toLocaleString("es-AR")}`;
+          return (
+            <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm">
+              {/* max-h + overflow-y-auto en el body: aun compacto, en
+                  pantallas muy chicas puede llegar a no entrar entero —
+                  esto evita que el modal se corte contra los bordes del
+                  viewport en vez de simplemente scrollear su contenido. */}
+              <div className="flex max-h-[90vh] w-full max-w-md flex-col overflow-hidden rounded-3xl border border-white/10 bg-[linear-gradient(180deg,rgba(12,16,30,0.98),rgba(5,7,16,0.99))] shadow-[0_30px_100px_-45px_rgba(139,92,246,0.55)]">
+                <div className="shrink-0 border-b border-white/[0.065] px-5 py-4">
+                  <div className="text-lg font-bold text-white">
+                    {isOut ? "Retirar stock" : "Agregar stock"}
                   </div>
-
-                  {/* Cómo se registra: recién visible con "quién" resuelto
-                      (persona elegida, u "Otro" con su texto ya cargado) —
-                      progresivo, no todo junto. Sin adelanto para "Otro":
-                      no hay profesional/liquidación a la que asociarlo. */}
-                  {withdrawWho && (withdrawWho !== "__other__" || withdrawOtherLabel.trim()) && (
+                  {/* Stock a la derecha del nombre — antes vivía en una
+                      tarjeta grande aparte más abajo, esto ahorra bastante
+                      alto sin perder el dato. */}
+                  <div className="mt-1 flex items-center justify-between gap-3">
+                    <span className="truncate text-sm text-white/55">
+                      {stockAdjustment.item?.name ?? "Producto"}
+                    </span>
+                    <span className="shrink-0 text-sm font-semibold text-white/70">
+                      Stock: {stockMax}
+                    </span>
+                  </div>
+                </div>
+                <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-5">
+                  {isOut ? (
+                    // Selector −/N/+, nunca teclado: la cantidad siempre es
+                    // un entero entre 1 y el stock disponible, así que no
+                    // hace falta (ni conviene) un input libre acá.
                     <div>
                       <label className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
-                        ¿Cómo se registra?
+                        Cantidad
                       </label>
-                      <div className="mt-2 space-y-1.5">
+                      <div className="mt-2 flex items-center justify-center gap-5">
                         <button
                           type="button"
-                          onClick={() => setWithdrawMode("pay")}
-                          className={withdrawModeClass(withdrawMode === "pay", "emerald")}
+                          onClick={() => setAdjustQty(String(Math.max(1, qtyNum - 1)))}
+                          disabled={qtyNum <= 1}
+                          className="grid size-12 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/[0.035] text-2xl font-bold text-white transition active:bg-white/[0.08] disabled:opacity-30"
                         >
-                          Pagar ahora
+                          −
                         </button>
-                        {withdrawWho !== "__other__" && (
+                        <span className="min-w-[2ch] text-center text-2xl font-extrabold tabular-nums text-white">
+                          {qtyNum}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setAdjustQty(String(Math.min(stockMax, qtyNum + 1)))}
+                          disabled={qtyNum >= stockMax}
+                          className="grid size-12 shrink-0 place-items-center rounded-2xl border border-white/10 bg-white/[0.035] text-2xl font-bold text-white transition active:bg-white/[0.08] disabled:opacity-30"
+                        >
+                          +
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
+                        Cantidad
+                      </label>
+                      <input
+                        value={adjustQty}
+                        onChange={(event) => setAdjustQty(event.target.value)}
+                        type="number"
+                        min={1}
+                        autoFocus
+                        placeholder="Cantidad a agregar"
+                        // text-base (16px): con autoFocus, este input se
+                        // enfoca apenas se toca "+" para abrir el modal —
+                        // con menos de 16px, iOS hace zoom automático de la
+                        // pantalla entera al enfocar. Mismo fix ya aplicado
+                        // en login/Nuevo gasto.
+                        className="mt-2 h-12 w-full rounded-2xl border border-white/10 bg-white/[0.035] px-4 text-base font-semibold text-white outline-none placeholder:text-white/35 focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
+                      />
+                    </div>
+                  )}
+
+                  {isOut && (
+                    <>
+                      {/* Quién retira: gente real de Equipo (data.employees,
+                          sin opciones genéricas como "Recepción") + "Otro"
+                          al final, para casos sin persona/liquidación
+                          asociada (invitado, proveedor, limpieza, rotura). */}
+                      <div>
+                        <label className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
+                          Quién retira
+                        </label>
+                        <div className="mt-2 flex flex-wrap gap-1.5">
+                          {data.employees.map((emp) => (
+                            <button
+                              key={emp.id}
+                              type="button"
+                              onClick={() => {
+                                setWithdrawWho(emp.id);
+                                setWithdrawMode("");
+                              }}
+                              className={withdrawChipClass(withdrawWho === emp.id)}
+                            >
+                              {emp.name}
+                            </button>
+                          ))}
                           <button
                             type="button"
-                            onClick={() => setWithdrawMode("advance")}
-                            className={withdrawModeClass(withdrawMode === "advance", "amber")}
+                            onClick={() => {
+                              setWithdrawWho("__other__");
+                              setWithdrawMode("");
+                            }}
+                            className={withdrawChipClass(withdrawWho === "__other__")}
                           >
-                            Anotar como adelanto
+                            Otro
                           </button>
+                        </div>
+                        {withdrawWho === "__other__" && (
+                          <input
+                            value={withdrawOtherLabel}
+                            onChange={(event) => setWithdrawOtherLabel(event.target.value)}
+                            placeholder="Nombre o motivo (invitado, proveedor, limpieza…)"
+                            className="mt-2 h-11 w-full rounded-2xl border border-white/10 bg-white/[0.035] px-4 text-base text-white outline-none placeholder:text-white/35 focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
+                          />
                         )}
-                        <button
-                          type="button"
-                          onClick={() => setWithdrawMode("courtesy")}
-                          className={withdrawModeClass(withdrawMode === "courtesy", "sky")}
-                        >
-                          Cortesía
-                        </button>
                       </div>
-                    </div>
+
+                      {/* Cómo se registra: recién visible con "quién"
+                          resuelto (persona elegida, u "Otro" con su texto ya
+                          cargado) — progresivo, no todo junto. Sin adelanto
+                          para "Otro": no hay profesional/liquidación a la
+                          que asociarlo. El total ($unitPrice × cantidad) se
+                          ve siempre, tachado en Cortesía para dejar
+                          registrado cuánto valía sin cobrarlo. */}
+                      {withdrawWho && (withdrawWho !== "__other__" || withdrawOtherLabel.trim()) && (
+                        <div>
+                          <label className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
+                            ¿Cómo se registra?
+                          </label>
+                          <div className="mt-2 space-y-1.5">
+                            <button
+                              type="button"
+                              onClick={() => setWithdrawMode("pay")}
+                              className={withdrawModeClass(withdrawMode === "pay", "emerald")}
+                            >
+                              <span>Pagar ahora</span>
+                              <span className="tabular-nums">{fmtTotal}</span>
+                            </button>
+                            {withdrawWho !== "__other__" && (
+                              <button
+                                type="button"
+                                onClick={() => setWithdrawMode("advance")}
+                                className={withdrawModeClass(withdrawMode === "advance", "amber")}
+                              >
+                                <span>Anotar como adelanto</span>
+                                <span className="tabular-nums">{fmtTotal}</span>
+                              </button>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => setWithdrawMode("courtesy")}
+                              className={withdrawModeClass(withdrawMode === "courtesy", "sky")}
+                            >
+                              <span>Cortesía</span>
+                              <span className="tabular-nums text-white/40 line-through">{fmtTotal}</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Método de pago: solo si se eligió "Pagar ahora" —
+                          ni un hueco vacío ni el título aparecen para
+                          Adelanto/Cortesía, se saltea directo. */}
+                      {withdrawMode === "pay" && (
+                        <div>
+                          <label className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
+                            Método de pago
+                          </label>
+                          <div className="mt-2 grid grid-cols-2 gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setWithdrawPayMethod("cash")}
+                              className={withdrawModeClass(withdrawPayMethod === "cash", "emerald")}
+                            >
+                              Efectivo
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setWithdrawPayMethod("transfer")}
+                              className={withdrawModeClass(withdrawPayMethod === "transfer", "emerald")}
+                            >
+                              Transferencia
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </>
                   )}
 
-                  {/* Método de pago: solo si se eligió "Pagar ahora". */}
-                  {withdrawMode === "pay" && (
+                  {/* Nota: solo en "Agregar stock" — el flujo de retiro ya
+                      no la necesita (quién retira + cómo se registra
+                      reemplazan el texto libre como forma de dejar
+                      constancia del motivo). */}
+                  {!isOut && (
                     <div>
                       <label className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
-                        Método de pago
+                        Nota
                       </label>
-                      <div className="mt-2 grid grid-cols-2 gap-2">
-                        <button
-                          type="button"
-                          onClick={() => setWithdrawPayMethod("cash")}
-                          className={withdrawModeClass(withdrawPayMethod === "cash", "emerald")}
-                        >
-                          Efectivo
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setWithdrawPayMethod("transfer")}
-                          className={withdrawModeClass(withdrawPayMethod === "transfer", "emerald")}
-                        >
-                          Transferencia
-                        </button>
-                      </div>
+                      <textarea
+                        value={adjustNote}
+                        onChange={(event) => setAdjustNote(event.target.value)}
+                        rows={2}
+                        placeholder="Motivo del movimiento, proveedor, corrección, etc."
+                        className="mt-2 w-full resize-none rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3 text-base text-white outline-none placeholder:text-white/35 focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
+                      />
                     </div>
                   )}
-                </>
-              )}
-
-              <div>
-                <label className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
-                  Nota{" "}
-                  {stockAdjustment.direction === "out" && (
-                    <span className="normal-case text-white/30">(opcional)</span>
-                  )}
-                </label>
-                <textarea
-                  value={adjustNote}
-                  onChange={(event) => setAdjustNote(event.target.value)}
-                  rows={2}
-                  placeholder="Motivo del movimiento, proveedor, corrección, etc."
-                  className="mt-2 w-full resize-none rounded-2xl border border-white/10 bg-white/[0.035] px-4 py-3 text-base text-white outline-none placeholder:text-white/35 focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
-                />
-              </div>
-              <div className="rounded-2xl border border-white/[0.065] bg-white/[0.025] px-4 py-3 text-sm text-white/60">
-                Stock actual:{" "}
-                <span className="font-bold text-white">
-                  {stockNumber(stockAdjustment.item)}
-                </span>
+                </div>
+                <div className="flex shrink-0 justify-end gap-3 border-t border-white/[0.065] p-5 pt-4">
+                  <button
+                    type="button"
+                    onClick={() => setStockAdjustment(null)}
+                    className="rounded-2xl border border-white/10 bg-white/[0.035] px-5 py-3 text-sm font-bold text-white/70 transition hover:bg-white/[0.07] hover:text-white"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    onClick={confirmStockAdjustment}
+                    disabled={
+                      Boolean(adjustingId) ||
+                      (isOut &&
+                        (!withdrawWho ||
+                          (withdrawWho === "__other__" && !withdrawOtherLabel.trim()) ||
+                          !withdrawMode ||
+                          (withdrawMode === "pay" && !withdrawPayMethod)))
+                    }
+                    className={cn(
+                      "rounded-2xl px-5 py-3 text-sm font-bold transition disabled:opacity-50",
+                      isOut
+                        ? "bg-rose-500/12 text-rose-200 ring-1 ring-rose-400/24 shadow-[0_0_26px_rgba(244,63,94,0.20)] hover:bg-rose-500/18"
+                        : "bg-emerald-400/12 text-emerald-200 ring-1 ring-emerald-400/24 shadow-[0_0_26px_rgba(16,185,129,0.22)] hover:bg-emerald-400/18",
+                    )}
+                  >
+                    {/* "Aceptar" siempre en Retirar, sin importar el modo
+                        elegido — nunca "Retirar" ni el monto en el botón. */}
+                    {adjustingId ? "Guardando…" : isOut ? "Aceptar" : "Agregar"}
+                  </button>
+                </div>
               </div>
             </div>
-            <div className="flex shrink-0 justify-end gap-3 border-t border-white/[0.065] p-5 pt-4">
-              <button
-                type="button"
-                onClick={() => setStockAdjustment(null)}
-                className="rounded-2xl border border-white/10 bg-white/[0.035] px-5 py-3 text-sm font-bold text-white/70 transition hover:bg-white/[0.07] hover:text-white"
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={confirmStockAdjustment}
-                disabled={
-                  Boolean(adjustingId) ||
-                  (stockAdjustment.direction === "out" &&
-                    (!withdrawWho ||
-                      (withdrawWho === "__other__" && !withdrawOtherLabel.trim()) ||
-                      !withdrawMode ||
-                      (withdrawMode === "pay" && !withdrawPayMethod)))
-                }
-                className={cn(
-                  "rounded-2xl px-4 py-2 text-sm font-bold transition disabled:opacity-50",
-                  stockAdjustment.direction === "in"
-                    ? "bg-emerald-400/12 text-emerald-200 ring-1 ring-emerald-400/24 shadow-[0_0_26px_rgba(16,185,129,0.22)] hover:bg-emerald-400/18"
-                    : "bg-rose-500/12 text-rose-200 ring-1 ring-rose-400/24 shadow-[0_0_26px_rgba(244,63,94,0.20)] hover:bg-rose-500/18",
-                )}
-              >
-                {adjustingId
-                  ? "Guardando…"
-                  : stockAdjustment.direction === "in"
-                    ? "Agregar"
-                    : "Retirar"}
-              </button>
-            </div>
-          </div>
-        </div>,
+          );
+        })(),
         document.body,
       )}
     </div>
