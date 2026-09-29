@@ -20,6 +20,7 @@ import {
 } from "@/components/cash-register/use-caja-data";
 import {
   PAY_METHOD_LABEL,
+  ACTIVE_PAY_METHODS,
   registerPayment,
   deletePayment,
   type PayMethod,
@@ -46,6 +47,7 @@ import {
   CreditCard,
   Banknote,
   Smartphone,
+  QrCode,
   Check,
   Loader2,
   CalendarDays,
@@ -95,6 +97,53 @@ const PAY_HIST_MARKER = "[[HIST]]";
 // salesMovements (más abajo) lo volvía a listar ahí una segunda vez,
 // cruzándolo por nombre de producto contra data.paymentsToday.
 const STOCK_WITHDRAWAL_NOTE_MARKER = "[[STOCK_WITHDRAWAL]]";
+
+// Selector de métodos de pago de Nueva venta/Pago múltiple — fijo, a nivel
+// de módulo (nunca cambia entre renders, no depende de ningún prop/state,
+// no hace falta useMemo). Ya no depende de business_settings.schedule.
+// _caja.methods (esa configuración se sacó de Configuración > Caja por
+// completo, ver caja-section.tsx). Fila 1: Efectivo/Transferencia. Fila
+// 2: Débito/Crédito/QR — tres métodos independientes (antes "Tarjeta
+// débito/crédito" combinada + Mercado Pago), cada uno con su propio
+// PayMethod (register-payment.ts) para poder tener a futuro su propia
+// comisión/configuración.
+const PAYMENT_OPTIONS = [
+  { id: "cash", label: "Efectivo", icon: Banknote },
+  { id: "transfer", label: "Transferencia", icon: Smartphone },
+  { id: "debit", label: "Débito", icon: CreditCard },
+  { id: "credit", label: "Crédito", icon: CreditCard },
+  { id: "qr", label: "QR", icon: QrCode },
+] as const;
+
+// Botón de método de pago (Paso 4 · Pago simple) — componente propio en
+// vez de JSX duplicado, ahora que las dos filas fijas (Efectivo/
+// Transferencia, Débito/Crédito/QR) lo renderizan por separado.
+function PaymentMethodButton({
+  method,
+  active,
+  onClick,
+}: {
+  method: (typeof PAYMENT_OPTIONS)[number];
+  active: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={cn(
+        "flex items-center gap-2 rounded-xl border px-2.5 py-1.5 text-left transition-all duration-200 shadow-[0_18px_50px_-34px_rgba(0,0,0,1)]",
+        active
+          ? "border-blue-300/48 bg-[linear-gradient(135deg,rgba(37,99,235,0.22),rgba(8,11,20,0.94))] text-white ring-1 ring-blue-300/20 shadow-[0_0_26px_rgba(96,165,250,0.13)]"
+          : "border-white/[0.065] bg-[linear-gradient(135deg,rgba(8,11,20,0.92),rgba(2,6,23,0.90))] text-muted-foreground hover:border-white/[0.12] hover:bg-white/[0.045] hover:text-foreground",
+      )}
+    >
+      <method.icon className="size-4 shrink-0" />
+      <span className="min-w-0 break-words text-xs font-semibold leading-tight">
+        {method.label}
+      </span>
+    </button>
+  );
+}
 
 type HistorialEvento = {
   time: string;
@@ -4544,27 +4593,15 @@ function ProfesionalesTab({
       .sort((a: any, b: any) => String(b.advanced_at ?? "").localeCompare(String(a.advanced_at ?? "")));
   }, [allAdvances, selectedRow]);
 
-  // Mismos métodos/orden/config que Nueva venta (data.paymentMethods), para
-  // que "Pagar" use exactamente las mismas opciones — método simple y las
-  // filas de pago múltiple comparten esta lista.
-  const paymentOptions = React.useMemo(() => {
-    const cfg = data.paymentMethods;
-    return (
-      [
-        { id: "cash", label: "Efectivo", icon: Banknote, enabled: cfg.efectivo },
-        { id: "transfer", label: "Transferencia", icon: Smartphone, enabled: cfg.transferencia },
-        { id: "card", label: "Débito / Crédito", icon: CreditCard, enabled: cfg.tarjeta },
-        { id: "mp", label: "Mercado Pago", icon: Wallet, enabled: cfg.mp },
-        { id: "cuenta", label: "Cuenta DNI", icon: Smartphone, enabled: cfg.cuentaDni },
-      ] as const
-    ).filter((m) => m.enabled);
-  }, [data.paymentMethods]);
+  // Mismos métodos/orden que Nueva venta (PAYMENT_OPTIONS, fijo a nivel de
+  // módulo) — "Pagar" usa exactamente las mismas opciones, método simple y
+  // las filas de pago múltiple comparten esta lista.
+  const paymentOptions = PAYMENT_OPTIONS;
 
   // Si el método por default (o el de la primera fila de pago múltiple) no
   // está habilitado para este negocio, cae al primero que sí lo esté —
   // mismo criterio que Nueva venta.
   React.useEffect(() => {
-    if (paymentOptions.length === 0) return;
     if (!paymentOptions.some((m) => m.id === paymentForm.method)) {
       setPaymentForm((f) => ({ ...f, method: paymentOptions[0].id }));
     }
@@ -10028,38 +10065,7 @@ export function NuevaVentaTab({
     return matchesText && matchesCategory;
   });
 
-  const paymentOptions = React.useMemo(() => {
-    const cfg = data.paymentMethods;
-    return (
-      [
-        {
-          id: "cash",
-          label: "Efectivo",
-          icon: Banknote,
-          enabled: cfg.efectivo,
-        },
-        {
-          id: "transfer",
-          label: "Transferencia",
-          icon: Smartphone,
-          enabled: cfg.transferencia,
-        },
-        {
-          id: "card",
-          label: "Débito / Crédito",
-          icon: CreditCard,
-          enabled: cfg.tarjeta,
-        },
-        { id: "mp", label: "Mercado Pago", icon: Wallet, enabled: cfg.mp },
-        {
-          id: "cuenta",
-          label: "Cuenta DNI",
-          icon: Smartphone,
-          enabled: cfg.cuentaDni,
-        },
-      ] as const
-    ).filter((m) => m.enabled);
-  }, [data.paymentMethods]);
+  const paymentOptions = PAYMENT_OPTIONS;
 
   React.useEffect(() => {
     if (!paymentOptions.some((m) => m.id === method)) {
@@ -10068,16 +10074,15 @@ export function NuevaVentaTab({
   }, [paymentOptions, method]);
 
   // Aplica el método preferido por defecto (Transferencia > Efectivo >
-  // primero disponible) apenas se conocen los métodos realmente
-  // habilitados del negocio — espera a que paymentOptions deje de estar
-  // vacío (data.paymentMethods recién cargado) para no aplicar el default
-  // sobre una config todavía sin resolver. Se ejecuta una sola vez por
-  // cobro: methodDefaultAppliedRef se resetea a false en los dos puntos
-  // donde arranca un cobro nuevo (hidratación de pendingCharge y reset
-  // post-venta), así que no vuelve a pisar la elección del usuario dentro
-  // del mismo cobro.
+  // primero disponible) — PAYMENT_OPTIONS es fijo, siempre incluye
+  // "transfer", así que en la práctica esto siempre resuelve a
+  // Transferencia; Efectivo/primero quedan como red de seguridad. Se
+  // ejecuta una sola vez por cobro: methodDefaultAppliedRef se resetea a
+  // false en los dos puntos donde arranca un cobro nuevo (hidratación de
+  // pendingCharge y reset post-venta), así que no vuelve a pisar la
+  // elección del usuario dentro del mismo cobro.
   React.useEffect(() => {
-    if (methodDefaultAppliedRef.current || paymentOptions.length === 0) return;
+    if (methodDefaultAppliedRef.current) return;
     const preferred = paymentOptions.some((m) => m.id === "transfer")
       ? "transfer"
       : paymentOptions.some((m) => m.id === "cash")
@@ -10783,7 +10788,16 @@ export function NuevaVentaTab({
         // normal, sin fixed) el blur se mantiene exactamente igual.
         "relative mx-auto flex w-full max-w-5xl flex-col overflow-hidden rounded-[30px] border border-white/[0.085] bg-[linear-gradient(135deg,rgba(5,8,15,0.97),rgba(10,12,24,0.95),rgba(2,4,12,0.99))] px-3 pt-3 md:px-3.5 md:pt-3.5 shadow-[0_44px_130px_-55px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.60)] lg:backdrop-blur-2xl",
         variant === "modal"
-          ? "min-h-[420px] pb-3 md:pb-3.5"
+          // overflow-y-auto (pisa el overflow-hidden base vía twMerge):
+          // el alto de acá abajo pasó de "height" fija a "maxHeight" —
+          // ahora el contenido puede terminar siendo más alto que ese
+          // máximo (pantalla chica + carrito con varios ítems, por
+          // ejemplo), y sin esto se recortaría en vez de scrollear. Antes
+          // no hacía falta: con "height" fija + los hijos en flex-1
+          // forzados a esa altura exacta, nunca había overflow real que
+          // scrollear — a costa del espacio vacío enorme que se estiraba
+          // cuando el contenido real medía menos.
+          ? "min-h-[420px] overflow-y-auto pb-3 md:pb-3.5"
           : cn(
               // svh, no vh: 100vh en iOS Safari mide el viewport GRANDE
               // (como si la barra de direcciones ya estuviera colapsada),
@@ -10814,7 +10828,13 @@ export function NuevaVentaTab({
           // área visible hasta tocar el buscador. svh es el viewport MÁS
           // chico posible (barra de direcciones expandida), estable desde
           // el primer render sin depender de ningún evento para recalcular.
-          ? { height: "calc(100svh - 1.5rem - max(1.5rem, env(safe-area-inset-bottom, 0px)))" }
+          // maxHeight, no height: el modal ahora se achica al alto real
+          // de su contenido (Cliente/Servicios en el paso 3, resumen +
+          // método de pago en el paso 4, etc.) en vez de ocupar siempre
+          // este alto completo — este valor pasa a ser un TOPE, no un
+          // tamaño fijo, para pantallas donde el contenido sí llega a
+          // necesitar todo ese espacio (o más, y ahí scrollea).
+          ? { maxHeight: "calc(100svh - 1.5rem - max(1.5rem, env(safe-area-inset-bottom, 0px)))" }
           : undefined
       }
     >
@@ -11345,7 +11365,24 @@ export function NuevaVentaTab({
       )}
 
       {step === 4 && (
-        <Card className="relative z-10 flex min-h-0 flex-1 flex-col overflow-hidden rounded-3xl p-3 pt-0 border-white/[0.075] bg-[radial-gradient(circle_at_16%_0%,rgba(59,130,246,0.10),transparent_34%),radial-gradient(circle_at_90%_0%,rgba(139,92,246,0.12),transparent_40%),linear-gradient(135deg,rgba(3,6,14,0.98),rgba(8,9,22,0.96),rgba(1,3,10,0.99))] shadow-[0_38px_110px_-62px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.62)] sm:px-3.5 sm:pb-3.5">
+        <Card
+          className={cn(
+            "relative z-10 flex flex-col overflow-hidden rounded-3xl p-3 pt-0 border-white/[0.075] bg-[radial-gradient(circle_at_16%_0%,rgba(59,130,246,0.10),transparent_34%),radial-gradient(circle_at_90%_0%,rgba(139,92,246,0.12),transparent_40%),linear-gradient(135deg,rgba(3,6,14,0.98),rgba(8,9,22,0.96),rgba(1,3,10,0.99))] shadow-[0_38px_110px_-62px_rgba(0,0,0,1),0_0_70px_-48px_rgba(139,92,246,0.62)] sm:px-3.5 sm:pb-3.5",
+            // variant="page": esta Card ocupa TODO el resto del alto fijo
+            // del módulo (flex-1) — el bloque de "cómo se paga" de adentro
+            // scrollea si hace falta, Volver/COBRAR quedan fixed aparte.
+            // variant="modal" (Cobrar desde Mi Agenda/turno del
+            // profesional): shrink-0, sin flex-1 — el contenedor del modal
+            // ya no tiene una altura FIJA (ver más abajo, pasa a
+            // max-height), así que esta Card se achica a lo que su
+            // contenido realmente ocupa en vez de estirarse a llenar el
+            // resto del alto disponible. Eso era justo lo que dejaba un
+            // bloque vacío enorme debajo de Método de pago: el contenido
+            // real medía mucho menos que el alto que "flex-1" le forzaba
+            // a ocupar.
+            variant === "page" ? "min-h-0 flex-1" : "shrink-0",
+          )}
+        >
           {/* Barra de punta a punta pegada al borde superior del módulo
               (márgenes negativos cancelan el padding del Card) — recta,
               sin puntas redondeadas propias salvo las que hacen juego con
@@ -11614,13 +11651,26 @@ export function NuevaVentaTab({
           </Card>
           </div>
 
-          {/* Único bloque que scrollea en Paso 4: acotado a "cómo se
-              paga" (método + monto recibido, o Pago múltiple). Resumen,
-              Ajustes y tabs quedan shrink-0 arriba, siempre completos y
-              visibles — nunca hace falta buscar el scroll ahí. Así,
-              Volver/Cobrar (fixed, más abajo) solo compiten por espacio
-              con este bloque puntual, nunca con toda la pantalla. */}
-          <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain pt-1.5 pr-0.5 [scrollbar-width:thin] [scrollbar-color:rgba(96,165,250,0.35)_transparent]">
+          {/* variant="page": único bloque que scrollea en Paso 4, acotado a
+              "cómo se paga" (método + monto recibido, o Pago múltiple).
+              Resumen/Ajustes/tabs quedan shrink-0 arriba, siempre
+              completos y visibles. Volver/Cobrar (fixed, más abajo) solo
+              compiten por espacio con este bloque puntual, nunca con toda
+              la pantalla.
+              variant="modal": sin flex-1/min-h-0/overflow-y-auto propio —
+              el contenedor del modal entero (max-height, no height fija)
+              es el único scroll posible, y solo entra en juego si el
+              contenido realmente no entra. Fluye en su alto natural en
+              vez de estirarse a ocupar el resto de un alto que ya no está
+              fijo. */}
+          <div
+            className={cn(
+              "pt-1.5",
+              variant === "page"
+                ? "min-h-0 flex-1 overflow-y-auto overscroll-contain pr-0.5 [scrollbar-width:thin] [scrollbar-color:rgba(96,165,250,0.35)_transparent]"
+                : "shrink-0",
+            )}
+          >
           {paymentMode === "simple" ? (
             <>
               <div>
@@ -11630,28 +11680,31 @@ export function NuevaVentaTab({
                 {/* Ícono a la izquierda, nombre a la derecha, en una sola
                     fila — antes iban apilados (ícono arriba, nombre abajo),
                     lo que hacía cada tarjeta mucho más alta de lo
-                    necesario. 2 columnas en mobile, 4 en desktop ancho. */}
-                <div className="grid grid-cols-2 xl:grid-cols-4 gap-1.5">
-                  {paymentOptions.map((m) => {
-                    const active = method === m.id;
-                    return (
-                      <button
+                    necesario. Dos filas FIJAS (no un grid uniforme que
+                    reparte parejo): Efectivo/Transferencia arriba,
+                    Débito/Crédito/QR abajo — mismo orden en mobile y
+                    desktop. */}
+                <div className="space-y-1.5">
+                  <div className="grid grid-cols-2 gap-1.5">
+                    {paymentOptions.slice(0, 2).map((m) => (
+                      <PaymentMethodButton
                         key={m.id}
+                        method={m}
+                        active={method === m.id}
                         onClick={() => setMethod(m.id as PayMethod)}
-                        className={cn(
-                          "flex items-center gap-2 rounded-xl border px-2.5 py-1.5 text-left transition-all duration-200 shadow-[0_18px_50px_-34px_rgba(0,0,0,1)]",
-                          active
-                            ? "border-blue-300/48 bg-[linear-gradient(135deg,rgba(37,99,235,0.22),rgba(8,11,20,0.94))] text-white ring-1 ring-blue-300/20 shadow-[0_0_26px_rgba(96,165,250,0.13)]"
-                            : "border-white/[0.065] bg-[linear-gradient(135deg,rgba(8,11,20,0.92),rgba(2,6,23,0.90))] text-muted-foreground hover:border-white/[0.12] hover:bg-white/[0.045] hover:text-foreground",
-                        )}
-                      >
-                        <m.icon className="size-4 shrink-0" />
-                        <span className="min-w-0 break-words text-xs font-semibold leading-tight">
-                          {m.label}
-                        </span>
-                      </button>
-                    );
-                  })}
+                      />
+                    ))}
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {paymentOptions.slice(2).map((m) => (
+                      <PaymentMethodButton
+                        key={m.id}
+                        method={m}
+                        active={method === m.id}
+                        onClick={() => setMethod(m.id as PayMethod)}
+                      />
+                    ))}
+                  </div>
                 </div>
               </div>
               {method === "cash" && (
@@ -11747,8 +11800,13 @@ export function NuevaVentaTab({
           del código (price-catalog-section.tsx, equipo-section.tsx,
           promotions-section.tsx) — así queda pegada justo arriba de esa
           nav, nunca superpuesta ni flotando a mitad de pantalla.
-          variant="modal" (usado por professionals.tsx) NO se toca: sigue
-          en flujo normal, con su propio manejo de alto ya resuelto. */}
+          variant="modal" (usado por professionals.tsx) NO se toca acá:
+          sigue en flujo normal. El espacio vacío enorme que quedaba antes
+          debajo de Método de pago en esta variante no era por este
+          footer — era el Card del Paso 4 estirándose con flex-1 a ocupar
+          todo el alto de un contenedor con height FIJA; el fix real está
+          arriba (esa Card pasa a shrink-0) y en el contenedor exterior
+          (height → maxHeight), no en esta barra. */}
       <div
         className={cn(
           "z-40",

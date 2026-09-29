@@ -19,16 +19,38 @@ import { incrementPromotionUsage } from "@/lib/promotion-usage";
  *   "Corte + Barba / Pomada mate / Remera +2 más"
  */
 
-export type PayMethod = "cash" | "transfer" | "card" | "mp" | "qr" | "cuenta";
+// "card" y "mp" quedan solo por compatibilidad con pagos ya guardados
+// antes de este cambio (siguen resolviendo su label para verlos en
+// Historial/Detalle) — el selector de métodos ya no los ofrece para
+// cobros nuevos, ver ACTIVE_PAY_METHODS más abajo. "debit"/"credit"/"qr"
+// son las reemplazan: métodos independientes también a nivel de datos
+// (no solo de texto), para poder tener a futuro comisión/configuración
+// propia por cada uno sin tener que migrar ningún pago histórico.
+export type PayMethod = "cash" | "transfer" | "card" | "debit" | "credit" | "mp" | "qr" | "cuenta";
 
 export const PAY_METHOD_LABEL: Record<PayMethod, string> = {
   cash: "Efectivo",
   transfer: "Transferencia",
-  card: "Tarjeta",
-  mp: "Mercado Pago",
+  card: "Tarjeta", // legado
+  debit: "Débito",
+  credit: "Crédito",
+  mp: "Mercado Pago", // legado
   qr: "QR",
   cuenta: "Cuenta",
 };
+
+// Selector de métodos de pago de Caja (Nueva venta, Pago múltiple, Pagar
+// liquidación) — fijo, ya no depende de switches en Configuración > Caja
+// (business_settings.schedule._caja.methods se dejó de leer/escribir por
+// completo). Mismo orden en toda la app: Efectivo/Transferencia primero,
+// Débito/Crédito/QR después.
+export const ACTIVE_PAY_METHODS: ReadonlyArray<{ id: PayMethod; label: string }> = [
+  { id: "cash", label: "Efectivo" },
+  { id: "transfer", label: "Transferencia" },
+  { id: "debit", label: "Débito" },
+  { id: "credit", label: "Crédito" },
+  { id: "qr", label: "QR" },
+];
 
 export type RegisterPaymentItem = {
   serviceName: string;
