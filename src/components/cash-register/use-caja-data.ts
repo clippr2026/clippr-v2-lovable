@@ -285,6 +285,11 @@ function computeCajaStatus(params: {
 // el chequeo `cached.businessId === businessId` de abajo lo garantiza.
 type CajaDataCache = {
   businessId: string;
+  // Multi-sucursal (fundación): el cache tiene que distinguir sucursal,
+  // no solo negocio — si no, cambiar de sucursal mostraría por un
+  // instante los datos de la OTRA sucursal (cache hit por businessId)
+  // antes de que la carga real (ya filtrada por branch_id) los reemplace.
+  branchId: string | null;
   services: Service[];
   employees: Employee[];
   promotions: Promotion[];
@@ -307,7 +312,7 @@ type CajaDataCache = {
 let cajaDataCache: CajaDataCache | null = null;
 
 export function useCajaData() {
-  const { businessId, profile } = useAuth();
+  const { businessId, profile, activeBranchId } = useAuth();
   const [loading, setLoading] = React.useState(true);
   const [approvalMode, setApprovalModeState] = React.useState<ApprovalMode>("auto");
   const [approvalModeEnabled, setApprovalModeEnabled] = React.useState(false);
@@ -372,10 +377,10 @@ export function useCajaData() {
       loadedBusinessIdRef.current = businessId;
       hasLoadedRef.current = false;
       // Volver a Caja (o el primer montaje de este componente en la
-      // sesión) con un cache de ESTE negocio disponible: hidratar todo
-      // de una — nunca el de otro negocio, evita mostrar datos viejos
-      // ajenos aunque sea por un instante.
-      if (cajaDataCache && cajaDataCache.businessId === businessId) {
+      // sesión) con un cache de ESTE negocio Y ESTA sucursal disponible:
+      // hidratar todo de una — nunca el de otro negocio/sucursal, evita
+      // mostrar datos viejos ajenos aunque sea por un instante.
+      if (cajaDataCache && cajaDataCache.businessId === businessId && cajaDataCache.branchId === activeBranchId) {
         const cached = cajaDataCache;
         setServices(cached.services);
         setEmployees(cached.employees);
@@ -412,50 +417,81 @@ export function useCajaData() {
     // resuelve más abajo, justo donde antes estaba el await.
     const sessionPromise = loadCajaSession(businessId);
 
+    // Multi-sucursal (fundación): branch_id es un filtro de aplicación, se
+    // suma al .eq("business_id", ...) de siempre — nunca lo reemplaza.
+    // Con activeBranchId en null (negocio recién migrado, sin sucursal
+    // resuelta todavía) el filtro simplemente no se aplica, mismo
+    // comportamiento que antes de esta migración.
+    let svcQuery = supabase
+      .from("price_catalog")
+      .select("id,name,price,duration_min,category,active,stock,cash_discount")
+      .eq("business_id", businessId)
+      .eq("active", true);
+    if (activeBranchId) svcQuery = svcQuery.eq("branch_id", activeBranchId);
+
+    // Sin .eq("is_active", true): esa columna nunca se edita desde ningún
+    // lugar de la app (Equipo no tiene un toggle para ella — ver el
+    // comentario de toggleOnline en equipo-section.tsx; "Acepta reservas
+    // en línea" es un campo totalmente distinto, guardado en
+    // business_settings). Filtrar por acá dejaba afuera de "Nueva venta"
+    // a cualquier profesional cuyo is_active fuera false/null por algún
+    // motivo ajeno al negocio, aunque apareciera normal en Equipo/Agenda
+    // — ninguna otra consulta de employees del proyecto filtra por esto.
+    let empQuery = supabase
+      .from("employees")
+      .select("id,full_name,avatar_url,is_active,commission_pct,commission_fixed")
+      .eq("business_id", businessId);
+    if (activeBranchId) empQuery = empQuery.eq("branch_id", activeBranchId);
+
+    let payQuery = supabase
+      .from("payments")
+      // business_id: hace falta acá (no solo el .eq de abajo) para poder
+      // eliminar el cobro desde el detalle sin otra consulta. discount/
+      // original_amount/tip_amount: el modal de detalle ("Últimos
+      // ingresos" → tocar una fila) los necesita para mostrar el
+      // desglose Servicio/Descuento/Propina/Total cobrado — antes no se
+      // pedían acá, así que esas filas quedaban siempre en null aunque
+      // el pago sí los tuviera guardados en la base. items: el detalle
+      // de "Retirar stock → Pagar ahora" lo necesita para separar
+      // cantidad/precio unitario/total sin parsear service_name (que
+      // puede traer "Cepita x2" como texto).
+      .select("id,business_id,total,amount,method,payment_method,client_name,service_name,created_at,employee_id,appointment_id,charged_by,charge_type,status,charged_at,observations,discount,original_amount,tip_amount,items")
+      .eq("business_id", businessId)
+      .gte("created_at", today.toISOString())
+      .lte("created_at", todayEnd.toISOString());
+    if (activeBranchId) payQuery = payQuery.eq("branch_id", activeBranchId);
+    payQuery = payQuery.order("created_at", { ascending: false });
+
+    let expQuery = supabase
+      .from("expenses")
+      .select("id,name,amount,type,category,payment_method,date,note,created_at,user_id,user_name,user_email,created_by")
+      .eq("business_id", businessId)
+      .eq("date", dateStr);
+    if (activeBranchId) expQuery = expQuery.eq("branch_id", activeBranchId);
+    expQuery = expQuery.order("created_at", { ascending: false });
+
+    // "pending_payment" NUNCA es un valor válido de appointments.status —
+    // la restricción "appointments_status_check" de Supabase no lo admite
+    // (solo pending/confirmed/completed/cancelled/no_show/charged/blocked),
+    // así que filtrar por ese status acá dejaba esta consulta en cero
+    // filas SIEMPRE: ningún turno "enviado a caja" podía llegar a existir
+    // con ese status. El marcador "[PENDIENTE_CAJA]" en las notas es la
+    // única señal real de "enviado, todavía no cobrado".
+    let pendingQuery = supabase
+      .from("appointments")
+      .select("id,client_name,service_name,service_price,employee_id,starts_at,notes,status,cobro_events,promotion_id,promotion_snapshot")
+      .eq("business_id", businessId);
+    if (activeBranchId) pendingQuery = pendingQuery.eq("branch_id", activeBranchId);
+    pendingQuery = pendingQuery
+      .ilike("notes", "%[PENDIENTE_CAJA]%")
+      .not("status", "in", "(charged,cancelled,blocked)")
+      .order("starts_at", { ascending: true });
+
     const [svcRes, empRes, payRes, expRes, sessRes, bsRes, cliRes, pendingChargeRes, cierresRes] = await Promise.allSettled([
-      supabase
-        .from("price_catalog")
-        .select("id,name,price,duration_min,category,active,stock,cash_discount")
-        .eq("business_id", businessId)
-        .eq("active", true)
-        .order("category")
-        .order("name"),
-      // Sin .eq("is_active", true): esa columna nunca se edita desde ningún
-      // lugar de la app (Equipo no tiene un toggle para ella — ver el
-      // comentario de toggleOnline en equipo-section.tsx; "Acepta reservas
-      // en línea" es un campo totalmente distinto, guardado en
-      // business_settings). Filtrar por acá dejaba afuera de "Nueva venta"
-      // a cualquier profesional cuyo is_active fuera false/null por algún
-      // motivo ajeno al negocio, aunque apareciera normal en Equipo/Agenda
-      // — ninguna otra consulta de employees del proyecto filtra por esto.
-      supabase
-        .from("employees")
-        .select("id,full_name,avatar_url,is_active,commission_pct,commission_fixed")
-        .eq("business_id", businessId)
-        .order("full_name", { ascending: true }),
-      supabase
-        .from("payments")
-        // business_id: hace falta acá (no solo el .eq de abajo) para poder
-        // eliminar el cobro desde el detalle sin otra consulta. discount/
-        // original_amount/tip_amount: el modal de detalle ("Últimos
-        // ingresos" → tocar una fila) los necesita para mostrar el
-        // desglose Servicio/Descuento/Propina/Total cobrado — antes no se
-        // pedían acá, así que esas filas quedaban siempre en null aunque
-        // el pago sí los tuviera guardados en la base. items: el detalle
-        // de "Retirar stock → Pagar ahora" lo necesita para separar
-        // cantidad/precio unitario/total sin parsear service_name (que
-        // puede traer "Cepita x2" como texto).
-        .select("id,business_id,total,amount,method,payment_method,client_name,service_name,created_at,employee_id,appointment_id,charged_by,charge_type,status,charged_at,observations,discount,original_amount,tip_amount,items")
-        .eq("business_id", businessId)
-        .gte("created_at", today.toISOString())
-        .lte("created_at", todayEnd.toISOString())
-        .order("created_at", { ascending: false }),
-      supabase
-        .from("expenses")
-        .select("id,name,amount,type,category,payment_method,date,note,created_at,user_id,user_name,user_email,created_by")
-        .eq("business_id", businessId)
-        .eq("date", dateStr)
-        .order("created_at", { ascending: false }),
+      svcQuery.order("category").order("name"),
+      empQuery.order("full_name", { ascending: true }),
+      payQuery,
+      expQuery,
       // Session loaded via loadCajaSession (handles both cash_sessions table and fallback)
       Promise.resolve({ data: null, error: null }),
       supabase
@@ -466,20 +502,7 @@ export function useCajaData() {
       // Clients are searched on demand in the cobro picker (server-side ILIKE),
       // so we no longer load every client here.
       Promise.resolve({ data: null, error: null }),
-      // "pending_payment" NUNCA es un valor válido de appointments.status —
-      // la restricción "appointments_status_check" de Supabase no lo admite
-      // (solo pending/confirmed/completed/cancelled/no_show/charged/blocked),
-      // así que filtrar por ese status acá dejaba esta consulta en cero
-      // filas SIEMPRE: ningún turno "enviado a caja" podía llegar a existir
-      // con ese status. El marcador "[PENDIENTE_CAJA]" en las notas es la
-      // única señal real de "enviado, todavía no cobrado".
-      supabase
-        .from("appointments")
-        .select("id,client_name,service_name,service_price,employee_id,starts_at,notes,status,cobro_events,promotion_id,promotion_snapshot")
-        .eq("business_id", businessId)
-        .ilike("notes", "%[PENDIENTE_CAJA]%")
-        .not("status", "in", "(charged,cancelled,blocked)")
-        .order("starts_at", { ascending: true }),
+      pendingQuery,
       // Últimos cierres — para saber desde cuándo son los Pendientes "de
       // hoy" (ver lastCierreAt más abajo). Trae varias filas, no solo la
       // última, porque una fila de caja_cierres es por día pero puede tener
@@ -774,9 +797,9 @@ export function useCajaData() {
 
     hasLoadedRef.current = true;
     setLoading(false);
-  }, [businessId]);
+  }, [businessId, activeBranchId]);
 
-  React.useEffect(() => { load("component mount / businessId cambió"); }, [load]);
+  React.useEffect(() => { load("component mount / businessId o sucursal cambió"); }, [load]);
 
   // Mantiene cajaDataCache al día con el estado actual — cualquier cambio
   // (carga real terminada, realtime, refresh() manual) queda disponible
@@ -787,6 +810,7 @@ export function useCajaData() {
     if (!businessId || !hasLoadedRef.current) return;
     cajaDataCache = {
       businessId,
+      branchId: activeBranchId,
       services, employees, promotions, paymentsToday, expensesToday,
       cashSessionId, cajaStatus,
       pendingCount, pendingAmount, pendingCharges,
@@ -795,7 +819,7 @@ export function useCajaData() {
       approvalMode, approvalModeEnabled, paymentMethods,
     };
   }, [
-    businessId, services, employees, promotions, paymentsToday, expensesToday,
+    businessId, activeBranchId, services, employees, promotions, paymentsToday, expensesToday,
     cashSessionId, cajaStatus,
     pendingCount, pendingAmount, pendingCharges,
     pendingCountPrevious, pendingAmountPrevious, pendingChargesPrevious,

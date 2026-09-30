@@ -28,6 +28,7 @@ import {
   type EmployeeServiceOverrideMap,
 } from "@/lib/service-pricing";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
+import { BranchSelector } from "@/components/branch-selector";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import {
   SectionCard,
@@ -137,6 +138,7 @@ type EmployeeRow = {
   is_active?: boolean | null;
   commission_pct?: number | null;
   role?: string | null;
+  branch_id?: string | null;
 };
 
 type PendingProfessional = {
@@ -205,6 +207,11 @@ type NewProForm = {
   approvalMode: "auto" | "manual";
   canAddTurno: boolean;
   canCancelTurno: boolean;
+  // Multi-sucursal (fundación) — null = "usar la sucursal activa" (ver
+  // saveProfessional, solo importa para alta nueva; al editar un
+  // profesional existente queda explícito, nunca se le cambia la
+  // sucursal solo por tener el form abierto con otra seleccionada).
+  branchId: string | null;
 };
 
 const EMPTY_FORM: NewProForm = {
@@ -227,6 +234,7 @@ const EMPTY_FORM: NewProForm = {
   approvalMode: "auto",
   canAddTurno: false,
   canCancelTurno: false,
+  branchId: null,
 };
 
 /**
@@ -760,7 +768,7 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
 });
 
 export function EquipoSection() {
-  const { businessId } = useAuth();
+  const { businessId, activeBranchId, branches } = useAuth();
   const [equipoTab, setEquipoTab] = useState<"profesionales" | "accesos">(
     "profesionales",
   );
@@ -861,12 +869,17 @@ export function EquipoSection() {
       return;
     }
     setLoading(true);
+    // Multi-sucursal (fundación): branch_id se suma al .eq("business_id",
+    // ...) de siempre. Con activeBranchId en null el filtro no se aplica.
+    let employeesQuery = supabase
+      .from("employees")
+      .select("id,full_name,avatar_url,is_active,commission_pct,branch_id")
+      .eq("business_id", businessId);
+    if (activeBranchId) employeesQuery = employeesQuery.eq("branch_id", activeBranchId);
+    employeesQuery = employeesQuery.order("full_name", { ascending: true });
+
     const [{ data, error }, catalogResult, settingsResult] = await Promise.all([
-      supabase
-        .from("employees")
-        .select("id,full_name,avatar_url,is_active,commission_pct")
-        .eq("business_id", businessId)
-        .order("full_name", { ascending: true }),
+      employeesQuery,
       supabase
         .from("price_catalog")
         .select(
@@ -904,7 +917,7 @@ export function EquipoSection() {
     );
     setCommissionItems((catalogResult.data ?? []) as PriceRow[]);
     setLoading(false);
-  }, [businessId]);
+  }, [businessId, activeBranchId]);
 
   useEffect(() => {
     load();
@@ -1441,7 +1454,11 @@ export function EquipoSection() {
 
   function openNew() {
     setEditingEmp(null);
-    setForm(EMPTY_FORM);
+    // Un profesional nuevo arranca ya asignado a la sucursal activa (si
+    // hay más de una) — no hace falta elegirla a mano cada vez que se
+    // está trabajando "dentro" de una sucursal puntual. Sigue siendo
+    // editable en el form antes de guardar.
+    setForm({ ...EMPTY_FORM, branchId: activeBranchId ?? null });
     setDlgTab("perfil");
     setOpen(true);
   }
@@ -1512,6 +1529,7 @@ export function EquipoSection() {
             is_active: form.isActive,
             commission_pct: commission,
             avatar_url: form.avatarUrl || null,
+            branch_id: form.branchId ?? null,
           })
           .eq("id", editingEmp.id);
         if (empUpdateError) {
@@ -1628,6 +1646,7 @@ export function EquipoSection() {
                   commission_pct: commission,
                   avatar_url: form.avatarUrl || null,
                   role: form.role.trim() || "Profesional",
+                  branch_id: form.branchId ?? null,
                 }
               : emp,
           ),
@@ -1693,6 +1712,7 @@ export function EquipoSection() {
           is_active: form.isActive,
           commission_pct: commission,
           avatar_url: form.avatarUrl || null,
+          branch_id: form.branchId ?? activeBranchId ?? null,
         })
         .select("id")
         .single();
@@ -1809,6 +1829,7 @@ export function EquipoSection() {
           role: form.role.trim() || "Profesional",
           is_active: form.isActive,
           commission_pct: commission,
+          branch_id: form.branchId ?? activeBranchId ?? null,
         },
       ]);
       setEmployeeOnlineMap((current) => ({
@@ -1958,6 +1979,7 @@ export function EquipoSection() {
         canCancelTurno: employeeCanCancelTurnoMap[emp.id] === true,
         commissions: employeeCommissionsMap[emp.id] ?? {},
         serviceOverrides: employeeServiceOverridesMap[emp.id] ?? {},
+        branchId: emp.branch_id ?? null,
       });
       setDlgTab("perfil");
       setOpen(true);
@@ -2363,11 +2385,14 @@ export function EquipoSection() {
       {/* Oculto en mobile: el drill-down de Configuración ya muestra "←
           Equipo" arriba — repetirlo acá era redundante. Desktop no tiene
           ese header, sigue siendo la única referencia. */}
-      <div className="hidden lg:block">
-        <h2 className="text-xl font-display font-semibold">Equipo</h2>
-        <p className="text-sm text-muted-foreground mt-1">
-          Administrá tu equipo.
-        </p>
+      <div className="hidden lg:flex lg:items-start lg:justify-between lg:gap-4">
+        <div>
+          <h2 className="text-xl font-display font-semibold">Equipo</h2>
+          <p className="text-sm text-muted-foreground mt-1">
+            Administrá tu equipo.
+          </p>
+        </div>
+        <BranchSelector className="mt-1" />
       </div>
 
       {/* Pestañas Profesionales / Accesos — separación de siempre, restaurada
@@ -2634,6 +2659,30 @@ export function EquipoSection() {
                     </select>
                   </Field>
                 </div>
+
+                {/* Solo con más de una sucursal — con una sola no hay nada
+                    que elegir, el campo quedaría ahí sin aportar nada. */}
+                {branches.length > 1 && (
+                  <Field label="Sucursal">
+                    <select
+                      value={accessForm.branch_id ?? ""}
+                      onChange={(e) =>
+                        setAccessForm((f) => ({
+                          ...f,
+                          branch_id: e.target.value || null,
+                        }))
+                      }
+                      className={inputCls}
+                    >
+                      <option value="">Sin asignar</option>
+                      {branches.map((b) => (
+                        <option key={b.id} value={b.id}>
+                          {b.name}
+                        </option>
+                      ))}
+                    </select>
+                  </Field>
+                )}
 
                 {accessForm.role === "profesional" && (
                   <div>
@@ -3101,6 +3150,28 @@ export function EquipoSection() {
                       />
                     </Field>
                   </div>
+
+                  {/* Solo con más de una sucursal — con una sola no hay
+                      nada que elegir. */}
+                  {branches.length > 1 && (
+                    <Field label="Sucursal">
+                      <select
+                        value={form.branchId ?? ""}
+                        onChange={(e) =>
+                          setForm({ ...form, branchId: e.target.value || null })
+                        }
+                        className={inputCls}
+                      >
+                        <option value="">Sin asignar</option>
+                        {branches.map((b) => (
+                          <option key={b.id} value={b.id}>
+                            {b.name}
+                          </option>
+                        ))}
+                      </select>
+                    </Field>
+                  )}
+
                   <PermissionToggleRow
                     icon={Globe}
                     title="Acepta reservas en línea"

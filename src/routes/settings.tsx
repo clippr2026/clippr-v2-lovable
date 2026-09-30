@@ -60,6 +60,7 @@ import { ClipprLoader } from "@/components/ui/clippr-loader";
 import { BrandingSection } from "@/components/settings/branding-section";
 import { HorariosSection } from "@/components/settings/horarios-section";
 import { EquipoSection } from "@/components/settings/equipo-section";
+import { SucursalesSection } from "@/components/settings/sucursales-section";
 import { ServiciosSection, CatalogoSection } from "@/components/settings/price-catalog-section";
 import { PromotionsSection } from "@/components/settings/promotions-section";
 import { CuentaSection } from "@/components/settings/cuenta-section";
@@ -87,6 +88,7 @@ type SectionId =
   | "servicios"
   | "catalogo"
   | "promociones"
+  | "sucursales"
   | "cuenta"
   | "plan";
 
@@ -154,6 +156,13 @@ const groups: { label: string; items: NavItem[] }[] = [
   {
     label: "Sistema",
     items: [
+      {
+        id: "sucursales" as const,
+        label: "Sucursales",
+        icon: Building2,
+        tint: "text-[oklch(0.8_0.14_240)]",
+        glow: "from-[oklch(0.8_0.14_240/0.25)] to-[oklch(0.68_0.18_255/0.05)]",
+      },
       {
         id: "cuenta" as const,
         label: "Cuenta",
@@ -392,6 +401,7 @@ function SettingsPage() {
 
                 {active === "catalogo" && <CatalogoSection />}
                 {active === "promociones" && <PromotionsSection />}
+                {active === "sucursales" && <SucursalesSection />}
                 {active === "cuenta" && <CuentaSection />}
                 {active === "plan" && <PlanSection />}
               </section>

@@ -286,7 +286,7 @@ function normalizeSchedule(value: unknown): ScheduleMap | null {
 
 
 export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
-  const { businessId } = useAuth();
+  const { businessId, activeBranchId } = useAuth();
   const [loading, setLoading] = React.useState(true);
   const [appointments, setAppointments] = React.useState<Appointment[]>([]);
   const [employees, setEmployees] = React.useState<Employee[]>([]);
@@ -336,32 +336,48 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     }
     if (!options?.silent) setLoading(true);
 
+    // Multi-sucursal (fundación): branch_id se suma al .eq("business_id",
+    // ...) de siempre, nunca lo reemplaza. Con activeBranchId en null
+    // (negocio recién migrado, sin sucursal resuelta todavía) el filtro
+    // no se aplica — mismo comportamiento que antes de esta migración.
+    let apptQuery = supabase
+      .from("appointments")
+      .select(
+        "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,created_at,updated_at,promotion_id,promotion_snapshot,recurring_series_id",
+      )
+      .eq("business_id", businessId)
+      .gte("starts_at", startIso)
+      .lte("starts_at", endIso);
+    if (activeBranchId) apptQuery = apptQuery.eq("branch_id", activeBranchId);
+    apptQuery = apptQuery.order("starts_at");
+
+    let empQuery = supabase
+      .from("employees")
+      .select("id,full_name,avatar_url,is_active")
+      .eq("business_id", businessId);
+    if (activeBranchId) empQuery = empQuery.eq("branch_id", activeBranchId);
+    empQuery = empQuery.order("full_name", { ascending: true });
+
+    let svcQuery = supabase
+      .from("price_catalog")
+      .select("id,name,price,duration_min,active,category,cash_discount")
+      .eq("business_id", businessId)
+      .not("duration_min", "is", null);
+    if (activeBranchId) svcQuery = svcQuery.eq("branch_id", activeBranchId);
+    svcQuery = svcQuery.order("name");
+
+    let clientsQuery = supabase
+      .from("clients")
+      .select("id,full_name,phone,email,birth_date")
+      .eq("business_id", businessId);
+    if (activeBranchId) clientsQuery = clientsQuery.eq("branch_id", activeBranchId);
+    clientsQuery = clientsQuery.order("full_name");
+
     const [aRes, eRes, sRes, cRes, bsRes] = await Promise.allSettled([
-      supabase
-        .from("appointments")
-        .select(
-          "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,created_at,updated_at,promotion_id,promotion_snapshot,recurring_series_id",
-        )
-        .eq("business_id", businessId)
-        .gte("starts_at", startIso)
-        .lte("starts_at", endIso)
-        .order("starts_at"),
-      supabase
-        .from("employees")
-        .select("id,full_name,avatar_url,is_active")
-        .eq("business_id", businessId)
-        .order("full_name", { ascending: true }),
-      supabase
-        .from("price_catalog")
-        .select("id,name,price,duration_min,active,category,cash_discount")
-        .eq("business_id", businessId)
-        .not("duration_min", "is", null)
-        .order("name"),
-      supabase
-        .from("clients")
-        .select("id,full_name,phone,email,birth_date")
-        .eq("business_id", businessId)
-        .order("full_name"),
+      apptQuery,
+      empQuery,
+      svcQuery,
+      clientsQuery,
       supabase
         .from("business_settings")
         .select("schedule")
@@ -507,7 +523,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     // Agenda ni muestra error al usuario (best-effort silencioso — ver
     // comentario en topUpRecurringSeries).
     topUpRecurringSeries(businessId, loadedSchedule, normalizedEmployeeSchedules, normalizedBizSpecial, normalizedEmpSpecial).catch(() => {});
-  }, [businessId, startIso, endIso]);
+  }, [businessId, activeBranchId, startIso, endIso]);
 
   // Narrow reloads used by realtime so a single appointment change does NOT
   // refetch employees, services, clients and schedule on every event.
@@ -543,13 +559,16 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
 
   const loadServices = React.useCallback(async () => {
     if (!businessId) return;
+    let loadServicesQuery = supabase
+      .from("price_catalog")
+      .select("id,name,price,duration_min,active,category,cash_discount")
+      .eq("business_id", businessId)
+      .not("duration_min", "is", null);
+    if (activeBranchId) loadServicesQuery = loadServicesQuery.eq("branch_id", activeBranchId);
+    loadServicesQuery = loadServicesQuery.order("name");
+
     const [{ data, error }, settingsRes] = await Promise.all([
-      supabase
-        .from("price_catalog")
-        .select("id,name,price,duration_min,active,category,cash_discount")
-        .eq("business_id", businessId)
-        .not("duration_min", "is", null)
-        .order("name"),
+      loadServicesQuery,
       supabase
         .from("business_settings")
         .select("schedule")
@@ -574,10 +593,10 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
           cash_discount: s.cash_discount ?? null,
         })),
     );
-  }, [businessId]);
+  }, [businessId, activeBranchId]);
 
   React.useEffect(() => {
-    const rangeKey = `${businessId ?? ""}|${startIso}|${endIso}`;
+    const rangeKey = `${businessId ?? ""}|${activeBranchId ?? ""}|${startIso}|${endIso}`;
     const isGenuineRangeChange = loadedKeyRef.current !== rangeKey;
     loadedKeyRef.current = rangeKey;
     load({ silent: !isGenuineRangeChange });

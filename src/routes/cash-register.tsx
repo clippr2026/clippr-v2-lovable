@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
+import { BranchSelector } from "@/components/branch-selector";
 import { ServiceImage } from "@/components/ui/service-image";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
@@ -1021,13 +1022,16 @@ function Header({
   // el título, que además ya está oculto en mobile (el banner de sección
   // debajo del header ya dice "Caja" — ver MobileSectionBanner).
   return (
-    <div className="hidden lg:block">
-      <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight text-foreground">
-        Caja
-      </h1>
-      <p className="mt-2 text-sm text-muted-foreground md:text-base">
-        Cobros, gastos y liquidaciones
-      </p>
+    <div className="hidden lg:flex lg:items-start lg:justify-between lg:gap-4">
+      <div>
+        <h1 className="font-display text-3xl md:text-4xl font-semibold tracking-tight text-foreground">
+          Caja
+        </h1>
+        <p className="mt-2 text-sm text-muted-foreground md:text-base">
+          Cobros, gastos y liquidaciones
+        </p>
+      </div>
+      <BranchSelector className="mt-1.5" />
     </div>
   );
 }

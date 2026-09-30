@@ -78,6 +78,24 @@ const ALL_FALSE_PERMS: Record<PermKey, boolean> = ALL_PERM_KEYS.reduce(
 // Un miembro en cualquiera de estos estados se trata como SIN negocio.
 const REVOKED_STATUSES = new Set(["suspended", "deleted", "removed", "inactive", "blocked"]);
 
+// Multi-sucursal (fundación) — un negocio siempre tiene al menos una fila
+// acá después de la migración de branches (todo negocio existente quedó
+// con "Sucursal principal" vía backfill). branch_id en el resto de las
+// tablas sigue siendo nullable/filtro de aplicación, nunca un límite de
+// RLS nuevo (ver 20260930010000_branches_multi_sucursal.sql).
+export type Branch = {
+  id: string;
+  business_id: string;
+  name: string;
+  address: string | null;
+  is_active: boolean;
+  created_at: string;
+};
+
+function activeBranchStorageKey(businessId: string) {
+  return `clippr_active_branch_${businessId}`;
+}
+
 type AuthState = {
   loading: boolean;
   session: Session | null;
@@ -89,6 +107,15 @@ type AuthState = {
   permissions: Record<PermKey, boolean>;
   rolePermissions: Record<string, Record<string, boolean>> | null;
   reloadRolePermissions: () => Promise<void>;
+  // Sucursales del negocio actual + cuál está activa (persistida en
+  // localStorage por business_id, para no mezclar selección si el mismo
+  // usuario tiene acceso a más de un negocio). branches.length <= 1 es la
+  // señal que usa <BranchSelector/> para mostrar texto fijo en vez de un
+  // dropdown — nunca un desplegable innecesario con una sola sucursal.
+  branches: Branch[];
+  activeBranchId: string | null;
+  setActiveBranchId: (id: string) => void;
+  reloadBranches: () => Promise<void>;
 };
 
 const AuthCtx = React.createContext<AuthState | undefined>(undefined);
@@ -273,6 +300,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = React.useState(true);
   const [rolePermissions, setRolePermissions] = React.useState<Record<string, Record<string, boolean>> | null>(null);
   const [teamPermissions, setTeamPermissions] = React.useState<Record<PermKey, boolean> | null>(null);
+  const [branches, setBranches] = React.useState<Branch[]>([]);
+  const [activeBranchId, setActiveBranchIdState] = React.useState<string | null>(null);
 
   // Ref con la sesión actual, siempre al día (a diferencia del `session` de
   // useState, que quedaría "congelado" dentro del closure de
@@ -298,6 +327,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("clippr:role-permissions-updated", handler);
   }, [reloadRolePermissions]);
 
+  // Sucursales del negocio actual. Se resuelve la activa acá mismo (no en
+  // cada consumidor): localStorage si todavía es una sucursal válida de
+  // ESTE negocio, si no la primera de la lista — así un negocio con una
+  // sola sucursal nunca queda con activeBranchId en null.
+  const loadBranches = React.useCallback(async (bizId: string | null) => {
+    if (!bizId) {
+      setBranches([]);
+      setActiveBranchIdState(null);
+      return;
+    }
+    const { data, error } = await supabase
+      .from("branches" as any)
+      .select("id,business_id,name,address,is_active,created_at")
+      .eq("business_id", bizId)
+      .order("created_at", { ascending: true });
+    if (error) {
+      // Tabla puede no existir todavía en algún ambiente (ej. producción
+      // antes de correr la migración) — nunca romper el login por esto.
+      console.warn("[AUTH] branches fetch:", error.message);
+      setBranches([]);
+      setActiveBranchIdState(null);
+      return;
+    }
+    const rows = (data ?? []) as Branch[];
+    setBranches(rows);
+    const saved = localStorage.getItem(activeBranchStorageKey(bizId));
+    const stillValid = saved && rows.some((b) => b.id === saved);
+    setActiveBranchIdState(stillValid ? saved : (rows[0]?.id ?? null));
+  }, []);
+
+  const reloadBranches = React.useCallback(async () => {
+    await loadBranches(businessId);
+  }, [loadBranches, businessId]);
+
+  const setActiveBranchId = React.useCallback((id: string) => {
+    setActiveBranchIdState(id);
+    if (businessId) localStorage.setItem(activeBranchStorageKey(businessId), id);
+  }, [businessId]);
+
   const hydrate = React.useCallback(async (s: Session | null) => {
     setSession(s);
     if (s?.user) {
@@ -311,6 +379,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           supabase.from("business_settings").select("role_permissions").eq("business_id", biz).maybeSingle()
             .then(({ data }) => { if (data?.role_permissions) setRolePermissions(data.role_permissions as Record<string,Record<string,boolean>>); });
         }
+        void loadBranches(biz);
       } catch (e) {
         console.error("[AUTH] hydrate:", (e as Error).message);
       }
@@ -319,9 +388,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setProfile(null);
       setRolePermissions(null);
       setTeamPermissions(null);
+      setBranches([]);
+      setActiveBranchIdState(null);
     }
     setLoading(false);
-  }, []);
+  }, [loadBranches]);
 
   React.useEffect(() => {
     let mounted = true;
@@ -371,6 +442,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setProfile(null);
         setBusinessId(null);
         setTeamPermissions(null);
+        setBranches([]);
+        setActiveBranchIdState(null);
         setLoading(false);
         return;
       }
@@ -453,6 +526,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     permissions,
     rolePermissions,
     reloadRolePermissions,
+    branches,
+    activeBranchId,
+    setActiveBranchId,
+    reloadBranches,
   };
 
   return <AuthCtx.Provider value={value}>{children}</AuthCtx.Provider>;
