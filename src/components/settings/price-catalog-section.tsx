@@ -962,7 +962,7 @@ function PriceEditorModal({
 
 function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   const isService = kind === "servicios";
-  const { businessId } = useAuth();
+  const { businessId, activeBranchId } = useAuth();
   const [rows, setRows] = useState<PriceRow[]>([]);
   const [serviceReservableMap, setServiceReservableMap] = useState<
     Record<string, boolean>
@@ -1030,14 +1030,15 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     }
 
     (async () => {
+      let initialCatalogQuery = supabase
+        .from("price_catalog")
+        .select("id,name,price,duration_min,category,active,stock,stock_min,stock_critical,cash_discount")
+        .eq("business_id", businessId)
+        .is("deleted_at", null);
+      if (activeBranchId) initialCatalogQuery = initialCatalogQuery.eq("branch_id", activeBranchId);
+
       const [catalogRes, settingsRes] = await Promise.all([
-        supabase
-          .from("price_catalog")
-          .select("id,name,price,duration_min,category,active,stock,stock_min,stock_critical,cash_discount")
-          .eq("business_id", businessId)
-          .is("deleted_at", null)
-          .order("category")
-          .order("name"),
+        initialCatalogQuery.order("category").order("name"),
         supabase
           .from("business_settings")
           .select("schedule")
@@ -1156,7 +1157,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     return () => {
       cancelled = true;
     };
-  }, [businessId, isService]);
+  }, [businessId, isService, activeBranchId]);
 
   // Save categories to Supabase (called by global save)
   const persistCategories = useCallback(async () => {
@@ -1276,13 +1277,13 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   // tapar el panel con el loader.
   const load = useCallback(async () => {
     if (!businessId) return;
-    const { data, error } = await supabase
+    let loadQuery = supabase
       .from("price_catalog")
       .select("id,name,price,duration_min,category,active,stock,stock_min,stock_critical,cash_discount")
       .eq("business_id", businessId)
-      .is("deleted_at", null)
-      .order("category")
-      .order("name");
+      .is("deleted_at", null);
+    if (activeBranchId) loadQuery = loadQuery.eq("branch_id", activeBranchId);
+    const { data, error } = await loadQuery.order("category").order("name");
     if (error) return toast.error("Error: " + error.message);
     if (new URLSearchParams(window.location.search).get("debug") === "1") {
       console.warn(
@@ -1303,7 +1304,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         isService ? "Servicios" : "Productos",
       ),
     );
-  }, [businessId]);
+  }, [businessId, activeBranchId]);
 
   useEffect(() => {
     if (!businessId) return;
@@ -1945,7 +1946,15 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       setRows((prev) => [...prev, { id: tempId, ...payload } as PriceRow]);
       setPendingItems((prev) => [
         ...prev,
-        { tempId, payload: { ...payload }, isNew: true },
+        {
+          tempId,
+          // branch_id solo en la creación — un ítem nuevo queda en la
+          // sucursal activa al crearlo. Editar uno existente nunca lo
+          // reasigna de sucursal por sí solo (eso requeriría una acción
+          // explícita, no cambiar la sucursal activa y tocar "Guardar").
+          payload: activeBranchId ? { ...payload, branch_id: activeBranchId } : { ...payload },
+          isNew: true,
+        },
       ]);
     }
     setModalOpen(false);
@@ -2346,11 +2355,13 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       saveCategories(next, "catalog");
     }
     if (businessId) {
-      await supabase
+      let renameCatQuery = supabase
         .from("price_catalog")
         .update({ category: clean })
         .eq("business_id", businessId)
         .eq("category", category);
+      if (activeBranchId) renameCatQuery = renameCatQuery.eq("branch_id", activeBranchId);
+      await renameCatQuery;
     }
     selectCategory(clean);
     toast.success("Categoría actualizada");
@@ -2408,11 +2419,13 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     const target = moveTargetCategory;
     if (!target || target === category) return;
     setMoveItemsModal(null);
-    await supabase
+    let moveCatQuery = supabase
       .from("price_catalog")
       .update({ category: target })
       .eq("business_id", businessId)
       .eq("category", category);
+    if (activeBranchId) moveCatQuery = moveCatQuery.eq("branch_id", activeBranchId);
+    await moveCatQuery;
     setRows((prev) =>
       prev.map((r) => (r.category === category ? { ...r, category: target } : r)),
     );

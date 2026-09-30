@@ -221,17 +221,21 @@ export async function reopenCashSession(params: {
   });
 }
 
-export async function loadCajaSession(businessId: string): Promise<{
+export async function loadCajaSession(businessId: string, branchId?: string | null): Promise<{
   status: "open" | "closed" | "no_session";
   sessionId: string | null;
   closedAt: string | null;
 }> {
   // Primary: try cash_sessions table (most recent session today)
   try {
-    const { data, error } = await supabase
+    let sessionQuery = supabase
       .from("cash_sessions")
       .select("id,status,closed_at,opened_at")
-      .eq("business_id", businessId)
+      .eq("business_id", businessId);
+    // branch_id es un filtro de aplicación (fundación multi-sucursal): cada
+    // sucursal resuelve su propia sesión de caja, nunca la de otra.
+    if (branchId) sessionQuery = sessionQuery.eq("branch_id", branchId);
+    const { data, error } = await sessionQuery
       .order("opened_at", { ascending: false })
       .limit(1)
       .maybeSingle();

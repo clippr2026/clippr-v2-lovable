@@ -415,7 +415,7 @@ export function useCajaData() {
     // una consulta más completamente en serie sin necesidad (no depende
     // de ningún resultado del batch, ni el batch depende de ella). Se
     // resuelve más abajo, justo donde antes estaba el await.
-    const sessionPromise = loadCajaSession(businessId);
+    const sessionPromise = loadCajaSession(businessId, activeBranchId);
 
     // Multi-sucursal (fundación): branch_id es un filtro de aplicación, se
     // suma al .eq("business_id", ...) de siempre — nunca lo reemplaza.

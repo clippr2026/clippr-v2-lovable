@@ -2,6 +2,7 @@ import * as React from "react";
 import { cn } from "@/lib/utils";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
+import { BranchSelector } from "@/components/branch-selector";
 import { useAuth } from "@/hooks/use-auth";
 import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
 import { DateRangePicker } from "@/components/date-range-picker";
@@ -89,6 +90,7 @@ function localDateStr(d: Date): string {
 }
 
 function DashboardContent({ businessId }: { businessId: string | null }) {
+  const { activeBranchId } = useAuth();
   const todayStr = React.useMemo(() => localDateStr(new Date()), []);
   const [fromStr, setFromStr] = React.useState(todayStr);
   const [toStr, setToStr] = React.useState(todayStr);
@@ -104,7 +106,7 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
     return { from, to };
   }, [fromStr, toStr]);
 
-  const { data, isLoading, error } = useDashboardData(businessId, range ?? null);
+  const { data, isLoading, error } = useDashboardData(businessId, range ?? null, activeBranchId);
   const [activeMetric, setActiveMetric] = React.useState<"ingresos"|"gastos"|"utilidad">("ingresos");
 
   const setQuickRange = (days: number) => {
@@ -137,6 +139,7 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
           setToStr(to);
         }}
       />
+      <BranchSelector className="sm:ml-auto" />
     </div>
   );
 

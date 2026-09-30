@@ -90,6 +90,7 @@ function scheduleTimeToHour(value: unknown): number | null {
 async function loadDashboard(
   businessId: string,
   range: { from: Date; to: Date },
+  branchId: string | null,
 ): Promise<DashboardData> {
   const today = new Date(range.from);
   today.setHours(0, 0, 0, 0);
@@ -102,49 +103,69 @@ async function loadDashboard(
   const expenseFrom = today.toISOString().slice(0, 10);
   const expenseTo = todayEnd.toISOString().slice(0, 10);
 
+  let apptQuery = supabase
+    .from("appointments")
+    .select(
+      "id,client_name,client_id,service_name,service_price,starts_at,status,employee_id,created_by_name,created_by_role,updated_at",
+    )
+    .eq("business_id", businessId)
+    .gte("starts_at", today.toISOString())
+    .lte("starts_at", todayEnd.toISOString());
+  if (branchId) apptQuery = apptQuery.eq("branch_id", branchId);
+
+  let payQuery = supabase
+    .from("payments")
+    .select("id,total,method,created_at,appointment_id,client_name,service_name,items")
+    .eq("business_id", businessId)
+    .gte("created_at", today.toISOString())
+    .lte("created_at", todayEnd.toISOString());
+  if (branchId) payQuery = payQuery.eq("branch_id", branchId);
+
+  let payYestQuery = supabase
+    .from("payments")
+    .select("id,total,created_at,appointment_id")
+    .eq("business_id", businessId)
+    .gte("created_at", yesterday.toISOString())
+    .lte("created_at", yesterdayEnd.toISOString());
+  if (branchId) payYestQuery = payYestQuery.eq("branch_id", branchId);
+
+  let empQuery = supabase.from("employees").select("*").eq("business_id", businessId);
+  if (branchId) empQuery = empQuery.eq("branch_id", branchId);
+
+  let sessQuery = supabase
+    .from("cash_sessions")
+    .select("id")
+    .eq("business_id", businessId)
+    .eq("status", "open")
+    .order("opened_at", { ascending: false })
+    .limit(1);
+  if (branchId) sessQuery = sessQuery.eq("branch_id", branchId);
+
+  let expQuery = supabase
+    .from("expenses")
+    .select("id,name,amount,type,payment_method,date,created_at")
+    .eq("business_id", businessId)
+    .gte("date", expenseFrom)
+    .lte("date", expenseTo);
+  if (branchId) expQuery = expQuery.eq("branch_id", branchId);
+
+  let catalogQuery = supabase
+    .from("price_catalog")
+    .select("id,name,category,duration_min,active")
+    .eq("business_id", businessId)
+    .eq("active", true);
+  if (branchId) catalogQuery = catalogQuery.eq("branch_id", branchId);
+
   const [apptRes, payRes, payYestRes, empRes, sessRes, expRes, catalogRes, scheduleRes] = await Promise.allSettled([
-    supabase
-      .from("appointments")
-      .select(
-        "id,client_name,client_id,service_name,service_price,starts_at,status,employee_id,created_by_name,created_by_role,updated_at",
-      )
-      .eq("business_id", businessId)
-      .gte("starts_at", today.toISOString())
-      .lte("starts_at", todayEnd.toISOString())
-      .order("starts_at", { ascending: true }),
-    supabase
-      .from("payments")
-      .select("id,total,method,created_at,appointment_id,client_name,service_name,items")
-      .eq("business_id", businessId)
-      .gte("created_at", today.toISOString())
-      .lte("created_at", todayEnd.toISOString())
-      .order("created_at", { ascending: false }),
-    supabase
-      .from("payments")
-      .select("id,total,created_at,appointment_id")
-      .eq("business_id", businessId)
-      .gte("created_at", yesterday.toISOString())
-      .lte("created_at", yesterdayEnd.toISOString()),
-    supabase.from("employees").select("*").eq("business_id", businessId).order("full_name", { ascending: true }),
-    supabase
-      .from("cash_sessions")
-      .select("id")
-      .eq("business_id", businessId)
-      .eq("status", "open")
-      .order("opened_at", { ascending: false })
-      .limit(1)
-      .maybeSingle(),
-    supabase
-      .from("expenses")
-      .select("id,name,amount,type,payment_method,date,created_at")
-      .eq("business_id", businessId)
-      .gte("date", expenseFrom)
-      .lte("date", expenseTo),
-    supabase
-      .from("price_catalog")
-      .select("id,name,category,duration_min,active")
-      .eq("business_id", businessId)
-      .eq("active", true),
+    apptQuery.order("starts_at", { ascending: true }),
+    payQuery.order("created_at", { ascending: false }),
+    payYestQuery,
+    empQuery.order("full_name", { ascending: true }),
+    sessQuery.maybeSingle(),
+    expQuery,
+    catalogQuery,
+    // business_settings no tiene branch_id — el horario es del negocio
+    // completo en esta fase, no depende de la sucursal seleccionada.
     supabase
       .from("business_settings")
       .select("schedule")
@@ -200,14 +221,15 @@ async function loadDashboard(
   // sin filtrar por fecha, y el Dashboard mostraba acumulado histórico.
   // Dashboard = rango del calendario, no total de caja/sesión.
   if (session && payments.length > 0) {
-    const { data: sp, error: spError } = await supabase
+    let sessionPaymentsQuery = supabase
       .from("payments")
       .select("id,total,method,created_at,appointment_id,client_name,service_name,items")
       .eq("business_id", businessId)
       .eq("session_id", session.id)
       .gte("created_at", today.toISOString())
-      .lte("created_at", todayEnd.toISOString())
-      .order("created_at", { ascending: false });
+      .lte("created_at", todayEnd.toISOString());
+    if (branchId) sessionPaymentsQuery = sessionPaymentsQuery.eq("branch_id", branchId);
+    const { data: sp, error: spError } = await sessionPaymentsQuery.order("created_at", { ascending: false });
 
     if (spError) {
       console.error("[Dashboard] session payments error:", spError.message, spError);
@@ -233,20 +255,23 @@ async function loadDashboard(
   // Serie 7 días para sparklines
   const w7start = new Date(today);
   w7start.setDate(today.getDate() - 6);
-  const [w7payR, w7apptR] = await Promise.all([
-    supabase
-      .from("payments")
-      .select("total,created_at")
-      .eq("business_id", businessId)
-      .gte("created_at", w7start.toISOString())
-      .lte("created_at", todayEnd.toISOString()),
-    supabase
-      .from("appointments")
-      .select("status,starts_at")
-      .eq("business_id", businessId)
-      .gte("starts_at", w7start.toISOString())
-      .lte("starts_at", todayEnd.toISOString()),
-  ]);
+  let w7payQuery = supabase
+    .from("payments")
+    .select("total,created_at")
+    .eq("business_id", businessId)
+    .gte("created_at", w7start.toISOString())
+    .lte("created_at", todayEnd.toISOString());
+  if (branchId) w7payQuery = w7payQuery.eq("branch_id", branchId);
+
+  let w7apptQuery = supabase
+    .from("appointments")
+    .select("status,starts_at")
+    .eq("business_id", businessId)
+    .gte("starts_at", w7start.toISOString())
+    .lte("starts_at", todayEnd.toISOString());
+  if (branchId) w7apptQuery = w7apptQuery.eq("branch_id", branchId);
+
+  const [w7payR, w7apptR] = await Promise.all([w7payQuery, w7apptQuery]);
   const w7pay = (w7payR.data as Pay[]) || [];
   const w7appt = (w7apptR.data as Appt[]) || [];
   // Build day array from ACTUAL selected range (not hardcoded 7 days)
@@ -664,6 +689,7 @@ async function loadDashboard(
 export function useDashboardData(
   businessId: string | null,
   range?: { from: Date; to: Date } | null,
+  branchId?: string | null,
 ) {
   // null range = invalid dates → disable query, return zeros
   const rangeValid = range !== null && range !== undefined;
@@ -671,8 +697,8 @@ export function useDashboardData(
   const to = range?.to ?? (() => { const d = new Date(); d.setHours(23,59,59,999); return d; })();
   const key = `${from.toISOString().slice(0,10)}_${to.toISOString().slice(0,10)}`;
   return useQuery({
-    queryKey: ["dashboard", businessId, key],
-    queryFn: () => loadDashboard(businessId!, { from, to }),
+    queryKey: ["dashboard", businessId, key, branchId ?? null],
+    queryFn: () => loadDashboard(businessId!, { from, to }, branchId ?? null),
     enabled: !!businessId && rangeValid,
     staleTime: 30_000,
   });
