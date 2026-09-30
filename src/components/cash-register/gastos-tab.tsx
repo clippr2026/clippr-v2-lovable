@@ -2,6 +2,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import { Loader2, X, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 
 /**
  * Portado de cjLoadGastos / cjGuardarGasto / cjDeleteGasto (app.js ~9579-9707).
@@ -24,6 +25,7 @@ const TYPES = ["fijo", "variable", "ocasional", "marketing"];
 const METHODS = ["efectivo", "transferencia", "débito", "crédito", "mercado pago"];
 
 export function GastosTab({ businessId, createOnly = false, onSaved, onCancel }: { businessId: string | null; createOnly?: boolean; onSaved?: () => void; onCancel?: () => void }) {
+  const { activeBranchId } = useAuth();
   const today = new Date().toISOString().slice(0, 10);
   const [rows, setRows] = React.useState<Expense[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -40,16 +42,17 @@ export function GastosTab({ businessId, createOnly = false, onSaved, onCancel }:
   const load = React.useCallback(async () => {
     if (!businessId) return;
     setLoading(true);
-    const { data, error } = await supabase
+    let query = supabase
       .from("expenses")
       .select("id,name,amount,type,payment_method,date,note")
       .eq("business_id", businessId)
-      .eq("date", today)
-      .order("created_at", { ascending: false });
+      .eq("date", today);
+    if (activeBranchId) query = query.eq("branch_id", activeBranchId);
+    const { data, error } = await query.order("created_at", { ascending: false });
     if (error) toast.error("Error cargando gastos: " + error.message);
     setRows((data ?? []) as Expense[]);
     setLoading(false);
-  }, [businessId, today]);
+  }, [businessId, activeBranchId, today]);
 
   React.useEffect(() => {
     load();
@@ -65,6 +68,7 @@ export function GastosTab({ businessId, createOnly = false, onSaved, onCancel }:
     setSaving(true);
     const { error } = await supabase.from("expenses").insert({
       business_id: businessId,
+      branch_id: activeBranchId,
       name,
       amount,
       type: form.type || null,

@@ -3009,6 +3009,7 @@ function InventarioTab({
       if (withdrawMode === "pay") {
         await registerPayment({
           businessId: data.businessId,
+          branchId: data.activeBranchId,
           // Profesional real → va en employeeId (columna real de
           // trazabilidad), nunca en clientName — así "Últimos ingresos"
           // lo muestra en Profesional, con Cliente en "—", en vez de
@@ -6112,6 +6113,7 @@ function NuevoGastoTab({
     // de la descripción si se cargó algo, o del tipo de gasto si no.
     const { error } = await supabase.from("expenses").insert({
       business_id: data.businessId,
+      branch_id: data.activeBranchId,
       name: description || form.category,
       amount,
       category: form.category,
@@ -10555,6 +10557,7 @@ export function NuevaVentaTab({
 
         await registerPayment({
           businessId: data.businessId,
+          branchId: data.activeBranchId,
           employeeId: employeeId || null,
           employeeName: selectedEmployee?.name ?? null,
           commissionPct: selectedEmployee?.commission_pct ?? null,
@@ -10626,6 +10629,7 @@ export function NuevaVentaTab({
         // 2. Registrar el pago vinculado al appointment existente
         await registerPayment({
           businessId: data.businessId,
+          branchId: data.activeBranchId,
           employeeId: employeeId || null,
           employeeName: selectedEmployee?.name ?? null,
           commissionPct: selectedEmployee?.commission_pct ?? null,
@@ -10699,6 +10703,7 @@ export function NuevaVentaTab({
         };
         await registerPayment({
           businessId: data.businessId,
+          branchId: data.activeBranchId,
           employeeId: employeeId || null,
           employeeName: selectedEmployee?.name ?? null,
           commissionPct: selectedEmployee?.commission_pct ?? null,

@@ -1655,6 +1655,7 @@ function NuevoGastoTab({
     setSaving(true);
     const { error } = await supabase.from("expenses").insert({
       business_id: data.businessId,
+      branch_id: data.activeBranchId,
       name,
       amount,
       type: form.type || null,
@@ -3344,6 +3345,7 @@ function NuevaVentaTab({
         // 2. Registrar el pago vinculado al appointment existente
         await registerPayment({
           businessId: data.businessId,
+          branchId: data.activeBranchId,
           employeeId: employeeId || null,
           employeeName: selectedEmployee?.name ?? null,
           commissionPct: selectedEmployee?.commission_pct ?? null,
@@ -3382,6 +3384,7 @@ function NuevaVentaTab({
         // ── FLUJO NORMAL: nueva venta desde cero ──
         await registerPayment({
           businessId: data.businessId,
+          branchId: data.activeBranchId,
           employeeId: employeeId || null,
           employeeName: selectedEmployee?.name ?? null,
           commissionPct: selectedEmployee?.commission_pct ?? null,

@@ -20,6 +20,7 @@ import { Badge } from "@/components/ui/badge";
 import { Loader2, Search, X, CalendarDays, Repeat2,
   Scissors, UserPlus, UserRound, Clock3, Phone, Mail } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 import {
   saveAppointment,
@@ -241,6 +242,7 @@ export function AppointmentDialog({
   promotions = [],
   presentation = "drawer",
 }: Props) {
+  const { activeBranchId } = useAuth();
   const Wrapper = presentation === "modal" ? AgendaCenteredModal : AgendaDrawer;
   const isMobileView = useIsMobile();
   const isEdit = !!appointment?.id;
@@ -533,6 +535,7 @@ export function AppointmentDialog({
 
     const payload: Record<string, unknown> = {
       business_id: businessId,
+      branch_id: activeBranchId,
       full_name: fullName,
       phone: clientPhone.trim() || null,
       email: clientEmail.trim() || null,
@@ -587,6 +590,7 @@ export function AppointmentDialog({
       await saveAppointment({
         id: isEdit ? appointment?.id ?? null : null,
         business_id: businessId,
+        branch_id: activeBranchId,
         client_id: resolvedClientId || null,
         client_name: fullClientName,
         employee_id: employeeId || null,

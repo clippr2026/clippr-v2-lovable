@@ -959,7 +959,7 @@ export function useCajaData() {
   const totalGastos = expensesToday.reduce((s, e) => s + Number(e.amount ?? 0), 0);
 
   return {
-    loading, businessId, profileId: profile?.id ?? null,
+    loading, businessId, activeBranchId, profileId: profile?.id ?? null,
     approvalMode, setApprovalMode, approvalModeEnabled,
     paymentMethods,
     services, employees, promotions,

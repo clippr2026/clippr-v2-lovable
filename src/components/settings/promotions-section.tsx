@@ -160,7 +160,7 @@ function buildPromoFromForm(f: PromoForm, editingPromo: Promotion | null): Promo
 }
 
 export function PromotionsSection() {
-  const { businessId } = useAuth();
+  const { businessId, activeBranchId } = useAuth();
   const [loading, setLoading] = useState(true);
   const [promotions, setPromotions] = useState<Promotion[]>([]);
   const [services, setServices] = useState<ServiceOption[]>([]);
@@ -186,24 +186,33 @@ export function PromotionsSection() {
       return;
     }
     setLoading(true);
+    let svcQuery = supabase
+      .from("price_catalog")
+      .select("id,name,category")
+      .eq("business_id", businessId)
+      .not("duration_min", "is", null)
+      .is("deleted_at", null);
+    if (activeBranchId) svcQuery = svcQuery.eq("branch_id", activeBranchId);
+
+    let empQuery = supabase
+      .from("employees")
+      .select("id,full_name,is_active")
+      .eq("business_id", businessId);
+    if (activeBranchId) empQuery = empQuery.eq("branch_id", activeBranchId);
+
+    const bsPromise = activeBranchId
+      ? supabase
+          .from("branch_settings" as any)
+          .select("schedule")
+          .eq("business_id", businessId)
+          .eq("branch_id", activeBranchId)
+          .maybeSingle()
+      : Promise.resolve({ data: null as { schedule?: unknown } | null });
+
     const [{ data: svcData }, { data: empData }, { data: bsData }] = await Promise.all([
-      supabase
-        .from("price_catalog")
-        .select("id,name,category")
-        .eq("business_id", businessId)
-        .not("duration_min", "is", null)
-        .is("deleted_at", null)
-        .order("name"),
-      supabase
-        .from("employees")
-        .select("id,full_name,is_active")
-        .eq("business_id", businessId)
-        .order("full_name"),
-      supabase
-        .from("business_settings")
-        .select("schedule")
-        .eq("business_id", businessId)
-        .maybeSingle(),
+      svcQuery.order("name"),
+      empQuery.order("full_name"),
+      bsPromise,
     ]);
     setServices(
       ((svcData ?? []) as Array<{ id: string; name: string; category: string | null }>).map(
@@ -219,7 +228,7 @@ export function PromotionsSection() {
     const raw = Array.isArray(schedule._promotions) ? (schedule._promotions as Promotion[]) : [];
     setPromotions(raw.map(backfillPromotionVigencia));
     setLoading(false);
-  }, [businessId]);
+  }, [businessId, activeBranchId]);
 
   useEffect(() => {
     load();
@@ -227,18 +236,24 @@ export function PromotionsSection() {
 
   async function persist(next: Promotion[]): Promise<boolean> {
     if (!businessId) return false;
+    if (!activeBranchId) {
+      toast.error("No se encontró la sucursal");
+      return false;
+    }
     const { data: existingRow } = await supabase
-      .from("business_settings")
+      .from("branch_settings" as any)
       .select("schedule")
       .eq("business_id", businessId)
+      .eq("branch_id", activeBranchId)
       .maybeSingle();
     const existingSchedule = (existingRow?.schedule ?? {}) as Record<string, unknown>;
-    const { error } = await supabase.from("business_settings").upsert(
+    const { error } = await supabase.from("branch_settings" as any).upsert(
       {
         business_id: businessId,
+        branch_id: activeBranchId,
         schedule: { ...existingSchedule, _promotions: next },
       },
-      { onConflict: "business_id" },
+      { onConflict: "business_id,branch_id" },
     );
     if (error) {
       toast.error("No se pudo guardar: " + error.message);

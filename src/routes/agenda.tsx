@@ -293,7 +293,7 @@ function AgendaPage() {
     lost_prof: number;
   } | null>(null);
 
-  const { businessId } = useAuth();
+  const { businessId, activeBranchId } = useAuth();
 
   React.useEffect(() => {
     if (!businessId) return;
@@ -807,6 +807,7 @@ function AgendaPage() {
           endsAt.setDate(endsAt.getDate() + index * repeatEvery);
           return {
             business_id: data.businessId,
+            branch_id: data.activeBranchId,
             client_id: null,
             client_name: payload.label || "Horario bloqueado",
             employee_id: payload.employeeId,
@@ -964,6 +965,7 @@ function AgendaPage() {
         // Register refund in expenses
         await supabase.from("expenses").insert({
           business_id: a.business_id,
+          branch_id: activeBranchId,
           description: `Devolución de seña – ${a.client_name ?? "cliente"} – ${a.service_name ?? ""}${reason ? " – " + reason : ""}`,
           amount: Number(a.deposit_paid ?? 0),
           type: "devolucion_sena",

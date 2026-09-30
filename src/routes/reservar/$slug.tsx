@@ -1203,7 +1203,12 @@ function PublicBookingPage() {
       // escritura, compartido con Caja (registerPayment), ver
       // src/lib/promotion-usage.ts.
       if (promoNote && effectivePromotion) {
-        await incrementPromotionUsage(business.id, effectivePromotion.id, clientKeys);
+        // TODO(multi-sucursal): la reserva pública todavía no resuelve a
+        // qué sucursal pertenece (pendiente de diseño — ver Página de
+        // reservas). branchId null = incrementPromotionUsage no hace nada
+        // (no rompe la reserva, solo el contador de usos no se refleja
+        // para reservas hechas por acá hasta que se resuelva).
+        await incrementPromotionUsage(business.id, effectivePromotion.id, clientKeys, null);
       }
 
       setAppointments((current) => [

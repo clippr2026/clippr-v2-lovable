@@ -660,6 +660,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
   return {
     loading,
     businessId,
+    activeBranchId,
     appointments,
     employees,
     services,
@@ -684,6 +685,9 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
 export type SaveAppointmentInput = {
   id?: string | null;
   business_id: string;
+  // Sucursal activa al crear el turno — nunca se toca en un update (un
+  // turno no cambia de sucursal por sí solo al editarlo).
+  branch_id?: string | null;
   client_id?: string | null;
   client_name: string;
   client_phone?: string | null;
@@ -746,6 +750,7 @@ export async function saveAppointment(input: SaveAppointmentInput) {
   if (!input.id) {
     payload.created_by_name = input.created_by_name ?? null;
     payload.created_by_role = input.created_by_role ?? null;
+    payload.branch_id = input.branch_id ?? null;
   }
 
   const q = input.id

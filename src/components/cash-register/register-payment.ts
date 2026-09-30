@@ -64,6 +64,11 @@ export type ChargeOrigin = "auto" | "manual" | "caja";
 
 export type RegisterPaymentInput = {
   businessId: string;
+  // Sucursal activa al momento del cobro — se guarda en payments.branch_id
+  // para que la venta aparezca del lado correcto en Caja/Dashboard al
+  // filtrar por sucursal. null en negocios todavía sin migrar a
+  // multi-sucursal (branch_id queda null, mismo comportamiento de antes).
+  branchId?: string | null;
   employeeId?: string | null;
   employeeName?: string | null;
   // null explícito (no "" ni undefined) = sin cliente real, no
@@ -180,6 +185,7 @@ export async function registerPayment(input: RegisterPaymentInput) {
 
   const payload: Record<string, unknown> = {
     business_id: input.businessId,
+    branch_id: input.branchId ?? null,
     employee_id: input.employeeId ?? null,
     // Relación principal con `clients` — antes se recibía pero nunca se
     // guardaba, y la ficha/RPC de Clientes solo podían matchear este pago
@@ -270,7 +276,7 @@ export async function registerPayment(input: RegisterPaymentInput) {
   // pago falla, no se consume uso de nada.
   if (input.promotionId) {
     const clientKeys = normalizeClientKeys(input.clientPhone ?? "", input.clientEmail ?? "");
-    await incrementPromotionUsage(input.businessId, input.promotionId, clientKeys);
+    await incrementPromotionUsage(input.businessId, input.promotionId, clientKeys, input.branchId ?? null);
   }
 
   // Registra la comisión generada por esta venta — fuente de verdad del

@@ -28,21 +28,29 @@ const DEFAULT_RESERVATION_SETTINGS: ReservationSettings = {
   minCancel: "2",
 };
 
+const DEFAULT_DAYS = DAYS.map((d, i) => ({
+  name: d,
+  open: "11:00",
+  close: "20:00",
+  enabled: i < 6,
+}));
+
 export function HorariosSection() {
-  const { businessId } = useAuth();
-  const [days, setDays] = useState(
-    DAYS.map((d, i) => ({
-      name: d,
-      open: "11:00",
-      close: "20:00",
-      enabled: i < 6,
-    })),
-  );
+  const { businessId, activeBranchId } = useAuth();
+  const [days, setDays] = useState(DEFAULT_DAYS);
   const [reservationSettings, setReservationSettings] =
     useState<ReservationSettings>(DEFAULT_RESERVATION_SETTINGS);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const dayKeys = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
+  // true justo después de una carga (mount o cambio de sucursal): el
+  // próximo cambio de `days`/`reservationSettings` que ese setState
+  // dispare es el propio eco de la carga, no una edición real del
+  // usuario — el auto-save de abajo lo salta una vez y se apaga solo.
+  // Sin esto, cambiar de sucursal podía llegar a guardar por un instante
+  // el horario de la sucursal anterior en la fila de la nueva (carrera
+  // entre el fetch async y el auto-save de 550ms).
+  const skipNextAutoSaveRef = useRef(false);
 
   const timeToMinutes = (value: string) => {
     const [hours, minutes] = value.split(":").map(Number);
@@ -59,23 +67,25 @@ export function HorariosSection() {
   };
 
   useEffect(() => {
-    if (!businessId) {
+    if (!businessId || !activeBranchId) {
       setLoading(false);
       return;
     }
     let cancelled = false;
     supabase
-      .from("business_settings")
+      .from("branch_settings" as any)
       .select("schedule")
       .eq("business_id", businessId)
+      .eq("branch_id", activeBranchId)
       .maybeSingle()
       .then(({ data }) => {
         if (cancelled) return;
+        skipNextAutoSaveRef.current = true;
         const schedule = data?.schedule as
           Record<string, any> | null | undefined;
         if (schedule && typeof schedule === "object") {
-          setDays((current) =>
-            current.map((day, i) => {
+          setDays(
+            DEFAULT_DAYS.map((day, i) => {
               const saved = schedule[dayKeys[i]];
               if (!saved || typeof saved !== "object") return day;
               const open =
@@ -91,16 +101,24 @@ export function HorariosSection() {
             }),
           );
           const settings = schedule._settings;
-          if (settings && typeof settings === "object") {
-            setReservationSettings({
-              maxAdvance: String(
-                settings.maxAdvance ?? DEFAULT_RESERVATION_SETTINGS.maxAdvance,
-              ),
-              minCancel: String(
-                settings.minCancel ?? DEFAULT_RESERVATION_SETTINGS.minCancel,
-              ),
-            });
-          }
+          setReservationSettings(
+            settings && typeof settings === "object"
+              ? {
+                  maxAdvance: String(
+                    settings.maxAdvance ?? DEFAULT_RESERVATION_SETTINGS.maxAdvance,
+                  ),
+                  minCancel: String(
+                    settings.minCancel ?? DEFAULT_RESERVATION_SETTINGS.minCancel,
+                  ),
+                }
+              : DEFAULT_RESERVATION_SETTINGS,
+          );
+        } else {
+          // Esta sucursal todavía no tiene horario propio configurado —
+          // nunca mostrar el de la sucursal anterior, arranca en blanco
+          // (default), igual que un negocio nuevo.
+          setDays(DEFAULT_DAYS);
+          setReservationSettings(DEFAULT_RESERVATION_SETTINGS);
         }
         setLoading(false);
       }, () => {
@@ -109,10 +127,11 @@ export function HorariosSection() {
     return () => {
       cancelled = true;
     };
-  }, [businessId]);
+  }, [businessId, activeBranchId]);
 
   async function saveSchedule(showToast = true) {
     if (!businessId) return toast.error("No se encontró el negocio");
+    if (!activeBranchId) return toast.error("No se encontró la sucursal");
 
     const invalidDay = days.find((day) => {
       if (!day.enabled) return false;
@@ -134,9 +153,10 @@ export function HorariosSection() {
     // desde cero y el upsert pisaba el resto de sub-configs (_employeeSchedules,
     // _branding, _caja, especiales, etc.).
     const { data: existingRow } = await supabase
-      .from("business_settings")
+      .from("branch_settings" as any)
       .select("schedule")
       .eq("business_id", businessId)
+      .eq("branch_id", activeBranchId)
       .maybeSingle();
     const existing = (existingRow?.schedule ?? {}) as Record<string, any>;
 
@@ -163,10 +183,10 @@ export function HorariosSection() {
       minCancel: Number(reservationSettings.minCancel) || 2,
     };
     const { error } = await supabase
-      .from("business_settings")
+      .from("branch_settings" as any)
       .upsert(
-        { business_id: businessId, schedule },
-        { onConflict: "business_id" },
+        { business_id: businessId, branch_id: activeBranchId, schedule },
+        { onConflict: "business_id,branch_id" },
       );
 
     setSaving(false);
@@ -178,15 +198,13 @@ export function HorariosSection() {
   const saveScheduleRef = useRef(saveSchedule);
   useEffect(() => {
     saveScheduleRef.current = saveSchedule;
-  }, [businessId, days, reservationSettings]);
-
-  const horariosHydratedRef = useRef(false);
+  }, [businessId, activeBranchId, days, reservationSettings]);
 
   useEffect(() => {
-    if (!businessId) return;
+    if (!businessId || !activeBranchId) return;
 
-    if (!horariosHydratedRef.current) {
-      horariosHydratedRef.current = true;
+    if (skipNextAutoSaveRef.current) {
+      skipNextAutoSaveRef.current = false;
       return;
     }
 
@@ -195,7 +213,7 @@ export function HorariosSection() {
     }, 550);
 
     return () => window.clearTimeout(timer);
-  }, [businessId, days, reservationSettings]);
+  }, [businessId, activeBranchId, days, reservationSettings]);
 
   useEffect(() => {
     const handler = (event: Event) => {
