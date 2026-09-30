@@ -61,6 +61,7 @@ import { BrandingSection } from "@/components/settings/branding-section";
 import { HorariosSection } from "@/components/settings/horarios-section";
 import { EquipoSection } from "@/components/settings/equipo-section";
 import { SucursalesSection } from "@/components/settings/sucursales-section";
+import { BranchSelector } from "@/components/branch-selector";
 import { ServiciosSection, CatalogoSection } from "@/components/settings/price-catalog-section";
 import { PromotionsSection } from "@/components/settings/promotions-section";
 import { CuentaSection } from "@/components/settings/cuenta-section";
@@ -295,7 +296,7 @@ function SettingsPage() {
           <Topbar
             title="Configuración"
             subtitle="Tu negocio"
-            action={null}
+            action={<BranchSelector />}
           />
         </div>
         <div className="app-premium-shell -mt-3 sm:-mt-4 lg:-mt-5">

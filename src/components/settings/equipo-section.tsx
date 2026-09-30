@@ -28,7 +28,6 @@ import {
   type EmployeeServiceOverrideMap,
 } from "@/lib/service-pricing";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
-import { BranchSelector } from "@/components/branch-selector";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import {
   SectionCard,
@@ -2385,14 +2384,11 @@ export function EquipoSection() {
       {/* Oculto en mobile: el drill-down de Configuración ya muestra "←
           Equipo" arriba — repetirlo acá era redundante. Desktop no tiene
           ese header, sigue siendo la única referencia. */}
-      <div className="hidden lg:flex lg:items-start lg:justify-between lg:gap-4">
-        <div>
-          <h2 className="text-xl font-display font-semibold">Equipo</h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Administrá tu equipo.
-          </p>
-        </div>
-        <BranchSelector className="mt-1" />
+      <div className="hidden lg:block">
+        <h2 className="text-xl font-display font-semibold">Equipo</h2>
+        <p className="text-sm text-muted-foreground mt-1">
+          Administrá tu equipo.
+        </p>
       </div>
 
       {/* Pestañas Profesionales / Accesos — separación de siempre, restaurada
