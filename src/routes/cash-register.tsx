@@ -9345,7 +9345,14 @@ function History({
                         // nombre real de cada acción, no solo el último
                         // evento.
                         const paymentRecord = p as Record<string, unknown>;
-                        const empNameForHist = (p.employee_name ?? p.professional_name ?? null) as string | null;
+                        // Antes leía p.employee_name/p.professional_name —
+                        // columnas que no existen en payments (solo
+                        // employee_id), así que la columna Profesional de
+                        // este modal siempre caía a "—" aunque el cobro sí
+                        // tuviera profesional. Misma resolución que ya usa
+                        // "Últimos ingresos" (la tabla de atrás, sin este
+                        // bug): buscar el nombre en data.employees por id.
+                        const empNameForHist = data.employees.find((e) => e.id === p.employee_id)?.name ?? null;
                         const chargeType = getChargeType(paymentRecord);
                         const chargedByName = getChargedByLabel(paymentRecord, empNameForHist, chargeType);
                         const historialEvents = buildPaidHistorialEvents(paymentRecord, {
@@ -9366,7 +9373,7 @@ function History({
                             <div className="text-muted-foreground">{date}</div>
                             <div className="truncate text-foreground">{p.client_name ?? "—"}</div>
                             <div className="truncate text-muted-foreground">
-                              {p.employee_name ?? p.professional_name ?? "—"}
+                              {empNameForHist ?? "—"}
                             </div>
                             <div className="flex min-w-0 items-center gap-2">
                               <div className="truncate text-foreground/88">
@@ -9434,7 +9441,7 @@ function History({
                           <div className="text-muted-foreground">{date}</div>
                           <div className="truncate text-foreground">{p.client_name ?? "—"}</div>
                           <div className="truncate text-muted-foreground">
-                            {p.employee_name ?? p.professional_name ?? "—"}
+                            {data.employees.find((e) => e.id === p.employee_id)?.name ?? "—"}
                           </div>
                           <div className="min-w-0">
                             <div className="truncate text-foreground/88">
@@ -9529,7 +9536,7 @@ function History({
                         const methodLabel = paymentMethodLabel(p.method ?? p.payment_method);
                         const paymentNote = getCashRowNote(p, p.service_name);
                         const paymentRecord = p as Record<string, unknown>;
-                        const empNameForHist = (p.employee_name ?? p.professional_name ?? null) as string | null;
+                        const empNameForHist = data.employees.find((e) => e.id === p.employee_id)?.name ?? null;
                         const chargeType = getChargeType(paymentRecord);
                         const chargedByName = getChargedByLabel(paymentRecord, empNameForHist, chargeType);
                         const historialEvents = buildPaidHistorialEvents(paymentRecord, {
@@ -9563,7 +9570,7 @@ function History({
                               <div className="flex items-start justify-between gap-3">
                                 <span className="shrink-0 text-muted-foreground/70">Profesional</span>
                                 <span className="truncate text-right text-muted-foreground">
-                                  {p.employee_name ?? p.professional_name ?? "—"}
+                                  {empNameForHist ?? "—"}
                                 </span>
                               </div>
                               <div className="flex items-start justify-between gap-3">
@@ -9661,7 +9668,7 @@ function History({
                               <div className="flex items-start justify-between gap-3">
                                 <span className="shrink-0 text-muted-foreground/70">Profesional</span>
                                 <span className="truncate text-right text-muted-foreground">
-                                  {p.employee_name ?? p.professional_name ?? "—"}
+                                  {data.employees.find((e) => e.id === p.employee_id)?.name ?? "—"}
                                 </span>
                               </div>
                               <div className="flex items-start justify-between gap-3">
