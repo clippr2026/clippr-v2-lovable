@@ -41,6 +41,7 @@ import { AgendaDrawer } from "@/components/agenda/agenda-drawer";
 import { DarkCalendar } from "@/components/agenda/dark-calendar";
 import { RejectedClientsButton, RejectedClientCaptureModal } from "@/components/agenda/rejected-clients";
 import { ClosuresModal } from "@/components/agenda/closures-button";
+import { useClosures, type Closure } from "@/hooks/use-closures";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
@@ -271,6 +272,16 @@ function AgendaPage() {
 
   const data = useAgendaData(range.start, range.end);
 
+  // Días cerrados (Fase 5) — de la sucursal activa. `closedToday` es el
+  // cierre (si existe) que cubre el día que se está viendo ahora mismo
+  // (`cursor`); maneja tanto el bloqueo visual de la grilla como el de
+  // "Agregar turno" para ese día.
+  const closuresQuery = useClosures(data.businessId, data.activeBranchId);
+  const closedToday: Closure | null = React.useMemo(() => {
+    const key = toDateKey(cursor);
+    return (closuresQuery.data ?? []).find((c) => key >= c.start_date && key <= c.end_date) ?? null;
+  }, [closuresQuery.data, cursor]);
+
   // Trae de Supabase (cobro_events) el historial de los turnos cancelados
   // que están en pantalla, para poder mostrar "Cancelado por X" también acá
   // aunque la cancelación se haya hecho desde otro dispositivo/sesión —
@@ -437,6 +448,14 @@ function AgendaPage() {
 
   const openNew = (employeeId?: string | null, startsAt?: Date | null) => {
     const target = startsAt ?? cursor;
+    // Día cerrado (Fase 5) — nunca se abre el formulario de turno nuevo
+    // para un día dentro de un cierre de la sucursal activa. saveAppointment
+    // ya lo rechaza del lado del servidor igual, pero acá se corta antes de
+    // mostrar el diálogo, mismo criterio que "Negocio cerrado este día".
+    if (closedToday && toDateKey(target) >= closedToday.start_date && toDateKey(target) <= closedToday.end_date) {
+      toast.error("Este día está cerrado. No se pueden crear turnos.");
+      return;
+    }
     // El casillero tocado solo preselecciona una hora inicial en el
     // formulario — no decide por sí solo que el turno es inválido. El
     // usuario puede cambiar la hora dentro de "Agregar turno" antes de
@@ -1539,6 +1558,7 @@ function AgendaPage() {
             date={cursor}
             data={memoData}
             schedule={daySchedule}
+            closure={closedToday}
             enabledBreaks={enabledBreaks}
             onSlotClick={handleSlotClick}
             onApptClick={handleApptClick}
@@ -1914,6 +1934,7 @@ const DayView = React.memo(function DayView({
   date,
   data,
   schedule,
+  closure,
   enabledBreaks,
   onSlotClick,
   onApptClick,
@@ -1924,6 +1945,7 @@ const DayView = React.memo(function DayView({
   date: Date;
   data: ReturnType<typeof useAgendaData>;
   schedule: ReturnType<typeof getScheduleForDate>;
+  closure: Closure | null;
   enabledBreaks: Set<string>;
   onSlotClick: (employeeId: string | null, startsAt: Date, event: React.MouseEvent) => void;
   onApptClick: (a: Appointment) => void;
@@ -2561,6 +2583,47 @@ const DayView = React.memo(function DayView({
       enabledBreaks,
     ],
   );
+
+  // Día cerrado (Fase 5): ocupa todo el horario del día, claramente
+  // diferenciado (rojo/rosa) de "Negocio cerrado este día" (horario
+  // semanal desactivado, gris/neutro), de un descanso o de un bloqueo de
+  // horas puntual — acá es la sucursal entera, el día completo. Si ya
+  // había turnos agendados antes de crear el cierre (nunca se cancelan
+  // solos), se listan abajo para que sigan siendo visibles y gestionables.
+  if (closure) {
+    return (
+      <section className="glass rounded-2xl overflow-hidden ring-1 ring-rose-400/25 min-h-[360px]">
+        <div className="bg-rose-500/10 p-8 grid place-items-center text-center gap-1">
+          <CalendarOff className="h-7 w-7 text-rose-300 mb-1" />
+          <div className="text-lg font-bold tracking-wide text-rose-200">CERRADO</div>
+          <div className="text-sm text-rose-200/70">
+            {closure.reason?.trim() || "Día cerrado"}
+          </div>
+        </div>
+        {dayAppts.length > 0 && (
+          <div className="p-4 space-y-1.5">
+            <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/70 px-1">
+              Turnos ya agendados este día
+            </div>
+            {dayAppts.map((a) => (
+              <button
+                key={a.id}
+                type="button"
+                onClick={() => onApptClick(a)}
+                className="flex w-full items-center gap-2 rounded-xl bg-white/[0.03] px-3 py-2.5 text-left text-sm ring-1 ring-white/8 transition hover:bg-white/[0.06]"
+              >
+                <span className="font-semibold tabular-nums text-foreground/90">{fmtTime(new Date(a.starts_at))}</span>
+                <span className="text-muted-foreground/40">·</span>
+                <span className="truncate text-foreground/80">{a.client_name || "Cliente"}</span>
+                <span className="text-muted-foreground/40">·</span>
+                <span className="truncate text-muted-foreground">{a.service_name}</span>
+              </button>
+            ))}
+          </div>
+        )}
+      </section>
+    );
+  }
 
   if (isClosed) {
     return (

@@ -96,6 +96,8 @@ export function ClosuresModal({
 
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 py-4" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>
             {adding ? (
+              // El selector abre limpio — ningún cierre existente se dibuja
+              // acá adentro, solo la selección nueva que se está armando.
               <ClosureForm
                 businessId={businessId}
                 branchId={branchId}
@@ -108,72 +110,73 @@ export function ClosuresModal({
                 pendingLabel="Guardando…"
                 onSaved={() => setAdding(false)}
               />
+            ) : editingId ? (
+              // Mismo criterio al editar: se oculta el resto de la lista,
+              // queda solo el formulario de ESE cierre.
+              <ClosureForm
+                businessId={businessId}
+                branchId={branchId}
+                createdByName={createdByName}
+                initial={upcoming.find((c) => c.id === editingId)}
+                onCancel={() => setEditingId(null)}
+                onSubmit={async (input) => {
+                  await update.mutateAsync({ id: editingId, ...input });
+                }}
+                submitLabel="Guardar cambios"
+                pendingLabel="Guardando…"
+                onSaved={() => setEditingId(null)}
+              />
             ) : (
-              <button
-                type="button"
-                onClick={() => setAdding(true)}
-                className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-rose-500/12 px-4 py-2.5 text-sm font-semibold text-rose-200 ring-1 ring-rose-400/25 transition hover:bg-rose-500/18"
-              >
-                <Plus className="h-4 w-4" />
-                Agregar día cerrado
-              </button>
-            )}
+              <>
+                <button
+                  type="button"
+                  onClick={() => setAdding(true)}
+                  className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-rose-500/12 px-4 py-2.5 text-sm font-semibold text-rose-200 ring-1 ring-rose-400/25 transition hover:bg-rose-500/18"
+                >
+                  <Plus className="h-4 w-4" />
+                  Agregar día cerrado
+                </button>
 
-            <div>
-              <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-white/40">
-                Próximos días cerrados
-              </div>
-              {upcoming.length === 0 ? (
-                <div className="rounded-xl bg-white/[0.03] px-3 py-4 text-center text-sm text-white/50 ring-1 ring-white/8">
-                  No hay días cerrados próximos
-                </div>
-              ) : (
-                <div className="space-y-1.5">
-                  {upcoming.map((c) =>
-                    editingId === c.id ? (
-                      <ClosureForm
-                        key={c.id}
-                        businessId={businessId}
-                        branchId={branchId}
-                        createdByName={createdByName}
-                        initial={c}
-                        onCancel={() => setEditingId(null)}
-                        onSubmit={async (input) => {
-                          await update.mutateAsync({ id: c.id, ...input });
-                        }}
-                        submitLabel="Guardar cambios"
-                        pendingLabel="Guardando…"
-                        onSaved={() => setEditingId(null)}
-                      />
-                    ) : (
-                      <div key={c.id} className="flex items-center gap-2 rounded-xl bg-white/[0.03] px-3 py-2.5 text-sm ring-1 ring-white/8">
-                        <div className="min-w-0 flex-1">
-                          <div className="font-medium text-white/85">{rangoLabel(c)}</div>
-                          {c.reason && <div className="truncate text-xs text-white/50">{c.reason}</div>}
+                <div>
+                  <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-white/40">
+                    Próximos días cerrados
+                  </div>
+                  {upcoming.length === 0 ? (
+                    <div className="rounded-xl bg-white/[0.03] px-3 py-4 text-center text-sm text-white/50 ring-1 ring-white/8">
+                      No hay días cerrados próximos
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {upcoming.map((c) => (
+                        <div key={c.id} className="flex items-center gap-2 rounded-xl bg-white/[0.03] px-3 py-2.5 text-sm ring-1 ring-white/8">
+                          <div className="min-w-0 flex-1">
+                            <div className="font-medium text-white/85">{rangoLabel(c)}</div>
+                            {c.reason && <div className="truncate text-xs text-white/50">{c.reason}</div>}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setEditingId(c.id)}
+                            className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition hover:bg-white/10 hover:text-foreground"
+                            aria-label="Editar día cerrado"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDelete(c.id)}
+                            disabled={del.isPending}
+                            className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition hover:bg-white/10 hover:text-rose-300 disabled:opacity-50"
+                            aria-label="Eliminar día cerrado"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => setEditingId(c.id)}
-                          className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition hover:bg-white/10 hover:text-foreground"
-                          aria-label="Editar día cerrado"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => handleDelete(c.id)}
-                          disabled={del.isPending}
-                          className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition hover:bg-white/10 hover:text-rose-300 disabled:opacity-50"
-                          aria-label="Eliminar día cerrado"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ),
+                      ))}
+                    </div>
                   )}
                 </div>
-              )}
-            </div>
+              </>
+            )}
           </div>
         </div>
       </div>

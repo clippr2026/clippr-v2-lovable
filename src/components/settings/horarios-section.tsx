@@ -2,10 +2,11 @@ import React, { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { CalendarDays, AlarmClock } from "lucide-react";
+import { CalendarDays, AlarmClock, CalendarOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 import { SectionCard, reportSaveStatus, Toggle } from "@/components/settings/shared";
+import { ClosuresModal } from "@/components/agenda/closures-button";
 
 // ─────────── Horarios ───────────
 const DAYS = [
@@ -36,7 +37,8 @@ const DEFAULT_DAYS = DAYS.map((d, i) => ({
 }));
 
 export function HorariosSection() {
-  const { businessId, activeBranchId } = useAuth();
+  const { businessId, activeBranchId, profile } = useAuth();
+  const [closuresOpen, setClosuresOpen] = useState(false);
   const [days, setDays] = useState(DEFAULT_DAYS);
   const [reservationSettings, setReservationSettings] =
     useState<ReservationSettings>(DEFAULT_RESERVATION_SETTINGS);
@@ -330,6 +332,34 @@ export function HorariosSection() {
         </div>
       </div>
 
+      <SectionCard label="Días cerrados">
+        <div className="flex items-center gap-4">
+          <div className="h-10 w-10 rounded-xl bg-rose-500/10 ring-1 ring-rose-400/20 grid place-items-center">
+            <CalendarOff className="h-4.5 w-4.5 text-rose-300" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-xs text-muted-foreground">
+              Fechas en las que el local no abre.
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={() => setClosuresOpen(true)}
+            className="shrink-0 rounded-xl bg-rose-500/12 px-4 py-2.5 text-sm font-semibold text-rose-200 ring-1 ring-rose-400/25 transition hover:bg-rose-500/18"
+          >
+            Administrar días cerrados
+          </button>
+        </div>
+      </SectionCard>
+
+      {closuresOpen && (
+        <ClosuresModal
+          businessId={businessId}
+          branchId={activeBranchId}
+          createdByName={profile?.full_name ?? null}
+          onClose={() => setClosuresOpen(false)}
+        />
+      )}
 
       <SectionCard label="Turnos y reservas">
         <div className="divide-y divide-white/5">
