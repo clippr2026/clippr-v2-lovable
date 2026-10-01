@@ -14,6 +14,7 @@ import {
   type RecentCancellation,
 } from "@/components/dashboard/use-dashboard-data";
 import { useCajaHoy } from "@/components/dashboard/use-caja-hoy";
+import { useInicioWidgets, type ActividadItem } from "@/components/dashboard/use-inicio-widgets";
 import {
   DollarSign,
   ArrowDownCircle,
@@ -24,6 +25,9 @@ import {
   Minus,
   AlertTriangle,
   Loader2,
+  CalendarClock,
+  Activity,
+  Receipt,
 } from "lucide-react";
 import {
   AreaChart,
@@ -118,6 +122,7 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
   // "Caja de hoy" — independiente del rango de fechas elegido arriba
   // (siempre sobre HOY, nunca sobre un rango arbitrario).
   const cajaHoy = useCajaHoy(businessId, activeBranchId);
+  const inicioWidgets = useInicioWidgets(businessId, activeBranchId);
 
   const setQuickRange = (days: number) => {
     const to = new Date();
@@ -210,6 +215,12 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
       <section className="grid grid-cols-1 xl:grid-cols-[minmax(0,3fr)_minmax(300px,1fr)] gap-3 items-stretch">
         <RevenueChart data={data} activeMetric={activeMetric} fromStr={fromStr} toStr={toStr} />
         <ServicesDonut data={data} activeMetric={activeMetric} />
+      </section>
+
+      {/* Próximos turnos + Actividad reciente */}
+      <section className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <ProximosTurnosCard widgets={inicioWidgets} />
+        <ActividadRecienteCard widgets={inicioWidgets} />
       </section>
 
     </div>
@@ -433,6 +444,92 @@ function CajaHoyCard({
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function horaCorta(iso: string) {
+  return new Date(iso).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function diaYHoraCorta(iso: string) {
+  const d = new Date(iso);
+  const hoy = new Date();
+  const esHoy = d.toDateString() === hoy.toDateString();
+  const diaLabel = esHoy
+    ? "Hoy"
+    : d.toLocaleDateString("es-AR", { day: "numeric", month: "short" });
+  return `${diaLabel} · ${horaCorta(iso)}`;
+}
+
+function ProximosTurnosCard({ widgets }: { widgets: ReturnType<typeof useInicioWidgets> }) {
+  return (
+    <div className="glass rounded-2xl p-4 sm:p-5 ring-1 ring-white/5">
+      <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+        <CalendarClock className="h-4 w-4 text-violet-300" />
+        Próximos turnos
+      </div>
+      <div className="mt-3 space-y-2">
+        {widgets.loading ? (
+          <div className="text-sm text-muted-foreground">Cargando…</div>
+        ) : widgets.proximosTurnos.length === 0 ? (
+          <div className="text-sm text-muted-foreground">Sin turnos próximos.</div>
+        ) : (
+          widgets.proximosTurnos.map((t) => (
+            <div key={t.id} className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.03] px-3 py-2.5">
+              <div className="min-w-0">
+                <div className="truncate text-sm font-medium text-foreground">
+                  {t.client_name ?? "Cliente"}
+                </div>
+                <div className="truncate text-xs text-muted-foreground">{t.service_name ?? "—"}</div>
+              </div>
+              <div className="shrink-0 text-xs font-semibold text-violet-200">{diaYHoraCorta(t.starts_at)}</div>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ActividadRecienteCard({ widgets }: { widgets: ReturnType<typeof useInicioWidgets> }) {
+  function describe(item: ActividadItem) {
+    if (item.kind === "cobro") {
+      return {
+        icon: Receipt,
+        text: `Cobro a ${item.client_name ?? "cliente"} · ${fmtAR(item.total)}`,
+      };
+    }
+    return {
+      icon: CalendarClock,
+      text: `Turno agendado: ${item.client_name ?? "cliente"} · ${item.service_name ?? "—"}`,
+    };
+  }
+
+  return (
+    <div className="glass rounded-2xl p-4 sm:p-5 ring-1 ring-white/5">
+      <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+        <Activity className="h-4 w-4 text-sky-300" />
+        Actividad reciente
+      </div>
+      <div className="mt-3 space-y-2">
+        {widgets.loading ? (
+          <div className="text-sm text-muted-foreground">Cargando…</div>
+        ) : widgets.actividad.length === 0 ? (
+          <div className="text-sm text-muted-foreground">Sin actividad reciente.</div>
+        ) : (
+          widgets.actividad.map((item) => {
+            const { icon: Icon, text } = describe(item);
+            return (
+              <div key={`${item.kind}-${item.id}`} className="flex items-center gap-3 rounded-xl bg-white/[0.03] px-3 py-2.5">
+                <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
+                <div className="min-w-0 flex-1 truncate text-sm text-foreground">{text}</div>
+                <div className="shrink-0 text-xs text-muted-foreground">{horaCorta(item.at)}</div>
+              </div>
+            );
+          })
+        )}
+      </div>
     </div>
   );
 }
