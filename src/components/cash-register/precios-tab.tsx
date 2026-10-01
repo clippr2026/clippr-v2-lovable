@@ -3,6 +3,7 @@ import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { ServiceImage } from "@/components/ui/service-image";
+import { useAuth } from "@/hooks/use-auth";
 
 /**
  * Vista de Precios — misma query y misma lógica de categorías que Configuración → Servicios/Catálogo.
@@ -34,6 +35,7 @@ const DEFAULT_SERVICE_CATS = ["Servicios"];
 const DEFAULT_CATALOG_CATS = ["Productos", "Bebidas", "Indumentaria"];
 
 export function PreciosTab({ businessId }: { businessId: string | null }) {
+  const { activeBranchId } = useAuth();
   const [rows, setRows] = React.useState<Row[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [serviceCats, setServiceCats] = React.useState<string[]>(DEFAULT_SERVICE_CATS);
@@ -44,14 +46,15 @@ export function PreciosTab({ businessId }: { businessId: string | null }) {
     setLoading(true);
 
     // Exact same query as PriceCatalogSection in settings.tsx
+    let rowsQuery = supabase
+      .from("price_catalog")
+      .select("id,name,price,cash_discount,duration_min,category,active,stock")
+      .eq("business_id", businessId)
+      .is("deleted_at", null);
+    if (activeBranchId) rowsQuery = rowsQuery.eq("branch_id", activeBranchId);
+
     const [rowsRes, scheduleRes] = await Promise.all([
-      supabase
-        .from("price_catalog")
-        .select("id,name,price,cash_discount,duration_min,category,active,stock")
-        .eq("business_id", businessId)
-        .is("deleted_at", null)
-        .order("category")
-        .order("name"),
+      rowsQuery.order("category").order("name"),
       supabase
         .from("business_settings")
         .select("schedule")
@@ -78,7 +81,7 @@ export function PreciosTab({ businessId }: { businessId: string | null }) {
       setCatalogCats(cats.catalog as string[]);
 
     setLoading(false);
-  }, [businessId]);
+  }, [businessId, activeBranchId]);
 
   React.useEffect(() => { load(); }, [load]);
 

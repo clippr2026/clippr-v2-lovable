@@ -205,8 +205,8 @@ const COLORS = [
 ];
 
 function ProfessionalsPage() {
-  const { businessId, profile, permissions } = useAuth();
-  const { data: professionals = [], isLoading } = useProfessionals(businessId);
+  const { businessId, profile, permissions, activeBranchId } = useAuth();
+  const { data: professionals = [], isLoading } = useProfessionals(businessId, activeBranchId);
   const [activeId, setActiveId] = useState<string | null>(null);
   const [tab, setTab] = useState<TabKey>("turnos");
   // Always start on "hoy" — never remember last session's range

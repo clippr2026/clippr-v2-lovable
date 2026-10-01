@@ -4,6 +4,7 @@ import { Loader2, Minus, Plus, History, X, Package } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import { ServiceImage } from "@/components/ui/service-image";
+import { useAuth } from "@/hooks/use-auth";
 
 /**
  * Portado de cjLoadInventario / cjOpenStockModal / cjConfirmStock / cjLoadHistory
@@ -55,6 +56,7 @@ export function InventarioTab({
   businessId: string | null;
   userEmail: string | null;
 }) {
+  const { activeBranchId } = useAuth();
   const [products, setProducts] = React.useState<Product[]>([]);
   const [movements, setMovements] = React.useState<Movement[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -66,18 +68,19 @@ export function InventarioTab({
     if (!businessId) return;
     setLoading(true);
 
+    let itemsQuery = supabase
+      .from("price_catalog")
+      .select("id,name,category,price,duration_min,stock,stock_min,stock_critical,active")
+      .eq("business_id", businessId)
+      .is("deleted_at", null);
+    if (activeBranchId) itemsQuery = itemsQuery.eq("branch_id", activeBranchId);
+
     const [
       { data: items, error: itemsError },
       { data: movs, error: movsError },
       { data: settingsRow },
     ] = await Promise.all([
-      supabase
-        .from("price_catalog")
-        .select("id,name,category,price,duration_min,stock,stock_min,stock_critical,active")
-        .eq("business_id", businessId)
-        .is("deleted_at", null)
-        .order("category")
-        .order("name"),
+      itemsQuery.order("category").order("name"),
       supabase
         .from("stock_movements")
         .select("id,product_id,product_name,type,qty,stock_before,stock_after,user_email,note,created_at")
@@ -115,7 +118,7 @@ export function InventarioTab({
     setProducts(catalogProducts);
     setMovements((movs ?? []) as Movement[]);
     setLoading(false);
-  }, [businessId]);
+  }, [businessId, activeBranchId]);
 
   React.useEffect(() => { load(); }, [load]);
 

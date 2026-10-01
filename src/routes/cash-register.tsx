@@ -10302,6 +10302,7 @@ export function NuevaVentaTab({
         .from("clients")
         .insert({
           business_id: data.businessId,
+          branch_id: data.activeBranchId,
           full_name: client.trim(),
           phone: phone.trim() || null,
           email: trimmedEmail || null,

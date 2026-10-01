@@ -877,17 +877,18 @@ export function EquipoSection() {
     if (activeBranchId) employeesQuery = employeesQuery.eq("branch_id", activeBranchId);
     employeesQuery = employeesQuery.order("full_name", { ascending: true });
 
+    let catalogQuery = supabase
+      .from("price_catalog")
+      .select(
+        "id,name,price,duration_min,category,active,stock,cash_discount",
+      )
+      .eq("business_id", businessId)
+      .is("deleted_at", null);
+    if (activeBranchId) catalogQuery = catalogQuery.eq("branch_id", activeBranchId);
+
     const [{ data, error }, catalogResult, settingsResult] = await Promise.all([
       employeesQuery,
-      supabase
-        .from("price_catalog")
-        .select(
-          "id,name,price,duration_min,category,active,stock,cash_discount",
-        )
-        .eq("business_id", businessId)
-        .is("deleted_at", null)
-        .order("category")
-        .order("name"),
+      catalogQuery.order("category").order("name"),
       supabase
         .from("business_settings")
         .select("schedule")

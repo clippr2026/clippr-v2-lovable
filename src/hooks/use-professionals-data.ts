@@ -65,15 +65,16 @@ export type ProfTurno = {
 };
 
 // ── Professionals list ─────────────────────────────────────────────────────
-export function useProfessionals(businessId: string | null) {
+export function useProfessionals(businessId: string | null, branchId?: string | null) {
   return useQuery({
-    queryKey: ["professionals", businessId],
+    queryKey: ["professionals", businessId, branchId ?? null],
     queryFn: async () => {
-      const { data, error } = await supabase
+      let query = supabase
         .from("employees")
         .select("id,full_name,avatar_url,role_label,commission_pct,commission_fixed,is_active")
-        .eq("business_id", businessId!)
-        .order("full_name", { ascending: true });
+        .eq("business_id", businessId!);
+      if (branchId) query = query.eq("branch_id", branchId);
+      const { data, error } = await query.order("full_name", { ascending: true });
       if (error) throw new Error(error.message);
       return (data ?? []) as Professional[];
     },
