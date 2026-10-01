@@ -292,8 +292,15 @@ function ProfessionalsPage() {
     if (isProfessionalAccess && ownProfessional?.id && activeId !== ownProfessional.id) {
       setActiveId(ownProfessional.id);
     }
-    if (!isProfessional && !activeId && visibleProfessionals[0]?.id) {
-      setActiveId(visibleProfessionals[0].id);
+    // Si cambia la sucursal activa, `visibleProfessionals` cambia y el
+    // `activeId` guardado puede quedar apuntando a alguien que ya no está
+    // en esa lista — se re-selecciona el primero disponible en vez de
+    // dejar un id huérfano (eso rompía `activeColor` más abajo).
+    if (!isProfessional) {
+      const stillValid = !!activeId && visibleProfessionals.some((p) => p.id === activeId);
+      if (!stillValid && visibleProfessionals[0]?.id) {
+        setActiveId(visibleProfessionals[0].id);
+      }
     }
   }, [activeId, isProfessional, isProfessionalAccess, ownProfessional?.id, visibleProfessionals]);
 
@@ -343,7 +350,14 @@ function ProfessionalsPage() {
       ? "manual"
       : "auto";
   const active = useMemo(() => visibleProfessionals.find((p) => p.id === empId) ?? visibleProfessionals[0] ?? null, [visibleProfessionals, empId]);
-  const activeColor = useMemo(() => COLORS[(visibleProfessionals.findIndex(p => p.id === empId) % COLORS.length) || 0], [visibleProfessionals, empId]);
+  // Deriva el color SIEMPRE de `active` (ya resuelto con fallback), nunca
+  // de `empId` directo: si `empId` no está en `visibleProfessionals`,
+  // `findIndex` da -1 y `COLORS[-1]` es undefined → crash.
+  const activeColor = useMemo(() => {
+    if (!active) return COLORS[0];
+    const idx = visibleProfessionals.findIndex((p) => p.id === active.id);
+    return COLORS[idx >= 0 ? idx % COLORS.length : 0];
+  }, [visibleProfessionals, active]);
   const initials = (active?.full_name ?? "?").split(/\s+/).map((s: string) => s[0]).slice(0, 2).join("").toUpperCase();
 
   const selectedDateObj = useMemo(() => parseLocalISODate(fromDate), [fromDate]);
