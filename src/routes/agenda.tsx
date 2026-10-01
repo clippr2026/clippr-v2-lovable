@@ -13,7 +13,8 @@ import {
   Scissors,
   Mail,
   Repeat2,
-  CalendarOff
+  CalendarOff,
+  ChevronDown
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { applyPromotionDiscount, resolveServicePricing, type Promotion } from "@/lib/service-pricing";
@@ -281,6 +282,35 @@ function AgendaPage() {
     const key = toDateKey(cursor);
     return (closuresQuery.data ?? []).find((c) => key >= c.start_date && key <= c.end_date) ?? null;
   }, [closuresQuery.data, cursor]);
+
+  // Filtro de Agenda por profesional (Fase 6) — "recordado por sesión"
+  // (sessionStorage, no localStorage: se resetea al cerrar el navegador),
+  // clave por negocio + sucursal activa para no mezclar el filtro de una
+  // sucursal con otra. Solo filtra la grilla (columnas de profesionales),
+  // no los conteos de estado de arriba.
+  const [profFilterId, setProfFilterId] = React.useState<string | null>(null);
+  const [profFilterOpen, setProfFilterOpen] = React.useState(false);
+  const profFilterKey = data.businessId
+    ? `agenda_prof_filter_${data.businessId}_${data.activeBranchId ?? "none"}`
+    : null;
+  React.useEffect(() => {
+    if (!profFilterKey) return;
+    setProfFilterId(window.sessionStorage.getItem(profFilterKey));
+  }, [profFilterKey]);
+  const selectProfFilter = (id: string | null) => {
+    setProfFilterId(id);
+    if (!profFilterKey) return;
+    if (id) window.sessionStorage.setItem(profFilterKey, id);
+    else window.sessionStorage.removeItem(profFilterKey);
+  };
+  // Si el profesional filtrado deja de existir en la lista (ej. se
+  // desactivó), no se queda mostrando una grilla vacía sin explicación.
+  React.useEffect(() => {
+    if (profFilterId && !data.employees.some((e) => e.id === profFilterId)) {
+      selectProfFilter(null);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profFilterId, data.employees]);
 
   // Trae de Supabase (cobro_events) el historial de los turnos cancelados
   // que están en pantalla, para poder mostrar "Cancelado por X" también acá
@@ -1080,6 +1110,17 @@ function AgendaPage() {
       data.refresh,
     ],
   );
+  // Grilla filtrada por profesional (Fase 6) — mismo `memoData`, solo con
+  // `employees` recortado; el resto de la Agenda (conteos de estado,
+  // "No atendidos", etc.) sigue viendo TODOS los profesionales.
+  const filteredEmployees = React.useMemo(
+    () => (profFilterId ? data.employees.filter((e) => e.id === profFilterId) : data.employees),
+    [data.employees, profFilterId],
+  );
+  const dayViewData = React.useMemo(
+    () => ({ ...memoData, employees: filteredEmployees }),
+    [memoData, filteredEmployees],
+  );
   const daySchedule = React.useMemo(() => {
     // Rango visible derivado de horarios individuales (local como fallback) y
     // expandido solo por turnos reales. Se devuelve como DaySchedule sintético
@@ -1416,6 +1457,61 @@ function AgendaPage() {
           )}
         </div>
 
+        {/* Filtro por profesional (Fase 6) — siempre visible, más relevante en
+            mobile (ahí la grilla scrollea horizontalmente entre TODOS los
+            profesionales a la vez). Filtra solo la grilla de abajo, no los
+            conteos de estado. Sin backdrop-filter en este wrapper (a
+            diferencia de la barra de arriba, que es ".glass") para no
+            necesitar portal: el dropdown no queda atrapado en ningún
+            stacking context raro. */}
+        <div className="relative z-30 mb-2">
+          <button
+            type="button"
+            onClick={() => setProfFilterOpen((v) => !v)}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-foreground ring-1 ring-white/10 transition hover:bg-white/[0.07]"
+          >
+            <UserRound className="h-3.5 w-3.5 text-muted-foreground" />
+            {profFilterId ? (data.employees.find((e) => e.id === profFilterId)?.full_name ?? "Profesional") : "Todos"}
+            <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", profFilterOpen && "rotate-180")} />
+          </button>
+          {profFilterOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setProfFilterOpen(false)} />
+              <div className="absolute left-0 top-full z-50 mt-1.5 max-h-72 w-56 overflow-y-auto rounded-xl glass-strong p-1 animate-fade-up">
+                <button
+                  type="button"
+                  onClick={() => {
+                    selectProfFilter(null);
+                    setProfFilterOpen(false);
+                  }}
+                  className={cn(
+                    "w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition",
+                    !profFilterId && "text-primary font-medium",
+                  )}
+                >
+                  Todos
+                </button>
+                {data.employees.map((e) => (
+                  <button
+                    key={e.id}
+                    type="button"
+                    onClick={() => {
+                      selectProfFilter(e.id);
+                      setProfFilterOpen(false);
+                    }}
+                    className={cn(
+                      "w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition truncate",
+                      profFilterId === e.id && "text-primary font-medium",
+                    )}
+                  >
+                    {e.full_name}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
+
         {/* Estados — mobile: grilla fija de 3 columnas, 3 arriba + 3 abajo (5 estados +
             "No atendidos" en la 6ª celda), sin scroll horizontal. */}
         <div className="grid grid-cols-3 gap-1.5 mb-2 sm:hidden">
@@ -1570,7 +1666,7 @@ function AgendaPage() {
         ) : (
           <DayView
             date={cursor}
-            data={memoData}
+            data={dayViewData}
             schedule={daySchedule}
             closure={closedToday}
             enabledBreaks={enabledBreaks}
@@ -3861,7 +3957,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                     className="h-7 rounded-full border-white/10 bg-white/[0.06] px-2.5 text-xs hover:bg-white/[0.1]"
                     onClick={() => onEdit(appointment)}
                   >
-                    Editar
+                    Reprogramar
                   </Button>
                 )}
               </div>
