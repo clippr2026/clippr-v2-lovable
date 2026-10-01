@@ -24,6 +24,10 @@ export type CashMovement = {
 export function useCajaHoy(businessId: string | null, branchId: string | null) {
   const [loading, setLoading] = React.useState(true);
   const [cashExpected, setCashExpected] = React.useState(0);
+  // Todo lo cobrado hoy que NO es efectivo (transferencia, tarjeta, MP, QR,
+  // etc.) — a diferencia de cashExpected, nunca se ajusta por
+  // ingresar/retirar efectivo (esos movimientos son solo del cajón físico).
+  const [bankExpected, setBankExpected] = React.useState(0);
   const [movements, setMovements] = React.useState<CashMovement[]>([]);
   const [pendingCierre, setPendingCierre] = React.useState<PendingCierre | null>(null);
 
@@ -63,8 +67,12 @@ export function useCajaHoy(businessId: string | null, branchId: string | null) {
       const raw = String(m ?? "").trim().toLowerCase();
       return raw === "cash" || raw === "efectivo";
     };
-    const cashPayments = ((payRes.data ?? []) as any[])
+    const payments = (payRes.data ?? []) as any[];
+    const cashPayments = payments
       .filter((p) => isCashMethod(p.method ?? p.payment_method))
+      .reduce((s, p) => s + Number(p.total ?? p.amount ?? 0), 0);
+    const nonCashPayments = payments
+      .filter((p) => !isCashMethod(p.method ?? p.payment_method))
       .reduce((s, p) => s + Number(p.total ?? p.amount ?? 0), 0);
 
     const movs = ((movRes.data ?? []) as any[]) as CashMovement[];
@@ -72,6 +80,7 @@ export function useCajaHoy(businessId: string | null, branchId: string | null) {
     const retiros = movs.filter((m) => m.type === "retiro").reduce((s, m) => s + Number(m.amount), 0);
 
     setCashExpected(cashPayments + ingresos - retiros);
+    setBankExpected(nonCashPayments);
     setMovements(movs);
     setPendingCierre(pending);
     setLoading(false);
@@ -113,5 +122,5 @@ export function useCajaHoy(businessId: string | null, branchId: string | null) {
     [businessId, branchId, pendingCierre, load],
   );
 
-  return { loading, cashExpected, movements, pendingCierre, registerMovement, closeVencida, refresh: load };
+  return { loading, cashExpected, bankExpected, movements, pendingCierre, registerMovement, closeVencida, refresh: load };
 }

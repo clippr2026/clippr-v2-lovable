@@ -116,11 +116,15 @@ export type FichajeHoySummary = {
   code: string;
   fichados: number;
   pendientes: number;
+  fichadosNames: string[];
+  pendientesNames: string[];
 };
 
 // Resumen para la tarjeta "Fichaje de jornada" de Inicio — cuántos
 // profesionales de esta sucursal ya ficharon hoy vs cuántos todavía no
-// (sobre el total de profesionales activos de la sucursal).
+// (sobre el total de profesionales activos de la sucursal), con nombre y
+// todo (no solo el conteo) para que Inicio pueda mostrar quién fichó y a
+// quién le falta.
 export async function getTodayFichajeSummary(
   businessId: string,
   branchId: string,
@@ -137,18 +141,24 @@ export async function getTodayFichajeSummary(
       .gte("clock_in_at", dayStart),
     supabase
       .from("employees")
-      .select("id")
+      .select("id,full_name")
       .eq("business_id", businessId)
       .eq("branch_id", branchId)
       .eq("is_active", true),
   ]);
 
   const fichadosSet = new Set(((sessions ?? []) as any[]).map((s) => s.employee_id));
-  const totalActivos = ((employees ?? []) as any[]).length;
-  const fichados = fichadosSet.size;
-  const pendientes = Math.max(0, totalActivos - fichados);
+  const activos = ((employees ?? []) as { id: string; full_name: string | null }[]);
+  const fichadosNames = activos.filter((e) => fichadosSet.has(e.id)).map((e) => e.full_name ?? "Profesional");
+  const pendientesNames = activos.filter((e) => !fichadosSet.has(e.id)).map((e) => e.full_name ?? "Profesional");
 
-  return { code, fichados, pendientes };
+  return {
+    code,
+    fichados: fichadosNames.length,
+    pendientes: pendientesNames.length,
+    fichadosNames,
+    pendientesNames,
+  };
 }
 
 export async function getOpenWorkSession(employeeId: string): Promise<WorkSession | null> {

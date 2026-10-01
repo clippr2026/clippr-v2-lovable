@@ -478,10 +478,6 @@ function PublicSiteMenu() {
               WWW
             </span>
           </span>
-          {/* En mobile el espacio es reducido: solo el ícono + badge, sin
-              texto. Mismo botón, mismo comportamiento — el label se oculta,
-              no se duplica el trigger. */}
-          <span className="hidden sm:inline">Reservas online</span>
         </button>
       </DropdownMenuTrigger>
 
@@ -736,6 +732,7 @@ export function AppSidebar() {
               <BranchSelector />
             </div>
             <PublicSiteMenu />
+            <NotificationsButton />
             <UserMenu />
           </div>
         </div>
