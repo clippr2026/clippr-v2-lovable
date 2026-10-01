@@ -1,7 +1,7 @@
 import * as React from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
 import { useAuth } from "@/hooks/use-auth";
 import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
@@ -15,6 +15,7 @@ import {
 import { useCajaHoy } from "@/components/dashboard/use-caja-hoy";
 import { useInicioWidgets, type ActividadItem } from "@/components/dashboard/use-inicio-widgets";
 import { useFichajeHoy } from "@/components/dashboard/use-fichaje-hoy";
+import { FichajeQrModal } from "@/components/dashboard/fichaje-qr-modal";
 import {
   DollarSign,
   ArrowDownCircle,
@@ -473,6 +474,10 @@ function FichajeHoyCard({
   fichaje: ReturnType<typeof useFichajeHoy>;
   branchId: string | null;
 }) {
+  const { branches } = useAuth();
+  const [qrOpen, setQrOpen] = React.useState(false);
+  const branchName = branches.find((b) => b.id === branchId)?.name ?? "";
+
   return (
     <div className="glass rounded-2xl p-4 sm:p-5 ring-1 ring-white/5 h-full">
       <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
@@ -496,14 +501,21 @@ function FichajeHoyCard({
           <div className="mt-2 text-sm text-muted-foreground">
             {fichaje.summary.fichados} fichado{fichaje.summary.fichados === 1 ? "" : "s"} · {fichaje.summary.pendientes} pendiente{fichaje.summary.pendientes === 1 ? "" : "s"}
           </div>
-          <Link
-            to="/fichaje-kiosco/$branchId"
-            params={{ branchId }}
-            target="_blank"
+          <button
+            type="button"
+            onClick={() => setQrOpen(true)}
             className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-white/5 px-3 py-2 text-xs font-semibold text-foreground ring-1 ring-white/10 transition hover:bg-white/10"
           >
             <ScanLine className="h-3.5 w-3.5" /> Ver QR
-          </Link>
+          </button>
+          {qrOpen && (
+            <FichajeQrModal
+              branchName={branchName}
+              code={fichaje.summary.code}
+              branchId={branchId}
+              onClose={() => setQrOpen(false)}
+            />
+          )}
         </>
       )}
     </div>
