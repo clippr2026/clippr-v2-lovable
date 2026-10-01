@@ -2584,62 +2584,56 @@ const DayView = React.memo(function DayView({
     ],
   );
 
-  // Día cerrado (Fase 5): ocupa todo el horario del día, claramente
-  // diferenciado (rojo/rosa) de "Negocio cerrado este día" (horario
-  // semanal desactivado, gris/neutro), de un descanso o de un bloqueo de
-  // horas puntual — acá es la sucursal entera, el día completo. Si ya
-  // había turnos agendados antes de crear el cierre (nunca se cancelan
-  // solos), se listan abajo para que sigan siendo visibles y gestionables.
-  if (closure) {
-    return (
-      <section className="glass rounded-2xl overflow-hidden ring-1 ring-rose-400/25 min-h-[360px]">
-        <div className="bg-rose-500/10 p-8 grid place-items-center text-center gap-1">
-          <CalendarOff className="h-7 w-7 text-rose-300 mb-1" />
-          <div className="text-lg font-bold tracking-wide text-rose-200">CERRADO</div>
-          <div className="text-sm text-rose-200/70">
-            {closure.reason?.trim() || "Día cerrado"}
-          </div>
+  // Día cerrado (Fase 5): la grilla sigue mostrándose normal (horarios,
+  // profesionales, descansos, turnos existentes) — esto es solo un aviso
+  // arriba + una capa sutil sobre la grilla, nunca la reemplaza. Turnos ya
+  // agendados antes del cierre nunca se cancelan ni se ocultan solos.
+  const closureBanner = closure ? (
+    <div className="mb-2 rounded-2xl bg-rose-500/10 ring-1 ring-rose-400/25 px-4 py-3 flex flex-wrap items-center gap-3">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-500/15 text-rose-300">
+        <CalendarOff className="h-4.5 w-4.5" />
+      </span>
+      <div className="min-w-0">
+        <div className="text-sm font-bold tracking-wide text-rose-200">CERRADO</div>
+        <div className="text-xs text-rose-200/70">{closure.reason?.trim() || "Día cerrado"}</div>
+      </div>
+      {dayAppts.length > 0 && (
+        <div className="ml-auto rounded-xl bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-200 ring-1 ring-amber-400/25">
+          Este día está cerrado, pero hay {dayAppts.length} turno{dayAppts.length === 1 ? "" : "s"} agendado{dayAppts.length === 1 ? "" : "s"}.
         </div>
-        {dayAppts.length > 0 && (
-          <div className="p-4 space-y-1.5">
-            <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground/70 px-1">
-              Turnos ya agendados este día
-            </div>
-            {dayAppts.map((a) => (
-              <button
-                key={a.id}
-                type="button"
-                onClick={() => onApptClick(a)}
-                className="flex w-full items-center gap-2 rounded-xl bg-white/[0.03] px-3 py-2.5 text-left text-sm ring-1 ring-white/8 transition hover:bg-white/[0.06]"
-              >
-                <span className="font-semibold tabular-nums text-foreground/90">{fmtTime(new Date(a.starts_at))}</span>
-                <span className="text-muted-foreground/40">·</span>
-                <span className="truncate text-foreground/80">{a.client_name || "Cliente"}</span>
-                <span className="text-muted-foreground/40">·</span>
-                <span className="truncate text-muted-foreground">{a.service_name}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </section>
-    );
-  }
+      )}
+    </div>
+  ) : null;
 
   if (isClosed) {
     return (
-      <section className="glass rounded-2xl p-8 min-h-[360px] grid place-items-center text-center">
-        <div>
-          <div className="text-sm font-semibold">Negocio cerrado este día</div>
-          <div className="text-xs text-muted-foreground mt-1">
-            Este día está desactivado en Configuración &gt; Horarios.
+      <>
+        {closureBanner}
+        <section className="glass rounded-2xl p-8 min-h-[360px] grid place-items-center text-center">
+          <div>
+            <div className="text-sm font-semibold">Negocio cerrado este día</div>
+            <div className="text-xs text-muted-foreground mt-1">
+              Este día está desactivado en Configuración &gt; Horarios.
+            </div>
           </div>
-        </div>
-      </section>
+        </section>
+      </>
     );
   }
 
   return (
-    <section className="rounded-2xl p-2 sm:p-3 relative border border-white/10 shadow-[0_18px_60px_-34px_rgba(0,0,0,0.95)]" style={{ background: "#111323" }}>
+    <>
+      {closureBanner}
+      <section className="rounded-2xl p-2 sm:p-3 relative border border-white/10 shadow-[0_18px_60px_-34px_rgba(0,0,0,0.95)]" style={{ background: "#111323" }}>
+      {closure && (
+        <div
+          className="pointer-events-none absolute inset-0 z-20 rounded-2xl"
+          style={{
+            background:
+              "repeating-linear-gradient(135deg, oklch(0.55 0.22 25 / 0.05) 0px, oklch(0.55 0.22 25 / 0.05) 10px, transparent 10px, transparent 20px)",
+          }}
+        />
+      )}
       <div
         ref={gridScrollRef}
         onScroll={onGridScroll}
@@ -3048,7 +3042,8 @@ const DayView = React.memo(function DayView({
           </button>
         </>
       )}
-    </section>
+      </section>
+    </>
   );
 });
 
