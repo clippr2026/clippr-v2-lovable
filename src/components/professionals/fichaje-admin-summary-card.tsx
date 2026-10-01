@@ -3,34 +3,50 @@ import { createPortal } from "react-dom";
 import { ScanLine, History, X } from "lucide-react";
 import { getTodaySessionForEmployee, type WorkSession } from "@/lib/fichaje";
 import { JornadasHistorial } from "@/components/professionals/jornadas-historial";
+import { FichajeFlowModal } from "@/components/professionals/fichaje-flow-modal";
 
 function horaCorta(iso: string) {
   return new Date(iso).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
 }
 
-// Vista del dueño/admin en Profesionales al seleccionar un barbero: resumen
-// de SOLO LECTURA de la jornada de hoy (nunca un botón para fichar en su
-// nombre — eso es exclusivo del panel del propio profesional, ver
-// FichajeProfesionalCard). Si hace falta corregir algo, se hace desde
-// "Ver historial" con edición manual auditada.
-export function FichajeAdminSummaryCard({ employeeId }: { employeeId: string }) {
+function jornadaLinea(session: WorkSession) {
+  let s = `Entrada ${horaCorta(session.clock_in_at)}`;
+  if (session.late_minutes > 0) s += ` · ${session.late_minutes} min tarde`;
+  if (session.clock_out_at) s += ` · Salida ${horaCorta(session.clock_out_at)}`;
+  return s;
+}
+
+// Vista del dueño/admin en Profesionales al seleccionar un barbero:
+// resumen de la jornada de hoy + botón "Fichar jornada" para registrar
+// entrada/salida EN NOMBRE de ese profesional (mismo flujo Escanear QR /
+// Ingresar código que su panel propio, con la misma exigencia de QR/código
+// válido de la sucursal — nunca se registra nada sin esa validación). Si
+// hace falta corregir algo retroactivo, "Ver historial" con edición
+// manual auditada.
+export function FichajeAdminSummaryCard({
+  businessId,
+  employeeId,
+  activeBranchId,
+}: {
+  businessId: string | null;
+  employeeId: string;
+  activeBranchId: string | null;
+}) {
   const [session, setSession] = React.useState<WorkSession | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [historialOpen, setHistorialOpen] = React.useState(false);
+  const [fichajeOpen, setFichajeOpen] = React.useState(false);
+
+  const loadSession = React.useCallback(async () => {
+    setLoading(true);
+    const s = await getTodaySessionForEmployee(employeeId);
+    setSession(s);
+    setLoading(false);
+  }, [employeeId]);
 
   React.useEffect(() => {
-    let cancelled = false;
-    setLoading(true);
-    getTodaySessionForEmployee(employeeId).then((s) => {
-      if (!cancelled) {
-        setSession(s);
-        setLoading(false);
-      }
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, [employeeId]);
+    loadSession();
+  }, [loadSession]);
 
   return (
     <div className="glass rounded-2xl p-4 sm:p-5 ring-1 ring-white/5">
@@ -40,32 +56,42 @@ export function FichajeAdminSummaryCard({ employeeId }: { employeeId: string }) 
             <ScanLine className="h-4 w-4 text-emerald-300" />
             Jornada de hoy
           </div>
-          <div className="mt-1.5 flex items-center gap-2 text-sm text-muted-foreground">
-            {loading ? (
-              "Cargando…"
-            ) : !session ? (
-              "Sin fichar"
-            ) : session.clock_out_at ? (
-              <>Entrada {horaCorta(session.clock_in_at)} · Salida {horaCorta(session.clock_out_at)}</>
-            ) : (
-              <>Entrada {horaCorta(session.clock_in_at)}</>
-            )}
-            {session && session.late_minutes > 0 && (
-              <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-[11px] font-medium text-amber-300 ring-1 ring-amber-400/20">
-                {session.late_minutes} min tarde
-              </span>
-            )}
+          <div className="mt-1.5 text-sm text-muted-foreground">
+            {loading ? "Cargando…" : !session ? "Sin fichar" : jornadaLinea(session)}
           </div>
         </div>
-        <button
-          type="button"
-          onClick={() => setHistorialOpen(true)}
-          className="shrink-0 inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2.5 text-sm font-medium text-muted-foreground ring-1 ring-white/10 transition hover:bg-white/5 hover:text-foreground"
-        >
-          <History className="h-3.5 w-3.5" />
-          Ver historial de jornadas
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setHistorialOpen(true)}
+            className="inline-flex items-center gap-1.5 rounded-xl px-3.5 py-2.5 text-sm font-medium text-muted-foreground ring-1 ring-white/10 transition hover:bg-white/5 hover:text-foreground"
+          >
+            <History className="h-3.5 w-3.5" />
+            Ver historial
+          </button>
+          <button
+            type="button"
+            onClick={() => setFichajeOpen(true)}
+            className="rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-2.5 text-sm font-semibold text-white"
+          >
+            Fichar jornada
+          </button>
+        </div>
       </div>
+
+      {fichajeOpen && (
+        <FichajeFlowModal
+          businessId={businessId}
+          employeeId={employeeId}
+          activeBranchId={activeBranchId}
+          hasOpenSession={Boolean(session && !session.clock_out_at)}
+          onClose={() => setFichajeOpen(false)}
+          onDone={() => {
+            setFichajeOpen(false);
+            loadSession();
+          }}
+        />
+      )}
 
       {historialOpen &&
         typeof document !== "undefined" &&

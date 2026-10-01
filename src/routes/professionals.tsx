@@ -566,15 +566,23 @@ function ProfessionalsPage() {
       </div>
 
       {isProfessionalAccess && (
-        <FichajeProfesionalCard businessId={businessId} employeeId={profileEmployeeId} />
+        <FichajeProfesionalCard
+          businessId={businessId}
+          employeeId={profileEmployeeId}
+          activeBranchId={activeBranchId}
+        />
       )}
 
-      {/* Vista admin/dueño: resumen de solo lectura de la jornada del
-          barbero seleccionado + acceso al historial. Nunca un botón para
-          fichar en su nombre — eso queda exclusivo del panel del propio
-          profesional (FichajeProfesionalCard arriba). */}
+      {/* Vista admin/dueño: jornada de hoy del barbero seleccionado, con
+          botón "Fichar jornada" (mismo flujo Escanear QR / Ingresar
+          código que el panel propio, fichando en su nombre) + acceso al
+          historial para correcciones manuales auditadas. */}
       {!isProfessional && !!empId && (
-        <FichajeAdminSummaryCard employeeId={empId} />
+        <FichajeAdminSummaryCard
+          businessId={businessId}
+          employeeId={empId}
+          activeBranchId={activeBranchId}
+        />
       )}
 
       {profile?.role === "profesional" && !profileEmployeeId && (
