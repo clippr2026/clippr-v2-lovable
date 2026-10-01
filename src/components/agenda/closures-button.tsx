@@ -2,7 +2,7 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { CalendarOff, X, Plus, Pencil, Trash2, AlertTriangle } from "lucide-react";
-import { DateRangePicker } from "@/components/date-range-picker";
+import { ClosureDatePicker } from "@/components/agenda/closure-date-picker";
 import {
   useClosures,
   useCreateClosure,
@@ -244,8 +244,8 @@ function ClosureForm({
   return (
     <div className="space-y-3 rounded-xl bg-white/[0.03] p-3.5 ring-1 ring-white/8">
       <div>
-        <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-white/40">Rango de fechas</div>
-        <DateRangePicker
+        <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-white/40">Fechas cerradas</div>
+        <ClosureDatePicker
           from={from}
           to={to}
           onChange={({ from: f, to: t }) => {
