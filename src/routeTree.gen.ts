@@ -9,89 +9,64 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
-import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as SetPasswordRouteImport } from './routes/set-password'
-import { Route as ServicesRouteImport } from './routes/services'
-import { Route as ReportsRouteImport } from './routes/reports'
-import { Route as ProfessionalsRouteImport } from './routes/professionals'
-import { Route as MarketingRouteImport } from './routes/marketing'
-import { Route as LoginRouteImport } from './routes/login'
-import { Route as LandingDemoRouteImport } from './routes/landing-demo'
-import { Route as InventoryRouteImport } from './routes/inventory'
-import { Route as GestionRouteImport } from './routes/gestion'
-import { Route as DashboardRouteImport } from './routes/dashboard'
-import { Route as ClientsRouteImport } from './routes/clients'
-import { Route as CashRegisterLiquidacionesCompactoRouteImport } from './routes/cash-register-liquidaciones-compacto'
-import { Route as CashRegisterRouteImport } from './routes/cash-register'
-import { Route as AuroStyloRouteImport } from './routes/auro-stylo'
-import { Route as AppointmentsRouteImport } from './routes/appointments'
-import { Route as AgendaRouteImport } from './routes/agenda'
-import { Route as AdvisorlRouteImport } from './routes/advisorl'
-import { Route as AdvisorRouteImport } from './routes/advisor'
 import { Route as IndexRouteImport } from './routes/index'
-import { Route as ReservarSlugRouteImport } from './routes/reservar/$slug'
-import { Route as NegocioSlugRouteImport } from './routes/negocio/$slug'
-import { Route as FicharBranchIdRouteImport } from './routes/fichar/$branchId'
+import { Route as AdvisorRouteImport } from './routes/advisor'
+import { Route as AdvisorlRouteImport } from './routes/advisorl'
+import { Route as AgendaRouteImport } from './routes/agenda'
+import { Route as AppointmentsRouteImport } from './routes/appointments'
+import { Route as AuroStyloRouteImport } from './routes/auro-stylo'
+import { Route as CashRegisterRouteImport } from './routes/cash-register'
+import { Route as CashRegisterLiquidacionesCompactoRouteImport } from './routes/cash-register-liquidaciones-compacto'
+import { Route as ClientsRouteImport } from './routes/clients'
+import { Route as DashboardRouteImport } from './routes/dashboard'
+import { Route as GestionRouteImport } from './routes/gestion'
+import { Route as InventoryRouteImport } from './routes/inventory'
+import { Route as LandingDemoRouteImport } from './routes/landing-demo'
+import { Route as LoginRouteImport } from './routes/login'
+import { Route as MarketingRouteImport } from './routes/marketing'
+import { Route as ProfessionalsRouteImport } from './routes/professionals'
+import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as ServicesRouteImport } from './routes/services'
+import { Route as SetPasswordRouteImport } from './routes/set-password'
+import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as FichajeKioscoBranchIdRouteImport } from './routes/fichaje-kiosco/$branchId'
+import { Route as FicharBranchIdRouteImport } from './routes/fichar/$branchId'
+import { Route as NegocioSlugRouteImport } from './routes/negocio/$slug'
+import { Route as ReservarSlugRouteImport } from './routes/reservar/$slug'
 
-const SettingsRoute = SettingsRouteImport.update({
-  id: '/settings',
-  path: '/settings',
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
   getParentRoute: () => rootRouteImport,
 } as any)
-const SetPasswordRoute = SetPasswordRouteImport.update({
-  id: '/set-password',
-  path: '/set-password',
+const AdvisorRoute = AdvisorRouteImport.update({
+  id: '/advisor',
+  path: '/advisor',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ServicesRoute = ServicesRouteImport.update({
-  id: '/services',
-  path: '/services',
+const AdvisorlRoute = AdvisorlRouteImport.update({
+  id: '/advisorl',
+  path: '/advisorl',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ReportsRoute = ReportsRouteImport.update({
-  id: '/reports',
-  path: '/reports',
+const AgendaRoute = AgendaRouteImport.update({
+  id: '/agenda',
+  path: '/agenda',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ProfessionalsRoute = ProfessionalsRouteImport.update({
-  id: '/professionals',
-  path: '/professionals',
+const AppointmentsRoute = AppointmentsRouteImport.update({
+  id: '/appointments',
+  path: '/appointments',
   getParentRoute: () => rootRouteImport,
 } as any)
-const MarketingRoute = MarketingRouteImport.update({
-  id: '/marketing',
-  path: '/marketing',
+const AuroStyloRoute = AuroStyloRouteImport.update({
+  id: '/auro-stylo',
+  path: '/auro-stylo',
   getParentRoute: () => rootRouteImport,
 } as any)
-const LoginRoute = LoginRouteImport.update({
-  id: '/login',
-  path: '/login',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const LandingDemoRoute = LandingDemoRouteImport.update({
-  id: '/landing-demo',
-  path: '/landing-demo',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const InventoryRoute = InventoryRouteImport.update({
-  id: '/inventory',
-  path: '/inventory',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const GestionRoute = GestionRouteImport.update({
-  id: '/gestion',
-  path: '/gestion',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const DashboardRoute = DashboardRouteImport.update({
-  id: '/dashboard',
-  path: '/dashboard',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ClientsRoute = ClientsRouteImport.update({
-  id: '/clients',
-  path: '/clients',
+const CashRegisterRoute = CashRegisterRouteImport.update({
+  id: '/cash-register',
+  path: '/cash-register',
   getParentRoute: () => rootRouteImport,
 } as any)
 const CashRegisterLiquidacionesCompactoRoute =
@@ -100,49 +75,69 @@ const CashRegisterLiquidacionesCompactoRoute =
     path: '/cash-register-liquidaciones-compacto',
     getParentRoute: () => rootRouteImport,
   } as any)
-const CashRegisterRoute = CashRegisterRouteImport.update({
-  id: '/cash-register',
-  path: '/cash-register',
+const ClientsRoute = ClientsRouteImport.update({
+  id: '/clients',
+  path: '/clients',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AuroStyloRoute = AuroStyloRouteImport.update({
-  id: '/auro-stylo',
-  path: '/auro-stylo',
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AppointmentsRoute = AppointmentsRouteImport.update({
-  id: '/appointments',
-  path: '/appointments',
+const GestionRoute = GestionRouteImport.update({
+  id: '/gestion',
+  path: '/gestion',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AgendaRoute = AgendaRouteImport.update({
-  id: '/agenda',
-  path: '/agenda',
+const InventoryRoute = InventoryRouteImport.update({
+  id: '/inventory',
+  path: '/inventory',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AdvisorlRoute = AdvisorlRouteImport.update({
-  id: '/advisorl',
-  path: '/advisorl',
+const LandingDemoRoute = LandingDemoRouteImport.update({
+  id: '/landing-demo',
+  path: '/landing-demo',
   getParentRoute: () => rootRouteImport,
 } as any)
-const AdvisorRoute = AdvisorRouteImport.update({
-  id: '/advisor',
-  path: '/advisor',
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
-const IndexRoute = IndexRouteImport.update({
-  id: '/',
-  path: '/',
+const MarketingRoute = MarketingRouteImport.update({
+  id: '/marketing',
+  path: '/marketing',
   getParentRoute: () => rootRouteImport,
 } as any)
-const ReservarSlugRoute = ReservarSlugRouteImport.update({
-  id: '/reservar/$slug',
-  path: '/reservar/$slug',
+const ProfessionalsRoute = ProfessionalsRouteImport.update({
+  id: '/professionals',
+  path: '/professionals',
   getParentRoute: () => rootRouteImport,
 } as any)
-const NegocioSlugRoute = NegocioSlugRouteImport.update({
-  id: '/negocio/$slug',
-  path: '/negocio/$slug',
+const ReportsRoute = ReportsRouteImport.update({
+  id: '/reports',
+  path: '/reports',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ServicesRoute = ServicesRouteImport.update({
+  id: '/services',
+  path: '/services',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SetPasswordRoute = SetPasswordRouteImport.update({
+  id: '/set-password',
+  path: '/set-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsRoute = SettingsRouteImport.update({
+  id: '/settings',
+  path: '/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FichajeKioscoBranchIdRoute = FichajeKioscoBranchIdRouteImport.update({
+  id: '/fichaje-kiosco/$branchId',
+  path: '/fichaje-kiosco/$branchId',
   getParentRoute: () => rootRouteImport,
 } as any)
 const FicharBranchIdRoute = FicharBranchIdRouteImport.update({
@@ -150,9 +145,14 @@ const FicharBranchIdRoute = FicharBranchIdRouteImport.update({
   path: '/fichar/$branchId',
   getParentRoute: () => rootRouteImport,
 } as any)
-const FichajeKioscoBranchIdRoute = FichajeKioscoBranchIdRouteImport.update({
-  id: '/fichaje-kiosco/$branchId',
-  path: '/fichaje-kiosco/$branchId',
+const NegocioSlugRoute = NegocioSlugRouteImport.update({
+  id: '/negocio/$slug',
+  path: '/negocio/$slug',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ReservarSlugRoute = ReservarSlugRouteImport.update({
+  id: '/reservar/$slug',
+  path: '/reservar/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -345,130 +345,11 @@ export interface RootRouteChildren {
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
-    '/settings': {
-      id: '/settings'
-      path: '/settings'
-      fullPath: '/settings'
-      preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/set-password': {
-      id: '/set-password'
-      path: '/set-password'
-      fullPath: '/set-password'
-      preLoaderRoute: typeof SetPasswordRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/services': {
-      id: '/services'
-      path: '/services'
-      fullPath: '/services'
-      preLoaderRoute: typeof ServicesRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/reports': {
-      id: '/reports'
-      path: '/reports'
-      fullPath: '/reports'
-      preLoaderRoute: typeof ReportsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/professionals': {
-      id: '/professionals'
-      path: '/professionals'
-      fullPath: '/professionals'
-      preLoaderRoute: typeof ProfessionalsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/marketing': {
-      id: '/marketing'
-      path: '/marketing'
-      fullPath: '/marketing'
-      preLoaderRoute: typeof MarketingRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/login': {
-      id: '/login'
-      path: '/login'
-      fullPath: '/login'
-      preLoaderRoute: typeof LoginRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/landing-demo': {
-      id: '/landing-demo'
-      path: '/landing-demo'
-      fullPath: '/landing-demo'
-      preLoaderRoute: typeof LandingDemoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/inventory': {
-      id: '/inventory'
-      path: '/inventory'
-      fullPath: '/inventory'
-      preLoaderRoute: typeof InventoryRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/gestion': {
-      id: '/gestion'
-      path: '/gestion'
-      fullPath: '/gestion'
-      preLoaderRoute: typeof GestionRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/dashboard': {
-      id: '/dashboard'
-      path: '/dashboard'
-      fullPath: '/dashboard'
-      preLoaderRoute: typeof DashboardRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/clients': {
-      id: '/clients'
-      path: '/clients'
-      fullPath: '/clients'
-      preLoaderRoute: typeof ClientsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/cash-register-liquidaciones-compacto': {
-      id: '/cash-register-liquidaciones-compacto'
-      path: '/cash-register-liquidaciones-compacto'
-      fullPath: '/cash-register-liquidaciones-compacto'
-      preLoaderRoute: typeof CashRegisterLiquidacionesCompactoRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/cash-register': {
-      id: '/cash-register'
-      path: '/cash-register'
-      fullPath: '/cash-register'
-      preLoaderRoute: typeof CashRegisterRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/auro-stylo': {
-      id: '/auro-stylo'
-      path: '/auro-stylo'
-      fullPath: '/auro-stylo'
-      preLoaderRoute: typeof AuroStyloRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/appointments': {
-      id: '/appointments'
-      path: '/appointments'
-      fullPath: '/appointments'
-      preLoaderRoute: typeof AppointmentsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/agenda': {
-      id: '/agenda'
-      path: '/agenda'
-      fullPath: '/agenda'
-      preLoaderRoute: typeof AgendaRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/advisorl': {
-      id: '/advisorl'
-      path: '/advisorl'
-      fullPath: '/advisorl'
-      preLoaderRoute: typeof AdvisorlRouteImport
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/advisor': {
@@ -478,25 +359,137 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdvisorRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/': {
-      id: '/'
-      path: '/'
-      fullPath: '/'
-      preLoaderRoute: typeof IndexRouteImport
+    '/advisorl': {
+      id: '/advisorl'
+      path: '/advisorl'
+      fullPath: '/advisorl'
+      preLoaderRoute: typeof AdvisorlRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/reservar/$slug': {
-      id: '/reservar/$slug'
-      path: '/reservar/$slug'
-      fullPath: '/reservar/$slug'
-      preLoaderRoute: typeof ReservarSlugRouteImport
+    '/agenda': {
+      id: '/agenda'
+      path: '/agenda'
+      fullPath: '/agenda'
+      preLoaderRoute: typeof AgendaRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/negocio/$slug': {
-      id: '/negocio/$slug'
-      path: '/negocio/$slug'
-      fullPath: '/negocio/$slug'
-      preLoaderRoute: typeof NegocioSlugRouteImport
+    '/appointments': {
+      id: '/appointments'
+      path: '/appointments'
+      fullPath: '/appointments'
+      preLoaderRoute: typeof AppointmentsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/auro-stylo': {
+      id: '/auro-stylo'
+      path: '/auro-stylo'
+      fullPath: '/auro-stylo'
+      preLoaderRoute: typeof AuroStyloRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cash-register': {
+      id: '/cash-register'
+      path: '/cash-register'
+      fullPath: '/cash-register'
+      preLoaderRoute: typeof CashRegisterRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/cash-register-liquidaciones-compacto': {
+      id: '/cash-register-liquidaciones-compacto'
+      path: '/cash-register-liquidaciones-compacto'
+      fullPath: '/cash-register-liquidaciones-compacto'
+      preLoaderRoute: typeof CashRegisterLiquidacionesCompactoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/clients': {
+      id: '/clients'
+      path: '/clients'
+      fullPath: '/clients'
+      preLoaderRoute: typeof ClientsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/gestion': {
+      id: '/gestion'
+      path: '/gestion'
+      fullPath: '/gestion'
+      preLoaderRoute: typeof GestionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/inventory': {
+      id: '/inventory'
+      path: '/inventory'
+      fullPath: '/inventory'
+      preLoaderRoute: typeof InventoryRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/landing-demo': {
+      id: '/landing-demo'
+      path: '/landing-demo'
+      fullPath: '/landing-demo'
+      preLoaderRoute: typeof LandingDemoRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/marketing': {
+      id: '/marketing'
+      path: '/marketing'
+      fullPath: '/marketing'
+      preLoaderRoute: typeof MarketingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/professionals': {
+      id: '/professionals'
+      path: '/professionals'
+      fullPath: '/professionals'
+      preLoaderRoute: typeof ProfessionalsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reports': {
+      id: '/reports'
+      path: '/reports'
+      fullPath: '/reports'
+      preLoaderRoute: typeof ReportsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/services': {
+      id: '/services'
+      path: '/services'
+      fullPath: '/services'
+      preLoaderRoute: typeof ServicesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/set-password': {
+      id: '/set-password'
+      path: '/set-password'
+      fullPath: '/set-password'
+      preLoaderRoute: typeof SetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings': {
+      id: '/settings'
+      path: '/settings'
+      fullPath: '/settings'
+      preLoaderRoute: typeof SettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/fichaje-kiosco/$branchId': {
+      id: '/fichaje-kiosco/$branchId'
+      path: '/fichaje-kiosco/$branchId'
+      fullPath: '/fichaje-kiosco/$branchId'
+      preLoaderRoute: typeof FichajeKioscoBranchIdRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/fichar/$branchId': {
@@ -506,11 +499,18 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof FicharBranchIdRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/fichaje-kiosco/$branchId': {
-      id: '/fichaje-kiosco/$branchId'
-      path: '/fichaje-kiosco/$branchId'
-      fullPath: '/fichaje-kiosco/$branchId'
-      preLoaderRoute: typeof FichajeKioscoBranchIdRouteImport
+    '/negocio/$slug': {
+      id: '/negocio/$slug'
+      path: '/negocio/$slug'
+      fullPath: '/negocio/$slug'
+      preLoaderRoute: typeof NegocioSlugRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/reservar/$slug': {
+      id: '/reservar/$slug'
+      path: '/reservar/$slug'
+      fullPath: '/reservar/$slug'
+      preLoaderRoute: typeof ReservarSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
