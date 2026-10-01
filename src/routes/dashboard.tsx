@@ -1,7 +1,7 @@
 import * as React from "react";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
 import { useAuth } from "@/hooks/use-auth";
 import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
@@ -14,6 +14,7 @@ import {
 } from "@/components/dashboard/use-dashboard-data";
 import { useCajaHoy } from "@/components/dashboard/use-caja-hoy";
 import { useInicioWidgets, type ActividadItem } from "@/components/dashboard/use-inicio-widgets";
+import { useFichajeHoy } from "@/components/dashboard/use-fichaje-hoy";
 import {
   DollarSign,
   ArrowDownCircle,
@@ -23,6 +24,7 @@ import {
   Plus,
   Minus,
   AlertTriangle,
+  ScanLine,
   Loader2,
   CalendarClock,
   Activity,
@@ -122,6 +124,7 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
   // (siempre sobre HOY, nunca sobre un rango arbitrario).
   const cajaHoy = useCajaHoy(businessId, activeBranchId);
   const inicioWidgets = useInicioWidgets(businessId, activeBranchId);
+  const fichajeHoy = useFichajeHoy(businessId, activeBranchId);
 
   const setQuickRange = (days: number) => {
     const to = new Date();
@@ -181,7 +184,10 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
   return (
     <div className="dashboard-premium-shell space-y-3 animate-fade-in-safe">
       {dateBar}
-      <CajaHoyCard caja={cajaHoy} userEmail={userEmail} />
+      <div className="grid grid-cols-1 lg:grid-cols-[2fr_1fr] gap-3 items-start">
+        <CajaHoyCard caja={cajaHoy} userEmail={userEmail} />
+        <FichajeHoyCard fichaje={fichajeHoy} branchId={activeBranchId} />
+      </div>
       {/* Top stat cards */}
       <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
         <Stat
@@ -458,6 +464,50 @@ function diaYHoraCorta(iso: string) {
     ? "Hoy"
     : d.toLocaleDateString("es-AR", { day: "numeric", month: "short" });
   return `${diaLabel} · ${horaCorta(iso)}`;
+}
+
+function FichajeHoyCard({
+  fichaje,
+  branchId,
+}: {
+  fichaje: ReturnType<typeof useFichajeHoy>;
+  branchId: string | null;
+}) {
+  return (
+    <div className="glass rounded-2xl p-4 sm:p-5 ring-1 ring-white/5 h-full">
+      <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+        <ScanLine className="h-4 w-4 text-emerald-300" />
+        Fichaje de jornada
+      </div>
+      {fichaje.loading || !fichaje.summary || !branchId ? (
+        <div className="mt-3 text-sm text-muted-foreground">
+          {branchId ? "Cargando…" : "Elegí una sucursal."}
+        </div>
+      ) : (
+        <>
+          <div className="mt-3">
+            <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+              Código
+            </div>
+            <div className="mt-0.5 font-mono text-xl font-bold tracking-[0.25em] text-foreground">
+              {fichaje.summary.code}
+            </div>
+          </div>
+          <div className="mt-2 text-sm text-muted-foreground">
+            {fichaje.summary.fichados} fichado{fichaje.summary.fichados === 1 ? "" : "s"} · {fichaje.summary.pendientes} pendiente{fichaje.summary.pendientes === 1 ? "" : "s"}
+          </div>
+          <Link
+            to="/fichaje-kiosco/$branchId"
+            params={{ branchId }}
+            target="_blank"
+            className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-white/5 px-3 py-2 text-xs font-semibold text-foreground ring-1 ring-white/10 transition hover:bg-white/10"
+          >
+            <ScanLine className="h-3.5 w-3.5" /> Ver QR
+          </Link>
+        </>
+      )}
+    </div>
+  );
 }
 
 function ProximosTurnosCard({ widgets }: { widgets: ReturnType<typeof useInicioWidgets> }) {

@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import React, { useMemo, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { AppShell } from "@/components/app-shell";
+import { FichajeProfesionalCard } from "@/components/professionals/fichaje-profesional-card";
 import { Topbar } from "@/components/topbar";
 import {
   ClipboardList,
@@ -548,6 +549,10 @@ function ProfessionalsPage() {
           );
         })}
       </div>
+
+      {isProfessionalAccess && (
+        <FichajeProfesionalCard businessId={businessId} employeeId={profileEmployeeId} />
+      )}
 
       {profile?.role === "profesional" && !profileEmployeeId && (
         <div className="rounded-2xl px-4 py-3 text-xs ring-1 bg-cyan-500/8 ring-cyan-400/15 text-cyan-300">

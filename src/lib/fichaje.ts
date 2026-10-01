@@ -47,6 +47,11 @@ function generateCode(length = 6) {
   return out;
 }
 
+// El código es único por sucursal Y por día a nivel de TODO el negocio
+// (índice (date, code) además del (branch_id, date) — ver migración
+// 20260930070000): "Ingresar código" en el panel del profesional solo
+// conoce el código, no la sucursal, y necesita poder resolverla sin
+// ambigüedad buscando nada más que (fecha, código).
 export async function getOrCreateDailyCode(businessId: string, branchId: string): Promise<string> {
   const date = todayKey();
   const { data: existing } = await supabase
@@ -57,25 +62,29 @@ export async function getOrCreateDailyCode(businessId: string, branchId: string)
     .maybeSingle();
   if ((existing as any)?.code) return (existing as any).code as string;
 
-  const code = generateCode();
-  const { data: inserted, error } = await supabase
-    .from("branch_checkin_codes" as any)
-    .insert({ business_id: businessId, branch_id: branchId, date, code })
-    .select("code")
-    .maybeSingle();
-  if (error) {
-    // Carrera: otro dispositivo lo creó en paralelo — leer de nuevo en vez
-    // de fallar el kiosco.
-    const { data: retry } = await supabase
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const code = generateCode();
+    const { data: inserted, error } = await supabase
+      .from("branch_checkin_codes" as any)
+      .insert({ business_id: businessId, branch_id: branchId, date, code })
+      .select("code")
+      .maybeSingle();
+    if (!error) return ((inserted as any)?.code as string) ?? code;
+
+    // 23505 = unique_violation. Puede ser (a) otro dispositivo ya creó el
+    // código de ESTA sucursal (carrera) — leer y listo; o (b) el código
+    // random eligió uno que otra sucursal ya usa hoy — generar otro y
+    // reintentar.
+    const { data: existingNow } = await supabase
       .from("branch_checkin_codes" as any)
       .select("code")
       .eq("branch_id", branchId)
       .eq("date", date)
       .maybeSingle();
-    if ((retry as any)?.code) return (retry as any).code as string;
-    throw new Error(error.message);
+    if ((existingNow as any)?.code) return (existingNow as any).code as string;
+    if (attempt === 4) throw new Error(error.message);
   }
-  return ((inserted as any)?.code as string) ?? code;
+  throw new Error("No se pudo generar el código de fichaje.");
 }
 
 export async function validateDailyCode(branchId: string, code: string): Promise<boolean> {
@@ -86,6 +95,60 @@ export async function validateDailyCode(branchId: string, code: string): Promise
     .eq("date", todayKey())
     .maybeSingle();
   return Boolean(data && String((data as any).code).toUpperCase() === code.toUpperCase());
+}
+
+// "Ingresar código" (panel del profesional) — resuelve la sucursal a
+// partir del código solo, sin que el profesional la haya elegido antes.
+export async function resolveBranchFromCode(
+  code: string,
+): Promise<{ branchId: string; businessId: string } | null> {
+  const { data } = await supabase
+    .from("branch_checkin_codes" as any)
+    .select("branch_id,business_id")
+    .eq("date", todayKey())
+    .ilike("code", code.trim())
+    .maybeSingle();
+  if (!data) return null;
+  return { branchId: (data as any).branch_id as string, businessId: (data as any).business_id as string };
+}
+
+export type FichajeHoySummary = {
+  code: string;
+  fichados: number;
+  pendientes: number;
+};
+
+// Resumen para la tarjeta "Fichaje de jornada" de Inicio — cuántos
+// profesionales de esta sucursal ya ficharon hoy vs cuántos todavía no
+// (sobre el total de profesionales activos de la sucursal).
+export async function getTodayFichajeSummary(
+  businessId: string,
+  branchId: string,
+): Promise<FichajeHoySummary> {
+  const code = await getOrCreateDailyCode(businessId, branchId);
+  const dayStart = new Date(`${todayKey()}T00:00:00`).toISOString();
+
+  const [{ data: sessions }, { data: employees }] = await Promise.all([
+    supabase
+      .from("work_sessions" as any)
+      .select("employee_id")
+      .eq("business_id", businessId)
+      .eq("branch_id", branchId)
+      .gte("clock_in_at", dayStart),
+    supabase
+      .from("employees")
+      .select("id")
+      .eq("business_id", businessId)
+      .eq("branch_id", branchId)
+      .eq("is_active", true),
+  ]);
+
+  const fichadosSet = new Set(((sessions ?? []) as any[]).map((s) => s.employee_id));
+  const totalActivos = ((employees ?? []) as any[]).length;
+  const fichados = fichadosSet.size;
+  const pendientes = Math.max(0, totalActivos - fichados);
+
+  return { code, fichados, pendientes };
 }
 
 export async function getOpenWorkSession(employeeId: string): Promise<WorkSession | null> {

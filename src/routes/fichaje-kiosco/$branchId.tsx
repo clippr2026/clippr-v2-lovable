@@ -85,9 +85,14 @@ function KioscoPage() {
           <div className="text-center text-sm text-destructive">{error}</div>
         ) : (
           <div className="flex flex-col items-center gap-6 rounded-3xl border border-white/10 bg-white/[0.02] px-10 py-12 text-center">
-            <div className="flex items-center gap-2 text-lg font-semibold text-foreground">
-              <Building2 className="h-5 w-5 text-violet-300" />
-              {branchName}
+            <div className="flex flex-col items-center gap-1">
+              <div className="flex items-center gap-2 text-lg font-semibold text-foreground">
+                <Building2 className="h-5 w-5 text-violet-300" />
+                {branchName}
+              </div>
+              <div className="text-sm text-muted-foreground capitalize">
+                {new Date().toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })}
+              </div>
             </div>
             <p className="text-sm text-muted-foreground">
               Escaneá el código con tu celular para fichar entrada o salida
