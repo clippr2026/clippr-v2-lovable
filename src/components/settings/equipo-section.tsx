@@ -16,6 +16,7 @@ import {
   Globe,
   Camera,
   Pencil,
+  DollarSign,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type {
@@ -306,96 +307,20 @@ function ApprovalModeCard({
       />
 
       <PermissionToggleRow
-        icon={ShieldCheck}
-        title="Habilitar modo de aprobación"
+        icon={DollarSign}
+        title="Puede cobrar"
         on={enabled}
         onChange={onToggleEnabled}
       />
 
       {enabled && (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-2.5 pt-0.5">
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={() => onChangeMode("auto")}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                onChangeMode("auto");
-              }
-            }}
-            className={cn(
-              "group text-left rounded-xl p-3.5 ring-1 transition-all relative overflow-hidden cursor-pointer",
-              mode === "auto"
-                ? "bg-gradient-to-br from-violet-500/12 via-sky-500/8 to-white/[0.03] ring-violet-300/35 shadow-[0_0_60px_-35px_rgba(139,92,246,0.9)]"
-                : "bg-white/[0.025] ring-white/10 hover:bg-white/[0.045] hover:ring-white/20",
-            )}
-          >
-            <div className="pointer-events-none absolute -right-14 -top-16 h-36 w-36 rounded-full bg-sky-400/10 blur-3xl" />
-            <div className="relative flex items-start justify-between gap-3">
-              <div>
-                <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                  Modo
-                </div>
-                <div className="mt-0.5 text-base font-display font-semibold">
-                  Automático
-                </div>
-              </div>
-              {mode === "auto" && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-violet-400/10 ring-1 ring-violet-300/25 px-2.5 py-1 text-[11px] font-semibold text-violet-200">
-                  Seleccionado
-                </span>
-              )}
-            </div>
-
-            <p className="relative mt-2 text-xs leading-snug text-white/75">
-              El profesional cobra desde su panel y el ingreso se registra
-              automáticamente en Caja.
-            </p>
-          </div>
-
-          <div
-            role="button"
-            tabIndex={0}
-            onClick={() => onChangeMode("manual")}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") {
-                e.preventDefault();
-                onChangeMode("manual");
-              }
-            }}
-            className={cn(
-              "group text-left rounded-xl p-3.5 ring-1 transition-all relative overflow-hidden cursor-pointer",
-              mode === "manual"
-                ? "bg-gradient-to-br from-violet-500/12 via-sky-500/8 to-white/[0.03] ring-violet-300/35 shadow-[0_0_60px_-35px_rgba(139,92,246,0.9)]"
-                : "bg-white/[0.025] ring-white/10 hover:bg-white/[0.045] hover:ring-white/20",
-            )}
-          >
-            <div className="pointer-events-none absolute -right-14 -top-16 h-36 w-36 rounded-full bg-violet-400/10 blur-3xl" />
-            <div className="relative flex items-start justify-between gap-3">
-              <div>
-                <div className="text-[10px] font-semibold uppercase tracking-[0.22em] text-muted-foreground">
-                  Modo
-                </div>
-                <div className="mt-0.5 text-base font-display font-semibold">
-                  Manual
-                </div>
-              </div>
-              {mode === "manual" && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-violet-400/10 ring-1 ring-violet-300/25 px-2.5 py-1 text-[11px] font-semibold text-violet-200">
-                  Seleccionado
-                </span>
-              )}
-            </div>
-
-            <p className="relative mt-2 text-xs leading-snug text-white/75">
-              El profesional envía el cobro desde su panel para que Caja lo
-              revise y confirme.
-            </p>
-          </div>
-        </div>
+        <PermissionToggleRow
+          icon={ShieldCheck}
+          title="Exigir aprobación de ventas"
+          on={mode === "manual"}
+          onChange={(v) => onChangeMode(v ? "manual" : "auto")}
+        />
       )}
-
     </div>
   );
 }
