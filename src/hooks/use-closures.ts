@@ -55,6 +55,47 @@ export async function countAppointmentsInRange(
   return count ?? 0;
 }
 
+export type ClosureAffectedAppointment = {
+  id: string;
+  starts_at: string;
+  client_name: string | null;
+  service_name: string | null;
+};
+
+// Turnos (datos, no solo cantidad) agendados dentro del rango de un cierre
+// YA EXISTENTE — para la advertencia "Había N turnos agendados antes del
+// cierre" + revisión rápida en el detalle de Días cerrados. Esos turnos
+// nunca se tocan acá (ni se cancelan, ni se borran): esto es de solo
+// lectura, la corrección real se hace reabriendo/editando el turno desde
+// donde corresponda.
+export function useClosureAffectedAppointments(
+  businessId: string | null,
+  branchId: string | null,
+  closureId: string,
+  startDate: string,
+  endDate: string,
+) {
+  return useQuery({
+    queryKey: ["closure-affected-appointments", businessId, branchId, closureId],
+    queryFn: async (): Promise<ClosureAffectedAppointment[]> => {
+      let q = supabase
+        .from("appointments")
+        .select("id,starts_at,client_name,service_name")
+        .eq("business_id", businessId!)
+        .neq("status", "cancelled")
+        .gte("starts_at", `${startDate}T00:00:00`)
+        .lte("starts_at", `${endDate}T23:59:59`)
+        .order("starts_at", { ascending: true });
+      q = branchId ? q.eq("branch_id", branchId) : q.is("branch_id", null);
+      const { data, error } = await q;
+      if (error) throw new Error(error.message);
+      return (data ?? []) as unknown as ClosureAffectedAppointment[];
+    },
+    enabled: !!businessId,
+    staleTime: 15_000,
+  });
+}
+
 export function useCreateClosure(businessId: string | null, branchId: string | null) {
   const qc = useQueryClient();
   return useMutation({

@@ -474,6 +474,14 @@ function AgendaPage() {
   };
 
   const openSlotMenu = (employeeId: string | null, startsAt: Date, event: React.MouseEvent) => {
+    // Día cerrado (Fase 5): ni siquiera se abre el menú del casillero — no
+    // hay "disponibilidad" que ofrecer ese día. Mismo corte que openNew,
+    // pero acá ataja el camino de "tocar un casillero vacío" (el otro
+    // camino hacia crear un turno, además del botón "+").
+    if (closedToday && toDateKey(startsAt) >= closedToday.start_date && toDateKey(startsAt) <= closedToday.end_date) {
+      toast.error("Este día está cerrado. No se pueden crear turnos.");
+      return;
+    }
     // Casillero vacío en el pasado: el menú (Agregar turno / Horario especial)
     // se abre igual que en un horario futuro, sin toast
     // ni bloqueo acá — cada opción valida lo que corresponda puertas adentro.
@@ -1374,8 +1382,14 @@ function AgendaPage() {
                 }
               >
                 <button
-                  className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition flex items-center gap-2"
+                  disabled={!!closedToday}
+                  className={cn(
+                    "w-full text-left text-sm px-3 py-2 rounded-lg transition flex items-center gap-2",
+                    closedToday ? "cursor-not-allowed opacity-35" : "hover:bg-white/[0.06]",
+                  )}
+                  title={closedToday ? "Este día está cerrado" : undefined}
                   onClick={() => {
+                    if (closedToday) return;
                     setNewMenu(false);
                     openNew(null, cursor);
                   }}
@@ -2402,17 +2416,22 @@ const DayView = React.memo(function DayView({
       }),
     [data.appointments, date],
   );
+  // Día cerrado (Fase 5): los turnos de ese día NUNCA se borran ni se
+  // tocan en la base — acá solo se los saca de la vista operativa
+  // (grilla, ocupación). Siguen existiendo para historial/auditoría y
+  // quedan accesibles desde el detalle de "Días cerrados", no desde acá.
+  const visibleDayAppts = closure ? [] : dayAppts;
   // Precompute each column's appointments + overlap layout once per data/day,
   // so dragging (which only updates dragPreview state) never recomputes this.
   const columnRender = React.useMemo(
     () =>
       employees.map((e) => {
-        const columnAppts = dayAppts.filter((a) =>
+        const columnAppts = visibleDayAppts.filter((a) =>
           e.id === "__none__" ? !a.employee_id : a.employee_id === e.id,
         );
         return { e, columnAppts, layouts: computeOverlapLayouts(columnAppts) };
       }),
-    [employees, dayAppts],
+    [employees, visibleDayAppts],
   );
   const isToday = startOfDay(now).getTime() === startOfDay(date).getTime();
   const nowHour = now.getHours() + now.getMinutes() / 60;
@@ -2597,11 +2616,6 @@ const DayView = React.memo(function DayView({
         <div className="text-sm font-bold tracking-wide text-rose-200">CERRADO</div>
         <div className="text-xs text-rose-200/70">{closure.reason?.trim() || "Día cerrado"}</div>
       </div>
-      {dayAppts.length > 0 && (
-        <div className="ml-auto rounded-xl bg-amber-500/10 px-3 py-1.5 text-xs font-medium text-amber-200 ring-1 ring-amber-400/25">
-          Este día está cerrado, pero hay {dayAppts.length} turno{dayAppts.length === 1 ? "" : "s"} agendado{dayAppts.length === 1 ? "" : "s"}.
-        </div>
-      )}
     </div>
   ) : null;
 
@@ -2693,7 +2707,7 @@ const DayView = React.memo(function DayView({
             // bloqueos de horario — un bloqueo resta del disponible, no
             // cuenta como "ocupado"). Cancelados/rechazados/no-show no
             // restan ni ocupan.
-            const empDayAppts = dayAppts.filter((a) => a.employee_id === e.id);
+            const empDayAppts = visibleDayAppts.filter((a) => a.employee_id === e.id);
             const dayWindow = effectiveWindowFor(e.id);
             const workingMinutes = dayWindow.closeMin - dayWindow.openMin;
             const breakMinutes = dayWindow.breaks.reduce(

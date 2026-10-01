@@ -1,13 +1,14 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
-import { CalendarOff, X, Plus, Pencil, Trash2, AlertTriangle } from "lucide-react";
+import { CalendarOff, X, Plus, Pencil, Trash2, AlertTriangle, ChevronDown } from "lucide-react";
 import { ClosureDatePicker } from "@/components/agenda/closure-date-picker";
 import {
   useClosures,
   useCreateClosure,
   useUpdateClosure,
   useDeleteClosure,
+  useClosureAffectedAppointments,
   countAppointmentsInRange,
   type Closure,
 } from "@/hooks/use-closures";
@@ -15,6 +16,9 @@ import {
 function fmtFecha(iso: string) {
   const d = new Date(iso + "T12:00:00");
   return d.toLocaleDateString("es-AR", { day: "2-digit", month: "short", year: "numeric" });
+}
+function fmtHora(iso: string) {
+  return new Date(iso).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
 }
 function rangoLabel(c: Closure) {
   return c.start_date === c.end_date ? fmtFecha(c.start_date) : `${fmtFecha(c.start_date)} – ${fmtFecha(c.end_date)}`;
@@ -148,28 +152,31 @@ export function ClosuresModal({
                   ) : (
                     <div className="space-y-1.5">
                       {upcoming.map((c) => (
-                        <div key={c.id} className="flex items-center gap-2 rounded-xl bg-white/[0.03] px-3 py-2.5 text-sm ring-1 ring-white/8">
-                          <div className="min-w-0 flex-1">
-                            <div className="font-medium text-white/85">{rangoLabel(c)}</div>
-                            {c.reason && <div className="truncate text-xs text-white/50">{c.reason}</div>}
+                        <div key={c.id} className="rounded-xl bg-white/[0.03] px-3 py-2.5 text-sm ring-1 ring-white/8">
+                          <div className="flex items-center gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="font-medium text-white/85">{rangoLabel(c)}</div>
+                              {c.reason && <div className="truncate text-xs text-white/50">{c.reason}</div>}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => setEditingId(c.id)}
+                              className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition hover:bg-white/10 hover:text-foreground"
+                              aria-label="Editar día cerrado"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDelete(c.id)}
+                              disabled={del.isPending}
+                              className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition hover:bg-white/10 hover:text-rose-300 disabled:opacity-50"
+                              aria-label="Eliminar día cerrado"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => setEditingId(c.id)}
-                            className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition hover:bg-white/10 hover:text-foreground"
-                            aria-label="Editar día cerrado"
-                          >
-                            <Pencil className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleDelete(c.id)}
-                            disabled={del.isPending}
-                            className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition hover:bg-white/10 hover:text-rose-300 disabled:opacity-50"
-                            aria-label="Eliminar día cerrado"
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </button>
+                          <ClosureAffectedWarning businessId={businessId} branchId={branchId} closure={c} />
                         </div>
                       ))}
                     </div>
@@ -182,6 +189,63 @@ export function ClosuresModal({
       </div>
     </>,
     document.body,
+  );
+}
+
+// Aviso de solo lectura: turnos que ya existían antes de este cierre —
+// nunca se tocan desde acá (ni se cancelan ni se editan), es para que el
+// administrador pueda revisarlos y decidir si reprogramarlos o cancelarlos
+// a mano (editando el turno donde corresponda, o achicando/borrando este
+// cierre para volver a verlos en la Agenda operativa).
+function ClosureAffectedWarning({
+  businessId,
+  branchId,
+  closure,
+}: {
+  businessId: string | null;
+  branchId: string | null;
+  closure: Closure;
+}) {
+  const [expanded, setExpanded] = React.useState(false);
+  const { data: appts = [] } = useClosureAffectedAppointments(
+    businessId,
+    branchId,
+    closure.id,
+    closure.start_date,
+    closure.end_date,
+  );
+
+  if (appts.length === 0) return null;
+
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="flex w-full items-center gap-1.5 rounded-lg bg-amber-500/10 px-2.5 py-1.5 text-left text-xs font-medium text-amber-200 ring-1 ring-amber-400/25 transition hover:bg-amber-500/15"
+      >
+        <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+        <span className="flex-1">
+          Había {appts.length} turno{appts.length === 1 ? "" : "s"} agendado{appts.length === 1 ? "" : "s"} antes del cierre
+        </span>
+        <ChevronDown className={`h-3.5 w-3.5 shrink-0 transition-transform ${expanded ? "rotate-180" : ""}`} />
+      </button>
+      {expanded && (
+        <div className="mt-1.5 space-y-1">
+          {appts.map((a) => (
+            <div key={a.id} className="flex items-center gap-2 rounded-lg bg-white/[0.03] px-2.5 py-1.5 text-xs ring-1 ring-white/8">
+              <span className="shrink-0 font-semibold tabular-nums text-white/80">
+                {fmtFecha(a.starts_at.slice(0, 10))} {fmtHora(a.starts_at)}
+              </span>
+              <span className="text-white/30">·</span>
+              <span className="truncate text-white/75">{a.client_name || "Cliente"}</span>
+              <span className="text-white/30">·</span>
+              <span className="truncate text-white/50">{a.service_name}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
 
