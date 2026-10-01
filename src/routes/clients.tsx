@@ -30,9 +30,8 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
-import { ACQUISITION_CHANNELS, acquisitionChannelLabel, acquisitionChannelRequiresText } from "@/lib/acquisition-channels";
+import { ACQUISITION_CHANNELS, acquisitionChannelLabel } from "@/lib/acquisition-channels";
 import { AcquisitionChannelIcon } from "@/components/acquisition-channel-icon";
-import { AcquisitionSourceField } from "@/components/acquisition-source-field";
 import { DateRangePicker, getPreset, type DateRange } from "@/components/date-range-picker";
 import { useClientsData } from "@/hooks/use-clients-data";
 import {
@@ -1415,13 +1414,7 @@ function ClientsPage() {
     firstName: "",
     lastName: "",
     phone: "",
-    email: "",
   });
-  const [newClientAcquisitionSource, setNewClientAcquisitionSource] = useState("");
-  const [newClientAcquisitionCustom, setNewClientAcquisitionCustom] = useState("");
-  // Si el email ya tiene un origen guardado, no se vuelve a preguntar —
-  // mismo criterio que ya usa la Página Pública para no re-pedir el dato.
-  const [newClientSourceAlreadyKnown, setNewClientSourceAlreadyKnown] = useState(false);
   const [acquisitionModalOpen, setAcquisitionModalOpen] = useState(false);
   const [acquisitionRange, setAcquisitionRange] = useState<DateRange>(() => {
     const to = new Date();
@@ -1560,62 +1553,18 @@ function ClientsPage() {
     [businessId],
   );
 
-  // Mismo chequeo que ya usa la Página Pública: si el email ingresado ya
-  // tiene un origen guardado, se oculta la pregunta en vez de repetirla.
-  useEffect(() => {
-    const email = newClient.email.trim();
-    if (!businessId || !email || !email.includes("@")) {
-      setNewClientSourceAlreadyKnown(false);
-      return;
-    }
-    let cancelled = false;
-    const timer = window.setTimeout(async () => {
-      const { data, error } = await supabase.rpc("clippr_client_has_acquisition_source", {
-        p_business_id: businessId,
-        p_email: email,
-      });
-      if (!cancelled && !error) setNewClientSourceAlreadyKnown(Boolean(data));
-    }, 500);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [businessId, newClient.email]);
-
+  // Flujo interno simplificado: el teléfono es el único dato obligatorio y
+  // el identificador principal. Nombre/Apellido son opcionales. Nunca se
+  // pide mail ni "cómo nos conoció" acá — eso sigue siendo exclusivo de la
+  // reserva pública, sin tocar.
   async function handleCreateClient() {
-    if (!newClient.firstName.trim()) {
-      return toast.error("Ingresá el nombre");
-    }
-    if (!newClient.lastName.trim()) {
-      return toast.error("Ingresá el apellido");
-    }
     if (!newClient.phone.trim()) {
-      return toast.error("Ingresá teléfono");
-    }
-    if (!newClient.email.trim()) {
-      return toast.error("Ingresá email");
-    }
-    if (!newClientSourceAlreadyKnown && !newClientAcquisitionSource) {
-      return toast.error("Indicá cómo nos conoció el cliente");
-    }
-    if (
-      !newClientSourceAlreadyKnown &&
-      acquisitionChannelRequiresText(newClientAcquisitionSource) &&
-      !newClientAcquisitionCustom.trim()
-    ) {
-      return toast.error("Indicá dónde nos conoció el cliente");
+      return toast.error("Ingresá el teléfono del cliente.");
     }
 
-    await saveClient.mutateAsync({
-      ...newClient,
-      acquisitionSource: newClientSourceAlreadyKnown ? null : newClientAcquisitionSource,
-      acquisitionCustom: newClientSourceAlreadyKnown ? null : newClientAcquisitionCustom,
-    });
+    await saveClient.mutateAsync(newClient);
     toast.success("Cliente guardado");
-    setNewClient({ firstName: "", lastName: "", phone: "", email: "" });
-    setNewClientAcquisitionSource("");
-    setNewClientAcquisitionCustom("");
-    setNewClientSourceAlreadyKnown(false);
+    setNewClient({ firstName: "", lastName: "", phone: "" });
     setNewClientOpen(false);
   }
 
@@ -1910,24 +1859,6 @@ function ClientsPage() {
               </button>
             </div>
             <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block text-xs text-muted-foreground">
-                  Nombre *
-                  <input
-                    value={newClient.firstName}
-                    onChange={(e) => setNewClient((s) => ({ ...s, firstName: e.target.value }))}
-                    className="mt-1 w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2.5 text-sm text-foreground"
-                  />
-                </label>
-                <label className="block text-xs text-muted-foreground">
-                  Apellido *
-                  <input
-                    value={newClient.lastName}
-                    onChange={(e) => setNewClient((s) => ({ ...s, lastName: e.target.value }))}
-                    className="mt-1 w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2.5 text-sm text-foreground"
-                  />
-                </label>
-              </div>
               <label className="block text-xs text-muted-foreground">
                 Teléfono *
                 <input
@@ -1936,32 +1867,24 @@ function ClientsPage() {
                   className="mt-1 w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2.5 text-sm text-foreground"
                 />
               </label>
-              <label className="block text-xs text-muted-foreground">
-                Email *
-                <input
-                  value={newClient.email}
-                  onChange={(e) => setNewClient((s) => ({ ...s, email: e.target.value }))}
-                  className="mt-1 w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2.5 text-sm text-foreground"
-                />
-              </label>
-              {newClientSourceAlreadyKnown ? (
-                <div className="rounded-xl bg-white/[0.03] px-3 py-2.5 text-xs text-muted-foreground ring-1 ring-white/10">
-                  Este cliente ya tiene un origen guardado — no hace falta volver a pedirlo.
-                </div>
-              ) : (
-                <AcquisitionSourceField
-                  value={newClientAcquisitionSource}
-                  onChange={setNewClientAcquisitionSource}
-                  customValue={newClientAcquisitionCustom}
-                  onCustomChange={setNewClientAcquisitionCustom}
-                  showLabel
-                  otroBelow
-                  questionLabel="¿Cómo nos conoció?"
-                  labelClassName="text-xs text-muted-foreground"
-                  triggerClassName="mt-1 h-auto w-full rounded-xl border-0 bg-white/5 px-3 py-2.5 text-sm text-foreground ring-1 ring-white/10"
-                  inputClassName="mt-1 w-full rounded-xl border-0 bg-white/5 px-3 py-2.5 text-sm text-foreground ring-1 ring-white/10"
-                />
-              )}
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block text-xs text-muted-foreground">
+                  Nombre
+                  <input
+                    value={newClient.firstName}
+                    onChange={(e) => setNewClient((s) => ({ ...s, firstName: e.target.value }))}
+                    className="mt-1 w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2.5 text-sm text-foreground"
+                  />
+                </label>
+                <label className="block text-xs text-muted-foreground">
+                  Apellido
+                  <input
+                    value={newClient.lastName}
+                    onChange={(e) => setNewClient((s) => ({ ...s, lastName: e.target.value }))}
+                    className="mt-1 w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2.5 text-sm text-foreground"
+                  />
+                </label>
+              </div>
             </div>
             <div className="shrink-0 flex justify-end gap-2 p-5 border-t border-white/5">
               <button
