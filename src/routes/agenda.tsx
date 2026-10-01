@@ -39,6 +39,7 @@ import { SpecialDayEditor } from "@/components/settings/special-hours-editor";
 import { AgendaDrawer } from "@/components/agenda/agenda-drawer";
 import { DarkCalendar } from "@/components/agenda/dark-calendar";
 import { RejectedClientsButton, RejectedClientCaptureModal } from "@/components/agenda/rejected-clients";
+import { ClosuresButton } from "@/components/agenda/closures-button";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
@@ -1326,6 +1327,16 @@ function AgendaPage() {
 
           <div className="hidden sm:block h-5 w-px bg-white/10 shrink-0" />
 
+          <div className="hidden sm:block">
+            <ClosuresButton
+              businessId={data.businessId}
+              branchId={data.activeBranchId}
+              createdByName={profile?.full_name ?? null}
+            />
+          </div>
+
+          <div className="hidden sm:block h-5 w-px bg-white/10 shrink-0" />
+
           {/* Nuevo — square button with menu (Agregar turno / Horario especial), solo desktop/tablet */}
           <Button
             ref={newBtnRef}
@@ -1399,6 +1410,12 @@ function AgendaPage() {
               setRejectAt(cursor);
               setRejectOpen(true);
             }}
+          />
+          <ClosuresButton
+            businessId={data.businessId}
+            branchId={data.activeBranchId}
+            createdByName={profile?.full_name ?? null}
+            compact
           />
         </div>
 

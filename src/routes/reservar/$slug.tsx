@@ -1194,7 +1194,7 @@ function PublicBookingPage() {
         return;
       }
 
-      const bookingResult = await supabase.rpc("create_public_booking_public_v4", {
+      const bookingResult = await supabase.rpc("create_public_booking_public_v5", {
         p_business_id: business.id,
         // Se envía como texto para evitar el 400 que PostgREST daba con arrays uuid[].
         p_service_ids: selectedServiceIds.join(","),
@@ -1228,14 +1228,14 @@ function PublicBookingPage() {
           return;
         }
         const rpcMessage = err?.message;
-        throw new Error(rpcMessage || "No se pudo guardar la reserva. Aplicá la migración create_public_booking_public_v4 en Supabase.");
+        throw new Error(rpcMessage || "No se pudo guardar la reserva. Aplicá la migración create_public_booking_public_v5 en Supabase.");
       }
 
       const returnedBooking = Array.isArray(bookingResult.data) ? bookingResult.data[0] : bookingResult.data;
       confirmationSnapshot.appointmentId = returnedBooking?.id ?? returnedBooking?.appointment_id ?? undefined;
       confirmationSnapshot.manageToken = returnedBooking?.manage_token ?? returnedBooking?.manageToken ?? undefined;
 
-      // El RPC create_public_booking_public_v4 ya resuelve del lado del
+      // El RPC create_public_booking_public_v5 ya resuelve del lado del
       // servidor el precio Y la duración efectivos por profesional
       // (_employeeServiceOverrides, misma prioridad personalizada→estándar
       // que resolveServicePricing acá) y crea el turno con el

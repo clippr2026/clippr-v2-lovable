@@ -726,6 +726,27 @@ export async function saveAppointment(input: SaveAppointmentInput) {
     throw new Error("No podés crear turnos en horarios que ya pasaron.");
   }
 
+  // Cierres (Fase 5): bloquea turnos NUEVOS en un rango cerrado de la
+  // sucursal — nunca afecta turnos ya existentes (confirmar, cobrar,
+  // reprogramar), solo la creación. branch_id null = cierre general del
+  // negocio (sin sucursales configuradas); si no, tiene que coincidir
+  // exactamente con la sucursal del turno, nunca "se filtra" a otra.
+  if (!input.id) {
+    const dateOnly = new Date(input.starts_at).toLocaleDateString("sv-SE");
+    const { data: closureRows } = await supabase
+      .from("closures" as any)
+      .select("branch_id")
+      .eq("business_id", input.business_id)
+      .lte("start_date", dateOnly)
+      .gte("end_date", dateOnly);
+    const blocked = ((closureRows ?? []) as { branch_id: string | null }[]).some(
+      (c) => (c.branch_id ?? null) === (input.branch_id ?? null),
+    );
+    if (blocked) {
+      throw new Error("El negocio está cerrado ese día. No se pueden agendar turnos nuevos.");
+    }
+  }
+
   const ends = new Date(
     new Date(input.starts_at).getTime() + input.duration_min * 60_000,
   ).toISOString();
