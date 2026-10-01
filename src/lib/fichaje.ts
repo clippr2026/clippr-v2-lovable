@@ -165,6 +165,23 @@ export async function getOpenWorkSession(employeeId: string): Promise<WorkSessio
   return (data as WorkSession | null) ?? null;
 }
 
+// Jornada de hoy de un profesional, abierta o ya cerrada — a diferencia de
+// getOpenWorkSession (solo abiertas), esta es la que usa la vista
+// admin/dueño en Profesionales para mostrar el resumen de solo lectura
+// ("Sin fichar" / "Entrada" / "Entrada · Salida").
+export async function getTodaySessionForEmployee(employeeId: string): Promise<WorkSession | null> {
+  const dayStart = new Date(`${todayKey()}T00:00:00`).toISOString();
+  const { data } = await supabase
+    .from("work_sessions" as any)
+    .select("*")
+    .eq("employee_id", employeeId)
+    .gte("clock_in_at", dayStart)
+    .order("clock_in_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  return (data as WorkSession | null) ?? null;
+}
+
 // Horario esperado de ESTE profesional para hoy, desde
 // business_settings.schedule._employeeSchedules (mismo origen que usa
 // Agenda) — null si no tiene horario configurado para hoy (no bloquea el

@@ -3,6 +3,7 @@ import React, { useMemo, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { AppShell } from "@/components/app-shell";
 import { FichajeProfesionalCard } from "@/components/professionals/fichaje-profesional-card";
+import { FichajeAdminSummaryCard } from "@/components/professionals/fichaje-admin-summary-card";
 import { Topbar } from "@/components/topbar";
 import {
   ClipboardList,
@@ -566,6 +567,14 @@ function ProfessionalsPage() {
 
       {isProfessionalAccess && (
         <FichajeProfesionalCard businessId={businessId} employeeId={profileEmployeeId} />
+      )}
+
+      {/* Vista admin/dueño: resumen de solo lectura de la jornada del
+          barbero seleccionado + acceso al historial. Nunca un botón para
+          fichar en su nombre — eso queda exclusivo del panel del propio
+          profesional (FichajeProfesionalCard arriba). */}
+      {!isProfessional && !!empId && (
+        <FichajeAdminSummaryCard employeeId={empId} />
       )}
 
       {profile?.role === "profesional" && !profileEmployeeId && (
