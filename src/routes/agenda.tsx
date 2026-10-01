@@ -12,7 +12,8 @@ import {
   Clock3,
   Scissors,
   Mail,
-  Repeat2
+  Repeat2,
+  CalendarOff
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { applyPromotionDiscount, resolveServicePricing, type Promotion } from "@/lib/service-pricing";
@@ -39,7 +40,7 @@ import { SpecialDayEditor } from "@/components/settings/special-hours-editor";
 import { AgendaDrawer } from "@/components/agenda/agenda-drawer";
 import { DarkCalendar } from "@/components/agenda/dark-calendar";
 import { RejectedClientsButton, RejectedClientCaptureModal } from "@/components/agenda/rejected-clients";
-import { ClosuresButton } from "@/components/agenda/closures-button";
+import { ClosuresModal } from "@/components/agenda/closures-button";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
@@ -358,6 +359,7 @@ function AgendaPage() {
   } | null>(null);
   const [newMenu, setNewMenu] = React.useState(false);
   const [rejectOpen, setRejectOpen] = React.useState(false);
+  const [closuresOpen, setClosuresOpen] = React.useState(false);
   const [rejectAt, setRejectAt] = React.useState<Date | null>(null);
   // Descansos habilitados temporalmente (solo en esta sesión, sin tocar la
   // config permanente). Clave: `${employeeId}|${YYYY-MM-DD}`.
@@ -1327,17 +1329,7 @@ function AgendaPage() {
 
           <div className="hidden sm:block h-5 w-px bg-white/10 shrink-0" />
 
-          <div className="hidden sm:block">
-            <ClosuresButton
-              businessId={data.businessId}
-              branchId={data.activeBranchId}
-              createdByName={profile?.full_name ?? null}
-            />
-          </div>
-
-          <div className="hidden sm:block h-5 w-px bg-white/10 shrink-0" />
-
-          {/* Nuevo — square button with menu (Agregar turno / Horario especial), solo desktop/tablet */}
+          {/* Nuevo — square button with menu (Agregar turno / Horario especial / Día cerrado), solo desktop/tablet */}
           <Button
             ref={newBtnRef}
             className="hidden sm:inline-flex h-7 w-7 p-0 shrink-0"
@@ -1377,6 +1369,15 @@ function AgendaPage() {
                 >
                   <Pencil className="h-4 w-4 shrink-0 text-violet-300" /> <span className="whitespace-nowrap">Horario especial</span>
                 </button>
+                <button
+                  className="w-full text-left text-sm px-3 py-2 rounded-lg hover:bg-white/[0.06] transition flex items-center gap-2"
+                  onClick={() => {
+                    setNewMenu(false);
+                    setClosuresOpen(true);
+                  }}
+                >
+                  <CalendarOff className="h-4 w-4 shrink-0 text-rose-300" /> <span className="whitespace-nowrap">Día cerrado</span>
+                </button>
               </div>
             </MobileSafePortal>
           )}
@@ -1410,12 +1411,6 @@ function AgendaPage() {
               setRejectAt(cursor);
               setRejectOpen(true);
             }}
-          />
-          <ClosuresButton
-            businessId={data.businessId}
-            branchId={data.activeBranchId}
-            createdByName={profile?.full_name ?? null}
-            compact
           />
         </div>
 
@@ -1523,6 +1518,16 @@ function AgendaPage() {
           openHoursToday={getScheduleForDate(data.schedule, rejectAt ?? cursor)}
           initialAt={rejectAt ?? cursor}
         />
+
+        {/* Modal "Días cerrados" — se abre desde el "+" (opción "Día cerrado") */}
+        {closuresOpen && (
+          <ClosuresModal
+            businessId={data.businessId}
+            branchId={data.activeBranchId}
+            createdByName={profile?.full_name ?? null}
+            onClose={() => setClosuresOpen(false)}
+          />
+        )}
 
         {/* Always day view */}
         {data.loading ? (

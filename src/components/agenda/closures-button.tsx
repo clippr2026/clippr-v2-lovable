@@ -1,12 +1,12 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
-import { CalendarOff, ChevronRight, X, Plus, Trash2, AlertTriangle } from "lucide-react";
-import { cn } from "@/lib/utils";
+import { CalendarOff, X, Plus, Pencil, Trash2, AlertTriangle } from "lucide-react";
 import { DateRangePicker } from "@/components/date-range-picker";
 import {
   useClosures,
   useCreateClosure,
+  useUpdateClosure,
   useDeleteClosure,
   countAppointmentsInRange,
   type Closure,
@@ -20,88 +20,37 @@ function rangoLabel(c: Closure) {
   return c.start_date === c.end_date ? fmtFecha(c.start_date) : `${fmtFecha(c.start_date)} – ${fmtFecha(c.end_date)}`;
 }
 
-// Botón "Cierres" de la barra de Agenda — lista los cierres de la
-// sucursal activa (fechas en las que no se aceptan turnos nuevos) y
-// permite agregar uno nuevo. Nunca cancela automáticamente los turnos
-// que ya existan en el rango: si hay, se avisa la cantidad antes de
-// confirmar, pero la decisión queda siempre en el usuario.
-export function ClosuresButton({
+// Modal "Días cerrados" — se abre desde el botón "+" de Agenda (opción
+// "Día cerrado"), no desde la fila de estados: un cierre no es un estado
+// de turno, es una acción administrativa. Arriba "+ Agregar día cerrado",
+// debajo "Próximos días cerrados" (hoy si está cerrado + futuros — nunca
+// cierres ya pasados). Nunca cancela automáticamente los turnos que ya
+// existan en el rango: si hay, se avisa la cantidad antes de confirmar,
+// pero la decisión queda siempre en el usuario.
+export function ClosuresModal({
   businessId,
   branchId,
   createdByName,
-  compact = false,
-}: {
-  businessId: string | null;
-  branchId: string | null;
-  createdByName: string | null;
-  compact?: boolean;
-}) {
-  const [open, setOpen] = React.useState(false);
-  const { data: closures = [] } = useClosures(businessId, branchId);
-
-  const upcoming = React.useMemo(() => {
-    const today = new Date().toLocaleDateString("sv-SE");
-    return closures.filter((c) => c.end_date >= today);
-  }, [closures]);
-
-  return (
-    <>
-      <button
-        type="button"
-        onClick={() => setOpen(true)}
-        aria-haspopup="dialog"
-        className={cn(
-          "cursor-pointer select-none transition-all hover:brightness-125 hover:ring-2 active:scale-95 active:brightness-110 focus-visible:outline-none focus-visible:ring-2",
-          compact
-            ? "flex h-full w-full flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 text-center"
-            : "inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-0.5 text-xs font-medium",
-        )}
-        style={{
-          background: "rgba(248, 113, 113, 0.12)",
-          boxShadow: "0 0 0 1px rgba(248, 113, 113, 0.3)",
-          color: "#FCA5A5",
-        }}
-        title="Gestionar cierres de la sucursal — click para abrir"
-      >
-        <span className={compact ? "font-semibold tabular-nums text-sm leading-none" : "font-semibold tabular-nums text-sm"}>
-          {upcoming.length}
-        </span>
-        <span className={cn("opacity-80", compact ? "text-[10px] leading-tight truncate max-w-full" : "inline-flex items-center gap-0.5")}>
-          Cierres
-          {!compact && <ChevronRight className="h-3 w-3 opacity-60" />}
-        </span>
-      </button>
-
-      {open && typeof document !== "undefined" && createPortal(
-        <ClosuresModal
-          businessId={businessId}
-          branchId={branchId}
-          createdByName={createdByName}
-          closures={closures}
-          onClose={() => setOpen(false)}
-        />,
-        document.body,
-      )}
-    </>
-  );
-}
-
-function ClosuresModal({
-  businessId,
-  branchId,
-  createdByName,
-  closures,
   onClose,
 }: {
   businessId: string | null;
   branchId: string | null;
   createdByName: string | null;
-  closures: Closure[];
   onClose: () => void;
 }) {
+  const { data: closures = [] } = useClosures(businessId, branchId);
   const [adding, setAdding] = React.useState(false);
+  const [editingId, setEditingId] = React.useState<string | null>(null);
   const create = useCreateClosure(businessId, branchId);
+  const update = useUpdateClosure(businessId, branchId);
   const del = useDeleteClosure(businessId, branchId);
+
+  const upcoming = React.useMemo(() => {
+    const today = new Date().toLocaleDateString("sv-SE");
+    return closures
+      .filter((c) => c.end_date >= today)
+      .sort((a, b) => a.start_date.localeCompare(b.start_date));
+  }, [closures]);
 
   React.useEffect(() => {
     const prevOverflow = document.body.style.overflow;
@@ -111,16 +60,18 @@ function ClosuresModal({
     };
   }, []);
 
+  if (typeof document === "undefined") return null;
+
   async function handleDelete(id: string) {
     try {
       await del.mutateAsync(id);
-      toast.success("Cierre eliminado");
+      toast.success("Día cerrado eliminado");
     } catch (e) {
       toast.error((e as Error).message);
     }
   }
 
-  return (
+  return createPortal(
     <>
       <div className="fixed inset-0 z-[110] bg-black/55 backdrop-blur-sm" onClick={onClose} />
       <div className="fixed inset-0 z-[111] flex sm:grid sm:place-items-center sm:p-4" onClick={onClose}>
@@ -136,7 +87,7 @@ function ClosuresModal({
               <span className="grid h-8 w-8 place-items-center rounded-xl bg-rose-500/12 text-rose-200 ring-1 ring-rose-400/25">
                 <CalendarOff className="h-4 w-4" />
               </span>
-              <div className="text-sm font-bold text-white">Cierres</div>
+              <div className="text-sm font-bold text-white">Días cerrados</div>
             </div>
             <button type="button" onClick={onClose} className="grid h-7 w-7 shrink-0 place-items-center rounded-full text-white/50 transition hover:bg-white/5 hover:text-white sm:h-8 sm:w-8" aria-label="Cerrar">
               <X className="h-4 w-4" />
@@ -145,13 +96,17 @@ function ClosuresModal({
 
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 py-4" style={{ paddingBottom: "max(1rem, env(safe-area-inset-bottom))" }}>
             {adding ? (
-              <AddClosureForm
+              <ClosureForm
                 businessId={businessId}
                 branchId={branchId}
                 createdByName={createdByName}
                 onCancel={() => setAdding(false)}
+                onSubmit={async (input) => {
+                  await create.mutateAsync({ ...input, created_by_name: createdByName });
+                }}
+                submitLabel="Guardar día cerrado"
+                pendingLabel="Guardando…"
                 onSaved={() => setAdding(false)}
-                create={create}
               />
             ) : (
               <button
@@ -160,62 +115,100 @@ function ClosuresModal({
                 className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-rose-500/12 px-4 py-2.5 text-sm font-semibold text-rose-200 ring-1 ring-rose-400/25 transition hover:bg-rose-500/18"
               >
                 <Plus className="h-4 w-4" />
-                Agregar cierre
+                Agregar día cerrado
               </button>
             )}
 
             <div>
               <div className="mb-2 text-[11px] font-bold uppercase tracking-wider text-white/40">
-                {closures.length === 0 ? "Sin cierres cargados" : "Cierres cargados"}
+                Próximos días cerrados
               </div>
-              <div className="space-y-1.5">
-                {closures.map((c) => (
-                  <div key={c.id} className="flex items-center gap-2 rounded-xl bg-white/[0.03] px-3 py-2.5 text-sm ring-1 ring-white/8">
-                    <div className="min-w-0 flex-1">
-                      <div className="font-medium text-white/85">{rangoLabel(c)}</div>
-                      {c.reason && <div className="truncate text-xs text-white/50">{c.reason}</div>}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(c.id)}
-                      disabled={del.isPending}
-                      className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition hover:bg-white/10 hover:text-rose-300 disabled:opacity-50"
-                      aria-label="Eliminar cierre"
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
+              {upcoming.length === 0 ? (
+                <div className="rounded-xl bg-white/[0.03] px-3 py-4 text-center text-sm text-white/50 ring-1 ring-white/8">
+                  No hay días cerrados próximos
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {upcoming.map((c) =>
+                    editingId === c.id ? (
+                      <ClosureForm
+                        key={c.id}
+                        businessId={businessId}
+                        branchId={branchId}
+                        createdByName={createdByName}
+                        initial={c}
+                        onCancel={() => setEditingId(null)}
+                        onSubmit={async (input) => {
+                          await update.mutateAsync({ id: c.id, ...input });
+                        }}
+                        submitLabel="Guardar cambios"
+                        pendingLabel="Guardando…"
+                        onSaved={() => setEditingId(null)}
+                      />
+                    ) : (
+                      <div key={c.id} className="flex items-center gap-2 rounded-xl bg-white/[0.03] px-3 py-2.5 text-sm ring-1 ring-white/8">
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium text-white/85">{rangoLabel(c)}</div>
+                          {c.reason && <div className="truncate text-xs text-white/50">{c.reason}</div>}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setEditingId(c.id)}
+                          className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition hover:bg-white/10 hover:text-foreground"
+                          aria-label="Editar día cerrado"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(c.id)}
+                          disabled={del.isPending}
+                          className="shrink-0 rounded-lg p-1.5 text-muted-foreground transition hover:bg-white/10 hover:text-rose-300 disabled:opacity-50"
+                          aria-label="Eliminar día cerrado"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    ),
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
       </div>
-    </>
+    </>,
+    document.body,
   );
 }
 
-function AddClosureForm({
+function ClosureForm({
   businessId,
   branchId,
-  createdByName,
+  initial,
   onCancel,
   onSaved,
-  create,
+  onSubmit,
+  submitLabel,
+  pendingLabel,
 }: {
   businessId: string | null;
   branchId: string | null;
   createdByName: string | null;
+  initial?: Closure;
   onCancel: () => void;
   onSaved: () => void;
-  create: ReturnType<typeof useCreateClosure>;
+  onSubmit: (input: { start_date: string; end_date: string; reason: string | null }) => Promise<void>;
+  submitLabel: string;
+  pendingLabel: string;
 }) {
   const today = new Date().toLocaleDateString("sv-SE");
-  const [from, setFrom] = React.useState(today);
-  const [to, setTo] = React.useState(today);
-  const [reason, setReason] = React.useState("");
+  const [from, setFrom] = React.useState(initial?.start_date ?? today);
+  const [to, setTo] = React.useState(initial?.end_date ?? today);
+  const [reason, setReason] = React.useState(initial?.reason ?? "");
   const [warning, setWarning] = React.useState<number | null>(null);
   const [checking, setChecking] = React.useState(false);
+  const [submitting, setSubmitting] = React.useState(false);
 
   async function handleConfirm() {
     if (!businessId) return;
@@ -236,12 +229,15 @@ function AddClosureForm({
         return;
       }
     }
+    setSubmitting(true);
     try {
-      await create.mutateAsync({ start_date: from, end_date: to, reason: reason.trim() || null, created_by_name: createdByName });
-      toast.success("Cierre guardado");
+      await onSubmit({ start_date: from, end_date: to, reason: reason.trim() || null });
+      toast.success("Día cerrado guardado");
       onSaved();
     } catch (e) {
       toast.error((e as Error).message);
+    } finally {
+      setSubmitting(false);
     }
   }
 
@@ -263,9 +259,7 @@ function AddClosureForm({
         <div className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-white/40">Motivo (opcional)</div>
         <input
           value={reason}
-          onChange={(e) => {
-            setReason(e.target.value);
-          }}
+          onChange={(e) => setReason(e.target.value)}
           placeholder="Ej. Vacaciones, feriado, mudanza…"
           className="w-full rounded-xl bg-white/5 px-3 py-2.5 text-sm text-foreground outline-none ring-1 ring-white/10 placeholder:text-white/35 focus:ring-rose-400/40"
         />
@@ -288,10 +282,10 @@ function AddClosureForm({
         <button
           type="button"
           onClick={handleConfirm}
-          disabled={checking || create.isPending}
+          disabled={checking || submitting}
           className="rounded-xl bg-gradient-to-r from-rose-500 to-rose-400 px-4 py-2 text-sm font-semibold text-white shadow-[0_0_30px_-12px_rgba(244,63,94,0.8)] transition hover:brightness-110 disabled:opacity-50"
         >
-          {checking ? "Revisando…" : create.isPending ? "Guardando…" : warning !== null && warning > 0 ? "Confirmar igual" : "Guardar cierre"}
+          {checking ? "Revisando…" : submitting ? pendingLabel : warning !== null && warning > 0 ? "Confirmar igual" : submitLabel}
         </button>
       </div>
     </div>

@@ -73,6 +73,20 @@ export function useCreateClosure(businessId: string | null, branchId: string | n
   });
 }
 
+export function useUpdateClosure(businessId: string | null, branchId: string | null) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (input: { id: string; start_date: string; end_date: string; reason: string | null }) => {
+      const { error } = await supabase
+        .from("closures" as any)
+        .update({ start_date: input.start_date, end_date: input.end_date, reason: input.reason })
+        .eq("id", input.id);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["closures", businessId, branchId] }),
+  });
+}
+
 export function useDeleteClosure(businessId: string | null, branchId: string | null) {
   const qc = useQueryClient();
   return useMutation({
