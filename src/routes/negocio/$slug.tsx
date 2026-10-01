@@ -72,6 +72,25 @@ type Service = {
 type DayKey = "sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat";
 type DaySchedule = { enabled: boolean; start: string; end: string };
 type ScheduleMap = Record<DayKey, DaySchedule>;
+
+type PublicBranch = { id: string; name: string; address: string | null };
+
+const PUBLIC_BRANCH_STORAGE_PREFIX = "clippr_public_branch_";
+
+// Candidato a sucursal activa: ?sucursal=<id> en la URL (si vino de un link
+// con sucursal ya elegida, ej. desde /negocio) tiene prioridad sobre lo
+// guardado de una visita anterior. Se valida contra la lista real más abajo
+// — nunca se confía en el id crudo (podría ser viejo/de otro negocio).
+function readStoredBranchId(slug: string): string | null {
+  if (typeof window === "undefined") return null;
+  const fromQuery = new URLSearchParams(window.location.search).get("sucursal");
+  if (fromQuery) return fromQuery;
+  try {
+    return window.localStorage.getItem(`${PUBLIC_BRANCH_STORAGE_PREFIX}${slug}`);
+  } catch {
+    return null;
+  }
+}
 type LandingColors = { primary?: string; secondary?: string; accent?: string; buttonText?: string };
 type LandingTheme = "dark" | "light";
 type FeaturedClient = {
@@ -498,6 +517,8 @@ function PublicProfilePage() {
 
   const [loading, setLoading] = React.useState(true);
   const [business, setBusiness] = React.useState<Business | null>(null);
+  const [branches, setBranches] = React.useState<PublicBranch[]>([]);
+  const [selectedBranchId, setSelectedBranchId] = React.useState<string | null>(null);
   const [employees, setEmployees] = React.useState<Employee[]>([]);
   const [services, setServices] = React.useState<Service[]>([]);
   const [schedule, setSchedule] = React.useState<ScheduleMap | null>(null);
@@ -569,6 +590,28 @@ function PublicProfilePage() {
 
         const businessId = businessData.id as string;
 
+        // Sucursales — se resuelve ANTES de pedir empleados/servicios, para
+        // que la primera carga ya salga filtrada (sin flash mostrando todo
+        // mezclado y después angostándose). Con 0 o 1 sucursal, el negocio
+        // se comporta exactamente igual que antes de esta migración.
+        const { data: branchRows } = await supabase
+          .from("public_booking_branches" as any)
+          .select("id,name,address")
+          .eq("business_id", businessId)
+          .order("name", { ascending: true });
+        const branchList = (branchRows ?? []) as PublicBranch[];
+        let effectiveBranchId: string | null = null;
+        if (branchList.length > 0) {
+          const candidate =
+            selectedBranchId && branchList.some((b) => b.id === selectedBranchId)
+              ? selectedBranchId
+              : readStoredBranchId(slug);
+          effectiveBranchId =
+            candidate && branchList.some((b) => b.id === candidate)
+              ? candidate
+              : branchList[0].id;
+        }
+
         // El tema real (_branding.theme) se resuelve primero que cualquier otro dato.
         // Así el loader conoce el fondo correcto antes de que termine de cargar el resto
         // de la página, y nunca aparece con el tema contrario al configurado.
@@ -614,31 +657,51 @@ function PublicProfilePage() {
           statsResult = null;
         }
 
+        let employeesQuery = supabase
+          .from("public_booking_employees")
+          .select("id,full_name,avatar_url,is_active,role")
+          .eq("business_id", businessId);
+        if (effectiveBranchId) employeesQuery = employeesQuery.eq("branch_id", effectiveBranchId);
+
+        // La vista public_booking_services (rol anon) no expone `cash_discount`
+        // de price_catalog — se lee espejado desde business_settings.schedule
+        // más abajo, mismo criterio que ya se usa para `category`.
+        let servicesQuery = supabase
+          .from("public_booking_services")
+          .select("id,name,price,duration_min,is_active")
+          .eq("business_id", businessId);
+        if (effectiveBranchId) servicesQuery = servicesQuery.eq("branch_id", effectiveBranchId);
+
         const [employeesWithRoleRes, servicesRes] = await Promise.all([
-          supabase
-            .from("public_booking_employees")
-            .select("id,full_name,avatar_url,is_active,role")
-            .eq("business_id", businessId)
-            .order("full_name", { ascending: true }),
-          // La vista public_booking_services (rol anon) no expone `cash_discount`
-          // de price_catalog — se lee espejado desde business_settings.schedule
-          // más abajo, mismo criterio que ya se usa para `category`.
-          supabase
-            .from("public_booking_services")
-            .select("id,name,price,duration_min,is_active")
-            .eq("business_id", businessId)
-            .order("name", { ascending: true }),
+          employeesQuery.order("full_name", { ascending: true }),
+          servicesQuery.order("name", { ascending: true }),
         ]);
 
         // Algunas bases todavía tienen la vista public_booking_employees sin la columna role.
         // Si pedimos role y Supabase devuelve error, hacemos fallback sin role para no ocultar profesionales.
-        const employeesRes = employeesWithRoleRes.error
-          ? await supabase
-              .from("public_booking_employees")
-              .select("id,full_name,avatar_url,is_active")
-              .eq("business_id", businessId)
-              .order("full_name", { ascending: true })
-          : employeesWithRoleRes;
+        let employeesRes: typeof employeesWithRoleRes | { data: unknown[] | null; error: { message: string } | null } = employeesWithRoleRes;
+        if (employeesWithRoleRes.error) {
+          let fallbackEmployeesQuery = supabase
+            .from("public_booking_employees")
+            .select("id,full_name,avatar_url,is_active")
+            .eq("business_id", businessId);
+          if (effectiveBranchId) fallbackEmployeesQuery = fallbackEmployeesQuery.eq("branch_id", effectiveBranchId);
+          employeesRes = await fallbackEmployeesQuery.order("full_name", { ascending: true });
+        }
+
+        // Horario semanal — por sucursal (branch_settings), no el de
+        // business_settings (eso sigue siendo solo _branding/visibilidad/
+        // categorías, compartido entre sucursales).
+        let branchScheduleRaw: unknown = null;
+        if (effectiveBranchId) {
+          const { data: branchSettingsRow } = await supabase
+            .from("public_booking_branch_settings" as any)
+            .select("schedule")
+            .eq("business_id", businessId)
+            .eq("branch_id", effectiveBranchId)
+            .maybeSingle();
+          branchScheduleRaw = (branchSettingsRow as { schedule?: unknown } | null)?.schedule ?? null;
+        }
 
         // La página pública no debe caer completa si una vista secundaria falla.
         // Primero mostramos el negocio y degradamos servicios/equipo con elegancia.
@@ -693,6 +756,8 @@ function PublicProfilePage() {
 
         if (!cancelled) {
           setBusiness(mergedBusiness as Business);
+          setBranches(branchList);
+          setSelectedBranchId(effectiveBranchId);
           setHeaderStats(statsResult);
           const employeeRoles =
             settingsSchedule && typeof settingsSchedule === "object" && (settingsSchedule as Record<string, unknown>)._employeeRoles &&
@@ -725,7 +790,7 @@ function PublicProfilePage() {
             serviceCategoryOrder,
           );
           setServices(orderedServices);
-          setSchedule(normalizeSchedule(settingsSchedule));
+          setSchedule(normalizeSchedule(branchScheduleRaw));
           setPortfolioUrls(normalizePortfolio(branding.portfolio_urls));
           setPortfolioPositions(Array.isArray(branding.portfolio_positions) ? branding.portfolio_positions : []);
           setAvatarPosition(typeof branding.avatar_position === "string" ? branding.avatar_position : "50% 50%");
@@ -756,7 +821,7 @@ function PublicProfilePage() {
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+  }, [slug, selectedBranchId]);
 
   const cPrimary = colors.primary || colors.secondary || business?.accent_color || "#7c3aed";
   const cSecondary = colors.secondary || cPrimary;
@@ -814,9 +879,17 @@ function PublicProfilePage() {
     );
   }
 
-  const reservarTo = { to: "/reservar/$slug" as const, params: { slug } };
+  // sucursal se suma a cualquier otro query param — así reservar/$slug.tsx
+  // arranca con la misma sucursal que se estaba mirando acá, sin que el
+  // cliente tenga que elegirla de nuevo.
+  const reservarTo = {
+    to: "/reservar/$slug" as const,
+    params: { slug },
+    search: selectedBranchId ? { sucursal: selectedBranchId } : undefined,
+  };
   const bookingHref = (query?: Record<string, string>) => {
-    const params = query ? `?${new URLSearchParams(query).toString()}` : "";
+    const fullQuery = selectedBranchId ? { ...query, sucursal: selectedBranchId } : query;
+    const params = fullQuery ? `?${new URLSearchParams(fullQuery).toString()}` : "";
     return `/reservar/${encodeURIComponent(slug)}${params}`;
   };
   const mapLink = mapsUrl(business.address);
@@ -950,6 +1023,36 @@ function PublicProfilePage() {
                     <div className="text-xs leading-4 text-white/55 sm:text-sm">Años de<br />experiencia</div>
                   </div>
                 </div>
+                {branches.length > 1 && (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <MapPin className="h-3.5 w-3.5 text-white/50" />
+                    {branches.map((b) => (
+                      <button
+                        key={b.id}
+                        type="button"
+                        onClick={() => {
+                          setSelectedBranchId(b.id);
+                          try {
+                            window.localStorage.setItem(`${PUBLIC_BRANCH_STORAGE_PREFIX}${slug}`, b.id);
+                          } catch {
+                            /* ignore */
+                          }
+                        }}
+                        className={cn(
+                          "rounded-full px-3 py-1 text-xs font-semibold transition",
+                          b.id === selectedBranchId
+                            ? "text-white"
+                            : isLight
+                              ? "bg-black/5 text-zinc-600 hover:bg-black/10"
+                              : "bg-white/5 text-white/60 hover:bg-white/10",
+                        )}
+                        style={b.id === selectedBranchId ? { background: cAccent } : undefined}
+                      >
+                        {b.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
             </div>
           </div>

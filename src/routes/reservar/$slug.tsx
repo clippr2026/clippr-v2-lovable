@@ -119,6 +119,23 @@ type Service = {
 };
 
 type BookingStep = "services" | "promo" | "professional" | "datetime" | "products" | "details" | "done";
+type PublicBranch = { id: string; name: string; address: string | null };
+
+const PUBLIC_BRANCH_STORAGE_PREFIX = "clippr_public_branch_";
+
+// Mismo criterio que negocio/$slug.tsx: ?sucursal= en la URL (típicamente
+// llega acá desde el link de "Reservar" del perfil, que ya la incluye) tiene
+// prioridad sobre lo guardado de una visita anterior.
+function readStoredBranchId(slug: string): string | null {
+  if (typeof window === "undefined") return null;
+  const fromQuery = new URLSearchParams(window.location.search).get("sucursal");
+  if (fromQuery) return fromQuery;
+  try {
+    return window.localStorage.getItem(`${PUBLIC_BRANCH_STORAGE_PREFIX}${slug}`);
+  } catch {
+    return null;
+  }
+}
 type RecommendedProduct = { id: string; name: string; price: number; offer: string; image?: string; image_position?: string; description?: string };
 type ClientFields = Record<"nombre" | "telefono" | "email" | "fecha_nacimiento" | "notas", boolean>;
 type LandingColors = { primary?: string; secondary?: string; accent?: string; buttonText?: string };
@@ -268,6 +285,8 @@ function PublicBookingPage() {
   const [submitting, setSubmitting] = React.useState(false);
   const [business, setBusiness] = React.useState<Business | null>(null);
   const businessTimeZone = business?.timezone || DEFAULT_TIMEZONE;
+  const [branches, setBranches] = React.useState<PublicBranch[]>([]);
+  const [selectedBranchId, setSelectedBranchId] = React.useState<string | null>(null);
   const [employees, setEmployees] = React.useState<Employee[]>([]);
   const [services, setServices] = React.useState<Service[]>([]);
   const [appointments, setAppointments] = React.useState<Appointment[]>([]);
@@ -634,11 +653,48 @@ function PublicBookingPage() {
 
         const businessId = businessData.id as string;
 
+        // Sucursales — misma resolución que negocio/$slug.tsx (?sucursal= en
+        // la URL, típicamente ya viene del link "Reservar" del perfil >
+        // última elegida en este navegador > primera de la lista). Con 0 o 1
+        // sucursal, el negocio se comporta exactamente igual que antes.
+        const { data: branchRows } = await supabase
+          .from("public_booking_branches" as any)
+          .select("id,name,address")
+          .eq("business_id", businessId)
+          .order("name", { ascending: true });
+        const branchList = (branchRows ?? []) as PublicBranch[];
+        let effectiveBranchId: string | null = null;
+        if (branchList.length > 0) {
+          const candidate =
+            selectedBranchId && branchList.some((b) => b.id === selectedBranchId)
+              ? selectedBranchId
+              : readStoredBranchId(slug);
+          effectiveBranchId =
+            candidate && branchList.some((b) => b.id === candidate)
+              ? candidate
+              : branchList[0].id;
+        }
+
         const settingsPromise = supabase
           .from("public_booking_settings")
           .select("schedule")
           .eq("business_id", businessId)
           .maybeSingle();
+
+        // Horario semanal, anticipación máxima (_settings) y promociones
+        // (_promotions) son por sucursal (branch_settings) — ver
+        // horarios-section.tsx / promotions-section.tsx. El resto
+        // (branding, horarios de cada profesional, fechas especiales,
+        // campos del formulario, productos recomendados) sigue siendo del
+        // negocio completo, viene de settingsPromise de arriba, sin cambios.
+        const branchSettingsPromise = effectiveBranchId
+          ? supabase
+              .from("public_booking_branch_settings" as any)
+              .select("schedule")
+              .eq("business_id", businessId)
+              .eq("branch_id", effectiveBranchId)
+              .maybeSingle()
+          : Promise.resolve({ data: null as { schedule?: unknown } | null, error: null });
 
         // El tema real (_branding.theme) se resuelve apenas responde esta consulta,
         // sin esperar a empleados/servicios/turnos. Así el loader nunca queda mostrando
@@ -656,28 +712,32 @@ function PublicBookingPage() {
         // configurada (Configuración → Horarios → _settings.maxAdvance), no un
         // valor fijo — si no, los días más allá de ese valor fijo se muestran
         // como libres aunque tengan turnos reales.
-        const settingsResForRange = await settingsPromise;
-        const scheduleForRange = settingsResForRange.error ? null : ((settingsResForRange.data as any)?.schedule ?? null);
+        const branchSettingsResForRange = await branchSettingsPromise;
+        const branchScheduleForRange = branchSettingsResForRange.error ? null : ((branchSettingsResForRange.data as any)?.schedule ?? null);
         const rawSettingsForRange =
-          scheduleForRange && typeof scheduleForRange === "object"
-            ? ((scheduleForRange as Record<string, any>)._settings ?? {})
+          branchScheduleForRange && typeof branchScheduleForRange === "object"
+            ? ((branchScheduleForRange as Record<string, any>)._settings ?? {})
             : {};
         const maxAdvanceDays = Math.max(1, Number(rawSettingsForRange.maxAdvance) || 10);
 
         const start = startOfDay(new Date()).toISOString();
         const end = addMinutes(startOfDay(new Date()), maxAdvanceDays * 24 * 60).toISOString();
 
+        let employeesQuery = supabase
+          .from("public_booking_employees")
+          .select("id,full_name,avatar_url,is_active,role")
+          .eq("business_id", businessId);
+        if (effectiveBranchId) employeesQuery = employeesQuery.eq("branch_id", effectiveBranchId);
+
+        let servicesQuery = supabase
+          .from("public_booking_services")
+          .select("id,name,price,duration_min,is_active,cash_discount")
+          .eq("business_id", businessId);
+        if (effectiveBranchId) servicesQuery = servicesQuery.eq("branch_id", effectiveBranchId);
+
         const [employeesWithRoleRes, servicesWithEffectiveRes, appointmentsRes, settingsRes] = await Promise.all([
-          supabase
-            .from("public_booking_employees")
-            .select("id,full_name,avatar_url,is_active,role")
-            .eq("business_id", businessId)
-            .order("full_name", { ascending: true }),
-          supabase
-            .from("public_booking_services")
-            .select("id,name,price,duration_min,is_active,cash_discount")
-            .eq("business_id", businessId)
-            .order("name", { ascending: true }),
+          employeesQuery.order("full_name", { ascending: true }),
+          servicesQuery.order("name", { ascending: true }),
           supabase
             .from("public_booking_appointments")
             .select("id,employee_id,starts_at,ends_at,duration_min,status")
@@ -689,26 +749,30 @@ function PublicBookingPage() {
 
         // Algunas bases todavía tienen la vista public_booking_employees sin la columna role.
         // Si pedimos role y Supabase devuelve 400, hacemos fallback sin role para que la reserva no caiga.
-        const employeesRes = employeesWithRoleRes.error
-          ? await supabase
-              .from("public_booking_employees")
-              .select("id,full_name,avatar_url,is_active")
-              .eq("business_id", businessId)
-              .order("full_name", { ascending: true })
-          : employeesWithRoleRes;
+        let employeesRes: typeof employeesWithRoleRes | { data: unknown[] | null; error: { message: string } | null } = employeesWithRoleRes;
+        if (employeesWithRoleRes.error) {
+          let fallbackEmployeesQuery = supabase
+            .from("public_booking_employees")
+            .select("id,full_name,avatar_url,is_active")
+            .eq("business_id", businessId);
+          if (effectiveBranchId) fallbackEmployeesQuery = fallbackEmployeesQuery.eq("branch_id", effectiveBranchId);
+          employeesRes = await fallbackEmployeesQuery.order("full_name", { ascending: true });
+        }
 
         // Algunas bases todavía tienen la vista public_booking_services sin la
         // columna cash_discount ("Precio en efectivo" / "Precio efectivo
         // estándar"). Mismo criterio que arriba: si falla, reintenta sin esa
         // columna para que la reserva no caiga — sencillamente no se muestra
         // "Efectivo" hasta que se actualice esa vista.
-        const servicesRes = servicesWithEffectiveRes.error
-          ? await supabase
-              .from("public_booking_services")
-              .select("id,name,price,duration_min,is_active")
-              .eq("business_id", businessId)
-              .order("name", { ascending: true })
-          : servicesWithEffectiveRes;
+        let servicesRes: typeof servicesWithEffectiveRes | { data: unknown[] | null; error: { message: string } | null } = servicesWithEffectiveRes;
+        if (servicesWithEffectiveRes.error) {
+          let fallbackServicesQuery = supabase
+            .from("public_booking_services")
+            .select("id,name,price,duration_min,is_active")
+            .eq("business_id", businessId);
+          if (effectiveBranchId) fallbackServicesQuery = fallbackServicesQuery.eq("branch_id", effectiveBranchId);
+          servicesRes = await fallbackServicesQuery.order("name", { ascending: true });
+        }
 
         // La reserva pública no debe mostrar "Página no encontrada" si falla una vista secundaria.
         console.warn("Public booking secondary data", {
@@ -774,19 +838,17 @@ function PublicBookingPage() {
 
         if (!cancelled) {
           setBusiness(businessData as Business);
+          setBranches(branchList);
+          setSelectedBranchId(effectiveBranchId);
           setEmployees(visibleEmployees);
           setServices(visibleServices);
           setAppointments((appointmentsRes.error ? [] : (appointmentsRes.data ?? [])) as Appointment[]);
-          setSchedule(normalizeSchedule(settingsSchedule));
-
-          // Anticipación máxima: siempre desde lo configurado en el negocio,
-          // nunca un valor fijo.
-          const rawReservationSettings =
-            settingsSchedule && typeof settingsSchedule === "object"
-              ? ((settingsSchedule as Record<string, any>)._settings ?? {})
-              : {};
+          // Horario semanal y anticipación máxima: por sucursal
+          // (branchScheduleForRange, branch_settings), no el business_settings
+          // de siempre — ver horarios-section.tsx.
+          setSchedule(normalizeSchedule(branchScheduleForRange));
           setReservationSettings({
-            maxAdvance: Math.max(1, Number(rawReservationSettings.maxAdvance) || 10),
+            maxAdvance: Math.max(1, Number(rawSettingsForRange.maxAdvance) || 10),
           });
 
           // Horarios individuales de profesionales y horarios especiales (negocio
@@ -843,9 +905,11 @@ function PublicBookingPage() {
               : {};
           setEmployeeServiceOverrides(rawServiceOverrides);
 
+          // Promociones por sucursal también (branchScheduleForRange), no el
+          // business_settings de siempre.
           const rawPromotions =
-            rawSchedule && Array.isArray(rawSchedule._promotions)
-              ? (rawSchedule._promotions as Promotion[])
+            branchScheduleForRange && typeof branchScheduleForRange === "object" && Array.isArray((branchScheduleForRange as Record<string, unknown>)._promotions)
+              ? ((branchScheduleForRange as Record<string, unknown>)._promotions as Promotion[])
               : [];
           setPromotions(rawPromotions.map(backfillPromotionVigencia));
 
@@ -892,7 +956,7 @@ function PublicBookingPage() {
     return () => {
       cancelled = true;
     };
-  }, [slug]);
+  }, [slug, selectedBranchId]);
 
   // Un solo servicio por turno: elegir otro reemplaza al anterior en vez de
   // sumarlo, así el paso "Elegí profesional" siempre filtra por un único
@@ -1130,7 +1194,7 @@ function PublicBookingPage() {
         return;
       }
 
-      const bookingResult = await supabase.rpc("create_public_booking_public_v3", {
+      const bookingResult = await supabase.rpc("create_public_booking_public_v4", {
         p_business_id: business.id,
         // Se envía como texto para evitar el 400 que PostgREST daba con arrays uuid[].
         p_service_ids: selectedServiceIds.join(","),
@@ -1143,6 +1207,7 @@ function PublicBookingPage() {
         p_notes: publicNotes || null,
         p_acquisition_source: !sourceAlreadyKnown && acquisitionSource ? acquisitionSource : null,
         p_acquisition_source_custom: !sourceAlreadyKnown && acquisitionChannelRequiresText(acquisitionSource) ? acquisitionCustom.trim() : null,
+        p_branch_id: selectedBranchId,
       } as any);
 
       if (bookingResult.error) {
@@ -1163,14 +1228,14 @@ function PublicBookingPage() {
           return;
         }
         const rpcMessage = err?.message;
-        throw new Error(rpcMessage || "No se pudo guardar la reserva. Aplicá la migración create_public_booking_public_v3 en Supabase.");
+        throw new Error(rpcMessage || "No se pudo guardar la reserva. Aplicá la migración create_public_booking_public_v4 en Supabase.");
       }
 
       const returnedBooking = Array.isArray(bookingResult.data) ? bookingResult.data[0] : bookingResult.data;
       confirmationSnapshot.appointmentId = returnedBooking?.id ?? returnedBooking?.appointment_id ?? undefined;
       confirmationSnapshot.manageToken = returnedBooking?.manage_token ?? returnedBooking?.manageToken ?? undefined;
 
-      // El RPC create_public_booking_public_v3 ya resuelve del lado del
+      // El RPC create_public_booking_public_v4 ya resuelve del lado del
       // servidor el precio Y la duración efectivos por profesional
       // (_employeeServiceOverrides, misma prioridad personalizada→estándar
       // que resolveServicePricing acá) y crea el turno con el
@@ -1203,12 +1268,7 @@ function PublicBookingPage() {
       // escritura, compartido con Caja (registerPayment), ver
       // src/lib/promotion-usage.ts.
       if (promoNote && effectivePromotion) {
-        // TODO(multi-sucursal): la reserva pública todavía no resuelve a
-        // qué sucursal pertenece (pendiente de diseño — ver Página de
-        // reservas). branchId null = incrementPromotionUsage no hace nada
-        // (no rompe la reserva, solo el contador de usos no se refleja
-        // para reservas hechas por acá hasta que se resuelva).
-        await incrementPromotionUsage(business.id, effectivePromotion.id, clientKeys, null);
+        await incrementPromotionUsage(business.id, effectivePromotion.id, clientKeys, selectedBranchId);
       }
 
       setAppointments((current) => [
@@ -1478,6 +1538,35 @@ function PublicBookingPage() {
 
               {step === "services" ? (
                 <div className="mt-5 space-y-4">
+                  {branches.length > 1 && (
+                    <div className="space-y-2">
+                      <p className="text-sm text-white/60">Elegí la sucursal.</p>
+                      <div className="flex flex-wrap gap-2">
+                        {branches.map((b) => (
+                          <button
+                            key={b.id}
+                            type="button"
+                            onClick={() => {
+                              setSelectedBranchId(b.id);
+                              try {
+                                window.localStorage.setItem(`${PUBLIC_BRANCH_STORAGE_PREFIX}${slug}`, b.id);
+                              } catch {
+                                /* ignore */
+                              }
+                            }}
+                            className="rounded-full px-4 py-1.5 text-sm font-semibold transition"
+                            style={
+                              b.id === selectedBranchId
+                                ? { background: accent, color: accentButtonText }
+                                : { background: "rgba(255,255,255,0.06)", color: "inherit" }
+                            }
+                          >
+                            {b.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                   <p className="text-sm text-white/60">Elegí el servicio que querés reservar.</p>
                   {serviceCategories.length > 1 && (
                     <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
