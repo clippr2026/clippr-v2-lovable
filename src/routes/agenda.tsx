@@ -14,7 +14,8 @@ import {
   Mail,
   Repeat2,
   CalendarOff,
-  ChevronDown
+  ChevronDown,
+  Users
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { applyPromotionDiscount, resolveServicePricing, type Promotion } from "@/lib/service-pricing";
@@ -1462,8 +1463,12 @@ function AgendaPage() {
             onClick={() => setProfFilterOpen((v) => !v)}
             className="inline-flex items-center gap-1.5 rounded-xl bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-foreground ring-1 ring-white/10 transition hover:bg-white/[0.07]"
           >
-            <UserRound className="h-3.5 w-3.5 text-muted-foreground" />
-            {profFilterId ? (data.employees.find((e) => e.id === profFilterId)?.full_name ?? "Profesional") : "Todos"}
+            {profFilterId ? (
+              <UserRound className="h-3.5 w-3.5 text-muted-foreground" />
+            ) : (
+              <Users className="h-3.5 w-3.5 text-muted-foreground" />
+            )}
+            {profFilterId ? (data.employees.find((e) => e.id === profFilterId)?.full_name ?? "Profesional") : "Todos los profesionales"}
             <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", profFilterOpen && "rotate-180")} />
           </button>
           {profFilterOpen && (
@@ -1481,7 +1486,7 @@ function AgendaPage() {
                     !profFilterId && "text-primary font-medium",
                   )}
                 >
-                  Todos
+                  Todos los profesionales
                 </button>
                 {data.employees.map((e) => (
                   <button
@@ -2774,7 +2779,12 @@ const DayView = React.memo(function DayView({
         }}
       >
         <div
-          className="grid min-w-[860px]"
+          // Un solo profesional visible (filtro por profesional en mobile, o
+          // un negocio de un solo barbero) — la grilla ocupa el ancho
+          // disponible entero, sin el min-width pensado para varias columnas
+          // (que generaba scroll horizontal y espacio vacío a la derecha con
+          // una sola columna).
+          className={cn("grid", employees.length > 1 ? "min-w-[860px]" : "min-w-full")}
           style={{
             gridTemplateColumns,
             width: gridWidth,
