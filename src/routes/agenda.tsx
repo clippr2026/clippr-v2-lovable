@@ -1110,17 +1110,6 @@ function AgendaPage() {
       data.refresh,
     ],
   );
-  // Grilla filtrada por profesional (Fase 6) — mismo `memoData`, solo con
-  // `employees` recortado; el resto de la Agenda (conteos de estado,
-  // "No atendidos", etc.) sigue viendo TODOS los profesionales.
-  const filteredEmployees = React.useMemo(
-    () => (profFilterId ? data.employees.filter((e) => e.id === profFilterId) : data.employees),
-    [data.employees, profFilterId],
-  );
-  const dayViewData = React.useMemo(
-    () => ({ ...memoData, employees: filteredEmployees }),
-    [memoData, filteredEmployees],
-  );
   const daySchedule = React.useMemo(() => {
     // Rango visible derivado de horarios individuales (local como fallback) y
     // expandido solo por turnos reales. Se devuelve como DaySchedule sintético
@@ -1457,14 +1446,17 @@ function AgendaPage() {
           )}
         </div>
 
-        {/* Filtro por profesional (Fase 6) — siempre visible, más relevante en
-            mobile (ahí la grilla scrollea horizontalmente entre TODOS los
-            profesionales a la vez). Filtra solo la grilla de abajo, no los
-            conteos de estado. Sin backdrop-filter en este wrapper (a
-            diferencia de la barra de arriba, que es ".glass") para no
-            necesitar portal: el dropdown no queda atrapado en ningún
-            stacking context raro. */}
-        <div className="relative z-30 mb-2">
+        {/* Filtro por profesional (Fase 6) — EXCLUSIVO de mobile. En desktop
+            no existe: siempre se ven todas las columnas (hay espacio de
+            sobra + scroll horizontal), nunca filtradas aunque haya algo
+            guardado en sessionStorage de una sesión mobile anterior — el
+            gating real está en DayView (isMobileForProfFilter), esto es
+            solo para no mostrar el selector en pantallas grandes. Filtra
+            solo la grilla de abajo, no los conteos de estado. Sin
+            backdrop-filter en este wrapper (a diferencia de la barra de
+            arriba, que es ".glass") para no necesitar portal: el dropdown
+            no queda atrapado en ningún stacking context raro. */}
+        <div className="relative z-30 mb-2 sm:hidden">
           <button
             type="button"
             onClick={() => setProfFilterOpen((v) => !v)}
@@ -1666,9 +1658,10 @@ function AgendaPage() {
         ) : (
           <DayView
             date={cursor}
-            data={dayViewData}
+            data={memoData}
             schedule={daySchedule}
             closure={closedToday}
+            profFilterId={profFilterId}
             enabledBreaks={enabledBreaks}
             onSlotClick={handleSlotClick}
             onApptClick={handleApptClick}
@@ -2045,6 +2038,7 @@ const DayView = React.memo(function DayView({
   data,
   schedule,
   closure,
+  profFilterId,
   enabledBreaks,
   onSlotClick,
   onApptClick,
@@ -2056,6 +2050,9 @@ const DayView = React.memo(function DayView({
   data: ReturnType<typeof useAgendaData>;
   schedule: ReturnType<typeof getScheduleForDate>;
   closure: Closure | null;
+  // Solo tiene efecto en mobile (ver isMobileForProfFilter más abajo) — en
+  // desktop esta prop se ignora a propósito, siempre se ven todos.
+  profFilterId: string | null;
   enabledBreaks: Set<string>;
   onSlotClick: (employeeId: string | null, startsAt: Date, event: React.MouseEvent) => void;
   onApptClick: (a: Appointment) => void;
@@ -2086,9 +2083,29 @@ const DayView = React.memo(function DayView({
   // El rango operable por columna lo resuelve effectiveWindowFor vía
   // resolveDaySchedule (prioridad de horarios + especiales por fecha).
 
-  const employees = data.employees.length
+  // Filtro por profesional (Fase 6): exclusivo de mobile — en desktop
+  // siempre se ven TODAS las columnas, sin selector ni filtro aplicado
+  // (ahí sí entra el scroll horizontal completo de profesionales). Mismo
+  // breakpoint que `isMobileViewport` más abajo (max-width: 639px);
+  // detección propia acá porque `employees` se arma antes de esa
+  // declaración y el filtro NUNCA debe aplicarse en desktop aunque
+  // `profFilterId` tenga algo guardado de una sesión mobile anterior.
+  const [isMobileForProfFilter, setIsMobileForProfFilter] = React.useState(false);
+  React.useEffect(() => {
+    const mql = window.matchMedia("(max-width: 639px)");
+    const update = () => setIsMobileForProfFilter(mql.matches);
+    update();
+    mql.addEventListener("change", update);
+    return () => mql.removeEventListener("change", update);
+  }, []);
+
+  const allEmployees = data.employees.length
     ? data.employees
     : [{ id: "__none__", full_name: "Sin asignar" }];
+  const employees =
+    isMobileForProfFilter && profFilterId
+      ? allEmployees.filter((e) => e.id === profFilterId)
+      : allEmployees;
 
   // ── Alto de fila FIJO. Antes se calculaba para llenar el viewport (achicaba
   //    las filas). Ahora cada bloque mide AGENDA_ROW_PX y, si hay muchas horas,
