@@ -17,8 +17,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Loader2, Search, X, CalendarDays, Repeat2,
-  Scissors, UserPlus, UserRound, Clock3, Phone, Mail } from "lucide-react";
+import { Loader2, CalendarDays, Repeat2,
+  Scissors, UserPlus, UserRound, Clock3, Phone, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 import {
@@ -35,8 +35,6 @@ import {
 } from "./use-agenda-data";
 import { ServiceImage } from "@/components/ui/service-image";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { AcquisitionSourceField } from "@/components/acquisition-source-field";
-import { acquisitionChannelRequiresText } from "@/lib/acquisition-channels";
 import {
   type RepeatWeekday,
   type RepeatEndMode,
@@ -270,20 +268,16 @@ export function AppointmentDialog({
     }
   }, [open]);
 
-  // Client config — controls which fields appear in "nuevo cliente"
-
+  // Cliente — flujo interno simplificado (agenda manual): el teléfono es
+  // el dato principal y el identificador real. Nombre/Apellido son los
+  // únicos otros campos visibles; nunca se piden mail ni "cómo nos
+  // conoció" acá (eso sigue existiendo tal cual en la reserva pública,
+  // sin tocar). Ver matchedClient más abajo: el teléfono dispara la
+  // búsqueda/reutilización automática del cliente existente.
   const [clientId, setClientId] = React.useState<string>("");
-  const [clientName, setClientName] = React.useState("");
   const [clientPhone, setClientPhone] = React.useState("");
-  const [clientEmail, setClientEmail] = React.useState("");
-  const [clientBirth, setClientBirth] = React.useState("");
-  const [newClientMode, setNewClientMode] = React.useState(false);
   const [clientFirstName, setClientFirstName] = React.useState("");
   const [clientLastName, setClientLastName] = React.useState("");
-  const [acquisitionSource, setAcquisitionSource] = React.useState("");
-  const [acquisitionCustom, setAcquisitionCustom] = React.useState("");
-  const [clientSearch, setClientSearch] = React.useState("");
-  const [showClientList, setShowClientList] = React.useState(false);
 
   const [employeeId, setEmployeeId] = React.useState<string>("");
   const [serviceId, setServiceId] = React.useState<string>("");
@@ -335,13 +329,12 @@ export function AppointmentDialog({
 
     if (appointment) {
       setClientId(appointment.client_id ?? "");
-      setClientName(appointment.client_name ?? "");
       setClientFirstName((appointment.client_name ?? "").split(" ")[0] ?? "");
       setClientLastName((appointment.client_name ?? "").split(" ").slice(1).join(" "));
-      setClientPhone("");
-      setClientEmail("");
-      setClientBirth("");
-      setNewClientMode(false);
+      // El teléfono no viaja en el turno en sí — se busca en la lista de
+      // clientes ya cargada por el cliente vinculado, para que el campo
+      // (ahora el identificador principal) no arranque vacío al editar.
+      setClientPhone(clients.find((c) => c.id === appointment.client_id)?.phone ?? "");
       setEmployeeId(appointment.employee_id ?? "");
       setServiceId("");
       setServiceName(appointment.service_name ?? "");
@@ -356,15 +349,9 @@ export function AppointmentDialog({
       setPromotionId(appointment.promotion_id ?? "");
     } else {
       setClientId("");
-      setClientName("");
       setClientPhone("");
-      setClientEmail("");
-      setClientBirth("");
       setClientFirstName("");
       setClientLastName("");
-      setClientSearch("");
-      setShowClientList(false);
-      setNewClientMode(false);
       setEmployeeId(defaultEmployeeId ?? employees[0]?.id ?? "");
       setServiceId("");
       setServiceName("");
@@ -386,30 +373,38 @@ export function AppointmentDialog({
         until: "",
       });
     }
-  }, [open, appointment, defaultEmployeeId, defaultStartsAt, employees]);
+  }, [open, appointment, defaultEmployeeId, defaultStartsAt, employees, clients]);
 
-  const pickClient = (c: Client) => {
-    const fullName = c.full_name ?? c.name ?? "";
-    setClientId(c.id);
-    setClientName(fullName);
-    setClientFirstName(fullName.split(" ")[0] ?? "");
-    setClientLastName(fullName.split(" ").slice(1).join(" "));
-    setClientPhone(c.phone ?? "");
-    setClientEmail(c.email ?? "");
-    setClientBirth(c.birth_date ?? "");
-    setClientSearch("");
-    setShowClientList(false);
-    setNewClientMode(false);
-  };
+  // El teléfono es el identificador real del cliente en este flujo — se
+  // compara por dígitos (sin signos/espacios/código de país) para no fallar
+  // por formato, mismo criterio que usa la reserva pública para no duplicar
+  // clientes. MIN_DIGITS evita falsos positivos mientras todavía se está
+  // tipeando (ej. "11" matchearía cualquier cliente cuyo número contenga "11").
+  const MIN_PHONE_DIGITS_FOR_MATCH = 6;
+  const matchedClient = React.useMemo(() => {
+    const digits = clientPhone.replace(/\D/g, "");
+    if (digits.length < MIN_PHONE_DIGITS_FOR_MATCH) return null;
+    return clients.find((c) => c.phone && c.phone.replace(/\D/g, "") === digits) ?? null;
+  }, [clients, clientPhone]);
 
-  const filteredClients = clientSearch.length >= 1
-    ? clients.filter((c) => {
-        const q = clientSearch.toLowerCase();
-        return (c.full_name ?? c.name ?? "").toLowerCase().includes(q)
-          || (c.phone ?? "").includes(q)
-          || (c.email ?? "").toLowerCase().includes(q);
-      }).slice(0, 8)
-    : [];
+  // Autocompleta nombre/apellido con lo que el cliente ya tenga guardado en
+  // cuanto el teléfono matchea — nunca se pisa lo cargado, solo se completa.
+  // Si el teléfono deja de matchear (se borró o se corrigió), se desvincula
+  // para no asignar el turno al cliente equivocado; al guardar se crea uno
+  // nuevo con los datos que haya en pantalla en ese momento.
+  React.useEffect(() => {
+    if (matchedClient) {
+      if (clientId !== matchedClient.id) {
+        setClientId(matchedClient.id);
+        const fullName = matchedClient.full_name ?? matchedClient.name ?? "";
+        setClientFirstName(fullName.split(" ")[0] ?? "");
+        setClientLastName(fullName.split(" ").slice(1).join(" "));
+      }
+    } else if (clientId) {
+      setClientId("");
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchedClient]);
 
   const selectedService = React.useMemo(
     () => services.find((s) => s.id === serviceId || s.name === serviceName),
@@ -490,17 +485,9 @@ export function AppointmentDialog({
 
   const resetForAnother = () => {
     setClientId("");
-    setClientName("");
     setClientFirstName("");
     setClientLastName("");
     setClientPhone("");
-    setClientEmail("");
-    setClientBirth("");
-    setAcquisitionSource("");
-    setAcquisitionCustom("");
-    setClientSearch("");
-    setShowClientList(false);
-    setNewClientMode(false);
     setServiceId("");
     setServiceName("");
     setPrice(0);
@@ -510,40 +497,31 @@ export function AppointmentDialog({
     setStatus("pending");
   };
 
+  // Teléfono = identificador principal. Si ya hay un cliente vinculado
+  // (matchedClient, ver arriba) se reutiliza tal cual, sin tocar sus datos.
+  // Si no, se crea uno nuevo con SOLO teléfono + nombre/apellido — nunca se
+  // guardan mail, "cómo nos conoció" ni ningún otro campo inventado acá
+  // (quedan null, los completa la reserva pública si el cliente reserva
+  // online más adelante con el mismo teléfono).
   const createClientIfNeeded = async () => {
     if (clientId) return clientId;
 
-    const fullName = newClientMode
-      ? `${clientFirstName.trim()} ${clientLastName.trim()}`.trim()
-      : clientName.trim();
+    const phone = clientPhone.trim();
+    if (!phone) throw new Error("Ingresá el teléfono del cliente.");
 
-    if (!fullName) throw new Error("Indicá el cliente.");
-    if (newClientMode && (!clientFirstName.trim() || !clientLastName.trim())) {
-      throw new Error("Nombre y apellido son obligatorios para crear un cliente nuevo.");
-    }
-    if (newClientMode && !clientEmail.trim()) {
-      throw new Error("El email es obligatorio para crear un cliente nuevo.");
-    }
-    if (newClientMode && !acquisitionSource) {
-      throw new Error("Contanos cómo nos conoció el cliente.");
-    }
-    if (newClientMode && acquisitionChannelRequiresText(acquisitionSource) && !acquisitionCustom.trim()) {
-      throw new Error("Contanos dónde conoció el cliente.");
-    }
+    // Chequeo defensivo final contra la lista ya cargada — nunca crear un
+    // cliente duplicado para el mismo teléfono, aunque por alguna razón el
+    // efecto de matching de arriba no haya alcanzado a correr todavía.
+    const digits = phone.replace(/\D/g, "");
+    const existing = clients.find((c) => c.phone && c.phone.replace(/\D/g, "") === digits);
+    if (existing) return existing.id;
+
+    const fullName = `${clientFirstName.trim()} ${clientLastName.trim()}`.trim();
 
     const payload: Record<string, unknown> = {
       business_id: businessId,
-      full_name: fullName,
-      phone: clientPhone.trim() || null,
-      email: clientEmail.trim() || null,
-      birth_date: clientBirth.trim() || null,
-      ...(newClientMode
-        ? {
-            acquisition_source: acquisitionSource,
-            acquisition_source_custom: acquisitionChannelRequiresText(acquisitionSource) ? acquisitionCustom.trim() : null,
-            acquisition_captured_at: new Date().toISOString(),
-          }
-        : {}),
+      full_name: fullName || null,
+      phone,
     };
 
     const { data: newClient, error } = await supabase
@@ -567,9 +545,7 @@ export function AppointmentDialog({
     resolvedClientId: string,
     seriesId: string | null,
   ) => {
-    const fullClientName = newClientMode
-      ? `${clientFirstName.trim()} ${clientLastName.trim()}`.trim()
-      : clientName.trim();
+    const fullClientName = `${clientFirstName.trim()} ${clientLastName.trim()}`.trim() || clientPhone.trim();
     const mergedNotes = [notes.trim(), internalNotes.trim() ? `Observación interna: ${internalNotes.trim()}` : ""]
       .filter(Boolean)
       .join("\n");
@@ -643,16 +619,7 @@ export function AppointmentDialog({
   };
 
   const submit = async (addAnother = false, skipBreakConfirm = false) => {
-    const fullClientName = newClientMode
-      ? `${clientFirstName.trim()} ${clientLastName.trim()}`.trim()
-      : clientName.trim();
-
-    if (!fullClientName) return toast.error("Indicá el cliente.");
-    if (newClientMode && (!clientFirstName.trim() || !clientLastName.trim())) return toast.error("Nombre y apellido son obligatorios.");
-    if (newClientMode && !clientEmail.trim()) return toast.error("El email es obligatorio.");
-    if (newClientMode && !acquisitionSource) return toast.error("Contanos cómo nos conoció el cliente.");
-    if (newClientMode && acquisitionChannelRequiresText(acquisitionSource) && !acquisitionCustom.trim())
-      return toast.error("Contanos dónde conoció el cliente.");
+    if (!clientPhone.trim()) return toast.error("Ingresá el teléfono del cliente.");
     if (!employeeId) return toast.error("Elegí un profesional.");
     if (!serviceName.trim()) return toast.error("Elegí un servicio.");
     if (!dateValue || !hourValue || !minuteValue) return toast.error("Falta la fecha y hora.");
@@ -784,9 +751,7 @@ export function AppointmentDialog({
     setBusy(true);
     try {
       const resolvedClientId = await createClientIfNeeded();
-      const fullClientName = newClientMode
-        ? `${clientFirstName.trim()} ${clientLastName.trim()}`.trim()
-        : clientName.trim();
+      const fullClientName = `${clientFirstName.trim()} ${clientLastName.trim()}`.trim() || clientPhone.trim();
       const lastDate = repeatSummary.okDates[repeatSummary.okDates.length - 1];
 
       const { data: seriesRow, error: seriesError } = await supabase
@@ -825,23 +790,14 @@ export function AppointmentDialog({
   const hourOptions = Array.from({ length: 24 }, (_, i) => pad(i));
   const minuteOptions = Array.from({ length: 12 }, (_, i) => pad(i * 5));
 
-  const previewClientName = newClientMode
-    ? `${clientFirstName.trim()} ${clientLastName.trim()}`.trim()
-    : clientName.trim();
+  const previewClientName = `${clientFirstName.trim()} ${clientLastName.trim()}`.trim() || clientPhone.trim();
 
   // Misma validación que corre adentro de submit() (líneas de arriba), pero
   // acá en modo "lectura" para habilitar/deshabilitar el botón de forma
   // proactiva en vez de dejar que el usuario lo toque y recién ahí se
   // entere por un toast de qué le falta.
   const isFormValid =
-    !!previewClientName &&
-    (!newClientMode || (
-      !!clientFirstName.trim() &&
-      !!clientLastName.trim() &&
-      !!clientEmail.trim() &&
-      !!acquisitionSource &&
-      (!acquisitionChannelRequiresText(acquisitionSource) || !!acquisitionCustom.trim())
-    )) &&
+    !!clientPhone.trim() &&
     !!employeeId &&
     !!serviceName.trim() &&
     !!dateValue && !!hourValue && !!minuteValue;
@@ -933,95 +889,39 @@ export function AppointmentDialog({
             </section>
           )}
 
-          {/* Cliente */}
+          {/* Cliente — flujo interno simplificado: el teléfono es el dato
+              principal y dispara la búsqueda/reutilización automática del
+              cliente existente (ver matchedClient). Nombre/Apellido son los
+              únicos otros campos, ninguno obligatorio. Sin mail ni "cómo
+              nos conoció" acá — eso sigue siendo exclusivo de la reserva
+              pública. */}
           <section className="rounded-xl border border-white/10 bg-white/[0.02] p-3 space-y-3">
-            <div className="flex items-center justify-between gap-3">
-              <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Cliente</h3>
-              <button
-                type="button"
-                className="inline-flex h-7 items-center gap-1 rounded-lg bg-white/5 px-2.5 text-xs font-medium text-muted-foreground ring-1 ring-white/10 transition hover:bg-white/10 hover:text-foreground"
-                onClick={() => {
-                  if (newClientMode) {
-                    setNewClientMode(false);
-                  } else {
-                    setNewClientMode(true);
-                    setClientId("");
-                    setClientSearch("");
-                    setClientName("");
-                  }
-                }}
-              >
-                {newClientMode ? "Cancelar" : (<><UserPlus className="h-3.5 w-3.5" /> Nuevo</>)}
-              </button>
-            </div>
+            <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Cliente</h3>
 
-            {!newClientMode && (
-              <div className="grid gap-2">
-                {clientId ? (
-                  <div className="flex items-center gap-2 rounded-lg px-3 py-2.5 ring-1" style={{ background: "oklch(0.38 0.2 150 / 0.15)", boxShadow: "inset 0 0 0 1px oklch(0.76 0.2 150 / 0.3)" }}>
-                    <span className="text-sm font-semibold flex-1 text-foreground">{clientName}</span>
-                    {clientPhone && <span className="text-xs text-muted-foreground">{clientPhone}</span>}
-                    <button type="button" className="text-muted-foreground hover:text-foreground" onClick={() => { setClientId(""); setClientName(""); setClientPhone(""); setClientSearch(""); }}>
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-                    <Input
-                      className="pl-8 pr-8 h-9"
-                      placeholder="Buscar cliente…"
-                      value={clientSearch}
-                      onChange={(e) => { setClientSearch(e.target.value); setShowClientList(true); setClientId(""); setClientName(""); }}
-                      onFocus={() => setShowClientList(true)}
-                    />
-                    {clientSearch && (
-                      <button type="button" className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground" onClick={() => { setClientSearch(""); setClientName(""); setClientId(""); setShowClientList(false); }}>
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
-                )}
-
-                {showClientList && filteredClients.length > 0 && !clientId && (
-                  <div className="rounded-xl border border-white/10 bg-popover shadow-xl overflow-hidden max-h-40 overflow-y-auto">
-                    {filteredClients.map((c) => (
-                      <button key={c.id} type="button" className="w-full text-left px-3 py-2 hover:bg-white/[0.05] transition flex items-center gap-2 border-b border-white/5 last:border-0" onClick={() => pickClient(c)}>
-                        <div className="h-6 w-6 rounded-full bg-primary/20 ring-1 ring-primary/30 grid place-items-center text-[10px] font-semibold text-primary shrink-0">
-                          {(c.full_name ?? c.name ?? "?")[0]?.toUpperCase()}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="text-sm font-medium truncate">{c.full_name ?? c.name}</div>
-                          <div className="text-xs text-muted-foreground truncate">{[c.phone, c.email].filter(Boolean).join(" · ")}</div>
-                        </div>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-
-            {newClientMode && (
-              <div className="grid gap-2 rounded-lg bg-black/10 p-2.5 border border-white/10">
-                <div className="grid grid-cols-2 gap-2">
-                  <Input className="h-8 text-sm" value={clientFirstName} onChange={(e) => setClientFirstName(e.target.value)} placeholder="Nombre *" />
-                  <Input className="h-8 text-sm" value={clientLastName} onChange={(e) => setClientLastName(e.target.value)} placeholder="Apellido *" />
-                </div>
-                <Input className="h-8 text-sm" value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="Teléfono *" />
-                <Input className="h-8 text-sm" type="email" value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="Email *" />
-                <AcquisitionSourceField
-                  value={acquisitionSource}
-                  onChange={setAcquisitionSource}
-                  customValue={acquisitionCustom}
-                  onCustomChange={setAcquisitionCustom}
-                  questionLabel="¿Cómo nos conoció?"
-                  wrapperClassName="grid grid-cols-2 gap-2"
-                  labelClassName="text-[10px] uppercase tracking-[0.16em] text-muted-foreground"
-                  triggerClassName="h-8 text-sm"
-                  inputClassName="h-8 text-sm"
+            <div className="grid gap-2">
+              <div className="relative">
+                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                <Input
+                  className="pl-8 h-9"
+                  type="tel"
+                  value={clientPhone}
+                  onChange={(e) => setClientPhone(e.target.value)}
+                  placeholder="Teléfono *"
                 />
               </div>
-            )}
+
+              {matchedClient && (
+                <div className="flex items-center gap-1.5 text-xs text-emerald-300">
+                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                  Cliente existente — datos completados automáticamente
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-2">
+                <Input className="h-8 text-sm" value={clientFirstName} onChange={(e) => setClientFirstName(e.target.value)} placeholder="Nombre" />
+                <Input className="h-8 text-sm" value={clientLastName} onChange={(e) => setClientLastName(e.target.value)} placeholder="Apellido" />
+              </div>
+            </div>
           </section>
 
           {/* Servicio (y Profesional, solo cuando hay más de uno para elegir) */}
