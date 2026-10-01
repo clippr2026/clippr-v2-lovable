@@ -12,6 +12,26 @@ import { BranchSelector } from "@/components/branch-selector";
 import { ServiceImage } from "@/components/ui/service-image";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/use-auth";
+import {
+  type CierreMetodoDetalle,
+  type CajaEvento,
+  cajaEventosArray,
+  appendCajaEvento,
+  cleanCajaEventosForDisplay,
+  isCajaCerradaRow,
+  isCajaReabiertaRow,
+  cajaDateKey,
+  cajaTimeLabel,
+  cajaHoraDisplay,
+  cajaEventTimeToMinutes,
+  sortCajaEventos,
+  getCajaLastEvent,
+  getCajaFirstEvent,
+  buildCierreSnapshotForDate,
+  findPendingCierre,
+  closeCierreForDate,
+  normalizeCierreMethodKey,
+} from "@/lib/caja-cierre";
 import { supabase } from "@/integrations/supabase/client";
 import {
   useCajaData,
@@ -660,6 +680,10 @@ function CashRegisterPage() {
     "ingresos" | "pendientes" | "gastos"
   >("ingresos");
   const [reopeningCaja, setReopeningCaja] = useState(false);
+  // Caja vencida: día anterior con actividad que nunca se cerró. null =
+  // no hay nada pendiente (caja al día). Nunca se cierra solo — ver
+  // findPendingCierre/closeCierreForDate.
+  const [pendingCierre, setPendingCierre] = useState<{ date: string; cierreId: string | null } | null>(null);
 
   React.useEffect(() => {
     if (search.depositAppointmentId && search.depositAmount) {
@@ -686,39 +710,32 @@ function CashRegisterPage() {
 
     let cancelled = false;
 
-    autoCloseExpiredCajaSession({
-      businessId: data.businessId,
-      userEmail: session.user.email ?? session.user.id,
-    })
-      .then(async (result) => {
-        if (cancelled) return;
-        if (result.closed) {
-          setCajaCerrada(true);
-          setShowClosedHistory(false);
-          setPendingToCharge(null);
-          setResumenPanel("ingresos");
-          setTab("resumen");
-          await data.refresh();
-          return;
-        }
-        // No hubo un auto-cierre recién ahora, pero la caja puede ya estar
-        // cerrada de antes (cierre manual seguido de un refresh de página) —
-        // `cajaCerrada` es estado local en memoria, así que sin este chequeo
-        // se perdía al recargar y la pantalla volvía a mostrar "Caja abierta".
-        const { data: todayCierre } = await supabase
-          .from("caja_cierres" as any)
-          .select("estado")
-          .eq("business_id", data.businessId)
-          .eq("fecha", cajaDateKey())
-          .maybeSingle();
-        if (!cancelled && isCajaCerradaRow(todayCierre)) setCajaCerrada(true);
-      })
-      .catch((error) => console.warn(error));
+    (async () => {
+      // La caja YA NO se cierra sola — solo se chequea si hoy ya está
+      // cerrada (cierre manual seguido de un refresh de página; `cajaCerrada`
+      // es estado local en memoria, sin esto se perdía al recargar) y si
+      // quedó algún día anterior sin cerrar ("Caja vencida").
+      let todayQuery = supabase
+        .from("caja_cierres" as any)
+        .select("estado")
+        .eq("business_id", data.businessId)
+        .eq("fecha", cajaDateKey());
+      if (data.activeBranchId) todayQuery = todayQuery.eq("branch_id", data.activeBranchId);
+      const { data: todayCierre } = await todayQuery.maybeSingle();
+      if (!cancelled && isCajaCerradaRow(todayCierre)) setCajaCerrada(true);
+
+      try {
+        const pending = await findPendingCierre(data.businessId, data.activeBranchId);
+        if (!cancelled) setPendingCierre(pending);
+      } catch (error) {
+        console.warn(error);
+      }
+    })();
 
     return () => {
       cancelled = true;
     };
-  }, [data.businessId, session?.user?.id]);
+  }, [data.businessId, data.activeBranchId, session?.user?.id]);
 
   function handleCobrarPendiente(
     appt: ReturnType<typeof useCajaData>["pendingCharges"][number],
@@ -739,10 +756,12 @@ function CashRegisterPage() {
     setReopeningCaja(true);
 
     try {
-      const { data: lastCierre, error } = await supabase
+      let lastCierreQuery = supabase
         .from("caja_cierres" as any)
         .select("id,eventos,estado")
-        .eq("business_id", data.businessId)
+        .eq("business_id", data.businessId);
+      if (data.activeBranchId) lastCierreQuery = lastCierreQuery.eq("branch_id", data.activeBranchId);
+      const { data: lastCierre, error } = await lastCierreQuery
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
@@ -6295,421 +6314,8 @@ function ApprovalMode({
 
 // ─────────── Cierre de caja ──────────────────────────────────────────────────
 
-type CierreMetodoDetalle = {
-  ingresos: number;
-  gastos: number;
-  utilidad: number;
-};
-
-type CajaEvento = {
-  tipo?: string | null;
-  fecha_hora?: string | null;
-  hora?: string | null;
-  usuario?: string | null;
-  observacion?: string | null;
-  motivo?: string | null;
-  [key: string]: unknown;
-};
-
-function cajaEventosArray(value: unknown): CajaEvento[] {
-  return Array.isArray(value) ? (value as CajaEvento[]) : [];
-}
-
-function appendCajaEvento(
-  prevEventos: unknown,
-  evento: CajaEvento,
-): CajaEvento[] {
-  return [...cajaEventosArray(prevEventos), evento];
-}
-
-function cleanCajaEventosForDisplay(events: CajaEvento[]): CajaEvento[] {
-  const cleaned: CajaEvento[] = [];
-
-  for (const event of events) {
-    const previous = cleaned[cleaned.length - 1];
-    const sameAsPrevious =
-      previous &&
-      previous.tipo === event.tipo &&
-      previous.hora === event.hora &&
-      previous.usuario === event.usuario &&
-      (previous.observacion ?? null) === (event.observacion ?? null) &&
-      (previous.motivo ?? null) === (event.motivo ?? null);
-
-    if (!sameAsPrevious) cleaned.push(event);
-  }
-
-  return cleaned;
-}
-
-function isCajaCerradaRow(cierre: any) {
-  return String(cierre?.estado ?? "").toLowerCase() === "cerrada";
-}
-
-function isCajaReabiertaRow(cierre: any) {
-  return String(cierre?.estado ?? "").toLowerCase() === "reabierta";
-}
-
-function cajaDateKey(date = new Date()) {
-  return date.toLocaleDateString("sv-SE");
-}
-
-function cajaTimeLabel(date = new Date()) {
-  return (
-    date.toLocaleTimeString("es-AR", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }) + "hs"
-  );
-}
-
-function cajaHoraDisplay(value?: string | null) {
-  const raw = String(value ?? "").trim();
-  if (!raw || raw === "—") return "—";
-  const direct = raw.match(/^(\d{1,2}):(\d{2})/);
-  if (direct) return `${direct[1].padStart(2, "0")}:${direct[2]}hs`;
-
-  const ampm = raw.match(/^(\d{1,2}):(\d{2})\s*(a\.?\s*m\.?|p\.?\s*m\.?)$/i);
-  if (ampm) {
-    let h = Number(ampm[1]);
-    const min = ampm[2];
-    const suffix = ampm[3].toLowerCase();
-    if (suffix.includes("p") && h < 12) h += 12;
-    if (suffix.includes("a") && h === 12) h = 0;
-    return `${String(h).padStart(2, "0")}:${min}hs`;
-  }
-
-  return raw.replace(/\s*a\.\s*m\.?/i, "hs").replace(/\s*p\.\s*m\.?/i, "hs");
-}
-
-function cajaEventTimeToMinutes(value?: string | null) {
-  const raw = String(value ?? "").trim();
-  const match = raw.match(/^(\d{1,2}):(\d{2})/);
-  if (!match) return 0;
-  return Number(match[1]) * 60 + Number(match[2]);
-}
-
-function sortCajaEventos(events: CajaEvento[]) {
-  return [...events].sort((a, b) => {
-    const at = String(a.fecha_hora ?? "");
-    const bt = String(b.fecha_hora ?? "");
-    if (at && bt) return at.localeCompare(bt);
-    return cajaEventTimeToMinutes(a.hora) - cajaEventTimeToMinutes(b.hora);
-  });
-}
-
-function getCajaLastEvent(cierre: any, tipo?: string) {
-  const events = sortCajaEventos(cajaEventosArray(cierre?.eventos));
-  const filtered = tipo ? events.filter((event) => event.tipo === tipo) : events;
-  return filtered[filtered.length - 1] ?? null;
-}
-
-function getCajaFirstEvent(cierre: any, tipo?: string) {
-  const events = sortCajaEventos(cajaEventosArray(cierre?.eventos));
-  return (tipo ? events.find((event) => event.tipo === tipo) : events[0]) ?? null;
-}
-
-function cierreNeedsAutomaticClose(cierre: any, today = cajaDateKey()) {
-  if (!cierre?.id) return false;
-  if (!isCajaReabiertaRow(cierre)) return false;
-  const fecha = String(cierre?.fecha ?? "").slice(0, 10);
-  return Boolean(fecha && fecha < today);
-}
-
-// Snapshot financiero de un día puntual (no necesariamente hoy) — se usa para
-// armar el registro de un cierre automático de un día que nunca se cerró,
-// con exactamente la misma forma de datos que guarda un cierre manual
-// (ver CierreCajaBtn.confirmar), para que el detalle del historial funcione
-// igual sea cual sea el tipo de cierre.
-async function buildCierreSnapshotForDate(businessId: string, dateStr: string) {
-  const dayStart = new Date(`${dateStr}T00:00:00`);
-  const dayEnd = new Date(`${dateStr}T23:59:59.999`);
-
-  const [payRes, expRes] = await Promise.allSettled([
-    supabase
-      .from("payments")
-      .select(
-        "id,total,amount,method,payment_method,client_name,service_name,created_at,employee_id,charged_by,charge_type",
-      )
-      .eq("business_id", businessId)
-      .gte("created_at", dayStart.toISOString())
-      .lte("created_at", dayEnd.toISOString()),
-    supabase
-      .from("expenses")
-      .select("id,name,amount,type,category,payment_method,date,note,created_at,user_name,created_by")
-      .eq("business_id", businessId)
-      .eq("date", dateStr),
-  ]);
-
-  const payments =
-    payRes.status === "fulfilled" && !payRes.value.error ? ((payRes.value.data ?? []) as any[]) : [];
-  const expenses =
-    expRes.status === "fulfilled" && !expRes.value.error ? ((expRes.value.data ?? []) as any[]) : [];
-
-  const totalCobrado = payments.reduce((s, p) => s + Number(p.total ?? p.amount ?? 0), 0);
-  const totalGastos = expenses.reduce((s, e) => s + Number(e.amount ?? 0), 0);
-  const utilidad = totalCobrado - totalGastos;
-
-  const detalleMetodos: Record<string, CierreMetodoDetalle> = {};
-  const ensure = (method: string | null | undefined) => {
-    const key = normalizeCierreMethodKey(method);
-    if (!detalleMetodos[key]) detalleMetodos[key] = { ingresos: 0, gastos: 0, utilidad: 0 };
-    return detalleMetodos[key];
-  };
-  for (const p of payments) {
-    ensure(p.method ?? p.payment_method).ingresos += Number(p.total ?? p.amount ?? 0);
-  }
-  for (const e of expenses) {
-    ensure(e.payment_method ?? e.method).gastos += Number(e.amount ?? 0);
-  }
-  Object.values(detalleMetodos).forEach((row) => {
-    row.utilidad = row.ingresos - row.gastos;
-  });
-
-  const cobrosSnapshot = payments.map((p) => ({
-    id: p.id,
-    hora: p.created_at
-      ? new Date(p.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
-      : null,
-    cliente: p.client_name ?? null,
-    profesional: p.employee_name ?? p.professional_name ?? null,
-    servicio: p.service_name ?? null,
-    metodo: p.method ?? p.payment_method ?? null,
-    monto: Number(p.total ?? p.amount ?? 0),
-    usuario: p.charged_by ?? p.created_by ?? null,
-  }));
-
-  const gastosSnapshot = expenses.map((e) => ({
-    id: e.id,
-    hora: e.created_at
-      ? new Date(e.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
-      : null,
-    nombre: e.name ?? e.concept ?? e.category ?? "Gasto",
-    tipo: e.type ?? e.category ?? null,
-    metodo: e.payment_method ?? e.method ?? null,
-    monto: Number(e.amount ?? 0),
-    nota: e.note ?? null,
-    usuario: e.user_name ?? e.created_by ?? null,
-  }));
-
-  // Pendientes no tienen una fecha de "creado ese día" reconstruible con
-  // precisión (no hay columna de fecha en la cola de Pendientes, ver
-  // useCajaData) — este snapshot es del estado ACTUAL al momento del
-  // cierre automático (que corre al otro día, al volver a abrir Caja), no
-  // una reconstrucción histórica exacta de cómo estaba a medianoche.
-  const [apptRes, bsRes] = await Promise.allSettled([
-    supabase
-      .from("appointments")
-      .select("id,client_name,service_name,service_price,starts_at,notes,status")
-      .eq("business_id", businessId)
-      .ilike("notes", "%[PENDIENTE_CAJA]%")
-      .not("status", "in", "(charged,cancelled,blocked)"),
-    supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle(),
-  ]);
-  const pendingAppts = apptRes.status === "fulfilled" && !apptRes.value.error ? ((apptRes.value.data ?? []) as any[]) : [];
-  const bsSchedule = (bsRes.status === "fulfilled" && !bsRes.value.error ? (bsRes.value.data?.schedule ?? {}) : {}) as Record<string, unknown>;
-  const walkInPending = (Array.isArray(bsSchedule._pendingWalkInSales) ? (bsSchedule._pendingWalkInSales as any[]) : [])
-    .filter((w) => w.status !== "rechazado");
-
-  const pendientesDetalle = [
-    ...pendingAppts.map((a) => ({
-      id: a.id,
-      cliente: a.client_name ?? null,
-      servicio: a.service_name ?? null,
-      monto: Number(a.service_price ?? 0),
-      hora_envio: a.starts_at ? new Date(a.starts_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }) : null,
-    })),
-    ...walkInPending.map((w) => ({
-      id: w.id,
-      cliente: w.client_name ?? null,
-      servicio: w.service_name ?? null,
-      monto: Number(w.service_price ?? 0),
-      hora_envio: w.starts_at ? new Date(w.starts_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }) : null,
-    })),
-  ];
-  const pendientesMonto = pendientesDetalle.reduce((s, p) => s + p.monto, 0);
-
-  return {
-    totalCobrado,
-    totalGastos,
-    utilidad,
-    detalleMetodos,
-    cobrosSnapshot,
-    gastosSnapshot,
-    cantidadCobros: payments.length,
-    hadActivity: payments.length > 0 || expenses.length > 0,
-    pendientesCount: pendientesDetalle.length,
-    pendientesMonto,
-    pendientesDetalle,
-  };
-}
-
-async function autoCloseExpiredCajaSession({
-  businessId,
-  userEmail,
-}: {
-  businessId: string | null;
-  userEmail?: string | null;
-}) {
-  if (!businessId) return { closed: false };
-
-  const today = cajaDateKey();
-  const { data: lastCierre, error } = await supabase
-    .from("caja_cierres" as any)
-    .select("*")
-    .eq("business_id", businessId)
-    .order("fecha", { ascending: false })
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  if (error) throw error;
-
-  // Caso 1: una caja REABIERTA (ver reabrirCaja) que se dejó abierta y ya
-  // pasó su día — se vuelve a cerrar, manteniendo la fecha original del
-  // registro (el día que corresponde cerrar), con tipo "automático".
-  if (cierreNeedsAutomaticClose(lastCierre, today)) {
-    const autoDate = new Date(`${today}T00:00:00`);
-    const evento: CajaEvento = {
-      tipo: "cierre",
-      modo: "automatico",
-      fecha_hora: autoDate.toISOString(),
-      hora: "00:00hs",
-      usuario: "Automático",
-      observacion: "Cierre automático de fin de día.",
-    };
-
-    const { data: updated, error: updateError } = await supabase
-      .from("caja_cierres" as any)
-      .update({
-        estado: "cerrada",
-        tipo_cierre: "automatico",
-        hora_cierre: "00:00hs",
-        closed_by: "Automático",
-        usuario_nombre: "Automático",
-        observacion: (lastCierre as any).observacion ?? "Cierre automático de fin de día.",
-        eventos: appendCajaEvento((lastCierre as any).eventos, evento),
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", (lastCierre as any).id)
-      .eq("business_id", businessId)
-      .eq("estado", "reabierta")
-      .select("id")
-      .maybeSingle();
-
-    if (updateError) throw updateError;
-    if (updated?.id) {
-      window.dispatchEvent(new CustomEvent("clippr:caja-cierre-guardado"));
-      return { closed: true };
-    }
-  }
-
-  // Caso 2: la caja nunca se cerró (ni manual ni automáticamente) el día de
-  // ayer — la "Caja abierta" de siempre, sin ningún cierre registrado. Se
-  // cierra ahora, ya pasada la medianoche, para que hoy arranque limpio.
-  // Si ayer ya tiene un registro "cerrada" (manual o automático), no se
-  // toca: así nunca se duplica ni se pisa un cierre manual del día.
-  // Nota de alcance: esto retrocede solo UN día (ayer) por corrida — si la
-  // Caja no se abre varios días seguidos, al volver a entrar se cierra el
-  // día inmediato anterior, no cada día salteado.
-  const yesterday = cajaDateKey(new Date(Date.now() - 24 * 60 * 60 * 1000));
-  const { data: yesterdayCierre, error: yError } = await supabase
-    .from("caja_cierres" as any)
-    .select("id,eventos,estado")
-    .eq("business_id", businessId)
-    .eq("fecha", yesterday)
-    .maybeSingle();
-  if (yError) throw yError;
-
-  if (!isCajaCerradaRow(yesterdayCierre)) {
-    const snapshot = await buildCierreSnapshotForDate(businessId, yesterday);
-    // Un negocio que nunca usó Caja (sin cierres previos ni actividad ayer)
-    // no debe generar un cierre "automático" vacío de la nada.
-    if (lastCierre?.id || snapshot.hadActivity) {
-      const evento: CajaEvento = {
-        tipo: "cierre",
-        modo: "automatico",
-        fecha_hora: new Date(`${yesterday}T23:59:59`).toISOString(),
-        hora: "00:00hs",
-        usuario: "Automático",
-        observacion: "Cierre automático de fin de día.",
-        pendientes_count: snapshot.pendientesCount,
-        pendientes_monto: snapshot.pendientesMonto,
-        pendientes_detalle: snapshot.pendientesDetalle,
-      };
-      const payload = {
-        business_id: businessId,
-        fecha: yesterday,
-        hora_cierre: "00:00hs",
-        usuario_nombre: "Automático",
-        closed_by: "Automático",
-        tipo_cierre: "automatico",
-        estado: "cerrada",
-        observacion: "Cierre automático de fin de día.",
-        total_cobrado: snapshot.totalCobrado,
-        total_gastos: snapshot.totalGastos,
-        utilidad: snapshot.utilidad,
-        cantidad_cobros: snapshot.cantidadCobros,
-        detalle_metodos_pago: snapshot.detalleMetodos,
-        cobros_snapshot: snapshot.cobrosSnapshot,
-        gastos_snapshot: snapshot.gastosSnapshot,
-        eventos: appendCajaEvento((yesterdayCierre as any)?.eventos, evento),
-        updated_at: new Date().toISOString(),
-      };
-
-      const query = (yesterdayCierre as any)?.id
-        ? supabase
-            .from("caja_cierres" as any)
-            .update(payload)
-            .eq("id", (yesterdayCierre as any).id)
-            .eq("business_id", businessId)
-            .neq("estado", "cerrada")
-            .select("id")
-            .maybeSingle()
-        : supabase.from("caja_cierres" as any).insert(payload).select("id").maybeSingle();
-
-      const { data: savedYesterday, error: saveError } = await query;
-      if (saveError) throw saveError;
-      if (savedYesterday?.id) {
-        window.dispatchEvent(new CustomEvent("clippr:caja-cierre-guardado"));
-        return { closed: true };
-      }
-    }
-  }
-
-  return { closed: false };
-}
-
 function paymentMethodLabel(method: string) {
   return PAY_METHOD_LABEL[method as PayMethod] ?? method ?? "Sin método";
-}
-
-// `payments.method` guarda claves en inglés ("cash", "transfer", "card",
-// "mp"...) pero `expenses.payment_method` guarda texto en español
-// ("efectivo", "transferencia", "débito", "crédito", "mercado pago"...).
-// Si se agrupa el desglose por método usando la clave cruda, "cash" y
-// "efectivo" terminan como DOS filas separadas (una solo con ingresos,
-// otra solo con gastos) aunque ambas se vean como "Efectivo" en pantalla.
-// Esta función normaliza cualquiera de los dos vocabularios a la misma
-// clave canónica (la que ya usa PAY_METHOD_LABEL) antes de agrupar.
-function normalizeCierreMethodKey(method: string | null | undefined): string {
-  const raw = String(method || "").trim().toLowerCase();
-  if (!raw) return "cash";
-  const stripped = raw.normalize("NFD").replace(/[̀-ͯ]/g, "");
-  if (stripped === "cash" || stripped === "efectivo") return "cash";
-  if (stripped === "transfer" || stripped === "transferencia") return "transfer";
-  if (
-    stripped === "card" ||
-    stripped === "tarjeta" ||
-    stripped === "debito" ||
-    stripped === "credito"
-  )
-    return "card";
-  if (stripped === "mp" || stripped === "mercado pago" || stripped === "mercadopago")
-    return "mp";
-  if (stripped === "qr") return "qr";
-  if (stripped === "cuenta") return "cuenta";
-  return raw;
 }
 
 function CierreCajaBtn({
@@ -6717,6 +6323,7 @@ function CierreCajaBtn({
   expensesToday,
   pendingCharges,
   businessId,
+  branchId,
   userEmail,
   onCajaCerrada,
 }: {
@@ -6724,6 +6331,7 @@ function CierreCajaBtn({
   expensesToday: ReturnType<typeof useCajaData>["expensesToday"];
   pendingCharges: ReturnType<typeof useCajaData>["pendingCharges"];
   businessId: string | null;
+  branchId: string | null;
   userEmail: string | null;
   onCajaCerrada: () => void;
 }) {
@@ -6846,12 +6454,13 @@ function CierreCajaBtn({
         pendientes_detalle: pendientesSnapshot,
       };
 
-      const { data: existing } = await supabase
+      let existingQuery = supabase
         .from("caja_cierres" as any)
         .select("id,eventos,estado")
         .eq("business_id", businessId)
-        .eq("fecha", today)
-        .maybeSingle();
+        .eq("fecha", today);
+      if (branchId) existingQuery = existingQuery.eq("branch_id", branchId);
+      const { data: existing } = await existingQuery.maybeSingle();
 
       if (existing?.id && isCajaCerradaRow(existing)) {
         toast.info("La caja ya está cerrada");
@@ -6862,6 +6471,7 @@ function CierreCajaBtn({
 
       const payload = {
         business_id: businessId,
+        branch_id: branchId,
         fecha: today,
         hora_cierre: hora,
         usuario_id: null,
@@ -7067,6 +6677,7 @@ function CierresTab({
   onCajaCerrada: () => void;
   onCajaReopened: () => void;
 }) {
+  const { activeBranchId } = useAuth();
   const [cierres, setCierres] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<any | null>(null);
@@ -7113,23 +6724,21 @@ function CierresTab({
       return;
     }
     setLoading(true);
-    autoCloseExpiredCajaSession({ businessId, userEmail })
-      .catch((error) => console.warn(error))
-      .finally(() => {
-        supabase
-          .from("caja_cierres" as any)
-          .select("*")
-          .eq("business_id", businessId)
-          .order("fecha", { ascending: false })
-          .order("updated_at", { ascending: false })
-          .limit(90)
-          .then(({ data, error }) => {
-            if (error) toast.error(error.message);
-            setCierres(data ?? []);
-            setLoading(false);
-          });
+    let query = supabase
+      .from("caja_cierres" as any)
+      .select("*")
+      .eq("business_id", businessId);
+    if (activeBranchId) query = query.eq("branch_id", activeBranchId);
+    query
+      .order("fecha", { ascending: false })
+      .order("updated_at", { ascending: false })
+      .limit(90)
+      .then(({ data, error }) => {
+        if (error) toast.error(error.message);
+        setCierres(data ?? []);
+        setLoading(false);
       });
-  }, [businessId]);
+  }, [businessId, activeBranchId]);
 
   useEffect(() => {
     loadCierres();
@@ -7412,6 +7021,7 @@ function CierresTab({
                     expensesToday={expensesToday}
                     pendingCharges={pendingCharges}
                     businessId={businessId}
+                    branchId={activeBranchId}
                     userEmail={userEmail}
                     onCajaCerrada={() => {
                       onCajaCerrada();

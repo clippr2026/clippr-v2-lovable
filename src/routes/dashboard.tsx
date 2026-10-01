@@ -1,4 +1,5 @@
 import * as React from "react";
+import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
@@ -12,12 +13,17 @@ import {
   type DashboardData,
   type RecentCancellation,
 } from "@/components/dashboard/use-dashboard-data";
+import { useCajaHoy } from "@/components/dashboard/use-caja-hoy";
 import {
   DollarSign,
   ArrowDownCircle,
   Wallet,
   XCircle,
   ChevronDown,
+  Plus,
+  Minus,
+  AlertTriangle,
+  Loader2,
 } from "lucide-react";
 import {
   AreaChart,
@@ -37,7 +43,7 @@ import { ClipprLoader } from "@/components/ui/clippr-loader";
 export const Route = createFileRoute("/dashboard")({
   head: () => ({
     meta: [
-      { title: "Dashboard — Clippr" },
+      { title: "Inicio — Clippr" },
       { name: "description", content: "Panel premium para barberías y salones." },
     ],
   }),
@@ -68,7 +74,7 @@ function DashboardRoute() {
   return (
     <AppShell containedScroll>
       {/* Oculto en mobile: el banner de sección debajo del header ya dice
-          "Dashboard" (ver MobileSectionBanner) — repetirlo acá era
+          "Inicio" (ver MobileSectionBanner) — repetirlo acá era
           redundante y le sacaba alto útil a la pantalla. En desktop no hay
           banner, así que el título sigue siendo la única referencia. */}
       <h1 className="mb-2 hidden font-display text-[1.65rem] leading-tight sm:text-3xl font-semibold tracking-tight lg:block">
@@ -90,7 +96,8 @@ function localDateStr(d: Date): string {
 }
 
 function DashboardContent({ businessId }: { businessId: string | null }) {
-  const { activeBranchId } = useAuth();
+  const { activeBranchId, session } = useAuth();
+  const userEmail = session?.user?.email ?? session?.user?.id ?? null;
   const todayStr = React.useMemo(() => localDateStr(new Date()), []);
   const [fromStr, setFromStr] = React.useState(todayStr);
   const [toStr, setToStr] = React.useState(todayStr);
@@ -108,6 +115,9 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
 
   const { data, isLoading, error } = useDashboardData(businessId, range ?? null, activeBranchId);
   const [activeMetric, setActiveMetric] = React.useState<"ingresos"|"gastos"|"utilidad">("ingresos");
+  // "Caja de hoy" — independiente del rango de fechas elegido arriba
+  // (siempre sobre HOY, nunca sobre un rango arbitrario).
+  const cajaHoy = useCajaHoy(businessId, activeBranchId);
 
   const setQuickRange = (days: number) => {
     const to = new Date();
@@ -168,6 +178,7 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
   return (
     <div className="dashboard-premium-shell space-y-3 animate-fade-in-safe">
       {dateBar}
+      <CajaHoyCard caja={cajaHoy} userEmail={userEmail} />
       {/* Top stat cards */}
       <section className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
         <Stat
@@ -278,6 +289,153 @@ const TONE = {
     stroke: "rgb(255 255 255 / 0.4)",
   },
 } as const;
+
+function fechaCortaLabel(fecha: string) {
+  return new Date(`${fecha}T12:00:00`).toLocaleDateString("es-AR", {
+    day: "numeric",
+    month: "short",
+  });
+}
+
+function CajaHoyCard({
+  caja,
+  userEmail,
+}: {
+  caja: ReturnType<typeof useCajaHoy>;
+  userEmail: string | null;
+}) {
+  const [movModal, setMovModal] = React.useState<"ingreso" | "retiro" | null>(null);
+  const [amount, setAmount] = React.useState("");
+  const [note, setNote] = React.useState("");
+  const [saving, setSaving] = React.useState(false);
+  const [closingVencida, setClosingVencida] = React.useState(false);
+
+  async function confirmMovement() {
+    const value = Number(amount);
+    if (!movModal || !value || value <= 0) {
+      toast.error("Ingresá un monto válido");
+      return;
+    }
+    setSaving(true);
+    try {
+      await caja.registerMovement(movModal, value, note, userEmail);
+      toast.success(movModal === "ingreso" ? "Efectivo ingresado" : "Efectivo retirado");
+      setMovModal(null);
+      setAmount("");
+      setNote("");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function confirmCerrarVencida() {
+    if (!userEmail) return;
+    setClosingVencida(true);
+    try {
+      await caja.closeVencida(userEmail);
+      toast.success("Caja vencida cerrada");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setClosingVencida(false);
+    }
+  }
+
+  return (
+    <div className="glass rounded-2xl p-4 sm:p-5 ring-1 ring-white/5">
+      {caja.pendingCierre ? (
+        <div className="mb-3 flex flex-col gap-2 rounded-xl bg-amber-400/10 px-3 py-2.5 ring-1 ring-amber-400/25 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-2 text-sm font-medium text-amber-200">
+            <AlertTriangle className="h-4 w-4 shrink-0" />
+            Caja del {fechaCortaLabel(caja.pendingCierre.date)} sin cerrar
+          </div>
+          <button
+            type="button"
+            onClick={confirmCerrarVencida}
+            disabled={closingVencida}
+            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-amber-400/20 px-3 py-1.5 text-xs font-semibold text-amber-100 ring-1 ring-amber-400/30 transition hover:bg-amber-400/30 disabled:opacity-50"
+          >
+            {closingVencida ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
+            Cerrar caja vencida
+          </button>
+        </div>
+      ) : null}
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div>
+          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+            Caja de hoy
+          </div>
+          <div className="mt-1 text-2xl font-display font-semibold tracking-tight">
+            {caja.loading ? "—" : fmtAR(caja.cashExpected)}
+          </div>
+          <div className="mt-0.5 text-xs text-muted-foreground">Efectivo esperado en caja</div>
+        </div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setMovModal("ingreso")}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-white/5 px-3 py-2 text-xs font-semibold ring-1 ring-white/10 transition hover:bg-white/10"
+          >
+            <Plus className="h-3.5 w-3.5" /> Ingresar
+          </button>
+          <button
+            type="button"
+            onClick={() => setMovModal("retiro")}
+            className="inline-flex items-center gap-1.5 rounded-xl bg-white/5 px-3 py-2 text-xs font-semibold ring-1 ring-white/10 transition hover:bg-white/10"
+          >
+            <Minus className="h-3.5 w-3.5" /> Retirar
+          </button>
+        </div>
+      </div>
+
+      {movModal ? (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4" onClick={() => setMovModal(null)}>
+          <div
+            className="w-full max-w-sm rounded-2xl border border-white/10 bg-zinc-900 p-6"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="font-semibold text-foreground">
+              {movModal === "ingreso" ? "Ingresar efectivo" : "Retirar efectivo"}
+            </h3>
+            <label className="mt-4 block text-[11px] text-muted-foreground">Monto</label>
+            <input
+              autoFocus
+              type="number"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-3 text-xl font-bold text-center text-foreground focus:outline-none focus:border-violet-400/50"
+            />
+            <label className="mt-3 block text-[11px] text-muted-foreground">Nota (opcional)</label>
+            <input
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Ej: Cambio para el día"
+              className="mt-1 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-foreground focus:outline-none focus:border-violet-400/50"
+            />
+            <div className="mt-4 flex gap-2">
+              <button
+                disabled={saving}
+                onClick={confirmMovement}
+                className="flex-1 rounded-lg bg-gradient-to-b from-violet-500 to-blue-500 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                {saving ? "Guardando…" : "Confirmar"}
+              </button>
+              <button
+                onClick={() => setMovModal(null)}
+                className="rounded-lg border border-white/10 px-4 py-2.5 text-sm text-muted-foreground"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function Stat({
   label,

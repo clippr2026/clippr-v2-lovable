@@ -488,7 +488,7 @@ const MAIN_PERMISSION_ITEMS: {
 }[] = [
   {
     key: "dashboard",
-    label: "Dashboard",
+    label: "Inicio",
     desc: "Métricas generales del negocio.",
   },
   { key: "agenda", label: "Agenda", desc: "Turnos, calendario y reservas." },

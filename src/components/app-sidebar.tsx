@@ -38,7 +38,7 @@ const ALL_NAV: Array<{
   permKey?: PermKey;
   badge?: string;
 }> = [
-  { label: "Dashboard", to: "/dashboard", icon: LayoutDashboard, permKey: "dashboard" },
+  { label: "Inicio", to: "/dashboard", icon: LayoutDashboard, permKey: "dashboard" },
   { label: "Agenda", to: "/agenda", icon: Calendar, permKey: "agenda" },
   { label: "Caja", to: "/cash-register", icon: Wallet, permKey: "caja" },
   { label: "Profesionales", to: "/professionals", icon: UserCog, permKey: "profesionales" },
