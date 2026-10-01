@@ -1,7 +1,7 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
-import { CalendarOff, X, Plus, Trash2, AlertTriangle } from "lucide-react";
+import { CalendarOff, ChevronRight, X, Plus, Trash2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { DateRangePicker } from "@/components/date-range-picker";
 import {
@@ -49,23 +49,26 @@ export function ClosuresButton({
       <button
         type="button"
         onClick={() => setOpen(true)}
+        aria-haspopup="dialog"
         className={cn(
+          "cursor-pointer select-none transition-all hover:brightness-125 hover:ring-2 active:scale-95 active:brightness-110 focus-visible:outline-none focus-visible:ring-2",
           compact
-            ? "flex h-full w-full flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 text-center transition-all active:brightness-110"
-            : "inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-0.5 text-xs font-medium transition-all hover:brightness-110",
+            ? "flex h-full w-full flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 text-center"
+            : "inline-flex shrink-0 items-center gap-1 rounded-lg px-2 py-0.5 text-xs font-medium",
         )}
         style={{
           background: "rgba(248, 113, 113, 0.12)",
           boxShadow: "0 0 0 1px rgba(248, 113, 113, 0.3)",
           color: "#FCA5A5",
         }}
-        title="Cierres de la sucursal"
+        title="Gestionar cierres de la sucursal — click para abrir"
       >
         <span className={compact ? "font-semibold tabular-nums text-sm leading-none" : "font-semibold tabular-nums text-sm"}>
           {upcoming.length}
         </span>
-        <span className={compact ? "text-[10px] leading-tight opacity-80 truncate max-w-full" : "opacity-80"}>
+        <span className={cn("opacity-80", compact ? "text-[10px] leading-tight truncate max-w-full" : "inline-flex items-center gap-0.5")}>
           Cierres
+          {!compact && <ChevronRight className="h-3 w-3 opacity-60" />}
         </span>
       </button>
 
