@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, type PermKey } from "@/hooks/use-auth";
 import { ROLE_LABEL_BY_ID } from "@/components/settings/equipo-section";
+import { BranchSelector } from "@/components/branch-selector";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -696,7 +697,10 @@ function MobileSectionBanner() {
   return (
     <div
       key={pathname}
-      className="lg:hidden sticky top-12 z-30 flex items-center gap-2 border-b border-white/[0.08] px-4 py-3 backdrop-blur-sm"
+      // top-[84px] = altura del header (h-12 = 48px) + franja del selector
+      // de sucursal (h-9 = 36px) — ver la franja en AppSidebar, justo
+      // arriba de este banner en el DOM.
+      className="lg:hidden sticky top-[84px] z-30 flex items-center gap-2 border-b border-white/[0.08] px-4 py-3 backdrop-blur-sm"
       style={{
         background: "linear-gradient(90deg, oklch(0.24 0.06 292 / 0.55), oklch(0.09 0.02 280 / 0.88))",
         boxShadow: "0 10px 28px -22px oklch(0.65 0.24 290 / 0.6)",
@@ -723,11 +727,30 @@ export function AppSidebar() {
 
           {/* Right cluster */}
           <div className="ml-auto flex items-center gap-2">
+            {/* Selector de sucursal — único en toda la app, siempre visible.
+                Cerca del perfil/menú de usuario en desktop (ver spec: "cerca
+                del nombre/logo o del perfil"). Con 1 sola sucursal muestra
+                solo el nombre (sin dropdown) — mismo componente que ya usa
+                la página pública. */}
+            <div className="hidden lg:block">
+              <BranchSelector />
+            </div>
             <PublicSiteMenu />
             <UserMenu />
           </div>
         </div>
       </header>
+
+      {/* Mobile: selector de sucursal, franja chica (h-9, altura fija — ver
+          MOBILE_BRANCH_BAR_PX) y siempre visible, debajo del header —
+          independiente de MobileSectionBanner (que se oculta en algunas
+          rutas sin permiso/banner) para que el contexto de sucursal nunca
+          desaparezca. MobileSectionBanner suma esta altura a su propio
+          offset para no superponerse (dos sticky con el mismo `top` se
+          pisan, no se apilan solos). */}
+      <div className="lg:hidden sticky top-12 z-30 flex h-9 items-center justify-center border-b border-white/[0.06] bg-black/95 backdrop-blur-sm">
+        <BranchSelector />
+      </div>
 
       <MobileSectionBanner />
       <MobileBottomNav />

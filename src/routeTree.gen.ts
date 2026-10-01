@@ -31,6 +31,8 @@ import { Route as AdvisorRouteImport } from './routes/advisor'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ReservarSlugRouteImport } from './routes/reservar/$slug'
 import { Route as NegocioSlugRouteImport } from './routes/negocio/$slug'
+import { Route as FicharBranchIdRouteImport } from './routes/fichar/$branchId'
+import { Route as FichajeKioscoBranchIdRouteImport } from './routes/fichaje-kiosco/$branchId'
 
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
@@ -143,6 +145,16 @@ const NegocioSlugRoute = NegocioSlugRouteImport.update({
   path: '/negocio/$slug',
   getParentRoute: () => rootRouteImport,
 } as any)
+const FicharBranchIdRoute = FicharBranchIdRouteImport.update({
+  id: '/fichar/$branchId',
+  path: '/fichar/$branchId',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const FichajeKioscoBranchIdRoute = FichajeKioscoBranchIdRouteImport.update({
+  id: '/fichaje-kiosco/$branchId',
+  path: '/fichaje-kiosco/$branchId',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -165,6 +177,8 @@ export interface FileRoutesByFullPath {
   '/services': typeof ServicesRoute
   '/set-password': typeof SetPasswordRoute
   '/settings': typeof SettingsRoute
+  '/fichaje-kiosco/$branchId': typeof FichajeKioscoBranchIdRoute
+  '/fichar/$branchId': typeof FicharBranchIdRoute
   '/negocio/$slug': typeof NegocioSlugRoute
   '/reservar/$slug': typeof ReservarSlugRoute
 }
@@ -189,6 +203,8 @@ export interface FileRoutesByTo {
   '/services': typeof ServicesRoute
   '/set-password': typeof SetPasswordRoute
   '/settings': typeof SettingsRoute
+  '/fichaje-kiosco/$branchId': typeof FichajeKioscoBranchIdRoute
+  '/fichar/$branchId': typeof FicharBranchIdRoute
   '/negocio/$slug': typeof NegocioSlugRoute
   '/reservar/$slug': typeof ReservarSlugRoute
 }
@@ -214,6 +230,8 @@ export interface FileRoutesById {
   '/services': typeof ServicesRoute
   '/set-password': typeof SetPasswordRoute
   '/settings': typeof SettingsRoute
+  '/fichaje-kiosco/$branchId': typeof FichajeKioscoBranchIdRoute
+  '/fichar/$branchId': typeof FicharBranchIdRoute
   '/negocio/$slug': typeof NegocioSlugRoute
   '/reservar/$slug': typeof ReservarSlugRoute
 }
@@ -240,6 +258,8 @@ export interface FileRouteTypes {
     | '/services'
     | '/set-password'
     | '/settings'
+    | '/fichaje-kiosco/$branchId'
+    | '/fichar/$branchId'
     | '/negocio/$slug'
     | '/reservar/$slug'
   fileRoutesByTo: FileRoutesByTo
@@ -264,6 +284,8 @@ export interface FileRouteTypes {
     | '/services'
     | '/set-password'
     | '/settings'
+    | '/fichaje-kiosco/$branchId'
+    | '/fichar/$branchId'
     | '/negocio/$slug'
     | '/reservar/$slug'
   id:
@@ -288,6 +310,8 @@ export interface FileRouteTypes {
     | '/services'
     | '/set-password'
     | '/settings'
+    | '/fichaje-kiosco/$branchId'
+    | '/fichar/$branchId'
     | '/negocio/$slug'
     | '/reservar/$slug'
   fileRoutesById: FileRoutesById
@@ -313,6 +337,8 @@ export interface RootRouteChildren {
   ServicesRoute: typeof ServicesRoute
   SetPasswordRoute: typeof SetPasswordRoute
   SettingsRoute: typeof SettingsRoute
+  FichajeKioscoBranchIdRoute: typeof FichajeKioscoBranchIdRoute
+  FicharBranchIdRoute: typeof FicharBranchIdRoute
   NegocioSlugRoute: typeof NegocioSlugRoute
   ReservarSlugRoute: typeof ReservarSlugRoute
 }
@@ -473,6 +499,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof NegocioSlugRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/fichar/$branchId': {
+      id: '/fichar/$branchId'
+      path: '/fichar/$branchId'
+      fullPath: '/fichar/$branchId'
+      preLoaderRoute: typeof FicharBranchIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/fichaje-kiosco/$branchId': {
+      id: '/fichaje-kiosco/$branchId'
+      path: '/fichaje-kiosco/$branchId'
+      fullPath: '/fichaje-kiosco/$branchId'
+      preLoaderRoute: typeof FichajeKioscoBranchIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -498,6 +538,8 @@ const rootRouteChildren: RootRouteChildren = {
   ServicesRoute: ServicesRoute,
   SetPasswordRoute: SetPasswordRoute,
   SettingsRoute: SettingsRoute,
+  FichajeKioscoBranchIdRoute: FichajeKioscoBranchIdRoute,
+  FicharBranchIdRoute: FicharBranchIdRoute,
   NegocioSlugRoute: NegocioSlugRoute,
   ReservarSlugRoute: ReservarSlugRoute,
 }

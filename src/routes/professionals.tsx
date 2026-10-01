@@ -2050,9 +2050,30 @@ function StatsView({
   // sobre el estado de la venta. Esa es la fuente real: professional_payouts
   // (mismos datos que "Historial de pagos"), no el array de ventas.
   const { data: payouts = [], isLoading: payoutsLoading } = useProfPayments(businessId, empId, validFrom, validTo);
+
+  // Descuento por tardanza (fichaje) — cuenta corriente real, no se filtra
+  // por rango, mismo criterio que "pagado"/"pendiente" de arriba. Nunca
+  // genera un pendiente negativo: se resta hasta $0, nunca más allá.
+  const [descuentoTardanza, setDescuentoTardanza] = React.useState(0);
+  React.useEffect(() => {
+    if (!businessId || !empId) { setDescuentoTardanza(0); return; }
+    let cancelled = false;
+    supabase
+      .from("lateness_discounts" as any)
+      .select("discount_amount_applied")
+      .eq("business_id", businessId)
+      .eq("employee_id", empId)
+      .then(({ data }) => {
+        if (cancelled) return;
+        const total = ((data ?? []) as any[]).reduce((s, d) => s + Number(d.discount_amount_applied ?? 0), 0);
+        setDescuentoTardanza(total);
+      });
+    return () => { cancelled = true; };
+  }, [businessId, empId]);
+
   const loading = enrichedLoading || payoutsLoading;
   const pagado = payouts.reduce((s, p) => s + Number(p.amount ?? 0), 0);
-  const pendienteMonto = Math.max(0, comision - pagado);
+  const pendienteMonto = Math.max(0, comision - pagado - descuentoTardanza);
 
   const salesForDesglose: ProfSale[] = React.useMemo(
     () => cobradas.map(r => ({
@@ -2103,6 +2124,11 @@ function StatsView({
             <span className="text-3xl font-display font-light tracking-tight">{loading ? "—" : pendienteMonto.toLocaleString("es-AR")}</span>
           </div>
           <div className="mt-1 text-[11px] text-emerald-300">{!loading && pendienteMonto === 0 ? "✓ al día" : ""}</div>
+          {!loading && descuentoTardanza > 0 ? (
+            <div className="mt-1 text-[11px] text-rose-300">
+              Incluye -${descuentoTardanza.toLocaleString("es-AR")} por tardanza
+            </div>
+          ) : null}
         </div>
       </div>
 

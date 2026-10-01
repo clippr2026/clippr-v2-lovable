@@ -3,7 +3,6 @@ import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
-import { BranchSelector } from "@/components/branch-selector";
 import { useAuth } from "@/hooks/use-auth";
 import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
 import { DateRangePicker } from "@/components/date-range-picker";
@@ -154,7 +153,6 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
           setToStr(to);
         }}
       />
-      <BranchSelector className="sm:ml-auto" />
     </div>
   );
 

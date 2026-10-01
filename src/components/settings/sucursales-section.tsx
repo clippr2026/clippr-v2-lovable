@@ -1,5 +1,6 @@
 import * as React from "react";
-import { Building2, Plus, Loader2 } from "lucide-react";
+import { Building2, Plus, Loader2, ScanLine } from "lucide-react";
+import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { SectionCard, Field, inputCls, Toggle, reportSaveStatus } from "@/components/settings/shared";
@@ -79,6 +80,15 @@ export function SucursalesSection() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
+                  <Link
+                    to="/fichaje-kiosco/$branchId"
+                    params={{ branchId: b.id }}
+                    target="_blank"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-white/5 px-2.5 py-1.5 text-xs font-medium text-muted-foreground ring-1 ring-white/10 transition hover:text-foreground hover:bg-white/10"
+                  >
+                    <ScanLine className="size-3.5" />
+                    Kiosco de fichaje
+                  </Link>
                   <span className="text-xs text-muted-foreground">
                     {b.is_active ? "Activa" : "Inactiva"}
                   </span>

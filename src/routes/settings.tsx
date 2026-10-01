@@ -61,7 +61,7 @@ import { BrandingSection } from "@/components/settings/branding-section";
 import { HorariosSection } from "@/components/settings/horarios-section";
 import { EquipoSection } from "@/components/settings/equipo-section";
 import { SucursalesSection } from "@/components/settings/sucursales-section";
-import { BranchSelector } from "@/components/branch-selector";
+import { ReglasTardanzaSection } from "@/components/settings/reglas-tardanza-section";
 import { ServiciosSection, CatalogoSection } from "@/components/settings/price-catalog-section";
 import { PromotionsSection } from "@/components/settings/promotions-section";
 import { CuentaSection } from "@/components/settings/cuenta-section";
@@ -90,6 +90,7 @@ type SectionId =
   | "catalogo"
   | "promociones"
   | "sucursales"
+  | "tardanza"
   | "cuenta"
   | "plan";
 
@@ -163,6 +164,13 @@ const groups: { label: string; items: NavItem[] }[] = [
         icon: Building2,
         tint: "text-[oklch(0.8_0.14_240)]",
         glow: "from-[oklch(0.8_0.14_240/0.25)] to-[oklch(0.68_0.18_255/0.05)]",
+      },
+      {
+        id: "tardanza" as const,
+        label: "Reglas de tardanza",
+        icon: AlarmClock,
+        tint: "text-[oklch(0.78_0.18_50)]",
+        glow: "from-[oklch(0.78_0.18_50/0.25)] to-[oklch(0.7_0.2_30/0.05)]",
       },
       {
         id: "cuenta" as const,
@@ -296,7 +304,7 @@ function SettingsPage() {
           <Topbar
             title="Configuración"
             subtitle="Tu negocio"
-            action={<BranchSelector />}
+            action={null}
           />
         </div>
         <div className="app-premium-shell -mt-3 sm:-mt-4 lg:-mt-5">
@@ -403,6 +411,7 @@ function SettingsPage() {
                 {active === "catalogo" && <CatalogoSection />}
                 {active === "promociones" && <PromotionsSection />}
                 {active === "sucursales" && <SucursalesSection />}
+                {active === "tardanza" && <ReglasTardanzaSection />}
                 {active === "cuenta" && <CuentaSection />}
                 {active === "plan" && <PlanSection />}
               </section>

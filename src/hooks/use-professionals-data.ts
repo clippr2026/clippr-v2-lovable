@@ -23,6 +23,10 @@ export type ProfStats = {
   pagado: number;
   pendiente: number;
   ventasCount: number;
+  // Total descontado por tardanza (fichaje) — ya restado de `pendiente`,
+  // se expone aparte para mostrarlo como línea de detalle, nunca un
+  // número oculto.
+  descuentoTardanza: number;
 };
 
 export type ProfPayment = {
@@ -101,12 +105,12 @@ export function useProfStats(
     queryKey: ["prof-stats", businessId, empId, from, to],
     queryFn: async (): Promise<ProfStats> => {
       if (!from || !to || isNaN(new Date(from).getTime()) || isNaN(new Date(to).getTime())) {
-        return { facturacion: 0, comision: 0, pagado: 0, pendiente: 0, ventasCount: 0 };
+        return { facturacion: 0, comision: 0, pagado: 0, pendiente: 0, ventasCount: 0, descuentoTardanza: 0 };
       }
       const fromISO = from + "T00:00:00";
       const toISO = to + "T23:59:59";
 
-      const [{ data: pays }, { data: commissions }, { data: settlements }, { data: legacyPayouts }] =
+      const [{ data: pays }, { data: commissions }, { data: settlements }, { data: legacyPayouts }, { data: latenessDiscounts }] =
         await Promise.all([
           supabase
             .from("payments")
@@ -134,11 +138,25 @@ export function useProfStats(
             .eq("employee_id", empId!)
             .gte("date", from)
             .lte("date", to),
+          // Fichaje → tardanza: igual que `pendiente` (comentario arriba),
+          // es cuenta corriente real, no se filtra por rango.
+          supabase
+            .from("lateness_discounts" as any)
+            .select("discount_amount_applied")
+            .eq("business_id", businessId!)
+            .eq("employee_id", empId!),
         ]);
 
       const facturacion = (pays ?? []).reduce((s, p) => s + Number(p.total ?? p.amount ?? 0), 0);
       const allCommissions = (commissions ?? []) as Array<{ amount: number; pending_amount: number; sale_date: string }>;
-      const pendiente = allCommissions.reduce((s, c) => s + Number(c.pending_amount ?? 0), 0);
+      const descuentoTardanza = ((latenessDiscounts ?? []) as any[]).reduce(
+        (s, d) => s + Number(d.discount_amount_applied ?? 0),
+        0,
+      );
+      const pendiente = Math.max(
+        0,
+        allCommissions.reduce((s, c) => s + Number(c.pending_amount ?? 0), 0) - descuentoTardanza,
+      );
       const comision = allCommissions
         .filter((c) => c.sale_date >= from && c.sale_date <= to)
         .reduce((s, c) => s + Number(c.amount ?? 0), 0);
@@ -152,6 +170,7 @@ export function useProfStats(
         pagado,
         pendiente,
         ventasCount: (pays ?? []).length,
+        descuentoTardanza,
       };
     },
     enabled: !!businessId && !!empId,

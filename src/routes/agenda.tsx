@@ -42,7 +42,6 @@ import { RejectedClientsButton, RejectedClientCaptureModal } from "@/components/
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
-import { BranchSelector } from "@/components/branch-selector";
 
 /**
  * Stable callback identity that always invokes the latest closure.
@@ -1231,14 +1230,6 @@ function AgendaPage() {
             >
               <ChevronRight className="h-4 w-4" />
             </button>
-          </div>
-
-          {/* Selector de sucursal — solo desktop/tablet por ahora (el filtro
-              de Agenda móvil queda para una fase posterior). Con 1 sola
-              sucursal se ve como texto fijo, sin dropdown. */}
-          <div className="hidden sm:block h-5 w-px bg-white/10 shrink-0" />
-          <div className="hidden sm:flex shrink-0">
-            <BranchSelector />
           </div>
 
           {/* Calendario oscuro — popover para saltar a cualquier fecha */}
