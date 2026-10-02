@@ -2,7 +2,7 @@ import * as React from "react";
 import { toast } from "sonner";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuth, type Branch } from "@/hooks/use-auth";
 import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
 import {
   useDashboardData,
@@ -90,8 +90,20 @@ function localDateStr(d: Date): string {
 }
 
 function DashboardContent({ businessId }: { businessId: string | null }) {
-  const { activeBranchId, session } = useAuth();
+  const { activeBranchId, branches, branchesLoading, session } = useAuth();
   const userEmail = session?.user?.email ?? session?.user?.id ?? null;
+  // Fichaje de jornada: nunca debe pedir elegir sucursal si hay una sola
+  // ACTIVA — se usa esa directo, sin depender de que activeBranchId (el
+  // selector global, que puede apuntar a cualquier fila sin filtrar por
+  // is_active) ya haya resuelto a la misma. Con 2+ activas sí hace falta
+  // elegir (ver FichajeHoyCard, que arma su propio selector acotado a
+  // sucursales activas). Con 0 activas no hay nada que fichar.
+  const activeBranches = React.useMemo(
+    () => branches.filter((b) => b.is_active),
+    [branches],
+  );
+  const fichajeBranchId =
+    activeBranches.length === 1 ? activeBranches[0].id : activeBranchId;
   // Inicio ya no tiene selector de rango — es una mirada rápida de HOY,
   // el detalle completo (con su propio rango) vive en Caja. `range` queda
   // fijo al día de hoy, recalculado solo si el día cambia con la pestaña
@@ -106,7 +118,7 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
   const { data, isLoading, error } = useDashboardData(businessId, range, activeBranchId);
   const cajaHoy = useCajaHoy(businessId, activeBranchId);
   const inicioWidgets = useInicioWidgets(businessId, activeBranchId);
-  const fichajeHoy = useFichajeHoy(businessId, activeBranchId);
+  const fichajeHoy = useFichajeHoy(businessId, fichajeBranchId);
 
   if (!businessId) {
     return (
@@ -135,7 +147,12 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
   return (
     <div className="dashboard-premium-shell space-y-3 animate-fade-in-safe">
       <CajaHoyCard caja={cajaHoy} data={data} userEmail={userEmail} />
-      <FichajeHoyCard fichaje={fichajeHoy} branchId={activeBranchId} />
+      <FichajeHoyCard
+        fichaje={fichajeHoy}
+        branchId={fichajeBranchId}
+        activeBranches={activeBranches}
+        branchesLoading={branchesLoading}
+      />
 
       {/* Próximos turnos + Actividad reciente */}
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-3">
@@ -397,24 +414,58 @@ function diaYHoraCorta(iso: string) {
 function FichajeHoyCard({
   fichaje,
   branchId,
+  activeBranches,
+  branchesLoading,
 }: {
   fichaje: ReturnType<typeof useFichajeHoy>;
   branchId: string | null;
+  activeBranches: Branch[];
+  branchesLoading: boolean;
 }) {
-  const { branches } = useAuth();
+  const { setActiveBranchId } = useAuth();
   const [qrOpen, setQrOpen] = React.useState(false);
-  const branchName = branches.find((b) => b.id === branchId)?.name ?? "";
+  const branchName = activeBranches.find((b) => b.id === branchId)?.name ?? "";
+  // Selector propio (no <BranchSelector/>, que incluye inactivas): fichar
+  // en una sucursal desactivada no tiene sentido, así que acá solo se
+  // eligen entre las activas. Con 0 o 1 nunca se muestra — ver abajo.
+  const needsPicker = activeBranches.length >= 2;
+
+  // Un solo placeholder a la vez, en orden de prioridad — nunca "Elegí una
+  // sucursal" mientras todavía no se sabe cuántas hay (branchesLoading) ni
+  // cuando hay 0 o 1 (ahí no hay nada para elegir).
+  const placeholder = branchesLoading
+    ? "Cargando…"
+    : activeBranches.length === 0
+      ? "No hay sucursales activas. Activá una en Configuración → Sucursales para poder fichar."
+      : needsPicker && !branchId
+        ? "Elegí una sucursal."
+        : fichaje.loading || !fichaje.summary || !branchId
+          ? "Cargando…"
+          : null;
 
   return (
     <div className="glass rounded-2xl p-4 sm:p-5 ring-1 ring-white/5">
-      <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-        <ScanLine className="h-4 w-4 text-emerald-300" />
-        Fichaje de jornada
-      </div>
-      {fichaje.loading || !fichaje.summary || !branchId ? (
-        <div className="mt-3 text-sm text-muted-foreground">
-          {branchId ? "Cargando…" : "Elegí una sucursal."}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
+          <ScanLine className="h-4 w-4 text-emerald-300" />
+          Fichaje de jornada
         </div>
+        {needsPicker && (
+          <select
+            value={branchId ?? ""}
+            onChange={(e) => setActiveBranchId(e.target.value)}
+            className="h-8 min-w-0 appearance-none rounded-lg border border-white/10 bg-white/[0.04] px-2.5 text-xs font-semibold text-white outline-none transition hover:border-white/20 focus:border-violet-300/40 focus:ring-2 focus:ring-violet-400/15"
+          >
+            {activeBranches.map((b) => (
+              <option key={b.id} value={b.id}>
+                {b.name}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+      {placeholder || !fichaje.summary || !branchId ? (
+        <div className="mt-3 text-sm text-muted-foreground">{placeholder ?? "Cargando…"}</div>
       ) : (
         <div className="mt-3 flex flex-col gap-4 sm:flex-row">
           {/* QR visible directo, sin tocar nada — click opcional para

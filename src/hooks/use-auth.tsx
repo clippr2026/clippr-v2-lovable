@@ -113,6 +113,12 @@ type AuthState = {
   // señal que usa <BranchSelector/> para mostrar texto fijo en vez de un
   // dropdown — nunca un desplegable innecesario con una sola sucursal.
   branches: Branch[];
+  // true mientras branches todavía no resolvió (fetch inicial en curso, no
+  // esperado por `loading` general — ver hydrate). Los consumidores que
+  // necesitan distinguir "todavía no sé cuántas sucursales hay" de "ya sé
+  // que hay cero" (ej. FichajeHoyCard) lo usan para no mostrar un estado
+  // vacío de forma prematura durante ese instante.
+  branchesLoading: boolean;
   activeBranchId: string | null;
   setActiveBranchId: (id: string) => void;
   reloadBranches: () => Promise<void>;
@@ -301,6 +307,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [rolePermissions, setRolePermissions] = React.useState<Record<string, Record<string, boolean>> | null>(null);
   const [teamPermissions, setTeamPermissions] = React.useState<Record<PermKey, boolean> | null>(null);
   const [branches, setBranches] = React.useState<Branch[]>([]);
+  const [branchesLoading, setBranchesLoading] = React.useState(true);
   const [activeBranchId, setActiveBranchIdState] = React.useState<string | null>(null);
 
   // Ref con la sesión actual, siempre al día (a diferencia del `session` de
@@ -332,9 +339,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // ESTE negocio, si no la primera de la lista — así un negocio con una
   // sola sucursal nunca queda con activeBranchId en null.
   const loadBranches = React.useCallback(async (bizId: string | null) => {
+    setBranchesLoading(true);
     if (!bizId) {
       setBranches([]);
       setActiveBranchIdState(null);
+      setBranchesLoading(false);
       return;
     }
     const { data, error } = await supabase
@@ -348,6 +357,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       console.warn("[AUTH] branches fetch:", error.message);
       setBranches([]);
       setActiveBranchIdState(null);
+      setBranchesLoading(false);
       return;
     }
     const rows = (data ?? []) as Branch[];
@@ -355,6 +365,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const saved = localStorage.getItem(activeBranchStorageKey(bizId));
     const stillValid = saved && rows.some((b) => b.id === saved);
     setActiveBranchIdState(stillValid ? saved : (rows[0]?.id ?? null));
+    setBranchesLoading(false);
   }, []);
 
   const reloadBranches = React.useCallback(async () => {
@@ -390,6 +401,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setTeamPermissions(null);
       setBranches([]);
       setActiveBranchIdState(null);
+      setBranchesLoading(false);
     }
     setLoading(false);
   }, [loadBranches]);
@@ -444,6 +456,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setTeamPermissions(null);
         setBranches([]);
         setActiveBranchIdState(null);
+        setBranchesLoading(false);
         setLoading(false);
         return;
       }
@@ -527,6 +540,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     rolePermissions,
     reloadRolePermissions,
     branches,
+    branchesLoading,
     activeBranchId,
     setActiveBranchId,
     reloadBranches,
