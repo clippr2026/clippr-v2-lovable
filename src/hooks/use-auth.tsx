@@ -19,7 +19,7 @@ export const ROLE_DEFAULTS: Record<string, Record<PermKey, boolean>> = {
   socio: { ...ALL_TRUE_PERMS, plan: false },
   admin_local: { ...ALL_TRUE_PERMS, plan: false, asesor_ia: false },
   recepcionista: {
-    ...ALL_TRUE_PERMS, dashboard: false, profesionales: false, configuracion: false,
+    ...ALL_TRUE_PERMS, profesionales: false, configuracion: false,
     branding: false, horarios: false, equipo: false, servicios: false, catalogo: false,
     config_caja: false, senas: false, plan: false, asesor_ia: false,
   },

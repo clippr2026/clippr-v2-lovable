@@ -523,7 +523,7 @@ const DEFAULT_ROLE_PERMISSIONS: RolePermissions = {
     "caja_cobro",
     "clientes",
   ]),
-  recepcionista: buildPermissions(["agenda", "caja_cobro", "clientes"]),
+  recepcionista: buildPermissions(["dashboard", "agenda", "caja_cobro", "clientes"]),
   profesional: buildPermissions(["panel_profesionales"]),
 };
 

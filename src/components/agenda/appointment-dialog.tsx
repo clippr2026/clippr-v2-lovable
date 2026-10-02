@@ -18,10 +18,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Loader2, CalendarDays, Repeat2,
-  Scissors, UserPlus, UserRound, Clock3, Phone, CheckCircle2 } from "lucide-react";
+  Scissors, UserPlus, UserRound, Clock3, Phone, CheckCircle2, Search, X, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
+import { searchClientsLite, type ClientLiteResult } from "@/components/cash-register/use-caja-data";
 import {
   saveAppointment,
   checkOverlap,
@@ -219,6 +220,98 @@ function AppointmentDatePicker({ value, onChange }: { value: string; onChange: (
   );
 }
 
+// Buscador de cliente existente para el bloque Cliente de Nueva/Editar
+// reserva — mismo patrón (búsqueda server-side debounced vía
+// searchClientsLite, trigram) que ya usa Caja al cobrar. Nombre, teléfono
+// o email; acá solo se muestran nombre + teléfono (acápite sin mail en
+// este flujo interno).
+function ClientPicker({
+  value,
+  onChange,
+  onPick,
+  businessId,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onPick: (c: ClientLiteResult) => void;
+  businessId: string | null;
+}) {
+  const q = value.trim().toLowerCase();
+  const hasQuery = q.length >= 1;
+  const [matches, setMatches] = React.useState<ClientLiteResult[]>([]);
+  const [searching, setSearching] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!businessId || !hasQuery) {
+      setMatches([]);
+      setSearching(false);
+      return;
+    }
+    let cancelled = false;
+    setSearching(true);
+    const timer = setTimeout(async () => {
+      const res = await searchClientsLite(businessId, value, 6);
+      if (cancelled) return;
+      setMatches(res);
+      setSearching(false);
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, businessId]);
+
+  return (
+    <div className="space-y-1.5">
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+        <Input
+          className="pl-8 pr-8 h-9"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder="Buscar cliente por teléfono, nombre o apellido"
+        />
+        {value && (
+          <button
+            type="button"
+            onClick={() => onChange("")}
+            className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+
+      {hasQuery && (
+        <div className="rounded-lg border border-white/10 bg-white/[0.02] overflow-hidden max-h-[180px] overflow-y-auto">
+          {searching ? (
+            <div className="px-3 py-2 text-xs text-muted-foreground text-center">Buscando…</div>
+          ) : matches.length === 0 ? (
+            <div className="px-3 py-2 text-xs text-muted-foreground text-center">
+              No encontramos clientes con ese dato.
+            </div>
+          ) : (
+            matches.map((c) => (
+              <button
+                key={c.id}
+                type="button"
+                onClick={() => onPick(c)}
+                className="w-full text-left px-3 py-2 hover:bg-white/[0.05] flex items-center justify-between gap-2 border-b border-white/5 last:border-0 transition-colors"
+              >
+                <span className="truncate text-sm text-foreground">{c.name}</span>
+                {c.phone && (
+                  <span className="text-xs text-muted-foreground tabular-nums shrink-0">{c.phone}</span>
+                )}
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function AppointmentDialog({
   open,
   onOpenChange,
@@ -280,6 +373,13 @@ export function AppointmentDialog({
   const [clientPhone, setClientPhone] = React.useState("");
   const [clientFirstName, setClientFirstName] = React.useState("");
   const [clientLastName, setClientLastName] = React.useState("");
+  // Buscar cliente / Agregar cliente — ver sección Cliente más abajo:
+  // primero se busca entre los existentes, los campos de alta (Teléfono/
+  // Nombre/Apellido, los tres obligatorios) solo aparecen si se toca
+  // "Agregar cliente", y se ocultan de nuevo en cuanto hay un clientId
+  // (seleccionado desde la búsqueda o auto-detectado por teléfono).
+  const [clientSearchQuery, setClientSearchQuery] = React.useState("");
+  const [showNewClientForm, setShowNewClientForm] = React.useState(false);
 
   const [employeeId, setEmployeeId] = React.useState<string>("");
   const [serviceId, setServiceId] = React.useState<string>("");
@@ -337,6 +437,11 @@ export function AppointmentDialog({
       // clientes ya cargada por el cliente vinculado, para que el campo
       // (ahora el identificador principal) no arranque vacío al editar.
       setClientPhone(clients.find((c) => c.id === appointment.client_id)?.phone ?? "");
+      setClientSearchQuery("");
+      // Turno viejo sin cliente vinculado (solo client_name de texto): abre
+      // el alta directo para no esconder el nombre que ya tenía cargado
+      // detrás de un clic extra de "Agregar cliente".
+      setShowNewClientForm(!appointment.client_id);
       setEmployeeId(appointment.employee_id ?? "");
       setServiceId("");
       setServiceName(appointment.service_name ?? "");
@@ -354,6 +459,8 @@ export function AppointmentDialog({
       setClientPhone("");
       setClientFirstName("");
       setClientLastName("");
+      setClientSearchQuery("");
+      setShowNewClientForm(false);
       setEmployeeId(defaultEmployeeId ?? employees[0]?.id ?? "");
       setServiceId("");
       setServiceName("");
@@ -407,6 +514,39 @@ export function AppointmentDialog({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [matchedClient]);
+
+  // Elegir un cliente existente desde "Buscar cliente": lo vincula y cierra
+  // (o nunca llega a abrir) el formulario de alta — nunca duplicar un
+  // cliente que ya se está usando. Si se venía tipeando uno nuevo, se
+  // descarta ese borrador para no mezclar datos de dos personas distintas.
+  const pickExistingClient = (c: ClientLiteResult) => {
+    setClientId(c.id);
+    setClientPhone(c.phone ?? "");
+    setClientFirstName((c.name ?? "").split(" ")[0] ?? "");
+    setClientLastName((c.name ?? "").split(" ").slice(1).join(" "));
+    setShowNewClientForm(false);
+    setClientSearchQuery("");
+  };
+
+  // "Agregar cliente": recién acá se despliegan Teléfono/Nombre/Apellido.
+  const startNewClient = () => {
+    setShowNewClientForm(true);
+    setClientId("");
+    setClientPhone("");
+    setClientFirstName("");
+    setClientLastName("");
+  };
+
+  // Volver a buscar — deshace tanto un cliente ya elegido como un alta a
+  // medio completar.
+  const clearClientSelection = () => {
+    setClientId("");
+    setClientPhone("");
+    setClientFirstName("");
+    setClientLastName("");
+    setShowNewClientForm(false);
+    setClientSearchQuery("");
+  };
 
   const selectedService = React.useMemo(
     () => services.find((s) => s.id === serviceId || s.name === serviceName),
@@ -490,6 +630,8 @@ export function AppointmentDialog({
     setClientFirstName("");
     setClientLastName("");
     setClientPhone("");
+    setClientSearchQuery("");
+    setShowNewClientForm(false);
     setServiceId("");
     setServiceName("");
     setPrice(0);
@@ -623,7 +765,11 @@ export function AppointmentDialog({
   };
 
   const submit = async (addAnother = false, skipBreakConfirm = false) => {
-    if (!clientPhone.trim()) return toast.error("Ingresá el teléfono del cliente.");
+    if (!clientId) {
+      if (!clientPhone.trim()) return toast.error("Ingresá el teléfono del cliente.");
+      if (!clientFirstName.trim()) return toast.error("Ingresá el nombre del cliente.");
+      if (!clientLastName.trim()) return toast.error("Ingresá el apellido del cliente.");
+    }
     if (!employeeId) return toast.error("Elegí un profesional.");
     if (!serviceName.trim()) return toast.error("Elegí un servicio.");
     if (!dateValue || !hourValue || !minuteValue) return toast.error("Falta la fecha y hora.");
@@ -801,7 +947,9 @@ export function AppointmentDialog({
   // proactiva en vez de dejar que el usuario lo toque y recién ahí se
   // entere por un toast de qué le falta.
   const isFormValid =
-    !!clientPhone.trim() &&
+    (clientId
+      ? true
+      : !!clientPhone.trim() && !!clientFirstName.trim() && !!clientLastName.trim()) &&
     !!employeeId &&
     !!serviceName.trim() &&
     !!dateValue && !!hourValue && !!minuteValue;
@@ -893,39 +1041,82 @@ export function AppointmentDialog({
             </section>
           )}
 
-          {/* Cliente — flujo interno simplificado: el teléfono es el dato
-              principal y dispara la búsqueda/reutilización automática del
-              cliente existente (ver matchedClient). Nombre/Apellido son los
-              únicos otros campos, ninguno obligatorio. Sin mail ni "cómo
-              nos conoció" acá — eso sigue siendo exclusivo de la reserva
-              pública. */}
-          <section className="rounded-xl border border-white/10 bg-white/[0.02] p-3 space-y-3">
+          {/* Cliente — buscar primero entre los existentes (teléfono/nombre/
+              apellido); "Agregar cliente" recién ahí despliega el alta
+              (Teléfono/Nombre/Apellido, los tres obligatorios). Elegir un
+              cliente existente oculta el alta — nunca se muestran los dos
+              a la vez, para no duplicar. El teléfono sigue siendo el
+              identificador principal: si matchea uno existente mientras se
+              está dando de alta (matchedClient), se vincula solo. Sin mail
+              ni "cómo nos conoció" acá — eso sigue siendo exclusivo de la
+              reserva pública. */}
+          <section className="rounded-xl border border-white/10 bg-white/[0.02] p-3 space-y-2.5">
             <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Cliente</h3>
 
-            <div className="grid gap-2">
-              <div className="relative">
-                <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
-                <Input
-                  className="pl-8 h-9"
-                  type="tel"
-                  value={clientPhone}
-                  onChange={(e) => setClientPhone(e.target.value)}
-                  placeholder="Teléfono *"
-                />
-              </div>
-
-              {matchedClient && (
-                <div className="flex items-center gap-1.5 text-xs text-emerald-300">
-                  <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-                  Cliente existente — datos completados automáticamente
+            {clientId ? (
+              <div className="flex items-center gap-2 rounded-lg border border-emerald-400/25 bg-emerald-400/[0.06] px-3 py-2">
+                <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-300" />
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-sm font-medium text-foreground">
+                    {`${clientFirstName} ${clientLastName}`.trim() || "Sin nombre"}
+                  </p>
+                  {clientPhone && <p className="truncate text-xs text-muted-foreground">{clientPhone}</p>}
                 </div>
-              )}
-
-              <div className="grid grid-cols-2 gap-2">
-                <Input className="h-8 text-sm" value={clientFirstName} onChange={(e) => setClientFirstName(e.target.value)} placeholder="Nombre" />
-                <Input className="h-8 text-sm" value={clientLastName} onChange={(e) => setClientLastName(e.target.value)} placeholder="Apellido" />
+                <button
+                  type="button"
+                  onClick={clearClientSelection}
+                  className="shrink-0 text-xs text-muted-foreground hover:text-foreground border border-white/10 rounded-md px-2 py-1 bg-white/[0.04] hover:bg-white/[0.08] transition-colors"
+                >
+                  Cambiar
+                </button>
               </div>
-            </div>
+            ) : (
+              <div className="grid gap-2">
+                <ClientPicker
+                  value={clientSearchQuery}
+                  onChange={setClientSearchQuery}
+                  onPick={pickExistingClient}
+                  businessId={businessId}
+                />
+
+                {!showNewClientForm ? (
+                  <button
+                    type="button"
+                    onClick={startNewClient}
+                    className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-2 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-white/[0.06] transition-colors"
+                  >
+                    <Plus className="h-3.5 w-3.5" />
+                    Agregar cliente
+                  </button>
+                ) : (
+                  <div className="grid gap-2 rounded-lg border border-white/10 bg-white/[0.015] p-2.5">
+                    <div className="relative">
+                      <Phone className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground pointer-events-none" />
+                      <Input
+                        className="pl-8 h-9"
+                        type="tel"
+                        value={clientPhone}
+                        onChange={(e) => setClientPhone(e.target.value)}
+                        placeholder="Teléfono *"
+                        autoFocus
+                      />
+                    </div>
+
+                    {matchedClient && (
+                      <div className="flex items-center gap-1.5 text-xs text-emerald-300">
+                        <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+                        Cliente existente — datos completados automáticamente
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input className="h-8 text-sm" value={clientFirstName} onChange={(e) => setClientFirstName(e.target.value)} placeholder="Nombre *" />
+                      <Input className="h-8 text-sm" value={clientLastName} onChange={(e) => setClientLastName(e.target.value)} placeholder="Apellido *" />
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
           </section>
 
           {/* Servicio (y Profesional, solo cuando hay más de uno para elegir) */}
