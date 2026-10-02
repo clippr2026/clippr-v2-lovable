@@ -14,17 +14,15 @@ import { useCajaHoy } from "@/components/dashboard/use-caja-hoy";
 import { useInicioWidgets, type ActividadItem } from "@/components/dashboard/use-inicio-widgets";
 import { useFichajeHoy } from "@/components/dashboard/use-fichaje-hoy";
 import { FichajeQrModal } from "@/components/dashboard/fichaje-qr-modal";
+import { TOLERANCE_MINUTES, type FichajeHoyPersona } from "@/lib/fichaje";
 import {
-  DollarSign,
-  ArrowDownCircle,
-  Wallet,
-  Landmark,
+  TrendingUp,
+  TrendingDown,
+  BarChart3,
   Scissors,
   Package,
   XCircle,
   ChevronRight,
-  Plus,
-  Minus,
   AlertTriangle,
   ScanLine,
   Loader2,
@@ -217,34 +215,10 @@ function CajaHoyCard({
   data: DashboardData;
   userEmail: string | null;
 }) {
-  const [movModal, setMovModal] = React.useState<"ingreso" | "retiro" | null>(null);
-  const [amount, setAmount] = React.useState("");
-  const [note, setNote] = React.useState("");
-  const [saving, setSaving] = React.useState(false);
   const [closingVencida, setClosingVencida] = React.useState(false);
 
   const serviciosRealizados = data.topServices.reduce((s, item) => s + item.count, 0);
   const productosVendidos = data.topCatalog.reduce((s, cat) => s + cat.count, 0);
-
-  async function confirmMovement() {
-    const value = Number(amount);
-    if (!movModal || !value || value <= 0) {
-      toast.error("Ingresá un monto válido");
-      return;
-    }
-    setSaving(true);
-    try {
-      await caja.registerMovement(movModal, value, note, userEmail);
-      toast.success(movModal === "ingreso" ? "Efectivo ingresado" : "Efectivo retirado");
-      setMovModal(null);
-      setAmount("");
-      setNote("");
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setSaving(false);
-    }
-  }
 
   async function confirmCerrarVencida() {
     if (!userEmail) return;
@@ -303,96 +277,43 @@ function CajaHoyCard({
         </Link>
       </div>
 
-      {/* Ingresos / Egresos — únicos 2 montos grandes acá, el detalle
-          completo (gráficos, desglose por servicio/categoría) vive en
-          Caja, no se repite en Inicio. */}
-      <div className="mt-2 grid grid-cols-2 gap-3">
+      {/* Ingresos / Egresos / Utilidad — los únicos 3 montos grandes acá, el
+          detalle completo (gráficos, desglose por servicio/categoría) vive
+          en Caja, no se repite en Inicio. */}
+      <div className="mt-2 grid grid-cols-3 gap-3">
         <div>
           <div className="flex items-center gap-1.5 text-muted-foreground">
-            <DollarSign className="h-3.5 w-3.5 text-primary" />
+            <TrendingUp className="h-3.5 w-3.5 text-blue-400" />
             <span className="text-xs">Ingresos</span>
           </div>
-          <div className="mt-0.5 text-2xl font-display font-semibold tracking-tight">
+          <div className="mt-0.5 text-xl sm:text-2xl font-display font-semibold tracking-tight">
             {fmtAR(data.revHoy)}
           </div>
         </div>
         <div>
           <div className="flex items-center gap-1.5 text-muted-foreground">
-            <ArrowDownCircle className="h-3.5 w-3.5 text-rose-400" />
+            <TrendingDown className="h-3.5 w-3.5 text-rose-400" />
             <span className="text-xs">Egresos</span>
           </div>
-          <div className="mt-0.5 text-2xl font-display font-semibold tracking-tight">
+          <div className="mt-0.5 text-xl sm:text-2xl font-display font-semibold tracking-tight">
             {fmtExpenseAR(data.totalGastos)}
           </div>
         </div>
+        <div>
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <BarChart3 className="h-3.5 w-3.5 text-violet-400" />
+            <span className="text-xs">Utilidad</span>
+          </div>
+          <div className="mt-0.5 text-xl sm:text-2xl font-display font-semibold tracking-tight">
+            {fmtAR(data.utilidad)}
+          </div>
+        </div>
       </div>
 
-      <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 gap-2">
-        <MiniStat icon={Wallet} label="Efectivo esperado en caja" value={caja.loading ? "—" : fmtAR(caja.cashExpected)} />
-        <MiniStat icon={Landmark} label="Dinero esperado en banco" value={caja.loading ? "—" : fmtAR(caja.bankExpected)} />
+      <div className="mt-3 grid grid-cols-2 gap-2">
         <MiniStat icon={Scissors} label="Servicios realizados" value={String(serviciosRealizados)} />
         <MiniStat icon={Package} label="Productos vendidos" value={String(productosVendidos)} />
       </div>
-
-      <div className="mt-3 flex items-center gap-2">
-        <button
-          type="button"
-          onClick={() => setMovModal("ingreso")}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-white/5 px-3 py-2 text-xs font-semibold ring-1 ring-white/10 transition hover:bg-white/10"
-        >
-          <Plus className="h-3.5 w-3.5" /> Ingresar
-        </button>
-        <button
-          type="button"
-          onClick={() => setMovModal("retiro")}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-white/5 px-3 py-2 text-xs font-semibold ring-1 ring-white/10 transition hover:bg-white/10"
-        >
-          <Minus className="h-3.5 w-3.5" /> Retirar
-        </button>
-      </div>
-
-      {movModal ? (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4" onClick={() => setMovModal(null)}>
-          <div
-            className="w-full max-w-sm rounded-2xl border border-white/10 bg-zinc-900 p-6"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="font-semibold text-foreground">
-              {movModal === "ingreso" ? "Ingresar efectivo" : "Retirar efectivo"}
-            </h3>
-            <label className="mt-4 block text-[11px] text-muted-foreground">Monto</label>
-            <input
-              autoFocus
-              type="number"
-              value={amount}
-              onChange={(e) => setAmount(e.target.value)}
-              className="mt-1 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-3 text-xl font-bold text-center text-foreground focus:outline-none focus:border-violet-400/50"
-            />
-            <label className="mt-3 block text-[11px] text-muted-foreground">Nota (opcional)</label>
-            <input
-              value={note}
-              onChange={(e) => setNote(e.target.value)}
-              placeholder="Ej: Cambio para el día"
-              className="mt-1 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2 text-sm text-foreground focus:outline-none focus:border-violet-400/50"
-            />
-            <div className="mt-4 flex gap-2">
-              <button
-                disabled={saving}
-                onClick={confirmMovement}
-                className="flex-1 rounded-lg bg-gradient-to-b from-violet-500 to-blue-500 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-              >
-                {saving ? "Guardando…" : "Confirmar"}
-              </button>
-              <button
-                onClick={() => setMovModal(null)}
-                className="rounded-lg border border-white/10 px-4 py-2.5 text-sm text-muted-foreground"
-              >
-                Cancelar
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -467,53 +388,57 @@ function FichajeHoyCard({
       {placeholder || !fichaje.summary || !branchId ? (
         <div className="mt-3 text-sm text-muted-foreground">{placeholder ?? "Cargando…"}</div>
       ) : (
-        <div className="mt-3 flex flex-col gap-4 sm:flex-row">
-          {/* QR visible directo, sin tocar nada — click opcional para
-              ampliarlo (útil para dejarlo bien grande en una tablet/mostrador). */}
-          <button
-            type="button"
-            onClick={() => setQrOpen(true)}
-            className="group relative shrink-0 self-center sm:self-start"
-            aria-label="Ampliar QR de fichaje"
-          >
-            <img
-              src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(
-                `${typeof window !== "undefined" ? window.location.origin : ""}/fichar/${branchId}?code=${fichaje.summary.code}`,
-              )}`}
-              alt="Código QR de fichaje"
-              width={110}
-              height={110}
-              className="rounded-xl border border-white/10 bg-white p-2 transition group-hover:brightness-95"
-            />
-          </button>
+        <div className="mt-3 flex flex-row gap-3 sm:gap-4">
+          {/* QR + código — angosto a propósito, nunca ocupa la tarjeta
+              entera: el espacio real es para la lista de la derecha. Click
+              opcional para ampliarlo (útil en una tablet/mostrador). */}
+          <div className="flex w-[86px] shrink-0 flex-col items-center gap-1.5 sm:w-[110px]">
+            <button
+              type="button"
+              onClick={() => setQrOpen(true)}
+              className="group"
+              aria-label="Ampliar QR de fichaje"
+            >
+              <img
+                src={`https://api.qrserver.com/v1/create-qr-code/?size=140x140&data=${encodeURIComponent(
+                  `${typeof window !== "undefined" ? window.location.origin : ""}/fichar/${branchId}?code=${fichaje.summary.code}`,
+                )}`}
+                alt="Código QR de fichaje"
+                width={78}
+                height={78}
+                className="rounded-xl border border-white/10 bg-white p-1.5 transition group-hover:brightness-95 sm:h-[94px] sm:w-[94px]"
+              />
+            </button>
+            <div className="text-center">
+              <div className="text-[9px] uppercase tracking-[0.18em] text-muted-foreground/70">
+                Código
+              </div>
+              <div className="mt-0.5 font-mono text-sm font-bold tracking-[0.15em] text-foreground sm:text-base">
+                {fichaje.summary.code.slice(0, 3)} {fichaje.summary.code.slice(3)}
+              </div>
+            </div>
+          </div>
 
           <div className="min-w-0 flex-1">
             <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
-              Código
-            </div>
-            <div className="mt-0.5 font-mono text-xl font-bold tracking-[0.25em] text-foreground">
-              {fichaje.summary.code}
-            </div>
-            <div className="mt-1.5 text-sm text-muted-foreground">
-              {fichaje.summary.fichados} fichado{fichaje.summary.fichados === 1 ? "" : "s"} · {fichaje.summary.pendientes} pendiente{fichaje.summary.pendientes === 1 ? "" : "s"}
+              Hoy ficharon ({fichaje.summary.fichados})
             </div>
 
-            {fichaje.summary.fichadosNames.length > 0 && (
-              <div className="mt-2.5">
-                <div className="text-[10px] uppercase tracking-wider text-emerald-300/70">Ya ficharon</div>
-                <div className="mt-1 flex flex-wrap gap-1.5">
-                  {fichaje.summary.fichadosNames.map((name) => (
-                    <span key={name} className="rounded-full bg-emerald-400/10 px-2.5 py-1 text-xs text-emerald-200 ring-1 ring-emerald-400/25">
-                      {name}
-                    </span>
-                  ))}
-                </div>
+            {fichaje.summary.fichadosDetalle.length > 0 ? (
+              <div className="mt-1.5 max-h-[220px] space-y-1.5 overflow-y-auto pr-0.5">
+                {fichaje.summary.fichadosDetalle.map((p) => (
+                  <FichajePersonaRow key={p.id} persona={p} />
+                ))}
               </div>
+            ) : (
+              <div className="mt-1.5 text-xs text-muted-foreground">Todavía nadie fichó hoy.</div>
             )}
 
             {fichaje.summary.pendientesNames.length > 0 && (
               <div className="mt-2.5">
-                <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70">Pendientes</div>
+                <div className="text-[10px] uppercase tracking-wider text-muted-foreground/70">
+                  Pendientes ({fichaje.summary.pendientes})
+                </div>
                 <div className="mt-1 flex flex-wrap gap-1.5">
                   {fichaje.summary.pendientesNames.map((name) => (
                     <span key={name} className="rounded-full bg-white/5 px-2.5 py-1 text-xs text-muted-foreground ring-1 ring-white/10">
@@ -533,6 +458,71 @@ function FichajeHoyCard({
           branchId={branchId}
           onClose={() => setQrOpen(false)}
         />
+      )}
+    </div>
+  );
+}
+
+type Puntualidad = "temprano" | "a_tiempo" | "tarde";
+
+const PUNTUALIDAD_LABEL: Record<Puntualidad, string> = {
+  temprano: "Temprano",
+  a_tiempo: "A tiempo",
+  tarde: "Tarde",
+};
+
+const PUNTUALIDAD_CLASS: Record<Puntualidad, string> = {
+  temprano: "bg-emerald-400/10 text-emerald-300 ring-emerald-400/25",
+  a_tiempo: "bg-sky-400/10 text-sky-300 ring-sky-400/25",
+  tarde: "bg-orange-400/10 text-orange-300 ring-orange-400/25",
+};
+
+// Mismo criterio exacto que clockIn (ver lib/fichaje.ts) para decidir si
+// hubo tardanza — TOLERANCE_MINUTES importado de ahí, nunca un número
+// duplicado a mano. A diferencia del late_minutes guardado (que ya viene
+// recortado a >= 0, así que no distingue "temprano" de "a tiempo"), acá se
+// compara la hora real contra la esperada sin recortar, solo para elegir
+// qué mostrar — no se guarda ni se recalcula ninguna comisión/descuento.
+function puntualidadDe(persona: FichajeHoyPersona): Puntualidad | null {
+  if (!persona.expectedStartAt) return null;
+  const diffMin = Math.round(
+    (new Date(persona.clockInAt).getTime() - new Date(persona.expectedStartAt).getTime()) / 60000,
+  );
+  if (diffMin < 0) return "temprano";
+  if (diffMin <= TOLERANCE_MINUTES) return "a_tiempo";
+  return "tarde";
+}
+
+function inicialAvatar(name: string) {
+  return (name.trim()[0] ?? "?").toUpperCase();
+}
+
+function FichajePersonaRow({ persona }: { persona: FichajeHoyPersona }) {
+  const enCurso = persona.clockOutAt === null;
+  const puntualidad = puntualidadDe(persona);
+
+  return (
+    <div className="flex items-center gap-2 rounded-lg bg-white/[0.025] px-2 py-1.5 ring-1 ring-white/5">
+      <div className="grid size-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-sky-400/25 to-violet-500/25 text-[11px] font-bold text-white ring-1 ring-white/10">
+        {inicialAvatar(persona.name)}
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className="truncate text-xs font-medium text-foreground">{persona.name}</div>
+        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-muted-foreground">
+          <span className="tabular-nums">{horaCorta(persona.clockInAt)}</span>
+          {enCurso ? (
+            <span className="font-medium text-emerald-300">En curso</span>
+          ) : (
+            <span className="tabular-nums">{horaCorta(persona.clockOutAt as string)}</span>
+          )}
+        </div>
+      </div>
+      {puntualidad && (
+        <span
+          className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ${PUNTUALIDAD_CLASS[puntualidad]}`}
+        >
+          {PUNTUALIDAD_LABEL[puntualidad]}
+        </span>
       )}
     </div>
   );

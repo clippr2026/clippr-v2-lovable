@@ -112,19 +112,31 @@ export async function resolveBranchFromCode(
   return { branchId: (data as any).branch_id as string, businessId: (data as any).business_id as string };
 }
 
+// Una fila por profesional que ya fichó hoy — entrada/salida reales
+// (clock_in_at/clock_out_at) y la hora esperada (expected_start_at), las 3
+// ya calculadas y guardadas por clockIn() — acá solo se leen, nunca se
+// recalculan. clockOutAt null = todavía en curso.
+export type FichajeHoyPersona = {
+  id: string;
+  name: string;
+  clockInAt: string;
+  clockOutAt: string | null;
+  expectedStartAt: string | null;
+};
+
 export type FichajeHoySummary = {
   code: string;
   fichados: number;
   pendientes: number;
-  fichadosNames: string[];
+  fichadosDetalle: FichajeHoyPersona[];
   pendientesNames: string[];
 };
 
 // Resumen para la tarjeta "Fichaje de jornada" de Inicio — cuántos
 // profesionales de esta sucursal ya ficharon hoy vs cuántos todavía no
-// (sobre el total de profesionales activos de la sucursal), con nombre y
-// todo (no solo el conteo) para que Inicio pueda mostrar quién fichó y a
-// quién le falta.
+// (sobre el total de profesionales activos de la sucursal), con el detalle
+// de entrada/salida de cada uno para que Inicio pueda mostrarlo sin volver
+// a pedirle nada al kiosco/panel del profesional.
 export async function getTodayFichajeSummary(
   businessId: string,
   branchId: string,
@@ -135,10 +147,11 @@ export async function getTodayFichajeSummary(
   const [{ data: sessions }, { data: employees }] = await Promise.all([
     supabase
       .from("work_sessions" as any)
-      .select("employee_id")
+      .select("employee_id,clock_in_at,clock_out_at,expected_start_at")
       .eq("business_id", businessId)
       .eq("branch_id", branchId)
-      .gte("clock_in_at", dayStart),
+      .gte("clock_in_at", dayStart)
+      .order("clock_in_at", { ascending: true }),
     supabase
       .from("employees")
       .select("id,full_name")
@@ -147,16 +160,49 @@ export async function getTodayFichajeSummary(
       .eq("is_active", true),
   ]);
 
-  const fichadosSet = new Set(((sessions ?? []) as any[]).map((s) => s.employee_id));
-  const activos = ((employees ?? []) as { id: string; full_name: string | null }[]);
-  const fichadosNames = activos.filter((e) => fichadosSet.has(e.id)).map((e) => e.full_name ?? "Profesional");
-  const pendientesNames = activos.filter((e) => !fichadosSet.has(e.id)).map((e) => e.full_name ?? "Profesional");
+  // Última sesión de hoy por profesional — si fichó entrada/salida más de
+  // una vez en el día, la que importa mostrar es la más reciente (el array
+  // ya viene ordenado por clock_in_at ascendente, así que el último .set
+  // para cada employee_id es siempre el más nuevo).
+  type SessionRow = { employee_id: string; clock_in_at: string; clock_out_at: string | null; expected_start_at: string | null };
+  const latestByEmployee = new Map<string, SessionRow>();
+  for (const s of (sessions ?? []) as SessionRow[]) {
+    latestByEmployee.set(s.employee_id, s);
+  }
+
+  const activos = (employees ?? []) as { id: string; full_name: string | null }[];
+  const fichadosDetalle: FichajeHoyPersona[] = [];
+  const pendientesNames: string[] = [];
+
+  for (const e of activos) {
+    const s = latestByEmployee.get(e.id);
+    if (s) {
+      fichadosDetalle.push({
+        id: e.id,
+        name: e.full_name ?? "Profesional",
+        clockInAt: s.clock_in_at,
+        clockOutAt: s.clock_out_at,
+        expectedStartAt: s.expected_start_at,
+      });
+    } else {
+      pendientesNames.push(e.full_name ?? "Profesional");
+    }
+  }
+
+  // En curso primero (más accionable), después los que ya terminaron —
+  // dentro de cada grupo, orden de llegada.
+  fichadosDetalle.sort((a, b) => {
+    const aOpen = a.clockOutAt === null;
+    const bOpen = b.clockOutAt === null;
+    if (aOpen !== bOpen) return aOpen ? -1 : 1;
+    return new Date(a.clockInAt).getTime() - new Date(b.clockInAt).getTime();
+  });
 
   return {
     code,
-    fichados: fichadosNames.length,
+    fichados: fichadosDetalle.length,
     pendientes: pendientesNames.length,
-    fichadosNames,
+    fichadosDetalle,
     pendientesNames,
   };
 }
@@ -219,7 +265,10 @@ async function resolveExpectedStartToday(businessId: string, employeeId: string)
   return expected;
 }
 
-const TOLERANCE_MINUTES = 5;
+// Exportada para que la UI (Inicio) pueda clasificar Temprano/A
+// tiempo/Tarde con el mismo criterio exacto que ya usa clockIn acá abajo
+// para calcular late_minutes — nunca un número duplicado a mano.
+export const TOLERANCE_MINUTES = 5;
 
 export async function clockIn({
   businessId,
