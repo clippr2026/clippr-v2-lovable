@@ -10201,11 +10201,15 @@ export function NuevaVentaTab({
           .map(({ svc, qty }) => `${svc.name}${qty > 1 ? ` x${qty}` : ""}`)
           .join(" + ")
       : "Sin servicios";
+  // En el paso 2, con el formulario "Nuevo cliente" abierto, el teléfono ya
+  // escrito alcanza para habilitar Continuar — el cliente se crea/reutiliza
+  // recién al tocar ese botón (ver goNext), no hace falta un botón
+  // "Confirmar cliente" propio del formulario.
   const canContinue =
     step === 1
       ? Boolean(employeeId)
       : step === 2
-        ? hasSelectedClient
+        ? hasSelectedClient || (newClientOpen && phone.trim().length > 0)
         : step === 3
           ? cartItems.length > 0
           : true;
@@ -10219,16 +10223,27 @@ export function NuevaVentaTab({
       return n <= 0 ? rest : { ...c, [id]: n };
     });
 
-  function goNext() {
+  async function goNext() {
     if (step === 1 && !employeeId) {
       toast.error("Seleccioná un profesional.");
       return;
     }
-    if (step === 2) {
-      if (!clientId) {
-        toast.error("Seleccioná un cliente para continuar.");
+    if (step === 2 && !clientId) {
+      if (!phone.trim()) {
+        toast.error("Seleccioná o creá un cliente para continuar.");
         return;
       }
+      // Formulario "Nuevo cliente" abierto con teléfono cargado: crea (o
+      // reutiliza por teléfono, ver saveClientIfNeeded) el cliente recién
+      // acá, sin paso de confirmación intermedio.
+      const saved = await saveClientIfNeeded();
+      if (!saved) {
+        toast.error("No se pudo guardar el cliente. Revisá los datos e intentá de nuevo.");
+        return;
+      }
+      setClientId(saved);
+      setClient(`${client.trim()} ${clientLastName.trim()}`.trim());
+      setNewClientOpen(false);
     }
     if (step === 3 && cartItems.length === 0) {
       toast.error("Agregá al menos un servicio o producto.");
@@ -11074,43 +11089,17 @@ export function NuevaVentaTab({
           {/* Formulario nuevo cliente — flujo interno simplificado: teléfono
               obligatorio y principal, nombre/apellido opcionales. Sin
               mail/notas/"cómo nos conoció" acá (exclusivo de la reserva
-              pública, sin tocar). */}
+              pública, sin tocar). Sin botones propios (Cancelar/Confirmar):
+              el Continuar del pie del paso crea o reutiliza el cliente por
+              teléfono y recién ahí avanza — ver goNext. Para salir de este
+              formulario sin crear nada, el buscador de arriba sigue
+              disponible para elegir un cliente existente en su lugar. */}
           {!clientId &&
-            newClientOpen &&
-            (() => {
-              async function handleGuardarCliente() {
-                if (!phone.trim()) {
-                  toast.error("Ingresá el teléfono del cliente.");
-                  return;
-                }
-                const saved = await saveClientIfNeeded();
-                if (saved) {
-                  setClientId(saved);
-                  // "client" es lo que se muestra/usa como nombre del
-                  // cliente de acá en más (tarjeta de confirmación, recibo,
-                  // pago) — se actualiza al nombre completo recién creado,
-                  // nombre+apellido quedaron en inputs separados solo para
-                  // la carga.
-                  setClient(`${client.trim()} ${clientLastName.trim()}`.trim());
-                  setNewClientOpen(false);
-                  toast.success("Cliente guardado y seleccionado");
-                } else {
-                  toast.error(
-                    "No se pudo guardar el cliente. Revisá los datos e intentá de nuevo.",
-                  );
-                }
-              }
-              return (
+            newClientOpen && (
                 <Card className="max-h-[340px] overflow-y-auto p-4 space-y-3 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
                   <p className="text-xs text-muted-foreground tracking-[0.15em] uppercase">
                     Nuevo cliente
                   </p>
-                  <input
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
-                    placeholder="Teléfono *"
-                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-base outline-none focus:border-blue-300/40"
-                  />
                   <div className="grid grid-cols-2 gap-2">
                     <input
                       value={client}
@@ -11128,25 +11117,14 @@ export function NuevaVentaTab({
                       className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-base outline-none focus:border-blue-300/40"
                     />
                   </div>
-                  <div className="flex gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setNewClientOpen(false)}
-                      className="flex-1 py-2.5 rounded-xl text-sm font-medium border border-white/15 bg-white/[0.03] text-muted-foreground hover:text-foreground hover:bg-white/[0.07] transition-colors"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleGuardarCliente}
-                      className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition bg-gradient-to-r from-blue-500/90 to-violet-500/90 text-white hover:brightness-110 cash-sale-button-glow"
-                    >
-                      Confirmar cliente
-                    </button>
-                  </div>
+                  <input
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value)}
+                    placeholder="Teléfono *"
+                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-base outline-none focus:border-blue-300/40"
+                  />
                 </Card>
-              );
-            })()}
+            )}
           </div>
         </div>
       )}
