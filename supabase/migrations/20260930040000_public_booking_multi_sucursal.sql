@@ -18,15 +18,31 @@
 --      resto de las public_booking_*).
 --   5. Vista nueva public_booking_branch_settings: espejo público de
 --      branch_settings (horario semanal + promociones por sucursal).
---   6. Función nueva create_public_booking_public_v4: misma lógica que v3
---      (se deja v3 intacta, sin usar, por compatibilidad/rollback fácil),
---      + p_branch_id opcional — valida que el profesional/servicio
---      pertenezcan a esa sucursal cuando se pasa, y lo graba en
---      clients.branch_id (solo al crear, nunca reasigna uno existente) y
---      en appointments.branch_id.
+--   6. Función nueva create_public_booking_public_v4: + p_branch_id opcional
+--      — valida que el profesional/servicio pertenezcan a esa sucursal
+--      cuando se pasa, y lo graba en clients.branch_id (solo al crear,
+--      nunca reasigna uno existente) y en appointments.branch_id.
 --
--- Genérica, re-ejecutable. NO tocar producción (velos-app / myclippr.com)
--- todavía — correr solo en clippr-dev.
+-- ── AJUSTE aplicado al correr esto en producción ───────────────────────────
+-- Para cuando esto se corrió en producción, create_public_booking_public_v4
+-- ya existía ahí con 11 parámetros (sin p_branch_id, con la lógica de
+-- identidad mail-primero/teléfono-respaldo — migración 20261002010000).
+-- Agregar solo una v4 de 12 parámetros sin tocar la de 11 las deja
+-- coexistir como dos funciones distintas con el mismo nombre — PostgREST
+-- no puede elegir cuál usar cuando el frontend (todavía sin desplegar la
+-- versión que manda p_branch_id) llama a v4 sin ese parámetro, porque
+-- ambas califican (p_branch_id tiene default null). Eso rompía la reserva
+-- pública con "Could not choose the best candidate function" hasta
+-- desplegar el frontend nuevo.
+--
+-- Por eso esta migración (a) elimina explícitamente la v4 vieja de 11
+-- parámetros antes de crear la de 12 — nunca coexisten dos — y (b) la v4
+-- nueva ya incluye la lógica de identidad correcta (mail primero,
+-- teléfono de respaldo, nunca duplicar) en vez de la lógica con OR sin
+-- prioridad de la versión original de esta migración — cero ventana de
+-- regresión mientras se completaba el resto de la migración por fases.
+--
+-- Genérica, re-ejecutable.
 -- ============================================================================
 
 -- ── 1. branch_id en las vistas de servicios y empleados ────────────────────
@@ -59,9 +75,13 @@ where coalesce(b.is_active, true) = true;
 
 grant select on public.public_booking_branch_settings to anon, authenticated;
 
--- ── 4. create_public_booking_public_v4: v3 + p_branch_id ───────────────────
--- Copia exacta de la lógica de v3 (incluidas las mismas validaciones y
--- mensajes de error) + branch_id de punta a punta. v3 queda sin tocar.
+-- ── 4. create_public_booking_public_v4: elimina la v4 vieja (11 params,
+--      sin branch_id) antes de crear la nueva (12 params) — nunca deben
+--      coexistir dos señas distintas con el mismo nombre.
+drop function if exists public.create_public_booking_public_v4(
+  uuid, text, uuid, timestamp with time zone, text, text, text, date, text, text, text
+);
+
 create or replace function public.create_public_booking_public_v4(
   p_business_id uuid,
   p_service_ids text,
@@ -184,47 +204,92 @@ begin
     raise exception 'Ese horario ya no está disponible. Elegí otro turno.' using errcode = 'P0001';
   end if;
 
-  select c.id
-    into v_client_id
-  from public.clients c
-  where c.business_id = p_business_id
-    and (
-      (v_phone_digits <> '' and regexp_replace(coalesce(c.phone, ''), '\D', '', 'g') = v_phone_digits)
-      or (v_email is not null and lower(coalesce(c.email, '')) = v_email)
-    )
-  order by c.created_at asc nulls last
-  limit 1;
+  -- Identificación de cliente: mail primero (fuente de verdad una vez que
+  -- existe), teléfono como respaldo (dígitos, sin espacios/signos/código de
+  -- país) — mismo criterio que la v4 ya vigente en producción. Nunca
+  -- duplicar si ya se puede identificar por cualquiera de los dos.
+  if v_email is not null then
+    select c.id
+      into v_client_id
+    from public.clients c
+    where c.business_id = p_business_id
+      and lower(coalesce(c.email, '')) = v_email
+    order by c.created_at asc nulls last
+    limit 1;
+  end if;
+
+  if v_client_id is null and v_phone is not null then
+    select c.id
+      into v_client_id
+    from public.clients c
+    where c.business_id = p_business_id
+      and regexp_replace(coalesce(c.phone, ''), '\D', '', 'g') = v_phone_digits
+    order by c.created_at asc nulls last
+    limit 1;
+  end if;
 
   if v_client_id is null then
     insert into public.clients (
-      business_id, branch_id, full_name, phone, email, birth_date, notes,
-      acquisition_source, acquisition_source_custom, acquisition_captured_at
+      business_id,
+      branch_id,
+      full_name,
+      phone,
+      email,
+      birth_date,
+      notes,
+      acquisition_source,
+      acquisition_source_custom,
+      acquisition_captured_at
     )
     values (
-      p_business_id, p_branch_id, v_name, v_phone, v_email, p_client_birth_date, nullif(p_notes, ''),
-      p_acquisition_source, p_acquisition_source_custom,
-      case when p_acquisition_source is not null then now() else null end
+      p_business_id,
+      p_branch_id,
+      v_name,
+      v_phone,
+      v_email,
+      p_client_birth_date,
+      nullif(p_notes, ''),
+      p_acquisition_source,
+      p_acquisition_source_custom,
+      case
+        when p_acquisition_source is not null then now()
+        else null
+      end
     )
     returning id into v_client_id;
   else
     update public.clients
-      set full_name = case when nullif(full_name, '') is null then v_name else full_name end,
-          phone = case when nullif(phone, '') is null then v_phone else phone end,
-          email = case when nullif(email, '') is null then v_email else email end,
-          birth_date = coalesce(birth_date, p_client_birth_date),
-          notes = coalesce(notes, nullif(p_notes, '')),
-          acquisition_source = case
-            when acquisition_source is null and p_acquisition_source is not null then p_acquisition_source
-            else acquisition_source
-          end,
-          acquisition_source_custom = case
-            when acquisition_source is null and p_acquisition_source is not null then p_acquisition_source_custom
-            else acquisition_source_custom
-          end,
-          acquisition_captured_at = case
-            when acquisition_source is null and p_acquisition_source is not null then now()
-            else acquisition_captured_at
-          end
+      set
+        full_name = v_name,
+        -- Siempre se actualiza al valor nuevo: si el cliente quedó
+        -- identificado por mail, el teléfono puede haber cambiado y tiene
+        -- que quedar al día.
+        phone = v_phone,
+        -- Solo se completa si estaba vacío — nunca pisa un mail ya cargado.
+        email = case
+          when nullif(email, '') is null then v_email
+          else email
+        end,
+        birth_date = coalesce(birth_date, p_client_birth_date),
+        notes = coalesce(notes, nullif(p_notes, '')),
+        acquisition_source = case
+          when acquisition_source is null
+               and p_acquisition_source is not null
+          then p_acquisition_source
+          else acquisition_source
+        end,
+        acquisition_source_custom = case
+          when acquisition_source is null
+               and p_acquisition_source is not null
+          then p_acquisition_source_custom
+          else acquisition_source_custom
+        end,
+        acquisition_captured_at = case
+          when acquisition_source is null
+               and p_acquisition_source is not null
+          then now()
+          else acquisition_captured_at
+        end
     where id = v_client_id;
   end if;
 
