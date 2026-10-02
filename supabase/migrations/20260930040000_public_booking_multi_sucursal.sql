@@ -46,8 +46,12 @@
 -- ============================================================================
 
 -- ── 1. branch_id en las vistas de servicios y empleados ────────────────────
+-- effective_price y cash_discount ya existían en esta vista desde
+-- 20260828030000/20260829010000 — CREATE OR REPLACE VIEW solo permite
+-- agregar columnas al final, nunca sacar ni reordenar las existentes, así
+-- que acá se preservan tal cual y branch_id se agrega después de ellas.
 create or replace view public.public_booking_services as
-select id, business_id, name, price, duration_min, active as is_active, branch_id
+select id, business_id, name, price, duration_min, active as is_active, effective_price, cash_discount, branch_id
 from public.price_catalog
 where duration_min is not null and coalesce(active, true) = true;
 

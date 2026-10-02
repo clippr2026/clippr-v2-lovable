@@ -64,6 +64,13 @@ create policy branches_write on public.branches
     and (select p.role from public.profiles p where p.id = auth.uid()) is distinct from 'profesional'
   );
 
+-- Las policies de RLS de arriba solo restringen filas — sin el GRANT de
+-- nivel tabla de abajo, PostgREST devuelve 42501 "permission denied" antes
+-- de siquiera evaluar RLS (las tablas creadas por migración SQL cruda en
+-- este proyecto no heredan los grants automáticos que sí aplica el editor
+-- de tablas de Supabase Studio).
+grant select, insert, update, delete on public.branches to authenticated;
+
 -- ── 2. branch_id en las tablas operativas (nullable, sin default) ──────────
 alter table public.employees      add column if not exists branch_id uuid references public.branches(id);
 alter table public.appointments   add column if not exists branch_id uuid references public.branches(id);

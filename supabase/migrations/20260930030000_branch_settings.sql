@@ -72,6 +72,11 @@ create policy branch_settings_write on public.branch_settings
     and (select p.role from public.profiles p where p.id = auth.uid()) is distinct from 'profesional'
   );
 
+-- Mismo motivo que el GRANT agregado a branches en 20260930010000: las
+-- policies de RLS de arriba solo restringen filas — sin el GRANT de nivel
+-- tabla de abajo, PostgREST devuelve 42501 antes de evaluar RLS siquiera.
+grant select, insert, update, delete on public.branch_settings to authenticated;
+
 -- Backfill: primera sucursal de cada negocio ← copia del schedule actual.
 do $$
 declare
