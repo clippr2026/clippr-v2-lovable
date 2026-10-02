@@ -79,16 +79,19 @@ const ALL_FALSE_PERMS: Record<PermKey, boolean> = ALL_PERM_KEYS.reduce(
 const REVOKED_STATUSES = new Set(["suspended", "deleted", "removed", "inactive", "blocked"]);
 
 // Multi-sucursal (fundación) — un negocio siempre tiene al menos una fila
-// acá después de la migración de branches (todo negocio existente quedó
-// con "Sucursal principal" vía backfill). branch_id en el resto de las
-// tablas sigue siendo nullable/filtro de aplicación, nunca un límite de
-// RLS nuevo (ver 20260930010000_branches_multi_sucursal.sql).
+// acá (todo negocio existente quedó con una sucursal vía backfill —
+// "Casa Central" si no tenía ninguna, ver 20261002060000 — y siempre
+// exactamente una marcada is_principal, protegido con un índice único
+// parcial en la base). branch_id en el resto de las tablas sigue siendo
+// nullable/filtro de aplicación, nunca un límite de RLS nuevo (ver
+// 20260930010000_branches_multi_sucursal.sql).
 export type Branch = {
   id: string;
   business_id: string;
   name: string;
   address: string | null;
   is_active: boolean;
+  is_principal: boolean;
   created_at: string;
 };
 
@@ -241,24 +244,62 @@ async function resolveBusinessId(user: User): Promise<{ businessId: string | nul
     const meta = (user.user_metadata ?? {}) as Record<string, unknown>;
     const bizName =
       (meta.business_name as string | undefined) || email?.split("@")[0] || "Mi Negocio";
+    let bizAddress: string | null = null;
     try {
       const { data, error } = await supabase
         .from("businesses")
         .insert({ name: bizName, owner_id: uid, owner_email: email })
-        .select("id")
+        .select("id,address")
         .single();
       if (error) throw error;
       bizId = data.id;
+      bizAddress = (data.address as string | null) ?? null;
     } catch {
       try {
         const { data } = await supabase
           .from("businesses")
           .insert({ name: bizName })
-          .select("id")
+          .select("id,address")
           .single();
         bizId = data?.id ?? null;
+        bizAddress = (data?.address as string | null) ?? null;
       } catch (e) {
         console.error("[AUTH] business create failed:", (e as Error).message);
+      }
+    }
+
+    // Ningún negocio debe quedar nunca con 0 sucursales (ver también el
+    // backfill genérico para los que ya existían, migración 20261002060000
+    // — mismo nombre "Casa Central", misma regla de is_principal). El RLS
+    // de branches/branch_settings exige profiles.business_id ya apuntando
+    // a este negocio — se adelanta un upsert mínimo del profile (el
+    // upsert completo de más abajo lo repite sin problema, es idempotente)
+    // antes de poder crear la sucursal.
+    if (bizId) {
+      try {
+        await supabase.from("profiles").upsert({ id: uid, business_id: bizId }, { onConflict: "id" });
+        const { data: branchRow, error: branchError } = await supabase
+          .from("branches" as any)
+          .insert({
+            business_id: bizId,
+            name: "Casa Central",
+            address: bizAddress,
+            is_active: true,
+            is_principal: true,
+          })
+          .select("id")
+          .single();
+        if (branchError) throw branchError;
+        await supabase.from("branch_settings" as any).insert({
+          business_id: bizId,
+          branch_id: (branchRow as { id: string }).id,
+          schedule: {},
+        });
+      } catch (e) {
+        // Nunca bloquear el signup por esto — el negocio ya existe aunque
+        // la sucursal falle; se puede crear a mano después desde
+        // Configuración > Sucursales.
+        console.warn("[AUTH] Casa Central al crear negocio:", (e as Error).message);
       }
     }
   }
@@ -336,8 +377,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Sucursales del negocio actual. Se resuelve la activa acá mismo (no en
   // cada consumidor): localStorage si todavía es una sucursal válida de
-  // ESTE negocio, si no la primera de la lista — así un negocio con una
-  // sola sucursal nunca queda con activeBranchId en null.
+  // ESTE negocio; si no, la principal (is_principal); si por algún motivo
+  // ninguna está marcada principal todavía, la primera de la lista — así
+  // un negocio con al menos una sucursal nunca queda con activeBranchId
+  // en null.
   const loadBranches = React.useCallback(async (bizId: string | null) => {
     setBranchesLoading(true);
     if (!bizId) {
@@ -348,7 +391,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
     const { data, error } = await supabase
       .from("branches" as any)
-      .select("id,business_id,name,address,is_active,created_at")
+      .select("id,business_id,name,address,is_active,is_principal,created_at")
       .eq("business_id", bizId)
       .order("created_at", { ascending: true });
     if (error) {
@@ -364,7 +407,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setBranches(rows);
     const saved = localStorage.getItem(activeBranchStorageKey(bizId));
     const stillValid = saved && rows.some((b) => b.id === saved);
-    setActiveBranchIdState(stillValid ? saved : (rows[0]?.id ?? null));
+    const principal = rows.find((b) => b.is_principal);
+    setActiveBranchIdState(stillValid ? saved : (principal?.id ?? rows[0]?.id ?? null));
     setBranchesLoading(false);
   }, []);
 
