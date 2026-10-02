@@ -158,6 +158,12 @@ export async function buildCierreSnapshotForDate(businessId: string, dateStr: st
   const dayStart = new Date(`${dateStr}T00:00:00`);
   const dayEnd = new Date(`${dateStr}T23:59:59.999`);
 
+  // branch_id = null nunca se excluye (.or en vez de .eq) — mismo criterio
+  // que use-caja-data.ts: un cobro/gasto real con branch_id null (fila
+  // vieja o nacida antes de que activeBranchId resolviera) no puede faltar
+  // del cierre del día.
+  const branchFilter = branchId ? `branch_id.eq.${branchId},branch_id.is.null` : null;
+
   let payQuery = supabase
     .from("payments")
     .select(
@@ -166,14 +172,14 @@ export async function buildCierreSnapshotForDate(businessId: string, dateStr: st
     .eq("business_id", businessId)
     .gte("created_at", dayStart.toISOString())
     .lte("created_at", dayEnd.toISOString());
-  if (branchId) payQuery = payQuery.eq("branch_id", branchId);
+  if (branchFilter) payQuery = payQuery.or(branchFilter);
 
   let expQuery = supabase
     .from("expenses")
     .select("id,name,amount,type,category,payment_method,date,note,created_at,user_name,created_by")
     .eq("business_id", businessId)
     .eq("date", dateStr);
-  if (branchId) expQuery = expQuery.eq("branch_id", branchId);
+  if (branchFilter) expQuery = expQuery.or(branchFilter);
 
   const [payRes, expRes] = await Promise.allSettled([payQuery, expQuery]);
 
@@ -239,7 +245,7 @@ export async function buildCierreSnapshotForDate(businessId: string, dateStr: st
     .eq("business_id", businessId)
     .ilike("notes", "%[PENDIENTE_CAJA]%")
     .not("status", "in", "(charged,cancelled,blocked)");
-  if (branchId) apptQuery = apptQuery.eq("branch_id", branchId);
+  if (branchFilter) apptQuery = apptQuery.or(branchFilter);
 
   const [apptRes, bsRes] = await Promise.allSettled([
     apptQuery,

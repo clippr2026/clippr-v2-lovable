@@ -340,6 +340,18 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     // ...) de siempre, nunca lo reemplaza. Con activeBranchId en null
     // (negocio recién migrado, sin sucursal resuelta todavía) el filtro
     // no se aplica — mismo comportamiento que antes de esta migración.
+    //
+    // IMPORTANTE: el filtro nunca excluye branch_id NULL (.or(...) en vez
+    // de .eq(...)). Un registro viejo (de antes de esta fundación) o
+    // nacido en la ventana en que activeBranchId todavía no había resuelto
+    // NO puede quedar invisible acá — eso dejaría turnos/clientes reales
+    // que sí cuentan para disponibilidad (checkOverlap, que nunca filtró
+    // por sucursal) pero desaparecen de la lista. branch_id = null se
+    // trata como "visible en cualquier sucursal", igual que la intención
+    // original de la migración (20260930010000: "branch_id... nunca un
+    // límite nuevo").
+    const branchFilter = activeBranchId ? `branch_id.eq.${activeBranchId},branch_id.is.null` : null;
+
     let apptQuery = supabase
       .from("appointments")
       .select(
@@ -348,14 +360,14 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
       .eq("business_id", businessId)
       .gte("starts_at", startIso)
       .lte("starts_at", endIso);
-    if (activeBranchId) apptQuery = apptQuery.eq("branch_id", activeBranchId);
+    if (branchFilter) apptQuery = apptQuery.or(branchFilter);
     apptQuery = apptQuery.order("starts_at");
 
     let empQuery = supabase
       .from("employees")
       .select("id,full_name,avatar_url,is_active")
       .eq("business_id", businessId);
-    if (activeBranchId) empQuery = empQuery.eq("branch_id", activeBranchId);
+    if (branchFilter) empQuery = empQuery.or(branchFilter);
     empQuery = empQuery.order("full_name", { ascending: true });
 
     let svcQuery = supabase
@@ -363,14 +375,14 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
       .select("id,name,price,duration_min,active,category,cash_discount")
       .eq("business_id", businessId)
       .not("duration_min", "is", null);
-    if (activeBranchId) svcQuery = svcQuery.eq("branch_id", activeBranchId);
+    if (branchFilter) svcQuery = svcQuery.or(branchFilter);
     svcQuery = svcQuery.order("name");
 
     let clientsQuery = supabase
       .from("clients")
       .select("id,full_name,phone,email,birth_date")
       .eq("business_id", businessId);
-    if (activeBranchId) clientsQuery = clientsQuery.eq("branch_id", activeBranchId);
+    if (branchFilter) clientsQuery = clientsQuery.or(branchFilter);
     clientsQuery = clientsQuery.order("full_name");
 
     const [aRes, eRes, sRes, cRes, bsRes] = await Promise.allSettled([
@@ -526,18 +538,26 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
   }, [businessId, activeBranchId, startIso, endIso]);
 
   // Narrow reloads used by realtime so a single appointment change does NOT
-  // refetch employees, services, clients and schedule on every event.
+  // refetch employees, services, clients and schedule on every event. Mismo
+  // filtro por sucursal que `load` (branch_id = activa O null, nunca
+  // .eq puro) — antes no filtraba por sucursal en absoluto acá, así que un
+  // evento realtime podía traer de vuelta turnos de otra sucursal que
+  // `load` sí había excluido, o viceversa esconder recién creados: la
+  // inconsistencia entre las dos queries era justamente lo que hacía
+  // "parpadear" turnos reales al cargar.
   const loadAppointments = React.useCallback(async () => {
     if (!businessId) return;
-    const { data, error } = await supabase
+    const branchFilter = activeBranchId ? `branch_id.eq.${activeBranchId},branch_id.is.null` : null;
+    let apptQuery = supabase
       .from("appointments")
       .select(
         "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,created_at,updated_at,recurring_series_id",
       )
       .eq("business_id", businessId)
       .gte("starts_at", startIso)
-      .lte("starts_at", endIso)
-      .order("starts_at");
+      .lte("starts_at", endIso);
+    if (branchFilter) apptQuery = apptQuery.or(branchFilter);
+    const { data, error } = await apptQuery.order("starts_at");
     if (!error) {
       setAppointments((data ?? []) as Appointment[]);
       return;
@@ -545,17 +565,18 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     // created_at puede no existir todavía (ver comentario en `load` más
     // arriba) — reintenta sin ella para que los reloads de realtime sigan
     // funcionando en vez de quedarse pegados con datos viejos.
-    const retry = await supabase
+    let retryQuery = supabase
       .from("appointments")
       .select(
         "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,updated_at",
       )
       .eq("business_id", businessId)
       .gte("starts_at", startIso)
-      .lte("starts_at", endIso)
-      .order("starts_at");
+      .lte("starts_at", endIso);
+    if (branchFilter) retryQuery = retryQuery.or(branchFilter);
+    const retry = await retryQuery.order("starts_at");
     if (!retry.error) setAppointments((retry.data ?? []) as Appointment[]);
-  }, [businessId, startIso, endIso]);
+  }, [businessId, activeBranchId, startIso, endIso]);
 
   const loadServices = React.useCallback(async () => {
     if (!businessId) return;
@@ -564,7 +585,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
       .select("id,name,price,duration_min,active,category,cash_discount")
       .eq("business_id", businessId)
       .not("duration_min", "is", null);
-    if (activeBranchId) loadServicesQuery = loadServicesQuery.eq("branch_id", activeBranchId);
+    if (activeBranchId) loadServicesQuery = loadServicesQuery.or(`branch_id.eq.${activeBranchId},branch_id.is.null`);
     loadServicesQuery = loadServicesQuery.order("name");
 
     const [{ data, error }, settingsRes] = await Promise.all([

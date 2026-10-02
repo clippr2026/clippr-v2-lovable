@@ -37,6 +37,10 @@ export function useInicioWidgets(businessId: string | null, branchId: string | n
     const windowEnd = new Date(now.getTime() + VENTANA_DIAS_PROXIMOS * 24 * 60 * 60 * 1000);
     const recentSince = new Date(now.getTime() - 2 * 24 * 60 * 60 * 1000);
 
+    // branch_id = null nunca se excluye (.or en vez de .eq) — mismo
+    // criterio que use-dashboard-data.ts/use-caja-data.ts.
+    const branchFilter = branchId ? `branch_id.eq.${branchId},branch_id.is.null` : null;
+
     let proximosQuery = supabase
       .from("appointments")
       .select("id,client_name,service_name,starts_at,employee_id,status")
@@ -44,21 +48,21 @@ export function useInicioWidgets(businessId: string | null, branchId: string | n
       .gte("starts_at", now.toISOString())
       .lte("starts_at", windowEnd.toISOString())
       .not("status", "in", "(cancelled,blocked)");
-    if (branchId) proximosQuery = proximosQuery.eq("branch_id", branchId);
+    if (branchFilter) proximosQuery = proximosQuery.or(branchFilter);
 
     let paymentsQuery = supabase
       .from("payments")
       .select("id,total,amount,client_name,service_name,created_at")
       .eq("business_id", businessId)
       .gte("created_at", recentSince.toISOString());
-    if (branchId) paymentsQuery = paymentsQuery.eq("branch_id", branchId);
+    if (branchFilter) paymentsQuery = paymentsQuery.or(branchFilter);
 
     let apptActivityQuery = supabase
       .from("appointments")
       .select("id,client_name,service_name,starts_at,created_at,updated_at")
       .eq("business_id", businessId)
       .gte("created_at", recentSince.toISOString());
-    if (branchId) apptActivityQuery = apptActivityQuery.eq("branch_id", branchId);
+    if (branchFilter) apptActivityQuery = apptActivityQuery.or(branchFilter);
 
     const [proximosRes, paymentsRes, apptActivityRes] = await Promise.all([
       proximosQuery.order("starts_at", { ascending: true }).limit(LIMITE_PROXIMOS),

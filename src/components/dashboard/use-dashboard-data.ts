@@ -103,6 +103,12 @@ async function loadDashboard(
   const expenseFrom = today.toISOString().slice(0, 10);
   const expenseTo = todayEnd.toISOString().slice(0, 10);
 
+  // branch_id = null nunca se excluye (.or en vez de .eq) — mismo criterio
+  // que use-caja-data.ts/use-agenda-data.ts: una fila real (vieja, o
+  // nacida antes de que activeBranchId resolviera) no puede faltar de
+  // Inicio solo porque quedó con branch_id null.
+  const branchFilter = branchId ? `branch_id.eq.${branchId},branch_id.is.null` : null;
+
   let apptQuery = supabase
     .from("appointments")
     .select(
@@ -111,7 +117,7 @@ async function loadDashboard(
     .eq("business_id", businessId)
     .gte("starts_at", today.toISOString())
     .lte("starts_at", todayEnd.toISOString());
-  if (branchId) apptQuery = apptQuery.eq("branch_id", branchId);
+  if (branchFilter) apptQuery = apptQuery.or(branchFilter);
 
   let payQuery = supabase
     .from("payments")
@@ -119,7 +125,7 @@ async function loadDashboard(
     .eq("business_id", businessId)
     .gte("created_at", today.toISOString())
     .lte("created_at", todayEnd.toISOString());
-  if (branchId) payQuery = payQuery.eq("branch_id", branchId);
+  if (branchFilter) payQuery = payQuery.or(branchFilter);
 
   let payYestQuery = supabase
     .from("payments")
@@ -127,10 +133,10 @@ async function loadDashboard(
     .eq("business_id", businessId)
     .gte("created_at", yesterday.toISOString())
     .lte("created_at", yesterdayEnd.toISOString());
-  if (branchId) payYestQuery = payYestQuery.eq("branch_id", branchId);
+  if (branchFilter) payYestQuery = payYestQuery.or(branchFilter);
 
   let empQuery = supabase.from("employees").select("*").eq("business_id", businessId);
-  if (branchId) empQuery = empQuery.eq("branch_id", branchId);
+  if (branchFilter) empQuery = empQuery.or(branchFilter);
 
   let sessQuery = supabase
     .from("cash_sessions")
@@ -139,7 +145,7 @@ async function loadDashboard(
     .eq("status", "open")
     .order("opened_at", { ascending: false })
     .limit(1);
-  if (branchId) sessQuery = sessQuery.eq("branch_id", branchId);
+  if (branchFilter) sessQuery = sessQuery.or(branchFilter);
 
   let expQuery = supabase
     .from("expenses")
@@ -147,14 +153,14 @@ async function loadDashboard(
     .eq("business_id", businessId)
     .gte("date", expenseFrom)
     .lte("date", expenseTo);
-  if (branchId) expQuery = expQuery.eq("branch_id", branchId);
+  if (branchFilter) expQuery = expQuery.or(branchFilter);
 
   let catalogQuery = supabase
     .from("price_catalog")
     .select("id,name,category,duration_min,active")
     .eq("business_id", businessId)
     .eq("active", true);
-  if (branchId) catalogQuery = catalogQuery.eq("branch_id", branchId);
+  if (branchFilter) catalogQuery = catalogQuery.or(branchFilter);
 
   const [apptRes, payRes, payYestRes, empRes, sessRes, expRes, catalogRes, scheduleRes] = await Promise.allSettled([
     apptQuery.order("starts_at", { ascending: true }),
@@ -228,7 +234,7 @@ async function loadDashboard(
       .eq("session_id", session.id)
       .gte("created_at", today.toISOString())
       .lte("created_at", todayEnd.toISOString());
-    if (branchId) sessionPaymentsQuery = sessionPaymentsQuery.eq("branch_id", branchId);
+    if (branchFilter) sessionPaymentsQuery = sessionPaymentsQuery.or(branchFilter);
     const { data: sp, error: spError } = await sessionPaymentsQuery.order("created_at", { ascending: false });
 
     if (spError) {
@@ -261,7 +267,7 @@ async function loadDashboard(
     .eq("business_id", businessId)
     .gte("created_at", w7start.toISOString())
     .lte("created_at", todayEnd.toISOString());
-  if (branchId) w7payQuery = w7payQuery.eq("branch_id", branchId);
+  if (branchFilter) w7payQuery = w7payQuery.or(branchFilter);
 
   let w7apptQuery = supabase
     .from("appointments")
@@ -269,7 +275,7 @@ async function loadDashboard(
     .eq("business_id", businessId)
     .gte("starts_at", w7start.toISOString())
     .lte("starts_at", todayEnd.toISOString());
-  if (branchId) w7apptQuery = w7apptQuery.eq("branch_id", branchId);
+  if (branchFilter) w7apptQuery = w7apptQuery.or(branchFilter);
 
   const [w7payR, w7apptR] = await Promise.all([w7payQuery, w7apptQuery]);
   const w7pay = (w7payR.data as Pay[]) || [];

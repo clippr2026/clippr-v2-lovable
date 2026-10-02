@@ -422,12 +422,21 @@ export function useCajaData() {
     // Con activeBranchId en null (negocio recién migrado, sin sucursal
     // resuelta todavía) el filtro simplemente no se aplica, mismo
     // comportamiento que antes de esta migración.
+    //
+    // IMPORTANTE: nunca excluye branch_id NULL (.or(...) en vez de
+    // .eq(...)). activeBranchId arranca null al hidratar y se resuelve
+    // async — un cobro registrado en esa ventana (o cualquier fila vieja,
+    // de antes de esta fundación) quedaba con branch_id null para siempre
+    // e invisible acá con un .eq puro, aunque el cobro fuera real (Caja
+    // mostraba $0 / "Sin cobros" con ventas ya hechas en la base).
+    const branchFilter = activeBranchId ? `branch_id.eq.${activeBranchId},branch_id.is.null` : null;
+
     let svcQuery = supabase
       .from("price_catalog")
       .select("id,name,price,duration_min,category,active,stock,cash_discount")
       .eq("business_id", businessId)
       .eq("active", true);
-    if (activeBranchId) svcQuery = svcQuery.eq("branch_id", activeBranchId);
+    if (branchFilter) svcQuery = svcQuery.or(branchFilter);
 
     // Sin .eq("is_active", true): esa columna nunca se edita desde ningún
     // lugar de la app (Equipo no tiene un toggle para ella — ver el
@@ -441,7 +450,7 @@ export function useCajaData() {
       .from("employees")
       .select("id,full_name,avatar_url,is_active,commission_pct,commission_fixed")
       .eq("business_id", businessId);
-    if (activeBranchId) empQuery = empQuery.eq("branch_id", activeBranchId);
+    if (branchFilter) empQuery = empQuery.or(branchFilter);
 
     let payQuery = supabase
       .from("payments")
@@ -459,7 +468,7 @@ export function useCajaData() {
       .eq("business_id", businessId)
       .gte("created_at", today.toISOString())
       .lte("created_at", todayEnd.toISOString());
-    if (activeBranchId) payQuery = payQuery.eq("branch_id", activeBranchId);
+    if (branchFilter) payQuery = payQuery.or(branchFilter);
     payQuery = payQuery.order("created_at", { ascending: false });
 
     let expQuery = supabase
@@ -467,7 +476,7 @@ export function useCajaData() {
       .select("id,name,amount,type,category,payment_method,date,note,created_at,user_id,user_name,user_email,created_by")
       .eq("business_id", businessId)
       .eq("date", dateStr);
-    if (activeBranchId) expQuery = expQuery.eq("branch_id", activeBranchId);
+    if (branchFilter) expQuery = expQuery.or(branchFilter);
     expQuery = expQuery.order("created_at", { ascending: false });
 
     // "pending_payment" NUNCA es un valor válido de appointments.status —
@@ -481,7 +490,7 @@ export function useCajaData() {
       .from("appointments")
       .select("id,client_name,service_name,service_price,employee_id,starts_at,notes,status,cobro_events,promotion_id,promotion_snapshot")
       .eq("business_id", businessId);
-    if (activeBranchId) pendingQuery = pendingQuery.eq("branch_id", activeBranchId);
+    if (branchFilter) pendingQuery = pendingQuery.or(branchFilter);
     pendingQuery = pendingQuery
       .ilike("notes", "%[PENDIENTE_CAJA]%")
       .not("status", "in", "(charged,cancelled,blocked)")

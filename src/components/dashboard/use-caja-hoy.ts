@@ -41,13 +41,17 @@ export function useCajaHoy(businessId: string | null, branchId: string | null) {
     const dayStart = new Date(`${today}T00:00:00`).toISOString();
     const dayEnd = new Date(`${today}T23:59:59.999`).toISOString();
 
+    // branch_id = null nunca se excluye (.or en vez de .eq): ver mismo
+    // criterio y motivo documentado en use-caja-data.ts.
+    const branchFilter = branchId ? `branch_id.eq.${branchId},branch_id.is.null` : null;
+
     let payQuery = supabase
       .from("payments")
       .select("id,total,amount,method,payment_method,created_at")
       .eq("business_id", businessId)
       .gte("created_at", dayStart)
       .lte("created_at", dayEnd);
-    if (branchId) payQuery = payQuery.eq("branch_id", branchId);
+    if (branchFilter) payQuery = payQuery.or(branchFilter);
 
     let movQuery = supabase
       .from("cash_movements" as any)
@@ -55,7 +59,7 @@ export function useCajaHoy(businessId: string | null, branchId: string | null) {
       .eq("business_id", businessId)
       .gte("created_at", dayStart)
       .lte("created_at", dayEnd);
-    if (branchId) movQuery = movQuery.eq("branch_id", branchId);
+    if (branchFilter) movQuery = movQuery.or(branchFilter);
 
     const [payRes, movRes, pending] = await Promise.all([
       payQuery.order("created_at", { ascending: false }),

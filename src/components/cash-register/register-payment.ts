@@ -183,9 +183,30 @@ export async function registerPayment(input: RegisterPaymentInput) {
     chargedByUuid = user?.id ?? null;
   } catch { /* silently fail */ }
 
+  // input.branchId viene de activeBranchId (useAuth), que arranca en null y
+  // se resuelve async después de cada login/hydrate — una venta cobrada en
+  // esa ventana (antes de que termine de resolverse la sucursal) quedaba con
+  // branch_id null para siempre, invisible en Caja al filtrar por sucursal
+  // activa aunque el cobro sea real. Nunca confiar en null sin chequear: si
+  // pasa, resuelve la sucursal principal del negocio (o la más vieja si
+  // ninguna está marcada principal) antes de guardar — todo negocio tiene
+  // siempre al menos una (ver 20261002060000_branches_principal_casa_central).
+  let resolvedBranchId = input.branchId ?? null;
+  if (!resolvedBranchId) {
+    const { data: fallbackBranch } = await supabase
+      .from("branches")
+      .select("id")
+      .eq("business_id", input.businessId)
+      .order("is_principal", { ascending: false })
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    resolvedBranchId = (fallbackBranch as { id?: string } | null)?.id ?? null;
+  }
+
   const payload: Record<string, unknown> = {
     business_id: input.businessId,
-    branch_id: input.branchId ?? null,
+    branch_id: resolvedBranchId,
     employee_id: input.employeeId ?? null,
     // Relación principal con `clients` — antes se recibía pero nunca se
     // guardaba, y la ficha/RPC de Clientes solo podían matchear este pago

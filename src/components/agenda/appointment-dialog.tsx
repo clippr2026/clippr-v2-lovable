@@ -334,6 +334,28 @@ export function AppointmentDialog({
   presentation = "drawer",
 }: Props) {
   const { activeBranchId } = useAuth();
+
+  // activeBranchId (useAuth) arranca en null y se resuelve async después de
+  // cada login/hydrate — un cliente o turno creado en esa ventana quedaba
+  // con branch_id null para siempre, invisible en Agenda al filtrar por
+  // sucursal activa (aunque sigue contando para disponibilidad, que nunca
+  // filtró por sucursal — ver checkOverlap). Nunca confiar en null sin
+  // chequear: si pasa, resuelve la sucursal principal del negocio (o la más
+  // vieja si ninguna está marcada principal) antes de guardar — todo
+  // negocio tiene siempre al menos una (20261002060000_branches_principal_casa_central).
+  const resolveBranchIdForWrite = React.useCallback(async (): Promise<string | null> => {
+    if (activeBranchId) return activeBranchId;
+    const { data } = await supabase
+      .from("branches")
+      .select("id")
+      .eq("business_id", businessId)
+      .order("is_principal", { ascending: false })
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    return (data as { id?: string } | null)?.id ?? null;
+  }, [activeBranchId, businessId]);
+
   const Wrapper = presentation === "modal" ? AgendaCenteredModal : AgendaDrawer;
   const isMobileView = useIsMobile();
   const isEdit = !!appointment?.id;
@@ -664,7 +686,7 @@ export function AppointmentDialog({
 
     const payload: Record<string, unknown> = {
       business_id: businessId,
-      branch_id: activeBranchId,
+      branch_id: await resolveBranchIdForWrite(),
       full_name: fullName || null,
       phone,
     };
@@ -694,6 +716,9 @@ export function AppointmentDialog({
     const mergedNotes = [notes.trim(), internalNotes.trim() ? `Observación interna: ${internalNotes.trim()}` : ""]
       .filter(Boolean)
       .join("\n");
+    // Una sola resolución para todas las fechas de esta tanda (serie) — no
+    // una query por fecha.
+    const writeBranchId = await resolveBranchIdForWrite();
 
     if (employeeId) {
       // Si el horario estaba bloqueado y ahora se carga un turno real, el
@@ -708,7 +733,7 @@ export function AppointmentDialog({
       await saveAppointment({
         id: isEdit ? appointment?.id ?? null : null,
         business_id: businessId,
-        branch_id: activeBranchId,
+        branch_id: writeBranchId,
         client_id: resolvedClientId || null,
         client_name: fullClientName,
         employee_id: employeeId || null,
