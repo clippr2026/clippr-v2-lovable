@@ -80,7 +80,6 @@ import {
   Users,
   Receipt,
 } from "lucide-react";
-import { useClientesConfig } from "@/hooks/use-clientes-config";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 import {
   resolveServicePricing,
@@ -88,9 +87,7 @@ import {
   isPromotionApplicable,
   applyPromotionDiscount,
 } from "@/lib/service-pricing";
-import { AcquisitionSourceField } from "@/components/acquisition-source-field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { acquisitionChannelRequiresText } from "@/lib/acquisition-channels";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { AgendaCenteredModal } from "@/components/agenda/agenda-drawer";
 import { fetchSettlementRunServices } from "@/hooks/use-professionals-data";
@@ -9498,38 +9495,17 @@ export function NuevaVentaTab({
   ]);
   const [submitting, setSubmitting] = React.useState(false);
   const [newClientOpen, setNewClientOpen] = React.useState(false);
-  const [clientNotes, setClientNotes] = React.useState("");
+  // Apellido del cliente nuevo — "client" guarda el nombre (o el nombre
+  // completo, una vez elegido un cliente existente por el buscador). Flujo
+  // interno simplificado: teléfono obligatorio y principal, nombre/apellido
+  // opcionales, nunca mail/notas/"cómo nos conoció" acá (ver
+  // saveClientIfNeeded más abajo) — eso sigue siendo exclusivo de la
+  // reserva pública, sin tocar.
+  const [clientLastName, setClientLastName] = React.useState("");
   const [professionalSearch, setProfessionalSearch] = React.useState("");
   // Resumen del paso 4: arranca compacto (2 ítems) — "Ver más" lo despliega
   // sin que el módulo se agrande de entrada con carritos grandes.
   const [summaryExpanded, setSummaryExpanded] = React.useState(false);
-  const [clientAcquisitionSource, setClientAcquisitionSource] = React.useState("");
-  const [clientAcquisitionCustom, setClientAcquisitionCustom] = React.useState("");
-  // Si el email ya tiene un origen guardado, no se vuelve a preguntar ni se
-  // deja cambiar desde acá — mismo criterio que Clientes → Nuevo cliente.
-  const [clientSourceAlreadyKnown, setClientSourceAlreadyKnown] = React.useState(false);
-
-  const { isFieldEnabled } = useClientesConfig(data.businessId ?? null);
-
-  useEffect(() => {
-    const trimmedEmail = email.trim();
-    if (!data.businessId || !trimmedEmail || !trimmedEmail.includes("@")) {
-      setClientSourceAlreadyKnown(false);
-      return;
-    }
-    let cancelled = false;
-    const timer = window.setTimeout(async () => {
-      const { data: known, error } = await supabase.rpc(
-        "clippr_client_has_acquisition_source",
-        { p_business_id: data.businessId, p_email: trimmedEmail },
-      );
-      if (!cancelled && !error) setClientSourceAlreadyKnown(Boolean(known));
-    }, 500);
-    return () => {
-      cancelled = true;
-      window.clearTimeout(timer);
-    };
-  }, [data.businessId, email]);
 
   const pendingHydrateRef = React.useRef<string | null>(null);
   const pendingInjectedRef = React.useRef(false);
@@ -9551,7 +9527,6 @@ export function NuevaVentaTab({
     setPhone("");
     setEmail("");
     setBirthDate("");
-    setClientNotes("");
     setReceived("");
     setPaymentMode("simple");
     setSplits([{ method: "cash", amount: "" }]);
@@ -9838,11 +9813,15 @@ export function NuevaVentaTab({
           .map(({ svc, qty }) => `${svc.name}${qty > 1 ? ` x${qty}` : ""}`)
           .join(" + ")
       : "Sin servicios";
+  // En el paso 2, con el formulario "Nuevo cliente" abierto, el teléfono ya
+  // escrito alcanza para habilitar Continuar — el cliente se crea/reutiliza
+  // recién al tocar ese botón (ver goNext), no hace falta un botón
+  // "Confirmar cliente" propio del formulario.
   const canContinue =
     step === 1
       ? Boolean(employeeId)
       : step === 2
-        ? hasSelectedClient
+        ? hasSelectedClient || (newClientOpen && phone.trim().length > 0)
         : step === 3
           ? cartItems.length > 0
           : true;
@@ -9856,16 +9835,27 @@ export function NuevaVentaTab({
       return n <= 0 ? rest : { ...c, [id]: n };
     });
 
-  function goNext() {
+  async function goNext() {
     if (step === 1 && !employeeId) {
       toast.error("Seleccioná un profesional.");
       return;
     }
-    if (step === 2) {
-      if (!clientId) {
-        toast.error("Seleccioná un cliente para continuar.");
+    if (step === 2 && !clientId) {
+      if (!phone.trim()) {
+        toast.error("Seleccioná o creá un cliente para continuar.");
         return;
       }
+      // Formulario "Nuevo cliente" abierto con teléfono cargado: crea (o
+      // reutiliza por teléfono, ver saveClientIfNeeded) el cliente recién
+      // acá, sin paso de confirmación intermedio.
+      const saved = await saveClientIfNeeded();
+      if (!saved) {
+        toast.error("No se pudo guardar el cliente. Revisá los datos e intentá de nuevo.");
+        return;
+      }
+      setClientId(saved);
+      setClient(`${client.trim()} ${clientLastName.trim()}`.trim());
+      setNewClientOpen(false);
     }
     if (step === 3 && cartItems.length === 0) {
       toast.error("Agregá al menos un servicio o producto.");
@@ -9874,50 +9864,39 @@ export function NuevaVentaTab({
     setStep((s) => (s < finalStep ? ((s + 1) as 1 | 2 | 3 | 4) : s));
   }
 
+  // Flujo interno simplificado: el teléfono es el dato principal y el
+  // identificador real — se compara por dígitos (sin espacios/signos/código
+  // de país), mismo criterio que ya usan Agenda, Clientes y
+  // create_public_booking_public_v4, para no crear un cliente duplicado.
+  // Nunca se guardan mail/notas/"cómo nos conoció" acá (quedan null; eso
+  // sigue siendo exclusivo de la reserva pública, sin tocar).
   async function saveClientIfNeeded(): Promise<string | null> {
-    if (!data.businessId || !client.trim()) return clientId;
+    if (!data.businessId) return clientId;
     if (clientId && !clientId.startsWith("__pending_client__")) return clientId;
     if (pendingCharge?.client_name) return null;
+    if (!phone.trim()) return clientId;
     try {
-      const trimmedEmail = email.trim();
-      // Si el email ya pertenece a un cliente existente, no crear un
-      // duplicado — se actualiza el origen solo si todavía no lo tenía
-      // (mismo criterio que Clientes → Nuevo cliente).
-      if (trimmedEmail) {
-        const { data: existing } = await supabase
+      const trimmedPhone = phone.trim();
+      const digits = trimmedPhone.replace(/\D/g, "");
+      if (digits.length >= 6) {
+        const { data: candidates } = await supabase
           .from("clients")
-          .select("id, acquisition_source")
+          .select("id, phone")
           .eq("business_id", data.businessId)
-          .ilike("email", trimmedEmail)
-          .maybeSingle();
-        if (existing) {
-          if (!existing.acquisition_source && clientAcquisitionSource) {
-            await supabase
-              .from("clients")
-              .update({
-                acquisition_source: clientAcquisitionSource,
-                acquisition_source_custom: clientAcquisitionCustom.trim() || null,
-                acquisition_captured_at: new Date().toISOString(),
-              })
-              .eq("id", existing.id);
-          }
-          return existing.id;
-        }
+          .ilike("phone", `%${digits.slice(-8)}%`);
+        const existing = (candidates ?? []).find(
+          (c) => (c.phone ?? "").replace(/\D/g, "") === digits,
+        );
+        if (existing) return existing.id;
       }
+      const fullName = `${client.trim()} ${clientLastName.trim()}`.trim();
       const { data: created, error } = await supabase
         .from("clients")
         .insert({
           business_id: data.businessId,
           branch_id: data.activeBranchId,
-          full_name: client.trim(),
-          phone: phone.trim() || null,
-          email: trimmedEmail || null,
-          birth_date: birthDate || null,
-          notes: clientNotes.trim() || null,
-          acquisition_source: clientSourceAlreadyKnown ? null : clientAcquisitionSource || null,
-          acquisition_source_custom: clientSourceAlreadyKnown ? null : clientAcquisitionCustom.trim() || null,
-          acquisition_captured_at:
-            !clientSourceAlreadyKnown && clientAcquisitionSource ? new Date().toISOString() : null,
+          full_name: fullName || null,
+          phone: trimmedPhone,
         })
         .select("id")
         .maybeSingle();
@@ -10344,11 +10323,11 @@ export function NuevaVentaTab({
         setCart({});
         setClientId(null);
         setClient("");
+        setClientLastName("");
         setClientSearch("");
         setPhone("");
         setEmail("");
         setBirthDate("");
-        setClientNotes("");
         setReceived("");
         setSplits([{ method: "cash", amount: "" }]);
         setPaymentMode("simple");
@@ -10670,10 +10649,10 @@ export function NuevaVentaTab({
                 onClick={() => {
                   setClientId(null);
                   setClient("");
+                  setClientLastName("");
                   setPhone("");
                   setEmail("");
                   setBirthDate("");
-                  setClientNotes("");
                   setNewClientOpen(false);
                   setClientSearch("");
                 }}
@@ -10713,9 +10692,8 @@ export function NuevaVentaTab({
               onClick={() => {
                 setNewClientOpen(true);
                 setClient("");
+                setClientLastName("");
                 setClientId(null);
-                setClientAcquisitionSource("");
-                setClientAcquisitionCustom("");
               }}
               className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium border border-white/15 bg-white/[0.03] text-muted-foreground hover:text-foreground hover:bg-white/[0.07] hover:border-white/25 transition-colors"
             >
@@ -10724,116 +10702,45 @@ export function NuevaVentaTab({
             </button>
           )}
 
-          {/* Formulario nuevo cliente */}
+          {/* Formulario nuevo cliente — flujo interno simplificado: teléfono
+              obligatorio y principal, nombre/apellido opcionales. Sin
+              mail/notas/"cómo nos conoció" acá (exclusivo de la reserva
+              pública, sin tocar). Sin botones propios (Cancelar/Confirmar):
+              el Continuar del pie del paso crea o reutiliza el cliente por
+              teléfono y recién ahí avanza — ver goNext. Para salir de este
+              formulario sin crear nada, el buscador de arriba sigue
+              disponible para elegir un cliente existente en su lugar. */}
           {!clientId &&
-            newClientOpen &&
-            (() => {
-              async function handleGuardarCliente() {
-                if (!client.trim()) {
-                  toast.error("Ingresá el nombre del cliente.");
-                  return;
-                }
-                if (!phone.trim()) {
-                  toast.error("Ingresá el teléfono del cliente.");
-                  return;
-                }
-                if (isFieldEnabled("email") && !email.trim()) {
-                  toast.error("Ingresá el email del cliente.");
-                  return;
-                }
-                if (!clientSourceAlreadyKnown) {
-                  if (!clientAcquisitionSource) {
-                    toast.error("Indicá cómo nos conoció el cliente.");
-                    return;
-                  }
-                  if (
-                    acquisitionChannelRequiresText(clientAcquisitionSource) &&
-                    !clientAcquisitionCustom.trim()
-                  ) {
-                    toast.error("Indicá dónde nos conoció el cliente.");
-                    return;
-                  }
-                }
-                const saved = await saveClientIfNeeded();
-                if (saved) {
-                  setClientId(saved);
-                  setNewClientOpen(false);
-                  toast.success("Cliente guardado y seleccionado");
-                } else {
-                  toast.error(
-                    "No se pudo guardar el cliente. Revisá los datos e intentá de nuevo.",
-                  );
-                }
-              }
-              return (
+            newClientOpen && (
                 <Card className="max-h-[340px] overflow-y-auto p-4 space-y-3 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
                   <p className="text-xs text-muted-foreground tracking-[0.15em] uppercase">
                     Nuevo cliente
                   </p>
-                  <input
-                    value={client}
-                    onChange={(e) => {
-                      setClient(e.target.value);
-                      setClientId(null);
-                    }}
-                    placeholder="Nombre *"
-                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-base outline-none focus:border-blue-300/40"
-                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      value={client}
+                      onChange={(e) => {
+                        setClient(e.target.value);
+                        setClientId(null);
+                      }}
+                      placeholder="Nombre"
+                      className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-base outline-none focus:border-blue-300/40"
+                    />
+                    <input
+                      value={clientLastName}
+                      onChange={(e) => setClientLastName(e.target.value)}
+                      placeholder="Apellido"
+                      className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-base outline-none focus:border-blue-300/40"
+                    />
+                  </div>
                   <input
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="Teléfono *"
                     className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-base outline-none focus:border-blue-300/40"
                   />
-                  {isFieldEnabled("email") && (
-                    <input
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="Email *"
-                      type="email"
-                      className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-base outline-none focus:border-blue-300/40"
-                    />
-                  )}
-                  {isFieldEnabled("notas") && (
-                    <input
-                      value={clientNotes}
-                      onChange={(e) => setClientNotes(e.target.value)}
-                      placeholder="Notas"
-                      className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-base outline-none focus:border-blue-300/40"
-                    />
-                  )}
-                  {!clientSourceAlreadyKnown && (
-                    <AcquisitionSourceField
-                      value={clientAcquisitionSource}
-                      onChange={setClientAcquisitionSource}
-                      customValue={clientAcquisitionCustom}
-                      onCustomChange={setClientAcquisitionCustom}
-                      questionLabel="¿Cómo nos conoció?"
-                      wrapperClassName="space-y-3"
-                      otroBelow
-                      triggerClassName="w-full bg-white/[0.03] border-white/10 rounded-lg px-3 py-2.5 h-auto text-base focus:border-blue-300/40"
-                      inputClassName="w-full bg-white/[0.03] border-white/10 rounded-lg px-3 py-2.5 text-base focus:border-blue-300/40"
-                    />
-                  )}
-                  <div className="flex gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setNewClientOpen(false)}
-                      className="flex-1 py-2.5 rounded-xl text-sm font-medium border border-white/15 bg-white/[0.03] text-muted-foreground hover:text-foreground hover:bg-white/[0.07] transition-colors"
-                    >
-                      Cancelar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={handleGuardarCliente}
-                      className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition bg-gradient-to-r from-blue-500/90 to-violet-500/90 text-white hover:brightness-110 cash-sale-button-glow"
-                    >
-                      Confirmar cliente
-                    </button>
-                  </div>
                 </Card>
-              );
-            })()}
+            )}
           </div>
         </div>
       )}

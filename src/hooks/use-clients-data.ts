@@ -603,50 +603,37 @@ export type NewClientInput = {
   firstName: string;
   lastName: string;
   phone: string;
-  email: string;
-  acquisitionSource?: string | null;
-  acquisitionCustom?: string | null;
 };
 
-// El email es el identificador único del cliente: nunca deben existir dos
-// clientes con el mismo email dentro de un mismo negocio. Si ya existe uno
-// con ese email, no se crea otro — se completa el origen solo si todavía no
-// lo tenía guardado (un origen ya guardado nunca se pisa).
+// Flujo interno de creación manual (Clientes → Nuevo cliente): el teléfono
+// es el dato principal y el identificador real, mismo criterio que ya usa
+// Agenda y create_public_booking_public_v4 — se compara por dígitos (sin
+// espacios/signos/código de país) para no crear un cliente duplicado. Nunca
+// se piden ni se guardan mail ni "cómo nos conoció" acá (quedan null; eso
+// sigue siendo exclusivo de la reserva pública, sin tocar).
 async function saveClient(businessId: string, input: NewClientInput): Promise<void> {
-  const email = input.email.trim();
+  const phone = input.phone.trim();
   const fullName = `${input.firstName.trim()} ${input.lastName.trim()}`.trim();
+  const digits = phone.replace(/\D/g, "");
 
-  const { data: existing, error: lookupError } = await supabase
-    .from("clients")
-    .select("id, acquisition_source")
-    .eq("business_id", businessId)
-    .ilike("email", email)
-    .maybeSingle();
-  if (lookupError) throw new Error("Error al buscar cliente: " + lookupError.message);
-
-  if (existing) {
-    if (!existing.acquisition_source && input.acquisitionSource) {
-      const { error } = await supabase
-        .from("clients")
-        .update({
-          acquisition_source: input.acquisitionSource,
-          acquisition_source_custom: input.acquisitionCustom?.trim() || null,
-          acquisition_captured_at: new Date().toISOString(),
-        })
-        .eq("id", existing.id);
-      if (error) throw new Error("Error al guardar cliente: " + error.message);
-    }
-    return;
+  if (digits.length >= 6) {
+    // Prefiltro por los últimos dígitos (acotado, no trae todos los
+    // clientes del negocio) + comparación exacta de dígitos en el cliente
+    // para no fallar por formato distinto (espacios, signos, código de país).
+    const { data: candidates, error: lookupError } = await supabase
+      .from("clients")
+      .select("id, phone")
+      .eq("business_id", businessId)
+      .ilike("phone", `%${digits.slice(-8)}%`);
+    if (lookupError) throw new Error("Error al buscar cliente: " + lookupError.message);
+    const existing = (candidates ?? []).find((c) => (c.phone ?? "").replace(/\D/g, "") === digits);
+    if (existing) return;
   }
 
   const { error } = await supabase.from("clients").insert({
     business_id: businessId,
-    full_name: fullName,
-    phone: input.phone.trim() || null,
-    email,
-    acquisition_source: input.acquisitionSource || null,
-    acquisition_source_custom: input.acquisitionCustom?.trim() || null,
-    acquisition_captured_at: input.acquisitionSource ? new Date().toISOString() : null,
+    full_name: fullName || null,
+    phone: phone || null,
   });
   if (error) throw new Error("Error al guardar cliente: " + error.message);
 }
