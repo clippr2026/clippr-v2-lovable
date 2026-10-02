@@ -65,6 +65,8 @@ create policy branch_checkin_codes_write on public.branch_checkin_codes
     and (select p.role from public.profiles p where p.id = auth.uid()) is distinct from 'profesional'
   );
 
+grant select, insert, update, delete on public.branch_checkin_codes to authenticated;
+
 -- ── 2. work_sessions ─────────────────────────────────────────────────────────
 create table if not exists public.work_sessions (
   id                  uuid primary key default gen_random_uuid(),
@@ -107,17 +109,29 @@ create policy work_sessions_insert on public.work_sessions
 
 -- Editar una jornada ya fichada (Historial de jornadas) es acción de
 -- dueño/admin, no del profesional — mismo criterio que el resto de la app.
+-- EXCEPCIÓN: un profesional sí puede hacer UPDATE de SU PROPIA fila — es lo
+-- que usa clockOut() (fichaje.ts) para grabar clock_out_at al fichar su
+-- propia salida, acción distinta de "editar jornada" (Historial), que sigue
+-- restringida a jornadas ajenas.
 drop policy if exists work_sessions_update on public.work_sessions;
 create policy work_sessions_update on public.work_sessions
   for update
   using (
     business_id = (select p.business_id from public.profiles p where p.id = auth.uid())
-    and (select p.role from public.profiles p where p.id = auth.uid()) is distinct from 'profesional'
+    and (
+      (select p.role from public.profiles p where p.id = auth.uid()) is distinct from 'profesional'
+      or employee_id = (select p.employee_id from public.profiles p where p.id = auth.uid())
+    )
   )
   with check (
     business_id = (select p.business_id from public.profiles p where p.id = auth.uid())
-    and (select p.role from public.profiles p where p.id = auth.uid()) is distinct from 'profesional'
+    and (
+      (select p.role from public.profiles p where p.id = auth.uid()) is distinct from 'profesional'
+      or employee_id = (select p.employee_id from public.profiles p where p.id = auth.uid())
+    )
   );
+
+grant select, insert, update on public.work_sessions to authenticated;
 
 -- ── 3. lateness_rules ────────────────────────────────────────────────────────
 create table if not exists public.lateness_rules (
@@ -153,6 +167,8 @@ create policy lateness_rules_write on public.lateness_rules
     business_id = (select p.business_id from public.profiles p where p.id = auth.uid())
     and (select p.role from public.profiles p where p.id = auth.uid()) is distinct from 'profesional'
   );
+
+grant select, insert, update, delete on public.lateness_rules to authenticated;
 
 -- ── 4. lateness_discounts ─────────────────────────────────────────────────────
 create table if not exists public.lateness_discounts (
@@ -192,5 +208,7 @@ create policy lateness_discounts_insert on public.lateness_discounts
   with check (
     business_id = (select p.business_id from public.profiles p where p.id = auth.uid())
   );
+
+grant select, insert on public.lateness_discounts to authenticated;
 
 NOTIFY pgrst, 'reload schema';

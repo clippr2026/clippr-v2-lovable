@@ -46,6 +46,8 @@ create policy closures_write on public.closures for all
     and (select p.role from public.profiles p where p.id = auth.uid()) is distinct from 'profesional'
   );
 
+grant select, insert, update, delete on public.closures to authenticated;
+
 -- Espejo público de solo lectura — la página de reservas (sin sesión) y el
 -- RPC de booking público necesitan poder chequear cierres antes de crear un
 -- turno. Mismo patrón que el resto de las vistas public_booking_*.

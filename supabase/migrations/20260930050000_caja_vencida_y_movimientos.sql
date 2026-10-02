@@ -78,4 +78,9 @@ create policy cash_movements_write on public.cash_movements
     and (select p.role from public.profiles p where p.id = auth.uid()) is distinct from 'profesional'
   );
 
+-- Mismo motivo que branches/branch_settings: las policies de RLS de arriba
+-- solo restringen filas — sin el GRANT de nivel tabla de abajo, PostgREST
+-- devuelve 42501 antes de evaluar RLS siquiera.
+grant select, insert, update, delete on public.cash_movements to authenticated;
+
 NOTIFY pgrst, 'reload schema';

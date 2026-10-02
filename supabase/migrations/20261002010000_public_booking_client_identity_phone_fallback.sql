@@ -1,4 +1,25 @@
 -- ============================================================================
+-- SUPERADA — NO CORRER. Dejada solo como registro histórico.
+-- ============================================================================
+-- Esta migración recrea create_public_booking_public_v4 con 11 parámetros
+-- (sin p_branch_id). Esa firma fue eliminada a propósito por 20260930040000
+-- (migración multi-sucursal) precisamente para evitar que coexistan dos v4
+-- con distinta cantidad de parámetros — PostgREST no puede resolver cuál
+-- usar y falla con "Could not choose the best candidate function". Correr
+-- esta migración ahora reintroduciría exactamente ese bug.
+--
+-- Además, el frontend ya no llama a create_public_booking_public_v4 en
+-- absoluto — llama directo a create_public_booking_public_v5 (ver
+-- src/routes/reservar/$slug.tsx). La lógica de identidad de cliente
+-- (mail primero, teléfono de respaldo) que acá se aplicaba a v4 ya está
+-- incluida en la v4/v5 vigentes (20260930040000 y 20261002040000).
+--
+-- La validación de horario/breaks/visibilidad de profesional que SÍ es
+-- exclusiva de esta versión (no existe en v4/v5 actuales) nunca se portó
+-- a la línea multi-sucursal — quedó pendiente de decisión de producto, no
+-- de bug. Si se quiere recuperar esa validación server-side, hacerlo como
+-- migración nueva sobre v5, no re-ejecutando este archivo.
+-- ============================================================================
 -- Identificación de cliente en la reserva pública: mail primero, teléfono
 -- como respaldo — nunca duplicar.
 -- ============================================================================
