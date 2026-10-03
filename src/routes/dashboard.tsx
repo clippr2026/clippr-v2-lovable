@@ -425,9 +425,9 @@ function FichajeHoyCard({
             </div>
 
             {fichaje.summary.fichadosDetalle.length > 0 ? (
-              <div className="mt-1.5 max-h-[220px] space-y-1.5 overflow-y-auto pr-0.5">
+              <div className="mt-1.5 flex items-stretch gap-2.5 overflow-x-auto pb-1.5 pr-0.5 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
                 {fichaje.summary.fichadosDetalle.map((p) => (
-                  <FichajePersonaRow key={p.id} persona={p} />
+                  <FichajePersonaChip key={p.id} persona={p} />
                 ))}
               </div>
             ) : (
@@ -497,21 +497,24 @@ function inicialAvatar(name: string) {
   return (name.trim()[0] ?? "?").toUpperCase();
 }
 
-function FichajePersonaRow({ persona }: { persona: FichajeHoyPersona }) {
+// Mini tarjeta de "Hoy ficharon" — una hilera horizontal con scroll propio
+// (ver contenedor en FichajeCard), cada persona separada visualmente con su
+// propio fondo/borde para que no se mezclen entre sí aunque fichen muchos.
+function FichajePersonaChip({ persona }: { persona: FichajeHoyPersona }) {
   const enCurso = persona.clockOutAt === null;
   const puntualidad = puntualidadDe(persona);
 
   return (
-    <div className="flex items-center gap-2 rounded-lg bg-white/[0.025] px-2 py-1.5 ring-1 ring-white/5">
+    <div className="flex w-[186px] shrink-0 items-center gap-2 rounded-xl bg-white/[0.035] px-2.5 py-2 ring-1 ring-white/10">
       <div className="grid size-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-sky-400/25 to-violet-500/25 text-[11px] font-bold text-white ring-1 ring-white/10">
         {inicialAvatar(persona.name)}
       </div>
       <div className="min-w-0 flex-1">
         <div className="truncate text-xs font-medium text-foreground">{persona.name}</div>
-        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-[11px] text-muted-foreground">
+        <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
           <span className="tabular-nums">{horaCorta(persona.clockInAt)}</span>
           {enCurso ? (
-            <span className="font-medium text-emerald-300">En curso</span>
+            <span className="truncate font-medium text-emerald-300">En curso</span>
           ) : (
             <span className="tabular-nums">{horaCorta(persona.clockOutAt as string)}</span>
           )}
@@ -519,7 +522,7 @@ function FichajePersonaRow({ persona }: { persona: FichajeHoyPersona }) {
       </div>
       {puntualidad && (
         <span
-          className={`shrink-0 rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ${PUNTUALIDAD_CLASS[puntualidad]}`}
+          className={`ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ring-1 ${PUNTUALIDAD_CLASS[puntualidad]}`}
         >
           {PUNTUALIDAD_LABEL[puntualidad]}
         </span>
