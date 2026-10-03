@@ -314,7 +314,17 @@ type CajaDataCache = {
 let cajaDataCache: CajaDataCache | null = null;
 
 export function useCajaData() {
-  const { businessId, profile, activeBranchId } = useAuth();
+  const { businessId, profile, activeBranchId, branchesLoading } = useAuth();
+  // "Última key conocida" — se reescribe en CADA render, sincrónicamente
+  // (no en un efecto): así runLoad() siempre puede leer el businessId/
+  // activeBranchId más actual al entrar, sin importar con qué closure vieja
+  // haya quedado atrapada la llamada que la disparó (ver requestReload).
+  const liveKeyRef = React.useRef<{ businessId: string | null; activeBranchId: string | null }>({
+    businessId,
+    activeBranchId,
+  });
+  liveKeyRef.current = { businessId, activeBranchId };
+
   const [loading, setLoading] = React.useState(true);
   const [approvalMode, setApprovalModeState] = React.useState<ApprovalMode>("auto");
   const [approvalModeEnabled, setApprovalModeEnabled] = React.useState(false);
@@ -360,11 +370,21 @@ export function useCajaData() {
   // configurada por servicio nunca generaba fila en commission_records.
   const [employeeCommissions, setEmployeeCommissions] =
     React.useState<EmployeeCommissionMap>({});
-  // Numera cada llamada a load() para poder descartar respuestas que
-  // lleguen desordenadas (ver el chequeo más abajo, después del
-  // Promise.allSettled) — importante porque el canal realtime puede
-  // disparar varios load() seguidos en poco tiempo.
-  const loadSeqRef = React.useRef(0);
+  // Single-flight + 1 recarga pendiente — reemplaza el viejo esquema de
+  // "numerar cada load() y descartar el que llegue desordenado". Con 5
+  // disparadores independientes (mount, cambio de sucursal, realtime en 2
+  // tablas, BroadcastChannel, 2 CustomEvent) ese esquema podía invalidar
+  // TODAS las respuestas antes de que alguna llegara a comitear, dejando
+  // Caja permanentemente en $0/[] (ninguna llamada ganaba la carrera nunca).
+  // Ahora solo puede haber UN runLoad() en vuelo: mientras hay uno corriendo,
+  // cualquier otro disparo solo prende reloadRequestedRef — no arranca un
+  // fetch paralelo. Al terminar el que está en vuelo, si quedó algo
+  // pendiente, se ejecuta UNA sola recarga más (nunca una por cada evento
+  // encolado) y listo. Ver requestReload() más abajo.
+  const inFlightRef = React.useRef(false);
+  const reloadRequestedRef = React.useRef(false);
+  const reloadReasonRef = React.useRef("");
+  const chainRef = React.useRef<Promise<void>>(Promise.resolve());
   // Revalidación silenciosa: "loading" (que dispara las pantallas
   // "Cargando…") solo se prende para la carga inicial. Los refrescos
   // posteriores — realtime, BroadcastChannel, o el refresh() manual tras
@@ -376,10 +396,29 @@ export function useCajaData() {
   // TEMPORAL — logging para encontrar qué dispara cada load() en
   // producción (pedido explícito: identificar la causa exacta antes de
   // tocar nada más). Sacar una vez confirmado cuál es el disparador real.
-  const load = React.useCallback(async (reason: string = "unknown") => {
+  //
+  // runLoad NO depende de [businessId, activeBranchId] — a propósito. Si
+  // dependiera de ellos, cada cambio de sucursal recrearía esta función y
+  // el useEffect de montaje volvería a dispararla en cadena (exactamente el
+  // patrón que alimentaba el storm de loads concurrentes). En vez de cerrar
+  // sobre esos valores, lee liveKeyRef.current AL ENTRAR — así, aunque esta
+  // ejecución haya sido encolada por requestReload() y arranque más tarde,
+  // siempre toma el negocio/sucursal más actual, nunca uno viejo atrapado
+  // en un closure. De acá en adelante, dentro de esta función, `businessId`
+  // y `activeBranchId` son constantes LOCALES (shadow) con ese valor fijo
+  // para toda la duración de esta llamada — el resto del cuerpo (sin
+  // cambios) sigue usándolas igual que antes.
+  const runLoad = React.useCallback(async (reason: string = "unknown") => {
+    const { businessId, activeBranchId } = liveKeyRef.current;
     // eslint-disable-next-line no-console
     console.log(`[Caja refresh] ${reason} @ ${new Date().toISOString()}`);
     if (!businessId) { setLoading(false); return; }
+    // ¿Sigue vigente esta key (negocio+sucursal) en este instante? Si
+    // cambió mientras esta llamada esperaba un await, se descarta sin
+    // comitear nada — el efecto que reacciona a [businessId, activeBranchId]
+    // ya se encargó de pedir una recarga para la key nueva.
+    const keyMatches = () =>
+      liveKeyRef.current.businessId === businessId && liveKeyRef.current.activeBranchId === activeBranchId;
     if (loadedBusinessIdRef.current !== businessId) {
       loadedBusinessIdRef.current = businessId;
       hasLoadedRef.current = false;
@@ -411,7 +450,6 @@ export function useCajaData() {
         hasLoadedRef.current = true;
       }
     }
-    const mySeq = ++loadSeqRef.current;
     if (!hasLoadedRef.current) setLoading(true);
 
     // Si hay una caja vencida (abierta desde un día anterior, todavía sin
@@ -423,11 +461,11 @@ export function useCajaData() {
     // de este resultado.
     const pending = await findPendingCierre(businessId, activeBranchId).catch(() => null);
     // Revalidar vigencia después de este await — si mientras esperábamos
-    // findPendingCierre ya se lanzó un load() más nuevo (realtime, cambio
-    // de sucursal, etc.), esta llamada quedó obsoleta: cortar ACÁ, antes de
-    // construir ninguna query más, en vez de seguir trabajando para un
-    // resultado que de todos modos se va a descartar más abajo.
-    if (loadSeqRef.current !== mySeq) return;
+    // findPendingCierre cambió el negocio/sucursal activo, esta llamada
+    // quedó obsoleta: cortar ACÁ, antes de construir ninguna query más, en
+    // vez de seguir trabajando para un resultado que de todos modos se va a
+    // descartar más abajo.
+    if (!keyMatches()) return;
     const todayDateStr = cajaDateKey();
     const rangeStartDate = cajaOpenRangeStartDate(pending, todayDateStr);
     const today = new Date(`${rangeStartDate}T00:00:00`);
@@ -552,17 +590,13 @@ export function useCajaData() {
         .limit(5),
     ]);
 
-    // Con el canal realtime (INSERT/UPDATE/DELETE sobre appointments y
-    // business_settings) disparando load() en cadena — varios envíos/
-    // cobros/rechazos seguidos, cada uno dispara su propio load() — nada
-    // garantiza que las respuestas lleguen en el mismo orden en que salieron
-    // las llamadas. Sin este chequeo, una respuesta VIEJA que tarda más en
-    // volver podía pisar el estado ya actualizado por una llamada más
-    // nueva que respondió antes — eso hacía que un envío recién llegado
-    // apareciera "en el medio" o con datos de un instante anterior. Si ya
-    // se lanzó un load() más nuevo mientras este esperaba, esta respuesta
-    // se descarta entera (ningún setState de acá abajo corre).
-    if (loadSeqRef.current !== mySeq) return;
+    // Con single-flight ya no puede haber OTRO runLoad() corriendo en
+    // paralelo — lo único que puede volver obsoleta a esta respuesta es que
+    // cambie el negocio/sucursal activo mientras este batch estaba en
+    // vuelo. Chequeo defensivo: evita construir el resto del commit (y la
+    // query extra de abajo) para un resultado que de todos modos no se va a
+    // usar.
+    if (!keyMatches()) return;
 
     // Services
     const svcRawUnordered = svcRes.status === "fulfilled" && !svcRes.value.error ? (svcRes.value.data ?? []) : [];
@@ -630,10 +664,8 @@ export function useCajaData() {
     // Session status — se lanzó en paralelo con el batch de arriba (ver
     // sessionPromise), acá solo se espera a que termine.
     const sessionData = await sessionPromise;
-    // Revalidar vigencia después de este await — mismo motivo que el
-    // chequeo de arriba: sessionPromise puede tardar más que otra llamada
-    // a load() que arrancó después y ya terminó.
-    if (loadSeqRef.current !== mySeq) return;
+    // Revalidar vigencia después de este await — mismo motivo que arriba.
+    if (!keyMatches()) return;
     const sessionId = sessionData.sessionId;
     const sessionStatus = sessionData.status;
     const closedAt = sessionData.closedAt;
@@ -670,9 +702,8 @@ export function useCajaData() {
     }
     // Revalidar vigencia después de este await — es el round-trip extra más
     // propenso a tardar (duración variable según cuántos appointment_id
-    // distintos tenga el payments de hoy), y era el punto exacto donde una
-    // respuesta vieja podía terminar DESPUÉS que una más nueva y pisarla.
-    if (loadSeqRef.current !== mySeq) return;
+    // distintos tenga el payments de hoy).
+    if (!keyMatches()) return;
     const PAY_HIST_MARKER = "[[HIST]]";
     const paymentsEnriched: Payment[] = paymentsRaw.map((p) => {
       let events: HistorialEvento[] = [];
@@ -858,10 +889,15 @@ export function useCajaData() {
     // Último chequeo de vigencia, OBLIGATORIO justo antes del commit final de
     // estado — ninguna de las variables locales calculadas arriba (en
     // cualquier punto, por más awaits que haya de por medio) llega a tocar
-    // React state si para este momento ya existe una llamada a load() más
-    // nueva. A partir de acá todos los setState se disparan juntos, de una
-    // sola vez, nunca parcialmente.
-    if (loadSeqRef.current !== mySeq) return;
+    // React state si el negocio/sucursal activo cambió mientras esta llamada
+    // estaba en vuelo. A partir de acá todos los setState se disparan
+    // juntos, de una sola vez, nunca parcialmente. Si este chequeo falla,
+    // NO hace falta pedir una recarga a mano: el efecto que reacciona a
+    // [businessId, activeBranchId] ya la encoló para la key nueva en cuanto
+    // cambió (ver requestReload), y esta llamada simplemente se pierde sin
+    // dejar rastro — nunca deja paymentsToday/expensesToday en blanco,
+    // porque nunca llega a tocarlos.
+    if (!keyMatches()) return;
 
     setServices(servicesList);
     setEmployees(employeesList);
@@ -887,9 +923,62 @@ export function useCajaData() {
 
     hasLoadedRef.current = true;
     setLoading(false);
-  }, [businessId, activeBranchId]);
+    // Deps vacías a propósito — runLoad lee liveKeyRef.current al entrar
+    // (ver más arriba), nunca cierra sobre businessId/activeBranchId. Que
+    // esta identidad sea estable es justamente lo que permite que
+    // requestReload() encadene la "recarga pendiente" sin arrastrar un
+    // closure viejo.
+  }, []);
 
-  React.useEffect(() => { load("component mount / businessId o sucursal cambió"); }, [load]);
+  // Single-flight: agrupa cualquier cantidad de disparos simultáneos
+  // (mount, cambio de sucursal, realtime, BroadcastChannel, CustomEvent) en
+  // como máximo "1 carga en vuelo + 1 recarga pendiente", nunca más. Si ya
+  // hay un runLoad() corriendo, esta llamada NO arranca un fetch paralelo:
+  // solo prende reloadRequestedRef y devuelve la promesa de la cadena en
+  // curso (que, al terminar, va a ver esa bandera prendida y va a encadenar
+  // automáticamente una única recarga más antes de resolver). Así, 10
+  // eventos mientras hay una carga en vuelo producen a lo sumo 2 fetches
+  // reales, nunca 10 compitiendo entre sí.
+  const requestReload = React.useCallback(
+    (reason: string): Promise<void> => {
+      if (inFlightRef.current) {
+        reloadRequestedRef.current = true;
+        reloadReasonRef.current = reason;
+        return chainRef.current;
+      }
+      inFlightRef.current = true;
+      const run: Promise<void> = runLoad(reason)
+        .catch((e) => {
+          console.error("[Caja refresh] runLoad error:", (e as Error)?.message ?? e);
+        })
+        .then((): Promise<void> | void => {
+          inFlightRef.current = false;
+          if (reloadRequestedRef.current) {
+            reloadRequestedRef.current = false;
+            const nextReason = reloadReasonRef.current;
+            reloadReasonRef.current = "";
+            return requestReload(`queued: ${nextReason}`);
+          }
+        });
+      chainRef.current = run;
+      return run;
+    },
+    [runLoad],
+  );
+
+  // Montaje inicial / cambio real de negocio o sucursal. Espera
+  // explícitamente a que `branchesLoading` esté resuelto (useAuth ya lo
+  // expone) antes de pedir la primera carga — activeBranchId arranca en
+  // `null` mientras se resuelve la sucursal real, y null NO significa
+  // "sin sucursal" ni "sucursal principal" en ese momento transitorio, solo
+  // significa "todavía no sé". Sin esta espera, salía un fetch con
+  // branchId=null que después competía (aunque fuera en orden, gracias al
+  // single-flight) con el de la sucursal real — innecesario.
+  React.useEffect(() => {
+    if (!businessId) return;
+    if (branchesLoading) return;
+    void requestReload("component mount / businessId o sucursal cambió");
+  }, [businessId, activeBranchId, branchesLoading, requestReload]);
 
   // Mantiene cajaDataCache al día con el estado actual — cualquier cambio
   // (carga real terminada, realtime, refresh() manual) queda disponible
@@ -918,36 +1007,38 @@ export function useCajaData() {
   ]);
 
   React.useEffect(() => {
-    const onManualPending = () => load("custom event: clippr:manual-pending-updated");
-    const onStorage = () => load("custom event: storage");
+    const onManualPending = () => void requestReload("custom event: clippr:manual-pending-updated");
+    const onStorage = () => void requestReload("custom event: storage");
     window.addEventListener("clippr:manual-pending-updated", onManualPending);
     window.addEventListener("storage", onStorage);
     return () => {
       window.removeEventListener("clippr:manual-pending-updated", onManualPending);
       window.removeEventListener("storage", onStorage);
     };
-  }, [load]);
+  }, [requestReload]);
 
   React.useEffect(() => {
-    const refresh = () => load("custom event: clippr:caja-settings-updated");
+    const refresh = () => void requestReload("custom event: clippr:caja-settings-updated");
     window.addEventListener("clippr:caja-settings-updated", refresh);
     return () => window.removeEventListener("clippr:caja-settings-updated", refresh);
-  }, [load]);
+  }, [requestReload]);
 
   // Ver notifyCajaPendientesChanged() más arriba — refresco instantáneo
   // entre pestañas del mismo navegador, sin depender de la red.
   React.useEffect(() => {
     if (typeof BroadcastChannel === "undefined") return;
     const bc = new BroadcastChannel(CAJA_BROADCAST_CHANNEL);
-    bc.onmessage = () => load("BroadcastChannel (otra pestaña)");
+    bc.onmessage = () => void requestReload("BroadcastChannel (otra pestaña)");
     return () => bc.close();
-  }, [load]);
+  }, [requestReload]);
 
   // Realtime: la cola de Pendientes depende de otro dispositivo (el
   // profesional envía desde su celular, Caja mira desde otro aparato) — sin
   // esto, Caja solo se enteraba de un envío nuevo si recargaba la página a
   // mano, porque el resto de los listeners de acá arriba son solo
-  // same-tab/same-browser (CustomEvent, storage).
+  // same-tab/same-browser (CustomEvent, storage). requestReload es estable
+  // (no depende de activeBranchId), así que este canal ya no se
+  // desuscribe/resuscribe en cada cambio de sucursal como pasaba antes.
   React.useEffect(() => {
     if (!businessId) return;
     const channel = supabase
@@ -955,19 +1046,19 @@ export function useCajaData() {
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "appointments", filter: `business_id=eq.${businessId}` },
-        (payload) => load(`realtime appointments ${payload.eventType} id=${(payload.new as { id?: string } | null)?.id ?? (payload.old as { id?: string } | null)?.id ?? "?"}`),
+        (payload) => void requestReload(`realtime appointments ${payload.eventType} id=${(payload.new as { id?: string } | null)?.id ?? (payload.old as { id?: string } | null)?.id ?? "?"}`),
       )
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "business_settings", filter: `business_id=eq.${businessId}` },
-        (payload) => load(`realtime business_settings ${payload.eventType}`),
+        (payload) => void requestReload(`realtime business_settings ${payload.eventType}`),
       )
       .subscribe((status) => {
         // eslint-disable-next-line no-console
         console.log(`[Caja refresh] canal realtime status: ${status}`);
       });
     return () => { supabase.removeChannel(channel); };
-  }, [businessId, load]);
+  }, [businessId, requestReload]);
 
   // Auto-close at midnight if session is still open
   React.useEffect(() => {
@@ -1010,7 +1101,7 @@ export function useCajaData() {
           } catch { /* ignore */ }
         }
 
-        load();
+        void requestReload("cierre automático de medianoche");
       }, msUntilMidnight);
 
       return timer;
@@ -1018,7 +1109,7 @@ export function useCajaData() {
 
     const timer = scheduleAutoClose();
     return () => clearTimeout(timer);
-  }, [businessId, load]);
+  }, [businessId, requestReload]);
 
   const setApprovalMode = React.useCallback(async (m: ApprovalMode) => {
     setApprovalModeState(m);
@@ -1061,6 +1152,6 @@ export function useCajaData() {
     pendingCountPrevious, pendingAmountPrevious, pendingChargesPrevious,
     employeeServiceOverrides,
     employeeCommissions,
-    refresh: (reason?: string) => load(reason ?? "manual refresh() call"),
+    refresh: (reason?: string) => requestReload(reason ?? "manual refresh() call"),
   };
 }
