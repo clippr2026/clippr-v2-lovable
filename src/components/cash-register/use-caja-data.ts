@@ -9,6 +9,7 @@ import {
   backfillPromotionVigencia,
 } from "@/lib/service-pricing";
 import { applyCatalogOrder, extractCatalogOrderMap } from "@/lib/catalog-order";
+import { findPendingCierre, cajaOpenRangeStartDate, cajaDateKey, type PendingCierre } from "@/lib/caja-cierre";
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
 
@@ -295,6 +296,7 @@ type CajaDataCache = {
   promotions: Promotion[];
   paymentsToday: Payment[];
   expensesToday: Expense[];
+  pendingCierre: PendingCierre | null;
   cashSessionId: string | null;
   cajaStatus: CajaStatus;
   pendingCount: number;
@@ -328,6 +330,11 @@ export function useCajaData() {
   const [promotions, setPromotions] = React.useState<Promotion[]>([]);
   const [paymentsToday, setPaymentsToday] = React.useState<Payment[]>([]);
   const [expensesToday, setExpensesToday] = React.useState<Expense[]>([]);
+  // Caja vencida (ver findPendingCierre) — paymentsToday/expensesToday ya
+  // vienen filtrados desde SU fecha de apertura cuando esto no es null, no
+  // desde "hoy". Expuesto acá para que cualquier pantalla que use este
+  // hook pueda, si quiere, mostrar de dónde vienen realmente estos totales.
+  const [pendingCierre, setPendingCierre] = React.useState<PendingCierre | null>(null);
   const [cashSessionId, setCashSessionId] = React.useState<string | null>(null);
   const [cajaStatus, setCajaStatus] = React.useState<CajaStatus>("no_session");
   const [pendingCount, setPendingCount] = React.useState(0);
@@ -387,6 +394,7 @@ export function useCajaData() {
         setPromotions(cached.promotions);
         setPaymentsToday(cached.paymentsToday);
         setExpensesToday(cached.expensesToday);
+        setPendingCierre(cached.pendingCierre);
         setCashSessionId(cached.cashSessionId);
         setCajaStatus(cached.cajaStatus);
         setPendingCount(cached.pendingCount);
@@ -406,9 +414,19 @@ export function useCajaData() {
     const mySeq = ++loadSeqRef.current;
     if (!hasLoadedRef.current) setLoading(true);
 
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    const todayEnd = new Date(); todayEnd.setHours(23, 59, 59, 999);
-    const dateStr = new Date().toISOString().slice(0, 10);
+    // Si hay una caja vencida (abierta desde un día anterior, todavía sin
+    // cerrar explícitamente), Ingresos/cobros/gastos de Caja tienen que
+    // arrancar en SU fecha de apertura, no en "hoy" — una caja no se
+    // resetea sola al cruzar la medianoche, sigue siendo la misma hasta
+    // que se cierra explícitamente ("Cerrar caja vencida", Inicio). Se
+    // resuelve ANTES de armar payQuery/expQuery porque el rango depende
+    // de este resultado.
+    const pending = await findPendingCierre(businessId, activeBranchId).catch(() => null);
+    const todayDateStr = cajaDateKey();
+    const rangeStartDate = cajaOpenRangeStartDate(pending, todayDateStr);
+    const today = new Date(`${rangeStartDate}T00:00:00`);
+    const todayEnd = new Date(); // hasta ahora, nunca un fin de "hoy" fijo
+    const dateStr = todayDateStr; // extremo superior para expenses.date (solo fecha, sin hora)
 
     // Arranca ya, en paralelo con el Promise.allSettled de abajo — antes
     // se esperaba (await) recién DESPUÉS de que todo ese batch terminara,
@@ -471,11 +489,15 @@ export function useCajaData() {
     if (branchFilter) payQuery = payQuery.or(branchFilter);
     payQuery = payQuery.order("created_at", { ascending: false });
 
+    // expenses.date es solo fecha (sin hora) — con una caja vencida que
+    // viene de un día anterior, el rango cubre todos los días intermedios
+    // hasta hoy, no solo "hoy" exacto.
     let expQuery = supabase
       .from("expenses")
       .select("id,name,amount,type,category,payment_method,date,note,created_at,user_id,user_name,user_email,created_by")
       .eq("business_id", businessId)
-      .eq("date", dateStr);
+      .gte("date", rangeStartDate)
+      .lte("date", dateStr);
     if (branchFilter) expQuery = expQuery.or(branchFilter);
     expQuery = expQuery.order("created_at", { ascending: false });
 
@@ -658,6 +680,7 @@ export function useCajaData() {
     paymentsEnriched.sort((a, b) => (b.sort_ts ?? "").localeCompare(a.sort_ts ?? ""));
     setPaymentsToday(paymentsEnriched);
     setExpensesToday(expRes.status === "fulfilled" && !expRes.value.error ? ((expRes.value.data ?? []) as Expense[]) : []);
+    setPendingCierre(pending);
 
     // Pending charges — el query ya filtra por el marcador en notas; este
     // segundo chequeo es solo defensivo (por si algún día se relaja el
@@ -820,7 +843,7 @@ export function useCajaData() {
     cajaDataCache = {
       businessId,
       branchId: activeBranchId,
-      services, employees, promotions, paymentsToday, expensesToday,
+      services, employees, promotions, paymentsToday, expensesToday, pendingCierre,
       cashSessionId, cajaStatus,
       pendingCount, pendingAmount, pendingCharges,
       pendingCountPrevious, pendingAmountPrevious, pendingChargesPrevious,
@@ -828,7 +851,7 @@ export function useCajaData() {
       approvalMode, approvalModeEnabled, paymentMethods,
     };
   }, [
-    businessId, activeBranchId, services, employees, promotions, paymentsToday, expensesToday,
+    businessId, activeBranchId, services, employees, promotions, paymentsToday, expensesToday, pendingCierre,
     cashSessionId, cajaStatus,
     pendingCount, pendingAmount, pendingCharges,
     pendingCountPrevious, pendingAmountPrevious, pendingChargesPrevious,
@@ -973,6 +996,7 @@ export function useCajaData() {
     paymentMethods,
     services, employees, promotions,
     paymentsToday, expensesToday, cashSessionId,
+    pendingCierre,
     cajaStatus,
     revHoy, cobros, ticket, totalGastos,
     pendingCount, pendingAmount, pendingCharges,

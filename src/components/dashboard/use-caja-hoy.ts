@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   findPendingCierre,
   closeCierreForDate,
-  cajaDateKey,
+  cajaOpenRangeStartDate,
   type PendingCierre,
 } from "@/lib/caja-cierre";
 
@@ -37,9 +37,17 @@ export function useCajaHoy(businessId: string | null, branchId: string | null) {
       return;
     }
     setLoading(true);
-    const today = cajaDateKey();
-    const dayStart = new Date(`${today}T00:00:00`).toISOString();
-    const dayEnd = new Date(`${today}T23:59:59.999`).toISOString();
+
+    // Si hay una caja vencida (abierta desde un día anterior, todavía sin
+    // cerrar explícitamente), el rango de ESTA tarjeta arranca en SU fecha
+    // de apertura, no en "hoy" — una caja no se resetea sola al cruzar la
+    // medianoche, sigue siendo la misma hasta que el usuario la cierre
+    // (closeVencida más abajo). Se resuelve ANTES de armar payQuery/movQuery
+    // porque el rango depende de este resultado.
+    const pending = await findPendingCierre(businessId, branchId).catch(() => null);
+    const rangeStartDate = cajaOpenRangeStartDate(pending);
+    const dayStart = new Date(`${rangeStartDate}T00:00:00`).toISOString();
+    const dayEnd = new Date().toISOString();
 
     // branch_id = null nunca se excluye (.or en vez de .eq): ver mismo
     // criterio y motivo documentado en use-caja-data.ts.
@@ -61,10 +69,9 @@ export function useCajaHoy(businessId: string | null, branchId: string | null) {
       .lte("created_at", dayEnd);
     if (branchFilter) movQuery = movQuery.or(branchFilter);
 
-    const [payRes, movRes, pending] = await Promise.all([
+    const [payRes, movRes] = await Promise.all([
       payQuery.order("created_at", { ascending: false }),
       movQuery.order("created_at", { ascending: false }),
-      findPendingCierre(businessId, branchId).catch(() => null),
     ]);
 
     const isCashMethod = (m: string | null | undefined) => {

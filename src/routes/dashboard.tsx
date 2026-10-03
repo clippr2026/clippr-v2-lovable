@@ -102,19 +102,25 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
   );
   const fichajeBranchId =
     activeBranches.length === 1 ? activeBranches[0].id : activeBranchId;
-  // Inicio ya no tiene selector de rango — es una mirada rápida de HOY,
-  // el detalle completo (con su propio rango) vive en Caja. `range` queda
-  // fijo al día de hoy, recalculado solo si el día cambia con la pestaña
-  // abierta (medianoche).
+  const cajaHoy = useCajaHoy(businessId, activeBranchId);
+  // Inicio ya no tiene selector de rango — es una mirada rápida de HOY... a
+  // menos que haya una Caja vencida (abierta desde un día anterior,
+  // todavía sin cerrar explícitamente): esa caja no se resetea sola al
+  // cruzar la medianoche, sigue siendo la misma hasta que se cierre — así
+  // que Ingresos/Egresos/Utilidad/Servicios realizados/Productos vendidos
+  // de CajaHoyCard (los únicos campos de `data` que se usan en esta
+  // pantalla) tienen que arrancar en SU fecha de apertura, no en "hoy".
+  // `range` se recalcula solo si cambia el día (medianoche) o si cambia el
+  // estado de pendingCierre.
   const todayStr = React.useMemo(() => localDateStr(new Date()), []);
   const range = React.useMemo(() => {
-    const from = new Date(todayStr + "T00:00:00");
+    const fromStr = cajaHoy.pendingCierre?.date || todayStr;
+    const from = new Date(fromStr + "T00:00:00");
     const to = new Date(todayStr + "T23:59:59");
     return { from, to };
-  }, [todayStr]);
+  }, [todayStr, cajaHoy.pendingCierre]);
 
   const { data, isLoading, error } = useDashboardData(businessId, range, activeBranchId);
-  const cajaHoy = useCajaHoy(businessId, activeBranchId);
   const inicioWidgets = useInicioWidgets(businessId, activeBranchId);
   const fichajeHoy = useFichajeHoy(businessId, fichajeBranchId);
 

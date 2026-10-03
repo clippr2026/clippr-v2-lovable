@@ -149,14 +149,39 @@ export function normalizeCierreMethodKey(method: string | null | undefined): str
   return raw;
 }
 
-// Snapshot financiero de un día puntual (no necesariamente hoy) — se usa para
-// armar el registro de un cierre (automático o de "Caja vencida") de un día
-// que nunca se cerró, con exactamente la misma forma de datos que guarda un
-// cierre manual, para que el detalle del historial funcione igual sea cual
-// sea el tipo de cierre.
-export async function buildCierreSnapshotForDate(businessId: string, dateStr: string, branchId?: string | null) {
+// Fecha desde la que hay que calcular los totales de "la caja abierta":
+// si hay una caja vencida (pendingCierre, ver findPendingCierre más abajo)
+// el rango arranca en SU fecha de apertura, no en la fecha calendario de
+// hoy — una caja permanece abierta (y sus movimientos le siguen
+// perteneciendo) hasta que se cierra explícitamente, nunca se resetea sola
+// al cruzar la medianoche. Sin pendingCierre, el rango es el de siempre
+// (desde hoy 00:00).
+export function cajaOpenRangeStartDate(
+  pendingCierre: PendingCierre | null,
+  today = cajaDateKey(),
+): string {
+  return pendingCierre?.date || today;
+}
+
+// Snapshot financiero de un rango [dateStr 00:00, endDate] — por defecto un
+// solo día calendario (si no se pasa endDate, termina a las 23:59:59.999 de
+// ESE MISMO dateStr), pero admite un endDate posterior para abarcar varios
+// días: es lo que necesita cerrar una "Caja vencida" que viene acumulando
+// movimientos desde un día anterior hasta el momento real del cierre (ver
+// closeCierreForDate). Se usa tanto para armar el registro de un cierre
+// (automático o de "Caja vencida") como para detectar si un día tuvo
+// actividad (findPendingCierre) — mismo formato exacto que un cierre
+// manual, para que el detalle del historial funcione igual sea cual sea el
+// tipo de cierre.
+export async function buildCierreSnapshotForDate(
+  businessId: string,
+  dateStr: string,
+  branchId?: string | null,
+  endDate?: Date,
+) {
   const dayStart = new Date(`${dateStr}T00:00:00`);
-  const dayEnd = new Date(`${dateStr}T23:59:59.999`);
+  const dayEnd = endDate ?? new Date(`${dateStr}T23:59:59.999`);
+  const endDateStr = cajaDateKey(dayEnd);
 
   // branch_id = null nunca se excluye (.or en vez de .eq) — mismo criterio
   // que use-caja-data.ts: un cobro/gasto real con branch_id null (fila
@@ -174,11 +199,15 @@ export async function buildCierreSnapshotForDate(businessId: string, dateStr: st
     .lte("created_at", dayEnd.toISOString());
   if (branchFilter) payQuery = payQuery.or(branchFilter);
 
+  // expenses.date es solo fecha (sin hora) — con endDate > dateStr (caja
+  // vencida que cruzó medianoche) el rango cubre todos los días
+  // intermedios, no solo el de apertura.
   let expQuery = supabase
     .from("expenses")
     .select("id,name,amount,type,category,payment_method,date,note,created_at,user_name,created_by")
     .eq("business_id", businessId)
-    .eq("date", dateStr);
+    .gte("date", dateStr)
+    .lte("date", endDateStr);
   if (branchFilter) expQuery = expQuery.or(branchFilter);
 
   const [payRes, expRes] = await Promise.allSettled([payQuery, expQuery]);
@@ -375,8 +404,13 @@ export async function closeCierreForDate({
     return { closed: false, alreadyClosed: true };
   }
 
-  const snapshot = await buildCierreSnapshotForDate(businessId, dateStr, branchId);
+  // endDate = "ahora", nunca el fin del día de apertura: una caja vencida
+  // sigue acumulando movimientos (de ese día y de los que pasaron después,
+  // ver cajaOpenRangeStartDate) hasta este mismo instante del cierre — el
+  // snapshot tiene que incluir todo eso, no solo lo que pasó el día que se
+  // abrió.
   const now = new Date();
+  const snapshot = await buildCierreSnapshotForDate(businessId, dateStr, branchId, now);
   const evento: CajaEvento = {
     tipo: "cierre",
     modo: mode,
