@@ -422,6 +422,12 @@ export function useCajaData() {
     // resuelve ANTES de armar payQuery/expQuery porque el rango depende
     // de este resultado.
     const pending = await findPendingCierre(businessId, activeBranchId).catch(() => null);
+    // Revalidar vigencia después de este await — si mientras esperábamos
+    // findPendingCierre ya se lanzó un load() más nuevo (realtime, cambio
+    // de sucursal, etc.), esta llamada quedó obsoleta: cortar ACÁ, antes de
+    // construir ninguna query más, en vez de seguir trabajando para un
+    // resultado que de todos modos se va a descartar más abajo.
+    if (loadSeqRef.current !== mySeq) return;
     const todayDateStr = cajaDateKey();
     const rangeStartDate = cajaOpenRangeStartDate(pending, todayDateStr);
     const today = new Date(`${rangeStartDate}T00:00:00`);
@@ -597,47 +603,46 @@ export function useCajaData() {
       }
       return map;
     })();
-    setServices(
-      (svcRaw as Array<{ id: string; name: string; price: number; duration_min: number | null; category: string | null; active: boolean | null; stock: number | null; cash_discount: number | null }>)
-        .map((r) => ({
-          id: r.id,
-          name: r.name,
-          price: Number(r.price ?? 0),
-          duration: r.duration_min,
-          category: r.category,
-          is_active: r.active !== false,
-          stock: r.stock,
-          is_catalog: r.duration_min == null,
-          image: catalogImages[r.id] ?? null,
-          image_position: catalogImagePositions[r.id] ?? null,
-          cash_discount: r.cash_discount,
-        })),
-    );
+    // Services/employees: se calculan en variables locales — el commit real
+    // de estado (setServices/setEmployees) pasa a un único bloque al final
+    // de load(), después del último chequeo de vigencia (ver más abajo).
+    const servicesList = (svcRaw as Array<{ id: string; name: string; price: number; duration_min: number | null; category: string | null; active: boolean | null; stock: number | null; cash_discount: number | null }>)
+      .map((r) => ({
+        id: r.id,
+        name: r.name,
+        price: Number(r.price ?? 0),
+        duration: r.duration_min,
+        category: r.category,
+        is_active: r.active !== false,
+        stock: r.stock,
+        is_catalog: r.duration_min == null,
+        image: catalogImages[r.id] ?? null,
+        image_position: catalogImagePositions[r.id] ?? null,
+        cash_discount: r.cash_discount,
+      }));
 
-    // Employees
-    setEmployees(
+    const employeesList =
       empRes.status === "fulfilled" && !empRes.value.error
         ? ((empRes.value.data ?? []) as Array<{ id: string; full_name: string | null; avatar_url?: string | null; commission_pct: number | null; commission_fixed: number | null }>)
             .map((r) => ({ id: r.id, name: r.full_name ?? "Sin nombre", commission_pct: r.commission_pct ?? null, commission_fixed: r.commission_fixed ?? null, avatar_url: r.avatar_url ?? null }))
-        : []
-    );
+        : [];
 
     // Session status — se lanzó en paralelo con el batch de arriba (ver
     // sessionPromise), acá solo se espera a que termine.
     const sessionData = await sessionPromise;
+    // Revalidar vigencia después de este await — mismo motivo que el
+    // chequeo de arriba: sessionPromise puede tardar más que otra llamada
+    // a load() que arrancó después y ya terminó.
+    if (loadSeqRef.current !== mySeq) return;
     const sessionId = sessionData.sessionId;
     const sessionStatus = sessionData.status;
     const closedAt = sessionData.closedAt;
-
-    // Always expose sessionId so we can close even if caja was loaded as "open"
-    setCashSessionId(sessionId);
 
     const status = computeCajaStatus({
       sessionId,
       sessionStatus: sessionStatus === "no_session" ? null : sessionStatus,
       closedAt,
     });
-    setCajaStatus(status);
 
     // Payments — se completa cobro_events/sort_ts abajo (ver enrichPayments).
     const paymentsRaw = payRes.status === "fulfilled" && !payRes.value.error ? ((payRes.value.data ?? []) as Payment[]) : [];
@@ -663,6 +668,11 @@ export function useCajaData() {
         if (events.length) apptHistMap[row.id as string] = events;
       }
     }
+    // Revalidar vigencia después de este await — es el round-trip extra más
+    // propenso a tardar (duración variable según cuántos appointment_id
+    // distintos tenga el payments de hoy), y era el punto exacto donde una
+    // respuesta vieja podía terminar DESPUÉS que una más nueva y pisarla.
+    if (loadSeqRef.current !== mySeq) return;
     const PAY_HIST_MARKER = "[[HIST]]";
     const paymentsEnriched: Payment[] = paymentsRaw.map((p) => {
       let events: HistorialEvento[] = [];
@@ -678,9 +688,7 @@ export function useCajaData() {
     // Orden por sort_ts (momento real de envío/creación) — nunca por cuándo
     // se cobró: cobrar o rechazar un pendiente no debe correrlo de lugar.
     paymentsEnriched.sort((a, b) => (b.sort_ts ?? "").localeCompare(a.sort_ts ?? ""));
-    setPaymentsToday(paymentsEnriched);
-    setExpensesToday(expRes.status === "fulfilled" && !expRes.value.error ? ((expRes.value.data ?? []) as Expense[]) : []);
-    setPendingCierre(pending);
+    const expensesList = expRes.status === "fulfilled" && !expRes.value.error ? ((expRes.value.data ?? []) as Expense[]) : [];
 
     // Pending charges — el query ya filtra por el marcador en notas; este
     // segundo chequeo es solo defensivo (por si algún día se relaja el
@@ -731,11 +739,9 @@ export function useCajaData() {
       bsRes.status === "fulfilled" && !bsRes.value.error && bsRes.value.data
         ? ((bsRes.value.data.schedule ?? {}) as Record<string, unknown>)
         : {};
-    setPromotions(
-      Array.isArray(bsSchedule._promotions)
-        ? (bsSchedule._promotions as Promotion[]).map(backfillPromotionVigencia)
-        : [],
-    );
+    const promotionsList = Array.isArray(bsSchedule._promotions)
+      ? (bsSchedule._promotions as Promotion[]).map(backfillPromotionVigencia)
+      : [];
 
     // Venta de mostrador enviada a Caja en modo "Enviar" sin partir de un
     // turno: no existe un appointment de por medio (no debe ocuparse un
@@ -795,18 +801,22 @@ export function useCajaData() {
       ? allPending.filter((p) => new Date(p.sentAt ?? p.starts_at).getTime() <= lastCierreAt)
       : [];
 
-    setPendingCharges(pendingToday);
-    setPendingCount(pendingToday.length);
-    setPendingAmount(pendingToday.reduce((s, a) => s + Number(a.service_price ?? 0), 0));
-    setPendingChargesPrevious(pendingPrevious);
-    setPendingCountPrevious(pendingPrevious.length);
-    setPendingAmountPrevious(pendingPrevious.reduce((s, a) => s + Number(a.service_price ?? 0), 0));
+    const pendingAmountTotal = pendingToday.reduce((s, a) => s + Number(a.service_price ?? 0), 0);
+    const pendingAmountPreviousTotal = pendingPrevious.reduce((s, a) => s + Number(a.service_price ?? 0), 0);
 
-    // Settings
+    // Settings — se calcula en una variable local (null si bsRes falló, para
+    // no tocar approvalMode/paymentMethods/etc. cuando no hay nada nuevo que
+    // aplicar, igual que el `if` original).
+    let settingsUpdate: {
+      approvalMode: ApprovalMode;
+      approvalModeEnabled: boolean;
+      employeeServiceOverrides: EmployeeServiceOverrideMap;
+      employeeCommissions: EmployeeCommissionMap;
+      paymentMethods: PaymentMethodsConfig | null;
+    } | null = null;
     if (bsRes.status === "fulfilled" && !bsRes.value.error && bsRes.value.data) {
       const row = bsRes.value.data;
       const mode = row.approval_mode;
-      setApprovalModeState(mode === "manual" ? "manual" : "auto");
       const caja = (bsSchedule._caja ?? {}) as Record<string, unknown>;
       // "¿Hay al menos un profesional con 'Exigir aprobación de ventas'
       // activado?" — NO es business_settings.schedule._caja.approvalModeEnabled
@@ -822,27 +832,57 @@ export function useCajaData() {
         empRes.status === "fulfilled" && !empRes.value.error
           ? ((empRes.value.data ?? []) as Array<{ id: string }>).map((e) => e.id)
           : [];
-      setApprovalModeEnabled(
-        activeEmployeeIds.some(
+      settingsUpdate = {
+        approvalMode: mode === "manual" ? "manual" : "auto",
+        approvalModeEnabled: activeEmployeeIds.some(
           (id) => employeeApprovalEnabledMap[id] === true && employeeApprovalModeMap[id] === "manual",
         ),
-      );
-      setEmployeeServiceOverrides(
-        (bsSchedule._employeeServiceOverrides as EmployeeServiceOverrideMap) ?? {},
-      );
-      setEmployeeCommissions(
-        (bsSchedule._employeeCommissions as EmployeeCommissionMap) ?? {},
-      );
-      if (caja.methods && typeof caja.methods === "object") {
-        const m = caja.methods as Record<string, boolean>;
-        setPaymentMethods({
-          efectivo: m.efectivo !== false,
-          transferencia: m.transferencia !== false,
-          tarjeta: m.tarjeta !== false,
-          mp: m.mp !== false,
-          cuentaDni: m.cuentaDni === true,
-        });
-      }
+        employeeServiceOverrides: (bsSchedule._employeeServiceOverrides as EmployeeServiceOverrideMap) ?? {},
+        employeeCommissions: (bsSchedule._employeeCommissions as EmployeeCommissionMap) ?? {},
+        paymentMethods:
+          caja.methods && typeof caja.methods === "object"
+            ? (() => {
+                const m = caja.methods as Record<string, boolean>;
+                return {
+                  efectivo: m.efectivo !== false,
+                  transferencia: m.transferencia !== false,
+                  tarjeta: m.tarjeta !== false,
+                  mp: m.mp !== false,
+                  cuentaDni: m.cuentaDni === true,
+                };
+              })()
+            : null,
+      };
+    }
+
+    // Último chequeo de vigencia, OBLIGATORIO justo antes del commit final de
+    // estado — ninguna de las variables locales calculadas arriba (en
+    // cualquier punto, por más awaits que haya de por medio) llega a tocar
+    // React state si para este momento ya existe una llamada a load() más
+    // nueva. A partir de acá todos los setState se disparan juntos, de una
+    // sola vez, nunca parcialmente.
+    if (loadSeqRef.current !== mySeq) return;
+
+    setServices(servicesList);
+    setEmployees(employeesList);
+    setCashSessionId(sessionId);
+    setCajaStatus(status);
+    setPaymentsToday(paymentsEnriched);
+    setExpensesToday(expensesList);
+    setPendingCierre(pending);
+    setPromotions(promotionsList);
+    setPendingCharges(pendingToday);
+    setPendingCount(pendingToday.length);
+    setPendingAmount(pendingAmountTotal);
+    setPendingChargesPrevious(pendingPrevious);
+    setPendingCountPrevious(pendingPrevious.length);
+    setPendingAmountPrevious(pendingAmountPreviousTotal);
+    if (settingsUpdate) {
+      setApprovalModeState(settingsUpdate.approvalMode);
+      setApprovalModeEnabled(settingsUpdate.approvalModeEnabled);
+      setEmployeeServiceOverrides(settingsUpdate.employeeServiceOverrides);
+      setEmployeeCommissions(settingsUpdate.employeeCommissions);
+      if (settingsUpdate.paymentMethods) setPaymentMethods(settingsUpdate.paymentMethods);
     }
 
     hasLoadedRef.current = true;
