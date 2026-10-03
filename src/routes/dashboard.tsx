@@ -29,6 +29,8 @@ import {
   CalendarClock,
   Activity,
   Receipt,
+  Wallet,
+  CreditCard,
 } from "lucide-react";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 
@@ -319,6 +321,14 @@ function CajaHoyCard({
       <div className="mt-3 grid grid-cols-2 gap-2">
         <MiniStat icon={Scissors} label="Servicios realizados" value={String(serviciosRealizados)} />
         <MiniStat icon={Package} label="Productos vendidos" value={String(productosVendidos)} />
+      </div>
+
+      {/* Efectivo esperado en caja / Dinero esperado en cuenta — ya
+          calculados por useCajaHoy (computeExpectedCashAndDigital,
+          compartido con el cierre de caja para que nunca difieran). */}
+      <div className="mt-2 grid grid-cols-2 gap-2">
+        <MiniStat icon={Wallet} label="Efectivo esperado en caja" value={fmtAR(caja.cashExpected)} />
+        <MiniStat icon={CreditCard} label="Dinero esperado en cuenta" value={fmtAR(caja.bankExpected)} />
       </div>
     </div>
   );

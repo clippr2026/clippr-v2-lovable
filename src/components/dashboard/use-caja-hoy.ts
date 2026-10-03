@@ -4,6 +4,8 @@ import {
   findPendingCierre,
   closeCierreForDate,
   cajaOpenRangeStartDate,
+  computeExpectedCashAndDigital,
+  cajaDateKey,
   type PendingCierre,
 } from "@/lib/caja-cierre";
 
@@ -24,9 +26,10 @@ export type CashMovement = {
 export function useCajaHoy(businessId: string | null, branchId: string | null) {
   const [loading, setLoading] = React.useState(true);
   const [cashExpected, setCashExpected] = React.useState(0);
-  // Todo lo cobrado hoy que NO es efectivo (transferencia, tarjeta, MP, QR,
-  // etc.) — a diferencia de cashExpected, nunca se ajusta por
-  // ingresar/retirar efectivo (esos movimientos son solo del cajón físico).
+  // "Dinero esperado en cuenta": cobros digitales (transferencia, débito,
+  // crédito, QR) menos gastos/adelantos pagados por esos mismos métodos —
+  // nunca se ajusta por ingresar/retirar efectivo (eso es solo el cajón
+  // físico).
   const [bankExpected, setBankExpected] = React.useState(0);
   const [movements, setMovements] = React.useState<CashMovement[]>([]);
   const [pendingCierre, setPendingCierre] = React.useState<PendingCierre | null>(null);
@@ -69,29 +72,49 @@ export function useCajaHoy(businessId: string | null, branchId: string | null) {
       .lte("created_at", dayEnd);
     if (branchFilter) movQuery = movQuery.or(branchFilter);
 
-    const [payRes, movRes] = await Promise.all([
+    const rangeStartDateOnly = rangeStartDate;
+    const rangeEndDateOnly = cajaDateKey(new Date(dayEnd));
+    let expQuery = supabase
+      .from("expenses")
+      .select("id,amount,payment_method,type,date")
+      .eq("business_id", businessId)
+      .gte("date", rangeStartDateOnly)
+      .lte("date", rangeEndDateOnly);
+    if (branchFilter) expQuery = expQuery.or(branchFilter);
+
+    // professional_advances no tiene branch_id (ver uso en cash-register.tsx)
+    // y puede no existir todavía en algunas bases — falla en silencio.
+    const advQuery = supabase
+      .from("professional_advances" as any)
+      .select("id,amount,payment_method,advanced_at")
+      .eq("business_id", businessId)
+      .gte("advanced_at", dayStart)
+      .lte("advanced_at", dayEnd);
+
+    const [payRes, movRes, expRes, advRes] = await Promise.allSettled([
       payQuery.order("created_at", { ascending: false }),
       movQuery.order("created_at", { ascending: false }),
+      expQuery.order("date", { ascending: false }),
+      advQuery.order("advanced_at", { ascending: false }),
     ]);
 
-    const isCashMethod = (m: string | null | undefined) => {
-      const raw = String(m ?? "").trim().toLowerCase();
-      return raw === "cash" || raw === "efectivo";
-    };
-    const payments = (payRes.data ?? []) as any[];
-    const cashPayments = payments
-      .filter((p) => isCashMethod(p.method ?? p.payment_method))
-      .reduce((s, p) => s + Number(p.total ?? p.amount ?? 0), 0);
-    const nonCashPayments = payments
-      .filter((p) => !isCashMethod(p.method ?? p.payment_method))
-      .reduce((s, p) => s + Number(p.total ?? p.amount ?? 0), 0);
+    const dataOf = (res: PromiseSettledResult<any>) =>
+      res.status === "fulfilled" && !res.value?.error ? ((res.value.data ?? []) as any[]) : [];
 
-    const movs = ((movRes.data ?? []) as any[]) as CashMovement[];
-    const ingresos = movs.filter((m) => m.type === "ingreso").reduce((s, m) => s + Number(m.amount), 0);
-    const retiros = movs.filter((m) => m.type === "retiro").reduce((s, m) => s + Number(m.amount), 0);
+    const payments = dataOf(payRes);
+    const expenses = dataOf(expRes);
+    const advances = dataOf(advRes);
+    const movs = dataOf(movRes) as CashMovement[];
 
-    setCashExpected(cashPayments + ingresos - retiros);
-    setBankExpected(nonCashPayments);
+    const expected = computeExpectedCashAndDigital({
+      payments,
+      expenses,
+      advances,
+      cashMovements: movs,
+    });
+
+    setCashExpected(expected.cashExpected);
+    setBankExpected(expected.digitalExpected);
     setMovements(movs);
     setPendingCierre(pending);
     setLoading(false);

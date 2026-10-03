@@ -30,6 +30,7 @@ import {
   findPendingCierre,
   closeCierreForDate,
   normalizeCierreMethodKey,
+  computeExpectedCashAndDigital,
 } from "@/lib/caja-cierre";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -49,6 +50,7 @@ import {
   closeCashSession,
   reopenCashSession,
 } from "@/components/cash-register/session-actions";
+import { usePendingCommissions } from "@/hooks/use-pending-commissions";
 import { GastosTab } from "@/components/cash-register/gastos-tab";
 import {
   Search,
@@ -60,6 +62,7 @@ import {
   Wallet,
   BarChart3,
   TrendingUp,
+  TrendingDown,
   ArrowRight,
   ArrowLeft,
   Trash2,
@@ -1326,7 +1329,7 @@ function ResumenTab({
   }[] = [
     {
       id: "ingresos",
-      label: "Ingresos",
+      label: "Facturación",
       value: data.revHoy,
       sub: `${data.cobros} cobro${data.cobros === 1 ? "" : "s"} hoy`,
       icon: Wallet,
@@ -1337,20 +1340,6 @@ function ResumenTab({
         "bg-emerald-500/14 text-emerald-300 ring-emerald-400/30 shadow-[0_0_26px_rgba(34,197,94,0.20)]",
       amountClass: "text-white",
       chipClass: "bg-emerald-400/12 text-emerald-300 ring-emerald-400/20",
-    },
-    {
-      id: "pendientes",
-      label: "Pendientes",
-      value: data.pendingAmount,
-      sub: `${data.pendingCharges?.length ?? 0} pendiente${(data.pendingCharges?.length ?? 0) === 1 ? "" : "s"}`,
-      icon: Clock,
-      money: true,
-      cardClass:
-        "border-sky-400/24 bg-[radial-gradient(circle_at_14%_50%,rgba(14,165,233,0.18),transparent_34%),linear-gradient(135deg,rgba(12,74,110,0.22),rgba(3,7,18,0.94))] shadow-[0_30px_90px_-45px_rgba(14,165,233,0.46),0_22px_70px_-42px_rgba(0,0,0,0.95)]",
-      iconClass:
-        "bg-sky-500/14 text-sky-300 ring-sky-400/30 shadow-[0_0_26px_rgba(14,165,233,0.18)]",
-      amountClass: "text-white",
-      chipClass: "bg-sky-400/12 text-sky-300 ring-sky-400/20",
     },
     {
       id: "gastos",
@@ -1365,6 +1354,20 @@ function ResumenTab({
         "bg-rose-500/14 text-rose-300 ring-rose-400/30 shadow-[0_0_26px_rgba(244,63,94,0.18)]",
       amountClass: "text-white",
       chipClass: "bg-rose-400/12 text-rose-300 ring-rose-400/20",
+    },
+    {
+      id: "pendientes",
+      label: "Pendientes",
+      value: data.pendingAmount,
+      sub: `${data.pendingCharges?.length ?? 0} pendiente${(data.pendingCharges?.length ?? 0) === 1 ? "" : "s"}`,
+      icon: Clock,
+      money: true,
+      cardClass:
+        "border-sky-400/24 bg-[radial-gradient(circle_at_14%_50%,rgba(14,165,233,0.18),transparent_34%),linear-gradient(135deg,rgba(12,74,110,0.22),rgba(3,7,18,0.94))] shadow-[0_30px_90px_-45px_rgba(14,165,233,0.46),0_22px_70px_-42px_rgba(0,0,0,0.95)]",
+      iconClass:
+        "bg-sky-500/14 text-sky-300 ring-sky-400/30 shadow-[0_0_26px_rgba(14,165,233,0.18)]",
+      amountClass: "text-white",
+      chipClass: "bg-sky-400/12 text-sky-300 ring-sky-400/20",
     },
   ];
 
@@ -1457,7 +1460,11 @@ function ResumenTab({
     <div className="relative space-y-6 pt-0 pb-2 sm:py-2">
       <div className="pointer-events-none absolute inset-x-0 sm:inset-x-[-56px] top-[-54px] bottom-[-72px] z-0 rounded-[56px] bg-[radial-gradient(ellipse_at_center,rgba(0,0,0,0.68)_0%,rgba(0,0,0,0.46)_34%,rgba(0,0,0,0.22)_58%,transparent_82%)] blur-3xl" />
       <div className="pointer-events-none absolute inset-x-0 sm:inset-x-[-30px] top-[-28px] bottom-[-40px] z-0 rounded-[46px] bg-[linear-gradient(180deg,transparent_0%,rgba(0,0,0,0.18)_14%,rgba(0,0,0,0.38)_46%,rgba(0,0,0,0.28)_72%,transparent_100%)]" />
-      <div className="relative z-10 grid grid-cols-1 gap-4 lg:grid-cols-3">
+      {/* Selector horizontal compacto Facturación/Gastos/Pendientes — antes
+          eran 3 tarjetas grandes apiladas (mucho scroll en mobile), ahora
+          tabs en una sola fila con el mismo lenguaje visual que la
+          navegación superior (Resumen/Precios/...). */}
+      <div className="relative z-10 flex gap-1.5 rounded-3xl border border-white/[0.085] bg-[linear-gradient(135deg,rgba(8,10,20,0.96),rgba(12,16,32,0.88))] p-1.5 backdrop-blur-2xl shadow-[0_18px_55px_-28px_rgba(0,0,0,0.95),0_1px_0_rgba(255,255,255,0.06)_inset]">
         {stats.map((s) => {
           const isActive = activePanel === s.id;
           const Icon = s.icon;
@@ -1467,63 +1474,46 @@ function ResumenTab({
               type="button"
               onClick={() => selectPanel(s.id)}
               className={cn(
-                "group relative min-h-[74px] sm:min-h-[150px] overflow-hidden rounded-3xl border px-3.5 py-2.5 sm:p-6 text-left transition-all duration-300",
-                "backdrop-blur-xl hover:-translate-y-0.5 hover:shadow-[0_22px_70px_-32px_rgba(0,0,0,0.95)]",
+                "group relative flex-1 inline-flex items-center justify-center gap-2 rounded-2xl px-3 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200",
                 isActive
-                  ? s.cardClass
-                  : "border-white/[0.075] bg-[linear-gradient(135deg,rgba(15,23,42,0.70),rgba(3,7,18,0.95))] shadow-[0_22px_70px_-42px_rgba(0,0,0,0.95)]",
-                isActive ? "ring-1 ring-white/15" : "ring-1 ring-transparent",
+                  ? "bg-[linear-gradient(135deg,rgba(59,130,246,0.22),rgba(139,92,246,0.22))] text-white ring-1 ring-violet-200/28 shadow-[0_0_26px_rgba(99,102,241,0.18),0_1px_0_rgba(255,255,255,0.10)_inset]"
+                  : "text-white/55 hover:bg-white/[0.045] hover:text-white/85",
               )}
             >
-              <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,rgba(255,255,255,0.055),rgba(255,255,255,0.012))]" />
-              <div className="relative flex items-center gap-3 sm:gap-5">
-                <div
-                  className={cn(
-                    "grid size-9 sm:size-16 shrink-0 place-items-center rounded-full ring-1 transition-transform duration-300 group-hover:scale-105",
-                    isActive
-                      ? s.iconClass
-                      : "bg-white/[0.045] text-white/70 ring-white/10 shadow-[0_0_22px_rgba(255,255,255,0.04)]",
-                  )}
-                >
-                  <Icon className="size-4 sm:size-7" />
-                </div>
-                <div className="min-w-0">
-                  <p className="text-[11px] sm:text-base font-semibold leading-tight text-foreground/90">
-                    {s.label}
-                  </p>
-                  <div className="mt-0.5 sm:mt-1">
-                    {/* Skeleton en vez de "$0": data.loading solo es true
-                        en la carga inicial sin cache todavía (ver
-                        useCajaData) — mostrar $0/"0 cobros hoy" ahí hacía
-                        parecer que realmente no había movimientos, para
-                        recién un instante después saltar al valor real. */}
-                    {data.loading ? (
-                      <div className="h-6 w-20 animate-pulse rounded-lg bg-white/[0.08] sm:h-8 sm:w-28" />
-                    ) : (
-                      <Money value={Number(s.value)} large />
-                    )}
-                  </div>
-                  <div
-                    className={cn(
-                      "mt-1 sm:mt-3 inline-flex items-center gap-1 sm:gap-1.5 rounded-full px-2 py-0.5 sm:px-3 sm:py-1 text-[9px] sm:text-xs font-semibold ring-1",
-                      isActive ? s.chipClass : "bg-white/[0.045] text-white/70 ring-white/10",
-                    )}
-                  >
-                    {data.loading ? (
-                      <span className="h-2.5 w-16 animate-pulse rounded-full bg-white/20" />
-                    ) : (
-                      <>
-                        <span className="size-1 sm:size-1.5 rounded-full bg-current" />
-                        {s.sub}
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
+              <Icon
+                className={cn(
+                  "size-4 transition-all",
+                  isActive ? "text-blue-200" : "text-white/40 group-hover:text-white/70",
+                )}
+              />
+              {s.label}
             </button>
           );
         })}
       </div>
+
+      {/* Resumen grande del tab activo — Facturación/Gastos muestran su
+          total arriba del historial correspondiente; Pendientes no tiene un
+          único total (son dos conceptos separados, ver los bloques debajo). */}
+      {(activePanel === "ingresos" || activePanel === "gastos") && (
+        <div className="relative z-10">
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            {activePanel === "ingresos" ? (
+              <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
+            ) : (
+              <TrendingDown className="h-3.5 w-3.5 text-rose-400" />
+            )}
+            <span className="text-xs">{activePanel === "ingresos" ? "Ingresos" : "Egresos"}</span>
+          </div>
+          <div className="mt-0.5">
+            {data.loading ? (
+              <div className="h-7 w-28 animate-pulse rounded-lg bg-white/[0.08] sm:h-8" />
+            ) : (
+              <Money value={activePanel === "ingresos" ? data.revHoy : data.totalGastos} large />
+            )}
+          </div>
+        </div>
+      )}
 
       {activePanel === "ingresos" && (
         <div className="relative z-10">
@@ -1539,15 +1529,22 @@ function ResumenTab({
       )}
 
       {activePanel === "pendientes" && (
-        <div className="relative z-10">
+        <div className="relative z-10 space-y-6">
+          {/* 1. Cobros pendientes primero: requieren acción inmediata de
+              caja (cobrar la venta/turno). Misma lógica de siempre, solo
+              reubicada bajo esta pestaña. */}
           <History
             data={data}
             equipoEnabled={equipoEnabled}
             onCobrarPendiente={onCobrarPendiente}
-            title="Pendientes de cobro"
+            title="Cobros pendientes"
             panel="pendientes"
             theme={activeTheme}
           />
+          {/* 2. Pendiente de liquidar debajo: solo informativo, comisiones
+              ya generadas y no pagadas — la gestión completa sigue en
+              Liquidaciones. Nunca se mezcla con el monto de arriba. */}
+          <PendingCommissionsSummary businessId={data.businessId} employees={data.employees ?? []} />
         </div>
       )}
 
@@ -6319,6 +6316,7 @@ function CierreCajaBtn({
   branchId,
   userEmail,
   onCajaCerrada,
+  cajaAbiertaDesde,
 }: {
   paymentsToday: ReturnType<typeof useCajaData>["paymentsToday"];
   expensesToday: ReturnType<typeof useCajaData>["expensesToday"];
@@ -6327,12 +6325,60 @@ function CierreCajaBtn({
   branchId: string | null;
   userEmail: string | null;
   onCajaCerrada: () => void;
+  cajaAbiertaDesde: string;
 }) {
   const [open, setOpen] = useState(false);
   const [obs, setObs] = useState("");
   const [saving, setSaving] = useState(false);
+  const [cashMovements, setCashMovements] = useState<Array<{ type: "ingreso" | "retiro"; amount: number }>>([]);
+  const [advances, setAdvances] = useState<Array<{ amount: number; payment_method: string | null }>>([]);
+  const [efectivoContado, setEfectivoContado] = useState("");
+  const [contadoTouched, setContadoTouched] = useState(false);
 
   const today = new Date().toLocaleDateString("sv-SE");
+
+  // cash_movements (ingresar/retirar efectivo a mano) y professional_advances
+  // del día — solo se necesitan mientras el modal está abierto, para
+  // "Efectivo esperado"/"Salidas de efectivo" (computeExpectedCashAndDigital,
+  // misma fuente que Inicio). Ambas tablas son nuevas/opcionales: fallan en
+  // silencio si todavía no existen en esta base.
+  useEffect(() => {
+    if (!open || !businessId) return;
+    let cancelled = false;
+    async function load() {
+      const dayStart = new Date(`${today}T00:00:00`).toISOString();
+      const dayEnd = new Date().toISOString();
+      const branchFilter = branchId ? `branch_id.eq.${branchId},branch_id.is.null` : null;
+
+      let movQuery = supabase
+        .from("cash_movements" as any)
+        .select("type,amount")
+        .eq("business_id", businessId)
+        .gte("created_at", dayStart)
+        .lte("created_at", dayEnd);
+      if (branchFilter) movQuery = movQuery.or(branchFilter);
+
+      const advQuery = supabase
+        .from("professional_advances" as any)
+        .select("amount,payment_method")
+        .eq("business_id", businessId)
+        .gte("advanced_at", dayStart)
+        .lte("advanced_at", dayEnd);
+
+      const [movRes, advRes] = await Promise.allSettled([movQuery, advQuery]);
+      if (cancelled) return;
+      setCashMovements(
+        movRes.status === "fulfilled" && !movRes.value.error ? ((movRes.value.data ?? []) as any[]) : [],
+      );
+      setAdvances(
+        advRes.status === "fulfilled" && !advRes.value.error ? ((advRes.value.data ?? []) as any[]) : [],
+      );
+    }
+    load();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, businessId, branchId, today]);
 
   const todayPayments = paymentsToday.filter(
     (p) => new Date(p.created_at).toLocaleDateString("sv-SE") === today,
@@ -6379,6 +6425,41 @@ function CierreCajaBtn({
 
     return detail;
   }, [todayPayments, todayExpenses]);
+
+  // Desglose SOLO de lo cobrado, por cada método activo — a diferencia de
+  // detalleMetodos (que agrupa débito/crédito/tarjeta bajo una sola clave
+  // "card" para la tabla vieja de ingresos/gastos/utilidad por método), acá
+  // cada método activo necesita su propia fila.
+  const cobradoPorMetodo = useMemo(() => {
+    const byMethod: Record<string, number> = {};
+    for (const p of todayPayments as any[]) {
+      const raw = String(p.method ?? p.payment_method ?? "").trim().toLowerCase();
+      byMethod[raw] = (byMethod[raw] ?? 0) + Number(p.total ?? p.amount ?? 0);
+    }
+    return byMethod;
+  }, [todayPayments]);
+
+  const expected = useMemo(
+    () =>
+      computeExpectedCashAndDigital({
+        payments: todayPayments as any[],
+        expenses: todayExpenses as any[],
+        advances,
+        cashMovements,
+      }),
+    [todayPayments, todayExpenses, advances, cashMovements],
+  );
+
+  // Precarga "Efectivo contado" con el esperado apenas se conoce, pero solo
+  // una vez — si el usuario ya escribió algo (contadoTouched), no se le pisa
+  // lo que tipeó cada vez que cashMovements/advances recalculan expected.
+  useEffect(() => {
+    if (!open || contadoTouched) return;
+    setEfectivoContado(String(Math.round(expected.cashExpected)));
+  }, [open, contadoTouched, expected.cashExpected]);
+
+  const efectivoContadoNum = Number(efectivoContado.replace(/\./g, "").replace(",", ".")) || 0;
+  const diferencia = efectivoContadoNum - expected.cashExpected;
 
   const cobrosSnapshot = todayPayments.map((p: any) => ({
     id: p.id,
@@ -6442,6 +6523,10 @@ function CierreCajaBtn({
         total_cobrado: totalCobrado,
         total_gastos: totalGastos,
         utilidad,
+        efectivo_esperado: expected.cashExpected,
+        efectivo_contado: efectivoContadoNum,
+        diferencia,
+        dinero_cuenta_esperado: expected.digitalExpected,
         pendientes_count: pendingCharges.length,
         pendientes_monto: pendientesMonto,
         pendientes_detalle: pendientesSnapshot,
@@ -6479,6 +6564,9 @@ function CierreCajaBtn({
         observacion: obs.trim() || null,
         tipo_cierre: "manual",
         estado: "cerrada",
+        efectivo_contado: efectivoContadoNum,
+        diferencia,
+        dinero_cuenta_esperado: expected.digitalExpected,
         eventos: appendCajaEvento((existing as any)?.eventos, cierreEvento),
         updated_at: now.toISOString(),
       };
@@ -6509,6 +6597,8 @@ function CierreCajaBtn({
       toast.success("Cierre registrado correctamente");
       setOpen(false);
       setObs("");
+      setEfectivoContado("");
+      setContadoTouched(false);
       onCajaCerrada(); // ← bloquea la pantalla inmediatamente
       window.dispatchEvent(new CustomEvent("clippr:caja-cierre-guardado"));
     } catch (e) {
@@ -6536,87 +6626,100 @@ function CierreCajaBtn({
               <div>
                 <h3 className="text-lg font-semibold">Cerrar caja</h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
-                  {new Date().toLocaleDateString("es-AR", {
-                    weekday: "long",
-                    day: "numeric",
-                    month: "long",
-                  })}
+                  Caja abierta desde {cajaAbiertaDesde}
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => setOpen(false)}
+                onClick={() => {
+                  setOpen(false);
+                  setContadoTouched(false);
+                }}
                 className="rounded-lg bg-white/5 hover:bg-white/10 px-3 py-2 text-sm"
               >
                 Cancelar
               </button>
             </div>
 
-            <div className="p-5 space-y-3">
-              <div className="grid grid-cols-3 gap-3">
-                {[
-                  {
-                    label: "Ingresos",
-                    v: totalCobrado,
-                    cls: "text-emerald-300",
-                  },
-                  { label: "Gastos", v: totalGastos, cls: "text-rose-300" },
-                  {
-                    label: "Utilidad",
-                    v: utilidad,
-                    cls: utilidad >= 0 ? "text-violet-300" : "text-rose-300",
-                  },
-                ].map((k) => (
-                  <div
-                    key={k.label}
-                    className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 p-3 text-center"
-                  >
-                    <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground/70">
-                      {k.label}
-                    </div>
+            <div className="max-h-[75vh] overflow-y-auto p-5 space-y-4">
+              {/* 2. Total cobrado + desglose por método */}
+              <div>
+                <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground/70">
+                  Total cobrado
+                </div>
+                <div className="mt-0.5 text-2xl font-semibold tabular-nums text-emerald-300">
+                  ${totalCobrado.toLocaleString("es-AR")}
+                </div>
+                <div className="mt-2 rounded-xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden">
+                  {ACTIVE_PAY_METHODS.map((m) => (
                     <div
-                      className={`mt-1 text-xl font-semibold tabular-nums ${k.cls}`}
+                      key={m.id}
+                      className="flex items-center justify-between gap-2 px-4 py-2 border-b border-white/5 last:border-0 text-sm"
                     >
-                      ${k.v.toLocaleString("es-AR")}
+                      <span className="text-muted-foreground">{m.label}</span>
+                      <span className="font-semibold tabular-nums">
+                        ${Math.round(cobradoPorMetodo[m.id] ?? 0).toLocaleString("es-AR")}
+                      </span>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
 
-              <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden">
-                <div className="grid grid-cols-[1fr_1fr_1fr_1fr] gap-2 px-4 py-2.5 border-b border-white/5 text-[10px] uppercase tracking-[0.12em] text-muted-foreground/60">
-                  <div>Método</div>
-                  <div className="text-right">Ingresos</div>
-                  <div className="text-right">Gastos</div>
-                  <div className="text-right">Utilidad</div>
+              {/* 3. Salidas de efectivo */}
+              <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.025] ring-1 ring-white/10 px-4 py-3">
+                <span className="text-sm text-muted-foreground">Salidas de efectivo</span>
+                <span className="text-lg font-semibold tabular-nums text-rose-300">
+                  -${Math.round(expected.cashOutflows).toLocaleString("es-AR")}
+                </span>
+              </div>
+
+              {/* 4. Efectivo esperado en caja */}
+              <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.035] ring-1 ring-white/10 px-4 py-3">
+                <span className="text-sm text-muted-foreground">Efectivo esperado en caja</span>
+                <span className="text-lg font-semibold tabular-nums">
+                  ${Math.round(expected.cashExpected).toLocaleString("es-AR")}
+                </span>
+              </div>
+
+              {/* 5. Efectivo contado — editable, precargado con lo esperado */}
+              <div>
+                <label className="text-xs text-muted-foreground">Efectivo contado</label>
+                <div className="mt-1 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 focus-within:border-blue-300/40">
+                  <span className="text-muted-foreground/70">$</span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={efectivoContado}
+                    onChange={(e) => {
+                      setContadoTouched(true);
+                      setEfectivoContado(e.target.value.replace(/[^\d.,]/g, ""));
+                    }}
+                    className="w-full bg-transparent text-sm outline-none tabular-nums"
+                  />
                 </div>
-                {Object.entries(detalleMetodos).length === 0 ? (
-                  <div className="px-4 py-3 text-sm text-muted-foreground">
-                    Sin movimientos hoy.
-                  </div>
-                ) : (
-                  Object.entries(detalleMetodos).map(([m, row]) => (
-                    <div
-                      key={m}
-                      className="grid grid-cols-[1fr_1fr_1fr_1fr] gap-2 px-4 py-2.5 border-b border-white/5 last:border-0 text-sm"
-                    >
-                      <span className="capitalize">
-                        {paymentMethodLabel(m)}
-                      </span>
-                      <span className="text-right font-semibold tabular-nums text-emerald-300">
-                        ${row.ingresos.toLocaleString("es-AR")}
-                      </span>
-                      <span className="text-right font-semibold tabular-nums text-rose-300">
-                        ${row.gastos.toLocaleString("es-AR")}
-                      </span>
-                      <span
-                        className={`text-right font-semibold tabular-nums ${row.utilidad >= 0 ? "text-violet-300" : "text-rose-300"}`}
-                      >
-                        ${row.utilidad.toLocaleString("es-AR")}
-                      </span>
-                    </div>
-                  ))
-                )}
+              </div>
+
+              {/* 6. Diferencia */}
+              <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.035] ring-1 ring-white/10 px-4 py-3">
+                <span className="text-sm text-muted-foreground">
+                  {diferencia === 0 ? "Diferencia" : diferencia > 0 ? "Sobra" : "Falta"}
+                </span>
+                <span
+                  className={cn(
+                    "text-lg font-semibold tabular-nums",
+                    diferencia === 0 ? "text-white" : diferencia > 0 ? "text-emerald-300" : "text-rose-300",
+                  )}
+                >
+                  ${Math.round(Math.abs(diferencia)).toLocaleString("es-AR")}
+                </span>
+              </div>
+
+              {/* 7. Dinero esperado en cuenta — solo informativo */}
+              <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.02] ring-1 ring-white/10 px-4 py-3">
+                <span className="text-sm text-muted-foreground">Dinero esperado en cuenta</span>
+                <span className="text-lg font-semibold tabular-nums text-sky-300">
+                  ${Math.round(expected.digitalExpected).toLocaleString("es-AR")}
+                </span>
               </div>
 
               <div>
@@ -6801,6 +6904,15 @@ function CierresTab({
   const lastClosedToday = cajaHoraDisplay(lastCloseEntryToday?.hora ?? lastCloseEventToday?.hora ?? lastCierreToday?.hora_cierre ?? closedAt);
   const closedCountToday = cierreCandidates.length || cierresToday.length;
 
+
+  // "DD/MM/YYYY" numérico — distinto de fechaLabel (día/mes abreviado/año),
+  // que la pantalla de Cierre de caja pide explícitamente en este formato.
+  function fechaDDMMYYYY(fecha?: string | null) {
+    const raw = String(fecha ?? "").slice(0, 10);
+    const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return "—";
+    return `${match[3]}/${match[2]}/${match[1]}`;
+  }
 
   function fechaLabel(fecha?: string | null, long = false) {
     if (!fecha) return "—";
@@ -7002,11 +7114,14 @@ function CierresTab({
                     <div className="inline-flex rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1 text-xs font-bold text-emerald-300">
                       Caja abierta
                     </div>
-                                        <p className="mt-2 text-sm text-muted-foreground">
-                      Responsable: <span className="font-semibold text-white">{openedBy}</span>
+                    <p className="mt-2 text-sm text-muted-foreground">
+                      Caja abierta desde{" "}
+                      <span className="font-semibold text-white">
+                        {fechaDDMMYYYY(latestCierre?.fecha)} · {openedAt}
+                      </span>
                     </p>
                     <p className="mt-1 text-sm text-muted-foreground">
-                      Hora de apertura: <span className="font-semibold text-white">{openedAt}</span>
+                      Responsable: <span className="font-semibold text-white">{openedBy}</span>
                     </p>
                   </div>
                   <CierreCajaBtn
@@ -7020,6 +7135,7 @@ function CierresTab({
                       onCajaCerrada();
                       loadCierres();
                     }}
+                    cajaAbiertaDesde={`${fechaDDMMYYYY(latestCierre?.fecha)} · ${openedAt}`}
                   />
                 </div>
               </div>
@@ -7238,9 +7354,24 @@ function CierresTab({
                     cls: Number(selected.utilidad) >= 0 ? "text-violet-300" : "text-rose-300",
                   },
                   {
-                    l: "Diferencia",
-                    v: selected.diferencia != null ? `$${Number(selected.diferencia).toLocaleString("es-AR")}` : "—",
-                    cls: "text-white",
+                    l:
+                      selected.diferencia == null
+                        ? "Diferencia"
+                        : Number(selected.diferencia) === 0
+                          ? "Diferencia"
+                          : Number(selected.diferencia) > 0
+                            ? "Sobra"
+                            : "Falta",
+                    v:
+                      selected.diferencia != null
+                        ? `$${Math.round(Math.abs(Number(selected.diferencia))).toLocaleString("es-AR")}`
+                        : "—",
+                    cls:
+                      selected.diferencia == null || Number(selected.diferencia) === 0
+                        ? "text-white"
+                        : Number(selected.diferencia) > 0
+                          ? "text-emerald-300"
+                          : "text-rose-300",
                   },
                 ].map((k) => (
                   <div key={k.l} className="rounded-2xl border border-white/[0.075] bg-white/[0.035] p-3">
@@ -7986,6 +8117,55 @@ function DetailModal({
       </div>
     </div>,
     document.body,
+  );
+}
+
+// "Pendiente de liquidar" dentro de la pestaña Pendientes de Resumen — solo
+// informativo (sin acción), misma fuente de datos que Liquidaciones
+// (usePendingCommissions) para que nunca muestren números distintos. Nunca
+// se mezcla con "Cobros pendientes" (son conceptos separados, ver arriba).
+function PendingCommissionsSummary({
+  businessId,
+  employees,
+}: {
+  businessId: string | null;
+  employees: Array<{ id: string; name?: string | null }>;
+}) {
+  const { loading, rows, total } = usePendingCommissions(businessId, employees);
+
+  return (
+    <Card className="rounded-3xl border-sky-400/22 bg-[radial-gradient(circle_at_14%_50%,rgba(14,165,233,0.14),transparent_34%),linear-gradient(135deg,rgba(12,74,110,0.18),rgba(3,7,18,0.94))] shadow-[0_30px_90px_-48px_rgba(14,165,233,0.26),0_22px_70px_-42px_rgba(0,0,0,0.95)]">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-sky-400/10 px-5 py-3.5">
+        <div>
+          <h3 className="text-base font-bold tracking-tight text-sky-50">Pendiente de liquidar</h3>
+          <p className="mt-0.5 text-[11px] text-white/45">
+            Comisiones ya generadas, todavía sin pagar. Gestión completa en Liquidaciones.
+          </p>
+        </div>
+        {loading ? (
+          <div className="h-7 w-24 animate-pulse rounded-lg bg-white/[0.08]" />
+        ) : (
+          <Money value={total} large />
+        )}
+      </div>
+
+      {!loading && rows.length === 0 ? (
+        <div className="px-5 py-8 text-center text-sm text-muted-foreground">
+          Sin comisiones pendientes de liquidar.
+        </div>
+      ) : (
+        <div className="divide-y divide-white/5">
+          {rows.map((r) => (
+            <div key={r.employeeId} className="flex items-center justify-between gap-3 px-5 py-3 text-sm">
+              <span className="min-w-0 flex-1 truncate text-foreground/90">{r.name}</span>
+              <span className="shrink-0 font-semibold tabular-nums text-sky-300">
+                ${Math.round(r.pending).toLocaleString("es-AR")}
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
   );
 }
 

@@ -318,6 +318,74 @@ export async function buildCierreSnapshotForDate(
   };
 }
 
+export type ExpectedCashDigital = {
+  cashExpected: number;
+  cashOutflows: number;
+  digitalExpected: number;
+  digitalOutflows: number;
+};
+
+// "Efectivo esperado en caja" / "Dinero esperado en cuenta" — una sola
+// fuente de verdad para Inicio (CajaHoyCard) y Cierre de caja, para que
+// nunca muestren números distintos. Efectivo = cobros en efectivo + lo
+// ingresado a mano (cash_movements) − gastos/adelantos pagados en efectivo
+// − lo retirado a mano. Digital = cobros no-efectivo − gastos/adelantos
+// pagados por métodos no-efectivo. Las comisiones pendientes de liquidar
+// NUNCA entran acá: solo salen de caja cuando efectivamente se pagan (como
+// "adelanto" o gasto), no mientras siguen pendientes.
+export function computeExpectedCashAndDigital(params: {
+  payments: Array<{
+    total?: number | null;
+    amount?: number | null;
+    method?: string | null;
+    payment_method?: string | null;
+  }>;
+  expenses: Array<{ amount?: number | null; payment_method?: string | null; method?: string | null }>;
+  advances: Array<{ amount?: number | null; payment_method?: string | null }>;
+  cashMovements: Array<{ type: "ingreso" | "retiro"; amount: number | null }>;
+}): ExpectedCashDigital {
+  const { payments, expenses, advances, cashMovements } = params;
+  const isCash = (m: string | null | undefined) => normalizeCierreMethodKey(m) === "cash";
+
+  const cashPayments = payments
+    .filter((p) => isCash(p.method ?? p.payment_method))
+    .reduce((s, p) => s + Number(p.total ?? p.amount ?? 0), 0);
+  const digitalPayments = payments
+    .filter((p) => !isCash(p.method ?? p.payment_method))
+    .reduce((s, p) => s + Number(p.total ?? p.amount ?? 0), 0);
+
+  const cashExpenses = expenses
+    .filter((e) => isCash(e.payment_method ?? e.method))
+    .reduce((s, e) => s + Number(e.amount ?? 0), 0);
+  const digitalExpenses = expenses
+    .filter((e) => !isCash(e.payment_method ?? e.method))
+    .reduce((s, e) => s + Number(e.amount ?? 0), 0);
+
+  const cashAdvances = advances
+    .filter((a) => isCash(a.payment_method))
+    .reduce((s, a) => s + Number(a.amount ?? 0), 0);
+  const digitalAdvances = advances
+    .filter((a) => !isCash(a.payment_method))
+    .reduce((s, a) => s + Number(a.amount ?? 0), 0);
+
+  const ingresosCaja = cashMovements
+    .filter((m) => m.type === "ingreso")
+    .reduce((s, m) => s + Number(m.amount ?? 0), 0);
+  const retirosCaja = cashMovements
+    .filter((m) => m.type === "retiro")
+    .reduce((s, m) => s + Number(m.amount ?? 0), 0);
+
+  const cashOutflows = cashExpenses + cashAdvances + retirosCaja;
+  const digitalOutflows = digitalExpenses + digitalAdvances;
+
+  return {
+    cashExpected: cashPayments + ingresosCaja - cashOutflows,
+    cashOutflows,
+    digitalExpected: digitalPayments - digitalOutflows,
+    digitalOutflows,
+  };
+}
+
 export type PendingCierre = { date: string; cierreId: string | null };
 
 // Detecta si hay una "Caja vencida": el día más reciente CON actividad que
