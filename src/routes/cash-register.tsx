@@ -9751,15 +9751,19 @@ export function NuevaVentaTab({
   // estado derivado (no un $ congelado al elegir la promo), si el método de
   // pago cambia después en el Paso 4 esto se recalcula solo, siempre sobre
   // el precio base correcto.
-  const promoDiscountAmount = selectedPromotion
-    ? cartItems.reduce((sum, { svc, qty }) => {
+  // Descuento por promoción, ÍTEM por ÍTEM (qty incluido) — solo descuenta
+  // los servicios que esa promo alcanza (nunca catálogo, nunca un servicio
+  // no aplicable). promoDiscountAmount es simplemente la suma.
+  const promoItemDiscounts: number[] = selectedPromotion
+    ? cartItems.map(({ svc, qty }) => {
         if (svc.is_catalog || !isPromotionApplicable(selectedPromotion, { serviceId: svc.id, employeeId, category: svc.category ?? null })) {
-          return sum;
+          return 0;
         }
         const subtotal = cartUnitPrice(svc) * qty;
-        return sum + (subtotal - applyPromotionDiscount(subtotal, selectedPromotion));
-      }, 0)
-    : 0;
+        return subtotal - applyPromotionDiscount(subtotal, selectedPromotion);
+      })
+    : cartItems.map(() => 0);
+  const promoDiscountAmount = promoItemDiscounts.reduce((s, d) => s + d, 0);
   // "total" ya es el precio con el método actual resuelto (efectivo si
   // corresponde) — un % manual se calcula sobre ESE monto, nunca sobre el
   // precio de lista, mismo criterio que el descuento de una promoción.
@@ -9773,6 +9777,18 @@ export function NuevaVentaTab({
     ),
   );
   const discountAmount = selectedPromotion ? promoDiscountAmount : manualDiscountValue;
+  // Descuento por ÍTEM final — fuente única para lo que se manda a
+  // registerPayment (ver items en handleCobrar), así la comisión de cada
+  // servicio se calcula sobre lo realmente cobrado de ESE servicio, no
+  // sobre un promedio parejo de todo el carrito. Promoción: ya viene
+  // repartido arriba (promoItemDiscounts). Descuento manual: el cajero no
+  // elige a qué ítems aplica, así que se prorratea por peso (subtotal del
+  // ítem / total del carrito) entre todos.
+  const itemDiscounts: number[] = selectedPromotion
+    ? promoItemDiscounts
+    : manualDiscountValue > 0 && total > 0
+      ? cartItems.map(({ svc, qty }) => ((cartUnitPrice(svc) * qty) / total) * manualDiscountValue)
+      : cartItems.map(() => 0);
   const discountLabel = selectedPromotion
     ? selectedPromotion.name
     : manualDiscountValue > 0
@@ -9970,13 +9986,19 @@ export function NuevaVentaTab({
       if (savedClientId && !clientId) setClientId(savedClientId);
 
       // amount ya viene con el precio en efectivo aplicado si corresponde
-      // (cartUnitPrice) — lo que se guarda en payments/comisión/liquidación
-      // es siempre el monto realmente cobrado, nunca el de lista si se
-      // cobró con descuento por efectivo.
-      const items = cartItems.map(({ svc, qty }) => ({
+      // (cartUnitPrice) — lo que se guarda en payments/liquidación es
+      // siempre el monto realmente cobrado, nunca el de lista si se cobró
+      // con descuento por efectivo. effectivePrice (tope de la base de
+      // comisión) y discountAmount (ya repartido por servicio, ver
+      // itemDiscounts arriba) viajan por ítem para que registerPayment
+      // calcule la comisión real de CADA servicio — nunca el de lista si
+      // supera al efectivo, nunca más de lo que esa línea realmente cobró.
+      const items = cartItems.map(({ svc, qty }, idx) => ({
         serviceId: svc.id,
         serviceName: svc.name,
         amount: cartUnitPrice(svc),
+        effectivePrice: svc.is_catalog ? null : svc.cashPrice ?? null,
+        discountAmount: itemDiscounts[idx] ?? 0,
         isCatalog: svc.is_catalog ?? false,
         stock: svc.stock,
         qty,

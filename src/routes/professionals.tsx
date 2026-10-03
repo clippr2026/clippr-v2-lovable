@@ -742,7 +742,7 @@ function ProfessionalsPage() {
           }
         />
       )}
-      {tab === "stats" && <StatsView businessId={businessId} empId={empId} from={fromDate} to={toDate} commissionPct={Number(active?.commission_pct ?? 0)} commissionFixed={Number(active?.commission_fixed ?? 0)} />}
+      {tab === "stats" && <StatsView businessId={businessId} empId={empId} from={fromDate} to={toDate} commissionPct={Number(active?.commission_pct ?? 0)} />}
       {tab === "historial-servicios" && <HistorialView businessId={businessId} empId={empId} commissionPct={Number(active?.commission_pct ?? 0)} from={fromDate} to={toDate} />}
       {tab === "historial-pagos" && (
         <LiquidacionesPanelView
@@ -2055,14 +2055,13 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
 
 
 function StatsView({
-  businessId, empId, from, to, commissionPct, commissionFixed,
+  businessId, empId, from, to, commissionPct,
 }: {
   businessId: string | null;
   empId: string | null;
   from: string;
   to: string;
   commissionPct: number;
-  commissionFixed: number;
 }) {
   const validFrom = from && !isNaN(new Date(from).getTime()) ? from : new Date().toISOString().slice(0,10);
   const validTo   = to   && !isNaN(new Date(to).getTime())   ? to   : new Date().toISOString().slice(0,10);
@@ -2120,6 +2119,11 @@ function StatsView({
       created_at: r.fecha,
       method: null,
       splits: null,
+      // Comisión REAL de esta venta (commission_records.amount, resuelta
+      // más arriba en useProfSalesEnriched) — ServiciosDesglose la usa tal
+      // cual, nunca la recalcula con el % plano actual del profesional
+      // (ver comentario en ServiciosDesglose).
+      commission: r.commission,
     })),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [enriched],
@@ -2169,7 +2173,7 @@ function StatsView({
       </div>
 
       {/* Servicios Desglose */}
-      <ServiciosDesglose sales={salesForDesglose} businessId={businessId} commissionPct={commissionPct} commissionFixed={commissionFixed} />
+      <ServiciosDesglose sales={salesForDesglose} businessId={businessId} />
     </div>
   );
 }
@@ -2184,7 +2188,7 @@ const PIE_COLORS = [
   "oklch(0.75 0.14 95)",   // lime
 ];
 
-function ServiciosDesglose({ sales, businessId, commissionPct, commissionFixed }: { sales: ProfSale[]; businessId: string | null; commissionPct: number; commissionFixed: number }) {
+function ServiciosDesglose({ sales, businessId }: { sales: ProfSale[]; businessId: string | null }) {
   const [tab, setTab] = React.useState<"all" | "services" | "catalog">("all");
 
   // Load price_catalog to classify each sale by real origin
@@ -2230,10 +2234,17 @@ function ServiciosDesglose({ sales, businessId, commissionPct, commissionFixed }
 
       if (!rawName || saleTotal <= 0) continue;
 
-      // En este desglose mostramos SOLO la comisión del profesional, no el total facturado.
-      const saleCommission = commissionFixed > 0
-        ? Number(commissionFixed)
-        : Math.round(saleTotal * (Number(commissionPct || 0) / 100));
+      // En este desglose mostramos SOLO la comisión del profesional, no el
+      // total facturado — y siempre la comisión REAL ya calculada al
+      // cobrar (commission_records.amount, resuelta en useProfSalesEnriched
+      // y ya presente en s.commission), nunca un % plano recalculado acá.
+      // Antes esto recalculaba "saleTotal × commissionPct ACTUAL" desde
+      // cero: ignoraba el tope de precio efectivo, cualquier comisión por
+      // servicio configurada en Equipo, y cualquier descuento real de esa
+      // venta puntual — podía (y en la práctica ya divergía de) mostrar un
+      // número distinto al que indica la tarjeta "Comisión" de arriba,
+      // calculada sobre la MISMA venta con la fórmula correcta.
+      const saleCommission = Math.round(Number(s.commission ?? 0));
 
       // Find which real catalog items appear in this payment's service_name
       const matched: typeof allReal = [];
@@ -2275,7 +2286,7 @@ function ServiciosDesglose({ sales, businessId, commissionPct, commissionFixed }
 
     return Array.from(map.values())
       .sort((a, b) => b.total - a.total);
-  }, [sales, serviceNamesOrig, catalogNamesOrig, catalogLoaded, commissionPct, commissionFixed]);
+  }, [sales, serviceNamesOrig, catalogNamesOrig, catalogLoaded]);
 
   const filtered = React.useMemo(() => {
     if (tab === "services") return aggregated.filter(i => i.isService);

@@ -166,10 +166,51 @@ export function resolveServiceCommission(
 }
 
 export type CommissionableItem = {
-  amount: number; // precio unitario (NO multiplicado por qty)
+  amount: number; // precio unitario BRUTO, antes de descuento (NO multiplicado por qty)
   qty?: number;
   serviceId?: string | null;
+  // Precio efectivo (= "Precio en efectivo" del servicio, Configuración →
+  // Servicios/Equipo) — tope de la base de comisión: nunca se calcula
+  // comisión sobre más que esto, aunque el cliente haya pagado más (lista,
+  // débito/crédito/QR). null/undefined = el servicio no tiene precio
+  // efectivo configurado → sin tope, se usa el neto real tal cual.
+  effectivePrice?: number | null;
+  // Descuento en $ YA ATRIBUIDO a esta línea completa (qty incluido, no
+  // por unidad) — quien arma la venta decide cómo repartir un descuento de
+  // carrito entre sus ítems (una promo solo entre los que alcanza; un
+  // descuento manual, prorrateado por peso entre todos — ver
+  // cash-register.tsx). 0/undefined = esta línea no tuvo descuento.
+  discountAmount?: number;
 };
+
+export type CommissionBreakdown = {
+  // Ya es el monto FINAL a comisionar por los ítems/porcentaje — nunca se
+  // vuelve a escalar por ningún descuento: cada línea ya restó su propio
+  // discountAmount y aplicó el tope de precio efectivo antes de multiplicar
+  // por el %.
+  pctAmount: number;
+  // Monto fijo (por servicio con override, o el fallback general de monto
+  // fijo) — ajeno al precio por definición, así que nunca lleva tope de
+  // precio efectivo. El llamador decide si corresponde escalarlo por algún
+  // descuento global del carrito (ver registerPayment).
+  fixedAmount: number;
+};
+
+// Base de comisión de UNA línea: el menor valor entre el precio efectivo
+// del servicio (tope) y el importe neto realmente cobrado por esa línea
+// (bruto menos su descuento ya atribuido) — nunca el precio de lista si
+// supera al efectivo, nunca más que lo que el cliente realmente pagó.
+// Único punto que aplica esta regla; todo lo demás (Caja, Agenda,
+// Liquidaciones, Historial del profesional) pasa por computeCommissionAmount.
+function commissionBaseForLine(item: CommissionableItem, qty: number): number {
+  const grossLine = Number(item.amount ?? 0) * qty;
+  const netoLine = Math.max(0, grossLine - Number(item.discountAmount ?? 0));
+  const cap =
+    item.effectivePrice != null && Number(item.effectivePrice) > 0
+      ? Number(item.effectivePrice) * qty
+      : Infinity;
+  return Math.min(cap, netoLine);
+}
 
 // Comisión total de una venta con uno o más ítems. Cada ítem resuelve su
 // propia comisión por servicio si existe; los que no tienen override propio
@@ -184,30 +225,34 @@ export function computeCommissionAmount(
   employeeId: string | null | undefined,
   commissionsMap: EmployeeCommissionMap | null | undefined,
   fallback: { commissionFixed?: number | null; commissionPct?: number | null },
-): number {
-  let total = 0;
-  let remainder = 0;
+): CommissionBreakdown {
+  let pctAmount = 0;
+  let fixedAmount = 0;
+  let remainderBase = 0;
+  let remainderCount = 0;
   for (const item of items) {
     const qty = Number(item.qty ?? 1) || 1;
-    const lineAmount = Number(item.amount ?? 0) * qty;
+    const baseLine = commissionBaseForLine(item, qty);
     const cfg = resolveServiceCommission(item.serviceId, employeeId, commissionsMap);
     if (cfg) {
       const val = Number(cfg.value) || 0;
-      total += cfg.mode === "fixed" ? val : lineAmount * (val / 100);
+      if (cfg.mode === "fixed") fixedAmount += val;
+      else pctAmount += baseLine * (val / 100);
     } else {
-      remainder += lineAmount;
+      remainderBase += baseLine;
+      remainderCount += 1;
     }
   }
-  if (remainder > 0) {
+  if (remainderCount > 0) {
     const fixed = Number(fallback.commissionFixed ?? 0);
     if (fixed > 0) {
-      total += fixed;
+      fixedAmount += fixed;
     } else {
       const pct = Number(fallback.commissionPct ?? 0);
-      if (pct > 0) total += remainder * (pct / 100);
+      if (pct > 0) pctAmount += remainderBase * (pct / 100);
     }
   }
-  return Math.round(total);
+  return { pctAmount: Math.round(pctAmount), fixedAmount: Math.round(fixedAmount) };
 }
 
 // Si el profesional ofrece este servicio para reserva online. Sin

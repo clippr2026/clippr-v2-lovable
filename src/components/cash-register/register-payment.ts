@@ -58,6 +58,16 @@ export type RegisterPaymentItem = {
   qty?: number;
   serviceId?: string | null;
   isCatalog?: boolean;
+  // Precio efectivo del servicio (tope de la base de comisión — ver
+  // computeCommissionAmount) — null/undefined si no tiene uno configurado.
+  // Quien arma el carrito (Caja) ya lo resuelve por profesional
+  // (resolveServicePricing) antes de llegar acá.
+  effectivePrice?: number | null;
+  // Descuento en $ ya atribuido a ESTA línea completa (qty incluido) —
+  // nunca el descuento total del carrito. Quien arma el carrito decide cómo
+  // repartirlo (promo solo entre los ítems que alcanza, descuento manual
+  // prorrateado entre todos) antes de llegar acá.
+  discountAmount?: number;
 };
 
 export type ChargeOrigin = "auto" | "manual" | "caja";
@@ -317,31 +327,34 @@ export async function registerPayment(input: RegisterPaymentInput) {
   const commissionFixed = Number(input.commissionFixed ?? 0);
   const commissionPct = Number(input.commissionPct ?? 0);
   if (input.employeeId) {
-    const grossCommission = computeCommissionAmount(
+    // Regla de base de comisión (ítem por ítem, ver commissionBaseForLine
+    // en service-pricing.ts): base = MIN(precio efectivo del servicio,
+    // importe neto realmente cobrado por esa línea). Si paga de más (lista,
+    // débito/crédito/QR) ese extra nunca sube la comisión; si paga de menos
+    // (promo/descuento) la comisión baja con lo realmente cobrado. Cada
+    // item ya trae su propio discountAmount (repartido correctamente entre
+    // servicios — ver cash-register.tsx), así que pctAmount que devuelve
+    // acá YA es el monto final, nunca se vuelve a escalar.
+    const { pctAmount, fixedAmount } = computeCommissionAmount(
       input.items.map((item) => ({
         amount: Number(item.amount ?? 0),
         qty: item.qty,
         serviceId: item.serviceId,
+        effectivePrice: item.effectivePrice ?? null,
+        discountAmount: Number(item.discountAmount ?? 0),
       })),
       input.employeeId,
       input.employeeCommissions ?? null,
       { commissionFixed, commissionPct },
     );
-    // Con descuento aplicado (promoción o manual), la comisión se calcula
-    // sobre el monto efectivamente cobrado (post-descuento) — mismo
-    // criterio que ya tenía el cálculo plano de antes (usaba `total`, nunca
-    // `grossTotal`). Se escala proporcionalmente en vez de recalcular ítem
-    // por ítem porque el descuento se aplica al carrito completo, no a un
-    // ítem puntual. Antes este escalado solo se activaba con
-    // input.promotionId, dejando la comisión sin descontar en un cobro con
-    // descuento manual (bug real que este cambio corrige de paso) — la
-    // condición correcta es simplemente "hubo descuento", sin importar el
-    // origen.
-    const commissionAmount = Math.round(
-      grossTotal > 0 && total !== grossTotal
-        ? grossCommission * (total / grossTotal)
-        : grossCommission,
-    );
+    // fixedAmount es un monto fijo por servicio/venta, ajeno al precio por
+    // definición — nunca lleva tope de precio efectivo. Sigue
+    // escalándose por el % de descuento del carrito completo, exactamente
+    // igual que el cálculo plano de antes (mismo criterio pre-existente,
+    // sin cambios): no tiene sentido pagar la comisión fija completa sobre
+    // una venta que, en conjunto, se cobró con descuento.
+    const discountRatio = grossTotal > 0 && total !== grossTotal ? total / grossTotal : 1;
+    const commissionAmount = Math.round(pctAmount + fixedAmount * discountRatio);
     if (commissionAmount > 0) {
       // Si algún ítem usó su propia comisión por servicio (o se usó el
       // monto fijo general), no hay un único % que represente el total —

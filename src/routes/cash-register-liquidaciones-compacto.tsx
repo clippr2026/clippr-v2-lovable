@@ -3203,15 +3203,21 @@ function NuevaVentaTab({
   }, [promotionId, validPromotions]);
 
   const selectedPromotion = validPromotions.find((p) => p.id === promotionId) ?? null;
-  const discountAmount = selectedPromotion
-    ? cartItems.reduce((sum, { svc, qty }) => {
+  // Descuento por ÍTEM (qty incluido) — solo descuenta los servicios que la
+  // promo alcanza (nunca catálogo, nunca un servicio no aplicable). Fuente
+  // única para discountAmount (la suma) Y para lo que se manda a
+  // registerPayment (ver items en handleCobrar), así la comisión de cada
+  // servicio se calcula sobre lo realmente cobrado de ESE servicio.
+  const itemDiscounts: number[] = selectedPromotion
+    ? cartItems.map(({ svc, qty }) => {
         if (svc.is_catalog || !isPromotionApplicable(selectedPromotion, { serviceId: svc.id, employeeId, category: svc.category ?? null })) {
-          return sum;
+          return 0;
         }
         const subtotal = cartUnitPrice(svc) * qty;
-        return sum + (subtotal - applyPromotionDiscount(subtotal, selectedPromotion));
-      }, 0)
-    : 0;
+        return subtotal - applyPromotionDiscount(subtotal, selectedPromotion);
+      })
+    : cartItems.map(() => 0);
+  const discountAmount = itemDiscounts.reduce((s, d) => s + d, 0);
   const finalTotal = total - discountAmount;
 
   const receivedNumber = Number(received || 0);
@@ -3315,12 +3321,17 @@ function NuevaVentaTab({
       if (savedClientId && !clientId) setClientId(savedClientId);
 
       // amount ya viene con el precio en efectivo aplicado si corresponde
-      // (cartUnitPrice) — lo que se guarda en payments/comisión/liquidación
-      // es siempre el monto realmente cobrado.
-      const items = cartItems.map(({ svc, qty }) => ({
+      // (cartUnitPrice) — lo que se guarda en payments/liquidación es
+      // siempre el monto realmente cobrado. effectivePrice (tope de la
+      // base de comisión) y discountAmount (ya repartido por servicio, ver
+      // itemDiscounts arriba) viajan por ítem — misma lógica que
+      // cash-register.tsx (NuevaVentaTab), ver computeCommissionAmount.
+      const items = cartItems.map(({ svc, qty }, idx) => ({
         serviceId: svc.id,
         serviceName: svc.name,
         amount: cartUnitPrice(svc),
+        effectivePrice: svc.is_catalog ? null : svc.cashPrice ?? null,
+        discountAmount: itemDiscounts[idx] ?? 0,
         isCatalog: svc.is_catalog ?? false,
         stock: svc.stock,
         qty,

@@ -51,6 +51,12 @@ export type ProfSale = {
   // para el listado de Historial de ventas. null/vacío = un solo método,
   // usar `method` en su lugar.
   splits: { method: string; amount: number }[] | null;
+  // Comisión REAL ya calculada de esta venta (commission_records.amount —
+  // ver useProfSalesEnriched en professionals.tsx). Opcional porque
+  // useProfSales (no usado actualmente) no la provee; cuando falta, el
+  // consumidor no debe recalcularla con un % plano (eso ya no refleja el
+  // tope de precio efectivo ni el descuento real de esa venta puntual).
+  commission?: number;
 };
 
 export type ProfTurno = {
