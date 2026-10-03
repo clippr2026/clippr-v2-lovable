@@ -342,10 +342,14 @@ export function computeExpectedCashAndDigital(params: {
   }>;
   expenses: Array<{ amount?: number | null; payment_method?: string | null; method?: string | null }>;
   advances: Array<{ amount?: number | null; payment_method?: string | null }>;
-  cashMovements: Array<{ type: "ingreso" | "retiro"; amount: number | null }>;
+  // method: "efectivo" (cajón físico) | "cuenta" (digital) — filas viejas,
+  // de antes de que cash_movements tuviera esta columna, no traen method;
+  // se tratan como "efectivo" (mismo comportamiento que tenían).
+  cashMovements: Array<{ type: "ingreso" | "retiro"; amount: number | null; method?: string | null }>;
 }): ExpectedCashDigital {
   const { payments, expenses, advances, cashMovements } = params;
   const isCash = (m: string | null | undefined) => normalizeCierreMethodKey(m) === "cash";
+  const isCashMovement = (m: { method?: string | null }) => !m.method || isCash(m.method);
 
   const cashPayments = payments
     .filter((p) => isCash(p.method ?? p.payment_method))
@@ -368,21 +372,86 @@ export function computeExpectedCashAndDigital(params: {
     .filter((a) => !isCash(a.payment_method))
     .reduce((s, a) => s + Number(a.amount ?? 0), 0);
 
-  const ingresosCaja = cashMovements
-    .filter((m) => m.type === "ingreso")
+  const ingresosCajaEfectivo = cashMovements
+    .filter((m) => m.type === "ingreso" && isCashMovement(m))
     .reduce((s, m) => s + Number(m.amount ?? 0), 0);
-  const retirosCaja = cashMovements
-    .filter((m) => m.type === "retiro")
+  const retirosCajaEfectivo = cashMovements
+    .filter((m) => m.type === "retiro" && isCashMovement(m))
+    .reduce((s, m) => s + Number(m.amount ?? 0), 0);
+  const ingresosCajaDigital = cashMovements
+    .filter((m) => m.type === "ingreso" && !isCashMovement(m))
+    .reduce((s, m) => s + Number(m.amount ?? 0), 0);
+  const retirosCajaDigital = cashMovements
+    .filter((m) => m.type === "retiro" && !isCashMovement(m))
     .reduce((s, m) => s + Number(m.amount ?? 0), 0);
 
-  const cashOutflows = cashExpenses + cashAdvances + retirosCaja;
-  const digitalOutflows = digitalExpenses + digitalAdvances;
+  const cashOutflows = cashExpenses + cashAdvances + retirosCajaEfectivo;
+  const digitalOutflows = digitalExpenses + digitalAdvances + retirosCajaDigital;
 
   return {
-    cashExpected: cashPayments + ingresosCaja - cashOutflows,
+    cashExpected: cashPayments + ingresosCajaEfectivo - cashOutflows,
     cashOutflows,
-    digitalExpected: digitalPayments - digitalOutflows,
+    digitalExpected: digitalPayments + ingresosCajaDigital - digitalOutflows,
     digitalOutflows,
+  };
+}
+
+// "Dinero en cuenta" no se resetea en cada cierre — a diferencia del
+// efectivo (que se cuenta físico y arranca de nuevo), el saldo esperado de
+// HOY arranca de lo que quedó registrado en el último cierre ya cerrado
+// (su dinero_cuenta_real si el usuario lo cargó, o su _esperado si no) y
+// desde ahí se le suma el movimiento digital del período actual
+// (computeExpectedCashAndDigital().digitalExpected). Sin cierres previos,
+// arranca en 0.
+export async function getDigitalCarryForward(
+  businessId: string | null,
+  branchId: string | null,
+): Promise<number> {
+  if (!businessId) return 0;
+  let query = supabase
+    .from("caja_cierres" as any)
+    .select("dinero_cuenta_real,dinero_cuenta_esperado")
+    .eq("business_id", businessId)
+    .eq("estado", "cerrada");
+  if (branchId) query = query.eq("branch_id", branchId);
+  const { data, error } = await query
+    .order("fecha", { ascending: false })
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error || !data) return 0;
+  const row = data as any;
+  return Number(row.dinero_cuenta_real ?? row.dinero_cuenta_esperado ?? 0);
+}
+
+// "Caja abierta desde" — fecha + hora de apertura de la fila de
+// caja_cierres más reciente (abierta o no), para el acceso directo a
+// "Cerrar caja" desde Facturación. Mismo criterio de "apertura real" que
+// usa CierresTab (excluye "reapertura" del pool de candidatos — una
+// reapertura nunca pisa la hora de apertura original del día).
+export async function getCajaAbiertaDesde(
+  businessId: string | null,
+  branchId: string | null,
+): Promise<{ fecha: string; hora: string } | null> {
+  if (!businessId) return null;
+  let query = supabase
+    .from("caja_cierres" as any)
+    .select("fecha,eventos,hora_apertura")
+    .eq("business_id", businessId);
+  if (branchId) query = query.eq("branch_id", branchId);
+  const { data, error } = await query
+    .order("fecha", { ascending: false })
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error || !data) return null;
+  const row = data as any;
+  const events = cajaEventosArray(row.eventos);
+  const aperturaCandidates = events.filter((e) => e.tipo !== "reapertura");
+  const apertura = aperturaCandidates.find((e) => e.tipo === "apertura") ?? aperturaCandidates[0];
+  return {
+    fecha: String(row.fecha ?? ""),
+    hora: cajaHoraDisplay(apertura?.hora ?? row.hora_apertura ?? "—"),
   };
 }
 

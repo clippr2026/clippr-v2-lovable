@@ -31,7 +31,12 @@ import {
   closeCierreForDate,
   normalizeCierreMethodKey,
   computeExpectedCashAndDigital,
+  cajaOpenRangeStartDate,
+  getDigitalCarryForward,
+  getCajaAbiertaDesde,
+  type ExpectedCashDigital,
 } from "@/lib/caja-cierre";
+import { useCashMovements, type CashMovement } from "@/hooks/use-cash-movements";
 import { supabase } from "@/integrations/supabase/client";
 import {
   useCajaData,
@@ -467,6 +472,16 @@ function displayResponsibleUser(value?: string | null) {
   return raw;
 }
 
+// "DD/MM/YYYY" numérico — distinto de fechaLabel (día/mes abreviado/año,
+// solo usado dentro de CierresTab), lo necesitan tanto CierresTab como
+// CashRegisterPage (para el acceso directo a Cerrar caja en Facturación).
+function fechaDDMMYYYY(fecha?: string | null) {
+  const raw = String(fecha ?? "").slice(0, 10);
+  const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return "—";
+  return `${match[3]}/${match[2]}/${match[1]}`;
+}
+
 // Usuario que cobró/pagó: muestra el email antes del "@". Solo cae en
 // "Recepción" si realmente no hay email del usuario de sesión.
 function chargedByUsername(email?: string | null) {
@@ -633,6 +648,65 @@ function CashRegisterPage() {
   const navigate = useNavigate();
   const search = useSearch({ from: "/cash-register" });
   const data = useCajaData();
+
+  // Efectivo/Dinero esperado — una sola fuente para toda Caja (Facturación
+  // y los dos accesos a Cierre de caja), en vez de que cada uno fetchee
+  // cash_movements/professional_advances por su cuenta. rangeStartDate usa
+  // el mismo criterio que useCajaData ya aplica internamente a
+  // paymentsToday/expensesToday (data.pendingCierre), así ambos rangos
+  // siempre coinciden.
+  const cajaRangeStartDate = cajaOpenRangeStartDate(data.pendingCierre);
+  const movementsData = useCashMovements(data.businessId, data.activeBranchId, cajaRangeStartDate);
+  const [digitalCarryForward, setDigitalCarryForward] = useState(0);
+  React.useEffect(() => {
+    let cancelled = false;
+    function loadCarryForward() {
+      getDigitalCarryForward(data.businessId, data.activeBranchId).then((v) => {
+        if (!cancelled) setDigitalCarryForward(v);
+      });
+    }
+    loadCarryForward();
+    window.addEventListener("clippr:caja-cierre-guardado", loadCarryForward);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("clippr:caja-cierre-guardado", loadCarryForward);
+    };
+  }, [data.businessId, data.activeBranchId]);
+
+  const expected = useMemo(() => {
+    const base = computeExpectedCashAndDigital({
+      payments: data.paymentsToday,
+      expenses: data.expensesToday,
+      advances: movementsData.advances,
+      cashMovements: movementsData.movements,
+    });
+    return { ...base, digitalExpected: base.digitalExpected + digitalCarryForward };
+  }, [data.paymentsToday, data.expensesToday, movementsData.advances, movementsData.movements, digitalCarryForward]);
+
+  // "Caja abierta desde" para el acceso directo a Cerrar caja en
+  // Facturación (CierresTab ya calcula lo mismo para su propia vista, pero
+  // a partir de su propio historial cargado — acá es una sola fila, nada
+  // que compartir con esa lista).
+  const [cajaAbiertaDesdeInfo, setCajaAbiertaDesdeInfo] = useState<{ fecha: string; hora: string } | null>(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    function loadAbiertaDesde() {
+      getCajaAbiertaDesde(data.businessId, data.activeBranchId).then((v) => {
+        if (!cancelled) setCajaAbiertaDesdeInfo(v);
+      });
+    }
+    loadAbiertaDesde();
+    window.addEventListener("clippr:caja-cierre-guardado", loadAbiertaDesde);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("clippr:caja-cierre-guardado", loadAbiertaDesde);
+    };
+  }, [data.businessId, data.activeBranchId]);
+  const cajaAbiertaDesdeLabel = cajaAbiertaDesdeInfo
+    ? `${fechaDDMMYYYY(cajaAbiertaDesdeInfo.fecha)} · ${cajaAbiertaDesdeInfo.hora}`
+    : "—";
+  const cajaAbiertaDesdeFecha = cajaAbiertaDesdeInfo?.fecha ?? cajaRangeStartDate;
+
   const [tab, setTab] = useState<Tab>(
     search.depositAppointmentId || search.appointmentId ? "nueva" : "resumen",
   );
@@ -874,6 +948,8 @@ function CashRegisterPage() {
               expensesToday={data.expensesToday}
               pendingCharges={data.pendingCharges}
               userEmail={session.user.email ?? null}
+              expected={expected}
+              movementsData={movementsData}
               onCajaCerrada={() => {
                 setCajaCerrada(true);
                 setShowClosedHistory(false);
@@ -943,6 +1019,18 @@ function CashRegisterPage() {
                 setPendingToCharge(null);
                 setTab("nuevo-gasto");
               }}
+              userEmail={session.user.email ?? null}
+              expected={expected}
+              movementsData={movementsData}
+              cajaAbiertaDesde={cajaAbiertaDesdeLabel}
+              cajaRangeStartDate={cajaAbiertaDesdeFecha}
+              onCajaCerrada={() => {
+                setCajaCerrada(true);
+                setShowClosedHistory(false);
+                setPendingToCharge(null);
+                setResumenPanel("ingresos");
+                setTab("resumen");
+              }}
             />
           )}
           {tab === "nuevo-gasto" && (
@@ -1010,6 +1098,8 @@ function CashRegisterPage() {
               expensesToday={data.expensesToday}
               pendingCharges={data.pendingCharges}
               userEmail={session.user.email ?? null}
+              expected={expected}
+              movementsData={movementsData}
               onCajaCerrada={() => {
                 setCajaCerrada(true);
                 setShowClosedHistory(false);
@@ -1247,6 +1337,12 @@ function ResumenTab({
   onCobrarPendiente,
   onNuevaVenta,
   onNuevoGasto,
+  userEmail,
+  expected,
+  movementsData,
+  cajaAbiertaDesde,
+  cajaRangeStartDate,
+  onCajaCerrada,
 }: {
   data: ReturnType<typeof useCajaData>;
   equipoEnabled: boolean;
@@ -1257,6 +1353,12 @@ function ResumenTab({
   ) => void;
   onNuevaVenta: () => void;
   onNuevoGasto: () => void;
+  userEmail: string | null;
+  expected: ExpectedCashDigital;
+  movementsData: ReturnType<typeof useCashMovements>;
+  cajaAbiertaDesde: string;
+  cajaRangeStartDate: string;
+  onCajaCerrada: () => void;
 }) {
   type ActivePanel = "ingresos" | "pendientes" | "gastos";
   const [activePanel, setActivePanel] =
@@ -1492,31 +1594,37 @@ function ResumenTab({
         })}
       </div>
 
-      {/* Resumen grande del tab activo — Facturación/Gastos muestran su
-          total arriba del historial correspondiente; Pendientes no tiene un
-          único total (son dos conceptos separados, ver los bloques debajo). */}
-      {(activePanel === "ingresos" || activePanel === "gastos") && (
+      {/* Gastos: resumen simple arriba del historial — Facturación tiene su
+          propio panel completo (FacturacionPanel) más abajo. */}
+      {activePanel === "gastos" && (
         <div className="relative z-10">
           <div className="flex items-center gap-1.5 text-muted-foreground">
-            {activePanel === "ingresos" ? (
-              <TrendingUp className="h-3.5 w-3.5 text-emerald-400" />
-            ) : (
-              <TrendingDown className="h-3.5 w-3.5 text-rose-400" />
-            )}
-            <span className="text-xs">{activePanel === "ingresos" ? "Ingresos" : "Egresos"}</span>
+            <TrendingDown className="h-3.5 w-3.5 text-rose-400" />
+            <span className="text-xs">Egresos</span>
           </div>
           <div className="mt-0.5">
             {data.loading ? (
               <div className="h-7 w-28 animate-pulse rounded-lg bg-white/[0.08] sm:h-8" />
             ) : (
-              <Money value={activePanel === "ingresos" ? data.revHoy : data.totalGastos} large />
+              <Money value={data.totalGastos} large />
             )}
           </div>
         </div>
       )}
 
       {activePanel === "ingresos" && (
-        <div className="relative z-10">
+        <div className="relative z-10 space-y-4">
+          <FacturacionPanel
+            data={data}
+            equipoEnabled={equipoEnabled}
+            expected={expected}
+            movementsData={movementsData}
+            userEmail={userEmail}
+            cajaAbiertaDesde={cajaAbiertaDesde}
+            cajaRangeStartDate={cajaRangeStartDate}
+            onCajaCerrada={onCajaCerrada}
+            onVerPendientes={() => selectPanel("pendientes")}
+          />
           <History
             data={data}
             equipoEnabled={equipoEnabled}
@@ -6317,6 +6425,8 @@ function CierreCajaBtn({
   userEmail,
   onCajaCerrada,
   cajaAbiertaDesde,
+  cajaRangeStartDate,
+  expected,
 }: {
   paymentsToday: ReturnType<typeof useCajaData>["paymentsToday"];
   expensesToday: ReturnType<typeof useCajaData>["expensesToday"];
@@ -6326,76 +6436,30 @@ function CierreCajaBtn({
   userEmail: string | null;
   onCajaCerrada: () => void;
   cajaAbiertaDesde: string;
+  // Fecha (YYYY-MM-DD) que identifica la fila de caja_cierres a cerrar —
+  // la de apertura real, NO necesariamente "hoy" (una caja vencida sigue
+  // abierta desde un día anterior; cerrarla tiene que actualizar ESA fila,
+  // no crear una nueva para hoy). Mismo criterio que closeCierreForDate.
+  cajaRangeStartDate: string;
+  // Efectivo/Dinero esperado — calculado una sola vez en CashRegisterPage
+  // (computeExpectedCashAndDigital + carry-forward de cuenta) y pasado por
+  // prop a los dos lugares que cierran caja (acá y Facturación), para que
+  // nunca haya dos fuentes del mismo saldo.
+  expected: ExpectedCashDigital;
 }) {
   const [open, setOpen] = useState(false);
   const [obs, setObs] = useState("");
   const [saving, setSaving] = useState(false);
-  const [cashMovements, setCashMovements] = useState<Array<{ type: "ingreso" | "retiro"; amount: number }>>([]);
-  const [advances, setAdvances] = useState<Array<{ amount: number; payment_method: string | null }>>([]);
   const [efectivoContado, setEfectivoContado] = useState("");
   const [contadoTouched, setContadoTouched] = useState(false);
+  const [saldoReal, setSaldoReal] = useState("");
+  const [saldoRealTouched, setSaldoRealTouched] = useState(false);
 
-  const today = new Date().toLocaleDateString("sv-SE");
-
-  // cash_movements (ingresar/retirar efectivo a mano) y professional_advances
-  // del día — solo se necesitan mientras el modal está abierto, para
-  // "Efectivo esperado"/"Salidas de efectivo" (computeExpectedCashAndDigital,
-  // misma fuente que Inicio). Ambas tablas son nuevas/opcionales: fallan en
-  // silencio si todavía no existen en esta base.
-  useEffect(() => {
-    if (!open || !businessId) return;
-    let cancelled = false;
-    async function load() {
-      const dayStart = new Date(`${today}T00:00:00`).toISOString();
-      const dayEnd = new Date().toISOString();
-      const branchFilter = branchId ? `branch_id.eq.${branchId},branch_id.is.null` : null;
-
-      let movQuery = supabase
-        .from("cash_movements" as any)
-        .select("type,amount")
-        .eq("business_id", businessId)
-        .gte("created_at", dayStart)
-        .lte("created_at", dayEnd);
-      if (branchFilter) movQuery = movQuery.or(branchFilter);
-
-      const advQuery = supabase
-        .from("professional_advances" as any)
-        .select("amount,payment_method")
-        .eq("business_id", businessId)
-        .gte("advanced_at", dayStart)
-        .lte("advanced_at", dayEnd);
-
-      const [movRes, advRes] = await Promise.allSettled([movQuery, advQuery]);
-      if (cancelled) return;
-      setCashMovements(
-        movRes.status === "fulfilled" && !movRes.value.error ? ((movRes.value.data ?? []) as any[]) : [],
-      );
-      setAdvances(
-        advRes.status === "fulfilled" && !advRes.value.error ? ((advRes.value.data ?? []) as any[]) : [],
-      );
-    }
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [open, businessId, branchId, today]);
-
-  const todayPayments = paymentsToday.filter(
-    (p) => new Date(p.created_at).toLocaleDateString("sv-SE") === today,
-  );
-
-  const todayExpenses = expensesToday.filter((e: any) => {
-    if (e.date) return e.date === today;
-    if (e.created_at)
-      return new Date(e.created_at).toLocaleDateString("sv-SE") === today;
-    return true;
-  });
-
-  const totalCobrado = todayPayments.reduce(
+  const totalCobrado = paymentsToday.reduce(
     (s, p) => s + Number((p as any).total ?? (p as any).amount ?? 0),
     0,
   );
-  const totalGastos = todayExpenses.reduce(
+  const totalGastos = expensesToday.reduce(
     (s, e) => s + Number((e as any).amount ?? 0),
     0,
   );
@@ -6409,12 +6473,12 @@ function CierreCajaBtn({
       return detail[key];
     };
 
-    for (const p of todayPayments) {
+    for (const p of paymentsToday) {
       const row = ensure((p as any).method ?? (p as any).payment_method);
       row.ingresos += Number((p as any).total ?? (p as any).amount ?? 0);
     }
 
-    for (const e of todayExpenses) {
+    for (const e of expensesToday) {
       const row = ensure((e as any).payment_method ?? (e as any).method);
       row.gastos += Number((e as any).amount ?? 0);
     }
@@ -6424,7 +6488,7 @@ function CierreCajaBtn({
     });
 
     return detail;
-  }, [todayPayments, todayExpenses]);
+  }, [paymentsToday, expensesToday]);
 
   // Desglose SOLO de lo cobrado, por cada método activo — a diferencia de
   // detalleMetodos (que agrupa débito/crédito/tarjeta bajo una sola clave
@@ -6432,36 +6496,34 @@ function CierreCajaBtn({
   // cada método activo necesita su propia fila.
   const cobradoPorMetodo = useMemo(() => {
     const byMethod: Record<string, number> = {};
-    for (const p of todayPayments as any[]) {
+    for (const p of paymentsToday as any[]) {
       const raw = String(p.method ?? p.payment_method ?? "").trim().toLowerCase();
       byMethod[raw] = (byMethod[raw] ?? 0) + Number(p.total ?? p.amount ?? 0);
     }
     return byMethod;
-  }, [todayPayments]);
+  }, [paymentsToday]);
 
-  const expected = useMemo(
-    () =>
-      computeExpectedCashAndDigital({
-        payments: todayPayments as any[],
-        expenses: todayExpenses as any[],
-        advances,
-        cashMovements,
-      }),
-    [todayPayments, todayExpenses, advances, cashMovements],
-  );
-
-  // Precarga "Efectivo contado" con el esperado apenas se conoce, pero solo
-  // una vez — si el usuario ya escribió algo (contadoTouched), no se le pisa
-  // lo que tipeó cada vez que cashMovements/advances recalculan expected.
+  // Precarga "Efectivo contado"/"Saldo real en cuenta" con lo esperado
+  // apenas se conoce, pero solo una vez — si el usuario ya escribió algo
+  // (contadoTouched/saldoRealTouched), no se le pisa lo que tipeó cada vez
+  // que expected se recalcula (ej. llega un cobro nuevo mientras el modal
+  // está abierto).
   useEffect(() => {
     if (!open || contadoTouched) return;
     setEfectivoContado(String(Math.round(expected.cashExpected)));
   }, [open, contadoTouched, expected.cashExpected]);
 
+  useEffect(() => {
+    if (!open || saldoRealTouched) return;
+    setSaldoReal(String(Math.round(expected.digitalExpected)));
+  }, [open, saldoRealTouched, expected.digitalExpected]);
+
   const efectivoContadoNum = Number(efectivoContado.replace(/\./g, "").replace(",", ".")) || 0;
   const diferencia = efectivoContadoNum - expected.cashExpected;
+  const saldoRealNum = Number(saldoReal.replace(/\./g, "").replace(",", ".")) || 0;
+  const ajusteCuenta = saldoRealNum - expected.digitalExpected;
 
-  const cobrosSnapshot = todayPayments.map((p: any) => ({
+  const cobrosSnapshot = paymentsToday.map((p: any) => ({
     id: p.id,
     hora: p.created_at
       ? new Date(p.created_at).toLocaleTimeString("es-AR", {
@@ -6477,7 +6539,7 @@ function CierreCajaBtn({
     usuario: p.charged_by ?? p.created_by ?? null,
   }));
 
-  const gastosSnapshot = todayExpenses.map((e: any) => ({
+  const gastosSnapshot = expensesToday.map((e: any) => ({
     id: e.id,
     hora: e.created_at
       ? new Date(e.created_at).toLocaleTimeString("es-AR", {
@@ -6527,6 +6589,8 @@ function CierreCajaBtn({
         efectivo_contado: efectivoContadoNum,
         diferencia,
         dinero_cuenta_esperado: expected.digitalExpected,
+        dinero_cuenta_real: saldoRealNum,
+        dinero_cuenta_ajuste: ajusteCuenta,
         pendientes_count: pendingCharges.length,
         pendientes_monto: pendientesMonto,
         pendientes_detalle: pendientesSnapshot,
@@ -6536,7 +6600,7 @@ function CierreCajaBtn({
         .from("caja_cierres" as any)
         .select("id,eventos,estado")
         .eq("business_id", businessId)
-        .eq("fecha", today);
+        .eq("fecha", cajaRangeStartDate);
       if (branchId) existingQuery = existingQuery.eq("branch_id", branchId);
       const { data: existing } = await existingQuery.maybeSingle();
 
@@ -6550,14 +6614,14 @@ function CierreCajaBtn({
       const payload = {
         business_id: businessId,
         branch_id: branchId,
-        fecha: today,
+        fecha: cajaRangeStartDate,
         hora_cierre: hora,
         usuario_id: null,
         usuario_nombre: userEmail ?? "Caja",
         total_cobrado: totalCobrado,
         total_gastos: totalGastos,
         utilidad,
-        cantidad_cobros: todayPayments.length,
+        cantidad_cobros: paymentsToday.length,
         detalle_metodos_pago: detalleMetodos,
         cobros_snapshot: cobrosSnapshot,
         gastos_snapshot: gastosSnapshot,
@@ -6567,6 +6631,8 @@ function CierreCajaBtn({
         efectivo_contado: efectivoContadoNum,
         diferencia,
         dinero_cuenta_esperado: expected.digitalExpected,
+        dinero_cuenta_real: saldoRealNum,
+        dinero_cuenta_ajuste: ajusteCuenta,
         eventos: appendCajaEvento((existing as any)?.eventos, cierreEvento),
         updated_at: now.toISOString(),
       };
@@ -6599,6 +6665,8 @@ function CierreCajaBtn({
       setObs("");
       setEfectivoContado("");
       setContadoTouched(false);
+      setSaldoReal("");
+      setSaldoRealTouched(false);
       onCajaCerrada(); // ← bloquea la pantalla inmediatamente
       window.dispatchEvent(new CustomEvent("clippr:caja-cierre-guardado"));
     } catch (e) {
@@ -6634,6 +6702,7 @@ function CierreCajaBtn({
                 onClick={() => {
                   setOpen(false);
                   setContadoTouched(false);
+                  setSaldoRealTouched(false);
                 }}
                 className="rounded-lg bg-white/5 hover:bg-white/10 px-3 py-2 text-sm"
               >
@@ -6683,8 +6752,12 @@ function CierreCajaBtn({
 
               {/* 5. Efectivo contado — editable, precargado con lo esperado */}
               <div>
-                <label className="text-xs text-muted-foreground">Efectivo contado</label>
-                <div className="mt-1 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 focus-within:border-blue-300/40">
+                <div className="text-sm font-semibold">Efectivo contado</div>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Contá el efectivo de la caja e ingresá el monto real. Viene precargado con el
+                  efectivo esperado (${Math.round(expected.cashExpected).toLocaleString("es-AR")}).
+                </p>
+                <div className="mt-2 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 focus-within:border-blue-300/40">
                   <span className="text-muted-foreground/70">$</span>
                   <input
                     type="text"
@@ -6697,6 +6770,9 @@ function CierreCajaBtn({
                     className="w-full bg-transparent text-sm outline-none tabular-nums"
                   />
                 </div>
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  Si coincide con lo esperado, no se registra diferencia.
+                </p>
               </div>
 
               {/* 6. Diferencia */}
@@ -6714,12 +6790,62 @@ function CierreCajaBtn({
                 </span>
               </div>
 
-              {/* 7. Dinero esperado en cuenta — solo informativo */}
-              <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.02] ring-1 ring-white/10 px-4 py-3">
-                <span className="text-sm text-muted-foreground">Dinero esperado en cuenta</span>
-                <span className="text-lg font-semibold tabular-nums text-sky-300">
-                  ${Math.round(expected.digitalExpected).toLocaleString("es-AR")}
-                </span>
+              {/* 7. Dinero en cuenta — a diferencia del efectivo, NO se
+                  resetea: el saldo esperado ya arrastra el carry-forward
+                  del último cierre (ver getDigitalCarryForward). Acá solo
+                  se deja constancia del saldo real al momento de cerrar;
+                  el ajuste nunca se mezcla con la diferencia de efectivo. */}
+              <div className="rounded-xl bg-white/[0.02] ring-1 ring-white/10 px-4 py-3 space-y-3">
+                <div>
+                  <div className="text-sm font-semibold text-sky-200">Dinero en cuenta</div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    El dinero en cuenta no se cierra: sigue acumulándose. Acá queda registrado el
+                    saldo al momento del cierre.
+                  </p>
+                </div>
+
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-sm text-muted-foreground">Saldo esperado</span>
+                  <span className="text-lg font-semibold tabular-nums text-sky-300">
+                    ${Math.round(expected.digitalExpected).toLocaleString("es-AR")}
+                  </span>
+                </div>
+
+                <div>
+                  <label className="text-xs text-muted-foreground">Saldo real en cuenta</label>
+                  <div className="mt-1 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 focus-within:border-blue-300/40">
+                    <span className="text-muted-foreground/70">$</span>
+                    <input
+                      type="text"
+                      inputMode="numeric"
+                      value={saldoReal}
+                      onChange={(e) => {
+                        setSaldoRealTouched(true);
+                        setSaldoReal(e.target.value.replace(/[^\d.,]/g, ""));
+                      }}
+                      className="w-full bg-transparent text-sm outline-none tabular-nums"
+                    />
+                  </div>
+                  <p className="mt-1.5 text-xs text-muted-foreground">
+                    Ingresá el saldo que ves actualmente en tu cuenta. Si coincide con lo esperado,
+                    no se registra ningún ajuste.
+                  </p>
+                </div>
+
+                {ajusteCuenta !== 0 && (
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-sm text-muted-foreground">Ajuste</span>
+                    <span
+                      className={cn(
+                        "text-sm font-semibold tabular-nums",
+                        ajusteCuenta > 0 ? "text-emerald-300" : "text-rose-300",
+                      )}
+                    >
+                      {ajusteCuenta > 0 ? "+" : "-"}$
+                      {Math.round(Math.abs(ajusteCuenta)).toLocaleString("es-AR")}
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -6761,6 +6887,8 @@ function CierresTab({
   expensesToday,
   pendingCharges,
   userEmail,
+  expected,
+  movementsData,
   onCajaCerrada,
   onCajaReopened,
 }: {
@@ -6770,6 +6898,8 @@ function CierresTab({
   expensesToday: ReturnType<typeof useCajaData>["expensesToday"];
   pendingCharges: ReturnType<typeof useCajaData>["pendingCharges"];
   userEmail: string | null;
+  expected: ExpectedCashDigital;
+  movementsData: ReturnType<typeof useCashMovements>;
   onCajaCerrada: () => void;
   onCajaReopened: () => void;
 }) {
@@ -6904,15 +7034,6 @@ function CierresTab({
   const lastClosedToday = cajaHoraDisplay(lastCloseEntryToday?.hora ?? lastCloseEventToday?.hora ?? lastCierreToday?.hora_cierre ?? closedAt);
   const closedCountToday = cierreCandidates.length || cierresToday.length;
 
-
-  // "DD/MM/YYYY" numérico — distinto de fechaLabel (día/mes abreviado/año),
-  // que la pantalla de Cierre de caja pide explícitamente en este formato.
-  function fechaDDMMYYYY(fecha?: string | null) {
-    const raw = String(fecha ?? "").slice(0, 10);
-    const match = raw.match(/^(\d{4})-(\d{2})-(\d{2})$/);
-    if (!match) return "—";
-    return `${match[3]}/${match[2]}/${match[1]}`;
-  }
 
   function fechaLabel(fecha?: string | null, long = false) {
     if (!fecha) return "—";
@@ -7136,6 +7257,8 @@ function CierresTab({
                       loadCierres();
                     }}
                     cajaAbiertaDesde={`${fechaDDMMYYYY(latestCierre?.fecha)} · ${openedAt}`}
+                    cajaRangeStartDate={latestCierre?.fecha ?? cajaDateKey()}
+                    expected={expected}
                   />
                 </div>
               </div>
@@ -8166,6 +8289,400 @@ function PendingCommissionsSummary({
         </div>
       )}
     </Card>
+  );
+}
+
+// Tarjeta chica reusada para Ingresos/Pendientes/Efectivo esperado/Dinero
+// esperado en Facturación — mismo lenguaje visual (icono + label + monto
+// grande) que ya usa Inicio para estas mismas cifras.
+function FacturacionStatCard({
+  icon: Icon,
+  iconClass,
+  label,
+  value,
+  loading,
+  onClick,
+}: {
+  icon: React.ComponentType<{ className?: string }>;
+  iconClass: string;
+  label: string;
+  value: number;
+  loading?: boolean;
+  onClick?: () => void;
+}) {
+  const content = (
+    <>
+      <div className="flex items-center gap-1.5 text-muted-foreground">
+        <Icon className={cn("h-3.5 w-3.5 shrink-0", iconClass)} />
+        <span className="truncate text-xs">{label}</span>
+      </div>
+      <div className="mt-0.5">
+        {loading ? (
+          <div className="h-7 w-24 animate-pulse rounded-lg bg-white/[0.08]" />
+        ) : (
+          <Money value={value} large />
+        )}
+      </div>
+    </>
+  );
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="min-w-0 rounded-xl bg-white/[0.03] ring-1 ring-white/8 px-3.5 py-3 text-left transition hover:bg-white/[0.05]"
+      >
+        {content}
+      </button>
+    );
+  }
+  return <div className="min-w-0 rounded-xl bg-white/[0.03] ring-1 ring-white/8 px-3.5 py-3">{content}</div>;
+}
+
+// Modal de "Ingresar dinero"/"Retirar dinero" — monto + motivo + medio
+// (Efectivo/Cuenta); quién lo registró y fecha/hora quedan automáticos
+// (userEmail + now(), ver registerMovement en use-cash-movements.ts).
+function RegistrarMovimientoModal({
+  tipo,
+  onClose,
+  onConfirm,
+}: {
+  tipo: "ingreso" | "retiro";
+  onClose: () => void;
+  onConfirm: (amount: number, note: string, method: "efectivo" | "cuenta") => Promise<void>;
+}) {
+  const [amountStr, setAmountStr] = React.useState("");
+  const [note, setNote] = React.useState("");
+  const [method, setMethod] = React.useState<"efectivo" | "cuenta">("efectivo");
+  const [saving, setSaving] = React.useState(false);
+  const isIngreso = tipo === "ingreso";
+  const amount = Number(amountStr.replace(/\./g, "").replace(",", ".")) || 0;
+
+  async function handleConfirm() {
+    if (amount <= 0 || saving) return;
+    setSaving(true);
+    try {
+      await onConfirm(amount, note, method);
+      toast.success(isIngreso ? "Ingreso registrado" : "Retiro registrado");
+      onClose();
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+          <h3 className="text-lg font-semibold">{isIngreso ? "Ingresar dinero" : "Retirar dinero"}</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg bg-white/5 hover:bg-white/10 px-3 py-2 text-sm"
+          >
+            Cancelar
+          </button>
+        </div>
+        <div className="p-5 space-y-3">
+          <div>
+            <label className="text-xs text-muted-foreground">Monto</label>
+            <div className="mt-1 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 focus-within:border-blue-300/40">
+              <span className="text-muted-foreground/70">$</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                autoFocus
+                value={amountStr}
+                onChange={(e) => setAmountStr(e.target.value.replace(/[^\d.,]/g, ""))}
+                className="w-full bg-transparent text-sm outline-none tabular-nums"
+              />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">Motivo</label>
+            <input
+              type="text"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Ej: cambio inicial, retiro para depósito, etc."
+              className="mt-1 w-full rounded-xl bg-white/[0.03] border border-white/10 px-3 py-2.5 text-sm outline-none focus:border-blue-300/40"
+            />
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">Medio</label>
+            <div className="mt-1 grid grid-cols-2 gap-2">
+              {(["efectivo", "cuenta"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setMethod(m)}
+                  className={cn(
+                    "rounded-xl px-3 py-2.5 text-sm font-semibold ring-1 transition",
+                    method === m
+                      ? "bg-white/[0.12] ring-white/25 text-white"
+                      : "bg-white/[0.02] ring-white/10 text-muted-foreground hover:bg-white/[0.05]",
+                  )}
+                >
+                  {m === "efectivo" ? "Efectivo" : "Cuenta"}
+                </button>
+              ))}
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={saving || amount <= 0}
+            className={cn(
+              "w-full inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold text-white disabled:opacity-50 transition-all",
+              isIngreso
+                ? "bg-gradient-to-b from-emerald-400 to-emerald-600 hover:brightness-105"
+                : "bg-gradient-to-b from-rose-400 to-rose-600 hover:brightness-105",
+            )}
+          >
+            {saving ? "Guardando…" : isIngreso ? "Ingresar dinero" : "Retirar dinero"}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+function movimientoRow(m: CashMovement) {
+  const hora = m.created_at
+    ? new Date(m.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
+    : "—";
+  return (
+    <div key={m.id} className="flex items-center justify-between gap-3 px-5 py-3 text-sm">
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5">
+          <span
+            className={cn("font-semibold", m.type === "ingreso" ? "text-emerald-300" : "text-rose-300")}
+          >
+            {m.type === "ingreso" ? "Ingreso" : "Retiro"}
+          </span>
+          <span className="rounded-full bg-white/[0.06] px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wide text-muted-foreground/70">
+            {m.method === "cuenta" ? "Cuenta" : "Efectivo"}
+          </span>
+        </div>
+        <div className="mt-0.5 truncate text-xs text-muted-foreground">
+          {m.note || "—"} · {displayResponsibleUser(m.created_by)} · {hora}hs
+        </div>
+      </div>
+      <span
+        className={cn(
+          "shrink-0 font-semibold tabular-nums",
+          m.type === "ingreso" ? "text-emerald-300" : "text-rose-300",
+        )}
+      >
+        {m.type === "ingreso" ? "+" : "-"}${Math.round(m.amount).toLocaleString("es-AR")}
+      </span>
+    </div>
+  );
+}
+
+// Historial de Ingresar/Retirar dinero — últimos 5 acá + modal con todos.
+// No son ventas (no tocan commission_records), por eso viven separados del
+// historial de cobros (History, más abajo).
+function MovimientosList({
+  movements,
+  loading,
+}: {
+  movements: CashMovement[];
+  loading: boolean;
+}) {
+  const [historyOpen, setHistoryOpen] = React.useState(false);
+  const recent = movements.slice(0, 5);
+
+  return (
+    <Card className="rounded-3xl border-white/[0.075] bg-white/[0.02]">
+      <div className="flex items-center justify-between gap-3 border-b border-white/[0.06] px-5 py-3.5">
+        <h3 className="text-sm font-bold text-foreground/90">Movimientos de caja</h3>
+      </div>
+      {loading ? (
+        <div className="px-5 py-8 text-center text-sm text-muted-foreground">Cargando…</div>
+      ) : recent.length === 0 ? (
+        <div className="px-5 py-8 text-center text-sm text-muted-foreground">
+          Sin movimientos registrados.
+        </div>
+      ) : (
+        <div className="divide-y divide-white/5">{recent.map(movimientoRow)}</div>
+      )}
+      {movements.length > 5 && (
+        <div className="flex items-center justify-end border-t border-white/[0.07] px-6 py-2">
+          <button
+            type="button"
+            onClick={() => setHistoryOpen(true)}
+            className="inline-flex items-center gap-2 text-xs font-semibold text-foreground/70 transition hover:text-foreground"
+          >
+            <ClipboardList className="size-3.5" /> Ver historial completo <ArrowRight className="size-3.5" />
+          </button>
+        </div>
+      )}
+
+      {historyOpen && typeof document !== "undefined" && createPortal(
+        <div
+          className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm"
+          onClick={() => setHistoryOpen(false)}
+        >
+          <div
+            className="w-full max-w-2xl overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(135deg,rgba(10,8,14,0.98),rgba(8,10,20,0.97),rgba(3,5,12,0.99))] shadow-[0_40px_120px_-55px_rgba(0,0,0,1)]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between gap-4 border-b border-white/10 px-5 py-4">
+              <h3 className="text-lg font-bold text-white">Historial completo de movimientos</h3>
+              <button
+                type="button"
+                onClick={() => setHistoryOpen(false)}
+                className="h-10 rounded-2xl bg-white/[0.06] px-4 text-xs font-semibold text-white/70 hover:bg-white/[0.09] hover:text-white"
+              >
+                Cerrar
+              </button>
+            </div>
+            <div className="max-h-[70vh] overflow-y-auto [scrollbar-width:thin]">
+              {movements.length === 0 ? (
+                <div className="px-5 py-10 text-center text-sm text-white/45">
+                  Sin movimientos registrados.
+                </div>
+              ) : (
+                <div className="divide-y divide-white/5">{movements.map(movimientoRow)}</div>
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+    </Card>
+  );
+}
+
+// Panel completo de la pestaña Facturación: headline Ingresos/Pendientes,
+// Efectivo/Dinero esperado, acciones manuales de caja, historial de esos
+// movimientos y el acceso directo a Cerrar caja — todo reusando datos ya
+// calculados arriba (expected/movementsData, computeExpectedCashAndDigital)
+// en vez de recalcular nada acá.
+function FacturacionPanel({
+  data,
+  equipoEnabled,
+  expected,
+  movementsData,
+  userEmail,
+  cajaAbiertaDesde,
+  cajaRangeStartDate,
+  onCajaCerrada,
+  onVerPendientes,
+}: {
+  data: ReturnType<typeof useCajaData>;
+  equipoEnabled: boolean;
+  expected: ExpectedCashDigital;
+  movementsData: ReturnType<typeof useCashMovements>;
+  userEmail: string | null;
+  cajaAbiertaDesde: string;
+  cajaRangeStartDate: string;
+  onCajaCerrada: () => void;
+  onVerPendientes: () => void;
+}) {
+  const [movType, setMovType] = React.useState<"ingreso" | "retiro" | null>(null);
+  // "Pendientes" acá = ventas/turnos pendientes de cobro o confirmación
+  // (data.pendingAmount, el mismo número que la pestaña Pendientes) — solo
+  // tiene sentido mostrarlo si el negocio exige aprobación para cobrar
+  // (Equipo → "Exigir aprobación de ventas"), mismo criterio que ya usa el
+  // bloque "Modo de aprobación" de Liquidaciones.
+  const showPendientes = data.approvalModeEnabled && equipoEnabled;
+
+  return (
+    <>
+      <div className={cn("grid gap-2", showPendientes ? "grid-cols-2" : "grid-cols-1")}>
+        <FacturacionStatCard
+          icon={TrendingUp}
+          iconClass="text-emerald-400"
+          label="Ingresos"
+          value={data.revHoy}
+          loading={data.loading}
+        />
+        {showPendientes && (
+          <FacturacionStatCard
+            icon={Clock}
+            iconClass="text-sky-400"
+            label="Pendientes"
+            value={data.pendingAmount}
+            loading={data.loading}
+            onClick={onVerPendientes}
+          />
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <FacturacionStatCard
+          icon={Wallet}
+          iconClass="text-amber-400"
+          label="Efectivo esperado en caja"
+          value={expected.cashExpected}
+          loading={movementsData.loading}
+        />
+        <FacturacionStatCard
+          icon={CreditCard}
+          iconClass="text-sky-400"
+          label="Dinero esperado en cuenta"
+          value={expected.digitalExpected}
+          loading={movementsData.loading}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={() => setMovType("ingreso")}
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.06] px-3 py-3 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-400/[0.12]"
+        >
+          <Plus className="size-4" /> Ingresar dinero
+        </button>
+        <button
+          type="button"
+          onClick={() => setMovType("retiro")}
+          className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-400/20 bg-rose-400/[0.06] px-3 py-3 text-sm font-semibold text-rose-200 transition hover:bg-rose-400/[0.12]"
+        >
+          <Minus className="size-4" /> Retirar dinero
+        </button>
+      </div>
+
+      <MovimientosList movements={movementsData.movements} loading={movementsData.loading} />
+
+      <div className="flex justify-center">
+        <CierreCajaBtn
+          paymentsToday={data.paymentsToday}
+          expensesToday={data.expensesToday}
+          pendingCharges={data.pendingCharges}
+          businessId={data.businessId}
+          branchId={data.activeBranchId}
+          userEmail={userEmail}
+          onCajaCerrada={onCajaCerrada}
+          cajaAbiertaDesde={cajaAbiertaDesde}
+          cajaRangeStartDate={cajaRangeStartDate}
+          expected={expected}
+        />
+      </div>
+
+      {movType && (
+        <RegistrarMovimientoModal
+          tipo={movType}
+          onClose={() => setMovType(null)}
+          onConfirm={(amount, note, method) =>
+            movementsData.registerMovement(movType, amount, note, method, userEmail)
+          }
+        />
+      )}
+    </>
   );
 }
 
