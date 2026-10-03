@@ -55,7 +55,6 @@ import {
   closeCashSession,
   reopenCashSession,
 } from "@/components/cash-register/session-actions";
-import { usePendingCommissions } from "@/hooks/use-pending-commissions";
 import {
   attachReceiptToPayment,
   getPaymentReceiptSignedUrl,
@@ -757,7 +756,7 @@ function CashRegisterPage() {
   const [cajaCerrada, setCajaCerrada] = useState(false);
   const [showClosedHistory, setShowClosedHistory] = useState(false);
   const [resumenPanel, setResumenPanel] = useState<
-    "ingresos" | "pendientes" | "gastos"
+    "ingresos" | "gastos"
   >("ingresos");
   const [reopeningCaja, setReopeningCaja] = useState(false);
   // Caja vencida: día anterior con actividad que nunca se cerró. null =
@@ -1353,8 +1352,8 @@ function ResumenTab({
 }: {
   data: ReturnType<typeof useCajaData>;
   equipoEnabled: boolean;
-  initialPanel?: "ingresos" | "pendientes" | "gastos";
-  onPanelChange?: (panel: "ingresos" | "pendientes" | "gastos") => void;
+  initialPanel?: "ingresos" | "gastos";
+  onPanelChange?: (panel: "ingresos" | "gastos") => void;
   onCobrarPendiente: (
     appt: ReturnType<typeof useCajaData>["pendingCharges"][number],
   ) => void;
@@ -1367,7 +1366,7 @@ function ResumenTab({
   cajaRangeStartDate: string;
   onCajaCerrada: () => void;
 }) {
-  type ActivePanel = "ingresos" | "pendientes" | "gastos";
+  type ActivePanel = "ingresos" | "gastos";
   const [activePanel, setActivePanel] =
     React.useState<ActivePanel>(initialPanel);
   const [gastosHistoryOpen, setGastosHistoryOpen] = React.useState(false);
@@ -1464,24 +1463,13 @@ function ResumenTab({
       amountClass: "text-white",
       chipClass: "bg-rose-400/12 text-rose-300 ring-rose-400/20",
     },
-    {
-      id: "pendientes",
-      label: "Pendientes",
-      value: data.pendingAmount,
-      sub: `${data.pendingCharges?.length ?? 0} pendiente${(data.pendingCharges?.length ?? 0) === 1 ? "" : "s"}`,
-      icon: Clock,
-      money: true,
-      cardClass:
-        "border-sky-400/24 bg-[radial-gradient(circle_at_14%_50%,rgba(14,165,233,0.18),transparent_34%),linear-gradient(135deg,rgba(12,74,110,0.22),rgba(3,7,18,0.94))] shadow-[0_30px_90px_-45px_rgba(14,165,233,0.46),0_22px_70px_-42px_rgba(0,0,0,0.95)]",
-      iconClass:
-        "bg-sky-500/14 text-sky-300 ring-sky-400/30 shadow-[0_0_26px_rgba(14,165,233,0.18)]",
-      amountClass: "text-white",
-      chipClass: "bg-sky-400/12 text-sky-300 ring-sky-400/20",
-    },
   ];
 
+  // "pendientes" ya no es un ActivePanel seleccionable (la pestaña se
+  // eliminó), pero su tema se sigue usando directamente (panelTheme.pendientes)
+  // para el bloque embebido "Cobros pendientes" dentro de Facturación.
   const panelTheme: Record<
-    ActivePanel,
+    ActivePanel | "pendientes",
     {
       border: string;
       glow: string;
@@ -1569,10 +1557,11 @@ function ResumenTab({
     <div className="relative space-y-6 pt-0 pb-2 sm:py-2">
       <div className="pointer-events-none absolute inset-x-0 sm:inset-x-[-56px] top-[-54px] bottom-[-72px] z-0 rounded-[56px] bg-[radial-gradient(ellipse_at_center,rgba(0,0,0,0.68)_0%,rgba(0,0,0,0.46)_34%,rgba(0,0,0,0.22)_58%,transparent_82%)] blur-3xl" />
       <div className="pointer-events-none absolute inset-x-0 sm:inset-x-[-30px] top-[-28px] bottom-[-40px] z-0 rounded-[46px] bg-[linear-gradient(180deg,transparent_0%,rgba(0,0,0,0.18)_14%,rgba(0,0,0,0.38)_46%,rgba(0,0,0,0.28)_72%,transparent_100%)]" />
-      {/* Selector horizontal compacto Facturación/Gastos/Pendientes — antes
-          eran 3 tarjetas grandes apiladas (mucho scroll en mobile), ahora
-          tabs en una sola fila con el mismo lenguaje visual que la
-          navegación superior (Resumen/Precios/...). */}
+      {/* Selector horizontal compacto Facturación/Gastos — antes eran 3
+          tarjetas grandes apiladas (mucho scroll en mobile) y después 3
+          tabs (Facturación/Gastos/Pendientes); "Pendientes" dejó de ser
+          una pestaña propia — vive ahora dentro de Facturación, ver
+          FacturacionPanel. */}
       <div className="relative z-10 flex gap-1.5 rounded-3xl border border-white/[0.085] bg-[linear-gradient(135deg,rgba(8,10,20,0.96),rgba(12,16,32,0.88))] p-1.5 backdrop-blur-2xl shadow-[0_18px_55px_-28px_rgba(0,0,0,0.95),0_1px_0_rgba(255,255,255,0.06)_inset]">
         {stats.map((s) => {
           const isActive = activePanel === s.id;
@@ -1630,7 +1619,8 @@ function ResumenTab({
             cajaAbiertaDesde={cajaAbiertaDesde}
             cajaRangeStartDate={cajaRangeStartDate}
             onCajaCerrada={onCajaCerrada}
-            onVerPendientes={() => selectPanel("pendientes")}
+            onCobrarPendiente={onCobrarPendiente}
+            pendientesTheme={panelTheme.pendientes}
           />
           <History
             data={data}
@@ -1640,26 +1630,6 @@ function ResumenTab({
             panel="ingresos"
             theme={activeTheme}
           />
-        </div>
-      )}
-
-      {activePanel === "pendientes" && (
-        <div className="relative z-10 space-y-6">
-          {/* 1. Cobros pendientes primero: requieren acción inmediata de
-              caja (cobrar la venta/turno). Misma lógica de siempre, solo
-              reubicada bajo esta pestaña. */}
-          <History
-            data={data}
-            equipoEnabled={equipoEnabled}
-            onCobrarPendiente={onCobrarPendiente}
-            title="Cobros pendientes"
-            panel="pendientes"
-            theme={activeTheme}
-          />
-          {/* 2. Pendiente de liquidar debajo: solo informativo, comisiones
-              ya generadas y no pagadas — la gestión completa sigue en
-              Liquidaciones. Nunca se mezcla con el monto de arriba. */}
-          <PendingCommissionsSummary businessId={data.businessId} employees={data.employees ?? []} />
         </div>
       )}
 
@@ -8261,55 +8231,6 @@ function DetailModal({
   );
 }
 
-// "Pendiente de liquidar" dentro de la pestaña Pendientes de Resumen — solo
-// informativo (sin acción), misma fuente de datos que Liquidaciones
-// (usePendingCommissions) para que nunca muestren números distintos. Nunca
-// se mezcla con "Cobros pendientes" (son conceptos separados, ver arriba).
-function PendingCommissionsSummary({
-  businessId,
-  employees,
-}: {
-  businessId: string | null;
-  employees: Array<{ id: string; name?: string | null }>;
-}) {
-  const { loading, rows, total } = usePendingCommissions(businessId, employees);
-
-  return (
-    <Card className="rounded-3xl border-sky-400/22 bg-[radial-gradient(circle_at_14%_50%,rgba(14,165,233,0.14),transparent_34%),linear-gradient(135deg,rgba(12,74,110,0.18),rgba(3,7,18,0.94))] shadow-[0_30px_90px_-48px_rgba(14,165,233,0.26),0_22px_70px_-42px_rgba(0,0,0,0.95)]">
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-sky-400/10 px-5 py-3.5">
-        <div>
-          <h3 className="text-base font-bold tracking-tight text-sky-50">Pendiente de liquidar</h3>
-          <p className="mt-0.5 text-[11px] text-white/45">
-            Comisiones ya generadas, todavía sin pagar. Gestión completa en Liquidaciones.
-          </p>
-        </div>
-        {loading ? (
-          <div className="h-7 w-24 animate-pulse rounded-lg bg-white/[0.08]" />
-        ) : (
-          <Money value={total} large />
-        )}
-      </div>
-
-      {!loading && rows.length === 0 ? (
-        <div className="px-5 py-8 text-center text-sm text-muted-foreground">
-          Sin comisiones pendientes de liquidar.
-        </div>
-      ) : (
-        <div className="divide-y divide-white/5">
-          {rows.map((r) => (
-            <div key={r.employeeId} className="flex items-center justify-between gap-3 px-5 py-3 text-sm">
-              <span className="min-w-0 flex-1 truncate text-foreground/90">{r.name}</span>
-              <span className="shrink-0 font-semibold tabular-nums text-sky-300">
-                ${Math.round(r.pending).toLocaleString("es-AR")}
-              </span>
-            </div>
-          ))}
-        </div>
-      )}
-    </Card>
-  );
-}
-
 // Tarjeta chica reusada para Ingresos/Pendientes/Efectivo esperado/Dinero
 // esperado en Facturación — mismo lenguaje visual (icono + label + monto
 // grande) que ya usa Inicio para estas mismas cifras.
@@ -8598,7 +8519,8 @@ function FacturacionPanel({
   cajaAbiertaDesde,
   cajaRangeStartDate,
   onCajaCerrada,
-  onVerPendientes,
+  onCobrarPendiente,
+  pendientesTheme,
 }: {
   data: ReturnType<typeof useCajaData>;
   equipoEnabled: boolean;
@@ -8608,14 +8530,34 @@ function FacturacionPanel({
   cajaAbiertaDesde: string;
   cajaRangeStartDate: string;
   onCajaCerrada: () => void;
-  onVerPendientes: () => void;
+  onCobrarPendiente: (
+    appt: ReturnType<typeof useCajaData>["pendingCharges"][number],
+  ) => void;
+  pendientesTheme?: {
+    border: string;
+    glow: string;
+    headerIcon: string;
+    title: string;
+    chip: string;
+    tableHead: string;
+    rowHover: string;
+    amount: string;
+    badge: string;
+    panelBg: string;
+  };
 }) {
   const [movType, setMovType] = React.useState<"ingreso" | "retiro" | null>(null);
+  // "Pendientes" ya no es una pestaña propia — se expande/colapsa dentro
+  // de la misma vista de Facturación (ver cobrosPendientesRef más abajo).
+  const [cobrosPendientesOpen, setCobrosPendientesOpen] = React.useState(false);
+  const cobrosPendientesRef = React.useRef<HTMLDivElement>(null);
   // "Pendientes" acá = ventas/turnos pendientes de cobro o confirmación
-  // (data.pendingAmount, el mismo número que la pestaña Pendientes) — solo
-  // tiene sentido mostrarlo si el negocio exige aprobación para cobrar
-  // (Equipo → "Exigir aprobación de ventas"), mismo criterio que ya usa el
-  // bloque "Modo de aprobación" de Liquidaciones.
+  // (data.pendingAmount) — solo tiene sentido mostrarlo si existe al
+  // menos un profesional con "Exigir aprobación de ventas" activado
+  // (Equipo → [profesional] → Puede cobrar + Exigir aprobación de ventas,
+  // ver _employeeApprovalEnabled/_employeeApprovalMode en use-caja-data.ts)
+  // — mismo criterio que ya usa el bloque "Modo de aprobación" de
+  // Liquidaciones, ningún flag nuevo.
   const showPendientes = data.approvalModeEnabled && equipoEnabled;
 
   return (
@@ -8635,7 +8577,14 @@ function FacturacionPanel({
             label="Pendientes"
             value={data.pendingAmount}
             loading={data.loading}
-            onClick={onVerPendientes}
+            onClick={() => {
+              setCobrosPendientesOpen((v) => !v);
+              // Foco/scroll al bloque recién abierto — el usuario puede
+              // estar lejos (el botón queda arriba de todo Facturación).
+              requestAnimationFrame(() => {
+                cobrosPendientesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+              });
+            }}
           />
         )}
       </div>
@@ -8690,6 +8639,19 @@ function FacturacionPanel({
           expected={expected}
         />
       </div>
+
+      {showPendientes && cobrosPendientesOpen && (
+        <div ref={cobrosPendientesRef} className="scroll-mt-4">
+          <History
+            data={data}
+            equipoEnabled={equipoEnabled}
+            onCobrarPendiente={onCobrarPendiente}
+            title="Cobros pendientes"
+            panel="pendientes"
+            theme={pendientesTheme}
+          />
+        </div>
+      )}
 
       {movType && (
         <RegistrarMovimientoModal

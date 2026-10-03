@@ -808,7 +808,25 @@ export function useCajaData() {
       const mode = row.approval_mode;
       setApprovalModeState(mode === "manual" ? "manual" : "auto");
       const caja = (bsSchedule._caja ?? {}) as Record<string, unknown>;
-      setApprovalModeEnabled(caja.approvalModeEnabled === true);
+      // "¿Hay al menos un profesional con 'Exigir aprobación de ventas'
+      // activado?" — NO es business_settings.schedule._caja.approvalModeEnabled
+      // (ese flag es de la época del switch global viejo, ver equipo-section.tsx;
+      // nada lo escribe desde que el modo de aprobación pasó a ser por
+      // profesional, así que siempre quedaba en false). La fuente real
+      // hoy son estos dos mapas por empleado — "puede cobrar" +
+      // "modo manual" — exactamente los mismos que ya usa Equipo/Mi Agenda,
+      // ninguno nuevo.
+      const employeeApprovalEnabledMap = (bsSchedule._employeeApprovalEnabled ?? {}) as Record<string, boolean>;
+      const employeeApprovalModeMap = (bsSchedule._employeeApprovalMode ?? {}) as Record<string, "auto" | "manual">;
+      const activeEmployeeIds =
+        empRes.status === "fulfilled" && !empRes.value.error
+          ? ((empRes.value.data ?? []) as Array<{ id: string }>).map((e) => e.id)
+          : [];
+      setApprovalModeEnabled(
+        activeEmployeeIds.some(
+          (id) => employeeApprovalEnabledMap[id] === true && employeeApprovalModeMap[id] === "manual",
+        ),
+      );
       setEmployeeServiceOverrides(
         (bsSchedule._employeeServiceOverrides as EmployeeServiceOverrideMap) ?? {},
       );
