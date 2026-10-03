@@ -56,6 +56,11 @@ import {
   reopenCashSession,
 } from "@/components/cash-register/session-actions";
 import { usePendingCommissions } from "@/hooks/use-pending-commissions";
+import {
+  attachReceiptToPayment,
+  getPaymentReceiptSignedUrl,
+  paymentReceiptPath,
+} from "@/lib/payment-receipts";
 import { GastosTab } from "@/components/cash-register/gastos-tab";
 import {
   Search,
@@ -87,6 +92,8 @@ import {
   User,
   Users,
   Receipt,
+  Camera,
+  Image as ImageIcon,
 } from "lucide-react";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 import {
@@ -8202,6 +8209,17 @@ function DetailModal({
             {comprobante && (
               <Row label="Referencia / Comprobante" value={comprobante} />
             )}
+            {method === "transfer" && (
+              <Row
+                label="Comprobante"
+                value={
+                  <ReceiptButton
+                    payment={payment}
+                    businessId={((payment as Record<string, unknown>).business_id as string) ?? null}
+                  />
+                }
+              />
+            )}
           </div>
 
           {/* Bloque: Trazabilidad */}
@@ -8686,6 +8704,266 @@ function FacturacionPanel({
   );
 }
 
+// Captura de comprobante en el Paso 4 (Transferencia) — 100% local hasta
+// confirmar el cobro (ver receiptFile/receiptPreviewUrl en NuevaVentaTab).
+// Sin `capture` en el input: así el picker nativo (iOS/Android) ofrece
+// cámara Y galería, no solo cámara directa.
+function TransferReceiptField({
+  previewUrl,
+  onSelect,
+  onClear,
+}: {
+  previewUrl: string | null;
+  onSelect: (file: File | null) => void;
+  onClear: () => void;
+}) {
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  if (!previewUrl) {
+    return (
+      <div className="rounded-2xl border border-dashed border-white/15 bg-white/[0.02] p-3">
+        <input
+          ref={inputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(e) => onSelect(e.target.files?.[0] ?? null)}
+        />
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className="flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 text-sm font-semibold text-white/80 transition hover:bg-white/[0.06]"
+        >
+          <Camera className="size-4" />
+          Agregar comprobante
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-2.5">
+      <img
+        src={previewUrl}
+        alt="Comprobante"
+        className="size-12 shrink-0 rounded-lg object-cover ring-1 ring-white/10"
+      />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-1.5 text-sm font-semibold text-emerald-200">
+          <Check className="size-3.5 shrink-0" />
+          <span className="truncate">Comprobante agregado</span>
+        </div>
+        <div className="mt-1 flex items-center gap-3 text-xs">
+          <button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            className="font-semibold text-blue-300 hover:text-blue-200"
+          >
+            Cambiar
+          </button>
+          <button type="button" onClick={onClear} className="font-semibold text-rose-300 hover:text-rose-200">
+            Eliminar
+          </button>
+        </div>
+      </div>
+      <input
+        ref={inputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => onSelect(e.target.files?.[0] ?? null)}
+      />
+    </div>
+  );
+}
+
+function ReceiptLightboxModal({ url, onClose }: { url: string; onClose: () => void }) {
+  if (typeof document === "undefined") return null;
+  return createPortal(
+    <div
+      className="fixed inset-0 z-[60] grid place-items-center bg-black/85 p-4 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div className="relative max-h-[90vh] max-w-full" onClick={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          onClick={onClose}
+          className="absolute -top-11 right-0 rounded-lg bg-white/10 px-3 py-2 text-xs font-semibold text-white hover:bg-white/20"
+        >
+          Cerrar
+        </button>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={url}
+          alt="Comprobante"
+          className="max-h-[90vh] max-w-full rounded-xl object-contain shadow-2xl"
+        />
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+// Adjuntar un comprobante DESPUÉS de que el cobro ya existe (ej. falló la
+// subida original, o el usuario quiere agregarlo más tarde) — mismo
+// payment_id de siempre, nunca crea un pago nuevo.
+function AttachReceiptModal({
+  businessId,
+  paymentId,
+  onClose,
+  onAttached,
+}: {
+  businessId: string;
+  paymentId: string;
+  onClose: () => void;
+  onAttached: () => void;
+}) {
+  const [file, setFile] = React.useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = React.useState<string | null>(null);
+  const [saving, setSaving] = React.useState(false);
+
+  function handleSelect(f: File | null) {
+    if (!f) return;
+    if (!f.type.startsWith("image/")) {
+      toast.error("Elegí una imagen (foto o captura) del comprobante.");
+      return;
+    }
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setFile(f);
+    setPreviewUrl(URL.createObjectURL(f));
+  }
+
+  function handleClear() {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setFile(null);
+    setPreviewUrl(null);
+  }
+
+  async function handleConfirm() {
+    if (!file || saving) return;
+    setSaving(true);
+    try {
+      await attachReceiptToPayment(businessId, paymentId, file);
+      toast.success("Comprobante agregado");
+      handleClear();
+      onAttached();
+      onClose();
+    } catch (e) {
+      toast.error("No se pudo subir el comprobante — probá de nuevo.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+          <h3 className="text-lg font-semibold">Agregar comprobante</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            className="rounded-lg bg-white/5 hover:bg-white/10 px-3 py-2 text-sm"
+          >
+            Cancelar
+          </button>
+        </div>
+        <div className="p-5 space-y-3">
+          <TransferReceiptField previewUrl={previewUrl} onSelect={handleSelect} onClear={handleClear} />
+          <button
+            type="button"
+            onClick={handleConfirm}
+            disabled={!file || saving}
+            className="w-full inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold bg-gradient-to-b from-blue-400 to-violet-500 text-white hover:brightness-105 disabled:opacity-50 transition-all"
+          >
+            {saving ? "Subiendo…" : "Guardar comprobante"}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+// "Ver comprobante" / "Agregar comprobante" — solo para pagos por
+// Transferencia. La URL firmada se pide recién al tocar el botón (nunca
+// al renderizar la fila/lista), para no generar tráfico de Storage de
+// más. Renderizado como <span role="button"> (no <button>) a propósito:
+// se usa dentro de filas que a veces ya son un <button> completo (cards
+// mobile) — mismo criterio que "Ver nota" en estas mismas tablas.
+function ReceiptButton({
+  payment,
+  businessId,
+}: {
+  payment: { id: string; receipt_path?: string | null; method?: string | null; payment_method?: string | null };
+  businessId: string | null;
+}) {
+  const [receiptPath, setReceiptPath] = React.useState(payment.receipt_path ?? null);
+  const [lightboxUrl, setLightboxUrl] = React.useState<string | null>(null);
+  const [loading, setLoading] = React.useState(false);
+  const [uploaderOpen, setUploaderOpen] = React.useState(false);
+  const method = String(payment.method ?? payment.payment_method ?? "");
+
+  React.useEffect(() => {
+    setReceiptPath(payment.receipt_path ?? null);
+  }, [payment.receipt_path]);
+
+  if (method !== "transfer") return null;
+
+  async function openReceipt(event: React.MouseEvent) {
+    event.stopPropagation();
+    if (!receiptPath || loading) return;
+    setLoading(true);
+    try {
+      const url = await getPaymentReceiptSignedUrl(receiptPath);
+      setLightboxUrl(url);
+    } catch {
+      toast.error("No se pudo abrir el comprobante.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function openUploader(event: React.MouseEvent) {
+    event.stopPropagation();
+    setUploaderOpen(true);
+  }
+
+  return (
+    <>
+      <span
+        role="button"
+        tabIndex={0}
+        onClick={receiptPath ? openReceipt : openUploader}
+        className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-sky-300 transition hover:text-sky-200"
+      >
+        <ImageIcon className="size-3 shrink-0" />
+        {loading ? "Abriendo…" : receiptPath ? "Ver comprobante" : "Agregar comprobante"}
+      </span>
+      {lightboxUrl && <ReceiptLightboxModal url={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
+      {uploaderOpen && businessId && (
+        <AttachReceiptModal
+          businessId={businessId}
+          paymentId={payment.id}
+          onClose={() => setUploaderOpen(false)}
+          onAttached={() => {
+            setReceiptPath(paymentReceiptPath(businessId, payment.id));
+            window.dispatchEvent(new CustomEvent("clippr:cobros-historial-updated"));
+          }}
+        />
+      )}
+    </>
+  );
+}
+
 function History({
   data,
   equipoEnabled,
@@ -9092,8 +9370,9 @@ function History({
                           Number(p.total ?? p.amount ?? 0) + Number(p.tip_amount ?? 0)
                         ).toLocaleString("es-AR")}
                       </div>
-                      <div className="text-muted-foreground truncate">
-                        {methodLabel}
+                      <div className="min-w-0 flex flex-col text-muted-foreground">
+                        <span className="truncate">{methodLabel}</span>
+                        <ReceiptButton payment={p} businessId={data.businessId} />
                       </div>
                       <div>
                         <HistorialCell events={historialEvents} />
@@ -9212,8 +9491,9 @@ function History({
                         </div>
                         <div className="flex items-start justify-between gap-3">
                           <span className="shrink-0 text-muted-foreground/70">Método</span>
-                          <span className="truncate text-right text-muted-foreground">
-                            {methodLabel}
+                          <span className="flex min-w-0 flex-col items-end text-right text-muted-foreground">
+                            <span className="truncate">{methodLabel}</span>
+                            <ReceiptButton payment={p} businessId={data.businessId} />
                           </span>
                         </div>
                         {paymentNote && (
@@ -9707,7 +9987,10 @@ function History({
                             <div className={cn("text-right font-bold tabular-nums", incomeTheme.amount)}>
                               ${amount.toLocaleString("es-AR")}
                             </div>
-                            <div className="truncate text-muted-foreground">{methodLabel}</div>
+                            <div className="min-w-0 flex flex-col text-muted-foreground">
+                              <span className="truncate">{methodLabel}</span>
+                              <ReceiptButton payment={p} businessId={data.businessId} />
+                            </div>
                             <div>
                               <HistorialCell events={historialEvents} />
                             </div>
@@ -9887,8 +10170,9 @@ function History({
                               </div>
                               <div className="flex items-start justify-between gap-3">
                                 <span className="shrink-0 text-muted-foreground/70">Método</span>
-                                <span className="truncate text-right text-muted-foreground">
-                                  {methodLabel}
+                                <span className="flex min-w-0 flex-col items-end text-right text-muted-foreground">
+                                  <span className="truncate">{methodLabel}</span>
+                                  <ReceiptButton payment={p} businessId={data.businessId} />
                                 </span>
                               </div>
                               {paymentNote && (
@@ -10190,6 +10474,13 @@ export function NuevaVentaTab({
   const [splits, setSplits] = React.useState<MultiSplit[]>([
     { method: "cash", amount: "" },
   ]);
+  // Comprobante de transferencia — 100% local hasta confirmar el cobro
+  // (solo File + object URL, nunca toca Storage): cambiarlo/eliminarlo
+  // antes de confirmar no puede dejar archivos huérfanos porque todavía
+  // no se subió nada. Solo se sube después de que registerPayment ya
+  // devolvió el id real (ver attachReceiptIfNeeded más abajo).
+  const [receiptFile, setReceiptFile] = React.useState<File | null>(null);
+  const [receiptPreviewUrl, setReceiptPreviewUrl] = React.useState<string | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
   const [newClientOpen, setNewClientOpen] = React.useState(false);
   // Apellido del cliente nuevo — "client" guarda el nombre (o el nombre
@@ -10621,6 +10912,40 @@ export function NuevaVentaTab({
     }
   }
 
+  // Se llama DESPUÉS de que registerPayment ya insertó el pago y devolvió
+  // su id real — nunca antes. Si falla, el cobro ya confirmado queda
+  // igual (sin comprobante); nunca se vuelve a llamar registerPayment por
+  // esto. attachReceiptToPayment (payment-receipts.ts) ya se encarga de
+  // no dejar el archivo huérfano si el UPDATE de receipt_path falla.
+  async function attachReceiptIfNeeded(paymentId: string) {
+    if (method !== "transfer" || !receiptFile || !data.businessId) return;
+    try {
+      await attachReceiptToPayment(data.businessId, paymentId, receiptFile);
+    } catch (e) {
+      toast.error(
+        "El cobro se registró, pero el comprobante no se pudo subir. Podés agregarlo después desde el historial.",
+      );
+      console.warn("[cash-register] no se pudo adjuntar el comprobante:", (e as Error).message);
+    }
+  }
+
+  function clearReceiptFile() {
+    if (receiptPreviewUrl) URL.revokeObjectURL(receiptPreviewUrl);
+    setReceiptFile(null);
+    setReceiptPreviewUrl(null);
+  }
+
+  function handleReceiptFileSelected(file: File | null) {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Elegí una imagen (foto o captura) del comprobante.");
+      return;
+    }
+    if (receiptPreviewUrl) URL.revokeObjectURL(receiptPreviewUrl);
+    setReceiptFile(file);
+    setReceiptPreviewUrl(URL.createObjectURL(file));
+  }
+
   async function handleCobrar() {
     if (!data.businessId) {
       toast.error("No se pudo identificar el negocio.");
@@ -10860,7 +11185,7 @@ export function NuevaVentaTab({
           { time: hhmm, ts: now.toISOString(), user: chargedByName || chargedByUsername(userEmail), action: "Cobró" },
         ];
 
-        await registerPayment({
+        const walkinRows = await registerPayment({
           businessId: data.businessId,
           branchId: data.activeBranchId,
           employeeId: employeeId || null,
@@ -10892,6 +11217,7 @@ export function NuevaVentaTab({
           clientPhone: phone,
           clientEmail: email,
         });
+        if (walkinRows[0]?.id) await attachReceiptIfNeeded(walkinRows[0].id);
 
         const { error: removeError } = await supabase
           .from("business_settings")
@@ -10902,6 +11228,7 @@ export function NuevaVentaTab({
         if (removeError) throw removeError;
 
         toast.success(`Cobro confirmado · $${finalTotal.toLocaleString("es-AR")}`);
+        clearReceiptFile();
         onPendingDone?.();
         await data.refresh();
         notifyCajaPendientesChanged();
@@ -10932,7 +11259,7 @@ export function NuevaVentaTab({
         }
 
         // 2. Registrar el pago vinculado al appointment existente
-        await registerPayment({
+        const pendingRows = await registerPayment({
           businessId: data.businessId,
           branchId: data.activeBranchId,
           employeeId: employeeId || null,
@@ -10967,6 +11294,7 @@ export function NuevaVentaTab({
           clientPhone: phone,
           clientEmail: email,
         });
+        if (pendingRows[0]?.id) await attachReceiptIfNeeded(pendingRows[0].id);
 
         // 3. Registrar en el historial del turno que el usuario de caja cobró el
         //    pendiente. Persiste en appointments.cobro_events (Supabase).
@@ -10988,6 +11316,7 @@ export function NuevaVentaTab({
         removeLocalManualPendingCharge(pendingCharge.id);
 
         toast.success(`Cobro confirmado · $${finalTotal.toLocaleString("es-AR")}`);
+        clearReceiptFile();
         onPendingDone?.();
         notifyCajaPendientesChanged();
       } else {
@@ -11006,7 +11335,7 @@ export function NuevaVentaTab({
           user: chargedByName || chargedByUsername(userEmail),
           action: "Cobró",
         };
-        await registerPayment({
+        const saleRows = await registerPayment({
           businessId: data.businessId,
           branchId: data.activeBranchId,
           employeeId: employeeId || null,
@@ -11037,6 +11366,7 @@ export function NuevaVentaTab({
           clientPhone: phone,
           clientEmail: email,
         });
+        if (saleRows[0]?.id) await attachReceiptIfNeeded(saleRows[0].id);
 
         toast.success(`Cobro confirmado · $${finalTotal.toLocaleString("es-AR")}`);
         setCart({});
@@ -11058,6 +11388,7 @@ export function NuevaVentaTab({
         setDiscountPanelOpen(false);
         setTipAmountInput("");
         setTipPanelOpen(false);
+        clearReceiptFile();
         normalSaleCompleted = true;
       }
 
@@ -12019,6 +12350,13 @@ export function NuevaVentaTab({
                     )}
                   </div>
                 </div>
+              )}
+              {method === "transfer" && (
+                <TransferReceiptField
+                  previewUrl={receiptPreviewUrl}
+                  onSelect={handleReceiptFileSelected}
+                  onClear={clearReceiptFile}
+                />
               )}
             </>
           ) : (

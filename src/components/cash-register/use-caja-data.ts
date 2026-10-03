@@ -482,7 +482,7 @@ export function useCajaData() {
       // de "Retirar stock → Pagar ahora" lo necesita para separar
       // cantidad/precio unitario/total sin parsear service_name (que
       // puede traer "Cepita x2" como texto).
-      .select("id,business_id,total,amount,method,payment_method,client_name,service_name,created_at,employee_id,appointment_id,charged_by,charge_type,status,charged_at,observations,discount,original_amount,tip_amount,items")
+      .select("id,business_id,total,amount,method,payment_method,client_name,service_name,created_at,employee_id,appointment_id,charged_by,charge_type,status,charged_at,observations,discount,original_amount,tip_amount,items,receipt_path")
       .eq("business_id", businessId)
       .gte("created_at", today.toISOString())
       .lte("created_at", todayEnd.toISOString());
