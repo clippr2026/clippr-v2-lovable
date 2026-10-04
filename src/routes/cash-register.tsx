@@ -608,10 +608,20 @@ function getCashItemImage(item: any) {
 // sobre null/undefined reales. Sin este filtro, `tab` arranca en "nueva" y se
 // arma un pendingCharge de mentira (cliente "null", servicio "null", monto
 // NaN) salteando directo al paso 4 de Nueva venta en vez de mostrar Resumen.
-function cleanSearchParam(value: unknown): string | null {
-  if (typeof value !== "string") return null;
+//
+// Devuelve `undefined`, NUNCA `null`: validateSearch de abajo arma un
+// objeto con estos 10 campos siempre presentes, y TanStack Router
+// serializa ese objeto de vuelta en la URL — `undefined` se omite de la
+// query string, pero `null` se escribe literal como la palabra "null"
+// (JSON.stringify(null) === "null"). Antes esto hacía que entrar a
+// /cash-register a secas (sin ningún query param) terminara reescribiendo
+// la URL con los 10 campos en "null" — con "null" devuelto acá, no había
+// forma de distinguir "este campo no vino" de "este campo vino pero está
+// vacío", así que el router nunca podía omitirlo.
+function cleanSearchParam(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
   const trimmed = value.trim();
-  if (!trimmed || trimmed === "null" || trimmed === "undefined") return null;
+  if (!trimmed || trimmed === "null" || trimmed === "undefined") return undefined;
   return trimmed;
 }
 

@@ -265,19 +265,24 @@ function CajaHoyCard({
         <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
           Caja de hoy
         </div>
+        {/* Los 10 campos en `undefined` (no `null`, no omitidos): la ruta
+            exige el objeto `search` completo por tipos, pero `undefined`
+            es la única forma de que TanStack Router NO los escriba en la
+            URL — a diferencia de `null`, que se serializa literal como la
+            palabra "null" (ver cleanSearchParam en cash-register.tsx). */}
         <Link
           to="/cash-register"
           search={{
-            depositAppointmentId: null,
-            depositAmount: null,
-            clientName: null,
-            serviceName: null,
-            employeeId: null,
-            appointmentId: null,
-            finalAmount: null,
-            depositPaid: null,
-            totalPrice: null,
-            chargeStep: null,
+            depositAppointmentId: undefined,
+            depositAmount: undefined,
+            clientName: undefined,
+            serviceName: undefined,
+            employeeId: undefined,
+            appointmentId: undefined,
+            finalAmount: undefined,
+            depositPaid: undefined,
+            totalPrice: undefined,
+            chargeStep: undefined,
           }}
           className="inline-flex items-center gap-0.5 text-xs font-semibold text-primary transition hover:text-primary/80"
         >
