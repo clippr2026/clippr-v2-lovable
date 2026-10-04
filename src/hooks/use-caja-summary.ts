@@ -92,6 +92,8 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
 
   const runLoad = React.useCallback(async (_reason: string = "unknown") => {
     const { businessId, branchId } = liveKeyRef.current;
+    // eslint-disable-next-line no-console
+    console.log(`[CajaSummary] runLoad start reason=${_reason} businessId=${businessId} branchId=${branchId}`);
     if (!businessId) {
       setLoading(false);
       return;
@@ -101,8 +103,14 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
 
     if (!hasLoadedRef.current) setLoading(true);
 
-    const pending = await findPendingCierre(businessId, branchId).catch(() => null);
-    if (!keyMatches()) return;
+    const pending = await findPendingCierre(businessId, branchId).catch((e) => {
+      console.error("[CajaSummary] findPendingCierre error:", e);
+      return null;
+    });
+    if (!keyMatches()) {
+      console.log("[CajaSummary] discarded after findPendingCierre (key changed)");
+      return;
+    }
 
     const todayDateStr = cajaDateKey();
     const newRangeStartDate = cajaOpenRangeStartDate(pending, todayDateStr);
@@ -142,7 +150,15 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
       expQuery,
       getDigitalCarryForward(businessId, branchId),
     ]);
-    if (!keyMatches()) return;
+    console.log(
+      `[CajaSummary] payQuery rango=[${dayStart.toISOString()} .. ${dayEnd.toISOString()}] branchFilter=${branchFilter} ` +
+        `-> rows=${payRes.data?.length ?? 0} error=${payRes.error?.message ?? "none"} | ` +
+        `expenses rows=${expRes.data?.length ?? 0} error=${expRes.error?.message ?? "none"} carryForward=${carryForward}`,
+    );
+    if (!keyMatches()) {
+      console.log("[CajaSummary] discarded after payQuery/expQuery (key changed)");
+      return;
+    }
 
     const paymentsRaw = (payRes.error ? [] : (payRes.data ?? [])) as Payment[];
     const expensesList = (expRes.error ? [] : (expRes.data ?? [])) as Expense[];
@@ -193,8 +209,15 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
       cashMovements: movementsRef.current.movements,
     });
 
-    if (!keyMatches()) return;
+    if (!keyMatches()) {
+      console.log("[CajaSummary] discarded right before commit (key changed)");
+      return;
+    }
 
+    console.log(
+      `[CajaSummary] COMMIT paymentsToday=${paymentsEnriched.length} revHoy=${paymentsEnriched.reduce((s, p) => s + Number(p.total ?? p.amount ?? 0), 0)} ` +
+        `cashExpected=${expected.cashExpected} digitalExpected=${expected.digitalExpected} carryForward=${carryForward}`,
+    );
     setPaymentsToday(paymentsEnriched);
     setExpensesToday(expensesList);
     setPendingCierre(pending);
@@ -246,6 +269,7 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
   // branchesLoading esté resuelto, mismo motivo que use-caja-data.ts: null
   // mientras se resuelve la sucursal real no es "sin sucursal".
   React.useEffect(() => {
+    console.log(`[CajaSummary] mount effect businessId=${businessId} branchId=${branchId} branchesLoading=${branchesLoading}`);
     if (!businessId) return;
     if (branchesLoading) return;
     void requestReload("mount / businessId o sucursal cambió");
