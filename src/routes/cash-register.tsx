@@ -30,13 +30,11 @@ import {
   findPendingCierre,
   closeCierreForDate,
   normalizeCierreMethodKey,
-  computeExpectedCashAndDigital,
-  cajaOpenRangeStartDate,
-  getDigitalCarryForward,
   getCajaAbiertaDesde,
   type ExpectedCashDigital,
 } from "@/lib/caja-cierre";
 import { useCashMovements, type CashMovement } from "@/hooks/use-cash-movements";
+import { useCajaSummary } from "@/hooks/use-caja-summary";
 import { supabase } from "@/integrations/supabase/client";
 import {
   useCajaData,
@@ -653,41 +651,64 @@ function CashRegisterPage() {
   const { session, profile, loading: authLoading, permissions } = useAuth();
   const navigate = useNavigate();
   const search = useSearch({ from: "/cash-register" });
-  const data = useCajaData();
+  const cajaData = useCajaData();
 
-  // Efectivo/Dinero esperado — una sola fuente para toda Caja (Facturación
-  // y los dos accesos a Cierre de caja), en vez de que cada uno fetchee
-  // cash_movements/professional_advances por su cuenta. rangeStartDate usa
-  // el mismo criterio que useCajaData ya aplica internamente a
-  // paymentsToday/expensesToday (data.pendingCierre), así ambos rangos
-  // siempre coinciden.
-  const cajaRangeStartDate = cajaOpenRangeStartDate(data.pendingCierre);
-  const movementsData = useCashMovements(data.businessId, data.activeBranchId, cajaRangeStartDate);
-  const [digitalCarryForward, setDigitalCarryForward] = useState(0);
-  React.useEffect(() => {
-    let cancelled = false;
-    function loadCarryForward() {
-      getDigitalCarryForward(data.businessId, data.activeBranchId).then((v) => {
-        if (!cancelled) setDigitalCarryForward(v);
-      });
-    }
-    loadCarryForward();
-    window.addEventListener("clippr:caja-cierre-guardado", loadCarryForward);
-    return () => {
-      cancelled = true;
-      window.removeEventListener("clippr:caja-cierre-guardado", loadCarryForward);
+  // Fuente única de Ingresos/Efectivo esperado/Dinero esperado en
+  // cuenta/Últimos ingresos — EXACTAMENTE la misma que consume Inicio
+  // (vía useCajaHoy, que ahora delega en este mismo hook, ver
+  // use-caja-summary.ts). useCajaData sigue existiendo para lo demás
+  // (pendientes, profesionales, aprobación de ventas, configuraciones,
+  // cierre, realtime operativo), pero deja de ser la fuente de verdad de
+  // estos valores — por eso el objeto `data` de acá abajo los sobreescribe.
+  const summary = useCajaSummary(cajaData.businessId, cajaData.activeBranchId);
+
+  // `data` = lo que useCajaData calculó, con revHoy/cobros/paymentsToday/
+  // expensesToday/refresh reemplazados por los de `summary`. Se llama
+  // igual que antes (`data`) y se pasa a los mismos subcomponentes de
+  // siempre (ResumenTab, FacturacionPanel, History, CierresTab,
+  // ProfesionalesTab) sin tocar sus props — así ningún otro lugar de este
+  // archivo que lea `data.paymentsToday`/`data.revHoy`/etc. tiene que
+  // cambiar para quedar consistente con Inicio. `refresh` dispara las dos
+  // cargas juntas, para no tener que tocar cada uno de los `data.refresh()`
+  // ya existentes (envío/cobro/rechazo/cierre/movimiento) uno por uno.
+  const data = React.useMemo(() => {
+    const totalGastos = summary.expensesToday.reduce((s, e) => s + Number(e.amount ?? 0), 0);
+    return {
+      ...cajaData,
+      revHoy: summary.revHoy,
+      cobros: summary.cobros,
+      ticket: summary.cobros > 0 ? Math.round(summary.revHoy / summary.cobros) : 0,
+      totalGastos,
+      paymentsToday: summary.paymentsToday,
+      expensesToday: summary.expensesToday,
+      refresh: (reason?: string) =>
+        Promise.all([cajaData.refresh(reason), summary.refresh(reason)]).then(() => undefined),
     };
-  }, [data.businessId, data.activeBranchId]);
+  }, [cajaData, summary]);
 
-  const expected = useMemo(() => {
-    const base = computeExpectedCashAndDigital({
-      payments: data.paymentsToday,
-      expenses: data.expensesToday,
-      advances: movementsData.advances,
-      cashMovements: movementsData.movements,
-    });
-    return { ...base, digitalExpected: base.digitalExpected + digitalCarryForward };
-  }, [data.paymentsToday, data.expensesToday, movementsData.advances, movementsData.movements, digitalCarryForward]);
+  // Movimientos manuales (Ingresar/Retirar dinero) — lista + acción de
+  // registrar, sin cambios; el CÁLCULO de cashExpected/digitalExpected que
+  // antes se armaba acá con esto + data.paymentsToday ahora vive adentro de
+  // useCajaSummary (misma fuente/criterio, ver arriba). rangeStartDate sale
+  // de `summary` (no de un cajaOpenRangeStartDate(data.pendingCierre)
+  // propio) para que la lista de movimientos cubra EXACTAMENTE el mismo
+  // período que los números que muestra.
+  const cajaRangeStartDate = summary.rangeStartDate;
+  const movementsData = useCashMovements(data.businessId, data.activeBranchId, cajaRangeStartDate);
+
+  const expected: ExpectedCashDigital = React.useMemo(
+    () => ({
+      cashExpected: summary.cashExpected,
+      cashOutflows: summary.cashOutflows,
+      // Mismo nombre/semántica que el `expected.digitalExpected` de
+      // siempre: ya incluye el carry-forward de cuenta (ver bankExpected
+      // en use-caja-summary.ts) — ningún consumidor existente (
+      // FacturacionStatCard, CierreCajaBtn) necesita cambiar.
+      digitalExpected: summary.bankExpected,
+      digitalOutflows: summary.digitalOutflows,
+    }),
+    [summary],
+  );
 
   // "Caja abierta desde" para el acceso directo a Cerrar caja en
   // Facturación (CierresTab ya calcula lo mismo para su propia vista, pero
@@ -8658,7 +8679,14 @@ function FacturacionPanel({
           tipo={movType}
           onClose={() => setMovType(null)}
           onConfirm={(amount, note, method) =>
-            movementsData.registerMovement(movType, amount, note, method, userEmail)
+            // El cálculo de Efectivo/Dinero esperado ya no es reactivo a
+            // movementsData (vive en useCajaSummary, ver cash-register.tsx
+            // arriba) — sin este refresh() explícito, Ingresar/Retirar
+            // dinero actualizaría la LISTA de movimientos pero no los dos
+            // montos esperados hasta el próximo trigger.
+            movementsData
+              .registerMovement(movType, amount, note, method, userEmail)
+              .then(() => data.refresh("movimiento registrado"))
           }
         />
       )}
