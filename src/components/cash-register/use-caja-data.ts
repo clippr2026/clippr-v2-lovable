@@ -9,7 +9,7 @@ import {
   backfillPromotionVigencia,
 } from "@/lib/service-pricing";
 import { applyCatalogOrder, extractCatalogOrderMap } from "@/lib/catalog-order";
-import { findPendingCierre, cajaOpenRangeStartDate, cajaDateKey, type PendingCierre } from "@/lib/caja-cierre";
+import { cajaOpenRangeStartDate, cajaDateKey, type PendingCierre } from "@/lib/caja-cierre";
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
 
@@ -452,25 +452,28 @@ export function useCajaData() {
     }
     if (!hasLoadedRef.current) setLoading(true);
 
-    // Si hay una caja vencida (abierta desde un día anterior, todavía sin
-    // cerrar explícitamente), Ingresos/cobros/gastos de Caja tienen que
-    // arrancar en SU fecha de apertura, no en "hoy" — una caja no se
-    // resetea sola al cruzar la medianoche, sigue siendo la misma hasta
-    // que se cierra explícitamente ("Cerrar caja vencida", Inicio). Se
-    // resuelve ANTES de armar payQuery/expQuery porque el rango depende
-    // de este resultado.
-    const pending = await findPendingCierre(businessId, activeBranchId).catch(() => null);
+    // Período vigente — única fuente: cash_sessions (sesión abierta
+    // explícita) o, en su ausencia, el backlog implícito de un día anterior
+    // sin cerrar ("caja vencida") o simplemente hoy. Se resuelve ANTES de
+    // armar payQuery/expQuery porque el rango depende de este resultado.
+    // `startAt` es el instante EXACTO desde el que cuentan los pagos — si
+    // hubo una reapertura hoy mismo, arranca en ese instante, no a
+    // medianoche (si no, se recontarían pagos ya incluidos en el cierre
+    // anterior). Ver cajaOpenRangeStartDate en caja-cierre.ts.
+    const period = await cajaOpenRangeStartDate(businessId, activeBranchId).catch(
+      () => ({ startAt: new Date(`${cajaDateKey()}T00:00:00`), rangeStartDate: cajaDateKey(), pendingCierre: null, openSessionId: null }),
+    );
     // Revalidar vigencia después de este await — si mientras esperábamos
-    // findPendingCierre cambió el negocio/sucursal activo, esta llamada
-    // quedó obsoleta: cortar ACÁ, antes de construir ninguna query más, en
-    // vez de seguir trabajando para un resultado que de todos modos se va a
-    // descartar más abajo.
+    // cambió el negocio/sucursal activo, esta llamada quedó obsoleta:
+    // cortar ACÁ, antes de construir ninguna query más, en vez de seguir
+    // trabajando para un resultado que de todos modos se va a descartar
+    // más abajo.
     if (!keyMatches()) return;
-    const todayDateStr = cajaDateKey();
-    const rangeStartDate = cajaOpenRangeStartDate(pending, todayDateStr);
-    const today = new Date(`${rangeStartDate}T00:00:00`);
+    const pending = period.pendingCierre;
+    const rangeStartDate = period.rangeStartDate;
+    const today = period.startAt;
     const todayEnd = new Date(); // hasta ahora, nunca un fin de "hoy" fijo
-    const dateStr = todayDateStr; // extremo superior para expenses.date (solo fecha, sin hora)
+    const dateStr = cajaDateKey(); // extremo superior para expenses.date (solo fecha, sin hora)
 
     // Arranca ya, en paralelo con el Promise.allSettled de abajo — antes
     // se esperaba (await) recién DESPUÉS de que todo ese batch terminara,

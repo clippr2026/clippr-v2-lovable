@@ -29,6 +29,7 @@ import {
   buildCierreSnapshotForDate,
   findPendingCierre,
   closeCierreForDate,
+  closeOpenCajaSession,
   normalizeCierreMethodKey,
   getCajaAbiertaDesde,
   type ExpectedCashDigital,
@@ -854,6 +855,13 @@ function CashRegisterPage() {
     setTab("nueva");
   }
 
+  // Reabrir NUNCA muta la fila cerrada de caja_cierres de vuelta a
+  // 'reabierta' — eso fue el bug que duplicaba los ingresos (una caja
+  // vencida de varios días quedaba "reabierta" con su fecha vieja para
+  // siempre). caja_cierres queda como snapshot histórico, intacto;
+  // reopened_at/reopened_by se escriben ahí solo como auditoría. El
+  // período operativo real nace de reopenCashSession(), que SIEMPRE crea
+  // una cash_session nueva con opened_at = now().
   async function handleReabrirCajaDesdeBanner() {
     if (reopeningCaja) return;
 
@@ -872,76 +880,46 @@ function CashRegisterPage() {
         .eq("business_id", data.businessId);
       if (data.activeBranchId) lastCierreQuery = lastCierreQuery.eq("branch_id", data.activeBranchId);
       const { data: lastCierre, error } = await lastCierreQuery
-        .order("created_at", { ascending: false })
+        .order("fecha", { ascending: false })
+        .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle();
 
       if (error) throw error;
 
-      if (!lastCierre?.id) {
-        setCajaCerrada(false);
-        await data.refresh();
-        return;
-      }
-
-      if (isCajaReabiertaRow(lastCierre)) {
-        toast.info("La caja ya está abierta");
-        setCajaCerrada(false);
-        setShowClosedHistory(false);
-        await data.refresh();
-        return;
-      }
-
-      if (!isCajaCerradaRow(lastCierre)) {
-        toast.info("La caja no está cerrada");
-        setCajaCerrada(false);
-        setShowClosedHistory(false);
-        await data.refresh();
-        return;
-      }
-
       const now = new Date();
       const user = session.user.email ?? session.user.id;
-      const evento = {
-        tipo: "reapertura",
-        fecha_hora: now.toISOString(),
-        hora: now.toLocaleTimeString("es-AR", {
-          hour: "2-digit",
-          minute: "2-digit",
-        }),
-        usuario: user,
-        motivo: null,
-      };
 
-      const { data: updated, error: updateError } = await supabase
-        .from("caja_cierres" as any)
-        .update({
-          estado: "reabierta",
-          reopened_at: now.toISOString(),
-          reopened_by: user,
-          eventos: appendCajaEvento((lastCierre as any).eventos, evento),
-          updated_at: now.toISOString(),
-        })
-        .eq("id", (lastCierre as any).id)
-        .eq("business_id", data.businessId)
-        .eq("estado", "cerrada")
-        .select("id")
-        .maybeSingle();
-
-      if (updateError) throw updateError;
-
-      if (!updated?.id) {
-        toast.info("La caja ya estaba abierta");
-        setCajaCerrada(false);
-        setShowClosedHistory(false);
-        await data.refresh();
-        return;
+      // Auditoría sobre la fila histórica (si la hay) — nunca toca estado
+      // (caja_cierres no vuelve a 'reabierta'), pero SÍ agrega el evento
+      // "reapertura" a `eventos`: es lo que le permite a un segundo cierre
+      // el mismo día (cerrar → reabrir → cobrar → cerrar) saber que hay
+      // algo nuevo que cerrar — ver el chequeo "último evento" en
+      // CierreCajaBtn.confirmar().
+      if ((lastCierre as any)?.id && isCajaCerradaRow(lastCierre)) {
+        const reaperturaEvento = {
+          tipo: "reapertura",
+          fecha_hora: now.toISOString(),
+          hora: cajaTimeLabel(now),
+          usuario: user,
+          motivo: null,
+        };
+        await supabase
+          .from("caja_cierres" as any)
+          .update({
+            reopened_at: now.toISOString(),
+            reopened_by: user,
+            eventos: appendCajaEvento((lastCierre as any).eventos, reaperturaEvento),
+          })
+          .eq("id", (lastCierre as any).id)
+          .eq("business_id", data.businessId);
       }
 
       await reopenCashSession({
-        sessionId: data.cajaSession?.sessionId ?? (lastCierre as any).id,
         businessId: data.businessId,
+        branchId: data.activeBranchId,
         reopenedBy: user,
+        previousSessionId: (lastCierre as any)?.id ?? null,
       });
 
       toast.success("Caja reabierta");
@@ -6612,7 +6590,17 @@ function CierreCajaBtn({
       if (branchId) existingQuery = existingQuery.eq("branch_id", branchId);
       const { data: existing } = await existingQuery.maybeSingle();
 
-      if (existing?.id && isCajaCerradaRow(existing)) {
+      // "Ya está cerrada" se decide por el ÚLTIMO evento de esta fila, no
+      // por `estado` — estado se queda en 'cerrada' para siempre una vez
+      // que se cerró la primera vez (nunca vuelve a 'reabierta', ver
+      // caja-cierre.ts), así que un segundo cierre el MISMO día (cerrar →
+      // reabrir → cobrar → cerrar) tiene que poder agregar su propio
+      // evento de cierre a la misma fila. Si el último evento ya es un
+      // "cierre" sin una "reapertura" después, recién ahí está realmente
+      // cerrada y no hay nada nuevo que cerrar.
+      const existingEvents = cajaEventosArray((existing as any)?.eventos);
+      const lastExistingEvent = existingEvents[existingEvents.length - 1];
+      if (existing?.id && lastExistingEvent?.tipo === "cierre") {
         toast.info("La caja ya está cerrada");
         setOpen(false);
         onCajaCerrada();
@@ -6645,13 +6633,18 @@ function CierreCajaBtn({
         updated_at: now.toISOString(),
       };
 
+      // Sin .neq("estado","cerrada") acá a propósito — estado se queda en
+      // 'cerrada' para siempre una vez cerrada la primera vez (nunca
+      // vuelve a 'reabierta'), así que esa guarda bloquearía CUALQUIER
+      // segundo cierre del mismo día (cerrar → reabrir → cobrar → cerrar).
+      // El chequeo real de "ya está cerrada" ya se hizo arriba, mirando el
+      // último evento — acá solo falta guardar.
       const query = existing?.id
         ? supabase
             .from("caja_cierres" as any)
             .update(payload)
             .eq("id", (existing as any).id)
             .eq("business_id", businessId)
-            .neq("estado", "cerrada")
             .select("id")
             .maybeSingle()
         : supabase
@@ -6668,6 +6661,10 @@ function CierreCajaBtn({
         onCajaCerrada();
         return;
       }
+      // Cierra también la cash_session vigente (si la hay) — sin esto, una
+      // sesión nacida de una reapertura seguiría devolviendo su opened_at
+      // como "período actual" después de este cierre. Ver caja-cierre.ts.
+      await closeOpenCajaSession(businessId, branchId);
       toast.success("Cierre registrado correctamente");
       setOpen(false);
       setObs("");
@@ -7086,6 +7083,12 @@ function CierresTab({
     return Boolean(getCierreObservacion(cierre) || getReaperturaObservacion(cierre));
   }
 
+  // Reabrir desde el historial NUNCA muta la fila elegida de vuelta a
+  // 'reabierta' (mismo motivo que handleReabrirCajaDesdeBanner más
+  // arriba) — sea cual sea el cierre histórico elegido, el efecto real es
+  // siempre el mismo: una cash_session nueva, con opened_at = ahora. La
+  // fila histórica solo recibe reopened_at/reopened_by/reopen_reason como
+  // auditoría de "por qué se reabrió".
   async function reabrirCaja(cierre: any) {
     if (!businessId || !cierre?.id || reopeningId) return;
 
@@ -7102,62 +7105,36 @@ function CierresTab({
       if (readError) throw readError;
       if (!freshCierre?.id) throw new Error("No se encontró el cierre");
 
-      if (isCajaReabiertaRow(freshCierre)) {
-        toast.info("La caja ya está abierta");
-        setSelected(null);
-        setReopenTarget(null);
-        onCajaReopened();
-        loadCierres();
-        return;
-      }
-
-      if (!isCajaCerradaRow(freshCierre)) {
-        toast.info("La caja no está cerrada");
-        setSelected(null);
-        setReopenTarget(null);
-        onCajaReopened();
-        loadCierres();
-        return;
-      }
-
       const now = new Date();
       const user = userEmail ? displayResponsibleUser(userEmail) : "Usuario";
-      const hora = cajaTimeLabel(now);
       const motivo = reopenNote.trim() || null;
-      const evento = {
-        tipo: "reapertura",
-        fecha_hora: now.toISOString(),
-        hora,
-        usuario: user,
-        motivo,
-      };
 
-      const { data: updated, error } = await supabase
-        .from("caja_cierres" as any)
-        .update({
-          estado: "reabierta",
-          reopened_at: now.toISOString(),
-          reopened_by: user,
-          reopen_reason: motivo,
-          eventos: appendCajaEvento((freshCierre as any).eventos, evento),
-          updated_at: now.toISOString(),
-        })
-        .eq("id", cierre.id)
-        .eq("business_id", businessId)
-        .eq("estado", "cerrada")
-        .select("id")
-        .maybeSingle();
-
-      if (error) throw error;
-
-      if (!updated?.id) {
-        toast.info("La caja ya estaba abierta");
-        setSelected(null);
-        setReopenTarget(null);
-        onCajaReopened();
-        loadCierres();
-        return;
+      if (isCajaCerradaRow(freshCierre)) {
+        const reaperturaEvento = {
+          tipo: "reapertura",
+          fecha_hora: now.toISOString(),
+          hora: cajaTimeLabel(now),
+          usuario: user,
+          motivo,
+        };
+        await supabase
+          .from("caja_cierres" as any)
+          .update({
+            reopened_at: now.toISOString(),
+            reopened_by: user,
+            reopen_reason: motivo,
+            eventos: appendCajaEvento((freshCierre as any).eventos, reaperturaEvento),
+          })
+          .eq("id", cierre.id)
+          .eq("business_id", businessId);
       }
+
+      await reopenCashSession({
+        businessId,
+        branchId: activeBranchId,
+        reopenedBy: user,
+        previousSessionId: cierre.id,
+      });
 
       toast.success("Caja reabierta");
       setSelected(null);
@@ -7167,14 +7144,6 @@ function CierresTab({
       // La pantalla se desbloquea inmediatamente; la sincronización secundaria no bloquea la UI.
       onCajaReopened();
       window.dispatchEvent(new CustomEvent("clippr:caja-cierre-guardado"));
-
-      reopenCashSession({
-        sessionId: cierre.id,
-        businessId,
-        reopenedBy: user,
-      } as any).catch(() => {
-        // El historial visual ya quedó guardado en caja_cierres.
-      });
 
       loadCierres();
     } catch (e: any) {

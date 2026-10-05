@@ -270,73 +270,42 @@ function CashRegisterPage() {
         .from("caja_cierres" as any)
         .select("id,eventos,estado")
         .eq("business_id", data.businessId)
-        .order("created_at", { ascending: false })
+        .order("fecha", { ascending: false })
+        .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle();
 
       if (error) throw error;
 
-      if (!lastCierre?.id) {
-        setCajaCerrada(false);
-        await data.refresh();
-        return;
-      }
-
-      if (isCajaReabiertaRow(lastCierre)) {
-        toast.info("La caja ya está abierta");
-        setCajaCerrada(false);
-        setShowClosedHistory(false);
-        await data.refresh();
-        return;
-      }
-
-      if (!isCajaCerradaRow(lastCierre)) {
-        toast.info("La caja no está cerrada");
-        setCajaCerrada(false);
-        setShowClosedHistory(false);
-        await data.refresh();
-        return;
-      }
-
       const now = new Date();
       const user = session.user.email ?? session.user.id;
-      const evento = {
-        tipo: "reapertura",
-        fecha_hora: now.toISOString(),
-        hora: now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
-        usuario: user,
-        motivo: null,
-      };
 
-      const { data: updated, error: updateError } = await supabase
-        .from("caja_cierres" as any)
-        .update({
-          estado: "reabierta",
-          reopened_at: now.toISOString(),
-          reopened_by: user,
-          eventos: appendCajaEvento((lastCierre as any).eventos, evento),
-          updated_at: now.toISOString(),
-        })
-        .eq("id", (lastCierre as any).id)
-        .eq("business_id", data.businessId)
-        .eq("estado", "cerrada")
-        .select("id")
-        .maybeSingle();
-
-      if (updateError) throw updateError;
-
-      if (!updated?.id) {
-        toast.info("La caja ya estaba abierta");
-        setCajaCerrada(false);
-        setShowClosedHistory(false);
-        await data.refresh();
-        return;
+      // Auditoría sobre la fila histórica (si la hay) — nunca toca estado,
+      // caja_cierres no vuelve a 'reabierta' (ver caja-cierre.ts).
+      if ((lastCierre as any)?.id && isCajaCerradaRow(lastCierre)) {
+        const reaperturaEvento = {
+          tipo: "reapertura",
+          fecha_hora: now.toISOString(),
+          hora: now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
+          usuario: user,
+          motivo: null,
+        };
+        await supabase
+          .from("caja_cierres" as any)
+          .update({
+            reopened_at: now.toISOString(),
+            reopened_by: user,
+            eventos: appendCajaEvento((lastCierre as any).eventos, reaperturaEvento),
+          })
+          .eq("id", (lastCierre as any).id)
+          .eq("business_id", data.businessId);
       }
 
       await reopenCashSession({
-        sessionId: data.cajaSession?.sessionId ?? (lastCierre as any).id,
         businessId: data.businessId,
+        branchId: data.activeBranchId,
         reopenedBy: user,
+        previousSessionId: (lastCierre as any)?.id ?? null,
       });
 
       toast.success("Caja reabierta");
@@ -2133,6 +2102,7 @@ function CierresTab({ businessId, cajaCerrada, onCajaReopened }: {
   cajaCerrada: boolean;
   onCajaReopened: () => void;
 }) {
+  const { activeBranchId } = useAuth();
   const [cierres, setCierres] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<any | null>(null);
@@ -2189,64 +2159,38 @@ function CierresTab({ businessId, cajaCerrada, onCajaReopened }: {
       if (readError) throw readError;
       if (!freshCierre?.id) throw new Error("No se encontró el cierre");
 
-      if (isCajaReabiertaRow(freshCierre)) {
-        toast.info("La caja ya está abierta");
-        setSelected(null);
-        loadCierres();
-        onCajaReopened();
-        return;
-      }
-
-      if (!isCajaCerradaRow(freshCierre)) {
-        toast.info("La caja no está cerrada");
-        setSelected(null);
-        loadCierres();
-        onCajaReopened();
-        return;
-      }
-
       const now = new Date();
       const user = "Caja";
-      const hora = now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
-      const evento = {
-        tipo: "reapertura",
-        fecha_hora: now.toISOString(),
-        hora,
-        usuario: user,
-        motivo: reason.trim() || null,
-      };
+      const motivo = reason.trim() || null;
 
-      const { data: updated, error } = await supabase
-        .from("caja_cierres" as any)
-        .update({
-          estado: "reabierta",
-          reopened_at: now.toISOString(),
-          reopened_by: user,
-          reopen_reason: reason.trim() || null,
-          eventos: appendCajaEvento((freshCierre as any).eventos, evento),
-          updated_at: now.toISOString(),
-        })
-        .eq("id", cierre.id)
-        .eq("business_id", businessId)
-        .eq("estado", "cerrada")
-        .select("id")
-        .maybeSingle();
-
-      if (error) throw error;
-
-      if (!updated?.id) {
-        toast.info("La caja ya estaba abierta");
-        setSelected(null);
-        loadCierres();
-        onCajaReopened();
-        return;
+      // Auditoría sobre la fila histórica — nunca toca estado (caja_cierres
+      // no vuelve a 'reabierta', ver caja-cierre.ts).
+      if (isCajaCerradaRow(freshCierre)) {
+        const reaperturaEvento = {
+          tipo: "reapertura",
+          fecha_hora: now.toISOString(),
+          hora: now.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
+          usuario: user,
+          motivo,
+        };
+        await supabase
+          .from("caja_cierres" as any)
+          .update({
+            reopened_at: now.toISOString(),
+            reopened_by: user,
+            reopen_reason: motivo,
+            eventos: appendCajaEvento((freshCierre as any).eventos, reaperturaEvento),
+          })
+          .eq("id", cierre.id)
+          .eq("business_id", businessId);
       }
 
       try {
         await reopenCashSession({
-          sessionId: cierre.id,
           businessId,
+          branchId: activeBranchId,
           reopenedBy: user,
+          previousSessionId: cierre.id,
         });
       } catch {
         // El historial visual ya quedó guardado en caja_cierres.

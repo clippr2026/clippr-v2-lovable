@@ -187,38 +187,100 @@ export async function closeCashSession(params: {
   });
 }
 
+// Reabrir SIEMPRE crea una cash_session NUEVA (opened_at = now()) — nunca
+// reutiliza/actualiza la fila cerrada anterior. Antes esto hacía un UPDATE
+// en el lugar sobre la fila vieja (misma fila, mismo opened_at original),
+// que es exactamente el mismo defecto que tenía caja_cierres.estado
+// 'reabierta': una sesión reabierta hace varios días podía quedar
+// "operativa" para siempre con su fecha vieja. `previousSessionId` es solo
+// para trazabilidad (qué cierre originó esta reapertura) — nunca se
+// actualiza esa fila.
 export async function reopenCashSession(params: {
-  sessionId: string;
   businessId: string;
+  branchId: string | null;
   reopenedBy: string;
-}): Promise<void> {
-  // 1. Always update business_settings
-  await writeCajaState(params.businessId, {
-    status: "open",
-    sessionId: params.sessionId,
-    openedAt: new Date().toISOString(),
-    closedAt: null,
-    closedBy: null,
-    closeType: null,
-    businessId: params.businessId,
-  });
+  previousSessionId?: string | null;
+}): Promise<{ id: string }> {
+  const now = new Date().toISOString();
 
-  // 2. Try cash_sessions table
-  if (!params.sessionId.startsWith("local_")) {
-    try {
-      await supabase
-        .from("cash_sessions")
-        .update({ status: "open", closed_by: null, closed_at: null, close_type: null })
-        .eq("id", params.sessionId);
-    } catch { /* ignore */ }
+  // Índice único parcial en la base (business_id, branch_id) WHERE
+  // status='open' — como mucho una sesión abierta por sucursal. Si el
+  // INSERT choca contra esa constraint (23505, carrera real o doble click),
+  // no es un error: ya hay una sesión abierta, se usa esa.
+  try {
+    const { data, error } = await supabase
+      .from("cash_sessions")
+      .insert({
+        business_id: params.businessId,
+        branch_id: params.branchId,
+        status: "open",
+        opened_at: now,
+        opened_by: params.reopenedBy,
+        reopened_from_session_id: params.previousSessionId ?? null,
+      })
+      .select("id")
+      .single();
+
+    if (error) {
+      if (error.code === "23505") {
+        let existingQuery = supabase
+          .from("cash_sessions")
+          .select("id")
+          .eq("business_id", params.businessId)
+          .eq("status", "open");
+        if (params.branchId) existingQuery = existingQuery.eq("branch_id", params.branchId);
+        const { data: existing } = await existingQuery.order("opened_at", { ascending: false }).limit(1).maybeSingle();
+        if (existing?.id) {
+          await writeCajaState(params.businessId, {
+            status: "open",
+            sessionId: existing.id,
+            openedAt: now,
+            closedAt: null,
+            closedBy: null,
+            closeType: null,
+            businessId: params.businessId,
+          });
+          return { id: existing.id };
+        }
+      }
+      throw error;
+    }
+
+    await writeCajaState(params.businessId, {
+      status: "open",
+      sessionId: data.id,
+      openedAt: now,
+      closedAt: null,
+      closedBy: null,
+      closeType: null,
+      businessId: params.businessId,
+    });
+
+    await logSessionEvent({
+      businessId: params.businessId,
+      sessionId: data.id,
+      actionType: "reapertura",
+      userId: params.reopenedBy,
+    });
+
+    return { id: data.id };
+  } catch (e) {
+    // Tabla sin la migración todavía (columna/índice faltante) u otro error
+    // real de infraestructura — fallback a business_settings, mismo
+    // criterio que el resto de este archivo, para no bloquear la reapertura.
+    const fakeId = `local_${Date.now()}`;
+    await writeCajaState(params.businessId, {
+      status: "open",
+      sessionId: fakeId,
+      openedAt: now,
+      closedAt: null,
+      closedBy: null,
+      closeType: null,
+      businessId: params.businessId,
+    });
+    console.warn("[reopenCashSession] cash_sessions insert failed, using fallback:", (e as Error)?.message ?? e);
+    return { id: fakeId };
   }
-
-  await logSessionEvent({
-    businessId: params.businessId,
-    sessionId: params.sessionId,
-    actionType: "reapertura",
-    userId: params.reopenedBy,
-  });
 }
 
 export async function loadCajaSession(businessId: string, branchId?: string | null): Promise<{

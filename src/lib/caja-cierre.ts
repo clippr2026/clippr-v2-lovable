@@ -119,13 +119,6 @@ export function getCajaFirstEvent(cierre: any, tipo?: string) {
   return (tipo ? events.find((event) => event.tipo === tipo) : events[0]) ?? null;
 }
 
-export function cierreNeedsAutomaticClose(cierre: any, today = cajaDateKey()) {
-  if (!cierre?.id) return false;
-  if (!isCajaReabiertaRow(cierre)) return false;
-  const fecha = String(cierre?.fecha ?? "").slice(0, 10);
-  return Boolean(fecha && fecha < today);
-}
-
 // payments.method/expenses.payment_method usan vocabularios distintos
 // ("cash" vs "efectivo", etc.) — normaliza ambos a la misma clave canónica
 // antes de agrupar, para no duplicar filas del mismo método en el desglose.
@@ -149,18 +142,115 @@ export function normalizeCierreMethodKey(method: string | null | undefined): str
   return raw;
 }
 
-// Fecha desde la que hay que calcular los totales de "la caja abierta":
-// si hay una caja vencida (pendingCierre, ver findPendingCierre más abajo)
-// el rango arranca en SU fecha de apertura, no en la fecha calendario de
-// hoy — una caja permanece abierta (y sus movimientos le siguen
-// perteneciendo) hasta que se cierra explícitamente, nunca se resetea sola
-// al cruzar la medianoche. Sin pendingCierre, el rango es el de siempre
-// (desde hoy 00:00).
-export function cajaOpenRangeStartDate(
-  pendingCierre: PendingCierre | null,
-  today = cajaDateKey(),
-): string {
-  return pendingCierre?.date || today;
+export type PendingCierre = { date: string; cierreId: string | null };
+
+// Período de caja vigente: desde cuándo hay que contar payments/
+// cash_movements, y si corresponde a un backlog sin cerrar ("caja
+// vencida"). ÚNICA fuente de verdad: cash_sessions (status='open'), nunca
+// caja_cierres — esa tabla es historial puro, inmutable una vez cerrada.
+//
+// Por qué esto reemplaza al viejo esquema (caja_cierres.estado
+// 'cerrada'/'reabierta'): "reabrir caja" mutaba en el lugar la MISMA fila
+// de caja_cierres, sin tocar su `fecha` — una caja vencida de hace varios
+// días podía quedar "reabierta" para siempre con la fecha vieja, y
+// Ingresos terminaba sumando varios días juntos cada vez que se volvía a
+// abrir. Ahora reabrir SIEMPRE crea una fila nueva en cash_sessions con
+// opened_at = now() (ver reopenCashSession en session-actions.ts), y
+// caja_cierres.estado nunca vuelve a 'reabierta' — queda como snapshot
+// histórico inmutable, reopened_at/reopened_by son auditoría, no estado.
+export type OpenCajaPeriod = {
+  // Instante EXACTO desde el que cuentan los pagos/movimientos de este
+  // período — el opened_at real de la cash_session abierta si la hay
+  // (incluye el caso "reabierta hoy mismo", para no volver a contar lo
+  // que ya quedó en el snapshot del cierre anterior), o la medianoche de
+  // rangeStartDate en caso contrario (operación implícita, sin reapertura
+  // de por medio — mismo comportamiento de siempre para el día a día).
+  startAt: Date;
+  // Fecha (YYYY-MM-DD) de este período — cajaDateKey(startAt). Es la
+  // fecha que corresponde escribir/leer en caja_cierres.fecha al cerrar.
+  rangeStartDate: string;
+  // null = hoy, sin backlog (muestra "Caja de hoy" normal). No-null =
+  // viene de un día anterior sin cerrar (dispara el banner "Caja
+  // vencida"). Una reapertura del mismo día NO es "vencida".
+  pendingCierre: PendingCierre | null;
+  // Id de la cash_session abierta actualmente (para poder cerrarla al
+  // hacer "Cerrar caja") — null si es operación implícita, sin sesión.
+  openSessionId: string | null;
+};
+
+export async function cajaOpenRangeStartDate(
+  businessId: string | null,
+  branchId: string | null,
+): Promise<OpenCajaPeriod> {
+  const today = cajaDateKey();
+  const todayStart = () => ({
+    startAt: new Date(`${today}T00:00:00`),
+    rangeStartDate: today,
+    pendingCierre: null,
+    openSessionId: null,
+  });
+  if (!businessId) return todayStart();
+
+  // 1. ¿Hay una cash_session EXPLÍCITAMENTE abierta (reapertura)? Es la
+  // única fuente de "desde cuándo" cuando hubo una reapertura real —
+  // nunca se infiere de caja_cierres.
+  let sessionQuery = supabase
+    .from("cash_sessions" as any)
+    .select("id,opened_at")
+    .eq("business_id", businessId)
+    .eq("status", "open");
+  if (branchId) sessionQuery = sessionQuery.eq("branch_id", branchId);
+  const { data: openSession } = await sessionQuery
+    .order("opened_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if ((openSession as any)?.opened_at) {
+    const startAt = new Date((openSession as any).opened_at as string);
+    const dateKey = cajaDateKey(startAt);
+    return {
+      startAt,
+      rangeStartDate: dateKey,
+      pendingCierre: dateKey < today ? { date: dateKey, cierreId: null } : null,
+      openSessionId: (openSession as any).id as string,
+    };
+  }
+
+  // 2. Sin sesión explícita: ¿ayer quedó sin cerrar y con actividad real?
+  // (operación implícita, nadie reabrió nada a mano — mismo criterio de
+  // siempre, nunca cierra nada sola, solo detecta el backlog).
+  const yesterday = cajaDateKey(new Date(Date.now() - 24 * 60 * 60 * 1000));
+  let yesterdayQuery = supabase
+    .from("caja_cierres" as any)
+    .select("id,estado")
+    .eq("business_id", businessId)
+    .eq("fecha", yesterday);
+  if (branchId) yesterdayQuery = yesterdayQuery.eq("branch_id", branchId);
+  const { data: yesterdayCierre } = await yesterdayQuery.maybeSingle();
+  if (!isCajaCerradaRow(yesterdayCierre)) {
+    const snapshot = await buildCierreSnapshotForDate(businessId, yesterday, branchId);
+    if (snapshot.hadActivity) {
+      return {
+        startAt: new Date(`${yesterday}T00:00:00`),
+        rangeStartDate: yesterday,
+        pendingCierre: { date: yesterday, cierreId: (yesterdayCierre as any)?.id ?? null },
+        openSessionId: null,
+      };
+    }
+  }
+
+  // 3. Caso normal: hoy, desde medianoche — sin sesión, sin backlog.
+  return todayStart();
+}
+
+// Wrapper de conveniencia para el único consumidor que solo necesita el
+// backlog (banner "Caja vencida"), no el período completo.
+export async function findPendingCierre(
+  businessId: string | null,
+  branchId: string | null,
+): Promise<PendingCierre | null> {
+  const period = await cajaOpenRangeStartDate(businessId, branchId);
+  return period.pendingCierre;
 }
 
 // Snapshot financiero de un rango [dateStr 00:00, endDate] — por defecto un
@@ -434,83 +524,15 @@ export async function getCajaAbiertaDesde(
   branchId: string | null,
 ): Promise<{ fecha: string; hora: string } | null> {
   if (!businessId) return null;
-  let query = supabase
-    .from("caja_cierres" as any)
-    .select("fecha,eventos,hora_apertura")
-    .eq("business_id", businessId);
-  if (branchId) query = query.eq("branch_id", branchId);
-  const { data, error } = await query
-    .order("fecha", { ascending: false })
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error || !data) return null;
-  const row = data as any;
-  const events = cajaEventosArray(row.eventos);
-  const aperturaCandidates = events.filter((e) => e.tipo !== "reapertura");
-  const apertura = aperturaCandidates.find((e) => e.tipo === "apertura") ?? aperturaCandidates[0];
+  // Misma fuente que el rango de pagos/movimientos (cajaOpenRangeStartDate)
+  // — "caja abierta desde" tiene que decir exactamente desde cuándo se
+  // están contando los números que se ven al lado, nunca un dato leído por
+  // separado de caja_cierres (esa tabla es historial, no el período vigente).
+  const period = await cajaOpenRangeStartDate(businessId, branchId);
   return {
-    fecha: String(row.fecha ?? ""),
-    hora: cajaHoraDisplay(apertura?.hora ?? row.hora_apertura ?? "—"),
+    fecha: period.rangeStartDate,
+    hora: cajaTimeLabel(period.startAt),
   };
-}
-
-export type PendingCierre = { date: string; cierreId: string | null };
-
-// Detecta si hay una "Caja vencida": el día más reciente CON actividad que
-// nunca se cerró (ni manual ni automáticamente), siempre que sea anterior a
-// hoy. NUNCA cierra nada sola — eso requiere la acción explícita del
-// usuario ("Cerrar caja vencida", ver closeCierreForDate más abajo). Antes
-// existía un auto-cierre silencioso (autoCloseExpiredCajaSession, ya
-// eliminado) que cerraba solo el día anterior apenas alguien abría Caja —
-// se sacó a propósito: la caja tiene que quedar abierta hasta que un
-// humano la cierre.
-export async function findPendingCierre(
-  businessId: string | null,
-  branchId: string | null,
-): Promise<PendingCierre | null> {
-  if (!businessId) return null;
-
-  const today = cajaDateKey();
-  const yesterday = cajaDateKey(new Date(Date.now() - 24 * 60 * 60 * 1000));
-
-  let lastCierreQuery = supabase
-    .from("caja_cierres" as any)
-    .select("*")
-    .eq("business_id", businessId);
-  if (branchId) lastCierreQuery = lastCierreQuery.eq("branch_id", branchId);
-  const { data: lastCierre, error } = await lastCierreQuery
-    .order("fecha", { ascending: false })
-    .order("updated_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-  if (error) throw error;
-
-  // Caso 1: una caja REABIERTA (ver reabrirCaja) que se dejó abierta y ya
-  // pasó su día — esa fecha queda pendiente de volver a cerrar.
-  if (cierreNeedsAutomaticClose(lastCierre, today)) {
-    return { date: String((lastCierre as any).fecha), cierreId: (lastCierre as any).id as string };
-  }
-
-  // Caso 2: el día de ayer nunca se cerró (ni manual ni automáticamente) y
-  // tuvo actividad real — ese es el día pendiente.
-  let yesterdayQuery = supabase
-    .from("caja_cierres" as any)
-    .select("id,eventos,estado")
-    .eq("business_id", businessId)
-    .eq("fecha", yesterday);
-  if (branchId) yesterdayQuery = yesterdayQuery.eq("branch_id", branchId);
-  const { data: yesterdayCierre, error: yError } = await yesterdayQuery.maybeSingle();
-  if (yError) throw yError;
-
-  if (!isCajaCerradaRow(yesterdayCierre)) {
-    const snapshot = await buildCierreSnapshotForDate(businessId, yesterday, branchId);
-    if (lastCierre?.id || snapshot.hadActivity) {
-      return { date: yesterday, cierreId: ((yesterdayCierre as any)?.id as string | undefined) ?? null };
-    }
-  }
-
-  return null;
 }
 
 // Cierra explícitamente un día puntual (hoy o un día vencido) — acción
@@ -537,7 +559,14 @@ export async function closeCierreForDate({
   const { data: existingCierre, error: existingError } = await existingQuery.maybeSingle();
   if (existingError) throw existingError;
 
-  if (isCajaCerradaRow(existingCierre)) {
+  // "Ya está cerrada" se decide por el ÚLTIMO evento, no por `estado` —
+  // estado se queda en 'cerrada' para siempre una vez cerrada (nunca
+  // vuelve a 'reabierta'), así que un segundo cierre del mismo `dateStr`
+  // (cerrar → reabrir → cobrar → cerrar, mismo día) tiene que poder
+  // agregar su propio evento de cierre a la misma fila.
+  const existingEvents = cajaEventosArray((existingCierre as any)?.eventos);
+  const lastExistingEvent = existingEvents[existingEvents.length - 1];
+  if (lastExistingEvent?.tipo === "cierre") {
     return { closed: false, alreadyClosed: true };
   }
 
@@ -580,13 +609,16 @@ export async function closeCierreForDate({
     updated_at: now.toISOString(),
   };
 
+  // Sin .neq("estado","cerrada") acá a propósito — mismo motivo que
+  // CierreCajaBtn.confirmar() en cash-register.tsx: esa guarda bloquearía
+  // cualquier segundo cierre del mismo dateStr. El chequeo real ya se hizo
+  // arriba, mirando el último evento.
   const query = (existingCierre as any)?.id
     ? supabase
         .from("caja_cierres" as any)
         .update(payload)
         .eq("id", (existingCierre as any).id)
         .eq("business_id", businessId)
-        .neq("estado", "cerrada")
         .select("id")
         .maybeSingle()
     : supabase.from("caja_cierres" as any).insert(payload).select("id").maybeSingle();
@@ -594,9 +626,41 @@ export async function closeCierreForDate({
   const { data: saved, error: saveError } = await query;
   if (saveError) throw saveError;
   if (saved?.id) {
+    // Cerrar también la cash_session vigente (si la hay) — caja_cierres
+    // queda como snapshot, pero el período operativo real vive en
+    // cash_sessions; sin esto, una sesión abierta por una reapertura
+    // seguiría devolviendo su mismo opened_at viejo como "período actual"
+    // después de este cierre.
+    await closeOpenCajaSession(businessId, branchId);
     window.dispatchEvent(new CustomEvent("clippr:caja-cierre-guardado"));
     return { closed: true };
   }
 
   return { closed: false };
+}
+
+// Cierra (status='closed', closed_at=now()) la cash_session abierta de
+// este negocio/sucursal, si la hay — best-effort, nunca rompe el cierre
+// de caja_cierres si esto falla (ej. tabla sin la migración de índice
+// único todavía, o sin sesión explícita abierta, que es el caso normal
+// del día a día sin reapertura de por medio). Exportada: también la usa
+// CierreCajaBtn.confirmar() (cash-register.tsx) en el cierre manual de hoy.
+export async function closeOpenCajaSession(businessId: string, branchId: string | null): Promise<void> {
+  try {
+    let q = supabase
+      .from("cash_sessions" as any)
+      .select("id")
+      .eq("business_id", businessId)
+      .eq("status", "open");
+    if (branchId) q = q.eq("branch_id", branchId);
+    const { data: openSession } = await q.order("opened_at", { ascending: false }).limit(1).maybeSingle();
+    if ((openSession as any)?.id) {
+      await supabase
+        .from("cash_sessions" as any)
+        .update({ status: "closed", closed_at: new Date().toISOString() })
+        .eq("id", (openSession as any).id);
+    }
+  } catch {
+    /* best-effort — caja_cierres ya quedó guardado, que es lo que importa */
+  }
 }

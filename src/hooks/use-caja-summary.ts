@@ -3,7 +3,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useCashMovements } from "@/hooks/use-cash-movements";
 import {
-  findPendingCierre,
   cajaOpenRangeStartDate,
   cajaDateKey,
   computeExpectedCashAndDigital,
@@ -103,18 +102,23 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
 
     if (!hasLoadedRef.current) setLoading(true);
 
-    const pending = await findPendingCierre(businessId, branchId).catch((e) => {
-      console.error("[CajaSummary] findPendingCierre error:", e);
-      return null;
+    // Única fuente del período vigente: cash_sessions (ver
+    // cajaOpenRangeStartDate en caja-cierre.ts) — nunca caja_cierres.estado.
+    // startAt es el instante exacto (no medianoche) si hubo una reapertura,
+    // para no recontar pagos que ya quedaron en el cierre anterior.
+    const period = await cajaOpenRangeStartDate(businessId, branchId).catch((e) => {
+      console.error("[CajaSummary] cajaOpenRangeStartDate error:", e);
+      const today = cajaDateKey();
+      return { startAt: new Date(`${today}T00:00:00`), rangeStartDate: today, pendingCierre: null, openSessionId: null };
     });
     if (!keyMatches()) {
-      console.log("[CajaSummary] discarded after findPendingCierre (key changed)");
+      console.log("[CajaSummary] discarded after cajaOpenRangeStartDate (key changed)");
       return;
     }
 
-    const todayDateStr = cajaDateKey();
-    const newRangeStartDate = cajaOpenRangeStartDate(pending, todayDateStr);
-    const dayStart = new Date(`${newRangeStartDate}T00:00:00`);
+    const pending = period.pendingCierre;
+    const newRangeStartDate = period.rangeStartDate;
+    const dayStart = period.startAt;
     const dayEnd = new Date(); // hasta ahora, nunca un fin de "hoy" fijo
 
     // branch_id = null nunca se excluye (.or en vez de .eq) — mismo criterio
@@ -141,7 +145,7 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
       )
       .eq("business_id", businessId)
       .gte("date", newRangeStartDate)
-      .lte("date", todayDateStr);
+      .lte("date", cajaDateKey());
     if (branchFilter) expQuery = expQuery.or(branchFilter);
     expQuery = expQuery.order("created_at", { ascending: false });
 
