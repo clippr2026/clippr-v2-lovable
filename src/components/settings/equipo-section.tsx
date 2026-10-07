@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef, useLayoutEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo, useRef, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -705,6 +705,17 @@ export function EquipoSection() {
   const [individualPermMode, setIndividualPermMode] = useState(true);
   const [selectedAccessUserId, setSelectedAccessUserId] = useState<string>("");
   const [accessUsers, setAccessUsers] = useState<AccessUser[]>([]);
+  // Accesos activos/invitados (no eliminados) indexados por profesional —
+  // único lugar que decide "este profesional ya tiene acceso". Usado tanto
+  // para filtrar el dropdown de "Nuevo acceso" como para la pestaña "Acceso"
+  // del modal de profesional, así ambos lados quedan siempre de acuerdo.
+  const accessByEmployeeId = useMemo(() => {
+    const map = new Map<string, AccessUser>();
+    accessUsers.forEach((user) => {
+      if (user.employee_id) map.set(user.employee_id, user);
+    });
+    return map;
+  }, [accessUsers]);
   const [accessForm, setAccessForm] = useState(EMPTY_ACCESS_FORM);
   const [editingAccessUserId, setEditingAccessUserId] = useState<string | null>(
     null,
@@ -779,9 +790,15 @@ export function EquipoSection() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editingEmp, setEditingEmp] = useState<EmployeeRow | null>(null);
   const [form, setForm] = useState<NewProForm>(EMPTY_FORM);
-  const [dlgTab, setDlgTab] = useState<"perfil" | "horarios" | "comisiones" | "jornadas">(
-    "perfil",
-  );
+  const [dlgTab, setDlgTab] = useState<
+    "perfil" | "horarios" | "comisiones" | "jornadas" | "acceso"
+  >("perfil");
+  // Pestaña "Acceso" del modal de profesional — alta de acceso en el mismo
+  // paso que se crea/edita el profesional, reutilizando el flujo de
+  // invitación de Accesos → Nuevo acceso (ver inviteTeamMember). Se resetea
+  // cada vez que se abre el modal (openNew/handleEditPro).
+  const [newProWantsAccess, setNewProWantsAccess] = useState(false);
+  const [newProAccessEmail, setNewProAccessEmail] = useState("");
   // Sub-pestañas internas de "Comisiones" — Servicios y Catálogo se editan
   // por separado sin cerrar ni mover el modal. La pestaña principal sigue
   // llamándose "Comisiones" en la barra de arriba.
@@ -1386,6 +1403,8 @@ export function EquipoSection() {
     // editable en el form antes de guardar.
     setForm({ ...EMPTY_FORM, branchId: activeBranchId ?? null });
     setDlgTab("perfil");
+    setNewProWantsAccess(false);
+    setNewProAccessEmail("");
     setOpen(true);
   }
 
@@ -1430,6 +1449,18 @@ export function EquipoSection() {
     if (scheduleErr) {
       setDlgTab("horarios");
       return toast.error(scheduleErr);
+    }
+
+    // Si ya tiene acceso vinculado, la pestaña "Acceso" solo lo muestra en
+    // modo informativo (sin checkbox ni correo) — ver render de dlgTab ===
+    // "acceso". El alta inline solo aplica cuando todavía no hay acceso.
+    const alreadyHasAccess = editingEmp
+      ? accessByEmployeeId.has(editingEmp.id)
+      : false;
+    const accessEmailTrimmed = newProAccessEmail.trim();
+    if (!alreadyHasAccess && newProWantsAccess && !accessEmailTrimmed) {
+      setDlgTab("acceso");
+      return toast.error("Ingresá el correo electrónico para crear el acceso");
     }
 
     const commission = form.commissionPct ? Number(form.commissionPct) : null;
@@ -1614,6 +1645,14 @@ export function EquipoSection() {
           [editingEmp.id]: form.specialDates,
         }));
 
+        if (!alreadyHasAccess && newProWantsAccess && accessEmailTrimmed) {
+          await createInlineProfessionalAccess(
+            editingEmp.id,
+            name,
+            form.branchId ?? null,
+          );
+        }
+
         toast.success("Profesional actualizado.");
         setOpen(false);
         setEditingEmp(null);
@@ -1795,6 +1834,14 @@ export function EquipoSection() {
         [newId]: form.specialDates,
       }));
 
+      if (newProWantsAccess && accessEmailTrimmed) {
+        await createInlineProfessionalAccess(
+          newId,
+          name,
+          form.branchId ?? activeBranchId ?? null,
+        );
+      }
+
       toast.success("Profesional agregado.");
       setOpen(false);
     } catch {
@@ -1908,6 +1955,8 @@ export function EquipoSection() {
         branchId: emp.branch_id ?? null,
       });
       setDlgTab("perfil");
+      setNewProWantsAccess(false);
+      setNewProAccessEmail("");
       setOpen(true);
     },
     [
@@ -2017,6 +2066,62 @@ export function EquipoSection() {
     });
   }
 
+  // Única puerta de entrada a la Edge Function invite-team-member — crea el
+  // acceso, el auth user y dispara el email de invitación (la persona crea
+  // su propia contraseña en /set-password). Tanto "Accesos → Nuevo acceso"
+  // (saveAccessUser) como la pestaña "Acceso" del modal de profesional
+  // (createInlineProfessionalAccess) pasan por acá: un solo lugar que sabe
+  // invitar, nada de lógica de invitación duplicada.
+  async function inviteTeamMember(
+    payload: Record<string, unknown>,
+  ): Promise<{ ok: true } | { ok: false; error: string }> {
+    const { data, error } = await supabase.functions.invoke(
+      "invite-team-member",
+      { body: payload },
+    );
+    const rawErrMsg =
+      error?.message ?? (data as { error?: string } | null)?.error ?? null;
+    if (!rawErrMsg) return { ok: true };
+    const friendlyErrMsg = rawErrMsg.includes("non-2xx status code")
+      ? "No se pudo crear el acceso. Revisá si ese correo ya existe o tiene una invitación pendiente."
+      : rawErrMsg;
+    return { ok: false, error: friendlyErrMsg };
+  }
+
+  // Alta de acceso disparada desde la pestaña "Acceso" del modal de
+  // profesional (crear/editar) — mismo inviteTeamMember que usa
+  // "Accesos → Nuevo acceso", mismo rol "profesional" vinculado por
+  // professional_id, mismo email de invitación con /set-password. El
+  // profesional ya fue creado/actualizado en `employees` antes de llamar a
+  // esto (ver saveProfessional) — acá solo se crea el acceso vinculado.
+  async function createInlineProfessionalAccess(
+    professionalId: string,
+    fullName: string,
+    branchId: string | null,
+  ) {
+    if (!businessId) return;
+    const result = await inviteTeamMember({
+      action: "create",
+      business_id: businessId,
+      email: newProAccessEmail.trim(),
+      full_name: fullName,
+      role: "profesional",
+      status: "active",
+      professional_id: professionalId,
+      branch_id: branchId,
+      permissions: DEFAULT_ROLE_PERMISSIONS.profesional,
+    });
+    if (!result.ok) {
+      toast.error(
+        "Profesional guardado, pero no se pudo crear el acceso: " +
+          result.error,
+      );
+      return;
+    }
+    toast.success("Invitación enviada por email");
+    await loadTeamMembers();
+  }
+
   async function saveAccessUser() {
     setAccessTouched(true);
     const selectedEmployee = rows.find(
@@ -2033,11 +2138,24 @@ export function EquipoSection() {
       setAccessTouched(true);
       return toast.error("Debés seleccionar un profesional para este acceso.");
     }
+    // Defensivo: el dropdown de arriba ya excluye profesionales con acceso,
+    // pero si quedó otra pestaña/ventana abierta con datos viejos, esto
+    // evita crear un segundo acceso para el mismo profesional.
+    const existingAccessForEmployee =
+      accessForm.role === "profesional" && selectedEmployee
+        ? accessByEmployeeId.get(selectedEmployee.id)
+        : undefined;
+    if (
+      existingAccessForEmployee &&
+      existingAccessForEmployee.id !== editingAccessUserId
+    ) {
+      return toast.error("Este profesional ya tiene un acceso vinculado.");
+    }
     if (!email) return toast.error("Ingresá el correo electrónico");
     if (!businessId) return toast.error("No se pudo determinar el negocio");
 
     setSaving(true);
-    const payload = {
+    const result = await inviteTeamMember({
       action: editingAccessUserId ? "update" : "create",
       member_id: editingAccessUserId ?? undefined,
       business_id: businessId,
@@ -2058,22 +2176,10 @@ export function EquipoSection() {
           : null,
       branch_id: accessForm.branch_id ?? null,
       permissions: accessPermissionsForm,
-    };
-
-    const { data, error } = await supabase.functions.invoke(
-      "invite-team-member",
-      {
-        body: payload,
-      },
-    );
+    });
     setSaving(false);
 
-    const rawErrMsg =
-      error?.message ?? (data as { error?: string } | null)?.error ?? null;
-    const friendlyErrMsg = rawErrMsg?.includes("non-2xx status code")
-      ? "No se pudo crear el acceso. Revisá si ese correo ya existe o tiene una invitación pendiente."
-      : rawErrMsg;
-    if (friendlyErrMsg) return toast.error(friendlyErrMsg);
+    if (!result.ok) return toast.error(result.error);
 
     toast.success(
       editingAccessUserId
@@ -2626,11 +2732,17 @@ export function EquipoSection() {
                         )}
                       >
                         <option value="">Elegí un profesional</option>
-                        {rows.map((emp) => (
-                          <option key={emp.id} value={emp.id}>
-                            {emp.full_name || emp.name || "Sin nombre"}
-                          </option>
-                        ))}
+                        {rows
+                          .filter(
+                            (emp) =>
+                              !accessByEmployeeId.has(emp.id) ||
+                              emp.id === accessForm.employee_id,
+                          )
+                          .map((emp) => (
+                            <option key={emp.id} value={emp.id}>
+                              {emp.full_name || emp.name || "Sin nombre"}
+                            </option>
+                          ))}
                       </select>
                     </Field>
                     {accessTouched && !accessForm.employee_id && (
@@ -2960,6 +3072,7 @@ export function EquipoSection() {
                   ["horarios", "Horarios"],
                   ["comisiones", "Comisiones"],
                   ["jornadas", "Jornadas"],
+                  ["acceso", "Acceso"],
                 ] as const
               ).map(([id, label]) => {
                 const active = dlgTab === id;
@@ -3719,6 +3832,113 @@ export function EquipoSection() {
                   </div>
                 )
               )}
+
+              {dlgTab === "acceso" && (() => {
+                const existingAccess = editingEmp
+                  ? accessByEmployeeId.get(editingEmp.id)
+                  : undefined;
+
+                // Ya tiene acceso vinculado: solo informativo. La gestión de
+                // rol/permisos/activación/eliminación sigue en Equipo →
+                // Accesos — no se duplica ese formulario acá.
+                if (existingAccess) {
+                  const expired = isInviteExpired(existingAccess);
+                  const statusLabel =
+                    existingAccess.status === "active"
+                      ? "Activo"
+                      : existingAccess.status === "invited"
+                        ? expired
+                          ? "Venció"
+                          : "Pendiente"
+                        : "Inactivo";
+                  const statusCls =
+                    existingAccess.status === "active"
+                      ? "bg-emerald-500/10 text-emerald-300 ring-emerald-400/20"
+                      : existingAccess.status === "invited"
+                        ? expired
+                          ? "bg-amber-500/10 text-amber-300 ring-amber-400/20"
+                          : "bg-cyan-500/10 text-cyan-300 ring-cyan-400/20"
+                        : "bg-white/[0.05] text-muted-foreground ring-white/15";
+                  return (
+                    <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 p-4 space-y-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="h-8 w-8 rounded-lg bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
+                          <ShieldCheck className="h-3.5 w-3.5 text-violet-200" />
+                        </div>
+                        <div className="text-sm font-semibold">
+                          Acceso vinculado
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-1">
+                            Estado
+                          </div>
+                          <span
+                            className={cn(
+                              "inline-flex rounded-full px-2 py-0.5 text-[11px] ring-1",
+                              statusCls,
+                            )}
+                          >
+                            {statusLabel}
+                          </span>
+                        </div>
+                        <div>
+                          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-1">
+                            Correo
+                          </div>
+                          <div className="text-sm break-all">
+                            {existingAccess.email}
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        La gestión de rol, permisos y activación de este
+                        acceso se hace desde Equipo → Accesos.
+                      </p>
+                    </div>
+                  );
+                }
+
+                // Todavía sin acceso: alta opcional en el mismo paso que se
+                // guarda el profesional (ver saveProfessional →
+                // createInlineProfessionalAccess), reutilizando el mismo
+                // inviteTeamMember que usa Accesos → Nuevo acceso.
+                return (
+                  <div className="space-y-3">
+                    <PermissionToggleRow
+                      icon={ShieldCheck}
+                      title="Acceso a Clippr"
+                      on={newProWantsAccess}
+                      onChange={setNewProWantsAccess}
+                    />
+                    {newProWantsAccess && (
+                      <div>
+                        <Field label="Correo electrónico">
+                          <input
+                            type="email"
+                            autoComplete="off"
+                            name="clippr-pro-access-email"
+                            value={newProAccessEmail}
+                            onChange={(e) =>
+                              setNewProAccessEmail(e.target.value)
+                            }
+                            className={inputCls}
+                            placeholder="ejemplo@correo.com"
+                          />
+                        </Field>
+                        <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 px-3 py-2.5 mt-2 text-xs text-muted-foreground flex items-start gap-2">
+                          <Mail className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
+                          <span>
+                            Le enviaremos una invitación para que cree su
+                            contraseña.
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
 
             <div
