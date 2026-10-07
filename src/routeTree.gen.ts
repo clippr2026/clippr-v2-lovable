@@ -26,6 +26,7 @@ import { Route as LoginRouteImport } from './routes/login'
 import { Route as MarketingRouteImport } from './routes/marketing'
 import { Route as ProfessionalsRouteImport } from './routes/professionals'
 import { Route as ReportsRouteImport } from './routes/reports'
+import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ServicesRouteImport } from './routes/services'
 import { Route as SetPasswordRouteImport } from './routes/set-password'
 import { Route as SettingsRouteImport } from './routes/settings'
@@ -121,6 +122,11 @@ const ReportsRoute = ReportsRouteImport.update({
   path: '/reports',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ResetPasswordRoute = ResetPasswordRouteImport.update({
+  id: '/reset-password',
+  path: '/reset-password',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ServicesRoute = ServicesRouteImport.update({
   id: '/services',
   path: '/services',
@@ -180,6 +186,7 @@ export interface FileRoutesByFullPath {
   '/marketing': typeof MarketingRoute
   '/professionals': typeof ProfessionalsRoute
   '/reports': typeof ReportsRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/services': typeof ServicesRoute
   '/set-password': typeof SetPasswordRoute
   '/settings': typeof SettingsRoute
@@ -207,6 +214,7 @@ export interface FileRoutesByTo {
   '/marketing': typeof MarketingRoute
   '/professionals': typeof ProfessionalsRoute
   '/reports': typeof ReportsRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/services': typeof ServicesRoute
   '/set-password': typeof SetPasswordRoute
   '/settings': typeof SettingsRoute
@@ -235,6 +243,7 @@ export interface FileRoutesById {
   '/marketing': typeof MarketingRoute
   '/professionals': typeof ProfessionalsRoute
   '/reports': typeof ReportsRoute
+  '/reset-password': typeof ResetPasswordRoute
   '/services': typeof ServicesRoute
   '/set-password': typeof SetPasswordRoute
   '/settings': typeof SettingsRoute
@@ -264,6 +273,7 @@ export interface FileRouteTypes {
     | '/marketing'
     | '/professionals'
     | '/reports'
+    | '/reset-password'
     | '/services'
     | '/set-password'
     | '/settings'
@@ -291,6 +301,7 @@ export interface FileRouteTypes {
     | '/marketing'
     | '/professionals'
     | '/reports'
+    | '/reset-password'
     | '/services'
     | '/set-password'
     | '/settings'
@@ -318,6 +329,7 @@ export interface FileRouteTypes {
     | '/marketing'
     | '/professionals'
     | '/reports'
+    | '/reset-password'
     | '/services'
     | '/set-password'
     | '/settings'
@@ -346,6 +358,7 @@ export interface RootRouteChildren {
   MarketingRoute: typeof MarketingRoute
   ProfessionalsRoute: typeof ProfessionalsRoute
   ReportsRoute: typeof ReportsRoute
+  ResetPasswordRoute: typeof ResetPasswordRoute
   ServicesRoute: typeof ServicesRoute
   SetPasswordRoute: typeof SetPasswordRoute
   SettingsRoute: typeof SettingsRoute
@@ -477,6 +490,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ReportsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/reset-password': {
+      id: '/reset-password'
+      path: '/reset-password'
+      fullPath: '/reset-password'
+      preLoaderRoute: typeof ResetPasswordRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/services': {
       id: '/services'
       path: '/services'
@@ -555,6 +575,7 @@ const rootRouteChildren: RootRouteChildren = {
   MarketingRoute: MarketingRoute,
   ProfessionalsRoute: ProfessionalsRoute,
   ReportsRoute: ReportsRoute,
+  ResetPasswordRoute: ResetPasswordRoute,
   ServicesRoute: ServicesRoute,
   SetPasswordRoute: SetPasswordRoute,
   SettingsRoute: SettingsRoute,

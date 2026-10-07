@@ -2,6 +2,7 @@ import * as React from "react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Mail, Lock, Eye, EyeOff, LogIn, Calendar, Wallet, Users, Brain } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
+import { ForgotPasswordModal } from "@/components/auth/forgot-password-modal";
 
 export const Route = createFileRoute("/login")({
   head: () => ({
@@ -47,7 +48,21 @@ function LoginPage() {
   );
   const [error, setError] = React.useState<string | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
+  const [forgotOpen, setForgotOpen] = React.useState(false);
   const rootRef = React.useRef<HTMLDivElement>(null);
+
+  // El botón "Solicitar nuevo enlace" de /reset-password (link vencido)
+  // vuelve acá con ?forgot=1 para reabrir este mismo modal, en vez de
+  // duplicar el formulario de "olvidé mi contraseña" en otra pantalla.
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("forgot") === "1") {
+      setForgotOpen(true);
+      params.delete("forgot");
+      const rest = params.toString();
+      history.replaceState(null, "", window.location.pathname + (rest ? `?${rest}` : ""));
+    }
+  }, []);
 
   React.useEffect(() => {
     if (localStorage.getItem("clippr_remember_login") === "1") {
@@ -419,7 +434,11 @@ function LoginPage() {
                     </button>
                   </div>
                   <div className="mt-1.5 text-right">
-                    <button type="button" className="text-xs text-accent/90 transition hover:text-accent hover:underline">
+                    <button
+                      type="button"
+                      onClick={() => setForgotOpen(true)}
+                      className="text-xs text-accent/90 transition hover:text-accent hover:underline"
+                    >
                       ¿Olvidaste tu contraseña?
                     </button>
                   </div>
@@ -468,6 +487,8 @@ function LoginPage() {
           </div>
         </section>
       </div>
+
+      <ForgotPasswordModal open={forgotOpen} onClose={() => setForgotOpen(false)} />
     </div>
   );
 }
