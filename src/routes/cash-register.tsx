@@ -787,9 +787,6 @@ function CashRegisterPage() {
   // Instant lock — set to true the moment confirmar() succeeds, no need to wait for refresh
   const [cajaCerrada, setCajaCerrada] = useState(false);
   const [showClosedHistory, setShowClosedHistory] = useState(false);
-  const [resumenPanel, setResumenPanel] = useState<
-    "ingresos" | "gastos"
-  >("ingresos");
   const [reopeningCaja, setReopeningCaja] = useState(false);
   // Caja vencida: día anterior con actividad que nunca se cerró. null =
   // no hay nada pendiente (caja al día). Nunca se cierra solo — ver
@@ -969,7 +966,6 @@ function CashRegisterPage() {
                 setCajaCerrada(true);
                 setShowClosedHistory(false);
                 setPendingToCharge(null);
-                setResumenPanel("ingresos");
                 setTab("resumen");
               }}
               onCajaReopened={() => {
@@ -1013,7 +1009,6 @@ function CashRegisterPage() {
               setCajaCerrada(true);
               setShowClosedHistory(false);
               setPendingToCharge(null);
-              setResumenPanel("ingresos");
               setTab("resumen");
             }}
           />
@@ -1023,8 +1018,6 @@ function CashRegisterPage() {
             <ResumenTab
               data={data}
               equipoEnabled={permissions.equipo}
-              initialPanel={resumenPanel}
-              onPanelChange={setResumenPanel}
               onCobrarPendiente={handleCobrarPendiente}
               onNuevaVenta={() => {
                 setPendingToCharge(null);
@@ -1043,7 +1036,6 @@ function CashRegisterPage() {
                 setCajaCerrada(true);
                 setShowClosedHistory(false);
                 setPendingToCharge(null);
-                setResumenPanel("ingresos");
                 setTab("resumen");
               }}
             />
@@ -1054,7 +1046,6 @@ function CashRegisterPage() {
               userEmail={session.user.email ?? null}
               onCancel={() => setTab("resumen")}
               onSaved={() => {
-                setResumenPanel("gastos");
                 data.refresh();
                 setTab("resumen");
               }}
@@ -1081,7 +1072,6 @@ function CashRegisterPage() {
               }}
               onSaleDone={() => {
                 setPendingToCharge(null);
-                setResumenPanel("ingresos");
                 setTab("resumen");
               }}
             />
@@ -1119,7 +1109,6 @@ function CashRegisterPage() {
                 setCajaCerrada(true);
                 setShowClosedHistory(false);
                 setPendingToCharge(null);
-                setResumenPanel("ingresos");
                 setTab("resumen");
               }}
               onCajaReopened={() => {
@@ -1347,8 +1336,6 @@ const SearchBox = ({
 function ResumenTab({
   data,
   equipoEnabled,
-  initialPanel = "ingresos",
-  onPanelChange,
   onCobrarPendiente,
   onNuevaVenta,
   onNuevoGasto,
@@ -1361,8 +1348,6 @@ function ResumenTab({
 }: {
   data: ReturnType<typeof useCajaData>;
   equipoEnabled: boolean;
-  initialPanel?: "ingresos" | "gastos";
-  onPanelChange?: (panel: "ingresos" | "gastos") => void;
   onCobrarPendiente: (
     appt: ReturnType<typeof useCajaData>["pendingCharges"][number],
   ) => void;
@@ -1375,14 +1360,6 @@ function ResumenTab({
   cajaRangeStartDate: string;
   onCajaCerrada: () => void;
 }) {
-  type ActivePanel = "ingresos" | "gastos";
-  const [activePanel, setActivePanel] =
-    React.useState<ActivePanel>(initialPanel);
-  const [gastosHistoryOpen, setGastosHistoryOpen] = React.useState(false);
-  const todayForHistory = new Date().toISOString().slice(0, 10);
-  const [gastosHistoryFrom, setGastosHistoryFrom] = React.useState(todayForHistory);
-  const [gastosHistoryTo, setGastosHistoryTo] = React.useState(todayForHistory);
-
   // Historial de cobros: lo leemos desde appointments.cobro_events (Supabase)
   // para los turnos visibles, así "Envió a caja" / "Cobró" persiste tras
   // recargar o entrar desde otro dispositivo. `histVersion` fuerza el re-render
@@ -1410,214 +1387,70 @@ function ResumenTab({
     return () => window.removeEventListener("clippr:cobros-historial-updated", bump);
   }, []);
 
+  // Antes este evento también cambiaba la vista a la pestaña "Gastos" para
+  // mostrar el gasto recién guardado — esa pestaña ya no existe (vista
+  // unificada: Gastos ya se ve en la stat card y en Movimientos de caja sin
+  // cambiar de pantalla), así que solo queda refrescar los datos.
   React.useEffect(() => {
-    setActivePanel(initialPanel);
-  }, [initialPanel]);
-
-  React.useEffect(() => {
-    const handler = () => {
-      data.refresh();
-      setActivePanel("gastos");
-      onPanelChange?.("gastos");
-    };
+    const handler = () => data.refresh();
     window.addEventListener("clippr:gasto-guardado", handler);
     return () => window.removeEventListener("clippr:gasto-guardado", handler);
-  }, [data, onPanelChange]);
+  }, [data]);
 
-  const selectPanel = React.useCallback(
-    (panel: ActivePanel) => {
-      setActivePanel(panel);
-      onPanelChange?.(panel);
-    },
-    [onPanelChange],
-  );
+  const showPendientes = data.approvalModeEnabled && equipoEnabled;
 
-  const stats: {
-    id: ActivePanel;
-    label: string;
-    value: number;
-    sub: string;
-    icon: any;
-    money: boolean;
-    cardClass: string;
-    iconClass: string;
-    amountClass: string;
-    chipClass: string;
-  }[] = [
-    {
-      id: "ingresos",
-      label: "Facturación",
-      value: data.revHoy,
-      sub: `${data.cobros} cobro${data.cobros === 1 ? "" : "s"} hoy`,
-      icon: Wallet,
-      money: true,
-      cardClass:
-        "border-emerald-400/24 bg-[radial-gradient(circle_at_14%_50%,rgba(16,185,129,0.18),transparent_34%),linear-gradient(135deg,rgba(6,95,70,0.20),rgba(3,7,18,0.94))] shadow-[0_30px_90px_-45px_rgba(16,185,129,0.55),0_22px_70px_-42px_rgba(0,0,0,0.95)]",
-      iconClass:
-        "bg-emerald-500/14 text-emerald-300 ring-emerald-400/30 shadow-[0_0_26px_rgba(34,197,94,0.20)]",
-      amountClass: "text-white",
-      chipClass: "bg-emerald-400/12 text-emerald-300 ring-emerald-400/20",
-    },
-    {
-      id: "gastos",
-      label: "Gastos",
-      value: data.totalGastos,
-      sub: `${data.expensesToday.length} gasto${data.expensesToday.length === 1 ? "" : "s"}`,
-      icon: TrendingUp,
-      money: true,
-      cardClass:
-        "border-rose-400/24 bg-[radial-gradient(circle_at_14%_50%,rgba(244,63,94,0.17),transparent_34%),linear-gradient(135deg,rgba(127,29,29,0.22),rgba(3,7,18,0.94))] shadow-[0_30px_90px_-45px_rgba(244,63,94,0.48),0_22px_70px_-42px_rgba(0,0,0,0.95)]",
-      iconClass:
-        "bg-rose-500/14 text-rose-300 ring-rose-400/30 shadow-[0_0_26px_rgba(244,63,94,0.18)]",
-      amountClass: "text-white",
-      chipClass: "bg-rose-400/12 text-rose-300 ring-rose-400/20",
-    },
-  ];
-
-  // "pendientes" ya no es un ActivePanel seleccionable (la pestaña se
-  // eliminó), pero su tema se sigue usando directamente (panelTheme.pendientes)
-  // para el bloque embebido "Cobros pendientes" dentro de Facturación.
-  const panelTheme: Record<
-    ActivePanel | "pendientes",
-    {
-      border: string;
-      glow: string;
-      headerIcon: string;
-      title: string;
-      chip: string;
-      tableHead: string;
-      rowHover: string;
-      amount: string;
-      badge: string;
-      panelBg: string;
-    }
-  > = {
-    ingresos: {
-      border: "border-emerald-400/24",
-      glow: "shadow-[0_30px_90px_-48px_rgba(16,185,129,0.36),0_22px_70px_-42px_rgba(0,0,0,0.95)]",
-      panelBg:
-        "bg-[radial-gradient(circle_at_14%_50%,rgba(16,185,129,0.18),transparent_34%),linear-gradient(135deg,rgba(6,95,70,0.20),rgba(3,7,18,0.94))]",
-      headerIcon: "bg-emerald-500/14 text-emerald-300 ring-emerald-400/25",
-      title: "text-emerald-50",
-      chip: "bg-emerald-400/10 text-emerald-300 ring-emerald-400/18",
-      tableHead: "border-emerald-400/10 bg-black/[0.10]",
-      rowHover: "hover:bg-emerald-400/[0.035]",
-      amount: "text-emerald-300",
-      badge: "bg-emerald-500/12 text-emerald-300 ring-emerald-400/20",
-    },
-    pendientes: {
-      border: "border-sky-400/24",
-      glow: "shadow-[0_30px_90px_-48px_rgba(14,165,233,0.32),0_22px_70px_-42px_rgba(0,0,0,0.95)]",
-      panelBg:
-        "bg-[radial-gradient(circle_at_14%_50%,rgba(14,165,233,0.18),transparent_34%),linear-gradient(135deg,rgba(12,74,110,0.22),rgba(3,7,18,0.94))]",
-      headerIcon: "bg-sky-500/14 text-sky-300 ring-sky-400/25",
-      title: "text-sky-50",
-      chip: "bg-sky-400/10 text-sky-300 ring-sky-400/18",
-      tableHead: "border-sky-400/10 bg-black/[0.10]",
-      rowHover: "hover:bg-sky-400/[0.035]",
-      amount: "text-sky-300",
-      badge: "bg-sky-500/12 text-sky-300 ring-sky-400/20",
-    },
-    gastos: {
-      border: "border-rose-400/24",
-      glow: "shadow-[0_30px_90px_-48px_rgba(244,63,94,0.30),0_22px_70px_-42px_rgba(0,0,0,0.95)]",
-      panelBg:
-        "bg-[radial-gradient(circle_at_14%_50%,rgba(244,63,94,0.17),transparent_34%),linear-gradient(135deg,rgba(127,29,29,0.22),rgba(3,7,18,0.94))]",
-      headerIcon: "bg-rose-500/14 text-rose-300 ring-rose-400/25",
-      title: "text-rose-50",
-      chip: "bg-rose-400/10 text-rose-300 ring-rose-400/18",
-      tableHead: "border-rose-400/10 bg-black/[0.10]",
-      rowHover: "hover:bg-rose-400/[0.035]",
-      amount: "text-rose-300",
-      badge: "bg-rose-500/12 text-rose-300 ring-rose-400/20",
-    },
+  // Tema ámbar para "Cobros pendientes" (bloque expandible dentro de
+  // FacturacionPanel, se abre al tocar la stat card Pendientes) — Ingresos y
+  // Gastos ya no necesitan un theme de panel propio: el selector grande que
+  // los usaba para pintar toda una vista desapareció, ahora cada uno es una
+  // stat card (FacturacionStatCard) o filas coloreadas en
+  // MovimientosUnificados.
+  const pendientesTheme = {
+    border: "border-amber-400/24",
+    glow: "shadow-[0_30px_90px_-48px_rgba(245,158,11,0.32),0_22px_70px_-42px_rgba(0,0,0,0.95)]",
+    panelBg:
+      "bg-[radial-gradient(circle_at_14%_50%,rgba(245,158,11,0.18),transparent_34%),linear-gradient(135deg,rgba(120,53,15,0.22),rgba(3,7,18,0.94))]",
+    headerIcon: "bg-amber-500/14 text-amber-300 ring-amber-400/25",
+    title: "text-amber-50",
+    chip: "bg-amber-400/10 text-amber-300 ring-amber-400/18",
+    tableHead: "border-amber-400/10 bg-black/[0.10]",
+    rowHover: "hover:bg-amber-400/[0.035]",
+    amount: "text-amber-300",
+    badge: "bg-amber-500/12 text-amber-300 ring-amber-400/20",
   };
-
-  const activeTheme = panelTheme[activePanel];
 
   return (
     <>
-      {/* Único acceso "Nueva venta"/"Nuevo gasto", igual en mobile y
-          desktop — antes vivía partido entre un botón chico en el Header
-          (solo mobile) y uno grande al lado de las pestañas (solo
-          desktop, con demasiado espacio vacío alrededor en mobile). Ahora
-          es un solo botón centrado, justo antes de la tarjeta Ingresos. */}
-      <div className="mb-4 flex justify-center">
-        {activePanel === "gastos" ? (
-          <button
-            type="button"
-            onClick={onNuevoGasto}
-            className="group inline-flex items-center justify-center gap-2.5 rounded-2xl border border-rose-300/38 bg-[linear-gradient(135deg,rgba(244,63,94,0.28),rgba(127,29,29,0.58))] px-6 py-3 text-sm font-extrabold text-rose-50 shadow-[0_0_34px_rgba(244,63,94,0.34),0_0_70px_rgba(244,63,94,0.12),0_1px_0_rgba(255,255,255,0.18)_inset] transition-all duration-200 hover:-translate-y-0.5 hover:bg-rose-500/22 hover:text-white hover:shadow-[0_0_52px_rgba(244,63,94,0.46),0_0_90px_rgba(244,63,94,0.18)]"
-          >
-            <Wallet className="size-4 transition-transform group-hover:scale-110" />
-            Nuevo gasto
-          </button>
-        ) : (
-          <button
-            type="button"
-            onClick={onNuevaVenta}
-            className="group inline-flex items-center justify-center gap-3 rounded-2xl border border-emerald-300/36 bg-[linear-gradient(135deg,rgba(16,185,129,0.26),rgba(6,95,70,0.56))] px-9 py-3.5 text-base font-bold text-emerald-50 shadow-[0_0_40px_rgba(16,185,129,0.36),0_0_85px_rgba(16,185,129,0.14),0_1px_0_rgba(255,255,255,0.16)_inset] transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-400/24 hover:text-white hover:shadow-[0_0_58px_rgba(16,185,129,0.50),0_0_100px_rgba(16,185,129,0.20)]"
-          >
-            <Plus className="size-5 transition-transform group-hover:rotate-90" />
-            Nueva venta
-          </button>
-        )}
-      </div>
-    <div className="relative space-y-6 pt-0 pb-2 sm:py-2">
-      <div className="pointer-events-none absolute inset-x-0 sm:inset-x-[-56px] top-[-54px] bottom-[-72px] z-0 rounded-[56px] bg-[radial-gradient(ellipse_at_center,rgba(0,0,0,0.68)_0%,rgba(0,0,0,0.46)_34%,rgba(0,0,0,0.22)_58%,transparent_82%)] blur-3xl" />
-      <div className="pointer-events-none absolute inset-x-0 sm:inset-x-[-30px] top-[-28px] bottom-[-40px] z-0 rounded-[46px] bg-[linear-gradient(180deg,transparent_0%,rgba(0,0,0,0.18)_14%,rgba(0,0,0,0.38)_46%,rgba(0,0,0,0.28)_72%,transparent_100%)]" />
-      {/* Selector horizontal compacto Facturación/Gastos — antes eran 3
-          tarjetas grandes apiladas (mucho scroll en mobile) y después 3
-          tabs (Facturación/Gastos/Pendientes); "Pendientes" dejó de ser
-          una pestaña propia — vive ahora dentro de Facturación, ver
-          FacturacionPanel. */}
-      <div className="relative z-10 flex gap-1.5 rounded-3xl border border-white/[0.085] bg-[linear-gradient(135deg,rgba(8,10,20,0.96),rgba(12,16,32,0.88))] p-1.5 backdrop-blur-2xl shadow-[0_18px_55px_-28px_rgba(0,0,0,0.95),0_1px_0_rgba(255,255,255,0.06)_inset]">
-        {stats.map((s) => {
-          const isActive = activePanel === s.id;
-          const Icon = s.icon;
-          return (
-            <button
-              key={s.id}
-              type="button"
-              onClick={() => selectPanel(s.id)}
-              className={cn(
-                "group relative flex-1 inline-flex items-center justify-center gap-2 rounded-2xl px-3 py-2.5 text-xs sm:text-sm font-semibold transition-all duration-200",
-                isActive
-                  ? "bg-[linear-gradient(135deg,rgba(59,130,246,0.22),rgba(139,92,246,0.22))] text-white ring-1 ring-violet-200/28 shadow-[0_0_26px_rgba(99,102,241,0.18),0_1px_0_rgba(255,255,255,0.10)_inset]"
-                  : "text-white/55 hover:bg-white/[0.045] hover:text-white/85",
-              )}
-            >
-              <Icon
-                className={cn(
-                  "size-4 transition-all",
-                  isActive ? "text-blue-200" : "text-white/40 group-hover:text-white/70",
-                )}
-              />
-              {s.label}
-            </button>
-          );
-        })}
+      {/* Nueva venta / Nuevo gasto — antes era un solo botón que cambiaba de
+          acción según la pestaña Facturación/Gastos activa; sin esa
+          pestaña (vista unificada), los dos accesos quedan siempre visibles
+          lado a lado. */}
+      <div className="mb-4 flex flex-wrap items-center justify-center gap-3">
+        <button
+          type="button"
+          onClick={onNuevaVenta}
+          className="group inline-flex items-center justify-center gap-3 rounded-2xl border border-emerald-300/36 bg-[linear-gradient(135deg,rgba(16,185,129,0.26),rgba(6,95,70,0.56))] px-9 py-3.5 text-base font-bold text-emerald-50 shadow-[0_0_40px_rgba(16,185,129,0.36),0_0_85px_rgba(16,185,129,0.14),0_1px_0_rgba(255,255,255,0.16)_inset] transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-400/24 hover:text-white hover:shadow-[0_0_58px_rgba(16,185,129,0.50),0_0_100px_rgba(16,185,129,0.20)]"
+        >
+          <Plus className="size-5 transition-transform group-hover:rotate-90" />
+          Nueva venta
+        </button>
+        <button
+          type="button"
+          onClick={onNuevoGasto}
+          className="group inline-flex items-center justify-center gap-2.5 rounded-2xl border border-rose-300/38 bg-[linear-gradient(135deg,rgba(244,63,94,0.28),rgba(127,29,29,0.58))] px-6 py-3 text-sm font-extrabold text-rose-50 shadow-[0_0_34px_rgba(244,63,94,0.34),0_0_70px_rgba(244,63,94,0.12),0_1px_0_rgba(255,255,255,0.18)_inset] transition-all duration-200 hover:-translate-y-0.5 hover:bg-rose-500/22 hover:text-white hover:shadow-[0_0_52px_rgba(244,63,94,0.46),0_0_90px_rgba(244,63,94,0.18)]"
+        >
+          <Wallet className="size-4 transition-transform group-hover:scale-110" />
+          Nuevo gasto
+        </button>
       </div>
 
-      {/* Gastos: resumen simple arriba del historial — Facturación tiene su
-          propio panel completo (FacturacionPanel) más abajo. */}
-      {activePanel === "gastos" && (
-        <div className="relative z-10">
-          <div className="flex items-center gap-1.5 text-muted-foreground">
-            <TrendingDown className="h-3.5 w-3.5 text-rose-400" />
-            <span className="text-xs">Egresos</span>
-          </div>
-          <div className="mt-0.5">
-            {data.loading ? (
-              <div className="h-7 w-28 animate-pulse rounded-lg bg-white/[0.08] sm:h-8" />
-            ) : (
-              <Money value={data.totalGastos} large />
-            )}
-          </div>
-        </div>
-      )}
+      <div className="relative space-y-6 pt-0 pb-2 sm:py-2">
+        <div className="pointer-events-none absolute inset-x-0 sm:inset-x-[-56px] top-[-54px] bottom-[-72px] z-0 rounded-[56px] bg-[radial-gradient(ellipse_at_center,rgba(0,0,0,0.68)_0%,rgba(0,0,0,0.46)_34%,rgba(0,0,0,0.22)_58%,transparent_82%)] blur-3xl" />
+        <div className="pointer-events-none absolute inset-x-0 sm:inset-x-[-30px] top-[-28px] bottom-[-40px] z-0 rounded-[46px] bg-[linear-gradient(180deg,transparent_0%,rgba(0,0,0,0.18)_14%,rgba(0,0,0,0.38)_46%,rgba(0,0,0,0.28)_72%,transparent_100%)]" />
 
-      {activePanel === "ingresos" && (
+        {/* Vista única (ya no hay selector Facturación/Gastos): resumen +
+            acciones de caja (FacturacionPanel) y debajo el historial
+            unificado de movimientos. */}
         <div className="relative z-10 space-y-4">
           <FacturacionPanel
             data={data}
@@ -1629,413 +1462,15 @@ function ResumenTab({
             cajaRangeStartDate={cajaRangeStartDate}
             onCajaCerrada={onCajaCerrada}
             onCobrarPendiente={onCobrarPendiente}
-            pendientesTheme={panelTheme.pendientes}
+            pendientesTheme={pendientesTheme}
           />
-          <History
+          <MovimientosUnificados
             data={data}
-            equipoEnabled={equipoEnabled}
-            onCobrarPendiente={onCobrarPendiente}
-            title="Últimos ingresos"
-            panel="ingresos"
-            theme={activeTheme}
+            movementsData={movementsData}
+            showPendientes={showPendientes}
           />
         </div>
-      )}
-
-      {activePanel === "gastos" && (
-        <div className="relative z-10">
-          <Card
-            className={cn(
-              "rounded-3xl transition-all duration-300",
-              panelTheme.gastos.panelBg,
-              panelTheme.gastos.border,
-              panelTheme.gastos.glow,
-            )}
-          >
-            <div
-              className={cn(
-                "flex min-h-[64px] items-center justify-between gap-3 px-5 py-3 border-b",
-                panelTheme.gastos.tableHead,
-              )}
-            >
-              <h3
-                className={cn(
-                  "text-base font-bold tracking-tight",
-                  panelTheme.gastos.title,
-                )}
-              >
-                Gastos
-              </h3>
-            </div>
-
-            {/* En mobile, tabla oculta — ver tarjetas verticales debajo. */}
-            <div className="hidden overflow-x-auto sm:block">
-              <div className="min-w-[1080px]">
-                <div
-                  className={cn(
-                    "grid grid-cols-[80px_90px_150px_minmax(260px,1fr)_140px_150px_220px] items-center gap-x-3 px-6 py-2.5 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b uppercase",
-                    panelTheme.gastos.tableHead,
-                  )}
-                >
-                  <div>Fecha</div>
-                  <div>Hora</div>
-                  <div>Tipo de gasto</div>
-                  <div>Descripción</div>
-                  <div className="text-right">Monto</div>
-                  <div>Método</div>
-                  <div>Responsable</div>
-                </div>
-
-                {data.expensesToday.length === 0 ? (
-                  <div className="px-5 py-10 text-center text-sm text-muted-foreground">
-                    Sin gastos registrados.
-                  </div>
-                ) : (
-                  <div className="divide-y divide-white/5">
-                    {data.expensesToday.slice(0, 5).map((e: any) => {
-                      const createdDate = e.created_at
-                        ? new Date(e.created_at)
-                        : null;
-                      const date = e.date
-                        ? new Date(`${e.date}T00:00:00`).toLocaleDateString("es-AR", {
-                            day: "2-digit",
-                            month: "2-digit",
-                          })
-                        : createdDate
-                          ? createdDate.toLocaleDateString("es-AR", {
-                              day: "2-digit",
-                              month: "2-digit",
-                            })
-                          : "—";
-                      const hora =
-                        createdDate && !Number.isNaN(createdDate.getTime())
-                          ? `${createdDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}hs`
-                          : "—";
-                      const category = e.category ?? e.type ?? "—";
-                      // Descripción real solo si el usuario escribió algo
-                      // distinto del tipo de gasto — si no, no se repite
-                      // (antes "Alquiler" aparecía como categoría Y como
-                      // descripción cuando no había nada más para mostrar).
-                      const rawDescription = String(
-                        e.note?.trim() || e.name || e.description || e.concept || "",
-                      ).trim();
-                      const description =
-                        rawDescription &&
-                        rawDescription.toLowerCase() !== String(category).toLowerCase()
-                          ? rawDescription
-                          : "";
-                      const method = paymentMethodLabel(e.payment_method ?? e.method ?? "");
-                      const user = displayCashActor(e);
-                      return (
-                        <div
-                          key={e.id}
-                          className={cn(
-                            "grid grid-cols-[80px_90px_150px_minmax(260px,1fr)_140px_150px_220px] items-center gap-x-3 px-6 py-3 text-xs border-b border-white/[0.09] odd:bg-white/[0.022] last:border-0 transition-all duration-200",
-                            panelTheme.gastos.rowHover,
-                          )}
-                        >
-                          <div className="text-muted-foreground whitespace-nowrap">{date}</div>
-                          <div className="text-muted-foreground whitespace-nowrap">{hora}</div>
-                          <div className="text-muted-foreground truncate">
-                            {category}
-                          </div>
-                          <div className="min-w-0 truncate text-foreground/90">
-                            {description || "—"}
-                          </div>
-                          <div className="text-right font-bold tabular-nums text-rose-300">
-                            -${Number(e.amount ?? 0).toLocaleString("es-AR")}
-                          </div>
-                          <div className="truncate text-muted-foreground">{method}</div>
-                          <div className="truncate text-muted-foreground">{user}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* Mobile: tarjetas verticales — mismos datos (data.expensesToday,
-                mismo límite de 5) sin scroll horizontal. */}
-            <div className="sm:hidden">
-              {data.expensesToday.length === 0 ? (
-                <div className="px-4 py-10 text-center text-sm text-muted-foreground">
-                  Sin gastos registrados.
-                </div>
-              ) : (
-                <div className="flex flex-col gap-3 p-3">
-                  {data.expensesToday.slice(0, 5).map((e: any) => {
-                    const createdDate = e.created_at ? new Date(e.created_at) : null;
-                    const date = e.date
-                      ? new Date(`${e.date}T00:00:00`).toLocaleDateString("es-AR", {
-                          day: "2-digit",
-                          month: "2-digit",
-                          year: "numeric",
-                        })
-                      : createdDate
-                        ? createdDate.toLocaleDateString("es-AR", {
-                            day: "2-digit",
-                            month: "2-digit",
-                            year: "numeric",
-                          })
-                        : "—";
-                    const hora =
-                      createdDate && !Number.isNaN(createdDate.getTime())
-                        ? `${createdDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}hs`
-                        : "—";
-                    const category = e.category ?? e.type ?? "—";
-                    const rawDescription = String(
-                      e.note?.trim() || e.name || e.description || e.concept || "",
-                    ).trim();
-                    const description =
-                      rawDescription &&
-                      rawDescription.toLowerCase() !== String(category).toLowerCase()
-                        ? rawDescription
-                        : "";
-                    const method = paymentMethodLabel(e.payment_method ?? e.method ?? "");
-                    const user = displayCashActor(e);
-                    return (
-                      <div
-                        key={`gasto-mobile-${e.id}`}
-                        className="w-full rounded-2xl border border-white/[0.07] bg-black/25 px-3.5 py-3 text-xs"
-                      >
-                        <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] pb-2">
-                          <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-                            {date} · {hora}
-                          </span>
-                          <span className="text-sm font-bold tabular-nums text-rose-300">
-                            -${Number(e.amount ?? 0).toLocaleString("es-AR")}
-                          </span>
-                        </div>
-                        <div className="mt-2 space-y-1.5">
-                          <div className="flex items-start justify-between gap-3">
-                            <span className="shrink-0 text-muted-foreground/70">Tipo de gasto</span>
-                            <span className="truncate text-right text-muted-foreground">
-                              {category}
-                            </span>
-                          </div>
-                          <div className="flex items-start justify-between gap-3">
-                            <span className="shrink-0 text-muted-foreground/70">Método</span>
-                            <span className="truncate text-right text-muted-foreground">
-                              {method}
-                            </span>
-                          </div>
-                          {description && (
-                            <div className="flex items-start justify-between gap-3">
-                              <span className="shrink-0 text-muted-foreground/70">Descripción</span>
-                              <span className="truncate text-right text-foreground/90">
-                                {description}
-                              </span>
-                            </div>
-                          )}
-                          <div className="flex items-start justify-between gap-3">
-                            <span className="shrink-0 text-muted-foreground/70">Responsable</span>
-                            <span className="truncate text-right text-muted-foreground">
-                              {user}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            <div className="px-6 py-2 border-t border-white/[0.07] flex items-center justify-end gap-3">
-              {data.expensesToday.length > 0 && (
-              <button
-                onClick={() => setGastosHistoryOpen(true)}
-                className="ml-auto text-xs font-semibold text-rose-300 hover:text-rose-200 inline-flex items-center gap-2 transition"
-              >
-                <ClipboardList className="size-3.5" /> Ver historial completo{" "}
-                <ArrowRight className="size-3.5" />
-              </button>
-            )}
-            </div>
-          </Card>
-        </div>
-      )}
-    
-      {gastosHistoryOpen && typeof document !== "undefined" && createPortal(
-        <div
-          className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm"
-          onClick={() => setGastosHistoryOpen(false)}
-        >
-          <div
-            className="w-full max-w-6xl overflow-hidden rounded-3xl border border-rose-300/18 bg-[linear-gradient(135deg,rgba(10,8,14,0.98),rgba(18,8,18,0.97),rgba(3,5,12,0.99))] shadow-[0_40px_120px_-55px_rgba(0,0,0,1),0_0_60px_-38px_rgba(244,63,94,0.45)]"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-rose-300/10 px-5 py-4">
-              <div>
-                <h3 className="text-lg font-bold text-rose-50">Historial completo de gastos</h3>
-                <p className="mt-1 text-xs text-white/45">Hoy y rango por fechas.</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  onClick={() => setGastosHistoryOpen(false)}
-                  className="h-10 rounded-2xl bg-white/[0.06] px-4 text-xs font-semibold text-white/70 hover:bg-white/[0.09] hover:text-white"
-                >
-                  Cerrar
-                </button>
-              </div>
-            </div>
-
-            <div className="max-h-[70vh] overflow-y-auto p-4 [scrollbar-width:thin] [scrollbar-color:rgba(244,63,94,0.35)_transparent]">
-              {/* En mobile, tabla oculta — ver tarjetas verticales debajo. */}
-              <div className="hidden min-w-[1080px] overflow-hidden rounded-2xl border border-rose-300/12 bg-black/25 sm:block">
-                <div className="grid grid-cols-[80px_90px_150px_minmax(260px,1fr)_140px_150px_220px] items-center gap-x-3 border-b border-rose-300/10 bg-rose-400/[0.035] px-5 py-3 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/45">
-                  <div>Fecha</div>
-                  <div>Hora</div>
-                  <div>Tipo de gasto</div>
-                  <div>Descripción</div>
-                  <div className="text-right">Monto</div>
-                  <div>Método</div>
-                  <div>Responsable</div>
-                </div>
-
-                {data.expensesToday.length === 0 ? (
-                  <div className="px-5 py-10 text-center text-sm text-white/45">
-                    Sin gastos registrados.
-                  </div>
-                ) : (
-                  <div className="divide-y divide-white/5">
-                    {data.expensesToday.map((e: any) => {
-                      const createdDate = e.created_at ? new Date(e.created_at) : null;
-                      const rawDate = e.date || (createdDate ? createdDate.toISOString().slice(0, 10) : "");
-                      const date = rawDate
-                        ? new Date(`${rawDate}T00:00:00`).toLocaleDateString("es-AR", {
-                            day: "2-digit",
-                            month: "2-digit",
-                          })
-                        : "—";
-                      const hora =
-                        createdDate && !Number.isNaN(createdDate.getTime())
-                          ? `${createdDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}hs`
-                          : "—";
-                      const category = e.category ?? e.type ?? "—";
-                      const rawDescription = String(
-                        e.note?.trim() || e.name || e.description || e.concept || "",
-                      ).trim();
-                      const description =
-                        rawDescription &&
-                        rawDescription.toLowerCase() !== String(category).toLowerCase()
-                          ? rawDescription
-                          : "";
-                      const method = paymentMethodLabel(e.payment_method ?? e.method ?? "");
-                      const user = displayCashActor(e);
-                      return (
-                        <div
-                          key={`history-${e.id}`}
-                          className="grid grid-cols-[80px_90px_150px_minmax(260px,1fr)_140px_150px_220px] items-center gap-x-3 px-5 py-3.5 text-xs transition hover:bg-rose-400/[0.045]"
-                        >
-                          <div className="text-white/55">{date}</div>
-                          <div className="text-white/55">{hora}</div>
-                          <div className="truncate text-white/55">{category}</div>
-                          <div className="min-w-0 truncate text-white/88">
-                            {description || "—"}
-                          </div>
-                          <div className="text-right font-bold tabular-nums text-rose-300">
-                            -${Number(e.amount ?? 0).toLocaleString("es-AR")}
-                          </div>
-                          <div className="truncate text-white/55">{method}</div>
-                          <div className="truncate text-white/55">{user}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-
-              {/* Mobile: tarjetas verticales — mismos datos, sin límite
-                  (igual que la tabla de escritorio de este modal). */}
-              <div className="sm:hidden">
-                {data.expensesToday.length === 0 ? (
-                  <div className="px-4 py-10 text-center text-sm text-white/45">
-                    Sin gastos registrados.
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-2.5">
-                    {data.expensesToday.map((e: any) => {
-                      const createdDate = e.created_at ? new Date(e.created_at) : null;
-                      const rawDate = e.date || (createdDate ? createdDate.toISOString().slice(0, 10) : "");
-                      const date = rawDate
-                        ? new Date(`${rawDate}T00:00:00`).toLocaleDateString("es-AR", {
-                            day: "2-digit",
-                            month: "2-digit",
-                            year: "numeric",
-                          })
-                        : "—";
-                      const hora =
-                        createdDate && !Number.isNaN(createdDate.getTime())
-                          ? `${createdDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}hs`
-                          : "—";
-                      const category = e.category ?? e.type ?? "—";
-                      const rawDescription = String(
-                        e.note?.trim() || e.name || e.description || e.concept || "",
-                      ).trim();
-                      const description =
-                        rawDescription &&
-                        rawDescription.toLowerCase() !== String(category).toLowerCase()
-                          ? rawDescription
-                          : "";
-                      const method = paymentMethodLabel(e.payment_method ?? e.method ?? "");
-                      const user = displayCashActor(e);
-                      return (
-                        <div
-                          key={`history-mobile-${e.id}`}
-                          className="w-full rounded-2xl border border-rose-300/12 bg-black/25 px-3.5 py-3 text-xs"
-                        >
-                          <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] pb-2">
-                            <span className="text-[10px] font-semibold uppercase tracking-wider text-white/45">
-                              {date} · {hora}
-                            </span>
-                            <span className="text-sm font-bold tabular-nums text-rose-300">
-                              -${Number(e.amount ?? 0).toLocaleString("es-AR")}
-                            </span>
-                          </div>
-                          <div className="mt-2 space-y-1.5">
-                            <div className="flex items-start justify-between gap-3">
-                              <span className="shrink-0 text-white/45">Tipo de gasto</span>
-                              <span className="truncate text-right text-white/55">
-                                {category}
-                              </span>
-                            </div>
-                            <div className="flex items-start justify-between gap-3">
-                              <span className="shrink-0 text-white/45">Método</span>
-                              <span className="truncate text-right text-white/55">
-                                {method}
-                              </span>
-                            </div>
-                            {description && (
-                              <div className="flex items-start justify-between gap-3">
-                                <span className="shrink-0 text-white/45">Descripción</span>
-                                <span className="truncate text-right text-white/88">
-                                  {description}
-                                </span>
-                              </div>
-                            )}
-                            <div className="flex items-start justify-between gap-3">
-                              <span className="shrink-0 text-white/45">Responsable</span>
-                              <span className="truncate text-right text-white/55">
-                                {user}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        </div>,
-        document.body,
-      )}
-
-    </div>
+      </div>
     </>
   );
 }
@@ -8430,78 +7865,667 @@ function movimientoRow(m: CashMovement) {
   );
 }
 
-// Historial de Ingresar/Retirar dinero — últimos 5 acá + modal con todos.
-// No son ventas (no tocan commission_records), por eso viven separados del
-// historial de cobros (History, más abajo).
-function MovimientosList({
-  movements,
-  loading,
-}: {
-  movements: CashMovement[];
-  loading: boolean;
-}) {
-  const [historyOpen, setHistoryOpen] = React.useState(false);
-  const recent = movements.slice(0, 5);
+// ── Movimientos de caja unificados ──────────────────────────────────────────
+// Reemplaza los 3 historiales que antes vivían separados (Últimos ingresos /
+// Movimientos de caja manuales / Historial de gastos) por un único feed
+// cronológico de solo lectura. Fuente: las mismas 4 listas que ya devuelven
+// useCajaData/useCashMovements — no se agrega ninguna tabla ni query nueva, y
+// los totales de las stat cards (Ingresos/Pendientes/Gastos) SIEMPRE se leen
+// directo de data.revHoy/data.pendingAmount/data.totalGastos, nunca sumando
+// este feed (ver FacturacionPanel) — así un bug acá nunca puede alterar un
+// total mostrado en pantalla.
+//
+// Las acciones reales (Cobrar/Rechazar un pendiente, ver detalle de una
+// venta) siguen viviendo donde ya vivían (History con panel="pendientes" /
+// "ingresos" fue reemplazado acá para la vista unificada, pero el bloque
+// "Cobrar pendientes" dentro de FacturacionPanel sigue intacto) — este feed
+// es solo para visualizar, no duplica esa interacción.
+type UnifiedMovKind = "pago" | "gasto" | "pendiente" | "movimiento";
+type UnifiedMovColor = "verde" | "rojo" | "ambar";
 
+type UnifiedMov = {
+  id: string;
+  kind: UnifiedMovKind;
+  ts: number;
+  color: UnifiedMovColor;
+  amount: number;
+  payment?: ReturnType<typeof useCajaData>["paymentsToday"][number];
+  expense?: ReturnType<typeof useCajaData>["expensesToday"][number];
+  pending?: ReturnType<typeof useCajaData>["pendingCharges"][number];
+  movement?: CashMovement;
+};
+
+const UNIFIED_COLOR_CLASSES: Record<
+  UnifiedMovColor,
+  { text: string; border: string }
+> = {
+  verde: { text: "text-emerald-300", border: "border-l-emerald-400/70" },
+  rojo: { text: "text-rose-300", border: "border-l-rose-400/70" },
+  ambar: { text: "text-amber-300", border: "border-l-amber-400/70" },
+};
+
+function buildUnifiedMovements(
+  paymentsToday: ReturnType<typeof useCajaData>["paymentsToday"],
+  expensesToday: ReturnType<typeof useCajaData>["expensesToday"],
+  pendingCharges: ReturnType<typeof useCajaData>["pendingCharges"],
+  showPendientes: boolean,
+  movements: CashMovement[],
+): UnifiedMov[] {
+  const items: UnifiedMov[] = [];
+
+  for (const p of paymentsToday) {
+    const raw = (p as { sort_ts?: string | null }).sort_ts ?? p.created_at;
+    const ts = raw ? new Date(raw).getTime() : 0;
+    items.push({
+      id: `pago-${p.id}`,
+      kind: "pago",
+      ts: Number.isFinite(ts) ? ts : 0,
+      color: "verde",
+      amount: Number(p.total ?? p.amount ?? 0) + Number(p.tip_amount ?? 0),
+      payment: p,
+    });
+  }
+
+  for (const e of expensesToday) {
+    const raw = e.created_at ?? (e.date ? `${e.date}T00:00:00` : null);
+    const ts = raw ? new Date(raw).getTime() : 0;
+    items.push({
+      id: `gasto-${e.id}`,
+      kind: "gasto",
+      ts: Number.isFinite(ts) ? ts : 0,
+      color: "rojo",
+      amount: Number(e.amount ?? 0),
+      expense: e,
+    });
+  }
+
+  // Un cobro pendiente nunca coexiste con su propio pago en paymentsToday —
+  // al cobrarse pasa a esa lista y deja de estar en pendingCharges (son dos
+  // colas separadas en useCajaData), así que no hay forma de que el mismo
+  // cobro aparezca dos veces en este feed.
+  if (showPendientes) {
+    for (const p of pendingCharges) {
+      const raw = p.sentAt ?? p.starts_at;
+      const ts = raw ? new Date(raw).getTime() : 0;
+      items.push({
+        id: `pendiente-${p.id}`,
+        kind: "pendiente",
+        ts: Number.isFinite(ts) ? ts : 0,
+        color: "ambar",
+        amount: Number(p.service_price ?? 0),
+        pending: p,
+      });
+    }
+  }
+
+  for (const m of movements) {
+    const ts = m.created_at ? new Date(m.created_at).getTime() : 0;
+    items.push({
+      id: `mov-${m.id}`,
+      kind: "movimiento",
+      ts: Number.isFinite(ts) ? ts : 0,
+      color: m.type === "ingreso" ? "verde" : "rojo",
+      amount: Number(m.amount ?? 0),
+      movement: m,
+    });
+  }
+
+  // Más reciente primero. Empate de timestamp (dos movimientos en el mismo
+  // segundo): orden estable de Array.sort alcanza, no hace falta un
+  // desempate artificial — no hay ninguna expectativa de orden entre dos
+  // movimientos simultáneos de fuentes distintas.
+  items.sort((a, b) => b.ts - a.ts);
+  return items;
+}
+
+// Vista normalizada de un UnifiedMov — mismas columnas para los 4 tipos
+// (Fecha, Cliente/Concepto, Profesional, Servicio/Categoría, Monto, Método,
+// Quién), con "—" donde un tipo no tiene ese dato. Reutiliza exactamente los
+// mismos helpers que ya usaba cada historial por separado (getSaleDetailLabel,
+// getChargedByLabel, displayCashActor, displayResponsibleUser, etc.) — nada
+// de lógica de formato nueva.
+function unifiedMovView(
+  item: UnifiedMov,
+  employees: ReturnType<typeof useCajaData>["employees"],
+) {
+  if (item.kind === "pago" && item.payment) {
+    const p = item.payment;
+    const dt = new Date(p.created_at);
+    const empName = employees.find((e) => e.id === p.employee_id)?.name ?? "—";
+    const paymentRecord = p as unknown as Record<string, unknown>;
+    const chargeType = getChargeType(paymentRecord);
+    const chargedByName = getChargedByLabel(
+      paymentRecord,
+      empName === "—" ? null : empName,
+      chargeType,
+    );
+    const hora = Number.isNaN(dt.getTime())
+      ? "—"
+      : `${dt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}hs`;
+    const servicio = getSaleDetailLabel(paymentRecord);
+    const nota = getCashRowNote(paymentRecord, servicio);
+    return {
+      typeLabel: "Ingreso",
+      fecha: Number.isNaN(dt.getTime())
+        ? "—"
+        : dt.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" }),
+      clienteOConcepto: p.client_name ?? "—",
+      profesional: empName,
+      servicio,
+      metodoLabel: getPaymentMethodLabel(paymentRecord),
+      actor: chargedByName,
+      events: buildPaidHistorialEvents(paymentRecord, {
+        time: hora,
+        user: chargedByName,
+        action: "Cobró",
+      }),
+      nota,
+      notaTitle: nota ? `${p.client_name ?? "Cliente"} · ${servicio ?? "Servicio"}` : null,
+    };
+  }
+
+  if (item.kind === "gasto" && item.expense) {
+    const e = item.expense;
+    const createdDate = e.created_at ? new Date(e.created_at) : null;
+    const rawDate = e.date || (createdDate ? createdDate.toISOString().slice(0, 10) : "");
+    const fecha = rawDate
+      ? new Date(`${rawDate}T00:00:00`).toLocaleDateString("es-AR", {
+          day: "2-digit",
+          month: "2-digit",
+        })
+      : "—";
+    const hora =
+      createdDate && !Number.isNaN(createdDate.getTime())
+        ? `${createdDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}hs`
+        : null;
+    const concepto = String(e.note?.trim() || e.name || "").trim();
+    return {
+      typeLabel: "Gasto",
+      fecha: hora ? `${fecha} · ${hora}` : fecha,
+      clienteOConcepto: concepto || "—",
+      profesional: "—",
+      servicio: e.category ?? e.type ?? "—",
+      metodoLabel: paymentMethodLabel(e.payment_method ?? ""),
+      actor: displayCashActor(e),
+      events: null,
+      nota: null,
+      notaTitle: null,
+    };
+  }
+
+  if (item.kind === "pendiente" && item.pending) {
+    const p = item.pending;
+    const dt = new Date(p.starts_at);
+    const empName = employees.find((e) => e.id === p.employee_id)?.name ?? "—";
+    const historialEvents = p.events?.length ? p.events : getHistorialCobro(p.id);
+    const nota = getCashRowNote(p, p.service_name);
+    return {
+      typeLabel: "Pendiente",
+      fecha: Number.isNaN(dt.getTime())
+        ? "—"
+        : dt.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" }),
+      clienteOConcepto: p.client_name ?? "—",
+      profesional: empName,
+      servicio: p.service_name ?? "—",
+      metodoLabel: "—",
+      actor: null,
+      events: historialEvents,
+      nota,
+      notaTitle: nota ? `${p.client_name ?? "Cliente"} · ${p.service_name ?? "Servicio"}` : null,
+    };
+  }
+
+  const m = item.movement!;
+  const dt = new Date(m.created_at);
+  const hora = Number.isNaN(dt.getTime())
+    ? null
+    : `${dt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}hs`;
+  return {
+    typeLabel: m.type === "ingreso" ? "Ingreso manual" : "Retiro",
+    fecha:
+      (Number.isNaN(dt.getTime())
+        ? "—"
+        : dt.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })) +
+      (hora ? ` · ${hora}` : ""),
+    clienteOConcepto: m.note || "—",
+    profesional: "—",
+    servicio: "—",
+    metodoLabel: m.method === "cuenta" ? "Cuenta" : "Efectivo",
+    actor: displayResponsibleUser(m.created_by),
+    events: null,
+    nota: null,
+    notaTitle: null,
+  };
+}
+
+const UNIFIED_GRID_COLS =
+  "grid-cols-[86px_minmax(150px,0.85fr)_minmax(130px,0.7fr)_minmax(220px,1.1fr)_120px_130px_minmax(200px,1fr)]";
+
+function UnifiedMovRow({
+  item,
+  employees,
+  businessId,
+  onClick,
+  onShowNote,
+}: {
+  item: UnifiedMov;
+  employees: ReturnType<typeof useCajaData>["employees"];
+  businessId: string | null;
+  onClick?: () => void;
+  onShowNote?: (title: string, note: string) => void;
+}) {
+  const view = unifiedMovView(item, employees);
+  const colorCls = UNIFIED_COLOR_CLASSES[item.color];
+  const sign = item.color === "rojo" ? "-" : "+";
   return (
-    <Card className="rounded-3xl border-white/[0.075] bg-white/[0.02]">
-      <div className="flex items-center justify-between gap-3 border-b border-white/[0.06] px-5 py-3.5">
-        <h3 className="text-sm font-bold text-foreground/90">Movimientos de caja</h3>
-      </div>
-      {loading ? (
-        <div className="px-5 py-8 text-center text-sm text-muted-foreground">Cargando…</div>
-      ) : recent.length === 0 ? (
-        <div className="px-5 py-8 text-center text-sm text-muted-foreground">
-          Sin movimientos registrados.
-        </div>
-      ) : (
-        <div className="divide-y divide-white/5">{recent.map(movimientoRow)}</div>
+    <div
+      className={cn(
+        "grid items-center gap-x-3 border-l-2 px-5 py-3 text-xs border-b border-white/[0.07] odd:bg-white/[0.018] last:border-b-0 transition-colors",
+        UNIFIED_GRID_COLS,
+        colorCls.border,
+        onClick ? "cursor-pointer hover:bg-white/[0.035]" : "",
       )}
-      {movements.length > 5 && (
-        <div className="flex items-center justify-end border-t border-white/[0.07] px-6 py-2">
+      onClick={onClick}
+    >
+      <div className="text-muted-foreground whitespace-nowrap">{view.fecha}</div>
+      <div className="text-foreground truncate">{view.clienteOConcepto}</div>
+      <div className="text-muted-foreground truncate">{view.profesional}</div>
+      <div className="min-w-0 truncate text-muted-foreground">
+        <span>{view.servicio}</span>
+        {view.nota && (
           <button
             type="button"
-            onClick={() => setHistoryOpen(true)}
-            className="inline-flex items-center gap-2 text-xs font-semibold text-foreground/70 transition hover:text-foreground"
+            onClick={(event) => {
+              event.stopPropagation();
+              onShowNote?.(view.notaTitle ?? "Nota", view.nota!);
+            }}
+            className="ml-2 rounded-full bg-sky-400/10 px-2 py-0.5 text-[10px] font-semibold text-sky-300 ring-1 ring-sky-300/20 hover:bg-sky-400/20 transition"
+            title="Ver nota del profesional"
           >
-            <ClipboardList className="size-3.5" /> Ver historial completo <ArrowRight className="size-3.5" />
+            Ver nota
           </button>
-        </div>
-      )}
+        )}
+      </div>
+      <div className={cn("text-right font-bold tabular-nums", colorCls.text)}>
+        {sign}${Math.round(Math.abs(item.amount)).toLocaleString("es-AR")}
+      </div>
+      <div className="min-w-0 flex flex-col text-muted-foreground">
+        <span className="truncate">{view.metodoLabel}</span>
+        {item.kind === "pago" && item.payment && (
+          <ReceiptButton payment={item.payment} businessId={businessId} />
+        )}
+      </div>
+      <div className="min-w-0">
+        {view.events ? (
+          <HistorialCell events={view.events} />
+        ) : (
+          <span className="truncate text-muted-foreground">{view.actor ?? "—"}</span>
+        )}
+      </div>
+    </div>
+  );
+}
 
-      {historyOpen && typeof document !== "undefined" && createPortal(
+function UnifiedMovCardMobile({
+  item,
+  employees,
+  businessId,
+  onClick,
+  onShowNote,
+}: {
+  item: UnifiedMov;
+  employees: ReturnType<typeof useCajaData>["employees"];
+  businessId: string | null;
+  onClick?: () => void;
+  onShowNote?: (title: string, note: string) => void;
+}) {
+  const view = unifiedMovView(item, employees);
+  const colorCls = UNIFIED_COLOR_CLASSES[item.color];
+  const sign = item.color === "rojo" ? "-" : "+";
+  return (
+    <div
+      className={cn(
+        "w-full rounded-2xl border-l-2 border border-white/[0.07] bg-black/25 px-3.5 py-3 text-xs",
+        colorCls.border,
+        onClick ? "cursor-pointer" : "",
+      )}
+      onClick={onClick}
+    >
+      <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] pb-2">
+        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+          {view.typeLabel} · {view.fecha}
+        </span>
+        <span className={cn("text-sm font-bold tabular-nums", colorCls.text)}>
+          {sign}${Math.round(Math.abs(item.amount)).toLocaleString("es-AR")}
+        </span>
+      </div>
+      <div className="mt-2 space-y-1.5">
+        <div className="flex items-start justify-between gap-3">
+          <span className="shrink-0 text-muted-foreground/70">Cliente / concepto</span>
+          <span className="truncate text-right text-foreground/90">{view.clienteOConcepto}</span>
+        </div>
+        {view.profesional !== "—" && (
+          <div className="flex items-start justify-between gap-3">
+            <span className="shrink-0 text-muted-foreground/70">Profesional</span>
+            <span className="truncate text-right text-muted-foreground">{view.profesional}</span>
+          </div>
+        )}
+        {view.servicio !== "—" && (
+          <div className="flex items-start justify-between gap-3">
+            <span className="shrink-0 text-muted-foreground/70">Servicio / categoría</span>
+            <span className="truncate text-right text-muted-foreground">{view.servicio}</span>
+          </div>
+        )}
+        {view.nota && (
+          <div className="flex justify-end">
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onShowNote?.(view.notaTitle ?? "Nota", view.nota!);
+              }}
+              className="rounded-full bg-sky-400/10 px-2 py-0.5 text-[10px] font-semibold text-sky-300 ring-1 ring-sky-300/20 hover:bg-sky-400/20 transition"
+              title="Ver nota del profesional"
+            >
+              Ver nota
+            </button>
+          </div>
+        )}
+        {view.metodoLabel !== "—" && (
+          <div className="flex items-start justify-between gap-3">
+            <span className="shrink-0 text-muted-foreground/70">Método</span>
+            <span className="truncate text-right text-muted-foreground">{view.metodoLabel}</span>
+          </div>
+        )}
+        {item.kind === "pago" && item.payment && (
+          <div className="flex justify-end">
+            <ReceiptButton payment={item.payment} businessId={businessId} />
+          </div>
+        )}
+        <div className="flex items-start justify-between gap-3">
+          <span className="shrink-0 text-muted-foreground/70">Quién</span>
+          <span className="truncate text-right text-muted-foreground">
+            {view.events?.length
+              ? (view.events[view.events.length - 1]?.user ?? "—")
+              : (view.actor ?? "—")}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Historial unificado que reemplaza "Últimos ingresos" + el bloque viejo
+// "Movimientos de caja" (cash_movements) + la tabla de Gastos — últimos 10,
+// más reciente primero. "Ver todos los movimientos" abre el mismo feed sin
+// límite. El click en una fila de tipo "pago" abre el mismo DetailModal que
+// ya existía; los demás tipos son de solo lectura (sus acciones reales —
+// cobrar/rechazar un pendiente — siguen en el bloque "Cobros pendientes" de
+// FacturacionPanel, no se duplican acá).
+function MovimientosUnificados({
+  data,
+  movementsData,
+  showPendientes,
+}: {
+  data: ReturnType<typeof useCajaData>;
+  movementsData: ReturnType<typeof useCashMovements>;
+  showPendientes: boolean;
+}) {
+  const [allOpen, setAllOpen] = React.useState(false);
+  const [detailPayment, setDetailPayment] = React.useState<
+    ReturnType<typeof useCajaData>["paymentsToday"][number] | null
+  >(null);
+  // "Ver nota" (nota del profesional en una venta o pendiente) — mismo
+  // modal/estilo que ya usaba History (pendingNoteModal), restaurado acá
+  // para no perder esa funcionalidad al unificar el historial.
+  const [noteModal, setNoteModal] = React.useState<{ title: string; note: string } | null>(null);
+  const showNote = React.useCallback((title: string, note: string) => setNoteModal({ title, note }), []);
+
+  const all = React.useMemo(
+    () =>
+      buildUnifiedMovements(
+        data.paymentsToday,
+        data.expensesToday,
+        data.pendingCharges,
+        showPendientes,
+        movementsData.movements,
+      ),
+    [data.paymentsToday, data.expensesToday, data.pendingCharges, showPendientes, movementsData.movements],
+  );
+  const recent = all.slice(0, 10);
+  const loading = data.loading || movementsData.loading;
+
+  // Resumen por método de pago, solo para los cobros del día — mismo cálculo
+  // que ya existía en History (closeout), ahora vive en el modal "Ver todos
+  // los movimientos" en vez del historial acotado a 10 filas.
+  const closeoutByMethod = React.useMemo(() => {
+    const groups = data.paymentsToday.reduce(
+      (acc, payment) => {
+        const method = String(payment.method ?? payment.payment_method ?? "cash");
+        if (!acc[method]) acc[method] = { method, total: 0, count: 0 };
+        acc[method].total += Number(payment.total ?? payment.amount ?? 0) + Number(payment.tip_amount ?? 0);
+        acc[method].count += 1;
+        return acc;
+      },
+      {} as Record<string, { method: string; total: number; count: number }>,
+    );
+    return Object.values(groups).sort((a, b) => b.total - a.total);
+  }, [data.paymentsToday]);
+
+  function handleRowClick(item: UnifiedMov) {
+    if (item.kind === "pago" && item.payment) setDetailPayment(item.payment);
+  }
+
+  return (
+    <>
+      <Card className="rounded-3xl border-white/[0.075] bg-white/[0.02]">
+        <div className="flex items-center justify-between gap-3 border-b border-white/[0.06] px-5 py-3.5">
+          <h3 className="text-sm font-bold text-foreground/90">Movimientos de caja</h3>
+        </div>
+
+        {/* Desktop: tabla con scroll horizontal — mobile usa tarjetas. */}
+        <div className="hidden overflow-x-auto sm:block">
+          <div className="min-w-[1020px]">
+            <div
+              className={cn(
+                "grid items-center gap-x-3 px-6 py-2.5 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b border-white/[0.07] uppercase",
+                UNIFIED_GRID_COLS,
+              )}
+            >
+              <div>Fecha</div>
+              <div>Cliente / concepto</div>
+              <div>Profesional</div>
+              <div>Servicio / categoría</div>
+              <div className="text-right">Monto</div>
+              <div>Método</div>
+              <div>Quién</div>
+            </div>
+            {loading ? (
+              <div className="px-5 py-10 text-center text-sm text-muted-foreground">Cargando…</div>
+            ) : recent.length === 0 ? (
+              <div className="px-5 py-10 text-center text-sm text-muted-foreground">
+                Sin movimientos registrados.
+              </div>
+            ) : (
+              <div>
+                {recent.map((item) => (
+                  <UnifiedMovRow
+                    key={item.id}
+                    item={item}
+                    employees={data.employees}
+                    businessId={data.businessId}
+                    onClick={item.kind === "pago" ? () => handleRowClick(item) : undefined}
+                    onShowNote={showNote}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="sm:hidden">
+          {loading ? (
+            <div className="px-4 py-10 text-center text-sm text-muted-foreground">Cargando…</div>
+          ) : recent.length === 0 ? (
+            <div className="px-4 py-10 text-center text-sm text-muted-foreground">
+              Sin movimientos registrados.
+            </div>
+          ) : (
+            <div className="flex flex-col gap-3 p-3">
+              {recent.map((item) => (
+                <UnifiedMovCardMobile
+                  key={item.id}
+                  item={item}
+                  employees={data.employees}
+                  businessId={data.businessId}
+                  onClick={item.kind === "pago" ? () => handleRowClick(item) : undefined}
+                  onShowNote={showNote}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+
+        {all.length > 10 && (
+          <div className="flex items-center justify-end border-t border-white/[0.07] px-6 py-2">
+            <button
+              type="button"
+              onClick={() => setAllOpen(true)}
+              className="inline-flex items-center gap-2 text-xs font-semibold text-foreground/70 transition hover:text-foreground"
+            >
+              <ClipboardList className="size-3.5" /> Ver todos los movimientos <ArrowRight className="size-3.5" />
+            </button>
+          </div>
+        )}
+      </Card>
+
+      {allOpen && typeof document !== "undefined" && createPortal(
         <div
           className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm"
-          onClick={() => setHistoryOpen(false)}
+          onClick={() => setAllOpen(false)}
         >
           <div
-            className="w-full max-w-2xl overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(135deg,rgba(10,8,14,0.98),rgba(8,10,20,0.97),rgba(3,5,12,0.99))] shadow-[0_40px_120px_-55px_rgba(0,0,0,1)]"
+            className="w-full max-w-6xl overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(135deg,rgba(10,8,14,0.98),rgba(8,10,20,0.97),rgba(3,5,12,0.99))] shadow-[0_40px_120px_-55px_rgba(0,0,0,1)]"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between gap-4 border-b border-white/10 px-5 py-4">
-              <h3 className="text-lg font-bold text-white">Historial completo de movimientos</h3>
+            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 px-5 py-4">
+              <h3 className="text-lg font-bold text-white">Todos los movimientos</h3>
               <button
                 type="button"
-                onClick={() => setHistoryOpen(false)}
+                onClick={() => setAllOpen(false)}
                 className="h-10 rounded-2xl bg-white/[0.06] px-4 text-xs font-semibold text-white/70 hover:bg-white/[0.09] hover:text-white"
               >
                 Cerrar
               </button>
             </div>
+
+            {closeoutByMethod.length > 0 && (
+              <div className="flex flex-wrap gap-2 border-b border-white/10 bg-white/[0.02] px-5 py-3">
+                {closeoutByMethod.map((g) => (
+                  <span
+                    key={g.method}
+                    className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/10 px-3 py-1 text-[11px] font-semibold text-emerald-200 ring-1 ring-emerald-400/20"
+                  >
+                    {paymentMethodLabel(g.method)}: ${Math.round(g.total).toLocaleString("es-AR")} ({g.count})
+                  </span>
+                ))}
+              </div>
+            )}
+
             <div className="max-h-[70vh] overflow-y-auto [scrollbar-width:thin]">
-              {movements.length === 0 ? (
-                <div className="px-5 py-10 text-center text-sm text-white/45">
-                  Sin movimientos registrados.
-                </div>
-              ) : (
-                <div className="divide-y divide-white/5">{movements.map(movimientoRow)}</div>
-              )}
+              <div className="hidden min-w-[1020px] sm:block">
+                {all.length === 0 ? (
+                  <div className="px-5 py-10 text-center text-sm text-white/45">
+                    Sin movimientos registrados.
+                  </div>
+                ) : (
+                  all.map((item) => (
+                    <UnifiedMovRow
+                      key={item.id}
+                      item={item}
+                      employees={data.employees}
+                      businessId={data.businessId}
+                      onClick={item.kind === "pago" ? () => handleRowClick(item) : undefined}
+                      onShowNote={showNote}
+                    />
+                  ))
+                )}
+              </div>
+              <div className="sm:hidden">
+                {all.length === 0 ? (
+                  <div className="px-4 py-10 text-center text-sm text-white/45">
+                    Sin movimientos registrados.
+                  </div>
+                ) : (
+                  <div className="flex flex-col gap-2.5 p-3">
+                    {all.map((item) => (
+                      <UnifiedMovCardMobile
+                        key={item.id}
+                        item={item}
+                        employees={data.employees}
+                        businessId={data.businessId}
+                        onClick={item.kind === "pago" ? () => handleRowClick(item) : undefined}
+                        onShowNote={showNote}
+                      />
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>,
         document.body,
       )}
-    </Card>
+
+      {detailPayment && (
+        <DetailModal
+          payment={detailPayment}
+          employees={data.employees}
+          onClose={() => setDetailPayment(null)}
+          onDeleted={() => {
+            setDetailPayment(null);
+            data.refresh();
+          }}
+        />
+      )}
+
+      {noteModal && typeof document !== "undefined" && createPortal(
+        <div
+          className="fixed inset-0 z-[80] grid place-items-center bg-black/70 backdrop-blur-sm p-4"
+          onClick={() => setNoteModal(null)}
+        >
+          <div
+            className="w-full max-w-md rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+              <div>
+                <h3 className="text-sm font-semibold">Nota del profesional</h3>
+                <p className="mt-0.5 text-xs text-muted-foreground">{noteModal.title}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setNoteModal(null)}
+                className="rounded-lg bg-white/5 px-3 py-1.5 text-xs transition hover:bg-white/10"
+              >
+                Cerrar
+              </button>
+            </div>
+            <div className="p-5">
+              <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 px-4 py-3">
+                <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">
+                  Nota guardada
+                </p>
+                <p className="text-sm leading-relaxed text-foreground whitespace-pre-wrap">
+                  {noteModal.note}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+    </>
   );
 }
 
@@ -8562,7 +8586,11 @@ function FacturacionPanel({
 
   return (
     <>
-      <div className={cn("grid gap-2", showPendientes ? "grid-cols-2" : "grid-cols-1")}>
+      {/* Ingresos | Pendientes | Gastos — reemplaza el selector grande
+          Facturación/Gastos de ResumenTab. Sin Pendientes (negocio sin modo
+          de aprobación habilitado, o usuario sin permiso de Equipo), queda
+          Ingresos | Gastos en 2 columnas iguales, sin hueco. */}
+      <div className={cn("grid gap-2", showPendientes ? "grid-cols-3" : "grid-cols-2")}>
         <FacturacionStatCard
           icon={TrendingUp}
           iconClass="text-emerald-400"
@@ -8573,7 +8601,7 @@ function FacturacionPanel({
         {showPendientes && (
           <FacturacionStatCard
             icon={Clock}
-            iconClass="text-sky-400"
+            iconClass="text-amber-400"
             label="Pendientes"
             value={data.pendingAmount}
             loading={data.loading}
@@ -8587,6 +8615,13 @@ function FacturacionPanel({
             }}
           />
         )}
+        <FacturacionStatCard
+          icon={TrendingDown}
+          iconClass="text-rose-400"
+          label="Gastos"
+          value={data.totalGastos}
+          loading={data.loading}
+        />
       </div>
 
       <div className="grid grid-cols-2 gap-2">
@@ -8622,8 +8657,6 @@ function FacturacionPanel({
           <Minus className="size-4" /> Retirar dinero
         </button>
       </div>
-
-      <MovimientosList movements={movementsData.movements} loading={movementsData.loading} />
 
       <div className="flex justify-center">
         <CierreCajaBtn
