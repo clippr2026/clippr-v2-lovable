@@ -793,12 +793,6 @@ export function EquipoSection() {
   const [dlgTab, setDlgTab] = useState<
     "perfil" | "horarios" | "comisiones" | "jornadas" | "acceso"
   >("perfil");
-  // Pestaña "Acceso" del modal de profesional — alta de acceso en el mismo
-  // paso que se crea/edita el profesional, reutilizando el flujo de
-  // invitación de Accesos → Nuevo acceso (ver inviteTeamMember). Se resetea
-  // cada vez que se abre el modal (openNew/handleEditPro).
-  const [newProWantsAccess, setNewProWantsAccess] = useState(false);
-  const [newProAccessEmail, setNewProAccessEmail] = useState("");
   // Sub-pestañas internas de "Comisiones" — Servicios y Catálogo se editan
   // por separado sin cerrar ni mover el modal. La pestaña principal sigue
   // llamándose "Comisiones" en la barra de arriba.
@@ -866,8 +860,10 @@ export function EquipoSection() {
     load();
   }, [load]);
 
-  const loadTeamMembers = useCallback(async () => {
-    if (!businessId) return;
+  const loadTeamMembers = useCallback(async (): Promise<
+    AccessUser[] | undefined
+  > => {
+    if (!businessId) return undefined;
     let { data, error } = await supabase
       .from("team_members")
       .select(
@@ -891,7 +887,7 @@ export function EquipoSection() {
     }
     if (error) {
       toast.error("Error cargando accesos: " + error.message);
-      return;
+      return undefined;
     }
     // Excluimos los tombstones de accesos eliminados (status deleted/removed):
     // la fila se conserva en la base para bloquear el re-acceso, pero NO debe
@@ -933,6 +929,7 @@ export function EquipoSection() {
     setAccessUsers(users);
     setUserPermissions(perms);
     setSelectedAccessUserId((current) => current || users[0]?.id || "");
+    return users;
   }, [businessId]);
 
   useEffect(() => {
@@ -1403,8 +1400,6 @@ export function EquipoSection() {
     // editable en el form antes de guardar.
     setForm({ ...EMPTY_FORM, branchId: activeBranchId ?? null });
     setDlgTab("perfil");
-    setNewProWantsAccess(false);
-    setNewProAccessEmail("");
     setOpen(true);
   }
 
@@ -1449,18 +1444,6 @@ export function EquipoSection() {
     if (scheduleErr) {
       setDlgTab("horarios");
       return toast.error(scheduleErr);
-    }
-
-    // Si ya tiene acceso vinculado, la pestaña "Acceso" solo lo muestra en
-    // modo informativo (sin checkbox ni correo) — ver render de dlgTab ===
-    // "acceso". El alta inline solo aplica cuando todavía no hay acceso.
-    const alreadyHasAccess = editingEmp
-      ? accessByEmployeeId.has(editingEmp.id)
-      : false;
-    const accessEmailTrimmed = newProAccessEmail.trim();
-    if (!alreadyHasAccess && newProWantsAccess && !accessEmailTrimmed) {
-      setDlgTab("acceso");
-      return toast.error("Ingresá el correo electrónico para crear el acceso");
     }
 
     const commission = form.commissionPct ? Number(form.commissionPct) : null;
@@ -1645,14 +1628,6 @@ export function EquipoSection() {
           [editingEmp.id]: form.specialDates,
         }));
 
-        if (!alreadyHasAccess && newProWantsAccess && accessEmailTrimmed) {
-          await createInlineProfessionalAccess(
-            editingEmp.id,
-            name,
-            form.branchId ?? null,
-          );
-        }
-
         toast.success("Profesional actualizado.");
         setOpen(false);
         setEditingEmp(null);
@@ -1834,14 +1809,6 @@ export function EquipoSection() {
         [newId]: form.specialDates,
       }));
 
-      if (newProWantsAccess && accessEmailTrimmed) {
-        await createInlineProfessionalAccess(
-          newId,
-          name,
-          form.branchId ?? activeBranchId ?? null,
-        );
-      }
-
       toast.success("Profesional agregado.");
       setOpen(false);
     } catch {
@@ -1955,8 +1922,26 @@ export function EquipoSection() {
         branchId: emp.branch_id ?? null,
       });
       setDlgTab("perfil");
-      setNewProWantsAccess(false);
-      setNewProAccessEmail("");
+      // Pestaña "Acceso": precarga el registro vinculado si ya existe
+      // (mismo mapeo que editAccessUser, vía loadAccessRecordIntoForm), o
+      // arma un formulario en blanco con rol/profesional ya resueltos si
+      // todavía no tiene acceso — así Accesos→Editar y Profesionales→Acceso
+      // terminan editando el mismo accessForm/accessPermissionsForm.
+      const existingAccess = accessByEmployeeId.get(emp.id);
+      if (existingAccess) {
+        loadAccessRecordIntoForm(existingAccess);
+      } else {
+        setEditingAccessUserId(null);
+        setAccessForm({
+          ...EMPTY_ACCESS_FORM,
+          role: "profesional",
+          employee_id: emp.id,
+          branch_id: emp.branch_id ?? null,
+        });
+        setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS.profesional);
+        setSelectedPermRole("profesional");
+      }
+      setAccessTouched(false);
       setOpen(true);
     },
     [
@@ -1968,6 +1953,8 @@ export function EquipoSection() {
       employeeCanCancelTurnoMap,
       employeeCommissionsMap,
       employeeServiceOverridesMap,
+      accessByEmployeeId,
+      userPermissions,
     ],
   );
 
@@ -2068,10 +2055,8 @@ export function EquipoSection() {
 
   // Única puerta de entrada a la Edge Function invite-team-member — crea el
   // acceso, el auth user y dispara el email de invitación (la persona crea
-  // su propia contraseña en /set-password). Tanto "Accesos → Nuevo acceso"
-  // (saveAccessUser) como la pestaña "Acceso" del modal de profesional
-  // (createInlineProfessionalAccess) pasan por acá: un solo lugar que sabe
-  // invitar, nada de lógica de invitación duplicada.
+  // su propia contraseña en /set-password). Todo lo que invita pasa por
+  // acá: un solo lugar que sabe invitar, nada de lógica duplicada.
   async function inviteTeamMember(
     payload: Record<string, unknown>,
   ): Promise<{ ok: true } | { ok: false; error: string }> {
@@ -2088,41 +2073,11 @@ export function EquipoSection() {
     return { ok: false, error: friendlyErrMsg };
   }
 
-  // Alta de acceso disparada desde la pestaña "Acceso" del modal de
-  // profesional (crear/editar) — mismo inviteTeamMember que usa
-  // "Accesos → Nuevo acceso", mismo rol "profesional" vinculado por
-  // professional_id, mismo email de invitación con /set-password. El
-  // profesional ya fue creado/actualizado en `employees` antes de llamar a
-  // esto (ver saveProfessional) — acá solo se crea el acceso vinculado.
-  async function createInlineProfessionalAccess(
-    professionalId: string,
-    fullName: string,
-    branchId: string | null,
-  ) {
-    if (!businessId) return;
-    const result = await inviteTeamMember({
-      action: "create",
-      business_id: businessId,
-      email: newProAccessEmail.trim(),
-      full_name: fullName,
-      role: "profesional",
-      status: "active",
-      professional_id: professionalId,
-      branch_id: branchId,
-      permissions: DEFAULT_ROLE_PERMISSIONS.profesional,
-    });
-    if (!result.ok) {
-      toast.error(
-        "Profesional guardado, pero no se pudo crear el acceso: " +
-          result.error,
-      );
-      return;
-    }
-    toast.success("Invitación enviada por email");
-    await loadTeamMembers();
-  }
-
-  async function saveAccessUser() {
+  // Valida y guarda accessForm/accessPermissionsForm contra invite-team-member
+  // — el único paso que de verdad "guarda". Tanto el modal de Accesos como la
+  // pestaña "Acceso" del profesional llaman a esto; cada uno decide después
+  // qué hacer con el éxito (cerrar modal vs. quedarse en la pestaña).
+  async function submitAccessForm(): Promise<boolean> {
     setAccessTouched(true);
     const selectedEmployee = rows.find(
       (emp) => emp.id === accessForm.employee_id,
@@ -2135,12 +2090,12 @@ export function EquipoSection() {
     const email = accessForm.email.trim();
 
     if (accessForm.role === "profesional" && !selectedEmployee) {
-      setAccessTouched(true);
-      return toast.error("Debés seleccionar un profesional para este acceso.");
+      toast.error("Debés seleccionar un profesional para este acceso.");
+      return false;
     }
-    // Defensivo: el dropdown de arriba ya excluye profesionales con acceso,
-    // pero si quedó otra pestaña/ventana abierta con datos viejos, esto
-    // evita crear un segundo acceso para el mismo profesional.
+    // Defensivo: el dropdown/la pestaña de arriba ya excluyen profesionales
+    // con acceso, pero si quedó otra pestaña/ventana abierta con datos
+    // viejos, esto evita crear un segundo acceso para el mismo profesional.
     const existingAccessForEmployee =
       accessForm.role === "profesional" && selectedEmployee
         ? accessByEmployeeId.get(selectedEmployee.id)
@@ -2149,10 +2104,17 @@ export function EquipoSection() {
       existingAccessForEmployee &&
       existingAccessForEmployee.id !== editingAccessUserId
     ) {
-      return toast.error("Este profesional ya tiene un acceso vinculado.");
+      toast.error("Este profesional ya tiene un acceso vinculado.");
+      return false;
     }
-    if (!email) return toast.error("Ingresá el correo electrónico");
-    if (!businessId) return toast.error("No se pudo determinar el negocio");
+    if (!email) {
+      toast.error("Ingresá el correo electrónico");
+      return false;
+    }
+    if (!businessId) {
+      toast.error("No se pudo determinar el negocio");
+      return false;
+    }
 
     setSaving(true);
     const result = await inviteTeamMember({
@@ -2179,23 +2141,51 @@ export function EquipoSection() {
     });
     setSaving(false);
 
-    if (!result.ok) return toast.error(result.error);
+    if (!result.ok) {
+      toast.error(result.error);
+      return false;
+    }
+    return true;
+  }
 
+  // Guardado desde Equipo → Accesos → Nuevo/Editar acceso: igual que
+  // siempre, cierra el modal y limpia el form al terminar.
+  async function saveAccessUser() {
+    const wasEditing = !!editingAccessUserId;
+    const ok = await submitAccessForm();
+    if (!ok) return;
     toast.success(
-      editingAccessUserId
-        ? "Acceso actualizado correctamente"
-        : "Invitación enviada por email",
+      wasEditing ? "Acceso actualizado correctamente" : "Invitación enviada por email",
     );
-    setEditingAccessUserId(null);
-    setAccessForm(EMPTY_ACCESS_FORM);
-    setAccessTouched(false);
-    setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS.profesional);
-    setSelectedPermRole(accessForm.role);
+    cancelEditAccessUser();
     setAccessModalOpen(false);
     await loadTeamMembers();
   }
 
-  function editAccessUser(user: AccessUser) {
+  // Guardado desde Profesionales → Editar profesional → Acceso: el mismo
+  // submitAccessForm, pero la pestaña se queda abierta mostrando el registro
+  // recién guardado (en vez de resetear a un form vacío como hace el modal
+  // de Accesos) — por eso vuelve a sembrar accessForm con el resultado
+  // fresco de loadTeamMembers en lugar de limpiar todo.
+  async function saveProfessionalAccessForm() {
+    if (!editingEmp) return;
+    const wasEditing = !!editingAccessUserId;
+    const ok = await submitAccessForm();
+    if (!ok) return;
+    toast.success(
+      wasEditing ? "Acceso actualizado correctamente" : "Invitación enviada por email",
+    );
+    setAccessTouched(false);
+    const refreshed = await loadTeamMembers();
+    const linked = refreshed?.find((u) => u.employee_id === editingEmp.id);
+    if (linked) loadAccessRecordIntoForm(linked);
+  }
+
+  // Mapea un AccessUser existente a accessForm/accessPermissionsForm/
+  // editingAccessUserId — usado tanto por editAccessUser (Accesos) como por
+  // handleEditPro y saveProfessionalAccessForm (pestaña del profesional),
+  // así los tres quedan viendo y editando el mismo registro de la misma forma.
+  function loadAccessRecordIntoForm(user: AccessUser) {
     setEditingAccessUserId(user.id);
     setAccessForm({
       name: user.name,
@@ -2209,6 +2199,10 @@ export function EquipoSection() {
       userPermissions[user.id] ?? DEFAULT_ROLE_PERMISSIONS[user.role],
     );
     setSelectedPermRole(user.role);
+  }
+
+  function editAccessUser(user: AccessUser) {
+    loadAccessRecordIntoForm(user);
     setSelectedAccessUserId(user.id);
     setAccessTouched(false);
     setAccessModalOpen(true);
@@ -2411,6 +2405,221 @@ export function EquipoSection() {
   const liveAccessLabels = MAIN_PERMISSION_ITEMS.filter(
     (item) => accessPermissionsForm[item.key],
   ).map((item) => item.label);
+
+  // Núcleo del formulario de un acceso: Estado, Correo, aviso de invitación
+  // y Permisos incluidos/Personalizar — todo contra accessForm/
+  // accessPermissionsForm. Lo renderizan tanto Equipo → Accesos (con Rol y
+  // Profesional puestos alrededor) como Profesionales → Editar profesional →
+  // Acceso (con rol y profesional ya resueltos, sin esos selectores): un
+  // solo formulario, dos lugares que lo muestran.
+  function renderAccessFormCore() {
+    return (
+      <>
+        <Field label="Estado">
+          <select
+            value={accessForm.status}
+            onChange={(e) =>
+              setAccessForm((f) => ({
+                ...f,
+                status: e.target.value as "active" | "inactive",
+              }))
+            }
+            className={inputCls}
+          >
+            <option value="active">Activo</option>
+            <option value="inactive">Inactivo</option>
+          </select>
+        </Field>
+
+        <div>
+          <Field label="Correo electrónico">
+            <input
+              type="email"
+              autoComplete="off"
+              name="clippr-access-email"
+              value={accessForm.email}
+              onChange={(e) =>
+                setAccessForm((f) => ({ ...f, email: e.target.value }))
+              }
+              className={cn(
+                inputCls,
+                accessTouched &&
+                  !accessForm.email.trim() &&
+                  "ring-red-500/70 focus:ring-red-500/70",
+              )}
+              placeholder="ejemplo@correo.com"
+            />
+          </Field>
+          {accessTouched && !accessForm.email.trim() && (
+            <div className="text-xs text-red-400 mt-1">Campo requerido</div>
+          )}
+        </div>
+
+        <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 px-3 py-2.5 text-xs text-muted-foreground flex items-start gap-2">
+          <Mail className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
+          <span>
+            La persona crea su contraseña desde la invitación que recibe por
+            email.
+          </span>
+        </div>
+
+        {/* Vista previa de lo que va a poder ver esta persona con el
+            rol/permisos elegidos arriba. */}
+        <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 overflow-hidden">
+          <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between gap-3">
+            <div>
+              <div className="font-semibold text-sm">Permisos incluidos</div>
+              <div className="text-xs text-muted-foreground mt-0.5">
+                Según el rol seleccionado: {ROLE_LABEL_BY_ID[accessForm.role]}.
+              </div>
+            </div>
+            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-400/10 ring-1 ring-violet-300/20">
+              <ShieldCheck className="h-4.5 w-4.5 text-violet-200" />
+            </div>
+          </div>
+
+          <div className="p-4 space-y-3">
+            {/* Solo "Puede acceder", en vivo — si no hay ningún permiso
+                tildado, un único mensaje en vez de la lista completa de
+                módulos apagados. */}
+            <div className="rounded-xl bg-emerald-400/[0.06] ring-1 ring-emerald-400/15 p-3">
+              <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-300/90">
+                Puede acceder
+              </div>
+              {liveAccessLabels.length === 0 ? (
+                <div className="text-xs text-muted-foreground">
+                  Sin accesos habilitados
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {liveAccessLabels.map((item) => (
+                    <div
+                      key={item}
+                      className="flex items-center gap-2 text-xs text-white/80"
+                    >
+                      <CheckCircle2 className="h-3.5 w-3.5 text-emerald-300" />
+                      {item}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <details className="group rounded-xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden">
+              <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold hover:bg-white/[0.04]">
+                <span>Personalizar permisos</span>
+                <span className="text-xs font-medium text-muted-foreground group-open:hidden">
+                  Opcional
+                </span>
+                <span className="hidden text-xs font-medium text-muted-foreground group-open:inline">
+                  Cerrar
+                </span>
+              </summary>
+              <div className="border-t border-white/5 p-4 space-y-4">
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-2">
+                    Accesos recomendados
+                  </div>
+                  <div className="space-y-2">
+                    {getRecommendedPermissionKeys(accessForm.role).map(
+                      (key) => {
+                        const item = getPermissionItem(key);
+                        if (!item) return null;
+                        const checked = accessPermissionsForm[key];
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => toggleAccessFormPermission(key)}
+                            className={cn(
+                              "w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 ring-1 text-left transition",
+                              checked
+                                ? "bg-white/[0.06] ring-white/15"
+                                : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.06]",
+                            )}
+                          >
+                            <div>
+                              <div className="text-sm font-medium">
+                                {item.label}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {item.desc}
+                              </div>
+                            </div>
+                            <span
+                              className={cn(
+                                "h-5 w-5 rounded-full grid place-items-center ring-1",
+                                checked
+                                  ? "bg-emerald-400/90 text-white ring-transparent"
+                                  : "bg-white/5 ring-white/15",
+                              )}
+                            >
+                              {checked && (
+                                <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                              )}
+                            </span>
+                          </button>
+                        );
+                      },
+                    )}
+                  </div>
+                </div>
+
+                <div>
+                  <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-2">
+                    Adicionales
+                  </div>
+                  <div className="space-y-2">
+                    {getAdditionalPermissionKeys(accessForm.role).map(
+                      (key) => {
+                        const item = getPermissionItem(key);
+                        if (!item) return null;
+                        const checked = accessPermissionsForm[key];
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => toggleAccessFormPermission(key)}
+                            className={cn(
+                              "w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 ring-1 text-left transition",
+                              checked
+                                ? "bg-white/[0.06] ring-white/15"
+                                : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.06]",
+                            )}
+                          >
+                            <div>
+                              <div className="text-sm font-medium">
+                                {item.label}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {item.desc}
+                              </div>
+                            </div>
+                            <span
+                              className={cn(
+                                "h-5 w-5 rounded-full grid place-items-center ring-1",
+                                checked
+                                  ? "bg-emerald-400/90 text-white ring-transparent"
+                                  : "bg-white/5 ring-white/15",
+                              )}
+                            >
+                              {checked && (
+                                <Check className="h-3.5 w-3.5" strokeWidth={3} />
+                              )}
+                            </span>
+                          </button>
+                        );
+                      },
+                    )}
+                  </div>
+                </div>
+              </div>
+            </details>
+          </div>
+        </div>
+      </>
+    );
+  }
 
   return (
     <>
@@ -2642,52 +2851,32 @@ export function EquipoSection() {
               className="min-h-0 flex-1 overflow-y-auto p-4 [overscroll-behavior:contain]"
             >
               <div className="space-y-3">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <Field label="Rol">
-                    <select
-                      value={accessForm.role}
-                      onChange={(e) => {
-                        const role = e.target.value as RolePermissionId;
-                        setAccessForm((f) => ({
-                          ...f,
-                          role,
-                          name: "",
-                          employee_id: null,
-                          email: "",
-                        }));
-                        setAccessPermissionsForm(
-                          DEFAULT_ROLE_PERMISSIONS[role],
-                        );
-                        setAccessTouched(false);
-                      }}
-                      className={inputCls}
-                    >
-                      {ROLE_PERMISSION_OPTIONS.filter(
-                        (role) => role.id !== "admin_general",
-                      ).map((role) => (
-                        <option key={role.id} value={role.id}>
-                          {role.label}
-                        </option>
-                      ))}
-                    </select>
-                  </Field>
-
-                  <Field label="Estado">
-                    <select
-                      value={accessForm.status}
-                      onChange={(e) =>
-                        setAccessForm((f) => ({
-                          ...f,
-                          status: e.target.value as "active" | "inactive",
-                        }))
-                      }
-                      className={inputCls}
-                    >
-                      <option value="active">Activo</option>
-                      <option value="inactive">Inactivo</option>
-                    </select>
-                  </Field>
-                </div>
+                <Field label="Rol">
+                  <select
+                    value={accessForm.role}
+                    onChange={(e) => {
+                      const role = e.target.value as RolePermissionId;
+                      setAccessForm((f) => ({
+                        ...f,
+                        role,
+                        name: "",
+                        employee_id: null,
+                        email: "",
+                      }));
+                      setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS[role]);
+                      setAccessTouched(false);
+                    }}
+                    className={inputCls}
+                  >
+                    {ROLE_PERMISSION_OPTIONS.filter(
+                      (role) => role.id !== "admin_general",
+                    ).map((role) => (
+                      <option key={role.id} value={role.id}>
+                        {role.label}
+                      </option>
+                    ))}
+                  </select>
+                </Field>
 
                 {/* Solo con más de una sucursal — con una sola no hay nada
                     que elegir, el campo quedaría ahí sin aportar nada. */}
@@ -2753,212 +2942,7 @@ export function EquipoSection() {
                   </div>
                 )}
 
-                <div>
-                  <Field label="Correo electrónico">
-                    <input
-                      type="email"
-                      autoComplete="off"
-                      name="clippr-access-email"
-                      value={accessForm.email}
-                      onChange={(e) =>
-                        setAccessForm((f) => ({ ...f, email: e.target.value }))
-                      }
-                      className={cn(
-                        inputCls,
-                        accessTouched &&
-                          !accessForm.email.trim() &&
-                          "ring-red-500/70 focus:ring-red-500/70",
-                      )}
-                      placeholder="ejemplo@correo.com"
-                    />
-                  </Field>
-                  {accessTouched && !accessForm.email.trim() && (
-                    <div className="text-xs text-red-400 mt-1">
-                      Campo requerido
-                    </div>
-                  )}
-                </div>
-
-                <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 px-3 py-2.5 text-xs text-muted-foreground flex items-start gap-2">
-                  <Mail className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
-                  <span>
-                    La persona crea su contraseña desde la invitación que recibe
-                    por email.
-                  </span>
-                </div>
-
-                {/* Vista previa de lo que va a poder ver esta persona con
-                    el rol/permisos elegidos arriba — vive junto al
-                    formulario que la genera, no junto a la lista de
-                    accesos ya creados (antes estaba ahí, sin relación
-                    directa con "Nuevo acceso"). */}
-                <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 overflow-hidden">
-                  <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between gap-3">
-                    <div>
-                      <div className="font-semibold text-sm">
-                        Permisos incluidos
-                      </div>
-                      <div className="text-xs text-muted-foreground mt-0.5">
-                        Según el rol seleccionado:{" "}
-                        {ROLE_LABEL_BY_ID[accessForm.role]}.
-                      </div>
-                    </div>
-                    <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-400/10 ring-1 ring-violet-300/20">
-                      <ShieldCheck className="h-4.5 w-4.5 text-violet-200" />
-                    </div>
-                  </div>
-
-                  <div className="p-4 space-y-3">
-                    {/* Solo "Puede acceder", en vivo — antes había también
-                        un bloque "No accede" con todo lo deshabilitado,
-                        que el usuario no quería ver. Si no hay ningún
-                        permiso tildado, un único mensaje en vez de la
-                        lista completa de módulos apagados. */}
-                    <div className="rounded-xl bg-emerald-400/[0.06] ring-1 ring-emerald-400/15 p-3">
-                      <div className="mb-2 text-[10px] font-semibold uppercase tracking-[0.18em] text-emerald-300/90">
-                        Puede acceder
-                      </div>
-                      {liveAccessLabels.length === 0 ? (
-                        <div className="text-xs text-muted-foreground">
-                          Sin accesos habilitados
-                        </div>
-                      ) : (
-                        <div className="space-y-1.5">
-                          {liveAccessLabels.map((item) => (
-                            <div
-                              key={item}
-                              className="flex items-center gap-2 text-xs text-white/80"
-                            >
-                              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-300" />
-                              {item}
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    <details className="group rounded-xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden">
-                      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-semibold hover:bg-white/[0.04]">
-                        <span>Personalizar permisos</span>
-                        <span className="text-xs font-medium text-muted-foreground group-open:hidden">
-                          Opcional
-                        </span>
-                        <span className="hidden text-xs font-medium text-muted-foreground group-open:inline">
-                          Cerrar
-                        </span>
-                      </summary>
-                      <div className="border-t border-white/5 p-4 space-y-4">
-                        <div>
-                          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-2">
-                            Accesos recomendados
-                          </div>
-                          <div className="space-y-2">
-                            {getRecommendedPermissionKeys(accessForm.role).map(
-                              (key) => {
-                                const item = getPermissionItem(key);
-                                if (!item) return null;
-                                const checked = accessPermissionsForm[key];
-                                return (
-                                  <button
-                                    key={key}
-                                    type="button"
-                                    onClick={() =>
-                                      toggleAccessFormPermission(key)
-                                    }
-                                    className={cn(
-                                      "w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 ring-1 text-left transition",
-                                      checked
-                                        ? "bg-white/[0.06] ring-white/15"
-                                        : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.06]",
-                                    )}
-                                  >
-                                    <div>
-                                      <div className="text-sm font-medium">
-                                        {item.label}
-                                      </div>
-                                      <div className="text-xs text-muted-foreground">
-                                        {item.desc}
-                                      </div>
-                                    </div>
-                                    <span
-                                      className={cn(
-                                        "h-5 w-5 rounded-full grid place-items-center ring-1",
-                                        checked
-                                          ? "bg-emerald-400/90 text-white ring-transparent"
-                                          : "bg-white/5 ring-white/15",
-                                      )}
-                                    >
-                                      {checked && (
-                                        <Check
-                                          className="h-3.5 w-3.5"
-                                          strokeWidth={3}
-                                        />
-                                      )}
-                                    </span>
-                                  </button>
-                                );
-                              },
-                            )}
-                          </div>
-                        </div>
-
-                        <div>
-                          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-2">
-                            Adicionales
-                          </div>
-                          <div className="space-y-2">
-                            {getAdditionalPermissionKeys(accessForm.role).map(
-                              (key) => {
-                                const item = getPermissionItem(key);
-                                if (!item) return null;
-                                const checked = accessPermissionsForm[key];
-                                return (
-                                  <button
-                                    key={key}
-                                    type="button"
-                                    onClick={() =>
-                                      toggleAccessFormPermission(key)
-                                    }
-                                    className={cn(
-                                      "w-full flex items-center justify-between gap-3 rounded-xl px-3 py-2.5 ring-1 text-left transition",
-                                      checked
-                                        ? "bg-white/[0.06] ring-white/15"
-                                        : "bg-white/[0.03] ring-white/10 hover:bg-white/[0.06]",
-                                    )}
-                                  >
-                                    <div>
-                                      <div className="text-sm font-medium">
-                                        {item.label}
-                                      </div>
-                                      <div className="text-xs text-muted-foreground">
-                                        {item.desc}
-                                      </div>
-                                    </div>
-                                    <span
-                                      className={cn(
-                                        "h-5 w-5 rounded-full grid place-items-center ring-1",
-                                        checked
-                                          ? "bg-emerald-400/90 text-white ring-transparent"
-                                          : "bg-white/5 ring-white/15",
-                                      )}
-                                    >
-                                      {checked && (
-                                        <Check
-                                          className="h-3.5 w-3.5"
-                                          strokeWidth={3}
-                                        />
-                                      )}
-                                    </span>
-                                  </button>
-                                );
-                              },
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </details>
-                  </div>
-                </div>
+                {renderAccessFormCore()}
               </div>
             </div>
 
@@ -3833,112 +3817,54 @@ export function EquipoSection() {
                 )
               )}
 
-              {dlgTab === "acceso" && (() => {
-                const existingAccess = editingEmp
-                  ? accessByEmployeeId.get(editingEmp.id)
-                  : undefined;
-
-                // Ya tiene acceso vinculado: solo informativo. La gestión de
-                // rol/permisos/activación/eliminación sigue en Equipo →
-                // Accesos — no se duplica ese formulario acá.
-                if (existingAccess) {
-                  const expired = isInviteExpired(existingAccess);
-                  const statusLabel =
-                    existingAccess.status === "active"
-                      ? "Activo"
-                      : existingAccess.status === "invited"
-                        ? expired
-                          ? "Venció"
-                          : "Pendiente"
-                        : "Inactivo";
-                  const statusCls =
-                    existingAccess.status === "active"
-                      ? "bg-emerald-500/10 text-emerald-300 ring-emerald-400/20"
-                      : existingAccess.status === "invited"
-                        ? expired
-                          ? "bg-amber-500/10 text-amber-300 ring-amber-400/20"
-                          : "bg-cyan-500/10 text-cyan-300 ring-cyan-400/20"
-                        : "bg-white/[0.05] text-muted-foreground ring-white/15";
-                  return (
-                    <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 p-4 space-y-3">
-                      <div className="flex items-center gap-2.5">
-                        <div className="h-8 w-8 rounded-lg bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
-                          <ShieldCheck className="h-3.5 w-3.5 text-violet-200" />
-                        </div>
-                        <div className="text-sm font-semibold">
-                          Acceso vinculado
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                        <div>
-                          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-1">
-                            Estado
-                          </div>
-                          <span
-                            className={cn(
-                              "inline-flex rounded-full px-2 py-0.5 text-[11px] ring-1",
-                              statusCls,
-                            )}
-                          >
-                            {statusLabel}
-                          </span>
-                        </div>
-                        <div>
-                          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70 mb-1">
-                            Correo
-                          </div>
-                          <div className="text-sm break-all">
-                            {existingAccess.email}
-                          </div>
-                        </div>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        La gestión de rol, permisos y activación de este
-                        acceso se hace desde Equipo → Accesos.
-                      </p>
-                    </div>
-                  );
-                }
-
-                // Todavía sin acceso: alta opcional en el mismo paso que se
-                // guarda el profesional (ver saveProfessional →
-                // createInlineProfessionalAccess), reutilizando el mismo
-                // inviteTeamMember que usa Accesos → Nuevo acceso.
-                return (
-                  <div className="space-y-3">
-                    <PermissionToggleRow
-                      icon={ShieldCheck}
-                      title="Acceso a Clippr"
-                      on={newProWantsAccess}
-                      onChange={setNewProWantsAccess}
-                    />
-                    {newProWantsAccess && (
-                      <div>
-                        <Field label="Correo electrónico">
-                          <input
-                            type="email"
-                            autoComplete="off"
-                            name="clippr-pro-access-email"
-                            value={newProAccessEmail}
-                            onChange={(e) =>
-                              setNewProAccessEmail(e.target.value)
-                            }
-                            className={inputCls}
-                            placeholder="ejemplo@correo.com"
-                          />
-                        </Field>
-                        <div className="rounded-xl bg-white/[0.035] ring-1 ring-white/10 px-3 py-2.5 mt-2 text-xs text-muted-foreground flex items-start gap-2">
-                          <Mail className="h-4 w-4 mt-0.5 shrink-0 text-primary" />
-                          <span>
-                            Le enviaremos una invitación para que cree su
-                            contraseña.
-                          </span>
-                        </div>
-                      </div>
-                    )}
+              {dlgTab === "acceso" && (
+                !editingEmp ? (
+                  // Mismo patrón que la pestaña "Jornadas": sin professional_id
+                  // real todavía no hay a qué vincular un acceso.
+                  <div className="py-10 text-center text-sm text-muted-foreground">
+                    Guardá el profesional primero para poder crear su acceso.
                   </div>
-                );
-              })()}
+                ) : (
+                  <div className="space-y-3">
+                    {/* Mismo accessForm/accessPermissionsForm que Equipo →
+                        Accesos → Editar acceso (ver handleEditPro, que los
+                        precarga con el registro vinculado a este profesional
+                        si ya existe) — rol y profesional van fijos, así que
+                        acá no se muestran esos dos selectores. */}
+                    {renderAccessFormCore()}
+                    <div className="flex flex-wrap items-center gap-2 pt-1">
+                      {editingAccessUserId &&
+                        accessUsers.find((u) => u.id === editingAccessUserId)
+                          ?.status === "invited" && (
+                          <button
+                            type="button"
+                            disabled={resendingAccessId === editingAccessUserId}
+                            onClick={() =>
+                              resendAccessInvite(editingAccessUserId)
+                            }
+                            className="rounded-lg bg-amber-500/10 hover:bg-amber-500/20 ring-1 ring-amber-400/25 text-amber-200 px-3 py-2 text-xs font-medium disabled:opacity-60"
+                          >
+                            {resendingAccessId === editingAccessUserId
+                              ? "Enviando…"
+                              : "Reenviar invitación"}
+                          </button>
+                        )}
+                      <button
+                        type="button"
+                        onClick={saveProfessionalAccessForm}
+                        disabled={saving}
+                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 py-2.5 text-sm shadow-lg shadow-sky-500/20 disabled:opacity-60"
+                      >
+                        {saving
+                          ? "Guardando…"
+                          : editingAccessUserId
+                            ? "Guardar cambios"
+                            : "Enviar invitación"}
+                      </button>
+                    </div>
+                  </div>
+                )
+              )}
             </div>
 
             <div
