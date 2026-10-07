@@ -8080,14 +8080,21 @@ function unifiedMovView(
   const hora = Number.isNaN(dt.getTime())
     ? null
     : `${dt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}hs`;
+  const tipoLabel = m.type === "ingreso" ? "Ingreso manual" : "Retiro";
+  // El concepto cargado en "Motivo" al registrar el movimiento (Ingresar/
+  // Retirar dinero) es lo que tiene que verse en Cliente/Concepto — nunca
+  // "—" ahí. cash_movements.note es el único campo de texto que carga ese
+  // formulario (ver RegistrarMovimientoModal), así que si por algún motivo
+  // quedó vacío, el fallback es el tipo de movimiento, no un guion.
+  const concepto = m.note?.trim() || tipoLabel;
   return {
-    typeLabel: m.type === "ingreso" ? "Ingreso manual" : "Retiro",
+    typeLabel: tipoLabel,
     fecha:
       (Number.isNaN(dt.getTime())
         ? "—"
         : dt.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })) +
       (hora ? ` · ${hora}` : ""),
-    clienteOConcepto: m.note || "—",
+    clienteOConcepto: concepto,
     profesional: "—",
     servicio: "—",
     metodoLabel: m.method === "cuenta" ? "Cuenta" : "Efectivo",
