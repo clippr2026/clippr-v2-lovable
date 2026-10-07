@@ -2,6 +2,21 @@ import * as React from "react";
 import { Mail, X, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
+// Supabase devuelve sus propios mensajes de auth siempre en inglés (no hay
+// config de idioma para esto) — acá los traducimos a español en vez de
+// mostrárselos crudos al usuario. El único caso con texto dinámico es el
+// rate limit de resetPasswordForEmail ("For security purposes, you can
+// only request this after N seconds."); el resto cae en un mensaje
+// genérico, sin importar la causa real (no hay nada más específico y
+// seguro que decirle al usuario).
+function translateResetPasswordError(message: string): string {
+  const seconds = message.match(/after (\d+) seconds?/i) ?? message.match(/every (\d+) seconds?/i);
+  if (seconds) {
+    return `Podés solicitar un nuevo enlace en ${seconds[1]} segundos.`;
+  }
+  return "No pudimos enviar el enlace. Intentá nuevamente.";
+}
+
 export function ForgotPasswordModal({
   open,
   onClose,
@@ -50,7 +65,7 @@ export function ForgotPasswordModal({
     // casos) — un error acá es siempre un problema real (rate limit, etc.),
     // no una pista sobre si la cuenta existe.
     if (err) {
-      setError(err.message);
+      setError(translateResetPasswordError(err.message));
       return;
     }
     setSent(true);
