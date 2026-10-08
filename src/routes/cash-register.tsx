@@ -522,6 +522,15 @@ function getManualPendingNote(notes?: string | null, serviceName?: string | null
   // aunque nadie hubiera escrito ninguna nota.
   if (raw.startsWith(PAY_HIST_MARKER)) return "";
 
+  // Metadata automática de reservas online (ver publicNotes en
+  // reservar/$slug.tsx → create_public_booking_public_v5 → appointments.notes):
+  // siempre termina con la línea fija "Origen: reserva online" y SOLO contiene
+  // campos generados (Email, Fecha de nacimiento, Servicios seleccionados,
+  // Productos agregados, Promoción aplicada) — nunca texto escrito a mano por
+  // el cliente o el profesional. Sin este chequeo, "Ver nota" aparecía en
+  // cualquier turno reservado online aunque nadie hubiera escrito una nota.
+  if (raw.includes("Origen: reserva online")) return "";
+
   let value = raw
     .replace("[PENDIENTE_CAJA]", "")
     .replace("[MANUAL_PENDING]", "")
@@ -711,6 +720,7 @@ function CashRegisterPage() {
     () => ({
       cashExpected: summary.cashExpected,
       cashOutflows: summary.cashOutflows,
+      cashInflows: summary.cashInflows,
       // Mismo nombre/semántica que el `expected.digitalExpected` de
       // siempre: ya incluye el carry-forward de cuenta (ver bankExpected
       // en use-caja-summary.ts) — ningún consumidor existente (
@@ -6174,7 +6184,19 @@ function CierreCajaBtn({
                 </div>
               </div>
 
-              {/* 3. Salidas de efectivo */}
+              {/* 3a. Ingresos de efectivo — ingresos manuales (cash_movements
+                  tipo "ingreso") del período de la caja abierta. Mismo valor
+                  que ya suma cashExpected (expected.cashInflows), ahora
+                  mostrado aparte en vez de quedar implícito. Siempre visible
+                  (igual que "Salidas de efectivo"), incluso en $0. */}
+              <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.025] ring-1 ring-white/10 px-4 py-3">
+                <span className="text-sm text-muted-foreground">Ingresos de efectivo</span>
+                <span className="text-lg font-semibold tabular-nums text-emerald-300">
+                  +${Math.round(expected.cashInflows).toLocaleString("es-AR")}
+                </span>
+              </div>
+
+              {/* 3b. Salidas de efectivo */}
               <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.025] ring-1 ring-white/10 px-4 py-3">
                 <span className="text-sm text-muted-foreground">Salidas de efectivo</span>
                 <span className="text-lg font-semibold tabular-nums text-rose-300">
@@ -6194,8 +6216,7 @@ function CierreCajaBtn({
               <div>
                 <div className="text-sm font-semibold">Efectivo contado</div>
                 <p className="mt-1 text-xs text-muted-foreground">
-                  Contá el efectivo de la caja e ingresá el monto real. Viene precargado con el
-                  efectivo esperado (${Math.round(expected.cashExpected).toLocaleString("es-AR")}).
+                  Contá el efectivo de la caja e ingresá el monto real.
                 </p>
                 <div className="mt-2 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 focus-within:border-blue-300/40">
                   <span className="text-muted-foreground/70">$</span>
@@ -6237,11 +6258,7 @@ function CierreCajaBtn({
                   el ajuste nunca se mezcla con la diferencia de efectivo. */}
               <div className="rounded-xl bg-white/[0.02] ring-1 ring-white/10 px-4 py-3 space-y-3">
                 <div>
-                  <div className="text-sm font-semibold text-sky-200">Dinero en cuenta</div>
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    El dinero en cuenta no se cierra: sigue acumulándose. Acá queda registrado el
-                    saldo al momento del cierre.
-                  </p>
+                  <div className="text-sm font-semibold text-sky-200">Dinero en banco</div>
                 </div>
 
                 <div className="flex items-center justify-between gap-3">
@@ -7807,7 +7824,9 @@ function RegistrarMovimientoModal({
                       : "bg-white/[0.02] ring-white/10 text-muted-foreground hover:bg-white/[0.05]",
                   )}
                 >
-                  {m === "efectivo" ? "Efectivo" : "Cuenta"}
+                  {/* Texto visible "Banco" — el valor interno sigue siendo
+                      "cuenta" (enum/DB sin cambios, ver tipo CashMovement). */}
+                  {m === "efectivo" ? "Efectivo" : "Banco"}
                 </button>
               ))}
             </div>
@@ -7897,11 +7916,26 @@ type UnifiedMov = {
 
 const UNIFIED_COLOR_CLASSES: Record<
   UnifiedMovColor,
-  { text: string; border: string }
+  { text: string; border: string; bg: string; bgMobile: string }
 > = {
-  verde: { text: "text-emerald-300", border: "border-l-emerald-400/70" },
-  rojo: { text: "text-rose-300", border: "border-l-rose-400/70" },
-  ambar: { text: "text-amber-300", border: "border-l-amber-400/70" },
+  verde: {
+    text: "text-emerald-300",
+    border: "border-l-emerald-400/70",
+    bg: "bg-emerald-500/[0.045]",
+    bgMobile: "bg-emerald-500/[0.07]",
+  },
+  rojo: {
+    text: "text-rose-300",
+    border: "border-l-rose-400/70",
+    bg: "bg-rose-500/[0.045]",
+    bgMobile: "bg-rose-500/[0.07]",
+  },
+  ambar: {
+    text: "text-amber-300",
+    border: "border-l-amber-400/70",
+    bg: "bg-amber-500/[0.045]",
+    bgMobile: "bg-amber-500/[0.07]",
+  },
 };
 
 function buildUnifiedMovements(
@@ -7978,12 +8012,39 @@ function buildUnifiedMovements(
   return items;
 }
 
+// Huso horario fijo para todas las fechas/horas del historial unificado —
+// explícito en vez de depender del huso del dispositivo/servidor (que en un
+// render SSR puede no ser Argentina), para que "Hora" siempre sea la hora
+// real de Buenos Aires sin importar dónde corra el código.
+const ARG_TIME_ZONE = "America/Argentina/Buenos_Aires";
+
+function formatArgFecha(dt: Date) {
+  return Number.isNaN(dt.getTime())
+    ? "—"
+    : dt.toLocaleDateString("es-AR", { timeZone: ARG_TIME_ZONE, day: "numeric", month: "numeric" });
+}
+
+function formatArgHora(dt: Date) {
+  return Number.isNaN(dt.getTime())
+    ? "—"
+    : `${dt.toLocaleTimeString("es-AR", {
+        timeZone: ARG_TIME_ZONE,
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+      })}hs`;
+}
+
 // Vista normalizada de un UnifiedMov — mismas columnas para los 4 tipos
 // (Fecha, Cliente/Concepto, Profesional, Servicio/Categoría, Monto, Método,
-// Quién), con "—" donde un tipo no tiene ese dato. Reutiliza exactamente los
-// mismos helpers que ya usaba cada historial por separado (getSaleDetailLabel,
-// getChargedByLabel, displayCashActor, displayResponsibleUser, etc.) — nada
-// de lógica de formato nueva.
+// Hora, Quién), con "—" donde un tipo no tiene ese dato. "Quién" es siempre
+// "Nombre → Acción" de la acción principal (Cobró/Cargó/Ingresó/Retiró) — no
+// el timeline completo de varios eventos que sí muestra HistorialCell en
+// otros lados de la pantalla (p.ej. el bloque "Cobros pendientes"), a pedido
+// explícito de simplificar esta vista. Reutiliza los mismos helpers que ya
+// usaba cada historial por separado (getSaleDetailLabel, getChargedByLabel,
+// displayCashActor, displayResponsibleUser, etc.) — nada de lógica nueva de
+// quién hizo qué, solo de cómo se presenta.
 function unifiedMovView(
   item: UnifiedMov,
   employees: ReturnType<typeof useCajaData>["employees"],
@@ -7999,26 +8060,17 @@ function unifiedMovView(
       empName === "—" ? null : empName,
       chargeType,
     );
-    const hora = Number.isNaN(dt.getTime())
-      ? "—"
-      : `${dt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}hs`;
     const servicio = getSaleDetailLabel(paymentRecord);
     const nota = getCashRowNote(paymentRecord, servicio);
     return {
       typeLabel: "Ingreso",
-      fecha: Number.isNaN(dt.getTime())
-        ? "—"
-        : dt.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" }),
+      fecha: formatArgFecha(dt),
+      hora: formatArgHora(dt),
+      quien: `${chargedByName} → Cobró`,
       clienteOConcepto: p.client_name ?? "—",
       profesional: empName,
       servicio,
       metodoLabel: getPaymentMethodLabel(paymentRecord),
-      actor: chargedByName,
-      events: buildPaidHistorialEvents(paymentRecord, {
-        time: hora,
-        user: chargedByName,
-        action: "Cobró",
-      }),
       nota,
       notaTitle: nota ? `${p.client_name ?? "Cliente"} · ${servicio ?? "Servicio"}` : null,
     };
@@ -8028,26 +8080,20 @@ function unifiedMovView(
     const e = item.expense;
     const createdDate = e.created_at ? new Date(e.created_at) : null;
     const rawDate = e.date || (createdDate ? createdDate.toISOString().slice(0, 10) : "");
-    const fecha = rawDate
-      ? new Date(`${rawDate}T00:00:00`).toLocaleDateString("es-AR", {
-          day: "2-digit",
-          month: "2-digit",
-        })
-      : "—";
-    const hora =
-      createdDate && !Number.isNaN(createdDate.getTime())
-        ? `${createdDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}hs`
-        : null;
+    const fecha = rawDate ? formatArgFecha(new Date(`${rawDate}T00:00:00`)) : "—";
+    const hora = createdDate ? formatArgHora(createdDate) : "—";
     const concepto = String(e.note?.trim() || e.name || "").trim();
     return {
       typeLabel: "Gasto",
-      fecha: hora ? `${fecha} · ${hora}` : fecha,
+      fecha,
+      hora,
+      // "Cargó" — mismo verbo en pasado que el resto (Cobró/Ingresó/
+      // Retiró), no hay una acción "oficial" previa para gastos.
+      quien: `${displayCashActor(e)} → Cargó`,
       clienteOConcepto: concepto || "—",
       profesional: "—",
       servicio: e.category ?? e.type ?? "—",
       metodoLabel: paymentMethodLabel(e.payment_method ?? ""),
-      actor: displayCashActor(e),
-      events: null,
       nota: null,
       notaTitle: null,
     };
@@ -8058,18 +8104,17 @@ function unifiedMovView(
     const dt = new Date(p.starts_at);
     const empName = employees.find((e) => e.id === p.employee_id)?.name ?? "—";
     const historialEvents = p.events?.length ? p.events : getHistorialCobro(p.id);
+    const lastEvent = historialEvents[historialEvents.length - 1] ?? null;
     const nota = getCashRowNote(p, p.service_name);
     return {
       typeLabel: "Pendiente",
-      fecha: Number.isNaN(dt.getTime())
-        ? "—"
-        : dt.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" }),
+      fecha: formatArgFecha(dt),
+      hora: lastEvent?.time ?? "—",
+      quien: lastEvent ? `${lastEvent.user} → ${lastEvent.action}` : "—",
       clienteOConcepto: p.client_name ?? "—",
       profesional: empName,
       servicio: p.service_name ?? "—",
       metodoLabel: "—",
-      actor: null,
-      events: historialEvents,
       nota,
       notaTitle: nota ? `${p.client_name ?? "Cliente"} · ${p.service_name ?? "Servicio"}` : null,
     };
@@ -8077,9 +8122,6 @@ function unifiedMovView(
 
   const m = item.movement!;
   const dt = new Date(m.created_at);
-  const hora = Number.isNaN(dt.getTime())
-    ? null
-    : `${dt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}hs`;
   const tipoLabel = m.type === "ingreso" ? "Ingreso manual" : "Retiro";
   // El concepto cargado en "Motivo" al registrar el movimiento (Ingresar/
   // Retirar dinero) es lo que tiene que verse en Cliente/Concepto — nunca
@@ -8089,24 +8131,20 @@ function unifiedMovView(
   const concepto = m.note?.trim() || tipoLabel;
   return {
     typeLabel: tipoLabel,
-    fecha:
-      (Number.isNaN(dt.getTime())
-        ? "—"
-        : dt.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })) +
-      (hora ? ` · ${hora}` : ""),
+    fecha: formatArgFecha(dt),
+    hora: formatArgHora(dt),
+    quien: `${displayResponsibleUser(m.created_by)} → ${m.type === "ingreso" ? "Ingresó" : "Retiró"}`,
     clienteOConcepto: concepto,
     profesional: "—",
     servicio: "—",
     metodoLabel: m.method === "cuenta" ? "Cuenta" : "Efectivo",
-    actor: displayResponsibleUser(m.created_by),
-    events: null,
     nota: null,
     notaTitle: null,
   };
 }
 
 const UNIFIED_GRID_COLS =
-  "grid-cols-[86px_minmax(150px,0.85fr)_minmax(130px,0.7fr)_minmax(220px,1.1fr)_120px_130px_minmax(200px,1fr)]";
+  "grid-cols-[64px_minmax(150px,0.85fr)_minmax(130px,0.7fr)_minmax(220px,1.1fr)_120px_110px_72px_minmax(190px,0.9fr)]";
 
 function UnifiedMovRow({
   item,
@@ -8127,10 +8165,11 @@ function UnifiedMovRow({
   return (
     <div
       className={cn(
-        "grid items-center gap-x-3 border-l-2 px-5 py-3 text-xs border-b border-white/[0.07] odd:bg-white/[0.018] last:border-b-0 transition-colors",
+        "grid items-center gap-x-3 border-l-2 px-5 py-3 text-xs border-b border-white/[0.07] last:border-b-0 transition-colors",
         UNIFIED_GRID_COLS,
         colorCls.border,
-        onClick ? "cursor-pointer hover:bg-white/[0.035]" : "",
+        colorCls.bg,
+        onClick ? "cursor-pointer hover:brightness-125" : "",
       )}
       onClick={onClick}
     >
@@ -8162,13 +8201,8 @@ function UnifiedMovRow({
           <ReceiptButton payment={item.payment} businessId={businessId} />
         )}
       </div>
-      <div className="min-w-0">
-        {view.events ? (
-          <HistorialCell events={view.events} />
-        ) : (
-          <span className="truncate text-muted-foreground">{view.actor ?? "—"}</span>
-        )}
-      </div>
+      <div className="text-muted-foreground whitespace-nowrap">{view.hora}</div>
+      <div className="min-w-0 truncate text-muted-foreground">{view.quien}</div>
     </div>
   );
 }
@@ -8192,15 +8226,16 @@ function UnifiedMovCardMobile({
   return (
     <div
       className={cn(
-        "w-full rounded-2xl border-l-2 border border-white/[0.07] bg-black/25 px-3.5 py-3 text-xs",
+        "w-full rounded-2xl border-l-2 border border-white/[0.07] px-3.5 py-3 text-xs",
         colorCls.border,
-        onClick ? "cursor-pointer" : "",
+        colorCls.bgMobile,
+        onClick ? "cursor-pointer active:brightness-125" : "",
       )}
       onClick={onClick}
     >
       <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] pb-2">
         <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-          {view.typeLabel} · {view.fecha}
+          {view.typeLabel} · {view.fecha} · {view.hora}
         </span>
         <span className={cn("text-sm font-bold tabular-nums", colorCls.text)}>
           {sign}${Math.round(Math.abs(item.amount)).toLocaleString("es-AR")}
@@ -8251,11 +8286,7 @@ function UnifiedMovCardMobile({
         )}
         <div className="flex items-start justify-between gap-3">
           <span className="shrink-0 text-muted-foreground/70">Quién</span>
-          <span className="truncate text-right text-muted-foreground">
-            {view.events?.length
-              ? (view.events[view.events.length - 1]?.user ?? "—")
-              : (view.actor ?? "—")}
-          </span>
+          <span className="truncate text-right text-muted-foreground">{view.quien}</span>
         </div>
       </div>
     </div>
@@ -8287,6 +8318,16 @@ function MovimientosUnificados({
   // para no perder esa funcionalidad al unificar el historial.
   const [noteModal, setNoteModal] = React.useState<{ title: string; note: string } | null>(null);
   const showNote = React.useCallback((title: string, note: string) => setNoteModal({ title, note }), []);
+  // Ninguno de los dos modales de acá abajo bloqueaba el scroll de fondo
+  // (a diferencia de DetailModal, que sí usa este mismo hook) — en iOS
+  // Safari eso deja el rubber-band del viewport moviendo el contenido de
+  // atrás mientras el modal está abierto, y la página puede quedar en un
+  // scroll inconsistente al cerrarlo. useBodyScrollLock es contador
+  // global (ver use-body-scroll-lock.ts): abrir "Ver nota" arriba de "Ver
+  // todos los movimientos" no pisa el lock del otro, cada unlock solo
+  // actúa cuando ya no queda ninguno abierto.
+  useBodyScrollLock(allOpen);
+  useBodyScrollLock(Boolean(noteModal));
 
   const all = React.useMemo(
     () =>
@@ -8323,6 +8364,93 @@ function MovimientosUnificados({
     if (item.kind === "pago" && item.payment) setDetailPayment(item.payment);
   }
 
+  function closeAllModal() {
+    setAllOpen(false);
+    // Arranca de nuevo en "Todos los profesionales" la próxima vez que se
+    // abra, en vez de quedar pegado al último filtro elegido.
+    setSelectedProfessionalId(null);
+  }
+
+  // Selector de profesional del modal "Ver todos los movimientos" — null =
+  // Todos los profesionales. Solo lista profesionales con al menos un cobro
+  // en el período (data.paymentsToday), no cualquier empleado activo.
+  const [selectedProfessionalId, setSelectedProfessionalId] = React.useState<string | null>(null);
+  const professionalOptions = React.useMemo(() => {
+    const ids = new Set(
+      data.paymentsToday.map((p) => p.employee_id).filter((id): id is string => !!id),
+    );
+    return data.employees
+      .filter((e) => ids.has(e.id))
+      .map((e) => ({ id: e.id, name: e.name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [data.paymentsToday, data.employees]);
+
+  const professionalPayments = React.useMemo(
+    () =>
+      selectedProfessionalId
+        ? data.paymentsToday.filter((p) => p.employee_id === selectedProfessionalId)
+        : [],
+    [data.paymentsToday, selectedProfessionalId],
+  );
+
+  // Comisión real de cada cobro — commission_records.amount, la misma
+  // fuente que ya usa DetailModal (computeCommissionAmount al momento del
+  // cobro, prioridad servicio > fijo > %; ver ese comentario más arriba).
+  // Nunca se recalcula acá, solo se suma lo que ya quedó guardado por
+  // sale_id — así respeta automáticamente cualquier promoción/descuento que
+  // ya haya ajustado esa comisión en su momento.
+  const [commissionBySaleId, setCommissionBySaleId] = React.useState<Record<string, number>>({});
+  React.useEffect(() => {
+    if (professionalPayments.length === 0) {
+      setCommissionBySaleId({});
+      return;
+    }
+    let cancelled = false;
+    const saleIds = professionalPayments.map((p) => p.id);
+    supabase
+      .from("commission_records" as any)
+      .select("sale_id,amount")
+      .in("sale_id", saleIds)
+      .then(({ data: rows }) => {
+        if (cancelled) return;
+        const map: Record<string, number> = {};
+        for (const r of (rows ?? []) as { sale_id: string; amount: number }[]) {
+          map[r.sale_id] = (map[r.sale_id] ?? 0) + Number(r.amount ?? 0);
+        }
+        setCommissionBySaleId(map);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [professionalPayments]);
+
+  // Servicios/Facturación nunca de gastos, movimientos manuales ni
+  // pendientes sin cobrar — professionalPayments sale de data.paymentsToday,
+  // que por definición son solo cobros ya completados (los pendientes viven
+  // en data.pendingCharges, una lista aparte).
+  const professionalSummary = React.useMemo(() => {
+    if (!selectedProfessionalId) return null;
+    const servicios = professionalPayments.length;
+    const facturacion = professionalPayments.reduce(
+      (s, p) => s + Number(p.total ?? p.amount ?? 0),
+      0,
+    );
+    const comision = professionalPayments.reduce(
+      (s, p) => s + (commissionBySaleId[p.id] ?? 0),
+      0,
+    );
+    return { servicios, facturacion, comision };
+  }, [selectedProfessionalId, professionalPayments, commissionBySaleId]);
+
+  // Filtra el listado del modal (no el acotado a 10 de abajo, que no tiene
+  // selector) a los cobros de ese profesional cuando hay uno elegido.
+  const modalItems = React.useMemo(() => {
+    if (!selectedProfessionalId) return all;
+    return all.filter(
+      (item) => item.kind === "pago" && item.payment?.employee_id === selectedProfessionalId,
+    );
+  }, [all, selectedProfessionalId]);
+
   return (
     <>
       <Card className="rounded-3xl border-white/[0.075] bg-white/[0.02]">
@@ -8345,6 +8473,7 @@ function MovimientosUnificados({
               <div>Servicio / categoría</div>
               <div className="text-right">Monto</div>
               <div>Método</div>
+              <div>Hora</div>
               <div>Quién</div>
             </div>
             {loading ? (
@@ -8409,7 +8538,7 @@ function MovimientosUnificados({
       {allOpen && typeof document !== "undefined" && createPortal(
         <div
           className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm"
-          onClick={() => setAllOpen(false)}
+          onClick={closeAllModal}
         >
           <div
             className="w-full max-w-6xl overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(135deg,rgba(10,8,14,0.98),rgba(8,10,20,0.97),rgba(3,5,12,0.99))] shadow-[0_40px_120px_-55px_rgba(0,0,0,1)]"
@@ -8419,14 +8548,63 @@ function MovimientosUnificados({
               <h3 className="text-lg font-bold text-white">Todos los movimientos</h3>
               <button
                 type="button"
-                onClick={() => setAllOpen(false)}
+                onClick={closeAllModal}
                 className="h-10 rounded-2xl bg-white/[0.06] px-4 text-xs font-semibold text-white/70 hover:bg-white/[0.09] hover:text-white"
               >
                 Cerrar
               </button>
             </div>
 
-            {closeoutByMethod.length > 0 && (
+            {/* Filtro por profesional — Servicios/Facturación/Comisión usan
+                exactamente data.paymentsToday (cobros ya completados) y
+                commission_records (comisión real guardada al momento del
+                cobro, no recalculada), nunca gastos/movimientos
+                manuales/pendientes sin cobrar. */}
+            <div className="border-b border-white/10 bg-white/[0.02] px-5 py-3 space-y-3">
+              <select
+                value={selectedProfessionalId ?? ""}
+                onChange={(e) => setSelectedProfessionalId(e.target.value || null)}
+                className="w-full rounded-xl bg-white/[0.05] ring-1 ring-white/10 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-primary/50 sm:w-auto"
+              >
+                <option value="">Todos los profesionales</option>
+                {professionalOptions.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+
+              {professionalSummary && (
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 px-3 py-2.5">
+                    <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground/60">
+                      Servicios
+                    </div>
+                    <div className="mt-0.5 text-base font-bold tabular-nums text-white">
+                      {professionalSummary.servicios}
+                    </div>
+                  </div>
+                  <div className="rounded-xl bg-emerald-500/[0.07] ring-1 ring-emerald-400/15 px-3 py-2.5">
+                    <div className="text-[10px] uppercase tracking-[0.14em] text-emerald-300/70">
+                      Facturación
+                    </div>
+                    <div className="mt-0.5 text-base font-bold tabular-nums text-emerald-300">
+                      ${Math.round(professionalSummary.facturacion).toLocaleString("es-AR")}
+                    </div>
+                  </div>
+                  <div className="rounded-xl bg-violet-500/[0.07] ring-1 ring-violet-400/15 px-3 py-2.5">
+                    <div className="text-[10px] uppercase tracking-[0.14em] text-violet-300/70">
+                      Comisión
+                    </div>
+                    <div className="mt-0.5 text-base font-bold tabular-nums text-violet-300">
+                      ${Math.round(professionalSummary.comision).toLocaleString("es-AR")}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {!selectedProfessionalId && closeoutByMethod.length > 0 && (
               <div className="flex flex-wrap gap-2 border-b border-white/10 bg-white/[0.02] px-5 py-3">
                 {closeoutByMethod.map((g) => (
                   <span
@@ -8441,12 +8619,12 @@ function MovimientosUnificados({
 
             <div className="max-h-[70vh] overflow-y-auto [scrollbar-width:thin]">
               <div className="hidden min-w-[1020px] sm:block">
-                {all.length === 0 ? (
+                {modalItems.length === 0 ? (
                   <div className="px-5 py-10 text-center text-sm text-white/45">
                     Sin movimientos registrados.
                   </div>
                 ) : (
-                  all.map((item) => (
+                  modalItems.map((item) => (
                     <UnifiedMovRow
                       key={item.id}
                       item={item}
@@ -8459,13 +8637,13 @@ function MovimientosUnificados({
                 )}
               </div>
               <div className="sm:hidden">
-                {all.length === 0 ? (
+                {modalItems.length === 0 ? (
                   <div className="px-4 py-10 text-center text-sm text-white/45">
                     Sin movimientos registrados.
                   </div>
                 ) : (
                   <div className="flex flex-col gap-2.5 p-3">
-                    {all.map((item) => (
+                    {modalItems.map((item) => (
                       <UnifiedMovCardMobile
                         key={item.id}
                         item={item}

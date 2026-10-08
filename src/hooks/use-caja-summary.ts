@@ -35,6 +35,7 @@ export type CajaSummary = {
   cobros: number;
   cashExpected: number;
   cashOutflows: number;
+  cashInflows: number;
   digitalExpected: number;
   digitalOutflows: number;
   // digitalExpected + carry-forward del último cierre — "Dinero esperado en
@@ -62,20 +63,28 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
   const [rangeStartDate, setRangeStartDate] = React.useState(cajaDateKey());
   const [cashExpected, setCashExpected] = React.useState(0);
   const [cashOutflows, setCashOutflows] = React.useState(0);
+  const [cashInflows, setCashInflows] = React.useState(0);
   const [digitalExpected, setDigitalExpected] = React.useState(0);
   const [digitalOutflows, setDigitalOutflows] = React.useState(0);
   const [bankExpected, setBankExpected] = React.useState(0);
 
   // cash_movements + professional_advances del período abierto — misma
   // fuente que ya usa Caja (CierreCajaBtn) para Ingresar/Retirar dinero.
-  const { movements, advances } = useCashMovements(businessId, branchId, rangeStartDate);
-  // Leído por runLoad vía ref (no por closure/deps) — mismo motivo que
-  // liveKeyRef: si movements/advances cambiaran deps de runLoad, cada
-  // cambio recrearía requestReload y con él TODOS los efectos que dependen
-  // de su identidad (realtime, BroadcastChannel, CustomEvent), resuscribiendo
-  // el canal de Supabase sin necesidad en cada movimiento registrado.
-  const movementsRef = React.useRef({ movements, advances });
-  movementsRef.current = { movements, advances };
+  // Esta instancia de useCashMovements es independiente de la que usa
+  // MovimientosUnificados/FacturacionPanel en cash-register.tsx (esa vive
+  // en el componente, esta acá adentro del hook) — registerMovement() de
+  // UNA no actualiza el `movements`/`advances` reactivo de la OTRA. Por
+  // eso runLoad no lee ese estado reactivo ni un ref con su último valor:
+  // llama a refreshMovementsRef.current() (el `refresh` de ESTA instancia)
+  // explícitamente antes de calcular expected, así siempre tiene el dato
+  // recién pedido a Supabase sin importar qué otra instancia disparó el
+  // insert. Sin esto, Ingresar/Retirar dinero actualizaba la lista de
+  // movimientos pero "Efectivo esperado en caja"/"Dinero esperado en
+  // cuenta" quedaban con el valor viejo hasta el próximo trigger no
+  // relacionado (realtime, cambio de pestaña).
+  const { refresh: refreshMovements } = useCashMovements(businessId, branchId, rangeStartDate);
+  const refreshMovementsRef = React.useRef(refreshMovements);
+  refreshMovementsRef.current = refreshMovements;
 
   const hasLoadedRef = React.useRef(false);
 
@@ -149,10 +158,11 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     if (branchFilter) expQuery = expQuery.or(branchFilter);
     expQuery = expQuery.order("created_at", { ascending: false });
 
-    const [payRes, expRes, carryForward] = await Promise.all([
+    const [payRes, expRes, carryForward, freshMovements] = await Promise.all([
       payQuery,
       expQuery,
       getDigitalCarryForward(businessId, branchId),
+      refreshMovementsRef.current(),
     ]);
     console.log(
       `[CajaSummary] payQuery rango=[${dayStart.toISOString()} .. ${dayEnd.toISOString()}] branchFilter=${branchFilter} ` +
@@ -209,8 +219,8 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     const expected = computeExpectedCashAndDigital({
       payments: paymentsEnriched,
       expenses: expensesList,
-      advances: movementsRef.current.advances,
-      cashMovements: movementsRef.current.movements,
+      advances: freshMovements.advances,
+      cashMovements: freshMovements.movements,
     });
 
     if (!keyMatches()) {
@@ -228,18 +238,19 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     setRangeStartDate(newRangeStartDate);
     setCashExpected(expected.cashExpected);
     setCashOutflows(expected.cashOutflows);
+    setCashInflows(expected.cashInflows);
     setDigitalExpected(expected.digitalExpected);
     setDigitalOutflows(expected.digitalOutflows);
     setBankExpected(expected.digitalExpected + carryForward);
 
     hasLoadedRef.current = true;
     setLoading(false);
-    // Deps vacías a propósito — runLoad lee liveKeyRef.current/movementsRef.current
-    // al entrar (igual que use-caja-data.ts), nunca cierra sobre
-    // businessId/branchId ni sobre movements/advances. Mantiene esta
-    // identidad estable, así requestReload (y los efectos que dependen de
-    // ella: realtime, BroadcastChannel, CustomEvent) no se recrean en cada
-    // cambio de movimiento.
+    // Deps vacías a propósito — runLoad lee liveKeyRef.current/
+    // refreshMovementsRef.current al entrar (igual que use-caja-data.ts),
+    // nunca cierra sobre businessId/branchId ni sobre refreshMovements.
+    // Mantiene esta identidad estable, así requestReload (y los efectos que
+    // dependen de ella: realtime, BroadcastChannel, CustomEvent) no se
+    // recrean en cada cambio de movimiento.
   }, []);
 
   const requestReload = React.useCallback(
@@ -341,6 +352,7 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     cobros,
     cashExpected,
     cashOutflows,
+    cashInflows,
     digitalExpected,
     digitalOutflows,
     bankExpected,

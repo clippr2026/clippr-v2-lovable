@@ -411,6 +411,12 @@ export async function buildCierreSnapshotForDate(
 export type ExpectedCashDigital = {
   cashExpected: number;
   cashOutflows: number;
+  // Ingresos manuales en efectivo (cash_movements tipo "ingreso") del
+  // período — ya estaba sumado dentro de cashExpected, pero no se exponía
+  // por separado; el modal de Cierre de caja lo necesita para mostrar
+  // "Ingresos de efectivo" junto a "Salidas de efectivo" sin recalcular
+  // nada nuevo.
+  cashInflows: number;
   digitalExpected: number;
   digitalOutflows: number;
 };
@@ -481,6 +487,7 @@ export function computeExpectedCashAndDigital(params: {
   return {
     cashExpected: cashPayments + ingresosCajaEfectivo - cashOutflows,
     cashOutflows,
+    cashInflows: ingresosCajaEfectivo,
     digitalExpected: digitalPayments + ingresosCajaDigital - digitalOutflows,
     digitalOutflows,
   };

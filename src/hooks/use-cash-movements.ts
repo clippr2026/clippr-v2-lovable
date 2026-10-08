@@ -31,12 +31,15 @@ export function useCashMovements(
   const [advances, setAdvances] = React.useState<ProfessionalAdvance[]>([]);
   const [loading, setLoading] = React.useState(true);
 
-  const load = React.useCallback(async () => {
+  const load = React.useCallback(async (): Promise<{
+    movements: CashMovement[];
+    advances: ProfessionalAdvance[];
+  }> => {
     if (!businessId) {
       setMovements([]);
       setAdvances([]);
       setLoading(false);
-      return;
+      return { movements: [], advances: [] };
     }
     setLoading(true);
 
@@ -67,13 +70,14 @@ export function useCashMovements(
       advQuery,
     ]);
 
-    setMovements(
-      movRes.status === "fulfilled" && !movRes.value.error ? ((movRes.value.data ?? []) as any[]) : [],
-    );
-    setAdvances(
-      advRes.status === "fulfilled" && !advRes.value.error ? ((advRes.value.data ?? []) as any[]) : [],
-    );
+    const freshMovements =
+      movRes.status === "fulfilled" && !movRes.value.error ? ((movRes.value.data ?? []) as CashMovement[]) : [];
+    const freshAdvances =
+      advRes.status === "fulfilled" && !advRes.value.error ? ((advRes.value.data ?? []) as ProfessionalAdvance[]) : [];
+    setMovements(freshMovements);
+    setAdvances(freshAdvances);
     setLoading(false);
+    return { movements: freshMovements, advances: freshAdvances };
   }, [businessId, branchId, rangeStartDate]);
 
   React.useEffect(() => {
