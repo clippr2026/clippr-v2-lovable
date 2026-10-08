@@ -4953,11 +4953,6 @@ function ProfesionalesTab({
                               ) : (
                                 money(saleTotal)
                               )}
-                              {hasTip && (
-                                <div className="text-[10px] tabular-nums text-emerald-300">
-                                  +propina {money(Number(sale.tip_amount))}
-                                </div>
-                              )}
                             </div>
                             <div className="text-right tabular-nums text-white/52">
                               {hasDiscount ? (
@@ -5006,7 +5001,14 @@ function ProfesionalesTab({
                                 <div className="text-[10px] tabular-nums text-white/35">{c.commission_pct}%</div>
                               )}
                             </div>
-                            <div className="text-white/52">{method}</div>
+                            <div className="text-white/52">
+                              {method}
+                              {hasTip && (
+                                <div className="text-[10px] tabular-nums text-emerald-300">
+                                  +propina {money(Number(sale.tip_amount))}
+                                </div>
+                              )}
+                            </div>
                           </div>
                         );
                       })}
@@ -5074,19 +5076,19 @@ function ProfesionalesTab({
                                     {sale.promotion_name || "Descuento"}: -{money(Number(sale.discount))}
                                   </div>
                                 )}
-                                {hasTip && (
-                                  <div className="text-emerald-300">Propina: +{money(Number(sale.tip_amount))}</div>
-                                )}
                               </div>
                               <div className="shrink-0 space-y-0.5 text-right">
                                 <div className="text-[10px] font-semibold uppercase tracking-wider text-white/45">
                                   {date}
                                   {time && <span className="ml-1 font-normal normal-case text-white/35">{time}</span>}
                                 </div>
-                                <div className="text-white/60">{method}</div>
                                 <div className="font-bold tabular-nums text-violet-300">
                                   Comisión: {money(Number(c.pending_amount ?? c.amount ?? 0))}
                                 </div>
+                                <div className="text-white/60">{method}</div>
+                                {hasTip && (
+                                  <div className="text-emerald-300">+propina {money(Number(sale.tip_amount))}</div>
+                                )}
                               </div>
                             </div>
                           </div>
