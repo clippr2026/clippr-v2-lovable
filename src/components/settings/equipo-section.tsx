@@ -2060,16 +2060,34 @@ export function EquipoSection() {
   async function inviteTeamMember(
     payload: Record<string, unknown>,
   ): Promise<{ ok: true } | { ok: false; error: string }> {
-    const { data, error } = await supabase.functions.invoke(
+    const { error } = await supabase.functions.invoke(
       "invite-team-member",
       { body: payload },
     );
-    const rawErrMsg =
-      error?.message ?? (data as { error?: string } | null)?.error ?? null;
-    if (!rawErrMsg) return { ok: true };
-    const friendlyErrMsg = rawErrMsg.includes("non-2xx status code")
-      ? "No se pudo crear el acceso. Revisá si ese correo ya existe o tiene una invitación pendiente."
-      : rawErrMsg;
+    if (!error) return { ok: true };
+
+    // El SDK de Supabase tira FunctionsHttpError con error.message SIEMPRE
+    // genérico ("Edge Function returned a non-2xx status code") para
+    // cualquier respuesta no-2xx — `data` queda null en ese caso (nunca
+    // trae el body). El mensaje específico que arma el edge function (ej.
+    // "Este correo ya está asociado a otro acceso.") vive en el body crudo
+    // de la respuesta, expuesto como error.context (un Response) — hay que
+    // leerlo ahí, no asumir que data.error lo tiene.
+    let specificErrMsg: string | null = null;
+    const context = (error as { context?: unknown }).context;
+    if (context && typeof (context as Response).json === "function") {
+      try {
+        const body = await (context as Response).json();
+        specificErrMsg = typeof body?.error === "string" ? body.error : null;
+      } catch {
+        // body no era JSON válido (o ya se había leído) — cae al fallback genérico
+      }
+    }
+    const rawErrMsg = specificErrMsg ?? error.message ?? null;
+    const friendlyErrMsg =
+      !rawErrMsg || rawErrMsg.includes("non-2xx status code")
+        ? "No se pudo crear el acceso. Revisá si ese correo ya existe o tiene una invitación pendiente."
+        : rawErrMsg;
     return { ok: false, error: friendlyErrMsg };
   }
 

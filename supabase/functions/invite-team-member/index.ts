@@ -395,13 +395,48 @@ Deno.serve(async (req) => {
       if (fullName !== null) update.full_name = fullName;
       if (reqStatus === "active" || reqStatus === "suspended") update.status = reqStatus;
 
+      // Antes NO incluía `email` acá — el UPDATE nunca tocaba esa columna
+      // sin importar qué mandara el frontend, así que "editar el correo de
+      // un acceso" devolvía éxito sin cambiar nada. Ahora sí se actualiza,
+      // pero primero valida que ese email no esté ya asociado a OTRO
+      // acceso del mismo negocio (activo o invitado — mismo criterio que
+      // ya usa la rama "create" más abajo para decidir crear vs rechazar).
+      // Un acceso suspendido/eliminado con ese email no bloquea: ya no
+      // está vigente, el email queda libre para reasignarse.
+      if (email) {
+        const { data: clash, error: clashErr } = await admin
+          .from("team_members")
+          .select("id,status")
+          .eq("business_id", businessId)
+          .ilike("email", email)
+          .neq("id", memberId)
+          .maybeSingle();
+        if (clashErr) return json({ error: clashErr.message }, 400);
+        const clashStatus = String((clash as { status?: string } | null)?.status ?? "").toLowerCase();
+        if (clash && !["deleted", "removed", "suspended", "inactive"].includes(clashStatus)) {
+          return json({ error: "Este correo ya está asociado a otro acceso." }, 409);
+        }
+        update.email = email;
+      }
+
       const { error } = await admin
         .from("team_members")
         .update(update)
         .eq("id", memberId)
         .eq("business_id", businessId);
 
-      if (error) return json({ error: error.message }, 400);
+      // 23505 = unique_violation — el índice único parcial
+      // (team_members_business_email_unique, ver migración
+      // 20261008020000) es el backstop real contra una carrera (dos
+      // ediciones casi simultáneas): si el chequeo de arriba no la vio a
+      // tiempo, la base rechaza igual. Mismo mensaje para el usuario, no
+      // el error crudo de Postgres.
+      if (error) {
+        if ((error as { code?: string }).code === "23505") {
+          return json({ error: "Este correo ya está asociado a otro acceso." }, 409);
+        }
+        return json({ error: error.message }, 400);
+      }
       return json({ ok: true });
     }
 
