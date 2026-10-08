@@ -8570,12 +8570,23 @@ function MovimientosUnificados({
                 exactamente data.paymentsToday (cobros ya completados) y
                 commission_records (comisión real guardada al momento del
                 cobro, no recalculada), nunca gastos/movimientos
-                manuales/pendientes sin cobrar. */}
-            <div className="border-b border-white/10 bg-white/[0.02] px-5 py-3 space-y-3">
+                manuales/pendientes sin cobrar.
+
+                "Todos los profesionales": solo el selector, sin métricas.
+                Con un profesional elegido: selector a la izquierda y las 3
+                métricas a la derecha, MISMA fila (flex-row desde sm:, con
+                justify-between). La fila nunca gana una segunda línea en
+                desktop porque las métricas van inline, no en un grid debajo
+                — por eso no hace falta reservar altura con min-h ni nada
+                parecido: el alto de la fila es siempre el del <select>,
+                tanto si las métricas están como si no. En mobile se
+                permite apilar (flex-col) porque no entra todo en una fila
+                angosta. */}
+            <div className="flex flex-col gap-3 border-b border-white/10 bg-white/[0.02] px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
               <select
                 value={selectedProfessionalId ?? ""}
                 onChange={(e) => setSelectedProfessionalId(e.target.value || null)}
-                className="w-full rounded-xl bg-white/[0.05] ring-1 ring-white/10 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-primary/50 sm:w-auto"
+                className="w-full shrink-0 rounded-xl bg-white/[0.05] ring-1 ring-white/10 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-primary/50 sm:w-auto"
               >
                 <option value="">Todos los profesionales</option>
                 {professionalOptions.map((p) => (
@@ -8585,42 +8596,34 @@ function MovimientosUnificados({
                 ))}
               </select>
 
-              {/* Grid SIEMPRE montado (nunca condicional) con min-h fijo en
-                  cada card — el espacio queda reservado desde el primer
-                  render tanto con "Todos los profesionales" (muestra "—")
-                  como con uno elegido, así el modal nunca cambia de alto ni
-                  salta al cambiar el filtro. Sin setTimeout ni trucos: es
-                  estructura persistente, solo cambia el texto adentro. */}
-              <div className="grid grid-cols-3 gap-2">
-                <div className="min-h-[58px] rounded-xl bg-white/[0.03] ring-1 ring-white/10 px-3 py-2.5">
-                  <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground/60">
-                    Servicios
+              {professionalSummary && (
+                <div className="flex flex-wrap items-center gap-x-5 gap-y-1 sm:flex-nowrap sm:justify-end">
+                  <div className="flex items-baseline gap-1.5 whitespace-nowrap">
+                    <span className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground/60">
+                      Servicios
+                    </span>
+                    <span className="text-sm font-bold tabular-nums text-white">
+                      {professionalSummary.servicios}
+                    </span>
                   </div>
-                  <div className="mt-0.5 text-base font-bold tabular-nums text-white">
-                    {professionalSummary ? professionalSummary.servicios : "—"}
+                  <div className="flex items-baseline gap-1.5 whitespace-nowrap">
+                    <span className="text-[10px] uppercase tracking-[0.14em] text-emerald-300/70">
+                      Facturación
+                    </span>
+                    <span className="text-sm font-bold tabular-nums text-emerald-300">
+                      ${Math.round(professionalSummary.facturacion).toLocaleString("es-AR")}
+                    </span>
                   </div>
-                </div>
-                <div className="min-h-[58px] rounded-xl bg-emerald-500/[0.07] ring-1 ring-emerald-400/15 px-3 py-2.5">
-                  <div className="text-[10px] uppercase tracking-[0.14em] text-emerald-300/70">
-                    Facturación
-                  </div>
-                  <div className="mt-0.5 text-base font-bold tabular-nums text-emerald-300">
-                    {professionalSummary
-                      ? `$${Math.round(professionalSummary.facturacion).toLocaleString("es-AR")}`
-                      : "—"}
-                  </div>
-                </div>
-                <div className="min-h-[58px] rounded-xl bg-violet-500/[0.07] ring-1 ring-violet-400/15 px-3 py-2.5">
-                  <div className="text-[10px] uppercase tracking-[0.14em] text-violet-300/70">
-                    Comisión
-                  </div>
-                  <div className="mt-0.5 text-base font-bold tabular-nums text-violet-300">
-                    {professionalSummary
-                      ? `$${Math.round(professionalSummary.comision).toLocaleString("es-AR")}`
-                      : "—"}
+                  <div className="flex items-baseline gap-1.5 whitespace-nowrap">
+                    <span className="text-[10px] uppercase tracking-[0.14em] text-violet-300/70">
+                      Comisión
+                    </span>
+                    <span className="text-sm font-bold tabular-nums text-violet-300">
+                      ${Math.round(professionalSummary.comision).toLocaleString("es-AR")}
+                    </span>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {closeoutByMethod.length > 0 && (
