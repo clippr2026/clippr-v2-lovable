@@ -1,3 +1,4 @@
+import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
   normalizeClientKeys,
@@ -356,38 +357,68 @@ export async function registerPayment(input: RegisterPaymentInput) {
     const discountRatio = grossTotal > 0 && total !== grossTotal ? total / grossTotal : 1;
     const commissionAmount = Math.round(pctAmount + fixedAmount * discountRatio);
     if (commissionAmount > 0) {
-      // Si algún ítem usó su propia comisión por servicio (o se usó el
-      // monto fijo general), no hay un único % que represente el total —
-      // queda null, mismo criterio que ya existía para comisión fija.
+      // Si algún ítem usó su propia comisión por servicio, no hay un único
+      // % que represente el total — queda null. (El fallback fijo general,
+      // employees.commission_fixed, ya no participa del cálculo — ver
+      // computeCommissionAmount — así que no entra en esta decisión.)
       const usedSpecificOverride = input.items.some((item) => {
         if (!item.serviceId) return false;
         const cfg = input.employeeCommissions?.[input.employeeId!]?.[item.serviceId];
         return !!cfg && cfg.enabled !== false;
       });
-      const { error: commissionError } = await supabase
-        .from("commission_records" as any)
-        .insert({
-          business_id: input.businessId,
-          professional_id: input.employeeId,
-          sale_id: data[0].id,
-          amount: commissionAmount,
-          sale_date: (payload.created_at as string).slice(0, 10),
+      // RPC security definer (register_commission, ver migración
+      // 20261008010000) — NUNCA un insert directo a commission_records
+      // desde acá. La policy commission_records_write bloquea cualquier
+      // escritura de un usuario con profiles.role = 'profesional', incluso
+      // para su propia comisión — correcto para impedir que edite montos a
+      // mano, pero el cobro de su propia venta (Nueva Venta o Cobrar
+      // Turno, mismo código) quedaba silenciosamente sin comisión por esa
+      // misma policy. El RPC corre con privilegios elevados pero valida
+      // todo server-side (negocio, dueño real de la venta, rango de
+      // monto) antes de insertar — no es un bypass abierto.
+      const { data: commissionResult, error: commissionError } = await supabase.rpc(
+        "register_commission" as any,
+        {
+          p_business_id: input.businessId,
+          p_professional_id: input.employeeId,
+          p_sale_id: data[0].id,
+          p_amount: commissionAmount,
+          p_sale_date: (payload.created_at as string).slice(0, 10),
           // Misma marca de tiempo exacta que el pago — es lo que usa
           // Liquidaciones para cortar el período por hora, no solo por
           // día (sin esto quedaría en el default now() de la tabla, que
           // podría diferir en milisegundos del momento real de la venta).
-          created_at: payload.created_at,
+          p_created_at: payload.created_at,
           // Congela el % usado en esta venta puntual — "Ver detalle" no
           // puede recalcular con el % actual del profesional si cambia
           // después. null cuando la comisión no vino de un único % general
           // (fue por servicio y/o monto fijo).
-          commission_pct: usedSpecificOverride || commissionFixed > 0 ? null : commissionPct,
-        });
+          p_commission_pct: usedSpecificOverride ? null : commissionPct,
+        },
+      );
       if (commissionError) {
         console.warn(
           "[registerPayment] no se pudo registrar la comisión:",
           commissionError.message,
         );
+        // El cobro ya está guardado y no se revierte por esto — pero el
+        // error no puede quedar solo en consola (así se perdió la
+        // comisión de Alejandro del 7/10 sin que nadie se enterara).
+        toast.error(
+          "La venta se guardó, pero no se pudo registrar la comisión. Avisá a quien administra el negocio.",
+        );
+      } else {
+        const row = (Array.isArray(commissionResult) ? commissionResult[0] : commissionResult) as
+          | { id: string; inserted: boolean }
+          | undefined;
+        if (row && row.inserted === false) {
+          // sale_id ya tenía una fila (llamada repetida/duplicada) — no es
+          // un error, el RPC es idempotente y no creó una segunda.
+          console.warn(
+            "[registerPayment] commission_records ya existía para esta venta, no se duplicó:",
+            data[0].id,
+          );
+        }
       }
     }
   }

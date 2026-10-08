@@ -213,13 +213,19 @@ function commissionBaseForLine(item: CommissionableItem, qty: number): number {
 }
 
 // Comisión total de una venta con uno o más ítems. Cada ítem resuelve su
-// propia comisión por servicio si existe; los que no tienen override propio
-// caen en un único fallback general (fixed toma prioridad sobre pct, mismo
-// criterio que ya usa registerPayment) aplicado sobre la suma de esos ítems
-// sin override — así una venta sin ningún override por servicio da
-// EXACTAMENTE el mismo resultado que el cálculo plano de antes (fixed una
-// sola vez por venta, no una vez por ítem), y una venta mixta combina ambos
-// correctamente sin duplicar ni perder nada.
+// propia comisión por servicio si existe (override con mode "fixed" o
+// "pct", configurado en Equipo → profesional → Comisiones); los que no
+// tienen override propio caen en el único fallback general válido,
+// commissionPct, aplicado sobre la suma de esos ítems sin override.
+//
+// fallback.commissionFixed (employees.commission_fixed) se ignora acá a
+// propósito: es una columna que nunca se expone ni se edita desde
+// Configuración → Equipo (ninguna UI la escribe), así que un valor viejo
+// ahí no representa ninguna configuración activa real del profesional —
+// si se lo dejaba participar, le ganaba en silencio a commission_pct (que
+// SÍ es lo que el dueño ve y edita en Equipo), dando una comisión que no
+// coincidía con "lo que dice Equipo". Única fuente de verdad del fallback
+// general: commission_pct.
 export function computeCommissionAmount(
   items: CommissionableItem[],
   employeeId: string | null | undefined,
@@ -244,13 +250,8 @@ export function computeCommissionAmount(
     }
   }
   if (remainderCount > 0) {
-    const fixed = Number(fallback.commissionFixed ?? 0);
-    if (fixed > 0) {
-      fixedAmount += fixed;
-    } else {
-      const pct = Number(fallback.commissionPct ?? 0);
-      if (pct > 0) pctAmount += remainderBase * (pct / 100);
-    }
+    const pct = Number(fallback.commissionPct ?? 0);
+    if (pct > 0) pctAmount += remainderBase * (pct / 100);
   }
   return { pctAmount: Math.round(pctAmount), fixedAmount: Math.round(fixedAmount) };
 }
