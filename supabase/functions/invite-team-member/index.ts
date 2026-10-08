@@ -35,7 +35,14 @@ function keyKind(k: string): string {
 }
 
 const SERVICE_ROLE = resolveServiceKey();
-const SITE_URL = Deno.env.get("SITE_URL") ?? "http://localhost:3000";
+// Fallback a myclippr.com (NO localhost): si el secret SITE_URL del proyecto
+// no está seteado o está mal configurado en Supabase, el link de invitación
+// terminaba apuntando a http://localhost:3000/set-password — un botón que
+// para la persona invitada no lleva a ningún lado real ("Crear mi
+// contraseña" no completaba el flujo). Mismo dominio hardcodeado que ya usan
+// forgot-password-modal.tsx, branding-section.tsx y send-booking-email para
+// el mismo propósito.
+const SITE_URL = Deno.env.get("SITE_URL") ?? "https://myclippr.com";
 
 console.log("[init] service key kind:", keyKind(SERVICE_ROLE));
 
