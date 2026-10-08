@@ -386,6 +386,21 @@ Deno.serve(async (req) => {
       const memberId = String(body.member_id ?? "");
       if (!memberId) return json({ error: "member_id requerido" }, 400);
 
+      // Necesario ANTES de armar el update: el email/auth_user_id actuales
+      // de esta fila, para poder comparar si el email realmente cambia y,
+      // si cambia, saber qué identidad de Auth hay que desvincular.
+      const { data: currentRow, error: currentErr } = await admin
+        .from("team_members")
+        .select("email, auth_user_id")
+        .eq("id", memberId)
+        .eq("business_id", businessId)
+        .maybeSingle();
+      if (currentErr) return json({ error: currentErr.message }, 400);
+      if (!currentRow) return json({ error: "El acceso no existe" }, 404);
+
+      const currentEmail = String(currentRow.email ?? "").trim().toLowerCase();
+      const emailChanged = Boolean(email) && email !== currentEmail;
+
       const update: Record<string, unknown> = {
         role,
         permissions,
@@ -393,17 +408,13 @@ Deno.serve(async (req) => {
         branch_id: branchId,
       };
       if (fullName !== null) update.full_name = fullName;
-      if (reqStatus === "active" || reqStatus === "suspended") update.status = reqStatus;
 
-      // Antes NO incluía `email` acá — el UPDATE nunca tocaba esa columna
-      // sin importar qué mandara el frontend, así que "editar el correo de
-      // un acceso" devolvía éxito sin cambiar nada. Ahora sí se actualiza,
-      // pero primero valida que ese email no esté ya asociado a OTRO
-      // acceso del mismo negocio (activo o invitado — mismo criterio que
-      // ya usa la rama "create" más abajo para decidir crear vs rechazar).
-      // Un acceso suspendido/eliminado con ese email no bloquea: ya no
-      // está vigente, el email queda libre para reasignarse.
-      if (email) {
+      if (emailChanged) {
+        // 1) Validar que el email nuevo no esté usado por otro acceso
+        //    activo/invitado de este mismo negocio — mismo criterio que ya
+        //    usa "create" para decidir crear vs rechazar. Un acceso
+        //    suspendido/eliminado con ese email no bloquea: ya no está
+        //    vigente, el email queda libre para reasignarse.
         const { data: clash, error: clashErr } = await admin
           .from("team_members")
           .select("id,status")
@@ -416,7 +427,71 @@ Deno.serve(async (req) => {
         if (clash && !["deleted", "removed", "suspended", "inactive"].includes(clashStatus)) {
           return json({ error: "Este correo ya está asociado a otro acceso." }, 409);
         }
+
+        // 2) Desvincular la identidad anterior — el acceso nuevo NUNCA
+        //    hereda auth_user_id ni estado de la cuenta vieja. Si esa
+        //    cuenta de Auth no pertenece a NINGÚN otro acceso de este
+        //    negocio, se elimina directamente (mismo chequeo
+        //    "belongsElsewhere" y misma llamada que ya usa la acción
+        //    "delete" más arriba) — así la persona vieja no puede seguir
+        //    entrando con ese login, ni a este acceso ni a ningún otro
+        //    estado fantasma.
+        const oldAuthId = currentRow.auth_user_id as string | null;
+        if (oldAuthId) {
+          const { data: otherMemberships } = await admin
+            .from("team_members")
+            .select("id")
+            .eq("auth_user_id", oldAuthId)
+            .neq("id", memberId)
+            .limit(1);
+          const belongsElsewhere = (otherMemberships?.length ?? 0) > 0;
+          if (!belongsElsewhere) {
+            await admin.from("profiles").delete().eq("id", oldAuthId).eq("business_id", businessId);
+            const { error: delAuthErr } = await admin.auth.admin.deleteUser(oldAuthId);
+            if (delAuthErr) console.log("[update email] no se pudo eliminar auth viejo:", delAuthErr.message);
+          }
+        }
+
+        // 3) Invitar al email nuevo — EXACTAMENTE el mismo
+        //    inviteUserByEmail/findAuthUserByEmail que ya usan "create" y
+        //    la reactivación, nunca una invitación aparte.
+        let newAuthUserId: string | null = null;
+        let isConfirmed = false;
+        let justSentInvite = false;
+        const existingAuthUser = await findAuthUserByEmail(admin, email);
+        if (existingAuthUser) {
+          newAuthUserId = existingAuthUser.id;
+          isConfirmed = existingAuthUser.confirmed;
+        } else {
+          const { data: invited, error: inviteErr } = await admin.auth.admin.inviteUserByEmail(email, {
+            data: { full_name: fullName, business_id: businessId, role },
+            redirectTo: `${SITE_URL}/set-password`,
+          });
+          if (inviteErr) {
+            const fallbackUser = await findAuthUserByEmail(admin, email);
+            if (!fallbackUser) return json({ error: "No se pudo invitar: " + inviteErr.message }, 400);
+            newAuthUserId = fallbackUser.id;
+            isConfirmed = fallbackUser.confirmed;
+          } else {
+            newAuthUserId = invited?.user?.id ?? null;
+            isConfirmed = false;
+            justSentInvite = true;
+          }
+        }
+
+        // 4) Guardar el email nuevo, la identidad nueva, y Pendiente — NUNCA
+        //    hereda "Activo" del acceso anterior. Recién pasa a Activo
+        //    cuando esa persona realmente confirma la invitación (si ya
+        //    existía una cuenta de Auth confirmada con ese email, pasa
+        //    directo a Activo, mismo criterio que "create"/reactivación).
         update.email = email;
+        update.auth_user_id = newAuthUserId;
+        update.status = isConfirmed ? "active" : "invited";
+        if (justSentInvite) update.last_invited_at = new Date().toISOString();
+      } else if (reqStatus === "active" || reqStatus === "suspended") {
+        // Sin cambio de email: el selector de Estado sigue activando/
+        // suspendiendo manualmente, sin tocar nada de lo de arriba.
+        update.status = reqStatus;
       }
 
       const { error } = await admin
