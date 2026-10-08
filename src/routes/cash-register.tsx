@@ -7919,22 +7919,27 @@ const UNIFIED_COLOR_CLASSES: Record<
   { text: string; border: string; bg: string; bgMobile: string }
 > = {
   verde: {
-    text: "text-emerald-300",
-    border: "border-l-emerald-400/70",
-    bg: "bg-emerald-500/[0.045]",
-    bgMobile: "bg-emerald-500/[0.07]",
+    text: "text-emerald-200",
+    border: "border-l-emerald-300/80",
+    bg: "bg-emerald-500/[0.075]",
+    bgMobile: "bg-emerald-500/[0.11]",
   },
   rojo: {
-    text: "text-rose-300",
-    border: "border-l-rose-400/70",
-    bg: "bg-rose-500/[0.045]",
-    bgMobile: "bg-rose-500/[0.07]",
+    text: "text-rose-200",
+    border: "border-l-rose-300/80",
+    bg: "bg-rose-500/[0.075]",
+    bgMobile: "bg-rose-500/[0.11]",
   },
+  // "ambar" es el nombre interno del tipo (UnifiedMovColor) para "pendiente"
+  // — a pedido explícito ahora se pinta celeste/sky acá (solo en este
+  // historial unificado), no se renombró la clave para no tocar más
+  // superficie de la esperada. El stat card "Pendientes" y el panel
+  // expandible "Cobros pendientes" siguen en ámbar, sin cambios.
   ambar: {
-    text: "text-amber-300",
-    border: "border-l-amber-400/70",
-    bg: "bg-amber-500/[0.045]",
-    bgMobile: "bg-amber-500/[0.07]",
+    text: "text-sky-200",
+    border: "border-l-sky-300/80",
+    bg: "bg-sky-500/[0.075]",
+    bgMobile: "bg-sky-500/[0.11]",
   },
 };
 
@@ -8604,7 +8609,7 @@ function MovimientosUnificados({
               )}
             </div>
 
-            {!selectedProfessionalId && closeoutByMethod.length > 0 && (
+            {closeoutByMethod.length > 0 && (
               <div className="flex flex-wrap gap-2 border-b border-white/10 bg-white/[0.02] px-5 py-3">
                 {closeoutByMethod.map((g) => (
                   <span
