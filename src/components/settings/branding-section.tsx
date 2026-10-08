@@ -367,6 +367,10 @@ export function BrandingSection() {
   const [profileNoteTouched, setProfileNoteTouched] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  // Se marca true solo dentro del .then() del fetch real (businessId
+  // truthy), nunca en el branch "!businessId" — ver comentario junto al
+  // efecto de autosave más abajo.
+  const realDataLoadedRef = React.useRef(false);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [uploadingCover, setUploadingCover] = useState(false);
@@ -489,6 +493,7 @@ export function BrandingSection() {
             : buildDefaultBenefits(),
         );
       }
+      realDataLoadedRef.current = true;
       setLoading(false);
     });
   }, [businessId]);
@@ -886,11 +891,22 @@ export function BrandingSection() {
     const avatar_url = data.avatar_url;
     const cover_url = data.cover_url;
 
+    // Fallo de guardado: en guardado explícito (showToast) avisa con un
+    // toast; en autosave silencioso nunca interrumpe con un error (el
+    // usuario no pidió nada) — solo libera el indicador "Guardando…" para
+    // que no quede trabado (reportSaveStatus solo tiene "saving"/"saved",
+    // no hay un estado de error dedicado; "saved" acá solo cierra el
+    // indicador, no implica que se haya persistido nada).
+    function fail(message: string) {
+      setSaving(false);
+      if (showToast) toast.error(message);
+      else reportSaveStatus("saved");
+    }
+
     // Resolver slug final: usa el escrito o lo deriva del nombre.
     const finalSlug = slugify(data.slug) || slugify(data.name);
     if (!finalSlug) {
-      setSaving(false);
-      return toast.error("Definí una URL pública (slug) o un nombre.");
+      return fail("Definí una URL pública (slug) o un nombre.");
     }
     // Validar que no esté usado por otro negocio.
     const { data: clash } = await supabase
@@ -900,8 +916,7 @@ export function BrandingSection() {
       .neq("id", businessId)
       .maybeSingle();
     if (clash) {
-      setSaving(false);
-      return toast.error("Esa URL pública ya está en uso. Probá otra.");
+      return fail("Esa URL pública ya está en uso. Probá otra.");
     }
 
     const normalizedPhone = normalizeWhatsAppArgentina(data.phone);
@@ -1007,15 +1022,26 @@ export function BrandingSection() {
       );
 
     setSaving(false);
-    if (nameResult.error)
-      return toast.error("Error guardando: " + nameResult.error.message);
-    if (!nameResult.data) {
-      return toast.error(
-        "No se pudo guardar el nombre y la URL pública. Revisá los permisos del negocio.",
-      );
+    if (nameResult.error) {
+      if (showToast) toast.error("Error guardando: " + nameResult.error.message);
+      else reportSaveStatus("saved");
+      return;
     }
-    if (cfgResult.error)
-      return toast.error("Error guardando: " + cfgResult.error.message);
+    if (!nameResult.data) {
+      if (showToast) {
+        toast.error(
+          "No se pudo guardar el nombre y la URL pública. Revisá los permisos del negocio.",
+        );
+      } else {
+        reportSaveStatus("saved");
+      }
+      return;
+    }
+    if (cfgResult.error) {
+      if (showToast) toast.error("Error guardando: " + cfgResult.error.message);
+      else reportSaveStatus("saved");
+      return;
+    }
     if (showToast) {
       setData((d) => ({
         ...d,
@@ -1042,7 +1068,19 @@ export function BrandingSection() {
   const brandingHydratedRef = React.useRef(false);
 
   React.useEffect(() => {
-    if (loading || !businessId) return;
+    // realDataLoadedRef (no `loading`): el efecto de fetch de arriba hace
+    // `if (!businessId) { setLoading(false); return; }` — businessId
+    // arranca en null hasta que useAuth resuelve, así que `loading` pasa a
+    // false UN RENDER ANTES de que lleguen los datos reales. Si este guard
+    // usara `loading`, "la primera vez que pasa el guard" (la que
+    // brandingHydratedRef marca para saltear) caía en ESE render vacío, no
+    // en el que trae los datos reales — y el render real de la carga
+    // terminaba tratado como "el usuario cambió algo", disparando un
+    // autosave fantasma con slug/nombre todavía sin poblar. realDataLoadedRef
+    // se marca en true recién dentro del .then() del fetch, en el mismo
+    // tick que setData(datos reales) — así el primer render que pasa este
+    // guard es siempre el que ya tiene los datos reales.
+    if (!realDataLoadedRef.current) return;
 
     if (!brandingHydratedRef.current) {
       brandingHydratedRef.current = true;
