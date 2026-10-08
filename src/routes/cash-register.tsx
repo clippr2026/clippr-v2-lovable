@@ -8348,23 +8348,6 @@ function MovimientosUnificados({
   const recent = all.slice(0, 10);
   const loading = data.loading || movementsData.loading;
 
-  // Resumen por método de pago, solo para los cobros del día — mismo cálculo
-  // que ya existía en History (closeout), ahora vive en el modal "Ver todos
-  // los movimientos" en vez del historial acotado a 10 filas.
-  const closeoutByMethod = React.useMemo(() => {
-    const groups = data.paymentsToday.reduce(
-      (acc, payment) => {
-        const method = String(payment.method ?? payment.payment_method ?? "cash");
-        if (!acc[method]) acc[method] = { method, total: 0, count: 0 };
-        acc[method].total += Number(payment.total ?? payment.amount ?? 0) + Number(payment.tip_amount ?? 0);
-        acc[method].count += 1;
-        return acc;
-      },
-      {} as Record<string, { method: string; total: number; count: number }>,
-    );
-    return Object.values(groups).sort((a, b) => b.total - a.total);
-  }, [data.paymentsToday]);
-
   function handleRowClick(item: UnifiedMov) {
     if (item.kind === "pago" && item.payment) setDetailPayment(item.payment);
   }
@@ -8397,6 +8380,29 @@ function MovimientosUnificados({
         : [],
     [data.paymentsToday, selectedProfessionalId],
   );
+
+  // Resumen por método de pago — mismo cálculo que ya existía en History
+  // (closeout). Con un profesional elegido, reutiliza professionalPayments
+  // (ya filtrado arriba, solo cobros de ese profesional) en vez del total
+  // general; sin profesional ("Todos"), usa data.paymentsToday completo. En
+  // los dos casos la fuente es siempre paymentsToday — nunca gastos,
+  // movimientos manuales ni pendientes — y un método sin cobros simplemente
+  // no genera entrada en el reduce, así que "monto > 0" queda garantizado
+  // sin un filtro aparte.
+  const closeoutByMethod = React.useMemo(() => {
+    const source = selectedProfessionalId ? professionalPayments : data.paymentsToday;
+    const groups = source.reduce(
+      (acc, payment) => {
+        const method = String(payment.method ?? payment.payment_method ?? "cash");
+        if (!acc[method]) acc[method] = { method, total: 0, count: 0 };
+        acc[method].total += Number(payment.total ?? payment.amount ?? 0) + Number(payment.tip_amount ?? 0);
+        acc[method].count += 1;
+        return acc;
+      },
+      {} as Record<string, { method: string; total: number; count: number }>,
+    );
+    return Object.values(groups).sort((a, b) => b.total - a.total);
+  }, [selectedProfessionalId, professionalPayments, data.paymentsToday]);
 
   // Comisión real de cada cobro — commission_records.amount, la misma
   // fuente que ya usa DetailModal (computeCommissionAmount al momento del
@@ -8579,34 +8585,42 @@ function MovimientosUnificados({
                 ))}
               </select>
 
-              {professionalSummary && (
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 px-3 py-2.5">
-                    <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground/60">
-                      Servicios
-                    </div>
-                    <div className="mt-0.5 text-base font-bold tabular-nums text-white">
-                      {professionalSummary.servicios}
-                    </div>
+              {/* Grid SIEMPRE montado (nunca condicional) con min-h fijo en
+                  cada card — el espacio queda reservado desde el primer
+                  render tanto con "Todos los profesionales" (muestra "—")
+                  como con uno elegido, así el modal nunca cambia de alto ni
+                  salta al cambiar el filtro. Sin setTimeout ni trucos: es
+                  estructura persistente, solo cambia el texto adentro. */}
+              <div className="grid grid-cols-3 gap-2">
+                <div className="min-h-[58px] rounded-xl bg-white/[0.03] ring-1 ring-white/10 px-3 py-2.5">
+                  <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground/60">
+                    Servicios
                   </div>
-                  <div className="rounded-xl bg-emerald-500/[0.07] ring-1 ring-emerald-400/15 px-3 py-2.5">
-                    <div className="text-[10px] uppercase tracking-[0.14em] text-emerald-300/70">
-                      Facturación
-                    </div>
-                    <div className="mt-0.5 text-base font-bold tabular-nums text-emerald-300">
-                      ${Math.round(professionalSummary.facturacion).toLocaleString("es-AR")}
-                    </div>
-                  </div>
-                  <div className="rounded-xl bg-violet-500/[0.07] ring-1 ring-violet-400/15 px-3 py-2.5">
-                    <div className="text-[10px] uppercase tracking-[0.14em] text-violet-300/70">
-                      Comisión
-                    </div>
-                    <div className="mt-0.5 text-base font-bold tabular-nums text-violet-300">
-                      ${Math.round(professionalSummary.comision).toLocaleString("es-AR")}
-                    </div>
+                  <div className="mt-0.5 text-base font-bold tabular-nums text-white">
+                    {professionalSummary ? professionalSummary.servicios : "—"}
                   </div>
                 </div>
-              )}
+                <div className="min-h-[58px] rounded-xl bg-emerald-500/[0.07] ring-1 ring-emerald-400/15 px-3 py-2.5">
+                  <div className="text-[10px] uppercase tracking-[0.14em] text-emerald-300/70">
+                    Facturación
+                  </div>
+                  <div className="mt-0.5 text-base font-bold tabular-nums text-emerald-300">
+                    {professionalSummary
+                      ? `$${Math.round(professionalSummary.facturacion).toLocaleString("es-AR")}`
+                      : "—"}
+                  </div>
+                </div>
+                <div className="min-h-[58px] rounded-xl bg-violet-500/[0.07] ring-1 ring-violet-400/15 px-3 py-2.5">
+                  <div className="text-[10px] uppercase tracking-[0.14em] text-violet-300/70">
+                    Comisión
+                  </div>
+                  <div className="mt-0.5 text-base font-bold tabular-nums text-violet-300">
+                    {professionalSummary
+                      ? `$${Math.round(professionalSummary.comision).toLocaleString("es-AR")}`
+                      : "—"}
+                  </div>
+                </div>
+              </div>
             </div>
 
             {closeoutByMethod.length > 0 && (
