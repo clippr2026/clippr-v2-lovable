@@ -8552,10 +8552,20 @@ function MovimientosUnificados({
           onClick={closeAllModal}
         >
           <div
-            className="w-full max-w-6xl overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(135deg,rgba(10,8,14,0.98),rgba(8,10,20,0.97),rgba(3,5,12,0.99))] shadow-[0_40px_120px_-55px_rgba(0,0,0,1)]"
+            // h-[...] (no max-h-): fuerza SIEMPRE esta altura, sin importar
+            // cuánto contenido tenga la lista de abajo — antes el card no
+            // tenía alto propio, así que con pocos movimientos (ej. un
+            // profesional con 1 solo cobro) se achicaba a su contenido y,
+            // al estar centrado con grid place-items-center, el borde
+            // superior bajaba con cada cambio de filtro. Con alto fijo acá,
+            // header/selector/resumen quedan anclados en el mismo lugar en
+            // los tres casos (Todos, muchos movimientos, un solo
+            // movimiento) y el espacio sobrante (si hay pocos) queda vacío
+            // debajo en vez de encoger el modal.
+            className="flex h-[min(820px,82vh)] w-full max-w-6xl flex-col overflow-hidden rounded-3xl border border-white/[0.085] bg-[linear-gradient(135deg,rgba(10,8,14,0.98),rgba(8,10,20,0.97),rgba(3,5,12,0.99))] shadow-[0_40px_120px_-55px_rgba(0,0,0,1)]"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex flex-wrap items-center justify-between gap-4 border-b border-white/10 px-5 py-4">
+            <div className="flex shrink-0 flex-wrap items-center justify-between gap-4 border-b border-white/10 px-5 py-4">
               <h3 className="text-lg font-bold text-white">Todos los movimientos</h3>
               <button
                 type="button"
@@ -8582,7 +8592,7 @@ function MovimientosUnificados({
                 tanto si las métricas están como si no. En mobile se
                 permite apilar (flex-col) porque no entra todo en una fila
                 angosta. */}
-            <div className="flex flex-col gap-3 border-b border-white/10 bg-white/[0.02] px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex shrink-0 flex-col gap-3 border-b border-white/10 bg-white/[0.02] px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
               <select
                 value={selectedProfessionalId ?? ""}
                 onChange={(e) => setSelectedProfessionalId(e.target.value || null)}
@@ -8627,7 +8637,7 @@ function MovimientosUnificados({
             </div>
 
             {closeoutByMethod.length > 0 && (
-              <div className="flex flex-wrap gap-2 border-b border-white/10 bg-white/[0.02] px-5 py-3">
+              <div className="flex shrink-0 flex-wrap gap-2 border-b border-white/10 bg-white/[0.02] px-5 py-3">
                 {closeoutByMethod.map((g) => (
                   <span
                     key={g.method}
@@ -8639,7 +8649,12 @@ function MovimientosUnificados({
               </div>
             )}
 
-            <div className="max-h-[70vh] overflow-y-auto [scrollbar-width:thin]">
+            {/* flex-1 + min-h-0 (no max-h-[70vh] fijo): esta es la ÚNICA
+                zona que scrollea adentro del card de alto fijo de arriba.
+                min-h-0 es necesario para que un hijo flex con overflow-y-auto
+                pueda achicarse por debajo de su contenido — sin esto, un
+                listado largo empuja el alto del padre en vez de scrollear. */}
+            <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:thin]">
               <div className="hidden min-w-[1020px] sm:block">
                 {modalItems.length === 0 ? (
                   <div className="px-5 py-10 text-center text-sm text-white/45">
