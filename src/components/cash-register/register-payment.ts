@@ -364,6 +364,7 @@ export async function registerPayment(input: RegisterPaymentInput) {
         serviceId: item.serviceId,
         effectivePrice: item.effectivePrice ?? null,
         discountAmount: Number(item.discountAmount ?? 0),
+        isCatalog: Boolean(item.isCatalog),
       })),
       input.employeeId,
       input.employeeCommissions ?? null,

@@ -181,6 +181,11 @@ export type CommissionableItem = {
   // descuento manual, prorrateado por peso entre todos — ver
   // cash-register.tsx). 0/undefined = esta línea no tuvo descuento.
   discountAmount?: number;
+  // Producto de catálogo (no servicio) — ver computeCommissionAmount: un
+  // producto SIN override propio activo nunca cae al % general del
+  // profesional (ese fallback es solo para servicios). false/undefined =
+  // servicio, se comporta como siempre.
+  isCatalog?: boolean;
 };
 
 export type CommissionBreakdown = {
@@ -213,10 +218,19 @@ function commissionBaseForLine(item: CommissionableItem, qty: number): number {
 }
 
 // Comisión total de una venta con uno o más ítems. Cada ítem resuelve su
-// propia comisión por servicio si existe (override con mode "fixed" o
-// "pct", configurado en Equipo → profesional → Comisiones); los que no
-// tienen override propio caen en el único fallback general válido,
-// commissionPct, aplicado sobre la suma de esos ítems sin override.
+// propia comisión por servicio/producto si existe (override con mode
+// "fixed" o "pct", configurado en Equipo → profesional → Comisiones →
+// Servicios/Catálogo).
+//
+// El fallback general (commissionPct) SOLO aplica a servicios sin
+// override propio — nunca a productos de catálogo. Un producto vive en
+// Equipo → Comisiones → Catálogo con su propio switch activo/inactivo
+// (default inactivo): si no tiene override activo, la venta de ESE
+// producto no genera comisión, aunque el profesional tenga % general
+// configurado para sus servicios. Antes esto no distinguía is Catalog, así
+// que un producto sin configurar (switch apagado, el estado por default)
+// terminaba cobrando el % general igual — comisión que nadie activó a
+// propósito.
 //
 // fallback.commissionFixed (employees.commission_fixed) se ignora acá a
 // propósito: es una columna que nunca se expone ni se edita desde
@@ -244,7 +258,10 @@ export function computeCommissionAmount(
       const val = Number(cfg.value) || 0;
       if (cfg.mode === "fixed") fixedAmount += val;
       else pctAmount += baseLine * (val / 100);
-    } else {
+    } else if (!item.isCatalog) {
+      // Solo servicios sin override caen al % general — un producto sin
+      // override activo queda directamente en $0 para esa línea, nunca
+      // entra acá.
       remainderBase += baseLine;
       remainderCount += 1;
     }
