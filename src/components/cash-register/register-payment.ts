@@ -59,6 +59,13 @@ export type RegisterPaymentItem = {
   qty?: number;
   serviceId?: string | null;
   isCatalog?: boolean;
+  // Precio de lista real (precio_catalog.price resuelto, SIN precio en
+  // efectivo) al momento de esta venta puntual — null/undefined = no se
+  // pudo resolver, cae a `amount` (sin diferencia visual). Se usa para
+  // congelar en payments.original_amount el "precio tachado" que va a
+  // mostrar Liquidaciones, para que no dependa del precio ACTUAL del
+  // catálogo (que puede cambiar después).
+  listPrice?: number | null;
   // Precio efectivo del servicio (tope de la base de comisión — ver
   // computeCommissionAmount) — null/undefined si no tiene uno configurado.
   // Quien arma el carrito (Caja) ya lo resuelve por profesional
@@ -171,6 +178,14 @@ export async function registerPayment(input: RegisterPaymentInput) {
   // dejaba sin efecto cualquier descuento manual (no existía todavía).
   const discountAmount = Math.max(0, Math.min(grossTotal, Number(input.discountAmount ?? 0)));
   const total = grossTotal - discountAmount;
+  // Precio de lista total (sin precio en efectivo, sin descuento) — puede
+  // ser mayor a `total` aunque no haya habido ninguna promoción/descuento
+  // manual (ej. se cobró con "precio en efectivo"). Ver original_amount
+  // más abajo.
+  const listTotal = input.items.reduce((sum, item) => {
+    const qty = Number(item.qty ?? 1);
+    return sum + Number(item.listPrice ?? item.amount ?? 0) * qty;
+  }, 0);
 
   const saleSummary = buildSaleSummary(input.items) || "Venta";
 
@@ -285,7 +300,13 @@ export async function registerPayment(input: RegisterPaymentInput) {
     payload.discount_type = input.discountType ?? null;
     payload.discount_value = input.discountValue != null ? Number(input.discountValue) : null;
     payload.discount = discountAmount;
-    payload.original_amount = grossTotal;
+  }
+  // original_amount ("precio de lista tachado" en Liquidaciones) se guarda
+  // siempre que el precio de lista supere lo realmente cobrado — no solo
+  // cuando hubo promoción/descuento manual, también cuando se cobró con
+  // "precio en efectivo" sin ningún descuento explícito de por medio.
+  if (listTotal > total) {
+    payload.original_amount = Math.round(listTotal);
   }
 
   const { data, error } = await supabase
