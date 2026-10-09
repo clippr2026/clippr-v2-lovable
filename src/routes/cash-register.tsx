@@ -48,6 +48,7 @@ import {
   ACTIVE_PAY_METHODS,
   registerPayment,
   deletePayment,
+  deleteProfessionalAdvance,
   type PayMethod,
 } from "@/components/cash-register/register-payment";
 import {
@@ -3710,6 +3711,26 @@ function ProfesionalesTab({
     setAdelantoModalOpen(false);
     setAdelantoForm({ amount: "", method: "efectivo", note: "" });
   }
+
+  const [deletingAdvanceId, setDeletingAdvanceId] = React.useState<string | null>(null);
+
+  async function handleDeleteAdvance(advanceId: string, amount: number) {
+    if (deletingAdvanceId || !businessId) return;
+    const confirmed = window.confirm(
+      `¿Eliminar este adelanto de ${money(amount)}? No se puede deshacer.`,
+    );
+    if (!confirmed) return;
+    setDeletingAdvanceId(advanceId);
+    try {
+      await deleteProfessionalAdvance(advanceId, businessId);
+      toast.success("Adelanto eliminado");
+      setCommissionsVersion((v) => v + 1);
+    } catch (e) {
+      toast.error((e as Error).message || "No se pudo eliminar el adelanto");
+    } finally {
+      setDeletingAdvanceId(null);
+    }
+  }
   // commission_records: fuente de verdad de cuánto se le debe a cada
   // profesional. Las que ya tienen settlement_run_id están "bloqueadas"
   // dentro de una liquidación preparada; las que no, son las que entrarían
@@ -4674,13 +4695,8 @@ function ProfesionalesTab({
               )}
             </div>
           </div>
-          <div className="text-right">
-            <div className="font-bold tabular-nums text-violet-300">
-              {money(Number(c.pending_amount ?? c.amount ?? 0))}
-            </div>
-            {c.commission_pct != null && (
-              <div className="text-[10px] tabular-nums text-white/35">{c.commission_pct}%</div>
-            )}
+          <div className="text-right font-bold tabular-nums text-violet-300">
+            {money(Number(c.pending_amount ?? c.amount ?? 0))}
           </div>
           <div className={cn("text-right text-sm font-semibold tabular-nums", hasTip ? "text-emerald-300" : "text-white/25")}>
             {tipText}
@@ -4744,6 +4760,8 @@ function ProfesionalesTab({
     loadingDetail: loadingThis = false,
     clickable = true,
     emptyFiller = "—",
+    onDelete,
+    deleting: deletingThis = false,
   }: {
     dateTime: string;
     cliente?: string;
@@ -4764,6 +4782,10 @@ function ProfesionalesTab({
     // Propina/Medio de pago no aplican en absoluto, a diferencia de un
     // movimiento donde "—" sí tiene sentido como "no corresponde").
     emptyFiller?: string;
+    // Solo Adelanto lo usa por ahora — borrar un adelanto cargado por
+    // error (ej. una prueba), siempre que no esté ya liquidado.
+    onDelete?: () => void;
+    deleting?: boolean;
   }) => {
     const Tag = clickable ? "button" : "div";
     return (
@@ -4794,8 +4816,22 @@ function ProfesionalesTab({
           <div className="text-right text-white/30">{emptyFiller}</div>
           <div className="flex items-center justify-between gap-2 text-white/52">
             <span>{emptyFiller}</span>
-            {clickable && (
-              <ChevronDown className={cn("size-3.5 shrink-0 transition-transform", expanded && "rotate-180")} />
+            {onDelete ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
+                disabled={deletingThis}
+                className="grid size-6 shrink-0 place-items-center rounded-lg text-white/40 transition hover:bg-rose-500/10 hover:text-rose-300 disabled:opacity-50"
+              >
+                <Trash2 className="size-3.5" />
+              </button>
+            ) : (
+              clickable && (
+                <ChevronDown className={cn("size-3.5 shrink-0 transition-transform", expanded && "rotate-180")} />
+              )
             )}
           </div>
         </Tag>
@@ -4812,8 +4848,22 @@ function ProfesionalesTab({
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
             <span className={cn("font-bold tabular-nums", precioClass ?? "text-white")}>{precioText}</span>
-            {clickable && (
-              <ChevronDown className={cn("size-3.5 transition-transform", expanded && "rotate-180")} />
+            {onDelete ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
+                disabled={deletingThis}
+                className="grid size-6 shrink-0 place-items-center rounded-lg text-white/40 transition hover:bg-rose-500/10 hover:text-rose-300 disabled:opacity-50"
+              >
+                <Trash2 className="size-3.5" />
+              </button>
+            ) : (
+              clickable && (
+                <ChevronDown className={cn("size-3.5 transition-transform", expanded && "rotate-180")} />
+              )
             )}
           </div>
         </Tag>
@@ -5232,6 +5282,8 @@ function ProfesionalesTab({
                           redStripe
                           clickable={false}
                           emptyFiller=""
+                          onDelete={() => handleDeleteAdvance(item.data.id, Number(item.data.amount ?? 0))}
+                          deleting={deletingAdvanceId === item.data.id}
                         />
                       );
                     }

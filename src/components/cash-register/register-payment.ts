@@ -532,3 +532,34 @@ export async function deletePayment(paymentId: string, businessId: string) {
     throw new Error(error.message || "No se pudo eliminar el cobro");
   }
 }
+
+/**
+ * Elimina un adelanto al profesional (Caja → Liquidaciones). Igual que
+ * deletePayment, se aborta si el adelanto ya fue incluido en una
+ * liquidación (settlement_run_id no nulo) — esa liquidación ya congeló el
+ * total descontado, borrar la fila ahora corrompería ese historial.
+ */
+export async function deleteProfessionalAdvance(advanceId: string, businessId: string) {
+  const { data: row, error: fetchError } = await supabase
+    .from("professional_advances" as any)
+    .select("settlement_run_id")
+    .eq("id", advanceId)
+    .maybeSingle();
+  if (fetchError) {
+    throw new Error(fetchError.message || "No se pudo verificar el adelanto");
+  }
+  if ((row as { settlement_run_id: string | null } | null)?.settlement_run_id) {
+    throw new Error(
+      "Este adelanto ya forma parte de una liquidación cerrada — no se puede eliminar desde acá.",
+    );
+  }
+
+  const { error } = await supabase
+    .from("professional_advances" as any)
+    .delete()
+    .eq("id", advanceId)
+    .eq("business_id", businessId);
+  if (error) {
+    throw new Error(error.message || "No se pudo eliminar el adelanto");
+  }
+}
