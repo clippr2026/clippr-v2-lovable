@@ -4630,7 +4630,7 @@ function ProfesionalesTab({
       ? (/^promo\b/i.test(String(sale.promotion_name)) ? sale.promotion_name : `Promo ${sale.promotion_name}`)
       : null;
     const manualDiscountLabel = !sale.promotion_id && hasDiscount ? sale.promotion_name : null;
-    const conceptSubtitle = promoLabel ?? manualDiscountLabel ?? (hasReduction ? "Precio en efectivo" : null);
+    const conceptSubtitle = promoLabel ?? manualDiscountLabel ?? (hasReduction ? "Descuento en efectivo" : null);
     const conceptSubtitleClass = promoLabel
       ? "text-sky-300"
       : manualDiscountLabel
