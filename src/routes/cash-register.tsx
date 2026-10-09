@@ -110,7 +110,6 @@ import { buildHistorialMovimientos, type MovimientoAjuste, type MovimientoDeducc
 import { displayResponsable } from "@/components/liquidaciones/movimiento-format";
 import {
   PagoDetalleContent,
-  AdelantoDetalleContent,
   AjusteDetalleContent,
   DeduccionDetalleContent,
 } from "@/components/liquidaciones/movimiento-detalle-content";
@@ -3642,10 +3641,6 @@ function ProfesionalesTab({
   const [historialDetailMovementNumber, setHistorialDetailMovementNumber] = React.useState<number | null>(null);
   const [historialDetailServices, setHistorialDetailServices] = React.useState<any[] | null>(null);
   const [loadingHistorialDetail, setLoadingHistorialDetail] = React.useState(false);
-  // Detalle de un adelanto del Historial — no necesita fetch (professional_
-  // advances ya trae todo lo que hace falta mostrar), solo qué fila se está
-  // viendo.
-  const [historialDetailAdvance, setHistorialDetailAdvance] = React.useState<any | null>(null);
   // Detalle de un ajuste/deducción del Historial — tampoco necesita fetch
   // (ya vienen completos con sus items dentro del movimiento derivado).
   const [historialDetailAjuste, setHistorialDetailAjuste] = React.useState<MovimientoAjuste | null>(null);
@@ -4095,17 +4090,25 @@ function ProfesionalesTab({
       // Fallback SOLO visual de "precio de lista" para ventas viejas que no
       // guardaron original_amount (de antes de que registerPayment lo
       // empezara a congelar siempre — ver register-payment.ts): precio
-      // ACTUAL del catálogo por cada ítem de la venta. Puede no coincidir
-      // con el precio real de ese día si cambió después — por eso nunca
-      // pisa un original_amount ya guardado, es el último recurso.
+      // ACTUAL del catálogo. Puede no coincidir con el precio real de ese
+      // día si cambió después — por eso nunca pisa un original_amount ya
+      // guardado, es el último recurso. Dos caminos, no solo uno: por id de
+      // payments.items (el normal) Y por nombre del servicio (respaldo —
+      // cubre ventas donde el id del ítem guardado no matchea más un
+      // price_catalog vigente, ej. catálogo recreado).
+      const salesNeedingFallback = Object.values(paymentsById).filter(
+        (p: any) => !(Number(p?.original_amount ?? 0) > 0),
+      );
       const missingListPriceItemIds = Array.from(
         new Set(
-          Object.values(paymentsById)
-            .filter((p: any) => !(Number(p?.original_amount ?? 0) > 0))
+          salesNeedingFallback
             .flatMap((p: any) => (Array.isArray(p?.items) ? p.items : []))
             .map((i: any) => i?.id)
             .filter(Boolean),
         ),
+      );
+      const missingListPriceNames = Array.from(
+        new Set(salesNeedingFallback.map((p: any) => String(p?.service_name ?? "").trim()).filter(Boolean)),
       );
       let catalogPriceById: Record<string, number> = {};
       if (missingListPriceItemIds.length > 0) {
@@ -4118,17 +4121,35 @@ function ProfesionalesTab({
           (catalogRows ?? []).map((r: any) => [r.id, Number(r.price ?? 0)]),
         );
       }
+      let catalogPriceByName: Record<string, number> = {};
+      if (missingListPriceNames.length > 0) {
+        const { data: catalogByName, error: catalogByNameError } = await supabase
+          .from("price_catalog" as any)
+          .select("name,price")
+          .eq("business_id", businessId)
+          .in("name", missingListPriceNames);
+        if (catalogByNameError) throw catalogByNameError;
+        catalogPriceByName = Object.fromEntries(
+          (catalogByName ?? []).map((r: any) => [String(r.name ?? "").trim(), Number(r.price ?? 0)]),
+        );
+      }
       setDetailRows(
         (commissionRows ?? []).map((c: any) => {
           const sale = paymentsById[c.sale_id] ?? null;
           let listPriceFallback: number | null = null;
-          if (sale && !(Number(sale.original_amount ?? 0) > 0) && Array.isArray(sale.items)) {
-            const sum = sale.items.reduce((s: number, i: any) => {
-              const unitPrice = catalogPriceById[i?.id] ?? null;
-              if (unitPrice == null) return s;
-              return s + unitPrice * Number(i?.qty ?? 1);
-            }, 0);
-            listPriceFallback = sum > 0 ? sum : null;
+          if (sale && !(Number(sale.original_amount ?? 0) > 0)) {
+            if (Array.isArray(sale.items) && sale.items.length > 0) {
+              const sum = sale.items.reduce((s: number, i: any) => {
+                const unitPrice = catalogPriceById[i?.id] ?? null;
+                if (unitPrice == null) return s;
+                return s + unitPrice * Number(i?.qty ?? 1);
+              }, 0);
+              if (sum > 0) listPriceFallback = sum;
+            }
+            if (listPriceFallback == null) {
+              const byName = catalogPriceByName[String(sale.service_name ?? "").trim()] ?? null;
+              if (byName != null && byName > 0) listPriceFallback = byName;
+            }
           }
           return { ...c, sale, listPriceFallback };
         }),
@@ -4721,6 +4742,8 @@ function ProfesionalesTab({
     onToggle,
     detail,
     loadingDetail: loadingThis = false,
+    clickable = true,
+    emptyFiller = "—",
   }: {
     dateTime: string;
     cliente?: string;
@@ -4729,11 +4752,20 @@ function ProfesionalesTab({
     precioClass?: string;
     detalle: React.ReactNode;
     redStripe?: boolean;
-    expanded: boolean;
-    onToggle: () => void;
-    detail: React.ReactNode;
+    expanded?: boolean;
+    onToggle?: () => void;
+    detail?: React.ReactNode;
     loadingDetail?: boolean;
+    // Adelanto no tiene nada más para mostrar (sin método, sin run) — no
+    // tiene sentido que se pueda "abrir": se queda con la info que ya
+    // tiene la fila, sin chevron ni modal.
+    clickable?: boolean;
+    // Adelanto pide celdas vacías en blanco, no "—" (Cliente/Comisión/
+    // Propina/Medio de pago no aplican en absoluto, a diferencia de un
+    // movimiento donde "—" sí tiene sentido como "no corresponde").
+    emptyFiller?: string;
   }) => {
+    const Tag = clickable ? "button" : "div";
     return (
       <div
         className={cn(
@@ -4742,32 +4774,35 @@ function ProfesionalesTab({
         )}
       >
         {/* Desktop */}
-        <button
-          type="button"
-          onClick={onToggle}
+        <Tag
+          type={clickable ? "button" : undefined}
+          onClick={clickable ? onToggle : undefined}
           className={cn(
-            "hidden w-full items-center gap-3 px-4 py-3 text-left text-sm transition hover:bg-white/[0.025] sm:grid",
+            "hidden w-full items-center gap-3 px-4 py-3 text-left text-sm sm:grid",
+            clickable && "transition hover:bg-white/[0.025]",
             LIQ_GRID_COLS,
           )}
         >
           <div className="text-white/52">{dateTime}</div>
-          <div className="truncate text-white/82">{cliente}</div>
+          <div className="truncate text-white/82">{cliente || emptyFiller}</div>
           <div className="min-w-0">
             <div className="truncate text-white/82">{concepto}</div>
             <div className="truncate text-[11px] font-medium text-white/40">{detalle}</div>
           </div>
           <div className={cn("text-right tabular-nums", precioClass ?? "text-white/72")}>{precioText}</div>
-          <div className="text-right text-white/30">—</div>
-          <div className="text-right text-white/30">—</div>
+          <div className="text-right text-white/30">{emptyFiller}</div>
+          <div className="text-right text-white/30">{emptyFiller}</div>
           <div className="flex items-center justify-between gap-2 text-white/52">
-            <span>—</span>
-            <ChevronDown className={cn("size-3.5 shrink-0 transition-transform", expanded && "rotate-180")} />
+            <span>{emptyFiller}</span>
+            {clickable && (
+              <ChevronDown className={cn("size-3.5 shrink-0 transition-transform", expanded && "rotate-180")} />
+            )}
           </div>
-        </button>
+        </Tag>
         {/* Mobile */}
-        <button
-          type="button"
-          onClick={onToggle}
+        <Tag
+          type={clickable ? "button" : undefined}
+          onClick={clickable ? onToggle : undefined}
           className="flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left text-xs sm:hidden"
         >
           <div className="min-w-0 flex-1">
@@ -4777,10 +4812,12 @@ function ProfesionalesTab({
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
             <span className={cn("font-bold tabular-nums", precioClass ?? "text-white")}>{precioText}</span>
-            <ChevronDown className={cn("size-3.5 transition-transform", expanded && "rotate-180")} />
+            {clickable && (
+              <ChevronDown className={cn("size-3.5 transition-transform", expanded && "rotate-180")} />
+            )}
           </div>
-        </button>
-        {expanded && (
+        </Tag>
+        {clickable && expanded && (
           <div className="border-t border-white/[0.06] bg-white/[0.015] px-3.5 py-3 sm:px-4">
             {loadingThis ? <div className="py-4 text-center text-xs text-white/45">Cargando…</div> : detail}
           </div>
@@ -5183,19 +5220,18 @@ function ProfesionalesTab({
                       ? `${new Date(item.at).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })} · ${new Date(item.at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}`
                       : "—";
                     if (item.kind === "adelanto") {
-                      const isExpanded = historialDetailAdvance?.id === item.data.id;
                       return (
                         <MovRow
                           key={`adelanto-${item.data.id}`}
                           dateTime={dateTime}
+                          cliente=""
                           concepto="Adelanto"
                           precioText={`-${money(Number(item.data.amount ?? 0))}`}
                           precioClass="text-rose-300"
                           detalle={`Dado por ${displayResponsable(item.data.registered_by_name)}`}
                           redStripe
-                          expanded={isExpanded}
-                          onToggle={() => setHistorialDetailAdvance(isExpanded ? null : item.data)}
-                          detail={<AdelantoDetalleContent professionalName={selectedRow.name} advance={item.data} />}
+                          clickable={false}
+                          emptyFiller=""
                         />
                       );
                     }
