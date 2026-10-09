@@ -4086,7 +4086,7 @@ function ProfesionalesTab({
         const { data: pays, error: payError } = await supabase
           .from("payments" as any)
           .select(
-            "id,client_name,service_name,total,amount,method,payment_method,created_at,discount,original_amount,promotion_name,tip_amount,items",
+            "id,client_name,service_name,total,amount,method,payment_method,created_at,discount,original_amount,promotion_id,promotion_name,tip_amount,items",
           )
           .in("id", saleIds);
         if (payError) throw payError;
@@ -4545,10 +4545,10 @@ function ProfesionalesTab({
   // cronológicamente con pagos/adelantos/ajustes/deducciones.
   // Grilla compartida por TODAS las filas de la lista única de
   // Liquidaciones (ventas, adelantos, pagos, ajustes, deducciones) y por su
-  // encabezado — mismas 7 columnas siempre, para que de verdad sea una
-  // sola tabla y no varias con forma distinta intercaladas.
+  // encabezado — mismas 7 columnas siempre: Fecha y hora | Cliente |
+  // Concepto | Precio | Comisión | Propina | Medio de pago.
   const LIQ_GRID_COLS =
-    "grid-cols-[116px_minmax(100px,1fr)_minmax(130px,1.1fr)_100px_100px_100px_minmax(140px,1fr)]";
+    "grid-cols-[116px_minmax(100px,1fr)_minmax(130px,1.1fr)_100px_100px_100px_minmax(90px,1fr)]";
 
   const VentaRow = ({ c }: { c: any }) => {
     const sale = c.sale ?? {};
@@ -4577,6 +4577,24 @@ function ProfesionalesTab({
       storedOriginal > 0 ? storedOriginal : Number(sale.listPriceFallback ?? saleTotal);
     const hasReduction = originalAmount > saleTotal;
     const totalCobrado = saleTotal + Number(sale.tip_amount ?? 0);
+    // Distingue POR QUÉ bajó el precio, usando los mismos campos reales que
+    // ya usa el resto de la app (register-payment.ts): promotion_id = la
+    // venta pasó por una promoción real (nombre en promotion_name);
+    // promotion_name sin promotion_id = motivo de un descuento manual
+    // (ej. "Cortesía"); ninguno de los dos pero hasReduction = precio en
+    // efectivo sin ningún descuento explícito. Nunca inventa una regla
+    // nueva, solo lee lo que ya se guarda.
+    const promoLabel = sale.promotion_id && sale.promotion_name
+      ? (/^promo\b/i.test(String(sale.promotion_name)) ? sale.promotion_name : `Promo ${sale.promotion_name}`)
+      : null;
+    const manualDiscountLabel = !sale.promotion_id && hasDiscount ? sale.promotion_name : null;
+    const conceptSubtitle = promoLabel ?? manualDiscountLabel ?? (hasReduction ? "Precio en efectivo" : null);
+    const conceptSubtitleClass = promoLabel
+      ? "text-sky-300"
+      : manualDiscountLabel
+        ? "text-amber-300"
+        : "text-emerald-300/80";
+    const tipText = hasTip ? `+ ${money(Number(sale.tip_amount))}` : "—";
 
     return (
       <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-black/18">
@@ -4587,7 +4605,12 @@ function ProfesionalesTab({
         >
           <div className="text-white/52">{dateTime}</div>
           <div className="truncate text-white/82">{sale.client_name ?? "Sin cliente"}</div>
-          <div className="truncate text-white/82">{sale.service_name ?? "Servicio"}</div>
+          <div className="min-w-0">
+            <div className="truncate text-white/82">{sale.service_name ?? "Servicio"}</div>
+            {conceptSubtitle && (
+              <div className={cn("truncate text-[11px] font-medium", conceptSubtitleClass)}>{conceptSubtitle}</div>
+            )}
+          </div>
           <div className="text-right tabular-nums text-white/72">
             <div className="flex items-center justify-end gap-1">
               {hasReduction ? (
@@ -4638,17 +4661,10 @@ function ProfesionalesTab({
               <div className="text-[10px] tabular-nums text-white/35">{c.commission_pct}%</div>
             )}
           </div>
+          <div className={cn("text-right text-sm font-semibold tabular-nums", hasTip ? "text-emerald-300" : "text-white/25")}>
+            {tipText}
+          </div>
           <div className="text-white/52">{method}</div>
-          <div className="text-white/35">—</div>
-          {/* Propina: col-start-5 = misma columna donde arranca Comisión —
-              cae en la fila de abajo (el grid ya está lleno en la fila 1),
-              alineada con "$9.000", no con "Transferencia". Más grande que
-              antes (text-sm en vez de text-[10px]) a pedido explícito. */}
-          {hasTip && (
-            <div className="col-start-5 col-span-2 -mt-0.5 text-sm font-semibold tabular-nums text-emerald-300">
-              + propina {money(Number(sale.tip_amount))}
-            </div>
-          )}
         </div>
         {/* Mobile */}
         <div className="px-3.5 py-3 text-xs sm:hidden">
@@ -4656,6 +4672,9 @@ function ProfesionalesTab({
             <div className="min-w-0 flex-1">
               <div className="truncate font-semibold text-white/82">{sale.client_name ?? "Sin cliente"}</div>
               <div className="mt-0.5 truncate text-white/60">{sale.service_name ?? "Servicio"}</div>
+              {conceptSubtitle && (
+                <div className={cn("truncate text-[11px] font-medium", conceptSubtitleClass)}>{conceptSubtitle}</div>
+              )}
               <div className="mt-1 text-white/45">
                 Precio:{" "}
                 {hasReduction ? (
@@ -4733,12 +4752,15 @@ function ProfesionalesTab({
         >
           <div className="text-white/52">{dateTime}</div>
           <div className="truncate text-white/82">{cliente}</div>
-          <div className="truncate text-white/82">{concepto}</div>
+          <div className="min-w-0">
+            <div className="truncate text-white/82">{concepto}</div>
+            <div className="truncate text-[11px] font-medium text-white/40">{detalle}</div>
+          </div>
           <div className={cn("text-right tabular-nums", precioClass ?? "text-white/72")}>{precioText}</div>
           <div className="text-right text-white/30">—</div>
-          <div className="text-white/30">—</div>
-          <div className="flex items-center justify-between gap-2 truncate text-white/52">
-            <span className="truncate">{detalle}</span>
+          <div className="text-right text-white/30">—</div>
+          <div className="flex items-center justify-between gap-2 text-white/52">
+            <span>—</span>
             <ChevronDown className={cn("size-3.5 shrink-0 transition-transform", expanded && "rotate-180")} />
           </div>
         </button>
@@ -4996,8 +5018,10 @@ function ProfesionalesTab({
             {/* Total a pagar: mayor jerarquía visual que el resto de las
                 tarjetas (más grande, tono propio) y con Adelantar/Pagar
                 integrados en la misma zona — Pagar queda pegado al total,
-                en vez de una barra de botones flotante aparte. */}
-            <div className="flex items-center gap-3 rounded-2xl border border-emerald-400/25 bg-emerald-400/[0.07] px-4 py-2.5 shadow-[0_0_28px_rgba(16,185,129,0.10)] lg:min-w-[300px]">
+                en vez de una barra de botones flotante aparte. sticky:
+                queda siempre visible arriba a la derecha aunque se haga
+                scroll en la lista de abajo. */}
+            <div className="sticky top-0 z-20 flex items-center gap-3 rounded-2xl border border-emerald-400/25 bg-emerald-400/[0.07] px-4 py-2.5 shadow-[0_0_28px_rgba(16,185,129,0.10)] backdrop-blur-xl lg:min-w-[300px]">
               <div className="min-w-0 flex-1">
                 <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-200/70">
                   Total a pagar
@@ -5148,8 +5172,8 @@ function ProfesionalesTab({
                     <div>Concepto</div>
                     <div className="text-right">Precio</div>
                     <div className="text-right">Comisión</div>
+                    <div className="text-right">Propina</div>
                     <div>Medio de pago</div>
-                    <div>Detalles</div>
                   </div>
                   {unifiedMovimientos.map((item: any) => {
                     if (item.kind === "venta") {
