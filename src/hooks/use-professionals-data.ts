@@ -648,6 +648,104 @@ export async function fetchSettlementRunServices(settlementRunId: string) {
   }));
 }
 
+// Match tolerante (trim + lowercase) entre payments.service_name (texto
+// congelado al momento de la venta) y price_catalog.name (puede haberse
+// re-tipeado con otra capitalización/espacios desde entonces) — usado solo
+// para el fallback visual de "precio de lista" cuando una venta no tiene
+// original_amount guardado (ver fetchPendingVentasForProfessional).
+function normalizeServiceName(name: unknown): string {
+  return String(name ?? "").trim().toLowerCase();
+}
+
+// Ventas con comisión TODAVÍA NO liquidada (settlement_run_id null) de un
+// profesional — misma fuente/criterio exacto que usa Caja > Liquidaciones
+// (antes vivía solo ahí, duplicada en espíritu en Panel del profesional >
+// Movimientos con su propio criterio vía useProfSalesEnriched). Una vez que
+// una venta entra en una liquidación deja de aparecer acá — pasa a vivir
+// dentro del detalle de esa liquidación (ver fetchSettlementRunServices).
+// Devuelve filas listas para <VentaRow c={...} /> (unified-row.tsx): cada
+// una trae `sale` con los campos crudos de `payments` + `listPriceFallback`
+// (precio de lista actual del catálogo, solo como aproximación visual para
+// ventas viejas sin original_amount).
+export async function fetchPendingVentasForProfessional(businessId: string, professionalId: string) {
+  const { data: commissionRows, error } = await supabase
+    .from("commission_records" as any)
+    .select("id,amount,pending_amount,commission_pct,sale_date,created_at,sale_id")
+    .eq("business_id", businessId)
+    .eq("professional_id", professionalId)
+    .is("settlement_run_id", null)
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(error.message);
+
+  const saleIds = (commissionRows ?? []).map((c: any) => c.sale_id).filter(Boolean);
+  let paymentsById: Record<string, any> = {};
+  if (saleIds.length > 0) {
+    const { data: pays, error: payError } = await supabase
+      .from("payments" as any)
+      .select(
+        "id,client_name,service_name,total,amount,method,payment_method,created_at,discount,original_amount,promotion_id,promotion_name,tip_amount,items",
+      )
+      .in("id", saleIds);
+    if (payError) throw new Error(payError.message);
+    paymentsById = Object.fromEntries((pays ?? []).map((p: any) => [p.id, p]));
+  }
+
+  // Fallback SOLO visual de "precio de lista" para ventas viejas que no
+  // guardaron original_amount — precio ACTUAL del catálogo, por id de ítem
+  // y, si no matchea, por nombre normalizado (ver normalizeServiceName).
+  const salesNeedingFallback = Object.values(paymentsById).filter(
+    (p: any) => !(Number(p?.original_amount ?? 0) > 0),
+  );
+  const missingListPriceItemIds = Array.from(
+    new Set(
+      salesNeedingFallback
+        .flatMap((p: any) => (Array.isArray(p?.items) ? p.items : []))
+        .map((i: any) => i?.id)
+        .filter(Boolean),
+    ),
+  );
+  let catalogPriceById: Record<string, number> = {};
+  if (missingListPriceItemIds.length > 0) {
+    const { data: catalogRows, error: catalogError } = await supabase
+      .from("price_catalog" as any)
+      .select("id,price")
+      .in("id", missingListPriceItemIds);
+    if (catalogError) throw new Error(catalogError.message);
+    catalogPriceById = Object.fromEntries((catalogRows ?? []).map((r: any) => [r.id, Number(r.price ?? 0)]));
+  }
+  let catalogPriceByName: Record<string, number> = {};
+  if (salesNeedingFallback.length > 0) {
+    const { data: catalogByName, error: catalogByNameError } = await supabase
+      .from("price_catalog" as any)
+      .select("name,price")
+      .eq("business_id", businessId);
+    if (catalogByNameError) throw new Error(catalogByNameError.message);
+    catalogPriceByName = Object.fromEntries(
+      (catalogByName ?? []).map((r: any) => [normalizeServiceName(r.name), Number(r.price ?? 0)]),
+    );
+  }
+
+  return (commissionRows ?? []).map((c: any) => {
+    const sale = paymentsById[c.sale_id] ?? null;
+    let listPriceFallback: number | null = null;
+    if (sale && !(Number(sale.original_amount ?? 0) > 0)) {
+      if (Array.isArray(sale.items) && sale.items.length > 0) {
+        const sum = sale.items.reduce((s: number, i: any) => {
+          const unitPrice = catalogPriceById[i?.id] ?? null;
+          if (unitPrice == null) return s;
+          return s + unitPrice * Number(i?.qty ?? 1);
+        }, 0);
+        if (sum > 0) listPriceFallback = sum;
+      }
+      if (listPriceFallback == null) {
+        const byName = catalogPriceByName[normalizeServiceName(sale.service_name)] ?? null;
+        if (byName != null && byName > 0) listPriceFallback = byName;
+      }
+    }
+    return { ...c, sale, listPriceFallback };
+  });
+}
+
 export function useConfirmSettlementRun(businessId: string | null, empId: string | null) {
   const qc = useQueryClient();
   return useMutation({

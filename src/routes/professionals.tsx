@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 import { DateRangePicker } from "@/components/date-range-picker";
 import { useAuth } from "@/hooks/use-auth";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
-import { registerPayment, type PayMethod, PAY_METHOD_LABEL } from "@/components/cash-register/register-payment";
+import { registerPayment } from "@/components/cash-register/register-payment";
 import { supabase } from "@/integrations/supabase/client";
 import {
   useProfessionals, useProfPayments,
@@ -30,6 +30,7 @@ import {
   useProfSettlementRuns, useProfSettlementRunPayments, useProfAdvances,
   useConfirmSettlementRun, useObserveSettlementRun,
   fetchSettlementRunServices,
+  fetchPendingVentasForProfessional,
   type ProfTurno, type ProfSale, type SettlementRun,
 } from "@/hooks/use-professionals-data";
 import {
@@ -45,7 +46,6 @@ import {
   type MovimientoDeduccion,
   type HistorialAdvanceRow,
 } from "@/lib/historial-movimientos";
-import { MovimientoCard } from "@/components/liquidaciones/movimiento-card";
 import {
   PagoDetalleContent,
   AdelantoDetalleContent,
@@ -53,6 +53,12 @@ import {
   DeduccionDetalleContent,
   type PagoDetalleService,
 } from "@/components/liquidaciones/movimiento-detalle-content";
+import {
+  VentaRow,
+  MovRow,
+  UnifiedMovimientosHeader,
+} from "@/components/liquidaciones/unified-row";
+import { money, displayResponsable } from "@/components/liquidaciones/movimiento-format";
 import { AgendaCenteredModal } from "@/components/agenda/agenda-drawer";
 import { cancelAppointment } from "@/components/agenda/use-agenda-data";
 import { useAgendaData } from "@/components/agenda/use-agenda-data";
@@ -73,7 +79,7 @@ export const Route = createFileRoute("/professionals")({
   component: ProfessionalsPage,
 });
 
-type TabKey = "turnos" | "stats" | "historial-servicios" | "historial-pagos";
+type TabKey = "turnos" | "stats" | "historial-pagos";
 type RangeKey = "hoy" | "semana" | "mes" | "custom";
 
 function toLocalISODate(date: Date) {
@@ -537,11 +543,10 @@ function ProfessionalsPage() {
           abajo — a diferencia de un margin-top ahí, este padding no puede
           "colapsar" ni perderse, así que asegura el aire pedido sin
           depender de cómo el navegador resuelva márgenes adyacentes. */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 pb-3">
+      <div className="grid grid-cols-3 gap-2 sm:gap-3 pb-3">
         {([
           { key: "turnos",             label: "Mi Agenda",             Icon: ClipboardList, tint: "text-cyan-300" },
           { key: "stats",              label: "Rendimiento",           Icon: BarChart3,     tint: "text-sky-300"   },
-          { key: "historial-servicios",label: "Comisiones",            Icon: Clock,         tint: "text-violet-300"},
           { key: "historial-pagos",    label: "Movimientos",           Icon: HandCoins,     tint: "text-amber-300" },
         ] as const).map(({ key, label, Icon, tint }) => {
           const isActive = tab === key;
@@ -743,7 +748,6 @@ function ProfessionalsPage() {
         />
       )}
       {tab === "stats" && <StatsView businessId={businessId} empId={empId} from={fromDate} to={toDate} commissionPct={Number(active?.commission_pct ?? 0)} />}
-      {tab === "historial-servicios" && <HistorialView businessId={businessId} empId={empId} commissionPct={Number(active?.commission_pct ?? 0)} from={fromDate} to={toDate} />}
       {tab === "historial-pagos" && (
         <LiquidacionesPanelView
           businessId={businessId}
@@ -2497,6 +2501,35 @@ function LiquidacionesPanelView({
   const confirmRun = useConfirmSettlementRun(businessId, empId);
   const observeRun = useObserveSettlementRun(businessId, empId);
 
+  // Ventas con comisión todavía no liquidada — mismo criterio y misma
+  // query que usa Caja > Liquidaciones para este profesional (ver
+  // fetchPendingVentasForProfessional), para que la lista de Movimientos
+  // de acá muestre EXACTAMENTE las mismas ventas y el mismo monto de
+  // comisión que ve Caja, con el mismo componente de fila (<VentaRow>).
+  const [ventaRows, setVentaRows] = useState<any[]>([]);
+  const [loadingVentas, setLoadingVentas] = useState(false);
+  React.useEffect(() => {
+    if (!businessId || !empId) {
+      setVentaRows([]);
+      return;
+    }
+    let cancelled = false;
+    setLoadingVentas(true);
+    fetchPendingVentasForProfessional(businessId, empId)
+      .then((rows) => {
+        if (!cancelled) setVentaRows(rows);
+      })
+      .catch((err) => {
+        if (!cancelled) toast.error(err instanceof Error ? err.message : "No se pudieron cargar las ventas");
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingVentas(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [businessId, empId]);
+
   const [detailRunId, setDetailRunId] = useState<string | null>(null);
   const [detailRows, setDetailRows] = useState<any[] | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -2581,6 +2614,22 @@ function LiquidacionesPanelView({
     () => buildHistorialMovimientos(payments, advances, runs),
     [payments, advances, runs],
   );
+
+  // Lista única de Movimientos: ventas con comisión todavía pendiente +
+  // pagos/adelantos/ajustes/deducciones, mezclados y ordenados por fecha —
+  // mismo criterio y mismo componente (<VentaRow>/<MovRow>) que Caja >
+  // Liquidaciones, para que las dos pantallas se vean y se actualicen
+  // exactamente igual.
+  const unifiedMovimientos = React.useMemo(() => {
+    const ventaItems = ventaRows.map((c: any) => ({
+      kind: "venta" as const,
+      at: c.created_at as string,
+      commission: c,
+    }));
+    return [...ventaItems, ...movimientos].sort((a: any, b: any) =>
+      String(b.at ?? "").localeCompare(String(a.at ?? "")),
+    );
+  }, [ventaRows, movimientos]);
 
   // Liquidaciones preparadas pero todavía sin ningún pago registrado — no
   // son un Movimiento (no hay plata que haya cambiado de mano todavía),
@@ -2725,15 +2774,15 @@ function LiquidacionesPanelView({
     );
   }
 
-  const isLoading = loadingRuns || loadingPayments || loadingAdvances;
+  const isLoading = loadingRuns || loadingPayments || loadingAdvances || loadingVentas;
   if (isLoading) {
     return <div className="p-8 text-center text-sm text-muted-foreground animate-pulse">Cargando…</div>;
   }
 
-  if (pendingRuns.length === 0 && movimientos.length === 0) {
+  if (pendingRuns.length === 0 && unifiedMovimientos.length === 0) {
     return (
       <div className="glass rounded-2xl p-8 text-center text-sm text-muted-foreground">
-        Todavía no hay liquidaciones preparadas.
+        Todavía no hay ventas ni movimientos para este profesional.
       </div>
     );
   }
@@ -2839,110 +2888,42 @@ function LiquidacionesPanelView({
         </div>
       )}
 
-      {movimientos.length === 0 ? (
+      {unifiedMovimientos.length === 0 ? (
         <div className="glass rounded-2xl p-8 text-center text-sm text-muted-foreground">
-          Todavía no se registró ningún pago ni adelanto.
+          Todavía no hay ventas ni movimientos para este profesional.
         </div>
       ) : (
-        movimientos.map((item) => {
-          if (item.kind === "adelanto") {
-            const advance = item.data;
-            return (
-              <MovimientoCard
-                key={`adelanto-${advance.id}`}
-                item={item}
-                professionalName={professionalName}
-                onVerDetalle={() => openAdvanceDetalle(advance)}
-                extraActions={
-                  item.movementNumber != null ? (
-                    <>
-                      <button
-                        onClick={() =>
-                          downloadComprobante(
-                            advanceComprobanteFor(advance, item.movementNumber!),
-                            `Movimiento #${item.movementNumber}`,
-                          )
-                        }
-                        className="rounded-full bg-white/[0.04] px-3 py-1 text-[11px] font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
-                      >
-                        Descargar comprobante
-                      </button>
-                      <button
-                        onClick={async () => {
-                          const result = await shareComprobante(
-                            advanceComprobanteFor(advance, item.movementNumber!),
-                            `Movimiento #${item.movementNumber}`,
-                          );
-                          if (result === "copied") toast.success("Comprobante copiado al portapapeles");
-                          if (result === "failed") toast.error("No se pudo compartir");
-                        }}
-                        className="rounded-full bg-white/[0.04] px-3 py-1 text-[11px] font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
-                      >
-                        Compartir comprobante
-                      </button>
-                    </>
-                  ) : null
-                }
-              />
-            );
-          }
+        <div className="flex flex-col gap-2">
+          <UnifiedMovimientosHeader />
+          {unifiedMovimientos.map((item: any) => {
+            if (item.kind === "venta") {
+              return <VentaRow key={`venta-${item.commission.id}`} c={item.commission} />;
+            }
+            const dateTime = item.at
+              ? `${new Date(item.at).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })} · ${new Date(item.at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}`
+              : "—";
 
-          if (item.kind === "ajuste" || item.kind === "deduccion") {
-            const isAjuste = item.kind === "ajuste";
-            return (
-              <MovimientoCard
-                key={`${item.kind}-${item.runId}`}
-                item={item}
-                professionalName={professionalName}
-                onVerDetalle={() => (isAjuste ? openAjusteDetalle(item) : openDeduccionDetalle(item))}
-                extraActions={
-                  item.movementNumber != null ? (
-                    <>
-                      <button
-                        onClick={() =>
-                          downloadComprobante(itemsComprobanteFor(item), `Movimiento #${item.movementNumber}`)
-                        }
-                        className="rounded-full bg-white/[0.04] px-3 py-1 text-[11px] font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
-                      >
-                        Descargar comprobante
-                      </button>
-                      <button
-                        onClick={async () => {
-                          const result = await shareComprobante(
-                            itemsComprobanteFor(item),
-                            `Movimiento #${item.movementNumber}`,
-                          );
-                          if (result === "copied") toast.success("Comprobante copiado al portapapeles");
-                          if (result === "failed") toast.error("No se pudo compartir");
-                        }}
-                        className="rounded-full bg-white/[0.04] px-3 py-1 text-[11px] font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
-                      >
-                        Compartir comprobante
-                      </button>
-                    </>
-                  ) : null
-                }
-              />
-            );
-          }
-
-          const run = runsById.get(item.settlementRunId) ?? null;
-          const lastPayment = item.splits[item.splits.length - 1];
-          return (
-            <div key={`pago-${item.movementNumber ?? lastPayment.id}`} className="space-y-2">
-              <MovimientoCard
-                item={item}
-                professionalName={professionalName}
-                run={run}
-                onVerDetalle={() => run && openPagoDetalle(run, item.movementNumber)}
-                extraActions={
-                  <>
-                    {run && item.movementNumber != null && (
+            if (item.kind === "adelanto") {
+              const advance = item.data;
+              return (
+                <MovRow
+                  key={`adelanto-${advance.id}`}
+                  dateTime={dateTime}
+                  cliente=""
+                  concepto="Adelanto"
+                  precioText={`-${money(Number(advance.amount ?? 0))}`}
+                  precioClass="text-rose-300"
+                  detalle={`Dado por ${displayResponsable(advance.registered_by_name)}`}
+                  redStripe
+                  emptyFiller=""
+                  onToggle={() => openAdvanceDetalle(advance)}
+                  actions={
+                    item.movementNumber != null ? (
                       <>
                         <button
                           onClick={() =>
                             downloadComprobante(
-                              comprobanteFor(run, item.movementNumber!, lastPayment),
+                              advanceComprobanteFor(advance, item.movementNumber!),
                               `Movimiento #${item.movementNumber}`,
                             )
                           }
@@ -2953,7 +2934,7 @@ function LiquidacionesPanelView({
                         <button
                           onClick={async () => {
                             const result = await shareComprobante(
-                              comprobanteFor(run, item.movementNumber!, lastPayment),
+                              advanceComprobanteFor(advance, item.movementNumber!),
                               `Movimiento #${item.movementNumber}`,
                             );
                             if (result === "copied") toast.success("Comprobante copiado al portapapeles");
@@ -2964,15 +2945,105 @@ function LiquidacionesPanelView({
                           Compartir comprobante
                         </button>
                       </>
-                    )}
-                    {run && confirmObserveButtons(run)}
-                  </>
-                }
-              />
-              {run && observationBlock(run)}
-            </div>
-          );
-        })
+                    ) : undefined
+                  }
+                />
+              );
+            }
+
+            if (item.kind === "ajuste" || item.kind === "deduccion") {
+              const isAjuste = item.kind === "ajuste";
+              return (
+                <MovRow
+                  key={`${item.kind}-${item.runId}`}
+                  dateTime={dateTime}
+                  concepto={isAjuste ? "Ajuste" : "Deducción"}
+                  precioText={`${isAjuste ? "+" : "-"}${money(Number(item.amount ?? 0))}`}
+                  precioClass={isAjuste ? "text-emerald-300" : "text-rose-300"}
+                  detalle={`Preparado por ${displayResponsable(item.preparedByName)}`}
+                  onToggle={() => (isAjuste ? openAjusteDetalle(item) : openDeduccionDetalle(item))}
+                  actions={
+                    item.movementNumber != null ? (
+                      <>
+                        <button
+                          onClick={() =>
+                            downloadComprobante(itemsComprobanteFor(item), `Movimiento #${item.movementNumber}`)
+                          }
+                          className="rounded-full bg-white/[0.04] px-3 py-1 text-[11px] font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
+                        >
+                          Descargar comprobante
+                        </button>
+                        <button
+                          onClick={async () => {
+                            const result = await shareComprobante(
+                              itemsComprobanteFor(item),
+                              `Movimiento #${item.movementNumber}`,
+                            );
+                            if (result === "copied") toast.success("Comprobante copiado al portapapeles");
+                            if (result === "failed") toast.error("No se pudo compartir");
+                          }}
+                          className="rounded-full bg-white/[0.04] px-3 py-1 text-[11px] font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
+                        >
+                          Compartir comprobante
+                        </button>
+                      </>
+                    ) : undefined
+                  }
+                />
+              );
+            }
+
+            const run = runsById.get(item.settlementRunId) ?? null;
+            const lastPayment = item.splits[item.splits.length - 1];
+            const paidBy = displayResponsable(item.splits[0]?.paid_by_name);
+            return (
+              <div key={`pago-${item.movementNumber ?? lastPayment.id}`} className="space-y-2">
+                <MovRow
+                  dateTime={dateTime}
+                  concepto={item.isFull ? "Pago total" : "Pago parcial"}
+                  precioText={money(Number(item.totalAmount ?? 0))}
+                  precioClass={item.isFull ? "text-emerald-300" : "text-amber-300"}
+                  detalle={`Pagado por ${paidBy}`}
+                  onToggle={() => run && openPagoDetalle(run, item.movementNumber)}
+                  actions={
+                    <>
+                      {run && item.movementNumber != null && (
+                        <>
+                          <button
+                            onClick={() =>
+                              downloadComprobante(
+                                comprobanteFor(run, item.movementNumber!, lastPayment),
+                                `Movimiento #${item.movementNumber}`,
+                              )
+                            }
+                            className="rounded-full bg-white/[0.04] px-3 py-1 text-[11px] font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
+                          >
+                            Descargar comprobante
+                          </button>
+                          <button
+                            onClick={async () => {
+                              const result = await shareComprobante(
+                                comprobanteFor(run, item.movementNumber!, lastPayment),
+                                `Movimiento #${item.movementNumber}`,
+                              );
+                              if (result === "copied") toast.success("Comprobante copiado al portapapeles");
+                              if (result === "failed") toast.error("No se pudo compartir");
+                            }}
+                            className="rounded-full bg-white/[0.04] px-3 py-1 text-[11px] font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
+                          >
+                            Compartir comprobante
+                          </button>
+                        </>
+                      )}
+                      {run && confirmObserveButtons(run)}
+                    </>
+                  }
+                />
+                {run && observationBlock(run)}
+              </div>
+            );
+          })}
+        </div>
       )}
 
       {/* "Ver detalle" de un Movimiento — mismo modal/contenido que Caja >
@@ -3064,70 +3135,6 @@ function LiquidacionesPanelView({
   );
 }
 
-const METHOD_LABELS: Record<string, string> = {
-  cash: "Efectivo",
-  efectivo: "Efectivo",
-  transfer: "Transferencia",
-  transferencia: "Transferencia",
-  card: "Tarjeta",
-  tarjeta: "Tarjeta",
-  mercadopago: "Mercado Pago",
-  mercado_pago: "Mercado Pago",
-  mp: "Mercado Pago",
-  cuenta_dni: "Cuenta DNI",
-  cuentaDni: "Cuenta DNI",
-};
-
-function formatSaleDate(value: string) {
-  const date = new Date(value);
-  const day = date.toLocaleDateString("es-AR", { weekday: "short" }).replace(".", "");
-  const formattedDay = day.charAt(0).toUpperCase() + day.slice(1);
-  const datePart = date.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
-  const timePart = date.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false });
-  return `${formattedDay} ${datePart} ${timePart}`;
-}
-
-function methodLabel(method?: string | null) {
-  if (!method) return "—";
-  return METHOD_LABELS[method] ?? METHOD_LABELS[method.toLowerCase()] ?? method;
-}
-
-function methodDisplayLabel(m: string): string {
-  return PAY_METHOD_LABEL[m as PayMethod] ?? methodLabel(m);
-}
-
-// Borde lateral + contorno + glow suave según estado — mismo criterio de
-// colores que ya usa Mi Agenda (getBlockStyle: sky=pendiente, emerald=
-// cobrado), sumando rose para rechazado. Pedido explícito: nada de badges
-// de texto — el estado se entiende por el color del borde y por la línea
-// de historial de abajo ("→ Envió a caja" / "→ Cobró" / "→ Rechazó").
-// `bar` es un <span> absoluto (no border-left) a propósito: la tarjeta usa
-// la clase "glass", que trae su propio shorthand `border: 1px solid ...`
-// (ver .glass en styles.css) — ese shorthand fija border-color en los 4
-// lados, y al tener la misma especificidad que "border-l-sky-400" pero
-// aparecer después en el CSS compilado, GANABA y anulaba en silencio el
-// color del borde izquierdo (comprobado comparando el orden real en el
-// bundle de producción). Un <span> con background-color no compite con
-// ninguna propiedad de border, así que no puede ser tapado de la misma forma.
-function saleCardStyle(status: "pendiente" | "cobrado" | "rechazado" | null) {
-  if (status === "pendiente") return {
-    bar: "bg-sky-400",
-    ring: "ring-sky-400/20",
-    glow: "shadow-[0_0_16px_-6px_rgba(56,189,248,0.4)]",
-  };
-  if (status === "cobrado") return {
-    bar: "bg-emerald-400",
-    ring: "ring-emerald-400/20",
-    glow: "shadow-[0_0_16px_-6px_rgba(52,211,153,0.4)]",
-  };
-  if (status === "rechazado") return {
-    bar: "bg-rose-400",
-    ring: "ring-rose-400/20",
-    glow: "shadow-[0_0_16px_-6px_rgba(251,113,133,0.4)]",
-  };
-  return { bar: "bg-transparent", ring: "ring-white/10", glow: "" };
-}
-
 // Día calendario (YYYY-MM-DD) de un timestamp real, siempre en horario de
 // Argentina — nunca el del dispositivo/navegador. Sin timeZone explícito,
 // toLocaleDateString usa la zona del sistema; una venta hecha después de
@@ -3136,17 +3143,6 @@ function saleCardStyle(status: "pendiente" | "cobrado" | "rechazado" | null) {
 const BA_TZ = "America/Argentina/Buenos_Aires";
 function argDateKey(iso: string): string {
   return new Date(iso).toLocaleDateString("sv-SE", { timeZone: BA_TZ });
-}
-
-// Muestra un YYYY-MM-DD ya resuelto (argDateKey) como "Dom 19-07". Arma la
-// fecha con Date.UTC + timeZone:"UTC" a propósito — el día calendario ya es
-// correcto, así que re-derivar weekday/día/mes pasando de nuevo por la zona
-// horaria del dispositivo podía volver a correr el día (mismo bug de raíz).
-function formatFechaCorta(fechaYMD: string): string {
-  const [y, m, d] = fechaYMD.split("-").map(Number);
-  return new Date(Date.UTC(y, m - 1, d))
-    .toLocaleDateString("es-AR", { weekday: "short", day: "2-digit", month: "2-digit", timeZone: "UTC" })
-    .replace(".", "");
 }
 
 type EnrichedSaleRow = {
@@ -3487,204 +3483,3 @@ function useProfSalesEnriched(
   return { enriched, loading: turnosLoading || enrichLoading };
 }
 
-function HistorialView({ businessId, empId, commissionPct, from, to }: { businessId: string | null; empId: string | null; commissionPct: number; from: string; to: string }) {
-  const { enriched, loading } = useProfSalesEnriched(businessId, empId, from, to, commissionPct);
-
-  const totalFacturado = enriched.reduce((s, r) => s + r.total, 0);
-  const totalComisiones = enriched.reduce((s, r) => s + r.commission, 0);
-
-  // Vista resumida: al entrar a "Historial de ventas" se muestran como
-  // máximo las últimas 10 ventas (mismo `enriched`, ya ordenado por
-  // sortTs descendente — la más reciente primero) con un botón "Ver
-  // historial completo" que revela el resto sin volver a pedir datos ni
-  // cambiar los filtros (from/to) ya aplicados. Se resetea sola cada vez
-  // que se re-entra a esta pestaña porque el componente se desmonta/monta
-  // con el tab (ver ProfessionalsPage). Mismo criterio en mobile y en
-  // desktop — antes solo mobile truncaba (a 3) y desktop mostraba siempre
-  // todo sin límite ni botón.
-  const [showFull, setShowFull] = React.useState(false);
-  const showPreviewGate = !showFull && enriched.length > 10;
-  const visibleRows = showPreviewGate ? enriched.slice(0, 10) : enriched;
-
-  const renderMobileCard = (row: (typeof enriched)[number]) => {
-    const fechaDisplay = formatFechaCorta(row.fecha);
-    // Todos los eventos (Envió a caja / Cobró), uno debajo del otro en
-    // orden cronológico — mismo formato "HH:MM Nombre → Acción" que ya
-    // tenía Mi Agenda, misma posición de siempre (donde antes decía
-    // "Cobrado por X"), sin moverla.
-    const historialEvents = [...row.histEvents].sort((a, b) => a.time.localeCompare(b.time));
-    const cardStyle = saleCardStyle(row.status);
-    return (
-      <div key={row.id} className={cn("glass relative overflow-hidden rounded-2xl p-3 ring-1", cardStyle.ring, cardStyle.glow)}>
-        <span className={cn("absolute inset-y-0 left-0 w-1.5 rounded-l-2xl", cardStyle.bar)} />
-        <div className="flex items-start justify-between gap-2">
-          {/* Cliente + servicio agrupados en el MISMO contenedor (antes el
-              servicio era un div aparte, hermano de esta fila completa —
-              con items-start en la fila y la columna derecha más alta
-              (3 líneas: método/total/comisión) contra esta de 2, la fila
-              tomaba la altura de la derecha y el servicio quedaba
-              "empujado" abajo, no pegado al cliente. Ahora está adentro de
-              esta columna, así se apila directo debajo del cliente sin
-              depender de la altura de la columna derecha). flex-col gap-0,
-              sin justify-between/min-height/space-y acá adentro. */}
-          <div className="flex min-w-0 flex-1 flex-col gap-0">
-            <div className="text-[11px] capitalize text-muted-foreground tabular-nums">{fechaDisplay}</div>
-            {/* Gris, igual que fecha y servicio — el nombre del cliente es
-                info secundaria acá; el foco debe ser monto/estado/historial,
-                no quién es el cliente. */}
-            <div className="truncate text-sm font-semibold leading-tight text-muted-foreground">{row.client_name ?? "Sin cliente"}</div>
-            <div className="line-clamp-2 leading-tight text-xs text-muted-foreground">{row.service_name ?? "—"}</div>
-          </div>
-          <div className="shrink-0 text-right">
-            {row.methodBreakdown.length === 0 ? (
-              <div className="text-[11px] text-muted-foreground">—</div>
-            ) : row.methodBreakdown.length === 1 ? (
-              <>
-                <div className="text-[11px] text-foreground/85">{methodDisplayLabel(row.methodBreakdown[0].method)}</div>
-                <div className="text-sm font-semibold tabular-nums text-foreground">${row.total.toLocaleString("es-AR")}</div>
-              </>
-            ) : (
-              row.methodBreakdown.map((mb, i) => (
-                <div key={i} className={i > 0 ? "mt-1" : undefined}>
-                  <div className="text-[11px] text-foreground/85">{methodDisplayLabel(mb.method)}</div>
-                  <div className="text-sm font-semibold tabular-nums text-foreground">${mb.amount.toLocaleString("es-AR")}</div>
-                </div>
-              ))
-            )}
-            {/* Violeta, no celeste — celeste ya es el color del estado
-                "Enviado a caja" y competía visualmente. */}
-            <div className="mt-1 text-xs font-semibold tabular-nums text-violet-300">Comisión ${row.commission.toLocaleString("es-AR")}</div>
-          </div>
-        </div>
-        {historialEvents.length > 0 && (
-          <div className="mt-1.5 space-y-0.5 border-t border-white/5 pt-1.5">
-            {historialEvents.map((ev, i) => (
-              <div key={i} className="flex items-baseline gap-1.5 leading-none">
-                <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0">{ev.time}</span>
-                <span className="text-[10px] font-semibold text-white/80 whitespace-nowrap shrink-0">{ev.user}</span>
-                <span className="text-[10px] text-muted-foreground shrink-0">→</span>
-                <span className={cn("text-[10px] font-medium whitespace-nowrap", ev.action === "Envió a caja" ? "text-sky-300" : ev.action === "Cobró" ? "text-emerald-300" : ev.action === "Rechazó" ? "text-rose-300" : "text-muted-foreground")}>{ev.action}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    );
-  };
-
-  return (
-    <div className="space-y-4 animate-fade-up">
-      <div className="max-w-5xl mx-auto space-y-3">
-        <div className="flex flex-wrap items-center gap-2 text-[11px] text-muted-foreground">
-          <span>Total de ventas: <strong className="text-foreground">{enriched.length}</strong></span>
-        </div>
-
-        {loading ? (
-          <div className="glass rounded-2xl py-8 text-center text-sm text-muted-foreground animate-pulse">Cargando…</div>
-        ) : enriched.length === 0 ? (
-          <div className="glass rounded-2xl py-8 text-center text-sm text-muted-foreground">Sin historial en este período</div>
-        ) : (
-          <>
-            {/* Desktop (sm+): tabla, columna "Historial" reemplazada por una
-                línea de atribución ("Cobrado por X" / "Enviado por X") debajo
-                de Total/Comisión — mismo dato, formato pedido explícito, y
-                ya no compite por su propia columna. */}
-            <div className="hidden sm:block glass rounded-2xl overflow-hidden">
-              {/* Header — same structure as TurnosView */}
-              <div className="grid grid-cols-[14%_24%_34%_28%] px-5 py-3.5 border-b border-white/10 bg-white/[0.025] text-[11px] font-semibold uppercase tracking-[0.15em] text-muted-foreground">
-                <div>Fecha</div>
-                <div>Cliente</div>
-                <div>Servicio / Catálogo</div>
-                <div className="text-right">Pago / Total / Comisión</div>
-              </div>
-
-              {visibleRows.map((row, i) => {
-                const fechaDisplay = formatFechaCorta(row.fecha);
-
-                const historialEvents = [...row.histEvents].sort((a, b) => a.time.localeCompare(b.time));
-                const cardStyle = saleCardStyle(row.status);
-
-                return (
-                  <div
-                    key={row.id}
-                    className={cn(
-                      "relative overflow-hidden px-5 py-4 text-sm",
-                      cardStyle.glow,
-                      i < visibleRows.length - 1 && "border-b border-white/5"
-                    )}
-                  >
-                    <span className={cn("absolute inset-y-0 left-0 w-1.5", cardStyle.bar)} />
-                    <div className="grid grid-cols-[14%_24%_34%_28%] items-start">
-                      <div className="text-xs text-muted-foreground tabular-nums whitespace-nowrap pt-0.5 capitalize">{fechaDisplay}</div>
-                      {/* Gris, igual que fecha y servicio — ver mismo criterio en renderMobileCard. */}
-                      <div className="truncate pr-2 pt-0.5 font-medium text-muted-foreground">{row.client_name ?? "Sin cliente"}</div>
-                      <div className="text-muted-foreground truncate pr-2 pt-0.5">{row.service_name ?? "—"}</div>
-                      {/* Columna derecha: método(s) de pago (desglosado con
-                          importe si fue pago múltiple), Total, Comisión. */}
-                      <div className="text-right pt-0.5">
-                        {row.methodBreakdown.length === 0 ? (
-                          <div className="text-[11px] text-muted-foreground">—</div>
-                        ) : row.methodBreakdown.length === 1 ? (
-                          <>
-                            <div className="text-[11px] text-foreground/85 truncate">{methodDisplayLabel(row.methodBreakdown[0].method)}</div>
-                            <div className="font-semibold tabular-nums whitespace-nowrap text-xs">${row.total.toLocaleString("es-AR")}</div>
-                          </>
-                        ) : (
-                          row.methodBreakdown.map((mb, i) => (
-                            <div key={i} className={i > 0 ? "mt-1" : undefined}>
-                              <div className="text-[11px] text-foreground/85 truncate">{methodDisplayLabel(mb.method)}</div>
-                              <div className="font-semibold tabular-nums whitespace-nowrap text-xs">${mb.amount.toLocaleString("es-AR")}</div>
-                            </div>
-                          ))
-                        )}
-                        <div className="mt-1 text-violet-300 font-semibold tabular-nums whitespace-nowrap text-xs">Comisión ${row.commission.toLocaleString("es-AR")}</div>
-                      </div>
-                    </div>
-                    {/* Línea(s) inferior(es): mismo lugar y formato que ya
-                        tenía Mi Agenda (hora, nombre, flecha, acción con
-                        color) — Envió a caja y Cobró, una debajo de la
-                        otra en orden cronológico cuando hay ambas. */}
-                    {historialEvents.length > 0 && (
-                      <div className="mt-1.5 space-y-0.5">
-                        {historialEvents.map((ev, idx) => (
-                          <div key={idx} className="flex items-baseline justify-end gap-1.5 leading-none">
-                            <span className="text-[10px] text-muted-foreground tabular-nums whitespace-nowrap shrink-0">{ev.time}</span>
-                            <span className="text-[10px] font-semibold text-white/80 whitespace-nowrap shrink-0">{ev.user}</span>
-                            <span className="text-[10px] text-muted-foreground shrink-0">→</span>
-                            <span className={cn("text-[10px] font-medium whitespace-nowrap", ev.action === "Envió a caja" ? "text-sky-300" : ev.action === "Cobró" ? "text-emerald-300" : ev.action === "Rechazó" ? "text-rose-300" : "text-muted-foreground")}>{ev.action}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Mobile (<sm): misma info que la tabla, en tarjetas verticales
-                — nada de columnas comprimidas ni texto/importes superpuestos.
-                Mismos datos, mismo `enriched`, ningún dato distinto al de
-                web. Al entrar se ve solo una vista resumida (últimas 10
-                ventas) con botón para revelar el resto — ver showPreviewGate. */}
-            <div className="sm:hidden space-y-2">
-              {visibleRows.map(renderMobileCard)}
-            </div>
-
-            {/* Botón compartido: mismo criterio y mismo estado (showFull)
-                para mobile y desktop — no hay dos historiales distintos,
-                solo se revela el resto del mismo `enriched` ya filtrado. */}
-            {showPreviewGate && (
-              <button
-                type="button"
-                onClick={() => setShowFull(true)}
-                className="w-full rounded-xl px-3 py-2.5 text-center text-xs font-semibold text-violet-300 transition hover:text-violet-200"
-              >
-                Ver historial completo →
-              </button>
-            )}
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
