@@ -3052,7 +3052,7 @@ function NuevaVentaTab({
         employeeId || null,
         data.employeeServiceOverrides,
       );
-      return { ...s, cashPrice: resolved.effectivePrice };
+      return { ...s, cashPrice: resolved.effectivePrice, commissionCap: resolved.commissionCapPrice };
     });
   }, [servicesWithSynthetic, data.employeeServiceOverrides, employeeId]);
 
@@ -3274,7 +3274,7 @@ function NuevaVentaTab({
         serviceId: svc.id,
         serviceName: svc.name,
         amount: cartUnitPrice(svc),
-        effectivePrice: svc.is_catalog ? null : svc.cashPrice ?? null,
+        effectivePrice: svc.is_catalog ? null : svc.commissionCap ?? null,
         discountAmount: itemDiscounts[idx] ?? 0,
         isCatalog: svc.is_catalog ?? false,
         stock: svc.stock,

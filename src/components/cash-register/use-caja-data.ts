@@ -125,6 +125,11 @@ export type Service = {
   // en el carrito, que es estado propio de esa pantalla, no de la carga
   // de datos general de Caja).
   cashPrice?: number | null;
+  // Tope de la base de comisión (resolveServicePricing.commissionCapPrice)
+  // — a diferencia de cashPrice, nunca null solo porque el profesional
+  // desactivó su "Precio en efectivo" público sin cargar un valor propio.
+  // Tampoco lo completa este hook, mismo motivo que cashPrice.
+  commissionCap?: number | null;
 };
 
 export type Employee = {

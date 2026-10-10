@@ -78,6 +78,18 @@ export type ResolvedServicePricing = {
   // configurado — la Página Pública no debe mostrar la línea "Efectivo".
   effectivePrice: number | null;
   effectivePriceOverridden: boolean;
+  // Tope de la base de comisión (ver computeCommissionAmount/
+  // commissionBaseForLine) — a diferencia de `effectivePrice`, NUNCA es
+  // null si el servicio tiene un "Precio en efectivo" estándar configurado,
+  // aunque el profesional haya desactivado explícitamente su propio precio
+  // en efectivo (useStandardEffectivePrice: false sin valor propio cargado
+  // — eso solo significa "no lo quiero mostrar en la Página Pública", no
+  // "sin tope de comisión"). Antes se reutilizaba `effectivePrice` para
+  // ambos usos y ese desactivado silencioso volaba el tope de comisión
+  // también — un profesional con "Precio en efectivo" apagado terminaba
+  // comisionando sobre el precio de lista completo sin que nadie lo haya
+  // decidido así.
+  commissionCapPrice: number | null;
 };
 
 export function resolveServicePricing(
@@ -129,6 +141,10 @@ export function resolveServicePricing(
         ? customEffectivePrice
         : null,
     effectivePriceOverridden,
+    // Valor propio real (>0) si existe; si no, siempre el estándar del
+    // servicio — nunca null solo porque el profesional apagó su precio en
+    // efectivo público sin cargar uno propio.
+    commissionCapPrice: effectivePriceOverridden ? customEffectivePrice : standardEffectivePrice,
   };
 }
 

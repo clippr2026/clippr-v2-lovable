@@ -10993,6 +10993,11 @@ export function NuevaVentaTab({
         ...s,
         price: resolved.priceOverridden ? resolved.price : s.price,
         cashPrice: resolved.effectivePrice,
+        // Tope de comisión — ver comentario en ResolvedServicePricing
+        // (service-pricing.ts): a diferencia de cashPrice, nunca es null
+        // solo porque el profesional apagó su propio "Precio en efectivo"
+        // público sin cargar un valor propio.
+        commissionCap: resolved.commissionCapPrice,
       };
     });
   }, [data.services, data.employeeServiceOverrides, employeeId]);
@@ -11432,7 +11437,12 @@ export function NuevaVentaTab({
         // mostrar. "Precio de lista" es siempre el precio único del
         // catálogo, nunca el ajustado por profesional.
         listPrice: rawServicePriceById[svc.id] ?? svc.price,
-        effectivePrice: svc.is_catalog ? null : svc.cashPrice ?? null,
+        // Tope de la base de comisión — commissionCap, NO cashPrice: un
+        // profesional puede tener el "Precio en efectivo" público
+        // desactivado para este servicio y aun así corresponde aplicar el
+        // tope estándar del servicio a su comisión (ver
+        // ResolvedServicePricing.commissionCapPrice).
+        effectivePrice: svc.is_catalog ? null : svc.commissionCap ?? null,
         discountAmount: itemDiscounts[idx] ?? 0,
         isCatalog: svc.is_catalog ?? false,
         stock: svc.stock,
