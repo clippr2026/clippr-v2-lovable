@@ -28,6 +28,7 @@ import {
   useProfessionals, useProfPayments,
   useProfTurnos,
   useProfSettlementRuns, useProfSettlementRunPayments, useProfAdvances,
+  useProfCommissionRecords, useProfTipRecords,
   useConfirmSettlementRun, useObserveSettlementRun,
   fetchSettlementRunServices,
   fetchPendingVentasForProfessional,
@@ -42,6 +43,7 @@ import {
 } from "@/lib/settlement-comprobante";
 import {
   buildHistorialMovimientos,
+  computeLiquidacionSummary,
   type MovimientoAjuste,
   type MovimientoDeduccion,
   type HistorialAdvanceRow,
@@ -57,6 +59,7 @@ import {
   VentaRow,
   MovRow,
   UnifiedMovimientosHeader,
+  StatCard,
 } from "@/components/liquidaciones/unified-row";
 import { money, displayResponsable } from "@/components/liquidaciones/movimiento-format";
 import { AgendaCenteredModal } from "@/components/agenda/agenda-drawer";
@@ -2498,8 +2501,24 @@ function LiquidacionesPanelView({
   const { data: runs = [], isLoading: loadingRuns } = useProfSettlementRuns(businessId, empId);
   const { data: payments = [], isLoading: loadingPayments } = useProfSettlementRunPayments(businessId, empId);
   const { data: advances = [], isLoading: loadingAdvances } = useProfAdvances(businessId, empId);
+  const { data: commissionRecords = [], isLoading: loadingCommissionRecords } = useProfCommissionRecords(businessId, empId);
+  const { data: tipRecords = [], isLoading: loadingTipRecords } = useProfTipRecords(businessId, empId);
   const confirmRun = useConfirmSettlementRun(businessId, empId);
   const observeRun = useObserveSettlementRun(businessId, empId);
+
+  // "Comisiones generadas" / "Adelantos" / "Total a pagar" — misma fuente y
+  // misma fórmula exacta que Caja > Liquidaciones (computeLiquidacionSummary,
+  // ver historial-movimientos.ts), nunca recalculada acá aparte. runs/
+  // advances acá ya vienen filtrados por professional_id=empId en la query
+  // (useProfSettlementRuns/useProfAdvances), así que ese campo ni se trae —
+  // se lo inyecta acá solo para calzar con la forma que pide la función
+  // compartida (pensada para Caja, donde sí mezcla todos los profesionales).
+  const summary = React.useMemo(() => {
+    if (!empId) return null;
+    const runsWithPid = runs.map((r) => ({ ...r, professional_id: empId }));
+    const advancesWithPid = advances.map((a) => ({ ...a, professional_id: empId }));
+    return computeLiquidacionSummary(empId, commissionRecords, tipRecords, runsWithPid, advancesWithPid);
+  }, [empId, commissionRecords, tipRecords, runs, advances]);
 
   // Ventas con comisión todavía no liquidada — mismo criterio y misma
   // query que usa Caja > Liquidaciones para este profesional (ver
@@ -2774,21 +2793,42 @@ function LiquidacionesPanelView({
     );
   }
 
-  const isLoading = loadingRuns || loadingPayments || loadingAdvances || loadingVentas;
+  const isLoading =
+    loadingRuns || loadingPayments || loadingAdvances || loadingVentas ||
+    loadingCommissionRecords || loadingTipRecords;
   if (isLoading) {
     return <div className="p-8 text-center text-sm text-muted-foreground animate-pulse">Cargando…</div>;
   }
 
+  // Resumen — mismos 3 bloques que arriba de Caja > Liquidaciones, misma
+  // fuente/fórmula (computeLiquidacionSummary). Se muestra siempre que haya
+  // un profesional elegido, aunque todavía no tenga ningún movimiento.
+  const summaryCards = summary && (
+    <div className="grid grid-cols-3 gap-2.5">
+      <StatCard label="Comisiones generadas" value={money(summary.newCommissions)} tone="violet" />
+      <StatCard
+        label="Adelantos"
+        value={summary.pendingAdvances > 0 ? `−${money(summary.pendingAdvances)}` : money(0)}
+        tone="rose"
+      />
+      <StatCard label="Total a pagar" value={money(summary.totalToPay)} tone="green" />
+    </div>
+  );
+
   if (pendingRuns.length === 0 && unifiedMovimientos.length === 0) {
     return (
-      <div className="glass rounded-2xl p-8 text-center text-sm text-muted-foreground">
-        Todavía no hay ventas ni movimientos para este profesional.
+      <div className="space-y-3 animate-fade-up">
+        {summaryCards}
+        <div className="glass rounded-2xl p-8 text-center text-sm text-muted-foreground">
+          Todavía no hay ventas ni movimientos para este profesional.
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-3 animate-fade-up">
+      {summaryCards}
       {pendingRuns.length > 0 && (
         <div className="space-y-3">
           <div className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">

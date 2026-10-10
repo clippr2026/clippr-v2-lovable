@@ -107,7 +107,12 @@ import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { AgendaCenteredModal } from "@/components/agenda/agenda-drawer";
 import { fetchSettlementRunServices } from "@/hooks/use-professionals-data";
 import { MultiMethodPaymentSplit, type MultiSplit } from "@/components/cash-register/multi-method-payment-split";
-import { buildHistorialMovimientos, type MovimientoAjuste, type MovimientoDeduccion } from "@/lib/historial-movimientos";
+import {
+  buildHistorialMovimientos,
+  computeLiquidacionSummary,
+  type MovimientoAjuste,
+  type MovimientoDeduccion,
+} from "@/lib/historial-movimientos";
 import { displayResponsable } from "@/components/liquidaciones/movimiento-format";
 import {
   PagoDetalleContent,
@@ -119,6 +124,7 @@ import {
   MovRow,
   InfoPopover,
   UnifiedMovimientosHeader,
+  StatCard,
 } from "@/components/liquidaciones/unified-row";
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
@@ -3879,72 +3885,38 @@ function ProfesionalesTab({
 
   const rows = React.useMemo(() => {
     return (data.employees ?? []).map((employee: any) => {
-      const employeeCommissions = allCommissions.filter(
-        (c: any) => String(c.professional_id) === String(employee.id),
-      );
       // Pendiente total: TODA la deuda real, sin importar si la comisión ya
       // quedó bloqueada dentro de una liquidación preparada — solo cambia
-      // cuando se genera una comisión nueva o se registra un pago.
-      const pending = employeeCommissions.reduce(
-        (sum: number, c: any) => sum + Number(c.pending_amount ?? 0),
-        0,
-      );
+      // cuando se genera una comisión nueva o se registra un pago. No es
+      // parte de computeLiquidacionSummary (ese es "nuevo desde la última
+      // liquidación", esto es el total histórico sin filtro de período).
+      const pending = allCommissions
+        .filter((c: any) => String(c.professional_id) === String(employee.id))
+        .reduce((sum: number, c: any) => sum + Number(c.pending_amount ?? 0), 0);
 
-      // Orden por prepared_at (marca exacta), no por cutoff_date (date) —
-      // con el corte automático "ahora", varias liquidaciones del mismo
-      // profesional pueden caer en la misma fecha.
-      const employeeRuns = allRuns
-        .filter((r: any) => String(r.professional_id) === String(employee.id))
-        .sort((a: any, b: any) => String(b.prepared_at ?? "").localeCompare(String(a.prepared_at ?? "")));
-      const latestRun = employeeRuns[0] ?? null;
-      const previousBalance = latestRun
-        ? Math.max(Number(latestRun.total_to_settle) - Number(latestRun.amount_paid), 0)
-        : 0;
-
-      // Comisiones nuevas: generadas después de la marca de tiempo EXACTA
-      // de la última liquidación (no del día siguiente) y todavía sin
-      // asignar a ningún run — así una comisión de esa misma tarde, unas
-      // horas después del corte, entra en la próxima liquidación en vez
-      // de perderse o quedar mezclada con la anterior.
-      const periodStartAt: string | null = latestRun?.prepared_at ?? null;
-      const periodStart: string | null = periodStartAt
-        ? new Date(periodStartAt).toLocaleDateString("sv-SE")
-        : null;
-      // Solo deuda real (pending_amount, no amount): una comisión con
-      // pagos históricos ya aplicados (de antes de este sistema) no debe
-      // volver a contar como "nueva" por su monto bruto.
-      const unlockedSincePeriodStart = employeeCommissions.filter(
-        (c: any) =>
-          !c.settlement_run_id &&
-          (!periodStartAt || String(c.created_at ?? "") > periodStartAt) &&
-          Number(c.pending_amount ?? 0) > 0,
+      const summary = computeLiquidacionSummary(
+        String(employee.id),
+        allCommissions,
+        allTips,
+        allRuns,
+        allAdvances,
       );
-      const newCommissions = unlockedSincePeriodStart.reduce(
-        (sum: number, c: any) => sum + Number(c.pending_amount ?? 0),
-        0,
-      );
-
-      // Adelantos todavía no incluidos en ninguna liquidación — se
-      // descuentan del total a pagar (ver prepare_settlement_run).
-      const pendingAdvances = allAdvances
-        .filter((a: any) => String(a.professional_id) === String(employee.id) && !a.settlement_run_id)
-        .reduce((sum: number, a: any) => sum + Number(a.amount ?? 0), 0);
 
       return {
         id: String(employee.id),
         name: employee.name ?? "Profesional",
         role: employee.role ?? employee.position ?? "Profesional",
         pending,
-        previousBalance,
-        newCommissions,
-        pendingAdvances,
-        periodStart,
-        periodStartAt,
-        latestRun,
+        previousBalance: summary.previousBalance,
+        newCommissions: summary.newCommissions,
+        pendingAdvances: summary.pendingAdvances,
+        periodStart: summary.periodStart,
+        periodStartAt: summary.periodStartAt,
+        latestRun: summary.latestRun,
         commissionPct: Number(employee.commission_pct ?? 0),
       };
     });
-  }, [data.employees, allCommissions, allRuns, allAdvances]);
+  }, [data.employees, allCommissions, allTips, allRuns, allAdvances]);
 
   const selectedRow = React.useMemo(() => {
     return rows.find((row) => row.id === selectedEmployeeId) ?? null;
@@ -4430,62 +4402,10 @@ function ProfesionalesTab({
   }, [calendarMonth]);
 
 
-  const StatCard = ({
-    label,
-    sublabel,
-    value,
-    tone,
-    info,
-    className,
-  }: {
-    label: string;
-    sublabel?: string;
-    value: React.ReactNode;
-    tone: "neutral" | "violet" | "green" | "rose";
-    info?: React.ReactNode;
-    className?: string;
-  }) => {
-    const toneClass = {
-      neutral:
-        "border-white/[0.075] bg-white/[0.025] text-white shadow-[0_0_28px_rgba(255,255,255,0.035)]",
-      violet:
-        "border-violet-300/18 bg-violet-400/[0.055] text-violet-300 shadow-[0_0_28px_rgba(167,139,250,0.10)]",
-      green:
-        "border-emerald-400/18 bg-emerald-400/[0.055] text-emerald-300 shadow-[0_0_28px_rgba(34,197,94,0.09)]",
-      rose: "border-rose-400/18 bg-rose-400/[0.055] text-rose-300 shadow-[0_0_28px_rgba(251,113,133,0.10)]",
-    }[tone];
-
-    const labelClass = {
-      neutral: "text-white/38",
-      violet: "text-violet-200/70",
-      green: "text-emerald-200/70",
-      rose: "text-rose-200/70",
-    }[tone];
-
-    return (
-      <div className={cn("rounded-2xl border px-3.5 py-2.5", toneClass, className)}>
-        <div
-          className={cn(
-            "flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.16em]",
-            labelClass,
-          )}
-        >
-          <span>{label}</span>
-          {info && <InfoPopover text={info} />}
-        </div>
-        {sublabel && (
-          <div className="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/30">
-            {sublabel}
-          </div>
-        )}
-        <div className="mt-0.5 text-lg font-bold tabular-nums">{value}</div>
-      </div>
-    );
-  };
-
-  // VentaRow/MovRow/LIQ_GRID_COLS: movidos a src/components/liquidaciones/
-  // unified-row.tsx — ÚNICA fuente de verdad visual, compartida con Panel
-  // del profesional > Movimientos (professionals.tsx). No duplicar acá.
+  // StatCard/VentaRow/MovRow/LIQ_GRID_COLS: movidos a
+  // src/components/liquidaciones/unified-row.tsx — ÚNICA fuente de verdad
+  // visual, compartida con Panel del profesional > Movimientos
+  // (professionals.tsx). No duplicar acá.
 
   // Pagar es un botón de acción (como Adelantar): abre su modal directo,
   // precargando el monto sugerido. Usa liquidarNewCommissions/liquidarPendingAdvances

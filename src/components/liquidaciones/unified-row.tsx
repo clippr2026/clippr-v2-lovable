@@ -11,6 +11,7 @@ import { createPortal } from "react-dom";
 import { ChevronDown, Info, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { money, paymentMethodLabel } from "./movimiento-format";
+import { normalizeCierreMethodKey } from "@/lib/caja-cierre";
 
 // Grilla compartida por TODAS las filas de la lista única (ventas,
 // adelantos, pagos, ajustes, deducciones) y por su encabezado — mismas 7
@@ -34,6 +35,52 @@ export function UnifiedMovimientosHeader() {
       <div className="text-right">Comisión</div>
       <div className="text-right">Propina</div>
       <div>Medio de pago</div>
+    </div>
+  );
+}
+
+// Tarjeta de resumen ("Comisiones generadas" / "Adelantos" / "Total a
+// pagar") — misma presentación en Caja > Liquidaciones y Panel del
+// profesional > Movimientos.
+export function StatCard({
+  label,
+  sublabel,
+  value,
+  tone,
+  info,
+  className,
+}: {
+  label: string;
+  sublabel?: string;
+  value: React.ReactNode;
+  tone: "neutral" | "violet" | "green" | "rose";
+  info?: React.ReactNode;
+  className?: string;
+}) {
+  const toneClass = {
+    neutral: "border-white/[0.075] bg-white/[0.025] text-white shadow-[0_0_28px_rgba(255,255,255,0.035)]",
+    violet: "border-violet-300/18 bg-violet-400/[0.055] text-violet-300 shadow-[0_0_28px_rgba(167,139,250,0.10)]",
+    green: "border-emerald-400/18 bg-emerald-400/[0.055] text-emerald-300 shadow-[0_0_28px_rgba(34,197,94,0.09)]",
+    rose: "border-rose-400/18 bg-rose-400/[0.055] text-rose-300 shadow-[0_0_28px_rgba(251,113,133,0.10)]",
+  }[tone];
+
+  const labelClass = {
+    neutral: "text-white/38",
+    violet: "text-violet-200/70",
+    green: "text-emerald-200/70",
+    rose: "text-rose-200/70",
+  }[tone];
+
+  return (
+    <div className={cn("rounded-2xl border px-3.5 py-2.5", toneClass, className)}>
+      <div className={cn("flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.16em]", labelClass)}>
+        <span>{label}</span>
+        {info && <InfoPopover text={info} />}
+      </div>
+      {sublabel && (
+        <div className="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/30">{sublabel}</div>
+      )}
+      <div className="mt-0.5 text-lg font-bold tabular-nums">{value}</div>
     </div>
   );
 }
@@ -157,7 +204,12 @@ export function VentaRow({ c }: { c: any }) {
   const storedOriginal = Number(sale.original_amount ?? 0);
   const originalAmount = storedOriginal > 0 ? storedOriginal : Number(sale.listPriceFallback ?? saleTotal);
   const hasReduction = originalAmount > saleTotal;
-  const isCashSale = String(sale.method ?? sale.payment_method ?? "") === "cash";
+  // normalizeCierreMethodKey (ya compartida con Caja > Cierre de caja):
+  // payments.method usa vocabularios distintos entre ventas viejas y
+  // nuevas ("efectivo" vs "cash", con/sin acentos) — un === "cash" literal
+  // dejaba afuera ventas en efectivo reales solo porque el valor guardado
+  // era "efectivo" en vez de "cash".
+  const isCashSale = normalizeCierreMethodKey(sale.method ?? sale.payment_method) === "cash";
   const totalCobrado = saleTotal + Number(sale.tip_amount ?? 0);
   // Distingue POR QUÉ bajó el precio, usando los mismos campos reales que
   // ya usa el resto de la app (register-payment.ts): promotion_id = la

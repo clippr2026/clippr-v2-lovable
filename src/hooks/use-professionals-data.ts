@@ -616,6 +616,99 @@ export function useProfAdvances(businessId: string | null, empId: string | null)
   return query;
 }
 
+// commission_records/tip_records de UN profesional, sin filtrar por
+// settlement_run_id ni rango de fechas — misma fuente cruda que allCommissions/
+// allTips en Caja > Liquidaciones (ahí se cargan para TODO el negocio de
+// una, acá solo para el profesional elegido). Alimentan
+// computeLiquidacionSummary (historial-movimientos.ts) para que Panel del
+// profesional > Movimientos muestre "Comisiones generadas"/"Adelantos"/
+// "Total a pagar" con la MISMA fórmula, nunca una reimplementada acá.
+export type ProfLiquidacionPendingRow = {
+  professional_id: string;
+  settlement_run_id: string | null;
+  pending_amount: number;
+  created_at: string;
+};
+
+export function useProfCommissionRecords(businessId: string | null, empId: string | null) {
+  const qc = useQueryClient();
+
+  const query = useQuery({
+    queryKey: ["prof-commission-records", businessId, empId],
+    queryFn: async (): Promise<ProfLiquidacionPendingRow[]> => {
+      const { data, error } = await supabase
+        .from("commission_records" as any)
+        .select("professional_id,settlement_run_id,pending_amount,created_at")
+        .eq("business_id", businessId!)
+        .eq("professional_id", empId!);
+      if (error) throw new Error(error.message);
+      return (data ?? []) as ProfLiquidacionPendingRow[];
+    },
+    enabled: !!businessId && !!empId,
+    staleTime: 30_000,
+  });
+
+  React.useEffect(() => {
+    if (!businessId || !empId) return;
+    const channel = supabase
+      .channel(`prof-commission-records-${empId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "commission_records", filter: `professional_id=eq.${empId}` },
+        () => qc.invalidateQueries({ queryKey: ["prof-commission-records", businessId, empId] }),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [businessId, empId, qc]);
+
+  return query;
+}
+
+export function useProfTipRecords(businessId: string | null, empId: string | null) {
+  const qc = useQueryClient();
+
+  const query = useQuery({
+    queryKey: ["prof-tip-records", businessId, empId],
+    queryFn: async (): Promise<ProfLiquidacionPendingRow[]> => {
+      // Igual que allTips en Caja: tabla opcional (migración de propinas
+      // puede no haber corrido todavía) — un error acá no debe tirar abajo
+      // el resto del resumen, solo deja las propinas en 0.
+      try {
+        const { data, error } = await supabase
+          .from("tip_records" as any)
+          .select("professional_id,settlement_run_id,pending_amount,created_at")
+          .eq("business_id", businessId!)
+          .eq("professional_id", empId!);
+        if (error) throw error;
+        return (data ?? []) as ProfLiquidacionPendingRow[];
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!businessId && !!empId,
+    staleTime: 30_000,
+  });
+
+  React.useEffect(() => {
+    if (!businessId || !empId) return;
+    const channel = supabase
+      .channel(`prof-tip-records-${empId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tip_records", filter: `professional_id=eq.${empId}` },
+        () => qc.invalidateQueries({ queryKey: ["prof-tip-records", businessId, empId] }),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [businessId, empId, qc]);
+
+  return query;
+}
+
 // Servicios incluidos en una liquidación puntual (para "Ver servicios
 // incluidos" dentro de Mis liquidaciones y para "Servicios incluidos" del
 // detalle de Historial en Caja).
