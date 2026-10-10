@@ -4675,7 +4675,7 @@ function ProfesionalesTab({
                       </div>
                       {hasDiscount && (
                         <div className="flex items-center justify-between gap-3">
-                          <span className="text-white/60">{sale.promotion_name || "Descuento"}</span>
+                          <span className="text-white/60">{promoLabel ?? sale.promotion_name ?? "Descuento"}</span>
                           <span className="font-semibold text-rose-300">-{money(Number(sale.discount))}</span>
                         </div>
                       )}
