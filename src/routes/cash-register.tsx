@@ -4627,7 +4627,9 @@ function ProfesionalesTab({
     // efectivo sin ningún descuento explícito. Nunca inventa una regla
     // nueva, solo lee lo que ya se guarda.
     const promoLabel = sale.promotion_id && sale.promotion_name
-      ? (/^promo\b/i.test(String(sale.promotion_name)) ? sale.promotion_name : `Promo ${sale.promotion_name}`)
+      ? (/^promo\b/i.test(String(sale.promotion_name))
+          ? `Descuento ${sale.promotion_name}`
+          : `Descuento promo ${sale.promotion_name}`)
       : null;
     const manualDiscountLabel = !sale.promotion_id && hasDiscount ? sale.promotion_name : null;
     const conceptSubtitle = promoLabel ?? manualDiscountLabel ?? (hasReduction ? "Descuento en efectivo" : null);
