@@ -4657,20 +4657,38 @@ function ProfesionalesTab({
                   info="Propinas cobradas junto con ventas de este profesional, pendientes de liquidar. Nunca forman parte de las comisiones ni de la facturación del negocio."
                 />
               )}
-              <StatCard
-                label="Adelantos"
-                value={liquidarPendingAdvances > 0 ? `−${money(liquidarPendingAdvances)}` : money(0)}
-                tone="rose"
-                info={ADELANTOS_INFO_TEXT}
-              />
+              {/* Adelantos: misma tarjeta de siempre (tono rose, igual
+                  estilo que StatCard), ahora con el botón "Adelantar"
+                  integrado adentro, alineado a la derecha — antes vivía
+                  junto a "Pagar" en la barra de Total a pagar. No se tocó
+                  StatCard (compartido con Panel del profesional, que no
+                  tiene botones) para no arriesgar su layout ahí. */}
+              <div className="col-span-2 flex items-center justify-between gap-2 rounded-2xl border border-rose-400/18 bg-rose-400/[0.055] px-3.5 py-2.5 text-rose-300 shadow-[0_0_28px_rgba(251,113,133,0.10)] sm:col-span-1">
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.16em] text-rose-200/70">
+                    <span>Adelantos</span>
+                    <InfoPopover text={ADELANTOS_INFO_TEXT} />
+                  </div>
+                  <div className="mt-0.5 text-lg font-bold tabular-nums">
+                    {liquidarPendingAdvances > 0 ? `−${money(liquidarPendingAdvances)}` : money(0)}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setAdelantoModalOpen(true)}
+                  className="shrink-0 rounded-xl bg-rose-500 px-3 py-2 text-xs font-bold text-white shadow-[0_0_18px_rgba(244,63,94,0.26)] transition hover:brightness-110"
+                >
+                  Adelantar
+                </button>
+              </div>
             </div>
 
             {/* Total a pagar: mayor jerarquía visual que el resto de las
-                tarjetas (más grande, tono propio) y con Adelantar/Pagar
-                integrados en la misma zona — Pagar queda pegado al total,
-                en vez de una barra de botones flotante aparte. sticky:
-                queda siempre visible arriba a la derecha aunque se haga
-                scroll en la lista de abajo. */}
+                tarjetas (más grande, tono propio) y con Pagar integrado en
+                la misma zona, alineado a la derecha — Adelantar vive ahora
+                en la tarjeta Adelantos (ver arriba), no acá. sticky: queda
+                siempre visible arriba a la derecha aunque se haga scroll
+                en la lista de abajo. */}
             <div className="sticky top-0 z-20 flex items-center gap-3 rounded-2xl border border-emerald-400/25 bg-emerald-400/[0.07] px-4 py-2.5 shadow-[0_0_28px_rgba(16,185,129,0.10)] backdrop-blur-xl lg:min-w-[300px]">
               <div className="min-w-0 flex-1">
                 <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-200/70">
@@ -4686,13 +4704,6 @@ function ProfesionalesTab({
                 </div>
               </div>
               <div className="flex shrink-0 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setAdelantoModalOpen(true)}
-                  className="rounded-xl bg-rose-500 px-3 py-2 text-xs font-bold text-white shadow-[0_0_18px_rgba(244,63,94,0.26)] transition hover:brightness-110"
-                >
-                  Adelantar
-                </button>
                 <button
                   type="button"
                   onClick={() => openLiquidarModal(selectedRow)}
