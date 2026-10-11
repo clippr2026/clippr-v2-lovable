@@ -1,4 +1,3 @@
-import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
   normalizeClientKeys,
@@ -112,6 +111,15 @@ export type RegisterPaymentInput = {
   sessionId?: string | null;
   chargedBy?: string | null;
   appointmentId?: string | null;
+  // Nota del profesional en el turno (Cobrar turno) — se guarda en
+  // appointments.notes, NUNCA en payments.observations (eso es `notes`
+  // más abajo, un campo distinto). Solo tiene efecto si appointmentId
+  // viene seteado: register_sale hace la transición de ese turno a
+  // 'charged' + este UPDATE de notes dentro de la MISMA transacción que
+  // el payment (ver 20261011030000_register_sale_atomic.sql) — antes era
+  // un UPDATE aparte hecho ANTES de llamar acá, que podía dejar el turno
+  // "cobrado" sin ningún payment si el registro fallaba después.
+  appointmentNotes?: string | null;
   chargeOrigin?: ChargeOrigin;
   status?: "cobrado" | "pendiente" | "anulado" | "reembolsado";
   notes?: string | null;
@@ -230,42 +238,14 @@ export async function registerPayment(input: RegisterPaymentInput) {
     resolvedBranchId = (fallbackBranch as { id?: string } | null)?.id ?? null;
   }
 
-  const payload: Record<string, unknown> = {
-    business_id: input.businessId,
-    branch_id: resolvedBranchId,
-    employee_id: input.employeeId ?? null,
-    // Relación principal con `clients` — antes se recibía pero nunca se
-    // guardaba, y la ficha/RPC de Clientes solo podían matchear este pago
-    // por client_name (texto), perdiendo/mezclando historial ante
-    // homónimos o nombres editados después de cobrar.
-    client_id: input.clientId ?? null,
-    client_name: input.clientName === null ? null : input.clientName || "Cliente del mostrador",
-    service_name: saleSummary,
-    amount: total,
-    total,
-    // Nunca incluye la propina — total/amount son pura facturación de
-    // servicios/productos post-descuento, la base de todo lo que ya suma
-    // Facturación/Ticket promedio/Cierre de Caja/comisión. La propina vive
-    // aparte, en su propia columna.
-    tip_amount: Math.max(0, Number(input.tipAmount ?? 0)),
-    items: savedItems,
-    method: input.method,
-    payment_method: input.method,
-    appointment_id: input.appointmentId ?? null,
-    charge_type: input.chargeOrigin ?? "caja",
-    status: input.status ?? "cobrado",
-    charged_at: new Date().toISOString(),
-    created_at: new Date().toISOString(),
-  };
-
   // session_id tiene FK a cash_sessions ("payments_session_id_fkey") — un
   // id que ya no existe ahí (ej. de una sesión vieja que quedó cacheada en
   // business_settings antes de un reset de datos que vació cash_sessions)
   // hace fallar el insert del pago con TODOS los métodos por igual, no es
-  // un problema de Efectivo/Transferencia/etc. Se verifica acá, en el
-  // único punto que arma `payments`, en vez de confiar ciegamente en
-  // input.sessionId — si no existe más, se omite (el pago se registra
-  // igual, sin sesión asociada) en lugar de romper el cobro.
+  // un problema de Efectivo/Transferencia/etc. Se verifica acá, antes de
+  // llamar al RPC, en vez de confiar ciegamente en input.sessionId — si no
+  // existe más, se omite (el pago se registra igual, sin sesión asociada)
+  // en lugar de romper el cobro.
   let verifiedSessionId: string | null = null;
   if (input.sessionId) {
     const { data: sessionRow } = await supabase
@@ -275,79 +255,27 @@ export async function registerPayment(input: RegisterPaymentInput) {
       .maybeSingle();
     verifiedSessionId = sessionRow?.id ?? null;
   }
-  // eslint-disable-next-line no-console
-  console.log("[registerPayment] session_id check:", {
-    businessId: input.businessId,
-    sessionIdRecibido: input.sessionId ?? null,
-    sessionIdVerificado: verifiedSessionId,
-  });
-  if (verifiedSessionId) payload.session_id = verifiedSessionId;
-  // Only set charged_by if it's a valid UUID (never an email)
-  if (chargedByUuid) payload.charged_by = chargedByUuid;
-  if (input.notes?.trim()) payload.observations = input.notes.trim();
 
-  // Descuento aplicado — el dato definitivo (no el "previsto" del turno, que
-  // puede haber sido cambiado/quitado acá mismo antes de confirmar). Guarda
-  // precio original + descuento + etiqueta para que Historial/Clientes/
-  // Dashboard/comisiones/liquidaciones puedan reconstruir el desglose
-  // completo sin volver a consultar la promo (que puede editarse/borrarse
-  // después) — funciona igual para promoción real o descuento manual, la
-  // única diferencia es si promotion_id queda seteado o no (ver el tipo
-  // RegisterPaymentInput arriba).
-  if (input.promotionId || discountAmount > 0) {
-    if (input.promotionId) payload.promotion_id = input.promotionId;
-    payload.promotion_name = input.promotionName ?? null;
-    payload.discount_type = input.discountType ?? null;
-    payload.discount_value = input.discountValue != null ? Number(input.discountValue) : null;
-    payload.discount = discountAmount;
-  }
-  // original_amount ("precio de lista tachado" en Liquidaciones) se guarda
-  // siempre que el precio de lista supere lo realmente cobrado — no solo
-  // cuando hubo promoción/descuento manual, también cuando se cobró con
-  // "precio en efectivo" sin ningún descuento explícito de por medio.
-  if (listTotal > total) {
-    payload.original_amount = Math.round(listTotal);
-  }
+  // Descuento/precio de lista — mismo criterio de siempre: discount/
+  // promotion_* solo se completan si hubo descuento real; original_amount
+  // ("precio de lista tachado" en Liquidaciones) se guarda siempre que el
+  // de lista supere lo realmente cobrado, incluso sin descuento explícito
+  // (ej. "precio en efectivo").
+  const hasDiscount = Boolean(input.promotionId) || discountAmount > 0;
+  const originalAmount = listTotal > total ? Math.round(listTotal) : null;
 
-  const { data, error } = await supabase
-    .from("payments")
-    .insert(payload)
-    .select();
-
-  if (error) {
-    const detail = `${error.code ?? ""} ${error.message} ${error.details ?? ""} ${error.hint ?? ""}`.trim();
-    throw new Error(detail || "Error guardando pago");
-  }
-
-  if (!data?.length) {
-    throw new Error("Supabase no devolvió el pago guardado (¿RLS?).");
-  }
-
-  // Uso de la promo: se consume acá, recién con el cobro confirmado (nunca
-  // al agendar/prever) — un solo lugar, así ningún punto de entrada de Caja
-  // puede duplicar ni saltear este paso. Post-insert (nunca antes): si el
-  // pago falla, no se consume uso de nada.
-  if (input.promotionId) {
-    const clientKeys = normalizeClientKeys(input.clientPhone ?? "", input.clientEmail ?? "");
-    await incrementPromotionUsage(input.businessId, input.promotionId, clientKeys, input.branchId ?? null);
-  }
-
-  // Registra la comisión generada por esta venta — fuente de verdad del
-  // saldo pendiente del profesional (Caja > Liquidaciones), independiente
-  // de cualquier rango de fechas. Best-effort: si falla (ej. la migración
-  // de liquidaciones todavía no corrió), no aborta la venta ya confirmada.
-  //
-  // computeCommissionAmount (service-pricing.ts) resuelve, ítem por ítem,
-  // si ese servicio puntual tiene comisión propia configurada en Equipo
-  // (prioridad) y si no, aplica el fallback general del profesional
-  // (monto fijo por venta si está configurado, si no el %) — antes acá
-  // SOLO se miraba el % o el monto fijo GENERALES (employees.commission_pct/
-  // commission_fixed): un profesional con comisión configurada por
-  // servicio nunca generaba fila en commission_records, así que
-  // "Comisiones generadas" en Liquidaciones le quedaba siempre en $0 sin
-  // importar cuánto facturara ni qué rango de fechas se eligiera.
+  // Comisión generada por esta venta — fuente de verdad del saldo
+  // pendiente del profesional (Caja > Liquidaciones). computeCommissionAmount
+  // (service-pricing.ts) resuelve, ítem por ítem, si ese servicio puntual
+  // tiene comisión propia configurada en Equipo (prioridad) y si no,
+  // aplica el fallback general del profesional (monto fijo por venta si
+  // está configurado, si no el %) — ÚNICA fuente real de este cálculo,
+  // nunca reimplementado en el RPC (ver register_sale, que solo valida
+  // rango/signo y persiste todo en una sola transacción).
   const commissionFixed = Number(input.commissionFixed ?? 0);
   const commissionPct = Number(input.commissionPct ?? 0);
+  let commissionAmount = 0;
+  let usedSpecificOverride = false;
   if (input.employeeId) {
     // Regla de base de comisión (ítem por ítem, ver commissionBaseForLine
     // en service-pricing.ts): base = MIN(precio efectivo del servicio,
@@ -377,116 +305,85 @@ export async function registerPayment(input: RegisterPaymentInput) {
     // sin cambios): no tiene sentido pagar la comisión fija completa sobre
     // una venta que, en conjunto, se cobró con descuento.
     const discountRatio = grossTotal > 0 && total !== grossTotal ? total / grossTotal : 1;
-    const commissionAmount = Math.round(pctAmount + fixedAmount * discountRatio);
-    if (commissionAmount > 0) {
-      // Si algún ítem usó su propia comisión por servicio, no hay un único
-      // % que represente el total — queda null. (El fallback fijo general,
-      // employees.commission_fixed, ya no participa del cálculo — ver
-      // computeCommissionAmount — así que no entra en esta decisión.)
-      const usedSpecificOverride = input.items.some((item) => {
-        if (!item.serviceId) return false;
-        const cfg = input.employeeCommissions?.[input.employeeId!]?.[item.serviceId];
-        return !!cfg && cfg.enabled !== false;
-      });
-      // RPC security definer (register_commission, ver migración
-      // 20261008010000) — NUNCA un insert directo a commission_records
-      // desde acá. La policy commission_records_write bloquea cualquier
-      // escritura de un usuario con profiles.role = 'profesional', incluso
-      // para su propia comisión — correcto para impedir que edite montos a
-      // mano, pero el cobro de su propia venta (Nueva Venta o Cobrar
-      // Turno, mismo código) quedaba silenciosamente sin comisión por esa
-      // misma policy. El RPC corre con privilegios elevados pero valida
-      // todo server-side (negocio, dueño real de la venta, rango de
-      // monto) antes de insertar — no es un bypass abierto.
-      const { data: commissionResult, error: commissionError } = await supabase.rpc(
-        "register_commission" as any,
-        {
-          p_business_id: input.businessId,
-          p_professional_id: input.employeeId,
-          p_sale_id: data[0].id,
-          p_amount: commissionAmount,
-          p_sale_date: (payload.created_at as string).slice(0, 10),
-          // Misma marca de tiempo exacta que el pago — es lo que usa
-          // Liquidaciones para cortar el período por hora, no solo por
-          // día (sin esto quedaría en el default now() de la tabla, que
-          // podría diferir en milisegundos del momento real de la venta).
-          p_created_at: payload.created_at,
-          // Congela el % usado en esta venta puntual — "Ver detalle" no
-          // puede recalcular con el % actual del profesional si cambia
-          // después. null cuando la comisión no vino de un único % general
-          // (fue por servicio y/o monto fijo).
-          p_commission_pct: usedSpecificOverride ? null : commissionPct,
-        },
-      );
-      if (commissionError) {
-        console.warn(
-          "[registerPayment] no se pudo registrar la comisión:",
-          commissionError.message,
-        );
-        // El cobro ya está guardado y no se revierte por esto — pero el
-        // error no puede quedar solo en consola (así se perdió la
-        // comisión de Alejandro del 7/10 sin que nadie se enterara).
-        toast.error(
-          "La venta se guardó, pero no se pudo registrar la comisión. Avisá a quien administra el negocio.",
-        );
-      } else {
-        const row = (Array.isArray(commissionResult) ? commissionResult[0] : commissionResult) as
-          | { id: string; inserted: boolean }
-          | undefined;
-        if (row && row.inserted === false) {
-          // sale_id ya tenía una fila (llamada repetida/duplicada) — no es
-          // un error, el RPC es idempotente y no creó una segunda.
-          console.warn(
-            "[registerPayment] commission_records ya existía para esta venta, no se duplicó:",
-            data[0].id,
-          );
-        }
-      }
-    }
+    commissionAmount = Math.round(pctAmount + fixedAmount * discountRatio);
+    // Si algún ítem usó su propia comisión por servicio, no hay un único %
+    // que represente el total — el pct congelado queda null. (El fallback
+    // fijo general, employees.commission_fixed, no participa del cálculo
+    // — ver computeCommissionAmount — así que no entra en esta decisión.)
+    usedSpecificOverride = input.items.some((item) => {
+      if (!item.serviceId) return false;
+      const cfg = input.employeeCommissions?.[input.employeeId!]?.[item.serviceId];
+      return !!cfg && cfg.enabled !== false;
+    });
   }
 
-  // Propina — fila propia en tip_records (NUNCA en commission_records: son
-  // dos conceptos que Liquidaciones tiene que poder mostrar y liquidar por
-  // separado, "Comisiones generadas" vs "Propinas"). Independiente de si
-  // hubo comisión — un profesional sin comisión configurada igual puede
-  // recibir propina. Sin profesional asignado no se genera fila (no hay a
-  // quién liquidarle), pero tip_amount ya quedó guardado en payments para
-  // el registro igual. Best-effort, mismo criterio que commission_records:
-  // si falla, no aborta el cobro ya confirmado.
   const tipAmount = Math.max(0, Number(input.tipAmount ?? 0));
-  if (input.employeeId && tipAmount > 0) {
-    const { error: tipError } = await supabase
-      .from("tip_records" as any)
-      .insert({
-        business_id: input.businessId,
-        professional_id: input.employeeId,
-        sale_id: data[0].id,
-        amount: tipAmount,
-        sale_date: (payload.created_at as string).slice(0, 10),
-        created_at: payload.created_at,
-      });
-    if (tipError) {
-      console.warn("[registerPayment] no se pudo registrar la propina:", tipError.message);
-    }
+  const nowIso = new Date().toISOString();
+
+  // register_sale (RPC security definer, ver migración
+  // 20261011030000_register_sale_atomic.sql) hace TODO esto en una sola
+  // transacción: insertar el payment, la comisión (si corresponde), la
+  // propina (si hay) y, si viene de un turno, la transición de
+  // appointments.status a 'charged' — si cualquier parte falla, Postgres
+  // hace rollback de todo, nunca queda un payment guardado con la
+  // comisión/propina/turno a medias (antes eran 5 llamadas de red
+  // separadas, cada una best-effort — ver auditoría del 11/10/2026: 4
+  // ventas con comisión perdida + 3 turnos "charged" sin ningún payment).
+  const { data: rpcData, error: rpcError } = await supabase.rpc("register_sale" as any, {
+    p_business_id: input.businessId,
+    p_branch_id: resolvedBranchId,
+    p_employee_id: input.employeeId ?? null,
+    p_client_id: input.clientId ?? null,
+    p_client_name: input.clientName === null ? null : input.clientName || "Cliente del mostrador",
+    p_service_name: saleSummary,
+    p_amount: total,
+    p_total: total,
+    p_tip_amount: tipAmount,
+    p_items: savedItems,
+    p_method: input.method,
+    p_splits: input.splits && input.splits.length > 0 ? input.splits : null,
+    p_appointment_id: input.appointmentId ?? null,
+    p_appointment_notes: input.appointmentNotes ?? null,
+    p_charge_type: input.chargeOrigin ?? "caja",
+    p_status: input.status ?? "cobrado",
+    p_session_id: verifiedSessionId,
+    p_notes: input.notes?.trim() || null,
+    p_promotion_id: hasDiscount ? input.promotionId ?? null : null,
+    p_promotion_name: hasDiscount ? input.promotionName ?? null : null,
+    p_discount_type: hasDiscount ? input.discountType ?? null : null,
+    p_discount_value: hasDiscount && input.discountValue != null ? Number(input.discountValue) : null,
+    p_discount: hasDiscount ? discountAmount : 0,
+    p_original_amount: originalAmount,
+    p_commission_amount: commissionAmount,
+    p_commission_pct: usedSpecificOverride ? null : commissionPct,
+    p_charged_by: chargedByUuid,
+    p_created_at: nowIso,
+  });
+
+  if (rpcError) {
+    const detail = `${rpcError.code ?? ""} ${rpcError.message} ${rpcError.details ?? ""} ${rpcError.hint ?? ""}`.trim();
+    throw new Error(detail || "Error guardando la venta");
   }
 
-  // Pago múltiple: los métodos usados (para mostrar "Efectivo • Transferencia"
-  // en Historial de ventas) se guardan en un UPDATE aparte, después de que el
-  // cobro ya quedó confirmado — nunca en el INSERT de arriba. Si la columna
-  // "splits" todavía no existe en `payments`, esto falla en silencio y el
-  // cobro en sí no se ve afectado (mismo patrón defensivo que cobro_events).
-  if (input.splits && input.splits.length > 0) {
-    try {
-      await supabase
-        .from("payments")
-        .update({ splits: input.splits } as Record<string, unknown>)
-        .eq("id", data[0].id);
-    } catch {
-      // Columna puede no existir aún — el método principal ya quedó guardado.
-    }
+  const result = (Array.isArray(rpcData) ? rpcData[0] : rpcData) as
+    | { payment_id: string; commission_record_id: string | null; tip_record_id: string | null }
+    | undefined;
+  if (!result?.payment_id) {
+    throw new Error("No se pudo registrar la venta (respuesta vacía del servidor).");
   }
 
-  return data;
+  // Uso de la promo: se consume acá, recién con el cobro ya confirmado
+  // (nunca al agendar/prever) — best-effort a propósito (es un contador de
+  // cupo, no plata real): si falla, no tiene sentido deshacer una venta ya
+  // cobrada y persistida por este mismo RPC.
+  if (input.promotionId) {
+    const clientKeys = normalizeClientKeys(input.clientPhone ?? "", input.clientEmail ?? "");
+    await incrementPromotionUsage(input.businessId, input.promotionId, clientKeys, input.branchId ?? null);
+  }
+
+  // Forma de retorno compatible con el insert directo de antes (los
+  // call-sites de Caja solo leen `[0].id`, ver cash-register.tsx).
+  return [{ id: result.payment_id }];
 }
 
 /**

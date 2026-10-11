@@ -172,6 +172,33 @@ type CommissionConfig = {
   value: string;
 };
 
+// Causa real encontrada (auditoría de producción, 11/10/2026): para
+// servicios, la tarjeta de arriba siempre guarda `enabled: true` al
+// tocar CUALQUIER campo (no hay switch aparte para servicios — "Ofrece
+// este servicio" es un concepto distinto, serviceOverrides). Si quedaba
+// `value: ""` (campo tocado pero nunca completado), computeCommissionAmount
+// (service-pricing.ts) interpreta "hay override activo" y nunca cae al %
+// general del profesional — Number("") || 0 da 0%, en el 100% de sus
+// ventas, sin ningún error visible. Pasó con un profesional real: 19
+// ventas en $0 de comisión mientras su % general decía 50%.
+//
+// Se sanea acá, justo antes de guardar — nunca al tipear (el campo tiene
+// que poder quedar vacío mientras se edita) — tratando un override
+// "activo" con valor vacío como si no existiera: cae solo al % general,
+// que es lo que el dueño espera cuando no terminó de cargar un valor
+// específico.
+function sanitizeCommissionsMap(
+  map: Record<string, CommissionConfig> | null | undefined,
+): Record<string, CommissionConfig> {
+  if (!map) return {};
+  const out: Record<string, CommissionConfig> = {};
+  for (const [serviceId, cfg] of Object.entries(map)) {
+    const hasValue = String(cfg?.value ?? "").trim() !== "";
+    out[serviceId] = hasValue ? cfg : { ...cfg, enabled: false };
+  }
+  return out;
+}
+
 const DEFAULT_SERVICE_OVERRIDE: ServiceOverrideConfig = {
   enabled: true,
   useStandardDuration: true,
@@ -1083,7 +1110,7 @@ export function EquipoSection() {
                 _employeeCommissions: payload.commissions
                   ? {
                       ...existingCommissions,
-                      [inserted.id]: payload.commissions,
+                      [inserted.id]: sanitizeCommissionsMap(payload.commissions),
                     }
                   : existingCommissions,
                 _employeeServiceOverrides: payload.serviceOverrides
@@ -1184,7 +1211,7 @@ export function EquipoSection() {
                 _employeeCommissions: payload.commissions
                   ? {
                       ...existingCommissions,
-                      [payload.id]: payload.commissions,
+                      [payload.id]: sanitizeCommissionsMap(payload.commissions),
                     }
                   : existingCommissions,
                 _employeeServiceOverrides: payload.serviceOverrides
@@ -1424,7 +1451,7 @@ export function EquipoSection() {
           ...existingSchedule,
           _employeeCommissions: {
             ...existingCommissions,
-            [employeeId]: form.commissions,
+            [employeeId]: sanitizeCommissionsMap(form.commissions),
           },
         },
       },
@@ -1518,7 +1545,7 @@ export function EquipoSection() {
                 ...existingSchedule,
                 _employeeCommissions: {
                   ...existingCommissions,
-                  [editingEmp.id]: form.commissions,
+                  [editingEmp.id]: sanitizeCommissionsMap(form.commissions),
                 },
                 _employeeServiceOverrides: {
                   ...existingServiceOverrides,
@@ -1613,7 +1640,7 @@ export function EquipoSection() {
         }));
         setEmployeeCommissionsMap((current) => ({
           ...current,
-          [editingEmp.id]: form.commissions,
+          [editingEmp.id]: sanitizeCommissionsMap(form.commissions),
         }));
         setEmployeeServiceOverridesMap((current) => ({
           ...current,
@@ -1707,7 +1734,7 @@ export function EquipoSection() {
             schedule: {
               ...existingSchedule,
               _employeeCommissions: form.commissions
-                ? { ...existingCommissions, [newId]: form.commissions }
+                ? { ...existingCommissions, [newId]: sanitizeCommissionsMap(form.commissions) }
                 : existingCommissions,
               _employeeServiceOverrides: form.serviceOverrides
                 ? { ...existingServiceOverrides, [newId]: form.serviceOverrides }
@@ -1794,7 +1821,7 @@ export function EquipoSection() {
       }));
       setEmployeeCommissionsMap((current) => ({
         ...current,
-        [newId]: form.commissions,
+        [newId]: sanitizeCommissionsMap(form.commissions),
       }));
       setEmployeeServiceOverridesMap((current) => ({
         ...current,

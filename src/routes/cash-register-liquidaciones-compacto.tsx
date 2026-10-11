@@ -3288,17 +3288,10 @@ function NuevaVentaTab({
       if (pendingCharge) {
         const professionalNote = getManualPendingNote(pendingCharge.notes);
 
-        // ── FLUJO PENDIENTE: actualizar appointment existente y registrar pago ──
-        // 1. Actualizar estado del appointment a "charged" y conservar la nota sin el marcador interno
-        const { error: updateError } = await supabase
-          .from("appointments")
-          .update({ status: "charged", notes: professionalNote || null })
-          .eq("id", pendingCharge.id)
-          .in("status", ["pending_payment", "pending", "confirmed", "in_service"]);
-
-        if (updateError) throw updateError;
-
-        // 2. Registrar el pago vinculado al appointment existente
+        // ── FLUJO PENDIENTE: registrar pago + transición del turno, todo
+        // atómico dentro de register_sale (ver register-payment.ts) — la
+        // transición de appointments.status a "charged" ya no es un UPDATE
+        // separado antes del cobro, va dentro del mismo RPC.
         await registerPayment({
           businessId: data.businessId,
           branchId: data.activeBranchId,
@@ -3313,6 +3306,7 @@ function NuevaVentaTab({
           method,
           splits: validSplits,
           appointmentId: pendingCharge.id,
+          appointmentNotes: professionalNote || null,
           sessionId: data.cashSessionId,
           chargedBy: data.profileId,
           chargeOrigin: "manual",

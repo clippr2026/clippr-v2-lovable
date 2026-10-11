@@ -11256,26 +11256,16 @@ export function NuevaVentaTab({
       if (pendingCharge) {
         const professionalNote = getCashRowNote(pendingCharge, pendingCharge.service_name);
 
-        // ── FLUJO PENDIENTE: actualizar appointment existente y registrar pago ──
-        // 1. Actualizar estado del appointment a "charged" y conservar la nota sin el marcador interno.
-        //    .select("id") + chequeo de filas: si ya estaba cobrado (o
-        //    cancelado) por otra acción mientras el modal seguía abierto,
-        //    el .in("status", ...) no matchea nada — sin este chequeo se
-        //    seguía de largo igual y se registraba un pago duplicado.
-        const { data: chargedRows, error: updateError } = await supabase
-          .from("appointments")
-          .update({ status: "charged", notes: professionalNote || null })
-          .eq("id", pendingCharge.id)
-          .in("status", ["pending", "confirmed", "in_service"])
-          .select("id");
-
-        if (updateError) throw updateError;
-        if (!chargedRows || chargedRows.length === 0) {
-          toast.error("Este turno ya fue cobrado o actualizado — recargá la agenda.");
-          return;
-        }
-
-        // 2. Registrar el pago vinculado al appointment existente
+        // ── FLUJO PENDIENTE: registrar pago + transición del turno, todo
+        // atómico dentro de register_sale (ver register-payment.ts) ──
+        // Antes esto era dos pasos separados: 1) UPDATE appointments.status
+        // a "charged" y 2) registerPayment() — si el paso 2 fallaba
+        // entero, el turno quedaba "cobrado" sin ningún payment real (3
+        // casos así en producción, auditoría del 11/10/2026). Ahora
+        // appointmentId + appointmentNotes van DENTRO del RPC: si el turno
+        // ya no está en un estado cobrable, el RPC entero hace rollback
+        // (ni el payment se llega a crear) y lanza el mismo mensaje de
+        // siempre, mostrado por el catch de más abajo.
         const pendingRows = await registerPayment({
           businessId: data.businessId,
           branchId: data.activeBranchId,
@@ -11293,6 +11283,7 @@ export function NuevaVentaTab({
           method,
           splits: validSplits,
           appointmentId: pendingCharge.id,
+          appointmentNotes: professionalNote || null,
           sessionId: data.cashSessionId,
           chargedBy: data.profileId,
           chargeOrigin: "manual",
