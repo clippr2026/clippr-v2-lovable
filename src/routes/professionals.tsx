@@ -2202,12 +2202,37 @@ function LiquidacionesPanelView({
 
   const runsById = React.useMemo(() => new Map(runs.map((r) => [r.id, r])), [runs]);
 
+  // Liquidaciones ya cerradas (pagada) — su pago, sus adelantos y sus
+  // ajustes/deducciones pertenecen SOLO a Historial de acá en más (ver
+  // HistorialPanelView). Antes buildHistorialMovimientos recibía
+  // payments/advances/runs sin filtrar, así que el pago total de una
+  // liquidación ya pagada (fechado el día que se cobró, no el día del
+  // corte) terminaba apareciendo mezclado en Movimientos — lo mismo para
+  // cualquier adelanto/ajuste/deducción que ese run ya haya incluido.
+  const closedRunIds = React.useMemo(
+    () => new Set(runs.filter((r) => r.status === "pagada").map((r) => r.id)),
+    [runs],
+  );
+  const openPayments = React.useMemo(
+    () => payments.filter((p) => !closedRunIds.has(p.settlement_run_id)),
+    [payments, closedRunIds],
+  );
+  const openAdvances = React.useMemo(
+    () => advances.filter((a) => !a.settlement_run_id || !closedRunIds.has(a.settlement_run_id)),
+    [advances, closedRunIds],
+  );
+  const openRuns = React.useMemo(
+    () => runs.filter((r) => !closedRunIds.has(r.id)),
+    [runs, closedRunIds],
+  );
+
   // Mismo timeline que Caja > Historial: pagos agrupados por Movimiento #
   // (un pago múltiple con varios métodos es UNA sola card) y adelantos,
-  // mezclados y ordenados por fecha.
+  // mezclados y ordenados por fecha — ya sin nada de liquidaciones
+  // cerradas (ver closedRunIds arriba).
   const movimientos = React.useMemo(
-    () => buildHistorialMovimientos(payments, advances, runs),
-    [payments, advances, runs],
+    () => buildHistorialMovimientos(openPayments, openAdvances, openRuns),
+    [openPayments, openAdvances, openRuns],
   );
 
   // Lista única de Movimientos: ventas con comisión todavía pendiente +
