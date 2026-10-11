@@ -114,6 +114,7 @@ import {
   type MovimientoDeduccion,
 } from "@/lib/historial-movimientos";
 import { displayResponsable } from "@/components/liquidaciones/movimiento-format";
+import { HistorialPanelView } from "@/components/liquidaciones/historial-panel-view";
 import {
   PagoDetalleContent,
   AjusteDetalleContent,
@@ -3922,6 +3923,16 @@ function ProfesionalesTab({
     return rows.find((row) => row.id === selectedEmployeeId) ?? null;
   }, [rows, selectedEmployeeId]);
 
+  // Sub-pestaña de Liquidaciones para el profesional elegido: Movimientos
+  // (cuenta corriente abierta — pendiente/posterior al último corte) vs
+  // Historial (liquidaciones ya pagadas, detalle completo) — mismo
+  // patrón que Panel del profesional, ver LiquidacionesPanelView/
+  // HistorialPanelView en professionals.tsx.
+  const [liqSubTab, setLiqSubTab] = React.useState<"movimientos" | "historial">("movimientos");
+  React.useEffect(() => {
+    setLiqSubTab("movimientos");
+  }, [selectedEmployeeId]);
+
   const totals = React.useMemo(() => {
     const source = selectedRow ? [selectedRow] : rows;
     return source.reduce(
@@ -4115,13 +4126,34 @@ function ProfesionalesTab({
     );
   }, [paymentOptions, paymentForm.method]);
 
+  // Liquidaciones ya cerradas (pagada) — su pago, sus adelantos y sus
+  // ajustes/deducciones pertenecen SOLO a la sub-pestaña Historial de acá
+  // en más (ver liqSubTab/HistorialPanelView abajo), nunca a Movimientos —
+  // mismo criterio que ya aplica Panel del profesional > Movimientos.
+  const closedRunIds = React.useMemo(
+    () => new Set(selectedRuns.filter((r: any) => r.status === "pagada").map((r: any) => r.id)),
+    [selectedRuns],
+  );
+  const openRunPayments = React.useMemo(
+    () => selectedRunPayments.filter((p: any) => !closedRunIds.has(p.settlement_run_id)),
+    [selectedRunPayments, closedRunIds],
+  );
+  const openAdvances = React.useMemo(
+    () => selectedAdvances.filter((a: any) => !a.settlement_run_id || !closedRunIds.has(a.settlement_run_id)),
+    [selectedAdvances, closedRunIds],
+  );
+  const openRuns = React.useMemo(
+    () => selectedRuns.filter((r: any) => !closedRunIds.has(r.id)),
+    [selectedRuns, closedRunIds],
+  );
+
   // Movimientos es un timeline único — pagos de liquidación (agrupados por
   // movement_number: un pago múltiple con varios métodos es UNA sola
   // card), adelantos, ajustes y deducciones, mezclados y ordenados por
-  // fecha.
+  // fecha — ya sin nada de liquidaciones cerradas (ver closedRunIds arriba).
   const historialItems = React.useMemo(
-    () => buildHistorialMovimientos(selectedRunPayments, selectedAdvances, selectedRuns),
-    [selectedRunPayments, selectedAdvances, selectedRuns],
+    () => buildHistorialMovimientos(openRunPayments, openAdvances, openRuns),
+    [openRunPayments, openAdvances, openRuns],
   );
 
   // Lista única de Liquidaciones: ventas con comisión (detailRows) +
@@ -4756,9 +4788,39 @@ function ProfesionalesTab({
                 a pagar" de arriba (ver bloque de resumen) — no hay una
                 barra de botones aparte acá. */}
 
-            {/* Lista única: ventas con comisión + pagos/adelantos/ajustes/
-                deducciones, mezclados y ordenados por fecha — ya no hay
-                pestañas Comisiones/Movimientos separadas. */}
+            {/* Movimientos (cuenta corriente abierta) vs Historial
+                (liquidaciones ya pagadas) — mismo patrón que Panel del
+                profesional, para que una liquidación cerrada (su pago,
+                sus adelantos, sus ajustes/deducciones) nunca se mezcle
+                con lo pendiente. */}
+            <div className="flex gap-2 px-5 pt-3">
+              {(
+                [
+                  { key: "movimientos", label: "Movimientos" },
+                  { key: "historial", label: "Historial" },
+                ] as const
+              ).map(({ key, label }) => (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setLiqSubTab(key)}
+                  className={cn(
+                    "rounded-full px-3.5 py-1.5 text-xs font-medium ring-1 transition",
+                    liqSubTab === key
+                      ? "bg-primary/15 ring-primary/40 text-foreground"
+                      : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:bg-white/[0.06]",
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            {liqSubTab === "historial" ? (
+              <div className="min-h-0 flex-1 overflow-visible sm:overflow-y-auto px-5 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+                <HistorialPanelView businessId={businessId} empId={selectedRow.id} />
+              </div>
+            ) : (
             <div className="min-h-0 flex-1 overflow-visible sm:overflow-y-auto px-5 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
               {detailError && (
                 <div className="mb-3 rounded-xl border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-xs text-rose-200">
@@ -4899,6 +4961,7 @@ function ProfesionalesTab({
                 </div>
               )}
             </div>
+            )}
           </div>
         ) : (data.employees ?? []).length === 0 ? (
           <div className="px-5 py-10 text-center text-sm text-white/45">
