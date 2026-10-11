@@ -741,6 +741,45 @@ export async function fetchSettlementRunServices(settlementRunId: string) {
   }));
 }
 
+// Ventas incluidas en una liquidación — fuente NUEVA (settlement_run_sales,
+// ver 20261010010000_settlement_run_sales_snapshot.sql), solo existe para
+// liquidaciones preparadas desde esa migración en adelante. A diferencia de
+// fetchSettlementRunServices (arriba, basado en commission_records —
+// liquidaciones viejas, 4 campos), esta trae TODA venta de ese profesional
+// en el período (con o sin comisión) y el detalle crudo completo
+// (discount/original_amount/promotion_id/promotion_name/tip_amount) para
+// que <VentaRow> (unified-row.tsx) muestre tachado/promo/propina exactos,
+// igual que una venta pendiente en vivo — mismo componente, mismo shape de
+// `sale`, cero lógica nueva de presentación.
+export async function fetchSettlementRunSales(settlementRunId: string) {
+  const { data, error } = await supabase
+    .from("settlement_run_sales" as any)
+    .select(
+      "id,sale_id,occurred_at,client_name,service_name,total,method,discount,original_amount,promotion_id,promotion_name,tip_amount,commission_amount,observations",
+    )
+    .eq("settlement_run_id", settlementRunId)
+    .order("occurred_at", { ascending: true });
+  if (error) throw new Error(error.message);
+  return (data ?? []).map((row: any) => ({
+    id: row.id,
+    created_at: row.occurred_at,
+    amount: row.commission_amount,
+    sale: {
+      client_name: row.client_name,
+      service_name: row.service_name,
+      total: row.total,
+      method: row.method,
+      payment_method: row.method,
+      discount: row.discount,
+      original_amount: row.original_amount,
+      promotion_id: row.promotion_id,
+      promotion_name: row.promotion_name,
+      tip_amount: row.tip_amount,
+      observations: row.observations,
+    },
+  }));
+}
+
 // Match tolerante (trim + lowercase) entre payments.service_name (texto
 // congelado al momento de la venta) y price_catalog.name (puede haberse
 // re-tipeado con otra capitalización/espacios desde entonces) — usado solo

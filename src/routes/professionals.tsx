@@ -7,15 +7,13 @@ import { FichajeAdminSummaryCard } from "@/components/professionals/fichaje-admi
 import { Topbar } from "@/components/topbar";
 import {
   ClipboardList,
-  BarChart3,
+  History,
   Clock,
   ChevronLeft,
   ChevronRight,
   CalendarPlus,
   CreditCard,
   HandCoins,
-  BadgeCheck,
-  Clock3,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -31,8 +29,9 @@ import {
   useProfCommissionRecords, useProfTipRecords,
   useConfirmSettlementRun, useObserveSettlementRun,
   fetchSettlementRunServices,
+  fetchSettlementRunSales,
   fetchPendingVentasForProfessional,
-  type ProfTurno, type ProfSale, type SettlementRun,
+  type ProfTurno, type SettlementRun,
 } from "@/hooks/use-professionals-data";
 import {
   buildComprobanteText,
@@ -82,7 +81,7 @@ export const Route = createFileRoute("/professionals")({
   component: ProfessionalsPage,
 });
 
-type TabKey = "turnos" | "stats" | "historial-pagos";
+type TabKey = "turnos" | "historial-pagos" | "historial";
 type RangeKey = "hoy" | "semana" | "mes" | "custom";
 
 function toLocalISODate(date: Date) {
@@ -147,21 +146,6 @@ function getPresetRange(range: Exclude<RangeKey, "custom">) {
 
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
-
-// Ventas de mostrador enviadas sin turno (botón "Enviar" del panel, sin
-// appointment de por medio) guardan su historial "Envió a caja"/"Cobró"
-// directo en payments.observations, con este marcador al principio —
-// mismo mecanismo/constante que usa cash-register.tsx al escribirlo.
-const PAY_HIST_MARKER = "[[HIST]]";
-function decodePayHistNotes(observations: string | null | undefined): { time: string; user: string; action: string; ts?: string }[] {
-  const raw = String(observations ?? "");
-  if (!raw.startsWith(PAY_HIST_MARKER)) return [];
-  try {
-    return JSON.parse(raw.slice(PAY_HIST_MARKER.length));
-  } catch {
-    return [];
-  }
-}
 
 type ManualPendingCharge = {
   id: string;
@@ -549,8 +533,8 @@ function ProfessionalsPage() {
       <div className="grid grid-cols-3 gap-2 sm:gap-3 pb-3">
         {([
           { key: "turnos",             label: "Mi Agenda",             Icon: ClipboardList, tint: "text-cyan-300" },
-          { key: "stats",              label: "Rendimiento",           Icon: BarChart3,     tint: "text-sky-300"   },
           { key: "historial-pagos",    label: "Movimientos",           Icon: HandCoins,     tint: "text-amber-300" },
+          { key: "historial",         label: "Historial",             Icon: History,       tint: "text-sky-300"   },
         ] as const).map(({ key, label, Icon, tint }) => {
           const isActive = tab === key;
           return (
@@ -599,7 +583,7 @@ function ProfessionalsPage() {
         </div>
       )}
 
-      {tab !== "turnos" && tab !== "historial-pagos" && (
+      {tab !== "turnos" && tab !== "historial-pagos" && tab !== "historial" && (
         <div className="flex justify-end -mt-3">
           <DateRangePicker
             from={fromDate}
@@ -750,7 +734,6 @@ function ProfessionalsPage() {
           }
         />
       )}
-      {tab === "stats" && <StatsView businessId={businessId} empId={empId} from={fromDate} to={toDate} commissionPct={Number(active?.commission_pct ?? 0)} />}
       {tab === "historial-pagos" && (
         <LiquidacionesPanelView
           businessId={businessId}
@@ -758,6 +741,9 @@ function ProfessionalsPage() {
           professionalName={active?.full_name ?? "Profesional"}
           canConfirmOrObserve={isProfessionalAccess && canOperateSelectedPanel}
         />
+      )}
+      {tab === "historial" && (
+        <HistorialPanelView businessId={businessId} empId={empId} />
       )}
       </div>
       </div>
@@ -2061,416 +2047,6 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
 }
 
 
-function StatsView({
-  businessId, empId, from, to, commissionPct,
-}: {
-  businessId: string | null;
-  empId: string | null;
-  from: string;
-  to: string;
-  commissionPct: number;
-}) {
-  const validFrom = from && !isNaN(new Date(from).getTime()) ? from : new Date().toISOString().slice(0,10);
-  const validTo   = to   && !isNaN(new Date(to).getTime())   ? to   : new Date().toISOString().slice(0,10);
-  // Misma fuente de datos que Historial de ventas (turnos + ventas directas
-  // + ventas de mostrador, no solo `payments`) para que el estado de cada
-  // venta esté siempre sincronizado entre los dos módulos — pero la
-  // Comisión se calcula EXCLUSIVAMENTE sobre status "cobrado". Antes
-  // (versión previa de este fix) también sumaba la comisión de ventas
-  // "pendiente" (enviada a caja, sin cobrar todavía) como comisión
-  // "provisional" — pedido explícito en contra: comisión sobre plata que el
-  // negocio todavía no cobró del cliente es incorrecta contablemente, así
-  // que enviado_a_caja/pendiente_aprobacion/rechazado/cancelado nunca
-  // generan comisión, solo cobrado/pagado.
-  const { enriched, loading: enrichedLoading } = useProfSalesEnriched(businessId, empId, validFrom, validTo, commissionPct);
-  const cobradas = enriched.filter(r => r.status === "cobrado");
-  const comision = cobradas.reduce((s, r) => s + r.commission, 0);
-  const ventasCount = cobradas.length;
-
-  // Pagado/Pendiente son sobre LIQUIDACIÓN (plata que el negocio ya le pagó
-  // al profesional por su comisión ganada, vs. lo que todavía le debe) — no
-  // sobre el estado de la venta. Esa es la fuente real: professional_payouts
-  // (mismos datos que "Historial de pagos"), no el array de ventas.
-  const { data: payouts = [], isLoading: payoutsLoading } = useProfPayments(businessId, empId, validFrom, validTo);
-
-  // Descuento por tardanza (fichaje) — cuenta corriente real, no se filtra
-  // por rango, mismo criterio que "pagado"/"pendiente" de arriba. Nunca
-  // genera un pendiente negativo: se resta hasta $0, nunca más allá.
-  const [descuentoTardanza, setDescuentoTardanza] = React.useState(0);
-  React.useEffect(() => {
-    if (!businessId || !empId) { setDescuentoTardanza(0); return; }
-    let cancelled = false;
-    supabase
-      .from("lateness_discounts" as any)
-      .select("discount_amount_applied")
-      .eq("business_id", businessId)
-      .eq("employee_id", empId)
-      .then(({ data }) => {
-        if (cancelled) return;
-        const total = ((data ?? []) as any[]).reduce((s, d) => s + Number(d.discount_amount_applied ?? 0), 0);
-        setDescuentoTardanza(total);
-      });
-    return () => { cancelled = true; };
-  }, [businessId, empId]);
-
-  const loading = enrichedLoading || payoutsLoading;
-  const pagado = payouts.reduce((s, p) => s + Number(p.amount ?? 0), 0);
-  const pendienteMonto = Math.max(0, comision - pagado - descuentoTardanza);
-
-  const salesForDesglose: ProfSale[] = React.useMemo(
-    () => cobradas.map(r => ({
-      id: r.id,
-      client_name: r.client_name,
-      service_name: r.service_name,
-      total: r.total,
-      created_at: r.fecha,
-      method: null,
-      splits: null,
-      // Comisión REAL de esta venta (commission_records.amount, resuelta
-      // más arriba en useProfSalesEnriched) — ServiciosDesglose la usa tal
-      // cual, nunca la recalcula con el % plano actual del profesional
-      // (ver comentario en ServiciosDesglose).
-      commission: r.commission,
-    })),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [enriched],
-  );
-
-  return (
-    <div className="space-y-4 animate-fade-up">
-      {/* KPI cards: Comisión / Pagado / Pendiente */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-        <div className="glass rounded-2xl p-3.5 ring-1 ring-violet-400/20 relative overflow-hidden">
-          <div className="absolute -top-8 -right-8 h-24 w-24 rounded-full bg-violet-400/10 blur-3xl" />
-          <div className="flex items-center gap-2 text-[11px] tracking-[0.2em] text-muted-foreground uppercase">
-            <HandCoins className="h-[21px] w-[21px] text-violet-300 drop-shadow-[0_0_6px_rgba(167,139,250,0.45)]" /> Comisión
-          </div>
-          <div className="mt-1.5 flex items-baseline gap-1">
-            <span className="text-muted-foreground text-sm">$</span>
-            <span className="text-3xl font-display font-light tracking-tight">{loading ? "—" : comision.toLocaleString("es-AR")}</span>
-          </div>
-          <div className="mt-1 text-[11px] text-muted-foreground">{ventasCount} venta{ventasCount !== 1 ? "s" : ""}</div>
-        </div>
-        <div className="glass rounded-2xl p-3.5 ring-1 ring-emerald-400/30 relative overflow-hidden">
-          <div className="absolute -top-8 -right-8 h-24 w-24 rounded-full bg-emerald-400/10 blur-3xl" />
-          <div className="flex items-center gap-2 text-[11px] tracking-[0.2em] text-muted-foreground uppercase">
-            <BadgeCheck className="h-[21px] w-[21px] text-emerald-300 drop-shadow-[0_0_6px_rgba(52,211,153,0.45)]" /> Pagado
-          </div>
-          <div className="mt-1.5 flex items-baseline gap-1">
-            <span className="text-muted-foreground text-sm">$</span>
-            <span className="text-3xl font-display font-light tracking-tight">{loading ? "—" : pagado.toLocaleString("es-AR")}</span>
-          </div>
-        </div>
-        <div className="glass rounded-2xl p-3.5 ring-1 ring-amber-400/20 relative overflow-hidden">
-          <div className="absolute -top-8 -right-8 h-24 w-24 rounded-full bg-amber-400/10 blur-3xl" />
-          <div className="flex items-center gap-2 text-[11px] tracking-[0.2em] text-muted-foreground uppercase">
-            <Clock3 className="h-[21px] w-[21px] text-amber-300 drop-shadow-[0_0_6px_rgba(252,211,77,0.45)]" /> Pendiente
-          </div>
-          <div className="mt-1.5 flex items-baseline gap-1">
-            <span className="text-muted-foreground text-sm">$</span>
-            <span className="text-3xl font-display font-light tracking-tight">{loading ? "—" : pendienteMonto.toLocaleString("es-AR")}</span>
-          </div>
-          <div className="mt-1 text-[11px] text-emerald-300">{!loading && pendienteMonto === 0 ? "✓ al día" : ""}</div>
-          {!loading && descuentoTardanza > 0 ? (
-            <div className="mt-1 text-[11px] text-rose-300">
-              Incluye -${descuentoTardanza.toLocaleString("es-AR")} por tardanza
-            </div>
-          ) : null}
-        </div>
-      </div>
-
-      {/* Servicios Desglose */}
-      <ServiciosDesglose sales={salesForDesglose} businessId={businessId} />
-    </div>
-  );
-}
-
-const PIE_COLORS = [
-  "oklch(0.72 0.22 300)",  // violet
-  "oklch(0.72 0.20 200)",  // sky
-  "oklch(0.72 0.22 145)",  // emerald
-  "oklch(0.78 0.16 200)",   // amber
-  "oklch(0.72 0.22 15)",   // rose
-  "oklch(0.72 0.18 250)",  // blue
-  "oklch(0.75 0.14 95)",   // lime
-];
-
-function ServiciosDesglose({ sales, businessId }: { sales: ProfSale[]; businessId: string | null }) {
-  const [tab, setTab] = React.useState<"all" | "services" | "catalog">("all");
-
-  // Load price_catalog to classify each sale by real origin
-  const [serviceNames, setServiceNames] = React.useState<Set<string>>(new Set());
-  const [catalogNames, setCatalogNames] = React.useState<Set<string>>(new Set());
-  // Original-case names for display
-  const [serviceNamesOrig, setServiceNamesOrig] = React.useState<string[]>([]);
-  const [catalogNamesOrig, setCatalogNamesOrig] = React.useState<string[]>([]);
-  const [catalogLoaded, setCatalogLoaded] = React.useState(false);
-
-  React.useEffect(() => {
-    if (!businessId) return;
-    (async () => {
-      const [{ data: svcs }, { data: prods }] = await Promise.all([
-        supabase.from("price_catalog").select("name").eq("business_id", businessId).eq("active", true).not("duration_min", "is", null),
-        supabase.from("price_catalog").select("name").eq("business_id", businessId).eq("active", true).is("duration_min", null),
-      ]);
-      const svcOrig = (svcs ?? []).map(s => s.name as string);
-      const prodOrig = (prods ?? []).map(p => p.name as string);
-      setServiceNamesOrig(svcOrig);
-      setCatalogNamesOrig(prodOrig);
-      setServiceNames(new Set(svcOrig.map(n => n.trim().toLowerCase())));
-      setCatalogNames(new Set(prodOrig.map(n => n.trim().toLowerCase())));
-      setCatalogLoaded(true);
-    })();
-  }, [businessId]);
-
-  // Aggregate sales against real catalog names only
-  const aggregated = React.useMemo(() => {
-    if (!catalogLoaded) return [];
-
-    // All known real names (service + catalog), longest first to avoid partial matches
-    const allReal = [
-      ...serviceNamesOrig.map(n => ({ name: n.trim().toLowerCase(), displayName: n, isService: true, isCatalog: false })),
-      ...catalogNamesOrig.map(n => ({ name: n.trim().toLowerCase(), displayName: n, isService: false, isCatalog: true })),
-    ].sort((a, b) => b.name.length - a.name.length);
-
-    const map = new Map<string, { displayName: string; total: number; isService: boolean; isCatalog: boolean }>();
-
-    for (const s of sales) {
-      const rawName = (s.service_name ?? "").trim().toLowerCase();
-      const saleTotal = Number(s.total ?? 0);
-
-      if (!rawName || saleTotal <= 0) continue;
-
-      // En este desglose mostramos SOLO la comisión del profesional, no el
-      // total facturado — y siempre la comisión REAL ya calculada al
-      // cobrar (commission_records.amount, resuelta en useProfSalesEnriched
-      // y ya presente en s.commission), nunca un % plano recalculado acá.
-      // Antes esto recalculaba "saleTotal × commissionPct ACTUAL" desde
-      // cero: ignoraba el tope de precio efectivo, cualquier comisión por
-      // servicio configurada en Equipo, y cualquier descuento real de esa
-      // venta puntual — podía (y en la práctica ya divergía de) mostrar un
-      // número distinto al que indica la tarjeta "Comisión" de arriba,
-      // calculada sobre la MISMA venta con la fórmula correcta.
-      const saleCommission = Math.round(Number(s.commission ?? 0));
-
-      // Find which real catalog items appear in this payment's service_name
-      const matched: typeof allReal = [];
-      let remaining = rawName;
-      for (const real of allReal) {
-        if (remaining.includes(real.name)) {
-          matched.push(real);
-          // Remove matched segment to avoid double-counting
-          remaining = remaining.split(real.name).join(" ");
-        }
-      }
-
-      if (matched.length === 0) {
-        // No match → skip entirely (seña, x2, internal text, etc.)
-        continue;
-      }
-
-      if (matched.length === 1) {
-        const key = matched[0].name;
-        const existing = map.get(key);
-        if (existing) {
-          existing.total += saleCommission;
-        } else {
-          map.set(key, { displayName: matched[0].displayName, total: saleCommission, isService: matched[0].isService, isCatalog: matched[0].isCatalog });
-        }
-      } else {
-        // Multiple items: split total evenly
-        const share = saleCommission / matched.length;
-        for (const real of matched) {
-          const existing = map.get(real.name);
-          if (existing) {
-            existing.total += share;
-          } else {
-            map.set(real.name, { displayName: real.displayName, total: share, isService: real.isService, isCatalog: real.isCatalog });
-          }
-        }
-      }
-    }
-
-    return Array.from(map.values())
-      .sort((a, b) => b.total - a.total);
-  }, [sales, serviceNamesOrig, catalogNamesOrig, catalogLoaded]);
-
-  const filtered = React.useMemo(() => {
-    if (tab === "services") return aggregated.filter(i => i.isService);
-    if (tab === "catalog")  return aggregated.filter(i => i.isCatalog);
-    return aggregated;
-  }, [aggregated, tab]);
-  const grandTotal = filtered.reduce((s, i) => s + i.total, 0);
-  const fmt = (n: number) => "$" + Math.round(n).toLocaleString("es-AR");
-  const fmtPct = (n: number) => grandTotal > 0 ? ((n / grandTotal) * 100).toFixed(1) + "%" : "0%";
-
-  // SVG donut chart
-  const RADIUS = 70;
-  const CX = 90;
-  const CY = 90;
-  const STROKE = 28;
-  const circumference = 2 * Math.PI * RADIUS;
-
-  const arcs = React.useMemo(() => {
-    let offset = 0;
-    return filtered.map((item, i) => {
-      const pct = grandTotal > 0 ? item.total / grandTotal : 0;
-      const dash = pct * circumference;
-      const gap = circumference - dash;
-      const arc = { item, dash, gap, offset: offset * circumference, color: PIE_COLORS[i % PIE_COLORS.length] };
-      offset += pct;
-      return arc;
-    });
-  }, [filtered, grandTotal, circumference]);
-
-  return (
-    <div className="glass rounded-2xl p-5 relative overflow-hidden">
-      <div className="absolute -top-16 -left-16 h-56 w-56 rounded-full bg-sky-500/10 blur-3xl pointer-events-none" />
-
-      <div className="flex items-start justify-between mb-4">
-        <div>
-          <div className="text-2xl font-display font-light tracking-tight">Desglose</div>
-        </div>
-        {/* Tabs */}
-        <div className="flex gap-1 rounded-xl bg-white/[0.05] p-1">
-          {([["all", "Todos"], ["services", "Servicios"], ["catalog", "Catálogo"]] as const).map(([k, l]) => (
-            <button key={k} type="button" onClick={() => setTab(k)}
-              className={cn("rounded-lg px-3 py-1 text-xs font-semibold transition-all",
-                tab === k ? "bg-white/10 text-foreground" : "text-muted-foreground hover:text-foreground")}>
-              {l}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {grandTotal === 0 ? (
-        <div className="flex flex-col items-center justify-center py-8 text-center text-sm text-muted-foreground gap-2">
-          <div className="h-10 w-10 rounded-full bg-white/5 ring-1 ring-white/10 grid place-items-center mb-1">
-            <svg viewBox="0 0 24 24" className="h-5 w-5 opacity-40" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M3 3v16a2 2 0 002 2h16" strokeLinecap="round"/>
-              <path d="M7 16l4-4 4 4 5-5" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </div>
-          Sin datos aún
-          <span className="text-xs opacity-60">Los datos aparecerán cuando haya turnos registrados</span>
-        </div>
-      ) : (
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-          {/* Donut — smaller to sit tight next to the legend */}
-          <div className="shrink-0 relative">
-            <svg width="140" height="140" viewBox="0 0 180 180">
-              {arcs.map((arc, i) => (
-                <circle key={i}
-                  cx={CX} cy={CY} r={RADIUS}
-                  fill="none"
-                  stroke={arc.color}
-                  strokeWidth={STROKE}
-                  strokeDasharray={`${arc.dash} ${arc.gap}`}
-                  strokeDashoffset={-arc.offset}
-                  strokeLinecap="butt"
-                  style={{ transform: "rotate(-90deg)", transformOrigin: `${CX}px ${CY}px`, transition: "stroke-dasharray 0.5s" }}
-                />
-              ))}
-              <text x={CX} y={CY - 8} textAnchor="middle" fill="white" fontSize="11" opacity="0.5" fontFamily="sans-serif">Comisión</text>
-              <text x={CX} y={CY + 10} textAnchor="middle" fill="white" fontSize="14" fontWeight="600" fontFamily="sans-serif">
-                {fmt(grandTotal)}
-              </text>
-            </svg>
-          </div>
-
-          {/* Legend — natural width, no flex-1 stretch */}
-          <div className="space-y-2 min-w-0 w-full sm:w-auto sm:max-w-xs">
-            {filtered.slice(0, 7).map((item, i) => (
-              <div key={item.displayName} className="flex items-center gap-3 min-w-0">
-                <div className="h-2.5 w-2.5 rounded-full shrink-0" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
-                <div className="flex-1 text-sm truncate min-w-0">{item.displayName}</div>
-                <div className="tabular-nums text-xs text-muted-foreground shrink-0 ml-3">{fmt(item.total)}</div>
-                <div className="tabular-nums text-xs font-semibold shrink-0 w-12 text-right">{fmtPct(item.total)}</div>
-              </div>
-            ))}
-            {filtered.length > 7 && (
-              <div className="text-xs text-muted-foreground pl-5">+{filtered.length - 7} más</div>
-            )}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
-
-function LineChart({
-  points,
-  labels,
-  dense = false,
-}: {
-  points: number[];
-  labels: string[];
-  dense?: boolean;
-}) {
-  const W = 600;
-  const H = 140;
-  const PAD_X = 8;
-  const PAD_Y = 18;
-  const max = Math.max(...points, 1);
-  // smooth display: if all zeros, draw a gentle baseline wave so it doesn't look dead
-  const display = points.every((p) => p === 0)
-    ? points.map((_, i) => 0.45 + 0.1 * Math.sin((i / Math.max(points.length - 1, 1)) * Math.PI * 2))
-    : points.map((p) => p / max);
-
-  const step = (W - PAD_X * 2) / Math.max(display.length - 1, 1);
-  const pts = display.map((v, i) => ({
-    x: PAD_X + i * step,
-    y: H - PAD_Y - v * (H - PAD_Y * 2),
-  }));
-
-  // smooth cubic path
-  const line = pts
-    .map((p, i, arr) => {
-      if (i === 0) return `M ${p.x} ${p.y}`;
-      const prev = arr[i - 1];
-      const cx = (prev.x + p.x) / 2;
-      return `C ${cx} ${prev.y}, ${cx} ${p.y}, ${p.x} ${p.y}`;
-    })
-    .join(" ");
-  const area = `${line} L ${pts[pts.length - 1].x} ${H} L ${pts[0].x} ${H} Z`;
-
-  return (
-    <div className="mt-4">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-32 overflow-visible">
-        <defs>
-          <linearGradient id="proAreaFill" x1="0" x2="0" y1="0" y2="1">
-            <stop offset="0%" stopColor="oklch(0.7 0.25 300)" stopOpacity="0.45" />
-            <stop offset="60%" stopColor="oklch(0.6 0.22 290)" stopOpacity="0.15" />
-            <stop offset="100%" stopColor="oklch(0.6 0.22 290)" stopOpacity="0" />
-          </linearGradient>
-          <linearGradient id="proAreaStroke" x1="0" x2="1" y1="0" y2="0">
-            <stop offset="0%" stopColor="oklch(0.72 0.2 245)" />
-            <stop offset="100%" stopColor="oklch(0.7 0.25 300)" />
-          </linearGradient>
-        </defs>
-        <path d={area} fill="url(#proAreaFill)" />
-        <path
-          d={line}
-          fill="none"
-          stroke="url(#proAreaStroke)"
-          strokeWidth="2"
-          strokeLinecap="round"
-          style={{ filter: "drop-shadow(0 0 8px oklch(0.72 0.2 245 / 0.6))" }}
-        />
-        {!dense &&
-          pts.map((p, i) => (
-            <circle key={i} cx={p.x} cy={p.y} r={2.5} fill="oklch(0.82 0.16 200)" />
-          ))}
-      </svg>
-      <div className="flex justify-between text-[10px] text-muted-foreground mt-1 px-1">
-        {labels.map((l) => (
-          <span key={l}>{l}</span>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 const RUN_STATUS_LABEL: Record<SettlementRun["status"], string> = {
   pendiente: "Pendiente",
   parcial: "Pago parcial",
@@ -3175,351 +2751,143 @@ function LiquidacionesPanelView({
   );
 }
 
-// Día calendario (YYYY-MM-DD) de un timestamp real, siempre en horario de
-// Argentina — nunca el del dispositivo/navegador. Sin timeZone explícito,
-// toLocaleDateString usa la zona del sistema; una venta hecha después de
-// las ~21hs (ya pasada la medianoche UTC) podía mostrarse un día
-// adelantada si el dispositivo no tenía la zona horaria bien seteada.
-const BA_TZ = "America/Argentina/Buenos_Aires";
-function argDateKey(iso: string): string {
-  return new Date(iso).toLocaleDateString("sv-SE", { timeZone: BA_TZ });
-}
+// Panel del profesional > Historial. Archivo de liquidaciones CERRADAS
+// (status "pagada" — pendiente/parcial/observada siguen "activas" y se
+// ven en Movimientos, no acá). Al abrir una, se reconstruye solo con lo
+// que de verdad quedó persistido en el momento del cierre: Resumen +
+// pagos/adelantos (ya 100% reconstruibles desde siempre, ver
+// historial-movimientos.ts) y, para las ventas, la fuente más rica
+// disponible — settlement_run_sales (snapshot completo, ver
+// 20261010010000_settlement_run_sales_snapshot.sql) si esta liquidación
+// se preparó después de esa migración; si no hay filas ahí (tabla
+// todavía sin migrar, o liquidación de antes), cae al fallback de
+// siempre (fetchSettlementRunServices, basado en commission_records —
+// 4 campos, sin descuento/promo/propina). Nunca inventa lo que falta.
+function HistorialPanelView({
+  businessId, empId,
+}: {
+  businessId: string | null;
+  empId: string | null;
+}) {
+  const { data: runs = [], isLoading: loadingRuns } = useProfSettlementRuns(businessId, empId);
+  const { data: payments = [], isLoading: loadingPayments } = useProfSettlementRunPayments(businessId, empId);
+  const { data: advances = [], isLoading: loadingAdvances } = useProfAdvances(businessId, empId);
 
-type EnrichedSaleRow = {
-  id: string;
-  fecha: string;       // YYYY-MM-DD local
-  // Instante ISO real de creación/envío de la venta (turno.starts_at,
-  // "Envió a caja" original, o created_at si nunca pasó por Pendientes) —
-  // define el ORDEN de la tarjeta. Nunca la hora de cobro/rechazo: cobrar
-  // una venta pendiente no debe correrla de lugar en la lista.
-  sortTs: string;
-  client_name: string | null;
-  service_name: string | null;
-  total: number;
-  commission: number;
-  // id de la fila en `payments` que respalda esta venta (si ya se cobró) —
-  // es el mismo `sale_id` que usa commission_records, así se puede pisar
-  // la comisión estimada por la real (ver más abajo) sin tener que
-  // recalcular nada del lado del cliente.
-  saleId?: string;
-  sourceType: "turno" | "venta-directa";
-  // Método(s) de pago usados — varios si fue pago múltiple (ej. Efectivo +
-  // Transferencia). Sin importes acá a propósito: eso es para el detalle
-  // de la venta, no para este listado.
-  methods: string[];
-  // Mismo dato que `methods`, pero con el importe real de cada uno — pago
-  // múltiple sí necesita desglosarse con su importe en Historial de ventas
-  // (pedido explícito), methodsSummary por sí solo no alcanza para eso.
-  methodBreakdown: { method: string; amount: number }[];
-  // Historial completo (Envió a caja / Cobró / Rechazó), en orden
-  // cronológico — para turnos sale de appointments.cobro_events
-  // (readHistorialCobro); para ventas directas sin turno, del marcador en
-  // payments.observations (no hay appointment al que asociar cobro_events
-  // en ese caso).
-  histEvents: { time: string; user: string; action: string }[];
-  // Estado del ciclo de vida de la venta, derivado del último evento del
-  // historial (o de la existencia de un pago) — null cuando el turno
-  // nunca se envió ni se cobró (no hay nada que mostrar como estado).
-  status: "pendiente" | "cobrado" | "rechazado" | null;
-};
+  const closedRuns = React.useMemo(() => runs.filter((r) => r.status === "pagada"), [runs]);
 
-// Fuente única de ventas del profesional (turnos cobrados, ventas directas
-// y ventas de mostrador enviadas a caja) — usada tanto por Historial de
-// ventas como por Rendimiento, para que los dos módulos muestren siempre
-// los mismos números. Antes Rendimiento salía de `payments` únicamente
-// (useProfStats/useProfSales), así que en cuanto una venta quedaba
-// "Enviada a caja" o "Rechazada" — sin fila en `payments` todavía — no
-// aparecía en Rendimiento aunque sí se viera en Historial de ventas,
-// mostrando $0 en Comisión/Pagado/Pendiente pese a haber ventas reales.
-function useProfSalesEnriched(
-  businessId: string | null,
-  empId: string | null,
-  from: string,
-  to: string,
-  commissionPct: number,
-) {
-  // ── Cargar turnos del período (misma fuente que TurnosView) ─────────────
-  const { data: turnos = [], isLoading: turnosLoading } = useProfTurnos(businessId, empId, from, to);
+  const [openRun, setOpenRun] = useState<SettlementRun | null>(null);
+  const [sales, setSales] = useState<any[] | null>(null);
+  const [loadingSales, setLoadingSales] = useState(false);
 
-  // ── Datos enriquecidos ───────────────────────────────────────────────────
-  const [enriched, setEnriched] = React.useState<EnrichedSaleRow[]>([]);
-  const [enrichLoading, setEnrichLoading] = React.useState(false);
-  // Numera cada corrida del efecto de abajo para poder descartar resultados
-  // desactualizados — turnos (con su propio canal realtime) Y refreshTick
-  // (otro canal realtime acá mismo) pueden disparar este efecto casi al
-  // mismo tiempo tras un envío/cobro/rechazo; sin esto, una corrida más
-  // vieja que tarda más en volver (trae una consulta extra a
-  // business_settings) podía pisar el resultado ya actualizado de una
-  // corrida más nueva que respondió antes — un envío recién hecho podía
-  // aparecer solo, sin los anteriores, o viceversa.
-  const enrichSeqRef = React.useRef(0);
-
-  // Sync historial from Supabase (same as TurnosView)
-  const [historialVersion, setHistorialVersion] = React.useState(0);
-  React.useEffect(() => {
-    if (turnos.length > 0) {
-      syncHistorialFromDB(turnos.map(t => t.id)).then(() => setHistorialVersion(v => v + 1));
+  async function handleOpen(run: SettlementRun) {
+    setOpenRun(run);
+    setSales(null);
+    setLoadingSales(true);
+    try {
+      let rows: any[] = [];
+      try {
+        rows = await fetchSettlementRunSales(run.id);
+      } catch {
+        // settlement_run_sales puede no existir todavía (migración sin
+        // correr) — no es un error fatal, cae al fallback de abajo.
+        rows = [];
+      }
+      if (rows.length === 0) {
+        rows = await fetchSettlementRunServices(run.id);
+      }
+      setSales(rows);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "No se pudieron cargar las ventas");
+      setSales([]);
+    } finally {
+      setLoadingSales(false);
     }
-  }, [turnos]);
-  React.useEffect(() => {
-    const sync = () => setHistorialVersion(v => v + 1);
-    window.addEventListener("clippr:cobros-historial-updated", sync);
-    window.addEventListener("storage", sync);
-    return () => {
-      window.removeEventListener("clippr:cobros-historial-updated", sync);
-      window.removeEventListener("storage", sync);
-    };
-  }, []);
+  }
 
-  // Refresco en tiempo real: cuando el profesional envía/cobra/rechaza una
-  // venta (desde acá mismo o desde Caja, en otro dispositivo), tanto
-  // Historial de ventas como Rendimiento tienen que reflejarlo sin recargar
-  // la página. El aviso local (mismo navegador) llega por evento custom; el
-  // canal realtime cubre otros dispositivos/sesiones.
-  const [refreshTick, setRefreshTick] = React.useState(0);
-  React.useEffect(() => {
-    const bump = () => setRefreshTick((v) => v + 1);
-    window.addEventListener("clippr:manual-pending-updated", bump);
-    window.addEventListener("storage", bump);
-    return () => {
-      window.removeEventListener("clippr:manual-pending-updated", bump);
-      window.removeEventListener("storage", bump);
-    };
-  }, []);
-  React.useEffect(() => {
-    if (!businessId) return;
-    const bump = () => setRefreshTick((v) => v + 1);
-    const channel = supabase
-      .channel(`prof-sales-enriched-${businessId}-${empId ?? "none"}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "appointments", filter: `business_id=eq.${businessId}` }, bump)
-      .on("postgres_changes", { event: "*", schema: "public", table: "business_settings", filter: `business_id=eq.${businessId}` }, bump)
-      .on("postgres_changes", { event: "*", schema: "public", table: "payments", filter: `business_id=eq.${businessId}` }, bump)
-      .on("postgres_changes", { event: "*", schema: "public", table: "commission_records", filter: `business_id=eq.${businessId}` }, bump)
-      .subscribe();
-    return () => { supabase.removeChannel(channel); };
-  }, [businessId, empId]);
+  const runPayments = React.useMemo(
+    () => (openRun ? payments.filter((p) => p.settlement_run_id === openRun.id) : []),
+    [payments, openRun],
+  );
+  const runAdvances = React.useMemo(
+    () => (openRun ? advances.filter((a) => a.settlement_run_id === openRun.id) : []),
+    [advances, openRun],
+  );
 
-  React.useEffect(() => {
-    if (!businessId || !empId || turnosLoading) return;
+  if (loadingRuns || loadingPayments || loadingAdvances) {
+    return <div className="p-8 text-center text-sm text-muted-foreground animate-pulse">Cargando…</div>;
+  }
 
-    const mySeq = ++enrichSeqRef.current;
-    setEnrichLoading(true);
-    (async () => {
-      const fromDate = new Date(from + "T00:00:00");
-      fromDate.setDate(fromDate.getDate() - 1);
-      const toDate = new Date(to + "T23:59:59");
-      toDate.setDate(toDate.getDate() + 1);
+  if (closedRuns.length === 0) {
+    return (
+      <div className="glass rounded-2xl p-8 text-center text-sm text-muted-foreground animate-fade-up">
+        Todavía no hay liquidaciones cerradas para este profesional.
+      </div>
+    );
+  }
 
-      // "splits" (métodos de pago múltiple) puede no existir todavía como
-      // columna en `payments` — un SELECT con una columna inexistente tira
-      // error duro (PGRST 42703), y sin chequear `error` acá `payments`
-      // quedaba en null (rompiendo TODO el merge de pagos, no solo los
-      // métodos). Reintentar sin "splits" evita perder el resto del
-      // Historial si la columna no está.
-      let payments: any[] | null;
-      let paymentsError: { code?: string; message: string } | null;
-      ({ data: payments, error: paymentsError } = await supabase
-        .from("payments")
-        .select("id,appointment_id,client_name,service_name,total,amount,method,payment_method,splits,observations,created_at")
-        .eq("business_id", businessId)
-        .eq("employee_id", empId)
-        .gte("created_at", fromDate.toISOString())
-        .lte("created_at", toDate.toISOString()));
-      if (paymentsError?.code === "42703") {
-        ({ data: payments } = await supabase
-          .from("payments")
-          .select("id,appointment_id,client_name,service_name,total,amount,method,payment_method,observations,created_at")
-          .eq("business_id", businessId)
-          .eq("employee_id", empId)
-          .gte("created_at", fromDate.toISOString())
-          .lte("created_at", toDate.toISOString()));
-      }
+  return (
+    <div className="space-y-3 animate-fade-up">
+      {closedRuns.map((run) => (
+        <button
+          key={run.id}
+          type="button"
+          onClick={() => handleOpen(run)}
+          className="glass w-full rounded-2xl p-4 sm:p-5 text-left space-y-2 transition hover:bg-white/[0.04]"
+        >
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-sm font-semibold text-foreground">Liquidación #{run.run_number}</div>
+            <span className="text-xs font-medium px-2.5 py-1 rounded-full ring-1 bg-emerald-500/10 ring-emerald-400/20 text-emerald-300">
+              Pagada
+            </span>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {run.period_start
+              ? `Período: del ${run.period_start} al ${run.cutoff_date}`
+              : `Liquidado hasta ${run.cutoff_date}`}
+          </div>
+          <div className="text-base font-semibold tabular-nums text-foreground">{money(run.total_to_settle)}</div>
+        </button>
+      ))}
 
-      // Comisión REAL por venta (misma fuente que Caja > Liquidaciones >
-      // Comisiones — commission_records), para que el número acá coincida
-      // siempre con lo que ve Caja. Sin rango de fechas a propósito: se
-      // busca por sale_id sin importar cuándo se generó, más simple y
-      // robusto que alinear ventanas de tiempo.
-      const { data: commissionRows } = await supabase
-        .from("commission_records")
-        .select("sale_id,amount")
-        .eq("business_id", businessId)
-        .eq("professional_id", empId);
-      const commissionBySaleId = new Map<string, number>();
-      for (const c of commissionRows ?? []) {
-        if (c.sale_id) commissionBySaleId.set(c.sale_id, Number(c.amount ?? 0));
-      }
-
-      // Métodos usados por un pago — varios si fue pago múltiple (splits),
-      // uno solo si no. Sin importes: eso queda para el detalle de la venta.
-      const methodsOf = (p: { method?: string | null; payment_method?: string | null; splits?: unknown }): string[] => {
-        const splits = p.splits as { method: string }[] | null | undefined;
-        if (Array.isArray(splits) && splits.length > 0) {
-          return splits.map((s) => s.method).filter(Boolean);
-        }
-        const single = p.method ?? p.payment_method ?? null;
-        return single ? [single] : [];
-      };
-
-      // Mismo criterio que methodsOf, pero con el importe real de cada
-      // método — Historial de ventas necesita desglosar pago múltiple con
-      // su importe, no solo listar los nombres.
-      const methodBreakdownOf = (p: { method?: string | null; payment_method?: string | null; splits?: unknown; total?: number | null; amount?: number | null }): { method: string; amount: number }[] => {
-        const splits = p.splits as { method: string; amount: number }[] | null | undefined;
-        if (Array.isArray(splits) && splits.length > 0) {
-          return splits.filter((s) => s.method).map((s) => ({ method: s.method, amount: Number(s.amount ?? 0) }));
-        }
-        const single = p.method ?? p.payment_method ?? null;
-        return single ? [{ method: single, amount: Number(p.total ?? p.amount ?? 0) }] : [];
-      };
-
-      const payByAppt = new Map<string, { id: string; total: number | null; amount: number | null; method?: string | null; payment_method?: string | null; splits?: unknown }>();
-      for (const p of payments ?? []) {
-        if (p.appointment_id) payByAppt.set(p.appointment_id, p);
-      }
-
-      // Estado (🟡 Enviado a Caja / 🟢 Cobrado / 🔴 Rechazado) según el
-      // último evento del historial — un pago ya registrado siempre gana
-      // (más confiable que el historial, que podría no haberse persistido).
-      const deriveStatus = (events: { action: string }[], hasPay: boolean): "pendiente" | "cobrado" | "rechazado" | null => {
-        if (hasPay) return "cobrado";
-        const latest = events[events.length - 1];
-        if (!latest) return null;
-        if (latest.action === "Cobró") return "cobrado";
-        if (latest.action === "Rechazó") return "rechazado";
-        if (latest.action === "Envió a caja") return "pendiente";
-        return null;
-      };
-
-      const rows: EnrichedSaleRow[] = [];
-      const usedPaymentIds = new Set<string>();
-
-      // useProfTurnos ya no filtra "cancelled" en la query (ver el hook:
-      // el contador de Cancelados de TurnosView necesita verlos), así que
-      // acá hay que excluirlos a mano — un turno cancelado no facturó
-      // nada y no debe generar una fila de comisión.
-      for (const t of turnos) {
-        if (t.status === "cancelled" || t.status === "blocked") continue;
-        const pay = payByAppt.get(t.id);
-        if (pay) usedPaymentIds.add(pay.id);
-        const localDate = argDateKey(t.starts_at);
-        if (localDate < from || localDate > to) continue;
-        const events = readHistorialCobro(t.id);
-        rows.push({
-          id: t.id,
-          fecha: localDate,
-          sortTs: t.starts_at,
-          client_name: t.client_name,
-          service_name: t.service_name,
-          total: pay ? Number(pay.total ?? pay.amount ?? t.service_price ?? 0) : Number(t.service_price ?? 0),
-          commission: 0,
-          saleId: pay?.id,
-          sourceType: "turno",
-          methods: pay ? methodsOf(pay) : [],
-          methodBreakdown: pay ? methodBreakdownOf(pay) : [],
-          histEvents: events,
-          status: deriveStatus(events, !!pay),
-        });
-      }
-
-      // Ventas directas sin turno
-      for (const p of payments ?? []) {
-        if (usedPaymentIds.has(p.id)) continue;
-        if (p.appointment_id && payByAppt.has(p.appointment_id)) continue;
-        const localDate = argDateKey(p.created_at);
-        if (localDate < from || localDate > to) continue;
-        const events = decodePayHistNotes(p.observations);
-        // El orden de la tarjeta tiene que quedar fijo en el momento en que
-        // se ENVIÓ, no en el momento en que se cobró — si esta venta pasó
-        // por Pendientes (mostrador), el marcador [[HIST]] en observations
-        // ya trae el ts real de "Envió a caja"; p.created_at acá es cuándo
-        // se creó la FILA DE PAGO (el cobro), no la venta original.
-        const sentEvent = events.find(e => e.action === "Envió a caja");
-        rows.push({
-          id: p.id,
-          fecha: localDate,
-          sortTs: sentEvent?.ts ?? p.created_at,
-          client_name: p.client_name,
-          service_name: p.service_name,
-          total: Number(p.total ?? p.amount ?? 0),
-          commission: 0,
-          saleId: p.id,
-          sourceType: "venta-directa",
-          methods: methodsOf(p),
-          methodBreakdown: methodBreakdownOf(p),
-          histEvents: events,
-          status: deriveStatus(events, true),
-        });
-      }
-
-      // Ventas de mostrador enviadas a caja sin turno, todavía sin cobrar o
-      // rechazadas — viven en business_settings.schedule._pendingWalkInSales
-      // (nunca en `payments`/`appointments` mientras no se cobren; ver
-      // handleCobrar en cash-register.tsx). Sin esto, el profesional no veía
-      // acá nada de lo que envió hasta que Caja lo cobraba.
-      {
-        const { data: bsRow } = await supabase
-          .from("business_settings")
-          .select("schedule")
-          .eq("business_id", businessId)
-          .maybeSingle();
-        const schedule = (bsRow?.schedule ?? {}) as Record<string, unknown>;
-        const walkIns = (Array.isArray(schedule._pendingWalkInSales) ? schedule._pendingWalkInSales : []) as Array<{
-          id: string; employee_id: string | null; client_name: string | null; service_name: string | null;
-          service_price: number | null; starts_at: string; status?: string;
-          events?: { time: string; user: string; action: string }[];
-        }>;
-        for (const w of walkIns) {
-          if (w.employee_id !== empId) continue;
-          const localDate = argDateKey(w.starts_at);
-          if (localDate < from || localDate > to) continue;
-          const events = w.events ?? [];
-          rows.push({
-            id: w.id,
-            fecha: localDate,
-            sortTs: w.starts_at,
-            client_name: w.client_name,
-            service_name: w.service_name,
-            total: Number(w.service_price ?? 0),
-            commission: 0,
-            sourceType: "venta-directa",
-            methods: [],
-            methodBreakdown: [],
-            histEvents: events,
-            status: deriveStatus(events, false),
-          });
-        }
-      }
-
-      // Orden por sortTs (instante real de envío/creación), no por `fecha`
-      // (solo día, sin hora — dejaba el orden dentro de un mismo día a
-      // merced de en qué loop se haya insertado cada fila) ni por cuándo se
-      // cobró — cobrar o rechazar una pendiente nunca debe correrla de
-      // lugar en la lista.
-      // Si ya existe un commission_record real para esta venta (se generó
-      // al cobrarla), ese es el número que manda — es EXACTAMENTE el mismo
-      // que ve Caja (`amount`, el total generado, no `pending_amount`: acá
-      // se listan TODAS las ventas sin importar si ya se liquidaron, así
-      // que una comisión ya pagada no debe mostrarse como $0). Solo se
-      // estima en base al % actual cuando todavía no hay registro (venta
-      // pendiente de cobro, sin commission_record aún).
-      const final = rows
-        .map(r => {
-          const real = r.saleId ? commissionBySaleId.get(r.saleId) : undefined;
-          const commission = real != null ? Math.round(real) : Math.round(r.total * commissionPct / 100);
-          return { ...r, commission };
-        })
-        .sort((a, b) => b.sortTs.localeCompare(a.sortTs));
-
-      // Si ya se lanzó una corrida más nueva mientras esta esperaba sus
-      // consultas, esta respuesta quedó vieja — se descarta entera para no
-      // pisar el resultado correcto ya aplicado.
-      if (enrichSeqRef.current !== mySeq) return;
-      setEnriched(final);
-      setEnrichLoading(false);
-    })();
-  }, [businessId, empId, from, to, turnos, turnosLoading, commissionPct, refreshTick, historialVersion]);
-
-  return { enriched, loading: turnosLoading || enrichLoading };
+      <AgendaCenteredModal
+        open={openRun !== null}
+        onOpenChange={(v) => {
+          if (!v) setOpenRun(null);
+        }}
+        lockOutside={false}
+        title={openRun ? `Liquidación #${openRun.run_number}` : ""}
+      >
+        {openRun && (
+          <div className="space-y-4">
+            <PagoDetalleContent
+              run={openRun}
+              payments={runPayments}
+              advances={runAdvances}
+              services={null}
+              loadingServices={false}
+              hideServices
+            />
+            <div>
+              <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
+                Ventas incluidas
+              </div>
+              {loadingSales ? (
+                <div className="py-6 text-center text-sm text-white/45">Cargando…</div>
+              ) : !sales || sales.length === 0 ? (
+                <div className="py-6 text-center text-sm text-white/45">
+                  Sin ventas reconstruibles para esta liquidación.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {sales.map((s) => (
+                    <VentaRow key={s.id} c={s} />
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </AgendaCenteredModal>
+    </div>
+  );
 }
-

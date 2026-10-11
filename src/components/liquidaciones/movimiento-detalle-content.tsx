@@ -153,12 +153,19 @@ export function PagoDetalleContent({
   advances,
   services,
   loadingServices,
+  hideServices = false,
 }: {
   run: PagoDetalleRun;
   payments: PagoDetallePayment[];
   advances: PagoDetalleAdvance[];
   services: PagoDetalleService[] | null;
   loadingServices: boolean;
+  // Panel del profesional > Historial ya muestra sus propias "Ventas
+  // incluidas" (con VentaRow, detalle de descuento/promo/propina) debajo
+  // de este componente — sin esto, el bloque "Servicios incluidos" de
+  // acá (más simple, sin esos campos) se duplicaba con un mensaje de
+  // "Sin servicios" de más, sin aportar nada.
+  hideServices?: boolean;
 }) {
   const remaining = Math.max(Number(run.total_to_settle) - Number(run.amount_paid), 0);
   const sortedPayments = [...payments].sort((a, b) => String(a.paid_at ?? "").localeCompare(String(b.paid_at ?? "")));
@@ -342,6 +349,7 @@ export function PagoDetalleContent({
         </div>
       )}
 
+      {!hideServices && (
       <div>
         <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">Servicios incluidos</div>
         {loadingServices ? (
@@ -388,6 +396,7 @@ export function PagoDetalleContent({
           </div>
         )}
       </div>
+      )}
     </div>
   );
 }
