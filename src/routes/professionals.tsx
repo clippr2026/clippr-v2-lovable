@@ -2637,10 +2637,22 @@ function LiquidacionesPanelView({
             const run = runsById.get(item.settlementRunId) ?? null;
             const lastPayment = item.splits[item.splits.length - 1];
             const paidBy = displayResponsable(item.splits[0]?.paid_by_name);
+            // Mismo criterio que Caja > Liquidaciones > Movimientos: la fila
+            // de pago identifica el corte de la liquidación
+            // (settlement_runs.cutoff_date), no paid_at. Split manual del
+            // string — cutoff_date es un `date` puro, parsearlo con
+            // `new Date()` lo corre un día para atrás en timezones
+            // negativos (Argentina) al formatear.
+            const pagoDateTime = run?.cutoff_date
+              ? (() => {
+                  const [, m, d] = String(run.cutoff_date).slice(0, 10).split("-");
+                  return `${d}/${m}`;
+                })()
+              : dateTime;
             return (
               <div key={`pago-${item.movementNumber ?? lastPayment.id}`} className="space-y-2">
                 <MovRow
-                  dateTime={dateTime}
+                  dateTime={pagoDateTime}
                   concepto={item.isFull ? "Pago total" : "Pago parcial"}
                   precioText={money(Number(item.totalAmount ?? 0))}
                   precioClass={item.isFull ? "text-emerald-300" : "text-amber-300"}

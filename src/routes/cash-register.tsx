@@ -4840,10 +4840,29 @@ function ProfesionalesTab({
                     const isExpanded =
                       historialDetailMovementNumber === item.movementNumber && Boolean(historialDetailRun);
                     const paidBy = displayResponsable(item.splits[0]?.paid_by_name);
+                    // La fila de pago muestra el corte de la liquidación
+                    // (settlement_runs.cutoff_date), no paid_at — paid_at
+                    // sigue intacto en la base para auditoría (ver
+                    // detalle/comprobante), pero acá el profesional/admin
+                    // tiene que identificar el pago por el PERÍODO que
+                    // liquida, no por el día en que se tocó "Pagar"
+                    // (pueden ser fechas distintas si se cobró días
+                    // después del corte). Split manual del string, nunca
+                    // `new Date(cutoff_date)`: esa columna es un `date`
+                    // puro ("2026-10-03"), y parsearla como Date la
+                    // interpreta en UTC medianoche — con timezone
+                    // negativo (Argentina) el navegador la corre un día
+                    // para atrás al formatear.
+                    const pagoDateTime = run?.cutoff_date
+                      ? (() => {
+                          const [, m, d] = String(run.cutoff_date).slice(0, 10).split("-");
+                          return `${d}/${m}`;
+                        })()
+                      : dateTime;
                     return (
                       <MovRow
                         key={`pago-${item.movementNumber ?? item.splits[0].id}`}
-                        dateTime={dateTime}
+                        dateTime={pagoDateTime}
                         concepto={item.isFull ? "Pago total" : "Pago parcial"}
                         precioText={money(Number(item.totalAmount ?? 0))}
                         precioClass={item.isFull ? "text-emerald-300" : "text-amber-300"}
