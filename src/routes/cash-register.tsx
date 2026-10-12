@@ -4208,11 +4208,13 @@ function ProfesionalesTab({
     if (!row || preparingRunFor) return;
     const validAdjustments = validSettlementItems(adjustmentItems);
     const validDeductions = validSettlementItems(deductionItems);
-    const adjustments = validAdjustments.reduce((sum, i) => sum + i.amount, 0);
-    const deductions = validDeductions.reduce((sum, i) => sum + i.amount, 0);
-    // Usa los totales recalculados para el corte elegido (liquidarCutoffAt),
-    // no row.newCommissions/pendingAdvances (que siempre reflejan "ahora").
-    const total = row.previousBalance + liquidarNewCommissions + adjustments - deductions - liquidarPendingAdvances;
+    // Mismo total que ya se muestra en pantalla (liquidarFinalTotal) — antes
+    // se recalculaba acá aparte y se olvidaba sumar las propinas
+    // (liquidarNewTips), lo que rechazaba el pago completo apenas el
+    // profesional tenía propinas pendientes aunque la UI mostrara "Saldo
+    // pendiente: $0". Una sola fuente de verdad, nunca más dos números que
+    // puedan desincronizarse.
+    const total = liquidarFinalTotal;
     if (total <= 0) {
       toast.error("No hay nada para pagar en este corte");
       return;
