@@ -11,7 +11,7 @@ import { createPortal } from "react-dom";
 import { Info, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PAY_METHOD_LABEL, type PayMethod } from "@/components/cash-register/register-payment";
-import { displayResponsable, fmtDetalleDateTime, money } from "./movimiento-format";
+import { displayResponsable, fmtDetalleDateTime, isInternalNote, money } from "./movimiento-format";
 import { VentaRow } from "./unified-row";
 
 // Portal a document.body: este popover suele vivir dentro de modales con
@@ -116,6 +116,7 @@ export type PagoDetalleRun = {
   amount_paid: number;
   period_start_at: string | null;
   prepared_at: string;
+  service_count?: number | null;
 };
 
 export type PagoDetallePayment = {
@@ -155,6 +156,7 @@ export function PagoDetalleContent({
   services,
   loadingServices,
   hideServices = false,
+  paidAtDisplayOverride = null,
 }: {
   run: PagoDetalleRun;
   payments: PagoDetallePayment[];
@@ -167,6 +169,11 @@ export function PagoDetalleContent({
   // acá (más simple, sin esos campos) se duplicaba con un mensaje de
   // "Sin servicios" de más, sin aportar nada.
   hideServices?: boolean;
+  // Excepción visual puntual (liquidación #101 de Melany, pedido explícito
+  // del negocio) — reemplaza SOLO el texto mostrado en "Fecha y hora" de
+  // Datos del pago, sin tocar paid_at real ni ningún cálculo. Quien decide
+  // si corresponde vive en historial-panel-view.tsx, nunca acá.
+  paidAtDisplayOverride?: string | null;
 }) {
   const remaining = Math.max(Number(run.total_to_settle) - Number(run.amount_paid), 0);
   const sortedPayments = [...payments].sort((a, b) => String(a.paid_at ?? "").localeCompare(String(b.paid_at ?? "")));
@@ -212,6 +219,13 @@ export function PagoDetalleContent({
             <div className="flex items-end justify-between px-3.5 py-2.5">
               <div className="text-white/70">Propinas</div>
               <span className="font-semibold text-white">{money(Number(run.new_tips ?? 0))}</span>
+            </div>
+          )}
+
+          {run.service_count != null && (
+            <div className="flex items-center justify-between px-3.5 py-2.5">
+              <span className="text-white/50">Cantidad de servicios</span>
+              <span className="font-semibold tabular-nums text-white">{run.service_count}</span>
             </div>
           )}
 
@@ -295,9 +309,9 @@ export function PagoDetalleContent({
             pagado / Saldo pendiente son el cierre del Resumen, no una fila
             condicional más. */}
         <div className="mt-1.5 divide-y divide-blue-300/10 border-t border-blue-300/20 pt-1.5">
-          <div className="flex items-center justify-between bg-blue-400/[0.07] px-3.5 py-2.5">
-            <span className="font-bold text-white/70">Total final</span>
-            <span className="text-base font-bold text-white">{money(Number(run.total_to_settle))}</span>
+          <div className="flex items-center justify-between bg-blue-400/[0.09] px-3.5 py-3">
+            <span className="text-[11px] font-bold uppercase tracking-[0.1em] text-white/80">Total final</span>
+            <span className="text-xl font-bold tracking-tight text-white">{money(Number(run.total_to_settle))}</span>
           </div>
           <div className="flex items-center justify-between px-3.5 py-2.5">
             <span className="text-white/50">Monto pagado</span>
@@ -321,7 +335,7 @@ export function PagoDetalleContent({
             <div className="flex items-center justify-between px-3.5 py-2.5">
               <span className="text-white/50">Fecha y hora</span>
               <span className="font-semibold text-white">
-                {firstPayment?.paid_at ? fmtDetalleDateTime(firstPayment.paid_at) : "—"}
+                {paidAtDisplayOverride ?? (firstPayment?.paid_at ? fmtDetalleDateTime(firstPayment.paid_at) : "—")}
               </span>
             </div>
             {/* Un solo método o varios, misma fila para cada uno: el nombre
@@ -340,7 +354,7 @@ export function PagoDetalleContent({
               <span className="text-white/50">Registrado por</span>
               <span className="font-semibold text-white">{displayResponsable(firstPayment?.paid_by_name)}</span>
             </div>
-            {firstPayment?.note && (
+            {firstPayment?.note && !isInternalNote(firstPayment.note) && (
               <div className="flex items-center justify-between gap-2 px-3.5 py-2.5">
                 <span className="text-white/50">Nota</span>
                 <span className="truncate font-semibold text-white">{firstPayment.note}</span>

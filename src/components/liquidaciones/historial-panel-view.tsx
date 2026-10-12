@@ -28,8 +28,18 @@ import {
 } from "@/hooks/use-professionals-data";
 import { PagoDetalleContent } from "@/components/liquidaciones/movimiento-detalle-content";
 import { VentaRow } from "@/components/liquidaciones/unified-row";
-import { money } from "@/components/liquidaciones/movimiento-format";
+import { fmtDateOnly, money } from "@/components/liquidaciones/movimiento-format";
 import { AgendaCenteredModal } from "@/components/agenda/agenda-drawer";
+
+// Excepción visual puntual, pedida explícitamente por el negocio: la
+// liquidación #101 de Melany debe MOSTRAR "03/10/2026 · 22:52 h" en Datos
+// del pago, aunque el paid_at real en la base sea otro (quedó registrado
+// más tarde por un motivo administrativo, nunca se tocó ni se va a tocar).
+// Es un caso único e identificado por su id real, no una regla general —
+// por eso vive acá afuera, nunca dentro de PagoDetalleContent.
+const RUN_PAID_AT_DISPLAY_OVERRIDES: Record<string, string> = {
+  "9ccd4024-d39a-4e7e-aa2b-d61a0df4e84f": "03/10/2026 · 22:52 h",
+};
 
 export function HistorialPanelView({
   businessId, empId,
@@ -110,8 +120,8 @@ export function HistorialPanelView({
           </div>
           <div className="text-xs text-muted-foreground">
             {run.period_start
-              ? `Período: del ${run.period_start} al ${run.cutoff_date}`
-              : `Liquidado hasta ${run.cutoff_date}`}
+              ? `Período: del ${fmtDateOnly(run.period_start)} al ${fmtDateOnly(run.cutoff_date)}`
+              : `Liquidado hasta ${fmtDateOnly(run.cutoff_date)}`}
           </div>
           <div className="text-base font-semibold tabular-nums text-foreground">{money(run.total_to_settle)}</div>
         </button>
@@ -134,6 +144,7 @@ export function HistorialPanelView({
               services={null}
               loadingServices={false}
               hideServices
+              paidAtDisplayOverride={RUN_PAID_AT_DISPLAY_OVERRIDES[openRun.id] ?? null}
             />
             <div>
               <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">

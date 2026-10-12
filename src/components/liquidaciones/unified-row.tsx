@@ -10,7 +10,7 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Info, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { money, paymentMethodLabel } from "./movimiento-format";
+import { fmtDetalleDateTime, money, paymentMethodLabel } from "./movimiento-format";
 import { normalizeCierreMethodKey } from "@/lib/caja-cierre";
 
 // Grilla compartida por TODAS las filas de la lista única (ventas,
@@ -186,11 +186,13 @@ export function InfoPopover({ text }: { text: React.ReactNode }) {
 // ajustes/deducciones. `c` es una fila de commission_records enriquecida
 // con `.sale` (el payment real) — misma forma en Caja y en el profesional.
 export function VentaRow({ c }: { c: any }) {
+  const [expanded, setExpanded] = React.useState(false);
   const sale = c.sale ?? {};
   const saleDate = c.created_at ? new Date(c.created_at) : null;
   const dateTime = saleDate
     ? `${saleDate.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })} · ${saleDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}`
     : "—";
+  const fullDateTime = c.created_at ? fmtDetalleDateTime(c.created_at) : "—";
   const method = paymentMethodLabel(String(sale.method ?? sale.payment_method ?? ""));
   const saleTotal = Number(sale.total ?? sale.amount ?? 0);
   const hasTip = Number(sale.tip_amount ?? 0) > 0;
@@ -242,10 +244,24 @@ export function VentaRow({ c }: { c: any }) {
 
   return (
     <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-black/18">
-      {/* Desktop */}
+      {/* Desktop — div con role="button", no <button> real: la celda de
+          precio contiene su propio InfoPopover (un <button>), y un <button>
+          no puede anidar otro <button> válidamente en HTML. */}
       <div
+        role="button"
+        tabIndex={0}
         title={`ID: ${c.id}`}
-        className={cn("hidden gap-3 px-4 py-3 text-sm transition hover:bg-white/[0.025] sm:grid", LIQ_GRID_COLS)}
+        onClick={() => setExpanded((v) => !v)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setExpanded((v) => !v);
+          }
+        }}
+        className={cn(
+          "hidden w-full cursor-pointer items-center gap-3 px-4 py-3 text-left text-sm transition hover:bg-white/[0.025] sm:grid",
+          LIQ_GRID_COLS,
+        )}
       >
         <div className="text-white/52">{dateTime}</div>
         <div className="truncate text-white/82">{sale.client_name ?? "Sin cliente"}</div>
@@ -301,10 +317,17 @@ export function VentaRow({ c }: { c: any }) {
         <div className={cn("text-right text-sm font-semibold tabular-nums", hasTip ? "text-emerald-300" : "text-white/25")}>
           {tipText}
         </div>
-        <div className="text-white/52">{method}</div>
+        <div className="flex items-center justify-between gap-2 text-white/52">
+          <span>{method}</span>
+          <ChevronDown className={cn("size-3.5 shrink-0 text-white/30 transition-transform", expanded && "rotate-180")} />
+        </div>
       </div>
-      {/* Mobile */}
-      <div className="px-3.5 py-3 text-xs sm:hidden">
+      {/* Mobile — sin InfoPopover acá, un <button> real es seguro. */}
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className="w-full px-3.5 py-3 text-left text-xs sm:hidden"
+      >
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="truncate font-semibold text-white/82">{sale.client_name ?? "Sin cliente"}</div>
@@ -324,7 +347,10 @@ export function VentaRow({ c }: { c: any }) {
             </div>
           </div>
           <div className="shrink-0 space-y-0.5 text-right">
-            <div className="text-[10px] font-semibold uppercase tracking-wider text-white/45">{dateTime}</div>
+            <div className="flex items-center justify-end gap-1 text-[10px] font-semibold uppercase tracking-wider text-white/45">
+              {dateTime}
+              <ChevronDown className={cn("size-3 shrink-0 text-white/30 transition-transform", expanded && "rotate-180")} />
+            </div>
             <div className="font-bold tabular-nums text-violet-300">
               Comisión: {money(Number(c.pending_amount ?? c.amount ?? 0))}
             </div>
@@ -336,7 +362,59 @@ export function VentaRow({ c }: { c: any }) {
             )}
           </div>
         </div>
-      </div>
+      </button>
+      {/* Detalle completo al hacer click — mismo lenguaje visual que el
+          resto de los paneles expandidos (MovRow, PagoDetalleContent):
+          borde superior tenue + fondo apenas más claro, nunca un color
+          nuevo. Reusa exactamente los mismos campos ya calculados arriba
+          (promoLabel/manualDiscountLabel/cashReduction), nunca una segunda
+          lógica de descuento. */}
+      {expanded && (
+        <div className="divide-y divide-white/[0.06] border-t border-white/[0.06] bg-white/[0.015] px-3.5 text-xs sm:px-4 sm:text-sm">
+          <div className="flex items-center justify-between py-2.5">
+            <span className="text-white/50">Cliente</span>
+            <span className="font-semibold text-white/85">{sale.client_name ?? "Sin cliente"}</span>
+          </div>
+          <div className="flex items-center justify-between py-2.5">
+            <span className="text-white/50">Servicio/producto</span>
+            <span className="font-semibold text-white/85">{sale.service_name ?? "Servicio"}</span>
+          </div>
+          <div className="flex items-center justify-between py-2.5">
+            <span className="text-white/50">Precio de lista</span>
+            <span className="font-semibold tabular-nums text-white/85">{money(originalAmount)}</span>
+          </div>
+          <div className="flex items-center justify-between py-2.5">
+            <span className="text-white/50">Precio final cobrado</span>
+            <span className="font-semibold tabular-nums text-white">{money(saleTotal)}</span>
+          </div>
+          <div className="flex items-center justify-between py-2.5">
+            <span className="text-white/50">Descuento o promoción</span>
+            <span className={cn("font-semibold", conceptSubtitle ? conceptSubtitleClass : "text-white/40")}>
+              {conceptSubtitle ?? "Sin descuento"}
+            </span>
+          </div>
+          <div className="flex items-center justify-between py-2.5">
+            <span className="text-white/50">Comisión</span>
+            <span className="font-semibold tabular-nums text-violet-300">
+              {money(Number(c.pending_amount ?? c.amount ?? 0))}
+            </span>
+          </div>
+          <div className="flex items-center justify-between py-2.5">
+            <span className="text-white/50">Propina</span>
+            <span className={cn("font-semibold tabular-nums", hasTip ? "text-emerald-300" : "text-white/40")}>
+              {tipText}
+            </span>
+          </div>
+          <div className="flex items-center justify-between py-2.5">
+            <span className="text-white/50">Medio de pago</span>
+            <span className="font-semibold text-white/85">{method}</span>
+          </div>
+          <div className="flex items-center justify-between py-2.5">
+            <span className="text-white/50">Fecha/hora</span>
+            <span className="font-semibold text-white/85">{fullDateTime}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

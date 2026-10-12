@@ -29,6 +29,26 @@ export function fmtDetalleDateTime(iso: string) {
   return `${date} • ${time} h`;
 }
 
+// "04/10/2026" — formato argentino de una fecha SIN hora (period_start /
+// cutoff_date son columnas `date` de Postgres, llegan como "YYYY-MM-DD"
+// plano). Nunca usar `new Date(dateStr)` acá: en UTC-3 eso corre el día
+// hacia atrás (misma clase de bug ya resuelta en cutoff_date — ver
+// 20261011020000_settlement_run_cutoff_date_argentina_timezone.sql).
+export function fmtDateOnly(dateStr: string | null | undefined) {
+  const [y, m, d] = String(dateStr ?? "").slice(0, 10).split("-");
+  return y && m && d ? `${d}/${m}/${y}` : "—";
+}
+
+// Notas técnicas dejadas por un script administrativo (ver sesiones de
+// backfill) — quedan guardadas en la base para auditoría, pero nunca se le
+// muestran al usuario: la fila "Nota" solo aplica a notas reales escritas
+// por una persona para otra persona.
+const INTERNAL_NOTE_PATTERNS = [/^Liquidaci[oó]n registrada v[ií]a script administrativo/i];
+export function isInternalNote(note: string | null | undefined) {
+  const trimmed = String(note ?? "").trim();
+  return trimmed !== "" && INTERNAL_NOTE_PATTERNS.some((re) => re.test(trimmed));
+}
+
 // Los registros más viejos guardaron el email de sesión como "registrado
 // por" — si lo que hay guardado parece un email, mostramos solo la parte
 // antes de la @ en vez del email completo.
