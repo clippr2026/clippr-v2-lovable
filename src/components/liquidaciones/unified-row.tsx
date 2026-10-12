@@ -432,7 +432,7 @@ export function MovRow({
   precioText,
   precioClass,
   detalle,
-  extraLine,
+  note,
   redStripe = false,
   expanded,
   onToggle,
@@ -450,10 +450,10 @@ export function MovRow({
   precioText: string;
   precioClass?: string;
   detalle: React.ReactNode;
-  // Segunda línea opcional debajo de `detalle` (ej. la nota de un
-  // adelanto) — separada de `detalle` en vez de concatenada en el mismo
-  // string para que cada una pueda truncar en su propia línea.
-  extraLine?: React.ReactNode;
+  // Nota opcional de un adelanto — NUNCA se muestra sola: aparece como un
+  // botón "Ver nota" a la izquierda del tacho, y el contenido solo se
+  // despliega al tocarlo (colapsado por defecto, no deforma la fila).
+  note?: string | null;
   redStripe?: boolean;
   expanded?: boolean;
   onToggle?: () => void;
@@ -477,6 +477,24 @@ export function MovRow({
   actions?: React.ReactNode;
 }) {
   const Tag = clickable ? "button" : "div";
+  // Estado propio, nunca mezclado con `expanded`/`onToggle` — esos dos
+  // controlan el detalle del MOVIMIENTO (que en Profesionales abre un
+  // modal aparte, no un panel inline), mientras que la nota es un
+  // desplegable chico e independiente que tiene que funcionar igual sin
+  // importar qué hace el resto de la fila al tocarla.
+  const [noteOpen, setNoteOpen] = React.useState(false);
+  const verNotaButton = note ? (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.stopPropagation();
+        setNoteOpen((v) => !v);
+      }}
+      className="shrink-0 rounded-full px-2 py-1 text-[11px] font-medium text-sky-300/85 transition hover:bg-sky-400/10 hover:text-sky-300"
+    >
+      {noteOpen ? "Ocultar nota" : "Ver nota"}
+    </button>
+  ) : null;
   return (
     <div
       className={cn(
@@ -499,30 +517,32 @@ export function MovRow({
         <div className="min-w-0">
           <div className="truncate text-white/82">{concepto}</div>
           <div className="truncate text-[11px] font-medium text-white/40">{detalle}</div>
-          {extraLine && <div className="truncate text-[11px] font-medium text-white/40">{extraLine}</div>}
         </div>
         <div className={cn("text-right tabular-nums", precioClass ?? "text-white/72")}>{precioText}</div>
         <div className="text-right text-white/30">{emptyFiller}</div>
         <div className="text-right text-white/30">{emptyFiller}</div>
         <div className="flex items-center justify-between gap-2 text-white/52">
           <span>{emptyFiller}</span>
-          {onDelete ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete();
-              }}
-              disabled={deletingThis}
-              className="grid size-6 shrink-0 place-items-center rounded-lg text-white/40 transition hover:bg-rose-500/10 hover:text-rose-300 disabled:opacity-50"
-            >
-              <Trash2 className="size-3.5" />
-            </button>
-          ) : (
-            clickable && (
-              <ChevronDown className={cn("size-3.5 shrink-0 transition-transform", expanded && "rotate-180")} />
-            )
-          )}
+          <div className="flex shrink-0 items-center gap-1">
+            {verNotaButton}
+            {onDelete ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
+                disabled={deletingThis}
+                className="grid size-6 shrink-0 place-items-center rounded-lg text-white/40 transition hover:bg-rose-500/10 hover:text-rose-300 disabled:opacity-50"
+              >
+                <Trash2 className="size-3.5" />
+              </button>
+            ) : (
+              clickable && (
+                <ChevronDown className={cn("size-3.5 shrink-0 transition-transform", expanded && "rotate-180")} />
+              )
+            )}
+          </div>
         </div>
       </Tag>
       {/* Mobile */}
@@ -534,11 +554,11 @@ export function MovRow({
         <div className="min-w-0 flex-1">
           <div className="truncate font-semibold text-white/82">{concepto}</div>
           <div className="mt-0.5 truncate text-white/50">{detalle}</div>
-          {extraLine && <div className="mt-0.5 truncate text-white/50">{extraLine}</div>}
           <div className="mt-0.5 text-[10px] text-white/35">{dateTime}</div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
           <span className={cn("font-bold tabular-nums", precioClass ?? "text-white")}>{precioText}</span>
+          {verNotaButton}
           {onDelete ? (
             <button
               type="button"
@@ -566,6 +586,13 @@ export function MovRow({
       {clickable && expanded && (
         <div className="border-t border-white/[0.06] bg-white/[0.015] px-3.5 py-3 sm:px-4">
           {loadingThis ? <div className="py-4 text-center text-xs text-white/45">Cargando…</div> : detail}
+        </div>
+      )}
+      {/* Nota del adelanto — cerrada por defecto siempre, solo aparece al
+          tocar "Ver nota". Nunca se abre sola ni con el resto de la fila. */}
+      {note && noteOpen && (
+        <div className="border-t border-white/[0.06] bg-white/[0.015] px-3.5 py-2.5 text-xs text-white/70 sm:px-4 sm:text-sm">
+          {note}
         </div>
       )}
     </div>
