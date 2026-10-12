@@ -4,6 +4,7 @@
 // Compartido por Caja > Liquidaciones > Movimientos (cash-register.tsx) y
 // Panel del profesional > Movimientos (professionals.tsx) para no duplicar
 // el criterio de agrupación ni la presentación en los dos lugares.
+import { isPaymentFull } from "@/components/liquidaciones/movimiento-format";
 
 export type HistorialPaymentRow = {
   id: string;
@@ -116,7 +117,7 @@ export function buildHistorialMovimientos(
       splits: sorted,
       totalAmount,
       balanceAfter,
-      isFull: balanceAfter <= 0,
+      isFull: isPaymentFull(balanceAfter),
     };
   });
 

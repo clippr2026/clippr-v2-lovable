@@ -176,6 +176,10 @@ export function PagoDetalleContent({
   paidAtDisplayOverride?: string | null;
 }) {
   const remaining = Math.max(Number(run.total_to_settle) - Number(run.amount_paid), 0);
+  // Mismo criterio de tolerancia que isPaymentFull/isRunEffectivelySettled
+  // (movimiento-format.ts) — un resto menor a $1 es redondeo entre
+  // comisiones/adelantos con centavos, nunca plata real pendiente.
+  const isFullyPaid = remaining < 1;
   const sortedPayments = [...payments].sort((a, b) => String(a.paid_at ?? "").localeCompare(String(b.paid_at ?? "")));
   const firstPayment = sortedPayments[0] ?? null;
   const sortedAdvances = [...advances].sort((a, b) => String(a.advanced_at ?? "").localeCompare(String(b.advanced_at ?? "")));
@@ -328,8 +332,20 @@ export function PagoDetalleContent({
 
       {sortedPayments.length > 0 && (
         <div className="overflow-hidden rounded-2xl border border-emerald-300/25 bg-[linear-gradient(135deg,rgba(16,185,129,0.14),rgba(8,11,20,0.96),rgba(2,4,12,0.98))] text-sm shadow-[0_0_40px_rgba(16,185,129,0.12),0_18px_55px_-34px_rgba(0,0,0,1)]">
-          <div className="px-3.5 pb-1.5 pt-3 text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-200/55">
-            Datos del pago
+          <div className="flex items-center justify-between gap-2 px-3.5 pb-1.5 pt-3">
+            <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-200/55">
+              Datos del pago
+            </span>
+            <span
+              className={cn(
+                "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1",
+                isFullyPaid
+                  ? "bg-emerald-400/10 text-emerald-300 ring-emerald-400/25"
+                  : "bg-amber-400/10 text-amber-300 ring-amber-400/25",
+              )}
+            >
+              {isFullyPaid ? "Pago total" : "Pago parcial"}
+            </span>
           </div>
           <div className="divide-y divide-emerald-300/10">
             <div className="flex items-center justify-between px-3.5 py-2.5">

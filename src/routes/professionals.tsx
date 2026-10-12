@@ -60,7 +60,7 @@ import {
   UnifiedMovimientosHeader,
   StatCard,
 } from "@/components/liquidaciones/unified-row";
-import { money, displayResponsable } from "@/components/liquidaciones/movimiento-format";
+import { money, displayResponsable, isRunEffectivelySettled } from "@/components/liquidaciones/movimiento-format";
 import { HistorialPanelView } from "@/components/liquidaciones/historial-panel-view";
 import { AgendaCenteredModal } from "@/components/agenda/agenda-drawer";
 import { cancelAppointment } from "@/components/agenda/use-agenda-data";
@@ -2203,15 +2203,16 @@ function LiquidacionesPanelView({
 
   const runsById = React.useMemo(() => new Map(runs.map((r) => [r.id, r])), [runs]);
 
-  // Liquidaciones ya cerradas (pagada) — su pago, sus adelantos y sus
-  // ajustes/deducciones pertenecen SOLO a Historial de acá en más (ver
+  // Liquidaciones ya cerradas (pagada o prácticamente saldadas, ver
+  // isRunEffectivelySettled) — su pago, sus adelantos y sus ajustes/
+  // deducciones pertenecen SOLO a Historial de acá en más (ver
   // HistorialPanelView). Antes buildHistorialMovimientos recibía
   // payments/advances/runs sin filtrar, así que el pago total de una
   // liquidación ya pagada (fechado el día que se cobró, no el día del
   // corte) terminaba apareciendo mezclado en Movimientos — lo mismo para
   // cualquier adelanto/ajuste/deducción que ese run ya haya incluido.
   const closedRunIds = React.useMemo(
-    () => new Set(runs.filter((r) => r.status === "pagada").map((r) => r.id)),
+    () => new Set(runs.filter((r) => isRunEffectivelySettled(r)).map((r) => r.id)),
     [runs],
   );
   const openPayments = React.useMemo(

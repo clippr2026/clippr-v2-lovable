@@ -8,6 +8,24 @@ export function money(n: number) {
   return `$${Math.round(n).toLocaleString("es-AR")}`;
 }
 
+// Tolerancia de "prácticamente saldado" — toda esta UI redondea a pesos
+// enteros (ver money() arriba), así que un resto menor a $1 es un
+// redondeo entre comisiones/adelantos con centavos, nunca plata real
+// pendiente de cobrar. Una liquidación con status='parcial' en la base
+// por culpa de $0,17 sin cobrar debe verse y comportarse como pagada en
+// toda la UI (Historial, badge Pago total/parcial) — sin tocar el
+// status real en settlement_runs, que sigue siendo la fuente de verdad
+// para cualquier backend/auditoría.
+const SETTLED_TOLERANCE = 1;
+export function isRunEffectivelySettled(run: { status?: string | null; total_to_settle?: number | string | null; amount_paid?: number | string | null }) {
+  if (run.status === "pagada") return true;
+  const remaining = Number(run.total_to_settle ?? 0) - Number(run.amount_paid ?? 0);
+  return remaining < SETTLED_TOLERANCE;
+}
+export function isPaymentFull(balanceAfter: number) {
+  return balanceAfter < SETTLED_TOLERANCE;
+}
+
 // "23/07/2026, 14:32" — usado en el encabezado de cada card del listado.
 export function fmtDateTime(iso: string) {
   return new Date(iso).toLocaleString("es-AR", {

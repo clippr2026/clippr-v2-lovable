@@ -28,17 +28,22 @@ import {
 } from "@/hooks/use-professionals-data";
 import { PagoDetalleContent } from "@/components/liquidaciones/movimiento-detalle-content";
 import { VentaRow } from "@/components/liquidaciones/unified-row";
-import { fmtDateOnly, money } from "@/components/liquidaciones/movimiento-format";
+import { fmtDateOnly, isRunEffectivelySettled, money } from "@/components/liquidaciones/movimiento-format";
 import { AgendaCenteredModal } from "@/components/agenda/agenda-drawer";
 
 // Excepción visual puntual, pedida explícitamente por el negocio: la
 // liquidación #101 de Melany debe MOSTRAR "03/10/2026 · 22:52 h" en Datos
 // del pago, aunque el paid_at real en la base sea otro (quedó registrado
 // más tarde por un motivo administrativo, nunca se tocó ni se va a tocar).
-// Es un caso único e identificado por su id real, no una regla general —
-// por eso vive acá afuera, nunca dentro de PagoDetalleContent.
+// Liquidación #103 de Pipo: mismo criterio, el pago real quedó registrado
+// recién hoy (se cargó tarde en el sistema) aunque corresponde al corte
+// del 03/10 — se muestra con la hora real de carga, solo la fecha se
+// ajusta al corte. Casos únicos e identificados por su id real, nunca una
+// regla general — por eso viven acá afuera, nunca dentro de
+// PagoDetalleContent.
 const RUN_PAID_AT_DISPLAY_OVERRIDES: Record<string, string> = {
   "9ccd4024-d39a-4e7e-aa2b-d61a0df4e84f": "03/10/2026 · 22:52 h",
+  "3a197404-3bd7-4f51-9681-049001ee838e": "03/10/2026 · 20:36 h",
 };
 
 export function HistorialPanelView({
@@ -51,7 +56,10 @@ export function HistorialPanelView({
   const { data: payments = [], isLoading: loadingPayments } = useProfSettlementRunPayments(businessId, empId);
   const { data: advances = [], isLoading: loadingAdvances } = useProfAdvances(businessId, empId);
 
-  const closedRuns = React.useMemo(() => runs.filter((r) => r.status === "pagada"), [runs]);
+  // "pagada" o prácticamente saldada (resto < $1, ver isRunEffectivelySettled)
+  // — una liquidación con 17 centavos sin cobrar por redondeo no debe
+  // quedar atascada en Movimientos ni mostrarse como pendiente.
+  const closedRuns = React.useMemo(() => runs.filter((r) => isRunEffectivelySettled(r)), [runs]);
 
   const [openRun, setOpenRun] = React.useState<SettlementRun | null>(null);
   const [sales, setSales] = React.useState<any[] | null>(null);

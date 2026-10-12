@@ -113,7 +113,7 @@ import {
   type MovimientoAjuste,
   type MovimientoDeduccion,
 } from "@/lib/historial-movimientos";
-import { displayResponsable } from "@/components/liquidaciones/movimiento-format";
+import { displayResponsable, isRunEffectivelySettled } from "@/components/liquidaciones/movimiento-format";
 import { HistorialPanelView } from "@/components/liquidaciones/historial-panel-view";
 import {
   PagoDetalleContent,
@@ -4139,12 +4139,13 @@ function ProfesionalesTab({
     );
   }, [paymentOptions, paymentForm.method]);
 
-  // Liquidaciones ya cerradas (pagada) — su pago, sus adelantos y sus
-  // ajustes/deducciones pertenecen SOLO a la sub-pestaña Historial de acá
-  // en más (ver liqSubTab/HistorialPanelView abajo), nunca a Movimientos —
-  // mismo criterio que ya aplica Panel del profesional > Movimientos.
+  // Liquidaciones ya cerradas (pagada o prácticamente saldadas, ver
+  // isRunEffectivelySettled) — su pago, sus adelantos y sus ajustes/
+  // deducciones pertenecen SOLO a la sub-pestaña Historial de acá en más
+  // (ver liqSubTab/HistorialPanelView abajo), nunca a Movimientos — mismo
+  // criterio que ya aplica Panel del profesional > Movimientos.
   const closedRunIds = React.useMemo(
-    () => new Set(selectedRuns.filter((r: any) => r.status === "pagada").map((r: any) => r.id)),
+    () => new Set(selectedRuns.filter((r: any) => isRunEffectivelySettled(r)).map((r: any) => r.id)),
     [selectedRuns],
   );
   const openRunPayments = React.useMemo(
