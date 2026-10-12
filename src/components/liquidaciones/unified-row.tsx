@@ -10,7 +10,7 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Info, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { fmtDetalleDateTime, money, paymentMethodLabel } from "./movimiento-format";
+import { money, paymentMethodLabel } from "./movimiento-format";
 import { normalizeCierreMethodKey } from "@/lib/caja-cierre";
 
 // Grilla compartida por TODAS las filas de la lista única (ventas,
@@ -192,7 +192,6 @@ export function VentaRow({ c }: { c: any }) {
   const dateTime = saleDate
     ? `${saleDate.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })} · ${saleDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}`
     : "—";
-  const fullDateTime = c.created_at ? fmtDetalleDateTime(c.created_at) : "—";
   const method = paymentMethodLabel(String(sale.method ?? sale.payment_method ?? ""));
   const saleTotal = Number(sale.total ?? sale.amount ?? 0);
   const hasTip = Number(sale.tip_amount ?? 0) > 0;
@@ -369,49 +368,59 @@ export function VentaRow({ c }: { c: any }) {
           nuevo. Reusa exactamente los mismos campos ya calculados arriba
           (promoLabel/manualDiscountLabel/cashReduction), nunca una segunda
           lógica de descuento. */}
+      {/* Solo lo que NO está ya a la vista en la fila cerrada (fecha,
+          cliente, concepto+subtítulo, precio con tachado si corresponde,
+          comisión y propina ya son columnas propias arriba) — cada línea
+          es condicional, una venta simple sin descuento ni nota puede
+          mostrar una sola línea (o ninguna, aparte del ID). */}
       {expanded && (
         <div className="divide-y divide-white/[0.06] border-t border-white/[0.06] bg-white/[0.015] px-3.5 text-xs sm:px-4 sm:text-sm">
+          {hasReduction && (
+            <>
+              <div className="flex items-center justify-between py-2.5">
+                <span className="text-white/50">Precio de lista</span>
+                <span className="font-semibold tabular-nums text-white/85">{money(originalAmount)}</span>
+              </div>
+              <div className="flex items-center justify-between py-2.5">
+                <span className="text-white/50">Precio final</span>
+                <span className="font-semibold tabular-nums text-white">{money(saleTotal)}</span>
+              </div>
+            </>
+          )}
+          {hasDiscount && (
+            <div className="flex items-center justify-between py-2.5">
+              <span className="text-white/50">Descuento</span>
+              <span className="font-semibold tabular-nums text-rose-300">-{money(Number(sale.discount))}</span>
+            </div>
+          )}
+          {promoLabel ? (
+            <div className="flex items-center justify-between py-2.5">
+              <span className="text-white/50">Promoción</span>
+              <span className="font-semibold text-sky-300">{sale.promotion_name}</span>
+            </div>
+          ) : (
+            manualDiscountLabel && (
+              <div className="flex items-center justify-between py-2.5">
+                <span className="text-white/50">Motivo</span>
+                <span className="font-semibold text-amber-300">{manualDiscountLabel}</span>
+              </div>
+            )
+          )}
+          {hasTip && (
+            <div className="flex items-center justify-between py-2.5">
+              <span className="text-white/50">Propina</span>
+              <span className="font-semibold tabular-nums text-emerald-300">{money(Number(sale.tip_amount))}</span>
+            </div>
+          )}
+          {(sale.observations || sale.notes) && (
+            <div className="flex items-center justify-between gap-3 py-2.5">
+              <span className="shrink-0 text-white/50">Notas</span>
+              <span className="text-right font-semibold text-white/85">{sale.observations ?? sale.notes}</span>
+            </div>
+          )}
           <div className="flex items-center justify-between py-2.5">
-            <span className="text-white/50">Cliente</span>
-            <span className="font-semibold text-white/85">{sale.client_name ?? "Sin cliente"}</span>
-          </div>
-          <div className="flex items-center justify-between py-2.5">
-            <span className="text-white/50">Servicio/producto</span>
-            <span className="font-semibold text-white/85">{sale.service_name ?? "Servicio"}</span>
-          </div>
-          <div className="flex items-center justify-between py-2.5">
-            <span className="text-white/50">Precio de lista</span>
-            <span className="font-semibold tabular-nums text-white/85">{money(originalAmount)}</span>
-          </div>
-          <div className="flex items-center justify-between py-2.5">
-            <span className="text-white/50">Precio final cobrado</span>
-            <span className="font-semibold tabular-nums text-white">{money(saleTotal)}</span>
-          </div>
-          <div className="flex items-center justify-between py-2.5">
-            <span className="text-white/50">Descuento o promoción</span>
-            <span className={cn("font-semibold", conceptSubtitle ? conceptSubtitleClass : "text-white/40")}>
-              {conceptSubtitle ?? "Sin descuento"}
-            </span>
-          </div>
-          <div className="flex items-center justify-between py-2.5">
-            <span className="text-white/50">Comisión</span>
-            <span className="font-semibold tabular-nums text-violet-300">
-              {money(Number(c.pending_amount ?? c.amount ?? 0))}
-            </span>
-          </div>
-          <div className="flex items-center justify-between py-2.5">
-            <span className="text-white/50">Propina</span>
-            <span className={cn("font-semibold tabular-nums", hasTip ? "text-emerald-300" : "text-white/40")}>
-              {tipText}
-            </span>
-          </div>
-          <div className="flex items-center justify-between py-2.5">
-            <span className="text-white/50">Medio de pago</span>
-            <span className="font-semibold text-white/85">{method}</span>
-          </div>
-          <div className="flex items-center justify-between py-2.5">
-            <span className="text-white/50">Fecha/hora</span>
-            <span className="font-semibold text-white/85">{fullDateTime}</span>
+            <span className="text-white/35">ID de movimiento</span>
+            <span className="font-mono text-[10px] text-white/30">{c.id}</span>
           </div>
         </div>
       )}
@@ -589,9 +598,12 @@ export function MovRow({
         </div>
       )}
       {/* Nota del adelanto — cerrada por defecto siempre, solo aparece al
-          tocar "Ver nota". Nunca se abre sola ni con el resto de la fila. */}
+          tocar "Ver nota". Nunca se abre sola ni con el resto de la fila.
+          Fondo celeste a propósito (único uso de este tono en toda la
+          fila) para que se lea de un vistazo "esto es una nota", distinto
+          del resto de los paneles expandidos (grises). */}
       {note && noteOpen && (
-        <div className="border-t border-white/[0.06] bg-white/[0.015] px-3.5 py-2.5 text-xs text-white/70 sm:px-4 sm:text-sm">
+        <div className="border-t border-sky-400/25 bg-sky-400/[0.12] px-3.5 py-2.5 text-xs text-sky-100 sm:px-4 sm:text-sm">
           {note}
         </div>
       )}

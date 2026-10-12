@@ -3982,7 +3982,7 @@ function ProfesionalesTab({
         const { data: pays, error: payError } = await supabase
           .from("payments" as any)
           .select(
-            "id,client_name,service_name,total,amount,method,payment_method,created_at,discount,original_amount,promotion_id,promotion_name,tip_amount,items",
+            "id,client_name,service_name,total,amount,method,payment_method,created_at,discount,original_amount,promotion_id,promotion_name,tip_amount,items,notes,observations",
           )
           .in("id", saleIds);
         if (payError) throw payError;
