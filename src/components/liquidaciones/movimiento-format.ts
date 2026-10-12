@@ -43,10 +43,27 @@ export function fmtDateOnly(dateStr: string | null | undefined) {
 // backfill) — quedan guardadas en la base para auditoría, pero nunca se le
 // muestran al usuario: la fila "Nota" solo aplica a notas reales escritas
 // por una persona para otra persona.
-const INTERNAL_NOTE_PATTERNS = [/^Liquidaci[oó]n registrada v[ií]a script administrativo/i];
+// "[[HIST]]..." es el marcador que use-caja-data.ts guarda en
+// payments.observations para el historial interno de una venta de
+// mostrador (JSON de eventos, ver cash-register.tsx) — nunca texto para el
+// usuario. El patrón genérico [[MARCADOR]] cubre ese caso y cualquier otro
+// marcador interno entre corchetes que se agregue a futuro, sin depender
+// de listar cada uno.
+const INTERNAL_NOTE_PATTERNS = [
+  /^Liquidaci[oó]n registrada v[ií]a script administrativo/i,
+  /^\[\[[A-Z_]+\]\]/,
+];
 export function isInternalNote(note: string | null | undefined) {
   const trimmed = String(note ?? "").trim();
   return trimmed !== "" && INTERNAL_NOTE_PATTERNS.some((re) => re.test(trimmed));
+}
+
+// Nota real lista para mostrar: null si está vacía o es un marcador
+// interno (ver isInternalNote) — nunca devuelve basura técnica.
+export function realNote(note: string | null | undefined) {
+  const trimmed = String(note ?? "").trim();
+  if (!trimmed || isInternalNote(trimmed)) return null;
+  return trimmed;
 }
 
 // Algunas cuentas quedaron con su username técnico como full_name en vez de

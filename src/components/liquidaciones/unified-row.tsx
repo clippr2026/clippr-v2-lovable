@@ -10,7 +10,7 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 import { ChevronDown, Info, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { money, paymentMethodLabel } from "./movimiento-format";
+import { money, paymentMethodLabel, realNote } from "./movimiento-format";
 import { normalizeCierreMethodKey } from "@/lib/caja-cierre";
 
 // Grilla compartida por TODAS las filas de la lista única (ventas,
@@ -240,6 +240,19 @@ export function VentaRow({ c }: { c: any }) {
       ? "text-amber-300"
       : "text-emerald-300/80";
   const tipText = hasTip ? `+ ${money(Number(sale.tip_amount))}` : "—";
+  // Nota real del cliente/staff en esta venta — nunca el marcador técnico
+  // [[HIST]] (historial interno de "Envió a caja", ver movimiento-format.ts)
+  // ni ningún otro dato de auditoría. Si no hay nota real, esto es null.
+  const saleNote = realNote(sale.observations);
+  // Solo lo que NO está ya visible en la fila cerrada — si ninguna de estas
+  // condiciones aplica (venta simple, sin descuento/promo/propina/nota), no
+  // hay nada que expandir: la flecha ni se muestra, tocar la fila no abre
+  // nada.
+  const hasFinancialDetail = hasReduction || hasDiscount || Boolean(promoLabel) || Boolean(manualDiscountLabel) || hasTip;
+  const hasExpandableContent = hasFinancialDetail || Boolean(saleNote);
+  // Mobile usa <button> real solo cuando hay algo para expandir — igual
+  // criterio que el role="button" del bloque desktop de más abajo.
+  const MobileTag = hasExpandableContent ? "button" : "div";
 
   return (
     <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-black/18">
@@ -247,18 +260,22 @@ export function VentaRow({ c }: { c: any }) {
           precio contiene su propio InfoPopover (un <button>), y un <button>
           no puede anidar otro <button> válidamente en HTML. */}
       <div
-        role="button"
-        tabIndex={0}
-        title={`ID: ${c.id}`}
-        onClick={() => setExpanded((v) => !v)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            setExpanded((v) => !v);
-          }
-        }}
+        role={hasExpandableContent ? "button" : undefined}
+        tabIndex={hasExpandableContent ? 0 : undefined}
+        onClick={hasExpandableContent ? () => setExpanded((v) => !v) : undefined}
+        onKeyDown={
+          hasExpandableContent
+            ? (e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  setExpanded((v) => !v);
+                }
+              }
+            : undefined
+        }
         className={cn(
-          "hidden w-full cursor-pointer items-center gap-3 px-4 py-3 text-left text-sm transition hover:bg-white/[0.025] sm:grid",
+          "hidden w-full items-center gap-3 px-4 py-3 text-left text-sm transition sm:grid",
+          hasExpandableContent && "cursor-pointer hover:bg-white/[0.025]",
           LIQ_GRID_COLS,
         )}
       >
@@ -318,13 +335,15 @@ export function VentaRow({ c }: { c: any }) {
         </div>
         <div className="flex items-center justify-between gap-2 text-white/52">
           <span>{method}</span>
-          <ChevronDown className={cn("size-3.5 shrink-0 text-white/30 transition-transform", expanded && "rotate-180")} />
+          {hasExpandableContent && (
+            <ChevronDown className={cn("size-3.5 shrink-0 text-white/30 transition-transform", expanded && "rotate-180")} />
+          )}
         </div>
       </div>
       {/* Mobile — sin InfoPopover acá, un <button> real es seguro. */}
-      <button
-        type="button"
-        onClick={() => setExpanded((v) => !v)}
+      <MobileTag
+        type={hasExpandableContent ? "button" : undefined}
+        onClick={hasExpandableContent ? () => setExpanded((v) => !v) : undefined}
         className="w-full px-3.5 py-3 text-left text-xs sm:hidden"
       >
         <div className="flex items-start justify-between gap-3">
@@ -348,7 +367,9 @@ export function VentaRow({ c }: { c: any }) {
           <div className="shrink-0 space-y-0.5 text-right">
             <div className="flex items-center justify-end gap-1 text-[10px] font-semibold uppercase tracking-wider text-white/45">
               {dateTime}
-              <ChevronDown className={cn("size-3 shrink-0 text-white/30 transition-transform", expanded && "rotate-180")} />
+              {hasExpandableContent && (
+                <ChevronDown className={cn("size-3 shrink-0 text-white/30 transition-transform", expanded && "rotate-180")} />
+              )}
             </div>
             <div className="font-bold tabular-nums text-violet-300">
               Comisión: {money(Number(c.pending_amount ?? c.amount ?? 0))}
@@ -361,19 +382,15 @@ export function VentaRow({ c }: { c: any }) {
             )}
           </div>
         </div>
-      </button>
-      {/* Detalle completo al hacer click — mismo lenguaje visual que el
-          resto de los paneles expandidos (MovRow, PagoDetalleContent):
-          borde superior tenue + fondo apenas más claro, nunca un color
-          nuevo. Reusa exactamente los mismos campos ya calculados arriba
-          (promoLabel/manualDiscountLabel/cashReduction), nunca una segunda
-          lógica de descuento. */}
-      {/* Solo lo que NO está ya a la vista en la fila cerrada (fecha,
-          cliente, concepto+subtítulo, precio con tachado si corresponde,
-          comisión y propina ya son columnas propias arriba) — cada línea
-          es condicional, una venta simple sin descuento ni nota puede
-          mostrar una sola línea (o ninguna, aparte del ID). */}
-      {expanded && (
+      </MobileTag>
+      {/* Detalle al hacer click — solo lo que NO está ya a la vista en la
+          fila cerrada (fecha, cliente, concepto+subtítulo, precio con
+          tachado si corresponde, comisión y propina ya son columnas
+          propias arriba). Nunca ID de movimiento ni ningún otro dato de
+          auditoría — eso no es información para el usuario. Reusa los
+          mismos campos ya calculados arriba (promoLabel/manualDiscountLabel/
+          cashReduction), nunca una segunda lógica de descuento. */}
+      {expanded && hasFinancialDetail && (
         <div className="divide-y divide-white/[0.06] border-t border-white/[0.06] bg-white/[0.015] px-3.5 text-xs sm:px-4 sm:text-sm">
           {hasReduction && (
             <>
@@ -412,16 +429,14 @@ export function VentaRow({ c }: { c: any }) {
               <span className="font-semibold tabular-nums text-emerald-300">{money(Number(sale.tip_amount))}</span>
             </div>
           )}
-          {(sale.observations || sale.notes) && (
-            <div className="flex items-center justify-between gap-3 py-2.5">
-              <span className="shrink-0 text-white/50">Notas</span>
-              <span className="text-right font-semibold text-white/85">{sale.observations ?? sale.notes}</span>
-            </div>
-          )}
-          <div className="flex items-center justify-between py-2.5">
-            <span className="text-white/35">ID de movimiento</span>
-            <span className="font-mono text-[10px] text-white/30">{c.id}</span>
-          </div>
+        </div>
+      )}
+      {/* Nota real — banda celeste separada, mismo tratamiento que la nota
+          de un adelanto (ver MovRow más abajo): nunca mezclada con las
+          filas grises de arriba, nunca el marcador técnico [[HIST]]. */}
+      {expanded && saleNote && (
+        <div className="border-t border-sky-400/25 bg-sky-400/[0.12] px-3.5 py-2.5 text-xs text-sky-100 sm:px-4 sm:text-sm">
+          {saleNote}
         </div>
       )}
     </div>
@@ -507,8 +522,10 @@ export function MovRow({
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-2xl border border-white/[0.07] bg-black/18",
-        redStripe && "border-l-2 border-l-rose-500",
+        "overflow-hidden rounded-2xl border",
+        redStripe
+          ? "border-rose-900/50 border-l-2 border-l-rose-500 bg-[linear-gradient(135deg,rgba(244,63,94,0.13),rgba(20,7,9,0.94),rgba(10,3,4,0.96))]"
+          : "border-white/[0.07] bg-black/18",
       )}
     >
       {/* Desktop */}
