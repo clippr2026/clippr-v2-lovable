@@ -28,7 +28,7 @@ import {
 } from "@/hooks/use-professionals-data";
 import { PagoDetalleContent } from "@/components/liquidaciones/movimiento-detalle-content";
 import { VentaRow } from "@/components/liquidaciones/unified-row";
-import { fmtDateOnly, isRunEffectivelySettled, money } from "@/components/liquidaciones/movimiento-format";
+import { fmtDateOnly, isRunEffectivelySettled } from "@/components/liquidaciones/movimiento-format";
 import { AgendaCenteredModal } from "@/components/agenda/agenda-drawer";
 
 // Excepción visual puntual, pedida explícitamente por el negocio: la
@@ -131,7 +131,6 @@ export function HistorialPanelView({
               ? `Período: del ${fmtDateOnly(run.period_start)} al ${fmtDateOnly(run.cutoff_date)}`
               : `Liquidado hasta ${fmtDateOnly(run.cutoff_date)}`}
           </div>
-          <div className="text-base font-semibold tabular-nums text-foreground">{money(run.total_to_settle)}</div>
         </button>
       ))}
 
