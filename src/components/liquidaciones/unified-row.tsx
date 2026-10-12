@@ -242,14 +242,15 @@ export function VentaRow({ c }: { c: any }) {
   const tipText = hasTip ? `+ ${money(Number(sale.tip_amount))}` : "—";
   // Nota real del cliente/staff en esta venta — nunca el marcador técnico
   // [[HIST]] (historial interno de "Envió a caja", ver movimiento-format.ts)
-  // ni ningún otro dato de auditoría. Si no hay nota real, esto es null.
+  // ni ningún otro dato de auditoría/metadata del sistema. Si no hay nota
+  // real, esto es null.
   const saleNote = realNote(sale.observations);
-  // Solo lo que NO está ya visible en la fila cerrada — si ninguna de estas
-  // condiciones aplica (venta simple, sin descuento/promo/propina/nota), no
-  // hay nada que expandir: la flecha ni se muestra, tocar la fila no abre
-  // nada.
-  const hasFinancialDetail = hasReduction || hasDiscount || Boolean(promoLabel) || Boolean(manualDiscountLabel) || hasTip;
-  const hasExpandableContent = hasFinancialDetail || Boolean(saleNote);
+  // Precio de lista/final, descuento, promoción, propina, medio de pago y
+  // comisión YA son visibles en la fila cerrada (columnas propias o el
+  // tachado del precio) — la única razón real para expandir un servicio ya
+  // realizado es leer una nota real. Sin nota, no hay flecha ni nada para
+  // abrir.
+  const hasExpandableContent = Boolean(saleNote);
   // Mobile usa <button> real solo cuando hay algo para expandir — igual
   // criterio que el role="button" del bloque desktop de más abajo.
   const MobileTag = hasExpandableContent ? "button" : "div";
@@ -383,57 +384,11 @@ export function VentaRow({ c }: { c: any }) {
           </div>
         </div>
       </MobileTag>
-      {/* Detalle al hacer click — solo lo que NO está ya a la vista en la
-          fila cerrada (fecha, cliente, concepto+subtítulo, precio con
-          tachado si corresponde, comisión y propina ya son columnas
-          propias arriba). Nunca ID de movimiento ni ningún otro dato de
-          auditoría — eso no es información para el usuario. Reusa los
-          mismos campos ya calculados arriba (promoLabel/manualDiscountLabel/
-          cashReduction), nunca una segunda lógica de descuento. */}
-      {expanded && hasFinancialDetail && (
-        <div className="divide-y divide-white/[0.06] border-t border-white/[0.06] bg-white/[0.015] px-3.5 text-xs sm:px-4 sm:text-sm">
-          {hasReduction && (
-            <>
-              <div className="flex items-center justify-between py-2.5">
-                <span className="text-white/50">Precio de lista</span>
-                <span className="font-semibold tabular-nums text-white/85">{money(originalAmount)}</span>
-              </div>
-              <div className="flex items-center justify-between py-2.5">
-                <span className="text-white/50">Precio final</span>
-                <span className="font-semibold tabular-nums text-white">{money(saleTotal)}</span>
-              </div>
-            </>
-          )}
-          {hasDiscount && (
-            <div className="flex items-center justify-between py-2.5">
-              <span className="text-white/50">Descuento</span>
-              <span className="font-semibold tabular-nums text-rose-300">-{money(Number(sale.discount))}</span>
-            </div>
-          )}
-          {promoLabel ? (
-            <div className="flex items-center justify-between py-2.5">
-              <span className="text-white/50">Promoción</span>
-              <span className="font-semibold text-sky-300">{sale.promotion_name}</span>
-            </div>
-          ) : (
-            manualDiscountLabel && (
-              <div className="flex items-center justify-between py-2.5">
-                <span className="text-white/50">Motivo</span>
-                <span className="font-semibold text-amber-300">{manualDiscountLabel}</span>
-              </div>
-            )
-          )}
-          {hasTip && (
-            <div className="flex items-center justify-between py-2.5">
-              <span className="text-white/50">Propina</span>
-              <span className="font-semibold tabular-nums text-emerald-300">{money(Number(sale.tip_amount))}</span>
-            </div>
-          )}
-        </div>
-      )}
-      {/* Nota real — banda celeste separada, mismo tratamiento que la nota
-          de un adelanto (ver MovRow más abajo): nunca mezclada con las
-          filas grises de arriba, nunca el marcador técnico [[HIST]]. */}
+      {/* Único contenido expandible: una nota real. Precio de lista/final,
+          descuento, promoción, propina, medio de pago y comisión NUNCA se
+          repiten acá — ya son columnas/tachado visibles en la fila
+          cerrada. Mismo tratamiento que la nota de un Adelanto (ver MovRow
+          más abajo), nunca el marcador técnico [[HIST]]. */}
       {expanded && saleNote && (
         <div className="border-t border-sky-400/25 bg-sky-400/[0.12] px-3.5 py-2.5 text-xs text-sky-100 sm:px-4 sm:text-sm">
           {saleNote}
