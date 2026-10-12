@@ -432,6 +432,7 @@ export function MovRow({
   precioText,
   precioClass,
   detalle,
+  extraLine,
   redStripe = false,
   expanded,
   onToggle,
@@ -449,6 +450,10 @@ export function MovRow({
   precioText: string;
   precioClass?: string;
   detalle: React.ReactNode;
+  // Segunda línea opcional debajo de `detalle` (ej. la nota de un
+  // adelanto) — separada de `detalle` en vez de concatenada en el mismo
+  // string para que cada una pueda truncar en su propia línea.
+  extraLine?: React.ReactNode;
   redStripe?: boolean;
   expanded?: boolean;
   onToggle?: () => void;
@@ -494,6 +499,7 @@ export function MovRow({
         <div className="min-w-0">
           <div className="truncate text-white/82">{concepto}</div>
           <div className="truncate text-[11px] font-medium text-white/40">{detalle}</div>
+          {extraLine && <div className="truncate text-[11px] font-medium text-white/40">{extraLine}</div>}
         </div>
         <div className={cn("text-right tabular-nums", precioClass ?? "text-white/72")}>{precioText}</div>
         <div className="text-right text-white/30">{emptyFiller}</div>
@@ -528,6 +534,7 @@ export function MovRow({
         <div className="min-w-0 flex-1">
           <div className="truncate font-semibold text-white/82">{concepto}</div>
           <div className="mt-0.5 truncate text-white/50">{detalle}</div>
+          {extraLine && <div className="mt-0.5 truncate text-white/50">{extraLine}</div>}
           <div className="mt-0.5 text-[10px] text-white/35">{dateTime}</div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">

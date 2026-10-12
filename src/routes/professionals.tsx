@@ -2556,6 +2556,7 @@ function LiquidacionesPanelView({
                   precioText={`-${money(Number(advance.amount ?? 0))}`}
                   precioClass="text-rose-300"
                   detalle={`Dado por ${displayResponsable(advance.registered_by_name)}`}
+                  extraLine={advance.note ? `Nota: ${advance.note}` : undefined}
                   redStripe
                   emptyFiller=""
                   onToggle={() => openAdvanceDetalle(advance)}

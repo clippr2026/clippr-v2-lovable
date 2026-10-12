@@ -4881,6 +4881,7 @@ function ProfesionalesTab({
                           precioText={`-${money(Number(item.data.amount ?? 0))}`}
                           precioClass="text-rose-300"
                           detalle={`Dado por ${displayResponsable(item.data.registered_by_name)}`}
+                          extraLine={item.data.note ? `Nota: ${item.data.note}` : undefined}
                           redStripe
                           clickable={false}
                           emptyFiller=""

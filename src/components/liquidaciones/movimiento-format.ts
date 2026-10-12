@@ -49,13 +49,21 @@ export function isInternalNote(note: string | null | undefined) {
   return trimmed !== "" && INTERNAL_NOTE_PATTERNS.some((re) => re.test(trimmed));
 }
 
+// Algunas cuentas quedaron con su username técnico como full_name en vez de
+// un nombre real (ej. "alangmelgar") — acá se traduce a lo que la persona
+// realmente usa puertas adentro, puramente visual, nunca toca profiles.full_name.
+const KNOWN_RESPONSABLE_NAMES: Record<string, string> = {
+  alangmelgar: "Alan",
+};
+
 // Los registros más viejos guardaron el email de sesión como "registrado
 // por" — si lo que hay guardado parece un email, mostramos solo la parte
 // antes de la @ en vez del email completo.
 export function displayResponsable(name: string | null | undefined) {
   const raw = String(name ?? "").trim();
   if (!raw) return "Caja";
-  return raw.includes("@") ? raw.split("@")[0] || "Caja" : raw;
+  const stripped = raw.includes("@") ? raw.split("@")[0] || "Caja" : raw;
+  return KNOWN_RESPONSABLE_NAMES[stripped.toLowerCase()] ?? stripped;
 }
 
 export function paymentMethodLabel(method: string | null | undefined) {
