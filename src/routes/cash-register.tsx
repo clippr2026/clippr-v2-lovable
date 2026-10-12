@@ -105,7 +105,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { AgendaCenteredModal } from "@/components/agenda/agenda-drawer";
-import { fetchSettlementRunServices } from "@/hooks/use-professionals-data";
+import { fetchSettlementRunServices, fetchSettlementRunSales } from "@/hooks/use-professionals-data";
 import { MultiMethodPaymentSplit, type MultiSplit } from "@/components/cash-register/multi-method-payment-split";
 import {
   buildHistorialMovimientos,
@@ -4076,7 +4076,20 @@ function ProfesionalesTab({
     setHistorialDetailServices(null);
     setLoadingHistorialDetail(true);
     try {
-      const rows = await fetchSettlementRunServices(run.id);
+      // settlement_run_sales (snapshot completo: descuento/promo/propina)
+      // primero — mismo criterio que Historial de liquidaciones. Solo cae a
+      // fetchSettlementRunServices (4 campos, sin descuento/promo) si esa
+      // tabla no tiene filas para este run (liquidación de antes de la
+      // migración 20261010010000, o la tabla todavía sin migrar).
+      let rows: any[] = [];
+      try {
+        rows = await fetchSettlementRunSales(run.id);
+      } catch {
+        rows = [];
+      }
+      if (rows.length === 0) {
+        rows = await fetchSettlementRunServices(run.id);
+      }
       setHistorialDetailServices(rows);
     } catch (e) {
       toast.error(`No se pudo cargar el detalle de la liquidación: ${(e as Error).message}`);

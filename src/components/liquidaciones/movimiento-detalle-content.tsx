@@ -12,6 +12,7 @@ import { Info, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PAY_METHOD_LABEL, type PayMethod } from "@/components/cash-register/register-payment";
 import { displayResponsable, fmtDetalleDateTime, money } from "./movimiento-format";
+import { VentaRow } from "./unified-row";
 
 // Portal a document.body: este popover suele vivir dentro de modales con
 // overflow-y-auto — sin portal queda recortado por ese overflow.
@@ -357,42 +358,17 @@ export function PagoDetalleContent({
         ) : realServices.length === 0 ? (
           <div className="py-6 text-center text-sm text-white/45">Sin servicios en esta liquidación.</div>
         ) : (
+          // VentaRow (unified-row.tsx) — MISMA fila que usa Caja > Movimientos,
+          // Profesionales > Movimientos e Historial de liquidaciones: única
+          // lógica de "Descuento Promo X / Descuento manual / Descuento en
+          // efectivo" en todo el código, nunca reimplementada acá. Antes esta
+          // sección tenía su propio JSX simplificado (sin discount/promotion_*),
+          // así que una venta con promo perdía la etiqueta en este panel aunque
+          // el payment SÍ tuviera la promo bien guardada.
           <div className="space-y-2">
-            {realServices.map((c) => {
-              const sale: NonNullable<PagoDetalleService["sale"]> = c.sale ?? {
-                client_name: null,
-                service_name: null,
-                total: null,
-                amount: null,
-                method: null,
-                payment_method: null,
-              };
-              const saleDate = c.created_at ? new Date(c.created_at) : null;
-              const method =
-                PAY_METHOD_LABEL[String(sale.method ?? sale.payment_method ?? "") as PayMethod] ??
-                sale.method ??
-                sale.payment_method ??
-                "—";
-              const dateLabel = saleDate
-                ? `${saleDate.getDate()}/${saleDate.getMonth() + 1} ${saleDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}`
-                : "—";
-              return (
-                <div key={c.id} className="rounded-xl border border-white/[0.07] bg-black/15 p-2.5 text-xs">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0 space-y-0.5">
-                      <div className="truncate font-semibold text-white/82">{sale.client_name ?? "Sin cliente"}</div>
-                      <div className="truncate text-white/55">{sale.service_name ?? "Servicio"}</div>
-                      <div className="text-white/45">Precio: {money(Number(sale.total ?? sale.amount ?? 0))}</div>
-                    </div>
-                    <div className="shrink-0 space-y-0.5 text-right">
-                      <div className="text-white/45">{dateLabel}</div>
-                      <div className="text-white/55">{method}</div>
-                      <div className="font-bold tabular-nums text-violet-300">Comisión: {money(Number(c.amount ?? 0))}</div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
+            {realServices.map((c) => (
+              <VentaRow key={c.id} c={c} />
+            ))}
           </div>
         )}
       </div>
