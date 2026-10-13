@@ -12,6 +12,7 @@ import { ChevronDown, Info, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { money, paymentMethodLabel, realNote } from "./movimiento-format";
 import { normalizeCierreMethodKey } from "@/lib/caja-cierre";
+import { resolveDisplayConcept, type EmployeeCommissionMap } from "@/lib/service-pricing";
 
 // Grilla compartida por TODAS las filas de la lista única (ventas,
 // adelantos, pagos, ajustes, deducciones) y por su encabezado — mismas 7
@@ -185,7 +186,17 @@ export function InfoPopover({ text }: { text: React.ReactNode }) {
 // bloque) para poder intercalarse cronológicamente con pagos/adelantos/
 // ajustes/deducciones. `c` es una fila de commission_records enriquecida
 // con `.sale` (el payment real) — misma forma en Caja y en el profesional.
-export function VentaRow({ c }: { c: any }) {
+// `commissionsMap` (_employeeCommissions de business_settings.schedule) es
+// opcional: sin él, o sin sale.items (ventas viejas, o liquidaciones que
+// cayeron al fallback de snapshot sin items), se muestra service_name tal
+// cual guardado — nunca rompe, solo deja de filtrar.
+export function VentaRow({
+  c,
+  commissionsMap,
+}: {
+  c: any;
+  commissionsMap?: EmployeeCommissionMap | null;
+}) {
   const [expanded, setExpanded] = React.useState(false);
   const sale = c.sale ?? {};
   const saleDate = c.created_at ? new Date(c.created_at) : null;
@@ -193,6 +204,18 @@ export function VentaRow({ c }: { c: any }) {
     ? `${saleDate.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })} · ${saleDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}`
     : "—";
   const method = paymentMethodLabel(String(sale.method ?? sale.payment_method ?? ""));
+  // Concepto a mostrar: si la venta tuvo varios ítems, saca del nombre
+  // concatenado cualquier producto de catálogo sin comisión activa para
+  // este profesional (ej. "Corte en cabello corto / Coca" → "Corte en
+  // cabello corto" si Coca no tiene comisión configurada) — el item sigue
+  // intacto en sale.items, esto es solo la etiqueta. c.professional_id
+  // siempre existe (columna propia de commission_records).
+  const displayConcept = resolveDisplayConcept(
+    sale.items,
+    c.professional_id ?? null,
+    commissionsMap,
+    sale.service_name,
+  );
   const saleTotal = Number(sale.total ?? sale.amount ?? 0);
   const hasTip = Number(sale.tip_amount ?? 0) > 0;
   const hasDiscount = Number(sale.discount ?? 0) > 0;
@@ -283,7 +306,7 @@ export function VentaRow({ c }: { c: any }) {
         <div className="text-white/52">{dateTime}</div>
         <div className="truncate text-white/82">{sale.client_name ?? "Sin cliente"}</div>
         <div className="min-w-0">
-          <div className="truncate text-white/82">{sale.service_name ?? "Servicio"}</div>
+          <div className="truncate text-white/82">{displayConcept}</div>
           {conceptSubtitle && (
             <div className={cn("truncate text-[11px] font-medium", conceptSubtitleClass)}>{conceptSubtitle}</div>
           )}
@@ -350,7 +373,7 @@ export function VentaRow({ c }: { c: any }) {
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
             <div className="truncate font-semibold text-white/82">{sale.client_name ?? "Sin cliente"}</div>
-            <div className="mt-0.5 truncate text-white/60">{sale.service_name ?? "Servicio"}</div>
+            <div className="mt-0.5 truncate text-white/60">{displayConcept}</div>
             {conceptSubtitle && (
               <div className={cn("truncate text-[11px] font-medium", conceptSubtitleClass)}>{conceptSubtitle}</div>
             )}

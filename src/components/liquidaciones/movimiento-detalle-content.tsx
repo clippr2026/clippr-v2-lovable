@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { PAY_METHOD_LABEL, type PayMethod } from "@/components/cash-register/register-payment";
 import { displayResponsable, fmtDetalleDateTime, isInternalNote, money } from "./movimiento-format";
 import { VentaRow } from "./unified-row";
+import type { EmployeeCommissionMap } from "@/lib/service-pricing";
 
 // Portal a document.body: este popover suele vivir dentro de modales con
 // overflow-y-auto — sin portal queda recortado por ese overflow.
@@ -157,6 +158,7 @@ export function PagoDetalleContent({
   loadingServices,
   hideServices = false,
   paidAtDisplayOverride = null,
+  commissionsMap = null,
 }: {
   run: PagoDetalleRun;
   payments: PagoDetallePayment[];
@@ -174,6 +176,9 @@ export function PagoDetalleContent({
   // Datos del pago, sin tocar paid_at real ni ningún cálculo. Quien decide
   // si corresponde vive en historial-panel-view.tsx, nunca acá.
   paidAtDisplayOverride?: string | null;
+  // Reenviado tal cual a VentaRow (Servicios incluidos) para que filtre del
+  // concepto los productos sin comisión activa — ver resolveDisplayConcept.
+  commissionsMap?: EmployeeCommissionMap | null;
 }) {
   const remaining = Math.max(Number(run.total_to_settle) - Number(run.amount_paid), 0);
   // Mismo criterio de tolerancia que isPaymentFull/isRunEffectivelySettled
@@ -397,7 +402,7 @@ export function PagoDetalleContent({
           // el payment SÍ tuviera la promo bien guardada.
           <div className="space-y-2">
             {realServices.map((c) => (
-              <VentaRow key={c.id} c={c} />
+              <VentaRow key={c.id} c={c} commissionsMap={commissionsMap} />
             ))}
           </div>
         )}

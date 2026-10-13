@@ -723,7 +723,7 @@ export async function fetchSettlementRunServices(settlementRunId: string) {
   const { data: commissionRows, error } = await supabase
     .from("commission_records" as any)
     .select(
-      "id,amount,pending_amount,commission_pct,sale_date,created_at,sale_id,snapshot_client_name,snapshot_service_name,snapshot_sale_total,snapshot_payment_method",
+      "id,professional_id,amount,pending_amount,commission_pct,sale_date,created_at,sale_id,snapshot_client_name,snapshot_service_name,snapshot_sale_total,snapshot_payment_method",
     )
     .eq("settlement_run_id", settlementRunId)
     .order("created_at", { ascending: true });
@@ -755,13 +755,29 @@ export async function fetchSettlementRunSales(settlementRunId: string) {
   const { data, error } = await supabase
     .from("settlement_run_sales" as any)
     .select(
-      "id,sale_id,occurred_at,client_name,service_name,total,method,discount,original_amount,promotion_id,promotion_name,tip_amount,commission_amount,observations",
+      "id,sale_id,professional_id,occurred_at,client_name,service_name,total,method,discount,original_amount,promotion_id,promotion_name,tip_amount,commission_amount,observations",
     )
     .eq("settlement_run_id", settlementRunId)
     .order("occurred_at", { ascending: true });
   if (error) throw new Error(error.message);
-  return (data ?? []).map((row: any) => ({
+  const rows = (data ?? []) as any[];
+  // settlement_run_sales es un snapshot (ver comentario arriba) y nunca
+  // guardó los items crudos del carrito — se recuperan acá con un solo
+  // query extra a payments por sale_id, para que VentaRow pueda filtrar el
+  // concepto (productos sin comisión activa) igual que en Movimientos, sin
+  // duplicar esa lógica para Historial.
+  const saleIds = rows.map((r) => r.sale_id).filter(Boolean);
+  let itemsBySaleId: Record<string, any> = {};
+  if (saleIds.length > 0) {
+    const { data: pays } = await supabase
+      .from("payments" as any)
+      .select("id,items")
+      .in("id", saleIds);
+    itemsBySaleId = Object.fromEntries((pays ?? []).map((p: any) => [p.id, p.items]));
+  }
+  return rows.map((row) => ({
     id: row.id,
+    professional_id: row.professional_id,
     created_at: row.occurred_at,
     amount: row.commission_amount,
     sale: {
@@ -776,6 +792,7 @@ export async function fetchSettlementRunSales(settlementRunId: string) {
       promotion_name: row.promotion_name,
       tip_amount: row.tip_amount,
       observations: row.observations,
+      items: itemsBySaleId[row.sale_id] ?? null,
     },
   }));
 }
@@ -802,7 +819,7 @@ function normalizeServiceName(name: unknown): string {
 export async function fetchPendingVentasForProfessional(businessId: string, professionalId: string) {
   const { data: commissionRows, error } = await supabase
     .from("commission_records" as any)
-    .select("id,amount,pending_amount,commission_pct,sale_date,created_at,sale_id")
+    .select("id,professional_id,amount,pending_amount,commission_pct,sale_date,created_at,sale_id")
     .eq("business_id", businessId)
     .eq("professional_id", professionalId)
     .is("settlement_run_id", null)

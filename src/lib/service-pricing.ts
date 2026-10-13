@@ -181,6 +181,50 @@ export function resolveServiceCommission(
   return cfg;
 }
 
+// ────────────────── Concepto visible en Liquidaciones (varios ítems) ───────
+// Un servicio SIEMPRE es comisionable (cae al % general si no tiene override
+// propio — ver computeCommissionAmount). Un producto de catálogo SOLO es
+// comisionable si tiene un override activo con valor > 0 — mismo criterio
+// exacto que ya decide si genera plata de comisión o no, acá se reusa para
+// decidir si se MUESTRA en el concepto, nunca una regla nueva/paralela.
+export type DisplayConceptItem = {
+  id?: string | null;
+  name?: string | null;
+  is_catalog?: boolean | null;
+};
+
+export function isItemCommissionable(
+  item: DisplayConceptItem,
+  employeeId: string | null | undefined,
+  commissionsMap: EmployeeCommissionMap | null | undefined,
+): boolean {
+  if (!item.is_catalog) return true;
+  const cfg = resolveServiceCommission(item.id, employeeId, commissionsMap);
+  return !!cfg && Number(cfg.value) > 0;
+}
+
+// Filtra el concepto a mostrar en Liquidaciones: un producto de catálogo sin
+// comisión activa (o con comisión $0 configurada) no debe concatenarse al
+// nombre del servicio, aunque sí se haya vendido de verdad — el item sigue
+// completo en payments.items para auditoría, esto es solo la etiqueta.
+// `items` ausente o con un solo ítem no tiene nada para filtrar: se devuelve
+// el service_name guardado tal cual (ventas viejas pre-items, o liquidaciones
+// de antes del snapshot con settlement_run_sales).
+export function resolveDisplayConcept(
+  items: DisplayConceptItem[] | null | undefined,
+  employeeId: string | null | undefined,
+  commissionsMap: EmployeeCommissionMap | null | undefined,
+  fallbackServiceName: string | null | undefined,
+): string {
+  const fallback = fallbackServiceName ?? "Servicio";
+  if (!Array.isArray(items) || items.length <= 1) return fallback;
+  const names = items
+    .filter((item) => isItemCommissionable(item, employeeId, commissionsMap))
+    .map((item) => item.name)
+    .filter((name): name is string => Boolean(name && name.trim()));
+  return names.length > 0 ? names.join(" / ") : fallback;
+}
+
 export type CommissionableItem = {
   amount: number; // precio unitario BRUTO, antes de descuento (NO multiplicado por qty)
   qty?: number;

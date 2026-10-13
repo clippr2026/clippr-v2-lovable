@@ -4013,7 +4013,7 @@ function ProfesionalesTab({
       const row = rows.find((r) => r.id === professionalId);
       let query = supabase
         .from("commission_records" as any)
-        .select("id,amount,pending_amount,commission_pct,sale_date,created_at,status,sale_id")
+        .select("id,amount,pending_amount,commission_pct,sale_date,created_at,status,sale_id,professional_id")
         .eq("business_id", businessId)
         .eq("professional_id", professionalId)
         .is("settlement_run_id", null)
@@ -4920,7 +4920,13 @@ function ProfesionalesTab({
                   <UnifiedMovimientosHeader />
                   {unifiedMovimientos.map((item: any) => {
                     if (item.kind === "venta") {
-                      return <VentaRow key={`venta-${item.commission.id}`} c={item.commission} />;
+                      return (
+                        <VentaRow
+                          key={`venta-${item.commission.id}`}
+                          c={item.commission}
+                          commissionsMap={data.employeeCommissions}
+                        />
+                      );
                     }
                     const dateTime = item.at
                       ? `${new Date(item.at).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })} · ${new Date(item.at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}`
@@ -5033,6 +5039,7 @@ function ProfesionalesTab({
                                 .sort((a: any, b: any) => String(a.advanced_at ?? "").localeCompare(String(b.advanced_at ?? "")))}
                               services={historialDetailServices}
                               loadingServices={loadingHistorialDetail}
+                              commissionsMap={data.employeeCommissions}
                             />
                           ) : null
                         }

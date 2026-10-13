@@ -63,6 +63,7 @@ import {
 import { money, displayResponsable, isRunEffectivelySettled } from "@/components/liquidaciones/movimiento-format";
 import { HistorialPanelView } from "@/components/liquidaciones/historial-panel-view";
 import { AgendaCenteredModal } from "@/components/agenda/agenda-drawer";
+import type { EmployeeCommissionMap } from "@/lib/service-pricing";
 import { cancelAppointment } from "@/components/agenda/use-agenda-data";
 import { useAgendaData } from "@/components/agenda/use-agenda-data";
 import { resolveDaySchedule } from "@/lib/availability";
@@ -2083,6 +2084,25 @@ function LiquidacionesPanelView({
   const confirmRun = useConfirmSettlementRun(businessId, empId);
   const observeRun = useObserveSettlementRun(businessId, empId);
 
+  // _employeeCommissions (Equipo > Comisiones) — para que VentaRow filtre del
+  // concepto los productos de catálogo sin comisión activa, mismo criterio
+  // que ya decide cuánta plata de comisión generan (resolveDisplayConcept,
+  // service-pricing.ts). Panel autocontenido, igual que HistorialPanelView:
+  // un fetch propio en vez de depender de que el padre lo traiga.
+  const [employeeCommissionsMap, setEmployeeCommissionsMap] = React.useState<EmployeeCommissionMap>({});
+  React.useEffect(() => {
+    if (!businessId) return;
+    supabase
+      .from("business_settings")
+      .select("schedule")
+      .eq("business_id", businessId)
+      .maybeSingle()
+      .then(({ data }) => {
+        const schedule = (data?.schedule as Record<string, unknown> | null) ?? {};
+        setEmployeeCommissionsMap((schedule._employeeCommissions as EmployeeCommissionMap) ?? {});
+      });
+  }, [businessId]);
+
   // "Comisiones generadas" / "Adelantos" / "Total a pagar" — misma fuente y
   // misma fórmula exacta que Caja > Liquidaciones (computeLiquidacionSummary,
   // ver historial-movimientos.ts), nunca recalculada acá aparte. runs/
@@ -2540,7 +2560,13 @@ function LiquidacionesPanelView({
           <UnifiedMovimientosHeader />
           {unifiedMovimientos.map((item: any) => {
             if (item.kind === "venta") {
-              return <VentaRow key={`venta-${item.commission.id}`} c={item.commission} />;
+              return (
+                <VentaRow
+                  key={`venta-${item.commission.id}`}
+                  c={item.commission}
+                  commissionsMap={employeeCommissionsMap}
+                />
+              );
             }
             const dateTime = item.at
               ? `${new Date(item.at).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })} · ${new Date(item.at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}`
@@ -2722,6 +2748,7 @@ function LiquidacionesPanelView({
             advances={advances.filter((a) => a.settlement_run_id === movimientoDetailRun.id)}
             services={movimientoDetailServices}
             loadingServices={loadingMovimientoDetailServices}
+            commissionsMap={employeeCommissionsMap}
           />
         )}
         {movimientoDetailKind === "adelanto" && movimientoDetailAdvance && (

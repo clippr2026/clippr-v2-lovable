@@ -18,6 +18,7 @@
 // descuento/promo/propina). Nunca inventa lo que falta.
 import * as React from "react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 import {
   useProfSettlementRuns,
   useProfSettlementRunPayments,
@@ -30,6 +31,7 @@ import { PagoDetalleContent } from "@/components/liquidaciones/movimiento-detall
 import { VentaRow } from "@/components/liquidaciones/unified-row";
 import { fmtDateOnly, isRunEffectivelySettled } from "@/components/liquidaciones/movimiento-format";
 import { AgendaCenteredModal } from "@/components/agenda/agenda-drawer";
+import type { EmployeeCommissionMap } from "@/lib/service-pricing";
 
 // Excepción visual puntual, pedida explícitamente por el negocio: la
 // liquidación #101 de Melany debe MOSTRAR "03/10/2026 · 22:52 h" en Datos
@@ -55,6 +57,24 @@ export function HistorialPanelView({
   const { data: runs = [], isLoading: loadingRuns } = useProfSettlementRuns(businessId, empId);
   const { data: payments = [], isLoading: loadingPayments } = useProfSettlementRunPayments(businessId, empId);
   const { data: advances = [], isLoading: loadingAdvances } = useProfAdvances(businessId, empId);
+
+  // _employeeCommissions (Equipo > Comisiones) — para que VentaRow filtre
+  // del concepto los productos de catálogo sin comisión activa, mismo
+  // criterio que ya decide cuánta plata de comisión generan
+  // (resolveDisplayConcept, service-pricing.ts).
+  const [employeeCommissionsMap, setEmployeeCommissionsMap] = React.useState<EmployeeCommissionMap>({});
+  React.useEffect(() => {
+    if (!businessId) return;
+    supabase
+      .from("business_settings")
+      .select("schedule")
+      .eq("business_id", businessId)
+      .maybeSingle()
+      .then(({ data }) => {
+        const schedule = (data?.schedule as Record<string, unknown> | null) ?? {};
+        setEmployeeCommissionsMap((schedule._employeeCommissions as EmployeeCommissionMap) ?? {});
+      });
+  }, [businessId]);
 
   // "pagada" o prácticamente saldada (resto < $1, ver isRunEffectivelySettled)
   // — una liquidación con 17 centavos sin cobrar por redondeo no debe
@@ -166,7 +186,7 @@ export function HistorialPanelView({
               ) : (
                 <div className="space-y-2">
                   {sales.map((s) => (
-                    <VentaRow key={s.id} c={s} />
+                    <VentaRow key={s.id} c={s} commissionsMap={employeeCommissionsMap} />
                   ))}
                 </div>
               )}
