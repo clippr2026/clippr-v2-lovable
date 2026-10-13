@@ -650,7 +650,19 @@ export function useCajaData() {
     // Services/employees: se calculan en variables locales — el commit real
     // de estado (setServices/setEmployees) pasa a un único bloque al final
     // de load(), después del último chequeo de vigencia (ver más abajo).
-    const servicesList = (svcRaw as Array<{ id: string; name: string; price: number; duration_min: number | null; category: string | null; active: boolean | null; stock: number | null; cash_discount: number | null }>)
+    const servicesList = (svcRaw as Array<{
+      id: string;
+      name: string;
+      price: number;
+      duration_min: number | null;
+      category: string | null;
+      active: boolean | null;
+      stock: number | null;
+      cash_discount: number | null;
+      staff_price_mode: string | null;
+      staff_discount_percent: number | null;
+      staff_fixed_price: number | null;
+    }>)
       .map((r) => ({
         id: r.id,
         name: r.name,
@@ -663,6 +675,15 @@ export function useCajaData() {
         image: catalogImages[r.id] ?? null,
         image_position: catalogImagePositions[r.id] ?? null,
         cash_discount: r.cash_discount,
+        // Precio para colaboradores (Inventario > Retirar stock, ver
+        // resolveStaffUnitPrice en cash-register.tsx) — el SELECT de
+        // svcQuery ya los traía, pero este mapper los descartaba antes de
+        // que llegaran a data.services/item, así que el modal siempre caía
+        // al precio normal aunque el producto tuviera un precio
+        // colaborador guardado.
+        staff_price_mode: r.staff_price_mode,
+        staff_discount_percent: r.staff_discount_percent,
+        staff_fixed_price: r.staff_fixed_price,
       }));
 
     const employeesList =
