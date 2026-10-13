@@ -42,6 +42,14 @@ type PriceForm = {
   // (no un %). Vacío = no hay precio en efectivo distinto — se usa el
   // Precio de lista tal cual, en toda la app.
   cashPriceInput: string;
+  // Precio para colaboradores (solo catálogo) — beneficio especial al
+  // vender un producto a un profesional del negocio. "none" = paga el
+  // precio normal, sin campos extra. Solo uno de los dos valores de abajo
+  // es relevante según staffPriceMode; el otro se ignora/descarta al
+  // guardar (ver saveItem).
+  staffPriceMode: "none" | "percent" | "fixed";
+  staffDiscountPercent: string;
+  staffFixedPrice: string;
   duration: string;
   status: "Activo" | "Inactivo";
   category: string;
@@ -66,6 +74,9 @@ const emptyPriceForm = (
   name: "",
   price: "0",
   cashPriceInput: "",
+  staffPriceMode: "none",
+  staffDiscountPercent: "",
+  staffFixedPrice: "",
   duration: isService ? "30" : "",
   status: "Activo",
   category,
@@ -134,6 +145,9 @@ function rowToForm(row: PriceRow, isService: boolean): PriceForm {
     name: row.name ?? "",
     price: String(price),
     cashPriceInput: discount > 0 ? String(priceToCash(String(price), String(discount))) : "",
+    staffPriceMode: row.staff_price_mode === "percent" || row.staff_price_mode === "fixed" ? row.staff_price_mode : "none",
+    staffDiscountPercent: row.staff_discount_percent != null ? String(row.staff_discount_percent) : "",
+    staffFixedPrice: row.staff_fixed_price != null ? String(row.staff_fixed_price) : "",
     duration: row.duration_min
       ? String(row.duration_min)
       : isService
@@ -763,6 +777,90 @@ function PriceEditorModal({
                 </div>
               </SectionCard>
 
+              <SectionCard label="Precio para colaboradores">
+                <div className="space-y-3">
+                  <Field label="Tipo">
+                    <select
+                      value={form.staffPriceMode}
+                      onChange={(e) =>
+                        setForm({
+                          ...form,
+                          staffPriceMode: e.target.value as PriceForm["staffPriceMode"],
+                        })
+                      }
+                      className={inputCls}
+                    >
+                      <option value="none">Sin descuento</option>
+                      <option value="percent">Descuento porcentual</option>
+                      <option value="fixed">Precio fijo</option>
+                    </select>
+                  </Field>
+                  {form.staffPriceMode === "percent" && (
+                    <Field label="% de descuento">
+                      <div className="relative">
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={form.staffDiscountPercent}
+                          onChange={(e) => {
+                            const digits = e.target.value.replace(/\D/g, "");
+                            setForm({
+                              ...form,
+                              staffDiscountPercent: digits ? String(Math.min(100, Number(digits))) : "",
+                            });
+                          }}
+                          className={cn(inputCls, "pr-8")}
+                          placeholder="20"
+                        />
+                        <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                          %
+                        </span>
+                      </div>
+                      {Number(form.staffDiscountPercent) > 0 && (
+                        <div className="text-[11px] text-muted-foreground mt-1.5">
+                          Precio colaborador:{" "}
+                          <span className="font-semibold text-foreground">
+                            ${formatThousands(
+                              String(
+                                Math.max(
+                                  0,
+                                  Math.round(
+                                    (Number(form.price) || 0) *
+                                      (1 - Number(form.staffDiscountPercent) / 100),
+                                  ),
+                                ),
+                              ),
+                            )}
+                          </span>
+                        </div>
+                      )}
+                    </Field>
+                  )}
+                  {form.staffPriceMode === "fixed" && (
+                    <Field label="Precio colaborador">
+                      <div className="relative">
+                        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                          $
+                        </span>
+                        <input
+                          type="text"
+                          inputMode="numeric"
+                          value={formatThousands(form.staffFixedPrice)}
+                          onChange={(e) =>
+                            setForm({
+                              ...form,
+                              staffFixedPrice: e.target.value.replace(/\D/g, ""),
+                            })
+                          }
+                          className={cn(inputCls, "pl-6")}
+                          placeholder="0"
+                        />
+                      </div>
+                    </Field>
+                  )}
+                </div>
+              </SectionCard>
+
               <SectionCard label="Imagen del producto">
                 <input
                   ref={bookingFileRef}
@@ -1032,7 +1130,9 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     (async () => {
       let initialCatalogQuery = supabase
         .from("price_catalog")
-        .select("id,name,price,duration_min,category,active,stock,stock_min,stock_critical,cash_discount")
+        .select(
+          "id,name,price,duration_min,category,active,stock,stock_min,stock_critical,cash_discount,staff_price_mode,staff_discount_percent,staff_fixed_price",
+        )
         .eq("business_id", businessId)
         .is("deleted_at", null);
       if (activeBranchId) initialCatalogQuery = initialCatalogQuery.eq("branch_id", activeBranchId);
@@ -1279,7 +1379,9 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     if (!businessId) return;
     let loadQuery = supabase
       .from("price_catalog")
-      .select("id,name,price,duration_min,category,active,stock,stock_min,stock_critical,cash_discount")
+      .select(
+        "id,name,price,duration_min,category,active,stock,stock_min,stock_critical,cash_discount,staff_price_mode,staff_discount_percent,staff_fixed_price",
+      )
       .eq("business_id", businessId)
       .is("deleted_at", null);
     if (activeBranchId) loadQuery = loadQuery.eq("branch_id", activeBranchId);
@@ -1853,6 +1955,21 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   function saveItem() {
     if (!businessId) return toast.error("No se encontró el negocio");
     if (!form.name.trim()) return toast.error("Ingresá un nombre");
+    // Precio para colaboradores: valida solo el campo del modo elegido —
+    // el otro ni se mira, así nunca puede quedar un valor viejo de un modo
+    // anterior bloqueando el guardado.
+    if (!isService && form.staffPriceMode === "percent") {
+      const pct = Number(form.staffDiscountPercent);
+      if (!Number.isFinite(pct) || pct < 0 || pct > 100) {
+        return toast.error("El descuento para colaboradores debe ser un % entre 0 y 100");
+      }
+    }
+    if (!isService && form.staffPriceMode === "fixed") {
+      const fixed = Number(form.staffFixedPrice);
+      if (!Number.isFinite(fixed) || fixed < 0) {
+        return toast.error("El precio colaborador debe ser mayor o igual a $0");
+      }
+    }
     const payload: Record<string, unknown> = {
       business_id: businessId,
       name: form.name.trim(),
@@ -1869,6 +1986,16 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       // que se hubieran tipeado — ver el fix en rowToForm más arriba.
       payload.stock_min = Number(form.warnStock) || 0;
       payload.stock_critical = Number(form.criticalStock) || 0;
+      // Precio para colaboradores — siempre se guardan los 3 campos juntos
+      // (nunca solo el que cambió) para que el valor del modo NO elegido
+      // quede explícitamente en null, nunca arrastrado de una edición
+      // anterior. Único punto de verdad: form.staffPriceMode decide cuál
+      // de los otros dos campos es real.
+      payload.staff_price_mode = form.staffPriceMode;
+      payload.staff_discount_percent =
+        form.staffPriceMode === "percent" ? Number(form.staffDiscountPercent) || 0 : null;
+      payload.staff_fixed_price =
+        form.staffPriceMode === "fixed" ? Number(form.staffFixedPrice) || 0 : null;
     }
 
     if (new URLSearchParams(window.location.search).get("debug") === "1") {

@@ -13,6 +13,9 @@ export type PriceRow = {
   stock_min?: number | null;
   stock_critical?: number | null;
   cash_discount?: number | null;
+  staff_price_mode?: "none" | "percent" | "fixed" | null;
+  staff_discount_percent?: number | null;
+  staff_fixed_price?: number | null;
 };
 
 export function SectionCard({
