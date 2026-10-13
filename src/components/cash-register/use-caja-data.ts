@@ -503,7 +503,9 @@ export function useCajaData() {
 
     let svcQuery = supabase
       .from("price_catalog")
-      .select("id,name,price,duration_min,category,active,stock,cash_discount")
+      .select(
+        "id,name,price,duration_min,category,active,stock,cash_discount,staff_price_mode,staff_discount_percent,staff_fixed_price",
+      )
       .eq("business_id", businessId)
       .eq("active", true);
     if (branchFilter) svcQuery = svcQuery.or(branchFilter);

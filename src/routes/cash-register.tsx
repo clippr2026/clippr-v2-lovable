@@ -142,6 +142,31 @@ const PAY_HIST_MARKER = "[[HIST]]";
 // cruzándolo por nombre de producto contra data.paymentsToday.
 const STOCK_WITHDRAWAL_NOTE_MARKER = "[[STOCK_WITHDRAWAL]]";
 
+// Precio para colaboradores (price_catalog.staff_price_mode/
+// staff_discount_percent/staff_fixed_price, ver Configuración > Productos)
+// — exclusivamente para Inventario > Retirar stock cuando "Quién retira" es
+// un profesional real (nunca "Otro", nunca Nueva venta ni ninguna venta
+// normal: ningún otro lugar de la app llama a esta función). Único punto
+// que calcula el precio colaborador — usado tanto por el preview del modal
+// como por confirmStockAdjustment, así nunca pueden mostrar un monto y
+// cobrar otro.
+function resolveStaffUnitPrice(
+  item: any,
+  listUnitPrice: number,
+  isCollaboratorEligible: boolean,
+): number {
+  if (!isCollaboratorEligible) return listUnitPrice;
+  const mode = item?.staff_price_mode ?? "none";
+  if (mode === "fixed") {
+    return Number(item?.staff_fixed_price ?? 0) || 0;
+  }
+  if (mode === "percent") {
+    const pct = Number(item?.staff_discount_percent ?? 0) || 0;
+    return Math.max(0, Math.round(listUnitPrice * (1 - pct / 100)));
+  }
+  return listUnitPrice;
+}
+
 // Match tolerante (trim + lowercase) entre payments.service_name (texto
 // congelado al momento de la venta) y price_catalog.name (puede haberse
 // re-tipeado con otra capitalización/espacios desde entonces) — usado solo
@@ -2561,7 +2586,15 @@ function InventarioTab({
     // "Ajuste de stock" (solo con "Otro") no se asocia a nadie: sin
     // whoLabel, sin cliente, sin profesional.
     const whoLabel = withdrawMode === "adjust" ? null : isOther ? "Otro" : (employee?.name ?? "—");
-    const unitPrice = Number(item.price ?? item.cash_discount ?? 0) || 0;
+    const listUnitPrice = Number(item.price ?? item.cash_discount ?? 0) || 0;
+    // Precio colaborador: solo con un profesional real (nunca "Otro") y
+    // solo para Pagar ahora/Anotar como adelanto — Cortesía nunca cobra
+    // nada de todos modos, pero el monto "de referencia" que se guarda en
+    // el movimiento usa el mismo precio que se hubiera cobrado, para que
+    // el historial de Inventario sea consistente con lo que se vio en el
+    // modal.
+    const isCollaboratorEligible = !isOther;
+    const unitPrice = resolveStaffUnitPrice(item, listUnitPrice, isCollaboratorEligible);
     const totalAmount = unitPrice * qty;
     const kind: "pagado" | "adelanto" | "cortesia" | "ajuste" =
       withdrawMode === "pay"
@@ -3144,7 +3177,12 @@ function InventarioTab({
           const isOut = stockAdjustment.direction === "out";
           const stockMax = stockNumber(stockAdjustment.item);
           const qtyNum = Math.max(1, Number(adjustQty) || 1);
-          const unitPrice = Number(stockAdjustment.item?.price ?? stockAdjustment.item?.cash_discount ?? 0) || 0;
+          const listUnitPrice = Number(stockAdjustment.item?.price ?? stockAdjustment.item?.cash_discount ?? 0) || 0;
+          // Mismo criterio que confirmStockAdjustment: precio colaborador
+          // solo con un profesional real elegido (nunca "Otro").
+          const isCollaboratorEligible = Boolean(withdrawWho) && withdrawWho !== "__other__";
+          const unitPrice = resolveStaffUnitPrice(stockAdjustment.item, listUnitPrice, isCollaboratorEligible);
+          const hasStaffPrice = isCollaboratorEligible && (stockAdjustment.item?.staff_price_mode ?? "none") !== "none";
           const withdrawTotal = unitPrice * qtyNum;
           const fmtTotal = `$${withdrawTotal.toLocaleString("es-AR")}`;
           return (
@@ -3275,9 +3313,16 @@ function InventarioTab({
                           valía sin cobrarlo. */}
                       {withdrawWho && (
                         <div>
-                          <label className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
-                            ¿Cómo se registra?
-                          </label>
+                          <div className="flex items-center justify-between gap-2">
+                            <label className="text-xs font-semibold uppercase tracking-[0.16em] text-white/45">
+                              ¿Cómo se registra?
+                            </label>
+                            {hasStaffPrice && (
+                              <span className="rounded-full border border-violet-300/35 bg-violet-400/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-violet-200">
+                                Precio colaborador
+                              </span>
+                            )}
+                          </div>
                           <div className="mt-2 space-y-1.5">
                             <button
                               type="button"
