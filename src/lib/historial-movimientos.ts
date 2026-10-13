@@ -181,6 +181,11 @@ export type LiquidacionRunSummaryRow = {
   prepared_at: string;
   total_to_settle: number;
   amount_paid: number;
+  // Inicio real del período que cubrió ese run — para poder mostrar el
+  // rango real ("Del DD/MM al DD/MM") de la liquidación anterior en vez de
+  // un texto genérico. Opcional: filas más viejas de settlement_runs
+  // pueden no traerlo seleccionado desde donde se arma `runs`.
+  period_start_at?: string | null;
 };
 
 export type LiquidacionAdvanceSummaryRow = {
@@ -200,7 +205,16 @@ export type LiquidacionSummary = {
   // max(previousBalance + newCommissions + newTips - pendingAdvances, 0) —
   // mismo "Total a pagar" que la tarjeta de Caja.
   totalToPay: number;
+  // "Del DD/MM al DD/MM" — rango real del período que generó
+  // previousBalance (el de latestRun), para la tarjeta "Comisiones
+  // pendientes". null si no hay latestRun o no tiene period_start_at.
+  previousPeriodLabel: string | null;
 };
+
+function fmtDayMonth(iso: string): string {
+  const d = new Date(iso);
+  return d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" });
+}
 
 export function computeLiquidacionSummary(
   professionalId: string,
@@ -220,6 +234,16 @@ export function computeLiquidacionSummary(
   const periodStart: string | null = periodStartAt
     ? new Date(periodStartAt).toLocaleDateString("sv-SE")
     : null;
+  // Rango real del período que cubrió latestRun (no el período actual que
+  // se está por liquidar) — "Del DD/MM al DD/MM". Sin period_start_at
+  // (primera liquidación de ese profesional) no hay "desde" real: se omite
+  // en vez de inventar una fecha.
+  const previousPeriodLabel: string | null =
+    latestRun && latestRun.prepared_at
+      ? latestRun.period_start_at
+        ? `Del ${fmtDayMonth(latestRun.period_start_at)} al ${fmtDayMonth(latestRun.prepared_at)}`
+        : `Hasta ${fmtDayMonth(latestRun.prepared_at)}`
+      : null;
 
   const sumNewPending = (rows: LiquidacionPendingRow[]) =>
     rows
@@ -247,6 +271,7 @@ export function computeLiquidacionSummary(
     periodStart,
     periodStartAt,
     latestRun,
+    previousPeriodLabel,
     totalToPay: Math.max(previousBalance + newCommissions + newTips - pendingAdvances, 0),
   };
 }

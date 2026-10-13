@@ -3954,6 +3954,7 @@ function ProfesionalesTab({
         role: employee.role ?? employee.position ?? "Profesional",
         pending,
         previousBalance: summary.previousBalance,
+        previousPeriodLabel: summary.previousPeriodLabel,
         newCommissions: summary.newCommissions,
         pendingAdvances: summary.pendingAdvances,
         periodStart: summary.periodStart,
@@ -3990,6 +3991,10 @@ function ProfesionalesTab({
       { previousBalance: 0, newCommissions: 0, pendingAdvances: 0, pending: 0 },
     );
   }, [rows, selectedRow]);
+  // Redondeado (igual que money(), que hace Math.round para mostrar): un
+  // resto de centavos no cuenta como "pendiente" para decidir si la
+  // tarjeta "Comisiones pendientes" se muestra o no.
+  const hasPendingPreviousBalance = Math.round(totals.previousBalance) > 0;
 
   // Ver detalle: desglose auditable de las comisiones que entrarían en la
   // próxima liquidación (bloqueadas o no, hasta el corte elegido). Se pide
@@ -4686,25 +4691,28 @@ function ProfesionalesTab({
                 // Comisiones generadas + Adelantos son siempre fijas;
                 // Comisiones pendientes y Propinas son condicionales — la
                 // cantidad de columnas en desktop sigue la cantidad real de
-                // tarjetas visibles para que no queden huecos.
-                2 + (totals.previousBalance > 0 ? 1 : 0) + (liquidarNewTips > 0 ? 1 : 0) >= 4
+                // tarjetas visibles para que no queden huecos. previousBalance
+                // redondeado: un resto de centavos (ej. $0,17 por un
+                // adelanto con decimales) no debe mostrar una tarjeta de
+                // "$0" — ver money(), que ya redondea para mostrar.
+                2 + (hasPendingPreviousBalance ? 1 : 0) + (liquidarNewTips > 0 ? 1 : 0) >= 4
                   ? "sm:grid-cols-4"
-                  : totals.previousBalance > 0 || liquidarNewTips > 0
+                  : hasPendingPreviousBalance || liquidarNewTips > 0
                     ? "sm:grid-cols-3"
                     : "sm:grid-cols-2",
               )}
             >
               <StatCard
                 label="Comisiones generadas"
-                sublabel={totals.previousBalance > 0 ? "Período actual" : undefined}
+                sublabel={hasPendingPreviousBalance ? "Período actual" : undefined}
                 value={money(liquidarNewCommissions)}
                 tone="violet"
                 info={COMISIONES_NUEVAS_INFO_TEXT}
               />
-              {totals.previousBalance > 0 && (
+              {hasPendingPreviousBalance && (
                 <StatCard
                   label="Comisiones pendientes"
-                  sublabel="Período anterior"
+                  sublabel={selectedRow.previousPeriodLabel ?? "Período anterior"}
                   value={money(totals.previousBalance)}
                   tone="neutral"
                   info={LIQUIDACION_ANTERIOR_INFO_TEXT}
