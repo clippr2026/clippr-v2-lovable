@@ -1233,7 +1233,7 @@ function PublicBookingPage() {
           return;
         }
         const rpcMessage = err?.message;
-        throw new Error(rpcMessage || "No se pudo guardar la reserva. Aplicá la migración create_public_booking_public_v5 en Supabase.");
+        throw new Error(rpcMessage || "No se pudo guardar la reserva. Aplicá la migración create_public_booking_public_v6 en Supabase.");
       }
 
       const returnedBooking = Array.isArray(bookingResult.data) ? bookingResult.data[0] : bookingResult.data;
