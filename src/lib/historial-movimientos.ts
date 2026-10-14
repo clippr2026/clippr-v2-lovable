@@ -88,6 +88,21 @@ export type MovimientoDeduccion = {
 
 export type MovimientoItem = MovimientoPago | MovimientoAdelanto | MovimientoAjuste | MovimientoDeduccion;
 
+// Único criterio para "¿este movimiento entra en un período que termina en
+// `cutoffAt`?" — usado tanto por la tabla de Movimientos como por las
+// tarjetas-resumen de Caja > Liquidaciones, para que nunca queden
+// desincronizadas (antes Movimientos no filtraba por corte en absoluto:
+// un adelanto fechado DESPUÉS del corte elegido aparecía igual en la
+// lista, aunque ya no se descontara del Total a pagar). Se filtra por la
+// fecha REAL del movimiento (dateIso: advanced_at/paid_at/cutoff_date),
+// nunca por created_at — createdAt es cuándo se tipeó el registro, no
+// cuándo ocurrió el movimiento.
+export function isWithinCutoff(dateIso: string | null | undefined, cutoffAt: Date): boolean {
+  if (!dateIso) return false;
+  const t = new Date(dateIso).getTime();
+  return Number.isFinite(t) && t <= cutoffAt.getTime();
+}
+
 // Agrupa por movement_number (splits de un mismo pago múltiple comparten
 // número). Pagos históricos sin movement_number (no backfillearon todavía)
 // caen cada uno en su propio grupo por id, para no mezclarlos entre sí.

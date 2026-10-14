@@ -110,6 +110,7 @@ import { MultiMethodPaymentSplit, type MultiSplit } from "@/components/cash-regi
 import {
   buildHistorialMovimientos,
   computeLiquidacionSummary,
+  isWithinCutoff,
   type MovimientoAjuste,
   type MovimientoDeduccion,
 } from "@/lib/historial-movimientos";
@@ -4189,6 +4190,24 @@ function ProfesionalesTab({
     );
   }, [paymentOptions, paymentForm.method]);
 
+  // Reloj para que liquidarCutoffAt (y todo lo que depende de "ahora")
+  // se actualice solo cada minuto mientras el corte elegido sea "hoy".
+  const [nowClock, setNowClock] = React.useState(() => new Date());
+  React.useEffect(() => {
+    const id = setInterval(() => setNowClock(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Corte elegido para "Pagar" — vacío (o == hoy) significa "ahora mismo"
+  // (mismo comportamiento de siempre, se recalcula solo con nowClock). Si
+  // se elige un día anterior, el corte pasa a ser las 23:59:59.999 de ESE
+  // día: el día elegido queda completo adentro, lo generado desde el
+  // día siguiente 00:00 en adelante queda pendiente para la próxima vez.
+  const liquidarCutoffAt = React.useMemo(() => {
+    if (!liquidarCutoffDate || liquidarCutoffDate === today) return nowClock;
+    return new Date(`${liquidarCutoffDate}T23:59:59.999`);
+  }, [liquidarCutoffDate, today, nowClock]);
+
   // Liquidaciones ya cerradas (pagada o prácticamente saldadas, ver
   // isRunEffectivelySettled) — su pago, sus adelantos y sus ajustes/
   // deducciones pertenecen SOLO a la sub-pestaña Historial de acá en más
@@ -4198,13 +4217,27 @@ function ProfesionalesTab({
     () => new Set(selectedRuns.filter((r: any) => isRunEffectivelySettled(r)).map((r: any) => r.id)),
     [selectedRuns],
   );
+  // El corte elegido ("hasta" en Preparar liquidación) acota TODO lo que
+  // se ve en Movimientos, no solo las tarjetas-resumen: un adelanto, pago
+  // o ajuste fechado DESPUÉS del corte no puede aparecer en una vista que
+  // termina antes de esa fecha, aunque siga "abierto" (sin liquidación
+  // cerrada que lo contenga todavía). Se filtra por la fecha REAL del
+  // movimiento (advanced_at/paid_at/cutoff_date), nunca por created_at.
   const openRunPayments = React.useMemo(
-    () => selectedRunPayments.filter((p: any) => !closedRunIds.has(p.settlement_run_id)),
-    [selectedRunPayments, closedRunIds],
+    () =>
+      selectedRunPayments.filter(
+        (p: any) => !closedRunIds.has(p.settlement_run_id) && isWithinCutoff(p.paid_at, liquidarCutoffAt),
+      ),
+    [selectedRunPayments, closedRunIds, liquidarCutoffAt],
   );
   const openAdvances = React.useMemo(
-    () => selectedAdvances.filter((a: any) => !a.settlement_run_id || !closedRunIds.has(a.settlement_run_id)),
-    [selectedAdvances, closedRunIds],
+    () =>
+      selectedAdvances.filter(
+        (a: any) =>
+          (!a.settlement_run_id || !closedRunIds.has(a.settlement_run_id)) &&
+          isWithinCutoff(a.advanced_at, liquidarCutoffAt),
+      ),
+    [selectedAdvances, closedRunIds, liquidarCutoffAt],
   );
   const openRuns = React.useMemo(
     () => selectedRuns.filter((r: any) => !closedRunIds.has(r.id)),
@@ -4391,14 +4424,6 @@ function ProfesionalesTab({
     }
   }
 
-  // Reloj para que liquidarCutoffAt (y todo lo que depende de "ahora")
-  // se actualice solo cada minuto mientras el corte elegido sea "hoy".
-  const [nowClock, setNowClock] = React.useState(() => new Date());
-  React.useEffect(() => {
-    const id = setInterval(() => setNowClock(new Date()), 60_000);
-    return () => clearInterval(id);
-  }, []);
-
   // Fecha y hora EXACTAS de la última liquidación del profesional
   // seleccionado — null si todavía no tiene ninguna ("Primera
   // liquidación"). No usar toLocaleDateString("es-AR") a secas para la
@@ -4412,16 +4437,6 @@ function ProfesionalesTab({
       timeLabel: `${d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })} h`,
     };
   }, [selectedRow]);
-
-  // Corte elegido para "Pagar" — vacío (o == hoy) significa "ahora mismo"
-  // (mismo comportamiento de siempre, se recalcula solo con nowClock). Si
-  // se elige un día anterior, el corte pasa a ser las 23:59:59.999 de ESE
-  // día: el día elegido queda completo adentro, lo generado desde el
-  // día siguiente 00:00 en adelante queda pendiente para la próxima vez.
-  const liquidarCutoffAt = React.useMemo(() => {
-    if (!liquidarCutoffDate || liquidarCutoffDate === today) return nowClock;
-    return new Date(`${liquidarCutoffDate}T23:59:59.999`);
-  }, [liquidarCutoffDate, today, nowClock]);
 
   // "Desde"/"hasta" del período que se va a liquidar — hasta refleja el
   // corte elegido (hoy/ahora por default, o las 23:59 del día elegido).
