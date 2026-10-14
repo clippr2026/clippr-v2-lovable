@@ -266,13 +266,14 @@ begin
       end if;
     end if;
 
+    -- IMPORTANTE: appointments.service_price SIEMPRE guarda el precio de
+    -- LISTA completo, nunca el ya descontado por la promo — exactamente la
+    -- misma convención que usa el resto de la app (Agenda interna, Caja):
+    -- el descuento de la promo se calcula UNA sola vez, recién al mostrar
+    -- el turno o al cobrarlo, a partir de promotion_snapshot. Si acá se
+    -- guardara el precio ya descontado, esas pantallas volverían a
+    -- restarle el descuento una segunda vez (precio final equivocado).
     if v_service_applies then
-      if v_discount_type = 'percent' then
-        v_service_price := v_service_price * (1 - v_discount_value / 100);
-      else
-        v_service_price := v_service_price - v_discount_value;
-      end if;
-      v_service_price := greatest(0, round(v_service_price));
       v_any_discount := true;
     end if;
 

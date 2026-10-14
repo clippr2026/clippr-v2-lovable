@@ -10781,10 +10781,6 @@ export function NuevaVentaTab({
   const isCashMethod = method === "cash";
   const cartUnitPrice = (svc: (typeof cartItems)[number]["svc"]) =>
     isCashMethod && svc.cashPrice != null ? Number(svc.cashPrice) : Number(svc.price);
-  const total = cartItems.reduce(
-    (acc, { svc, qty }) => acc + cartUnitPrice(svc) * qty,
-    0,
-  );
   // Precio de lista del carrito (ignora precio en efectivo) — solo para
   // mostrar el tachado "lista → efectivo" en el resumen del Paso 3, igual
   // que ya se muestra por ítem en el resumen del Paso 4. `total` sigue
@@ -10817,25 +10813,37 @@ export function NuevaVentaTab({
   }, [promotionId, validPromotions]);
 
   const selectedPromotion = validPromotions.find((p) => p.id === promotionId) ?? null;
+  const promoAppliesToItem = (svc: (typeof cartItems)[number]["svc"]) =>
+    !!selectedPromotion &&
+    !svc.is_catalog &&
+    isPromotionApplicable(selectedPromotion, { serviceId: svc.id, employeeId, category: svc.category ?? null });
+  // El precio de una promoción es siempre el mismo sin importar el medio de
+  // pago (efectivo, transferencia, tarjeta, QR) — nunca se calcula sobre el
+  // "Precio en efectivo" del servicio, siempre sobre el precio de LISTA.
+  // Si se acumulara sobre el precio en efectivo, el mismo turno quedaría
+  // más barato pagando en efectivo que por transferencia, lo cual no es la
+  // promoción configurada sino un descuento adicional no autorizado. Para
+  // ítems sin promoción (o sin promo seleccionada), se mantiene el
+  // comportamiento de siempre: precio en efectivo si corresponde.
+  const promoAwareUnitPrice = (svc: (typeof cartItems)[number]["svc"]) =>
+    promoAppliesToItem(svc) ? rawServicePriceById[svc.id] ?? Number(svc.price) : cartUnitPrice(svc);
+  const total = cartItems.reduce(
+    (acc, { svc, qty }) => acc + promoAwareUnitPrice(svc) * qty,
+    0,
+  );
   // Un solo descuento activo a la vez: promoción O manual, nunca los dos
   // sumados — elegir uno limpia el otro (ver los onChange del panel del
-  // Paso 3). El monto de la promo se calcula sobre cartUnitPrice, que ya
-  // eligió precio de lista o precio en efectivo según el método actual —
-  // por eso el descuento nunca se "duplica" con el precio en efectivo: son
-  // dos pasos secuenciales (1. precio base según método, 2. descuento sobre
-  // ese precio base), no dos descuentos independientes. Como todo acá es
-  // estado derivado (no un $ congelado al elegir la promo), si el método de
-  // pago cambia después en el Paso 4 esto se recalcula solo, siempre sobre
-  // el precio base correcto.
+  // Paso 3). Como todo acá es estado derivado (no un $ congelado al elegir
+  // la promo), si el método de pago cambia después en el Paso 4 esto se
+  // recalcula solo, siempre sobre el precio de lista para los ítems que la
+  // promo alcanza.
   // Descuento por promoción, ÍTEM por ÍTEM (qty incluido) — solo descuenta
   // los servicios que esa promo alcanza (nunca catálogo, nunca un servicio
   // no aplicable). promoDiscountAmount es simplemente la suma.
   const promoItemDiscounts: number[] = selectedPromotion
     ? cartItems.map(({ svc, qty }) => {
-        if (svc.is_catalog || !isPromotionApplicable(selectedPromotion, { serviceId: svc.id, employeeId, category: svc.category ?? null })) {
-          return 0;
-        }
-        const subtotal = cartUnitPrice(svc) * qty;
+        if (!promoAppliesToItem(svc)) return 0;
+        const subtotal = (rawServicePriceById[svc.id] ?? Number(svc.price)) * qty;
         return subtotal - applyPromotionDiscount(subtotal, selectedPromotion);
       })
     : cartItems.map(() => 0);
@@ -11098,15 +11106,18 @@ export function NuevaVentaTab({
       // amount ya viene con el precio en efectivo aplicado si corresponde
       // (cartUnitPrice) — lo que se guarda en payments/liquidación es
       // siempre el monto realmente cobrado, nunca el de lista si se cobró
-      // con descuento por efectivo. effectivePrice (tope de la base de
+      // con descuento por efectivo. Para ítems con una promoción aplicada,
+      // en cambio, se usa promoAwareUnitPrice: el precio de la promo nunca
+      // depende del medio de pago, siempre sale del precio de lista (ver
+      // promoAwareUnitPrice más arriba). effectivePrice (tope de la base de
       // comisión) y discountAmount (ya repartido por servicio, ver
-      // itemDiscounts arriba) viajan por ítem para que registerPayment
+      // itemDiscounts abajo) viajan por ítem para que registerPayment
       // calcule la comisión real de CADA servicio — nunca el de lista si
       // supera al efectivo, nunca más de lo que esa línea realmente cobró.
       const items = cartItems.map(({ svc, qty }, idx) => ({
         serviceId: svc.id,
         serviceName: svc.name,
-        amount: cartUnitPrice(svc),
+        amount: promoAwareUnitPrice(svc),
         // Precio de lista ESTÁNDAR (data.services, sin resolver por
         // profesional) al momento de ESTA venta — se guarda en
         // payments.original_amount (ver register-payment.ts) para que
