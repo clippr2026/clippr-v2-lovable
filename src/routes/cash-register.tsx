@@ -27,8 +27,10 @@ import {
   getCajaLastEvent,
   getCajaFirstEvent,
   buildCierreSnapshotForDate,
+  buildSingleDayCierrePreview,
   findPendingCierre,
   closeCierreForDate,
+  closeSingleDayCierre,
   closeOpenCajaSession,
   normalizeCierreMethodKey,
   getCajaAbiertaDesde,
@@ -6200,6 +6202,164 @@ function CierreCajaBtn({
   );
 }
 
+// Cerrar un día PASADO puntual (ej. se quedó sin cerrar varios días y
+// ahora hay que ponerse al día uno por uno) sin mezclarlo con "hoy" ni con
+// ningún otro día — a diferencia de "Caja vencida"/CierreCajaBtn, que
+// siempre extiende el cierre hasta el instante actual porque asume un
+// backlog continuo sin cortes intermedios. Acá el usuario elige una fecha
+// estrictamente anterior a hoy, ve una vista previa (solo lectura,
+// ingresos/efectivo/transferencia/gastos/total) y recién después confirma
+// — nunca se dispara un cierre solo. No deja elegir un día que ya tiene un
+// cierre guardado (evita recontar los mismos movimientos dos veces).
+function CerrarDiaAnteriorCard({
+  businessId,
+  branchId,
+  userEmail,
+  cierresExistentes,
+  onCierreGuardado,
+}: {
+  businessId: string | null;
+  branchId: string | null;
+  userEmail: string | null;
+  cierresExistentes: any[];
+  onCierreGuardado: () => void;
+}) {
+  const [selectedDate, setSelectedDate] = useState("");
+  const [preview, setPreview] = useState<Awaited<ReturnType<typeof buildSingleDayCierrePreview>> | null>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
+  const [confirming, setConfirming] = useState(false);
+
+  const todayKey = cajaDateKey();
+  const closedDates = useMemo(
+    () => new Set(cierresExistentes.filter((c) => isCajaCerradaRow(c)).map((c) => c.fecha)),
+    [cierresExistentes],
+  );
+  const yaCerrado = selectedDate ? closedDates.has(selectedDate) : false;
+
+  async function verVistaPrevia() {
+    if (!businessId || !selectedDate || yaCerrado) return;
+    setLoadingPreview(true);
+    setPreview(null);
+    try {
+      const result = await buildSingleDayCierrePreview(businessId, branchId, selectedDate);
+      setPreview(result);
+    } catch (e) {
+      toast.error((e as Error).message || "No se pudo calcular la vista previa.");
+    } finally {
+      setLoadingPreview(false);
+    }
+  }
+
+  async function confirmarCierre() {
+    if (!businessId || !selectedDate || !preview) return;
+    setConfirming(true);
+    try {
+      const result = await closeSingleDayCierre({
+        businessId,
+        branchId,
+        dateStr: selectedDate,
+        closedBy: userEmail || "Desconocido",
+      });
+      if (result.alreadyClosed) {
+        toast.error("Ese día ya tiene un cierre guardado.");
+      } else if (result.closed) {
+        toast.success(`Caja del ${fechaDDMMYYYY(selectedDate)} cerrada correctamente.`);
+        setPreview(null);
+        setSelectedDate("");
+        onCierreGuardado();
+      } else {
+        toast.error("No se pudo guardar el cierre.");
+      }
+    } catch (e) {
+      toast.error((e as Error).message || "No se pudo cerrar ese día.");
+    } finally {
+      setConfirming(false);
+    }
+  }
+
+  const money = (value: number) => `$${Math.round(value).toLocaleString("es-AR")}`;
+
+  return (
+    <div className="mt-4 rounded-[28px] border border-white/[0.085] bg-black/20 p-5">
+      <p className="text-sm font-bold text-white/85">Cerrar un día anterior</p>
+      <p className="mt-1 text-xs text-muted-foreground">
+        Para ponerse al día con jornadas que quedaron sin cerrar, una por una — cada cierre queda
+        acotado exclusivamente a la fecha elegida, sin mezclar movimientos de otros días.
+      </p>
+      <div className="mt-3 flex flex-wrap items-end gap-3">
+        <div>
+          <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.14em] text-white/40">
+            Fecha a cerrar
+          </label>
+          <input
+            type="date"
+            value={selectedDate}
+            max={cajaDateKey(new Date(Date.now() - 24 * 60 * 60 * 1000))}
+            onChange={(e) => {
+              setSelectedDate(e.target.value);
+              setPreview(null);
+            }}
+            className="h-10 rounded-xl border border-white/[0.09] bg-[#070A13]/80 px-3 text-sm text-white outline-none focus:border-violet-300/35"
+          />
+        </div>
+        <button
+          type="button"
+          disabled={!selectedDate || yaCerrado || loadingPreview}
+          onClick={verVistaPrevia}
+          className="h-10 rounded-xl border border-white/[0.09] bg-white/[0.05] px-4 text-sm font-bold text-white/85 transition hover:bg-white/[0.09] disabled:opacity-40"
+        >
+          {loadingPreview ? "Calculando…" : "Ver vista previa"}
+        </button>
+      </div>
+
+      {yaCerrado && (
+        <p className="mt-3 text-sm font-semibold text-amber-300">
+          El {fechaDDMMYYYY(selectedDate)} ya tiene un cierre guardado — elegí otra fecha.
+        </p>
+      )}
+
+      {preview && !yaCerrado && (
+        <div className="mt-4 rounded-2xl border border-white/[0.07] bg-white/[0.03] p-4">
+          <p className="text-sm font-bold text-white">
+            Vista previa — {fechaDDMMYYYY(selectedDate)}
+          </p>
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <div>
+              <div className="text-[10px] uppercase tracking-wide text-white/40">Ingresos</div>
+              <div className="text-lg font-bold text-white">{money(preview.snapshot.totalCobrado)}</div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-wide text-white/40">Efectivo</div>
+              <div className="text-lg font-bold text-emerald-300">{money(preview.expected.cashExpected)}</div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-wide text-white/40">Transferencia/digital</div>
+              <div className="text-lg font-bold text-sky-300">{money(preview.expected.digitalExpected)}</div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-wide text-white/40">Gastos</div>
+              <div className="text-lg font-bold text-rose-300">{money(preview.snapshot.totalGastos)}</div>
+            </div>
+          </div>
+          <div className="mt-3 border-t border-white/[0.06] pt-3 text-sm text-white/70">
+            {preview.snapshot.cantidadCobros} cobro{preview.snapshot.cantidadCobros === 1 ? "" : "s"} · Total
+            esperado:{" "}
+            <span className="font-bold text-white">{money(preview.snapshot.utilidad)}</span>
+          </div>
+          <button
+            type="button"
+            disabled={confirming}
+            onClick={confirmarCierre}
+            className="mt-4 h-10 w-full rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-4 text-sm font-extrabold text-emerald-300 transition hover:bg-emerald-400/15 disabled:opacity-50 sm:w-auto"
+          >
+            {confirming ? "Cerrando…" : `Confirmar cierre del ${fechaDDMMYYYY(selectedDate)}`}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─────────── Cierres de caja — historial tab ─────────────────────────────────
 
 function CierresTab({
@@ -6586,6 +6746,16 @@ function CierresTab({
                 </div>
               </div>
             )}
+            <CerrarDiaAnteriorCard
+              businessId={businessId}
+              branchId={activeBranchId}
+              userEmail={userEmail}
+              cierresExistentes={cierres}
+              onCierreGuardado={() => {
+                onCajaCerrada();
+                loadCierres();
+              }}
+            />
           </div>
         ) : loading ? (
           <div className="pt-5">

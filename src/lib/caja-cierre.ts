@@ -646,6 +646,154 @@ export async function closeCierreForDate({
   return { closed: false };
 }
 
+// Vista previa (solo lectura) de lo que incluiría el cierre de UN día
+// pasado puntual, acotado exactamente a ese día calendario (00:00 a
+// 23:59:59.999 hora Argentina) — nunca "hasta ahora" como
+// buildCierreSnapshotForDate recibe por defecto cuando closeCierreForDate
+// lo llama para una caja vencida. Pensada para el selector "Cerrar un día
+// anterior": el usuario elige una fecha, ve ingresos/efectivo/
+// transferencia/gastos/total esperado de ESE día exclusivamente, y recién
+// después decide confirmar con closeSingleDayCierre.
+export async function buildSingleDayCierrePreview(
+  businessId: string,
+  branchId: string | null,
+  dateStr: string,
+) {
+  const snapshot = await buildCierreSnapshotForDate(businessId, dateStr, branchId);
+  const dayStart = new Date(`${dateStr}T00:00:00`);
+  const dayEnd = new Date(`${dateStr}T23:59:59.999`);
+  const branchFilter = branchId ? `branch_id.eq.${branchId},branch_id.is.null` : null;
+
+  // Adelantos (professional_advances.advanced_at) y movimientos manuales de
+  // caja (cash_movements.created_at) del mismo día — necesarios para
+  // "Efectivo esperado en caja" / "Dinero esperado en cuenta", misma
+  // fórmula que usa el cierre de hoy (computeExpectedCashAndDigital).
+  let advQuery = supabase
+    .from("professional_advances" as any)
+    .select("amount,payment_method,advanced_at")
+    .eq("business_id", businessId)
+    .gte("advanced_at", dayStart.toISOString())
+    .lte("advanced_at", dayEnd.toISOString());
+  if (branchFilter) advQuery = advQuery.or(branchFilter);
+
+  let movQuery = supabase
+    .from("cash_movements" as any)
+    .select("type,amount,method,created_at")
+    .eq("business_id", businessId)
+    .gte("created_at", dayStart.toISOString())
+    .lte("created_at", dayEnd.toISOString());
+  if (branchFilter) movQuery = movQuery.or(branchFilter);
+
+  const [advRes, movRes] = await Promise.all([advQuery, movQuery]);
+  const advances = ((advRes.data ?? []) as any[]).map((a) => ({
+    amount: a.amount,
+    payment_method: a.payment_method,
+  }));
+  const cashMovements = ((movRes.data ?? []) as any[]).map((m) => ({
+    type: m.type,
+    amount: m.amount,
+    method: m.method,
+  }));
+
+  const expected = computeExpectedCashAndDigital({
+    payments: snapshot.cobrosSnapshot.map((c) => ({ total: c.monto, method: c.metodo })),
+    expenses: snapshot.gastosSnapshot.map((g) => ({ amount: g.monto, payment_method: g.metodo })),
+    advances,
+    cashMovements,
+  });
+
+  return { snapshot, expected };
+}
+
+// Cierra un día PASADO puntual, acotado exactamente a ese día — a
+// diferencia de closeCierreForDate (pensado para "caja vencida": un
+// backlog sin cortes intermedios que siempre se extiende hasta "ahora"),
+// esto nunca mezcla movimientos de otro día, ni antes ni después. Permite
+// cerrar el 13/10 sin tocar el 14/10 aunque ninguno de los dos tenga
+// todavía una fila en caja_cierres. No toca cash_sessions: esa tabla
+// representa el período EN CURSO, nunca un día que ya pasó.
+export async function closeSingleDayCierre({
+  businessId,
+  branchId,
+  dateStr,
+  closedBy,
+}: {
+  businessId: string;
+  branchId: string | null;
+  dateStr: string;
+  closedBy: string;
+}) {
+  let existingQuery = supabase
+    .from("caja_cierres" as any)
+    .select("id,eventos,estado")
+    .eq("business_id", businessId)
+    .eq("fecha", dateStr);
+  if (branchId) existingQuery = existingQuery.eq("branch_id", branchId);
+  const { data: existingCierre, error: existingError } = await existingQuery.maybeSingle();
+  if (existingError) throw existingError;
+
+  // Mismo criterio que closeCierreForDate: "ya cerrado" se decide por el
+  // ÚLTIMO evento, nunca se pisa un cierre que ya existe para ese día.
+  const existingEvents = cajaEventosArray((existingCierre as any)?.eventos);
+  const lastExistingEvent = existingEvents[existingEvents.length - 1];
+  if (lastExistingEvent?.tipo === "cierre") {
+    return { closed: false, alreadyClosed: true };
+  }
+
+  const now = new Date();
+  const dayEnd = new Date(`${dateStr}T23:59:59.999`);
+  const snapshot = await buildCierreSnapshotForDate(businessId, dateStr, branchId, dayEnd);
+  const evento: CajaEvento = {
+    tipo: "cierre",
+    modo: "manual",
+    fecha_hora: now.toISOString(),
+    hora: cajaTimeLabel(now),
+    usuario: closedBy,
+    observacion: `Cierre manual de un día anterior (${dateStr}), acotado a ese día.`,
+    pendientes_count: snapshot.pendientesCount,
+    pendientes_monto: snapshot.pendientesMonto,
+    pendientes_detalle: snapshot.pendientesDetalle,
+  };
+  const payload = {
+    business_id: businessId,
+    branch_id: branchId,
+    fecha: dateStr,
+    hora_cierre: evento.hora,
+    usuario_nombre: closedBy,
+    closed_by: closedBy,
+    tipo_cierre: "manual",
+    estado: "cerrada",
+    observacion: evento.observacion,
+    total_cobrado: snapshot.totalCobrado,
+    total_gastos: snapshot.totalGastos,
+    utilidad: snapshot.utilidad,
+    cantidad_cobros: snapshot.cantidadCobros,
+    detalle_metodos_pago: snapshot.detalleMetodos,
+    cobros_snapshot: snapshot.cobrosSnapshot,
+    gastos_snapshot: snapshot.gastosSnapshot,
+    eventos: appendCajaEvento((existingCierre as any)?.eventos, evento),
+    updated_at: now.toISOString(),
+  };
+
+  const query = (existingCierre as any)?.id
+    ? supabase
+        .from("caja_cierres" as any)
+        .update(payload)
+        .eq("id", (existingCierre as any).id)
+        .eq("business_id", businessId)
+        .select("id")
+        .maybeSingle()
+    : supabase.from("caja_cierres" as any).insert(payload).select("id").maybeSingle();
+
+  const { data: saved, error: saveError } = await query;
+  if (saveError) throw saveError;
+  if (saved?.id) {
+    window.dispatchEvent(new CustomEvent("clippr:caja-cierre-guardado"));
+    return { closed: true };
+  }
+  return { closed: false };
+}
+
 // Cierra (status='closed', closed_at=now()) la cash_session abierta de
 // este negocio/sucursal, si la hay — best-effort, nunca rompe el cierre
 // de caja_cierres si esto falla (ej. tabla sin la migración de índice
