@@ -588,21 +588,44 @@ export function AppointmentDialog({
     );
   }, [promotions, selectedService, employeeId]);
 
+  // Si el turno YA tenía esta misma promo al abrir el diálogo y ni el
+  // servicio ni el profesional cambiaron en esta edición, la promo se
+  // conserva siempre — sin importar si hoy (fecha actual) ya no estaría
+  // vigente, activa o dentro del catálogo. De lo contrario, abrir un turno
+  // viejo para corregir la hora o una nota bastaba para borrarle la promo
+  // en silencio. Recién se reevalúa contra el catálogo actual si el usuario
+  // tocó servicio o profesional, o eligió otra promo del selector.
+  const promotionUnchangedFromOriginal =
+    !!appointment &&
+    (appointment.promotion_id ?? "") === promotionId &&
+    !!promotionId &&
+    employeeId === (appointment.employee_id ?? "") &&
+    (!selectedService || selectedService.name === appointment.service_name);
+
   // Si el servicio/profesional cambia y la promo elegida deja de ser válida
   // para la nueva combinación, se limpia — nunca se deja una promo prevista
-  // que ya no aplicaría.
+  // que ya no aplicaría. No aplica si la promo es la que ya tenía el turno
+  // sin cambios relevantes (ver promotionUnchangedFromOriginal arriba).
   React.useEffect(() => {
+    if (promotionUnchangedFromOriginal) return;
     if (promotionId && !validPromotions.some((p) => p.id === promotionId)) {
       setPromotionId("");
     }
-  }, [promotionId, validPromotions]);
+  }, [promotionId, validPromotions, promotionUnchangedFromOriginal]);
 
   const selectedPromotion = validPromotions.find((p) => p.id === promotionId) ?? null;
-  const discountedPrice = selectedPromotion ? applyPromotionDiscount(price, selectedPromotion) : price;
-  const promotionDiscountLabel = selectedPromotion
-    ? selectedPromotion.discountType === "percent"
-      ? `-${Number(selectedPromotion.discountValue) || 0}%`
-      : `-$${(Number(selectedPromotion.discountValue) || 0).toLocaleString("es-AR")}`
+  // Para el preview en pantalla: si se preserva la promo original de un
+  // turno viejo, se usa el snapshot congelado (puede no estar en
+  // validPromotions si ya no está vigente/activa) — nunca el catálogo
+  // actual, que podría no tenerla más.
+  const effectivePromotionPreview = promotionUnchangedFromOriginal
+    ? (appointment!.promotion_snapshot as unknown as Promotion | null) ?? selectedPromotion
+    : selectedPromotion;
+  const discountedPrice = effectivePromotionPreview ? applyPromotionDiscount(price, effectivePromotionPreview) : price;
+  const promotionDiscountLabel = effectivePromotionPreview
+    ? effectivePromotionPreview.discountType === "percent"
+      ? `-${Number(effectivePromotionPreview.discountValue) || 0}%`
+      : `-$${(Number(effectivePromotionPreview.discountValue) || 0).toLocaleString("es-AR")}`
     : "";
 
   const requiresDeposit = !!(
@@ -748,10 +771,18 @@ export function AppointmentDialog({
         deposit_status: requiresDeposit ? "pending" : null,
         created_by_name: createdByName,
         created_by_role: createdByRole,
-        promotion_id: selectedPromotion?.id ?? null,
-        promotion_snapshot: selectedPromotion
-          ? { name: selectedPromotion.name, discountType: selectedPromotion.discountType, discountValue: selectedPromotion.discountValue }
-          : null,
+        // Si la promo es la misma que ya tenía el turno y ni servicio ni
+        // profesional cambiaron, se reescribe el snapshot ORIGINAL (nunca el
+        // catálogo actual) — así sobrevive editar/reprogramar aunque la
+        // promo ya no esté vigente o se haya borrado del catálogo.
+        promotion_id: promotionUnchangedFromOriginal
+          ? appointment!.promotion_id ?? null
+          : selectedPromotion?.id ?? null,
+        promotion_snapshot: promotionUnchangedFromOriginal
+          ? appointment!.promotion_snapshot ?? null
+          : selectedPromotion
+            ? { name: selectedPromotion.name, discountType: selectedPromotion.discountType, discountValue: selectedPromotion.discountValue }
+            : null,
         recurring_series_id: seriesId ?? (isEdit ? appointment?.recurring_series_id ?? null : null),
       });
     }

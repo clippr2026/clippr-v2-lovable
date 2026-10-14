@@ -18,7 +18,7 @@ import {
   Users
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { applyPromotionDiscount, resolveServicePricing, type Promotion } from "@/lib/service-pricing";
+import { applyPromotionDiscount, resolvePromotionBadgeLabel, resolveServicePricing, type Promotion } from "@/lib/service-pricing";
 import { appendHistorialCobro, readHistorialCobro, syncHistorialFromDB, attributionLabel } from "@/lib/cobro-historial";
 import { ServiceImage } from "@/components/ui/service-image";
 import { useAuth } from "@/hooks/use-auth";
@@ -3380,14 +3380,19 @@ const ApptCard = React.memo(function ApptCard({
 
       {/* Quick actions removed — use detail modal instead */}
 
-      {a.promotion_id && (
-        <span
-          className="absolute bottom-0.5 right-1.5 text-[8px] font-semibold uppercase tracking-wide leading-none text-violet-300"
-          aria-label="Turno con promoción"
-        >
-          Promo
-        </span>
-      )}
+      {(() => {
+        const promoLabel = resolvePromotionBadgeLabel(a.promotion_id, a.promotion_snapshot);
+        if (!promoLabel) return null;
+        return (
+          <span
+            className="absolute bottom-0.5 right-1.5 max-w-[65%] truncate text-[8px] font-semibold uppercase tracking-wide leading-none text-violet-300"
+            title={promoLabel}
+            aria-label={`Turno con promoción: ${promoLabel}`}
+          >
+            {promoLabel}
+          </span>
+        );
+      })()}
     </div>
   );
 });

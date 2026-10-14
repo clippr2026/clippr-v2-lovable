@@ -549,6 +549,24 @@ export function applyPromotionDiscount(
   return Math.max(0, Math.round(discounted));
 }
 
+export type AppointmentPromotionSnapshot = { name?: string | null } | null | undefined;
+
+// Única fuente para el label visible de promoción en Agenda (y cualquier
+// otro lugar que necesite mostrarlo). Usa el nombre congelado en el propio
+// turno (promotion_snapshot.name) — así sigue funcionando para cualquier
+// promo futura, para cualquier profesional, y sigue mostrando el nombre
+// histórico aunque la promo se borre después del catálogo. Si el turno
+// tiene promotion_id pero (por ser un registro muy viejo) nunca llegó a
+// guardar el snapshot, cae a "Promo" en vez de romper o no mostrar nada.
+export function resolvePromotionBadgeLabel(
+  promotionId: string | null | undefined,
+  promotionSnapshot: AppointmentPromotionSnapshot,
+): string | null {
+  if (!promotionId) return null;
+  const name = promotionSnapshot?.name?.trim();
+  return name || "Promo";
+}
+
 // Texto único de "condiciones" para el modal ℹ️ de la Página Pública,
 // armado a partir de los datos estructurados de la promo (no un campo de
 // texto libre aparte que el dueño tendría que mantener sincronizado a mano).

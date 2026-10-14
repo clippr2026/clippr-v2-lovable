@@ -338,10 +338,12 @@ export function useCajaData() {
   });
   const [services, setServices] = React.useState<Service[]>([]);
   const [employees, setEmployees] = React.useState<Employee[]>([]);
-  // Promociones del negocio — misma fuente/criterio que Agenda y la Página
-  // Pública (business_settings.schedule._promotions). El checkout de Caja
-  // decide qué mostrar según servicio/profesional según isPromotionCurrentlyValid
-  // + isPromotionApplicable, nunca filtrado acá.
+  // Promociones de la sucursal — misma fuente/criterio que Agenda, el editor
+  // (Configuración → Promociones) y la Página Pública (branch_settings.
+  // schedule._promotions, NUNCA business_settings, que es un espejo viejo
+  // sin actualizar). El checkout de Caja decide qué mostrar según servicio/
+  // profesional según isPromotionCurrentlyValid + isPromotionApplicable,
+  // nunca filtrado acá.
   const [promotions, setPromotions] = React.useState<Promotion[]>([]);
   const [paymentsToday, setPaymentsToday] = React.useState<Payment[]>([]);
   const [expensesToday, setExpensesToday] = React.useState<Expense[]>([]);
@@ -572,7 +574,7 @@ export function useCajaData() {
       .not("status", "in", "(charged,cancelled,blocked)")
       .order("starts_at", { ascending: true });
 
-    const [svcRes, empRes, payRes, expRes, sessRes, bsRes, cliRes, pendingChargeRes, cierresRes] = await Promise.allSettled([
+    const [svcRes, empRes, payRes, expRes, sessRes, bsRes, cliRes, pendingChargeRes, cierresRes, brsRes] = await Promise.allSettled([
       svcQuery.order("category").order("name"),
       empQuery.order("full_name", { ascending: true }),
       payQuery,
@@ -598,6 +600,18 @@ export function useCajaData() {
         .eq("business_id", businessId)
         .order("fecha", { ascending: false })
         .limit(5),
+      // Promociones (`_promotions`): viven en branch_settings, misma fuente
+      // que Configuración → Promociones y la reserva pública — nunca
+      // business_settings, que es un espejo viejo sin actualizar desde la
+      // migración a sucursales (ver mismo fix en use-agenda-data.ts).
+      activeBranchId
+        ? supabase
+            .from("branch_settings" as any)
+            .select("schedule")
+            .eq("business_id", businessId)
+            .eq("branch_id", activeBranchId)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null } as any),
     ]);
 
     // Con single-flight ya no puede haber OTRO runLoad() corriendo en
@@ -801,8 +815,12 @@ export function useCajaData() {
       bsRes.status === "fulfilled" && !bsRes.value.error && bsRes.value.data
         ? ((bsRes.value.data.schedule ?? {}) as Record<string, unknown>)
         : {};
-    const promotionsList = Array.isArray(bsSchedule._promotions)
-      ? (bsSchedule._promotions as Promotion[]).map(backfillPromotionVigencia)
+    const branchSchedule: Record<string, unknown> =
+      brsRes.status === "fulfilled" && !(brsRes.value as any).error && (brsRes.value as any).data
+        ? (((brsRes.value as any).data.schedule ?? {}) as Record<string, unknown>)
+        : {};
+    const promotionsList = Array.isArray(branchSchedule._promotions)
+      ? (branchSchedule._promotions as Promotion[]).map(backfillPromotionVigencia)
       : [];
 
     // Venta de mostrador enviada a Caja en modo "Enviar" sin partir de un
@@ -1083,6 +1101,11 @@ export function useCajaData() {
         "postgres_changes",
         { event: "*", schema: "public", table: "business_settings", filter: `business_id=eq.${businessId}` },
         (payload) => void requestReload(`realtime business_settings ${payload.eventType}`),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "branch_settings", filter: `business_id=eq.${businessId}` },
+        (payload) => void requestReload(`realtime branch_settings ${payload.eventType}`),
       )
       .subscribe((status) => {
         // eslint-disable-next-line no-console

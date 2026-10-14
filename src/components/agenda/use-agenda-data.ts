@@ -308,11 +308,12 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
   // resolver compartido `resolveServicePricing` — ver src/lib/service-pricing.ts.
   const [employeeServiceOverrides, setEmployeeServiceOverrides] =
     React.useState<EmployeeServiceOverrideMap>({});
-  // Promociones del negocio (Configuración → Promociones) — misma fuente
-  // (`_promotions` dentro de business_settings.schedule) y mismo criterio de
-  // vigencia/aplicabilidad que ya usa la Página Pública. Acá se exponen SIN
-  // filtrar por vigencia: el diálogo de turno decide qué mostrar según
-  // servicio/profesional elegidos en cada momento.
+  // Promociones de la sucursal (Configuración → Promociones) — misma fuente
+  // (`_promotions` dentro de branch_settings.schedule, NUNCA business_settings,
+  // que es un espejo viejo sin actualizar) y mismo criterio de vigencia/
+  // aplicabilidad que ya usa la Página Pública. Acá se exponen SIN filtrar
+  // por vigencia: el diálogo de turno decide qué mostrar según servicio/
+  // profesional elegidos en cada momento.
   const [promotions, setPromotions] = React.useState<Promotion[]>([]);
   const [realtimeStatus, setRealtimeStatus] = React.useState<"connecting" | "connected" | "disconnected">("connecting");
 
@@ -385,7 +386,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     if (branchFilter) clientsQuery = clientsQuery.or(branchFilter);
     clientsQuery = clientsQuery.order("full_name");
 
-    const [aRes, eRes, sRes, cRes, bsRes] = await Promise.allSettled([
+    const [aRes, eRes, sRes, cRes, bsRes, brsRes] = await Promise.allSettled([
       apptQuery,
       empQuery,
       svcQuery,
@@ -395,6 +396,21 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
         .select("schedule")
         .eq("business_id", businessId)
         .maybeSingle(),
+      // Promociones (`_promotions`): viven en branch_settings, NO en
+      // business_settings — misma fuente que Configuración → Promociones
+      // (promotions-section.tsx) y la reserva pública (reservar/$slug.tsx).
+      // business_settings._promotions es un espejo viejo que ya no se
+      // actualiza desde la migración a sucursales: leer de ahí mostraba
+      // promociones desactualizadas o directamente ausentes apenas se
+      // editaba/creaba una promo desde Configuración.
+      activeBranchId
+        ? supabase
+            .from("branch_settings" as any)
+            .select("schedule")
+            .eq("business_id", businessId)
+            .eq("branch_id", activeBranchId)
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null } as any),
     ]);
 
     const loadedSchedule =
@@ -472,9 +488,13 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     setEmployeeServiceOverrides(
       (rawSchedule?._employeeServiceOverrides as EmployeeServiceOverrideMap) ?? {},
     );
+    const rawBranchSchedule =
+      brsRes.status === "fulfilled" && !(brsRes.value as any).error
+        ? (((brsRes.value as any).data?.schedule ?? null) as Record<string, unknown> | null)
+        : null;
     setPromotions(
-      Array.isArray(rawSchedule?._promotions)
-        ? (rawSchedule!._promotions as Promotion[]).map(backfillPromotionVigencia)
+      Array.isArray(rawBranchSchedule?._promotions)
+        ? (rawBranchSchedule!._promotions as Promotion[]).map(backfillPromotionVigencia)
         : [],
     );
 
@@ -551,7 +571,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     let apptQuery = supabase
       .from("appointments")
       .select(
-        "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,created_at,updated_at,recurring_series_id",
+        "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,created_at,updated_at,promotion_id,promotion_snapshot,recurring_series_id",
       )
       .eq("business_id", businessId)
       .gte("starts_at", startIso)
@@ -568,7 +588,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     let retryQuery = supabase
       .from("appointments")
       .select(
-        "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,updated_at",
+        "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,updated_at,promotion_id,promotion_snapshot",
       )
       .eq("business_id", businessId)
       .gte("starts_at", startIso)

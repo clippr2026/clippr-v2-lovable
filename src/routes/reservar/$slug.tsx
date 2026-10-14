@@ -64,7 +64,6 @@ import {
   type EmployeeServiceOverrideMap,
   type Promotion,
 } from "@/lib/service-pricing";
-import { incrementPromotionUsage } from "@/lib/promotion-usage";
 
 export const Route = createFileRoute("/reservar/$slug")({
   head: () => ({
@@ -1194,7 +1193,7 @@ function PublicBookingPage() {
         return;
       }
 
-      const bookingResult = await supabase.rpc("create_public_booking_public_v5", {
+      const bookingResult = await supabase.rpc("create_public_booking_public_v6", {
         p_business_id: business.id,
         // Se envía como texto para evitar el 400 que PostgREST daba con arrays uuid[].
         p_service_ids: selectedServiceIds.join(","),
@@ -1208,6 +1207,12 @@ function PublicBookingPage() {
         p_acquisition_source: !sourceAlreadyKnown && acquisitionSource ? acquisitionSource : null,
         p_acquisition_source_custom: !sourceAlreadyKnown && acquisitionChannelRequiresText(acquisitionSource) ? acquisitionCustom.trim() : null,
         p_branch_id: selectedBranchId,
+        // El RPC resuelve y valida la promo del lado del servidor (misma
+        // fuente que el editor: branch_settings) y persiste precio final +
+        // promotion_id/snapshot + incremento de uso en el mismo insert —
+        // ya no depende de un update posterior desde el cliente, que RLS
+        // bloqueaba siempre para un visitante anónimo.
+        p_promotion_id: effectivePromotion?.id ?? null,
       } as any);
 
       if (bookingResult.error) {
@@ -1235,41 +1240,14 @@ function PublicBookingPage() {
       confirmationSnapshot.appointmentId = returnedBooking?.id ?? returnedBooking?.appointment_id ?? undefined;
       confirmationSnapshot.manageToken = returnedBooking?.manage_token ?? returnedBooking?.manageToken ?? undefined;
 
-      // El RPC create_public_booking_public_v5 ya resuelve del lado del
+      // El RPC create_public_booking_public_v6 ya resuelve del lado del
       // servidor el precio Y la duración efectivos por profesional
       // (_employeeServiceOverrides, misma prioridad personalizada→estándar
-      // que resolveServicePricing acá) y crea el turno con el
-      // ends_at/duration_min correctos desde el INSERT — nunca hay que
-      // "generar con la duración general y corregir después": el turno ya
-      // nace con la duración real de este profesional. Lo ÚNICO que el RPC
-      // no puede conocer es la promoción aplicada (_promotions es un
-      // concepto 100% del cliente, con cupos/vigencia que dependen del
-      // momento exacto de la reserva) — si hay una vigente, se ajusta acá
-      // solo el precio. Si las políticas RLS no permiten que un cliente
-      // público actualice la fila que el propio RPC acaba de crear, este
-      // update va a fallar en silencio (solo un warning en consola) y el
-      // turno queda con el precio sin el descuento de la promo — el resto
-      // (profesional, horario, duración) ya está bien desde el RPC.
-      const needsPriceCorrection = finalServicesPrice !== originalServicesPrice;
-      if (needsPriceCorrection && confirmationSnapshot.appointmentId) {
-        const { error: overrideUpdateError } = await supabase
-          .from("appointments")
-          .update({ service_price: finalServicesPrice })
-          .eq("id", confirmationSnapshot.appointmentId);
-        if (overrideUpdateError) {
-          console.warn(
-            "No se pudo aplicar el precio de la promoción al turno de reserva pública (posible restricción de RLS):",
-            overrideUpdateError.message,
-          );
-        }
-      }
-
-      // Incremento del contador de usos de la promo — único punto de
-      // escritura, compartido con Caja (registerPayment), ver
-      // src/lib/promotion-usage.ts.
-      if (promoNote && effectivePromotion) {
-        await incrementPromotionUsage(business.id, effectivePromotion.id, clientKeys, selectedBranchId);
-      }
+      // que resolveServicePricing acá), la promoción (si corresponde,
+      // validada contra branch_settings) y el incremento de su contador de
+      // uso — todo en el mismo INSERT atómico. Ya no hace falta ningún
+      // update posterior desde el cliente (RLS lo bloqueaba siempre para un
+      // visitante anónimo — ver causa raíz #2 del audit de promociones).
 
       setAppointments((current) => [
         ...current,
