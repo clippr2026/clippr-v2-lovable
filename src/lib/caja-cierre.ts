@@ -403,11 +403,17 @@ export async function buildCierreSnapshotForDate(
   let payQuery = supabase
     .from("payments")
     .select(
-      "id,total,amount,method,payment_method,client_name,service_name,created_at,employee_id,charged_by,charge_type,items,original_amount,discount,discount_type,discount_value,promotion_name,tip,tip_amount",
+      "id,total,amount,method,payment_method,client_name,service_name,created_at,employee_id,charged_by,charge_type,items,original_amount,discount,discount_type,discount_value,promotion_name,tip,tip_amount,status",
     )
     .eq("business_id", businessId)
     .gte("created_at", dayStart.toISOString())
-    .lte("created_at", dayEnd.toISOString());
+    .lte("created_at", dayEnd.toISOString())
+    // Un pago anulado (ej. cobro eliminado con trazabilidad, nunca
+    // DELETE físico) no puede seguir contándose en el cierre ni aparecer
+    // en "Ver detalles" — status solo vale "cobrado" para prácticamente
+    // todas las filas históricas, "anulado"/"reembolsado" son los únicos
+    // casos reales que hay que excluir de lo que de verdad entró a caja.
+    .not("status", "in", "(anulado,reembolsado)");
   if (branchFilter) payQuery = payQuery.or(branchFilter);
 
   // expenses.date es solo fecha (sin hora) — con endDate > dateStr (caja
