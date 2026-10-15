@@ -1518,7 +1518,6 @@ function ResumenTab({
           <FacturacionPanel
             data={data}
             equipoEnabled={equipoEnabled}
-            expected={expected}
             movementsData={movementsData}
             userEmail={userEmail}
             cajaAbiertaDesde={cajaAbiertaDesde}
@@ -8679,7 +8678,6 @@ function MovimientosUnificados({
 function FacturacionPanel({
   data,
   equipoEnabled,
-  expected,
   movementsData,
   userEmail,
   cajaAbiertaDesde,
@@ -8690,7 +8688,6 @@ function FacturacionPanel({
 }: {
   data: ReturnType<typeof useCajaData>;
   equipoEnabled: boolean;
-  expected: ExpectedCashDigital;
   movementsData: ReturnType<typeof useCashMovements>;
   userEmail: string | null;
   cajaAbiertaDesde: string;
@@ -8725,6 +8722,42 @@ function FacturacionPanel({
   // — mismo criterio que ya usa el bloque "Modo de aprobación" de
   // Liquidaciones, ningún flag nuevo.
   const showPendientes = data.approvalModeEnabled && equipoEnabled;
+
+  // "Efectivo del día" / "Dinero en cuenta del día" — SIEMPRE el día de
+  // hoy (huso Buenos Aires), nunca el acumulado desde el último cierre
+  // (ese es expected.cashExpected/digitalExpected, que sigue existiendo
+  // tal cual para Cierre de caja — ver CierreCajaBtn). Se recalcula con la
+  // misma función ya probada que usa el cierre de un día puntual
+  // (buildSingleDayCierrePreview), para no duplicar la lógica de
+  // efectivo/digital en un tercer lugar.
+  const [dayExpected, setDayExpected] = React.useState<ExpectedCashDigital>({
+    cashExpected: 0,
+    cashOutflows: 0,
+    cashInflows: 0,
+    digitalExpected: 0,
+    digitalOutflows: 0,
+  });
+  const [dayExpectedLoading, setDayExpectedLoading] = React.useState(true);
+  React.useEffect(() => {
+    if (!data.businessId) return;
+    let cancelled = false;
+    setDayExpectedLoading(true);
+    buildSingleDayCierrePreview(data.businessId, data.activeBranchId, cajaDateKeyBA())
+      .then((result) => {
+        if (!cancelled) setDayExpected(result.expected);
+      })
+      .catch(() => {
+        /* best-effort — si falla, las tarjetas quedan en 0 en vez de romper el resto del panel */
+      })
+      .finally(() => {
+        if (!cancelled) setDayExpectedLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+    // Se recalcula cuando cambia el negocio/sucursal o cuando se guarda un
+    // cierre/movimiento (mismo evento que ya escuchan Caja/Inicio).
+  }, [data.businessId, data.activeBranchId, data.paymentsToday, movementsData.movements]);
 
   return (
     <>
@@ -8770,16 +8803,16 @@ function FacturacionPanel({
         <FacturacionStatCard
           icon={Wallet}
           iconClass="text-amber-400"
-          label="Efectivo esperado en caja"
-          value={expected.cashExpected}
-          loading={movementsData.loading}
+          label="Efectivo del día"
+          value={dayExpected.cashExpected}
+          loading={dayExpectedLoading}
         />
         <FacturacionStatCard
           icon={CreditCard}
           iconClass="text-sky-400"
-          label="Dinero esperado en cuenta"
-          value={expected.digitalExpected}
-          loading={movementsData.loading}
+          label="Dinero en cuenta del día"
+          value={dayExpected.digitalExpected}
+          loading={dayExpectedLoading}
         />
       </div>
 

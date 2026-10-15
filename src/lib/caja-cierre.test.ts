@@ -276,3 +276,61 @@ describe('"Todos los movimientos" — el resumen por método respeta la fecha el
     expect(groups.credit).toBeUndefined();
   });
 });
+
+// Caso real reportado: las tarjetas "Efectivo esperado en caja"/"Dinero
+// esperado en cuenta" de Resumen seguían mostrando el acumulado 13/10+14/10
+// (el mismo backlog que SÍ necesita Cierre de caja), cuando "Efectivo del
+// día"/"Dinero en cuenta del día" tienen que ser siempre el día elegido
+// nada más — con o sin el día anterior cerrado.
+describe('Resumen — "Efectivo del día"/"Dinero en cuenta del día" nunca dependen de si el día anterior está cerrado', () => {
+  const payments14: Array<{ total: number; method: string; created_at: string }> = [
+    { total: 20000, method: "cash", created_at: "2026-10-14T05:00:00-03:00" },
+    { total: 20000, method: "cash", created_at: "2026-10-14T17:15:33-03:00" },
+    ...Array.from({ length: 9 }, (_, i) => ({
+      total: 193400 / 9,
+      method: "transfer",
+      created_at: `2026-10-14T1${i % 9}:30:00-03:00`,
+    })),
+    { total: 21900, method: "credit", created_at: "2026-10-14T20:08:44-03:00" },
+  ];
+  const payments13 = Array.from({ length: 21 }, (_, i) => ({
+    total: 450800 / 21,
+    method: i % 2 === 0 ? "transfer" : "cash",
+    created_at: `2026-10-13T1${i % 9}:00:00-03:00`,
+  }));
+
+  function cashDigitalForDay(payments: typeof payments14, dateStr: string) {
+    const dayRows = filterToDayBA(payments, (p) => p.created_at, dateStr);
+    return computeExpectedCashAndDigital({
+      payments: dayRows,
+      expenses: [],
+      advances: [],
+      cashMovements: [],
+    });
+  }
+
+  it("el 14/10 da $40.000 efectivo / $215.300 en cuenta estando el 13/10 SIN cerrar", () => {
+    // "Sin cerrar" = no se filtra nada por estado de caja_cierres: el
+    // cálculo del día nunca consulta esa tabla, solo payments/expenses/
+    // advances/cash_movements acotados a su propio día.
+    const allPayments = [...payments13, ...payments14];
+    const result = cashDigitalForDay(allPayments, "2026-10-14");
+    expect(Math.round(result.cashExpected)).toBe(40000);
+    expect(Math.round(result.digitalExpected)).toBe(215300);
+  });
+
+  it("el 14/10 da EXACTAMENTE lo mismo si el 13/10 ya está cerrado (quitarlo del array no cambia nada)", () => {
+    // Simula "13/10 ya cerrado": ni siquiera está en el array que se le
+    // pasa a la función — el resultado del 14/10 tiene que ser idéntico.
+    const onlyToday = [...payments14];
+    const result = cashDigitalForDay(onlyToday, "2026-10-14");
+    expect(Math.round(result.cashExpected)).toBe(40000);
+    expect(Math.round(result.digitalExpected)).toBe(215300);
+  });
+
+  it("el 13/10 nunca se filtra por su propio estado de cierre — da siempre el mismo total", () => {
+    const allPayments = [...payments13, ...payments14];
+    const result = cashDigitalForDay(allPayments, "2026-10-13");
+    expect(Math.round(result.cashExpected + result.digitalExpected)).toBe(450800);
+  });
+});
