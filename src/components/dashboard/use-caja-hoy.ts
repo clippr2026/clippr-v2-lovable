@@ -1,5 +1,5 @@
 import * as React from "react";
-import { closeCierreForDate } from "@/lib/caja-cierre";
+import { closeSingleDayCierre } from "@/lib/caja-cierre";
 import { useCashMovements } from "@/hooks/use-cash-movements";
 import { useCajaSummary } from "@/hooks/use-caja-summary";
 
@@ -30,14 +30,17 @@ export function useCajaHoy(businessId: string | null, branchId: string | null) {
   const closeVencida = React.useCallback(
     async (closedBy: string) => {
       if (!businessId || !summary.pendingCierre) return;
-      await closeCierreForDate({
+      // closeSingleDayCierre (no closeCierreForDate) — acota el cierre
+      // exactamente al día vencido (summary.pendingCierre.date), nunca lo
+      // extiende hasta "ahora": si hoy ya es otro día, ese día sigue
+      // abierto y por separado, sin mezclarse con este cierre.
+      await closeSingleDayCierre({
         businessId,
         branchId,
         dateStr: summary.pendingCierre.date,
         closedBy,
-        mode: "manual",
       });
-      // closeCierreForDate ya dispara "clippr:caja-cierre-guardado", que
+      // closeSingleDayCierre ya dispara "clippr:caja-cierre-guardado", que
       // useCajaSummary escucha y por sí solo dispara su propia recarga —
       // este refresh() explícito solo evita depender del timing de ese
       // evento para la propia Inicio (misma garantía que antes).

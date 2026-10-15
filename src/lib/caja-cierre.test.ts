@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import * as cajaCierre from "./caja-cierre";
 import {
   cajaDateKeyBA,
   computeExpectedCashAndDigital,
@@ -6,6 +7,23 @@ import {
   filterToDayBA,
   normalizeCierreMethodKey,
 } from "./caja-cierre";
+
+// Cierres exclusivamente manuales, fecha por fecha — no puede existir
+// ningún camino de código que extienda un cierre a "ahora" ni que se
+// etiquete a sí mismo como automático. Test estructural: si alguien
+// reintroduce closeCierreForDate (el viejo cierre de "caja vencida" que
+// extendía el snapshot hasta el instante actual, mezclando días), esto
+// falla y lo avisa en CI en vez de reaparecer en producción.
+describe("cierres exclusivamente manuales — sin ningún camino automático/multi-día", () => {
+  it("closeCierreForDate (el cierre que se extendía hasta 'ahora') ya no existe", () => {
+    expect((cajaCierre as Record<string, unknown>).closeCierreForDate).toBeUndefined();
+  });
+
+  it("closeSingleDayCierre y buildSingleDayCierrePreview son las únicas funciones de cierre exportadas", () => {
+    expect(typeof cajaCierre.closeSingleDayCierre).toBe("function");
+    expect(typeof cajaCierre.buildSingleDayCierrePreview).toBe("function");
+  });
+});
 
 describe("normalizeCierreMethodKey — mismo vocabulario sin importar el origen (payments vs expenses)", () => {
   it("agrupa efectivo/cash bajo una sola clave", () => {

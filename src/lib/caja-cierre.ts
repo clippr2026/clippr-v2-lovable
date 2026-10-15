@@ -303,24 +303,19 @@ export async function findPendingCierre(
   return period.pendingCierre;
 }
 
-// Snapshot financiero de un rango [dateStr 00:00, endDate] — por defecto un
-// solo día calendario (si no se pasa endDate, termina a las 23:59:59.999 de
-// ESE MISMO dateStr), pero admite un endDate posterior para abarcar varios
-// días: es lo que necesita cerrar una "Caja vencida" que viene acumulando
-// movimientos desde un día anterior hasta el momento real del cierre (ver
-// closeCierreForDate). Se usa tanto para armar el registro de un cierre
-// (automático o de "Caja vencida") como para detectar si un día tuvo
-// actividad (findPendingCierre) — mismo formato exacto que un cierre
-// manual, para que el detalle del historial funcione igual sea cual sea el
-// tipo de cierre.
+// Snapshot financiero de UN día calendario [dateStr 00:00, dateStr
+// 23:59:59.999] — nunca se extiende a otro día. Se usa tanto para armar el
+// registro de un cierre manual (ver closeSingleDayCierre/
+// buildSingleDayCierrePreview) como para detectar si un día tuvo actividad
+// (findPendingCierre) — mismo formato exacto en los dos casos, para que el
+// detalle del historial funcione igual sea cual sea el origen del cierre.
 export async function buildCierreSnapshotForDate(
   businessId: string,
   dateStr: string,
   branchId?: string | null,
-  endDate?: Date,
 ) {
   const dayStart = new Date(`${dateStr}T00:00:00`);
-  const dayEnd = endDate ?? new Date(`${dateStr}T23:59:59.999`);
+  const dayEnd = new Date(`${dateStr}T23:59:59.999`);
   const endDateStr = cajaDateKey(dayEnd);
 
   // branch_id = null nunca se excluye (.or en vez de .eq) — mismo criterio
@@ -592,110 +587,6 @@ export async function getCajaAbiertaDesde(
   };
 }
 
-// Cierra explícitamente un día puntual (hoy o un día vencido) — acción
-// siempre disparada por un click real del usuario, nunca sola.
-export async function closeCierreForDate({
-  businessId,
-  branchId,
-  dateStr,
-  closedBy,
-  mode,
-}: {
-  businessId: string;
-  branchId: string | null;
-  dateStr: string;
-  closedBy: string;
-  mode: "manual" | "automatico";
-}) {
-  let existingQuery = supabase
-    .from("caja_cierres" as any)
-    .select("id,eventos,estado")
-    .eq("business_id", businessId)
-    .eq("fecha", dateStr);
-  if (branchId) existingQuery = existingQuery.eq("branch_id", branchId);
-  const { data: existingCierre, error: existingError } = await existingQuery.maybeSingle();
-  if (existingError) throw existingError;
-
-  // "Ya está cerrada" se decide por el ÚLTIMO evento, no por `estado` —
-  // estado se queda en 'cerrada' para siempre una vez cerrada (nunca
-  // vuelve a 'reabierta'), así que un segundo cierre del mismo `dateStr`
-  // (cerrar → reabrir → cobrar → cerrar, mismo día) tiene que poder
-  // agregar su propio evento de cierre a la misma fila.
-  const existingEvents = cajaEventosArray((existingCierre as any)?.eventos);
-  const lastExistingEvent = existingEvents[existingEvents.length - 1];
-  if (lastExistingEvent?.tipo === "cierre") {
-    return { closed: false, alreadyClosed: true };
-  }
-
-  // endDate = "ahora", nunca el fin del día de apertura: una caja vencida
-  // sigue acumulando movimientos (de ese día y de los que pasaron después,
-  // ver cajaOpenRangeStartDate) hasta este mismo instante del cierre — el
-  // snapshot tiene que incluir todo eso, no solo lo que pasó el día que se
-  // abrió.
-  const now = new Date();
-  const snapshot = await buildCierreSnapshotForDate(businessId, dateStr, branchId, now);
-  const evento: CajaEvento = {
-    tipo: "cierre",
-    modo: mode,
-    fecha_hora: now.toISOString(),
-    hora: mode === "automatico" ? "00:00hs" : cajaTimeLabel(now),
-    usuario: closedBy,
-    observacion: mode === "automatico" ? "Cierre automático de fin de día." : "Cierre de caja vencida.",
-    pendientes_count: snapshot.pendientesCount,
-    pendientes_monto: snapshot.pendientesMonto,
-    pendientes_detalle: snapshot.pendientesDetalle,
-  };
-  const payload = {
-    business_id: businessId,
-    branch_id: branchId,
-    fecha: dateStr,
-    hora_cierre: evento.hora,
-    usuario_nombre: closedBy,
-    closed_by: closedBy,
-    tipo_cierre: mode,
-    estado: "cerrada",
-    observacion: evento.observacion,
-    total_cobrado: snapshot.totalCobrado,
-    total_gastos: snapshot.totalGastos,
-    utilidad: snapshot.utilidad,
-    cantidad_cobros: snapshot.cantidadCobros,
-    detalle_metodos_pago: snapshot.detalleMetodos,
-    cobros_snapshot: snapshot.cobrosSnapshot,
-    gastos_snapshot: snapshot.gastosSnapshot,
-    eventos: appendCajaEvento((existingCierre as any)?.eventos, evento),
-    updated_at: now.toISOString(),
-  };
-
-  // Sin .neq("estado","cerrada") acá a propósito — mismo motivo que
-  // CierreCajaBtn.confirmar() en cash-register.tsx: esa guarda bloquearía
-  // cualquier segundo cierre del mismo dateStr. El chequeo real ya se hizo
-  // arriba, mirando el último evento.
-  const query = (existingCierre as any)?.id
-    ? supabase
-        .from("caja_cierres" as any)
-        .update(payload)
-        .eq("id", (existingCierre as any).id)
-        .eq("business_id", businessId)
-        .select("id")
-        .maybeSingle()
-    : supabase.from("caja_cierres" as any).insert(payload).select("id").maybeSingle();
-
-  const { data: saved, error: saveError } = await query;
-  if (saveError) throw saveError;
-  if (saved?.id) {
-    // Cerrar también la cash_session vigente (si la hay) — caja_cierres
-    // queda como snapshot, pero el período operativo real vive en
-    // cash_sessions; sin esto, una sesión abierta por una reapertura
-    // seguiría devolviendo su mismo opened_at viejo como "período actual"
-    // después de este cierre.
-    await closeOpenCajaSession(businessId, branchId);
-    window.dispatchEvent(new CustomEvent("clippr:caja-cierre-guardado"));
-    return { closed: true };
-  }
-
-  return { closed: false };
-}
-
 // Vista previa (solo lectura) de lo que incluiría el cierre de UN día
 // pasado puntual, acotado exactamente a ese día calendario (00:00 a
 // 23:59:59.999 hora Argentina) — nunca "hasta ahora" como
@@ -767,11 +658,20 @@ export async function closeSingleDayCierre({
   branchId,
   dateStr,
   closedBy,
+  observacion,
+  efectivoContado,
+  saldoReal,
 }: {
   businessId: string;
   branchId: string | null;
   dateStr: string;
   closedBy: string;
+  // Conteo físico/real opcional (mismos campos que el cierre de "hoy" de
+  // siempre) — si no se pasan, quedan null y la fila no registra
+  // diferencia/ajuste (no se puede inventar un conteo que nadie hizo).
+  observacion?: string | null;
+  efectivoContado?: number | null;
+  saldoReal?: number | null;
 }) {
   let existingQuery = supabase
     .from("caja_cierres" as any)
@@ -783,7 +683,8 @@ export async function closeSingleDayCierre({
   if (existingError) throw existingError;
 
   // Mismo criterio que closeCierreForDate: "ya cerrado" se decide por el
-  // ÚLTIMO evento, nunca se pisa un cierre que ya existe para ese día.
+  // ÚLTIMO evento, nunca se pisa un cierre que ya existe para ese día —
+  // satisface "no permitir cerrar dos veces la misma fecha y sucursal".
   const existingEvents = cajaEventosArray((existingCierre as any)?.eventos);
   const lastExistingEvent = existingEvents[existingEvents.length - 1];
   if (lastExistingEvent?.tipo === "cierre") {
@@ -791,15 +692,22 @@ export async function closeSingleDayCierre({
   }
 
   const now = new Date();
-  const dayEnd = new Date(`${dateStr}T23:59:59.999`);
-  const snapshot = await buildCierreSnapshotForDate(businessId, dateStr, branchId, dayEnd);
+  // Reutiliza el mismo cálculo (snapshot + efectivo/cuenta esperados) que
+  // la vista previa — nunca una segunda fuente de verdad para "qué incluye
+  // este cierre". Ya acotado exactamente a dateStr (00:00 a 23:59:59.999
+  // hora Buenos Aires), sin extenderse a ningún otro día.
+  const { snapshot, expected } = await buildSingleDayCierrePreview(businessId, branchId, dateStr);
+
+  const diferencia = efectivoContado != null ? efectivoContado - expected.cashExpected : null;
+  const ajusteCuenta = saldoReal != null ? saldoReal - expected.digitalExpected : null;
+
   const evento: CajaEvento = {
     tipo: "cierre",
     modo: "manual",
     fecha_hora: now.toISOString(),
     hora: cajaTimeLabel(now),
     usuario: closedBy,
-    observacion: `Cierre manual de un día anterior (${dateStr}), acotado a ese día.`,
+    observacion: observacion?.trim() || `Cierre manual del ${dateStr}, acotado a ese día.`,
     pendientes_count: snapshot.pendientesCount,
     pendientes_monto: snapshot.pendientesMonto,
     pendientes_detalle: snapshot.pendientesDetalle,
@@ -821,6 +729,12 @@ export async function closeSingleDayCierre({
     detalle_metodos_pago: snapshot.detalleMetodos,
     cobros_snapshot: snapshot.cobrosSnapshot,
     gastos_snapshot: snapshot.gastosSnapshot,
+    efectivo_esperado: expected.cashExpected,
+    efectivo_contado: efectivoContado ?? null,
+    diferencia,
+    dinero_cuenta_esperado: expected.digitalExpected,
+    dinero_cuenta_real: saldoReal ?? null,
+    dinero_cuenta_ajuste: ajusteCuenta,
     eventos: appendCajaEvento((existingCierre as any)?.eventos, evento),
     updated_at: now.toISOString(),
   };
@@ -838,6 +752,13 @@ export async function closeSingleDayCierre({
   const { data: saved, error: saveError } = await query;
   if (saveError) throw saveError;
   if (saved?.id) {
+    // Solo si se está cerrando el día de HOY (huso Buenos Aires) tiene
+    // sentido cerrar también la cash_session en curso — cerrar un día
+    // pasado (backlog) nunca debe tocar la sesión de hoy, que sigue
+    // abierta y acumulando sus propios movimientos por separado.
+    if (dateStr === cajaDateKeyBA()) {
+      await closeOpenCajaSession(businessId, branchId);
+    }
     window.dispatchEvent(new CustomEvent("clippr:caja-cierre-guardado"));
     return { closed: true };
   }

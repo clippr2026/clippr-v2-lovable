@@ -26,12 +26,9 @@ import {
   sortCajaEventos,
   getCajaLastEvent,
   getCajaFirstEvent,
-  buildCierreSnapshotForDate,
   buildSingleDayCierrePreview,
   findPendingCierre,
-  closeCierreForDate,
   closeSingleDayCierre,
-  closeOpenCajaSession,
   normalizeCierreMethodKey,
   getCajaAbiertaDesde,
   type ExpectedCashDigital,
@@ -5717,20 +5714,13 @@ function paymentMethodLabel(method: string) {
 }
 
 function CierreCajaBtn({
-  paymentsToday,
-  expensesToday,
-  pendingCharges,
   businessId,
   branchId,
   userEmail,
   onCajaCerrada,
   cajaAbiertaDesde,
   cajaRangeStartDate,
-  expected,
 }: {
-  paymentsToday: ReturnType<typeof useCajaData>["paymentsToday"];
-  expensesToday: ReturnType<typeof useCajaData>["expensesToday"];
-  pendingCharges: ReturnType<typeof useCajaData>["pendingCharges"];
   businessId: string | null;
   branchId: string | null;
   userEmail: string | null;
@@ -5739,13 +5729,11 @@ function CierreCajaBtn({
   // Fecha (YYYY-MM-DD) que identifica la fila de caja_cierres a cerrar —
   // la de apertura real, NO necesariamente "hoy" (una caja vencida sigue
   // abierta desde un día anterior; cerrarla tiene que actualizar ESA fila,
-  // no crear una nueva para hoy). Mismo criterio que closeCierreForDate.
+  // no crear una nueva para hoy). Este botón SIEMPRE cierra exactamente
+  // ese único día calendario (closeSingleDayCierre), nunca se extiende a
+  // ningún otro día — ver buildSingleDayCierrePreview/closeSingleDayCierre
+  // en caja-cierre.ts.
   cajaRangeStartDate: string;
-  // Efectivo/Dinero esperado — calculado una sola vez en CashRegisterPage
-  // (computeExpectedCashAndDigital + carry-forward de cuenta) y pasado por
-  // prop a los dos lugares que cierran caja (acá y Facturación), para que
-  // nunca haya dos fuentes del mismo saldo.
-  expected: ExpectedCashDigital;
 }) {
   const [open, setOpen] = useState(false);
   const [obs, setObs] = useState("");
@@ -5755,53 +5743,48 @@ function CierreCajaBtn({
   const [saldoReal, setSaldoReal] = useState("");
   const [saldoRealTouched, setSaldoRealTouched] = useState(false);
 
-  const totalCobrado = paymentsToday.reduce(
-    (s, p) => s + Number((p as any).total ?? (p as any).amount ?? 0),
-    0,
-  );
-  const totalGastos = expensesToday.reduce(
-    (s, e) => s + Number((e as any).amount ?? 0),
-    0,
-  );
-  const utilidad = totalCobrado - totalGastos;
+  // Vista previa propia, acotada EXACTAMENTE a cajaRangeStartDate — nunca
+  // los `paymentsToday`/`expensesToday` acumulados de la pantalla (esos
+  // sí deben seguir incluyendo todo el backlog sin cerrar para "Efectivo/
+  // Dinero esperado" en otras tarjetas, pero este modal cierra un día
+  // puntual y no puede mezclar otro día en el snapshot que guarda).
+  const [preview, setPreview] = useState<Awaited<ReturnType<typeof buildSingleDayCierrePreview>> | null>(null);
+  const [loadingPreview, setLoadingPreview] = useState(false);
 
-  const detalleMetodos = useMemo(() => {
-    const detail: Record<string, CierreMetodoDetalle> = {};
-    const ensure = (method: string | null | undefined) => {
-      const key = normalizeCierreMethodKey(method);
-      if (!detail[key]) detail[key] = { ingresos: 0, gastos: 0, utilidad: 0 };
-      return detail[key];
+  useEffect(() => {
+    if (!open || !businessId) return;
+    let cancelled = false;
+    setLoadingPreview(true);
+    buildSingleDayCierrePreview(businessId, branchId, cajaRangeStartDate)
+      .then((result) => {
+        if (!cancelled) setPreview(result);
+      })
+      .catch((e) => {
+        if (!cancelled) toast.error((e as Error).message || "No se pudo calcular el cierre.");
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingPreview(false);
+      });
+    return () => {
+      cancelled = true;
     };
+  }, [open, businessId, branchId, cajaRangeStartDate]);
 
-    for (const p of paymentsToday) {
-      const row = ensure((p as any).method ?? (p as any).payment_method);
-      row.ingresos += Number((p as any).total ?? (p as any).amount ?? 0);
-    }
-
-    for (const e of expensesToday) {
-      const row = ensure((e as any).payment_method ?? (e as any).method);
-      row.gastos += Number((e as any).amount ?? 0);
-    }
-
-    Object.values(detail).forEach((row) => {
-      row.utilidad = row.ingresos - row.gastos;
-    });
-
-    return detail;
-  }, [paymentsToday, expensesToday]);
+  const totalCobrado = preview?.snapshot.totalCobrado ?? 0;
+  const totalGastos = preview?.snapshot.totalGastos ?? 0;
+  const expected = preview?.expected ?? { cashExpected: 0, cashOutflows: 0, cashInflows: 0, digitalExpected: 0, digitalOutflows: 0 };
 
   // Desglose SOLO de lo cobrado, por cada método activo — a diferencia de
-  // detalleMetodos (que agrupa débito/crédito/tarjeta bajo una sola clave
-  // "card" para la tabla vieja de ingresos/gastos/utilidad por método), acá
-  // cada método activo necesita su propia fila.
+  // detalle_metodos_pago (que agrupa débito/crédito/tarjeta bajo una sola
+  // clave "card"), acá cada método activo necesita su propia fila.
   const cobradoPorMetodo = useMemo(() => {
     const byMethod: Record<string, number> = {};
-    for (const p of paymentsToday as any[]) {
-      const raw = String(p.method ?? p.payment_method ?? "").trim().toLowerCase();
-      byMethod[raw] = (byMethod[raw] ?? 0) + Number(p.total ?? p.amount ?? 0);
+    for (const c of preview?.snapshot.cobrosSnapshot ?? []) {
+      const raw = String(c.metodo ?? "").trim().toLowerCase();
+      byMethod[raw] = (byMethod[raw] ?? 0) + Number(c.monto ?? 0);
     }
     return byMethod;
-  }, [paymentsToday]);
+  }, [preview]);
 
   // Precarga "Efectivo contado"/"Saldo real en cuenta" con lo esperado
   // apenas se conoce, pero solo una vez — si el usuario ya escribió algo
@@ -5809,176 +5792,43 @@ function CierreCajaBtn({
   // que expected se recalcula (ej. llega un cobro nuevo mientras el modal
   // está abierto).
   useEffect(() => {
-    if (!open || contadoTouched) return;
+    if (!open || contadoTouched || !preview) return;
     setEfectivoContado(String(Math.round(expected.cashExpected)));
-  }, [open, contadoTouched, expected.cashExpected]);
+  }, [open, contadoTouched, preview, expected.cashExpected]);
 
   useEffect(() => {
-    if (!open || saldoRealTouched) return;
+    if (!open || saldoRealTouched || !preview) return;
     setSaldoReal(String(Math.round(expected.digitalExpected)));
-  }, [open, saldoRealTouched, expected.digitalExpected]);
+  }, [open, saldoRealTouched, preview, expected.digitalExpected]);
 
   const efectivoContadoNum = Number(efectivoContado.replace(/\./g, "").replace(",", ".")) || 0;
   const diferencia = efectivoContadoNum - expected.cashExpected;
   const saldoRealNum = Number(saldoReal.replace(/\./g, "").replace(",", ".")) || 0;
   const ajusteCuenta = saldoRealNum - expected.digitalExpected;
 
-  const cobrosSnapshot = paymentsToday.map((p: any) => ({
-    id: p.id,
-    hora: p.created_at
-      ? new Date(p.created_at).toLocaleTimeString("es-AR", {
-          hour: "2-digit",
-          minute: "2-digit",
-        })
-      : null,
-    cliente: p.client_name ?? p.cliente ?? null,
-    profesional: p.employee_name ?? p.professional_name ?? null,
-    servicio: p.service_name ?? p.service ?? null,
-    metodo: p.method ?? p.payment_method ?? null,
-    monto: Number(p.total ?? p.amount ?? 0),
-    usuario: p.charged_by ?? p.created_by ?? null,
-  }));
-
-  const gastosSnapshot = expensesToday.map((e: any) => ({
-    id: e.id,
-    hora: e.created_at
-      ? new Date(e.created_at).toLocaleTimeString("es-AR", {
-          hour: "2-digit",
-          minute: "2-digit",
-        })
-      : null,
-    nombre: e.name ?? e.concept ?? e.category ?? "Gasto",
-    tipo: e.type ?? e.category ?? null,
-    metodo: e.payment_method ?? e.method ?? null,
-    monto: Number(e.amount ?? 0),
-    nota: e.note ?? null,
-    usuario: e.user_name ?? e.created_by ?? null,
-  }));
-
-  // Snapshot de lo que quedó sin cobrar al momento del cierre — no existe
-  // (todavía) una columna dedicada en caja_cierres para esto, así que viaja
-  // dentro del propio evento de cierre en "eventos" (mismo JSONB flexible
-  // que ya usa total_cobrado/total_gastos ahí adentro), sin arriesgar un
-  // ALTER TABLE a ciegas.
-  const pendientesSnapshot = pendingCharges.map((p) => ({
-    id: p.id,
-    cliente: p.client_name ?? null,
-    servicio: p.service_name ?? null,
-    monto: Number(p.service_price ?? 0),
-    hora_envio: p.sentAt ? cajaTimeLabel(new Date(p.sentAt)) : null,
-  }));
-  const pendientesMonto = pendingCharges.reduce((s, p) => s + Number(p.service_price ?? 0), 0);
-
   async function confirmar() {
-    if (saving || !businessId) return;
+    if (saving || !businessId || !preview) return;
     setSaving(true);
     try {
-      const now = new Date();
-      const hora = cajaTimeLabel(now);
-      const cierreEvento = {
-        tipo: "cierre",
-        modo: "manual",
-        fecha_hora: now.toISOString(),
-        hora,
-        usuario: userEmail ?? "Caja",
-        observacion: obs.trim() || null,
-        total_cobrado: totalCobrado,
-        total_gastos: totalGastos,
-        utilidad,
-        efectivo_esperado: expected.cashExpected,
-        efectivo_contado: efectivoContadoNum,
-        diferencia,
-        dinero_cuenta_esperado: expected.digitalExpected,
-        dinero_cuenta_real: saldoRealNum,
-        dinero_cuenta_ajuste: ajusteCuenta,
-        pendientes_count: pendingCharges.length,
-        pendientes_monto: pendientesMonto,
-        pendientes_detalle: pendientesSnapshot,
-      };
-
-      let existingQuery = supabase
-        .from("caja_cierres" as any)
-        .select("id,eventos,estado")
-        .eq("business_id", businessId)
-        .eq("fecha", cajaRangeStartDate);
-      if (branchId) existingQuery = existingQuery.eq("branch_id", branchId);
-      const { data: existing } = await existingQuery.maybeSingle();
-
-      // "Ya está cerrada" se decide por el ÚLTIMO evento de esta fila, no
-      // por `estado` — estado se queda en 'cerrada' para siempre una vez
-      // que se cerró la primera vez (nunca vuelve a 'reabierta', ver
-      // caja-cierre.ts), así que un segundo cierre el MISMO día (cerrar →
-      // reabrir → cobrar → cerrar) tiene que poder agregar su propio
-      // evento de cierre a la misma fila. Si el último evento ya es un
-      // "cierre" sin una "reapertura" después, recién ahí está realmente
-      // cerrada y no hay nada nuevo que cerrar.
-      const existingEvents = cajaEventosArray((existing as any)?.eventos);
-      const lastExistingEvent = existingEvents[existingEvents.length - 1];
-      if (existing?.id && lastExistingEvent?.tipo === "cierre") {
+      const result = await closeSingleDayCierre({
+        businessId,
+        branchId,
+        dateStr: cajaRangeStartDate,
+        closedBy: userEmail || "Caja",
+        observacion: obs,
+        efectivoContado: efectivoContadoNum,
+        saldoReal: saldoRealNum,
+      });
+      if (result.alreadyClosed) {
         toast.info("La caja ya está cerrada");
         setOpen(false);
         onCajaCerrada();
         return;
       }
-
-      const payload = {
-        business_id: businessId,
-        branch_id: branchId,
-        fecha: cajaRangeStartDate,
-        hora_cierre: hora,
-        usuario_id: null,
-        usuario_nombre: userEmail ?? "Caja",
-        total_cobrado: totalCobrado,
-        total_gastos: totalGastos,
-        utilidad,
-        cantidad_cobros: paymentsToday.length,
-        detalle_metodos_pago: detalleMetodos,
-        cobros_snapshot: cobrosSnapshot,
-        gastos_snapshot: gastosSnapshot,
-        observacion: obs.trim() || null,
-        tipo_cierre: "manual",
-        estado: "cerrada",
-        efectivo_contado: efectivoContadoNum,
-        diferencia,
-        dinero_cuenta_esperado: expected.digitalExpected,
-        dinero_cuenta_real: saldoRealNum,
-        dinero_cuenta_ajuste: ajusteCuenta,
-        eventos: appendCajaEvento((existing as any)?.eventos, cierreEvento),
-        updated_at: now.toISOString(),
-      };
-
-      // Sin .neq("estado","cerrada") acá a propósito — estado se queda en
-      // 'cerrada' para siempre una vez cerrada la primera vez (nunca
-      // vuelve a 'reabierta'), así que esa guarda bloquearía CUALQUIER
-      // segundo cierre del mismo día (cerrar → reabrir → cobrar → cerrar).
-      // El chequeo real de "ya está cerrada" ya se hizo arriba, mirando el
-      // último evento — acá solo falta guardar.
-      const query = existing?.id
-        ? supabase
-            .from("caja_cierres" as any)
-            .update(payload)
-            .eq("id", (existing as any).id)
-            .eq("business_id", businessId)
-            .select("id")
-            .maybeSingle()
-        : supabase
-            .from("caja_cierres" as any)
-            .insert(payload)
-            .select("id")
-            .maybeSingle();
-
-      const { data: savedCierre, error } = await query;
-      if (error) throw new Error(error.message);
-      if (!savedCierre?.id) {
-        toast.info("La caja ya estaba cerrada");
-        setOpen(false);
-        onCajaCerrada();
+      if (!result.closed) {
+        toast.error("No se pudo guardar el cierre.");
         return;
       }
-      // Cierra también la cash_session vigente (si la hay) — sin esto, una
-      // sesión nacida de una reapertura seguiría devolviendo su opened_at
-      // como "período actual" después de este cierre. Ver caja-cierre.ts.
-      await closeOpenCajaSession(businessId, branchId);
       toast.success("Cierre registrado correctamente");
       setOpen(false);
       setObs("");
@@ -5986,8 +5836,8 @@ function CierreCajaBtn({
       setContadoTouched(false);
       setSaldoReal("");
       setSaldoRealTouched(false);
+      setPreview(null);
       onCajaCerrada(); // ← bloquea la pantalla inmediatamente
-      window.dispatchEvent(new CustomEvent("clippr:caja-cierre-guardado"));
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -6190,10 +6040,10 @@ function CierreCajaBtn({
               <button
                 type="button"
                 onClick={confirmar}
-                disabled={saving}
+                disabled={saving || loadingPreview || !preview}
                 className="w-full inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold bg-gradient-to-b from-blue-400 to-violet-500 text-white hover:brightness-105 disabled:opacity-50 transition-all"
               >
-                {saving ? "Guardando…" : "Confirmar cierre"}
+                {saving ? "Guardando…" : loadingPreview ? "Calculando…" : "Confirmar cierre"}
               </button>
             </div>
           </div>
@@ -6702,9 +6552,6 @@ function CierresTab({
                     </p>
                   </div>
                   <CierreCajaBtn
-                    paymentsToday={paymentsToday}
-                    expensesToday={expensesToday}
-                    pendingCharges={pendingCharges}
                     businessId={businessId}
                     branchId={activeBranchId}
                     userEmail={userEmail}
@@ -6714,7 +6561,6 @@ function CierresTab({
                     }}
                     cajaAbiertaDesde={`${fechaDDMMYYYY(latestCierre?.fecha)} · ${openedAt}`}
                     cajaRangeStartDate={latestCierre?.fecha ?? cajaDateKey()}
-                    expected={expected}
                   />
                 </div>
               </div>
@@ -8919,16 +8765,12 @@ function FacturacionPanel({
 
       <div className="flex justify-center">
         <CierreCajaBtn
-          paymentsToday={data.paymentsToday}
-          expensesToday={data.expensesToday}
-          pendingCharges={data.pendingCharges}
           businessId={data.businessId}
           branchId={data.activeBranchId}
           userEmail={userEmail}
           onCajaCerrada={onCajaCerrada}
           cajaAbiertaDesde={cajaAbiertaDesde}
           cajaRangeStartDate={cajaRangeStartDate}
-          expected={expected}
         />
       </div>
 
