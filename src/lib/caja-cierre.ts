@@ -701,6 +701,11 @@ export async function closeSingleDayCierre({
   const diferencia = efectivoContado != null ? efectivoContado - expected.cashExpected : null;
   const ajusteCuenta = saldoReal != null ? saldoReal - expected.digitalExpected : null;
 
+  // "efectivo_esperado" y "diferencia" no son columnas reales de
+  // caja_cierres (solo efectivo_contado/dinero_cuenta_* lo son) — viajan
+  // dentro del propio evento jsonb, mismo criterio que pendientes_count/
+  // pendientes_monto/pendientes_detalle, para no inventar columnas que no
+  // existen ni arriesgar un ALTER TABLE a ciegas.
   const evento: CajaEvento = {
     tipo: "cierre",
     modo: "manual",
@@ -708,6 +713,8 @@ export async function closeSingleDayCierre({
     hora: cajaTimeLabel(now),
     usuario: closedBy,
     observacion: observacion?.trim() || `Cierre manual del ${dateStr}, acotado a ese día.`,
+    efectivo_esperado: expected.cashExpected,
+    diferencia,
     pendientes_count: snapshot.pendientesCount,
     pendientes_monto: snapshot.pendientesMonto,
     pendientes_detalle: snapshot.pendientesDetalle,
@@ -729,9 +736,7 @@ export async function closeSingleDayCierre({
     detalle_metodos_pago: snapshot.detalleMetodos,
     cobros_snapshot: snapshot.cobrosSnapshot,
     gastos_snapshot: snapshot.gastosSnapshot,
-    efectivo_esperado: expected.cashExpected,
     efectivo_contado: efectivoContado ?? null,
-    diferencia,
     dinero_cuenta_esperado: expected.digitalExpected,
     dinero_cuenta_real: saldoReal ?? null,
     dinero_cuenta_ajuste: ajusteCuenta,
