@@ -3723,6 +3723,26 @@ function ProfesionalesTab({
   const [allAdvances, setAllAdvances] = React.useState<any[]>([]);
   const [commissionsVersion, setCommissionsVersion] = React.useState(0);
 
+  // Red de seguridad además de Realtime (ver canal de postgres_changes más
+  // abajo): si la pestaña estuvo en background o la conexión de Realtime
+  // se cortó un instante, volver a esta pestaña siempre refresca —
+  // bumpear commissionsVersion solo repite los mismos SELECT de siempre,
+  // nunca inserta ni duplica nada.
+  React.useEffect(() => {
+    function onFocus() {
+      setCommissionsVersion((v) => v + 1);
+    }
+    function onVisibility() {
+      if (document.visibilityState === "visible") onFocus();
+    }
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, []);
+
   const money = React.useCallback(
     (value: number) => `$${Math.round(value).toLocaleString("es-AR")}`,
     [],
