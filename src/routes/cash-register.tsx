@@ -6323,15 +6323,31 @@ function CierreDetalleView({
   const productosFiltrados =
     profesionalFiltro === "todos" ? productosRows : productosRows.filter((p) => p.profesional === profesionalFiltro);
 
-  const metodos = (snapshot?.detalleMetodos ?? {}) as Record<string, CierreMetodoDetalle>;
-  const metodoIngreso = (key: string) => metodos[key]?.ingresos ?? 0;
+  // detalleMetodosRecibido (a diferencia de detalleMetodos) suma cobro +
+  // propina por método — "Efectivo"/"Transferencias"/etc tienen que
+  // mostrar la plata que de verdad entró por ese medio, propina incluida,
+  // nunca solo la facturación. "Ingresos totales" (abajo) sigue siendo
+  // pura facturación — las dos cosas conviven sin pisarse.
+  const metodosRecibidos = (snapshot?.detalleMetodosRecibido ?? {}) as Record<string, CierreMetodoDetalle>;
+  const metodoRecibido = (key: string) => metodosRecibidos[key]?.ingresos ?? 0;
   const metodosConocidos = ["cash", "transfer", "debit", "credit", "qr"];
-  const otrosMetodos = Object.entries(metodos).filter(([k]) => !metodosConocidos.includes(k));
+  const otrosMetodos = Object.entries(metodosRecibidos).filter(([k]) => !metodosConocidos.includes(k));
   const otrosTotal = otrosMetodos.reduce((s, [, v]) => s + (v?.ingresos ?? 0), 0);
 
   const ingresosTotales = Number(snapshot?.totalCobrado ?? 0);
+  const totalPropinas = Number(snapshot?.totalPropinas ?? 0);
+  const totalRecibido = Number(snapshot?.totalRecibido ?? 0);
   const totalGastos = Number(snapshot?.totalGastos ?? 0);
-  const totalRetiros = retiros.reduce((s, m) => s + m.monto, 0);
+  // Ingreso/retiro de efectivo: EXCLUSIVAMENTE movimientos manuales de
+  // caja (cash_movements, method="efectivo") — nunca cobros. Un cobro en
+  // efectivo entra por la tarjeta "Efectivo" (fila 2), no acá.
+  const ingresoEfectivoManual = ingresosManuales
+    .filter((m) => m.metodo !== "cuenta")
+    .reduce((s, m) => s + m.monto, 0);
+  const retiroEfectivoManual = retiros.filter((m) => m.metodo !== "cuenta").reduce((s, m) => s + m.monto, 0);
+  const dineroEnCuentaRecibido = Object.entries(metodosRecibidos)
+    .filter(([k]) => k !== "cash")
+    .reduce((s, [, v]) => s + (v?.ingresos ?? 0), 0);
 
   const totalGuardado = Number(cierre?.total_cobrado ?? 0);
   const hayDiferenciaConLoGuardado = !loading && Math.abs(ingresosTotales - totalGuardado) >= 1;
@@ -6342,16 +6358,28 @@ function CierreDetalleView({
   const observacion = getCierreObservacion(cierre);
   const money = (v: number) => `$${Math.round(v).toLocaleString("es-AR")}`;
 
-  const resumenCards = [
+  // Fila 1: facturación + los dos movimientos manuales de efectivo.
+  const filaIngresosYMovimientos = [
     { l: "Ingresos totales", v: money(ingresosTotales), cls: "text-emerald-300" },
     { l: "Gastos", v: money(totalGastos), cls: "text-rose-300" },
-    { l: "Retiros", v: money(totalRetiros), cls: "text-rose-300" },
-    { l: "Efectivo", v: money(metodoIngreso("cash")), cls: "text-white" },
-    { l: "Transferencias", v: money(metodoIngreso("transfer")), cls: "text-white" },
-    { l: "Débito", v: money(metodoIngreso("debit")), cls: "text-white" },
-    { l: "Crédito", v: money(metodoIngreso("credit")), cls: "text-white" },
-    { l: "QR", v: money(metodoIngreso("qr")), cls: "text-white" },
+    { l: "Ingreso de efectivo", v: money(ingresoEfectivoManual), cls: "text-emerald-300" },
+    { l: "Retiro de efectivo", v: money(retiroEfectivoManual), cls: "text-rose-300" },
+  ];
+  // Fila 2: todos los medios de pago juntos — cobro + propina por medio.
+  const filaMedios = [
+    { l: "Efectivo", v: money(metodoRecibido("cash")), cls: "text-white" },
+    { l: "Transferencias", v: money(metodoRecibido("transfer")), cls: "text-white" },
+    { l: "Débito", v: money(metodoRecibido("debit")), cls: "text-white" },
+    { l: "Crédito", v: money(metodoRecibido("credit")), cls: "text-white" },
+    { l: "QR", v: money(metodoRecibido("qr")), cls: "text-white" },
     ...(otrosTotal > 0 ? [{ l: "Otros medios", v: money(otrosTotal), cls: "text-white" }] : []),
+  ];
+  // Fila 3: propinas separadas de la facturación + los dos totales que
+  // tienen que coincidir con la plata real (efectivo esperado/cuenta).
+  const filaPropinasYTotales = [
+    { l: "Propinas recibidas", v: money(totalPropinas), cls: "text-amber-300" },
+    { l: "Total de dinero recibido", v: money(totalRecibido), cls: "text-emerald-300" },
+    { l: "Dinero recibido en cuenta", v: money(dineroEnCuentaRecibido), cls: "text-white" },
   ];
 
   const filtroChips: Array<{ key: DetalleFiltro; label: string }> = [
@@ -6396,7 +6424,25 @@ function CierreDetalleView({
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            {resumenCards.map((k) => (
+            {filaIngresosYMovimientos.map((k) => (
+              <div key={k.l} className="rounded-2xl border border-white/[0.075] bg-white/[0.035] p-3">
+                <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">{k.l}</div>
+                <div className={cn("mt-1 text-base font-extrabold tabular-nums", k.cls)}>{k.v}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
+            {filaMedios.map((k) => (
+              <div key={k.l} className="rounded-2xl border border-white/[0.075] bg-white/[0.035] p-3">
+                <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">{k.l}</div>
+                <div className={cn("mt-1 text-base font-extrabold tabular-nums", k.cls)}>{k.v}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3">
+            {filaPropinasYTotales.map((k) => (
               <div key={k.l} className="rounded-2xl border border-white/[0.075] bg-white/[0.035] p-3">
                 <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">{k.l}</div>
                 <div className={cn("mt-1 text-base font-extrabold tabular-nums", k.cls)}>{k.v}</div>
@@ -8424,7 +8470,10 @@ function MovimientosUnificados({
   // cobros simplemente no genera entrada en el reduce, así que "monto > 0"
   // queda garantizado sin un filtro aparte. Nunca suma tip_amount: la
   // propina es plata del profesional, no facturación del negocio — mismo
-  // criterio que "Ingresos" en toda la app (ver computeExpectedCashAndDigital).
+  // criterio que "Ingresos" en toda la app. (computeExpectedCashAndDigital
+  // SÍ suma la propina, pero para "efectivo/cuenta esperados" — plata que
+  // físicamente entra a la caja —, nunca para facturación/Ingresos como
+  // este resumen.)
   const closeoutByMethod = React.useMemo(() => {
     const source = selectedProfessionalId ? professionalPayments : paymentsForSelectedDate;
     const groups = source.reduce(

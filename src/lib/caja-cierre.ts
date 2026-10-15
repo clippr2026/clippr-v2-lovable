@@ -456,23 +456,51 @@ export async function buildCierreSnapshotForDate(
     return profileNameById.get(rawId) ?? rawId;
   };
 
+  // totalCobrado: pura facturación por servicios/productos, SIN propina —
+  // la propina es plata del profesional, nunca del negocio (mismo
+  // criterio que registerPayment/closeoutByMethod). totalPropinas/
+  // totalRecibido son los que sí la incluyen, para "dinero realmente
+  // recibido" (efectivo esperado, dinero en cuenta esperado, Resumen del
+  // cierre) sin mezclarla con "Ingresos"/facturación.
   const totalCobrado = payments.reduce((s, p) => s + Number(p.total ?? p.amount ?? 0), 0);
+  const totalPropinas = payments.reduce((s, p) => s + Number(p.tip_amount ?? p.tip ?? 0), 0);
+  const totalRecibido = totalCobrado + totalPropinas;
   const totalGastos = expenses.reduce((s, e) => s + Number(e.amount ?? 0), 0);
   const utilidad = totalCobrado - totalGastos;
 
   const detalleMetodos: Record<string, CierreMetodoDetalle> = {};
+  // detalleMetodosRecibido: mismo agrupamiento por método, pero suma
+  // cobro + propina — "money actually received by that method", para las
+  // tarjetas de Efectivo/Transferencia/Débito/Crédito/QR del detalle del
+  // cierre. detalleMetodos (sin propina) sigue siendo el que usan los
+  // reportes de facturación/Ingresos, sin tocarlo.
+  const detalleMetodosRecibido: Record<string, CierreMetodoDetalle> = {};
   const ensure = (method: string | null | undefined) => {
     const key = normalizeCierreMethodKey(method);
     if (!detalleMetodos[key]) detalleMetodos[key] = { ingresos: 0, gastos: 0, utilidad: 0 };
     return detalleMetodos[key];
   };
+  const ensureRecibido = (method: string | null | undefined) => {
+    const key = normalizeCierreMethodKey(method);
+    if (!detalleMetodosRecibido[key]) detalleMetodosRecibido[key] = { ingresos: 0, gastos: 0, utilidad: 0 };
+    return detalleMetodosRecibido[key];
+  };
   for (const p of payments) {
-    ensure(p.method ?? p.payment_method).ingresos += Number(p.total ?? p.amount ?? 0);
+    const monto = Number(p.total ?? p.amount ?? 0);
+    const propina = Number(p.tip_amount ?? p.tip ?? 0);
+    ensure(p.method ?? p.payment_method).ingresos += monto;
+    // La propina usa el MISMO método que el cobro — payments no guarda un
+    // medio separado para ella, y es el medio por el que realmente entró.
+    ensureRecibido(p.method ?? p.payment_method).ingresos += monto + propina;
   }
   for (const e of expenses) {
     ensure(e.payment_method ?? e.method).gastos += Number(e.amount ?? 0);
+    ensureRecibido(e.payment_method ?? e.method).gastos += Number(e.amount ?? 0);
   }
   Object.values(detalleMetodos).forEach((row) => {
+    row.utilidad = row.ingresos - row.gastos;
+  });
+  Object.values(detalleMetodosRecibido).forEach((row) => {
     row.utilidad = row.ingresos - row.gastos;
   });
 
@@ -568,9 +596,12 @@ export async function buildCierreSnapshotForDate(
 
   return {
     totalCobrado,
+    totalPropinas,
+    totalRecibido,
     totalGastos,
     utilidad,
     detalleMetodos,
+    detalleMetodosRecibido,
     cobrosSnapshot,
     gastosSnapshot,
     cantidadCobros: payments.length,
@@ -608,6 +639,16 @@ export function computeExpectedCashAndDigital(params: {
     amount?: number | null;
     method?: string | null;
     payment_method?: string | null;
+    // Propina del cobro — plata real que entra a la caja/cuenta junto con
+    // el cobro, por el MISMO medio (payments no guarda un medio aparte
+    // para la propina). Nunca forma parte de total/amount (eso sigue
+    // siendo pura facturación, ver registerPayment) — pero el efectivo/
+    // cuenta esperados SÍ tienen que incluirla, o un cliente que paga
+    // $20.000 + $2.000 de propina en efectivo deja $22.000 reales en el
+    // cajón que "efectivo esperado" nunca contaba, apareciendo como un
+    // "sobrante" ficticio al hacer el recuento físico.
+    tip?: number | null;
+    tip_amount?: number | null;
   }>;
   expenses: Array<{ amount?: number | null; payment_method?: string | null; method?: string | null }>;
   advances: Array<{ amount?: number | null; payment_method?: string | null }>;
@@ -619,13 +660,17 @@ export function computeExpectedCashAndDigital(params: {
   const { payments, expenses, advances, cashMovements } = params;
   const isCash = (m: string | null | undefined) => normalizeCierreMethodKey(m) === "cash";
   const isCashMovement = (m: { method?: string | null }) => !m.method || isCash(m.method);
+  // Cobro + propina, nunca por separado — así ningún llamador puede sumar
+  // una sin la otra ni duplicarla contándola dos veces en el mismo total.
+  const receivedAmount = (p: { total?: number | null; amount?: number | null; tip?: number | null; tip_amount?: number | null }) =>
+    Number(p.total ?? p.amount ?? 0) + Number(p.tip_amount ?? p.tip ?? 0);
 
   const cashPayments = payments
     .filter((p) => isCash(p.method ?? p.payment_method))
-    .reduce((s, p) => s + Number(p.total ?? p.amount ?? 0), 0);
+    .reduce((s, p) => s + receivedAmount(p), 0);
   const digitalPayments = payments
     .filter((p) => !isCash(p.method ?? p.payment_method))
-    .reduce((s, p) => s + Number(p.total ?? p.amount ?? 0), 0);
+    .reduce((s, p) => s + receivedAmount(p), 0);
 
   const cashExpenses = expenses
     .filter((e) => isCash(e.payment_method ?? e.method))
@@ -822,7 +867,7 @@ export async function buildSingleDayCierrePreview(
   }));
 
   const expected = computeExpectedCashAndDigital({
-    payments: snapshot.cobrosSnapshot.map((c) => ({ total: c.monto, method: c.metodo })),
+    payments: snapshot.cobrosSnapshot.map((c) => ({ total: c.monto, method: c.metodo, tip: c.propina })),
     expenses: snapshot.gastosSnapshot.map((g) => ({ amount: g.monto, payment_method: g.metodo })),
     advances,
     cashMovements,

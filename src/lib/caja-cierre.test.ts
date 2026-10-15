@@ -152,6 +152,69 @@ describe("computeExpectedCashAndDigital — efectivo/transferencia de un día ac
   });
 });
 
+// Corrección "propinas en caja": un cliente que paga $20.000 + $2.000 de
+// propina en efectivo deja $22.000 reales en el cajón — si el efectivo
+// esperado solo contaba el $20.000, el conteo físico siempre "sobra" por
+// el total de propinas en efectivo del día. tip/tip_amount nunca se suma
+// dentro de total/amount (eso sigue siendo pura facturación, ver
+// registerPayment) pero SÍ tiene que entrar al efectivo/cuenta esperados.
+describe("computeExpectedCashAndDigital — propinas: entran a caja, nunca a la facturación", () => {
+  it("una propina en efectivo se suma al efectivo esperado, no a facturación", () => {
+    const result = computeExpectedCashAndDigital({
+      payments: [{ total: 20000, method: "cash", tip: 2000 }],
+      expenses: [],
+      advances: [],
+      cashMovements: [],
+    });
+    expect(result.cashExpected).toBe(22000);
+  });
+
+  it("una propina por transferencia se suma al dinero esperado en cuenta, nunca al efectivo", () => {
+    const result = computeExpectedCashAndDigital({
+      payments: [{ total: 20000, method: "transfer", tip: 3000 }],
+      expenses: [],
+      advances: [],
+      cashMovements: [],
+    });
+    expect(result.digitalExpected).toBe(23000);
+    expect(result.cashExpected).toBe(0);
+  });
+
+  it("acepta tip_amount (nombre real de la columna) igual que tip", () => {
+    const result = computeExpectedCashAndDigital({
+      payments: [{ total: 20000, method: "cash", tip_amount: 1500 }],
+      expenses: [],
+      advances: [],
+      cashMovements: [],
+    });
+    expect(result.cashExpected).toBe(21500);
+  });
+
+  it("varios cobros con propina en distintos medios no se mezclan entre sí", () => {
+    const result = computeExpectedCashAndDigital({
+      payments: [
+        { total: 20000, method: "cash", tip: 2000 },
+        { total: 15000, method: "transfer", tip: 1000 },
+      ],
+      expenses: [],
+      advances: [],
+      cashMovements: [],
+    });
+    expect(result.cashExpected).toBe(22000);
+    expect(result.digitalExpected).toBe(16000);
+  });
+
+  it("sin propina (tip ausente u 0), el resultado es idéntico al de antes de este fix", () => {
+    const result = computeExpectedCashAndDigital({
+      payments: [{ total: 20000, method: "cash" }, { total: 10000, method: "cash", tip: 0 }],
+      expenses: [],
+      advances: [],
+      cashMovements: [],
+    });
+    expect(result.cashExpected).toBe(30000);
+  });
+});
+
 // El cierre de un día puntual tiene que estar acotado a ESE día calendario
 // (00:00 a 23:59:59.999 hora Argentina) — nunca extenderse hasta "ahora"
 // como hace el cierre de "caja vencida". Se prueba el mismo criterio de
