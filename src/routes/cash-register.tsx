@@ -38,6 +38,11 @@ import {
 } from "@/lib/caja-cierre";
 import { useCashMovements, type CashMovement } from "@/hooks/use-cash-movements";
 import { useCajaSummary } from "@/hooks/use-caja-summary";
+import {
+  cleanSearchParam,
+  EMPTY_CASH_REGISTER_SEARCH,
+  resolvePendingChargeFromSearch,
+} from "@/lib/cash-register-search";
 import { supabase } from "@/integrations/supabase/client";
 import {
   useCajaData,
@@ -679,13 +684,6 @@ function getCashItemImage(item: any) {
 // la URL con los 10 campos en "null" — con "null" devuelto acá, no había
 // forma de distinguir "este campo no vino" de "este campo vino pero está
 // vacío", así que el router nunca podía omitirlo.
-function cleanSearchParam(value: unknown): string | undefined {
-  if (typeof value !== "string") return undefined;
-  const trimmed = value.trim();
-  if (!trimmed || trimmed === "null" || trimmed === "undefined") return undefined;
-  return trimmed;
-}
-
 export const Route = createFileRoute("/cash-register")({
   validateSearch: (search: Record<string, unknown>) => ({
     depositAppointmentId: cleanSearchParam(search.depositAppointmentId),
@@ -817,35 +815,33 @@ function CashRegisterPage() {
 
   const routePendingCharge = React.useMemo<
     ReturnType<typeof useCajaData>["pendingCharges"][number] | null
-  >(() => {
-    if (!search.appointmentId) return null;
-
-    const totalFromSearch = Number(
-      search.finalAmount ?? search.totalPrice ?? 0,
-    );
-    return {
-      id: search.appointmentId,
-      client_name: search.clientName ?? null,
-      service_name: search.serviceName ?? null,
-      service_price:
-        Number.isFinite(totalFromSearch) && totalFromSearch > 0
-          ? totalFromSearch
-          : null,
-      employee_id: search.employeeId ?? null,
-      starts_at: new Date().toISOString(),
-      notes: null,
-      status: "confirmed",
-    };
-  }, [
-    search.appointmentId,
-    search.clientName,
-    search.serviceName,
-    search.finalAmount,
-    search.totalPrice,
-    search.employeeId,
-  ]);
+  >(
+    () => resolvePendingChargeFromSearch(search) as ReturnType<typeof useCajaData>["pendingCharges"][number] | null,
+    [
+      search.appointmentId,
+      search.clientName,
+      search.serviceName,
+      search.finalAmount,
+      search.totalPrice,
+      search.employeeId,
+    ],
+  );
 
   const activePendingCharge = pendingToCharge ?? routePendingCharge;
+
+  // Causa raíz del bug "Nueva venta conserva el cliente anterior": pasar
+  // de la pestaña "nueva" a "resumen" (cobro terminado, cancelado, o
+  // "Nueva venta" tocado de nuevo) solo cambiaba el estado local `tab` —
+  // la URL seguía teniendo ?appointmentId=...&clientName=...&finalAmount=...
+  // del turno ya cobrado (routePendingCharge se arma A PARTIR de esos query
+  // params, ver arriba). Al volver a abrir "Nueva venta", activePendingCharge
+  // volvía a resolver al turno viejo, precargaba su cliente de nuevo y
+  // bloqueaba el selector (pendingChargeInitialStep). Limpiar explícitamente
+  // los search params en cada punto de salida de "nueva" es la única forma
+  // de que una Nueva venta arranque genuinamente en blanco.
+  const clearChargeSearchParams = React.useCallback(() => {
+    navigate({ to: "/cash-register", search: EMPTY_CASH_REGISTER_SEARCH, replace: true });
+  }, [navigate]);
 
   // Instant lock — set to true the moment confirmar() succeeds, no need to wait for refresh
   const [cajaCerrada, setCajaCerrada] = useState(false);
@@ -1063,7 +1059,10 @@ function CashRegisterPage() {
           <Tabs
             tab={tab}
             onChange={(t) => {
-              if (t !== "nueva") setPendingToCharge(null);
+              if (t !== "nueva") {
+                setPendingToCharge(null);
+                clearChargeSearchParams();
+              }
               setTab(t);
             }}
             data={data}
@@ -1072,6 +1071,7 @@ function CashRegisterPage() {
               setCajaCerrada(true);
               setShowClosedHistory(false);
               setPendingToCharge(null);
+              clearChargeSearchParams();
               setTab("resumen");
             }}
           />
@@ -1084,10 +1084,15 @@ function CashRegisterPage() {
               onCobrarPendiente={handleCobrarPendiente}
               onNuevaVenta={() => {
                 setPendingToCharge(null);
+                // "Nueva venta" siempre arranca en blanco — nunca hereda el
+                // turno/cliente de una operación anterior, aunque la URL
+                // todavía tenga ?appointmentId=... de un cobro ya hecho.
+                clearChargeSearchParams();
                 setTab("nueva");
               }}
               onNuevoGasto={() => {
                 setPendingToCharge(null);
+                clearChargeSearchParams();
                 setTab("nuevo-gasto");
               }}
               userEmail={session.user.email ?? null}
@@ -1099,6 +1104,7 @@ function CashRegisterPage() {
                 setCajaCerrada(true);
                 setShowClosedHistory(false);
                 setPendingToCharge(null);
+                clearChargeSearchParams();
                 setTab("resumen");
               }}
             />
@@ -1107,9 +1113,13 @@ function CashRegisterPage() {
             <NuevoGastoTab
               data={data}
               userEmail={session.user.email ?? null}
-              onCancel={() => setTab("resumen")}
+              onCancel={() => {
+                clearChargeSearchParams();
+                setTab("resumen");
+              }}
               onSaved={() => {
                 data.refresh();
+                clearChargeSearchParams();
                 setTab("resumen");
               }}
             />
@@ -1127,14 +1137,21 @@ function CashRegisterPage() {
               chargedByName={profile?.full_name || chargedByUsername(session.user.email)}
               onCancel={() => {
                 setPendingToCharge(null);
+                // Cancelar una venta ligada a un turno (venida de Agenda por
+                // URL) no puede dejar ese turno "pegado" para la próxima
+                // Nueva venta — limpia los search params igual que un cobro
+                // exitoso.
+                clearChargeSearchParams();
                 setTab("resumen");
               }}
               onPendingDone={() => {
                 setPendingToCharge(null);
+                clearChargeSearchParams();
                 setTab("resumen");
               }}
               onSaleDone={() => {
                 setPendingToCharge(null);
+                clearChargeSearchParams();
                 setTab("resumen");
               }}
             />
