@@ -9,7 +9,7 @@ import {
   backfillPromotionVigencia,
 } from "@/lib/service-pricing";
 import { applyCatalogOrder, extractCatalogOrderMap } from "@/lib/catalog-order";
-import { cajaOpenRangeStartDate, cajaDateKey, type PendingCierre } from "@/lib/caja-cierre";
+import { cajaOpenRangeStartDate, cajaDateKey, cajaDateKeyBA, filterToDayBA, type PendingCierre } from "@/lib/caja-cierre";
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
 
@@ -1188,10 +1188,17 @@ export function useCajaData() {
     }
   }, [businessId]);
 
-  const revHoy = paymentsToday.reduce((s, p) => s + Number(p.total ?? p.amount ?? 0), 0);
-  const cobros = paymentsToday.length;
+  // "Ingresos"/"Gastos" son una métrica DIARIA (hoy, huso Buenos Aires) —
+  // nunca el acumulado desde el último cierre, aunque paymentsToday/
+  // expensesToday (usados tal cual más abajo, sin filtrar, por cualquier
+  // flujo de cierre) sí incluyan backlog de días anteriores sin cerrar.
+  const todayKeyBA = cajaDateKeyBA();
+  const paymentsStrictlyToday = filterToDayBA(paymentsToday, (p) => p.created_at, todayKeyBA);
+  const expensesStrictlyToday = expensesToday.filter((e) => e.date === todayKeyBA);
+  const revHoy = paymentsStrictlyToday.reduce((s, p) => s + Number(p.total ?? p.amount ?? 0), 0);
+  const cobros = paymentsStrictlyToday.length;
   const ticket = cobros > 0 ? Math.round(revHoy / cobros) : 0;
-  const totalGastos = expensesToday.reduce((s, e) => s + Number(e.amount ?? 0), 0);
+  const totalGastos = expensesStrictlyToday.reduce((s, e) => s + Number(e.amount ?? 0), 0);
 
   return {
     loading, businessId, activeBranchId, profileId: profile?.id ?? null,

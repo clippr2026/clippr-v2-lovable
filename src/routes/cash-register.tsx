@@ -743,13 +743,15 @@ function CashRegisterPage() {
   // cargas juntas, para no tener que tocar cada uno de los `data.refresh()`
   // ya existentes (envío/cobro/rechazo/cierre/movimiento) uno por uno.
   const data = React.useMemo(() => {
-    const totalGastos = summary.expensesToday.reduce((s, e) => s + Number(e.amount ?? 0), 0);
     return {
       ...cajaData,
       revHoy: summary.revHoy,
       cobros: summary.cobros,
       ticket: summary.cobros > 0 ? Math.round(summary.revHoy / summary.cobros) : 0,
-      totalGastos,
+      // Gastos del día (hoy, huso Buenos Aires) — distinto del acumulado
+      // desde el último cierre que sí necesita CierreCajaBtn (ese usa
+      // expensesToday completo, sin filtrar, para el cierre real).
+      totalGastos: summary.totalGastosHoy,
       paymentsToday: summary.paymentsToday,
       expensesToday: summary.expensesToday,
       refresh: (reason?: string) =>

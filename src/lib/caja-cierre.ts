@@ -63,6 +63,56 @@ export function cajaDateKey(date = new Date()) {
   return date.toLocaleDateString("sv-SE");
 }
 
+const BUENOS_AIRES_TZ = "America/Argentina/Buenos_Aires";
+
+// Fecha YYYY-MM-DD de un instante en huso horario de Buenos Aires,
+// explícito — a diferencia de cajaDateKey (que usa el huso horario LOCAL
+// del entorno donde corre el código), esto da el mismo resultado sin
+// importar si el proceso corre en el navegador del usuario o en un
+// servidor con otro huso horario. Argentina no tiene horario de verano
+// desde 2009 (-03:00 fijo), así que un offset fijo es seguro.
+export function cajaDateKeyBA(date = new Date()): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: BUENOS_AIRES_TZ,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+// Límites [00:00:00.000, 23:59:59.999] de un día calendario de Buenos
+// Aires, como instantes reales (Date/timestamptz) — nunca se parsea
+// "YYYY-MM-DDTHH:mm:ss" sin offset (eso lo interpreta el huso horario
+// LOCAL del proceso, no el de Buenos Aires).
+export function dayBoundsBA(dateStr: string): { start: Date; end: Date } {
+  return {
+    start: new Date(`${dateStr}T00:00:00.000-03:00`),
+    end: new Date(`${dateStr}T23:59:59.999-03:00`),
+  };
+}
+
+// Acota filas con un timestamp (ej. payments.created_at) a UN solo día
+// calendario de Buenos Aires — "Ingresos"/"Gastos" son una métrica DIARIA,
+// nunca el saldo acumulado desde el último cierre (ESE es el rol de
+// cashExpected/digitalExpected vía computeExpectedCashAndDigital, que a
+// propósito NO pasa por este filtro: el efectivo/cuenta pendiente de
+// cierre tiene que seguir incluyendo todo el backlog sin cerrar).
+export function filterToDayBA<T>(
+  rows: T[],
+  getIso: (row: T) => string | null | undefined,
+  dateStr: string = cajaDateKeyBA(),
+): T[] {
+  const { start, end } = dayBoundsBA(dateStr);
+  const startMs = start.getTime();
+  const endMs = end.getTime();
+  return rows.filter((row) => {
+    const iso = getIso(row);
+    if (!iso) return false;
+    const t = new Date(iso).getTime();
+    return Number.isFinite(t) && t >= startMs && t <= endMs;
+  });
+}
+
 export function cajaTimeLabel(date = new Date()) {
   return (
     date.toLocaleTimeString("es-AR", {

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { computeExpectedCashAndDigital, normalizeCierreMethodKey } from "./caja-cierre";
+import {
+  cajaDateKeyBA,
+  computeExpectedCashAndDigital,
+  dayBoundsBA,
+  filterToDayBA,
+  normalizeCierreMethodKey,
+} from "./caja-cierre";
 
 describe("normalizeCierreMethodKey — mismo vocabulario sin importar el origen (payments vs expenses)", () => {
   it("agrupa efectivo/cash bajo una sola clave", () => {
@@ -117,5 +123,59 @@ describe("límites de un día de cierre puntual", () => {
 
   it("exactamente a medianoche del día elegido, entra", () => {
     expect(isWithinDay("2026-10-13T00:00:00.000-03:00", "2026-10-13")).toBe(true);
+  });
+});
+
+describe("cajaDateKeyBA / dayBoundsBA — huso horario de Buenos Aires explícito", () => {
+  it("da la fecha de Buenos Aires aunque el instante UTC ya sea el día siguiente", () => {
+    // 2026-10-14T02:00:00Z = 2026-10-13 23:00 en Buenos Aires (UTC-3).
+    const lateNightUTC = new Date("2026-10-14T02:00:00.000Z");
+    expect(cajaDateKeyBA(lateNightUTC)).toBe("2026-10-13");
+  });
+
+  it("dayBoundsBA da exactamente 24hs menos 1ms", () => {
+    const { start, end } = dayBoundsBA("2026-10-13");
+    expect(end.getTime() - start.getTime()).toBe(24 * 60 * 60 * 1000 - 1);
+  });
+});
+
+// Caso real reportado: Caja mostraba $706.100 de "Ingresos" el 14/10
+// porque sumaba también el 13/10 (sin cerrar) — "Ingresos"/"Gastos" tienen
+// que acotarse al día, mientras que el efectivo/cuenta esperados siguen
+// siendo el acumulado completo (backlog incluido), que es un concepto
+// distinto.
+describe("filterToDayBA — separa Ingresos del día de lo acumulado sin cerrar (caso real 13/10 + 14/10)", () => {
+  const paymentsAcumulados = [
+    // 13/10: $450.800 (21 cobros reales, acá resumidos en 2 líneas para el test)
+    { total: 306800, created_at: "2026-10-13T16:06:06.000-03:00" },
+    { total: 144000, created_at: "2026-10-13T19:58:54.000-03:00" },
+    // 14/10: $255.300
+    { total: 193400, created_at: "2026-10-14T15:00:00.000-03:00" },
+    { total: 61900, created_at: "2026-10-14T20:08:44.000-03:00" },
+  ];
+
+  it("el acumulado completo (sin filtrar) es $706.100 — lo que efectivo/cuenta esperados deben seguir mostrando", () => {
+    const totalAcumulado = paymentsAcumulados.reduce((s, p) => s + p.total, 0);
+    expect(totalAcumulado).toBe(706100);
+  });
+
+  it("Ingresos del 14/10 (acotado al día) es solo $255.300, no $706.100", () => {
+    const soloHoy = filterToDayBA(paymentsAcumulados, (p) => p.created_at, "2026-10-14");
+    const total = soloHoy.reduce((s, p) => s + p.total, 0);
+    expect(total).toBe(255300);
+  });
+
+  it("Ingresos del 13/10 (acotado al día) es $450.800, sin arrastrar nada del 14/10", () => {
+    const solo13 = filterToDayBA(paymentsAcumulados, (p) => p.created_at, "2026-10-13");
+    const total = solo13.reduce((s, p) => s + p.total, 0);
+    expect(total).toBe(450800);
+  });
+
+  it("los dos días sumados dan el acumulado — no se pierde ni se duplica nada", () => {
+    const solo13 = filterToDayBA(paymentsAcumulados, (p) => p.created_at, "2026-10-13");
+    const solo14 = filterToDayBA(paymentsAcumulados, (p) => p.created_at, "2026-10-14");
+    const suma = [...solo13, ...solo14].reduce((s, p) => s + p.total, 0);
+    expect(suma).toBe(706100);
+    expect(solo13.length + solo14.length).toBe(paymentsAcumulados.length);
   });
 });

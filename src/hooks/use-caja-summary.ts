@@ -5,6 +5,8 @@ import { useCashMovements } from "@/hooks/use-cash-movements";
 import {
   cajaOpenRangeStartDate,
   cajaDateKey,
+  cajaDateKeyBA,
+  filterToDayBA,
   computeExpectedCashAndDigital,
   getDigitalCarryForward,
   type PendingCierre,
@@ -33,6 +35,7 @@ export type CajaSummary = {
   expensesToday: Expense[];
   revHoy: number;
   cobros: number;
+  totalGastosHoy: number;
   cashExpected: number;
   cashOutflows: number;
   cashInflows: number;
@@ -341,8 +344,20 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     };
   }, [businessId, requestReload]);
 
-  const revHoy = paymentsToday.reduce((s, p) => s + Number(p.total ?? p.amount ?? 0), 0);
-  const cobros = paymentsToday.length;
+  // "Ingresos"/"Gastos" son una métrica DIARIA — se muestran como "lo que
+  // facturó HOY", nunca como el acumulado desde el último cierre (eso es
+  // cashExpected/digitalExpected, que a propósito sigue usando
+  // paymentsToday/expensesToday completos, backlog incluido, calculados
+  // arriba con computeExpectedCashAndDigital). Si el 13/10 quedó sin
+  // cerrar, paymentsToday puede traer también pagos del 13/10 — p
+  // ara estos dos números se acotan explícitamente al día calendario de
+  // HOY en huso horario de Buenos Aires, sin importar cuánto backlog haya.
+  const todayKeyBA = cajaDateKeyBA();
+  const paymentsStrictlyToday = filterToDayBA(paymentsToday, (p) => p.created_at, todayKeyBA);
+  const expensesStrictlyToday = expensesToday.filter((e) => e.date === todayKeyBA);
+  const revHoy = paymentsStrictlyToday.reduce((s, p) => s + Number(p.total ?? p.amount ?? 0), 0);
+  const cobros = paymentsStrictlyToday.length;
+  const totalGastosHoy = expensesStrictlyToday.reduce((s, e) => s + Number(e.amount ?? 0), 0);
 
   return {
     loading,
@@ -350,6 +365,7 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     expensesToday,
     revHoy,
     cobros,
+    totalGastosHoy,
     cashExpected,
     cashOutflows,
     cashInflows,
