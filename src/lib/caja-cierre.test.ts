@@ -3,6 +3,7 @@ import * as cajaCierre from "./caja-cierre";
 import {
   cajaDateKeyBA,
   computeExpectedCashAndDigital,
+  countServiciosYProductos,
   dayBoundsBA,
   filterToDayBA,
   normalizeCierreMethodKey,
@@ -22,6 +23,41 @@ describe("cierres exclusivamente manuales — sin ningún camino automático/mul
   it("closeSingleDayCierre y buildSingleDayCierrePreview son las únicas funciones de cierre exportadas", () => {
     expect(typeof cajaCierre.closeSingleDayCierre).toBe("function");
     expect(typeof cajaCierre.buildSingleDayCierrePreview).toBe("function");
+  });
+});
+
+describe("countServiciosYProductos — conteo del Historial a partir de cobros_snapshot[].items", () => {
+  it("un cobro sin items (cierre viejo, sin el enriquecimiento) cuenta como 1 servicio", () => {
+    expect(countServiciosYProductos([{ items: [] }, { items: undefined }])).toEqual({
+      servicios: 2,
+      productos: 0,
+    });
+  });
+
+  it("separa servicios de productos dentro de un mismo cobro (items multi-línea)", () => {
+    const result = countServiciosYProductos([
+      {
+        items: [
+          { esProducto: false },
+          { esProducto: true },
+        ],
+      },
+    ]);
+    expect(result).toEqual({ servicios: 1, productos: 1 });
+  });
+
+  it("suma a través de varios cobros sin duplicar ni perder ninguno", () => {
+    const result = countServiciosYProductos([
+      { items: [{ esProducto: false }] },
+      { items: [{ esProducto: true }, { esProducto: true }] },
+      { items: [] },
+    ]);
+    expect(result).toEqual({ servicios: 2, productos: 2 });
+  });
+
+  it("sin cobros, da cero y cero (nunca inventa movimientos)", () => {
+    expect(countServiciosYProductos([])).toEqual({ servicios: 0, productos: 0 });
+    expect(countServiciosYProductos(null)).toEqual({ servicios: 0, productos: 0 });
   });
 });
 

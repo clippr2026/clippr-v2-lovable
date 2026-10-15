@@ -34,6 +34,7 @@ import {
   closeSingleDayCierre,
   normalizeCierreMethodKey,
   getCajaAbiertaDesde,
+  countServiciosYProductos,
   type ExpectedCashDigital,
 } from "@/lib/caja-cierre";
 import { useCashMovements, type CashMovement } from "@/hooks/use-cash-movements";
@@ -6260,6 +6261,7 @@ function CierresTab({
   const [cierres, setCierres] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<any | null>(null);
+  const [detalleProfesional, setDetalleProfesional] = useState<string>("todos");
   const [reopeningId, setReopeningId] = useState<string | null>(null);
   const [reopenTarget, setReopenTarget] = useState<any | null>(null);
   const [reopenNote, setReopenNote] = useState("");
@@ -6274,28 +6276,6 @@ function CierresTab({
   // así el fix también corrige el historial ya guardado, no solo los
   // cierres nuevos. Si un cierre muy viejo no tiene esos snapshots
   // detallados, se cae de vuelta a la foto guardada como antes.
-  const detalleMetodosSelected = React.useMemo(() => {
-    if (!selected) return null;
-    const detail: Record<string, CierreMetodoDetalle> = {};
-    const ensure = (method: string | null | undefined) => {
-      const key = normalizeCierreMethodKey(method);
-      if (!detail[key]) detail[key] = { ingresos: 0, gastos: 0, utilidad: 0 };
-      return detail[key];
-    };
-    for (const p of selected.cobros_snapshot ?? []) {
-      ensure(p.metodo).ingresos += Number(p.monto ?? 0);
-    }
-    for (const g of selected.gastos_snapshot ?? []) {
-      ensure(g.metodo).gastos += Number(g.monto ?? 0);
-    }
-    Object.values(detail).forEach((row) => {
-      row.utilidad = row.ingresos - row.gastos;
-    });
-    return Object.keys(detail).length > 0
-      ? detail
-      : (selected.detalle_metodos_pago ?? null);
-  }, [selected]);
-
   const loadCierres = React.useCallback(() => {
     if (!businessId) {
       setCierres([]);
@@ -6336,9 +6316,12 @@ function CierresTab({
   // (reabrir la caja después de cerrarla) nunca debe pisar ese valor —
   // por eso queda excluida del pool de candidatos acá, no solo se prioriza
   // "apertura" sobre ella.
-  const aperturaCandidates = latestEventos.filter((e: any) => e?.tipo !== "reapertura");
-  const aperturaEvent =
-    aperturaCandidates.find((e: any) => e?.tipo === "apertura") ?? aperturaCandidates[0];
+  // Nunca cae a aperturaCandidates[0]: ese fallback mostraba la hora del
+  // propio evento de CIERRE disfrazada de "apertura" cuando no existía un
+  // evento real tipo:"apertura" (nunca se escribe uno en ningún flujo
+  // actual) — una apertura ficticia a las 00:00/hora de cierre. Sin un
+  // evento real, mostrar "—" es la verdad: no sabemos a qué hora abrió.
+  const aperturaEvent = latestEventos.find((e: any) => e?.tipo === "apertura");
 
   const actor = (value?: string | null) => displayResponsibleUser(value ?? userEmail ?? "Usuario");
   const openedBy = actor(aperturaEvent?.usuario ?? latestCierre?.opened_by ?? latestCierre?.created_by ?? userEmail);
@@ -6517,21 +6500,63 @@ function CierresTab({
   const cierreSummary = (c: any) => {
     const eventos = cierreEventos(c);
     const cierre = [...eventos].reverse().find((e: any) => e?.tipo === "cierre");
-    // Igual que arriba: la reapertura no cuenta como candidata a "apertura".
-    const aperturaCandidatesRow = eventos.filter((e: any) => e?.tipo !== "reapertura");
-    const apertura =
-      aperturaCandidatesRow.find((e: any) => e?.tipo === "apertura") ?? aperturaCandidatesRow[0];
+    // Nunca sintetiza una "apertura" a partir de otro evento (ver mismo
+    // criterio arriba en aperturaEvent) — sin un evento real tipo:
+    // "apertura", no hay hora de apertura que mostrar.
+    const apertura = eventos.find((e: any) => e?.tipo === "apertura" && e?.tipo !== "reapertura");
     const modo = String(cierre?.modo ?? c?.tipo_cierre ?? "manual").toLowerCase();
+    const tipoCierre =
+      modo === "historico_regularizado"
+        ? "Histórico regularizado"
+        : modo === "automatico"
+          ? "Automático"
+          : "Manual";
     return {
       apertura,
       cierre,
-      responsableApertura: actor(apertura?.usuario ?? c.opened_by ?? c.created_by ?? userEmail),
+      responsableApertura: apertura ? actor(apertura?.usuario ?? c.opened_by ?? c.created_by) : "—",
       responsableCierre: actor(cierre?.usuario ?? c.closed_by ?? c.usuario_nombre ?? c.user_email ?? userEmail),
-      horaApertura: cajaHoraDisplay(apertura?.hora ?? c.hora_apertura ?? "—"),
+      horaApertura: apertura ? cajaHoraDisplay(apertura?.hora ?? "—") : "—",
       horaCierre: cajaHoraDisplay(cierre?.hora ?? c.hora_cierre ?? "—"),
-      tipoCierre: modo === "automatico" ? "Automático" : "Manual",
+      tipoCierre,
+      esHistoricoRegularizado: modo === "historico_regularizado",
     };
   };
+
+  // Desglose por método (cash/transfer/debit/credit/qr) recalculado en vivo
+  // desde cobros_snapshot/gastos_snapshot — misma razón que
+  // detalleMetodosSelected (abajo): un cierre guardado antes del fix de
+  // normalizeCierreMethodKey no puede quedar con métodos duplicados para
+  // siempre. Reutilizable tanto para cada fila del Historial como para el
+  // modal de detalle.
+  const cierreMetodos = (c: any): Record<string, CierreMetodoDetalle> | null => {
+    const detail: Record<string, CierreMetodoDetalle> = {};
+    const ensure = (method: string | null | undefined) => {
+      const key = normalizeCierreMethodKey(method);
+      if (!detail[key]) detail[key] = { ingresos: 0, gastos: 0, utilidad: 0 };
+      return detail[key];
+    };
+    for (const p of c?.cobros_snapshot ?? []) ensure(p.metodo).ingresos += Number(p.monto ?? 0);
+    for (const g of c?.gastos_snapshot ?? []) ensure(g.metodo).gastos += Number(g.monto ?? 0);
+    Object.values(detail).forEach((row) => {
+      row.utilidad = row.ingresos - row.gastos;
+    });
+    return Object.keys(detail).length > 0 ? detail : (c?.detalle_metodos_pago ?? null);
+  };
+
+  // Cantidad de servicios/productos de un cierre — a partir de
+  // cobros_snapshot[].items (enriquecido). Un cierre guardado ANTES de
+  // este enriquecimiento no trae items: se cuenta como 1 servicio por
+  // cobro (su único service_name), 0 productos — mismo criterio que
+  // siempre tuvo la fila (nunca inventa productos que no se sabe si
+  // existieron).
+  const cierreConteos = (c: any) => countServiciosYProductos(c?.cobros_snapshot ?? []);
+
+  const detalleMetodosSelected = React.useMemo(() => {
+    if (!selected) return null;
+    return cierreMetodos(selected);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected]);
 
   return (
     <div className="-mt-3 space-y-4">
@@ -6646,74 +6671,109 @@ function CierresTab({
           </div>
         ) : (
           <div className="pt-5">
-            {/* Desktop: tabla de siempre, sin cambios. Mobile: tarjetas
-                verticales debajo (mismos datos/acciones) — la tabla de 7
-                columnas fijas nunca entraba en el ancho de un teléfono y
-                obligaba a hacer scroll horizontal para llegar a "Ver
-                detalles". */}
+            {/* Desktop: una fila real por fecha, con scroll horizontal
+                propio (12 columnas de importes no entran en ningún ancho
+                fijo) — nunca hace scroll la página. Mobile: tarjetas
+                verticales con lo esencial; el desglose completo por medio
+                de pago vive en "Ver detalles", no en la tarjeta. */}
             <div className="hidden overflow-hidden rounded-[28px] border border-white/[0.085] bg-black/25 sm:block">
-              <div className="grid grid-cols-[130px_minmax(170px,1fr)_minmax(170px,1fr)_120px_120px_110px_132px] items-center gap-3 border-b border-white/[0.07] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">
-                <div>Fecha</div>
-                <div>Responsable apertura</div>
-                <div>Responsable cierre</div>
-                <div>Apertura</div>
-                <div>Cierre</div>
-                <div>Tipo</div>
-                <div className="text-right leading-none">Detalle</div>
-              </div>
-              <div className="max-h-[52vh] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
-                {cierres.map((c) => {
-                  const s = cierreSummary(c);
-                  return (
-                    <div
-                      key={c.id}
-                      className="grid grid-cols-[130px_minmax(170px,1fr)_minmax(170px,1fr)_120px_120px_110px_132px] items-center gap-3 border-b border-white/[0.055] px-5 py-3 text-sm last:border-0 hover:bg-white/[0.025]"
-                    >
-                      <div className="text-white/80">
-                        <div className="font-semibold">{fechaDetalleLabel(c.fecha)}</div>
-                      </div>
-                      <div className="truncate text-white/70">{s.responsableApertura}</div>
-                      <div className="truncate text-white/70">{s.responsableCierre}</div>
-                      <div className="text-muted-foreground">{s.horaApertura}</div>
-                      <div className="text-muted-foreground">{s.horaCierre}</div>
-                      <div>
-                        <span
-                          className={cn(
-                            "rounded-full px-2.5 py-1 text-[11px] font-bold ring-1",
-                            s.tipoCierre === "Automático"
-                              ? "bg-violet-500/10 text-violet-300 ring-violet-400/25"
-                              : "bg-white/[0.05] text-white/70 ring-white/10",
-                          )}
+              <div className="overflow-x-auto [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+                <div className="min-w-[1180px]">
+                  <div className="grid grid-cols-[112px_104px_84px_84px_108px_96px_104px_112px_96px_96px_96px_minmax(140px,1fr)_120px] items-center gap-3 border-b border-white/[0.07] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">
+                    <div>Fecha</div>
+                    <div>Estado</div>
+                    <div className="text-right">Servicios</div>
+                    <div className="text-right">Productos</div>
+                    <div className="text-right">Ingresos</div>
+                    <div className="text-right">Gastos</div>
+                    <div className="text-right">Efectivo</div>
+                    <div className="text-right">Transfer.</div>
+                    <div className="text-right">Débito</div>
+                    <div className="text-right">Crédito</div>
+                    <div className="text-right">QR</div>
+                    <div>Responsable</div>
+                    <div className="text-right leading-none">Detalle</div>
+                  </div>
+                  <div className="max-h-[52vh] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+                    {cierres.map((c) => {
+                      const s = cierreSummary(c);
+                      const metodos = cierreMetodos(c) ?? {};
+                      const { servicios, productos } = cierreConteos(c);
+                      const money = (v: number) => (v ? `$${Math.round(v).toLocaleString("es-AR")}` : "—");
+                      return (
+                        <div
+                          key={c.id}
+                          className="grid grid-cols-[112px_104px_84px_84px_108px_96px_104px_112px_96px_96px_96px_minmax(140px,1fr)_120px] items-center gap-3 border-b border-white/[0.055] px-5 py-3 text-sm last:border-0 hover:bg-white/[0.025]"
                         >
-                          {s.tipoCierre}
-                        </span>
-                      </div>
-                      <div className="flex items-center justify-end gap-2">
-                        {hasNotes(c) && (
-                          <span
-                            title="Tiene observaciones"
-                            className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-violet-300/15 bg-violet-400/10 text-xs text-violet-200"
-                          >
-                            📝
-                          </span>
-                        )}
-                        <button
-                          type="button"
-                          onClick={() => setSelected(c)}
-                          className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-xs font-bold text-white/75 transition hover:bg-white/[0.08] hover:text-white"
-                        >
-                          Ver detalles
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
+                          <div className="font-semibold text-white/80">{fechaDetalleLabel(c.fecha)}</div>
+                          <div>{renderEstado(c)}</div>
+                          <div className="text-right tabular-nums text-white/70">{servicios}</div>
+                          <div className="text-right tabular-nums text-white/70">{productos}</div>
+                          <div className="text-right tabular-nums font-bold text-emerald-300">
+                            {money(Number(c.total_cobrado ?? 0))}
+                          </div>
+                          <div className="text-right tabular-nums text-rose-300/90">
+                            {money(Number(c.total_gastos ?? 0))}
+                          </div>
+                          <div className="text-right tabular-nums text-white/60">
+                            {money(metodos.cash?.ingresos ?? 0)}
+                          </div>
+                          <div className="text-right tabular-nums text-white/60">
+                            {money(metodos.transfer?.ingresos ?? 0)}
+                          </div>
+                          <div className="text-right tabular-nums text-white/60">
+                            {money(metodos.debit?.ingresos ?? 0)}
+                          </div>
+                          <div className="text-right tabular-nums text-white/60">
+                            {money(metodos.credit?.ingresos ?? 0)}
+                          </div>
+                          <div className="text-right tabular-nums text-white/60">
+                            {money(metodos.qr?.ingresos ?? 0)}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="truncate text-white/70">{s.responsableCierre}</div>
+                            <span
+                              className={cn(
+                                "mt-0.5 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ring-1",
+                                s.esHistoricoRegularizado
+                                  ? "bg-amber-500/10 text-amber-300 ring-amber-400/25"
+                                  : s.tipoCierre === "Automático"
+                                    ? "bg-violet-500/10 text-violet-300 ring-violet-400/25"
+                                    : "bg-white/[0.05] text-white/70 ring-white/10",
+                              )}
+                            >
+                              {s.tipoCierre}
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-end gap-2">
+                            {hasNotes(c) && (
+                              <span
+                                title="Tiene observaciones"
+                                className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-violet-300/15 bg-violet-400/10 text-xs text-violet-200"
+                              >
+                                📝
+                              </span>
+                            )}
+                            <button
+                              type="button"
+                              onClick={() => { setDetalleProfesional("todos"); setSelected(c); }}
+                              className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-xs font-bold text-white/75 transition hover:bg-white/[0.08] hover:text-white"
+                            >
+                              Ver detalles
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
               </div>
             </div>
 
             <div className="flex max-h-[65vh] flex-col gap-2.5 overflow-y-auto pr-0.5 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent] sm:hidden">
               {cierres.map((c) => {
                 const s = cierreSummary(c);
+                const { servicios, productos } = cierreConteos(c);
                 const observacion = getCierreObservacion(c) ?? getReaperturaObservacion(c);
                 return (
                   <div
@@ -6721,33 +6781,44 @@ function CierresTab({
                     className="rounded-2xl border border-white/[0.08] bg-black/25 p-3.5"
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div className="font-semibold text-white">{fechaDetalleLabel(c.fecha)}</div>
+                      <div>
+                        <div className="font-semibold text-white">{fechaDetalleLabel(c.fecha)}</div>
+                        <div className="mt-1">{renderEstado(c)}</div>
+                      </div>
                       <span
                         className={cn(
                           "shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ring-1",
-                          s.tipoCierre === "Automático"
-                            ? "bg-violet-500/10 text-violet-300 ring-violet-400/25"
-                            : "bg-white/[0.05] text-white/70 ring-white/10",
+                          s.esHistoricoRegularizado
+                            ? "bg-amber-500/10 text-amber-300 ring-amber-400/25"
+                            : s.tipoCierre === "Automático"
+                              ? "bg-violet-500/10 text-violet-300 ring-violet-400/25"
+                              : "bg-white/[0.05] text-white/70 ring-white/10",
                         )}
                       >
                         {s.tipoCierre}
                       </span>
                     </div>
-                    <div className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
+                    <div className="mt-2.5 flex items-baseline justify-between">
+                      <span className="text-xs text-white/45">Ingresos</span>
+                      <span className="text-lg font-extrabold tabular-nums text-emerald-300">
+                        ${Math.round(Number(c.total_cobrado ?? 0)).toLocaleString("es-AR")}
+                      </span>
+                    </div>
+                    <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
                       <div className="text-white/45">
-                        Apertura{" "}
-                        <span className="text-white/80">{s.horaApertura}</span>
+                        Servicios <span className="text-white/80">{servicios}</span>
                       </div>
                       <div className="text-white/45">
-                        Cierre <span className="text-white/80">{s.horaCierre}</span>
+                        Productos <span className="text-white/80">{productos}</span>
+                      </div>
+                      <div className="text-white/45">
+                        Gastos{" "}
+                        <span className="text-white/80">
+                          ${Math.round(Number(c.total_gastos ?? 0)).toLocaleString("es-AR")}
+                        </span>
                       </div>
                       <div className="col-span-2 truncate text-white/45">
-                        Responsable{" "}
-                        <span className="text-white/80">
-                          {s.responsableApertura === s.responsableCierre
-                            ? s.responsableApertura
-                            : `${s.responsableApertura} / ${s.responsableCierre}`}
-                        </span>
+                        Responsable <span className="text-white/80">{s.responsableCierre}</span>
                       </div>
                     </div>
                     {observacion && (
@@ -6757,7 +6828,7 @@ function CierresTab({
                     )}
                     <button
                       type="button"
-                      onClick={() => setSelected(c)}
+                      onClick={() => { setDetalleProfesional("todos"); setSelected(c); }}
                       className="mt-3 w-full rounded-xl border border-white/[0.08] bg-white/[0.045] px-3 py-2 text-xs font-bold text-white/80 transition active:bg-white/[0.08]"
                     >
                       Ver detalles
@@ -6857,51 +6928,118 @@ function CierresTab({
                 </div>
               )}
 
-              <div className="mt-4 grid gap-4 lg:grid-cols-2">
-                <div className="rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
-                  <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
-                    Ventas
+              {(() => {
+                const cobros = (selected.cobros_snapshot ?? []) as any[];
+                const profesionales = Array.from(
+                  new Set(cobros.map((p) => p.profesional).filter(Boolean)),
+                ) as string[];
+                const cobrosFiltrados =
+                  detalleProfesional === "todos"
+                    ? cobros
+                    : cobros.filter((p) => (p.profesional ?? "—") === detalleProfesional);
+                return (
+                  <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-xs font-bold uppercase tracking-[0.16em] text-white/45">
+                        Servicios y productos ({cobrosFiltrados.length})
+                      </div>
+                      {profesionales.length > 0 && (
+                        <select
+                          value={detalleProfesional}
+                          onChange={(e) => setDetalleProfesional(e.target.value)}
+                          className="rounded-lg border border-white/[0.08] bg-black/40 px-2.5 py-1.5 text-xs font-semibold text-white/80 outline-none"
+                        >
+                          <option value="todos">Todos los profesionales</option>
+                          {profesionales.map((nombre) => (
+                            <option key={nombre} value={nombre}>
+                              {nombre}
+                            </option>
+                          ))}
+                        </select>
+                      )}
+                    </div>
+                    <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+                      {cobrosFiltrados.length === 0 ? (
+                        <p className="text-sm text-muted-foreground">Sin movimientos para este filtro.</p>
+                      ) : (
+                        cobrosFiltrados.map((p: any, idx: number) => {
+                          const items: any[] = Array.isArray(p.items) ? p.items : [];
+                          const descuento = Number(p.descuento ?? 0);
+                          const propina = Number(p.propina ?? 0);
+                          return (
+                            <div key={`${p.id ?? idx}`} className="rounded-xl bg-black/22 px-3 py-2.5 text-xs">
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="truncate font-semibold text-white">
+                                    {p.cliente ?? "Cliente"}
+                                  </div>
+                                  <div className="mt-0.5 truncate text-white/50">
+                                    {p.hora ?? "—"}
+                                    {p.profesional ? ` · ${p.profesional}` : ""}
+                                    {" · "}
+                                    {paymentMethodLabel(p.metodo ?? "cash")}
+                                  </div>
+                                </div>
+                                <div className="shrink-0 text-right">
+                                  <div className="font-bold text-emerald-300">
+                                    ${Number(p.monto ?? 0).toLocaleString("es-AR")}
+                                  </div>
+                                  {descuento > 0 && (
+                                    <div className="text-[11px] text-amber-300/80">
+                                      lista ${Number(p.precio_lista ?? 0).toLocaleString("es-AR")}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="mt-1.5 truncate text-white/70">
+                                {items.length > 0
+                                  ? items
+                                      .map((it) => `${it.nombre ?? "Ítem"}${it.cantidad > 1 ? ` x${it.cantidad}` : ""}${it.esProducto ? " (producto)" : ""}`)
+                                      .join(" + ")
+                                  : (p.servicio ?? "Servicio")}
+                              </div>
+                              {(descuento > 0 || p.promocion || propina > 0 || p.usuario) && (
+                                <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-white/45">
+                                  {p.promocion && <span>Promo: {p.promocion}</span>}
+                                  {descuento > 0 && (
+                                    <span>Descuento: ${descuento.toLocaleString("es-AR")}</span>
+                                  )}
+                                  {propina > 0 && (
+                                    <span>Propina: ${propina.toLocaleString("es-AR")}</span>
+                                  )}
+                                  {p.usuario && <span>Cobró: {p.usuario}</span>}
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
                   </div>
-                  <div className="max-h-56 space-y-2 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
-                    {(selected.cobros_snapshot ?? []).length === 0 ? (
-                      <p className="text-sm text-muted-foreground">Sin ventas.</p>
-                    ) : (
-                      (selected.cobros_snapshot ?? []).map((p: any, idx: number) => (
-                        <div key={`${p.id ?? idx}`} className="rounded-xl bg-black/22 px-3 py-2 text-xs">
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="truncate font-semibold text-white">{p.cliente ?? "Cliente"}</span>
-                            <span className="font-bold text-emerald-300">${Number(p.monto ?? 0).toLocaleString("es-AR")}</span>
-                          </div>
-                          <div className="mt-1 truncate text-white/45">
-                            {p.hora ?? "—"} · {p.servicio ?? "Servicio"} · {paymentMethodLabel(p.metodo ?? "cash")}
-                          </div>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
+                );
+              })()}
 
-                <div className="rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
-                  <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
-                    Gastos
-                  </div>
-                  <div className="max-h-56 space-y-2 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
-                    {(selected.gastos_snapshot ?? []).length === 0 ? (
-                      <p className="text-sm text-muted-foreground">Sin gastos.</p>
-                    ) : (
-                      (selected.gastos_snapshot ?? []).map((g: any, idx: number) => (
-                        <div key={`${g.id ?? idx}`} className="rounded-xl bg-black/22 px-3 py-2 text-xs">
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="truncate font-semibold text-white">{g.nombre ?? "Gasto"}</span>
-                            <span className="font-bold text-rose-300">-${Number(g.monto ?? 0).toLocaleString("es-AR")}</span>
-                          </div>
-                          <div className="mt-1 truncate text-white/45">
-                            {g.hora ?? "—"} · {paymentMethodLabel(g.metodo ?? "cash")}
-                          </div>
+              <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
+                <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
+                  Gastos / movimientos manuales
+                </div>
+                <div className="max-h-56 space-y-2 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+                  {(selected.gastos_snapshot ?? []).length === 0 ? (
+                    <p className="text-sm text-muted-foreground">Sin gastos.</p>
+                  ) : (
+                    (selected.gastos_snapshot ?? []).map((g: any, idx: number) => (
+                      <div key={`${g.id ?? idx}`} className="rounded-xl bg-black/22 px-3 py-2 text-xs">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="truncate font-semibold text-white">{g.nombre ?? "Gasto"}</span>
+                          <span className="font-bold text-rose-300">-${Number(g.monto ?? 0).toLocaleString("es-AR")}</span>
                         </div>
-                      ))
-                    )}
-                  </div>
+                        <div className="mt-1 truncate text-white/45">
+                          {g.hora ?? "—"} · {paymentMethodLabel(g.metodo ?? "cash")}
+                          {g.usuario ? ` · ${g.usuario}` : ""}
+                        </div>
+                      </div>
+                    ))
+                  )}
                 </div>
               </div>
 
@@ -6912,8 +7050,12 @@ function CierresTab({
                 <div className="space-y-3">
                   {cierreEventos(selected).map((e: any, index: number) => {
                     const tipo = String(e?.tipo ?? "evento");
-                    const isAuto = tipo === "cierre" && String(e?.modo ?? "").toLowerCase() === "automatico";
+                    const modo = String(e?.modo ?? "").toLowerCase();
+                    const isAuto = tipo === "cierre" && modo === "automatico";
+                    const isRegularizado = tipo === "cierre" && modo === "historico_regularizado";
                     const label =
+                      tipo === "correccion" ? "Corrección del cierre" :
+                      isRegularizado ? "Histórico regularizado" :
                       isAuto ? "Cierre automático" :
                       tipo === "apertura" ? "Caja abierta" :
                       tipo === "reapertura" ? "Reapertura" :

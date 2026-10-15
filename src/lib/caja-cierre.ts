@@ -59,6 +59,27 @@ export function isCajaReabiertaRow(cierre: any) {
   return String(cierre?.estado ?? "").toLowerCase() === "reabierta";
 }
 
+// Cantidad de servicios/productos de un cierre a partir de
+// cobros_snapshot[].items (ver buildCierreSnapshotForDate). Un cobro sin
+// items (cierre guardado antes de este enriquecimiento) cuenta como 1
+// servicio — nunca se inventa un producto que no se sabe si existió.
+export function countServiciosYProductos(
+  cobrosSnapshot: Array<{ items?: Array<{ esProducto?: boolean }> | null }> | null | undefined,
+): { servicios: number; productos: number } {
+  let servicios = 0;
+  let productos = 0;
+  for (const p of cobrosSnapshot ?? []) {
+    const items = Array.isArray(p?.items) ? p.items : null;
+    if (items && items.length > 0) {
+      servicios += items.filter((it) => !it?.esProducto).length;
+      productos += items.filter((it) => it?.esProducto).length;
+    } else {
+      servicios += 1;
+    }
+  }
+  return { servicios, productos };
+}
+
 export function cajaDateKey(date = new Date()) {
   return date.toLocaleDateString("sv-SE");
 }
@@ -327,7 +348,7 @@ export async function buildCierreSnapshotForDate(
   let payQuery = supabase
     .from("payments")
     .select(
-      "id,total,amount,method,payment_method,client_name,service_name,created_at,employee_id,charged_by,charge_type",
+      "id,total,amount,method,payment_method,client_name,service_name,created_at,employee_id,charged_by,charge_type,items,original_amount,discount,discount_type,discount_value,promotion_name,tip,tip_amount",
     )
     .eq("business_id", businessId)
     .gte("created_at", dayStart.toISOString())
@@ -345,12 +366,40 @@ export async function buildCierreSnapshotForDate(
     .lte("date", endDateStr);
   if (branchFilter) expQuery = expQuery.or(branchFilter);
 
-  const [payRes, expRes] = await Promise.allSettled([payQuery, expQuery]);
+  // Nombres reales para "profesional" y "usuario que cobró" — nunca un
+  // UUID crudo en el detalle de un cierre. employees.id → nombre del
+  // profesional; profiles.id (lo que guarda payments.charged_by/
+  // expenses.created_by) → nombre de quien hizo el movimiento.
+  const employeesQuery = supabase.from("employees").select("id,full_name").eq("business_id", businessId);
+  const profilesQuery = supabase.from("profiles").select("id,full_name").eq("business_id", businessId);
+
+  const [payRes, expRes, employeesRes, profilesRes] = await Promise.allSettled([
+    payQuery,
+    expQuery,
+    employeesQuery,
+    profilesQuery,
+  ]);
 
   const payments =
     payRes.status === "fulfilled" && !payRes.value.error ? ((payRes.value.data ?? []) as any[]) : [];
   const expenses =
     expRes.status === "fulfilled" && !expRes.value.error ? ((expRes.value.data ?? []) as any[]) : [];
+  const employeeNameById = new Map<string, string>(
+    (employeesRes.status === "fulfilled" && !employeesRes.value.error
+      ? ((employeesRes.value.data ?? []) as any[])
+      : []
+    ).map((e) => [e.id, e.full_name as string]),
+  );
+  const profileNameById = new Map<string, string>(
+    (profilesRes.status === "fulfilled" && !profilesRes.value.error
+      ? ((profilesRes.value.data ?? []) as any[])
+      : []
+    ).map((p) => [p.id, p.full_name as string]),
+  );
+  const resolveUsuario = (rawId: string | null | undefined) => {
+    if (!rawId) return null;
+    return profileNameById.get(rawId) ?? rawId;
+  };
 
   const totalCobrado = payments.reduce((s, p) => s + Number(p.total ?? p.amount ?? 0), 0);
   const totalGastos = expenses.reduce((s, e) => s + Number(e.amount ?? 0), 0);
@@ -372,18 +421,41 @@ export async function buildCierreSnapshotForDate(
     row.utilidad = row.ingresos - row.gastos;
   });
 
-  const cobrosSnapshot = payments.map((p) => ({
-    id: p.id,
-    hora: p.created_at
-      ? new Date(p.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
-      : null,
-    cliente: p.client_name ?? null,
-    profesional: p.employee_name ?? p.professional_name ?? null,
-    servicio: p.service_name ?? null,
-    metodo: p.method ?? p.payment_method ?? null,
-    monto: Number(p.total ?? p.amount ?? 0),
-    usuario: p.charged_by ?? p.created_by ?? null,
-  }));
+  const cobrosSnapshot = payments.map((p) => {
+    const monto = Number(p.total ?? p.amount ?? 0);
+    // precio_lista: original_amount (precio de lista antes de promo/
+    // descuento) cuando existe; si no, el monto cobrado es también el
+    // precio de lista (no hubo descuento que reconstruir).
+    const precioLista = p.original_amount != null ? Number(p.original_amount) : monto;
+    const descuento = Math.max(0, precioLista - monto);
+    return {
+      id: p.id,
+      fecha_hora: p.created_at ?? null,
+      hora: p.created_at
+        ? new Date(p.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
+        : null,
+      cliente: p.client_name ?? null,
+      profesional: employeeNameById.get(p.employee_id) ?? null,
+      servicio: p.service_name ?? null,
+      // Varios servicios/productos en un mismo cobro (payments.items) se
+      // listan acá individualmente — el cobro sigue contándose una sola
+      // vez en "monto" (nunca se suma items[].amount aparte de total).
+      items: Array.isArray(p.items)
+        ? p.items.map((it: any) => ({
+            nombre: it?.name ?? null,
+            cantidad: Number(it?.qty ?? 1),
+            esProducto: Boolean(it?.is_catalog),
+          }))
+        : [],
+      metodo: p.method ?? p.payment_method ?? null,
+      monto,
+      precio_lista: precioLista,
+      descuento,
+      promocion: p.promotion_name ?? null,
+      propina: Number(p.tip_amount ?? p.tip ?? 0),
+      usuario: resolveUsuario(p.charged_by),
+    };
+  });
 
   const gastosSnapshot = expenses.map((e) => ({
     id: e.id,
@@ -395,7 +467,7 @@ export async function buildCierreSnapshotForDate(
     metodo: e.payment_method ?? e.method ?? null,
     monto: Number(e.amount ?? 0),
     nota: e.note ?? null,
-    usuario: e.user_name ?? e.created_by ?? null,
+    usuario: e.user_name ?? resolveUsuario(e.created_by) ?? null,
   }));
 
   // Pendientes no tienen una fecha de "creado ese día" reconstruible con
@@ -661,6 +733,7 @@ export async function closeSingleDayCierre({
   observacion,
   efectivoContado,
   saldoReal,
+  tipoCierre = "manual",
 }: {
   businessId: string;
   branchId: string | null;
@@ -672,6 +745,12 @@ export async function closeSingleDayCierre({
   observacion?: string | null;
   efectivoContado?: number | null;
   saldoReal?: number | null;
+  // "historico_regularizado": cierre de un día pasado que nunca se cerró
+  // en su momento y se registra ahora, retroactivamente, a partir de los
+  // movimientos reales ya existentes — se distingue de "manual" (cerrado
+  // el mismo día/poco después, por quien estaba operando la caja) para
+  // que el Historial nunca lo confunda con una apertura/cierre real.
+  tipoCierre?: "manual" | "historico_regularizado";
 }) {
   let existingQuery = supabase
     .from("caja_cierres" as any)
@@ -706,13 +785,17 @@ export async function closeSingleDayCierre({
   // dentro del propio evento jsonb, mismo criterio que pendientes_count/
   // pendientes_monto/pendientes_detalle, para no inventar columnas que no
   // existen ni arriesgar un ALTER TABLE a ciegas.
+  const esRegularizacion = tipoCierre === "historico_regularizado";
+  const observacionDefault = esRegularizacion
+    ? `Histórico regularizado: cierre del ${dateStr} registrado retroactivamente el ${cajaDateKeyBA(now)} a partir de los movimientos reales de ese día. No hubo apertura ni recuento de efectivo documentados en su momento.`
+    : `Cierre manual del ${dateStr}, acotado a ese día.`;
   const evento: CajaEvento = {
     tipo: "cierre",
-    modo: "manual",
+    modo: esRegularizacion ? "historico_regularizado" : "manual",
     fecha_hora: now.toISOString(),
     hora: cajaTimeLabel(now),
     usuario: closedBy,
-    observacion: observacion?.trim() || `Cierre manual del ${dateStr}, acotado a ese día.`,
+    observacion: observacion?.trim() || observacionDefault,
     efectivo_esperado: expected.cashExpected,
     diferencia,
     pendientes_count: snapshot.pendientesCount,
@@ -726,7 +809,7 @@ export async function closeSingleDayCierre({
     hora_cierre: evento.hora,
     usuario_nombre: closedBy,
     closed_by: closedBy,
-    tipo_cierre: "manual",
+    tipo_cierre: tipoCierre,
     estado: "cerrada",
     observacion: evento.observacion,
     total_cobrado: snapshot.totalCobrado,
