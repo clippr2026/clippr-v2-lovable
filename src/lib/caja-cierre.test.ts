@@ -7,6 +7,7 @@ import {
   dayBoundsBA,
   filterToDayBA,
   normalizeCierreMethodKey,
+  splitServiciosYProductos,
 } from "./caja-cierre";
 
 // Cierres exclusivamente manuales, fecha por fecha — no puede existir
@@ -368,5 +369,64 @@ describe('Resumen — "Efectivo del día"/"Dinero en cuenta del día" nunca depe
     const allPayments = [...payments13, ...payments14];
     const result = cashDigitalForDay(allPayments, "2026-10-13");
     expect(Math.round(result.cashExpected + result.digitalExpected)).toBe(450800);
+  });
+});
+
+// Historial → Detalle de un cierre: filtros "Servicios"/"Productos" del
+// nuevo rediseño (lista de fechas → vista de detalle → filtros), ambos
+// derivados de splitServiciosYProductos. La garantía central: un cobro
+// mixto (servicio + producto) aparece en las dos listas sin que el
+// ingreso se cuente dos veces — eso lo protege el llamador (solo suma
+// cobrosSnapshot[].monto una vez), no esta función.
+describe("splitServiciosYProductos — clasificación para los filtros de Ver detalles", () => {
+  it("un cobro sin items (cierre guardado antes del enriquecimiento) cuenta como 1 servicio, 0 productos", () => {
+    const { servicios, productos } = splitServiciosYProductos([{ id: "a", items: [] }]);
+    expect(servicios).toHaveLength(1);
+    expect(productos).toHaveLength(0);
+  });
+
+  it("un cobro solo de productos (sin ítems de servicio) no aparece en Servicios", () => {
+    const { servicios, productos } = splitServiciosYProductos([
+      { id: "a", items: [{ nombre: "Cera", monto: 5000, esProducto: true }] },
+    ]);
+    expect(servicios).toHaveLength(0);
+    expect(productos).toHaveLength(1);
+    expect(productos[0]).toMatchObject({ nombre: "Cera", monto: 5000 });
+  });
+
+  it("un cobro mixto (servicio + producto) aparece en AMBAS listas", () => {
+    const { servicios, productos } = splitServiciosYProductos([
+      {
+        id: "a",
+        cliente: "Bruno",
+        items: [
+          { nombre: "Corte", monto: 20000, esProducto: false },
+          { nombre: "Cera", monto: 5000, esProducto: true },
+        ],
+      },
+    ]);
+    expect(servicios).toHaveLength(1);
+    expect(servicios[0].id).toBe("a");
+    expect(productos).toHaveLength(1);
+    expect(productos[0]).toMatchObject({ nombre: "Cera", monto: 5000, cliente: "Bruno" });
+  });
+
+  it("varios productos en un mismo cobro dan una fila por ítem, cada uno con su propio monto", () => {
+    const { productos } = splitServiciosYProductos([
+      {
+        id: "a",
+        items: [
+          { nombre: "Cera", monto: 5000, esProducto: true },
+          { nombre: "Shampoo", monto: 8000, esProducto: true },
+        ],
+      },
+    ]);
+    expect(productos).toHaveLength(2);
+    expect(productos.map((p) => p.monto)).toEqual([5000, 8000]);
+  });
+
+  it("sin cobros, da dos listas vacías (nunca inventa movimientos)", () => {
+    expect(splitServiciosYProductos([])).toEqual({ servicios: [], productos: [] });
+    expect(splitServiciosYProductos(null)).toEqual({ servicios: [], productos: [] });
   });
 });

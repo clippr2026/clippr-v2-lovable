@@ -80,6 +80,61 @@ export function countServiciosYProductos(
   return { servicios, productos };
 }
 
+// Fila de producto "aplanada" a nivel de ítem (ver splitServiciosYProductos)
+// — un mismo cobro con 1 servicio + 2 productos aporta 1 fila a
+// "servicios" (el cobro entero, con su monto real) y 2 filas a
+// "productos" (una por ítem, con el monto de ESE ítem, nunca el del
+// cobro completo — evita que "Productos" duplique el ingreso ya contado
+// en "Servicios").
+export type CajaCobroSnapshot = {
+  id?: string | null;
+  items?: Array<{ nombre?: string | null; cantidad?: number; monto?: number; esProducto?: boolean }> | null;
+  [key: string]: unknown;
+};
+
+export type CajaProductoRow = {
+  key: string;
+  hora: unknown;
+  cliente: unknown;
+  profesional: unknown;
+  usuario: unknown;
+  nombre: string | null;
+  cantidad: number;
+  monto: number;
+};
+
+// Clasifica cobros_snapshot en "Servicios" (filtro Historial → Detalle →
+// Servicios: el cobro completo, un cobro con items vacíos cuenta como 1
+// servicio) y "Productos" (filtro → Productos: un ítem marcado
+// esProducto, a nivel de línea). Un cobro mixto (servicio + producto)
+// aparece en AMBAS listas — eso es intencional y no duplica ingresos: el
+// total de la caja siempre se suma una sola vez, iterando cobros_snapshot
+// directamente, nunca estas dos listas derivadas.
+export function splitServiciosYProductos(
+  cobrosSnapshot: CajaCobroSnapshot[] | null | undefined,
+): { servicios: CajaCobroSnapshot[]; productos: CajaProductoRow[] } {
+  const cobros = cobrosSnapshot ?? [];
+  const servicios = cobros.filter((p) => {
+    const items = Array.isArray(p.items) ? p.items : [];
+    return items.length === 0 || items.some((it) => !it?.esProducto);
+  });
+  const productos: CajaProductoRow[] = cobros.flatMap((p, pIdx) =>
+    (Array.isArray(p.items) ? p.items : [])
+      .filter((it) => it?.esProducto)
+      .map((it, idx) => ({
+        key: `${p.id ?? pIdx}-${idx}`,
+        hora: (p as any).hora,
+        cliente: (p as any).cliente,
+        profesional: (p as any).profesional,
+        usuario: (p as any).usuario,
+        nombre: it.nombre ?? null,
+        cantidad: Number(it.cantidad ?? 1),
+        monto: Number(it.monto ?? 0),
+      })),
+  );
+  return { servicios, productos };
+}
+
 export function cajaDateKey(date = new Date()) {
   return date.toLocaleDateString("sv-SE");
 }
@@ -444,6 +499,7 @@ export async function buildCierreSnapshotForDate(
         ? p.items.map((it: any) => ({
             nombre: it?.name ?? null,
             cantidad: Number(it?.qty ?? 1),
+            monto: Number(it?.amount ?? 0),
             esProducto: Boolean(it?.is_catalog),
           }))
         : [],
@@ -657,6 +713,63 @@ export async function getCajaAbiertaDesde(
     fecha: period.rangeStartDate,
     hora: cajaTimeLabel(period.startAt),
   };
+}
+
+export type CajaMovimientoManual = {
+  id: string;
+  tipo: "ingreso" | "retiro";
+  hora: string | null;
+  monto: number;
+  metodo: string | null;
+  nota: string | null;
+  usuario: string | null;
+};
+
+// Retiros/ingresos manuales de caja (cash_movements) de UN día calendario
+// — a diferencia de expenses (gastos con concepto/categoría), esto es
+// dinero que se sacó o se metió a mano al cajón/cuenta sin un gasto
+// asociado. Nunca se guardó dentro de cobros_snapshot/gastos_snapshot de
+// ningún cierre (ni los viejos ni los nuevos) — "Ver detalles" siempre lo
+// lee en vivo, acotado al mismo día exacto que el resto del detalle.
+export async function buildCajaMovimientosManualesForDate(
+  businessId: string,
+  branchId: string | null,
+  dateStr: string,
+): Promise<CajaMovimientoManual[]> {
+  const { start, end } = dayBoundsBA(dateStr);
+  const branchFilter = branchId ? `branch_id.eq.${branchId},branch_id.is.null` : null;
+
+  let movQuery = supabase
+    .from("cash_movements" as any)
+    .select("id,type,amount,method,note,created_by,created_at")
+    .eq("business_id", businessId)
+    .gte("created_at", start.toISOString())
+    .lte("created_at", end.toISOString());
+  if (branchFilter) movQuery = movQuery.or(branchFilter);
+
+  const [movRes, profilesRes] = await Promise.allSettled([
+    movQuery,
+    supabase.from("profiles").select("id,full_name").eq("business_id", businessId),
+  ]);
+  const rows = movRes.status === "fulfilled" && !movRes.value.error ? ((movRes.value.data ?? []) as any[]) : [];
+  const profileNameById = new Map<string, string>(
+    (profilesRes.status === "fulfilled" && !profilesRes.value.error
+      ? ((profilesRes.value.data ?? []) as any[])
+      : []
+    ).map((p) => [p.id, p.full_name as string]),
+  );
+
+  return rows.map((m) => ({
+    id: m.id,
+    tipo: m.type,
+    hora: m.created_at
+      ? new Date(m.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
+      : null,
+    monto: Number(m.amount ?? 0),
+    metodo: m.method ?? null,
+    nota: m.note ?? null,
+    usuario: m.created_by ? profileNameById.get(m.created_by) ?? m.created_by : null,
+  }));
 }
 
 // Vista previa (solo lectura) de lo que incluiría el cierre de UN día

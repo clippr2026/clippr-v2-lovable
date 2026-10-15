@@ -34,8 +34,11 @@ import {
   closeSingleDayCierre,
   normalizeCierreMethodKey,
   getCajaAbiertaDesde,
-  countServiciosYProductos,
+  buildCierreSnapshotForDate,
+  buildCajaMovimientosManualesForDate,
+  splitServiciosYProductos,
   type ExpectedCashDigital,
+  type CajaMovimientoManual,
 } from "@/lib/caja-cierre";
 import { useCashMovements, type CashMovement } from "@/hooks/use-cash-movements";
 import { useCajaSummary } from "@/hooks/use-caja-summary";
@@ -102,6 +105,7 @@ import {
   Camera,
   Image as ImageIcon,
   ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 import {
@@ -6232,6 +6236,418 @@ function CerrarDiaAnteriorCard({
   );
 }
 
+// Detalle de un cierre — siempre se reconstruye EN VIVO desde payments/
+// expenses/cash_movements (vía buildCierreSnapshotForDate +
+// buildCajaMovimientosManualesForDate), nunca desde el cobros_snapshot/
+// gastos_snapshot guardado: así cualquier cierre (viejo o nuevo) muestra
+// el mismo nivel de detalle real, y si algo cambió después del cierre
+// (un pago editado, por ejemplo) se nota como advertencia en vez de
+// mostrarse calladamente distinto del total oficial guardado.
+type DetalleFiltro = "todos" | "servicios" | "productos" | "gastos" | "retiros";
+
+function CierreDetalleView({
+  cierre,
+  businessId,
+  branchId,
+  onVolver,
+  cierreEventos,
+  getCierreObservacion,
+  fechaDetalleLabel,
+  tipoCierreLabel,
+  actor,
+  onReabrir,
+  puedeReabrir,
+  reabriendo,
+}: {
+  cierre: any;
+  businessId: string | null;
+  branchId: string | null;
+  onVolver: () => void;
+  cierreEventos: (c: any) => any[];
+  getCierreObservacion: (c: any) => string | null;
+  fechaDetalleLabel: (fecha?: string | null) => string;
+  tipoCierreLabel: (c: any) => string;
+  actor: (value?: string | null) => string;
+  onReabrir: () => void;
+  puedeReabrir: boolean;
+  reabriendo: boolean;
+}) {
+  const [loading, setLoading] = useState(true);
+  const [snapshot, setSnapshot] = useState<any | null>(null);
+  const [movimientos, setMovimientos] = useState<CajaMovimientoManual[]>([]);
+  const [filtro, setFiltro] = useState<DetalleFiltro>("todos");
+  const [profesionalFiltro, setProfesionalFiltro] = useState<string>("todos");
+
+  const fecha = cierre?.fecha ?? null;
+
+  useEffect(() => {
+    if (!businessId || !fecha) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setLoading(true);
+    setFiltro("todos");
+    setProfesionalFiltro("todos");
+    Promise.all([
+      buildCierreSnapshotForDate(businessId, fecha, branchId),
+      buildCajaMovimientosManualesForDate(businessId, branchId, fecha),
+    ])
+      .then(([snap, movs]) => {
+        if (cancelled) return;
+        setSnapshot(snap);
+        setMovimientos(movs);
+        setLoading(false);
+      })
+      .catch(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [businessId, branchId, fecha]);
+
+  const cobros = (snapshot?.cobrosSnapshot ?? []) as any[];
+  const gastos = (snapshot?.gastosSnapshot ?? []) as any[];
+  const retiros = movimientos.filter((m) => m.tipo === "retiro");
+  const ingresosManuales = movimientos.filter((m) => m.tipo === "ingreso");
+
+  const { servicios: serviciosRows, productos: productosRows } = splitServiciosYProductos(cobros);
+
+  const profesionales = Array.from(
+    new Set([...serviciosRows.map((p) => p.profesional), ...productosRows.map((p) => p.profesional)].filter(Boolean)),
+  ) as string[];
+
+  const serviciosFiltrados =
+    profesionalFiltro === "todos" ? serviciosRows : serviciosRows.filter((p) => p.profesional === profesionalFiltro);
+  const productosFiltrados =
+    profesionalFiltro === "todos" ? productosRows : productosRows.filter((p) => p.profesional === profesionalFiltro);
+
+  const metodos = (snapshot?.detalleMetodos ?? {}) as Record<string, CierreMetodoDetalle>;
+  const metodoIngreso = (key: string) => metodos[key]?.ingresos ?? 0;
+  const metodosConocidos = ["cash", "transfer", "debit", "credit", "qr"];
+  const otrosMetodos = Object.entries(metodos).filter(([k]) => !metodosConocidos.includes(k));
+  const otrosTotal = otrosMetodos.reduce((s, [, v]) => s + (v?.ingresos ?? 0), 0);
+
+  const ingresosTotales = Number(snapshot?.totalCobrado ?? 0);
+  const totalGastos = Number(snapshot?.totalGastos ?? 0);
+  const totalRetiros = retiros.reduce((s, m) => s + m.monto, 0);
+
+  const totalGuardado = Number(cierre?.total_cobrado ?? 0);
+  const hayDiferenciaConLoGuardado = !loading && Math.abs(ingresosTotales - totalGuardado) >= 1;
+
+  const cierreEvt = [...cierreEventos(cierre)].reverse().find((e: any) => e?.tipo === "cierre");
+  const efectivoContado = cierre?.efectivo_contado;
+  const diferenciaEfectivo = cierreEvt?.diferencia ?? null;
+  const observacion = getCierreObservacion(cierre);
+  const money = (v: number) => `$${Math.round(v).toLocaleString("es-AR")}`;
+
+  const resumenCards = [
+    { l: "Ingresos totales", v: money(ingresosTotales), cls: "text-emerald-300" },
+    { l: "Gastos", v: money(totalGastos), cls: "text-rose-300" },
+    { l: "Retiros", v: money(totalRetiros), cls: "text-rose-300" },
+    { l: "Efectivo", v: money(metodoIngreso("cash")), cls: "text-white" },
+    { l: "Transferencias", v: money(metodoIngreso("transfer")), cls: "text-white" },
+    { l: "Débito", v: money(metodoIngreso("debit")), cls: "text-white" },
+    { l: "Crédito", v: money(metodoIngreso("credit")), cls: "text-white" },
+    { l: "QR", v: money(metodoIngreso("qr")), cls: "text-white" },
+    ...(otrosTotal > 0 ? [{ l: "Otros medios", v: money(otrosTotal), cls: "text-white" }] : []),
+  ];
+
+  const filtroChips: Array<{ key: DetalleFiltro; label: string }> = [
+    { key: "todos", label: "Todos" },
+    { key: "servicios", label: "Servicios" },
+    { key: "productos", label: "Productos" },
+    { key: "gastos", label: "Gastos" },
+    { key: "retiros", label: "Retiros" },
+  ];
+
+  return (
+    <div className="pt-5">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div>
+          <button
+            type="button"
+            onClick={onVolver}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-xs font-bold text-white/70 transition hover:bg-white/[0.08] hover:text-white"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Historial
+          </button>
+          <div className="mt-2.5 text-lg font-extrabold text-white">{fechaDetalleLabel(fecha)}</div>
+        </div>
+        {renderEstadoPill(cierre)}
+      </div>
+
+      {hayDiferenciaConLoGuardado && (
+        <div className="mb-4 rounded-2xl border border-amber-400/25 bg-amber-400/[0.07] px-4 py-3 text-xs text-amber-200">
+          Este cierre se registró con {money(totalGuardado)}, pero los movimientos actuales de este día suman{" "}
+          {money(ingresosTotales)}. No se modificó el cierre automáticamente — si la diferencia no corresponde a un
+          error, puede deberse a un movimiento agregado o editado después del cierre.
+        </div>
+      )}
+
+      {loading ? (
+        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          {[0, 1, 2, 3].map((i) => (
+            <div key={i} className="h-16 animate-pulse rounded-2xl bg-white/[0.04]" />
+          ))}
+        </div>
+      ) : (
+        <>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            {resumenCards.map((k) => (
+              <div key={k.l} className="rounded-2xl border border-white/[0.075] bg-white/[0.035] p-3">
+                <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">{k.l}</div>
+                <div className={cn("mt-1 text-base font-extrabold tabular-nums", k.cls)}>{k.v}</div>
+              </div>
+            ))}
+            {efectivoContado != null && (
+              <div className="rounded-2xl border border-white/[0.075] bg-white/[0.035] p-3">
+                <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Efectivo contado</div>
+                <div className="mt-1 text-base font-extrabold tabular-nums text-white">{money(Number(efectivoContado))}</div>
+                {diferenciaEfectivo != null && Number(diferenciaEfectivo) !== 0 && (
+                  <div className={cn("mt-0.5 text-[11px] font-bold", Number(diferenciaEfectivo) > 0 ? "text-emerald-300" : "text-rose-300")}>
+                    {Number(diferenciaEfectivo) > 0 ? "Sobra" : "Falta"} {money(Math.abs(Number(diferenciaEfectivo)))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-4 flex flex-wrap items-center gap-2">
+            {filtroChips.map((f) => (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => setFiltro(f.key)}
+                className={cn(
+                  "rounded-full px-3 py-1.5 text-xs font-bold ring-1 transition",
+                  filtro === f.key
+                    ? "bg-[linear-gradient(135deg,rgba(59,130,246,0.25),rgba(139,92,246,0.25))] text-white ring-violet-200/30"
+                    : "bg-white/[0.04] text-white/60 ring-white/10 hover:bg-white/[0.07]",
+                )}
+              >
+                {f.label}
+              </button>
+            ))}
+            {profesionales.length > 0 && (
+              <select
+                value={profesionalFiltro}
+                onChange={(e) => setProfesionalFiltro(e.target.value)}
+                className="rounded-full border border-white/[0.08] bg-black/40 px-3 py-1.5 text-xs font-semibold text-white/80 outline-none"
+              >
+                <option value="todos">Todos los profesionales</option>
+                {profesionales.map((nombre) => (
+                  <option key={nombre} value={nombre}>
+                    {nombre}
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {(filtro === "todos" || filtro === "servicios") && (
+            <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
+              <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
+                Servicios ({serviciosFiltrados.length})
+              </div>
+              <div className="space-y-2">
+                {serviciosFiltrados.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Sin servicios cobrados.</p>
+                ) : (
+                  serviciosFiltrados.map((p: any, idx: number) => {
+                    const items: any[] = Array.isArray(p.items) ? p.items : [];
+                    const servicioNombre =
+                      items.filter((it) => !it?.esProducto).map((it) => it.nombre).join(" + ") || p.servicio || "Servicio";
+                    const descuento = Number(p.descuento ?? 0);
+                    const propina = Number(p.propina ?? 0);
+                    return (
+                      <div key={`${p.id ?? idx}`} className="rounded-xl bg-black/22 px-3 py-2.5 text-xs">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <div className="truncate font-semibold text-white">{p.cliente ?? "Cliente"}</div>
+                            <div className="mt-0.5 truncate text-white/50">
+                              {p.hora ?? "—"}
+                              {p.profesional ? ` · ${p.profesional}` : ""} · {paymentMethodLabel(p.metodo ?? "cash")}
+                            </div>
+                          </div>
+                          <div className="shrink-0 text-right">
+                            <div className="font-bold text-emerald-300">{money(p.monto ?? 0)}</div>
+                            {descuento > 0 && (
+                              <div className="text-[11px] text-amber-300/80">lista {money(p.precio_lista ?? 0)}</div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="mt-1.5 truncate text-white/70">{servicioNombre}</div>
+                        {(descuento > 0 || p.promocion || propina > 0 || p.usuario) && (
+                          <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-white/45">
+                            {p.promocion && <span>Promo: {p.promocion}</span>}
+                            {descuento > 0 && <span>Descuento: {money(descuento)}</span>}
+                            {propina > 0 && <span>Propina: {money(propina)}</span>}
+                            {p.usuario && <span>Cobró: {p.usuario}</span>}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          )}
+
+          {(filtro === "todos" || filtro === "productos") && (
+            <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
+              <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
+                Productos ({productosFiltrados.length})
+              </div>
+              <div className="space-y-2">
+                {productosFiltrados.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Sin productos vendidos.</p>
+                ) : (
+                  productosFiltrados.map((it: any) => (
+                    <div key={it.key} className="rounded-xl bg-black/22 px-3 py-2 text-xs">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="truncate font-semibold text-white">
+                          {it.nombre ?? "Producto"}
+                          {it.cantidad > 1 ? ` x${it.cantidad}` : ""}
+                        </span>
+                        <span className="font-bold text-emerald-300">{money(it.monto ?? 0)}</span>
+                      </div>
+                      <div className="mt-1 truncate text-white/45">
+                        {it.hora ?? "—"} · {it.cliente ?? "Cliente"}
+                        {it.profesional ? ` · ${it.profesional}` : ""}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {(filtro === "todos" || filtro === "gastos") && (
+            <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
+              <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
+                Gastos ({gastos.length})
+              </div>
+              <div className="space-y-2">
+                {gastos.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Sin gastos.</p>
+                ) : (
+                  gastos.map((g: any, idx: number) => (
+                    <div key={`${g.id ?? idx}`} className="rounded-xl bg-black/22 px-3 py-2 text-xs">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="truncate font-semibold text-white">{g.nombre ?? "Gasto"}</span>
+                        <span className="font-bold text-rose-300">-{money(g.monto ?? 0)}</span>
+                      </div>
+                      <div className="mt-1 truncate text-white/45">
+                        {g.hora ?? "—"} · {paymentMethodLabel(g.metodo ?? "cash")}
+                        {g.usuario ? ` · ${g.usuario}` : ""}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          )}
+
+          {(filtro === "todos" || filtro === "retiros") && (
+            <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
+              <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
+                Retiros e ingresos manuales ({retiros.length + ingresosManuales.length})
+              </div>
+              <div className="space-y-2">
+                {retiros.length + ingresosManuales.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Sin retiros ni ingresos manuales.</p>
+                ) : (
+                  [...retiros, ...ingresosManuales]
+                    .sort((a, b) => (a.hora ?? "").localeCompare(b.hora ?? ""))
+                    .map((m) => (
+                      <div key={m.id} className="rounded-xl bg-black/22 px-3 py-2 text-xs">
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="truncate font-semibold text-white">
+                            {m.tipo === "retiro" ? "Retiro" : "Ingreso manual"}
+                            {m.nota ? ` · ${m.nota}` : ""}
+                          </span>
+                          <span className={cn("font-bold", m.tipo === "retiro" ? "text-rose-300" : "text-emerald-300")}>
+                            {m.tipo === "retiro" ? "-" : "+"}
+                            {money(m.monto)}
+                          </span>
+                        </div>
+                        <div className="mt-1 truncate text-white/45">
+                          {m.hora ?? "—"} · {paymentMethodLabel(m.metodo === "cuenta" ? "transfer" : "cash")}
+                          {m.usuario ? ` · ${m.usuario}` : ""}
+                        </div>
+                      </div>
+                    ))
+                )}
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
+        <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">Datos del cierre</div>
+        <div className="grid grid-cols-2 gap-3 text-xs md:grid-cols-4">
+          <div>
+            <div className="text-white/40">Fecha operativa</div>
+            <div className="mt-0.5 font-semibold text-white">{fecha ?? "—"}</div>
+          </div>
+          <div>
+            <div className="text-white/40">Tipo de cierre</div>
+            <div className="mt-0.5 font-semibold text-white">{tipoCierreLabel(cierre)}</div>
+          </div>
+          <div>
+            <div className="text-white/40">Responsable</div>
+            <div className="mt-0.5 font-semibold text-white">
+              {actor(cierreEvt?.usuario ?? cierre?.closed_by ?? cierre?.usuario_nombre)}
+            </div>
+          </div>
+          <div>
+            <div className="text-white/40">Registrado el</div>
+            <div className="mt-0.5 font-semibold text-white">
+              {cierreEvt?.fecha_hora
+                ? new Date(cierreEvt.fecha_hora).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })
+                : "—"}
+            </div>
+          </div>
+        </div>
+        {observacion && (
+          <div className="mt-3 rounded-xl border border-white/[0.055] bg-white/[0.03] px-3 py-2 text-xs text-white/65">
+            {observacion}
+          </div>
+        )}
+        {puedeReabrir && (
+          <button
+            type="button"
+            disabled={reabriendo}
+            onClick={onReabrir}
+            className="mt-4 w-full rounded-2xl border border-white/[0.10] bg-white/[0.055] px-4 py-3 text-sm font-extrabold text-white transition hover:bg-white/[0.09] disabled:opacity-50"
+          >
+            {reabriendo ? "Reabriendo…" : "Reabrir caja"}
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function renderEstadoPill(c: any) {
+  return (
+    <span
+      className={cn(
+        "rounded-full px-2.5 py-1 text-xs font-bold ring-1",
+        c?.estado === "reabierta"
+          ? "bg-emerald-500/10 text-emerald-300 ring-emerald-400/25"
+          : "bg-rose-500/10 text-rose-300 ring-rose-400/25",
+      )}
+    >
+      {c?.estado === "reabierta" ? "Reabierta" : "Cerrada"}
+    </span>
+  );
+}
+
 // ─────────── Cierres de caja — historial tab ─────────────────────────────────
 
 function CierresTab({
@@ -6261,7 +6677,6 @@ function CierresTab({
   const [cierres, setCierres] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<any | null>(null);
-  const [detalleProfesional, setDetalleProfesional] = useState<string>("todos");
   const [reopeningId, setReopeningId] = useState<string | null>(null);
   const [reopenTarget, setReopenTarget] = useState<any | null>(null);
   const [reopenNote, setReopenNote] = useState("");
@@ -6484,18 +6899,7 @@ function CierresTab({
     }
   }
 
-  const renderEstado = (c: any) => (
-    <span
-      className={cn(
-        "rounded-full px-2.5 py-1 text-xs font-bold ring-1",
-        c?.estado === "reabierta"
-          ? "bg-emerald-500/10 text-emerald-300 ring-emerald-400/25"
-          : "bg-rose-500/10 text-rose-300 ring-rose-400/25",
-      )}
-    >
-      {c?.estado === "reabierta" ? "Reabierta" : "Cerrada"}
-    </span>
-  );
+  const renderEstado = renderEstadoPill;
 
   const cierreSummary = (c: any) => {
     const eventos = cierreEventos(c);
@@ -6522,41 +6926,6 @@ function CierresTab({
       esHistoricoRegularizado: modo === "historico_regularizado",
     };
   };
-
-  // Desglose por método (cash/transfer/debit/credit/qr) recalculado en vivo
-  // desde cobros_snapshot/gastos_snapshot — misma razón que
-  // detalleMetodosSelected (abajo): un cierre guardado antes del fix de
-  // normalizeCierreMethodKey no puede quedar con métodos duplicados para
-  // siempre. Reutilizable tanto para cada fila del Historial como para el
-  // modal de detalle.
-  const cierreMetodos = (c: any): Record<string, CierreMetodoDetalle> | null => {
-    const detail: Record<string, CierreMetodoDetalle> = {};
-    const ensure = (method: string | null | undefined) => {
-      const key = normalizeCierreMethodKey(method);
-      if (!detail[key]) detail[key] = { ingresos: 0, gastos: 0, utilidad: 0 };
-      return detail[key];
-    };
-    for (const p of c?.cobros_snapshot ?? []) ensure(p.metodo).ingresos += Number(p.monto ?? 0);
-    for (const g of c?.gastos_snapshot ?? []) ensure(g.metodo).gastos += Number(g.monto ?? 0);
-    Object.values(detail).forEach((row) => {
-      row.utilidad = row.ingresos - row.gastos;
-    });
-    return Object.keys(detail).length > 0 ? detail : (c?.detalle_metodos_pago ?? null);
-  };
-
-  // Cantidad de servicios/productos de un cierre — a partir de
-  // cobros_snapshot[].items (enriquecido). Un cierre guardado ANTES de
-  // este enriquecimiento no trae items: se cuenta como 1 servicio por
-  // cobro (su único service_name), 0 productos — mismo criterio que
-  // siempre tuvo la fila (nunca inventa productos que no se sabe si
-  // existieron).
-  const cierreConteos = (c: any) => countServiciosYProductos(c?.cobros_snapshot ?? []);
-
-  const detalleMetodosSelected = React.useMemo(() => {
-    if (!selected) return null;
-    return cierreMetodos(selected);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selected]);
 
   return (
     <div className="-mt-3 space-y-4">
@@ -6671,440 +7040,46 @@ function CierresTab({
           </div>
         ) : (
           <div className="pt-5">
-            {/* Desktop: una fila real por fecha, con scroll horizontal
-                propio (12 columnas de importes no entran en ningún ancho
-                fijo) — nunca hace scroll la página. Mobile: tarjetas
-                verticales con lo esencial; el desglose completo por medio
-                de pago vive en "Ver detalles", no en la tarjeta. */}
-            <div className="hidden overflow-hidden rounded-[28px] border border-white/[0.085] bg-black/25 sm:block">
-              <div className="overflow-x-auto [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
-                <div className="min-w-[1180px]">
-                  <div className="grid grid-cols-[112px_104px_84px_84px_108px_96px_104px_112px_96px_96px_96px_minmax(140px,1fr)_120px] items-center gap-3 border-b border-white/[0.07] px-5 py-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">
-                    <div>Fecha</div>
-                    <div>Estado</div>
-                    <div className="text-right">Servicios</div>
-                    <div className="text-right">Productos</div>
-                    <div className="text-right">Ingresos</div>
-                    <div className="text-right">Gastos</div>
-                    <div className="text-right">Efectivo</div>
-                    <div className="text-right">Transfer.</div>
-                    <div className="text-right">Débito</div>
-                    <div className="text-right">Crédito</div>
-                    <div className="text-right">QR</div>
-                    <div>Responsable</div>
-                    <div className="text-right leading-none">Detalle</div>
-                  </div>
-                  <div className="max-h-[52vh] overflow-y-auto [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
-                    {cierres.map((c) => {
-                      const s = cierreSummary(c);
-                      const metodos = cierreMetodos(c) ?? {};
-                      const { servicios, productos } = cierreConteos(c);
-                      const money = (v: number) => (v ? `$${Math.round(v).toLocaleString("es-AR")}` : "—");
-                      return (
-                        <div
-                          key={c.id}
-                          className="grid grid-cols-[112px_104px_84px_84px_108px_96px_104px_112px_96px_96px_96px_minmax(140px,1fr)_120px] items-center gap-3 border-b border-white/[0.055] px-5 py-3 text-sm last:border-0 hover:bg-white/[0.025]"
-                        >
-                          <div className="font-semibold text-white/80">{fechaDetalleLabel(c.fecha)}</div>
-                          <div>{renderEstado(c)}</div>
-                          <div className="text-right tabular-nums text-white/70">{servicios}</div>
-                          <div className="text-right tabular-nums text-white/70">{productos}</div>
-                          <div className="text-right tabular-nums font-bold text-emerald-300">
-                            {money(Number(c.total_cobrado ?? 0))}
-                          </div>
-                          <div className="text-right tabular-nums text-rose-300/90">
-                            {money(Number(c.total_gastos ?? 0))}
-                          </div>
-                          <div className="text-right tabular-nums text-white/60">
-                            {money(metodos.cash?.ingresos ?? 0)}
-                          </div>
-                          <div className="text-right tabular-nums text-white/60">
-                            {money(metodos.transfer?.ingresos ?? 0)}
-                          </div>
-                          <div className="text-right tabular-nums text-white/60">
-                            {money(metodos.debit?.ingresos ?? 0)}
-                          </div>
-                          <div className="text-right tabular-nums text-white/60">
-                            {money(metodos.credit?.ingresos ?? 0)}
-                          </div>
-                          <div className="text-right tabular-nums text-white/60">
-                            {money(metodos.qr?.ingresos ?? 0)}
-                          </div>
-                          <div className="min-w-0">
-                            <div className="truncate text-white/70">{s.responsableCierre}</div>
-                            <span
-                              className={cn(
-                                "mt-0.5 inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ring-1",
-                                s.esHistoricoRegularizado
-                                  ? "bg-amber-500/10 text-amber-300 ring-amber-400/25"
-                                  : s.tipoCierre === "Automático"
-                                    ? "bg-violet-500/10 text-violet-300 ring-violet-400/25"
-                                    : "bg-white/[0.05] text-white/70 ring-white/10",
-                              )}
-                            >
-                              {s.tipoCierre}
-                            </span>
-                          </div>
-                          <div className="flex items-center justify-end gap-2">
-                            {hasNotes(c) && (
-                              <span
-                                title="Tiene observaciones"
-                                className="inline-flex h-7 w-7 items-center justify-center rounded-full border border-violet-300/15 bg-violet-400/10 text-xs text-violet-200"
-                              >
-                                📝
-                              </span>
-                            )}
-                            <button
-                              type="button"
-                              onClick={() => { setDetalleProfesional("todos"); setSelected(c); }}
-                              className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-xs font-bold text-white/75 transition hover:bg-white/[0.08] hover:text-white"
-                            >
-                              Ver detalles
-                            </button>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex max-h-[65vh] flex-col gap-2.5 overflow-y-auto pr-0.5 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent] sm:hidden">
-              {cierres.map((c) => {
-                const s = cierreSummary(c);
-                const { servicios, productos } = cierreConteos(c);
-                const observacion = getCierreObservacion(c) ?? getReaperturaObservacion(c);
-                return (
-                  <div
+            {selected ? (
+              <CierreDetalleView
+                cierre={selected}
+                businessId={businessId}
+                branchId={activeBranchId}
+                onVolver={() => setSelected(null)}
+                cierreEventos={cierreEventos}
+                getCierreObservacion={getCierreObservacion}
+                fechaDetalleLabel={fechaDetalleLabel}
+                tipoCierreLabel={(c: any) => cierreSummary(c).tipoCierre}
+                actor={actor}
+                onReabrir={() => {
+                  setReopenTarget(selected);
+                  setReopenNote("");
+                }}
+                puedeReabrir={selected.estado !== "reabierta"}
+                reabriendo={reopeningId === selected.id}
+              />
+            ) : (
+              // Historial minimalista: solo fechas, de más reciente a más
+              // antigua, cada una completamente clickeable. Nada de
+              // importes/servicios/profesionales/métodos/responsable acá
+              // — todo eso vive en CierreDetalleView, un clic adentro.
+              <div className="overflow-hidden rounded-[28px] border border-white/[0.085] bg-black/25">
+                {cierres.map((c) => (
+                  <button
                     key={c.id}
-                    className="rounded-2xl border border-white/[0.08] bg-black/25 p-3.5"
+                    type="button"
+                    onClick={() => setSelected(c)}
+                    className="flex w-full items-center justify-between gap-3 border-b border-white/[0.055] px-5 py-4 text-left transition last:border-0 hover:bg-white/[0.035] active:bg-white/[0.05]"
                   >
-                    <div className="flex items-start justify-between gap-2">
-                      <div>
-                        <div className="font-semibold text-white">{fechaDetalleLabel(c.fecha)}</div>
-                        <div className="mt-1">{renderEstado(c)}</div>
-                      </div>
-                      <span
-                        className={cn(
-                          "shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ring-1",
-                          s.esHistoricoRegularizado
-                            ? "bg-amber-500/10 text-amber-300 ring-amber-400/25"
-                            : s.tipoCierre === "Automático"
-                              ? "bg-violet-500/10 text-violet-300 ring-violet-400/25"
-                              : "bg-white/[0.05] text-white/70 ring-white/10",
-                        )}
-                      >
-                        {s.tipoCierre}
-                      </span>
-                    </div>
-                    <div className="mt-2.5 flex items-baseline justify-between">
-                      <span className="text-xs text-white/45">Ingresos</span>
-                      <span className="text-lg font-extrabold tabular-nums text-emerald-300">
-                        ${Math.round(Number(c.total_cobrado ?? 0)).toLocaleString("es-AR")}
-                      </span>
-                    </div>
-                    <div className="mt-2 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs">
-                      <div className="text-white/45">
-                        Servicios <span className="text-white/80">{servicios}</span>
-                      </div>
-                      <div className="text-white/45">
-                        Productos <span className="text-white/80">{productos}</span>
-                      </div>
-                      <div className="text-white/45">
-                        Gastos{" "}
-                        <span className="text-white/80">
-                          ${Math.round(Number(c.total_gastos ?? 0)).toLocaleString("es-AR")}
-                        </span>
-                      </div>
-                      <div className="col-span-2 truncate text-white/45">
-                        Responsable <span className="text-white/80">{s.responsableCierre}</span>
-                      </div>
-                    </div>
-                    {observacion && (
-                      <div className="mt-2.5 rounded-xl border border-white/[0.055] bg-white/[0.03] px-3 py-2 text-xs text-white/65">
-                        {observacion}
-                      </div>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => { setDetalleProfesional("todos"); setSelected(c); }}
-                      className="mt-3 w-full rounded-xl border border-white/[0.08] bg-white/[0.045] px-3 py-2 text-xs font-bold text-white/80 transition active:bg-white/[0.08]"
-                    >
-                      Ver detalles
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
+                    <span className="text-sm font-semibold text-white/85">{fechaDetalleLabel(c.fecha)}</span>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-white/35" />
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </section>
-
-      {selected && typeof document !== "undefined" && createPortal(
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm">
-          <div className="max-h-[88vh] w-full max-w-4xl overflow-hidden rounded-3xl border border-white/[0.10] bg-[linear-gradient(135deg,rgba(5,8,15,0.99),rgba(10,12,24,0.98),rgba(2,4,12,0.99))] shadow-2xl">
-            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-white/10 bg-black/35 px-5 py-4">
-              <div>
-                <div className="font-semibold text-sm text-white">Detalle del cierre</div>
-                <div className="mt-0.5 text-xs text-muted-foreground">
-                  {fechaDetalleLabel(selected.fecha)} · {cajaHoraDisplay(selected.hora_cierre ?? "—")}
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setSelected(null)}
-                className="rounded-xl bg-white/5 px-3 py-2 text-sm text-white/70 hover:bg-white/10 hover:text-white"
-              >
-                Cerrar
-              </button>
-            </div>
-
-            <div className="max-h-[76vh] overflow-y-auto p-5 text-sm [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
-              <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-                {[
-                  {
-                    l: "Ingresos",
-                    v: `$${Number(selected.total_cobrado ?? 0).toLocaleString("es-AR")}`,
-                    cls: "text-emerald-300",
-                  },
-                  {
-                    l: "Gastos",
-                    v: `$${Number(selected.total_gastos ?? 0).toLocaleString("es-AR")}`,
-                    cls: "text-rose-300",
-                  },
-                  {
-                    l: "Utilidad",
-                    v: `$${Number(selected.utilidad ?? 0).toLocaleString("es-AR")}`,
-                    cls: Number(selected.utilidad) >= 0 ? "text-violet-300" : "text-rose-300",
-                  },
-                  {
-                    l:
-                      selected.diferencia == null
-                        ? "Diferencia"
-                        : Number(selected.diferencia) === 0
-                          ? "Diferencia"
-                          : Number(selected.diferencia) > 0
-                            ? "Sobra"
-                            : "Falta",
-                    v:
-                      selected.diferencia != null
-                        ? `$${Math.round(Math.abs(Number(selected.diferencia))).toLocaleString("es-AR")}`
-                        : "—",
-                    cls:
-                      selected.diferencia == null || Number(selected.diferencia) === 0
-                        ? "text-white"
-                        : Number(selected.diferencia) > 0
-                          ? "text-emerald-300"
-                          : "text-rose-300",
-                  },
-                ].map((k) => (
-                  <div key={k.l} className="rounded-2xl border border-white/[0.075] bg-white/[0.035] p-3">
-                    <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                      {k.l}
-                    </div>
-                    <div className={cn("mt-1 text-lg font-extrabold tabular-nums", k.cls)}>
-                      {k.v}
-                    </div>
-                  </div>
-                ))}
-              </div>
-
-              {detalleMetodosSelected && (
-                <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
-                  <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
-                    Medios de pago
-                  </div>
-                  <div className="space-y-2">
-                    {Object.entries(detalleMetodosSelected as Record<string, any>).map(([method, row]) => (
-                      <div key={method} className="grid grid-cols-4 gap-2 rounded-xl bg-black/22 px-3 py-2 text-xs">
-                        <div className="font-semibold text-white">{paymentMethodLabel(method)}</div>
-                        <div className="text-emerald-300">Ingresos ${Number(row.ingresos ?? 0).toLocaleString("es-AR")}</div>
-                        <div className="text-rose-300">Gastos ${Number(row.gastos ?? 0).toLocaleString("es-AR")}</div>
-                        <div className="text-white/80">Neto ${Number(row.utilidad ?? 0).toLocaleString("es-AR")}</div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {(() => {
-                const cobros = (selected.cobros_snapshot ?? []) as any[];
-                const profesionales = Array.from(
-                  new Set(cobros.map((p) => p.profesional).filter(Boolean)),
-                ) as string[];
-                const cobrosFiltrados =
-                  detalleProfesional === "todos"
-                    ? cobros
-                    : cobros.filter((p) => (p.profesional ?? "—") === detalleProfesional);
-                return (
-                  <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
-                    <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                      <div className="text-xs font-bold uppercase tracking-[0.16em] text-white/45">
-                        Servicios y productos ({cobrosFiltrados.length})
-                      </div>
-                      {profesionales.length > 0 && (
-                        <select
-                          value={detalleProfesional}
-                          onChange={(e) => setDetalleProfesional(e.target.value)}
-                          className="rounded-lg border border-white/[0.08] bg-black/40 px-2.5 py-1.5 text-xs font-semibold text-white/80 outline-none"
-                        >
-                          <option value="todos">Todos los profesionales</option>
-                          {profesionales.map((nombre) => (
-                            <option key={nombre} value={nombre}>
-                              {nombre}
-                            </option>
-                          ))}
-                        </select>
-                      )}
-                    </div>
-                    <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
-                      {cobrosFiltrados.length === 0 ? (
-                        <p className="text-sm text-muted-foreground">Sin movimientos para este filtro.</p>
-                      ) : (
-                        cobrosFiltrados.map((p: any, idx: number) => {
-                          const items: any[] = Array.isArray(p.items) ? p.items : [];
-                          const descuento = Number(p.descuento ?? 0);
-                          const propina = Number(p.propina ?? 0);
-                          return (
-                            <div key={`${p.id ?? idx}`} className="rounded-xl bg-black/22 px-3 py-2.5 text-xs">
-                              <div className="flex items-start justify-between gap-3">
-                                <div className="min-w-0">
-                                  <div className="truncate font-semibold text-white">
-                                    {p.cliente ?? "Cliente"}
-                                  </div>
-                                  <div className="mt-0.5 truncate text-white/50">
-                                    {p.hora ?? "—"}
-                                    {p.profesional ? ` · ${p.profesional}` : ""}
-                                    {" · "}
-                                    {paymentMethodLabel(p.metodo ?? "cash")}
-                                  </div>
-                                </div>
-                                <div className="shrink-0 text-right">
-                                  <div className="font-bold text-emerald-300">
-                                    ${Number(p.monto ?? 0).toLocaleString("es-AR")}
-                                  </div>
-                                  {descuento > 0 && (
-                                    <div className="text-[11px] text-amber-300/80">
-                                      lista ${Number(p.precio_lista ?? 0).toLocaleString("es-AR")}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                              <div className="mt-1.5 truncate text-white/70">
-                                {items.length > 0
-                                  ? items
-                                      .map((it) => `${it.nombre ?? "Ítem"}${it.cantidad > 1 ? ` x${it.cantidad}` : ""}${it.esProducto ? " (producto)" : ""}`)
-                                      .join(" + ")
-                                  : (p.servicio ?? "Servicio")}
-                              </div>
-                              {(descuento > 0 || p.promocion || propina > 0 || p.usuario) && (
-                                <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-white/45">
-                                  {p.promocion && <span>Promo: {p.promocion}</span>}
-                                  {descuento > 0 && (
-                                    <span>Descuento: ${descuento.toLocaleString("es-AR")}</span>
-                                  )}
-                                  {propina > 0 && (
-                                    <span>Propina: ${propina.toLocaleString("es-AR")}</span>
-                                  )}
-                                  {p.usuario && <span>Cobró: {p.usuario}</span>}
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })
-                      )}
-                    </div>
-                  </div>
-                );
-              })()}
-
-              <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
-                <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
-                  Gastos / movimientos manuales
-                </div>
-                <div className="max-h-56 space-y-2 overflow-y-auto pr-1 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
-                  {(selected.gastos_snapshot ?? []).length === 0 ? (
-                    <p className="text-sm text-muted-foreground">Sin gastos.</p>
-                  ) : (
-                    (selected.gastos_snapshot ?? []).map((g: any, idx: number) => (
-                      <div key={`${g.id ?? idx}`} className="rounded-xl bg-black/22 px-3 py-2 text-xs">
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="truncate font-semibold text-white">{g.nombre ?? "Gasto"}</span>
-                          <span className="font-bold text-rose-300">-${Number(g.monto ?? 0).toLocaleString("es-AR")}</span>
-                        </div>
-                        <div className="mt-1 truncate text-white/45">
-                          {g.hora ?? "—"} · {paymentMethodLabel(g.metodo ?? "cash")}
-                          {g.usuario ? ` · ${g.usuario}` : ""}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </div>
-
-              <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
-                <div className="mb-4 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
-                  Línea de tiempo
-                </div>
-                <div className="space-y-3">
-                  {cierreEventos(selected).map((e: any, index: number) => {
-                    const tipo = String(e?.tipo ?? "evento");
-                    const modo = String(e?.modo ?? "").toLowerCase();
-                    const isAuto = tipo === "cierre" && modo === "automatico";
-                    const isRegularizado = tipo === "cierre" && modo === "historico_regularizado";
-                    const label =
-                      tipo === "correccion" ? "Corrección del cierre" :
-                      isRegularizado ? "Histórico regularizado" :
-                      isAuto ? "Cierre automático" :
-                      tipo === "apertura" ? "Caja abierta" :
-                      tipo === "reapertura" ? "Reapertura" :
-                      tipo === "cierre" ? "Caja cerrada" :
-                      tipo;
-                    const note = e?.observacion ?? e?.motivo ?? e?.nota ?? null;
-
-                    return (
-                      <div key={`${e?.tipo}-${index}`} className="relative rounded-2xl border border-white/[0.065] bg-black/24 px-4 py-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-extrabold text-white">{label}</p>
-                            <p className="mt-1 text-xs text-muted-foreground">
-                              Responsable: <span className="font-semibold text-white/80">{actor(e?.usuario)}</span>
-                            </p>
-                          </div>
-                          <span className="rounded-full border border-white/[0.08] bg-white/[0.04] px-3 py-1 text-xs font-bold text-white/65">
-                            {e?.hora ?? "—"}
-                          </span>
-                        </div>
-                        {note && (
-                          <div className="mt-3 rounded-xl border border-white/[0.055] bg-white/[0.035] px-3 py-2 text-xs text-white/72">
-                            {note}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {selected.estado !== "reabierta" && (
-                <button
-                  type="button"
-                  disabled={reopeningId === selected.id}
-                  onClick={() => {
-                    setReopenTarget(selected);
-                    setReopenNote("");
-                  }}
-                  className="mt-4 w-full rounded-2xl border border-white/[0.10] bg-white/[0.055] px-4 py-3 text-sm font-extrabold text-white transition hover:bg-white/[0.09] disabled:opacity-50"
-                >
-                  Reabrir caja
-                </button>
-              )}
-            </div>
-          </div>
-        </div>,
-        document.body,
-      )}
 
       {/* createPortal: sin esto, el <div className="relative z-10"> con el
           que <AppShell> envuelve la página atrapa este modal en su propio
