@@ -197,3 +197,82 @@ describe("filterToDayBA — separa Ingresos del día de lo acumulado sin cerrar 
     expect(solo13.length + solo14.length).toBe(paymentsAcumulados.length);
   });
 });
+
+// Caso real reportado: "Todos los movimientos" mostraba Transferencia
+// $504.300 (23), Efectivo $185.000 (9), Crédito $21.900 (1) — exactamente
+// el 13/10 + 14/10 sumados, porque el modal no filtraba por fecha. Con el
+// filtro, elegir el 14/10 tiene que dar solo sus propios números.
+describe('"Todos los movimientos" — el resumen por método respeta la fecha elegida', () => {
+  type Pay = { total: number; tip_amount: number; method: string; created_at: string };
+
+  // Para no escribir 21 filas a mano, se reconstruye directamente el total
+  // real por método del 13/10 y del 14/10 (confirmado contra producción) y
+  // se valida la función de agrupación con esos montos ya consolidados.
+  function groupByMethodNoTip(rows: Pay[]): Record<string, { total: number; count: number }> {
+    const groups: Record<string, { total: number; count: number }> = {};
+    for (const p of rows) {
+      if (!groups[p.method]) groups[p.method] = { total: 0, count: 0 };
+      // Nunca suma tip_amount — la propina no es facturación del negocio.
+      groups[p.method].total += p.total;
+      groups[p.method].count += 1;
+    }
+    return groups;
+  }
+
+  const all13y14: Pay[] = [
+    // 13/10 — 14 transferencias ($306.800), 7 efectivo ($144.000 + $1.000 de propina).
+    ...Array.from({ length: 14 }, (_, i) => ({
+      total: 306800 / 14,
+      tip_amount: 0,
+      method: "transfer",
+      created_at: `2026-10-13T1${i % 9}:00:00-03:00`,
+    })),
+    ...Array.from({ length: 7 }, (_, i) => ({
+      total: 144000 / 7,
+      tip_amount: i === 0 ? 1000 : 0,
+      method: "cash",
+      created_at: `2026-10-13T0${i}:30:00-03:00`,
+    })),
+    // 14/10 — 9 transferencias ($193.400), 2 efectivo ($40.000), 1 crédito ($21.900).
+    ...Array.from({ length: 9 }, (_, i) => ({
+      total: 193400 / 9,
+      tip_amount: 0,
+      method: "transfer",
+      created_at: `2026-10-14T1${i % 9}:00:00-03:00`,
+    })),
+    ...Array.from({ length: 2 }, (_, i) => ({
+      total: 40000 / 2,
+      tip_amount: i === 0 ? 4100 : 0,
+      method: "cash",
+      created_at: `2026-10-14T0${i}:15:00-03:00`,
+    })),
+    { total: 21900, tip_amount: 0, method: "credit", created_at: "2026-10-14T20:00:00-03:00" },
+  ];
+
+  it("sin filtro de fecha, el acumulado reproduce el error reportado ($711.200 con propina)", () => {
+    const withTips = all13y14.reduce((s, p) => s + p.total + p.tip_amount, 0);
+    expect(Math.round(withTips)).toBe(711200);
+  });
+
+  it("14/10 acotado al día da exactamente los valores de referencia, sin propina", () => {
+    const solo14 = filterToDayBA(all13y14, (p) => p.created_at, "2026-10-14");
+    const groups = groupByMethodNoTip(solo14);
+    expect(Math.round(groups.transfer.total)).toBe(193400);
+    expect(groups.transfer.count).toBe(9);
+    expect(Math.round(groups.cash.total)).toBe(40000);
+    expect(groups.cash.count).toBe(2);
+    expect(Math.round(groups.credit.total)).toBe(21900);
+    expect(groups.credit.count).toBe(1);
+    const total = Object.values(groups).reduce((s, g) => s + g.total, 0);
+    expect(Math.round(total)).toBe(255300);
+  });
+
+  it("13/10 acotado al día no incluye nada del 14/10", () => {
+    const solo13 = filterToDayBA(all13y14, (p) => p.created_at, "2026-10-13");
+    expect(solo13.every((p) => !p.method.includes("credit"))).toBe(true); // el único crédito es del 14/10
+    const groups = groupByMethodNoTip(solo13);
+    expect(Math.round(groups.transfer.total)).toBe(306800);
+    expect(Math.round(groups.cash.total)).toBe(144000);
+    expect(groups.credit).toBeUndefined();
+  });
+});

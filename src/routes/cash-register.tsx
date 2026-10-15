@@ -20,6 +20,9 @@ import {
   isCajaCerradaRow,
   isCajaReabiertaRow,
   cajaDateKey,
+  cajaDateKeyBA,
+  filterToDayBA,
+  dayBoundsBA,
   cajaTimeLabel,
   cajaHoraDisplay,
   cajaEventTimeToMinutes,
@@ -8237,55 +8240,72 @@ function MovimientosUnificados({
 
   function closeAllModal() {
     setAllOpen(false);
-    // Arranca de nuevo en "Todos los profesionales" la próxima vez que se
-    // abra, en vez de quedar pegado al último filtro elegido.
+    // Arranca de nuevo en "Todos los profesionales" y en el día de hoy la
+    // próxima vez que se abra, en vez de quedar pegado al último filtro
+    // elegido.
     setSelectedProfessionalId(null);
+    setSelectedDateKey(cajaDateKeyBA());
   }
+
+  // Fecha del modal "Ver todos los movimientos" — por defecto HOY (huso
+  // Buenos Aires), nunca el acumulado de días sin cerrar. data.paymentsToday/
+  // expensesToday/movementsData.movements pueden traer también backlog de
+  // un día anterior sin cerrar (ver cajaOpenRangeStartDate) — por eso TODO
+  // lo que se muestra o calcula en este modal pasa por este filtro antes,
+  // nunca directo de esos arrays acumulados.
+  const [selectedDateKey, setSelectedDateKey] = React.useState(() => cajaDateKeyBA());
+  const paymentsForSelectedDate = React.useMemo(
+    () => filterToDayBA(data.paymentsToday, (p) => p.created_at, selectedDateKey),
+    [data.paymentsToday, selectedDateKey],
+  );
 
   // Selector de profesional del modal "Ver todos los movimientos" — null =
   // Todos los profesionales. Solo lista profesionales con al menos un cobro
-  // en el período (data.paymentsToday), no cualquier empleado activo.
+  // en la fecha elegida, no cualquier empleado activo ni el período
+  // acumulado completo.
   const [selectedProfessionalId, setSelectedProfessionalId] = React.useState<string | null>(null);
   const professionalOptions = React.useMemo(() => {
     const ids = new Set(
-      data.paymentsToday.map((p) => p.employee_id).filter((id): id is string => !!id),
+      paymentsForSelectedDate.map((p) => p.employee_id).filter((id): id is string => !!id),
     );
     return data.employees
       .filter((e) => ids.has(e.id))
       .map((e) => ({ id: e.id, name: e.name }))
       .sort((a, b) => a.name.localeCompare(b.name));
-  }, [data.paymentsToday, data.employees]);
+  }, [paymentsForSelectedDate, data.employees]);
 
   const professionalPayments = React.useMemo(
     () =>
       selectedProfessionalId
-        ? data.paymentsToday.filter((p) => p.employee_id === selectedProfessionalId)
+        ? paymentsForSelectedDate.filter((p) => p.employee_id === selectedProfessionalId)
         : [],
-    [data.paymentsToday, selectedProfessionalId],
+    [paymentsForSelectedDate, selectedProfessionalId],
   );
 
   // Resumen por método de pago — mismo cálculo que ya existía en History
   // (closeout). Con un profesional elegido, reutiliza professionalPayments
-  // (ya filtrado arriba, solo cobros de ese profesional) en vez del total
-  // general; sin profesional ("Todos"), usa data.paymentsToday completo. En
-  // los dos casos la fuente es siempre paymentsToday — nunca gastos,
-  // movimientos manuales ni pendientes — y un método sin cobros simplemente
-  // no genera entrada en el reduce, así que "monto > 0" queda garantizado
-  // sin un filtro aparte.
+  // (ya filtrado por profesional Y por fecha); sin profesional ("Todos"),
+  // usa paymentsForSelectedDate (ya acotado a la fecha elegida, nunca el
+  // acumulado completo). En los dos casos la fuente es siempre payments —
+  // nunca gastos, movimientos manuales ni pendientes — y un método sin
+  // cobros simplemente no genera entrada en el reduce, así que "monto > 0"
+  // queda garantizado sin un filtro aparte. Nunca suma tip_amount: la
+  // propina es plata del profesional, no facturación del negocio — mismo
+  // criterio que "Ingresos" en toda la app (ver computeExpectedCashAndDigital).
   const closeoutByMethod = React.useMemo(() => {
-    const source = selectedProfessionalId ? professionalPayments : data.paymentsToday;
+    const source = selectedProfessionalId ? professionalPayments : paymentsForSelectedDate;
     const groups = source.reduce(
       (acc, payment) => {
         const method = String(payment.method ?? payment.payment_method ?? "cash");
         if (!acc[method]) acc[method] = { method, total: 0, count: 0 };
-        acc[method].total += Number(payment.total ?? payment.amount ?? 0) + Number(payment.tip_amount ?? 0);
+        acc[method].total += Number(payment.total ?? payment.amount ?? 0);
         acc[method].count += 1;
         return acc;
       },
       {} as Record<string, { method: string; total: number; count: number }>,
     );
     return Object.values(groups).sort((a, b) => b.total - a.total);
-  }, [selectedProfessionalId, professionalPayments, data.paymentsToday]);
+  }, [selectedProfessionalId, professionalPayments, paymentsForSelectedDate]);
 
   // Comisión real de cada cobro — commission_records.amount, la misma
   // fuente que ya usa DetailModal (computeCommissionAmount al momento del
@@ -8337,13 +8357,18 @@ function MovimientosUnificados({
   }, [selectedProfessionalId, professionalPayments, commissionBySaleId]);
 
   // Filtra el listado del modal (no el acotado a 10 de abajo, que no tiene
-  // selector) a los cobros de ese profesional cuando hay uno elegido.
+  // selector) a la fecha elegida y, si hay uno, al profesional elegido —
+  // los dos filtros se combinan, nunca uno pisa al otro.
   const modalItems = React.useMemo(() => {
-    if (!selectedProfessionalId) return all;
-    return all.filter(
+    const { start, end } = dayBoundsBA(selectedDateKey);
+    const startMs = start.getTime();
+    const endMs = end.getTime();
+    const byDate = all.filter((item) => item.ts >= startMs && item.ts <= endMs);
+    if (!selectedProfessionalId) return byDate;
+    return byDate.filter(
       (item) => item.kind === "pago" && item.payment?.employee_id === selectedProfessionalId,
     );
-  }, [all, selectedProfessionalId]);
+  }, [all, selectedDateKey, selectedProfessionalId]);
 
   return (
     <>
@@ -8476,18 +8501,30 @@ function MovimientosUnificados({
                 permite apilar (flex-col) porque no entra todo en una fila
                 angosta. */}
             <div className="flex shrink-0 flex-col gap-3 border-b border-white/10 bg-white/[0.02] px-5 py-3 sm:flex-row sm:items-center sm:justify-between">
-              <select
-                value={selectedProfessionalId ?? ""}
-                onChange={(e) => setSelectedProfessionalId(e.target.value || null)}
-                className="w-full shrink-0 rounded-xl bg-white/[0.05] ring-1 ring-white/10 px-3 py-2 text-sm text-white outline-none focus:ring-2 focus:ring-primary/50 sm:w-auto"
-              >
-                <option value="">Todos los profesionales</option>
-                {professionalOptions.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name}
-                  </option>
-                ))}
-              </select>
+              <div className="flex shrink-0 flex-wrap items-center gap-2">
+                {/* Fecha a consultar — por defecto hoy (huso Buenos Aires).
+                    max=hoy: este modal es para revisar días ya cobrados,
+                    nunca una fecha futura. */}
+                <input
+                  type="date"
+                  value={selectedDateKey}
+                  max={cajaDateKeyBA()}
+                  onChange={(e) => setSelectedDateKey(e.target.value || cajaDateKeyBA())}
+                  className="h-10 shrink-0 rounded-xl bg-white/[0.05] ring-1 ring-white/10 px-3 text-sm text-white outline-none focus:ring-2 focus:ring-primary/50"
+                />
+                <select
+                  value={selectedProfessionalId ?? ""}
+                  onChange={(e) => setSelectedProfessionalId(e.target.value || null)}
+                  className="h-10 w-full shrink-0 rounded-xl bg-white/[0.05] ring-1 ring-white/10 px-3 text-sm text-white outline-none focus:ring-2 focus:ring-primary/50 sm:w-auto"
+                >
+                  <option value="">Todos los profesionales</option>
+                  {professionalOptions.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
 
               {professionalSummary && (
                 <div className="flex flex-wrap items-center gap-x-5 gap-y-1 sm:flex-nowrap sm:justify-end">
