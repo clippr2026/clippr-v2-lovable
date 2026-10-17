@@ -152,15 +152,38 @@ export function getVisibleRange(
   };
 
   const dayKey = DAY_KEYS[date.getDay()];
+  const dateKey = toDateKey(date);
+
+  // Excepciones puntuales de "Horario especial" (por profesional, para ESTA
+  // fecha exacta) que superan el horario semanal del negocio — ver
+  // resolveDaySchedule, que ya las respeta para disponibilidad. Sin esto, un
+  // profesional habilitado por ejemplo de 10:00 a 19:00 en un negocio que
+  // abre a las 11:00 queda disponible pero invisible: la grilla ni siquiera
+  // dibuja la fila de las 10:00.
+  let specialOpen: number | null = null;
+  let specialClose: number | null = null;
+  for (const emp of employees) {
+    if (emp.is_active === false) continue;
+    const override = employeeSpecial[emp.id]?.[dateKey];
+    if (!override || override.enabled === false) continue;
+    if (!isValidRange(override)) continue;
+    const open = Math.round(parseScheduleTime(override.start) * 60);
+    const close = Math.round(parseScheduleTime(override.end) * 60);
+    specialOpen = specialOpen === null ? open : Math.min(specialOpen, open);
+    specialClose = specialClose === null ? close : Math.max(specialClose, close);
+  }
 
   // IMPORTANTE: usar el horario semanal del negocio como fuente principal de
   // la grilla. No lo expandimos con descansos, bloqueos ni horarios viejos.
   // Esto evita el bug donde la agenda se achicaba a 09:00–14:00 o quedaba vacía.
+  // Sí se expande (nunca se achica) con excepciones puntuales por profesional.
   const weeklyBusinessDay = businessSchedule?.[dayKey] ?? null;
   if (isValidRange(weeklyBusinessDay)) {
+    const bizOpen = Math.round(parseScheduleTime(weeklyBusinessDay!.start) * 60);
+    const bizClose = Math.round(parseScheduleTime(weeklyBusinessDay!.end) * 60);
     return {
-      start: weeklyBusinessDay!.start,
-      end: weeklyBusinessDay!.end,
+      start: minutesToScheduleTime(specialOpen === null ? bizOpen : Math.min(bizOpen, specialOpen)),
+      end: minutesToScheduleTime(specialClose === null ? bizClose : Math.max(bizClose, specialClose)),
     };
   }
 
