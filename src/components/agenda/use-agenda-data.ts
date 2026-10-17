@@ -18,6 +18,7 @@ import {
   resolveDaySchedule,
   resolveSingleDay,
   checkDaySchedule,
+  parseTime,
 } from "@/lib/availability";
 import {
   type EmployeeServiceOverrideMap,
@@ -98,7 +99,7 @@ export type Client = {
 };
 
 // Reexport de tipos y resolución compartidos (definidos en @/lib/availability).
-export { DAY_KEYS, toDateKey, parseScheduleTime, normalizeDaySchedule, resolveDaySchedule, resolveSingleDay, checkDaySchedule };
+export { DAY_KEYS, toDateKey, parseScheduleTime, normalizeDaySchedule, resolveDaySchedule, resolveSingleDay, checkDaySchedule, parseTime };
 export type { DayKey, DaySchedule, ScheduleMap, SpecialDateMap, EmployeeSpecialDateMap };
 
 // (toDateKey y normalizeDaySchedule se importan de @/lib/availability)

@@ -29,6 +29,7 @@ import {
   checkDaySchedule,
   resolveDaySchedule,
   resolveSingleDay,
+  parseTime,
   toDateKey,
   type Appointment,
   type ApptStatus,
@@ -434,6 +435,11 @@ function AgendaPage() {
     breakEnd: string;
     saving: boolean;
   } | null>(null);
+  // Confirmación "el horario del local está cerrado en este rango — ¿habilitar
+  // igual?" — solo aparece cuando el horario especial elegido para ESE
+  // profesional/fecha queda total o parcialmente fuera del horario del
+  // negocio ese día (negocio cerrado, o abre/cierra en otro horario).
+  const [specialOverrideConfirm, setSpecialOverrideConfirm] = React.useState<{ day: DaySchedule } | null>(null);
   const newBtnRef = React.useRef<HTMLButtonElement>(null);
   const newBtnRefMobile = React.useRef<HTMLButtonElement>(null);
   // En mobile el menú se centra horizontalmente debajo de la barra en vez de
@@ -747,12 +753,32 @@ function AgendaPage() {
     return true;
   };
 
-  const saveSpecialFromAgenda = async (day: DaySchedule) => {
+  const saveSpecialFromAgenda = async (day: DaySchedule, confirmedOverride = false) => {
     if (!specialEditor || !data.businessId) return;
     if (!specialEditor.employeeId) {
       toast.error("Seleccioná un profesional para guardar el horario especial.");
       return;
     }
+
+    // Si el profesional queda disponible en un rango que el negocio tiene
+    // cerrado (o fuera de SU horario ese día), no se guarda directo: se
+    // pide confirmación explícita primero ("¿habilitar igual?"). Una vez
+    // confirmado, resolveDaySchedule ya respeta esta excepción puntual sin
+    // recortarla al horario del negocio (ver src/lib/availability.ts).
+    if (day.enabled && !confirmedOverride) {
+      const bizDay = resolveSingleDay(data.schedule, data.businessSpecialDates ?? {}, specialEditor.date);
+      const bizClosed = !bizDay || bizDay.enabled === false;
+      const dayStart = parseTime(day.start);
+      const dayEnd = parseTime(day.end);
+      const outOfBizHours =
+        !bizClosed && bizDay != null && (dayStart < parseTime(bizDay.start) || dayEnd > parseTime(bizDay.end));
+      if (bizClosed || outOfBizHours) {
+        setSpecialOverrideConfirm({ day });
+        return;
+      }
+    }
+
+    setSpecialOverrideConfirm(null);
     setSpecialEditor((s) => (s ? { ...s, saving: true } : s));
     try {
       await persistEmployeeSpecialDay(specialEditor.employeeId, toDateKey(specialEditor.date), day);
@@ -1820,6 +1846,52 @@ function AgendaPage() {
                   className="h-11 flex-1 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 text-sm"
                 >
                   Continuar
+                </button>
+              </div>
+            </div>
+          </div>
+          </MobileSafePortal>
+        ) : null}
+
+        {/* "El local está cerrado en este rango — ¿habilitar igual a este
+          profesional?" — nunca se guarda en silencio un horario especial que
+          excede el del negocio; siempre pide esta confirmación primero. */}
+        {specialOverrideConfirm && specialEditor ? (
+          <MobileSafePortal>
+          <div
+            className="fixed inset-0 z-[130] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            onClick={() => setSpecialOverrideConfirm(null)}
+          >
+            <div
+              className="w-full max-w-sm rounded-2xl bg-[#15161c] ring-1 ring-white/10 p-5 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-lg font-semibold">El local está cerrado en ese horario</div>
+              <p className="mt-2 text-sm text-muted-foreground">
+                {(() => {
+                  const emp = data.employees.find((e) => e.id === specialEditor.employeeId);
+                  return emp?.full_name ?? emp?.name ?? "Este profesional";
+                })()} quedaría
+                disponible de {specialOverrideConfirm.day.start} a {specialOverrideConfirm.day.end}, un horario en el
+                que el negocio está cerrado (o tiene un horario distinto) ese día. ¿Querés habilitarlo igual?
+              </p>
+              <div className="mt-5 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setSpecialOverrideConfirm(null)}
+                  className="h-11 flex-1 rounded-xl bg-white/5 ring-1 ring-white/10 px-4 text-sm text-muted-foreground hover:text-foreground"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!specialOverrideConfirm) return;
+                    saveSpecialFromAgenda(specialOverrideConfirm.day, true);
+                  }}
+                  className="h-11 flex-1 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 text-sm"
+                >
+                  Habilitar igual
                 </button>
               </div>
             </div>

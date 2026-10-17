@@ -342,15 +342,44 @@ export function resolveDaySchedule(
   date: Date,
 ): DaySchedule | null {
   const bizDay = resolveSingleDay(businessSchedule, businessSpecial, date);
+
+  if (employeeId) {
+    // Horario especial del profesional para ESTA fecha exacta (no el
+    // semanal recurrente) — es una excepción explícita, elegida a mano
+    // desde "Horario especial" para un día puntual, con advertencia
+    // confirmada si el negocio está cerrado o tiene un horario distinto
+    // ese rango (ver saveSpecialFromAgenda en agenda.tsx). A diferencia
+    // del horario semanal (que sigue intersectado con el negocio más
+    // abajo), esta excepción puntual SÍ puede superar el horario del
+    // negocio — es la única forma de que "habilitar igual" tenga efecto
+    // real en la disponibilidad, no solo quede guardado sin usarse.
+    const dateKey = toDateKey(date);
+    const empDateOverride = employeeSpecial[employeeId]?.[dateKey];
+    if (empDateOverride) {
+      if (empDateOverride.enabled === false) return { ...empDateOverride, enabled: false };
+      const hasBreak = Boolean(empDateOverride.breakStart && empDateOverride.breakEnd);
+      return {
+        enabled: true,
+        start: empDateOverride.start,
+        end: empDateOverride.end,
+        breakStart: hasBreak ? empDateOverride.breakStart : undefined,
+        breakEnd: hasBreak ? empDateOverride.breakEnd : undefined,
+        breaks: hasBreak ? [{ start: empDateOverride.breakStart!, end: empDateOverride.breakEnd! }] : [],
+      };
+    }
+  }
+
   if (!bizDay || bizDay.enabled === false) {
     return bizDay ? { ...bizDay, enabled: false } : null; // negocio cerrado ese día → todos
   }
 
   if (!employeeId) return bizDay;
 
-  // Horario propio del profesional para este día (especial de la fecha
-  // exacta → si no, semanal recurrente — misma prioridad que resolveSingleDay).
-  const empDay = resolveSingleDay(employeeSchedules[employeeId] ?? null, employeeSpecial[employeeId] ?? {}, date);
+  // Horario semanal recurrente del profesional (sin excepción puntual para
+  // esta fecha, ya descartada arriba) — este sí sigue intersectado con el
+  // negocio como siempre: un horario "de fondo" nunca debe superar el
+  // horario del local sin que nadie lo haya confirmado a propósito.
+  const empDay = resolveSingleDay(employeeSchedules[employeeId] ?? null, {}, date);
   if (!empDay) return bizDay; // profesional sin horario propio configurado → hereda el del negocio
   if (empDay.enabled === false) return { ...empDay, enabled: false };
 
