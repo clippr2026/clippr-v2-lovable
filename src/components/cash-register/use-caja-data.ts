@@ -1114,57 +1114,6 @@ export function useCajaData() {
     return () => { supabase.removeChannel(channel); };
   }, [businessId, requestReload]);
 
-  // Auto-close at midnight if session is still open
-  React.useEffect(() => {
-    if (!businessId) return;
-
-    const scheduleAutoClose = () => {
-      const now = new Date();
-      const midnight = new Date(now);
-      midnight.setDate(midnight.getDate() + 1);
-      midnight.setHours(0, 0, 10, 0); // 00:00:10 next day
-      const msUntilMidnight = midnight.getTime() - now.getTime();
-
-      const timer = setTimeout(async () => {
-        // Re-fetch to get latest open session
-        const { data: openSess } = await supabase
-          .from("cash_sessions")
-          .select("id,status,business_id")
-          .eq("business_id", businessId)
-          .eq("status", "open")
-          .limit(1)
-          .maybeSingle();
-
-        if (openSess?.id) {
-          await supabase.from("cash_sessions").update({
-            status: "closed",
-            closed_at: new Date().toISOString(),
-            close_type: "cierre_automatico",
-          }).eq("id", openSess.id);
-
-          // Log event
-          try {
-            await supabase.from("cash_session_events").insert({
-              business_id: businessId,
-              session_id: openSess.id,
-              action_type: "cierre_automatico",
-              user_id: null,
-              observation: "Cierre automático al finalizar la jornada",
-              occurred_at: new Date().toISOString(),
-            });
-          } catch { /* ignore */ }
-        }
-
-        void requestReload("cierre automático de medianoche");
-      }, msUntilMidnight);
-
-      return timer;
-    };
-
-    const timer = scheduleAutoClose();
-    return () => clearTimeout(timer);
-  }, [businessId, requestReload]);
-
   const setApprovalMode = React.useCallback(async (m: ApprovalMode) => {
     setApprovalModeState(m);
     if (!businessId) return;

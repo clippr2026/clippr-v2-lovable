@@ -4,6 +4,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useCashMovements } from "@/hooks/use-cash-movements";
 import {
   cajaOpenRangeStartDate,
+  findAllPendingCierres,
   cajaDateKey,
   cajaDateKeyBA,
   filterToDayBA,
@@ -46,6 +47,11 @@ export type CajaSummary = {
   // getDigitalCarryForward en caja-cierre.ts).
   bankExpected: number;
   pendingCierre: PendingCierre | null;
+  // TODAS las jornadas con actividad sin cerrar (no solo la más vieja, que
+  // es la única que pendingCierre reporta porque es la que define desde
+  // cuándo arranca el período operativo de hoy) — para el aviso "Tenés N
+  // cajas pendientes" (ver findAllPendingCierres en caja-cierre.ts).
+  pendingCierres: PendingCierre[];
   rangeStartDate: string;
   refresh: (reason?: string) => Promise<void>;
 };
@@ -63,6 +69,7 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
   const [paymentsToday, setPaymentsToday] = React.useState<Payment[]>([]);
   const [expensesToday, setExpensesToday] = React.useState<Expense[]>([]);
   const [pendingCierre, setPendingCierre] = React.useState<PendingCierre | null>(null);
+  const [pendingCierres, setPendingCierres] = React.useState<PendingCierre[]>([]);
   const [rangeStartDate, setRangeStartDate] = React.useState(cajaDateKey());
   const [cashExpected, setCashExpected] = React.useState(0);
   const [cashOutflows, setCashOutflows] = React.useState(0);
@@ -161,11 +168,15 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     if (branchFilter) expQuery = expQuery.or(branchFilter);
     expQuery = expQuery.order("created_at", { ascending: false });
 
-    const [payRes, expRes, carryForward, freshMovements] = await Promise.all([
+    const [payRes, expRes, carryForward, freshMovements, allPending] = await Promise.all([
       payQuery,
       expQuery,
       getDigitalCarryForward(businessId, branchId),
       refreshMovementsRef.current(),
+      findAllPendingCierres(businessId, branchId).catch((e) => {
+        console.error("[CajaSummary] findAllPendingCierres error:", e);
+        return [] as PendingCierre[];
+      }),
     ]);
     console.log(
       `[CajaSummary] payQuery rango=[${dayStart.toISOString()} .. ${dayEnd.toISOString()}] branchFilter=${branchFilter} ` +
@@ -238,6 +249,7 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     setPaymentsToday(paymentsEnriched);
     setExpensesToday(expensesList);
     setPendingCierre(pending);
+    setPendingCierres(allPending);
     setRangeStartDate(newRangeStartDate);
     setCashExpected(expected.cashExpected);
     setCashOutflows(expected.cashOutflows);
@@ -338,11 +350,39 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
         { event: "*", schema: "public", table: "business_settings", filter: `business_id=eq.${businessId}` },
         () => void requestReload("realtime business_settings"),
       )
+      .on(
+        // Si otro dispositivo confirma (o reabre) un cierre, el aviso
+        // "Caja vencida"/pendingCierres de ESTE dispositivo tiene que
+        // actualizarse solo — el CustomEvent que dispara closeSingleDayCierre
+        // es same-tab, no cruza dispositivos; esto es lo que sí cruza.
+        "postgres_changes",
+        { event: "*", schema: "public", table: "caja_cierres", filter: `business_id=eq.${businessId}` },
+        () => void requestReload("realtime caja_cierres"),
+      )
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
     };
   }, [businessId, requestReload]);
+
+  // Red de seguridad además de Realtime: si la conexión se cortó un
+  // instante o la pestaña estuvo en background, volver a ella siempre
+  // refresca — nunca deja el aviso de caja pendiente desactualizado
+  // esperando a que Realtime reconecte solo (ver sección 6 del pedido).
+  React.useEffect(() => {
+    function onFocus() {
+      void requestReload("window focus (red de seguridad de Realtime)");
+    }
+    function onVisibility() {
+      if (document.visibilityState === "visible") onFocus();
+    }
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [requestReload]);
 
   // "Ingresos"/"Gastos" son una métrica DIARIA — se muestran como "lo que
   // facturó HOY", nunca como el acumulado desde el último cierre (eso es
@@ -373,6 +413,7 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     digitalOutflows,
     bankExpected,
     pendingCierre,
+    pendingCierres,
     rangeStartDate,
     refresh: (reason?: string) => requestReload(reason ?? "manual refresh() call"),
   };

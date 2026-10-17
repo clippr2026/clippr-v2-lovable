@@ -13,6 +13,11 @@ export type CashRegisterSearch = {
   depositPaid?: string;
   totalPrice?: string;
   chargeStep?: string;
+  // Fecha (YYYY-MM-DD) de una jornada pendiente de cierre — llega desde el
+  // aviso "Caja vencida" de Inicio ("Ver cierre pendiente") para abrir
+  // directo la pestaña Cierres con esa fecha ya seleccionada y su vista
+  // previa calculada, sin que el usuario tenga que buscarla a mano.
+  pendingDate?: string;
 };
 
 // Una URL como .../cash-register?appointmentId=null&clientName=null&...
@@ -46,6 +51,7 @@ export const EMPTY_CASH_REGISTER_SEARCH: Required<CashRegisterSearch> = {
   depositPaid: undefined as unknown as string,
   totalPrice: undefined as unknown as string,
   chargeStep: undefined as unknown as string,
+  pendingDate: undefined as unknown as string,
 };
 
 export type SearchPendingCharge = {

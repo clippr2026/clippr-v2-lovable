@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import fs from "node:fs";
+import path from "node:path";
 import * as cajaCierre from "./caja-cierre";
 import {
   cajaDateKeyBA,
@@ -6,9 +8,15 @@ import {
   countServiciosYProductos,
   dayBoundsBA,
   filterToDayBA,
+  isCajaCerradaRow,
+  isCajaReabiertaRow,
   normalizeCierreMethodKey,
+  pendingDatesFromActivity,
   splitServiciosYProductos,
 } from "./caja-cierre";
+
+const repoRoot = path.resolve(__dirname, "..", "..");
+const readSrc = (rel: string) => fs.readFileSync(path.join(repoRoot, rel), "utf8");
 
 // Cierres exclusivamente manuales, fecha por fecha — no puede existir
 // ningún camino de código que extienda un cierre a "ahora" ni que se
@@ -24,6 +32,121 @@ describe("cierres exclusivamente manuales — sin ningún camino automático/mul
   it("closeSingleDayCierre y buildSingleDayCierrePreview son las únicas funciones de cierre exportadas", () => {
     expect(typeof cajaCierre.closeSingleDayCierre).toBe("function");
     expect(typeof cajaCierre.buildSingleDayCierrePreview).toBe("function");
+  });
+
+  it("use-caja-data.ts ya no tiene ningún setTimeout/cierre de medianoche contra cash_sessions", () => {
+    const src = readSrc("src/components/cash-register/use-caja-data.ts");
+    expect(src).not.toMatch(/cierre_automatico|cash_session_events|00:00:10|Auto-close/i);
+  });
+
+  it("SessionActionType (session-actions.ts) ya no incluye 'cierre_automatico'", () => {
+    const src = readSrc("src/components/cash-register/session-actions.ts");
+    expect(src).not.toMatch(/cierre_automatico/);
+  });
+});
+
+// findAllPendingCierres (banner "Tenés N cajas pendientes de cierre") — acá
+// se testea solo su núcleo puro, sin pegarle a Supabase. Un día queda
+// "pendiente" si tuvo actividad real Y no tiene un cierre guardado; un día
+// cerrado o reabierto deja de contar como pendiente aunque tuvo actividad.
+describe("pendingDatesFromActivity — qué días quedan pendientes de cierre", () => {
+  const dias = ["2026-10-14", "2026-10-15", "2026-10-16", "2026-10-17"];
+
+  it("un solo día con actividad y sin cerrar queda pendiente", () => {
+    const result = pendingDatesFromActivity(dias, new Set(), new Set(["2026-10-16"]));
+    expect(result).toEqual([{ date: "2026-10-16", cierreId: null }]);
+  });
+
+  it("varios días con actividad sin cerrar quedan TODOS pendientes, ordenados de más viejo a más nuevo", () => {
+    const result = pendingDatesFromActivity(
+      dias,
+      new Set(),
+      new Set(["2026-10-15", "2026-10-16", "2026-10-17"]),
+    );
+    expect(result.map((p) => p.date)).toEqual(["2026-10-15", "2026-10-16", "2026-10-17"]);
+  });
+
+  it("un día cerrado nunca aparece como pendiente, aunque tuvo actividad", () => {
+    const result = pendingDatesFromActivity(
+      dias,
+      new Set(["2026-10-16"]),
+      new Set(["2026-10-16", "2026-10-17"]),
+    );
+    expect(result.map((p) => p.date)).toEqual(["2026-10-17"]);
+  });
+
+  it("un día sin actividad real nunca aparece como pendiente, aunque no tenga cierre", () => {
+    const result = pendingDatesFromActivity(dias, new Set(), new Set());
+    expect(result).toEqual([]);
+  });
+
+  it("un día cerrado en el medio de dos pendientes no tapa a los otros (no asume backlog contiguo)", () => {
+    const result = pendingDatesFromActivity(
+      dias,
+      new Set(["2026-10-15"]),
+      new Set(["2026-10-14", "2026-10-15", "2026-10-16"]),
+    );
+    expect(result.map((p) => p.date)).toEqual(["2026-10-14", "2026-10-16"]);
+  });
+});
+
+// Base de "Cerrar un día anterior" (CerrarDiaAnteriorCard en
+// cash-register.tsx): su guarda contra cierres duplicados es
+// `closedDates = cierresExistentes.filter(isCajaCerradaRow)` — si esto
+// clasifica mal una fila, esa guarda deja pasar un segundo cierre sobre la
+// misma fecha.
+describe("isCajaCerradaRow / isCajaReabiertaRow — la guarda contra cierres duplicados", () => {
+  it("una fila con estado 'cerrada' se reconoce como cerrada", () => {
+    expect(isCajaCerradaRow({ estado: "cerrada" })).toBe(true);
+    expect(isCajaReabiertaRow({ estado: "cerrada" })).toBe(false);
+  });
+
+  it("una fila con estado 'reabierta' NO se reconoce como cerrada (pero sí existe, no vuelve a quedar 'pendiente')", () => {
+    expect(isCajaCerradaRow({ estado: "reabierta" })).toBe(false);
+    expect(isCajaReabiertaRow({ estado: "reabierta" })).toBe(true);
+  });
+
+  it("una fila sin estado (o null/undefined) no se reconoce como cerrada ni reabierta", () => {
+    expect(isCajaCerradaRow(null)).toBe(false);
+    expect(isCajaCerradaRow(undefined)).toBe(false);
+    expect(isCajaCerradaRow({})).toBe(false);
+  });
+});
+
+// Actualización en tiempo real (sección 6 del pedido): un cierre/reapertura
+// confirmado desde OTRO dispositivo tiene que reflejarse sin recargar.
+// closeSingleDayCierre solo dispara un CustomEvent same-tab — lo que cruza
+// dispositivos es la suscripción postgres_changes sobre caja_cierres, y
+// esa tabla tiene que estar en la publicación supabase_realtime. Test
+// estructural: si alguien borra la suscripción o la migración que agrega
+// la tabla a la publicación, esto lo avisa en vez de reaparecer como "no
+// se actualiza sin refrescar" en producción.
+describe("Tiempo real — caja_cierres llega a todos los dispositivos", () => {
+  it("existe la migración que agrega caja_cierres a la publicación supabase_realtime", () => {
+    const migrationsDir = path.join(repoRoot, "supabase", "migrations");
+    const files = fs.readdirSync(migrationsDir);
+    const match = files.find((f) => {
+      const content = fs.readFileSync(path.join(migrationsDir, f), "utf8");
+      return /alter publication supabase_realtime add table caja_cierres/i.test(content);
+    });
+    expect(match).toBeDefined();
+  });
+
+  it("use-caja-summary.ts (Inicio) se suscribe a postgres_changes de caja_cierres", () => {
+    const src = readSrc("src/hooks/use-caja-summary.ts");
+    expect(src).toMatch(/table:\s*"caja_cierres"/);
+  });
+
+  it("CierresTab (Caja) se suscribe a postgres_changes de caja_cierres", () => {
+    const src = readSrc("src/routes/cash-register.tsx");
+    expect(src).toMatch(/table:\s*"caja_cierres"/);
+  });
+
+  it("ambas pantallas tienen una red de seguridad de refetch al volver a la pestaña (focus/visibilitychange)", () => {
+    const summarySrc = readSrc("src/hooks/use-caja-summary.ts");
+    const cashRegisterSrc = readSrc("src/routes/cash-register.tsx");
+    expect(summarySrc).toMatch(/addEventListener\("focus"/);
+    expect(cashRegisterSrc).toMatch(/addEventListener\("focus"/);
   });
 });
 

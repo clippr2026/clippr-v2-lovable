@@ -1,5 +1,3 @@
-import * as React from "react";
-import { closeSingleDayCierre } from "@/lib/caja-cierre";
 import { useCashMovements } from "@/hooks/use-cash-movements";
 import { useCajaSummary } from "@/hooks/use-caja-summary";
 
@@ -13,40 +11,23 @@ import { useCajaSummary } from "@/hooks/use-caja-summary";
 // usaba Caja (use-caja-data.ts) para los mismos tres números. Ahora Inicio
 // y Caja > Facturación consumen exactamente el mismo cálculo; este archivo
 // solo mantiene la forma pública que ya esperaba dashboard.tsx
-// (cashExpected/bankExpected/movements/pendingCierre/registerMovement/
-// closeVencida/refresh), para no tener que tocar esa pantalla.
+// (cashExpected/bankExpected/movements/pendingCierre/pendingCierres/
+// registerMovement/refresh), para no tener que tocar esa pantalla.
+//
+// Ya NO expone un cierre de un clic ("closeVencida") — toda caja vencida
+// se cierra desde Caja > Cierres, que exige ver la vista previa (cobros,
+// efectivo, gastos) antes de poder confirmar. Este hook solo avisa, nunca
+// cierra nada por sí mismo.
 export function useCajaHoy(businessId: string | null, branchId: string | null) {
   const summary = useCajaSummary(businessId, branchId);
 
   // movements/registerMovement: Inicio no los usa hoy, pero se mantienen en
   // la forma pública del hook por si algún consumidor futuro los necesita
   // (mismo criterio — useCashMovements, no un fetch propio).
-  const { movements, refresh: refreshMovements, registerMovement } = useCashMovements(
+  const { movements, registerMovement } = useCashMovements(
     businessId,
     branchId,
     summary.rangeStartDate,
-  );
-
-  const closeVencida = React.useCallback(
-    async (closedBy: string) => {
-      if (!businessId || !summary.pendingCierre) return;
-      // closeSingleDayCierre (no closeCierreForDate) — acota el cierre
-      // exactamente al día vencido (summary.pendingCierre.date), nunca lo
-      // extiende hasta "ahora": si hoy ya es otro día, ese día sigue
-      // abierto y por separado, sin mezclarse con este cierre.
-      await closeSingleDayCierre({
-        businessId,
-        branchId,
-        dateStr: summary.pendingCierre.date,
-        closedBy,
-      });
-      // closeSingleDayCierre ya dispara "clippr:caja-cierre-guardado", que
-      // useCajaSummary escucha y por sí solo dispara su propia recarga —
-      // este refresh() explícito solo evita depender del timing de ese
-      // evento para la propia Inicio (misma garantía que antes).
-      await Promise.all([summary.refresh("closeVencida"), refreshMovements()]);
-    },
-    [businessId, branchId, summary.pendingCierre, summary.refresh, refreshMovements],
   );
 
   return {
@@ -55,8 +36,8 @@ export function useCajaHoy(businessId: string | null, branchId: string | null) {
     bankExpected: summary.bankExpected,
     movements,
     pendingCierre: summary.pendingCierre,
+    pendingCierres: summary.pendingCierres,
     registerMovement,
-    closeVencida,
     refresh: summary.refresh,
   };
 }

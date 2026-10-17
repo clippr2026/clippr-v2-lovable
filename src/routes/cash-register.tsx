@@ -31,6 +31,8 @@ import {
   getCajaFirstEvent,
   buildSingleDayCierrePreview,
   findPendingCierre,
+  findAllPendingCierres,
+  type PendingCierre,
   closeSingleDayCierre,
   normalizeCierreMethodKey,
   getCajaAbiertaDesde,
@@ -79,6 +81,7 @@ import {
   Zap,
   Hand,
   Clock,
+  AlertTriangle,
   Wallet,
   BarChart3,
   TrendingUp,
@@ -701,6 +704,7 @@ export const Route = createFileRoute("/cash-register")({
     depositPaid: cleanSearchParam(search.depositPaid),
     totalPrice: cleanSearchParam(search.totalPrice),
     chargeStep: cleanSearchParam(search.chargeStep),
+    pendingDate: cleanSearchParam(search.pendingDate),
   }),
   head: () => ({
     meta: [
@@ -812,7 +816,11 @@ function CashRegisterPage() {
   const cajaAbiertaDesdeFecha = cajaAbiertaDesdeInfo?.fecha ?? cajaRangeStartDate;
 
   const [tab, setTab] = useState<Tab>(
-    search.depositAppointmentId || search.appointmentId ? "nueva" : "resumen",
+    search.depositAppointmentId || search.appointmentId
+      ? "nueva"
+      : search.pendingDate
+        ? "cierres"
+        : "resumen",
   );
   const [pendingToCharge, setPendingToCharge] = useState<
     ReturnType<typeof useCajaData>["pendingCharges"][number] | null
@@ -1190,6 +1198,8 @@ function CashRegisterPage() {
               userEmail={session.user.email ?? null}
               expected={expected}
               movementsData={movementsData}
+              initialPendingDate={search.pendingDate}
+              onPendingDateConsumed={clearChargeSearchParams}
               onCajaCerrada={() => {
                 setCajaCerrada(true);
                 setShowClosedHistory(false);
@@ -6112,12 +6122,19 @@ function CerrarDiaAnteriorCard({
   branchId,
   userEmail,
   cierresExistentes,
+  jumpToDate,
+  onJumped,
   onCierreGuardado,
 }: {
   businessId: string | null;
   branchId: string | null;
   userEmail: string | null;
   cierresExistentes: any[];
+  // Fecha a la que hay que saltar y mostrar su vista previa automáticamente
+  // (viene del aviso "Caja vencida") — null en el uso normal, donde el
+  // usuario elige la fecha a mano con el selector de abajo.
+  jumpToDate?: string | null;
+  onJumped?: () => void;
   onCierreGuardado: () => void;
 }) {
   const [selectedDate, setSelectedDate] = useState("");
@@ -6132,12 +6149,13 @@ function CerrarDiaAnteriorCard({
   );
   const yaCerrado = selectedDate ? closedDates.has(selectedDate) : false;
 
-  async function verVistaPrevia() {
-    if (!businessId || !selectedDate || yaCerrado) return;
+  async function verVistaPrevia(dateOverride?: string) {
+    const date = dateOverride ?? selectedDate;
+    if (!businessId || !date || closedDates.has(date)) return;
     setLoadingPreview(true);
     setPreview(null);
     try {
-      const result = await buildSingleDayCierrePreview(businessId, branchId, selectedDate);
+      const result = await buildSingleDayCierrePreview(businessId, branchId, date);
       setPreview(result);
     } catch (e) {
       toast.error((e as Error).message || "No se pudo calcular la vista previa.");
@@ -6145,6 +6163,14 @@ function CerrarDiaAnteriorCard({
       setLoadingPreview(false);
     }
   }
+
+  useEffect(() => {
+    if (!jumpToDate) return;
+    setSelectedDate(jumpToDate);
+    void verVistaPrevia(jumpToDate);
+    onJumped?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [jumpToDate]);
 
   async function confirmarCierre() {
     if (!businessId || !selectedDate || !preview) return;
@@ -6201,7 +6227,7 @@ function CerrarDiaAnteriorCard({
         <button
           type="button"
           disabled={!selectedDate || yaCerrado || loadingPreview}
-          onClick={verVistaPrevia}
+          onClick={() => verVistaPrevia()}
           className="h-10 rounded-xl border border-white/[0.09] bg-white/[0.05] px-4 text-sm font-bold text-white/85 transition hover:bg-white/[0.09] disabled:opacity-40"
         >
           {loadingPreview ? "Calculando…" : "Ver vista previa"}
@@ -6725,6 +6751,8 @@ function CierresTab({
   userEmail,
   expected,
   movementsData,
+  initialPendingDate,
+  onPendingDateConsumed,
   onCajaCerrada,
   onCajaReopened,
 }: {
@@ -6736,11 +6764,20 @@ function CierresTab({
   userEmail: string | null;
   expected: ExpectedCashDigital;
   movementsData: ReturnType<typeof useCashMovements>;
+  // Fecha (YYYY-MM-DD) con la que esta pestaña debe abrir directo la vista
+  // previa de "Cerrar un día anterior" — viene del aviso "Caja vencida" de
+  // Inicio (Link con ?pendingDate=...). onPendingDateConsumed limpia ese
+  // query param una vez usado, para que un refresh de página no vuelva a
+  // disparar el salto.
+  initialPendingDate?: string;
+  onPendingDateConsumed?: () => void;
   onCajaCerrada: () => void;
   onCajaReopened: () => void;
 }) {
   const { activeBranchId } = useAuth();
   const [cierres, setCierres] = useState<any[]>([]);
+  const [pendingCierres, setPendingCierres] = useState<PendingCierre[]>([]);
+  const [jumpToDate, setJumpToDate] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<any | null>(null);
   const [reopeningId, setReopeningId] = useState<string | null>(null);
@@ -6787,8 +6824,98 @@ function CierresTab({
     return () => window.removeEventListener("clippr:caja-cierre-guardado", handler);
   }, [loadCierres]);
 
+  // Aviso "Tenés N cajas pendientes de cierre" — TODAS las jornadas con
+  // actividad sin cerrar, no solo la más vieja (ver findAllPendingCierres
+  // en caja-cierre.ts). Se recarga con el mismo evento que el historial:
+  // cerrar/reabrir cualquier día cambia qué queda pendiente.
+  const loadPendingCierres = React.useCallback(() => {
+    if (!businessId) {
+      setPendingCierres([]);
+      return;
+    }
+    findAllPendingCierres(businessId, activeBranchId)
+      .then(setPendingCierres)
+      .catch((e) => console.warn("[CierresTab] findAllPendingCierres:", e));
+  }, [businessId, activeBranchId]);
+
+  useEffect(() => {
+    loadPendingCierres();
+    const handler = () => loadPendingCierres();
+    window.addEventListener("clippr:caja-cierre-guardado", handler);
+    return () => window.removeEventListener("clippr:caja-cierre-guardado", handler);
+  }, [loadPendingCierres]);
+
+  // Realtime: closeSingleDayCierre dispara un CustomEvent same-tab — esto
+  // es lo que hace que un cierre/reapertura confirmado desde OTRO
+  // dispositivo también actualice el historial y el aviso de pendientes
+  // acá, sin recargar la página (ver sección 6 del pedido).
+  useEffect(() => {
+    if (!businessId) return;
+    const channel = supabase
+      .channel(`cierres-tab-${businessId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "caja_cierres", filter: `business_id=eq.${businessId}` },
+        () => {
+          loadCierres();
+          loadPendingCierres();
+        },
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [businessId, loadCierres, loadPendingCierres]);
+
+  // Red de seguridad además de Realtime — mismo criterio que el resto de
+  // esta página (ver el efecto de ProfesionalesTab más arriba): si la
+  // conexión se cortó o la pestaña estuvo en background, volver a ella
+  // siempre refresca el historial y el aviso de pendientes.
+  useEffect(() => {
+    function onFocus() {
+      loadCierres();
+      loadPendingCierres();
+    }
+    function onVisibility() {
+      if (document.visibilityState === "visible") onFocus();
+    }
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [loadCierres, loadPendingCierres]);
+
+  // El salto desde el aviso de Inicio solo se consume UNA vez — si el
+  // usuario después elige otra fecha a mano en "Cerrar un día anterior",
+  // jumpToDate no debe volver a pisarle la selección.
+  const consumedPendingDateRef = React.useRef<string | null>(null);
+  useEffect(() => {
+    if (!initialPendingDate || consumedPendingDateRef.current === initialPendingDate) return;
+    consumedPendingDateRef.current = initialPendingDate;
+    setSubtab("dia");
+    setJumpToDate(initialPendingDate);
+    onPendingDateConsumed?.();
+  }, [initialPendingDate, onPendingDateConsumed]);
+
   const cierreEventos = (cierre: any) =>
     cleanCajaEventosForDisplay(sortCajaEventos(cajaEventosArray(cierre?.eventos)));
+
+  // Historial = cierres reales + días pendientes intercalados por fecha
+  // (desc) — ver sección 4 del pedido ("cada día debe tener uno de estos
+  // estados"). Nunca se mezclan en `cierres` mismo: ese array sigue siendo
+  // SOLO filas reales de caja_cierres (lo que usa latestCierre/CierreCajaBtn
+  // para saber qué fila actualizar al cerrar).
+  type HistorialRow = { kind: "cierre"; cierre: any } | { kind: "pendiente"; date: string };
+  const historialRows = React.useMemo<HistorialRow[]>(() => {
+    const rows: HistorialRow[] = [
+      ...cierres.map((c): HistorialRow => ({ kind: "cierre", cierre: c })),
+      ...pendingCierres.map((p): HistorialRow => ({ kind: "pendiente", date: p.date })),
+    ];
+    const keyOf = (r: HistorialRow) => (r.kind === "cierre" ? String(r.cierre.fecha) : r.date);
+    return rows.sort((a, b) => keyOf(b).localeCompare(keyOf(a)));
+  }, [cierres, pendingCierres]);
 
   const latestCierre = cierres[0] ?? null;
   const latestEventos = latestCierre ? cierreEventos(latestCierre) : [];
@@ -7013,6 +7140,45 @@ function CierresTab({
 
         {subtab === "dia" ? (
           <div className="pt-5">
+            {pendingCierres.length > 0 && (
+              <div className="mb-4 rounded-[24px] border border-amber-400/25 bg-amber-400/[0.08] p-4">
+                <div className="flex items-start gap-2.5">
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-bold text-amber-200">
+                      {pendingCierres.length === 1
+                        ? `Tenés una caja pendiente de cierre del ${fechaDDMMYYYY(pendingCierres[0].date)}`
+                        : `Tenés ${pendingCierres.length} cajas pendientes de cierre`}
+                    </p>
+                    <p className="mt-1 text-xs text-amber-200/70">
+                      Ninguna se cierra sola — revisá cada una y confirmá el cierre a mano.
+                    </p>
+                    <div className="mt-3 space-y-1.5">
+                      {pendingCierres.map((p) => (
+                        <div
+                          key={p.date}
+                          className="flex items-center justify-between gap-3 rounded-xl bg-black/15 px-3 py-2"
+                        >
+                          <span className="text-sm font-semibold text-white/85">
+                            {fechaDDMMYYYY(p.date)}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSubtab("dia");
+                              setJumpToDate(p.date);
+                            }}
+                            className="rounded-lg bg-amber-400/15 px-3 py-1.5 text-xs font-bold text-amber-100 ring-1 ring-amber-400/30 transition hover:bg-amber-400/25"
+                          >
+                            Ver cierre pendiente
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
             {!cajaCerrada ? (
               <div className="rounded-[28px] border border-emerald-300/14 bg-[linear-gradient(135deg,rgba(16,185,129,0.08),rgba(0,0,0,0.20))] p-5">
                 <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
@@ -7078,9 +7244,12 @@ function CierresTab({
               branchId={activeBranchId}
               userEmail={userEmail}
               cierresExistentes={cierres}
+              jumpToDate={jumpToDate}
+              onJumped={() => setJumpToDate(null)}
               onCierreGuardado={() => {
                 onCajaCerrada();
                 loadCierres();
+                loadPendingCierres();
               }}
             />
           </div>
@@ -7100,7 +7269,7 @@ function CierresTab({
               ))}
             </div>
           </div>
-        ) : cierres.length === 0 ? (
+        ) : cierres.length === 0 && pendingCierres.length === 0 ? (
           <div className="rounded-3xl border border-white/[0.08] bg-black/30 py-12 text-center text-sm text-muted-foreground">
             Sin cierres registrados todavía.
           </div>
@@ -7128,19 +7297,41 @@ function CierresTab({
               // Historial minimalista: solo fechas, de más reciente a más
               // antigua, cada una completamente clickeable. Nada de
               // importes/servicios/profesionales/métodos/responsable acá
-              // — todo eso vive en CierreDetalleView, un clic adentro.
+              // — todo eso vive en CierreDetalleView, un clic adentro. Los
+              // días pendientes (actividad real, sin cierre guardado) se
+              // intercalan por fecha con una píldora "Pendiente" — nunca
+              // aparecen como "Cerrada" solo porque el día ya terminó (ver
+              // sección 4 del pedido). Tocar uno abre la vista previa, no
+              // CierreDetalleView (no hay snapshot guardado todavía).
               <div className="overflow-hidden rounded-[28px] border border-white/[0.085] bg-black/25">
-                {cierres.map((c) => (
-                  <button
-                    key={c.id}
-                    type="button"
-                    onClick={() => setSelected(c)}
-                    className="flex w-full items-center justify-between gap-3 border-b border-white/[0.055] px-5 py-4 text-left transition last:border-0 hover:bg-white/[0.035] active:bg-white/[0.05]"
-                  >
-                    <span className="text-sm font-semibold text-white/85">{fechaDetalleLabel(c.fecha)}</span>
-                    <ChevronRight className="h-4 w-4 shrink-0 text-white/35" />
-                  </button>
-                ))}
+                {historialRows.map((row) =>
+                  row.kind === "pendiente" ? (
+                    <button
+                      key={`pendiente-${row.date}`}
+                      type="button"
+                      onClick={() => {
+                        setSubtab("dia");
+                        setJumpToDate(row.date);
+                      }}
+                      className="flex w-full items-center justify-between gap-3 border-b border-white/[0.055] px-5 py-4 text-left transition last:border-0 hover:bg-white/[0.035] active:bg-white/[0.05]"
+                    >
+                      <span className="text-sm font-semibold text-white/85">{fechaDetalleLabel(row.date)}</span>
+                      <span className="rounded-full bg-amber-400/15 px-2.5 py-1 text-xs font-bold text-amber-300 ring-1 ring-amber-400/30">
+                        Pendiente
+                      </span>
+                    </button>
+                  ) : (
+                    <button
+                      key={row.cierre.id}
+                      type="button"
+                      onClick={() => setSelected(row.cierre)}
+                      className="flex w-full items-center justify-between gap-3 border-b border-white/[0.055] px-5 py-4 text-left transition last:border-0 hover:bg-white/[0.035] active:bg-white/[0.05]"
+                    >
+                      <span className="text-sm font-semibold text-white/85">{fechaDetalleLabel(row.cierre.fecha)}</span>
+                      <ChevronRight className="h-4 w-4 shrink-0 text-white/35" />
+                    </button>
+                  ),
+                )}
               </div>
             )}
           </div>

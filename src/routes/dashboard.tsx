@@ -1,5 +1,4 @@
 import * as React from "react";
-import { toast } from "sonner";
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
 import { useAuth, type Branch } from "@/hooks/use-auth";
@@ -25,7 +24,6 @@ import {
   ChevronRight,
   AlertTriangle,
   ScanLine,
-  Loader2,
   CalendarClock,
   Activity,
   Receipt,
@@ -223,41 +221,58 @@ function CajaHoyCard({
   data: DashboardData;
   userEmail: string | null;
 }) {
-  const [closingVencida, setClosingVencida] = React.useState(false);
-
   const serviciosRealizados = data.topServices.reduce((s, item) => s + item.count, 0);
   const productosVendidos = data.topCatalog.reduce((s, cat) => s + cat.count, 0);
 
-  async function confirmCerrarVencida() {
-    if (!userEmail) return;
-    setClosingVencida(true);
-    try {
-      await caja.closeVencida(userEmail);
-      toast.success("Caja vencida cerrada");
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setClosingVencida(false);
-    }
-  }
+  // Los 10 campos en `undefined` (no `null`, no omitidos): la ruta exige el
+  // objeto `search` completo por tipos, pero `undefined` es la única forma
+  // de que TanStack Router NO los escriba en la URL — a diferencia de
+  // `null`, que se serializa literal como la palabra "null" (ver
+  // cleanSearchParam en cash-register.tsx).
+  const emptyCashRegisterSearch = {
+    depositAppointmentId: undefined,
+    depositAmount: undefined,
+    clientName: undefined,
+    serviceName: undefined,
+    employeeId: undefined,
+    appointmentId: undefined,
+    finalAmount: undefined,
+    depositPaid: undefined,
+    totalPrice: undefined,
+    chargeStep: undefined,
+    pendingDate: undefined,
+  };
 
   return (
     <div className="glass rounded-2xl p-4 sm:p-5 ring-1 ring-white/5">
-      {caja.pendingCierre ? (
-        <div className="mb-3 flex flex-col gap-2 rounded-xl bg-amber-400/10 px-3 py-2.5 ring-1 ring-amber-400/25 sm:flex-row sm:items-center sm:justify-between">
+      {/* Ninguna caja se cierra sola: este aviso solo lleva a la vista
+          previa de Caja > Cierres (ver sección 2/4 del pedido) — nunca
+          cierra nada desde Inicio. Lista TODAS las jornadas pendientes,
+          no solo la más vieja. */}
+      {caja.pendingCierres.length > 0 ? (
+        <div className="mb-3 rounded-xl bg-amber-400/10 px-3 py-2.5 ring-1 ring-amber-400/25">
           <div className="flex items-center gap-2 text-sm font-medium text-amber-200">
             <AlertTriangle className="h-4 w-4 shrink-0" />
-            Caja vencida desde {fechaCortaLabel(caja.pendingCierre.date)}
+            {caja.pendingCierres.length === 1
+              ? `Tenés una caja pendiente de cierre del ${fechaCortaLabel(caja.pendingCierres[0].date)}`
+              : `Tenés ${caja.pendingCierres.length} cajas pendientes de cierre`}
           </div>
-          <button
-            type="button"
-            onClick={confirmCerrarVencida}
-            disabled={closingVencida}
-            className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-amber-400/20 px-3 py-1.5 text-xs font-semibold text-amber-100 ring-1 ring-amber-400/30 transition hover:bg-amber-400/30 disabled:opacity-50"
-          >
-            {closingVencida ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : null}
-            Cerrar caja vencida
-          </button>
+          <div className="mt-2 space-y-1.5">
+            {caja.pendingCierres.map((p) => (
+              <div key={p.date} className="flex items-center justify-between gap-3">
+                <span className="text-xs font-semibold text-amber-100/85">
+                  {fechaCortaLabel(p.date)}
+                </span>
+                <Link
+                  to="/cash-register"
+                  search={{ ...emptyCashRegisterSearch, pendingDate: p.date }}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-amber-400/20 px-3 py-1 text-[11px] font-semibold text-amber-100 ring-1 ring-amber-400/30 transition hover:bg-amber-400/30"
+                >
+                  Ver cierre pendiente
+                </Link>
+              </div>
+            ))}
+          </div>
         </div>
       ) : null}
 
@@ -265,25 +280,9 @@ function CajaHoyCard({
         <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
           Caja de hoy
         </div>
-        {/* Los 10 campos en `undefined` (no `null`, no omitidos): la ruta
-            exige el objeto `search` completo por tipos, pero `undefined`
-            es la única forma de que TanStack Router NO los escriba en la
-            URL — a diferencia de `null`, que se serializa literal como la
-            palabra "null" (ver cleanSearchParam en cash-register.tsx). */}
         <Link
           to="/cash-register"
-          search={{
-            depositAppointmentId: undefined,
-            depositAmount: undefined,
-            clientName: undefined,
-            serviceName: undefined,
-            employeeId: undefined,
-            appointmentId: undefined,
-            finalAmount: undefined,
-            depositPaid: undefined,
-            totalPrice: undefined,
-            chargeStep: undefined,
-          }}
+          search={emptyCashRegisterSearch}
           className="inline-flex items-center gap-0.5 text-xs font-semibold text-primary transition hover:text-primary/80"
         >
           Ver todo <ChevronRight className="h-3.5 w-3.5" />

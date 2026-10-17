@@ -1,9 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
 
+// El cierre automático fue retirado a propósito: ninguna caja puede
+// cerrarse sola — todo cierre pasa por un usuario autorizado que confirma
+// explícitamente (cierre_manual) o por una reapertura/cierre posterior.
 export type SessionActionType =
   | "apertura"
   | "cierre_manual"
-  | "cierre_automatico"
   | "reapertura"
   | "cierre_tras_reapertura";
 

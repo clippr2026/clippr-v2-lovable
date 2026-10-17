@@ -379,6 +379,71 @@ export async function findPendingCierre(
   return period.pendingCierre;
 }
 
+// Núcleo puro de findAllPendingCierres — separado para poder testearlo sin
+// tocar Supabase. `candidateDatesAsc` son días estrictamente anteriores a
+// hoy, de más antiguo a más reciente; un día queda "pendiente" si tuvo
+// actividad real Y no tiene un cierre con estado 'cerrada'/'reabierta'
+// guardado (ver isCajaCerradaRow/isCajaReabiertaRow — un cierre reabierto
+// sigue siendo un cierre que existe, no vuelve a quedar "pendiente").
+export function pendingDatesFromActivity(
+  candidateDatesAsc: string[],
+  closedDates: Set<string>,
+  activeDates: Set<string>,
+): PendingCierre[] {
+  return candidateDatesAsc
+    .filter((date) => activeDates.has(date) && !closedDates.has(date))
+    .map((date) => ({ date, cierreId: null }));
+}
+
+// A diferencia de findPendingCierre (que solo mira "ayer", para decidir
+// desde cuándo arranca el período operativo de hoy), esto escanea varios
+// días atrás y devuelve TODAS las jornadas con actividad real que todavía
+// no tienen un cierre guardado — para el aviso "Tenés N cajas pendientes"
+// (ver sección 2 del pedido: una caja vencida no tapa a otra más vieja).
+// 30 días de lookback alcanza sobradamente cualquier backlog real; una
+// jornada más vieja que eso sigue siendo cerrable a mano desde "Cerrar un
+// día anterior", que no tiene ese límite.
+export async function findAllPendingCierres(
+  businessId: string | null,
+  branchId: string | null,
+  opts: { lookbackDays?: number } = {},
+): Promise<PendingCierre[]> {
+  if (!businessId) return [];
+  const lookbackDays = opts.lookbackDays ?? 30;
+  const today = cajaDateKey();
+  const candidateDatesAsc: string[] = [];
+  for (let i = lookbackDays; i >= 1; i--) {
+    candidateDatesAsc.push(cajaDateKey(new Date(Date.now() - i * 24 * 60 * 60 * 1000)));
+  }
+
+  let cierresQuery = supabase
+    .from("caja_cierres" as any)
+    .select("fecha,estado")
+    .eq("business_id", businessId)
+    .in("fecha", candidateDatesAsc)
+    .neq("fecha", today);
+  if (branchId) cierresQuery = cierresQuery.eq("branch_id", branchId);
+  const { data: cierresRows } = await cierresQuery;
+  const closedDates = new Set(
+    ((cierresRows ?? []) as any[])
+      .filter((row) => isCajaCerradaRow(row) || isCajaReabiertaRow(row))
+      .map((row) => String(row.fecha)),
+  );
+
+  const openCandidates = candidateDatesAsc.filter((date) => !closedDates.has(date));
+  if (openCandidates.length === 0) return [];
+
+  const activity = await Promise.all(
+    openCandidates.map(async (date) => {
+      const snapshot = await buildCierreSnapshotForDate(businessId, date, branchId);
+      return snapshot.hadActivity ? date : null;
+    }),
+  );
+  const activeDates = new Set(activity.filter((date): date is string => date !== null));
+
+  return pendingDatesFromActivity(candidateDatesAsc, closedDates, activeDates);
+}
+
 // Snapshot financiero de UN día calendario [dateStr 00:00, dateStr
 // 23:59:59.999] — nunca se extiende a otro día. Se usa tanto para armar el
 // registro de un cierre manual (ver closeSingleDayCierre/
