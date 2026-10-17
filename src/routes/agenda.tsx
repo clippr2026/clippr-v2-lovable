@@ -42,7 +42,6 @@ import { AppointmentDialog } from "@/components/agenda/appointment-dialog";
 import { SpecialDayEditor } from "@/components/settings/special-hours-editor";
 import { AgendaDrawer } from "@/components/agenda/agenda-drawer";
 import { DarkCalendar } from "@/components/agenda/dark-calendar";
-import { RejectedClientsButton, RejectedClientCaptureModal } from "@/components/agenda/rejected-clients";
 import { ClosuresModal } from "@/components/agenda/closures-button";
 import { useClosures, type Closure } from "@/hooks/use-closures";
 import { Button } from "@/components/ui/button";
@@ -401,9 +400,7 @@ function AgendaPage() {
     appointment?: Appointment | null;
   } | null>(null);
   const [newMenu, setNewMenu] = React.useState(false);
-  const [rejectOpen, setRejectOpen] = React.useState(false);
   const [closuresOpen, setClosuresOpen] = React.useState(false);
-  const [rejectAt, setRejectAt] = React.useState<Date | null>(null);
   // Descansos habilitados temporalmente (solo en esta sesión, sin tocar la
   // config permanente). Clave: `${employeeId}|${YYYY-MM-DD}`.
   const [enabledBreaks, setEnabledBreaks] = React.useState<Set<string>>(() => new Set());
@@ -1258,8 +1255,8 @@ function AgendaPage() {
         <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />
         {/* Unified glass banner — compact control bar (counts · Hoy · date nav · Nuevo turno).
             En mobile (sm-) queda solo Hoy + navegación de fecha + el botón "+" (en el lugar
-            del indicador de tiempo real) — sin scroll horizontal. Los conteos de estado y
-            "No atendidos" se ocultan acá y reaparecen debajo, en bloques propios. */}
+            del indicador de tiempo real) — sin scroll horizontal. Los conteos de estado se
+            ocultan acá y reaparecen debajo, en su propio bloque. */}
         <div
           // relative + z-index alto: ".glass" usa backdrop-filter, que crea su
           // propio stacking context — sin esto, el menú del "+" (adentro, con
@@ -1399,20 +1396,6 @@ function AgendaPage() {
 
           <div className="hidden sm:block h-5 w-px bg-white/10 shrink-0" />
 
-          <div className="hidden sm:block">
-            <RejectedClientsButton
-              businessId={data.businessId}
-              date={cursor}
-              services={data.services}
-              onRegisterNew={() => {
-                setRejectAt(cursor);
-                setRejectOpen(true);
-              }}
-            />
-          </div>
-
-          <div className="hidden sm:block h-5 w-px bg-white/10 shrink-0" />
-
           {/* Nuevo — square button with menu (Agregar turno / Horario especial / Día cerrado), solo desktop/tablet */}
           <Button
             ref={newBtnRef}
@@ -1535,8 +1518,8 @@ function AgendaPage() {
           )}
         </div>
 
-        {/* Estados — mobile: grilla fija de 3 columnas, 3 arriba + 3 abajo (5 estados +
-            "No atendidos" en la 6ª celda), sin scroll horizontal. */}
+        {/* Estados — mobile: grilla fija de 3 columnas, 2 filas parejas (5 estados),
+            sin scroll horizontal. */}
         <div className="grid grid-cols-3 gap-1.5 mb-2 sm:hidden">
           {STATUS_FILTERS.map(([k, label, color, bg, ring]) => (
             <button
@@ -1554,16 +1537,6 @@ function AgendaPage() {
               <span className="text-[10px] leading-tight opacity-80 truncate max-w-full">{label}</span>
             </button>
           ))}
-          <RejectedClientsButton
-            businessId={data.businessId}
-            date={cursor}
-            services={data.services}
-            compact
-            onRegisterNew={() => {
-              setRejectAt(cursor);
-              setRejectOpen(true);
-            }}
-          />
         </div>
 
         {/* Filter modal */}
@@ -1655,21 +1628,6 @@ function AgendaPage() {
               </AgendaDrawer>
             );
           })()}
-
-        {/* Modal de captura rápida (desde "+ Registrar cliente no atendido" en la ficha No atendidos) */}
-        <RejectedClientCaptureModal
-          open={rejectOpen}
-          onClose={() => {
-            setRejectOpen(false);
-            setRejectAt(null);
-          }}
-          businessId={data.businessId}
-          services={data.services}
-          employees={data.employees}
-          appointments={data.appointments}
-          openHoursToday={getScheduleForDate(data.schedule, rejectAt ?? cursor)}
-          initialAt={rejectAt ?? cursor}
-        />
 
         {/* Modal "Días cerrados" — se abre desde el "+" (opción "Día cerrado") */}
         {closuresOpen && (

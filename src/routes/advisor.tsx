@@ -12,8 +12,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { useClientsData, type Client } from "@/hooks/use-clients-data";
 import { useAdvisorAnalytics } from "@/hooks/use-advisor-analytics";
 import { useAiRecommendations, type RecommendationAchievement, type UseAiRecommendationsResult } from "@/hooks/use-ai-recommendations";
-import { useRejectedAnalytics } from "@/hooks/use-rejected-analytics";
-import { TIER_EMOJI, buildDemandRecommendations } from "@/lib/rejected-analytics";
 import { MEASURABLE_CHANNELS } from "@/lib/acquisition-channels";
 import { AcquisitionChannelIcon } from "@/components/acquisition-channel-icon";
 import { DateRangePicker, type DateRange } from "@/components/date-range-picker";
@@ -44,13 +42,8 @@ import {
   Gem,
   Package,
   Crown,
-  UserX,
-  Clock,
   Megaphone,
   CircleHelp,
-  BriefcaseBusiness,
-  Sunrise,
-  Sunset,
   X,
 } from "lucide-react";
 
@@ -127,7 +120,7 @@ const INFO_CONTENT = {
       "Cada simulador proyecta qué pasaría con tu negocio si tomás una decisión concreta (subir precios, contratar, invertir en publicidad, etc.), antes de que la tomes.",
     points: [
       "Qué analiza: el impacto esperado de la decisión en facturación, utilidad y ocupación, comparado contra seguir como estás hoy.",
-      "Qué datos usa: tus servicios, clientes, agenda, horarios y la demanda no atendida (clientes no atendidos o sin disponibilidad).",
+      "Qué datos usa: tus servicios, clientes, agenda y horarios.",
       "Cómo calcula: proyecciones con supuestos conservadores — utilidad ~45% sobre facturación y ~55% en productos.",
       "Qué beneficio aporta: te deja comparar escenarios reales de tu propio negocio antes de invertir tiempo o plata en una decisión.",
     ],
@@ -2753,17 +2746,6 @@ function LabSignals({ items }: { items: LabSignal[] }) {
   );
 }
 
-// Señales de demanda no atendida que alimentan a los simuladores.
-type DemandSlice = {
-  loading: boolean;
-  rejectedMonth: number;
-  lostRevenueMonth: number;
-  peakHours: { hour: number; count: number }[];
-  saturatedPros: number;
-  topPro: string | null;
-  occupancy: number | null;
-};
-
 // ── Simuladores ────────────────────────────────────────────────────────────
 
 function clampScore01(n: number) {
@@ -2876,199 +2858,6 @@ function LabPrecios({ data }: { data: LabData }) {
         currentValue={fmtAR(precioActual)}
         projectedLabel="Precio sugerido"
         projectedValue={fmtAR(precioNuevo)}
-      />
-    </div>
-  );
-}
-
-// ── SUMAR PROFESIONAL ──────────────────────────────────────────────────────
-function LabProfesional({
-  data,
-  demand,
-  ocupacion,
-}: {
-  data: LabData;
-  demand: DemandSlice;
-  ocupacion: number;
-}) {
-  if (data.loading || demand.loading) return <LabSkeleton />;
-
-  const occ = Math.round(ocupacion || demand.occupancy || 0);
-  const rechazados = demand.rejectedMonth;
-  const saturados = demand.saturatedPros;
-  const perdida = demand.lostRevenueMonth;
-
-  // Un profesional nuevo absorbe la demanda no atendida (tope realista).
-  const recuperables = Math.min(rechazados, Math.round(data.avgTurnosPerDay * data.openDaysPerWeek * 4.3 * 0.6));
-  const facturacion = recuperables * data.avgTicket;
-  const utilidad = Math.round(facturacion * (LAB_MARGIN - 0.05));
-
-  const occScore = occ;
-  const rejScore = Math.min(100, rechazados * 3);
-  const satScore = saturados >= 1 ? 100 : 40;
-
-  let nivel: keyof typeof nivelMeta;
-  let titulo: string;
-  let verdict: string;
-  if (occ >= 85 || (rechazados >= 20 && saturados >= 1)) {
-    nivel = "recomendado";
-    titulo = "Conviene contratar";
-    verdict = `Con ${occ}% de ocupación${rechazados > 0 ? ` y ${rechazados} clientes no atendidos este mes` : ""}, ya estás dejando demanda afuera. Un profesional nuevo podría recuperar ~${recuperables} servicios/mes (${fmtAR(facturacion)})${saturados >= 1 ? ` y descomprimir a ${saturados} profesional${saturados === 1 ? "" : "es"} saturado${saturados === 1 ? "" : "s"}` : ""}.`;
-  } else if (occ >= 70 || rechazados >= 10) {
-    nivel = "progresivo";
-    titulo = "Esperar un poco más";
-    verdict = `Ocupación ${occ}%${rechazados > 0 ? ` con ${rechazados} clientes no atendidos/mes` : ""}: estás cerca, pero todavía hay margen para llenar la agenda actual. Si la demanda no atendida sigue subiendo 1–2 meses, sumá un profesional.`;
-  } else {
-    nivel = "no_recomendado";
-    titulo = "Todavía no conviene";
-    verdict = `Con ${occ}% de ocupación${rechazados === 0 ? " y sin clientes no atendidos registrados" : ` y solo ${rechazados} clientes no atendidos/mes`}, todavía tenés sillones libres. Sumar gente ahora divide tu demanda. Primero llená la agenda que ya tenés.`;
-  }
-
-  return (
-    <div className="space-y-3">
-      <div className="rounded-[18px] border border-white/10 bg-white/[0.025] px-4 py-3">
-        <h3 className="text-base font-extrabold tracking-[-0.02em] text-white sm:text-lg">
-          ¿Conviene contratar un profesional?
-        </h3>
-        <p className="mt-0.5 text-xs text-white/50">
-          Analizo tu ocupación y la demanda que el negocio no pudo atender.
-        </p>
-      </div>
-
-      <LabSignals
-        items={[
-          { label: "Agenda ocupada", value: `${occ}%`, tone: occ >= 85 ? "alert" : "neutral" },
-          { label: "Clientes no atendidos", value: rechazados, tone: rechazados > 0 ? "alert" : "neutral" },
-          { label: "Profesionales completos", value: saturados, tone: saturados > 0 ? "alert" : "neutral" },
-          { label: "Demanda perdida (mes)", value: fmtDemandARS(perdida), tone: perdida > 0 ? "alert" : "neutral" },
-        ]}
-      />
-
-      <div className={cn("rounded-[18px] border px-3.5 py-3", nivelMeta[nivel].cls)}>
-        <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/45">
-          Veredicto del Gerente IA
-        </p>
-        <p className={cn("mt-0.5 text-base font-extrabold", nivelMeta[nivel].titleCls)}>{titulo}</p>
-        <p className="mt-1.5 text-xs leading-relaxed text-white/80">{verdict}</p>
-      </div>
-
-      {recuperables > 0 && (
-        <LabImpact
-          facturacion={facturacion}
-          utilidad={utilidad}
-          extra={{ label: "Servicios recuperables / mes", value: `+${recuperables}` }}
-        />
-      )}
-    </div>
-  );
-}
-
-// ── EXTENDER HORARIO ───────────────────────────────────────────────────────
-function LabHorario({ data, demand }: { data: LabData; demand: DemandSlice }) {
-  const [opt, setOpt] = React.useState<"antes" | "tarde">("antes");
-  if (data.loading || demand.loading) return <LabSkeleton />;
-
-  const openHour = data.openHour;
-  const closeHour = data.closeHour;
-  const ph = demand.peakHours;
-  const sum = (pred: (h: number) => boolean) =>
-    ph.filter((x) => pred(x.hour)).reduce((s, x) => s + x.count, 0);
-
-  const benefitAntes = sum((h) => h < openHour) + sum((h) => h === openHour);
-  const benefitTarde = sum((h) => h >= closeHour) + sum((h) => h === closeHour - 1);
-  const extraClients = opt === "antes" ? benefitAntes : benefitTarde;
-  const best = Math.max(benefitAntes, benefitTarde);
-  const facturacion = extraClients * data.avgTicket;
-  const utilidad = Math.round(facturacion * LAB_MARGIN);
-
-  let nivel: keyof typeof nivelMeta;
-  let titulo: string;
-  let verdict: string;
-  const beforeHasDemand = benefitAntes >= 2;
-  const afterHasDemand = benefitTarde >= 2;
-
-  if (!beforeHasDemand && !afterHasDemand) {
-    nivel = "no_recomendado";
-    titulo = "No conviene extender horario";
-    verdict =
-      opt === "antes"
-        ? "No detectamos clientes no atendidos ni una alta demanda durante el primer horario del día. La agenda tiene disponibilidad al inicio de la jornada, por lo que abrir antes no generaría más reservas en este momento."
-        : "No detectamos clientes no atendidos ni una alta demanda durante el último horario del día. Los últimos turnos disponibles no están completamente ocupados, por lo que extender el cierre no aportaría más reservas por ahora.";
-  } else if (opt === "antes" && beforeHasDemand) {
-    nivel = "recomendado";
-    titulo = "Conviene abrir 1 hora antes";
-    verdict = `Detectamos una alta demanda durante el primer horario del día. Varios clientes intentaron reservar en ese horario y no encontraron disponibilidad. Abrir una hora antes podría captar aproximadamente ${benefitAntes} clientes más por mes y sumar ${fmtAR(facturacion)} de facturación.`;
-  } else if (opt === "tarde" && afterHasDemand) {
-    nivel = "recomendado";
-    titulo = "Conviene cerrar 1 hora después";
-    verdict = `Detectamos una alta demanda durante el último horario del día. Se registraron clientes no atendidos o falta de disponibilidad en el cierre de la jornada. Extender el horario una hora podría sumar aproximadamente ${benefitTarde} clientes más por mes y generar ${fmtAR(facturacion)} de facturación.`;
-  } else {
-    nivel = "evaluar";
-    titulo = benefitAntes > benefitTarde ? "Mejor abrir 1 hora antes" : "Mejor cerrar 1 hora después";
-    verdict =
-      opt === "antes"
-        ? "No detectamos clientes no atendidos ni una alta demanda durante el primer horario del día. La oportunidad más fuerte aparece al final de la jornada, por eso conviene evaluar cerrar más tarde antes que abrir antes."
-        : "No detectamos clientes no atendidos ni una alta demanda durante el último horario del día. La oportunidad más fuerte aparece al inicio de la jornada, por eso conviene evaluar abrir antes antes que cerrar más tarde.";
-  }
-
-  return (
-    <div className="space-y-3">
-      <div className="rounded-[18px] border border-white/10 bg-white/[0.025] px-4 py-3">
-        <h3 className="text-base font-extrabold tracking-[-0.02em] text-white sm:text-lg">
-          ¿Conviene abrir antes o cerrar más tarde?
-        </h3>
-        <p className="mt-0.5 text-xs text-white/50">
-          Tu agenda hoy abre ~{openHour}:00 y cierra ~{closeHour}:00. Miro los rechazos en cada borde.
-        </p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-2">
-        {([
-          { key: "antes", label: "Abrir 1 hora antes", icon: Sunrise, n: benefitAntes },
-          { key: "tarde", label: "Cerrar 1 hora después", icon: Sunset, n: benefitTarde },
-        ] as const).map((o) => (
-          <button
-            key={o.key}
-            type="button"
-            onClick={() => setOpt(o.key)}
-            className={cn(
-              "flex items-center gap-2.5 rounded-2xl border px-3 py-2.5 text-left transition-all",
-              opt === o.key
-                ? "border-cyan-300/40 bg-cyan-400/[0.1] shadow-[0_0_28px_-12px_rgba(34,211,238,0.6)]"
-                : "border-white/10 bg-white/[0.03] opacity-60 hover:opacity-100",
-            )}
-          >
-            <span className="grid h-8 w-8 shrink-0 place-items-center rounded-xl bg-white/10 ring-1 ring-white/15 text-white">
-              <o.icon className="h-4 w-4" />
-            </span>
-            <span className="min-w-0">
-              <span className="block text-sm font-bold text-white">{o.label}</span>
-              <span className="block text-[11px] leading-snug text-white/45">
-                {o.key === "antes"
-                  ? o.n > 0
-                    ? `${o.n} no atendidos en el primer horario`
-                    : "Sin clientes no atendidos ni alta demanda al inicio"
-                  : o.n > 0
-                    ? `${o.n} no atendidos en el último horario`
-                    : "Sin clientes no atendidos ni alta demanda al cierre"}
-              </span>
-            </span>
-          </button>
-        ))}
-      </div>
-
-      <div className={cn("rounded-[18px] border px-3.5 py-3", nivelMeta[nivel].cls)}>
-        <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/45">
-          Veredicto del Gerente IA
-        </p>
-        <p className={cn("mt-0.5 text-base font-extrabold", nivelMeta[nivel].titleCls)}>{titulo}</p>
-        <p className="mt-1.5 text-xs leading-relaxed text-white/80">{verdict}</p>
-      </div>
-
-      <LabImpact
-        facturacion={facturacion}
-        utilidad={utilidad}
-        extra={{ label: "Clientes adicionales / mes", value: `+${extraClients}` }}
       />
     </div>
   );
@@ -3478,8 +3267,6 @@ function LabEmpty({ text }: { text: string }) {
 
 const LAB_SIMS = [
   { key: "precios", icon: DollarSign, l1: "Subir", l2: "Precios", label: "Subir precios" },
-  { key: "profesional", icon: BriefcaseBusiness, l1: "Sumar", l2: "Profesional", label: "Sumar profesional" },
-  { key: "horario", icon: Clock, l1: "Extender", l2: "Horario", label: "Extender horario" },
   { key: "recuperar", icon: Users, l1: "Recuperar", l2: "Clientes", label: "Recuperar clientes" },
   { key: "productos", icon: Package, l1: "Venta de", l2: "Productos", label: "Venta de productos" },
   { key: "publicidad", icon: Megaphone, l1: "Publicidad", l2: "", label: "Publicidad" },
@@ -3487,19 +3274,8 @@ const LAB_SIMS = [
 
 function LaboratorioDecisiones(props: SimuladorProps) {
   const data = useLabData(props.businessId, props.ticket, props.clientes);
-  const { analytics: a, isLoading: demandLoading } = useRejectedAnalytics(props.businessId ?? null);
   const [sim, setSim] = React.useState<(typeof LAB_SIMS)[number]["key"]>("precios");
   const [infoOpen, setInfoOpen] = React.useState(false);
-
-  const demand: DemandSlice = {
-    loading: demandLoading,
-    rejectedMonth: a.counts.month,
-    lostRevenueMonth: a.lostRevenue.month,
-    peakHours: a.peakHours,
-    saturatedPros: a.professionals.filter((p) => p.tier === "fire").length,
-    topPro: a.topProfessionals[0]?.label ?? null,
-    occupancy: a.avgOccupancyMonth ?? null,
-  };
 
   const sims = LAB_SIMS;
 
@@ -3523,7 +3299,7 @@ function LaboratorioDecisiones(props: SimuladorProps) {
           <button
             type="button"
             onClick={() => setInfoOpen(true)}
-            title="Los simuladores usan tus datos reales (servicios, clientes, agenda, horarios y demanda no atendida). Las proyecciones son estimaciones con supuestos conservadores."
+            title="Los simuladores usan tus datos reales (servicios, clientes, agenda y horarios). Las proyecciones son estimaciones con supuestos conservadores."
             aria-label="Cómo funcionan los simuladores"
             className="inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-400/[0.08] px-3 text-xs font-bold text-cyan-100 shadow-[0_0_24px_-12px_rgba(34,211,238,0.7)] transition hover:border-cyan-200/35 hover:bg-cyan-400/[0.13] hover:text-white"
           >
@@ -3538,7 +3314,7 @@ function LaboratorioDecisiones(props: SimuladorProps) {
       )}
 
       {/* Selector de simuladores · solo título */}
-      <div className="grid grid-cols-3 gap-2 lg:grid-cols-6">
+      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
         {sims.map((s) => (
           <button
             key={s.key}
@@ -3578,10 +3354,6 @@ function LaboratorioDecisiones(props: SimuladorProps) {
         <div className="pointer-events-none absolute -top-24 right-0 h-56 w-56 rounded-full bg-gradient-to-br from-cyan-500/15 to-transparent blur-3xl" />
         <div className="relative">
           {sim === "precios" && <LabPrecios data={data} />}
-          {sim === "profesional" && (
-            <LabProfesional data={data} demand={demand} ocupacion={props.ocupacion} />
-          )}
-          {sim === "horario" && <LabHorario data={data} demand={demand} />}
           {sim === "recuperar" && <LabRecuperar data={data} />}
           {sim === "productos" && <LabProductos data={data} />}
           {sim === "publicidad" && <LabPublicidad data={data} />}
@@ -3591,307 +3363,6 @@ function LaboratorioDecisiones(props: SimuladorProps) {
   );
 }
 
-// ════════════════════════════════════════════════════════════════════════════
-// Demanda no atendida (clientes no atendidos) — inline en advisor para evitar
-// dependencias de archivos externos. Toda la inteligencia vive acá.
-// ════════════════════════════════════════════════════════════════════════════
 function fmtDemandARS(n: number): string {
   return `$${Math.round(n).toLocaleString("es-AR")}`;
-}
-function pluralDemandDay(d: string): string {
-  return d.endsWith("s") ? d : `${d}s`;
-}
-
-function DemandMiniRow({
-  icon,
-  title,
-  items,
-  empty,
-}: {
-  icon: React.ReactNode;
-  title: string;
-  items: { label: string; value: string | number }[];
-  empty: string;
-}) {
-  return (
-    <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
-      <div className="mb-2.5 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-white/45">
-        {icon}
-        {title}
-      </div>
-      {items.length === 0 ? (
-        <div className="text-xs text-white/35">{empty}</div>
-      ) : (
-        <div className="space-y-1.5">
-          {items.map((it, i) => (
-            <div key={i} className="flex items-center justify-between gap-2 text-sm">
-              <span className="truncate text-white/75">{it.label}</span>
-              <span className="shrink-0 font-bold tabular-nums text-white/90">{it.value}</span>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-const DEMAND_REC_NIVEL: Record<string, { cls: string; titleCls: string; emoji: string }> = {
-  recomendado: {
-    cls: "border-emerald-400/30 bg-emerald-400/[0.12]",
-    titleCls: "text-emerald-300",
-    emoji: "✅",
-  },
-  evaluar: { cls: "border-cyan-400/30 bg-cyan-400/[0.07]", titleCls: "text-cyan-300", emoji: "🟡" },
-  no_recomendado: {
-    cls: "border-white/12 bg-white/[0.03]",
-    titleCls: "text-white/70",
-    emoji: "⏸️",
-  },
-};
-
-function DemandaNoAtendidaSection({
-  businessId,
-  occupancyPct,
-}: {
-  businessId: string | null;
-  occupancyPct?: number | null;
-}) {
-  const { analytics: a, isLoading } = useRejectedAnalytics(businessId);
-
-  const month = a.counts.month;
-  const maxMonthly = Math.max(1, ...a.monthly.map((m) => m.count));
-  const occForRecs = occupancyPct ?? a.avgOccupancyMonth ?? null;
-  const recs = React.useMemo(
-    () => buildDemandRecommendations(a, { occupancyPct: occForRecs, workingProfessionals: null }),
-    [a, occForRecs],
-  );
-
-  const topProf = a.topProfessionals[0];
-  const topDay = a.peakDays[0];
-  const topDayShare = month > 0 && topDay ? Math.round((topDay.count / month) * 100) : 0;
-  const windowShare = (() => {
-    if (!a.peakRangeLabel) return null;
-    const m = a.peakRangeLabel.match(/(\d{2}):00 y (\d{2}):00/);
-    if (!m) return null;
-    const start = Number(m[1]);
-    const end = Number(m[2]);
-    const sum = a.peakHours
-      .filter((h) => h.hour >= start && h.hour < end)
-      .reduce((s, h) => s + h.count, 0);
-    return month > 0 ? Math.round((sum / month) * 100) : null;
-  })();
-
-  const narrative: string[] = [];
-  if (month > 0)
-    narrative.push(`Durante este mes no atendiste a ${month} clientes por falta de disponibilidad.`);
-  if (topProf)
-    narrative.push(
-      `${topProf.label} recibió ${topProf.count} solicitudes que no pudieron concretarse.`,
-    );
-  if (windowShare != null && a.peakRangeLabel)
-    narrative.push(
-      `El ${windowShare}% de los clientes no atendidos se concentró entre las ${a.peakRangeLabel.replace(" y ", " y las ")}.`,
-    );
-  if (topDay && topDayShare > 0)
-    narrative.push(
-      `Los ${pluralDemandDay(topDay.label.toLowerCase())} concentran el ${topDayShare}% de la demanda no atendida.`,
-    );
-
-  return (
-    <section className="space-y-4">
-      <div className="flex items-center gap-2.5">
-        <span className="grid h-9 w-9 place-items-center rounded-xl bg-rose-500/12 text-rose-200 ring-1 ring-rose-400/25">
-          <UserX className="h-4 w-4" />
-        </span>
-        <div>
-          <h2 className="font-display text-xl font-bold tracking-tight text-white sm:text-2xl">
-            Demanda no atendida
-          </h2>
-          <p className="text-xs text-white/45">
-            Clientes que no pudieron atenderse por falta de disponibilidad
-          </p>
-        </div>
-      </div>
-
-      {a.total === 0 && !isLoading ? (
-        <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-6 text-center text-sm text-white/50">
-          Todavía no hay clientes no atendidos registrados. Usá{" "}
-          <span className="font-semibold text-rose-200/80">No atendidos → Registrar cliente no atendido</span> en la Agenda
-          para empezar a medir la demanda que el negocio no pudo atender. A medida que se acumulen
-          datos, las recomendaciones se vuelven más precisas.
-        </div>
-      ) : (
-        <>
-          {narrative.length > 0 && (
-            <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
-              <div className="mb-2 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-white/45">
-                <Sparkles className="h-3.5 w-3.5" /> Lo que detectó Clippr IA
-              </div>
-              <ul className="space-y-1.5">
-                {narrative.map((t, i) => (
-                  <li key={i} className="flex gap-2 text-sm leading-relaxed text-white/75">
-                    <span className="mt-1.5 h-1 w-1 shrink-0 rounded-full bg-rose-300/70" />
-                    {t}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <div className="rounded-2xl border border-rose-300/15 bg-rose-500/[0.05] p-4">
-              <div className="text-3xl font-extrabold tabular-nums text-rose-300">
-                {a.counts.today}
-              </div>
-              <div className="mt-0.5 text-[11px] text-white/45">No atendidos hoy</div>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-              <div className="text-3xl font-extrabold tabular-nums text-white">{a.counts.week}</div>
-              <div className="mt-0.5 text-[11px] text-white/45">Esta semana</div>
-            </div>
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4">
-              <div className="text-3xl font-extrabold tabular-nums text-white">
-                {a.counts.month}
-              </div>
-              <div className="mt-0.5 text-[11px] text-white/45">Este mes</div>
-            </div>
-            <div className="rounded-2xl border border-amber-300/15 bg-amber-500/[0.05] p-4">
-              <div className="flex items-center gap-1.5 text-2xl font-extrabold tabular-nums text-amber-300">
-                <TrendingDown className="h-4 w-4" />
-                {fmtDemandARS(a.lostRevenue.month)}
-              </div>
-              <div className="mt-0.5 text-[11px] text-white/45">
-                Facturación potencial perdida (mes)
-              </div>
-            </div>
-          </div>
-
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            <DemandMiniRow
-              icon={<Clock className="h-3.5 w-3.5" />}
-              title="Horarios con más demanda"
-              items={a.peakHours.slice(0, 4).map((h) => ({
-                label: `${String(h.hour).padStart(2, "0")}:00 – ${String(h.hour + 1).padStart(2, "0")}:00`,
-                value: h.count,
-              }))}
-              empty="Sin datos suficientes."
-            />
-            <DemandMiniRow
-              icon={<CalendarDays className="h-3.5 w-3.5" />}
-              title="Días con mayor demanda"
-              items={a.peakDays.map((d) => ({ label: d.label, value: d.count }))}
-              empty="Sin datos suficientes."
-            />
-            <DemandMiniRow
-              icon={<Scissors className="h-3.5 w-3.5" />}
-              title="Servicios más solicitados"
-              items={a.topServices.map((s) => ({ label: s.label, value: s.count }))}
-              empty="Sin datos suficientes."
-            />
-            <DemandMiniRow
-              icon={<Users className="h-3.5 w-3.5" />}
-              title="Profesionales más solicitados"
-              items={a.topProfessionals.map((p) => ({ label: p.label, value: p.count }))}
-              empty="Sin solicitudes por profesional."
-            />
-            <DemandMiniRow
-              icon={<UserX className="h-3.5 w-3.5" />}
-              title="Motivos más frecuentes"
-              items={a.topReasons.map((r) => ({ label: r.label, value: r.count }))}
-              empty="Sin datos suficientes."
-            />
-            <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
-              <div className="mb-2.5 flex items-center gap-2 text-[11px] font-bold uppercase tracking-wider text-white/45">
-                <TrendingDown className="h-3.5 w-3.5" /> Evolución mensual
-              </div>
-              <div className="flex h-[64px] items-end justify-between gap-1.5">
-                {a.monthly.map((m) => (
-                  <div key={m.ym} className="flex flex-1 flex-col items-center justify-end gap-1">
-                    <div
-                      className="w-full rounded-t bg-rose-400/60"
-                      style={{ height: `${Math.max(3, (m.count / maxMonthly) * 52)}px` }}
-                      title={`${m.count} rechazos`}
-                    />
-                    <span className="text-[10px] capitalize text-white/40">{m.label}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {a.professionals.length > 0 && (
-            <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
-              <div className="mb-2.5 text-[11px] font-bold uppercase tracking-wider text-white/45">
-                Índice de demanda por profesional
-              </div>
-              <div className="space-y-2">
-                {a.professionals.map((p) => (
-                  <div key={p.name} className="flex items-center gap-3">
-                    <span className="text-base">{TIER_EMOJI[p.tier]}</span>
-                    <span className="w-28 shrink-0 truncate text-sm font-semibold text-white/85">
-                      {p.name}
-                    </span>
-                    <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/8">
-                      <div
-                        className={cn(
-                          "h-full rounded-full",
-                          p.tier === "fire" && "bg-rose-400",
-                          p.tier === "high" && "bg-emerald-400",
-                          p.tier === "mid" && "bg-amber-400",
-                          p.tier === "low" && "bg-sky-400",
-                        )}
-                        style={{ width: `${p.score}%` }}
-                      />
-                    </div>
-                    <span className="w-14 shrink-0 text-right text-xs font-bold tabular-nums text-white/70">
-                      {p.score}/100
-                    </span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-
-          {recs.length > 0 && (
-            <div className="space-y-2">
-              <div className="text-[11px] font-bold uppercase tracking-wider text-white/45">
-                Recomendaciones de Clippr IA
-              </div>
-              {recs.map((r, i) => {
-                const meta = DEMAND_REC_NIVEL[r.nivel] ?? DEMAND_REC_NIVEL.evaluar;
-                const prio =
-                  r.priority === "alta"
-                    ? { label: "Prioridad alta", cls: "bg-rose-500/15 text-rose-200" }
-                    : r.priority === "media"
-                      ? { label: "Prioridad media", cls: "bg-amber-400/15 text-amber-100" }
-                      : { label: "Prioridad baja", cls: "bg-emerald-400/15 text-emerald-100" };
-                return (
-                  <div key={i} className={cn("rounded-2xl border p-4", meta.cls)}>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className={cn("text-sm font-bold", meta.titleCls)}>
-                        {meta.emoji} {r.title}
-                      </span>
-                      <span className="ml-auto flex items-center gap-1.5">
-                        <span
-                          className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold", prio.cls)}
-                        >
-                          {prio.label}
-                        </span>
-                        {r.confidence === "preliminar" && (
-                          <span className="rounded-full bg-white/8 px-2 py-0.5 text-[10px] font-semibold text-white/50">
-                            Evidencia preliminar
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                    <p className="mt-2 text-sm leading-relaxed text-white/80">{r.reasoning}</p>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </>
-      )}
-    </section>
-  );
 }
