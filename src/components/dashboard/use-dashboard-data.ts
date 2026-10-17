@@ -1,5 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
+import * as React from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { cajaDateKeyBA, dayBoundsBA } from "@/lib/caja-cierre";
 
 /**
  * Portado de loadDashboard() de app.js (líneas 5989-6219).
@@ -92,16 +94,22 @@ async function loadDashboard(
   range: { from: Date; to: Date },
   branchId: string | null,
 ): Promise<DashboardData> {
-  const today = new Date(range.from);
-  today.setHours(0, 0, 0, 0);
-  const todayEnd = new Date(range.to);
-  todayEnd.setHours(23, 59, 59, 999);
+  // Límites reales [00:00:00, 23:59:59.999] en huso Buenos Aires — nunca
+  // mutar las horas de un Date con setters tipo setHours, que reinterpreta
+  // la hora en el huso del RUNTIME (en un server serverless eso suele ser
+  // UTC, no ART: medianoche de Buenos Aires terminaba resolviendo a las
+  // 21:00 del día anterior en UTC, corriendo todo el rango 3 horas). Mismos
+  // helpers que ya usa Caja (caja-cierre.ts) para esta misma garantía.
+  const fromKey = cajaDateKeyBA(range.from);
+  const toKey = cajaDateKeyBA(range.to);
+  const today = dayBoundsBA(fromKey).start;
+  const todayEnd = dayBoundsBA(toKey).end;
   // Período "anterior" del mismo tamaño para calcular deltas
   const spanMs = todayEnd.getTime() - today.getTime();
   const yesterday = new Date(today.getTime() - spanMs - 1);
   const yesterdayEnd = new Date(today.getTime() - 1);
-  const expenseFrom = today.toISOString().slice(0, 10);
-  const expenseTo = todayEnd.toISOString().slice(0, 10);
+  const expenseFrom = fromKey;
+  const expenseTo = toKey;
 
   // branch_id = null nunca se excluye (.or en vez de .eq) — mismo criterio
   // que use-caja-data.ts/use-agenda-data.ts: una fila real (vieja, o
@@ -699,9 +707,38 @@ export function useDashboardData(
 ) {
   // null range = invalid dates → disable query, return zeros
   const rangeValid = range !== null && range !== undefined;
-  const from = range?.from ?? (() => { const d = new Date(); d.setHours(0,0,0,0); return d; })();
-  const to = range?.to ?? (() => { const d = new Date(); d.setHours(23,59,59,999); return d; })();
-  const key = `${from.toISOString().slice(0,10)}_${to.toISOString().slice(0,10)}`;
+  const from = range?.from ?? dayBoundsBA(cajaDateKeyBA()).start;
+  const to = range?.to ?? dayBoundsBA(cajaDateKeyBA()).end;
+  // Claves en huso Buenos Aires — nunca from.toISOString().slice(0,10): el
+  // final del día BA (23:59:59 ART) cae en el día siguiente en UTC, así
+  // que esa conversión etiquetaba el rango con la fecha equivocada.
+  const key = `${cajaDateKeyBA(from)}_${cajaDateKeyBA(to)}`;
+  const queryClient = useQueryClient();
+
+  // Tiempo real: un cobro o gasto nuevo (de cualquier dispositivo) tiene
+  // que reflejarse en Inicio sin recargar la página — mismo criterio que
+  // useCajaSummary (Caja), pero esta query no se beneficiaba de esa
+  // suscripción al vivir en un hook completamente separado.
+  React.useEffect(() => {
+    if (!businessId) return;
+    const channel = supabase
+      .channel(`dashboard-${businessId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "payments", filter: `business_id=eq.${businessId}` },
+        () => void queryClient.invalidateQueries({ queryKey: ["dashboard", businessId] }),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "expenses", filter: `business_id=eq.${businessId}` },
+        () => void queryClient.invalidateQueries({ queryKey: ["dashboard", businessId] }),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [businessId, queryClient]);
+
   return useQuery({
     queryKey: ["dashboard", businessId, key, branchId ?? null],
     queryFn: () => loadDashboard(businessId!, { from, to }, branchId ?? null),

@@ -39,5 +39,14 @@ export function useCajaHoy(businessId: string | null, branchId: string | null) {
     pendingCierres: summary.pendingCierres,
     registerMovement,
     refresh: summary.refresh,
+    // "Ingresos"/"Gastos"/"Utilidad" de CajaHoyCard (Inicio) — EXACTAMENTE
+    // los mismos valores que Caja > Resumen (revHoy/totalGastosHoy de
+    // useCajaSummary ya están acotados al día de HOY en huso Buenos Aires,
+    // sin importar el backlog pendiente). Antes CajaHoyCard los sacaba de
+    // useDashboardData, una query completamente separada — dos cálculos
+    // distintos para la misma jornada, que es justo lo que no puede pasar.
+    revHoy: summary.revHoy,
+    cobros: summary.cobros,
+    totalGastosHoy: summary.totalGastosHoy,
   };
 }

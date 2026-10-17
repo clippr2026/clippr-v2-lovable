@@ -14,6 +14,7 @@ import { useInicioWidgets, type ActividadItem } from "@/components/dashboard/use
 import { useFichajeHoy } from "@/components/dashboard/use-fichaje-hoy";
 import { FichajeQrModal } from "@/components/dashboard/fichaje-qr-modal";
 import { TOLERANCE_MINUTES, type FichajeHoyPersona } from "@/lib/fichaje";
+import { cajaDateKeyBA, dayBoundsBA } from "@/lib/caja-cierre";
 import {
   TrendingUp,
   TrendingDown,
@@ -77,14 +78,30 @@ function DashboardRoute() {
   );
 }
 
-// Fecha local (YYYY-MM-DD) según el reloj/timezone del navegador — nunca usar
-// toISOString() acá: convierte a UTC y en Argentina (UTC-3) eso adelanta la
-// fecha al día siguiente durante la noche (ej. 21:00 ART ya es 00:00 UTC).
-function localDateStr(d: Date): string {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
+// Fecha de HOY (YYYY-MM-DD) en huso Buenos Aires, que se actualiza sola al
+// cruzar la medianoche ART sin que haga falta recargar la página — un
+// setTimeout se reprograma cada vez que dispara, apuntando siempre a la
+// medianoche BA siguiente (nunca a "+24h" a secas, que se corre un poco
+// cada vez que el timer dispara unos milisegundos tarde).
+function useTodayKeyBA(): string {
+  const [todayKey, setTodayKey] = React.useState(() => cajaDateKeyBA());
+
+  React.useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>;
+    const scheduleNext = () => {
+      const now = new Date();
+      const nextMidnightBA = dayBoundsBA(cajaDateKeyBA(now)).end;
+      const msUntilNext = nextMidnightBA.getTime() - now.getTime() + 1000; // +1s de margen
+      timer = setTimeout(() => {
+        setTodayKey(cajaDateKeyBA());
+        scheduleNext();
+      }, Math.max(1000, msUntilNext));
+    };
+    scheduleNext();
+    return () => clearTimeout(timer);
+  }, []);
+
+  return todayKey;
 }
 
 function DashboardContent({ businessId }: { businessId: string | null }) {
@@ -103,22 +120,18 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
   const fichajeBranchId =
     activeBranches.length === 1 ? activeBranches[0].id : activeBranchId;
   const cajaHoy = useCajaHoy(businessId, activeBranchId);
-  // Inicio ya no tiene selector de rango — es una mirada rápida de HOY... a
-  // menos que haya una Caja vencida (abierta desde un día anterior,
-  // todavía sin cerrar explícitamente): esa caja no se resetea sola al
-  // cruzar la medianoche, sigue siendo la misma hasta que se cierre — así
-  // que Ingresos/Egresos/Utilidad/Servicios realizados/Productos vendidos
-  // de CajaHoyCard (los únicos campos de `data` que se usan en esta
-  // pantalla) tienen que arrancar en SU fecha de apertura, no en "hoy".
-  // `range` se recalcula solo si cambia el día (medianoche) o si cambia el
-  // estado de pendingCierre.
-  const todayStr = React.useMemo(() => localDateStr(new Date()), []);
+  // "Caja de hoy" es SIEMPRE el día de hoy en huso Buenos Aires — nunca se
+  // extiende hacia atrás aunque haya una caja anterior pendiente de
+  // revisión (18/09, 19/09, 16/10, etc.). Esas jornadas se muestran por
+  // separado en el aviso de pendientes (caja.pendingCierres); mezclarlas
+  // acá fue el bug reportado ("Inicio mostraba la facturación del día
+  // anterior"). todayKeyBA se actualiza solo al cruzar la medianoche —
+  // ver useTodayKeyBA — así que `range` también se recalcula solo.
+  const todayKeyBA = useTodayKeyBA();
   const range = React.useMemo(() => {
-    const fromStr = cajaHoy.pendingCierre?.date || todayStr;
-    const from = new Date(fromStr + "T00:00:00");
-    const to = new Date(todayStr + "T23:59:59");
-    return { from, to };
-  }, [todayStr, cajaHoy.pendingCierre]);
+    const { start, end } = dayBoundsBA(todayKeyBA);
+    return { from: start, to: end };
+  }, [todayKeyBA]);
 
   const { data, isLoading, error } = useDashboardData(businessId, range, activeBranchId);
   const inicioWidgets = useInicioWidgets(businessId, activeBranchId);
@@ -299,7 +312,7 @@ function CajaHoyCard({
             <span className="text-xs">Ingresos</span>
           </div>
           <div className="mt-0.5 text-xl sm:text-2xl font-display font-semibold tracking-tight">
-            {fmtAR(data.revHoy)}
+            {fmtAR(caja.revHoy)}
           </div>
         </div>
         <div>
@@ -308,7 +321,7 @@ function CajaHoyCard({
             <span className="text-xs">Egresos</span>
           </div>
           <div className="mt-0.5 text-xl sm:text-2xl font-display font-semibold tracking-tight">
-            {fmtExpenseAR(data.totalGastos)}
+            {fmtExpenseAR(caja.totalGastosHoy)}
           </div>
         </div>
         <div>
@@ -317,7 +330,7 @@ function CajaHoyCard({
             <span className="text-xs">Utilidad</span>
           </div>
           <div className="mt-0.5 text-xl sm:text-2xl font-display font-semibold tracking-tight">
-            {fmtAR(data.utilidad)}
+            {fmtAR(caja.revHoy - caja.totalGastosHoy)}
           </div>
         </div>
       </div>
