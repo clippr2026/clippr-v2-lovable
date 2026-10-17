@@ -730,3 +730,33 @@ describe("splitServiciosYProductos — clasificación para los filtros de Ver de
     expect(splitServiciosYProductos(null)).toEqual({ servicios: [], productos: [] });
   });
 });
+
+// Bug real en producción: "Caja de hoy"/"Caja → Resumen" ya mostraban $0
+// el 17/10 (revHoy/totalGastosHoy sí estaban bien acotados), pero
+// "Movimientos de caja" seguía listando los cobros del 16/10 — esa lista
+// pasaba data.paymentsToday/expensesToday/movements SIN FILTRAR por fecha
+// a buildUnifiedMovements, mientras esos arrays siguen siendo
+// intencionalmente backlog-inclusive para "Efectivo esperado en caja".
+// Guarda estructural: si alguien vuelve a pasarlos directo, sin el filtro
+// por cajaDateKeyBA(), esto lo avisa.
+describe("Movimientos de caja — la lista 'de hoy' nunca mezcla el backlog de una jornada pendiente", () => {
+  it("MovimientosUnificados filtra payments/expenses/movements a cajaDateKeyBA() antes de construir el feed 'de hoy'", () => {
+    const src = readSrc("src/routes/cash-register.tsx");
+    const fnMatch = src.match(/function MovimientosUnificados\(([\s\S]*?)const recent = all\.slice\(0, 10\);/);
+    expect(fnMatch).not.toBeNull();
+    expect(fnMatch![1]).toMatch(/paymentsOnlyToday[\s\S]*filterToDayBA\(data\.paymentsToday/);
+    expect(fnMatch![1]).toMatch(/expensesOnlyToday[\s\S]*data\.expensesToday\.filter\(\(e\) => e\.date === todayKeyBA\)/);
+    expect(fnMatch![1]).toMatch(/movementsOnlyToday[\s\S]*filterToDayBA\(movementsData\.movements/);
+    expect(fnMatch![1]).toMatch(/buildUnifiedMovements\(\s*paymentsOnlyToday,\s*expensesOnlyToday,/);
+  });
+
+  it("el vacío de la lista 'de hoy' dice explícitamente que es de hoy, no un genérico 'sin movimientos'", () => {
+    const src = readSrc("src/routes/cash-register.tsx");
+    expect(src).toMatch(/Todavía no hay movimientos registrados hoy\./);
+  });
+
+  it("el modal 'Ver todos los movimientos' (fecha elegida a mano) sigue intacto — sigue filtrando con paymentsForSelectedDate, no con el filtro 'de hoy'", () => {
+    const src = readSrc("src/routes/cash-register.tsx");
+    expect(src).toMatch(/paymentsForSelectedDate = React\.useMemo\(\s*\(\) => filterToDayBA\(data\.paymentsToday, \(p\) => p\.created_at, selectedDateKey\)/);
+  });
+});

@@ -8787,16 +8787,40 @@ function MovimientosUnificados({
   useBodyScrollLock(allOpen);
   useBodyScrollLock(Boolean(noteModal));
 
+  // El feed "de hoy" (esta lista de los últimos 10, sin el modal "Ver
+  // todos los movimientos" — ese ya se filtraba bien más abajo con
+  // paymentsForSelectedDate) tiene que mostrar EXCLUSIVAMENTE la jornada
+  // actual: data.paymentsToday/expensesToday/movementsData.movements
+  // siguen traen también el backlog de un día anterior sin cerrar (lo
+  // necesita "Efectivo esperado en caja", que sí tiene que verlo), pero
+  // ese backlog no puede aparecer mezclado en "Movimientos de caja" — una
+  // jornada pendiente de revisión se consulta desde Cierre de caja →
+  // Pendiente de revisión, nunca filtrada adentro de la caja del día
+  // siguiente.
+  const todayKeyBA = cajaDateKeyBA();
+  const paymentsOnlyToday = React.useMemo(
+    () => filterToDayBA(data.paymentsToday, (p) => p.created_at, todayKeyBA),
+    [data.paymentsToday, todayKeyBA],
+  );
+  const expensesOnlyToday = React.useMemo(
+    () => data.expensesToday.filter((e) => e.date === todayKeyBA),
+    [data.expensesToday, todayKeyBA],
+  );
+  const movementsOnlyToday = React.useMemo(
+    () => filterToDayBA(movementsData.movements, (m) => m.created_at, todayKeyBA),
+    [movementsData.movements, todayKeyBA],
+  );
+
   const all = React.useMemo(
     () =>
       buildUnifiedMovements(
-        data.paymentsToday,
-        data.expensesToday,
+        paymentsOnlyToday,
+        expensesOnlyToday,
         data.pendingCharges,
         showPendientes,
-        movementsData.movements,
+        movementsOnlyToday,
       ),
-    [data.paymentsToday, data.expensesToday, data.pendingCharges, showPendientes, movementsData.movements],
+    [paymentsOnlyToday, expensesOnlyToday, data.pendingCharges, showPendientes, movementsOnlyToday],
   );
   const recent = all.slice(0, 10);
   const loading = data.loading || movementsData.loading;
@@ -8969,7 +8993,7 @@ function MovimientosUnificados({
               <div className="px-5 py-10 text-center text-sm text-muted-foreground">Cargando…</div>
             ) : recent.length === 0 ? (
               <div className="px-5 py-10 text-center text-sm text-muted-foreground">
-                Sin movimientos registrados.
+                Todavía no hay movimientos registrados hoy.
               </div>
             ) : (
               <div>
@@ -8993,7 +9017,7 @@ function MovimientosUnificados({
             <div className="px-4 py-10 text-center text-sm text-muted-foreground">Cargando…</div>
           ) : recent.length === 0 ? (
             <div className="px-4 py-10 text-center text-sm text-muted-foreground">
-              Sin movimientos registrados.
+              Todavía no hay movimientos registrados hoy.
             </div>
           ) : (
             <div className="flex flex-col gap-3 p-3">
