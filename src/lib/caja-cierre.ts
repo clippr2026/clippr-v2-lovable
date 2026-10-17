@@ -135,6 +135,14 @@ export function splitServiciosYProductos(
   return { servicios, productos };
 }
 
+// "Efectivo contado"/"Saldo real en cuenta" (CierreCajaBtn/
+// CerrarDiaAnteriorCard) aceptan "150.000" o "150000,50" — separador de
+// miles con punto, decimales con coma, como el resto de los inputs de
+// money de la app. Input vacío o no numérico → 0, nunca NaN.
+export function parseMoneyInput(raw: string): number {
+  return Number(raw.replace(/\./g, "").replace(",", ".")) || 0;
+}
+
 export function cajaDateKey(date = new Date()) {
   return date.toLocaleDateString("sv-SE");
 }
@@ -369,16 +377,6 @@ export async function cajaOpenRangeStartDate(
   return todayStart();
 }
 
-// Wrapper de conveniencia para el único consumidor que solo necesita el
-// backlog (banner "Caja vencida"), no el período completo.
-export async function findPendingCierre(
-  businessId: string | null,
-  branchId: string | null,
-): Promise<PendingCierre | null> {
-  const period = await cajaOpenRangeStartDate(businessId, branchId);
-  return period.pendingCierre;
-}
-
 // Núcleo puro de findAllPendingCierres — separado para poder testearlo sin
 // tocar Supabase. `candidateDatesAsc` son días estrictamente anteriores a
 // hoy, de más antiguo a más reciente; un día queda "pendiente" si tuvo
@@ -395,8 +393,8 @@ export function pendingDatesFromActivity(
     .map((date) => ({ date, cierreId: null }));
 }
 
-// A diferencia de findPendingCierre (que solo mira "ayer", para decidir
-// desde cuándo arranca el período operativo de hoy), esto escanea varios
+// A diferencia de cajaOpenRangeStartDate (que solo mira "ayer", para
+// decidir desde cuándo arranca el período operativo de hoy), esto escanea varios
 // días atrás y devuelve TODAS las jornadas con actividad real que todavía
 // no tienen un cierre guardado — para el aviso "Tenés N cajas pendientes"
 // (ver sección 2 del pedido: una caja vencida no tapa a otra más vieja).
@@ -448,8 +446,9 @@ export async function findAllPendingCierres(
 // 23:59:59.999] — nunca se extiende a otro día. Se usa tanto para armar el
 // registro de un cierre manual (ver closeSingleDayCierre/
 // buildSingleDayCierrePreview) como para detectar si un día tuvo actividad
-// (findPendingCierre) — mismo formato exacto en los dos casos, para que el
-// detalle del historial funcione igual sea cual sea el origen del cierre.
+// (findAllPendingCierres/cajaOpenRangeStartDate) — mismo formato exacto en
+// los dos casos, para que el detalle del historial funcione igual sea cual
+// sea el origen del cierre.
 export async function buildCierreSnapshotForDate(
   businessId: string,
   dateStr: string,
@@ -944,7 +943,20 @@ export async function buildSingleDayCierrePreview(
     cashMovements,
   });
 
-  return { snapshot, expected };
+  // Ingresos/retiros manuales (cash_movements) como línea propia de la
+  // revisión — antes quedaban netos adentro de expected.cashInflows/
+  // cashOutflows (junto con gastos y adelantos pagados) sin que el usuario
+  // pudiera ver cuánto de esa salida era específicamente un retiro manual.
+  const manualMovements = {
+    ingresos: cashMovements
+      .filter((m) => m.type === "ingreso")
+      .reduce((s, m) => s + Number(m.amount ?? 0), 0),
+    retiros: cashMovements
+      .filter((m) => m.type === "retiro")
+      .reduce((s, m) => s + Number(m.amount ?? 0), 0),
+  };
+
+  return { snapshot, expected, manualMovements };
 }
 
 // Cierra un día PASADO puntual, acotado exactamente a ese día — a
@@ -1056,18 +1068,42 @@ export async function closeSingleDayCierre({
     updated_at: now.toISOString(),
   };
 
+  // Dos confirmaciones simultáneas de la MISMA fecha (dos usuarios, o un
+  // doble clic) no se resuelven leyendo primero y escribiendo después —
+  // entre el SELECT de existingCierre (arriba) y este INSERT/UPDATE pasó
+  // buildSingleDayCierrePreview, varias queries de por medio: tiempo de
+  // sobra para que la otra confirmación ya haya terminado. La base de
+  // datos es quien decide cuál gana:
+  //   - INSERT: si la otra ya insertó, la unique constraint (business_id,
+  //     branch_id, fecha) — NULLS NOT DISTINCT — rechaza esta con 23505.
+  //   - UPDATE: .neq("estado", "cerrada") hace que, si la otra ya cerró
+  //     esa fila un instante antes, esta UPDATE no afecte ninguna fila
+  //     (en vez de pisar silenciosamente un cierre que ya quedó guardado).
+  // Cualquiera de los dos casos es "alreadyClosed" para el que perdió la
+  // carrera, nunca un error ni un segundo cierre.
   const query = (existingCierre as any)?.id
     ? supabase
         .from("caja_cierres" as any)
         .update(payload)
         .eq("id", (existingCierre as any).id)
         .eq("business_id", businessId)
+        .neq("estado", "cerrada")
         .select("id")
         .maybeSingle()
     : supabase.from("caja_cierres" as any).insert(payload).select("id").maybeSingle();
 
   const { data: saved, error: saveError } = await query;
-  if (saveError) throw saveError;
+  if (saveError) {
+    if ((saveError as { code?: string }).code === "23505") {
+      return { closed: false, alreadyClosed: true };
+    }
+    throw saveError;
+  }
+  if (!saved?.id && (existingCierre as any)?.id) {
+    // UPDATE sin filas afectadas: otra confirmación cerró esta fila entre
+    // nuestro SELECT y este UPDATE.
+    return { closed: false, alreadyClosed: true };
+  }
   if (saved?.id) {
     // Solo si se está cerrando el día de HOY (huso Buenos Aires) tiene
     // sentido cerrar también la cash_session en curso — cerrar un día

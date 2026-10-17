@@ -347,7 +347,7 @@ export function useCajaData() {
   const [promotions, setPromotions] = React.useState<Promotion[]>([]);
   const [paymentsToday, setPaymentsToday] = React.useState<Payment[]>([]);
   const [expensesToday, setExpensesToday] = React.useState<Expense[]>([]);
-  // Caja vencida (ver findPendingCierre) — paymentsToday/expensesToday ya
+  // Caja vencida (ver cajaOpenRangeStartDate) — paymentsToday/expensesToday ya
   // vienen filtrados desde SU fecha de apertura cuando esto no es null, no
   // desde "hoy". Expuesto acá para que cualquier pantalla que use este
   // hook pueda, si quiere, mostrar de dónde vienen realmente estos totales.

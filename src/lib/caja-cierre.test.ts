@@ -43,6 +43,45 @@ describe("cierres exclusivamente manuales — sin ningún camino automático/mul
     const src = readSrc("src/components/cash-register/session-actions.ts");
     expect(src).not.toMatch(/cierre_automatico/);
   });
+
+  it("findPendingCierre (wrapper muerto, sin consumidores reales) fue retirado", () => {
+    expect((cajaCierre as Record<string, unknown>).findPendingCierre).toBeUndefined();
+  });
+
+  it("closeSingleDayCierre exige closedBy (responsable) — un cierre nunca puede quedar sin usuario", () => {
+    const src = readSrc("src/lib/caja-cierre.ts");
+    expect(src).toMatch(/closedBy:\s*string;/);
+  });
+});
+
+// Corregir un día YA cerrado (sección 7 del pedido: "nunca sobrescribir
+// silenciosamente el cierre") solo tiene un camino: reabrir con motivo
+// obligatorio, quedando auditado quién/cuándo/por qué, y recién después
+// volver a confirmar — closeSingleDayCierre siempre recalcula el snapshot
+// fresco (nunca reutiliza uno guardado), así que un cierre posterior a una
+// reapertura refleja los movimientos reales, no una copia vieja.
+describe("Procedimiento auditable para corregir un cierre ya confirmado", () => {
+  it("closeSingleDayCierre siempre recalcula el snapshot con buildSingleDayCierrePreview (nunca reutiliza uno guardado)", () => {
+    const src = readSrc("src/lib/caja-cierre.ts");
+    const fnMatch = src.match(/export async function closeSingleDayCierre\(([\s\S]*?)\n\}\n/);
+    expect(fnMatch).not.toBeNull();
+    expect(fnMatch![1]).toMatch(/buildSingleDayCierrePreview\(/);
+  });
+
+  it("el modal de 'Reabrir caja' exige un motivo antes de habilitar el botón", () => {
+    const src = readSrc("src/routes/cash-register.tsx");
+    expect(src).toMatch(/disabled=\{reopeningId === reopenTarget\.id \|\| !reopenNote\.trim\(\)\}/);
+  });
+
+  it("no existe un segundo camino de reapertura sin motivo (handleReabrirCajaDesdeBanner, retirado)", () => {
+    const src = readSrc("src/routes/cash-register.tsx");
+    expect(src).not.toMatch(/handleReabrirCajaDesdeBanner/);
+  });
+
+  it("reabrir nunca muta caja_cierres.estado de vuelta a 'reabierta' — queda como snapshot histórico inmutable", () => {
+    const src = readSrc("src/routes/cash-register.tsx");
+    expect(src).not.toMatch(/estado:\s*["']reabierta["']/);
+  });
 });
 
 // findAllPendingCierres (banner "Tenés N cajas pendientes de cierre") — acá
@@ -147,6 +186,81 @@ describe("Tiempo real — caja_cierres llega a todos los dispositivos", () => {
     const cashRegisterSrc = readSrc("src/routes/cash-register.tsx");
     expect(summarySrc).toMatch(/addEventListener\("focus"/);
     expect(cashRegisterSrc).toMatch(/addEventListener\("focus"/);
+  });
+
+  it("existe la migración que agrega expenses a la publicación supabase_realtime", () => {
+    const migrationsDir = path.join(repoRoot, "supabase", "migrations");
+    const files = fs.readdirSync(migrationsDir);
+    const match = files.find((f) => {
+      const content = fs.readFileSync(path.join(migrationsDir, f), "utf8");
+      return /alter publication supabase_realtime add table expenses/i.test(content);
+    });
+    expect(match).toBeDefined();
+  });
+
+  it("CerrarDiaAnteriorCard se suscribe a payments/expenses para avisar si una jornada pendiente cambia mientras se revisa", () => {
+    const src = readSrc("src/routes/cash-register.tsx");
+    const fnMatch = src.match(/function CerrarDiaAnteriorCard\(([\s\S]*?)\n}\n\n\/\/ Detalle de un cierre/);
+    expect(fnMatch).not.toBeNull();
+    expect(fnMatch![1]).toMatch(/table:\s*"payments"/);
+    expect(fnMatch![1]).toMatch(/table:\s*"expenses"/);
+    expect(fnMatch![1]).toMatch(/cambiaron — se actualizó la vista previa/);
+  });
+});
+
+// Dos usuarios (o un doble clic) confirmando el MISMO día al mismo tiempo
+// — closeSingleDayCierre no puede confiar en "nadie más lo está cerrando
+// ahora", porque sí puede pasar. Acá se testea la base de datos (la
+// unique constraint NULLS NOT DISTINCT) y, por inspección de código, que
+// closeSingleDayCierre traduce el conflicto a un resultado prolijo
+// (alreadyClosed) en vez de un error crudo o un segundo cierre.
+describe("Condición de carrera — dos confirmaciones simultáneas de la misma fecha", () => {
+  it("existe la migración que endurece la unique constraint a NULLS NOT DISTINCT", () => {
+    const migrationsDir = path.join(repoRoot, "supabase", "migrations");
+    const files = fs.readdirSync(migrationsDir);
+    const match = files.find((f) => {
+      const content = fs.readFileSync(path.join(migrationsDir, f), "utf8");
+      return /unique nulls not distinct \(business_id, branch_id, fecha\)/i.test(content);
+    });
+    expect(match).toBeDefined();
+  });
+
+  it("closeSingleDayCierre traduce una unique violation (23505) del INSERT a alreadyClosed, nunca un throw crudo", () => {
+    const src = readSrc("src/lib/caja-cierre.ts");
+    const fnMatch = src.match(/export async function closeSingleDayCierre\(([\s\S]*?)\n\}\n/);
+    expect(fnMatch).not.toBeNull();
+    expect(fnMatch![1]).toMatch(/code.*===.*"23505"/);
+    expect(fnMatch![1]).toMatch(/alreadyClosed: true/);
+  });
+
+  it("closeSingleDayCierre guarda el UPDATE con .neq(\"estado\",\"cerrada\") — si la otra confirmación ya cerró la fila, esta no la pisa", () => {
+    const src = readSrc("src/lib/caja-cierre.ts");
+    const fnMatch = src.match(/export async function closeSingleDayCierre\(([\s\S]*?)\n\}\n/);
+    expect(fnMatch).not.toBeNull();
+    expect(fnMatch![1]).toMatch(/\.neq\("estado",\s*"cerrada"\)/);
+  });
+});
+
+// Fallos de conexión: cualquier query nueva de este trabajo (findAllPendingCierres,
+// la carga del aviso en CierresTab, el refresco silencioso de una jornada en
+// revisión) tiene que degradar con gracia — nunca romper la pantalla ni
+// dejarla sin datos por un error de red puntual.
+describe("Fallos de conexión — las queries nuevas nunca rompen la pantalla", () => {
+  it("use-caja-summary.ts atrapa el error de findAllPendingCierres y sigue con la lista vacía", () => {
+    const src = readSrc("src/hooks/use-caja-summary.ts");
+    expect(src).toMatch(/findAllPendingCierres\(businessId, branchId\)\.catch\(/);
+  });
+
+  it("CierresTab atrapa el error de findAllPendingCierres (loadPendingCierres)", () => {
+    const src = readSrc("src/routes/cash-register.tsx");
+    const fnMatch = src.match(/const loadPendingCierres = React\.useCallback\(([\s\S]*?)\n {2}\}, \[businessId, activeBranchId\]\);/);
+    expect(fnMatch).not.toBeNull();
+    expect(fnMatch![1]).toMatch(/\.catch\(/);
+  });
+
+  it("el refresco silencioso de una jornada pendiente en revisión está en un try/catch que nunca rompe la revisión en curso", () => {
+    const src = readSrc("src/routes/cash-register.tsx");
+    expect(src).toMatch(/async function refreshSilently\(\) \{[\s\S]*?try \{[\s\S]*?\} catch \{/);
   });
 });
 

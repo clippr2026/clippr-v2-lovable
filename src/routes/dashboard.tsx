@@ -254,8 +254,8 @@ function CajaHoyCard({
           <div className="flex items-center gap-2 text-sm font-medium text-amber-200">
             <AlertTriangle className="h-4 w-4 shrink-0" />
             {caja.pendingCierres.length === 1
-              ? `Tenés una caja pendiente de cierre del ${fechaCortaLabel(caja.pendingCierres[0].date)}`
-              : `Tenés ${caja.pendingCierres.length} cajas pendientes de cierre`}
+              ? `Tenés una caja pendiente de revisión del ${fechaCortaLabel(caja.pendingCierres[0].date)}`
+              : `Tenés ${caja.pendingCierres.length} cajas pendientes de revisión`}
           </div>
           <div className="mt-2 space-y-1.5">
             {caja.pendingCierres.map((p) => (
@@ -268,7 +268,7 @@ function CajaHoyCard({
                   search={{ ...emptyCashRegisterSearch, pendingDate: p.date }}
                   className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-amber-400/20 px-3 py-1 text-[11px] font-semibold text-amber-100 ring-1 ring-amber-400/30 transition hover:bg-amber-400/30"
                 >
-                  Ver cierre pendiente
+                  Revisar cierre
                 </Link>
               </div>
             ))}

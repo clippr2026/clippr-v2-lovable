@@ -30,7 +30,6 @@ import {
   getCajaLastEvent,
   getCajaFirstEvent,
   buildSingleDayCierrePreview,
-  findPendingCierre,
   findAllPendingCierres,
   type PendingCierre,
   closeSingleDayCierre,
@@ -39,6 +38,8 @@ import {
   buildCierreSnapshotForDate,
   buildCajaMovimientosManualesForDate,
   splitServiciosYProductos,
+  countServiciosYProductos,
+  parseMoneyInput,
   type ExpectedCashDigital,
   type CajaMovimientoManual,
 } from "@/lib/caja-cierre";
@@ -859,11 +860,6 @@ function CashRegisterPage() {
   // Instant lock — set to true the moment confirmar() succeeds, no need to wait for refresh
   const [cajaCerrada, setCajaCerrada] = useState(false);
   const [showClosedHistory, setShowClosedHistory] = useState(false);
-  const [reopeningCaja, setReopeningCaja] = useState(false);
-  // Caja vencida: día anterior con actividad que nunca se cerró. null =
-  // no hay nada pendiente (caja al día). Nunca se cierra solo — ver
-  // findPendingCierre/closeCierreForDate.
-  const [pendingCierre, setPendingCierre] = useState<{ date: string; cierreId: string | null } | null>(null);
 
   React.useEffect(() => {
     if (search.depositAppointmentId && search.depositAmount) {
@@ -893,8 +889,9 @@ function CashRegisterPage() {
     (async () => {
       // La caja YA NO se cierra sola — solo se chequea si hoy ya está
       // cerrada (cierre manual seguido de un refresh de página; `cajaCerrada`
-      // es estado local en memoria, sin esto se perdía al recargar) y si
-      // quedó algún día anterior sin cerrar ("Caja vencida").
+      // es estado local en memoria, sin esto se perdía al recargar). Las
+      // jornadas pendientes de revisión las muestra CierresTab (banner +
+      // historial), con su propio findAllPendingCierres.
       let todayQuery = supabase
         .from("caja_cierres" as any)
         .select("estado")
@@ -903,13 +900,6 @@ function CashRegisterPage() {
       if (data.activeBranchId) todayQuery = todayQuery.eq("branch_id", data.activeBranchId);
       const { data: todayCierre } = await todayQuery.maybeSingle();
       if (!cancelled && isCajaCerradaRow(todayCierre)) setCajaCerrada(true);
-
-      try {
-        const pending = await findPendingCierre(data.businessId, data.activeBranchId);
-        if (!cancelled) setPendingCierre(pending);
-      } catch (error) {
-        console.warn(error);
-      }
     })();
 
     return () => {
@@ -924,85 +914,6 @@ function CashRegisterPage() {
     setTab("nueva");
   }
 
-  // Reabrir NUNCA muta la fila cerrada de caja_cierres de vuelta a
-  // 'reabierta' — eso fue el bug que duplicaba los ingresos (una caja
-  // vencida de varios días quedaba "reabierta" con su fecha vieja para
-  // siempre). caja_cierres queda como snapshot histórico, intacto;
-  // reopened_at/reopened_by se escriben ahí solo como auditoría. El
-  // período operativo real nace de reopenCashSession(), que SIEMPRE crea
-  // una cash_session nueva con opened_at = now().
-  async function handleReabrirCajaDesdeBanner() {
-    if (reopeningCaja) return;
-
-    if (!data.businessId || !session?.user?.id) {
-      setCajaCerrada(false);
-      data.refresh();
-      return;
-    }
-
-    setReopeningCaja(true);
-
-    try {
-      let lastCierreQuery = supabase
-        .from("caja_cierres" as any)
-        .select("id,eventos,estado")
-        .eq("business_id", data.businessId);
-      if (data.activeBranchId) lastCierreQuery = lastCierreQuery.eq("branch_id", data.activeBranchId);
-      const { data: lastCierre, error } = await lastCierreQuery
-        .order("fecha", { ascending: false })
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (error) throw error;
-
-      const now = new Date();
-      const user = session.user.email ?? session.user.id;
-
-      // Auditoría sobre la fila histórica (si la hay) — nunca toca estado
-      // (caja_cierres no vuelve a 'reabierta'), pero SÍ agrega el evento
-      // "reapertura" a `eventos`: es lo que le permite a un segundo cierre
-      // el mismo día (cerrar → reabrir → cobrar → cerrar) saber que hay
-      // algo nuevo que cerrar — ver el chequeo "último evento" en
-      // CierreCajaBtn.confirmar().
-      if ((lastCierre as any)?.id && isCajaCerradaRow(lastCierre)) {
-        const reaperturaEvento = {
-          tipo: "reapertura",
-          fecha_hora: now.toISOString(),
-          hora: cajaTimeLabel(now),
-          usuario: user,
-          motivo: null,
-        };
-        await supabase
-          .from("caja_cierres" as any)
-          .update({
-            reopened_at: now.toISOString(),
-            reopened_by: user,
-            eventos: appendCajaEvento((lastCierre as any).eventos, reaperturaEvento),
-          })
-          .eq("id", (lastCierre as any).id)
-          .eq("business_id", data.businessId);
-      }
-
-      await reopenCashSession({
-        businessId: data.businessId,
-        branchId: data.activeBranchId,
-        reopenedBy: user,
-        previousSessionId: (lastCierre as any)?.id ?? null,
-      });
-
-      toast.success("Caja reabierta");
-      window.dispatchEvent(new CustomEvent("clippr:caja-cierre-guardado"));
-    } catch (e: any) {
-      console.warn(e);
-      toast.error(e?.message ?? "No se pudo registrar la reapertura");
-    } finally {
-      setReopeningCaja(false);
-      setCajaCerrada(false);
-      setShowClosedHistory(false);
-      await data.refresh();
-    }
-  }
 
   if (authLoading || !session) {
     return (
@@ -5767,6 +5678,311 @@ function paymentMethodLabel(method: string) {
   return PAY_METHOD_LABEL[method as PayMethod] ?? method ?? "Sin método";
 }
 
+// Detalle completo de "Revisar cierre" — compartido entre CierreCajaBtn (la
+// jornada en curso) y CerrarDiaAnteriorCard (una jornada pendiente de
+// revisión): mismo desglose exacto, sin importar qué fecha se esté
+// revisando. Cubre la lista completa del pedido — ingresos totales,
+// servicios/productos cobrados, efectivo esperado, Transferencia/Débito/
+// Crédito/QR, propinas, gastos, ingresos y retiros manuales, efectivo
+// contado (editable) y la diferencia resultante — a partir de UN solo
+// cálculo (buildSingleDayCierrePreview), nunca una segunda fuente de
+// verdad. Puramente de presentación: no dispara ninguna query ni cierra
+// nada por sí mismo.
+function CierreRevisionDetalle({
+  preview,
+  efectivoContado,
+  onEfectivoContadoChange,
+  saldoReal,
+  onSaldoRealChange,
+  observacion,
+  onObservacionChange,
+}: {
+  preview: Awaited<ReturnType<typeof buildSingleDayCierrePreview>>;
+  efectivoContado: string;
+  onEfectivoContadoChange: (v: string) => void;
+  saldoReal: string;
+  onSaldoRealChange: (v: string) => void;
+  observacion: string;
+  onObservacionChange: (v: string) => void;
+}) {
+  const { snapshot, expected, manualMovements } = preview;
+  const { servicios, productos } = countServiciosYProductos(snapshot.cobrosSnapshot);
+
+  // Desglose SOLO de lo cobrado (sin propina, eso es su propia línea), por
+  // cada método activo — a diferencia de detalle_metodos_pago (que agrupa
+  // débito/crédito/tarjeta bajo una sola clave "card"), acá cada método
+  // activo necesita su propia fila.
+  const cobradoPorMetodo = React.useMemo(() => {
+    const byMethod: Record<string, number> = {};
+    for (const c of snapshot.cobrosSnapshot) {
+      const raw = String(c.metodo ?? "").trim().toLowerCase();
+      byMethod[raw] = (byMethod[raw] ?? 0) + Number(c.monto ?? 0);
+    }
+    return byMethod;
+  }, [snapshot.cobrosSnapshot]);
+
+  const efectivoContadoNum = parseMoneyInput(efectivoContado);
+  const diferencia = efectivoContadoNum - expected.cashExpected;
+  const saldoRealNum = parseMoneyInput(saldoReal);
+  const ajusteCuenta = saldoRealNum - expected.digitalExpected;
+
+  return (
+    <div className="space-y-4">
+      {/* Ingresos totales + desglose por método */}
+      <div>
+        <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground/70">
+          Ingresos totales
+        </div>
+        <div className="mt-0.5 text-2xl font-semibold tabular-nums text-emerald-300">
+          ${Math.round(snapshot.totalCobrado).toLocaleString("es-AR")}
+        </div>
+        <div className="mt-2 rounded-xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden">
+          {ACTIVE_PAY_METHODS.map((m) => (
+            <div
+              key={m.id}
+              className="flex items-center justify-between gap-2 px-4 py-2 border-b border-white/5 last:border-0 text-sm"
+            >
+              <span className="text-muted-foreground">{m.label}</span>
+              <span className="font-semibold tabular-nums">
+                ${Math.round(cobradoPorMetodo[m.id] ?? 0).toLocaleString("es-AR")}
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Servicios y productos cobrados */}
+      <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.025] ring-1 ring-white/10 px-4 py-3">
+        <span className="text-sm text-muted-foreground">Servicios y productos cobrados</span>
+        <span className="text-sm font-semibold tabular-nums">
+          {servicios} servicio{servicios === 1 ? "" : "s"} · {productos} producto{productos === 1 ? "" : "s"}
+        </span>
+      </div>
+
+      {/* Propinas — del profesional, nunca de la facturación, pero sí
+          plata real que entró a caja y hay que dejar constancia. */}
+      <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.025] ring-1 ring-white/10 px-4 py-3">
+        <span className="text-sm text-muted-foreground">Propinas</span>
+        <span className="text-lg font-semibold tabular-nums text-amber-200">
+          ${Math.round(snapshot.totalPropinas).toLocaleString("es-AR")}
+        </span>
+      </div>
+
+      {/* Gastos */}
+      <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.025] ring-1 ring-white/10 px-4 py-3">
+        <span className="text-sm text-muted-foreground">Gastos</span>
+        <span className="text-lg font-semibold tabular-nums text-rose-300">
+          -${Math.round(snapshot.totalGastos).toLocaleString("es-AR")}
+        </span>
+      </div>
+
+      {/* Ingresos y retiros manuales (cash_movements) — separados de
+          gastos/adelantos, que ya se ven arriba y en Movimientos. */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 px-4 py-3">
+          <div className="text-xs text-muted-foreground">Ingresos manuales</div>
+          <div className="mt-0.5 text-lg font-semibold tabular-nums text-emerald-300">
+            +${Math.round(manualMovements.ingresos).toLocaleString("es-AR")}
+          </div>
+        </div>
+        <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 px-4 py-3">
+          <div className="text-xs text-muted-foreground">Retiros manuales</div>
+          <div className="mt-0.5 text-lg font-semibold tabular-nums text-rose-300">
+            -${Math.round(manualMovements.retiros).toLocaleString("es-AR")}
+          </div>
+        </div>
+      </div>
+
+      {/* Efectivo esperado en caja */}
+      <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.035] ring-1 ring-white/10 px-4 py-3">
+        <span className="text-sm text-muted-foreground">Efectivo esperado en caja</span>
+        <span className="text-lg font-semibold tabular-nums">
+          ${Math.round(expected.cashExpected).toLocaleString("es-AR")}
+        </span>
+      </div>
+
+      {/* Efectivo contado — editable, precargado con lo esperado por el padre */}
+      <div>
+        <div className="text-sm font-semibold">Efectivo contado</div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Contá el efectivo de la caja e ingresá el monto real.
+        </p>
+        <div className="mt-2 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 focus-within:border-blue-300/40">
+          <span className="text-muted-foreground/70">$</span>
+          <input
+            type="text"
+            inputMode="numeric"
+            value={efectivoContado}
+            onChange={(e) => onEfectivoContadoChange(e.target.value.replace(/[^\d.,]/g, ""))}
+            className="w-full bg-transparent text-sm outline-none tabular-nums"
+          />
+        </div>
+        <p className="mt-1.5 text-xs text-muted-foreground">
+          Si coincide con lo esperado, no se registra diferencia.
+        </p>
+      </div>
+
+      {/* Diferencia */}
+      <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.035] ring-1 ring-white/10 px-4 py-3">
+        <span className="text-sm text-muted-foreground">
+          {diferencia === 0 ? "Diferencia" : diferencia > 0 ? "Sobra" : "Falta"}
+        </span>
+        <span
+          className={cn(
+            "text-lg font-semibold tabular-nums",
+            diferencia === 0 ? "text-white" : diferencia > 0 ? "text-emerald-300" : "text-rose-300",
+          )}
+        >
+          ${Math.round(Math.abs(diferencia)).toLocaleString("es-AR")}
+        </span>
+      </div>
+
+      {/* Dinero en cuenta — a diferencia del efectivo, NO se resetea: el
+          saldo esperado ya arrastra el carry-forward del último cierre (ver
+          getDigitalCarryForward). Acá solo se deja constancia del saldo
+          real al momento de cerrar; el ajuste nunca se mezcla con la
+          diferencia de efectivo. */}
+      <div className="rounded-xl bg-white/[0.02] ring-1 ring-white/10 px-4 py-3 space-y-3">
+        <div>
+          <div className="text-sm font-semibold text-sky-200">Dinero en banco</div>
+        </div>
+
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm text-muted-foreground">Saldo esperado</span>
+          <span className="text-lg font-semibold tabular-nums text-sky-300">
+            ${Math.round(expected.digitalExpected).toLocaleString("es-AR")}
+          </span>
+        </div>
+
+        <div>
+          <label className="text-xs text-muted-foreground">Saldo real en cuenta</label>
+          <div className="mt-1 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 focus-within:border-blue-300/40">
+            <span className="text-muted-foreground/70">$</span>
+            <input
+              type="text"
+              inputMode="numeric"
+              value={saldoReal}
+              onChange={(e) => onSaldoRealChange(e.target.value.replace(/[^\d.,]/g, ""))}
+              className="w-full bg-transparent text-sm outline-none tabular-nums"
+            />
+          </div>
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            Ingresá el saldo que ves actualmente en tu cuenta. Si coincide con lo esperado,
+            no se registra ningún ajuste.
+          </p>
+        </div>
+
+        {ajusteCuenta !== 0 && (
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm text-muted-foreground">Ajuste</span>
+            <span
+              className={cn(
+                "text-sm font-semibold tabular-nums",
+                ajusteCuenta > 0 ? "text-emerald-300" : "text-rose-300",
+              )}
+            >
+              {ajusteCuenta > 0 ? "+" : "-"}$
+              {Math.round(Math.abs(ajusteCuenta)).toLocaleString("es-AR")}
+            </span>
+          </div>
+        )}
+      </div>
+
+      <div>
+        <label className="text-xs text-muted-foreground">
+          Observación{diferencia !== 0 ? " — obligatoria por la diferencia de efectivo" : " (opcional)"}
+        </label>
+        <textarea
+          value={observacion}
+          onChange={(e) => onObservacionChange(e.target.value)}
+          rows={2}
+          placeholder={
+            diferencia !== 0
+              ? "Contá qué pasó con la diferencia (faltante/sobrante) antes de confirmar."
+              : "Novedades del día, diferencias, etc."
+          }
+          className={cn(
+            "mt-1 w-full rounded-xl border px-3 py-2.5 text-sm outline-none resize-none bg-white/[0.03] focus:border-blue-300/40",
+            diferencia !== 0 && !observacion.trim() ? "border-amber-400/40" : "border-white/10",
+          )}
+        />
+      </div>
+    </div>
+  );
+}
+
+// Resumen final + segunda confirmación antes de registrar el cierre
+// (sección 5 del pedido: "Antes de finalizar, solicitar confirmación") —
+// un solo clic en "Confirmar cierre de caja" nunca alcanza para escribir
+// en caja_cierres.
+function CierreConfirmarStep({
+  fecha,
+  diferencia,
+  ajusteCuenta,
+  saving,
+  onVolver,
+  onConfirmar,
+}: {
+  fecha: string;
+  diferencia: number;
+  ajusteCuenta: number;
+  saving: boolean;
+  onVolver: () => void;
+  onConfirmar: () => void;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl bg-amber-400/10 ring-1 ring-amber-400/25 px-4 py-3">
+        <p className="text-sm font-semibold text-amber-200">
+          ¿Confirmás el cierre de caja del {fechaDDMMYYYY(fecha)}?
+        </p>
+        <p className="mt-1 text-xs text-amber-200/70">
+          Una vez confirmado, la jornada queda "Cerrada" con el detalle de movimientos conservado.
+          Para corregir algo después hay que reabrirla — queda registrado quién y cuándo lo hizo.
+        </p>
+      </div>
+      {(diferencia !== 0 || ajusteCuenta !== 0) && (
+        <div className="space-y-2 text-sm">
+          {diferencia !== 0 && (
+            <div className="flex items-center justify-between rounded-xl bg-white/[0.03] ring-1 ring-white/10 px-4 py-2.5">
+              <span className="text-muted-foreground">{diferencia > 0 ? "Sobrante de efectivo" : "Faltante de efectivo"}</span>
+              <span className={cn("font-semibold tabular-nums", diferencia > 0 ? "text-emerald-300" : "text-rose-300")}>
+                ${Math.round(Math.abs(diferencia)).toLocaleString("es-AR")}
+              </span>
+            </div>
+          )}
+          {ajusteCuenta !== 0 && (
+            <div className="flex items-center justify-between rounded-xl bg-white/[0.03] ring-1 ring-white/10 px-4 py-2.5">
+              <span className="text-muted-foreground">Ajuste de cuenta</span>
+              <span className={cn("font-semibold tabular-nums", ajusteCuenta > 0 ? "text-emerald-300" : "text-rose-300")}>
+                {ajusteCuenta > 0 ? "+" : "-"}${Math.round(Math.abs(ajusteCuenta)).toLocaleString("es-AR")}
+              </span>
+            </div>
+          )}
+        </div>
+      )}
+      <div className="flex gap-2">
+        <button
+          type="button"
+          onClick={onVolver}
+          disabled={saving}
+          className="flex-1 rounded-xl border border-white/[0.09] bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white/75 transition hover:bg-white/[0.08] disabled:opacity-50"
+        >
+          Volver a revisar
+        </button>
+        <button
+          type="button"
+          onClick={onConfirmar}
+          disabled={saving}
+          className="flex-1 rounded-xl px-4 py-3 text-sm font-bold bg-gradient-to-b from-blue-400 to-violet-500 text-white hover:brightness-105 disabled:opacity-50 transition-all"
+        >
+          {saving ? "Guardando…" : "Sí, confirmar cierre"}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function CierreCajaBtn({
   businessId,
   branchId,
@@ -5796,6 +6012,10 @@ function CierreCajaBtn({
   const [contadoTouched, setContadoTouched] = useState(false);
   const [saldoReal, setSaldoReal] = useState("");
   const [saldoRealTouched, setSaldoRealTouched] = useState(false);
+  // Sección 5 del pedido: un clic en "Confirmar cierre de caja" nunca
+  // alcanza — primero muestra un resumen final (CierreConfirmarStep) y
+  // recién un segundo clic ahí dispara closeSingleDayCierre.
+  const [confirmStep, setConfirmStep] = useState(false);
 
   // Vista previa propia, acotada EXACTAMENTE a cajaRangeStartDate — nunca
   // los `paymentsToday`/`expensesToday` acumulados de la pantalla (esos
@@ -5824,21 +6044,7 @@ function CierreCajaBtn({
     };
   }, [open, businessId, branchId, cajaRangeStartDate]);
 
-  const totalCobrado = preview?.snapshot.totalCobrado ?? 0;
-  const totalGastos = preview?.snapshot.totalGastos ?? 0;
   const expected = preview?.expected ?? { cashExpected: 0, cashOutflows: 0, cashInflows: 0, digitalExpected: 0, digitalOutflows: 0 };
-
-  // Desglose SOLO de lo cobrado, por cada método activo — a diferencia de
-  // detalle_metodos_pago (que agrupa débito/crédito/tarjeta bajo una sola
-  // clave "card"), acá cada método activo necesita su propia fila.
-  const cobradoPorMetodo = useMemo(() => {
-    const byMethod: Record<string, number> = {};
-    for (const c of preview?.snapshot.cobrosSnapshot ?? []) {
-      const raw = String(c.metodo ?? "").trim().toLowerCase();
-      byMethod[raw] = (byMethod[raw] ?? 0) + Number(c.monto ?? 0);
-    }
-    return byMethod;
-  }, [preview]);
 
   // Precarga "Efectivo contado"/"Saldo real en cuenta" con lo esperado
   // apenas se conoce, pero solo una vez — si el usuario ya escribió algo
@@ -5855,10 +6061,18 @@ function CierreCajaBtn({
     setSaldoReal(String(Math.round(expected.digitalExpected)));
   }, [open, saldoRealTouched, preview, expected.digitalExpected]);
 
-  const efectivoContadoNum = Number(efectivoContado.replace(/\./g, "").replace(",", ".")) || 0;
+  const efectivoContadoNum = parseMoneyInput(efectivoContado);
   const diferencia = efectivoContadoNum - expected.cashExpected;
-  const saldoRealNum = Number(saldoReal.replace(/\./g, "").replace(",", ".")) || 0;
+  const saldoRealNum = parseMoneyInput(saldoReal);
   const ajusteCuenta = saldoRealNum - expected.digitalExpected;
+  const obsRequeridaFalta = diferencia !== 0 && !obs.trim();
+
+  function cerrarModal() {
+    setOpen(false);
+    setConfirmStep(false);
+    setContadoTouched(false);
+    setSaldoRealTouched(false);
+  }
 
   async function confirmar() {
     if (saving || !businessId || !preview) return;
@@ -5875,7 +6089,7 @@ function CierreCajaBtn({
       });
       if (result.alreadyClosed) {
         toast.info("La caja ya está cerrada");
-        setOpen(false);
+        cerrarModal();
         onCajaCerrada();
         return;
       }
@@ -5884,12 +6098,10 @@ function CierreCajaBtn({
         return;
       }
       toast.success("Cierre registrado correctamente");
-      setOpen(false);
+      cerrarModal();
       setObs("");
       setEfectivoContado("");
-      setContadoTouched(false);
       setSaldoReal("");
-      setSaldoRealTouched(false);
       setPreview(null);
       onCajaCerrada(); // ← bloquea la pantalla inmediatamente
     } catch (e) {
@@ -5915,18 +6127,14 @@ function CierreCajaBtn({
           <div className="w-full max-w-lg rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden">
             <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
               <div>
-                <h3 className="text-lg font-semibold">Cerrar caja</h3>
+                <h3 className="text-lg font-semibold">{confirmStep ? "Confirmar cierre de caja" : "Revisar cierre"}</h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   Caja abierta desde {cajaAbiertaDesde}
                 </p>
               </div>
               <button
                 type="button"
-                onClick={() => {
-                  setOpen(false);
-                  setContadoTouched(false);
-                  setSaldoRealTouched(false);
-                }}
+                onClick={cerrarModal}
                 className="rounded-lg bg-white/5 hover:bg-white/10 px-3 py-2 text-sm"
               >
                 Cancelar
@@ -5934,171 +6142,45 @@ function CierreCajaBtn({
             </div>
 
             <div className="max-h-[75vh] overflow-y-auto p-5 space-y-4">
-              {/* 2. Total cobrado + desglose por método */}
-              <div>
-                <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground/70">
-                  Total cobrado
-                </div>
-                <div className="mt-0.5 text-2xl font-semibold tabular-nums text-emerald-300">
-                  ${totalCobrado.toLocaleString("es-AR")}
-                </div>
-                <div className="mt-2 rounded-xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden">
-                  {ACTIVE_PAY_METHODS.map((m) => (
-                    <div
-                      key={m.id}
-                      className="flex items-center justify-between gap-2 px-4 py-2 border-b border-white/5 last:border-0 text-sm"
-                    >
-                      <span className="text-muted-foreground">{m.label}</span>
-                      <span className="font-semibold tabular-nums">
-                        ${Math.round(cobradoPorMetodo[m.id] ?? 0).toLocaleString("es-AR")}
-                      </span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              {/* 3a. Ingresos de efectivo — ingresos manuales (cash_movements
-                  tipo "ingreso") del período de la caja abierta. Mismo valor
-                  que ya suma cashExpected (expected.cashInflows), ahora
-                  mostrado aparte en vez de quedar implícito. Siempre visible
-                  (igual que "Salidas de efectivo"), incluso en $0. */}
-              <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.025] ring-1 ring-white/10 px-4 py-3">
-                <span className="text-sm text-muted-foreground">Ingresos de efectivo</span>
-                <span className="text-lg font-semibold tabular-nums text-emerald-300">
-                  +${Math.round(expected.cashInflows).toLocaleString("es-AR")}
-                </span>
-              </div>
-
-              {/* 3b. Salidas de efectivo */}
-              <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.025] ring-1 ring-white/10 px-4 py-3">
-                <span className="text-sm text-muted-foreground">Salidas de efectivo</span>
-                <span className="text-lg font-semibold tabular-nums text-rose-300">
-                  -${Math.round(expected.cashOutflows).toLocaleString("es-AR")}
-                </span>
-              </div>
-
-              {/* 4. Efectivo esperado en caja */}
-              <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.035] ring-1 ring-white/10 px-4 py-3">
-                <span className="text-sm text-muted-foreground">Efectivo esperado en caja</span>
-                <span className="text-lg font-semibold tabular-nums">
-                  ${Math.round(expected.cashExpected).toLocaleString("es-AR")}
-                </span>
-              </div>
-
-              {/* 5. Efectivo contado — editable, precargado con lo esperado */}
-              <div>
-                <div className="text-sm font-semibold">Efectivo contado</div>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Contá el efectivo de la caja e ingresá el monto real.
-                </p>
-                <div className="mt-2 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 focus-within:border-blue-300/40">
-                  <span className="text-muted-foreground/70">$</span>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    value={efectivoContado}
-                    onChange={(e) => {
-                      setContadoTouched(true);
-                      setEfectivoContado(e.target.value.replace(/[^\d.,]/g, ""));
-                    }}
-                    className="w-full bg-transparent text-sm outline-none tabular-nums"
-                  />
-                </div>
-                <p className="mt-1.5 text-xs text-muted-foreground">
-                  Si coincide con lo esperado, no se registra diferencia.
-                </p>
-              </div>
-
-              {/* 6. Diferencia */}
-              <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.035] ring-1 ring-white/10 px-4 py-3">
-                <span className="text-sm text-muted-foreground">
-                  {diferencia === 0 ? "Diferencia" : diferencia > 0 ? "Sobra" : "Falta"}
-                </span>
-                <span
-                  className={cn(
-                    "text-lg font-semibold tabular-nums",
-                    diferencia === 0 ? "text-white" : diferencia > 0 ? "text-emerald-300" : "text-rose-300",
-                  )}
-                >
-                  ${Math.round(Math.abs(diferencia)).toLocaleString("es-AR")}
-                </span>
-              </div>
-
-              {/* 7. Dinero en cuenta — a diferencia del efectivo, NO se
-                  resetea: el saldo esperado ya arrastra el carry-forward
-                  del último cierre (ver getDigitalCarryForward). Acá solo
-                  se deja constancia del saldo real al momento de cerrar;
-                  el ajuste nunca se mezcla con la diferencia de efectivo. */}
-              <div className="rounded-xl bg-white/[0.02] ring-1 ring-white/10 px-4 py-3 space-y-3">
-                <div>
-                  <div className="text-sm font-semibold text-sky-200">Dinero en banco</div>
-                </div>
-
-                <div className="flex items-center justify-between gap-3">
-                  <span className="text-sm text-muted-foreground">Saldo esperado</span>
-                  <span className="text-lg font-semibold tabular-nums text-sky-300">
-                    ${Math.round(expected.digitalExpected).toLocaleString("es-AR")}
-                  </span>
-                </div>
-
-                <div>
-                  <label className="text-xs text-muted-foreground">Saldo real en cuenta</label>
-                  <div className="mt-1 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 focus-within:border-blue-300/40">
-                    <span className="text-muted-foreground/70">$</span>
-                    <input
-                      type="text"
-                      inputMode="numeric"
-                      value={saldoReal}
-                      onChange={(e) => {
-                        setSaldoRealTouched(true);
-                        setSaldoReal(e.target.value.replace(/[^\d.,]/g, ""));
-                      }}
-                      className="w-full bg-transparent text-sm outline-none tabular-nums"
-                    />
-                  </div>
-                  <p className="mt-1.5 text-xs text-muted-foreground">
-                    Ingresá el saldo que ves actualmente en tu cuenta. Si coincide con lo esperado,
-                    no se registra ningún ajuste.
-                  </p>
-                </div>
-
-                {ajusteCuenta !== 0 && (
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-sm text-muted-foreground">Ajuste</span>
-                    <span
-                      className={cn(
-                        "text-sm font-semibold tabular-nums",
-                        ajusteCuenta > 0 ? "text-emerald-300" : "text-rose-300",
-                      )}
-                    >
-                      {ajusteCuenta > 0 ? "+" : "-"}$
-                      {Math.round(Math.abs(ajusteCuenta)).toLocaleString("es-AR")}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              <div>
-                <label className="text-xs text-muted-foreground">
-                  Observación opcional
-                </label>
-                <textarea
-                  value={obs}
-                  onChange={(e) => setObs(e.target.value)}
-                  rows={2}
-                  placeholder="Novedades del día, diferencias, etc."
-                  className="mt-1 w-full rounded-xl bg-white/[0.03] border border-white/10 px-3 py-2.5 text-sm outline-none focus:border-blue-300/40 resize-none"
+              {!preview || loadingPreview ? (
+                <div className="py-10 text-center text-sm text-muted-foreground">Calculando…</div>
+              ) : confirmStep ? (
+                <CierreConfirmarStep
+                  fecha={cajaRangeStartDate}
+                  diferencia={diferencia}
+                  ajusteCuenta={ajusteCuenta}
+                  saving={saving}
+                  onVolver={() => setConfirmStep(false)}
+                  onConfirmar={confirmar}
                 />
-              </div>
-
-              <button
-                type="button"
-                onClick={confirmar}
-                disabled={saving || loadingPreview || !preview}
-                className="w-full inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold bg-gradient-to-b from-blue-400 to-violet-500 text-white hover:brightness-105 disabled:opacity-50 transition-all"
-              >
-                {saving ? "Guardando…" : loadingPreview ? "Calculando…" : "Confirmar cierre"}
-              </button>
+              ) : (
+                <>
+                  <CierreRevisionDetalle
+                    preview={preview}
+                    efectivoContado={efectivoContado}
+                    onEfectivoContadoChange={(v) => {
+                      setContadoTouched(true);
+                      setEfectivoContado(v);
+                    }}
+                    saldoReal={saldoReal}
+                    onSaldoRealChange={(v) => {
+                      setSaldoRealTouched(true);
+                      setSaldoReal(v);
+                    }}
+                    observacion={obs}
+                    onObservacionChange={setObs}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setConfirmStep(true)}
+                    disabled={obsRequeridaFalta}
+                    title={obsRequeridaFalta ? "Contá qué pasó con la diferencia antes de continuar" : undefined}
+                    className="w-full inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold bg-gradient-to-b from-blue-400 to-violet-500 text-white hover:brightness-105 disabled:opacity-50 transition-all"
+                  >
+                    Confirmar cierre de caja
+                  </button>
+                </>
+              )}
             </div>
           </div>
         </div>,
@@ -6141,19 +6223,35 @@ function CerrarDiaAnteriorCard({
   const [preview, setPreview] = useState<Awaited<ReturnType<typeof buildSingleDayCierrePreview>> | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [confirming, setConfirming] = useState(false);
+  const [efectivoContado, setEfectivoContado] = useState("");
+  const [contadoTouched, setContadoTouched] = useState(false);
+  const [saldoReal, setSaldoReal] = useState("");
+  const [saldoRealTouched, setSaldoRealTouched] = useState(false);
+  const [obs, setObs] = useState("");
+  // Sección 5 del pedido: resumen final + segundo clic antes de confirmar.
+  const [confirmStep, setConfirmStep] = useState(false);
 
-  const todayKey = cajaDateKey();
   const closedDates = useMemo(
     () => new Set(cierresExistentes.filter((c) => isCajaCerradaRow(c)).map((c) => c.fecha)),
     [cierresExistentes],
   );
   const yaCerrado = selectedDate ? closedDates.has(selectedDate) : false;
 
+  function resetReview() {
+    setPreview(null);
+    setConfirmStep(false);
+    setContadoTouched(false);
+    setSaldoRealTouched(false);
+    setEfectivoContado("");
+    setSaldoReal("");
+    setObs("");
+  }
+
   async function verVistaPrevia(dateOverride?: string) {
     const date = dateOverride ?? selectedDate;
     if (!businessId || !date || closedDates.has(date)) return;
     setLoadingPreview(true);
-    setPreview(null);
+    resetReview();
     try {
       const result = await buildSingleDayCierrePreview(businessId, branchId, date);
       setPreview(result);
@@ -6172,6 +6270,73 @@ function CerrarDiaAnteriorCard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [jumpToDate]);
 
+  // Sección 7 del pedido: "si llegan pagos atrasados de una jornada
+  // pendiente, actualizar su vista previa y advertir el cambio" — mientras
+  // el detalle de ESTA fecha está abierto, un pago/gasto nuevo (de
+  // cualquier dispositivo) recalcula el preview solo, sin pisar lo que el
+  // usuario ya tipeó en efectivo/saldo/observación, y avisa si algo
+  // relevante cambió. Vuelve al detalle (sale de confirmStep) para que no
+  // confirme un resumen ya desactualizado.
+  const previewRef = React.useRef(preview);
+  previewRef.current = preview;
+  useEffect(() => {
+    if (!businessId || !selectedDate || !preview || yaCerrado) return;
+    async function refreshSilently() {
+      if (!businessId) return;
+      try {
+        const fresh = await buildSingleDayCierrePreview(businessId, branchId, selectedDate);
+        const prev = previewRef.current;
+        const changed =
+          !prev ||
+          prev.snapshot.cantidadCobros !== fresh.snapshot.cantidadCobros ||
+          Math.round(prev.snapshot.totalCobrado) !== Math.round(fresh.snapshot.totalCobrado) ||
+          Math.round(prev.snapshot.totalGastos) !== Math.round(fresh.snapshot.totalGastos);
+        setPreview(fresh);
+        if (changed) {
+          toast.info(`Los movimientos del ${fechaDDMMYYYY(selectedDate)} cambiaron — se actualizó la vista previa.`);
+          setConfirmStep(false);
+        }
+      } catch {
+        // Red de seguridad: si falla, el usuario sigue viendo el último
+        // preview calculado — nunca rompe la revisión en curso.
+      }
+    }
+    const channel = supabase
+      .channel(`cierre-dia-anterior-${businessId}-${selectedDate}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "payments", filter: `business_id=eq.${businessId}` },
+        () => void refreshSilently(),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "expenses", filter: `business_id=eq.${businessId}` },
+        () => void refreshSilently(),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [businessId, branchId, selectedDate, !!preview, yaCerrado]);
+
+  // Precarga el efectivo/saldo contado con lo esperado, igual que
+  // CierreCajaBtn — una sola vez, sin pisar lo que el usuario ya escribió.
+  useEffect(() => {
+    if (contadoTouched || !preview) return;
+    setEfectivoContado(String(Math.round(preview.expected.cashExpected)));
+  }, [contadoTouched, preview]);
+  useEffect(() => {
+    if (saldoRealTouched || !preview) return;
+    setSaldoReal(String(Math.round(preview.expected.digitalExpected)));
+  }, [saldoRealTouched, preview]);
+
+  const efectivoContadoNum = parseMoneyInput(efectivoContado);
+  const diferencia = preview ? efectivoContadoNum - preview.expected.cashExpected : 0;
+  const saldoRealNum = parseMoneyInput(saldoReal);
+  const ajusteCuenta = preview ? saldoRealNum - preview.expected.digitalExpected : 0;
+  const obsRequeridaFalta = diferencia !== 0 && !obs.trim();
+
   async function confirmarCierre() {
     if (!businessId || !selectedDate || !preview) return;
     setConfirming(true);
@@ -6181,12 +6346,15 @@ function CerrarDiaAnteriorCard({
         branchId,
         dateStr: selectedDate,
         closedBy: userEmail || "Desconocido",
+        observacion: obs,
+        efectivoContado: efectivoContadoNum,
+        saldoReal: saldoRealNum,
       });
       if (result.alreadyClosed) {
         toast.error("Ese día ya tiene un cierre guardado.");
       } else if (result.closed) {
         toast.success(`Caja del ${fechaDDMMYYYY(selectedDate)} cerrada correctamente.`);
-        setPreview(null);
+        resetReview();
         setSelectedDate("");
         onCierreGuardado();
       } else {
@@ -6199,19 +6367,17 @@ function CerrarDiaAnteriorCard({
     }
   }
 
-  const money = (value: number) => `$${Math.round(value).toLocaleString("es-AR")}`;
-
   return (
     <div className="mt-4 rounded-[28px] border border-white/[0.085] bg-black/20 p-5">
-      <p className="text-sm font-bold text-white/85">Cerrar un día anterior</p>
+      <p className="text-sm font-bold text-white/85">Revisar un día anterior</p>
       <p className="mt-1 text-xs text-muted-foreground">
-        Para ponerse al día con jornadas que quedaron sin cerrar, una por una — cada cierre queda
+        Para ponerse al día con jornadas pendientes de revisión, una por una — cada cierre queda
         acotado exclusivamente a la fecha elegida, sin mezclar movimientos de otros días.
       </p>
       <div className="mt-3 flex flex-wrap items-end gap-3">
         <div>
           <label className="mb-1 block text-[10px] font-bold uppercase tracking-[0.14em] text-white/40">
-            Fecha a cerrar
+            Fecha a revisar
           </label>
           <input
             type="date"
@@ -6219,7 +6385,7 @@ function CerrarDiaAnteriorCard({
             max={cajaDateKey(new Date(Date.now() - 24 * 60 * 60 * 1000))}
             onChange={(e) => {
               setSelectedDate(e.target.value);
-              setPreview(null);
+              resetReview();
             }}
             className="h-10 rounded-xl border border-white/[0.09] bg-[#070A13]/80 px-3 text-sm text-white outline-none focus:border-violet-300/35"
           />
@@ -6230,7 +6396,7 @@ function CerrarDiaAnteriorCard({
           onClick={() => verVistaPrevia()}
           className="h-10 rounded-xl border border-white/[0.09] bg-white/[0.05] px-4 text-sm font-bold text-white/85 transition hover:bg-white/[0.09] disabled:opacity-40"
         >
-          {loadingPreview ? "Calculando…" : "Ver vista previa"}
+          {loadingPreview ? "Calculando…" : "Revisar cierre"}
         </button>
       </div>
 
@@ -6243,39 +6409,47 @@ function CerrarDiaAnteriorCard({
       {preview && !yaCerrado && (
         <div className="mt-4 rounded-2xl border border-white/[0.07] bg-white/[0.03] p-4">
           <p className="text-sm font-bold text-white">
-            Vista previa — {fechaDDMMYYYY(selectedDate)}
+            {confirmStep ? "Confirmar cierre de caja" : "Revisar cierre"} — {fechaDDMMYYYY(selectedDate)}
           </p>
-          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <div>
-              <div className="text-[10px] uppercase tracking-wide text-white/40">Ingresos</div>
-              <div className="text-lg font-bold text-white">{money(preview.snapshot.totalCobrado)}</div>
-            </div>
-            <div>
-              <div className="text-[10px] uppercase tracking-wide text-white/40">Efectivo</div>
-              <div className="text-lg font-bold text-emerald-300">{money(preview.expected.cashExpected)}</div>
-            </div>
-            <div>
-              <div className="text-[10px] uppercase tracking-wide text-white/40">Transferencia/digital</div>
-              <div className="text-lg font-bold text-sky-300">{money(preview.expected.digitalExpected)}</div>
-            </div>
-            <div>
-              <div className="text-[10px] uppercase tracking-wide text-white/40">Gastos</div>
-              <div className="text-lg font-bold text-rose-300">{money(preview.snapshot.totalGastos)}</div>
-            </div>
+          <div className="mt-3">
+            {confirmStep ? (
+              <CierreConfirmarStep
+                fecha={selectedDate}
+                diferencia={diferencia}
+                ajusteCuenta={ajusteCuenta}
+                saving={confirming}
+                onVolver={() => setConfirmStep(false)}
+                onConfirmar={confirmarCierre}
+              />
+            ) : (
+              <>
+                <CierreRevisionDetalle
+                  preview={preview}
+                  efectivoContado={efectivoContado}
+                  onEfectivoContadoChange={(v) => {
+                    setContadoTouched(true);
+                    setEfectivoContado(v);
+                  }}
+                  saldoReal={saldoReal}
+                  onSaldoRealChange={(v) => {
+                    setSaldoRealTouched(true);
+                    setSaldoReal(v);
+                  }}
+                  observacion={obs}
+                  onObservacionChange={setObs}
+                />
+                <button
+                  type="button"
+                  disabled={obsRequeridaFalta}
+                  title={obsRequeridaFalta ? "Contá qué pasó con la diferencia antes de continuar" : undefined}
+                  onClick={() => setConfirmStep(true)}
+                  className="mt-4 h-10 w-full rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-4 text-sm font-extrabold text-emerald-300 transition hover:bg-emerald-400/15 disabled:opacity-50"
+                >
+                  {`Confirmar cierre de caja del ${fechaDDMMYYYY(selectedDate)}`}
+                </button>
+              </>
+            )}
           </div>
-          <div className="mt-3 border-t border-white/[0.06] pt-3 text-sm text-white/70">
-            {preview.snapshot.cantidadCobros} cobro{preview.snapshot.cantidadCobros === 1 ? "" : "s"} · Total
-            esperado:{" "}
-            <span className="font-bold text-white">{money(preview.snapshot.utilidad)}</span>
-          </div>
-          <button
-            type="button"
-            disabled={confirming}
-            onClick={confirmarCierre}
-            className="mt-4 h-10 w-full rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-4 text-sm font-extrabold text-emerald-300 transition hover:bg-emerald-400/15 disabled:opacity-50 sm:w-auto"
-          >
-            {confirming ? "Cerrando…" : `Confirmar cierre del ${fechaDDMMYYYY(selectedDate)}`}
-          </button>
         </div>
       )}
     </div>
@@ -6824,7 +6998,7 @@ function CierresTab({
     return () => window.removeEventListener("clippr:caja-cierre-guardado", handler);
   }, [loadCierres]);
 
-  // Aviso "Tenés N cajas pendientes de cierre" — TODAS las jornadas con
+  // Aviso "Tenés N cajas pendientes de revisión" — TODAS las jornadas con
   // actividad sin cerrar, no solo la más vieja (ver findAllPendingCierres
   // en caja-cierre.ts). Se recarga con el mismo evento que el historial:
   // cerrar/reabrir cualquier día cambia qué queda pendiente.
@@ -7023,8 +7197,9 @@ function CierresTab({
   }
 
   // Reabrir desde el historial NUNCA muta la fila elegida de vuelta a
-  // 'reabierta' (mismo motivo que handleReabrirCajaDesdeBanner más
-  // arriba) — sea cual sea el cierre histórico elegido, el efecto real es
+  // 'reabierta' — eso fue el bug que duplicaba ingresos cuando una caja
+  // vencida de varios días quedaba "reabierta" con su fecha vieja para
+  // siempre. Sea cual sea el cierre histórico elegido, el efecto real es
   // siempre el mismo: una cash_session nueva, con opened_at = ahora. La
   // fila histórica solo recibe reopened_at/reopened_by/reopen_reason como
   // auditoría de "por qué se reabrió".
@@ -7147,8 +7322,8 @@ function CierresTab({
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-bold text-amber-200">
                       {pendingCierres.length === 1
-                        ? `Tenés una caja pendiente de cierre del ${fechaDDMMYYYY(pendingCierres[0].date)}`
-                        : `Tenés ${pendingCierres.length} cajas pendientes de cierre`}
+                        ? `Tenés una caja pendiente de revisión del ${fechaDDMMYYYY(pendingCierres[0].date)}`
+                        : `Tenés ${pendingCierres.length} cajas pendientes de revisión`}
                     </p>
                     <p className="mt-1 text-xs text-amber-200/70">
                       Ninguna se cierra sola — revisá cada una y confirmá el cierre a mano.
@@ -7170,7 +7345,7 @@ function CierresTab({
                             }}
                             className="rounded-lg bg-amber-400/15 px-3 py-1.5 text-xs font-bold text-amber-100 ring-1 ring-amber-400/30 transition hover:bg-amber-400/25"
                           >
-                            Ver cierre pendiente
+                            Revisar cierre
                           </button>
                         </div>
                       ))}
@@ -7317,7 +7492,7 @@ function CierresTab({
                     >
                       <span className="text-sm font-semibold text-white/85">{fechaDetalleLabel(row.date)}</span>
                       <span className="rounded-full bg-amber-400/15 px-2.5 py-1 text-xs font-bold text-amber-300 ring-1 ring-amber-400/30">
-                        Pendiente
+                        Pendiente de revisión
                       </span>
                     </button>
                   ) : (
@@ -7348,7 +7523,8 @@ function CierresTab({
             <div className="border-b border-white/[0.08] px-5 py-4">
               <h3 className="text-lg font-bold text-white">Reabrir caja</h3>
               <p className="mt-1 text-xs text-muted-foreground">
-                Agregá una nota para dejar registrado el motivo de reapertura.
+                Es el único camino para corregir un día ya cerrado — nunca se sobrescribe en
+                silencio. Contá el motivo: queda guardado junto con quién y cuándo reabrió.
               </p>
             </div>
             <div className="space-y-4 p-5">
@@ -7371,7 +7547,8 @@ function CierresTab({
                 </button>
                 <button
                   type="button"
-                  disabled={reopeningId === reopenTarget.id}
+                  disabled={reopeningId === reopenTarget.id || !reopenNote.trim()}
+                  title={!reopenNote.trim() ? "Contá el motivo de la reapertura antes de continuar" : undefined}
                   onClick={() => reabrirCaja(reopenTarget)}
                   className="rounded-2xl border border-emerald-300/25 bg-emerald-400/14 px-4 py-2 text-sm font-extrabold text-emerald-100 hover:bg-emerald-400/22 disabled:opacity-50"
                 >
