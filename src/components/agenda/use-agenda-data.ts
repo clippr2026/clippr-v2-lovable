@@ -701,6 +701,25 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
           loadServices();
         },
       )
+      .on(
+        // _employeeServiceOverrides (precio/efectivo por profesional,
+        // Configuración → Equipo) vive en business_settings.schedule, no en
+        // price_catalog — sin esto, la vista previa de Agenda quedaba con
+        // el override viejo hasta recargar la página aunque price_catalog
+        // sí se actualizaba solo. load({silent:true}) relee TODO lo que
+        // vive en esa misma fila (horarios, excepciones, overrides), igual
+        // criterio que el resto de la app para cambios en business_settings.
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "business_settings",
+          filter: `business_id=eq.${businessId}`,
+        },
+        () => {
+          load({ silent: true });
+        },
+      )
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
           setRealtimeStatus("connected");
@@ -720,7 +739,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
       window.removeEventListener("offline", handleOffline);
       supabase.removeChannel(channel);
     };
-  }, [businessId, loadAppointments, loadServices]);
+  }, [businessId, loadAppointments, loadServices, load]);
 
   return {
     loading,

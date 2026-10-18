@@ -3876,37 +3876,59 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   // dejan de tener sentido apenas arranca el horario, no recién cuando
   // termina — a partir de ahí la única acción de estado es "No asistió".
   const hasStarted = appointment.status !== "blocked" && hasAppointmentStarted(appointment);
-  // Promoción PREVISTA guardada en el turno (snapshot, no se recalcula acá) —
-  // se muestra solo como referencia; el cobro definitivo se decide en Caja.
-  // El snapshot solo guarda {name, discountType, discountValue}, que es
-  // exactamente lo que applyPromotionDiscount necesita (mismo motor que
-  // Caja/Página Pública, sin duplicar la fórmula del descuento).
-  const promoSnapshot = appointment.promotion_id ? appointment.promotion_snapshot ?? null : null;
-  const promoFinalPrice = promoSnapshot
-    ? applyPromotionDiscount(serviceTotal, promoSnapshot as unknown as Promotion)
-    : null;
-  // "Precio en efectivo" del turno: el turno no guarda service_id, se
-  // matchea el servicio del catálogo por nombre (getServiceMatchByName,
-  // mismo criterio que la imagen) y se resuelve con resolveServicePricing
-  // — misma fuente que Caja/Página Pública — pasando el precio ya congelado
-  // del turno (serviceTotal) como base, no el precio actual del catálogo.
-  // Con promoción aplicada no se muestra: mismo criterio que la Página
-  // Pública (mostrar lista + promo + efectivo juntos confunde más de lo
-  // que ayuda).
+  // Un turno YA COBRADO es un hecho histórico — payments.total es la plata
+  // real que entró, y acá solo mostramos lo que quedó congelado en su
+  // momento. Nunca se recalcula en vivo (ver sección 4 del pedido: "los
+  // cobros históricos deben conservar exactamente el importe que se
+  // pagó"). Para cualquier otro estado (pending/confirmed/no_show/
+  // cancelled/blocked) el cobro todavía no pasó, así que lo correcto es
+  // mostrar EXACTAMENTE lo que Caja → Cobrar turno va a calcular si se
+  // cobra ahora mismo — nunca una foto vieja del precio al crear el turno.
+  const isAlreadyCharged = appointment.status === "charged";
+  // El turno no guarda service_id, se matchea el servicio del catálogo por
+  // nombre (getServiceMatchByName, mismo criterio que la imagen).
   const matchedCatalogService = getServiceMatchByName(appointment.service_name, services);
-  const cashPrice =
-    !promoSnapshot && matchedCatalogService
+  // Precio de lista + precio en efectivo EN VIVO, con resolveServicePricing
+  // — la MISMA función y el MISMO precio de catálogo actual que usa Caja
+  // (servicesForEmployee en cash-register.tsx) para armar el carrito de
+  // "Cobrar turno". Antes "Precio de lista" mostraba el service_price
+  // congelado al crear el turno mientras "Precio en efectivo" ya se
+  // resolvía en vivo — si el profesional cambiaba su override de precio
+  // después de crear el turno, las dos cifras quedaban contradictorias
+  // entre sí Y con lo que Caja termina cobrando (caso real: Maxi Olivera
+  // mostraba Lista $21.900 / Efectivo $23.000, con el override vigente de
+  // Alan en $25.000 / $23.000 — el efectivo ya era el correcto, la lista
+  // había quedado vieja).
+  const liveResolved =
+    !isAlreadyCharged && matchedCatalogService
       ? resolveServicePricing(
           {
             id: matchedCatalogService.id,
-            price: serviceTotal,
-            duration_min: appointment.duration_min,
+            price: matchedCatalogService.price,
+            duration_min: matchedCatalogService.duration,
             cash_discount: matchedCatalogService.cash_discount,
           },
           appointment.employee_id,
           employeeServiceOverrides,
-        ).effectivePrice
+        )
       : null;
+  const listPrice = liveResolved ? liveResolved.price : serviceTotal;
+  const cashPrice = liveResolved ? liveResolved.effectivePrice : null;
+  // Promoción PREVISTA guardada en el turno (snapshot, no se recalcula acá) —
+  // se muestra solo como referencia; el cobro definitivo se decide en Caja.
+  // El snapshot solo guarda {name, discountType, discountValue}, que es
+  // exactamente lo que applyPromotionDiscount necesita (mismo motor que
+  // Caja/Página Pública, sin duplicar la fórmula del descuento). La base
+  // sobre la que se aplica es siempre el precio de LISTA del catálogo —
+  // nunca el "Precio en efectivo" del profesional ni el congelado — mismo
+  // criterio exacto que usa Caja (rawServicePriceById) para que la
+  // promoción nunca dependa del medio de pago.
+  const promoSnapshot = appointment.promotion_id ? appointment.promotion_snapshot ?? null : null;
+  const promoBasePrice =
+    !isAlreadyCharged && matchedCatalogService ? matchedCatalogService.price : serviceTotal;
+  const promoFinalPrice = promoSnapshot
+    ? applyPromotionDiscount(promoBasePrice, promoSnapshot as unknown as Promotion)
+    : null;
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange} modal={false}>
@@ -4058,16 +4080,16 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                   promoSnapshot ? (
                     <div className="shrink-0 text-right leading-none">
                       <div className="text-sm text-white/40 line-through tabular-nums">
-                        ${serviceTotal.toLocaleString("es-AR")}
+                        ${promoBasePrice.toLocaleString("es-AR")}
                       </div>
                       <div className="mt-1 text-xl font-display font-semibold tracking-tight">
-                        ${(promoFinalPrice ?? serviceTotal).toLocaleString("es-AR")}
+                        ${(promoFinalPrice ?? promoBasePrice).toLocaleString("es-AR")}
                       </div>
                     </div>
                   ) : cashPrice != null && cashPrice > 0 ? (
                     <div className="shrink-0 text-right leading-none">
                       <div className="text-xl font-display font-semibold tracking-tight">
-                        ${Number(appointment.service_price).toLocaleString("es-AR")}
+                        ${listPrice.toLocaleString("es-AR")}
                       </div>
                       <div className="mt-0.5 text-[10px] font-medium uppercase tracking-wide text-white/40">
                         Precio de lista
@@ -4081,7 +4103,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                     </div>
                   ) : (
                     <div className="shrink-0 text-right text-xl font-display font-semibold tracking-tight">
-                      ${Number(appointment.service_price).toLocaleString("es-AR")}
+                      ${listPrice.toLocaleString("es-AR")}
                     </div>
                   )
                 ) : null}
