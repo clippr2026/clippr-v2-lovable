@@ -44,7 +44,7 @@ import {
   type CajaMovimientoManual,
 } from "@/lib/caja-cierre";
 import { useCashMovements, type CashMovement } from "@/hooks/use-cash-movements";
-import { useCajaSummary } from "@/hooks/use-caja-summary";
+import { useCajaSummary, type CajaSummary } from "@/hooks/use-caja-summary";
 import {
   cleanSearchParam,
   EMPTY_CASH_REGISTER_SEARCH,
@@ -857,6 +857,18 @@ function CashRegisterPage() {
     navigate({ to: "/cash-register", search: EMPTY_CASH_REGISTER_SEARCH, replace: true });
   }, [navigate]);
 
+  // "Revisar cierre" del aviso de pendientes en Caja > Resumen — misma
+  // mecánica que ya usa el Link de Inicio (?pendingDate=...), para no
+  // duplicar el salto a la vista previa: cambia a la pestaña Cierres y deja
+  // que CierresTab (initialPendingDate) haga el resto.
+  const goToPendingReview = React.useCallback(
+    (date: string) => {
+      setTab("cierres");
+      navigate({ to: "/cash-register", search: { ...EMPTY_CASH_REGISTER_SEARCH, pendingDate: date } });
+    },
+    [navigate],
+  );
+
   // Instant lock — set to true the moment confirmar() succeeds, no need to wait for refresh
   const [cajaCerrada, setCajaCerrada] = useState(false);
   const [showClosedHistory, setShowClosedHistory] = useState(false);
@@ -1021,6 +1033,7 @@ function CashRegisterPage() {
               }}
               userEmail={session.user.email ?? null}
               expected={expected}
+              summary={summary}
               movementsData={movementsData}
               cajaAbiertaDesde={cajaAbiertaDesdeLabel}
               cajaRangeStartDate={cajaAbiertaDesdeFecha}
@@ -1031,6 +1044,7 @@ function CashRegisterPage() {
                 clearChargeSearchParams();
                 setTab("resumen");
               }}
+              onRevisarCierre={goToPendingReview}
             />
           )}
           {tab === "nuevo-gasto" && (
@@ -1347,10 +1361,12 @@ function ResumenTab({
   onNuevoGasto,
   userEmail,
   expected,
+  summary,
   movementsData,
   cajaAbiertaDesde,
   cajaRangeStartDate,
   onCajaCerrada,
+  onRevisarCierre,
 }: {
   data: ReturnType<typeof useCajaData>;
   equipoEnabled: boolean;
@@ -1361,10 +1377,12 @@ function ResumenTab({
   onNuevoGasto: () => void;
   userEmail: string | null;
   expected: ExpectedCashDigital;
+  summary: CajaSummary;
   movementsData: ReturnType<typeof useCashMovements>;
   cajaAbiertaDesde: string;
   cajaRangeStartDate: string;
   onCajaCerrada: () => void;
+  onRevisarCierre: (date: string) => void;
 }) {
   // Historial de cobros: lo leemos desde appointments.cobro_events (Supabase)
   // para los turnos visibles, así "Envió a caja" / "Cobró" persiste tras
@@ -1461,12 +1479,15 @@ function ResumenTab({
           <FacturacionPanel
             data={data}
             equipoEnabled={equipoEnabled}
+            expected={expected}
+            summary={summary}
             movementsData={movementsData}
             userEmail={userEmail}
             cajaAbiertaDesde={cajaAbiertaDesde}
             cajaRangeStartDate={cajaRangeStartDate}
             onCajaCerrada={onCajaCerrada}
             onCobrarPendiente={onCobrarPendiente}
+            onRevisarCierre={onRevisarCierre}
             pendientesTheme={pendientesTheme}
           />
           <MovimientosUnificados
@@ -9273,16 +9294,21 @@ function MovimientosUnificados({
 function FacturacionPanel({
   data,
   equipoEnabled,
+  expected,
+  summary,
   movementsData,
   userEmail,
   cajaAbiertaDesde,
   cajaRangeStartDate,
   onCajaCerrada,
   onCobrarPendiente,
+  onRevisarCierre,
   pendientesTheme,
 }: {
   data: ReturnType<typeof useCajaData>;
   equipoEnabled: boolean;
+  expected: ExpectedCashDigital;
+  summary: CajaSummary;
   movementsData: ReturnType<typeof useCashMovements>;
   userEmail: string | null;
   cajaAbiertaDesde: string;
@@ -9291,6 +9317,7 @@ function FacturacionPanel({
   onCobrarPendiente: (
     appt: ReturnType<typeof useCajaData>["pendingCharges"][number],
   ) => void;
+  onRevisarCierre: (date: string) => void;
   pendientesTheme?: {
     border: string;
     glow: string;
@@ -9318,44 +9345,47 @@ function FacturacionPanel({
   // Liquidaciones, ningún flag nuevo.
   const showPendientes = data.approvalModeEnabled && equipoEnabled;
 
-  // "Efectivo del día" / "Dinero en cuenta del día" — SIEMPRE el día de
-  // hoy (huso Buenos Aires), nunca el acumulado desde el último cierre
-  // (ese es expected.cashExpected/digitalExpected, que sigue existiendo
-  // tal cual para Cierre de caja — ver CierreCajaBtn). Se recalcula con la
-  // misma función ya probada que usa el cierre de un día puntual
-  // (buildSingleDayCierrePreview), para no duplicar la lógica de
-  // efectivo/digital en un tercer lugar.
-  const [dayExpected, setDayExpected] = React.useState<ExpectedCashDigital>({
-    cashExpected: 0,
-    cashOutflows: 0,
-    cashInflows: 0,
-    digitalExpected: 0,
-    digitalOutflows: 0,
-  });
-  const [dayExpectedLoading, setDayExpectedLoading] = React.useState(true);
-  React.useEffect(() => {
-    if (!data.businessId) return;
-    let cancelled = false;
-    setDayExpectedLoading(true);
-    buildSingleDayCierrePreview(data.businessId, data.activeBranchId, cajaDateKeyBA())
-      .then((result) => {
-        if (!cancelled) setDayExpected(result.expected);
-      })
-      .catch(() => {
-        /* best-effort — si falla, las tarjetas quedan en 0 en vez de romper el resto del panel */
-      })
-      .finally(() => {
-        if (!cancelled) setDayExpectedLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-    // Se recalcula cuando cambia el negocio/sucursal o cuando se guarda un
-    // cierre/movimiento (mismo evento que ya escuchan Caja/Inicio).
-  }, [data.businessId, data.activeBranchId, data.paymentsToday, movementsData.movements]);
-
   return (
     <>
+      {/* Aviso de cajas pendientes de revisión — misma fuente
+          (summary.pendingCierres) y mismo botón "Revisar cierre" que ya
+          usan Inicio y Caja > Cierres, para que las tres pantallas
+          queden sincronizadas en tiempo real sin un cálculo aparte. */}
+      {summary.pendingCierres.length > 0 && (
+        <div className="rounded-[20px] border border-amber-400/25 bg-amber-400/[0.08] p-4">
+          <div className="flex items-start gap-2.5">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
+            <div className="min-w-0 flex-1">
+              <p className="text-sm font-bold text-amber-200">
+                {summary.pendingCierres.length === 1
+                  ? `Tenés una caja pendiente de revisión del ${fechaDDMMYYYY(summary.pendingCierres[0].date)}`
+                  : `Tenés ${summary.pendingCierres.length} cajas pendientes de revisión`}
+              </p>
+              <p className="mt-1 text-xs text-amber-200/70">
+                Ninguna se cierra sola — revisá cada una y confirmá el cierre a mano.
+              </p>
+              <div className="mt-3 space-y-1.5">
+                {summary.pendingCierres.map((p) => (
+                  <div
+                    key={p.date}
+                    className="flex items-center justify-between gap-3 rounded-xl bg-black/15 px-3 py-2"
+                  >
+                    <span className="text-sm font-semibold text-white/85">{fechaDDMMYYYY(p.date)}</span>
+                    <button
+                      type="button"
+                      onClick={() => onRevisarCierre(p.date)}
+                      className="rounded-lg bg-amber-400/15 px-3 py-1.5 text-xs font-bold text-amber-100 ring-1 ring-amber-400/30 transition hover:bg-amber-400/25"
+                    >
+                      Revisar cierre
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Ingresos | Pendientes | Gastos — reemplaza el selector grande
           Facturación/Gastos de ResumenTab. Sin Pendientes (negocio sin modo
           de aprobación habilitado, o usuario sin permiso de Equipo), queda
@@ -9394,21 +9424,59 @@ function FacturacionPanel({
         />
       </div>
 
+      {/* Movimientos de hoy: Efectivo/Dinero en cuenta ESTRICTAMENTE de
+          hoy (summary.todayCashExpected/todayDigitalExpected) — misma
+          fuente que Inicio, nunca una query/cálculo aparte (antes este
+          panel llamaba a buildSingleDayCierrePreview por su cuenta). */}
       <div className="grid grid-cols-2 gap-2">
         <FacturacionStatCard
           icon={Wallet}
           iconClass="text-amber-400"
           label="Efectivo del día"
-          value={dayExpected.cashExpected}
-          loading={dayExpectedLoading}
+          value={summary.todayCashExpected}
+          loading={summary.loading}
         />
         <FacturacionStatCard
           icon={CreditCard}
           iconClass="text-sky-400"
           label="Dinero en cuenta del día"
-          value={dayExpected.digitalExpected}
-          loading={dayExpectedLoading}
+          value={summary.todayDigitalExpected}
+          loading={summary.loading}
         />
+      </div>
+
+      {/* Saldos acumulados: incluye HOY + todas las jornadas pendientes de
+          revisión (expected.cashExpected/digitalExpected, el mismo valor
+          que ya calculaba este panel antes de separar "del día" — ver
+          CierreCajaBtn, que sigue usando `expected` para el cierre real).
+          Nunca se mezcla con "Movimientos de hoy": si no hay backlog, el
+          acumulado coincide con el de hoy; si lo hay, queda identificado
+          acá, aparte. */}
+      <div className="rounded-[20px] border border-white/10 bg-white/[0.02] p-3">
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <p className="text-[11px] font-bold uppercase tracking-wider text-white/45">Saldos acumulados</p>
+          {summary.pendingCierres.length > 0 && (
+            <span className="rounded-full bg-amber-400/10 px-2 py-0.5 text-[10px] font-bold text-amber-300 ring-1 ring-amber-400/20">
+              Incluye {summary.pendingCierres.length} jornada{summary.pendingCierres.length === 1 ? "" : "s"} pendiente{summary.pendingCierres.length === 1 ? "" : "s"}
+            </span>
+          )}
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <FacturacionStatCard
+            icon={Wallet}
+            iconClass="text-amber-400"
+            label="Efectivo esperado en caja"
+            value={expected.cashExpected}
+            loading={data.loading}
+          />
+          <FacturacionStatCard
+            icon={CreditCard}
+            iconClass="text-sky-400"
+            label="Dinero esperado en cuenta"
+            value={expected.digitalExpected}
+            loading={data.loading}
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-2">

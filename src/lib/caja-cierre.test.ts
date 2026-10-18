@@ -760,3 +760,96 @@ describe("Movimientos de caja — la lista 'de hoy' nunca mezcla el backlog de u
     expect(src).toMatch(/paymentsForSelectedDate = React\.useMemo\(\s*\(\) => filterToDayBA\(data\.paymentsToday, \(p\) => p\.created_at, selectedDateKey\)/);
   });
 });
+
+// Bug real en producción: Inicio mostraba "Efectivo esperado en caja:
+// $180.000" / "Dinero esperado en cuenta: $418.690" — auditado contra
+// producción, esos dos números resultaron ser EXCLUSIVAMENTE los cobros
+// del 17/10 (la jornada pendiente más reciente), ignorando por completo
+// 18/09 ($20.000/$78.900), 19/09 ($37.100/$43.800) y 16/10 ($185.000/
+// $504.200) — tres jornadas que el aviso "Tenés 4 cajas pendientes" (ese
+// sí correcto, vía findAllPendingCierres) ya identificaba. Causa raíz:
+// cajaOpenRangeStartDate solo miraba "ayer" para decidir desde cuándo
+// acumular — nunca caminaba hacia atrás por TODO el backlog.
+describe("cajaOpenRangeStartDate — el backlog acumulado abarca TODAS las jornadas pendientes, no solo ayer", () => {
+  it("ya no calcula 'ayer' a mano (new Date(Date.now() - 24*60*60*1000)) — usa findAllPendingCierres para encontrar la más vieja", () => {
+    const src = readSrc("src/lib/caja-cierre.ts");
+    const fnMatch = src.match(/export async function cajaOpenRangeStartDate\(([\s\S]*?)\n\}\n/);
+    expect(fnMatch).not.toBeNull();
+    expect(fnMatch![1]).toMatch(/findAllPendingCierres\(businessId, branchId\)/);
+    expect(fnMatch![1]).not.toMatch(/Date\.now\(\) - 24 \* 60 \* 60 \* 1000/);
+  });
+
+  it("toma la jornada pendiente MÁS VIEJA (allPending[0]) como rangeStartDate — un backlog se cierra de a uno empezando por el más antiguo", () => {
+    const src = readSrc("src/lib/caja-cierre.ts");
+    const fnMatch = src.match(/export async function cajaOpenRangeStartDate\(([\s\S]*?)\n\}\n/);
+    expect(fnMatch).not.toBeNull();
+    expect(fnMatch![1]).toMatch(/const oldest = allPending\[0\];/);
+  });
+
+  it("reproduce el caso real: sumar SOLO la jornada más reciente da el total incompleto reportado; sumar las 4 da el total real", () => {
+    // Mismos montos auditados contra producción (ver commit): 18/09,
+    // 19/09, 16/10 y 17/10, cada uno { cash, digital }.
+    const porJornada = {
+      "2026-09-18": { cash: 20000, digital: 78900 },
+      "2026-09-19": { cash: 37100, digital: 43800 },
+      "2026-10-16": { cash: 185000, digital: 504200 },
+      "2026-10-17": { cash: 180000, digital: 418690 },
+    };
+    const soloMasReciente = porJornada["2026-10-17"];
+    expect(soloMasReciente).toEqual({ cash: 180000, digital: 418690 }); // el bug reportado
+
+    const totalReal = Object.values(porJornada).reduce(
+      (acc, d) => ({ cash: acc.cash + d.cash, digital: acc.digital + d.digital }),
+      { cash: 0, digital: 0 },
+    );
+    expect(totalReal).toEqual({ cash: 422100, digital: 1045590 });
+    expect(totalReal.cash).toBeGreaterThan(soloMasReciente.cash);
+    expect(totalReal.digital).toBeGreaterThan(soloMasReciente.digital);
+  });
+});
+
+// "Movimientos de hoy" (Efectivo/Dinero en cuenta del día) nunca puede
+// confundirse con "Saldos acumulados" (cashExpected/bankExpected, todo el
+// backlog) — ambos viven en useCajaSummary, una sola fuente para Inicio y
+// Caja > Resumen (sección 4 del pedido: evitar cálculos duplicados).
+describe("useCajaSummary — 'Efectivo del día' separado de 'Saldos acumulados', una sola fuente para Inicio y Caja", () => {
+  it("expone todayCashExpected/todayDigitalExpected, calculados con computeExpectedCashAndDigital sobre arrays estrictamente de HOY", () => {
+    const src = readSrc("src/hooks/use-caja-summary.ts");
+    expect(src).toMatch(/movementsStrictlyToday = filterToDayBA\(movementsForPeriod/);
+    expect(src).toMatch(/advancesStrictlyToday = filterToDayBA\(advancesForPeriod/);
+    expect(src).toMatch(/todayCashExpected: todayExpected\.cashExpected/);
+    expect(src).toMatch(/todayDigitalExpected: todayExpected\.digitalExpected/);
+  });
+
+  it("useCajaHoy (Inicio) expone esos mismos dos valores, sin recalcularlos", () => {
+    const src = readSrc("src/components/dashboard/use-caja-hoy.ts");
+    expect(src).toMatch(/todayCashExpected: summary\.todayCashExpected/);
+    expect(src).toMatch(/todayDigitalExpected: summary\.todayDigitalExpected/);
+  });
+
+  it("Inicio separa visualmente 'Saldos acumulados' (con subtítulo de jornadas pendientes), nunca lo muestra junto a 'Movimientos de hoy' sin etiquetar", () => {
+    const src = readSrc("src/routes/dashboard.tsx");
+    expect(src).toMatch(/Saldos acumulados/);
+    expect(src).toMatch(/Incluye \{caja\.pendingCierres\.length\} jornada/);
+  });
+
+  it("FacturacionPanel (Caja > Resumen) ya no llama a buildSingleDayCierrePreview por su cuenta — usa summary.todayCashExpected/todayDigitalExpected", () => {
+    const src = readSrc("src/routes/cash-register.tsx");
+    const fnMatch = src.match(/function FacturacionPanel\(([\s\S]*?)\n {2}return \(/);
+    expect(fnMatch).not.toBeNull();
+    expect(fnMatch![1]).not.toMatch(/buildSingleDayCierrePreview/);
+    expect(fnMatch![1]).not.toMatch(/dayExpected/);
+  });
+
+  it("Caja > Resumen también muestra el aviso de cajas pendientes (summary.pendingCierres) con botón Revisar cierre", () => {
+    const src = readSrc("src/routes/cash-register.tsx");
+    expect(src).toMatch(/summary\.pendingCierres\.length > 0 && \(/);
+    expect(src).toMatch(/onClick=\{\(\) => onRevisarCierre\(p\.date\)\}/);
+  });
+
+  it("Caja también muestra una sección 'Saldos acumulados' separada, identificada con la cantidad de jornadas pendientes", () => {
+    const src = readSrc("src/routes/cash-register.tsx");
+    expect(src).toMatch(/Saldos acumulados/);
+    expect(src).toMatch(/Incluye \{summary\.pendingCierres\.length\} jornada/);
+  });
+});

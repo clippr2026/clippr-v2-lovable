@@ -48,5 +48,10 @@ export function useCajaHoy(businessId: string | null, branchId: string | null) {
     revHoy: summary.revHoy,
     cobros: summary.cobros,
     totalGastosHoy: summary.totalGastosHoy,
+    // "Efectivo del día"/"Dinero en cuenta del día" — estrictamente hoy,
+    // separado de cashExpected/bankExpected (acumulado de jornadas
+    // pendientes, sección aparte "Saldos acumulados").
+    todayCashExpected: summary.todayCashExpected,
+    todayDigitalExpected: summary.todayDigitalExpected,
   };
 }

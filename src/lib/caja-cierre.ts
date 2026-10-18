@@ -350,27 +350,27 @@ export async function cajaOpenRangeStartDate(
     };
   }
 
-  // 2. Sin sesión explícita: ¿ayer quedó sin cerrar y con actividad real?
-  // (operación implícita, nadie reabrió nada a mano — mismo criterio de
-  // siempre, nunca cierra nada sola, solo detecta el backlog).
-  const yesterday = cajaDateKey(new Date(Date.now() - 24 * 60 * 60 * 1000));
-  let yesterdayQuery = supabase
-    .from("caja_cierres" as any)
-    .select("id,estado")
-    .eq("business_id", businessId)
-    .eq("fecha", yesterday);
-  if (branchId) yesterdayQuery = yesterdayQuery.eq("branch_id", branchId);
-  const { data: yesterdayCierre } = await yesterdayQuery.maybeSingle();
-  if (!isCajaCerradaRow(yesterdayCierre)) {
-    const snapshot = await buildCierreSnapshotForDate(businessId, yesterday, branchId);
-    if (snapshot.hadActivity) {
-      return {
-        startAt: new Date(`${yesterday}T00:00:00`),
-        rangeStartDate: yesterday,
-        pendingCierre: { date: yesterday, cierreId: (yesterdayCierre as any)?.id ?? null },
-        openSessionId: null,
-      };
-    }
+  // 2. Sin sesión explícita: ¿quedó ALGUNA jornada anterior sin cerrar y
+  // con actividad real? (operación implícita, nadie reabrió nada a mano —
+  // nunca cierra nada sola, solo detecta el backlog). Antes esto solo
+  // miraba "ayer" — con varias jornadas pendientes no consecutivas (ej.
+  // 18/09, 19/09, 16/10, 17/10, cada una separada por días ya cerrados en
+  // el medio) eso dejaba cashExpected/bankExpected contando solo la más
+  // reciente, mientras el aviso "Tenés N cajas pendientes" (que sí usa
+  // findAllPendingCierres) ya mostraba las 4 — cálculo real pero
+  // incompleto, no un número inventado. Tomar la más VIEJA de todas: un
+  // backlog se cierra de a uno empezando siempre por el más antiguo, y
+  // así cashExpected/bankExpected/paymentsToday quedan acotados a TODO el
+  // período realmente abierto, nunca a un solo día salteando el resto.
+  const allPending = await findAllPendingCierres(businessId, branchId);
+  if (allPending.length > 0) {
+    const oldest = allPending[0];
+    return {
+      startAt: new Date(`${oldest.date}T00:00:00`),
+      rangeStartDate: oldest.date,
+      pendingCierre: oldest,
+      openSessionId: null,
+    };
   }
 
   // 3. Caso normal: hoy, desde medianoche — sin sesión, sin backlog.

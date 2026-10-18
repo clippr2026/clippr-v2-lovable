@@ -1,7 +1,7 @@
 import * as React from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { useCashMovements } from "@/hooks/use-cash-movements";
+import { useCashMovements, type CashMovement, type ProfessionalAdvance } from "@/hooks/use-cash-movements";
 import {
   cajaOpenRangeStartDate,
   findAllPendingCierres,
@@ -46,6 +46,11 @@ export type CajaSummary = {
   // cuenta" no se resetea cada cierre como el efectivo (ver
   // getDigitalCarryForward en caja-cierre.ts).
   bankExpected: number;
+  // "Efectivo del día"/"Dinero en cuenta del día" — SOLO hoy, nunca el
+  // acumulado de jornadas pendientes (eso es cashExpected/bankExpected,
+  // sección "Saldos acumulados"). Mismo criterio que revHoy/totalGastosHoy.
+  todayCashExpected: number;
+  todayDigitalExpected: number;
   pendingCierre: PendingCierre | null;
   // TODAS las jornadas con actividad sin cerrar (no solo la más vieja, que
   // es la única que pendingCierre reporta porque es la que define desde
@@ -77,6 +82,12 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
   const [digitalExpected, setDigitalExpected] = React.useState(0);
   const [digitalOutflows, setDigitalOutflows] = React.useState(0);
   const [bankExpected, setBankExpected] = React.useState(0);
+  // Crudos del período abierto (puede abarcar varias jornadas pendientes)
+  // — se guardan para poder derivar, más abajo, "Efectivo del día"/"Dinero
+  // en cuenta del día" acotados a estrictamente HOY, sin una segunda
+  // consulta aparte (mismo criterio que paymentsToday/expensesToday).
+  const [movementsForPeriod, setMovementsForPeriod] = React.useState<CashMovement[]>([]);
+  const [advancesForPeriod, setAdvancesForPeriod] = React.useState<ProfessionalAdvance[]>([]);
 
   // cash_movements + professional_advances del período abierto — misma
   // fuente que ya usa Caja (CierreCajaBtn) para Ingresar/Retirar dinero.
@@ -257,6 +268,8 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     setDigitalExpected(expected.digitalExpected);
     setDigitalOutflows(expected.digitalOutflows);
     setBankExpected(expected.digitalExpected + carryForward);
+    setMovementsForPeriod(freshMovements.movements);
+    setAdvancesForPeriod(freshMovements.advances);
 
     hasLoadedRef.current = true;
     setLoading(false);
@@ -399,6 +412,22 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
   const cobros = paymentsStrictlyToday.length;
   const totalGastosHoy = expensesStrictlyToday.reduce((s, e) => s + Number(e.amount ?? 0), 0);
 
+  // "Efectivo del día"/"Dinero en cuenta del día" — a diferencia de
+  // cashExpected/digitalExpected (acumulado de TODO el backlog pendiente,
+  // sección "Saldos acumulados"), esto es el movimiento neto de efectivo/
+  // cuenta de HOY exclusivamente: mismos ingresos/retiros manuales y
+  // adelantos que ya usa computeExpectedCashAndDigital, pero acotados al
+  // día calendario de hoy en huso Buenos Aires. Nunca se mezclan: un cierre
+  // pendiente de una jornada anterior no puede inflar "hoy".
+  const movementsStrictlyToday = filterToDayBA(movementsForPeriod, (m) => m.created_at, todayKeyBA);
+  const advancesStrictlyToday = filterToDayBA(advancesForPeriod, (a) => a.advanced_at, todayKeyBA);
+  const todayExpected = computeExpectedCashAndDigital({
+    payments: paymentsStrictlyToday,
+    expenses: expensesStrictlyToday,
+    advances: advancesStrictlyToday,
+    cashMovements: movementsStrictlyToday,
+  });
+
   return {
     loading,
     paymentsToday,
@@ -412,6 +441,8 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     digitalExpected,
     digitalOutflows,
     bankExpected,
+    todayCashExpected: todayExpected.cashExpected,
+    todayDigitalExpected: todayExpected.digitalExpected,
     pendingCierre,
     pendingCierres,
     rangeStartDate,
