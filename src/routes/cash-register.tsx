@@ -1479,7 +1479,6 @@ function ResumenTab({
           <FacturacionPanel
             data={data}
             equipoEnabled={equipoEnabled}
-            expected={expected}
             summary={summary}
             movementsData={movementsData}
             userEmail={userEmail}
@@ -9294,7 +9293,6 @@ function MovimientosUnificados({
 function FacturacionPanel({
   data,
   equipoEnabled,
-  expected,
   summary,
   movementsData,
   userEmail,
@@ -9307,7 +9305,6 @@ function FacturacionPanel({
 }: {
   data: ReturnType<typeof useCajaData>;
   equipoEnabled: boolean;
-  expected: ExpectedCashDigital;
   summary: CajaSummary;
   movementsData: ReturnType<typeof useCashMovements>;
   userEmail: string | null;
@@ -9443,40 +9440,6 @@ function FacturacionPanel({
           value={summary.todayDigitalExpected}
           loading={summary.loading}
         />
-      </div>
-
-      {/* Saldos acumulados: incluye HOY + todas las jornadas pendientes de
-          revisión (expected.cashExpected/digitalExpected, el mismo valor
-          que ya calculaba este panel antes de separar "del día" — ver
-          CierreCajaBtn, que sigue usando `expected` para el cierre real).
-          Nunca se mezcla con "Movimientos de hoy": si no hay backlog, el
-          acumulado coincide con el de hoy; si lo hay, queda identificado
-          acá, aparte. */}
-      <div className="rounded-[20px] border border-white/10 bg-white/[0.02] p-3">
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <p className="text-[11px] font-bold uppercase tracking-wider text-white/45">Saldos acumulados</p>
-          {summary.pendingCierres.length > 0 && (
-            <span className="rounded-full bg-amber-400/10 px-2 py-0.5 text-[10px] font-bold text-amber-300 ring-1 ring-amber-400/20">
-              Incluye {summary.pendingCierres.length} jornada{summary.pendingCierres.length === 1 ? "" : "s"} pendiente{summary.pendingCierres.length === 1 ? "" : "s"}
-            </span>
-          )}
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <FacturacionStatCard
-            icon={Wallet}
-            iconClass="text-amber-400"
-            label="Efectivo esperado en caja"
-            value={expected.cashExpected}
-            loading={data.loading}
-          />
-          <FacturacionStatCard
-            icon={CreditCard}
-            iconClass="text-sky-400"
-            label="Dinero esperado en cuenta"
-            value={expected.digitalExpected}
-            loading={data.loading}
-          />
-        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-2">

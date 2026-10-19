@@ -350,26 +350,6 @@ function CajaHoyCard({
         <MiniStat icon={Wallet} label="Efectivo del día" value={fmtAR(caja.todayCashExpected)} />
         <MiniStat icon={CreditCard} label="Dinero en cuenta del día" value={fmtAR(caja.todayDigitalExpected)} />
       </div>
-
-      {/* Saldos acumulados — incluye HOY + todas las jornadas pendientes
-          de revisión (caja.cashExpected/bankExpected). Nunca se mezcla con
-          "Movimientos de hoy" de arriba: acá se identifica expresamente
-          como acumulado, con la cantidad de jornadas pendientes que
-          incluye (si hay backlog, coincide con lo de Caja > Resumen). */}
-      <div className="mt-3 rounded-2xl border border-white/8 bg-white/[0.02] p-3">
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <p className="text-[10px] font-bold uppercase tracking-wider text-white/40">Saldos acumulados</p>
-          {caja.pendingCierres.length > 0 && (
-            <span className="rounded-full bg-amber-400/10 px-2 py-0.5 text-[10px] font-bold text-amber-300 ring-1 ring-amber-400/20">
-              Incluye {caja.pendingCierres.length} jornada{caja.pendingCierres.length === 1 ? "" : "s"} pendiente{caja.pendingCierres.length === 1 ? "" : "s"}
-            </span>
-          )}
-        </div>
-        <div className="grid grid-cols-2 gap-2">
-          <MiniStat icon={Wallet} label="Efectivo esperado en caja" value={fmtAR(caja.cashExpected)} />
-          <MiniStat icon={CreditCard} label="Dinero esperado en cuenta" value={fmtAR(caja.bankExpected)} />
-        </div>
-      </div>
     </div>
   );
 }

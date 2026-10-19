@@ -827,10 +827,11 @@ describe("useCajaSummary — 'Efectivo del día' separado de 'Saldos acumulados'
     expect(src).toMatch(/todayDigitalExpected: summary\.todayDigitalExpected/);
   });
 
-  it("Inicio separa visualmente 'Saldos acumulados' (con subtítulo de jornadas pendientes), nunca lo muestra junto a 'Movimientos de hoy' sin etiquetar", () => {
+  it("Inicio ya NO muestra la sección 'Saldos acumulados' — solo 'Caja de hoy' estrictamente del día", () => {
     const src = readSrc("src/routes/dashboard.tsx");
-    expect(src).toMatch(/Saldos acumulados/);
-    expect(src).toMatch(/Incluye \{caja\.pendingCierres\.length\} jornada/);
+    expect(src).not.toMatch(/Saldos acumulados/);
+    expect(src).not.toMatch(/Efectivo esperado en caja/);
+    expect(src).not.toMatch(/Dinero esperado en cuenta/);
   });
 
   it("FacturacionPanel (Caja > Resumen) ya no llama a buildSingleDayCierrePreview por su cuenta — usa summary.todayCashExpected/todayDigitalExpected", () => {
@@ -847,9 +848,10 @@ describe("useCajaSummary — 'Efectivo del día' separado de 'Saldos acumulados'
     expect(src).toMatch(/onClick=\{\(\) => onRevisarCierre\(p\.date\)\}/);
   });
 
-  it("Caja también muestra una sección 'Saldos acumulados' separada, identificada con la cantidad de jornadas pendientes", () => {
+  it("Caja > Resumen ya NO muestra la sección 'Saldos acumulados' — mismo criterio visual que Inicio", () => {
     const src = readSrc("src/routes/cash-register.tsx");
-    expect(src).toMatch(/Saldos acumulados/);
-    expect(src).toMatch(/Incluye \{summary\.pendingCierres\.length\} jornada/);
+    const fnMatch = src.match(/function FacturacionPanel\(([\s\S]*?)\nfunction TransferReceiptField/);
+    expect(fnMatch).not.toBeNull();
+    expect(fnMatch![1]).not.toMatch(/Saldos acumulados/);
   });
 });
