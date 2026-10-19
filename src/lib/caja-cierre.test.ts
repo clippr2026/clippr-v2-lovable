@@ -947,3 +947,117 @@ describe("CajaHoyCard (Inicio) — sin saltos visuales mientras se confirma el a
     );
   });
 });
+
+// Tres estados, y solo tres, para cualquier jornada (sección "REGLA
+// PRINCIPAL" del pedido): "En curso" (la de hoy, mientras no se cierre a
+// mano), "Pendiente de revisión" (una jornada anterior con actividad y sin
+// cierre guardado) y "Cerrada" (cierre confirmado). La jornada de HOY
+// nunca puede ser "Pendiente de revisión" — eso lo garantiza la
+// construcción de candidateDatesAsc (nunca incluye el día 0, "hoy") más el
+// .neq("fecha", today) explícito sobre la consulta de cierres. Inicio
+// (useCajaSummary), Caja (CierresTab) e Historial leen todos el mismo
+// findAllPendingCierres/allPendingCierres — una sola fuente de verdad, sin
+// que cada pantalla decida el estado por su cuenta.
+describe('"Caja de hoy" nunca es "Pendiente de revisión" — un solo cálculo para Inicio/Caja/Historial', () => {
+  it("findAllPendingCierres arma candidateDatesAsc con i >= 1 (nunca i=0/hoy) y excluye 'today' de la consulta de cierres", () => {
+    const src = readSrc("src/lib/caja-cierre.ts");
+    const fnMatch = src.match(/export async function findAllPendingCierres\(([\s\S]*?)\n\}\n/);
+    expect(fnMatch).not.toBeNull();
+    expect(fnMatch![1]).toMatch(/for \(let i = lookbackDays; i >= 1; i--\)/);
+    expect(fnMatch![1]).toMatch(/\.neq\("fecha", today\)/);
+  });
+
+  it("pendingDatesFromActivity nunca recibe 'hoy' en candidateDatesAsc — con actividad real de hoy incluida a mano, igual no aparece si no está en la lista de candidatos", () => {
+    // candidateDatesAsc simula lo que arma findAllPendingCierres: SOLO
+    // días estrictamente anteriores a hoy. Aunque activeDates (lo que
+    // "tuvo actividad") incluya la fecha de hoy por error de quien arma el
+    // set, pendingDatesFromActivity nunca la reporta porque no está en la
+    // lista de candidatos — la garantía vive en construir esa lista bien,
+    // no en filtrar después.
+    const hoy = "2026-10-19";
+    const candidatosSinHoy = ["2026-10-17", "2026-10-18"];
+    const result = pendingDatesFromActivity(
+      candidatosSinHoy,
+      new Set(),
+      new Set([...candidatosSinHoy, hoy]),
+    );
+    expect(result.map((p) => p.date)).not.toContain(hoy);
+    expect(result.map((p) => p.date)).toEqual(candidatosSinHoy);
+  });
+
+  it("CierresTab (Historial/Caja) y useCajaSummary (Inicio) resuelven pendingCierres con la MISMA función findAllPendingCierres — nunca un segundo criterio de estado por pantalla", () => {
+    const cashRegisterSrc = readSrc("src/routes/cash-register.tsx");
+    expect(cashRegisterSrc).toMatch(/findAllPendingCierres\(businessId, activeBranchId\)/);
+    const summarySrc = readSrc("src/hooks/use-caja-summary.ts");
+    expect(summarySrc).toMatch(/setPendingCierres\(period\.allPendingCierres\)/);
+    const cierreSrc = readSrc("src/lib/caja-cierre.ts");
+    expect(cierreSrc).toMatch(/findAllPendingCierres\(businessId, branchId\),\s*\n\s*\]\);/);
+  });
+});
+
+// "A las 00:00, horario de Buenos Aires" (sección "COMPORTAMIENTO
+// AUTOMÁTICO" del pedido) — la transición en_curso → pendiente_de_revisión
+// tiene que ocurrir en la medianoche de Buenos Aires, nunca en la
+// medianoche del huso horario local del dispositivo/proceso que ejecuta
+// esto (un admin que abre Clippr viajando, o un proceso de servidor en
+// UTC, no puede correr la frontera un día para cualquier lado).
+describe('"Hoy"/candidatos de cajaOpenRangeStartDate y findAllPendingCierres usan huso Buenos Aires explícito, nunca el local', () => {
+  it("cajaOpenRangeStartDate calcula 'today' con cajaDateKeyBA, no cajaDateKey", () => {
+    const src = readSrc("src/lib/caja-cierre.ts");
+    const fnMatch = src.match(/export async function cajaOpenRangeStartDate\(([\s\S]*?)\n\}\n/);
+    expect(fnMatch).not.toBeNull();
+    expect(fnMatch![1]).toMatch(/const today = cajaDateKeyBA\(\);/);
+    expect(fnMatch![1]).not.toMatch(/const today = cajaDateKey\(\);/);
+  });
+
+  it("findAllPendingCierres calcula 'today' y cada día candidato con cajaDateKeyBA, no cajaDateKey", () => {
+    const src = readSrc("src/lib/caja-cierre.ts");
+    const fnMatch = src.match(/export async function findAllPendingCierres\(([\s\S]*?)\n\}\n/);
+    expect(fnMatch).not.toBeNull();
+    expect(fnMatch![1]).toMatch(/const today = cajaDateKeyBA\(\);/);
+    expect(fnMatch![1]).toMatch(/candidateDatesAsc\.push\(cajaDateKeyBA\(new Date\(/);
+  });
+
+  it("datesWithActivity bucketiza payments.created_at con cajaDateKeyBA, no cajaDateKey", () => {
+    const src = readSrc("src/lib/caja-cierre.ts");
+    const fnMatch = src.match(/async function datesWithActivity\(([\s\S]*?)\n\}\n/);
+    expect(fnMatch).not.toBeNull();
+    expect(fnMatch![1]).toMatch(/active\.add\(cajaDateKeyBA\(new Date\(row\.created_at\)\)\)/);
+  });
+});
+
+// "Si después del cierre se registran nuevas operaciones de esa misma
+// fecha, no incorporarlas silenciosamente al cierre: deben quedar
+// identificadas como posteriores al cierre y requerir una revisión o
+// ajuste autorizado" (sección "COMPORTAMIENTO AUTOMÁTICO" del pedido) —
+// CierreDetalleView siempre reconstruye el detalle EN VIVO (nunca desde el
+// total_cobrado guardado) y compara contra ese total guardado: si difieren,
+// avisa en vez de pisar o esconder la diferencia. El único camino para
+// "corregir" un cierre ya confirmado sigue siendo reabrir con motivo
+// (ver "Procedimiento auditable para corregir un cierre ya confirmado",
+// arriba) — nunca se reincorpora solo.
+describe("Operaciones registradas después de un cierre — identificadas, nunca absorbidas en silencio", () => {
+  it("CierreDetalleView compara el total guardado contra los movimientos reales recalculados en vivo (hayDiferenciaConLoGuardado)", () => {
+    const src = readSrc("src/routes/cash-register.tsx");
+    const fnMatch = src.match(/function CierreDetalleView\(([\s\S]*?)\n\}\n/);
+    expect(fnMatch).not.toBeNull();
+    expect(fnMatch![1]).toMatch(/const totalGuardado = Number\(cierre\?\.total_cobrado \?\? 0\);/);
+    expect(fnMatch![1]).toMatch(
+      /const hayDiferenciaConLoGuardado = !loading && Math\.abs\(ingresosTotales - totalGuardado\) >= 1;/,
+    );
+  });
+
+  it("la diferencia se muestra como aviso, nunca se aplica sola al cierre guardado", () => {
+    const src = readSrc("src/routes/cash-register.tsx");
+    const fnMatch = src.match(/function CierreDetalleView\(([\s\S]*?)\n\}\n/);
+    expect(fnMatch).not.toBeNull();
+    expect(fnMatch![1]).toMatch(/hayDiferenciaConLoGuardado && \(/);
+    expect(fnMatch![1]).toMatch(/No se modificó el cierre automáticamente/);
+  });
+
+  it("el único camino para corregir un cierre con diferencia sigue siendo 'Reabrir caja' con motivo obligatorio — nunca un re-cierre silencioso", () => {
+    const src = readSrc("src/routes/cash-register.tsx");
+    expect(src).toMatch(/disabled=\{reopeningId === reopenTarget\.id \|\| !reopenNote\.trim\(\)\}/);
+    expect(src).not.toMatch(/handleReabrirCajaDesdeBanner/);
+  });
+});

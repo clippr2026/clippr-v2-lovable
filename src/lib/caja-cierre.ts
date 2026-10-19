@@ -323,9 +323,16 @@ export async function cajaOpenRangeStartDate(
   businessId: string | null,
   branchId: string | null,
 ): Promise<OpenCajaPeriod> {
-  const today = cajaDateKey();
+  // "Hoy" es siempre el día calendario de Buenos Aires — nunca el huso
+  // horario local del dispositivo/proceso que ejecuta esto. Un admin que
+  // abre Clippr desde otro huso horario (o un proceso de servidor en UTC)
+  // no puede hacer que la jornada de hoy pase a "pendiente" antes o
+  // después de medianoche ART (ver sección "COMPORTAMIENTO AUTOMÁTICO"
+  // del pedido: la transición ocurre a las 00:00 hora de Buenos Aires,
+  // siempre).
+  const today = cajaDateKeyBA();
   const todayStart = (allPendingCierres: PendingCierre[] = []): OpenCajaPeriod => ({
-    startAt: new Date(`${today}T00:00:00`),
+    startAt: dayBoundsBA(today).start,
     rangeStartDate: today,
     pendingCierre: null,
     openSessionId: null,
@@ -353,7 +360,7 @@ export async function cajaOpenRangeStartDate(
 
   if ((openSession as any)?.opened_at) {
     const startAt = new Date((openSession as any).opened_at as string);
-    const dateKey = cajaDateKey(startAt);
+    const dateKey = cajaDateKeyBA(startAt);
     return {
       startAt,
       rangeStartDate: dateKey,
@@ -378,7 +385,7 @@ export async function cajaOpenRangeStartDate(
   if (allPending.length > 0) {
     const oldest = allPending[0];
     return {
-      startAt: new Date(`${oldest.date}T00:00:00`),
+      startAt: dayBoundsBA(oldest.date).start,
       rangeStartDate: oldest.date,
       pendingCierre: oldest,
       openSessionId: null,
@@ -442,8 +449,8 @@ async function datesWithActivity(
     .from("payments")
     .select("created_at")
     .eq("business_id", businessId)
-    .gte("created_at", new Date(`${oldest}T00:00:00`).toISOString())
-    .lte("created_at", new Date(`${newest}T23:59:59.999`).toISOString())
+    .gte("created_at", dayBoundsBA(oldest).start.toISOString())
+    .lte("created_at", dayBoundsBA(newest).end.toISOString())
     // Mismo criterio que buildCierreSnapshotForDate: un pago anulado no
     // cuenta como actividad real de esa jornada.
     .not("status", "in", "(anulado,reembolsado)");
@@ -460,7 +467,11 @@ async function datesWithActivity(
   const [payRes, expRes] = await Promise.all([payQuery, expQuery]);
   const active = new Set<string>();
   for (const row of (payRes.data ?? []) as { created_at: string | null }[]) {
-    if (row.created_at) active.add(cajaDateKey(new Date(row.created_at)));
+    // cajaDateKeyBA, no cajaDateKey: un pago hecho después de medianoche
+    // BA pero antes de medianoche del huso local/UTC tiene que contar
+    // para el día de Buenos Aires que de verdad fue, nunca para el día
+    // calendario de otro huso horario.
+    if (row.created_at) active.add(cajaDateKeyBA(new Date(row.created_at)));
   }
   for (const row of (expRes.data ?? []) as { date: string | null }[]) {
     if (row.date) active.add(String(row.date));
@@ -475,10 +486,14 @@ export async function findAllPendingCierres(
 ): Promise<PendingCierre[]> {
   if (!businessId) return [];
   const lookbackDays = opts.lookbackDays ?? 30;
-  const today = cajaDateKey();
+  // "Hoy" y los días candidatos siempre en huso Buenos Aires — mismo
+  // motivo que cajaOpenRangeStartDate: la jornada actual nunca puede
+  // quedar marcada "pendiente" por culpa del huso horario del dispositivo/
+  // proceso que ejecuta esto, nunca el de BA explícito.
+  const today = cajaDateKeyBA();
   const candidateDatesAsc: string[] = [];
   for (let i = lookbackDays; i >= 1; i--) {
-    candidateDatesAsc.push(cajaDateKey(new Date(Date.now() - i * 24 * 60 * 60 * 1000)));
+    candidateDatesAsc.push(cajaDateKeyBA(new Date(Date.now() - i * 24 * 60 * 60 * 1000)));
   }
 
   let cierresQuery = supabase
