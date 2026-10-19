@@ -129,6 +129,66 @@ describe("pendingDatesFromActivity — qué días quedan pendientes de cierre", 
   });
 });
 
+// El aviso "Tenés N cajas pendientes" de Inicio tardaba ~5s en aparecer:
+// findAllPendingCierres llamaba a buildCierreSnapshotForDate (4 a 6 queries:
+// payments, expenses, employees, profiles, appointments, business_settings)
+// UNA VEZ POR CADA día candidato sin cierre (hasta 30), para terminar
+// usando solo `hadActivity` de cada uno — hasta ~180 consultas para una
+// pregunta sí/no por día. datesWithActivity la resuelve en 2 queries
+// totales (payments + expenses, con rango amplio), sin importar cuántos
+// días candidatos haya.
+describe("findAllPendingCierres — detecta actividad en 2 queries totales, no 1 por día candidato", () => {
+  it("ya no llama a buildCierreSnapshotForDate por día — usa datesWithActivity (payments + expenses en rango, sin employees/profiles/appointments/business_settings repetidos)", () => {
+    const src = readSrc("src/lib/caja-cierre.ts");
+    const fnMatch = src.match(/export async function findAllPendingCierres\(([\s\S]*?)\n\}\n/);
+    expect(fnMatch).not.toBeNull();
+    expect(fnMatch![1]).not.toMatch(/buildCierreSnapshotForDate/);
+    expect(fnMatch![1]).toMatch(/datesWithActivity\(businessId, branchId, openCandidates\)/);
+  });
+
+  it("datesWithActivity pide payments y expenses una sola vez cada uno, nunca dentro de un loop por fecha", () => {
+    const src = readSrc("src/lib/caja-cierre.ts");
+    const fnMatch = src.match(/async function datesWithActivity\(([\s\S]*?)\n\}\n/);
+    expect(fnMatch).not.toBeNull();
+    expect(fnMatch![1]).not.toMatch(/dates\.map\(async/);
+    expect(fnMatch![1]).toMatch(/\.from\("payments"\)/);
+    expect(fnMatch![1]).toMatch(/\.from\("expenses"\)/);
+    expect(fnMatch![1]).not.toMatch(/\.from\("employees"\)/);
+    expect(fnMatch![1]).not.toMatch(/\.from\("profiles"\)/);
+  });
+});
+
+// cajaOpenRangeStartDate llamaba a findAllPendingCierres como fallback
+// interno (para decidir desde cuándo arranca el período abierto) y
+// use-caja-summary.ts volvía a llamarlo por separado para el aviso "Tenés
+// N cajas pendientes" — la misma query pesada, dos veces por cada carga de
+// Inicio/Caja. Ahora cajaOpenRangeStartDate la pide UNA vez (en paralelo
+// con la consulta de cash_sessions) y devuelve `allPendingCierres` para
+// que el caller la reutilice sin volver a pedirla.
+describe("cajaOpenRangeStartDate — ya no duplica la consulta de pendientes con el caller", () => {
+  it("devuelve allPendingCierres en el resultado, en paralelo con la consulta de cash_sessions", () => {
+    const src = readSrc("src/lib/caja-cierre.ts");
+    const fnMatch = src.match(/export async function cajaOpenRangeStartDate\(([\s\S]*?)\n\}\n/);
+    expect(fnMatch).not.toBeNull();
+    expect(fnMatch![1]).toMatch(/Promise\.all\(\[[\s\S]*?findAllPendingCierres\(businessId, branchId\)/);
+  });
+
+  it("use-caja-summary.ts ya no llama a findAllPendingCierres por su cuenta — reutiliza period.allPendingCierres", () => {
+    const src = readSrc("src/hooks/use-caja-summary.ts");
+    expect(src).not.toMatch(/findAllPendingCierres\(/);
+    expect(src).toMatch(/setPendingCierres\(period\.allPendingCierres\)/);
+  });
+
+  it("el aviso de pendientes se confirma apenas resuelve cajaOpenRangeStartDate, antes del resto del pipeline (pagos/gastos/movimientos)", () => {
+    const src = readSrc("src/hooks/use-caja-summary.ts");
+    const commitIdx = src.indexOf("setPendingCierres(period.allPendingCierres)");
+    const payQueryIdx = src.indexOf('.from("payments")');
+    expect(commitIdx).toBeGreaterThan(-1);
+    expect(payQueryIdx).toBeGreaterThan(-1);
+    expect(commitIdx).toBeLessThan(payQueryIdx);
+  });
+});
+
 // Base de "Cerrar un día anterior" (CerrarDiaAnteriorCard en
 // cash-register.tsx): su guarda contra cierres duplicados es
 // `closedDates = cierresExistentes.filter(isCajaCerradaRow)` — si esto
@@ -246,9 +306,11 @@ describe("Condición de carrera — dos confirmaciones simultáneas de la misma 
 // revisión) tiene que degradar con gracia — nunca romper la pantalla ni
 // dejarla sin datos por un error de red puntual.
 describe("Fallos de conexión — las queries nuevas nunca rompen la pantalla", () => {
-  it("use-caja-summary.ts atrapa el error de findAllPendingCierres y sigue con la lista vacía", () => {
+  it("use-caja-summary.ts atrapa el error de cajaOpenRangeStartDate (que ahora incluye findAllPendingCierres) y sigue con la lista vacía", () => {
     const src = readSrc("src/hooks/use-caja-summary.ts");
-    expect(src).toMatch(/findAllPendingCierres\(businessId, branchId\)\.catch\(/);
+    const fnMatch = src.match(/cajaOpenRangeStartDate\(businessId, branchId\)\.catch\(([\s\S]*?)\}\);/);
+    expect(fnMatch).not.toBeNull();
+    expect(fnMatch![1]).toMatch(/allPendingCierres: \[\]/);
   });
 
   it("CierresTab atrapa el error de findAllPendingCierres (loadPendingCierres)", () => {
@@ -853,5 +915,35 @@ describe("useCajaSummary — 'Efectivo del día' separado de 'Saldos acumulados'
     const fnMatch = src.match(/function FacturacionPanel\(([\s\S]*?)\nfunction TransferReceiptField/);
     expect(fnMatch).not.toBeNull();
     expect(fnMatch![1]).not.toMatch(/Saldos acumulados/);
+  });
+});
+
+// El aviso "Tenés N cajas pendientes" no puede aparecer varios segundos
+// después de que el resto de Inicio ya se vio, desplazando todo el
+// contenido hacia abajo — mientras se confirma, va un placeholder del
+// mismo alto aproximado, nunca nada (eso es lo que generaba el salto) ni
+// "no hay pendientes" en falso.
+describe("CajaHoyCard (Inicio) — sin saltos visuales mientras se confirma el aviso de pendientes", () => {
+  it("useCajaHoy expone pendingCierresLoading, independiente de loading (el de pagos/gastos/movimientos)", () => {
+    const src = readSrc("src/components/dashboard/use-caja-hoy.ts");
+    expect(src).toMatch(/pendingCierresLoading: summary\.pendingCierresLoading/);
+  });
+
+  it("mientras pendingCierresLoading y sin dato todavía, muestra un placeholder — nunca nada y nunca 'sin pendientes' en falso", () => {
+    const src = readSrc("src/routes/dashboard.tsx");
+    const fnMatch = src.match(/function CajaHoyCard\(([\s\S]*?)\n\}\n/);
+    expect(fnMatch).not.toBeNull();
+    expect(fnMatch![1]).toMatch(
+      /caja\.pendingCierresLoading && caja\.pendingCierres\.length === 0 \? \(/,
+    );
+    expect(fnMatch![1]).toMatch(/animate-pulse/);
+  });
+
+  it("con un valor ya en caché de una navegación anterior en la misma sesión, no hay esqueleto — se pinta directo y se corrige solo", () => {
+    const src = readSrc("src/hooks/use-caja-summary.ts");
+    expect(src).toMatch(/pendingCierresCache\.get\(pendingCierresCacheKey\(businessId, branchId\)\)/);
+    expect(src).toMatch(
+      /\(\) => !pendingCierresCache\.has\(pendingCierresCacheKey\(businessId, branchId\)\)/,
+    );
   });
 });

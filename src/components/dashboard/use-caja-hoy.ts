@@ -37,6 +37,7 @@ export function useCajaHoy(businessId: string | null, branchId: string | null) {
     movements,
     pendingCierre: summary.pendingCierre,
     pendingCierres: summary.pendingCierres,
+    pendingCierresLoading: summary.pendingCierresLoading,
     registerMovement,
     refresh: summary.refresh,
     // "Ingresos"/"Gastos"/"Utilidad" de CajaHoyCard (Inicio) — EXACTAMENTE

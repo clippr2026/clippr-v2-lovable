@@ -310,6 +310,13 @@ export type OpenCajaPeriod = {
   // Id de la cash_session abierta actualmente (para poder cerrarla al
   // hacer "Cerrar caja") — null si es operación implícita, sin sesión.
   openSessionId: string | null;
+  // TODAS las jornadas con actividad sin cerrar, ya resueltas acá mismo
+  // (ver findAllPendingCierres, llamado en paralelo con la consulta de
+  // sesión abierta) — el caller (useCajaSummary) las reutiliza para el
+  // aviso "Tenés N cajas pendientes" en vez de volver a pedir lo mismo
+  // una segunda vez (antes se llamaba a findAllPendingCierres DOS veces
+  // por cada carga: una acá adentro como fallback, otra en el caller).
+  allPendingCierres: PendingCierre[];
 };
 
 export async function cajaOpenRangeStartDate(
@@ -317,27 +324,32 @@ export async function cajaOpenRangeStartDate(
   branchId: string | null,
 ): Promise<OpenCajaPeriod> {
   const today = cajaDateKey();
-  const todayStart = () => ({
+  const todayStart = (allPendingCierres: PendingCierre[] = []): OpenCajaPeriod => ({
     startAt: new Date(`${today}T00:00:00`),
     rangeStartDate: today,
     pendingCierre: null,
     openSessionId: null,
+    allPendingCierres,
   });
   if (!businessId) return todayStart();
 
-  // 1. ¿Hay una cash_session EXPLÍCITAMENTE abierta (reapertura)? Es la
-  // única fuente de "desde cuándo" cuando hubo una reapertura real —
-  // nunca se infiere de caja_cierres.
+  // ¿Hay una cash_session EXPLÍCITAMENTE abierta (reapertura)? Y, en
+  // paralelo (nunca en secuencia — es la misma consulta pesada que antes
+  // se repetía), ¿qué jornadas anteriores tienen actividad sin cerrar?
+  // Se piden juntas porque el resultado de la segunda hace falta sin
+  // importar cuál sea el de la primera (con sesión explícita abierta
+  // igual puede haber backlog más viejo sin cerrar).
   let sessionQuery = supabase
     .from("cash_sessions" as any)
     .select("id,opened_at")
     .eq("business_id", businessId)
     .eq("status", "open");
   if (branchId) sessionQuery = sessionQuery.eq("branch_id", branchId);
-  const { data: openSession } = await sessionQuery
-    .order("opened_at", { ascending: false })
-    .limit(1)
-    .maybeSingle();
+
+  const [{ data: openSession }, allPending] = await Promise.all([
+    sessionQuery.order("opened_at", { ascending: false }).limit(1).maybeSingle(),
+    findAllPendingCierres(businessId, branchId),
+  ]);
 
   if ((openSession as any)?.opened_at) {
     const startAt = new Date((openSession as any).opened_at as string);
@@ -347,11 +359,12 @@ export async function cajaOpenRangeStartDate(
       rangeStartDate: dateKey,
       pendingCierre: dateKey < today ? { date: dateKey, cierreId: null } : null,
       openSessionId: (openSession as any).id as string,
+      allPendingCierres: allPending,
     };
   }
 
-  // 2. Sin sesión explícita: ¿quedó ALGUNA jornada anterior sin cerrar y
-  // con actividad real? (operación implícita, nadie reabrió nada a mano —
+  // Sin sesión explícita: ¿quedó ALGUNA jornada anterior sin cerrar y con
+  // actividad real? (operación implícita, nadie reabrió nada a mano —
   // nunca cierra nada sola, solo detecta el backlog). Antes esto solo
   // miraba "ayer" — con varias jornadas pendientes no consecutivas (ej.
   // 18/09, 19/09, 16/10, 17/10, cada una separada por días ya cerrados en
@@ -362,7 +375,6 @@ export async function cajaOpenRangeStartDate(
   // backlog se cierra de a uno empezando siempre por el más antiguo, y
   // así cashExpected/bankExpected/paymentsToday quedan acotados a TODO el
   // período realmente abierto, nunca a un solo día salteando el resto.
-  const allPending = await findAllPendingCierres(businessId, branchId);
   if (allPending.length > 0) {
     const oldest = allPending[0];
     return {
@@ -370,11 +382,12 @@ export async function cajaOpenRangeStartDate(
       rangeStartDate: oldest.date,
       pendingCierre: oldest,
       openSessionId: null,
+      allPendingCierres: allPending,
     };
   }
 
-  // 3. Caso normal: hoy, desde medianoche — sin sesión, sin backlog.
-  return todayStart();
+  // Caso normal: hoy, desde medianoche — sin sesión, sin backlog.
+  return todayStart(allPending);
 }
 
 // Núcleo puro de findAllPendingCierres — separado para poder testearlo sin
@@ -401,6 +414,60 @@ export function pendingDatesFromActivity(
 // 30 días de lookback alcanza sobradamente cualquier backlog real; una
 // jornada más vieja que eso sigue siendo cerrable a mano desde "Cerrar un
 // día anterior", que no tiene ese límite.
+// Único "¿tuvo actividad?" para un rango de días candidatos, en 2
+// consultas (payments + expenses) en vez de 1 por día. Antes esto llamaba
+// a buildCierreSnapshotForDate (4 a 6 queries: payments, expenses,
+// employees, profiles, appointments pendientes, business_settings) UNA
+// VEZ POR CADA DÍA candidato — con un backlog de hasta 30 días eso eran
+// hasta ~180 consultas en paralelo, casi todas pidiendo exactamente lo
+// mismo (los mismos employees/profiles/business_settings del negocio, 30
+// veces) solo para terminar leyendo `payments.length > 0 || expenses.length
+// > 0`. Esa repetición — no el volumen real de datos — era la causa de
+// los ~5s que tardaba en aparecer el aviso "Cajas pendientes" en Inicio.
+// Acá solo se necesita esa única pregunta sí/no por día, nunca el detalle
+// completo del cierre (eso sigue viviendo en buildCierreSnapshotForDate,
+// para cuando el usuario realmente abre la vista previa de un cierre).
+async function datesWithActivity(
+  businessId: string,
+  branchId: string | null,
+  dates: string[],
+): Promise<Set<string>> {
+  if (dates.length === 0) return new Set();
+  const sorted = [...dates].sort();
+  const oldest = sorted[0];
+  const newest = sorted[sorted.length - 1];
+  const branchFilter = branchId ? `branch_id.eq.${branchId},branch_id.is.null` : null;
+
+  let payQuery = supabase
+    .from("payments")
+    .select("created_at")
+    .eq("business_id", businessId)
+    .gte("created_at", new Date(`${oldest}T00:00:00`).toISOString())
+    .lte("created_at", new Date(`${newest}T23:59:59.999`).toISOString())
+    // Mismo criterio que buildCierreSnapshotForDate: un pago anulado no
+    // cuenta como actividad real de esa jornada.
+    .not("status", "in", "(anulado,reembolsado)");
+  if (branchFilter) payQuery = payQuery.or(branchFilter);
+
+  let expQuery = supabase
+    .from("expenses")
+    .select("date")
+    .eq("business_id", businessId)
+    .gte("date", oldest)
+    .lte("date", newest);
+  if (branchFilter) expQuery = expQuery.or(branchFilter);
+
+  const [payRes, expRes] = await Promise.all([payQuery, expQuery]);
+  const active = new Set<string>();
+  for (const row of (payRes.data ?? []) as { created_at: string | null }[]) {
+    if (row.created_at) active.add(cajaDateKey(new Date(row.created_at)));
+  }
+  for (const row of (expRes.data ?? []) as { date: string | null }[]) {
+    if (row.date) active.add(String(row.date));
+  }
+  return active;
+}
+
 export async function findAllPendingCierres(
   businessId: string | null,
   branchId: string | null,
@@ -431,13 +498,7 @@ export async function findAllPendingCierres(
   const openCandidates = candidateDatesAsc.filter((date) => !closedDates.has(date));
   if (openCandidates.length === 0) return [];
 
-  const activity = await Promise.all(
-    openCandidates.map(async (date) => {
-      const snapshot = await buildCierreSnapshotForDate(businessId, date, branchId);
-      return snapshot.hadActivity ? date : null;
-    }),
-  );
-  const activeDates = new Set(activity.filter((date): date is string => date !== null));
+  const activeDates = await datesWithActivity(businessId, branchId, openCandidates);
 
   return pendingDatesFromActivity(candidateDatesAsc, closedDates, activeDates);
 }

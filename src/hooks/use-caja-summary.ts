@@ -4,7 +4,6 @@ import { useAuth } from "@/hooks/use-auth";
 import { useCashMovements, type CashMovement, type ProfessionalAdvance } from "@/hooks/use-cash-movements";
 import {
   cajaOpenRangeStartDate,
-  findAllPendingCierres,
   cajaDateKey,
   cajaDateKeyBA,
   filterToDayBA,
@@ -30,8 +29,30 @@ import type { Payment, Expense, HistorialEvento } from "@/components/cash-regist
 // la MISMA paymentsToday que alimenta cashExpected/digitalExpected, nunca
 // de una tercera consulta.
 
+// Última lista de pendientes conocida por negocio+sucursal, en memoria
+// (nunca persistida — se pierde al recargar la página a propósito, para
+// no mostrar nunca un dato financiero viejo como si fuera definitivo).
+// Solo sirve para no repintar el esqueleto de carga al volver a montar el
+// hook DENTRO de la misma sesión de la SPA (ej. navegar Inicio → Caja →
+// Inicio) — se pinta de entrada y se corrige solo, en silencio, en cuanto
+// termina el fetch real (realtime/focus ya se encargan de mantenerlo al
+// día mientras tanto).
+const pendingCierresCache = new Map<string, PendingCierre[]>();
+function pendingCierresCacheKey(businessId: string | null, branchId: string | null) {
+  return `${businessId ?? ""}:${branchId ?? ""}`;
+}
+
 export type CajaSummary = {
   loading: boolean;
+  // Aviso "Tenés N cajas pendientes" — deliberadamente INDEPENDIENTE de
+  // `loading`: antes pendingCierres solo se confirmaba al final de TODO
+  // el pipeline (pagos + gastos + movimientos + carry-forward +
+  // historial de turnos), así que el aviso tardaba tanto como la parte
+  // más lenta del panel de Facturación aunque la detección de pendientes
+  // en sí ya hubiera terminado hace rato. Ahora se resuelve apenas
+  // termina cajaOpenRangeStartDate (rápido, ver caja-cierre.ts), sin
+  // esperar al resto.
+  pendingCierresLoading: boolean;
   paymentsToday: Payment[];
   expensesToday: Expense[];
   revHoy: number;
@@ -74,7 +95,16 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
   const [paymentsToday, setPaymentsToday] = React.useState<Payment[]>([]);
   const [expensesToday, setExpensesToday] = React.useState<Expense[]>([]);
   const [pendingCierre, setPendingCierre] = React.useState<PendingCierre | null>(null);
-  const [pendingCierres, setPendingCierres] = React.useState<PendingCierre[]>([]);
+  const [pendingCierres, setPendingCierres] = React.useState<PendingCierre[]>(
+    () => pendingCierresCache.get(pendingCierresCacheKey(businessId, branchId)) ?? [],
+  );
+  // Si ya había un valor en caché para este negocio+sucursal, no hace
+  // falta mostrar el esqueleto de nuevo — se repinta con el valor viejo
+  // (nunca como definitivo: el fetch real ya está en camino y lo corrige
+  // solo) mientras se confirma en segundo plano.
+  const [pendingCierresLoading, setPendingCierresLoading] = React.useState(
+    () => !pendingCierresCache.has(pendingCierresCacheKey(businessId, branchId)),
+  );
   const [rangeStartDate, setRangeStartDate] = React.useState(cajaDateKey());
   const [cashExpected, setCashExpected] = React.useState(0);
   const [cashOutflows, setCashOutflows] = React.useState(0);
@@ -125,12 +155,14 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     console.log(`[CajaSummary] runLoad start reason=${_reason} businessId=${businessId} branchId=${branchId}`);
     if (!businessId) {
       setLoading(false);
+      setPendingCierresLoading(false);
       return;
     }
     const keyMatches = () =>
       liveKeyRef.current.businessId === businessId && liveKeyRef.current.branchId === branchId;
 
     if (!hasLoadedRef.current) setLoading(true);
+    setPendingCierresLoading(true);
 
     // Única fuente del período vigente: cash_sessions (ver
     // cajaOpenRangeStartDate en caja-cierre.ts) — nunca caja_cierres.estado.
@@ -139,7 +171,13 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     const period = await cajaOpenRangeStartDate(businessId, branchId).catch((e) => {
       console.error("[CajaSummary] cajaOpenRangeStartDate error:", e);
       const today = cajaDateKey();
-      return { startAt: new Date(`${today}T00:00:00`), rangeStartDate: today, pendingCierre: null, openSessionId: null };
+      return {
+        startAt: new Date(`${today}T00:00:00`),
+        rangeStartDate: today,
+        pendingCierre: null,
+        openSessionId: null,
+        allPendingCierres: [] as PendingCierre[],
+      };
     });
     if (!keyMatches()) {
       console.log("[CajaSummary] discarded after cajaOpenRangeStartDate (key changed)");
@@ -150,6 +188,16 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     const newRangeStartDate = period.rangeStartDate;
     const dayStart = period.startAt;
     const dayEnd = new Date(); // hasta ahora, nunca un fin de "hoy" fijo
+
+    // Comprometer el aviso de pendientes YA — sin esperar al resto del
+    // pipeline (pagos/gastos/movimientos/carry-forward, más abajo), que
+    // puede tardar mucho más con negocios con historial grande. Esto es
+    // lo que antes hacía que el aviso "Tenés N cajas pendientes" tardara
+    // tanto como la parte más lenta de todo Facturación.
+    setPendingCierre(pending);
+    setPendingCierres(period.allPendingCierres);
+    setPendingCierresLoading(false);
+    pendingCierresCache.set(pendingCierresCacheKey(businessId, branchId), period.allPendingCierres);
 
     // branch_id = null nunca se excluye (.or en vez de .eq) — mismo criterio
     // que use-caja-data.ts/use-dashboard-data.ts: una fila real (vieja, o
@@ -179,15 +227,15 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     if (branchFilter) expQuery = expQuery.or(branchFilter);
     expQuery = expQuery.order("created_at", { ascending: false });
 
-    const [payRes, expRes, carryForward, freshMovements, allPending] = await Promise.all([
+    // findAllPendingCierres ya NO se vuelve a pedir acá — period.allPendingCierres
+    // (comprometido arriba, apenas resolvió cajaOpenRangeStartDate) es el
+    // mismo dato; pedirlo de nuevo era la "repetición de consultas" que
+    // duplicaba esta query pesada en cada carga.
+    const [payRes, expRes, carryForward, freshMovements] = await Promise.all([
       payQuery,
       expQuery,
       getDigitalCarryForward(businessId, branchId),
       refreshMovementsRef.current(),
-      findAllPendingCierres(businessId, branchId).catch((e) => {
-        console.error("[CajaSummary] findAllPendingCierres error:", e);
-        return [] as PendingCierre[];
-      }),
     ]);
     console.log(
       `[CajaSummary] payQuery rango=[${dayStart.toISOString()} .. ${dayEnd.toISOString()}] branchFilter=${branchFilter} ` +
@@ -259,8 +307,6 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     );
     setPaymentsToday(paymentsEnriched);
     setExpensesToday(expensesList);
-    setPendingCierre(pending);
-    setPendingCierres(allPending);
     setRangeStartDate(newRangeStartDate);
     setCashExpected(expected.cashExpected);
     setCashOutflows(expected.cashOutflows);
@@ -445,6 +491,7 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     todayDigitalExpected: todayExpected.digitalExpected,
     pendingCierre,
     pendingCierres,
+    pendingCierresLoading,
     rangeStartDate,
     refresh: (reason?: string) => requestReload(reason ?? "manual refresh() call"),
   };
