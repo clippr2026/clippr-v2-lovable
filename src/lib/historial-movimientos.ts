@@ -290,3 +290,48 @@ export function computeLiquidacionSummary(
     totalToPay: Math.max(previousBalance + newCommissions + newTips - pendingAdvances, 0),
   };
 }
+
+// ── Ventas pendientes (fetchPendingVentasForProfessional) ──────────────────
+// Esa consulta armaba la lista de "ventas pendientes" de un profesional
+// leyendo SOLO commission_records — una venta con propina pero comisión $0
+// (producto sin comisión activa, servicio sin % configurado) nunca generó
+// fila ahí (ver register_sale: el insert a commission_records es
+// condicional a p_commission_amount > 0), así que esa venta quedaba
+// invisible en el detalle aunque su propina sí sumara bien en el total de
+// Liquidaciones (ese total sale de tip_records directo, nunca de esta
+// lista). mergePendingSaleIds une ambas fuentes por sale_id.
+export type PendingSaleRow = {
+  id: string;
+  professional_id: string;
+  amount: number;
+  pending_amount: number;
+  commission_pct: number | null;
+  sale_date: string;
+  created_at: string;
+  sale_id: string;
+};
+
+// Una venta con comisión Y propina aparece una sola vez (gana la fila de
+// comisión, igual que siempre). Una venta SOLO con propina se agrega como
+// fila sintética (amount/pending_amount en 0, commission_pct null) — basta
+// para que <VentaRow> (unified-row.tsx) la renderice, porque esa fila lee
+// la propina de `sale.tip_amount` (el payment en vivo), nunca de esta fila.
+export function mergePendingSaleIds(
+  commissionRows: PendingSaleRow[],
+  tipRows: PendingSaleRow[],
+): PendingSaleRow[] {
+  const saleIdsWithCommission = new Set(commissionRows.map((c) => c.sale_id));
+  const tipOnlyRows: PendingSaleRow[] = tipRows
+    .filter((t) => !saleIdsWithCommission.has(t.sale_id))
+    .map((t) => ({
+      id: t.id,
+      professional_id: t.professional_id,
+      amount: 0,
+      pending_amount: 0,
+      commission_pct: null,
+      sale_date: t.sale_date,
+      created_at: t.created_at,
+      sale_id: t.sale_id,
+    }));
+  return [...commissionRows, ...tipOnlyRows];
+}

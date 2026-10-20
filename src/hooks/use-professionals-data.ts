@@ -1,6 +1,7 @@
 import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { mergePendingSaleIds, type PendingSaleRow } from "@/lib/historial-movimientos";
 
 /**
  * Portado de cjLoadProfesionales / cjVerPagosProf / cjVerProduccion (app.js)
@@ -817,16 +818,45 @@ function normalizeServiceName(name: unknown): string {
 // (precio de lista actual del catálogo, solo como aproximación visual para
 // ventas viejas sin original_amount).
 export async function fetchPendingVentasForProfessional(businessId: string, professionalId: string) {
-  const { data: commissionRows, error } = await supabase
-    .from("commission_records" as any)
-    .select("id,professional_id,amount,pending_amount,commission_pct,sale_date,created_at,sale_id")
-    .eq("business_id", businessId)
-    .eq("professional_id", professionalId)
-    .is("settlement_run_id", null)
-    .order("created_at", { ascending: false });
+  const [{ data: commissionRows, error }, { data: tipRows, error: tipError }] = await Promise.all([
+    supabase
+      .from("commission_records" as any)
+      .select("id,professional_id,amount,pending_amount,commission_pct,sale_date,created_at,sale_id")
+      .eq("business_id", businessId)
+      .eq("professional_id", professionalId)
+      .is("settlement_run_id", null)
+      // pending_amount > 0: una comisión ya cancelada (ej. por el trigger
+      // de anulación/reembolso, ver 20261019030000) tiene settlement_run_id
+      // null pero nada pendiente — nunca debe aparecer como "venta
+      // pendiente".
+      .gt("pending_amount", 0)
+      .order("created_at", { ascending: false }),
+    // Ventas con propina pendiente del mismo profesional — ver
+    // mergePendingSaleIds (historial-movimientos.ts): una venta con
+    // comisión $0 (producto/servicio sin comisión activa) nunca generó fila
+    // en commission_records, así que sin esto quedaba invisible acá aunque
+    // su propina sí sumara bien en el total de Liquidaciones.
+    supabase
+      .from("tip_records" as any)
+      .select("id,professional_id,amount,pending_amount,sale_date,created_at,sale_id")
+      .eq("business_id", businessId)
+      .eq("professional_id", professionalId)
+      .is("settlement_run_id", null)
+      .gt("pending_amount", 0),
+  ]);
   if (error) throw new Error(error.message);
+  if (tipError) throw new Error(tipError.message);
 
-  const saleIds = (commissionRows ?? []).map((c: any) => c.sale_id).filter(Boolean);
+  // Mismo orden que antes (más reciente primero) — el merge junta primero
+  // comisiones (ya vienen ordenadas) y después las filas sintéticas de
+  // propina-sin-comisión (sin orden propio), así que hay que reordenar el
+  // resultado completo.
+  const mergedRows: PendingSaleRow[] = mergePendingSaleIds(
+    (commissionRows ?? []) as PendingSaleRow[],
+    ((tipRows ?? []) as any[]).map((t) => ({ ...t, commission_pct: null })) as PendingSaleRow[],
+  ).sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
+
+  const saleIds = mergedRows.map((c) => c.sale_id).filter(Boolean);
   let paymentsById: Record<string, any> = {};
   if (saleIds.length > 0) {
     const { data: pays, error: payError } = await supabase
@@ -874,7 +904,7 @@ export async function fetchPendingVentasForProfessional(businessId: string, prof
     );
   }
 
-  return (commissionRows ?? []).map((c: any) => {
+  return mergedRows.map((c) => {
     const sale = paymentsById[c.sale_id] ?? null;
     let listPriceFallback: number | null = null;
     if (sale && !(Number(sale.original_amount ?? 0) > 0)) {

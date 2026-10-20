@@ -3,11 +3,13 @@ import {
   buildHistorialMovimientos,
   computeLiquidacionSummary,
   isWithinCutoff,
+  mergePendingSaleIds,
   type HistorialAdvanceRow,
   type HistorialPaymentRow,
   type LiquidacionAdvanceSummaryRow,
   type LiquidacionPendingRow,
   type LiquidacionRunSummaryRow,
+  type PendingSaleRow,
 } from "./historial-movimientos";
 
 // Caso real que reportó el negocio: liquidando a Pipo del 03/10 al 10/10
@@ -174,5 +176,147 @@ describe("computeLiquidacionSummary — Total a pagar = Comisiones + Propinas �
     ];
     const summary = computeLiquidacionSummary("pipo", commissions, [], runs, []);
     expect(summary.newCommissions).toBe(5000);
+  });
+});
+
+// Auditoría de propinas (19-20/10/2026) — casos que reproducen las causas
+// raíz encontradas: propina sin comisión, propina ya liquidada, y propina
+// anulada por el trigger de 20261019030000 (pending_amount en 0).
+describe("computeLiquidacionSummary — propinas", () => {
+  it("una propina se suma aunque la comisión de esa venta sea $0 (producto sin comisión activa)", () => {
+    const tips: LiquidacionPendingRow[] = [
+      { professional_id: "melany", settlement_run_id: null, pending_amount: 3000, created_at: "2026-10-13T10:00:00.000Z" },
+    ];
+    // Sin fila en commission_records (register_sale no inserta comisión
+    // cuando el monto es $0) — newCommissions queda en 0, newTips no.
+    const summary = computeLiquidacionSummary("melany", [], tips, [], []);
+    expect(summary.newCommissions).toBe(0);
+    expect(summary.newTips).toBe(3000);
+    expect(summary.totalToPay).toBe(3000);
+  });
+
+  it("una propina ya incluida en una liquidación (settlement_run_id) no se vuelve a contar en el período siguiente", () => {
+    const tips: LiquidacionPendingRow[] = [
+      { professional_id: "melany", settlement_run_id: "run-ya-liquidado", pending_amount: 3000, created_at: "2026-10-13T10:00:00.000Z" },
+    ];
+    const summary = computeLiquidacionSummary("melany", [], tips, [], []);
+    expect(summary.newTips).toBe(0);
+  });
+
+  it("una propina con pending_amount en 0 (anulada/reembolsada vía trigger de void) no cuenta como pendiente", () => {
+    const tips: LiquidacionPendingRow[] = [
+      { professional_id: "melany", settlement_run_id: null, pending_amount: 0, created_at: "2026-10-13T10:00:00.000Z" },
+    ];
+    const summary = computeLiquidacionSummary("melany", [], tips, [], []);
+    expect(summary.newTips).toBe(0);
+  });
+
+  it("comisión y propina de la misma venta se suman por separado, nunca mezcladas", () => {
+    const commissions: LiquidacionPendingRow[] = [
+      { professional_id: "melany", settlement_run_id: null, pending_amount: 9000, created_at: "2026-10-13T10:00:00.000Z" },
+    ];
+    const tips: LiquidacionPendingRow[] = [
+      { professional_id: "melany", settlement_run_id: null, pending_amount: 3000, created_at: "2026-10-13T10:00:00.000Z" },
+    ];
+    const summary = computeLiquidacionSummary("melany", commissions, tips, [], []);
+    expect(summary.newCommissions).toBe(9000);
+    expect(summary.newTips).toBe(3000);
+    expect(summary.totalToPay).toBe(12000);
+  });
+});
+
+// Confirma que la fórmula es GLOBAL — no depende de ningún business_id/
+// professional_id puntual. Usa IDs genéricos de un negocio/profesional
+// inventados para este test, nunca los de un negocio real, para probar que
+// el cálculo funciona igual para cualquier barbería/profesional nuevo que
+// use Clippr, no solo para los que ya existen hoy.
+describe("Ciclo de vida completo de una propina — negocio/profesional genérico nuevo", () => {
+  const professionalId = "prof-test-001";
+
+  it("1) recién cobrada, la propina aparece como pendiente", () => {
+    const tips: LiquidacionPendingRow[] = [
+      { professional_id: professionalId, settlement_run_id: null, pending_amount: 1500, created_at: "2026-11-01T12:00:00.000Z" },
+    ];
+    const summary = computeLiquidacionSummary(professionalId, [], tips, [], []);
+    expect(summary.newTips).toBe(1500);
+    expect(summary.totalToPay).toBe(1500);
+  });
+
+  it("2) una vez liquidada (settlement_run_id asignado por prepare_settlement_run), deja de contar como pendiente", () => {
+    const tips: LiquidacionPendingRow[] = [
+      { professional_id: professionalId, settlement_run_id: "run-test-001", pending_amount: 1500, created_at: "2026-11-01T12:00:00.000Z" },
+    ];
+    const runs: LiquidacionRunSummaryRow[] = [
+      { professional_id: professionalId, prepared_at: "2026-11-01T13:00:00.000Z", total_to_settle: 1500, amount_paid: 1500, period_start_at: null },
+    ];
+    const summary = computeLiquidacionSummary(professionalId, [], tips, runs, []);
+    expect(summary.newTips).toBe(0);
+  });
+
+  it("3) una propina NUEVA del mismo profesional, posterior al corte ya liquidado, sí vuelve a contar — nunca se pierde ni se duplica con la anterior", () => {
+    const tips: LiquidacionPendingRow[] = [
+      { professional_id: professionalId, settlement_run_id: "run-test-001", pending_amount: 1500, created_at: "2026-11-01T12:00:00.000Z" },
+      { professional_id: professionalId, settlement_run_id: null, pending_amount: 800, created_at: "2026-11-02T09:00:00.000Z" },
+    ];
+    const runs: LiquidacionRunSummaryRow[] = [
+      { professional_id: professionalId, prepared_at: "2026-11-01T13:00:00.000Z", total_to_settle: 1500, amount_paid: 1500, period_start_at: null },
+    ];
+    const summary = computeLiquidacionSummary(professionalId, [], tips, runs, []);
+    expect(summary.newTips).toBe(800);
+  });
+
+  it("4) la fórmula no depende de un business_id/professional_id fijo — otro profesional, mismos montos, mismo resultado", () => {
+    const otherProfessionalId = "prof-test-002";
+    const tips: LiquidacionPendingRow[] = [
+      { professional_id: otherProfessionalId, settlement_run_id: null, pending_amount: 1500, created_at: "2026-11-01T12:00:00.000Z" },
+    ];
+    const summary = computeLiquidacionSummary(otherProfessionalId, [], tips, [], []);
+    expect(summary.newTips).toBe(1500);
+  });
+});
+
+describe("mergePendingSaleIds — ventas pendientes con propina sin comisión (fetchPendingVentasForProfessional)", () => {
+  function row(overrides: Partial<PendingSaleRow>): PendingSaleRow {
+    return {
+      id: "id-1",
+      professional_id: "melany",
+      amount: 0,
+      pending_amount: 0,
+      commission_pct: null,
+      sale_date: "2026-10-13",
+      created_at: "2026-10-13T10:00:00.000Z",
+      sale_id: "sale-1",
+      ...overrides,
+    };
+  }
+
+  it("una venta con comisión Y propina aparece una sola vez (gana la fila de comisión)", () => {
+    const commissionRows = [row({ id: "c1", sale_id: "sale-1", amount: 9000, pending_amount: 9000, commission_pct: 45 })];
+    const tipRows = [row({ id: "t1", sale_id: "sale-1", amount: 3000, pending_amount: 3000 })];
+    const merged = mergePendingSaleIds(commissionRows, tipRows);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toEqual(commissionRows[0]);
+  });
+
+  it("una venta solo con propina (comisión $0, sin fila en commission_records) se agrega como fila sintética", () => {
+    const commissionRows: PendingSaleRow[] = [];
+    const tipRows = [row({ id: "t1", sale_id: "sale-2", amount: 3000, pending_amount: 3000 })];
+    const merged = mergePendingSaleIds(commissionRows, tipRows);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]).toMatchObject({ sale_id: "sale-2", amount: 0, pending_amount: 0, commission_pct: null });
+  });
+
+  it("una venta solo con comisión (sin propina) no cambia", () => {
+    const commissionRows = [row({ id: "c1", sale_id: "sale-3", amount: 9000, pending_amount: 9000 })];
+    const merged = mergePendingSaleIds(commissionRows, []);
+    expect(merged).toEqual(commissionRows);
+  });
+
+  it("una venta ya liquidada (ausente de ambas listas, settlement_run_id no null se filtra ANTES de llegar acá) no aparece", () => {
+    // mergePendingSaleIds no filtra por settlement_run_id — eso ya lo hace
+    // el .is("settlement_run_id", null) de la query. Simula el caso donde
+    // ninguna de las dos listas trae esa venta.
+    const merged = mergePendingSaleIds([], []);
+    expect(merged).toHaveLength(0);
   });
 });

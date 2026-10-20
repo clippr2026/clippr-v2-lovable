@@ -152,6 +152,14 @@ export type RegisterPaymentInput = {
   // solo no puede chequear/contar el límite por cliente puntual.
   clientPhone?: string | null;
   clientEmail?: string | null;
+  // Idempotencia server-side (ver 20261019040000_payments_idempotency_key.sql)
+  // — mismo UUID en dos llamadas (reintento tras un time-out de red, nunca
+  // un cobro distinto) devuelve el payment ya creado en la primera, sin
+  // insertar un segundo. null/undefined = sin protección (comportamiento
+  // de siempre). Quien arma el carrito (cash-register.tsx) es responsable
+  // de generarla una vez por intento y solo reutilizarla en un reintento
+  // del MISMO cobro.
+  idempotencyKey?: string | null;
 };
 
 function formatItemName(item: RegisterPaymentItem) {
@@ -358,6 +366,7 @@ export async function registerPayment(input: RegisterPaymentInput) {
     p_commission_pct: usedSpecificOverride ? null : commissionPct,
     p_charged_by: chargedByUuid,
     p_created_at: nowIso,
+    p_idempotency_key: input.idempotencyKey ?? null,
   });
 
   if (rpcError) {

@@ -130,6 +130,7 @@ import {
   type MovimientoAjuste,
   type MovimientoDeduccion,
 } from "@/lib/historial-movimientos";
+import { fetchAllRows } from "@/lib/supabase-paginate";
 import { displayResponsable, isRunEffectivelySettled } from "@/components/liquidaciones/movimiento-format";
 import { HistorialPanelView } from "@/components/liquidaciones/historial-panel-view";
 import {
@@ -3725,15 +3726,22 @@ function ProfesionalesTab({
       }
       setLoadingCommissions(true);
       try {
-        const { data: rows, error } = await supabase
-          .from("commission_records" as any)
-          .select(
-            "id,professional_id,amount,paid_amount,pending_amount,status,sale_date,created_at,commission_pct,settlement_run_id,sale_id",
-          )
-          .eq("business_id", businessId);
-        if (error) throw error;
+        // fetchAllRows: sin esto, un negocio con más de 1000
+        // commission_records (límite default de PostgREST) perdía filas en
+        // silencio — Caja > Liquidaciones terminaba mostrando comisiones
+        // pendientes de menos, sin ningún error visible.
+        const rows = await fetchAllRows((from, to) =>
+          supabase
+            .from("commission_records" as any)
+            .select(
+              "id,professional_id,amount,paid_amount,pending_amount,status,sale_date,created_at,commission_pct,settlement_run_id,sale_id",
+            )
+            .eq("business_id", businessId)
+            .order("id", { ascending: true })
+            .range(from, to),
+        );
         if (!cancelled) {
-          setAllCommissions(rows ?? []);
+          setAllCommissions(rows);
           setCommissionsError(null);
         }
       } catch (e) {
@@ -3770,13 +3778,18 @@ function ProfesionalesTab({
       }
       setLoadingTips(true);
       try {
-        const { data: rows, error } = await supabase
-          .from("tip_records" as any)
-          .select("id,professional_id,amount,paid_amount,pending_amount,status,sale_date,created_at,settlement_run_id,sale_id")
-          .eq("business_id", businessId);
-        if (error) throw error;
+        const rows = await fetchAllRows((from, to) =>
+          supabase
+            .from("tip_records" as any)
+            .select(
+              "id,professional_id,amount,paid_amount,pending_amount,status,sale_date,created_at,settlement_run_id,sale_id",
+            )
+            .eq("business_id", businessId)
+            .order("id", { ascending: true })
+            .range(from, to),
+        );
         if (!cancelled) {
-          setAllTips(rows ?? []);
+          setAllTips(rows);
           setTipsError(null);
         }
       } catch (e) {
@@ -3810,27 +3823,36 @@ function ProfesionalesTab({
       }
       setLoadingRuns(true);
       try {
-        const [runsRes, paymentsRes] = await Promise.all([
-          supabase
-            .from("settlement_runs" as any)
-            .select(
-              "id,professional_id,professional_name,run_number,cutoff_date,period_start,period_start_at,previous_settlement_run_id,previous_balance,new_commissions,new_tips,adjustments,deductions,advances,adjustment_items,deduction_items,adjustment_movement_number,adjustment_movement_id,deduction_movement_number,deduction_movement_id,total_to_settle,amount_paid,service_count,total_sold,status,prepared_by_name,prepared_at",
-            )
-            .eq("business_id", businessId)
-            .order("cutoff_date", { ascending: false }),
-          supabase
-            .from("settlement_payments" as any)
-            .select(
-              "id,settlement_run_id,professional_id,amount,payment_method,note,balance_before,balance_after,paid_by_name,paid_at,movement_number",
-            )
-            .eq("business_id", businessId)
-            .order("paid_at", { ascending: false }),
+        const [runs, runPayments] = await Promise.all([
+          fetchAllRows((from, to) =>
+            supabase
+              .from("settlement_runs" as any)
+              .select(
+                "id,professional_id,professional_name,run_number,cutoff_date,period_start,period_start_at,previous_settlement_run_id,previous_balance,new_commissions,new_tips,adjustments,deductions,advances,adjustment_items,deduction_items,adjustment_movement_number,adjustment_movement_id,deduction_movement_number,deduction_movement_id,total_to_settle,amount_paid,service_count,total_sold,status,prepared_by_name,prepared_at",
+              )
+              .eq("business_id", businessId)
+              .order("id", { ascending: true })
+              .range(from, to),
+          ),
+          fetchAllRows((from, to) =>
+            supabase
+              .from("settlement_payments" as any)
+              .select(
+                "id,settlement_run_id,professional_id,amount,payment_method,note,balance_before,balance_after,paid_by_name,paid_at,movement_number",
+              )
+              .eq("business_id", businessId)
+              .order("id", { ascending: true })
+              .range(from, to),
+          ),
         ]);
-        if (runsRes.error) throw runsRes.error;
-        if (paymentsRes.error) throw paymentsRes.error;
         if (!cancelled) {
-          setAllRuns(runsRes.data ?? []);
-          setAllRunPayments(paymentsRes.data ?? []);
+          // Orden de presentación (más reciente primero) — fetchAllRows
+          // pagina por id para que la paginación sea estable, así que se
+          // reordena acá recién con todo ya traído.
+          setAllRuns([...runs].sort((a: any, b: any) => String(b.cutoff_date ?? "").localeCompare(String(a.cutoff_date ?? ""))));
+          setAllRunPayments(
+            [...runPayments].sort((a: any, b: any) => String(b.paid_at ?? "").localeCompare(String(a.paid_at ?? ""))),
+          );
           setRunsError(null);
         }
       } catch (e) {
@@ -3863,15 +3885,21 @@ function ProfesionalesTab({
         return;
       }
       try {
-        const { data: rows, error } = await supabase
-          .from("professional_advances" as any)
-          .select(
-            "id,professional_id,amount,payment_method,note,advanced_at,registered_by_name,settlement_run_id,movement_number",
-          )
-          .eq("business_id", businessId)
-          .order("advanced_at", { ascending: false });
-        if (error) throw error;
-        if (!cancelled) setAllAdvances(rows ?? []);
+        const rows = await fetchAllRows((from, to) =>
+          supabase
+            .from("professional_advances" as any)
+            .select(
+              "id,professional_id,amount,payment_method,note,advanced_at,registered_by_name,settlement_run_id,movement_number",
+            )
+            .eq("business_id", businessId)
+            .order("id", { ascending: true })
+            .range(from, to),
+        );
+        if (!cancelled) {
+          setAllAdvances(
+            [...rows].sort((a: any, b: any) => String(b.advanced_at ?? "").localeCompare(String(a.advanced_at ?? ""))),
+          );
+        }
       } catch (e) {
         if (!cancelled) setAllAdvances([]);
         console.warn("[caja] no se pudieron cargar los adelantos:", (e as Error).message);
@@ -3893,6 +3921,15 @@ function ProfesionalesTab({
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "commission_records", filter: `business_id=eq.${businessId}` },
+        () => setCommissionsVersion((v) => v + 1),
+      )
+      .on(
+        // tip_records nunca estuvo acá — cobrar una propina no actualizaba
+        // esta pantalla sin recargar, aunque el Panel del profesional (que sí
+        // escucha esta tabla, ver use-professionals-data.ts) se actualizaba
+        // solo. Mismo patrón que el resto de este canal.
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tip_records", filter: `business_id=eq.${businessId}` },
         () => setCommissionsVersion((v) => v + 1),
       )
       .on(
@@ -11281,6 +11318,16 @@ export function NuevaVentaTab({
   const [receiptFile, setReceiptFile] = React.useState<File | null>(null);
   const [receiptPreviewUrl, setReceiptPreviewUrl] = React.useState<string | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
+  // Idempotencia de cobros (ver 20261019040000_payments_idempotency_key.sql)
+  // — se genera una vez por intento de cobro y se reutiliza SOLO si
+  // handleCobrar se reintenta para el MISMO carrito (ej. time-out de red);
+  // se invalida (useEffect de abajo) ante cualquier cambio real de lo que
+  // se está por cobrar, para que un cobro genuinamente distinto nunca
+  // reuse la key de uno anterior.
+  const chargeAttemptKeyRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    chargeAttemptKeyRef.current = null;
+  }, [cart, method, client, clientId, tipAmountInput, splits, employeeId]);
   const [newClientOpen, setNewClientOpen] = React.useState(false);
   // Apellido del cliente nuevo — "client" guarda el nombre (o el nombre
   // completo, una vez elegido un cliente existente por el buscador). Flujo
@@ -11768,6 +11815,16 @@ export function NuevaVentaTab({
   }
 
   async function handleCobrar() {
+    // Idempotencia: se genera una sola vez por intento — si esta misma
+    // llamada falla y el usuario clickea "Confirmar" de nuevo sin cambiar
+    // nada del carrito, chargeAttemptKeyRef sigue teniendo la MISMA key (el
+    // useEffect de arriba solo la limpia ante un cambio real), así que el
+    // reintento deduplica en vez de crear un cobro nuevo.
+    if (!chargeAttemptKeyRef.current) {
+      chargeAttemptKeyRef.current = crypto.randomUUID();
+    }
+    const idempotencyKey = chargeAttemptKeyRef.current;
+
     if (!data.businessId) {
       toast.error("No se pudo identificar el negocio.");
       return;
@@ -12027,6 +12084,7 @@ export function NuevaVentaTab({
         ];
 
         const walkinRows = await registerPayment({
+          idempotencyKey,
           businessId: data.businessId,
           branchId: data.activeBranchId,
           employeeId: employeeId || null,
@@ -12068,6 +12126,7 @@ export function NuevaVentaTab({
           );
         if (removeError) throw removeError;
 
+        chargeAttemptKeyRef.current = null;
         toast.success(`Cobro confirmado · $${finalTotal.toLocaleString("es-AR")}`);
         clearReceiptFile();
         onPendingDone?.();
@@ -12091,6 +12150,7 @@ export function NuevaVentaTab({
         // (ni el payment se llega a crear) y lanza el mismo mensaje de
         // siempre, mostrado por el catch de más abajo.
         const pendingRows = await registerPayment({
+          idempotencyKey,
           businessId: data.businessId,
           branchId: data.activeBranchId,
           employeeId: employeeId || null,
@@ -12147,6 +12207,7 @@ export function NuevaVentaTab({
         // 4. Limpiar de localStorage
         removeLocalManualPendingCharge(pendingCharge.id);
 
+        chargeAttemptKeyRef.current = null;
         toast.success(`Cobro confirmado · $${finalTotal.toLocaleString("es-AR")}`);
         clearReceiptFile();
         onPendingDone?.();
@@ -12168,6 +12229,7 @@ export function NuevaVentaTab({
           action: "Cobró",
         };
         const saleRows = await registerPayment({
+          idempotencyKey,
           businessId: data.businessId,
           branchId: data.activeBranchId,
           employeeId: employeeId || null,
@@ -12200,6 +12262,7 @@ export function NuevaVentaTab({
         });
         if (saleRows[0]?.id) await attachReceiptIfNeeded(saleRows[0].id);
 
+        chargeAttemptKeyRef.current = null;
         toast.success(`Cobro confirmado · $${finalTotal.toLocaleString("es-AR")}`);
         setCart({});
         setClientId(null);
