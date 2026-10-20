@@ -10,8 +10,27 @@ import {
 } from "@/lib/service-pricing";
 import { applyCatalogOrder, extractCatalogOrderMap } from "@/lib/catalog-order";
 import { cajaOpenRangeStartDate, cajaDateKey, cajaDateKeyBA, filterToDayBA, type PendingCierre } from "@/lib/caja-cierre";
+import { fetchAllRows, type PageResult } from "@/lib/supabase-paginate";
 
 const MANUAL_PENDING_KEY = "clippr_pending_manual_charges";
+
+// Envuelve fetchAllRows con la MISMA forma que produce Promise.allSettled
+// para el resto del batch de runLoad ({status:"fulfilled", value:{data,
+// error}}) — así payRes/expRes se siguen leyendo con el mismo patrón
+// `.status === "fulfilled" && !X.value.error` que ya usa el resto del
+// código de abajo, sin tener que tocar ningún consumidor downstream.
+// Nunca "rechaza": un error de paginación se refleja en `value.error`,
+// igual que un error de Supabase en cualquier otra query del batch.
+async function pagedSettled<T>(
+  queryPage: (from: number, to: number) => PromiseLike<PageResult<T>>,
+): Promise<{ status: "fulfilled"; value: { data: T[] | null; error: { message: string } | null } }> {
+  try {
+    const data = await fetchAllRows(queryPage);
+    return { status: "fulfilled", value: { data, error: null } };
+  } catch (e) {
+    return { status: "fulfilled", value: { data: null, error: { message: (e as Error).message } } };
+  }
+}
 
 // Aviso instantáneo entre pestañas/ventanas del MISMO navegador (no
 // reemplaza al canal realtime de Supabase, que es el que cruza entre
@@ -461,32 +480,26 @@ export function useCajaData() {
 
     // Período vigente — única fuente: cash_sessions (sesión abierta
     // explícita) o, en su ausencia, el backlog implícito de un día anterior
-    // sin cerrar ("caja vencida") o simplemente hoy. Se resuelve ANTES de
-    // armar payQuery/expQuery porque el rango depende de este resultado.
-    // `startAt` es el instante EXACTO desde el que cuentan los pagos — si
-    // hubo una reapertura hoy mismo, arranca en ese instante, no a
-    // medianoche (si no, se recontarían pagos ya incluidos en el cierre
-    // anterior). Ver cajaOpenRangeStartDate en caja-cierre.ts.
-    const period = await cajaOpenRangeStartDate(businessId, activeBranchId).catch(
+    // sin cerrar ("caja vencida") o simplemente hoy. `startAt` es el
+    // instante EXACTO desde el que cuentan los pagos — si hubo una
+    // reapertura hoy mismo, arranca en ese instante, no a medianoche (si
+    // no, se recontarían pagos ya incluidos en el cierre anterior). Ver
+    // cajaOpenRangeStartDate en caja-cierre.ts.
+    //
+    // Arranca YA, SIN esperarlo todavía (periodPromise, no period) — antes
+    // esto se hacía `await` antes de construir cualquier otra query, así
+    // que el scan de hasta 30 días que hace internamente
+    // (findAllPendingCierres) bloqueaba servicios/empleados/
+    // business_settings/pendientes/últimos cierres/branch_settings sin
+    // necesidad: ninguna de esas 6 depende de su resultado. Solo
+    // payQuery/expQuery sí lo necesitan — se arman recién cuando `period`
+    // resuelve, más abajo, pero para entonces ya viene corriendo en
+    // paralelo con el resto desde este mismo punto.
+    const periodPromise = cajaOpenRangeStartDate(businessId, activeBranchId).catch(
       () => ({ startAt: new Date(`${cajaDateKey()}T00:00:00`), rangeStartDate: cajaDateKey(), pendingCierre: null, openSessionId: null }),
     );
-    // Revalidar vigencia después de este await — si mientras esperábamos
-    // cambió el negocio/sucursal activo, esta llamada quedó obsoleta:
-    // cortar ACÁ, antes de construir ninguna query más, en vez de seguir
-    // trabajando para un resultado que de todos modos se va a descartar
-    // más abajo.
-    if (!keyMatches()) return;
-    const pending = period.pendingCierre;
-    const rangeStartDate = period.rangeStartDate;
-    const today = period.startAt;
-    const todayEnd = new Date(); // hasta ahora, nunca un fin de "hoy" fijo
-    const dateStr = cajaDateKey(); // extremo superior para expenses.date (solo fecha, sin hora)
 
-    // Arranca ya, en paralelo con el Promise.allSettled de abajo — antes
-    // se esperaba (await) recién DESPUÉS de que todo ese batch terminara,
-    // una consulta más completamente en serie sin necesidad (no depende
-    // de ningún resultado del batch, ni el batch depende de ella). Se
-    // resuelve más abajo, justo donde antes estaba el await.
+    // Arranca ya, en paralelo — no depende de period ni del batch de abajo.
     const sessionPromise = loadCajaSession(businessId, activeBranchId);
 
     // Multi-sucursal (fundación): branch_id es un filtro de aplicación, se
@@ -526,37 +539,6 @@ export function useCajaData() {
       .eq("business_id", businessId);
     if (branchFilter) empQuery = empQuery.or(branchFilter);
 
-    let payQuery = supabase
-      .from("payments")
-      // business_id: hace falta acá (no solo el .eq de abajo) para poder
-      // eliminar el cobro desde el detalle sin otra consulta. discount/
-      // original_amount/tip_amount: el modal de detalle ("Últimos
-      // ingresos" → tocar una fila) los necesita para mostrar el
-      // desglose Servicio/Descuento/Propina/Total cobrado — antes no se
-      // pedían acá, así que esas filas quedaban siempre en null aunque
-      // el pago sí los tuviera guardados en la base. items: el detalle
-      // de "Retirar stock → Pagar ahora" lo necesita para separar
-      // cantidad/precio unitario/total sin parsear service_name (que
-      // puede traer "Cepita x2" como texto).
-      .select("id,business_id,total,amount,method,payment_method,client_name,service_name,created_at,employee_id,appointment_id,charged_by,charge_type,status,charged_at,observations,discount,original_amount,tip_amount,items,receipt_path")
-      .eq("business_id", businessId)
-      .gte("created_at", today.toISOString())
-      .lte("created_at", todayEnd.toISOString());
-    if (branchFilter) payQuery = payQuery.or(branchFilter);
-    payQuery = payQuery.order("created_at", { ascending: false });
-
-    // expenses.date es solo fecha (sin hora) — con una caja vencida que
-    // viene de un día anterior, el rango cubre todos los días intermedios
-    // hasta hoy, no solo "hoy" exacto.
-    let expQuery = supabase
-      .from("expenses")
-      .select("id,name,amount,type,category,payment_method,date,note,created_at,user_id,user_name,user_email,created_by")
-      .eq("business_id", businessId)
-      .gte("date", rangeStartDate)
-      .lte("date", dateStr);
-    if (branchFilter) expQuery = expQuery.or(branchFilter);
-    expQuery = expQuery.order("created_at", { ascending: false });
-
     // "pending_payment" NUNCA es un valor válido de appointments.status —
     // la restricción "appointments_status_check" de Supabase no lo admite
     // (solo pending/confirmed/completed/cancelled/no_show/charged/blocked),
@@ -574,11 +556,13 @@ export function useCajaData() {
       .not("status", "in", "(charged,cancelled,blocked)")
       .order("starts_at", { ascending: true });
 
-    const [svcRes, empRes, payRes, expRes, sessRes, bsRes, cliRes, pendingChargeRes, cierresRes, brsRes] = await Promise.allSettled([
+    // Las 6 que NO dependen de `period` arrancan YA — no esperan al scan
+    // de cajaOpenRangeStartDate (periodPromise, arriba). Antes las 10
+    // vivían en un solo Promise.allSettled armado DESPUÉS de esperar
+    // `period`, así que estas 6 pagaban ese costo sin necesitarlo.
+    const independentBatchPromise = Promise.allSettled([
       svcQuery.order("category").order("name"),
       empQuery.order("full_name", { ascending: true }),
-      payQuery,
-      expQuery,
       // Session loaded via loadCajaSession (handles both cash_sessions table and fallback)
       Promise.resolve({ data: null, error: null }),
       supabase
@@ -612,6 +596,87 @@ export function useCajaData() {
             .eq("branch_id", activeBranchId)
             .maybeSingle()
         : Promise.resolve({ data: null, error: null } as any),
+    ]);
+
+    // Recién acá se espera `period` — para entonces ya viene corriendo en
+    // paralelo con el batch de arriba desde hace un instante, así que esto
+    // normalmente no agrega demora extra por sí solo.
+    const period = await periodPromise;
+    if (!keyMatches()) return;
+    const pending = period.pendingCierre;
+    const rangeStartDate = period.rangeStartDate;
+    const today = period.startAt;
+    const todayEnd = new Date(); // hasta ahora, nunca un fin de "hoy" fijo
+    const dateStr = cajaDateKey(); // extremo superior para expenses.date (solo fecha, sin hora)
+
+    let payQuery = supabase
+      .from("payments")
+      // business_id: hace falta acá (no solo el .eq de abajo) para poder
+      // eliminar el cobro desde el detalle sin otra consulta. discount/
+      // original_amount/tip_amount: el modal de detalle ("Últimos
+      // ingresos" → tocar una fila) los necesita para mostrar el
+      // desglose Servicio/Descuento/Propina/Total cobrado — antes no se
+      // pedían acá, así que esas filas quedaban siempre en null aunque
+      // el pago sí los tuviera guardados en la base. items: el detalle
+      // de "Retirar stock → Pagar ahora" lo necesita para separar
+      // cantidad/precio unitario/total sin parsear service_name (que
+      // puede traer "Cepita x2" como texto).
+      .select("id,business_id,total,amount,method,payment_method,client_name,service_name,created_at,employee_id,appointment_id,charged_by,charge_type,status,charged_at,observations,discount,original_amount,tip_amount,items,receipt_path")
+      .eq("business_id", businessId)
+      .gte("created_at", today.toISOString())
+      .lte("created_at", todayEnd.toISOString());
+    if (branchFilter) payQuery = payQuery.or(branchFilter);
+    // order("id") desempata created_at iguales — paginación determinística
+    // (fetchAllRows/pagedSettled, ver abajo), sin cambiar el orden visible
+    // (created_at desc sigue siendo el criterio principal).
+    payQuery = payQuery.order("created_at", { ascending: false }).order("id", { ascending: true });
+
+    // expenses.date es solo fecha (sin hora) — con una caja vencida que
+    // viene de un día anterior, el rango cubre todos los días intermedios
+    // hasta hoy, no solo "hoy" exacto.
+    let expQuery = supabase
+      .from("expenses")
+      .select("id,name,amount,type,category,payment_method,date,note,created_at,user_id,user_name,user_email,created_by")
+      .eq("business_id", businessId)
+      .gte("date", rangeStartDate)
+      .lte("date", dateStr);
+    if (branchFilter) expQuery = expQuery.or(branchFilter);
+    expQuery = expQuery.order("created_at", { ascending: false }).order("id", { ascending: true });
+
+    // payQuery/expQuery paginadas (fetchAllRows, mismo helper que ya
+    // protege Liquidaciones) — un negocio con backlog largo + mucho
+    // volumen no pierde filas en silencio por el límite default de
+    // PostgREST (1000). Arrancan YA (no son `await` todavía) — expResultPromise
+    // y independentBatchPromise siguen en vuelo mientras se espera payRes
+    // solo, más abajo, para poder lanzar el lookup de cobro_events
+    // apenas se conocen los appointment_id de hoy, sin esperar a nada más.
+    const payResultPromise = pagedSettled<any>((from, to) => payQuery.range(from, to));
+    const expResultPromise = pagedSettled<any>((from, to) => expQuery.range(from, to));
+
+    const payRes = await payResultPromise;
+    if (!keyMatches()) return;
+    const paymentsRawEarly = payRes.status === "fulfilled" && !payRes.value.error ? ((payRes.value.data ?? []) as Payment[]) : [];
+
+    // `payments` no tiene cobro_events (esa columna vive en `appointments`),
+    // así que se trae acá aparte, solo para los appointment_id presentes
+    // hoy — sin esto, "Últimos ingresos"/"Historial completo" mostraban
+    // solo "Cobró" (con el nombre genérico "Recepción") porque reconstruían
+    // el historial desde un cache local por dispositivo que podía no tener
+    // el "Envió a caja" que escribió el profesional en otro aparato.
+    // Se dispara apenas se conoce payRes — en paralelo con expResultPromise/
+    // independentBatchPromise, que ya vienen en vuelo desde antes — nunca
+    // como una cola serial después de esperar TODO lo demás.
+    const paymentApptIds = Array.from(
+      new Set(paymentsRawEarly.map((p) => p.appointment_id).filter((id): id is string => !!id)),
+    );
+    const apptHistPromise = paymentApptIds.length > 0
+      ? supabase.from("appointments").select("id,cobro_events").eq("business_id", businessId).in("id", paymentApptIds)
+      : Promise.resolve({ data: [] as Array<{ id: string; cobro_events: unknown }> });
+
+    const [[svcRes, empRes, sessRes, bsRes, cliRes, pendingChargeRes, cierresRes, brsRes], expRes, apptHistResult] = await Promise.all([
+      independentBatchPromise,
+      expResultPromise,
+      apptHistPromise,
     ]);
 
     // Con single-flight ya no puede haber OTRO runLoad() corriendo en
@@ -722,33 +787,15 @@ export function useCajaData() {
     });
 
     // Payments — se completa cobro_events/sort_ts abajo (ver enrichPayments).
-    const paymentsRaw = payRes.status === "fulfilled" && !payRes.value.error ? ((payRes.value.data ?? []) as Payment[]) : [];
-
-    // `payments` no tiene cobro_events (esa columna vive en `appointments`),
-    // así que se trae acá aparte, solo para los appointment_id presentes
-    // hoy — sin esto, "Últimos ingresos"/"Historial completo" mostraban
-    // solo "Cobró" (con el nombre genérico "Recepción") porque reconstruían
-    // el historial desde un cache local por dispositivo que podía no tener
-    // el "Envió a caja" que escribió el profesional en otro aparato.
-    const paymentApptIds = Array.from(
-      new Set(paymentsRaw.map((p) => p.appointment_id).filter((id): id is string => !!id)),
-    );
+    // paymentsRaw/paymentApptIds/apptHistPromise ya se resolvieron arriba,
+    // apenas estuvo listo payRes — acá solo se vuelca apptHistResult (ya
+    // esperado junto con el resto) a un mapa.
+    const paymentsRaw = paymentsRawEarly;
     const apptHistMap: Record<string, HistorialEvento[]> = {};
-    if (paymentApptIds.length > 0) {
-      const { data: apptHistRows } = await supabase
-        .from("appointments")
-        .select("id,cobro_events")
-        .eq("business_id", businessId)
-        .in("id", paymentApptIds);
-      for (const row of apptHistRows ?? []) {
-        const events = (Array.isArray(row.cobro_events) ? row.cobro_events : []) as HistorialEvento[];
-        if (events.length) apptHistMap[row.id as string] = events;
-      }
+    for (const row of apptHistResult.data ?? []) {
+      const events = (Array.isArray(row.cobro_events) ? row.cobro_events : []) as HistorialEvento[];
+      if (events.length) apptHistMap[row.id as string] = events;
     }
-    // Revalidar vigencia después de este await — es el round-trip extra más
-    // propenso a tardar (duración variable según cuántos appointment_id
-    // distintos tenga el payments de hoy).
-    if (!keyMatches()) return;
     const PAY_HIST_MARKER = "[[HIST]]";
     const paymentsEnriched: Payment[] = paymentsRaw.map((p) => {
       let events: HistorialEvento[] = [];

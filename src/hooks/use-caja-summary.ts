@@ -12,6 +12,23 @@ import {
   type PendingCierre,
 } from "@/lib/caja-cierre";
 import type { Payment, Expense, HistorialEvento } from "@/components/cash-register/use-caja-data";
+import { fetchAllRows, type PageResult } from "@/lib/supabase-paginate";
+
+// Mismo criterio que pagedSettled en use-caja-data.ts, pero sin el
+// envoltorio {status,value} — este archivo lee payRes.data/payRes.error
+// directo (Promise.all con query builders planos), nunca
+// Promise.allSettled. Nunca "rechaza": un error de paginación queda en
+// `error`, igual que un error de Supabase en cualquier otra query acá.
+async function pagedResult<T>(
+  queryPage: (from: number, to: number) => PromiseLike<PageResult<T>>,
+): Promise<{ data: T[] | null; error: { message: string } | null }> {
+  try {
+    const data = await fetchAllRows(queryPage);
+    return { data, error: null };
+  } catch (e) {
+    return { data: null, error: { message: (e as Error).message } };
+  }
+}
 
 // Fuente única de "Ingresos" / "Efectivo esperado en caja" / "Dinero
 // esperado en cuenta" / "Últimos ingresos" (el array de payments del
@@ -214,7 +231,9 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
       .gte("created_at", dayStart.toISOString())
       .lte("created_at", dayEnd.toISOString());
     if (branchFilter) payQuery = payQuery.or(branchFilter);
-    payQuery = payQuery.order("created_at", { ascending: false });
+    // order("id") desempata created_at iguales — paginación determinística
+    // (fetchAllRows/pagedResult, ver abajo), sin cambiar el orden visible.
+    payQuery = payQuery.order("created_at", { ascending: false }).order("id", { ascending: true });
 
     let expQuery = supabase
       .from("expenses")
@@ -225,17 +244,49 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
       .gte("date", newRangeStartDate)
       .lte("date", cajaDateKey());
     if (branchFilter) expQuery = expQuery.or(branchFilter);
-    expQuery = expQuery.order("created_at", { ascending: false });
+    expQuery = expQuery.order("created_at", { ascending: false }).order("id", { ascending: true });
 
     // findAllPendingCierres ya NO se vuelve a pedir acá — period.allPendingCierres
     // (comprometido arriba, apenas resolvió cajaOpenRangeStartDate) es el
     // mismo dato; pedirlo de nuevo era la "repetición de consultas" que
     // duplicaba esta query pesada en cada carga.
-    const [payRes, expRes, carryForward, freshMovements] = await Promise.all([
-      payQuery,
-      expQuery,
-      getDigitalCarryForward(businessId, branchId),
-      refreshMovementsRef.current(),
+    //
+    // payQuery/expQuery paginadas (fetchAllRows, mismo helper que ya
+    // protege Liquidaciones/Caja) — sin perder filas en negocios con
+    // backlog largo + mucho volumen. Todas arrancan YA (sin `await`
+    // todavía); payRes se espera primero y SOLO para poder lanzar el
+    // lookup de cobro_events apenas se conocen los appointment_id de hoy,
+    // en paralelo con expenses/carryForward/movimientos (que ya vienen en
+    // vuelo desde acá) — nunca como una cola serial después de esperar
+    // TODO lo demás.
+    const payResultPromise = pagedResult<Payment>((from, to) => payQuery.range(from, to));
+    const expResultPromise = pagedResult<Expense>((from, to) => expQuery.range(from, to));
+    const carryForwardPromise = getDigitalCarryForward(businessId, branchId);
+    const freshMovementsPromise = refreshMovementsRef.current();
+
+    const payRes = await payResultPromise;
+    if (!keyMatches()) {
+      console.log("[CajaSummary] discarded after payQuery (key changed)");
+      return;
+    }
+    const paymentsRaw = (payRes.error ? [] : (payRes.data ?? [])) as Payment[];
+
+    // `payments` no tiene cobro_events (esa columna vive en `appointments`)
+    // — se trae acá aparte, solo para los appointment_id presentes en el
+    // período, igual que hace use-caja-data.ts, para que "Últimos ingresos"
+    // muestre "Envió a caja"/"Cobró" con el usuario real.
+    const paymentApptIds = Array.from(
+      new Set(paymentsRaw.map((p) => p.appointment_id).filter((id): id is string => !!id)),
+    );
+    const apptHistPromise = paymentApptIds.length > 0
+      ? supabase.from("appointments").select("id,cobro_events").eq("business_id", businessId).in("id", paymentApptIds)
+      : Promise.resolve({ data: [] as Array<{ id: string; cobro_events: unknown }> });
+
+    const [expRes, carryForward, freshMovements, apptHistResult] = await Promise.all([
+      expResultPromise,
+      carryForwardPromise,
+      freshMovementsPromise,
+      apptHistPromise,
     ]);
     console.log(
       `[CajaSummary] payQuery rango=[${dayStart.toISOString()} .. ${dayEnd.toISOString()}] branchFilter=${branchFilter} ` +
@@ -247,29 +298,13 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
       return;
     }
 
-    const paymentsRaw = (payRes.error ? [] : (payRes.data ?? [])) as Payment[];
     const expensesList = (expRes.error ? [] : (expRes.data ?? [])) as Expense[];
 
-    // `payments` no tiene cobro_events (esa columna vive en `appointments`)
-    // — se trae acá aparte, solo para los appointment_id presentes en el
-    // período, igual que hace use-caja-data.ts, para que "Últimos ingresos"
-    // muestre "Envió a caja"/"Cobró" con el usuario real.
-    const paymentApptIds = Array.from(
-      new Set(paymentsRaw.map((p) => p.appointment_id).filter((id): id is string => !!id)),
-    );
     const apptHistMap: Record<string, HistorialEvento[]> = {};
-    if (paymentApptIds.length > 0) {
-      const { data: apptHistRows } = await supabase
-        .from("appointments")
-        .select("id,cobro_events")
-        .eq("business_id", businessId)
-        .in("id", paymentApptIds);
-      for (const row of apptHistRows ?? []) {
-        const events = (Array.isArray(row.cobro_events) ? row.cobro_events : []) as HistorialEvento[];
-        if (events.length) apptHistMap[row.id as string] = events;
-      }
+    for (const row of apptHistResult.data ?? []) {
+      const events = (Array.isArray(row.cobro_events) ? row.cobro_events : []) as HistorialEvento[];
+      if (events.length) apptHistMap[row.id as string] = events;
     }
-    if (!keyMatches()) return;
 
     const PAY_HIST_MARKER = "[[HIST]]";
     const paymentsEnriched: Payment[] = paymentsRaw.map((p) => {
