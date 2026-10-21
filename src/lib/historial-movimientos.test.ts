@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
+import { dayBoundsBA } from "./caja-cierre";
 import {
   buildHistorialMovimientos,
   computeLiquidacionSummary,
   isWithinCutoff,
   mergePendingSaleIds,
   resolveVentaDate,
+  withOperativeDates,
   type HistorialAdvanceRow,
   type HistorialPaymentRow,
   type LiquidacionAdvanceSummaryRow,
@@ -356,5 +358,226 @@ describe("resolveVentaDate — Caja > Liquidaciones muestra la fecha real del pa
       sale: { created_at: "2026-10-02T12:00:00.000Z" },
     };
     expect(resolveVentaDate(c)).toBe("2026-10-02T12:00:00.000Z");
+  });
+});
+
+// Segunda causa raíz encontrada (misma auditoría, 20/10/2026): resolveVentaDate
+// arregló la PANTALLA, pero el CÁLCULO (computeLiquidacionSummary y el corte
+// "Hasta" de prepare_settlement_run) seguía comparando contra
+// commission_records.created_at/tip_records.created_at — withOperativeDates
+// es el fix para ese lado: reemplaza created_at por la fecha real del
+// payment ANTES de que la fila llegue a cualquier cálculo o filtro de corte.
+describe("withOperativeDates — el CÁLCULO de Liquidaciones usa la fecha real del payment, no la de la fila de comisión/propina", () => {
+  it("con el sale_id presente en el mapa, reemplaza created_at por la fecha del payment", () => {
+    const rows = [{ sale_id: "sale-1", created_at: "2026-10-21T00:03:06.129Z", amount: 31996 }];
+    const result = withOperativeDates(rows, { "sale-1": "2026-10-18T00:03:06.129Z" });
+    expect(result[0].created_at).toBe("2026-10-18T00:03:06.129Z");
+  });
+
+  it("sin el sale_id en el mapa (payment no encontrado), conserva created_at original", () => {
+    const rows = [{ sale_id: "sale-2", created_at: "2026-10-13T10:00:00.000Z", amount: 1000 }];
+    expect(withOperativeDates(rows, {})[0].created_at).toBe("2026-10-13T10:00:00.000Z");
+  });
+
+  it("sin sale_id en la fila, conserva created_at original", () => {
+    const rows = [{ created_at: "2026-10-13T10:00:00.000Z", amount: 1000 } as { created_at: string }];
+    expect(withOperativeDates(rows, { x: "y" })[0].created_at).toBe("2026-10-13T10:00:00.000Z");
+  });
+
+  it("no muta el array/objetos originales (devuelve copias nuevas)", () => {
+    const original = { sale_id: "sale-1", created_at: "2026-10-21T00:03:06.129Z" };
+    const rows = [original];
+    const result = withOperativeDates(rows, { "sale-1": "2026-10-18T00:03:06.129Z" });
+    expect(original.created_at).toBe("2026-10-21T00:03:06.129Z");
+    expect(result[0]).not.toBe(original);
+  });
+
+  it("funciona igual para varias filas de distintas ventas/profesionales/sucursales a la vez — sin casos especiales por id", () => {
+    const rows = [
+      { sale_id: "a", created_at: "2026-10-01T00:00:00.000Z" },
+      { sale_id: "b", created_at: "2026-10-02T00:00:00.000Z" },
+    ];
+    const result = withOperativeDates(rows, {
+      a: "2026-09-30T23:00:00.000Z",
+      b: "2026-10-05T00:00:00.000Z",
+    });
+    expect(result.map((r) => r.created_at)).toEqual([
+      "2026-09-30T23:00:00.000Z",
+      "2026-10-05T00:00:00.000Z",
+    ]);
+  });
+});
+
+// Caso real reproducido punta a punta: Alan Chauque (Franco), Global +
+// Corte, $31.996 de comisión. Fecha operativa corregida de 20/10 21:03 ART
+// a 17/10 21:03 ART — payments.created_at pasa a ser "2026-10-18T00:03:06
+// Z" (17/10 21:03 ART = 18/10 00:03 UTC), pero commission_records.created_at
+// se queda, a propósito, en el valor viejo ("2026-10-21T00:03:06Z" — la fila
+// se creó ahí, nunca se corrige). Antes del fix, un corte "Hasta 17/10"
+// excluía esta comisión; "Hasta 20/10" sí la incluía — la misma plata
+// aparecía o desaparecía según qué día eligiera quien liquida.
+describe("Caso real: corte 'Hasta 17/10' vs 'Hasta 20/10' con una fecha operativa corregida (Alan Chauque, $31.996)", () => {
+  const rawCommission: LiquidacionPendingRow = {
+    professional_id: "franco",
+    settlement_run_id: null,
+    pending_amount: 31996,
+    created_at: "2026-10-21T00:03:06.129Z", // commission_records.created_at — nunca se corrige
+  };
+  const paymentCreatedAtBySaleId = { "sale-alan-chauque": "2026-10-18T00:03:06.129Z" }; // payments.created_at — SÍ corregido (17/10 21:03 ART)
+
+  it("SIN resolver la fecha operativa (bug viejo): el corte del 17/10 excluye la comisión, el del 20/10 la incluye", () => {
+    const cutoff17 = dayBoundsBA("2026-10-17").end;
+    const cutoff20 = dayBoundsBA("2026-10-20").end;
+    expect(isWithinCutoff(rawCommission.created_at, cutoff17)).toBe(false);
+    expect(isWithinCutoff(rawCommission.created_at, cutoff20)).toBe(true);
+  });
+
+  it("CON la fecha operativa resuelta (fix): el corte del 17/10 YA incluye la comisión, igual que el del 20/10", () => {
+    const resolved = withOperativeDates(
+      [{ ...rawCommission, sale_id: "sale-alan-chauque" }],
+      paymentCreatedAtBySaleId,
+    );
+    const cutoff17 = dayBoundsBA("2026-10-17").end;
+    const cutoff20 = dayBoundsBA("2026-10-20").end;
+    expect(isWithinCutoff(resolved[0].created_at, cutoff17)).toBe(true);
+    expect(isWithinCutoff(resolved[0].created_at, cutoff20)).toBe(true);
+  });
+
+  it("computeLiquidacionSummary ya incluye los $31.996 como comisión nueva al resolver la fecha operativa", () => {
+    const resolved = withOperativeDates(
+      [{ ...rawCommission, sale_id: "sale-alan-chauque" }],
+      paymentCreatedAtBySaleId,
+    );
+    const summary = computeLiquidacionSummary("franco", resolved, [], [], []);
+    expect(summary.newCommissions).toBe(31996);
+  });
+});
+
+// Horarios cercanos a medianoche: una venta cobrada tarde en el día
+// (21:00-23:59 ART) cae 3 horas más tarde en UTC — si algo comparara fechas
+// en UTC o con el huso LOCAL del navegador en vez de dayBoundsBA (huso
+// Argentina explícito), una venta de las 23:50 ART del 17/10 podía quedar
+// fuera del corte "Hasta 17/10" o, al revés, una del 00:10 ART del 18/10
+// colarse adentro.
+describe("Horarios cercanos a medianoche — el corte 'Hasta' respeta el día calendario de Argentina, no el de UTC", () => {
+  it("una venta a las 23:50 ART del día del corte entra en 'Hasta ese día'", () => {
+    // 23:50 ART del 17/10 = 18/10 02:50 UTC (ART = UTC-3)
+    const saleAt2350ARTon17 = "2026-10-18T02:50:00.000Z";
+    const cutoff17 = dayBoundsBA("2026-10-17").end;
+    expect(isWithinCutoff(saleAt2350ARTon17, cutoff17)).toBe(true);
+    // Si se comparara con "<=  2026-10-17T23:59:59.999Z" (corte mal armado
+    // en UTC en vez de ART), esta misma venta quedaría afuera — documenta
+    // justamente el bug que corrige dayBoundsBA/isWithinCutoff.
+    expect(new Date(saleAt2350ARTon17).getTime() <= new Date("2026-10-17T23:59:59.999Z").getTime()).toBe(false);
+  });
+
+  it("una venta a las 00:10 ART del día SIGUIENTE al corte NO entra", () => {
+    // 00:10 ART del 18/10 = 03:10 UTC del 18/10
+    const saleAt0010ARTon18 = "2026-10-18T03:10:00.000Z";
+    const cutoff17 = dayBoundsBA("2026-10-17").end;
+    expect(isWithinCutoff(saleAt0010ARTon18, cutoff17)).toBe(false);
+  });
+
+  it("una venta exactamente a las 23:59:59.999 ART del día del corte entra (límite inclusive)", () => {
+    const cutoff17 = dayBoundsBA("2026-10-17").end;
+    expect(isWithinCutoff(cutoff17.toISOString(), cutoff17)).toBe(true);
+  });
+});
+
+// "Movimientos ya liquidados" y "liquidaciones parciales": una comisión con
+// settlement_run_id asignado nunca vuelve a contar como nueva sin importar
+// qué fecha operativa resuelta tenga — el filtro por settlement_run_id va
+// SIEMPRE antes que cualquier comparación de fecha.
+describe("Movimientos ya liquidados y liquidaciones parciales — withOperativeDates nunca hace que algo se cuente dos veces", () => {
+  it("una comisión con fecha corregida pero YA liquidada (settlement_run_id) no vuelve a contar como nueva", () => {
+    const commissions: LiquidacionPendingRow[] = withOperativeDates(
+      [
+        {
+          professional_id: "franco",
+          settlement_run_id: "run-ya-liquidado",
+          pending_amount: 31996,
+          created_at: "2026-10-21T00:03:06.129Z",
+          sale_id: "sale-alan-chauque",
+        } as LiquidacionPendingRow & { sale_id: string },
+      ],
+      { "sale-alan-chauque": "2026-10-18T00:03:06.129Z" },
+    );
+    const summary = computeLiquidacionSummary("franco", commissions, [], [], []);
+    expect(summary.newCommissions).toBe(0);
+  });
+
+  it("liquidación parcial: el saldo pendiente de la liquidación anterior se arrastra junto con la comisión nueva de fecha corregida", () => {
+    const runs: LiquidacionRunSummaryRow[] = [
+      { professional_id: "franco", prepared_at: "2026-10-10T00:00:00.000Z", total_to_settle: 100000, amount_paid: 40000 },
+    ];
+    const commissions = withOperativeDates(
+      [
+        {
+          professional_id: "franco",
+          settlement_run_id: null,
+          pending_amount: 31996,
+          created_at: "2026-10-21T00:03:06.129Z",
+          sale_id: "sale-alan-chauque",
+        } as LiquidacionPendingRow & { sale_id: string },
+      ],
+      { "sale-alan-chauque": "2026-10-18T00:03:06.129Z" }, // 17/10, posterior al período anterior (10/10)
+    );
+    const summary = computeLiquidacionSummary("franco", commissions, [], runs, []);
+    expect(summary.previousBalance).toBe(60000); // 100000 - 40000, deuda parcial anterior
+    expect(summary.newCommissions).toBe(31996);
+    expect(summary.totalToPay).toBe(91996);
+  });
+});
+
+// "Profesionales diferentes al que tenía originalmente el turno": el cobro
+// se liquida siempre a quien quedó asignado en commission_records.
+// professional_id al momento de cobrar (lo que el cajero eligió en Caja),
+// nunca a quien tenía el turno originalmente en la Agenda — esa asignación
+// no vive en estas estructuras, así que no hay nada que "reconciliar": el
+// filtro por professional_id ya aísla correctamente a cada profesional.
+describe("Profesional asignado al cobrar (no el de la agenda original) — aislamiento correcto por professional_id", () => {
+  it("una venta cobrada a nombre de Franco nunca aparece en el resumen de Alan, aunque el turno fuera de la agenda de Alan", () => {
+    const commissions = withOperativeDates(
+      [
+        {
+          professional_id: "franco", // quien se eligió al cobrar
+          settlement_run_id: null,
+          pending_amount: 31996,
+          created_at: "2026-10-21T00:03:06.129Z",
+          sale_id: "sale-alan-chauque",
+        } as LiquidacionPendingRow & { sale_id: string },
+      ],
+      { "sale-alan-chauque": "2026-10-18T00:03:06.129Z" },
+    );
+    const summaryFranco = computeLiquidacionSummary("franco", commissions, [], [], []);
+    const summaryAlan = computeLiquidacionSummary("alan", commissions, [], [], []);
+    expect(summaryFranco.newCommissions).toBe(31996);
+    expect(summaryAlan.newCommissions).toBe(0);
+  });
+});
+
+// "Nuevos profesionales y sucursales": ningún id hardcodeado en
+// withOperativeDates/computeLiquidacionSummary — un profesional creado hoy,
+// sin ninguna liquidación previa ni historial, calcula igual que cualquier
+// otro.
+describe("Nuevos profesionales/sucursales — mismo cálculo sin historial previo", () => {
+  it("un profesional recién creado, con una sola venta de fecha corregida, liquida correctamente desde cero", () => {
+    const brandNewProfessionalId = "prof-nuevo-2026-10-20";
+    const commissions = withOperativeDates(
+      [
+        {
+          professional_id: brandNewProfessionalId,
+          settlement_run_id: null,
+          pending_amount: 15000,
+          created_at: "2026-10-21T00:03:06.129Z",
+          sale_id: "sale-nueva",
+        } as LiquidacionPendingRow & { sale_id: string },
+      ],
+      { "sale-nueva": "2026-10-18T00:03:06.129Z" },
+    );
+    const summary = computeLiquidacionSummary(brandNewProfessionalId, commissions, [], [], []);
+    expect(summary.previousBalance).toBe(0);
+    expect(summary.newCommissions).toBe(15000);
+    expect(summary.totalToPay).toBe(15000);
   });
 });

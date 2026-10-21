@@ -352,3 +352,26 @@ export function mergePendingSaleIds(
 export function resolveVentaDate(c: { created_at?: string | null; sale?: { created_at?: string | null } | null }): string | null {
   return c.sale?.created_at ?? c.created_at ?? null;
 }
+
+// ── Fecha operativa para RESUMEN y CORTE ("Hasta") de Liquidaciones ────────
+// Mismo problema de fondo que resolveVentaDate, pero del lado del CÁLCULO en
+// vez de la pantalla: computeLiquidacionSummary (sumNewPending) y el corte
+// "Hasta" elegido en Caja > Liquidaciones (cash-register.tsx) comparaban
+// contra commission_records.created_at/tip_records.created_at — la fecha
+// vieja seguía EXCLUYENDO o INCLUYENDO mal una comisión aunque la pantalla
+// ya mostrara la fecha corregida (caso real: Alan Chauque, 20/10 -> 17/10,
+// $31.996 quedaba afuera del corte "Hasta 17/10" porque su created_at
+// seguía en 21/10 UTC). withOperativeDates reemplaza created_at por la
+// fecha real del payment vinculado (sale_id) ANTES de que la fila llegue a
+// computeLiquidacionSummary o a cualquier filtro de corte — así ningún
+// consumidor necesita saber que existe esta corrección, ni acordarse de
+// aplicarla cada vez.
+export function withOperativeDates<T extends { sale_id?: string | null; created_at: string }>(
+  rows: T[],
+  paymentCreatedAtBySaleId: Record<string, string | null | undefined>,
+): T[] {
+  return rows.map((row) => {
+    const operativeAt = row.sale_id ? paymentCreatedAtBySaleId[row.sale_id] : null;
+    return operativeAt ? { ...row, created_at: operativeAt } : row;
+  });
+}

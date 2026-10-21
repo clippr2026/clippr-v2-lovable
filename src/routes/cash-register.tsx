@@ -121,7 +121,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { AgendaCenteredModal } from "@/components/agenda/agenda-drawer";
-import { fetchSettlementRunServices, fetchSettlementRunSales } from "@/hooks/use-professionals-data";
+import { fetchSettlementRunServices, fetchSettlementRunSales, resolveOperativeDates } from "@/hooks/use-professionals-data";
 import { MultiMethodPaymentSplit, type MultiSplit } from "@/components/cash-register/multi-method-payment-split";
 import {
   buildHistorialMovimientos,
@@ -3539,7 +3539,11 @@ function ProfesionalesTab({
   // volviendo a mostrarlo apenas terminaba: el parpadeo del fondo/glow que
   // se reportó. Ahora reutiliza el `data` que ya cargó CashRegisterPage
   // (mismo patrón que ya usa CierresTab), sin ningún fetch redundante.
-  const today = React.useMemo(() => new Date().toLocaleDateString("sv-SE"), []);
+  // cajaDateKeyBA, no toLocaleDateString("sv-SE") del huso LOCAL del
+  // navegador: el negocio opera en Argentina sin importar desde dónde se
+  // abra Caja — mismo criterio que ya usa el resto de la pantalla (Resumen,
+  // ver cajaDateKeyBA más abajo).
+  const today = React.useMemo(() => cajaDateKeyBA(), []);
   // Liquidaciones trabaja siempre sobre un único profesional — nunca
   // "todos" — así que arranca vacío y un efecto más abajo lo completa en
   // cuanto hay empleados: el último consultado (persistido por negocio) o,
@@ -3741,8 +3745,16 @@ function ProfesionalesTab({
             .order("id", { ascending: true })
             .range(from, to),
         );
+        // resolveOperativeDates solo sobre las NO liquidadas (settlement_run_id
+        // null): son las únicas cuya fecha importa para algún cálculo (las ya
+        // liquidadas se excluyen por settlement_run_id, nunca por fecha) —
+        // evita pedirle a Supabase los payments de TODO el historial del
+        // negocio (fetchAllRows puede traer miles de filas viejas).
+        const unsettled = rows.filter((r: any) => !r.settlement_run_id);
+        const settled = rows.filter((r: any) => r.settlement_run_id);
+        const resolvedUnsettled = await resolveOperativeDates(unsettled);
         if (!cancelled) {
-          setAllCommissions(rows);
+          setAllCommissions([...resolvedUnsettled, ...settled]);
           setCommissionsError(null);
         }
       } catch (e) {
@@ -3789,8 +3801,13 @@ function ProfesionalesTab({
             .order("id", { ascending: true })
             .range(from, to),
         );
+        // Mismo criterio que allCommissions: solo resuelve fecha real en las
+        // no liquidadas, nunca en todo el historial.
+        const unsettled = rows.filter((r: any) => !r.settlement_run_id);
+        const settled = rows.filter((r: any) => r.settlement_run_id);
+        const resolvedUnsettled = await resolveOperativeDates(unsettled);
         if (!cancelled) {
-          setAllTips(rows);
+          setAllTips([...resolvedUnsettled, ...settled]);
           setTipsError(null);
         }
       } catch (e) {
@@ -4036,18 +4053,21 @@ function ProfesionalesTab({
     setDetailError(null);
     try {
       const row = rows.find((r) => r.id === professionalId);
-      let query = supabase
+      // Sin filtro de fecha acá: commission_records.created_at es cuándo se
+      // CREÓ la fila (congelado al cobrar, nunca se corrige), no la fecha
+      // operativa real del pago — filtrar por corte/período en SQL contra
+      // esa columna excluía mal ventas con la fecha corregida (ver
+      // withOperativeDates/isWithinCutoff, abajo). El set ya está acotado a
+      // lo NO liquidado de UN profesional (gt pending_amount, is
+      // settlement_run_id null), así que traer todo y filtrar en cliente
+      // por la fecha real es seguro en volumen.
+      const { data: commissionRows, error } = await supabase
         .from("commission_records" as any)
         .select("id,amount,pending_amount,commission_pct,sale_date,created_at,status,sale_id,professional_id")
         .eq("business_id", businessId)
         .eq("professional_id", professionalId)
         .is("settlement_run_id", null)
-        .gt("pending_amount", 0)
-        .lte("created_at", liquidarCutoffAt.toISOString());
-      if (row?.periodStartAt) {
-        query = query.gt("created_at", row.periodStartAt);
-      }
-      const { data: commissionRows, error } = await query.order("created_at", { ascending: true });
+        .gt("pending_amount", 0);
       if (error) throw error;
       const saleIds = (commissionRows ?? [])
         .map((c: any) => c.sale_id)
@@ -4115,27 +4135,38 @@ function ProfesionalesTab({
           (catalogByName ?? []).map((r: any) => [normalizeServiceName(r.name), Number(r.price ?? 0)]),
         );
       }
-      setDetailRows(
-        (commissionRows ?? []).map((c: any) => {
-          const sale = paymentsById[c.sale_id] ?? null;
-          let listPriceFallback: number | null = null;
-          if (sale && !(Number(sale.original_amount ?? 0) > 0)) {
-            if (Array.isArray(sale.items) && sale.items.length > 0) {
-              const sum = sale.items.reduce((s: number, i: any) => {
-                const unitPrice = catalogPriceById[i?.id] ?? null;
-                if (unitPrice == null) return s;
-                return s + unitPrice * Number(i?.qty ?? 1);
-              }, 0);
-              if (sum > 0) listPriceFallback = sum;
-            }
-            if (listPriceFallback == null) {
-              const byName = catalogPriceByName[normalizeServiceName(sale.service_name)] ?? null;
-              if (byName != null && byName > 0) listPriceFallback = byName;
-            }
+      const periodStartAt = row?.periodStartAt ?? null;
+      const enrichedRows = (commissionRows ?? []).map((c: any) => {
+        const sale = paymentsById[c.sale_id] ?? null;
+        let listPriceFallback: number | null = null;
+        if (sale && !(Number(sale.original_amount ?? 0) > 0)) {
+          if (Array.isArray(sale.items) && sale.items.length > 0) {
+            const sum = sale.items.reduce((s: number, i: any) => {
+              const unitPrice = catalogPriceById[i?.id] ?? null;
+              if (unitPrice == null) return s;
+              return s + unitPrice * Number(i?.qty ?? 1);
+            }, 0);
+            if (sum > 0) listPriceFallback = sum;
           }
-          return { ...c, sale, listPriceFallback };
-        }),
-      );
+          if (listPriceFallback == null) {
+            const byName = catalogPriceByName[normalizeServiceName(sale.service_name)] ?? null;
+            if (byName != null && byName > 0) listPriceFallback = byName;
+          }
+        }
+        // created_at pasa a ser la fecha operativa REAL (payment, o la de
+        // la fila de comisión si no se pudo traer el payment) — un solo
+        // lugar resuelve esto, todo lo demás (filtro de período/corte de
+        // abajo, orden, <VentaRow> vía resolveVentaDate) lo hereda gratis.
+        return { ...c, sale, listPriceFallback, created_at: resolveVentaDate({ created_at: c.created_at, sale }) ?? c.created_at };
+      });
+      const filteredRows = enrichedRows
+        .filter(
+          (c: any) =>
+            (!periodStartAt || String(c.created_at ?? "") > periodStartAt) &&
+            isWithinCutoff(c.created_at, liquidarCutoffAt),
+        )
+        .sort((a: any, b: any) => String(a.created_at ?? "").localeCompare(String(b.created_at ?? "")));
+      setDetailRows(filteredRows);
     } catch (e) {
       const message = (e as Error).message;
       setDetailError(message);
@@ -4229,7 +4260,11 @@ function ProfesionalesTab({
   // día siguiente 00:00 en adelante queda pendiente para la próxima vez.
   const liquidarCutoffAt = React.useMemo(() => {
     if (!liquidarCutoffDate || liquidarCutoffDate === today) return nowClock;
-    return new Date(`${liquidarCutoffDate}T23:59:59.999`);
+    // dayBoundsBA: 23:59:59.999 del día elegido en huso Argentina EXPLÍCITO
+    // (-03:00), no el de `new Date("YYYY-MM-DDT23:59:59.999")` sin offset
+    // (eso lo interpreta el huso LOCAL del navegador — correcto por
+    // casualidad solo si quien abre Caja está físicamente en Argentina).
+    return dayBoundsBA(liquidarCutoffDate).end;
   }, [liquidarCutoffDate, today, nowClock]);
 
   // Liquidaciones ya cerradas (pagada o prácticamente saldadas, ver
@@ -4576,14 +4611,13 @@ function ProfesionalesTab({
   const liquidarNewCommissions = React.useMemo(() => {
     if (!selectedRow) return 0;
     const periodStartAt = selectedRow.periodStartAt;
-    const cutoffIso = liquidarCutoffAt.toISOString();
     return allCommissions
       .filter(
         (c: any) =>
           String(c.professional_id) === selectedRow.id &&
           !c.settlement_run_id &&
           (!periodStartAt || String(c.created_at ?? "") > periodStartAt) &&
-          String(c.created_at ?? "") <= cutoffIso &&
+          isWithinCutoff(c.created_at, liquidarCutoffAt) &&
           Number(c.pending_amount ?? 0) > 0,
       )
       .reduce((sum: number, c: any) => sum + Number(c.pending_amount ?? 0), 0);
@@ -4597,14 +4631,13 @@ function ProfesionalesTab({
   const liquidarNewTips = React.useMemo(() => {
     if (!selectedRow) return 0;
     const periodStartAt = selectedRow.periodStartAt;
-    const cutoffIso = liquidarCutoffAt.toISOString();
     return allTips
       .filter(
         (t: any) =>
           String(t.professional_id) === selectedRow.id &&
           !t.settlement_run_id &&
           (!periodStartAt || String(t.created_at ?? "") > periodStartAt) &&
-          String(t.created_at ?? "") <= cutoffIso &&
+          isWithinCutoff(t.created_at, liquidarCutoffAt) &&
           Number(t.pending_amount ?? 0) > 0,
       )
       .reduce((sum: number, t: any) => sum + Number(t.pending_amount ?? 0), 0);

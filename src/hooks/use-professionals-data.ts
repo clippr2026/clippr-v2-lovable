@@ -1,7 +1,7 @@
 import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { mergePendingSaleIds, type PendingSaleRow } from "@/lib/historial-movimientos";
+import { mergePendingSaleIds, withOperativeDates, type PendingSaleRow } from "@/lib/historial-movimientos";
 
 /**
  * Portado de cjLoadProfesionales / cjVerPagosProf / cjVerProduccion (app.js)
@@ -629,7 +629,28 @@ export type ProfLiquidacionPendingRow = {
   settlement_run_id: string | null;
   pending_amount: number;
   created_at: string;
+  sale_id?: string | null;
 };
+
+// withOperativeDates (historial-movimientos.ts) necesita la fecha real del
+// payment por sale_id — un solo fetch extra acá en vez de que cada
+// consumidor de commission_records/tip_records tenga que acordarse de
+// hacerlo. Sin esto, computeLiquidacionSummary seguía comparando contra
+// commission_records.created_at (congelado al cobrar, nunca se corrige)
+// — ver mismo comentario en historial-movimientos.ts.
+export async function resolveOperativeDates<T extends { sale_id?: string | null; created_at: string }>(
+  rows: T[],
+): Promise<T[]> {
+  const saleIds = Array.from(new Set(rows.map((r) => r.sale_id).filter(Boolean))) as string[];
+  if (saleIds.length === 0) return rows;
+  const { data, error } = await supabase
+    .from("payments" as any)
+    .select("id,created_at")
+    .in("id", saleIds);
+  if (error) throw new Error(error.message);
+  const createdAtBySaleId = Object.fromEntries((data ?? []).map((p: any) => [p.id, p.created_at]));
+  return withOperativeDates(rows, createdAtBySaleId);
+}
 
 export function useProfCommissionRecords(businessId: string | null, empId: string | null) {
   const qc = useQueryClient();
@@ -639,11 +660,11 @@ export function useProfCommissionRecords(businessId: string | null, empId: strin
     queryFn: async (): Promise<ProfLiquidacionPendingRow[]> => {
       const { data, error } = await supabase
         .from("commission_records" as any)
-        .select("professional_id,settlement_run_id,pending_amount,created_at")
+        .select("professional_id,settlement_run_id,pending_amount,created_at,sale_id")
         .eq("business_id", businessId!)
         .eq("professional_id", empId!);
       if (error) throw new Error(error.message);
-      return (data ?? []) as ProfLiquidacionPendingRow[];
+      return resolveOperativeDates((data ?? []) as ProfLiquidacionPendingRow[]);
     },
     enabled: !!businessId && !!empId,
     staleTime: 30_000,
@@ -679,11 +700,11 @@ export function useProfTipRecords(businessId: string | null, empId: string | nul
       try {
         const { data, error } = await supabase
           .from("tip_records" as any)
-          .select("professional_id,settlement_run_id,pending_amount,created_at")
+          .select("professional_id,settlement_run_id,pending_amount,created_at,sale_id")
           .eq("business_id", businessId!)
           .eq("professional_id", empId!);
         if (error) throw error;
-        return (data ?? []) as ProfLiquidacionPendingRow[];
+        return await resolveOperativeDates((data ?? []) as ProfLiquidacionPendingRow[]);
       } catch {
         return [];
       }
