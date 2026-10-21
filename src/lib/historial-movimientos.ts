@@ -335,3 +335,20 @@ export function mergePendingSaleIds(
     }));
   return [...commissionRows, ...tipOnlyRows];
 }
+
+// ── Fecha real de una venta en Liquidaciones/Movimientos ───────────────────
+// Caso real (producción, 20/10/2026): se corrigió la fecha operativa de un
+// cobro (payments.charged_at/created_at) para que coincida con el día real
+// en que se prestó el servicio, pero Caja > Liquidaciones y Panel del
+// profesional > Movimientos seguían mostrando la fecha vieja. Causa: las
+// tres pantallas que renderizan una venta (VentaRow en unified-row.tsx,
+// cash-register.tsx y professionals.tsx) leían commission_records.created_at
+// — el momento en que se creó la FILA de comisión, congelado para siempre al
+// cobrar — en vez de payments.created_at (== charged_at), que es la fecha
+// operativa real y la que se corrige cuando hace falta. Única fuente de
+// verdad ahora: siempre preferir la fecha del payment real (`sale`); solo si
+// no se pudo traer (dato faltante) cae a la de la fila de comisión, para no
+// mostrar "—" de la nada.
+export function resolveVentaDate(c: { created_at?: string | null; sale?: { created_at?: string | null } | null }): string | null {
+  return c.sale?.created_at ?? c.created_at ?? null;
+}

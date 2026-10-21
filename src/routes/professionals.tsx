@@ -43,6 +43,7 @@ import {
 import {
   buildHistorialMovimientos,
   computeLiquidacionSummary,
+  resolveVentaDate,
   type MovimientoAjuste,
   type MovimientoDeduccion,
   type HistorialAdvanceRow,
@@ -2265,7 +2266,7 @@ function LiquidacionesPanelView({
   const unifiedMovimientos = React.useMemo(() => {
     const ventaItems = ventaRows.map((c: any) => ({
       kind: "venta" as const,
-      at: c.created_at as string,
+      at: resolveVentaDate(c) as string,
       commission: c,
     }));
     return [...ventaItems, ...movimientos].sort((a: any, b: any) =>

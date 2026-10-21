@@ -4,6 +4,7 @@ import {
   computeLiquidacionSummary,
   isWithinCutoff,
   mergePendingSaleIds,
+  resolveVentaDate,
   type HistorialAdvanceRow,
   type HistorialPaymentRow,
   type LiquidacionAdvanceSummaryRow,
@@ -318,5 +319,42 @@ describe("mergePendingSaleIds — ventas pendientes con propina sin comisión (f
     // ninguna de las dos listas trae esa venta.
     const merged = mergePendingSaleIds([], []);
     expect(merged).toHaveLength(0);
+  });
+});
+
+// Caso real que reportó el negocio (20/10/2026): se corrigió a mano la
+// fecha operativa de un cobro (payments.charged_at/created_at, 20/10 ->
+// 17/10) pero Caja > Liquidaciones y Panel del profesional > Movimientos
+// seguían mostrando la fecha vieja — porque leían
+// commission_records.created_at (congelado al cobrar, nunca se corrige)
+// en vez de la fecha real del payment.
+describe("resolveVentaDate — Caja > Liquidaciones muestra la fecha real del payment, no la de la fila de comisión", () => {
+  it("con sale.created_at disponible, prioriza esa fecha sobre la de la comisión", () => {
+    const c = {
+      created_at: "2026-10-21T00:03:06.129Z", // commission_records.created_at, vieja (no se corrige)
+      sale: { created_at: "2026-10-18T00:03:06.129Z" }, // payments.created_at, YA corregida
+    };
+    expect(resolveVentaDate(c)).toBe("2026-10-18T00:03:06.129Z");
+  });
+
+  it("sin sale (o sin sale.created_at), cae a commission_records.created_at", () => {
+    expect(resolveVentaDate({ created_at: "2026-10-13T10:00:00.000Z", sale: null })).toBe(
+      "2026-10-13T10:00:00.000Z",
+    );
+    expect(resolveVentaDate({ created_at: "2026-10-13T10:00:00.000Z", sale: {} })).toBe(
+      "2026-10-13T10:00:00.000Z",
+    );
+  });
+
+  it("sin ninguna fecha disponible, devuelve null (nunca inventa una fecha)", () => {
+    expect(resolveVentaDate({})).toBeNull();
+  });
+
+  it("funciona igual para cualquier profesional/sucursal — es una función pura sin casos especiales por id", () => {
+    const c = {
+      created_at: "2026-10-05T12:00:00.000Z",
+      sale: { created_at: "2026-10-02T12:00:00.000Z" },
+    };
+    expect(resolveVentaDate(c)).toBe("2026-10-02T12:00:00.000Z");
   });
 });

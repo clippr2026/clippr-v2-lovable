@@ -127,6 +127,7 @@ import {
   buildHistorialMovimientos,
   computeLiquidacionSummary,
   isWithinCutoff,
+  resolveVentaDate,
   type MovimientoAjuste,
   type MovimientoDeduccion,
 } from "@/lib/historial-movimientos";
@@ -4283,7 +4284,7 @@ function ProfesionalesTab({
   const unifiedMovimientos = React.useMemo(() => {
     const ventaItems = (detailRows ?? []).map((c: any) => ({
       kind: "venta" as const,
-      at: c.created_at as string,
+      at: resolveVentaDate(c) as string,
       commission: c,
     }));
     return [...ventaItems, ...historialItems].sort((a: any, b: any) =>

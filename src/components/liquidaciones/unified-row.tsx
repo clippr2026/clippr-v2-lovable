@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { money, paymentMethodLabel, realNote } from "./movimiento-format";
 import { normalizeCierreMethodKey } from "@/lib/caja-cierre";
 import { resolveDisplayConcept, type EmployeeCommissionMap } from "@/lib/service-pricing";
+import { resolveVentaDate } from "@/lib/historial-movimientos";
 
 // Grilla compartida por TODAS las filas de la lista única (ventas,
 // adelantos, pagos, ajustes, deducciones) y por su encabezado — mismas 7
@@ -199,7 +200,10 @@ export function VentaRow({
 }) {
   const [expanded, setExpanded] = React.useState(false);
   const sale = c.sale ?? {};
-  const saleDate = c.created_at ? new Date(c.created_at) : null;
+  // resolveVentaDate: payments.created_at (== charged_at) siempre antes que
+  // commission_records.created_at — ver comentario en historial-movimientos.ts.
+  const saleDateRaw = resolveVentaDate(c);
+  const saleDate = saleDateRaw ? new Date(saleDateRaw) : null;
   const dateTime = saleDate
     ? `${saleDate.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })} · ${saleDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}`
     : "—";
