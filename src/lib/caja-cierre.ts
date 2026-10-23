@@ -101,6 +101,12 @@ export type CajaProductoRow = {
   nombre: string | null;
   cantidad: number;
   monto: number;
+  // Medio de pago del cobro padre (un producto no tiene medio propio —
+  // se cobró junto con lo demás en esa misma venta) — para poder filtrar
+  // productos por medio de pago igual que servicios, sin reinterpretar
+  // nada: mismo valor que cobrosSnapshot[].metodo/splits de esa venta.
+  metodo: string | null;
+  splits: PaymentSplitRaw[] | null;
 };
 
 // Clasifica cobros_snapshot en "Servicios" (filtro Historial → Detalle →
@@ -130,6 +136,8 @@ export function splitServiciosYProductos(
         nombre: it.nombre ?? null,
         cantidad: Number(it.cantidad ?? 1),
         monto: Number(it.monto ?? 0),
+        metodo: (p as any).metodo ?? null,
+        splits: Array.isArray((p as any).splits) ? ((p as any).splits as PaymentSplitRaw[]) : null,
       })),
   );
   return { servicios, productos };

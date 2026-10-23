@@ -5798,21 +5798,44 @@ const METODO_BADGE_CLASS: Record<string, string> = {
   cuenta: "text-slate-300 bg-slate-400/10 ring-slate-400/25",
 };
 
-function MetodoBadge({ method, amount }: { method: string | null | undefined; amount?: number | null }) {
+function MetodoBadge({
+  method,
+  amount,
+  onClick,
+  active,
+}: {
+  method: string | null | undefined;
+  amount?: number | null;
+  // Resumen interactivo (sección 4 del pedido): el mismo badge que
+  // identifica un medio de pago también sirve de filtro — un clic en
+  // "Efectivo $50.000" en el resumen equivale a elegir "Efectivo" en los
+  // chips de arriba. Sin onClick, queda como hoy (solo visual).
+  onClick?: () => void;
+  active?: boolean;
+}) {
   const key = normalizeCierreMethodKey(method ?? "cash");
-  return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold ring-1",
-        METODO_BADGE_CLASS[key] ?? "text-white/70 bg-white/10 ring-white/20",
-      )}
-    >
+  const classes = cn(
+    "inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 transition",
+    METODO_BADGE_CLASS[key] ?? "text-white/70 bg-white/10 ring-white/20",
+    onClick && "cursor-pointer hover:brightness-125",
+    active && "ring-2",
+  );
+  const content = (
+    <>
       {paymentMethodLabel(method ?? "cash")}
       {amount != null && (
         <span className="tabular-nums opacity-80">${Math.round(amount).toLocaleString("es-AR")}</span>
       )}
-    </span>
+    </>
   );
+  if (onClick) {
+    return (
+      <button type="button" onClick={onClick} className={classes}>
+        {content}
+      </button>
+    );
+  }
+  return <span className={classes}>{content}</span>;
 }
 
 // Un cobro con pago múltiple (payments.splits) se muestra como VARIOS
@@ -5841,6 +5864,27 @@ type DetalleFiltro = "todos" | "servicios" | "productos" | "gastos" | "retiros";
 // (cobrosSnapshot/gastosSnapshot/movimientosManuales ya calculados por
 // buildSingleDayCierrePreview) — nunca una lista distinta según de dónde
 // se abra.
+// Importe de UN cobro que corresponde a un medio de pago puntual — en un
+// pago múltiple, nunca el total de la venta, solo la fracción real de ese
+// medio (ver distributeCobroByMethod). medio="todos" no filtra nada: pasa
+// el monto/propina completos tal cual. `incluido` decide si esta fila
+// pertenece al filtro activo (false = esta venta no tuvo nada de ese
+// medio, se excluye de la lista filtrada).
+function montoParaMedio(
+  monto: number,
+  propina: number,
+  metodo: string | null | undefined,
+  splits: Array<{ method?: string | null; amount?: number | null }> | null | undefined,
+  medio: string,
+): { monto: number; propina: number; incluido: boolean } {
+  if (medio === "todos") return { monto, propina, incluido: true };
+  const dist = distributeCobroByMethod(monto, propina, metodo, splits);
+  const amt = dist[medio];
+  const m = amt?.monto ?? 0;
+  const t = amt?.propina ?? 0;
+  return { monto: m, propina: t, incluido: m > 0 || t > 0 };
+}
+
 function CierreMovimientosDetalleList({
   cobros,
   gastos,
@@ -5852,6 +5896,17 @@ function CierreMovimientosDetalleList({
 }) {
   const [filtro, setFiltro] = React.useState<DetalleFiltro>("todos");
   const [profesionalFiltro, setProfesionalFiltro] = React.useState<string>("todos");
+  // "todos" | cash | transfer | debit | credit | qr — mismo vocabulario
+  // que ACTIVE_PAY_METHODS, combinable con profesionalFiltro/filtro (las
+  // 3 dimensiones se aplican en conjunto, nunca una pisa a la otra).
+  const [medioFiltro, setMedioFiltro] = React.useState<string>("todos");
+
+  const hayFiltrosActivos = filtro !== "todos" || profesionalFiltro !== "todos" || medioFiltro !== "todos";
+  function restablecerFiltros() {
+    setFiltro("todos");
+    setProfesionalFiltro("todos");
+    setMedioFiltro("todos");
+  }
 
   const retiros = movimientos.filter((m) => m.tipo === "retiro");
   const ingresosManuales = movimientos.filter((m) => m.tipo === "ingreso");
@@ -5859,39 +5914,100 @@ function CierreMovimientosDetalleList({
   const profesionales = Array.from(
     new Set([...serviciosRows.map((p) => p.profesional), ...productosRows.map((p) => p.profesional)].filter(Boolean)),
   ) as string[];
-  const serviciosFiltrados =
+
+  // Profesional primero, medio de pago después — las dos dimensiones se
+  // combinan siempre (sección 1 del pedido: "deben funcionar conjuntamente").
+  const serviciosPorProfesional =
     profesionalFiltro === "todos" ? serviciosRows : serviciosRows.filter((p) => p.profesional === profesionalFiltro);
-  const productosFiltrados =
+  const serviciosFiltrados =
+    medioFiltro === "todos"
+      ? serviciosPorProfesional
+      : serviciosPorProfesional.filter((p: any) => montoParaMedio(p.monto, p.propina, p.metodo, p.splits, medioFiltro).incluido);
+  const productosPorProfesional =
     profesionalFiltro === "todos" ? productosRows : productosRows.filter((p) => p.profesional === profesionalFiltro);
+  // Sin el filtro de medio — pareja de totalFacturadoProfesional más
+  // abajo (los dos sobre el mismo recorte, solo por profesional): si acá
+  // se usara la versión ya filtrada por medio, "de los cuales, productos"
+  // mostraría un número de otra escala que el total del que depende.
+  const totalProductosProfesional = productosPorProfesional.reduce((s, it: any) => s + Number(it.monto ?? 0), 0);
+  const productosFiltrados =
+    medioFiltro === "todos"
+      ? productosPorProfesional
+      : productosPorProfesional.filter((it: any) => montoParaMedio(it.monto, 0, it.metodo, it.splits, medioFiltro).incluido);
   const money = (v: number) => `$${Math.round(v).toLocaleString("es-AR")}`;
 
-  // Resumen inferior — SIEMPRE se arma sobre `cobros` directo (la lista
-  // completa de pagos, filtrada por profesional si corresponde), nunca
-  // sobre serviciosFiltrados/productosFiltrados: esas dos son vistas
-  // DERIVADAS para listar (splitServiciosYProductos) y una venta de SOLO
-  // producto, sin ningún servicio, queda afuera de serviciosRows — sumar
-  // desde ahí subcontaría el total real. Así el resumen siempre coincide
-  // exacto con snapshot.totalCobrado/totalPropinas (misma fuente, cero
-  // reimplementación). "de los cuales, productos" sigue siendo
-  // informativo (monto por ítem, ver splitServiciosYProductos), nunca se
-  // suma aparte del total de arriba.
-  const cobrosFiltrados = (
-    profesionalFiltro === "todos" ? cobros : cobros.filter((p: any) => p.profesional === profesionalFiltro)
+  // Gastos/retiros NUNCA se filtran por profesional (no les corresponde:
+  // sección 5 del pedido, "no atribuirse a un profesional si no
+  // corresponde") — quedan siempre en su propia sección, con todos los
+  // movimientos del día, sin importar profesionalFiltro/medioFiltro.
+
+  // ── Resumen inferior ───────────────────────────────────────────────
+  // Total general del día: SIEMPRE sobre `cobros` completo, sin ningún
+  // filtro — punto de referencia fijo para comparar contra el subtotal.
+  const totalGeneralDia = (cobros as any[]).reduce((s, p) => s + Number(p.monto ?? 0), 0);
+  const propinasGeneralDia = (cobros as any[]).reduce((s, p) => s + Number(p.propina ?? 0), 0);
+
+  // Cobros de el/los profesional(es) elegido(s), SIN el filtro de medio
+  // todavía — es la base para el desglose por medio de pago del resumen
+  // (los badges tienen que mostrar SIEMPRE los 5 medios completos, para
+  // poder saltar de uno a otro haciendo click, nunca solo el que ya está
+  // activo).
+  const cobrosPorProfesional = (
+    profesionalFiltro === "todos" ? cobros : (cobros as any[]).filter((p) => p.profesional === profesionalFiltro)
   ) as any[];
-  const totalCobradoFiltrado = cobrosFiltrados.reduce((s, p: any) => s + Number(p.monto ?? 0), 0);
-  const totalPropinasFiltradas = cobrosFiltrados.reduce((s, p: any) => s + Number(p.propina ?? 0), 0);
-  const totalProductosFiltrados = productosFiltrados.reduce((s, it: any) => s + Number(it.monto ?? 0), 0);
-  const desglosePorMetodo = React.useMemo(() => {
-    const byMethod: Record<string, number> = {};
-    for (const p of cobrosFiltrados) {
-      const dist = distributeCobroByMethod(Number(p.monto ?? 0), 0, p.metodo, p.splits);
+  const totalFacturadoProfesional = cobrosPorProfesional.reduce((s, p) => s + Number(p.monto ?? 0), 0);
+  const propinasProfesional = cobrosPorProfesional.reduce((s, p) => s + Number(p.propina ?? 0), 0);
+
+  // Subtotal filtrado: profesional Y medio de pago combinados — el
+  // número que realmente responde "cuánto es esto que estoy viendo ahora".
+  const cobrosSubtotal =
+    medioFiltro === "todos"
+      ? cobrosPorProfesional
+      : cobrosPorProfesional.filter((p) => montoParaMedio(p.monto, p.propina, p.metodo, p.splits, medioFiltro).incluido);
+  const totalSubtotalFiltrado = cobrosSubtotal.reduce(
+    (s, p) => s + montoParaMedio(p.monto, p.propina, p.metodo, p.splits, medioFiltro).monto,
+    0,
+  );
+  const propinasSubtotalFiltrado = cobrosSubtotal.reduce(
+    (s, p) => s + montoParaMedio(p.monto, p.propina, p.metodo, p.splits, medioFiltro).propina,
+    0,
+  );
+
+  // Desglose por medio de pago del/de los profesional(es) elegido(s) —
+  // SIEMPRE completo (los 5 medios, incluso en $0), sobre
+  // cobrosPorProfesional (no sobre el subtotal ya filtrado por medio):
+  // son justamente los botones que permiten cambiar de medio con un
+  // click (sección 4 del pedido).
+  const desglosePorMedio = React.useMemo(() => {
+    const byMethod: Record<string, { monto: number; propina: number }> = {};
+    for (const p of cobrosPorProfesional) {
+      const dist = distributeCobroByMethod(Number(p.monto ?? 0), Number(p.propina ?? 0), p.metodo, p.splits);
       for (const [key, amt] of Object.entries(dist)) {
-        byMethod[key] = (byMethod[key] ?? 0) + amt.monto;
+        if (!byMethod[key]) byMethod[key] = { monto: 0, propina: 0 };
+        byMethod[key].monto += amt.monto;
+        byMethod[key].propina += amt.propina;
       }
     }
     return byMethod;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cobros, profesionalFiltro]);
+
+  // "Cuánto facturó cada profesional" (sección 3 del pedido) — respeta
+  // medioFiltro (si hay un medio elegido, muestra lo que facturó cada uno
+  // POR ESE medio), nunca profesionalFiltro (es la lista para elegir
+  // profesional). Nunca suma por item de producto (ver comentario de
+  // totalGeneralDia más arriba): siempre sobre el cobro completo.
+  const facturacionPorProfesional = React.useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of cobros as any[]) {
+      if (!p.profesional) continue;
+      const { monto, incluido } = montoParaMedio(Number(p.monto ?? 0), Number(p.propina ?? 0), p.metodo, p.splits, medioFiltro);
+      if (!incluido) continue;
+      map.set(p.profesional, (map.get(p.profesional) ?? 0) + monto);
+    }
+    return Array.from(map.entries()).sort((a, b) => b[1] - a[1]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cobros, medioFiltro]);
 
   const filtroChips: Array<{ key: DetalleFiltro; label: string }> = [
     { key: "todos", label: "Todos" },
@@ -5933,6 +6049,48 @@ function CierreMovimientosDetalleList({
             ))}
           </select>
         )}
+        {hayFiltrosActivos && (
+          <button
+            type="button"
+            onClick={restablecerFiltros}
+            className="rounded-full bg-rose-400/10 px-3 py-1.5 text-xs font-bold text-rose-300 ring-1 ring-rose-400/25 transition hover:bg-rose-400/15"
+          >
+            Restablecer filtros
+          </button>
+        )}
+      </div>
+
+      {/* Filtro por medio de pago — combina con tipo de movimiento y
+          profesional, nunca los reemplaza (sección 1 del pedido). */}
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/35">Medio de pago</span>
+        <button
+          type="button"
+          onClick={() => setMedioFiltro("todos")}
+          className={cn(
+            "rounded-full px-3 py-1.5 text-xs font-bold ring-1 transition",
+            medioFiltro === "todos"
+              ? "bg-white/15 text-white ring-white/30"
+              : "bg-white/[0.04] text-white/60 ring-white/10 hover:bg-white/[0.07]",
+          )}
+        >
+          Todos los medios
+        </button>
+        {ACTIVE_PAY_METHODS.map((m) => (
+          <button
+            key={m.id}
+            type="button"
+            onClick={() => setMedioFiltro(m.id)}
+            className={cn(
+              "rounded-full px-3 py-1.5 text-xs font-bold ring-1 transition",
+              medioFiltro === m.id
+                ? cn(METODO_BADGE_CLASS[m.id], "ring-2")
+                : "bg-white/[0.04] text-white/60 ring-white/10 hover:bg-white/[0.07]",
+            )}
+          >
+            {m.label}
+          </button>
+        ))}
       </div>
 
       {(filtro === "todos" || filtro === "servicios") && (
@@ -5965,8 +6123,22 @@ function CierreMovimientosDetalleList({
                     const servicioNombre =
                       items.filter((it) => !it?.esProducto).map((it) => it.nombre).join(" + ") || p.servicio || "Servicio";
                     const descuento = Number(p.descuento ?? 0);
-                    const propina = Number(p.propina ?? 0);
                     const precioLista = Number(p.precio_lista ?? p.monto ?? 0);
+                    // Con un medio de pago elegido y esta venta pagada con
+                    // VARIOS medios, el importe/propina a mostrar es SOLO
+                    // la fracción de ese medio (nunca el total de la
+                    // venta) — precio de lista/descuento describen la
+                    // venta completa, no una fracción, así que se ocultan
+                    // acá para no mostrar un número de otra escala al
+                    // lado del importe parcial.
+                    const esSplitParcial = medioFiltro !== "todos" && Array.isArray(p.splits) && p.splits.length > 0;
+                    const { monto: montoMostrado, propina: propinaMostrada } = montoParaMedio(
+                      Number(p.monto ?? 0),
+                      Number(p.propina ?? 0),
+                      p.metodo,
+                      p.splits,
+                      medioFiltro,
+                    );
                     return (
                       <div
                         key={`${p.id ?? idx}`}
@@ -5987,22 +6159,27 @@ function CierreMovimientosDetalleList({
                             descuento > 0 ? "text-white/40 line-through decoration-white/20" : "text-white/35",
                           )}
                         >
-                          {money(precioLista)}
+                          {esSplitParcial ? "—" : money(precioLista)}
                         </div>
                         <div className="text-right tabular-nums text-amber-300/90">
-                          {descuento > 0 ? `-${money(descuento)}` : "—"}
+                          {esSplitParcial ? "—" : descuento > 0 ? `-${money(descuento)}` : "—"}
                         </div>
                         {/* Importe cobrado — destacado: la cifra que de verdad
                             entró a caja, nunca confundida con precio de
-                            lista ni propina. */}
+                            lista ni propina. Con un medio filtrado, es la
+                            fracción real de ESE medio. */}
                         <div className="text-right text-sm font-extrabold tabular-nums text-emerald-300">
-                          {money(p.monto ?? 0)}
+                          {money(montoMostrado)}
                         </div>
                         <div className="text-right tabular-nums text-amber-200">
-                          {propina > 0 ? money(propina) : "—"}
+                          {propinaMostrada > 0 ? money(propinaMostrada) : "—"}
                         </div>
                         <div>
-                          <MetodoBadges metodo={p.metodo} splits={p.splits} />
+                          {medioFiltro === "todos" ? (
+                            <MetodoBadges metodo={p.metodo} splits={p.splits} />
+                          ) : (
+                            <MetodoBadge method={medioFiltro} amount={esSplitParcial ? montoMostrado : undefined} />
+                          )}
                         </div>
                       </div>
                     );
@@ -6019,8 +6196,15 @@ function CierreMovimientosDetalleList({
                   const servicioNombre =
                     items.filter((it) => !it?.esProducto).map((it) => it.nombre).join(" + ") || p.servicio || "Servicio";
                   const descuento = Number(p.descuento ?? 0);
-                  const propina = Number(p.propina ?? 0);
                   const precioLista = Number(p.precio_lista ?? p.monto ?? 0);
+                  const esSplitParcial = medioFiltro !== "todos" && Array.isArray(p.splits) && p.splits.length > 0;
+                  const { monto: montoMostrado, propina: propinaMostrada } = montoParaMedio(
+                    Number(p.monto ?? 0),
+                    Number(p.propina ?? 0),
+                    p.metodo,
+                    p.splits,
+                    medioFiltro,
+                  );
                   return (
                     <div key={`${p.id ?? idx}`} className="rounded-xl bg-black/22 px-3.5 py-3 text-xs">
                       <div className="flex items-start justify-between gap-2">
@@ -6031,27 +6215,31 @@ function CierreMovimientosDetalleList({
                             {p.profesional ? ` · ${p.profesional}` : ""} · {servicioNombre}
                           </div>
                         </div>
-                        <MetodoBadges metodo={p.metodo} splits={p.splits} />
+                        {medioFiltro === "todos" ? (
+                          <MetodoBadges metodo={p.metodo} splits={p.splits} />
+                        ) : (
+                          <MetodoBadge method={medioFiltro} amount={esSplitParcial ? montoMostrado : undefined} />
+                        )}
                       </div>
                       {p.promocion && <div className="mt-1 text-[11px] text-violet-300/80">Promo: {p.promocion}</div>}
                       <div className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-1.5 rounded-lg bg-white/[0.03] p-2.5">
                         <div>
                           <div className="text-[10px] uppercase tracking-wide text-white/35">Precio de lista</div>
                           <div className={cn("tabular-nums", descuento > 0 ? "text-white/45 line-through decoration-white/20" : "text-white/60")}>
-                            {money(precioLista)}
+                            {esSplitParcial ? "—" : money(precioLista)}
                           </div>
                         </div>
                         <div>
                           <div className="text-[10px] uppercase tracking-wide text-white/35">Descuento</div>
-                          <div className="tabular-nums text-amber-300/90">{descuento > 0 ? `-${money(descuento)}` : "—"}</div>
+                          <div className="tabular-nums text-amber-300/90">{esSplitParcial ? "—" : descuento > 0 ? `-${money(descuento)}` : "—"}</div>
                         </div>
                         <div>
                           <div className="text-[10px] uppercase tracking-wide text-white/35">Cobrado</div>
-                          <div className="text-sm font-extrabold tabular-nums text-emerald-300">{money(p.monto ?? 0)}</div>
+                          <div className="text-sm font-extrabold tabular-nums text-emerald-300">{money(montoMostrado)}</div>
                         </div>
                         <div>
                           <div className="text-[10px] uppercase tracking-wide text-white/35">Propina</div>
-                          <div className="tabular-nums text-amber-200">{propina > 0 ? money(propina) : "—"}</div>
+                          <div className="tabular-nums text-amber-200">{propinaMostrada > 0 ? money(propinaMostrada) : "—"}</div>
                         </div>
                       </div>
                     </div>
@@ -6072,62 +6260,131 @@ function CierreMovimientosDetalleList({
             {productosFiltrados.length === 0 ? (
               <p className="text-sm text-muted-foreground">Sin productos vendidos.</p>
             ) : (
-              productosFiltrados.map((it: any) => (
-                <div key={it.key} className="rounded-xl bg-black/22 px-3 py-2 text-xs">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="truncate font-semibold text-white">
-                      {it.nombre ?? "Producto"}
-                      {it.cantidad > 1 ? ` x${it.cantidad}` : ""}
-                    </span>
-                    <span className="font-bold text-emerald-300">{money(it.monto ?? 0)}</span>
+              productosFiltrados.map((it: any) => {
+                const { monto: montoMostrado } = montoParaMedio(Number(it.monto ?? 0), 0, it.metodo, it.splits, medioFiltro);
+                return (
+                  <div key={it.key} className="rounded-xl bg-black/22 px-3 py-2 text-xs">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="truncate font-semibold text-white">
+                        {it.nombre ?? "Producto"}
+                        {it.cantidad > 1 ? ` x${it.cantidad}` : ""}
+                      </span>
+                      <span className="font-bold text-emerald-300">{money(montoMostrado)}</span>
+                    </div>
+                    <div className="mt-1 truncate text-white/45">
+                      {it.hora ?? "—"} · {it.cliente ?? "Cliente"}
+                      {it.profesional ? ` · ${it.profesional}` : ""}
+                      {medioFiltro === "todos" && <> · {paymentMethodLabel(it.metodo ?? "cash")}</>}
+                    </div>
                   </div>
-                  <div className="mt-1 truncate text-white/45">
-                    {it.hora ?? "—"} · {it.cliente ?? "Cliente"}
-                    {it.profesional ? ` · ${it.profesional}` : ""}
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
       )}
 
       {(filtro === "todos" || filtro === "servicios" || filtro === "productos") && (
-        <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.025] p-4">
-          <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
-            Resumen de servicios y productos
+        <div className="mt-4 space-y-3">
+          {/* Total general del día (fijo, nunca cambia con los filtros) vs
+              subtotal filtrado (sección 5 del pedido: "diferenciar
+              claramente" los dos) — ambos sin propina en la cifra
+              grande, propina aparte siempre (nunca mezclada). */}
+          <div className="rounded-2xl border border-white/[0.075] bg-white/[0.025] p-4">
+            <div className="flex flex-wrap items-center justify-between gap-4">
+              <div>
+                <div className="text-[10px] uppercase tracking-wide text-white/40">Total general del día</div>
+                <div className="mt-0.5 text-lg font-extrabold tabular-nums text-white">{money(totalGeneralDia)}</div>
+                <div className="mt-0.5 text-[11px] text-white/40">+ {money(propinasGeneralDia)} de propinas</div>
+              </div>
+              {/* Solo profesional/medio afectan este subtotal (el chip de
+                  tipo de movimiento decide qué SECCIÓN se ve, no cuánto
+                  suma el cobrado) — mostrarlo también con solo el tipo
+                  activo daría un "subtotal filtrado" idéntico al total
+                  general, como si hubiera filtrado algo sin filtrar nada. */}
+              {(profesionalFiltro !== "todos" || medioFiltro !== "todos") && (
+                <div className="text-right">
+                  <div className="text-[10px] uppercase tracking-wide text-violet-300/75">Subtotal filtrado</div>
+                  <div className="mt-0.5 text-lg font-extrabold tabular-nums text-violet-200">
+                    {money(totalSubtotalFiltrado)}
+                  </div>
+                  <div className="mt-0.5 text-[11px] text-white/40">+ {money(propinasSubtotalFiltrado)} de propinas</div>
+                </div>
+              )}
+            </div>
           </div>
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
-            <div>
-              <div className="text-[10px] uppercase tracking-wide text-white/40">Cobrado (sin propina)</div>
-              <div className="mt-0.5 text-base font-extrabold tabular-nums text-emerald-300">
-                {money(totalCobradoFiltrado)}
-              </div>
-              <div className="mt-0.5 text-[11px] text-white/40">de los cuales, productos: {money(totalProductosFiltrados)}</div>
+
+          <div className="rounded-2xl border border-white/[0.075] bg-white/[0.025] p-4">
+            <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
+              {profesionalFiltro === "todos" ? "Resumen del equipo" : `Resumen de ${profesionalFiltro}`}
             </div>
-            <div>
-              <div className="text-[10px] uppercase tracking-wide text-white/40">Propinas</div>
-              <div className="mt-0.5 text-base font-extrabold tabular-nums text-amber-200">
-                {money(totalPropinasFiltradas)}
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <div>
+                <div className="text-[10px] uppercase tracking-wide text-white/40">Total facturado por servicios</div>
+                <div className="mt-0.5 text-base font-extrabold tabular-nums text-emerald-300">
+                  {money(totalFacturadoProfesional)}
+                </div>
+                <div className="mt-0.5 text-[11px] text-white/40">
+                  de los cuales, productos (todos los medios): {money(totalProductosProfesional)}
+                </div>
+              </div>
+              <div>
+                <div className="text-[10px] uppercase tracking-wide text-white/40">Propinas (separadas)</div>
+                <div className="mt-0.5 text-base font-extrabold tabular-nums text-amber-200">
+                  {money(propinasProfesional)}
+                </div>
               </div>
             </div>
-            <div>
-              <div className="text-[10px] uppercase tracking-wide text-white/40">Total recibido</div>
-              <div className="mt-0.5 text-base font-extrabold tabular-nums text-white">
-                {money(totalCobradoFiltrado + totalPropinasFiltradas)}
+
+            <div className="mt-3 border-t border-white/[0.06] pt-3">
+              <div className="text-[10px] uppercase tracking-wide text-white/40">
+                Por medio de pago (sin propina) — tocá uno para filtrar
               </div>
-            </div>
-          </div>
-          <div className="mt-3 border-t border-white/[0.06] pt-3">
-            <div className="text-[10px] uppercase tracking-wide text-white/40">Desglose por medio de pago (sin propina)</div>
-            <div className="mt-2 flex flex-wrap gap-2">
-              {Object.entries(desglosePorMetodo)
-                .filter(([, v]) => v !== 0)
-                .map(([key, v]) => (
-                  <MetodoBadge key={key} method={key} amount={v} />
+              <div className="mt-2 flex flex-wrap gap-2">
+                {ACTIVE_PAY_METHODS.map((m) => (
+                  <MetodoBadge
+                    key={m.id}
+                    method={m.id}
+                    amount={desglosePorMedio[m.id]?.monto ?? 0}
+                    active={medioFiltro === m.id}
+                    onClick={() => setMedioFiltro(m.id)}
+                  />
                 ))}
-              {Object.keys(desglosePorMetodo).length === 0 && <span className="text-xs text-white/40">Sin movimientos.</span>}
+                {/* Medios legado (tarjeta/Mercado Pago genéricos, solo en
+                    pagos viejos — ACTIVE_PAY_METHODS ya no los ofrece para
+                    cobros nuevos) — informativo, sin click: no hay chip de
+                    "otros" arriba con el que combinarlo. Se muestra para
+                    que los 5 badges de arriba más este nunca sumen menos
+                    que "Total facturado por servicios". */}
+                {Object.entries(desglosePorMedio)
+                  .filter(([key, v]) => !ACTIVE_PAY_METHODS.some((m) => m.id === key) && v.monto !== 0)
+                  .map(([key, v]) => (
+                    <MetodoBadge key={key} method={key} amount={v.monto} />
+                  ))}
+              </div>
             </div>
+
+            {profesionalFiltro === "todos" && facturacionPorProfesional.length > 0 && (
+              <div className="mt-3 border-t border-white/[0.06] pt-3">
+                <div className="text-[10px] uppercase tracking-wide text-white/40">
+                  Facturación por profesional{medioFiltro !== "todos" ? ` · ${paymentMethodLabel(medioFiltro)}` : ""} — tocá
+                  uno para filtrar
+                </div>
+                <div className="mt-2 space-y-1.5">
+                  {facturacionPorProfesional.map(([nombre, total]) => (
+                    <button
+                      key={nombre}
+                      type="button"
+                      onClick={() => setProfesionalFiltro(nombre)}
+                      className="flex w-full items-center justify-between rounded-lg bg-white/[0.03] px-3 py-1.5 text-xs transition hover:bg-white/[0.06]"
+                    >
+                      <span className="text-white/75">{nombre}</span>
+                      <span className="font-bold tabular-nums text-emerald-300">{money(total)}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}
