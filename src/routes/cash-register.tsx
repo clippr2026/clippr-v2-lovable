@@ -41,6 +41,7 @@ import {
   type ExpectedCashDigital,
   type CajaMovimientoManual,
   type Conciliacion,
+  distributeCobroByMethod,
 } from "@/lib/caja-cierre";
 import { useCashMovements, type CashMovement } from "@/hooks/use-cash-movements";
 import { useCajaSummary, type CajaSummary } from "@/hooks/use-caja-summary";
@@ -5783,16 +5784,51 @@ function paymentMethodLabel(method: string) {
   return PAY_METHOD_LABEL[method as PayMethod] ?? method ?? "Sin método";
 }
 
-// Texto de un cobro con pago múltiple (payments.splits) — "Efectivo
-// $5.000 + Transferencia $5.000" en vez de un solo método que no refleja
-// cómo se cobró de verdad. La fila del cobro sigue siendo UNA sola (nunca
-// se duplica en la lista): esto solo cambia qué dice la línea de método.
-function metodoConSplitsLabel(metodo: string | null | undefined, splits: Array<{ method?: string | null; amount?: number | null }> | null | undefined) {
-  if (!splits || splits.length === 0) return paymentMethodLabel(metodo ?? "cash");
-  return splits
-    .filter((s) => Number(s?.amount ?? 0) > 0)
-    .map((s) => `${paymentMethodLabel(s.method ?? "cash")} $${Math.round(Number(s.amount ?? 0)).toLocaleString("es-AR")}`)
-    .join(" + ");
+// Color propio por medio de pago — para que Efectivo/Transferencia/
+// Débito/Crédito/QR se distingan de un vistazo en la tabla de servicios,
+// nunca como texto plano indistinguible entre sí.
+const METODO_BADGE_CLASS: Record<string, string> = {
+  cash: "text-emerald-300 bg-emerald-400/10 ring-emerald-400/25",
+  transfer: "text-sky-300 bg-sky-400/10 ring-sky-400/25",
+  debit: "text-violet-300 bg-violet-400/10 ring-violet-400/25",
+  credit: "text-fuchsia-300 bg-fuchsia-400/10 ring-fuchsia-400/25",
+  qr: "text-cyan-300 bg-cyan-400/10 ring-cyan-400/25",
+  card: "text-slate-300 bg-slate-400/10 ring-slate-400/25",
+  mp: "text-sky-300 bg-sky-400/10 ring-sky-400/25",
+  cuenta: "text-slate-300 bg-slate-400/10 ring-slate-400/25",
+};
+
+function MetodoBadge({ method, amount }: { method: string | null | undefined; amount?: number | null }) {
+  const key = normalizeCierreMethodKey(method ?? "cash");
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-bold ring-1",
+        METODO_BADGE_CLASS[key] ?? "text-white/70 bg-white/10 ring-white/20",
+      )}
+    >
+      {paymentMethodLabel(method ?? "cash")}
+      {amount != null && (
+        <span className="tabular-nums opacity-80">${Math.round(amount).toLocaleString("es-AR")}</span>
+      )}
+    </span>
+  );
+}
+
+// Un cobro con pago múltiple (payments.splits) se muestra como VARIOS
+// badges, uno por medio con su importe real — nunca un solo texto
+// ambiguo, y nunca se duplica el importe de la venta (cada badge muestra
+// su propia fracción, la fila sigue siendo una sola).
+function MetodoBadges({ metodo, splits }: { metodo: string | null | undefined; splits: Array<{ method?: string | null; amount?: number | null }> | null | undefined }) {
+  const validSplits = (splits ?? []).filter((s) => Number(s?.amount ?? 0) > 0);
+  if (validSplits.length === 0) return <MetodoBadge method={metodo} />;
+  return (
+    <div className="flex flex-wrap items-center gap-1">
+      {validSplits.map((s, i) => (
+        <MetodoBadge key={i} method={s.method} amount={Number(s.amount ?? 0)} />
+      ))}
+    </div>
+  );
 }
 
 type DetalleFiltro = "todos" | "servicios" | "productos" | "gastos" | "retiros";
@@ -5828,6 +5864,34 @@ function CierreMovimientosDetalleList({
   const productosFiltrados =
     profesionalFiltro === "todos" ? productosRows : productosRows.filter((p) => p.profesional === profesionalFiltro);
   const money = (v: number) => `$${Math.round(v).toLocaleString("es-AR")}`;
+
+  // Resumen inferior — SIEMPRE se arma sobre `cobros` directo (la lista
+  // completa de pagos, filtrada por profesional si corresponde), nunca
+  // sobre serviciosFiltrados/productosFiltrados: esas dos son vistas
+  // DERIVADAS para listar (splitServiciosYProductos) y una venta de SOLO
+  // producto, sin ningún servicio, queda afuera de serviciosRows — sumar
+  // desde ahí subcontaría el total real. Así el resumen siempre coincide
+  // exacto con snapshot.totalCobrado/totalPropinas (misma fuente, cero
+  // reimplementación). "de los cuales, productos" sigue siendo
+  // informativo (monto por ítem, ver splitServiciosYProductos), nunca se
+  // suma aparte del total de arriba.
+  const cobrosFiltrados = (
+    profesionalFiltro === "todos" ? cobros : cobros.filter((p: any) => p.profesional === profesionalFiltro)
+  ) as any[];
+  const totalCobradoFiltrado = cobrosFiltrados.reduce((s, p: any) => s + Number(p.monto ?? 0), 0);
+  const totalPropinasFiltradas = cobrosFiltrados.reduce((s, p: any) => s + Number(p.propina ?? 0), 0);
+  const totalProductosFiltrados = productosFiltrados.reduce((s, it: any) => s + Number(it.monto ?? 0), 0);
+  const desglosePorMetodo = React.useMemo(() => {
+    const byMethod: Record<string, number> = {};
+    for (const p of cobrosFiltrados) {
+      const dist = distributeCobroByMethod(Number(p.monto ?? 0), 0, p.metodo, p.splits);
+      for (const [key, amt] of Object.entries(dist)) {
+        byMethod[key] = (byMethod[key] ?? 0) + amt.monto;
+      }
+    }
+    return byMethod;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cobros, profesionalFiltro]);
 
   const filtroChips: Array<{ key: DetalleFiltro; label: string }> = [
     { key: "todos", label: "Todos" },
@@ -5872,51 +5936,130 @@ function CierreMovimientosDetalleList({
       </div>
 
       {(filtro === "todos" || filtro === "servicios") && (
-        <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
-          <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
+        <div className="mt-4 overflow-hidden rounded-2xl border border-white/[0.075] bg-white/[0.03]">
+          <div className="p-4 pb-0 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
             Servicios ({serviciosFiltrados.length})
           </div>
-          <div className="space-y-2">
-            {serviciosFiltrados.length === 0 ? (
-              <p className="text-sm text-muted-foreground">Sin servicios cobrados.</p>
-            ) : (
-              serviciosFiltrados.map((p: any, idx: number) => {
-                const items: any[] = Array.isArray(p.items) ? p.items : [];
-                const servicioNombre =
-                  items.filter((it) => !it?.esProducto).map((it) => it.nombre).join(" + ") || p.servicio || "Servicio";
-                const descuento = Number(p.descuento ?? 0);
-                const propina = Number(p.propina ?? 0);
-                return (
-                  <div key={`${p.id ?? idx}`} className="rounded-xl bg-black/22 px-3 py-2.5 text-xs">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="truncate font-semibold text-white">{p.cliente ?? "Cliente"}</div>
-                        <div className="mt-0.5 truncate text-white/50">
-                          {p.hora ?? "—"}
-                          {p.profesional ? ` · ${p.profesional}` : ""} · {metodoConSplitsLabel(p.metodo, p.splits)}
+          {serviciosFiltrados.length === 0 ? (
+            <p className="p-4 text-sm text-muted-foreground">Sin servicios cobrados.</p>
+          ) : (
+            <>
+              {/* Desktop/tablet ancho: tabla de verdad, una fila por servicio
+                  cobrado — nunca se mezcla precio de lista/descuento/propina/
+                  cobro en una sola cifra. */}
+              <div className="hidden overflow-x-auto lg:block">
+                <div className="min-w-[980px]">
+                  <div className="grid grid-cols-[64px_minmax(120px,1fr)_minmax(100px,0.75fr)_minmax(150px,1.3fr)_95px_90px_120px_90px_minmax(160px,1.1fr)] gap-3 border-y border-white/[0.06] bg-white/[0.02] px-4 py-2 text-[10px] font-bold uppercase tracking-[0.14em] text-white/40">
+                    <div>Hora</div>
+                    <div>Cliente</div>
+                    <div>Profesional</div>
+                    <div>Servicio</div>
+                    <div className="text-right">Precio lista</div>
+                    <div className="text-right">Descuento</div>
+                    <div className="text-right">Cobrado</div>
+                    <div className="text-right">Propina</div>
+                    <div>Medio de pago</div>
+                  </div>
+                  {serviciosFiltrados.map((p: any, idx: number) => {
+                    const items: any[] = Array.isArray(p.items) ? p.items : [];
+                    const servicioNombre =
+                      items.filter((it) => !it?.esProducto).map((it) => it.nombre).join(" + ") || p.servicio || "Servicio";
+                    const descuento = Number(p.descuento ?? 0);
+                    const propina = Number(p.propina ?? 0);
+                    const precioLista = Number(p.precio_lista ?? p.monto ?? 0);
+                    return (
+                      <div
+                        key={`${p.id ?? idx}`}
+                        className="grid grid-cols-[64px_minmax(120px,1fr)_minmax(100px,0.75fr)_minmax(150px,1.3fr)_95px_90px_120px_90px_minmax(160px,1.1fr)] items-center gap-3 border-b border-white/[0.05] px-4 py-2.5 text-xs last:border-0 hover:bg-white/[0.02]"
+                      >
+                        <div className="tabular-nums text-white/55">{p.hora ?? "—"}</div>
+                        <div className="truncate font-semibold text-white" title={p.cliente ?? "Cliente"}>
+                          {p.cliente ?? "Cliente"}
+                        </div>
+                        <div className="truncate text-white/70">{p.profesional ?? "—"}</div>
+                        <div className="truncate text-white/70" title={servicioNombre}>
+                          {servicioNombre}
+                          {p.promocion && <div className="truncate text-[10px] text-violet-300/80">Promo: {p.promocion}</div>}
+                        </div>
+                        <div
+                          className={cn(
+                            "text-right tabular-nums",
+                            descuento > 0 ? "text-white/40 line-through decoration-white/20" : "text-white/35",
+                          )}
+                        >
+                          {money(precioLista)}
+                        </div>
+                        <div className="text-right tabular-nums text-amber-300/90">
+                          {descuento > 0 ? `-${money(descuento)}` : "—"}
+                        </div>
+                        {/* Importe cobrado — destacado: la cifra que de verdad
+                            entró a caja, nunca confundida con precio de
+                            lista ni propina. */}
+                        <div className="text-right text-sm font-extrabold tabular-nums text-emerald-300">
+                          {money(p.monto ?? 0)}
+                        </div>
+                        <div className="text-right tabular-nums text-amber-200">
+                          {propina > 0 ? money(propina) : "—"}
+                        </div>
+                        <div>
+                          <MetodoBadges metodo={p.metodo} splits={p.splits} />
                         </div>
                       </div>
-                      <div className="shrink-0 text-right">
-                        <div className="font-bold text-emerald-300">{money(p.monto ?? 0)}</div>
-                        {descuento > 0 && (
-                          <div className="text-[11px] text-amber-300/80">lista {money(p.precio_lista ?? 0)}</div>
-                        )}
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Celular/tablet angosta: una tarjeta compacta por servicio,
+                  con etiqueta + valor en cada campo (nunca un solo texto
+                  corrido como antes). */}
+              <div className="space-y-2 p-4 lg:hidden">
+                {serviciosFiltrados.map((p: any, idx: number) => {
+                  const items: any[] = Array.isArray(p.items) ? p.items : [];
+                  const servicioNombre =
+                    items.filter((it) => !it?.esProducto).map((it) => it.nombre).join(" + ") || p.servicio || "Servicio";
+                  const descuento = Number(p.descuento ?? 0);
+                  const propina = Number(p.propina ?? 0);
+                  const precioLista = Number(p.precio_lista ?? p.monto ?? 0);
+                  return (
+                    <div key={`${p.id ?? idx}`} className="rounded-xl bg-black/22 px-3.5 py-3 text-xs">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="truncate font-semibold text-white">{p.cliente ?? "Cliente"}</div>
+                          <div className="mt-0.5 truncate text-white/50">
+                            {p.hora ?? "—"}
+                            {p.profesional ? ` · ${p.profesional}` : ""} · {servicioNombre}
+                          </div>
+                        </div>
+                        <MetodoBadges metodo={p.metodo} splits={p.splits} />
+                      </div>
+                      {p.promocion && <div className="mt-1 text-[11px] text-violet-300/80">Promo: {p.promocion}</div>}
+                      <div className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-1.5 rounded-lg bg-white/[0.03] p-2.5">
+                        <div>
+                          <div className="text-[10px] uppercase tracking-wide text-white/35">Precio de lista</div>
+                          <div className={cn("tabular-nums", descuento > 0 ? "text-white/45 line-through decoration-white/20" : "text-white/60")}>
+                            {money(precioLista)}
+                          </div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] uppercase tracking-wide text-white/35">Descuento</div>
+                          <div className="tabular-nums text-amber-300/90">{descuento > 0 ? `-${money(descuento)}` : "—"}</div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] uppercase tracking-wide text-white/35">Cobrado</div>
+                          <div className="text-sm font-extrabold tabular-nums text-emerald-300">{money(p.monto ?? 0)}</div>
+                        </div>
+                        <div>
+                          <div className="text-[10px] uppercase tracking-wide text-white/35">Propina</div>
+                          <div className="tabular-nums text-amber-200">{propina > 0 ? money(propina) : "—"}</div>
+                        </div>
                       </div>
                     </div>
-                    <div className="mt-1.5 truncate text-white/70">{servicioNombre}</div>
-                    {(descuento > 0 || p.promocion || propina > 0 || p.usuario) && (
-                      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-white/45">
-                        {p.promocion && <span>Promo: {p.promocion}</span>}
-                        {descuento > 0 && <span>Descuento: {money(descuento)}</span>}
-                        {propina > 0 && <span>Propina: {money(propina)}</span>}
-                        {p.usuario && <span>Cobró: {p.usuario}</span>}
-                      </div>
-                    )}
-                  </div>
-                );
-              })
-            )}
-          </div>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -5945,6 +6088,46 @@ function CierreMovimientosDetalleList({
                 </div>
               ))
             )}
+          </div>
+        </div>
+      )}
+
+      {(filtro === "todos" || filtro === "servicios" || filtro === "productos") && (
+        <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.025] p-4">
+          <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
+            Resumen de servicios y productos
+          </div>
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+            <div>
+              <div className="text-[10px] uppercase tracking-wide text-white/40">Cobrado (sin propina)</div>
+              <div className="mt-0.5 text-base font-extrabold tabular-nums text-emerald-300">
+                {money(totalCobradoFiltrado)}
+              </div>
+              <div className="mt-0.5 text-[11px] text-white/40">de los cuales, productos: {money(totalProductosFiltrados)}</div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-wide text-white/40">Propinas</div>
+              <div className="mt-0.5 text-base font-extrabold tabular-nums text-amber-200">
+                {money(totalPropinasFiltradas)}
+              </div>
+            </div>
+            <div>
+              <div className="text-[10px] uppercase tracking-wide text-white/40">Total recibido</div>
+              <div className="mt-0.5 text-base font-extrabold tabular-nums text-white">
+                {money(totalCobradoFiltrado + totalPropinasFiltradas)}
+              </div>
+            </div>
+          </div>
+          <div className="mt-3 border-t border-white/[0.06] pt-3">
+            <div className="text-[10px] uppercase tracking-wide text-white/40">Desglose por medio de pago (sin propina)</div>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {Object.entries(desglosePorMetodo)
+                .filter(([, v]) => v !== 0)
+                .map(([key, v]) => (
+                  <MetodoBadge key={key} method={key} amount={v} />
+                ))}
+              {Object.keys(desglosePorMetodo).length === 0 && <span className="text-xs text-white/40">Sin movimientos.</span>}
+            </div>
           </div>
         </div>
       )}
