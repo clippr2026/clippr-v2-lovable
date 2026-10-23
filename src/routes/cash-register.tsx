@@ -43,6 +43,7 @@ import {
   type Conciliacion,
   distributeCobroByMethod,
 } from "@/lib/caja-cierre";
+import { SaldoComposicionLado, SaldoComposicionModal } from "@/components/caja/saldo-composicion";
 import { useCashMovements, type CashMovement } from "@/hooks/use-cash-movements";
 import { useCajaSummary, type CajaSummary } from "@/hooks/use-caja-summary";
 import {
@@ -6468,44 +6469,6 @@ function CierreConciliacionPanel({ conciliacion }: { conciliacion: Conciliacion 
   const money = (v: number) => `${v < 0 ? "-" : ""}$${Math.round(Math.abs(v)).toLocaleString("es-AR")}`;
   const metodoEntries = Object.entries(conciliacion.porMetodo).filter(([, v]) => v.cobrado !== 0 || v.gastos !== 0);
 
-  const ladoCard = (label: string, lado: Conciliacion["efectivo"]) => (
-    <div className="rounded-xl bg-white/[0.02] ring-1 ring-white/10 p-3.5 space-y-1.5">
-      <div className="text-sm font-semibold text-white">{label}</div>
-      <div className="flex items-center justify-between text-xs">
-        <span className="text-muted-foreground">Cobros</span>
-        <span className="tabular-nums text-emerald-300">+{money(lado.cobros)}</span>
-      </div>
-      {lado.ingresosManuales > 0 && (
-        <div className="flex items-center justify-between text-xs">
-          <span className="text-muted-foreground">Ingresos manuales</span>
-          <span className="tabular-nums text-emerald-300">+{money(lado.ingresosManuales)}</span>
-        </div>
-      )}
-      {lado.gastos > 0 && (
-        <div className="flex items-center justify-between text-xs">
-          <span className="text-muted-foreground">Gastos</span>
-          <span className="tabular-nums text-rose-300">-{money(lado.gastos)}</span>
-        </div>
-      )}
-      {lado.retirosManuales > 0 && (
-        <div className="flex items-center justify-between text-xs">
-          <span className="text-muted-foreground">Retiros manuales</span>
-          <span className="tabular-nums text-rose-300">-{money(lado.retirosManuales)}</span>
-        </div>
-      )}
-      {lado.adelantos > 0 && (
-        <div className="flex items-center justify-between text-xs">
-          <span className="text-muted-foreground">Adelantos a profesionales</span>
-          <span className="tabular-nums text-rose-300">-{money(lado.adelantos)}</span>
-        </div>
-      )}
-      <div className="flex items-center justify-between border-t border-white/10 pt-1.5 text-sm">
-        <span className="font-semibold text-white">Esperado</span>
-        <span className="font-bold tabular-nums text-white">{money(lado.esperado)}</span>
-      </div>
-    </div>
-  );
-
   return (
     <div className="space-y-4">
       <div>
@@ -6536,8 +6499,8 @@ function CierreConciliacionPanel({ conciliacion }: { conciliacion: Conciliacion 
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2">
-        {ladoCard("Efectivo", conciliacion.efectivo)}
-        {ladoCard("Dinero en cuenta", conciliacion.digital)}
+        <SaldoComposicionLado label="Efectivo" lado={conciliacion.efectivo} />
+        <SaldoComposicionLado label="Dinero en cuenta" lado={conciliacion.digital} />
       </div>
 
       {conciliacion.alertas.length > 0 && (
@@ -10061,6 +10024,10 @@ function FacturacionPanel({
   };
 }) {
   const [movType, setMovType] = React.useState<"ingreso" | "retiro" | null>(null);
+  // Composición de "Efectivo del día"/"Dinero en cuenta del día" — un
+  // saldo negativo nunca queda sin explicación, un clic alcanza (ver
+  // src/components/caja/saldo-composicion.tsx).
+  const [saldoDetalle, setSaldoDetalle] = React.useState<"cash" | "digital" | null>(null);
   // "Pendientes" ya no es una pestaña propia — se expande/colapsa dentro
   // de la misma vista de Facturación (ver cobrosPendientesRef más abajo).
   const [cobrosPendientesOpen, setCobrosPendientesOpen] = React.useState(false);
@@ -10164,6 +10131,7 @@ function FacturacionPanel({
           label="Efectivo del día"
           value={summary.todayCashExpected}
           loading={summary.loading}
+          onClick={() => setSaldoDetalle("cash")}
         />
         <FacturacionStatCard
           icon={CreditCard}
@@ -10171,8 +10139,18 @@ function FacturacionPanel({
           label="Dinero en cuenta del día"
           value={summary.todayDigitalExpected}
           loading={summary.loading}
+          onClick={() => setSaldoDetalle("digital")}
         />
       </div>
+
+      {saldoDetalle && (
+        <SaldoComposicionModal
+          title={saldoDetalle === "cash" ? "Efectivo del día" : "Dinero en cuenta del día"}
+          expected={summary.todayExpectedFull}
+          side={saldoDetalle}
+          onClose={() => setSaldoDetalle(null)}
+        />
+      )}
 
       <div className="grid grid-cols-2 gap-2">
         <button

@@ -15,6 +15,7 @@ import { useFichajeHoy } from "@/components/dashboard/use-fichaje-hoy";
 import { FichajeQrModal } from "@/components/dashboard/fichaje-qr-modal";
 import { TOLERANCE_MINUTES, type FichajeHoyPersona } from "@/lib/fichaje";
 import { cajaDateKeyBA, dayBoundsBA } from "@/lib/caja-cierre";
+import { SaldoComposicionModal } from "@/components/caja/saldo-composicion";
 import {
   TrendingUp,
   TrendingDown,
@@ -209,20 +210,36 @@ function MiniStat({
   icon: Icon,
   label,
   value,
+  onClick,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   label: string;
   value: string;
+  // Composición del saldo (ver saldo-composicion.tsx) — sin esto, se
+  // comporta exactamente igual que antes (una tarjeta no interactiva).
+  onClick?: () => void;
 }) {
-  return (
-    <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/8 px-3 py-2.5">
+  const content = (
+    <>
       <div className="flex items-center gap-1.5 text-muted-foreground">
         <Icon className="h-3.5 w-3.5 shrink-0" />
         <span className="truncate text-[11px] leading-tight">{label}</span>
       </div>
       <div className="mt-1 font-display text-lg font-semibold tracking-tight truncate">{value}</div>
-    </div>
+    </>
   );
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={onClick}
+        className="w-full rounded-xl bg-white/[0.03] px-3 py-2.5 text-left ring-1 ring-white/8 transition hover:bg-white/[0.06]"
+      >
+        {content}
+      </button>
+    );
+  }
+  return <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/8 px-3 py-2.5">{content}</div>;
 }
 
 function CajaHoyCard({
@@ -236,6 +253,10 @@ function CajaHoyCard({
 }) {
   const serviciosRealizados = data.topServices.reduce((s, item) => s + item.count, 0);
   const productosVendidos = data.topCatalog.reduce((s, cat) => s + cat.count, 0);
+  // Composición de "Efectivo del día"/"Dinero en cuenta del día" — mismo
+  // modal que Caja > Facturación, misma fuente (caja.todayExpectedFull):
+  // un saldo negativo nunca queda sin explicación acá tampoco.
+  const [saldoDetalle, setSaldoDetalle] = React.useState<"cash" | "digital" | null>(null);
 
   // Los 10 campos en `undefined` (no `null`, no omitidos): la ruta exige el
   // objeto `search` completo por tipos, pero `undefined` es la única forma
@@ -358,9 +379,28 @@ function CajaHoyCard({
           Utilidad/Servicios/Productos) y esto son siempre $0 si todavía
           no hubo actividad hoy, sin importar cuánto backlog exista. */}
       <div className="mt-2 grid grid-cols-2 gap-2">
-        <MiniStat icon={Wallet} label="Efectivo del día" value={fmtAR(caja.todayCashExpected)} />
-        <MiniStat icon={CreditCard} label="Dinero en cuenta del día" value={fmtAR(caja.todayDigitalExpected)} />
+        <MiniStat
+          icon={Wallet}
+          label="Efectivo del día"
+          value={fmtAR(caja.todayCashExpected)}
+          onClick={() => setSaldoDetalle("cash")}
+        />
+        <MiniStat
+          icon={CreditCard}
+          label="Dinero en cuenta del día"
+          value={fmtAR(caja.todayDigitalExpected)}
+          onClick={() => setSaldoDetalle("digital")}
+        />
       </div>
+
+      {saldoDetalle && (
+        <SaldoComposicionModal
+          title={saldoDetalle === "cash" ? "Efectivo del día" : "Dinero en cuenta del día"}
+          expected={caja.todayExpectedFull}
+          side={saldoDetalle}
+          onClose={() => setSaldoDetalle(null)}
+        />
+      )}
     </div>
   );
 }

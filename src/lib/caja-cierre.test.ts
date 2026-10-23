@@ -1174,3 +1174,99 @@ describe("useCashMovements — rango de fecha en huso horario de Buenos Aires ex
     expect(start.toISOString()).toBe("2026-10-23T03:00:00.000Z");
   });
 });
+
+// Auditoría "Dinero en cuenta del día" negativo sin explicación clara
+// (Inicio y Caja, 23/10/2026): un adelanto por transferencia mayor al
+// ingreso del día da un número negativo LEGÍTIMO, no un error — pero
+// antes no había forma de ver de qué se componía sin abrir "Revisar
+// cierre". computeExpectedCashAndDigital ahora expone cada término por
+// separado (cashFromPayments/cashExpenses/cashAdvancesOut/
+// cashRetirosManual/cashInflows, y el equivalente digital) para que
+// Inicio/Caja puedan mostrar la composición con un clic (ver
+// src/components/caja/saldo-composicion.tsx) — estas pruebas protegen
+// que esos términos sigan reconciliando exacto con el resultado final,
+// sin duplicar ni perder ningún movimiento.
+describe("ExpectedCashDigital — desglose por término, siempre reconciliado (sección 'composición' de Inicio/Caja)", () => {
+  it("cashFromPayments + cashInflows - cashExpenses - cashAdvancesOut - cashRetirosManual === cashExpected, siempre", () => {
+    const result = computeExpectedCashAndDigital({
+      payments: [{ total: 50000, method: "cash", tip: 2000 }],
+      expenses: [{ amount: 3000, payment_method: "efectivo" }],
+      advances: [{ amount: 10000, payment_method: "efectivo" }],
+      cashMovements: [
+        { type: "ingreso", amount: 5000, method: "efectivo" },
+        { type: "retiro", amount: 1000, method: "efectivo" },
+      ],
+    });
+    const reconstruido =
+      result.cashFromPayments + result.cashInflows - result.cashExpenses - result.cashAdvancesOut - result.cashRetirosManual;
+    expect(Math.round(reconstruido)).toBe(Math.round(result.cashExpected));
+  });
+
+  it("mismo invariante del lado digital", () => {
+    const result = computeExpectedCashAndDigital({
+      payments: [{ total: 21900, method: "transfer" }],
+      expenses: [],
+      advances: [],
+      cashMovements: [{ type: "retiro", amount: 30000, method: "cuenta" }],
+    });
+    const reconstruido =
+      result.digitalFromPayments +
+      result.digitalInflows -
+      result.digitalExpenses -
+      result.digitalAdvancesOut -
+      result.digitalRetirosManual;
+    expect(Math.round(reconstruido)).toBe(Math.round(result.digitalExpected));
+  });
+
+  it("caso real: un adelanto por transferencia mayor al ingreso del día da negativo LEGÍTIMO — nunca se cuenta dos veces", () => {
+    // Mismo caso que generó la duda del 23/10/2026: $21.900 cobrados por
+    // transferencia, $30.000 adelantados por transferencia a un
+    // profesional — el resultado tiene que ser exactamente -$8.100, y el
+    // adelanto tiene que aparecer una sola vez en digitalAdvancesOut,
+    // nunca también restado de digitalFromPayments ni de otro término.
+    const result = computeExpectedCashAndDigital({
+      payments: [{ total: 21900, method: "transfer" }],
+      expenses: [],
+      advances: [{ amount: 30000, payment_method: "transferencia" }],
+      cashMovements: [],
+    });
+    expect(result.digitalExpected).toBe(-8100);
+    expect(result.digitalFromPayments).toBe(21900);
+    expect(result.digitalAdvancesOut).toBe(30000);
+    expect(result.cashExpected).toBe(0);
+  });
+
+  it("un gasto y un adelanto del mismo monto no se confunden entre sí ni se suman al otro lado", () => {
+    const result = computeExpectedCashAndDigital({
+      payments: [],
+      expenses: [{ amount: 5000, payment_method: "efectivo" }],
+      advances: [{ amount: 5000, payment_method: "efectivo" }],
+      cashMovements: [],
+    });
+    expect(result.cashExpenses).toBe(5000);
+    expect(result.cashAdvancesOut).toBe(5000);
+    expect(result.cashExpected).toBe(-10000);
+    expect(result.digitalExpected).toBe(0);
+  });
+});
+
+// Pagar una liquidación (register_settlement_run_payment_batch) nunca
+// puede insertar en cash_movements — si lo hiciera, ese pago se
+// descontaría DOS veces del "Dinero en cuenta"/"Efectivo esperado": una
+// vez implícitamente (ya estaba descontado vía professional_advances/
+// commission_records) y otra vez como un retiro manual aparte. Test
+// estructural sobre las migraciones reales, no sobre un mock — si algún
+// día alguien agrega esa inserción, esto lo detiene en CI.
+describe("Pagar una liquidación nunca duplica el descuento vía cash_movements", () => {
+  it("ninguna migración de settlement_runs/register_settlement_run_payment inserta en cash_movements", () => {
+    const migrationsDir = path.join(repoRoot, "supabase", "migrations");
+    const settlementFiles = fs
+      .readdirSync(migrationsDir)
+      .filter((f) => /settlement_run|liquidaciones_rpc/i.test(f) && f.endsWith(".sql"));
+    expect(settlementFiles.length).toBeGreaterThan(0);
+    for (const file of settlementFiles) {
+      const sql = readSrc(`supabase/migrations/${file}`);
+      expect(sql.toLowerCase()).not.toMatch(/insert\s+into\s+public\.cash_movements/);
+    }
+  });
+});

@@ -10,6 +10,7 @@ import {
   computeExpectedCashAndDigital,
   getDigitalCarryForward,
   type PendingCierre,
+  type ExpectedCashDigital,
 } from "@/lib/caja-cierre";
 import type { Payment, Expense, HistorialEvento } from "@/components/cash-register/use-caja-data";
 import { fetchAllRows, type PageResult } from "@/lib/supabase-paginate";
@@ -89,6 +90,14 @@ export type CajaSummary = {
   // sección "Saldos acumulados"). Mismo criterio que revHoy/totalGastosHoy.
   todayCashExpected: number;
   todayDigitalExpected: number;
+  // Desglose completo de hoy (cobros/ingresos manuales/gastos/retiros/
+  // adelantos, efectivo y digital por separado) — mismos 9 campos que ya
+  // usa la Conciliación de "Revisar cierre", para que un saldo negativo en
+  // Inicio/Caja nunca quede sin explicación: "por qué da esto" es siempre
+  // un clic, nunca hay que adivinar ni auditar la base a mano. Única
+  // fuente (computeExpectedCashAndDigital), igual que todayCashExpected/
+  // todayDigitalExpected — nunca un segundo cálculo aparte.
+  todayExpectedFull: ExpectedCashDigital;
   pendingCierre: PendingCierre | null;
   // TODAS las jornadas con actividad sin cerrar (no solo la más vieja, que
   // es la única que pendingCierre reporta porque es la que define desde
@@ -524,6 +533,7 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     bankExpected,
     todayCashExpected: todayExpected.cashExpected,
     todayDigitalExpected: todayExpected.digitalExpected,
+    todayExpectedFull: todayExpected,
     pendingCierre,
     pendingCierres,
     pendingCierresLoading,
