@@ -35,13 +35,12 @@ import {
   closeSingleDayCierre,
   normalizeCierreMethodKey,
   getCajaAbiertaDesde,
-  buildCierreSnapshotForDate,
-  buildCajaMovimientosManualesForDate,
   splitServiciosYProductos,
   countServiciosYProductos,
   parseMoneyInput,
   type ExpectedCashDigital,
   type CajaMovimientoManual,
+  type Conciliacion,
 } from "@/lib/caja-cierre";
 import { useCashMovements, type CashMovement } from "@/hooks/use-cash-movements";
 import { useCajaSummary, type CajaSummary } from "@/hooks/use-caja-summary";
@@ -790,6 +789,21 @@ function CashRegisterPage() {
       // FacturacionStatCard, CierreCajaBtn) necesita cambiar.
       digitalExpected: summary.bankExpected,
       digitalOutflows: summary.digitalOutflows,
+      // Desglose detallado (Conciliación) — esta `expected` del Resumen
+      // viene de useCajaSummary, que no lo expone por separado (solo los
+      // totales de arriba). Las cards que sí lo necesitan (Conciliación
+      // dentro de "Revisar cierre") usan preview.expected directamente,
+      // que siempre viene de computeExpectedCashAndDigital con estos 9
+      // campos completos — acá quedan en 0 porque nada los lee.
+      cashFromPayments: 0,
+      cashExpenses: 0,
+      cashAdvancesOut: 0,
+      cashRetirosManual: 0,
+      digitalFromPayments: 0,
+      digitalExpenses: 0,
+      digitalAdvancesOut: 0,
+      digitalInflows: 0,
+      digitalRetirosManual: 0,
     }),
     [summary],
   );
@@ -5769,6 +5783,352 @@ function paymentMethodLabel(method: string) {
   return PAY_METHOD_LABEL[method as PayMethod] ?? method ?? "Sin método";
 }
 
+// Texto de un cobro con pago múltiple (payments.splits) — "Efectivo
+// $5.000 + Transferencia $5.000" en vez de un solo método que no refleja
+// cómo se cobró de verdad. La fila del cobro sigue siendo UNA sola (nunca
+// se duplica en la lista): esto solo cambia qué dice la línea de método.
+function metodoConSplitsLabel(metodo: string | null | undefined, splits: Array<{ method?: string | null; amount?: number | null }> | null | undefined) {
+  if (!splits || splits.length === 0) return paymentMethodLabel(metodo ?? "cash");
+  return splits
+    .filter((s) => Number(s?.amount ?? 0) > 0)
+    .map((s) => `${paymentMethodLabel(s.method ?? "cash")} $${Math.round(Number(s.amount ?? 0)).toLocaleString("es-AR")}`)
+    .join(" + ");
+}
+
+type DetalleFiltro = "todos" | "servicios" | "productos" | "gastos" | "retiros";
+
+// Listado línea por línea de servicios/productos/gastos/retiros de UN
+// día — compartido entre CierreRevisionDetalle (revisión de una jornada
+// PENDIENTE, antes de confirmar: sección 3 del pedido, "poder consultar
+// los servicios sin salir de la pantalla de cierre") y CierreDetalleView
+// (detalle de un cierre YA guardado). Mismo componente, misma fuente
+// (cobrosSnapshot/gastosSnapshot/movimientosManuales ya calculados por
+// buildSingleDayCierrePreview) — nunca una lista distinta según de dónde
+// se abra.
+function CierreMovimientosDetalleList({
+  cobros,
+  gastos,
+  movimientos,
+}: {
+  cobros: any[];
+  gastos: any[];
+  movimientos: CajaMovimientoManual[];
+}) {
+  const [filtro, setFiltro] = React.useState<DetalleFiltro>("todos");
+  const [profesionalFiltro, setProfesionalFiltro] = React.useState<string>("todos");
+
+  const retiros = movimientos.filter((m) => m.tipo === "retiro");
+  const ingresosManuales = movimientos.filter((m) => m.tipo === "ingreso");
+  const { servicios: serviciosRows, productos: productosRows } = splitServiciosYProductos(cobros);
+  const profesionales = Array.from(
+    new Set([...serviciosRows.map((p) => p.profesional), ...productosRows.map((p) => p.profesional)].filter(Boolean)),
+  ) as string[];
+  const serviciosFiltrados =
+    profesionalFiltro === "todos" ? serviciosRows : serviciosRows.filter((p) => p.profesional === profesionalFiltro);
+  const productosFiltrados =
+    profesionalFiltro === "todos" ? productosRows : productosRows.filter((p) => p.profesional === profesionalFiltro);
+  const money = (v: number) => `$${Math.round(v).toLocaleString("es-AR")}`;
+
+  const filtroChips: Array<{ key: DetalleFiltro; label: string }> = [
+    { key: "todos", label: "Todos" },
+    { key: "servicios", label: "Servicios" },
+    { key: "productos", label: "Productos" },
+    { key: "gastos", label: "Gastos" },
+    { key: "retiros", label: "Retiros" },
+  ];
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-2">
+        {filtroChips.map((f) => (
+          <button
+            key={f.key}
+            type="button"
+            onClick={() => setFiltro(f.key)}
+            className={cn(
+              "rounded-full px-3 py-1.5 text-xs font-bold ring-1 transition",
+              filtro === f.key
+                ? "bg-[linear-gradient(135deg,rgba(59,130,246,0.25),rgba(139,92,246,0.25))] text-white ring-violet-200/30"
+                : "bg-white/[0.04] text-white/60 ring-white/10 hover:bg-white/[0.07]",
+            )}
+          >
+            {f.label}
+          </button>
+        ))}
+        {profesionales.length > 0 && (
+          <select
+            value={profesionalFiltro}
+            onChange={(e) => setProfesionalFiltro(e.target.value)}
+            className="rounded-full border border-white/[0.08] bg-black/40 px-3 py-1.5 text-xs font-semibold text-white/80 outline-none"
+          >
+            <option value="todos">Todos los profesionales</option>
+            {profesionales.map((nombre) => (
+              <option key={nombre} value={nombre}>
+                {nombre}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      {(filtro === "todos" || filtro === "servicios") && (
+        <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
+          <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
+            Servicios ({serviciosFiltrados.length})
+          </div>
+          <div className="space-y-2">
+            {serviciosFiltrados.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Sin servicios cobrados.</p>
+            ) : (
+              serviciosFiltrados.map((p: any, idx: number) => {
+                const items: any[] = Array.isArray(p.items) ? p.items : [];
+                const servicioNombre =
+                  items.filter((it) => !it?.esProducto).map((it) => it.nombre).join(" + ") || p.servicio || "Servicio";
+                const descuento = Number(p.descuento ?? 0);
+                const propina = Number(p.propina ?? 0);
+                return (
+                  <div key={`${p.id ?? idx}`} className="rounded-xl bg-black/22 px-3 py-2.5 text-xs">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="truncate font-semibold text-white">{p.cliente ?? "Cliente"}</div>
+                        <div className="mt-0.5 truncate text-white/50">
+                          {p.hora ?? "—"}
+                          {p.profesional ? ` · ${p.profesional}` : ""} · {metodoConSplitsLabel(p.metodo, p.splits)}
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <div className="font-bold text-emerald-300">{money(p.monto ?? 0)}</div>
+                        {descuento > 0 && (
+                          <div className="text-[11px] text-amber-300/80">lista {money(p.precio_lista ?? 0)}</div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="mt-1.5 truncate text-white/70">{servicioNombre}</div>
+                    {(descuento > 0 || p.promocion || propina > 0 || p.usuario) && (
+                      <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-white/45">
+                        {p.promocion && <span>Promo: {p.promocion}</span>}
+                        {descuento > 0 && <span>Descuento: {money(descuento)}</span>}
+                        {propina > 0 && <span>Propina: {money(propina)}</span>}
+                        {p.usuario && <span>Cobró: {p.usuario}</span>}
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        </div>
+      )}
+
+      {(filtro === "todos" || filtro === "productos") && (
+        <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
+          <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
+            Productos ({productosFiltrados.length})
+          </div>
+          <div className="space-y-2">
+            {productosFiltrados.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Sin productos vendidos.</p>
+            ) : (
+              productosFiltrados.map((it: any) => (
+                <div key={it.key} className="rounded-xl bg-black/22 px-3 py-2 text-xs">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="truncate font-semibold text-white">
+                      {it.nombre ?? "Producto"}
+                      {it.cantidad > 1 ? ` x${it.cantidad}` : ""}
+                    </span>
+                    <span className="font-bold text-emerald-300">{money(it.monto ?? 0)}</span>
+                  </div>
+                  <div className="mt-1 truncate text-white/45">
+                    {it.hora ?? "—"} · {it.cliente ?? "Cliente"}
+                    {it.profesional ? ` · ${it.profesional}` : ""}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {(filtro === "todos" || filtro === "gastos") && (
+        <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
+          <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
+            Gastos ({gastos.length})
+          </div>
+          <div className="space-y-2">
+            {gastos.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Sin gastos.</p>
+            ) : (
+              gastos.map((g: any, idx: number) => (
+                <div key={`${g.id ?? idx}`} className="rounded-xl bg-black/22 px-3 py-2 text-xs">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="truncate font-semibold text-white">{g.nombre ?? "Gasto"}</span>
+                    <span className="font-bold text-rose-300">-{money(g.monto ?? 0)}</span>
+                  </div>
+                  <div className="mt-1 truncate text-white/45">
+                    {g.hora ?? "—"} · {paymentMethodLabel(g.metodo ?? "cash")}
+                    {g.usuario ? ` · ${g.usuario}` : ""}
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {(filtro === "todos" || filtro === "retiros") && (
+        <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
+          <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
+            Retiros e ingresos manuales ({retiros.length + ingresosManuales.length})
+          </div>
+          <div className="space-y-2">
+            {retiros.length + ingresosManuales.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Sin retiros ni ingresos manuales.</p>
+            ) : (
+              [...retiros, ...ingresosManuales]
+                .sort((a, b) => (a.hora ?? "").localeCompare(b.hora ?? ""))
+                .map((m) => (
+                  <div key={m.id} className="rounded-xl bg-black/22 px-3 py-2 text-xs">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="truncate font-semibold text-white">
+                        {m.tipo === "retiro" ? "Retiro" : "Ingreso manual"}
+                        {m.nota ? ` · ${m.nota}` : ""}
+                      </span>
+                      <span className={cn("font-bold", m.tipo === "retiro" ? "text-rose-300" : "text-emerald-300")}>
+                        {m.tipo === "retiro" ? "-" : "+"}
+                        {money(m.monto)}
+                      </span>
+                    </div>
+                    <div className="mt-1 truncate text-white/45">
+                      {m.hora ?? "—"} · {paymentMethodLabel(m.metodo === "cuenta" ? "transfer" : "cash")}
+                      {m.usuario ? ` · ${m.usuario}` : ""}
+                    </div>
+                  </div>
+                ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Conciliación de los movimientos del día: cuánto se cobró (con el
+// desglose real de pagos múltiples) y cuánto se gastó por cada medio,
+// más el desglose completo de la fórmula de "esperado" (efectivo y
+// dinero en cuenta por separado) — para poder identificar, término por
+// término, qué movimiento explica una diferencia en vez de ver solo el
+// resultado final. Alertas: ventas con pago múltiple cuyos splits no
+// suman el total cobrado (dato mal cargado, nunca corregido en
+// silencio — ver distributeCobroByMethod en caja-cierre.ts).
+function CierreConciliacionPanel({ conciliacion }: { conciliacion: Conciliacion }) {
+  // Signo ANTES del $ — lado.esperado/v.neto/a.diferencia pueden dar
+  // negativos acá (gastos/retiros superando lo cobrado por ese medio, o
+  // un reparto de pago múltiple que sumó de menos) y "$-500" se lee como
+  // un glitch en una pantalla de conciliación de plata.
+  const money = (v: number) => `${v < 0 ? "-" : ""}$${Math.round(Math.abs(v)).toLocaleString("es-AR")}`;
+  const metodoEntries = Object.entries(conciliacion.porMetodo).filter(([, v]) => v.cobrado !== 0 || v.gastos !== 0);
+
+  const ladoCard = (label: string, lado: Conciliacion["efectivo"]) => (
+    <div className="rounded-xl bg-white/[0.02] ring-1 ring-white/10 p-3.5 space-y-1.5">
+      <div className="text-sm font-semibold text-white">{label}</div>
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-muted-foreground">Cobros</span>
+        <span className="tabular-nums text-emerald-300">+{money(lado.cobros)}</span>
+      </div>
+      {lado.ingresosManuales > 0 && (
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-muted-foreground">Ingresos manuales</span>
+          <span className="tabular-nums text-emerald-300">+{money(lado.ingresosManuales)}</span>
+        </div>
+      )}
+      {lado.gastos > 0 && (
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-muted-foreground">Gastos</span>
+          <span className="tabular-nums text-rose-300">-{money(lado.gastos)}</span>
+        </div>
+      )}
+      {lado.retirosManuales > 0 && (
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-muted-foreground">Retiros manuales</span>
+          <span className="tabular-nums text-rose-300">-{money(lado.retirosManuales)}</span>
+        </div>
+      )}
+      {lado.adelantos > 0 && (
+        <div className="flex items-center justify-between text-xs">
+          <span className="text-muted-foreground">Adelantos a profesionales</span>
+          <span className="tabular-nums text-rose-300">-{money(lado.adelantos)}</span>
+        </div>
+      )}
+      <div className="flex items-center justify-between border-t border-white/10 pt-1.5 text-sm">
+        <span className="font-semibold text-white">Esperado</span>
+        <span className="font-bold tabular-nums text-white">{money(lado.esperado)}</span>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <div className="text-sm font-semibold text-white">Conciliación por medio de pago</div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Lo cobrado (venta + propina, con el reparto real de los pagos múltiples) menos los gastos pagados por ese
+          mismo medio. Tiene que coincidir con el resumen de caja de arriba — sale de los mismos números.
+        </p>
+        <div className="mt-2 rounded-xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden">
+          {metodoEntries.length === 0 ? (
+            <div className="px-4 py-3 text-xs text-muted-foreground">Sin movimientos este día.</div>
+          ) : (
+            metodoEntries.map(([key, v]) => (
+              <div
+                key={key}
+                className="flex items-center justify-between gap-3 px-4 py-2 border-b border-white/5 last:border-0 text-xs"
+              >
+                <span className="text-muted-foreground">{paymentMethodLabel(key)}</span>
+                <span className="flex items-center gap-3 tabular-nums">
+                  <span className="text-emerald-300">{money(v.cobrado)}</span>
+                  {v.gastos > 0 && <span className="text-rose-300">-{money(v.gastos)}</span>}
+                  <span className="font-bold text-white">{money(v.neto)}</span>
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        {ladoCard("Efectivo", conciliacion.efectivo)}
+        {ladoCard("Dinero en cuenta", conciliacion.digital)}
+      </div>
+
+      {conciliacion.alertas.length > 0 && (
+        <div className="rounded-xl border border-amber-400/25 bg-amber-400/[0.07] p-3.5 text-xs text-amber-200">
+          <div className="font-semibold">
+            {conciliacion.alertas.length} venta{conciliacion.alertas.length === 1 ? "" : "s"} con pago múltiple que
+            no concilia
+          </div>
+          <p className="mt-1 text-amber-200/80">
+            El reparto cargado para esa venta no suma el total cobrado — mirá el detalle de Servicios arriba para
+            corregirlo si hace falta.
+          </p>
+          <div className="mt-2 space-y-1.5">
+            {conciliacion.alertas.map((a, i) => (
+              <div key={a.paymentId ?? i} className="flex items-center justify-between gap-2">
+                <span>
+                  {a.hora ?? "—"} · {a.cliente ?? "Cliente"}
+                </span>
+                <span className="tabular-nums">
+                  vendido {money(a.monto)} · repartido {money(a.splitsSum)} ({a.diferencia > 0 ? "+" : ""}
+                  {money(a.diferencia)})
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Detalle completo de "Revisar cierre" — compartido entre CierreCajaBtn (la
 // jornada en curso) y CerrarDiaAnteriorCard (una jornada pendiente de
 // revisión): mismo desglose exacto, sin importar qué fecha se esté
@@ -5796,21 +6156,17 @@ function CierreRevisionDetalle({
   observacion: string;
   onObservacionChange: (v: string) => void;
 }) {
-  const { snapshot, expected, manualMovements } = preview;
+  const { snapshot, expected, manualMovements, movimientosManuales, conciliacion } = preview;
   const { servicios, productos } = countServiciosYProductos(snapshot.cobrosSnapshot);
+  const [showDetalle, setShowDetalle] = React.useState(false);
+  const [showConciliacion, setShowConciliacion] = React.useState(false);
 
-  // Desglose SOLO de lo cobrado (sin propina, eso es su propia línea), por
-  // cada método activo — a diferencia de detalle_metodos_pago (que agrupa
-  // débito/crédito/tarjeta bajo una sola clave "card"), acá cada método
-  // activo necesita su propia fila.
-  const cobradoPorMetodo = React.useMemo(() => {
-    const byMethod: Record<string, number> = {};
-    for (const c of snapshot.cobrosSnapshot) {
-      const raw = String(c.metodo ?? "").trim().toLowerCase();
-      byMethod[raw] = (byMethod[raw] ?? 0) + Number(c.monto ?? 0);
-    }
-    return byMethod;
-  }, [snapshot.cobrosSnapshot]);
+  // Cobrado por método, sin propina (detalleMetodos) — ya repartido real
+  // entre medios cuando una venta se pagó con pago múltiple (ver
+  // distributeCobroByMethod en caja-cierre.ts), nunca una venta entera
+  // atribuida a un solo método porque sea el que quedó seteado en el
+  // selector "simple" del carrito.
+  const cobradoPorMetodo = snapshot.detalleMetodos;
 
   const efectivoContadoNum = parseMoneyInput(efectivoContado);
   const diferencia = efectivoContadoNum - expected.cashExpected;
@@ -5835,7 +6191,7 @@ function CierreRevisionDetalle({
             >
               <span className="text-muted-foreground">{m.label}</span>
               <span className="font-semibold tabular-nums">
-                ${Math.round(cobradoPorMetodo[m.id] ?? 0).toLocaleString("es-AR")}
+                ${Math.round(cobradoPorMetodo[m.id]?.ingresos ?? 0).toLocaleString("es-AR")}
               </span>
             </div>
           ))}
@@ -5848,6 +6204,57 @@ function CierreRevisionDetalle({
         <span className="text-sm font-semibold tabular-nums">
           {servicios} servicio{servicios === 1 ? "" : "s"} · {productos} producto{productos === 1 ? "" : "s"}
         </span>
+      </div>
+
+      {/* Ver detalle de servicios/productos/gastos/retiros SIN salir de
+          esta pantalla de revisión — antes solo mostraba el conteo de
+          arriba, para ver el detalle línea por línea había que esperar a
+          confirmar el cierre y volver a entrar desde Historial. */}
+      <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setShowDetalle((v) => !v)}
+          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-white/85 transition hover:bg-white/[0.04]"
+        >
+          <span>Ver detalle de servicios, gastos y retiros</span>
+          <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", showDetalle && "rotate-180")} />
+        </button>
+        {showDetalle && (
+          <div className="border-t border-white/10 p-4">
+            <CierreMovimientosDetalleList
+              cobros={snapshot.cobrosSnapshot}
+              gastos={snapshot.gastosSnapshot}
+              movimientos={movimientosManuales}
+            />
+          </div>
+        )}
+      </div>
+
+      {/* Conciliación — por medio de pago + desglose de la fórmula de
+          efectivo/cuenta esperados + alertas de pagos múltiples que no
+          cierran, para poder identificar qué movimiento explica una
+          diferencia antes de confirmar. */}
+      <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden">
+        <button
+          type="button"
+          onClick={() => setShowConciliacion((v) => !v)}
+          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-white/85 transition hover:bg-white/[0.04]"
+        >
+          <span className="flex items-center gap-2">
+            Conciliación
+            {conciliacion.alertas.length > 0 && (
+              <span className="rounded-full bg-amber-400/15 px-2 py-0.5 text-[10px] font-bold text-amber-300 ring-1 ring-amber-400/30">
+                {conciliacion.alertas.length} alerta{conciliacion.alertas.length === 1 ? "" : "s"}
+              </span>
+            )}
+          </span>
+          <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", showConciliacion && "rotate-180")} />
+        </button>
+        {showConciliacion && (
+          <div className="border-t border-white/10 p-4">
+            <CierreConciliacionPanel conciliacion={conciliacion} />
+          </div>
+        )}
       </div>
 
       {/* Propinas — del profesional, nunca de la facturación, pero sí
@@ -6548,14 +6955,12 @@ function CerrarDiaAnteriorCard({
 }
 
 // Detalle de un cierre — siempre se reconstruye EN VIVO desde payments/
-// expenses/cash_movements (vía buildCierreSnapshotForDate +
-// buildCajaMovimientosManualesForDate), nunca desde el cobros_snapshot/
-// gastos_snapshot guardado: así cualquier cierre (viejo o nuevo) muestra
-// el mismo nivel de detalle real, y si algo cambió después del cierre
-// (un pago editado, por ejemplo) se nota como advertencia en vez de
-// mostrarse calladamente distinto del total oficial guardado.
-type DetalleFiltro = "todos" | "servicios" | "productos" | "gastos" | "retiros";
-
+// expenses/cash_movements (vía buildSingleDayCierrePreview), nunca desde
+// el cobros_snapshot/gastos_snapshot guardado: así cualquier cierre
+// (viejo o nuevo) muestra el mismo nivel de detalle real, y si algo
+// cambió después del cierre (un pago editado, por ejemplo) se nota como
+// advertencia en vez de mostrarse calladamente distinto del total
+// oficial guardado.
 function CierreDetalleView({
   cierre,
   businessId,
@@ -6584,10 +6989,7 @@ function CierreDetalleView({
   reabriendo: boolean;
 }) {
   const [loading, setLoading] = useState(true);
-  const [snapshot, setSnapshot] = useState<any | null>(null);
-  const [movimientos, setMovimientos] = useState<CajaMovimientoManual[]>([]);
-  const [filtro, setFiltro] = useState<DetalleFiltro>("todos");
-  const [profesionalFiltro, setProfesionalFiltro] = useState<string>("todos");
+  const [preview, setPreview] = useState<Awaited<ReturnType<typeof buildSingleDayCierrePreview>> | null>(null);
 
   const fecha = cierre?.fecha ?? null;
 
@@ -6598,16 +7000,10 @@ function CierreDetalleView({
     }
     let cancelled = false;
     setLoading(true);
-    setFiltro("todos");
-    setProfesionalFiltro("todos");
-    Promise.all([
-      buildCierreSnapshotForDate(businessId, fecha, branchId),
-      buildCajaMovimientosManualesForDate(businessId, branchId, fecha),
-    ])
-      .then(([snap, movs]) => {
+    buildSingleDayCierrePreview(businessId, branchId, fecha)
+      .then((result) => {
         if (cancelled) return;
-        setSnapshot(snap);
-        setMovimientos(movs);
+        setPreview(result);
         setLoading(false);
       })
       .catch(() => {
@@ -6618,21 +7014,12 @@ function CierreDetalleView({
     };
   }, [businessId, branchId, fecha]);
 
+  const snapshot = preview?.snapshot ?? null;
+  const movimientos = preview?.movimientosManuales ?? [];
   const cobros = (snapshot?.cobrosSnapshot ?? []) as any[];
   const gastos = (snapshot?.gastosSnapshot ?? []) as any[];
   const retiros = movimientos.filter((m) => m.tipo === "retiro");
   const ingresosManuales = movimientos.filter((m) => m.tipo === "ingreso");
-
-  const { servicios: serviciosRows, productos: productosRows } = splitServiciosYProductos(cobros);
-
-  const profesionales = Array.from(
-    new Set([...serviciosRows.map((p) => p.profesional), ...productosRows.map((p) => p.profesional)].filter(Boolean)),
-  ) as string[];
-
-  const serviciosFiltrados =
-    profesionalFiltro === "todos" ? serviciosRows : serviciosRows.filter((p) => p.profesional === profesionalFiltro);
-  const productosFiltrados =
-    profesionalFiltro === "todos" ? productosRows : productosRows.filter((p) => p.profesional === profesionalFiltro);
 
   // detalleMetodosRecibido (a diferencia de detalleMetodos) suma cobro +
   // propina por método — "Efectivo"/"Transferencias"/etc tienen que
@@ -6691,14 +7078,6 @@ function CierreDetalleView({
     { l: "Propinas recibidas", v: money(totalPropinas), cls: "text-amber-300" },
     { l: "Total de dinero recibido", v: money(totalRecibido), cls: "text-emerald-300" },
     { l: "Dinero recibido en cuenta", v: money(dineroEnCuentaRecibido), cls: "text-white" },
-  ];
-
-  const filtroChips: Array<{ key: DetalleFiltro; label: string }> = [
-    { key: "todos", label: "Todos" },
-    { key: "servicios", label: "Servicios" },
-    { key: "productos", label: "Productos" },
-    { key: "gastos", label: "Gastos" },
-    { key: "retiros", label: "Retiros" },
   ];
 
   return (
@@ -6772,175 +7151,17 @@ function CierreDetalleView({
             )}
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center gap-2">
-            {filtroChips.map((f) => (
-              <button
-                key={f.key}
-                type="button"
-                onClick={() => setFiltro(f.key)}
-                className={cn(
-                  "rounded-full px-3 py-1.5 text-xs font-bold ring-1 transition",
-                  filtro === f.key
-                    ? "bg-[linear-gradient(135deg,rgba(59,130,246,0.25),rgba(139,92,246,0.25))] text-white ring-violet-200/30"
-                    : "bg-white/[0.04] text-white/60 ring-white/10 hover:bg-white/[0.07]",
-                )}
-              >
-                {f.label}
-              </button>
-            ))}
-            {profesionales.length > 0 && (
-              <select
-                value={profesionalFiltro}
-                onChange={(e) => setProfesionalFiltro(e.target.value)}
-                className="rounded-full border border-white/[0.08] bg-black/40 px-3 py-1.5 text-xs font-semibold text-white/80 outline-none"
-              >
-                <option value="todos">Todos los profesionales</option>
-                {profesionales.map((nombre) => (
-                  <option key={nombre} value={nombre}>
-                    {nombre}
-                  </option>
-                ))}
-              </select>
-            )}
+          {preview?.conciliacion && (
+            <div className="mt-5">
+              <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">Conciliación</div>
+              <CierreConciliacionPanel conciliacion={preview.conciliacion} />
+            </div>
+          )}
+
+          <div className="mt-5">
+            <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">Movimientos del día</div>
+            <CierreMovimientosDetalleList cobros={cobros} gastos={gastos} movimientos={movimientos} />
           </div>
-
-          {(filtro === "todos" || filtro === "servicios") && (
-            <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
-              <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
-                Servicios ({serviciosFiltrados.length})
-              </div>
-              <div className="space-y-2">
-                {serviciosFiltrados.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Sin servicios cobrados.</p>
-                ) : (
-                  serviciosFiltrados.map((p: any, idx: number) => {
-                    const items: any[] = Array.isArray(p.items) ? p.items : [];
-                    const servicioNombre =
-                      items.filter((it) => !it?.esProducto).map((it) => it.nombre).join(" + ") || p.servicio || "Servicio";
-                    const descuento = Number(p.descuento ?? 0);
-                    const propina = Number(p.propina ?? 0);
-                    return (
-                      <div key={`${p.id ?? idx}`} className="rounded-xl bg-black/22 px-3 py-2.5 text-xs">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <div className="truncate font-semibold text-white">{p.cliente ?? "Cliente"}</div>
-                            <div className="mt-0.5 truncate text-white/50">
-                              {p.hora ?? "—"}
-                              {p.profesional ? ` · ${p.profesional}` : ""} · {paymentMethodLabel(p.metodo ?? "cash")}
-                            </div>
-                          </div>
-                          <div className="shrink-0 text-right">
-                            <div className="font-bold text-emerald-300">{money(p.monto ?? 0)}</div>
-                            {descuento > 0 && (
-                              <div className="text-[11px] text-amber-300/80">lista {money(p.precio_lista ?? 0)}</div>
-                            )}
-                          </div>
-                        </div>
-                        <div className="mt-1.5 truncate text-white/70">{servicioNombre}</div>
-                        {(descuento > 0 || p.promocion || propina > 0 || p.usuario) && (
-                          <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-white/45">
-                            {p.promocion && <span>Promo: {p.promocion}</span>}
-                            {descuento > 0 && <span>Descuento: {money(descuento)}</span>}
-                            {propina > 0 && <span>Propina: {money(propina)}</span>}
-                            {p.usuario && <span>Cobró: {p.usuario}</span>}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          )}
-
-          {(filtro === "todos" || filtro === "productos") && (
-            <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
-              <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
-                Productos ({productosFiltrados.length})
-              </div>
-              <div className="space-y-2">
-                {productosFiltrados.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Sin productos vendidos.</p>
-                ) : (
-                  productosFiltrados.map((it: any) => (
-                    <div key={it.key} className="rounded-xl bg-black/22 px-3 py-2 text-xs">
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="truncate font-semibold text-white">
-                          {it.nombre ?? "Producto"}
-                          {it.cantidad > 1 ? ` x${it.cantidad}` : ""}
-                        </span>
-                        <span className="font-bold text-emerald-300">{money(it.monto ?? 0)}</span>
-                      </div>
-                      <div className="mt-1 truncate text-white/45">
-                        {it.hora ?? "—"} · {it.cliente ?? "Cliente"}
-                        {it.profesional ? ` · ${it.profesional}` : ""}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
-
-          {(filtro === "todos" || filtro === "gastos") && (
-            <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
-              <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
-                Gastos ({gastos.length})
-              </div>
-              <div className="space-y-2">
-                {gastos.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Sin gastos.</p>
-                ) : (
-                  gastos.map((g: any, idx: number) => (
-                    <div key={`${g.id ?? idx}`} className="rounded-xl bg-black/22 px-3 py-2 text-xs">
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="truncate font-semibold text-white">{g.nombre ?? "Gasto"}</span>
-                        <span className="font-bold text-rose-300">-{money(g.monto ?? 0)}</span>
-                      </div>
-                      <div className="mt-1 truncate text-white/45">
-                        {g.hora ?? "—"} · {paymentMethodLabel(g.metodo ?? "cash")}
-                        {g.usuario ? ` · ${g.usuario}` : ""}
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
-
-          {(filtro === "todos" || filtro === "retiros") && (
-            <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
-              <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
-                Retiros e ingresos manuales ({retiros.length + ingresosManuales.length})
-              </div>
-              <div className="space-y-2">
-                {retiros.length + ingresosManuales.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Sin retiros ni ingresos manuales.</p>
-                ) : (
-                  [...retiros, ...ingresosManuales]
-                    .sort((a, b) => (a.hora ?? "").localeCompare(b.hora ?? ""))
-                    .map((m) => (
-                      <div key={m.id} className="rounded-xl bg-black/22 px-3 py-2 text-xs">
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="truncate font-semibold text-white">
-                            {m.tipo === "retiro" ? "Retiro" : "Ingreso manual"}
-                            {m.nota ? ` · ${m.nota}` : ""}
-                          </span>
-                          <span className={cn("font-bold", m.tipo === "retiro" ? "text-rose-300" : "text-emerald-300")}>
-                            {m.tipo === "retiro" ? "-" : "+"}
-                            {money(m.monto)}
-                          </span>
-                        </div>
-                        <div className="mt-1 truncate text-white/45">
-                          {m.hora ?? "—"} · {paymentMethodLabel(m.metodo === "cuenta" ? "transfer" : "cash")}
-                          {m.usuario ? ` · ${m.usuario}` : ""}
-                        </div>
-                      </div>
-                    ))
-                )}
-              </div>
-            </div>
-          )}
         </>
       )}
 

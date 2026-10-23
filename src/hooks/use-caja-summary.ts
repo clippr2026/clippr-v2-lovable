@@ -225,7 +225,7 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     let payQuery = supabase
       .from("payments")
       .select(
-        "id,business_id,total,amount,method,payment_method,client_name,service_name,created_at,employee_id,appointment_id,charged_by,charge_type,status,charged_at,observations,discount,original_amount,tip_amount,items,receipt_path",
+        "id,business_id,total,amount,method,payment_method,splits,client_name,service_name,created_at,employee_id,appointment_id,charged_by,charge_type,status,charged_at,observations,discount,original_amount,tip_amount,items,receipt_path",
       )
       .eq("business_id", businessId)
       .gte("created_at", dayStart.toISOString())

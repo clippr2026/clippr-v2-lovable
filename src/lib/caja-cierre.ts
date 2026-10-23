@@ -276,6 +276,50 @@ export function normalizeCierreMethodKey(method: string | null | undefined): str
   return raw;
 }
 
+export type PaymentSplitRaw = { method?: string | null; amount?: number | null };
+
+export type MethodAmount = { monto: number; propina: number };
+
+// Distribuye UN cobro entre los medios de pago que realmente lo
+// cobraron — nunca lo atribuye entero a un solo método si el cliente pagó
+// con varios (payments.splits). La propina (sin medio propio en payments)
+// se reparte en la MISMA proporción que el monto entre esos medios, así
+// la suma de todas las fracciones devueltas da exactamente
+// monto + propina, siempre — ninguna rama de este cálculo puede duplicar
+// ni perder el importe de la venta.
+//
+// Si splits no suma lo mismo que `monto` (dato mal cargado — ej. un
+// pago múltiple cuyos montos no cerraban), se reparte igual en esa misma
+// proporción (splitsSum sigue siendo la base), nunca se "corrige" el
+// total: la diferencia real queda disponible aparte (ver
+// buildConciliacionAlertas) para que se pueda identificar qué venta la
+// generó en vez de taparla en silencio.
+export function distributeCobroByMethod(
+  monto: number,
+  propina: number,
+  method: string | null | undefined,
+  splits: PaymentSplitRaw[] | null | undefined,
+): Record<string, MethodAmount> {
+  const result: Record<string, MethodAmount> = {};
+  const add = (rawMethod: string | null | undefined, m: number, p: number) => {
+    const key = normalizeCierreMethodKey(rawMethod);
+    if (!result[key]) result[key] = { monto: 0, propina: 0 };
+    result[key].monto += m;
+    result[key].propina += p;
+  };
+  const validSplits = (splits ?? []).filter((s) => Number(s?.amount ?? 0) > 0);
+  const splitsSum = validSplits.reduce((s, x) => s + Number(x.amount ?? 0), 0);
+  if (validSplits.length > 0 && splitsSum > 0) {
+    for (const s of validSplits) {
+      const frac = Number(s.amount ?? 0) / splitsSum;
+      add(s.method, monto * frac, propina * frac);
+    }
+  } else {
+    add(method, monto, propina);
+  }
+  return result;
+}
+
 export type PendingCierre = { date: string; cierreId: string | null };
 
 // Período de caja vigente: desde cuándo hay que contar payments/
@@ -530,9 +574,19 @@ export async function buildCierreSnapshotForDate(
   dateStr: string,
   branchId?: string | null,
 ) {
-  const dayStart = new Date(`${dateStr}T00:00:00`);
-  const dayEnd = new Date(`${dateStr}T23:59:59.999`);
-  const endDateStr = cajaDateKey(dayEnd);
+  // Límites del día SIEMPRE en huso horario de Buenos Aires, explícito —
+  // nunca el huso local del dispositivo/proceso que ejecuta esto (mismo
+  // criterio que dayBoundsBA/filterToDayBA en el resto de este archivo).
+  // Antes usaba `new Date(dateStr+"T00:00:00")`, que interpreta en el
+  // huso LOCAL: en un navegador configurado fuera de Argentina (o en
+  // cualquier ejecución server-side) corría el riesgo real de mezclar
+  // movimientos de la jornada siguiente/anterior.
+  const { start: dayStart, end: dayEnd } = dayBoundsBA(dateStr);
+  // buildCierreSnapshotForDate siempre se llama con UN solo día calendario
+  // (ver comentario de CierreCajaBtn: "SIEMPRE cierra exactamente ese
+  // único día... nunca se extiende a ningún otro día") — endDateStr es
+  // literalmente dateStr, nunca hace falta derivarlo de dayEnd.
+  const endDateStr = dateStr;
 
   // branch_id = null nunca se excluye (.or en vez de .eq) — mismo criterio
   // que use-caja-data.ts: un cobro/gasto real con branch_id null (fila
@@ -543,7 +597,7 @@ export async function buildCierreSnapshotForDate(
   let payQuery = supabase
     .from("payments")
     .select(
-      "id,total,amount,method,payment_method,client_name,service_name,created_at,employee_id,charged_by,charge_type,items,original_amount,discount,discount_type,discount_value,promotion_name,tip,tip_amount,status",
+      "id,total,amount,method,payment_method,splits,client_name,service_name,created_at,employee_id,charged_by,charge_type,items,original_amount,discount,discount_type,discount_value,promotion_name,tip,tip_amount,status",
     )
     .eq("business_id", businessId)
     .gte("created_at", dayStart.toISOString())
@@ -631,13 +685,55 @@ export async function buildCierreSnapshotForDate(
     if (!detalleMetodosRecibido[key]) detalleMetodosRecibido[key] = { ingresos: 0, gastos: 0, utilidad: 0 };
     return detalleMetodosRecibido[key];
   };
+  // conciliacionAlertas: ventas cuyo splits no suma lo mismo que `monto` —
+  // dato mal cargado, nunca "corregido" en silencio (ver
+  // distributeCobroByMethod). Se juntan acá para que buildSingleDayCierrePreview
+  // las exponga tal cual en la conciliación.
+  const conciliacionAlertas: Array<{
+    paymentId: string | null;
+    cliente: string | null;
+    hora: string | null;
+    monto: number;
+    splitsSum: number;
+    diferencia: number;
+  }> = [];
   for (const p of payments) {
     const monto = Number(p.total ?? p.amount ?? 0);
     const propina = Number(p.tip_amount ?? p.tip ?? 0);
-    ensure(p.method ?? p.payment_method).ingresos += monto;
-    // La propina usa el MISMO método que el cobro — payments no guarda un
-    // medio separado para ella, y es el medio por el que realmente entró.
-    ensureRecibido(p.method ?? p.payment_method).ingresos += monto + propina;
+    const rawSplits = Array.isArray((p as any).splits) ? ((p as any).splits as PaymentSplitRaw[]) : null;
+    const dist = distributeCobroByMethod(monto, propina, p.method ?? p.payment_method, rawSplits);
+    for (const [key, amt] of Object.entries(dist)) {
+      if (!detalleMetodos[key]) detalleMetodos[key] = { ingresos: 0, gastos: 0, utilidad: 0 };
+      if (!detalleMetodosRecibido[key]) detalleMetodosRecibido[key] = { ingresos: 0, gastos: 0, utilidad: 0 };
+      detalleMetodos[key].ingresos += amt.monto;
+      // La propina usa el MISMO reparto que el cobro — payments no guarda
+      // un medio separado para ella, y es el medio por el que realmente
+      // entró (ver distributeCobroByMethod).
+      detalleMetodosRecibido[key].ingresos += amt.monto + amt.propina;
+    }
+    if (rawSplits && rawSplits.length > 0) {
+      // Misma base que distributeCobroByMethod (solo splits positivos,
+      // nunca negativos/cero) — y `|| 0` en vez de `?? 0` para que un
+      // monto corrupto (no numérico, ej. jsonb mal cargado) nunca
+      // contamine la suma con NaN: `Math.abs(NaN - x) >= 1` da false
+      // siempre, lo que apagaría la alerta justo en el peor caso (el dato
+      // más roto, el que más necesita quedar señalado).
+      const splitsSum = rawSplits
+        .filter((x) => (Number(x?.amount ?? 0) || 0) > 0)
+        .reduce((s, x) => s + (Number(x?.amount ?? 0) || 0), 0);
+      if (Math.abs(splitsSum - monto) >= 1) {
+        conciliacionAlertas.push({
+          paymentId: p.id ?? null,
+          cliente: p.client_name ?? null,
+          hora: p.created_at
+            ? new Date(p.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
+            : null,
+          monto,
+          splitsSum,
+          diferencia: splitsSum - monto,
+        });
+      }
+    }
   }
   for (const e of expenses) {
     ensure(e.payment_method ?? e.method).gastos += Number(e.amount ?? 0);
@@ -684,6 +780,11 @@ export async function buildCierreSnapshotForDate(
       promocion: p.promotion_name ?? null,
       propina: Number(p.tip_amount ?? p.tip ?? 0),
       usuario: resolveUsuario(p.charged_by),
+      // Desglose real de pago múltiple (payments.splits) — null/[] = pagó
+      // con un solo medio (metodo de arriba alcanza). Con splits, la fila
+      // sigue siendo UNA sola venta (nunca se duplica en la lista), pero
+      // el detalle puede mostrar "Efectivo $X + Transferencia $Y".
+      splits: Array.isArray((p as any).splits) && (p as any).splits.length > 0 ? (p as any).splits : null,
     };
   });
 
@@ -755,6 +856,7 @@ export async function buildCierreSnapshotForDate(
     pendientesCount: pendientesDetalle.length,
     pendientesMonto,
     pendientesDetalle,
+    conciliacionAlertas,
   };
 }
 
@@ -769,6 +871,20 @@ export type ExpectedCashDigital = {
   cashInflows: number;
   digitalExpected: number;
   digitalOutflows: number;
+  // Desglose de CADA término de la fórmula (cobros/gastos/adelantos/
+  // retiros manuales, por separado) — la Conciliación los muestra uno por
+  // uno para poder identificar cuál explica una diferencia, en vez de
+  // solo el resultado final (cashExpected/digitalExpected ya los suman,
+  // se mantienen para no romper a quien ya los usa).
+  cashFromPayments: number;
+  cashExpenses: number;
+  cashAdvancesOut: number;
+  cashRetirosManual: number;
+  digitalFromPayments: number;
+  digitalExpenses: number;
+  digitalAdvancesOut: number;
+  digitalInflows: number;
+  digitalRetirosManual: number;
 };
 
 // "Efectivo esperado en caja" / "Dinero esperado en cuenta" — una sola
@@ -795,6 +911,11 @@ export function computeExpectedCashAndDigital(params: {
     // "sobrante" ficticio al hacer el recuento físico.
     tip?: number | null;
     tip_amount?: number | null;
+    // Pago múltiple (payments.splits) — cuando está presente, el cobro se
+    // reparte proporcionalmente entre cada medio real (ver
+    // distributeCobroByMethod) en vez de caer entero en `method`, que en
+    // un pago múltiple puede no reflejar ningún medio real usado.
+    splits?: PaymentSplitRaw[] | null;
   }>;
   expenses: Array<{ amount?: number | null; payment_method?: string | null; method?: string | null }>;
   advances: Array<{ amount?: number | null; payment_method?: string | null }>;
@@ -806,17 +927,22 @@ export function computeExpectedCashAndDigital(params: {
   const { payments, expenses, advances, cashMovements } = params;
   const isCash = (m: string | null | undefined) => normalizeCierreMethodKey(m) === "cash";
   const isCashMovement = (m: { method?: string | null }) => !m.method || isCash(m.method);
-  // Cobro + propina, nunca por separado — así ningún llamador puede sumar
-  // una sin la otra ni duplicarla contándola dos veces en el mismo total.
-  const receivedAmount = (p: { total?: number | null; amount?: number | null; tip?: number | null; tip_amount?: number | null }) =>
-    Number(p.total ?? p.amount ?? 0) + Number(p.tip_amount ?? p.tip ?? 0);
 
-  const cashPayments = payments
-    .filter((p) => isCash(p.method ?? p.payment_method))
-    .reduce((s, p) => s + receivedAmount(p), 0);
-  const digitalPayments = payments
-    .filter((p) => !isCash(p.method ?? p.payment_method))
-    .reduce((s, p) => s + receivedAmount(p), 0);
+  // Efectivo vs digital por pago, repartido con la MISMA lógica que el
+  // desglose por método (distributeCobroByMethod) — un pago múltiple
+  // nunca cae entero de un lado solo porque `method` diga una cosa
+  // distinta de sus splits reales.
+  let cashPayments = 0;
+  let digitalPayments = 0;
+  for (const p of payments) {
+    const monto = Number(p.total ?? p.amount ?? 0);
+    const propina = Number(p.tip_amount ?? p.tip ?? 0);
+    const dist = distributeCobroByMethod(monto, propina, p.method ?? p.payment_method, p.splits);
+    for (const [key, amt] of Object.entries(dist)) {
+      if (key === "cash") cashPayments += amt.monto + amt.propina;
+      else digitalPayments += amt.monto + amt.propina;
+    }
+  }
 
   const cashExpenses = expenses
     .filter((e) => isCash(e.payment_method ?? e.method))
@@ -854,6 +980,85 @@ export function computeExpectedCashAndDigital(params: {
     cashInflows: ingresosCajaEfectivo,
     digitalExpected: digitalPayments + ingresosCajaDigital - digitalOutflows,
     digitalOutflows,
+    cashFromPayments: cashPayments,
+    cashExpenses,
+    cashAdvancesOut: cashAdvances,
+    cashRetirosManual: retirosCajaEfectivo,
+    digitalFromPayments: digitalPayments,
+    digitalExpenses,
+    digitalAdvancesOut: digitalAdvances,
+    digitalInflows: ingresosCajaDigital,
+    digitalRetirosManual: retirosCajaDigital,
+  };
+}
+
+export type ConciliacionAlerta = {
+  paymentId: string | null;
+  cliente: string | null;
+  hora: string | null;
+  monto: number;
+  splitsSum: number;
+  diferencia: number;
+};
+
+export type ConciliacionLado = {
+  cobros: number;
+  ingresosManuales: number;
+  gastos: number;
+  retirosManuales: number;
+  adelantos: number;
+  esperado: number;
+};
+
+export type Conciliacion = {
+  // Por cada medio de pago activo: lo cobrado (venta + propina, ya
+  // repartido real entre medios si hubo pago múltiple) menos los gastos
+  // pagados por ese mismo medio — tiene que coincidir con el "Resumen de
+  // caja" por medio de pago, porque sale de la MISMA fuente
+  // (detalleMetodosRecibido), nunca de un cálculo aparte.
+  porMetodo: Record<string, { cobrado: number; gastos: number; neto: number }>;
+  // Cada término de la fórmula de "esperado", efectivo y digital por
+  // separado — para poder señalar cuál explica una diferencia (ej. un
+  // retiro manual más grande de lo esperado) en vez de solo ver el total.
+  efectivo: ConciliacionLado;
+  digital: ConciliacionLado;
+  // Ventas con pago múltiple cuyos splits no suman el total cobrado —
+  // dato mal cargado, identificado explícitamente (nunca corregido en
+  // silencio, ver distributeCobroByMethod).
+  alertas: ConciliacionAlerta[];
+};
+
+// Arma la Conciliación a partir de piezas YA calculadas (snapshot +
+// expected + manualMovements) — nunca vuelve a sumar nada por su cuenta,
+// para que un desacuerdo entre "Resumen de caja" y "Conciliación" sea
+// literalmente imposible (misma fuente, dos presentaciones).
+export function buildConciliacion(
+  detalleMetodosRecibido: Record<string, CierreMetodoDetalle>,
+  expected: ExpectedCashDigital,
+  manualMovements: { ingresosEfectivo: number; retirosEfectivo: number; ingresosDigital: number; retirosDigital: number },
+  conciliacionAlertas: ConciliacionAlerta[],
+): Conciliacion {
+  const porMetodo: Conciliacion["porMetodo"] = {};
+  for (const [key, v] of Object.entries(detalleMetodosRecibido)) {
+    porMetodo[key] = { cobrado: v.ingresos, gastos: v.gastos, neto: v.ingresos - v.gastos };
+  }
+  // Un solo armador para efectivo/digital — evita mantener dos bloques
+  // calcados a mano (ver cashFromPayments/digitalFromPayments etc. en
+  // ExpectedCashDigital) que podrían desviarse si mañana se agrega un
+  // término nuevo a la fórmula de un solo lado y no del otro.
+  const buildLado = (prefix: "cash" | "digital", ingresosManuales: number, retirosManuales: number): ConciliacionLado => ({
+    cobros: expected[`${prefix}FromPayments`],
+    ingresosManuales,
+    gastos: expected[`${prefix}Expenses`],
+    retirosManuales,
+    adelantos: expected[`${prefix}AdvancesOut`],
+    esperado: expected[`${prefix}Expected`],
+  });
+  return {
+    porMetodo,
+    efectivo: buildLado("cash", manualMovements.ingresosEfectivo, manualMovements.retirosEfectivo),
+    digital: buildLado("digital", manualMovements.ingresosDigital, manualMovements.retirosDigital),
+    alertas: conciliacionAlertas,
   };
 }
 
@@ -976,15 +1181,13 @@ export async function buildSingleDayCierrePreview(
   branchId: string | null,
   dateStr: string,
 ) {
-  const snapshot = await buildCierreSnapshotForDate(businessId, dateStr, branchId);
-  const dayStart = new Date(`${dateStr}T00:00:00`);
-  const dayEnd = new Date(`${dateStr}T23:59:59.999`);
+  const { start: dayStart, end: dayEnd } = dayBoundsBA(dateStr);
   const branchFilter = branchId ? `branch_id.eq.${branchId},branch_id.is.null` : null;
 
-  // Adelantos (professional_advances.advanced_at) y movimientos manuales de
-  // caja (cash_movements.created_at) del mismo día — necesarios para
-  // "Efectivo esperado en caja" / "Dinero esperado en cuenta", misma
-  // fórmula que usa el cierre de hoy (computeExpectedCashAndDigital).
+  // Adelantos (professional_advances.advanced_at) del mismo día —
+  // necesarios para "Efectivo esperado en caja" / "Dinero esperado en
+  // cuenta", misma fórmula que usa el cierre de hoy
+  // (computeExpectedCashAndDigital).
   let advQuery = supabase
     .from("professional_advances" as any)
     .select("amount,payment_method,advanced_at")
@@ -993,46 +1196,70 @@ export async function buildSingleDayCierrePreview(
     .lte("advanced_at", dayEnd.toISOString());
   if (branchFilter) advQuery = advQuery.or(branchFilter);
 
-  let movQuery = supabase
-    .from("cash_movements" as any)
-    .select("type,amount,method,created_at")
-    .eq("business_id", businessId)
-    .gte("created_at", dayStart.toISOString())
-    .lte("created_at", dayEnd.toISOString());
-  if (branchFilter) movQuery = movQuery.or(branchFilter);
+  // snapshot, movimientosManuales y advances en paralelo (una sola tanda
+  // de red, ninguna depende de otra) — buildCajaMovimientosManualesForDate
+  // ya aplica dayBoundsBA(dateStr) por su cuenta y trae la lista COMPLETA
+  // (id/hora/usuario/nota), no solo los totales: antes esta función hacía
+  // su propia query de cash_movements aparte (solo type/amount/method),
+  // duplicando la consulta y dejando afuera los datos que "Revisar cierre"
+  // necesita para poder listar cada retiro/ingreso sin salir de la
+  // pantalla (ver CierreRevisionDetalle).
+  const [snapshot, movimientosManuales, advRes] = await Promise.all([
+    buildCierreSnapshotForDate(businessId, dateStr, branchId),
+    buildCajaMovimientosManualesForDate(businessId, branchId, dateStr),
+    advQuery,
+  ]);
 
-  const [advRes, movRes] = await Promise.all([advQuery, movQuery]);
   const advances = ((advRes.data ?? []) as any[]).map((a) => ({
     amount: a.amount,
     payment_method: a.payment_method,
   }));
-  const cashMovements = ((movRes.data ?? []) as any[]).map((m) => ({
-    type: m.type,
-    amount: m.amount,
-    method: m.method,
+  const cashMovements = movimientosManuales.map((m) => ({
+    type: m.tipo,
+    amount: m.monto,
+    // "cuenta" es el único valor no-efectivo que usa cash_movements.method
+    // (ver CajaMovimientoManual) — normalizeCierreMethodKey lo deja tal
+    // cual, isCash() de computeExpectedCashAndDigital ya lo trata como
+    // "no efectivo" sin necesitar ningún mapeo especial acá.
+    method: m.metodo,
   }));
 
   const expected = computeExpectedCashAndDigital({
-    payments: snapshot.cobrosSnapshot.map((c) => ({ total: c.monto, method: c.metodo, tip: c.propina })),
+    payments: snapshot.cobrosSnapshot.map((c) => ({
+      total: c.monto,
+      method: c.metodo,
+      tip: c.propina,
+      splits: c.splits as PaymentSplitRaw[] | null,
+    })),
     expenses: snapshot.gastosSnapshot.map((g) => ({ amount: g.monto, payment_method: g.metodo })),
     advances,
     cashMovements,
   });
 
-  // Ingresos/retiros manuales (cash_movements) como línea propia de la
-  // revisión — antes quedaban netos adentro de expected.cashInflows/
-  // cashOutflows (junto con gastos y adelantos pagados) sin que el usuario
-  // pudiera ver cuánto de esa salida era específicamente un retiro manual.
+  // Ingresos/retiros manuales (cash_movements), efectivo y digital por
+  // separado — antes solo se exponía el total neto de efectivo
+  // (manualMovements.ingresos/retiros); la Conciliación necesita los 4
+  // números por separado para mostrar cada término de la fórmula.
   const manualMovements = {
-    ingresos: cashMovements
-      .filter((m) => m.type === "ingreso")
-      .reduce((s, m) => s + Number(m.amount ?? 0), 0),
-    retiros: cashMovements
-      .filter((m) => m.type === "retiro")
-      .reduce((s, m) => s + Number(m.amount ?? 0), 0),
+    ingresos: cashMovements.filter((m) => m.type === "ingreso" && (!m.method || normalizeCierreMethodKey(m.method) === "cash")).reduce((s, m) => s + Number(m.amount ?? 0), 0),
+    retiros: cashMovements.filter((m) => m.type === "retiro" && (!m.method || normalizeCierreMethodKey(m.method) === "cash")).reduce((s, m) => s + Number(m.amount ?? 0), 0),
+    ingresosDigital: cashMovements.filter((m) => m.type === "ingreso" && m.method && normalizeCierreMethodKey(m.method) !== "cash").reduce((s, m) => s + Number(m.amount ?? 0), 0),
+    retirosDigital: cashMovements.filter((m) => m.type === "retiro" && m.method && normalizeCierreMethodKey(m.method) !== "cash").reduce((s, m) => s + Number(m.amount ?? 0), 0),
   };
 
-  return { snapshot, expected, manualMovements };
+  const conciliacion = buildConciliacion(
+    snapshot.detalleMetodosRecibido,
+    expected,
+    {
+      ingresosEfectivo: manualMovements.ingresos,
+      retirosEfectivo: manualMovements.retiros,
+      ingresosDigital: manualMovements.ingresosDigital,
+      retirosDigital: manualMovements.retirosDigital,
+    },
+    snapshot.conciliacionAlertas,
+  );
+
+  return { snapshot, expected, manualMovements, movimientosManuales, conciliacion };
 }
 
 // Cierra un día PASADO puntual, acotado exactamente a ese día — a

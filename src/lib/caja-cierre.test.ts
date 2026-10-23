@@ -514,6 +514,93 @@ describe("computeExpectedCashAndDigital — propinas: entran a caja, nunca a la 
   });
 });
 
+// Pago múltiple (payments.splits): antes de este fix, un cobro con varios
+// medios caía ENTERO en `method` (que en un pago múltiple puede ni
+// siquiera reflejar ningún medio real usado) — ver distributeCobroByMethod.
+describe("distributeCobroByMethod — reparto real de un pago múltiple", () => {
+  it("sin splits, se comporta exactamente igual que antes: todo a `method`", () => {
+    const dist = cajaCierre.distributeCobroByMethod(10000, 0, "cash", null);
+    expect(dist).toEqual({ cash: { monto: 10000, propina: 0 } });
+  });
+
+  it("splits vacío ([]) se comporta igual que splits null", () => {
+    const dist = cajaCierre.distributeCobroByMethod(10000, 0, "transfer", []);
+    expect(dist).toEqual({ transfer: { monto: 10000, propina: 0 } });
+  });
+
+  it("reparte el monto proporcionalmente entre los medios reales, sin duplicar ni perder plata", () => {
+    const dist = cajaCierre.distributeCobroByMethod(10000, 0, "cash", [
+      { method: "cash", amount: 5000 },
+      { method: "transfer", amount: 5000 },
+    ]);
+    expect(dist.cash.monto).toBe(5000);
+    expect(dist.transfer.monto).toBe(5000);
+    expect(dist.cash.monto + dist.transfer.monto).toBe(10000);
+  });
+
+  it("reparte la propina en la MISMA proporción que el monto — la suma total nunca cambia", () => {
+    const dist = cajaCierre.distributeCobroByMethod(9000, 1000, "cash", [
+      { method: "cash", amount: 3000 },
+      { method: "transfer", amount: 6000 },
+    ]);
+    // 1/3 del monto+propina al cash, 2/3 al transfer.
+    expect(dist.cash.monto + dist.cash.propina).toBeCloseTo((9000 + 1000) / 3, 5);
+    expect(dist.transfer.monto + dist.transfer.propina).toBeCloseTo(((9000 + 1000) * 2) / 3, 5);
+    const total = Object.values(dist).reduce((s, v) => s + v.monto + v.propina, 0);
+    expect(total).toBeCloseTo(10000, 5);
+  });
+
+  it("splits con monto 0 o negativo se ignoran, sin romper el reparto del resto", () => {
+    const dist = cajaCierre.distributeCobroByMethod(10000, 0, "cash", [
+      { method: "cash", amount: 0 },
+      { method: "transfer", amount: -500 },
+      { method: "qr", amount: 10000 },
+    ]);
+    expect(dist.qr.monto).toBe(10000);
+    expect(dist.cash).toBeUndefined();
+    expect(dist.transfer).toBeUndefined();
+  });
+
+  it("splits que no suman lo mismo que `monto` (dato mal cargado) igual reparten TODO el monto real, nunca más ni menos", () => {
+    // El cliente pagó $10.000 pero el pago múltiple se cargó mal y sus
+    // splits suman $8.000 — el reparto sigue dando $10.000 en total
+    // (nunca se "pierde" plata), la proporción se calcula sobre lo
+    // cargado. El desajuste se señala aparte (ver conciliacionAlertas),
+    // nunca acá.
+    const dist = cajaCierre.distributeCobroByMethod(10000, 0, "cash", [
+      { method: "cash", amount: 4000 },
+      { method: "transfer", amount: 4000 },
+    ]);
+    const total = Object.values(dist).reduce((s, v) => s + v.monto, 0);
+    expect(total).toBe(10000);
+    expect(dist.cash.monto).toBe(5000);
+    expect(dist.transfer.monto).toBe(5000);
+  });
+
+  it("computeExpectedCashAndDigital usa el reparto real de splits, no `method`", () => {
+    // `method` quedó en "cash" (valor por default del selector simple),
+    // pero el pago múltiple real fue mitad efectivo, mitad transferencia
+    // — antes de este fix, los $20.000 enteros caían en efectivo.
+    const result = computeExpectedCashAndDigital({
+      payments: [
+        {
+          total: 20000,
+          method: "cash",
+          splits: [
+            { method: "cash", amount: 10000 },
+            { method: "transfer", amount: 10000 },
+          ],
+        },
+      ],
+      expenses: [],
+      advances: [],
+      cashMovements: [],
+    });
+    expect(result.cashExpected).toBe(10000);
+    expect(result.digitalExpected).toBe(10000);
+  });
+});
+
 // El cierre de un día puntual tiene que estar acotado a ESE día calendario
 // (00:00 a 23:59:59.999 hora Argentina) — nunca extenderse hasta "ahora"
 // como hace el cierre de "caja vencida". Se prueba el mismo criterio de

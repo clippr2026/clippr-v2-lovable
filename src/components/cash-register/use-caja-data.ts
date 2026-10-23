@@ -200,6 +200,11 @@ export type Payment = {
   discount?: number | null;
   original_amount?: number | null;
   tip_amount?: number | null;
+  // Pago múltiple — un cobro con splits se reparte proporcionalmente entre
+  // sus medios reales (ver distributeCobroByMethod en caja-cierre.ts) en
+  // vez de caer entero en `method`, que en un pago múltiple puede no
+  // reflejar ningún medio real usado.
+  splits?: Array<{ method?: string | null; amount?: number | null }> | null;
   // Ítems de la venta (registerPayment los guarda siempre) — id/nombre/
   // monto YA multiplicado por cantidad/qty/is_catalog. Detalle de venta
   // lo usa para un retiro de stock pagado (producto/cantidad/precio
