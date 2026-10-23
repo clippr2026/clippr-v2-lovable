@@ -1148,3 +1148,29 @@ describe("Operaciones registradas después de un cierre — identificadas, nunca
     expect(src).not.toMatch(/handleReabrirCajaDesdeBanner/);
   });
 });
+
+// Causa real (auditoría "Dinero en cuenta del día" negativo sin
+// explicación, 23/10/2026): useCashMovements calculaba el inicio del
+// rango de cash_movements/professional_advances con
+// `new Date(rangeStartDate+"T00:00:00")`, que interpreta en el huso
+// LOCAL del dispositivo/proceso — en un navegador fuera de Argentina (o
+// cualquier ejecución server-side) el rango podía arrancar unas horas
+// corrido, arrastrando o dejando afuera un movimiento justo en el borde
+// de la medianoche. No era la causa de ESE caso puntual (el -$8.100 era
+// legítimo: un adelanto por transferencia superando el ingreso del día),
+// pero es el mismo bug de huso horario ya corregido en caja-cierre.ts —
+// test estructural para que no vuelva a reaparecer acá ni en un futuro
+// hook similar.
+describe("useCashMovements — rango de fecha en huso horario de Buenos Aires explícito, nunca el local", () => {
+  it("usa dayBoundsBA(rangeStartDate) para el inicio del rango, no new Date(rangeStartDate+\"T00:00:00\")", () => {
+    const src = readSrc("src/hooks/use-cash-movements.ts");
+    expect(src).toMatch(/import \{ dayBoundsBA \} from "@\/lib\/caja-cierre";/);
+    expect(src).toMatch(/const dayStart = dayBoundsBA\(rangeStartDate\)\.start\.toISOString\(\);/);
+    expect(src).not.toMatch(/new Date\(`\$\{rangeStartDate\}T00:00:00`\)/);
+  });
+
+  it("dayBoundsBA en sí ya está probado (huso -03:00 explícito) — acá solo se confirma que este hook lo use, no se duplica esa prueba", () => {
+    const { start } = dayBoundsBA("2026-10-23");
+    expect(start.toISOString()).toBe("2026-10-23T03:00:00.000Z");
+  });
+});

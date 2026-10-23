@@ -1,5 +1,6 @@
 import * as React from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { dayBoundsBA } from "@/lib/caja-cierre";
 
 // Fuente única de cash_movements (Ingresar/Retirar dinero) +
 // professional_advances para el período de caja abierto — reemplaza el
@@ -48,7 +49,15 @@ export function useCashMovements(
     }
     setLoading(true);
 
-    const dayStart = new Date(`${rangeStartDate}T00:00:00`).toISOString();
+    // Huso horario de Buenos Aires EXPLÍCITO (dayBoundsBA), nunca el huso
+    // local del dispositivo/proceso que ejecuta esto — mismo criterio que
+    // ya usa caja-cierre.ts para el resto de los límites de día. Antes
+    // `new Date(rangeStartDate+"T00:00:00")` dependía del huso del
+    // navegador: en uno configurado fuera de Argentina (o en cualquier
+    // ejecución server-side) el inicio del período podía correr unas
+    // horas, arrastrando o dejando afuera adelantos/movimientos
+    // manuales justo en el borde de la medianoche.
+    const dayStart = dayBoundsBA(rangeStartDate).start.toISOString();
     const dayEnd = new Date().toISOString();
     const branchFilter = branchId ? `branch_id.eq.${branchId},branch_id.is.null` : null;
 
