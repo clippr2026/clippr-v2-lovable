@@ -157,6 +157,13 @@ export type Employee = {
   commission_pct: number | null;
   commission_fixed: number | null;
   avatar_url?: string | null;
+  // Toggle explícito por profesional (Equipo → [profesional] → Comisiones)
+  // — un profesional con esto en false nunca genera comisión por sus
+  // ventas, sin importar commission_pct/commission_fixed/overrides por
+  // servicio (ver registerPayment en register-payment.ts, que es quien
+  // realmente lo aplica). Default true si la columna no vino en el select
+  // (no debería pasar, employees.commission_enabled es NOT NULL).
+  commission_enabled: boolean;
 };
 
 export type ClientLite = {
@@ -535,7 +542,7 @@ export function useCajaData() {
     // — ninguna otra consulta de employees del proyecto filtra por esto.
     let empQuery = supabase
       .from("employees")
-      .select("id,full_name,avatar_url,is_active,commission_pct,commission_fixed")
+      .select("id,full_name,avatar_url,is_active,commission_pct,commission_fixed,commission_enabled")
       .eq("business_id", businessId);
     if (branchFilter) empQuery = empQuery.or(branchFilter);
 
@@ -767,8 +774,8 @@ export function useCajaData() {
 
     const employeesList =
       empRes.status === "fulfilled" && !empRes.value.error
-        ? ((empRes.value.data ?? []) as Array<{ id: string; full_name: string | null; avatar_url?: string | null; commission_pct: number | null; commission_fixed: number | null }>)
-            .map((r) => ({ id: r.id, name: r.full_name ?? "Sin nombre", commission_pct: r.commission_pct ?? null, commission_fixed: r.commission_fixed ?? null, avatar_url: r.avatar_url ?? null }))
+        ? ((empRes.value.data ?? []) as Array<{ id: string; full_name: string | null; avatar_url?: string | null; commission_pct: number | null; commission_fixed: number | null; commission_enabled?: boolean | null }>)
+            .map((r) => ({ id: r.id, name: r.full_name ?? "Sin nombre", commission_pct: r.commission_pct ?? null, commission_fixed: r.commission_fixed ?? null, avatar_url: r.avatar_url ?? null, commission_enabled: r.commission_enabled !== false }))
         : [];
 
     // Session status — se lanzó en paralelo con el batch de arriba (ver

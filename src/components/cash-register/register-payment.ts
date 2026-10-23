@@ -108,6 +108,16 @@ export type RegisterPaymentInput = {
   // prioridad sobre commissionPct/commissionFixed para el/los ítems que
   // tengan su propio override configurado. Ver computeCommissionAmount.
   employeeCommissions?: EmployeeCommissionMap | null;
+  // Toggle por profesional (employees.commission_enabled, Equipo →
+  // [profesional] → Comisiones) — false = este profesional NUNCA genera
+  // comisión, sin importar commissionPct/commissionFixed/employeeCommissions
+  // (ni siquiera un override por servicio activo). Pensado para el dueño
+  // del negocio, que puede asignarse ventas como cualquier profesional
+  // pero no debe cobrarse comisión a sí mismo. undefined/true = sin
+  // cambios (comportamiento de siempre). register_sale vuelve a validar
+  // esto server-side (ver 20261022010000_employee_commission_enabled.sql)
+  // por si llega un cliente viejo cacheado que no manda este campo.
+  commissionsEnabled?: boolean;
   sessionId?: string | null;
   chargedBy?: string | null;
   appointmentId?: string | null;
@@ -284,7 +294,7 @@ export async function registerPayment(input: RegisterPaymentInput) {
   const commissionPct = Number(input.commissionPct ?? 0);
   let commissionAmount = 0;
   let usedSpecificOverride = false;
-  if (input.employeeId) {
+  if (input.employeeId && input.commissionsEnabled !== false) {
     // Regla de base de comisión (ítem por ítem, ver commissionBaseForLine
     // en service-pricing.ts): base = MIN(precio efectivo del servicio,
     // importe neto realmente cobrado por esa línea). Si paga de más (lista,

@@ -138,6 +138,7 @@ type EmployeeRow = {
   avatar_url?: string | null;
   is_active?: boolean | null;
   commission_pct?: number | null;
+  commission_enabled?: boolean | null;
   role?: string | null;
   branch_id?: string | null;
 };
@@ -227,6 +228,10 @@ type NewProForm = {
   description: string;
   specialty: string;
   commissionPct: string;
+  // employees.commission_enabled — false = este profesional nunca genera
+  // comisión por sus ventas (pensado para el dueño del negocio, que puede
+  // asignarse ventas como cualquier profesional). Default true.
+  commissionsEnabled: boolean;
   avatarUrl: string;
   commissions: Record<string, CommissionConfig>;
   serviceOverrides: Record<string, ServiceOverrideConfig>;
@@ -254,6 +259,7 @@ const EMPTY_FORM: NewProForm = {
   description: "",
   specialty: "",
   commissionPct: "",
+  commissionsEnabled: true,
   avatarUrl: "",
   commissions: {},
   serviceOverrides: {},
@@ -836,7 +842,7 @@ export function EquipoSection() {
     // ...) de siempre. Con activeBranchId en null el filtro no se aplica.
     let employeesQuery = supabase
       .from("employees")
-      .select("id,full_name,avatar_url,is_active,commission_pct,branch_id")
+      .select("id,full_name,avatar_url,is_active,commission_pct,commission_enabled,branch_id")
       .eq("business_id", businessId);
     if (activeBranchId) employeesQuery = employeesQuery.eq("branch_id", activeBranchId);
     employeesQuery = employeesQuery.order("full_name", { ascending: true });
@@ -1495,6 +1501,7 @@ export function EquipoSection() {
             full_name: name,
             is_active: form.isActive,
             commission_pct: commission,
+            commission_enabled: form.commissionsEnabled,
             avatar_url: form.avatarUrl || null,
             branch_id: form.branchId ?? null,
           })
@@ -1611,6 +1618,7 @@ export function EquipoSection() {
                   full_name: name,
                   is_active: form.isActive,
                   commission_pct: commission,
+                  commission_enabled: form.commissionsEnabled,
                   avatar_url: form.avatarUrl || null,
                   role: form.role.trim() || "Profesional",
                   branch_id: form.branchId ?? null,
@@ -1678,6 +1686,7 @@ export function EquipoSection() {
           full_name: name,
           is_active: form.isActive,
           commission_pct: commission,
+          commission_enabled: form.commissionsEnabled,
           avatar_url: form.avatarUrl || null,
           branch_id: form.branchId ?? activeBranchId ?? null,
         })
@@ -1796,6 +1805,7 @@ export function EquipoSection() {
           role: form.role.trim() || "Profesional",
           is_active: form.isActive,
           commission_pct: commission,
+          commission_enabled: form.commissionsEnabled,
           branch_id: form.branchId ?? activeBranchId ?? null,
         },
       ]);
@@ -1936,6 +1946,7 @@ export function EquipoSection() {
         fullName: emp.full_name ?? emp.name ?? "",
         avatarUrl: emp.avatar_url ?? "",
         commissionPct: String(emp.commission_pct ?? ""),
+        commissionsEnabled: emp.commission_enabled !== false,
         role: emp.role ?? "Barbero",
         isActive: emp.is_active !== false,
         schedule: employeeSchedules[emp.id] ?? EMPTY_FORM.schedule,
@@ -3392,6 +3403,22 @@ export function EquipoSection() {
 
               {dlgTab === "comisiones" && (
                 <div className="space-y-4">
+                  <PermissionToggleRow
+                    icon={DollarSign}
+                    title="Genera comisiones"
+                    on={form.commissionsEnabled}
+                    onChange={(v) =>
+                      setForm({ ...form, commissionsEnabled: v })
+                    }
+                  />
+                  {!form.commissionsEnabled && (
+                    <p className="px-1 text-xs text-muted-foreground">
+                      Este profesional no va a generar comisión por sus
+                      ventas (ej. el dueño del negocio). Sus ventas y
+                      propinas se siguen registrando normalmente.
+                    </p>
+                  )}
+
                   <div className="flex flex-wrap gap-1.5 rounded-2xl border border-white/10 bg-white/[0.035] p-1.5">
                     {(["servicios", "catalogo"] as const).map((tabId) => (
                       <button
