@@ -9079,14 +9079,23 @@ function FacturacionStatCard({
   icon: Icon,
   iconClass,
   label,
+  description,
   value,
+  format = "money",
   loading,
   onClick,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   iconClass: string;
   label: string;
+  // Subtítulo chico debajo del label (p.ej. "Cobros de profesionales" vs.
+  // "Saldo pendiente de cobro") — para que dos tarjetas con íconos
+  // parecidos nunca se confundan entre sí a simple vista.
+  description?: string;
   value: number;
+  // "count": número de registros sin "$" (p.ej. cantidad de cobros por
+  // confirmar) — "money" (default) sigue usando el formato de siempre.
+  format?: "money" | "count";
   loading?: boolean;
   onClick?: () => void;
 }) {
@@ -9096,9 +9105,16 @@ function FacturacionStatCard({
         <Icon className={cn("h-3.5 w-3.5 shrink-0", iconClass)} />
         <span className="truncate text-xs">{label}</span>
       </div>
+      {description && (
+        <div className="truncate text-[10px] text-muted-foreground/60">{description}</div>
+      )}
       <div className="mt-0.5">
         {loading ? (
           <div className="h-7 w-24 animate-pulse rounded-lg bg-white/[0.08]" />
+        ) : format === "count" ? (
+          <span className="font-display text-lg font-semibold tabular-nums text-foreground sm:text-4xl">
+            {Math.round(value).toLocaleString("es-AR")}
+          </span>
         ) : (
           <Money value={value} large />
         )}
@@ -10739,12 +10755,20 @@ function FacturacionPanel({
           value={data.revHoy}
           loading={data.loading}
         />
+        {/* "Cobros por confirmar": cobros que un profesional YA registró y
+            esperan que Caja los apruebe — nunca plata que deba un cliente.
+            Ícono/color (violeta) deliberadamente distinto de "Deudas de
+            clientes" (ámbar) para que no se confundan a simple vista.
+            Cuenta de registros (data.pendingCount), no un monto — "¿cuántos
+            cobros tengo para revisar?", no "¿cuánta plata es?". */}
         {showPendientes && (
           <FacturacionStatCard
-            icon={Clock}
-            iconClass="text-amber-400"
-            label="Pendientes"
-            value={data.pendingAmount}
+            icon={ClipboardList}
+            iconClass="text-violet-400"
+            label="Cobros por confirmar"
+            description="Cobros de profesionales"
+            value={data.pendingCount}
+            format="count"
             loading={data.loading}
             onClick={() => {
               setCobrosPendientesOpen((v) => !v);
@@ -10756,14 +10780,16 @@ function FacturacionPanel({
             }}
           />
         )}
-        {/* Distinto del "Pendientes" de arriba: ese es turnos enviados a
-            Caja sin ningún cobro registrado todavía (concepto viejo). Este
-            es la suma de saldo de TODAS las ventas con payments.status en
-            pendiente/parcial — clic abre directo "Cobrar pendiente". */}
+        {/* "Deudas de clientes": distinto de "Cobros por confirmar" de
+            arriba — acá no hay nada que aprobar, es dinero que el cliente
+            todavía no pagó (suma de saldo de TODAS las ventas con
+            payments.status en pendiente/parcial, incluidas las de días
+            anteriores). Clic abre directo "Cobrar pendiente". */}
         <FacturacionStatCard
           icon={Clock}
           iconClass="text-amber-400"
-          label="Pendiente de cobro"
+          label="Deudas de clientes"
+          description="Saldo pendiente de cobro"
           value={pendingDebtSummary.total}
           loading={pendingDebtSummary.loading}
           onClick={() => setShowCobrarPendiente(true)}
@@ -10843,7 +10869,7 @@ function FacturacionPanel({
             data={data}
             equipoEnabled={equipoEnabled}
             onCobrarPendiente={onCobrarPendiente}
-            title="Cobros pendientes"
+            title="Cobros por confirmar"
             panel="pendientes"
             theme={pendientesTheme}
           />
