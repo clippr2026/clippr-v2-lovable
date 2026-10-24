@@ -170,6 +170,15 @@ export type RegisterPaymentInput = {
   // de generarla una vez por intento y solo reutilizarla en un reintento
   // del MISMO cobro.
   idempotencyKey?: string | null;
+  // Pago pendiente (ver 20261023020000_register_sale_pending_payments.sql)
+  // — cuánto de `total` se cobra EFECTIVAMENTE en este momento. undefined/
+  // null = comportamiento de siempre (se asume cobrado el total completo,
+  // ningún llamador existente manda esto). 0 = venta 100% pendiente; un
+  // valor entre 0 y total = pago parcial, el resto queda pendiente de
+  // cobro (ver Caja → Ingresar dinero → Cobrar pendiente). El RPC infiere
+  // payments.status (pendiente/parcial/cobrado) a partir de este monto —
+  // nunca hace falta mandar `status` para esto.
+  collectedAmount?: number | null;
 };
 
 function formatItemName(item: RegisterPaymentItem) {
@@ -377,6 +386,7 @@ export async function registerPayment(input: RegisterPaymentInput) {
     p_charged_by: chargedByUuid,
     p_created_at: nowIso,
     p_idempotency_key: input.idempotencyKey ?? null,
+    p_collected_amount: input.collectedAmount ?? null,
   });
 
   if (rpcError) {

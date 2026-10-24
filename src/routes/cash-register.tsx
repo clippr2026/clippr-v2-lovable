@@ -70,6 +70,7 @@ import {
   closeCashSession,
   reopenCashSession,
 } from "@/components/cash-register/session-actions";
+import { CobrarPendienteModal } from "@/components/cash-register/cobrar-pendiente";
 import {
   attachReceiptToPayment,
   getPaymentReceiptSignedUrl,
@@ -10024,6 +10025,13 @@ function FacturacionPanel({
   };
 }) {
   const [movType, setMovType] = React.useState<"ingreso" | "retiro" | null>(null);
+  // "Ingresar dinero" ahora abre una elección (Nuevo ingreso vs Cobrar
+  // pendiente) en vez de ir directo al modal de movimiento — ese modal
+  // (RegistrarMovimientoModal, vía movType="ingreso") sigue intacto para
+  // "Nuevo ingreso"; "Cobrar pendiente" abre CobrarPendienteModal, una
+  // pantalla nueva y completamente separada (lista de deudas + cobro).
+  const [showIngresoChoice, setShowIngresoChoice] = React.useState(false);
+  const [showCobrarPendiente, setShowCobrarPendiente] = React.useState(false);
   // Composición de "Efectivo del día"/"Dinero en cuenta del día" — un
   // saldo negativo nunca queda sin explicación, un clic alcanza (ver
   // src/components/caja/saldo-composicion.tsx).
@@ -10155,7 +10163,7 @@ function FacturacionPanel({
       <div className="grid grid-cols-2 gap-2">
         <button
           type="button"
-          onClick={() => setMovType("ingreso")}
+          onClick={() => setShowIngresoChoice(true)}
           className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.06] px-3 py-3 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-400/[0.12]"
         >
           <Plus className="size-4" /> Ingresar dinero
@@ -10207,6 +10215,82 @@ function FacturacionPanel({
               .registerMovement(movType, amount, note, method, userEmail)
               .then(() => data.refresh("movimiento registrado"))
           }
+        />
+      )}
+
+      {/* "Ingresar dinero" → elección entre A) Nuevo ingreso (movimiento
+          manual de caja, comportamiento de siempre) y B) Cobrar pendiente
+          (venta con saldo — ver CobrarPendienteModal). Modal chico propio,
+          mismo patrón createPortal que RegistrarMovimientoModal. */}
+      {showIngresoChoice &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm"
+            onClick={() => setShowIngresoChoice(false)}
+          >
+            <div
+              className="w-full max-w-sm overflow-hidden rounded-2xl bg-[oklch(0.11_0.04_275)] shadow-2xl ring-1 ring-white/10"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+                <h3 className="text-lg font-semibold">Ingresar dinero</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowIngresoChoice(false)}
+                  className="rounded-lg bg-white/5 px-3 py-2 text-sm hover:bg-white/10"
+                >
+                  <X className="size-4" />
+                </button>
+              </div>
+              <div className="space-y-2.5 p-5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowIngresoChoice(false);
+                    setMovType("ingreso");
+                  }}
+                  className="flex w-full items-center gap-3 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] px-4 py-3.5 text-left transition hover:bg-emerald-400/[0.12]"
+                >
+                  <Plus className="size-5 shrink-0 text-emerald-300" />
+                  <span>
+                    <span className="block text-sm font-bold text-emerald-100">Nuevo ingreso</span>
+                    <span className="block text-xs text-emerald-200/60">
+                      Movimiento de caja independiente (no es una venta)
+                    </span>
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowIngresoChoice(false);
+                    setShowCobrarPendiente(true);
+                  }}
+                  className="flex w-full items-center gap-3 rounded-2xl border border-amber-400/20 bg-amber-400/[0.06] px-4 py-3.5 text-left transition hover:bg-amber-400/[0.12]"
+                >
+                  <Clock className="size-5 shrink-0 text-amber-300" />
+                  <span>
+                    <span className="block text-sm font-bold text-amber-100">Cobrar pendiente</span>
+                    <span className="block text-xs text-amber-200/60">
+                      Registrar el cobro de una venta con saldo
+                    </span>
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
+
+      {showCobrarPendiente && data.businessId && (
+        <CobrarPendienteModal
+          businessId={data.businessId}
+          branchId={data.activeBranchId}
+          employees={data.employees}
+          collectedBy={data.profileId ?? ""}
+          collectedByName={chargedByUsername(userEmail)}
+          onClose={() => setShowCobrarPendiente(false)}
+          onCollected={() => data.refresh("cobro de pendiente registrado")}
         />
       )}
     </>
@@ -11968,6 +12052,14 @@ export function NuevaVentaTab({
   // facturación/comisión, ver register-payment.ts).
   const [tipAmountInput, setTipAmountInput] = React.useState("");
   const [tipPanelOpen, setTipPanelOpen] = React.useState(false);
+  // Pago pendiente — deja la venta con saldo a favor del negocio en vez de
+  // asumirla cobrada (Caja → Nueva venta → "Pago pendiente"). Fuerza Pago
+  // simple (sin Pago múltiple: un cobro parcial inicial usa un solo
+  // método). pendingCollectedInput es cuánto se cobra AHORA (opcional,
+  // vacío/"0" = 100% pendiente) — nunca se autocompleta con el total, y
+  // viaja como collectedAmount a registerPayment (register-payment.ts).
+  const [pagoPendiente, setPagoPendiente] = React.useState(false);
+  const [pendingCollectedInput, setPendingCollectedInput] = React.useState("");
   const [method, setMethod] = React.useState<PayMethod>("cash");
   // Método preferido por defecto: Transferencia > Efectivo > primero
   // disponible — se aplica UNA vez por cobro (carga inicial de la
@@ -12521,8 +12613,10 @@ export function NuevaVentaTab({
     // turnoChargeMode="manual": no cobra ahora, envía a Caja para que
     // recepción confirme el cobro después — no tiene sentido pedir monto
     // abonado / distribución de pago múltiple para algo que todavía no se
-    // está cobrando.
-    if (turnoChargeMode !== "manual") {
+    // está cobrando. pagoPendiente: tampoco se exige que el monto cubra el
+    // total — la venta queda con saldo a favor del negocio a propósito,
+    // ver validación propia más abajo.
+    if (turnoChargeMode !== "manual" && !pagoPendiente) {
       if (paymentMode === "simple") {
         if (method === "cash") {
           if (!received.trim() || Number(received) <= 0) {
@@ -12550,6 +12644,16 @@ export function NuevaVentaTab({
           return;
         }
       }
+    }
+
+    // pagoPendiente: el único monto relevante es lo que se cobra AHORA
+    // (opcional, "" = $0 = 100% pendiente) — nunca puede superar el total.
+    const pendingCollectedAmount = pagoPendiente ? Number(pendingCollectedInput) || 0 : undefined;
+    if (pagoPendiente && pendingCollectedAmount !== undefined && pendingCollectedAmount > finalTotal) {
+      toast.error(
+        `No podés cobrar más que el total ($${finalTotal.toLocaleString("es-AR")}) al dejar un pago pendiente.`,
+      );
+      return;
     }
 
     setSubmitting(true);
@@ -12789,6 +12893,7 @@ export function NuevaVentaTab({
           tipAmount,
           clientPhone: phone,
           clientEmail: email,
+          collectedAmount: pendingCollectedAmount,
         });
         if (walkinRows[0]?.id) await attachReceiptIfNeeded(walkinRows[0].id);
 
@@ -12801,7 +12906,13 @@ export function NuevaVentaTab({
         if (removeError) throw removeError;
 
         chargeAttemptKeyRef.current = null;
-        toast.success(`Cobro confirmado · $${finalTotal.toLocaleString("es-AR")}`);
+        toast.success(
+          pagoPendiente
+            ? (pendingCollectedAmount ?? 0) > 0
+              ? `Venta registrada · cobrado $${(pendingCollectedAmount ?? 0).toLocaleString("es-AR")} · pendiente $${Math.round(finalTotal - (pendingCollectedAmount ?? 0)).toLocaleString("es-AR")}`
+              : `Venta registrada como pago pendiente · $${finalTotal.toLocaleString("es-AR")}`
+            : `Cobro confirmado · $${finalTotal.toLocaleString("es-AR")}`,
+        );
         clearReceiptFile();
         onPendingDone?.();
         await data.refresh();
@@ -12860,6 +12971,7 @@ export function NuevaVentaTab({
           tipAmount,
           clientPhone: phone,
           clientEmail: email,
+          collectedAmount: pendingCollectedAmount,
         });
         if (pendingRows[0]?.id) await attachReceiptIfNeeded(pendingRows[0].id);
 
@@ -12883,7 +12995,13 @@ export function NuevaVentaTab({
         removeLocalManualPendingCharge(pendingCharge.id);
 
         chargeAttemptKeyRef.current = null;
-        toast.success(`Cobro confirmado · $${finalTotal.toLocaleString("es-AR")}`);
+        toast.success(
+          pagoPendiente
+            ? (pendingCollectedAmount ?? 0) > 0
+              ? `Venta registrada · cobrado $${(pendingCollectedAmount ?? 0).toLocaleString("es-AR")} · pendiente $${Math.round(finalTotal - (pendingCollectedAmount ?? 0)).toLocaleString("es-AR")}`
+              : `Venta registrada como pago pendiente · $${finalTotal.toLocaleString("es-AR")}`
+            : `Cobro confirmado · $${finalTotal.toLocaleString("es-AR")}`,
+        );
         clearReceiptFile();
         onPendingDone?.();
         notifyCajaPendientesChanged();
@@ -12935,11 +13053,18 @@ export function NuevaVentaTab({
           tipAmount,
           clientPhone: phone,
           clientEmail: email,
+          collectedAmount: pendingCollectedAmount,
         });
         if (saleRows[0]?.id) await attachReceiptIfNeeded(saleRows[0].id);
 
         chargeAttemptKeyRef.current = null;
-        toast.success(`Cobro confirmado · $${finalTotal.toLocaleString("es-AR")}`);
+        toast.success(
+          pagoPendiente
+            ? (pendingCollectedAmount ?? 0) > 0
+              ? `Venta registrada · cobrado $${(pendingCollectedAmount ?? 0).toLocaleString("es-AR")} · pendiente $${Math.round(finalTotal - (pendingCollectedAmount ?? 0)).toLocaleString("es-AR")}`
+              : `Venta registrada como pago pendiente · $${finalTotal.toLocaleString("es-AR")}`
+            : `Cobro confirmado · $${finalTotal.toLocaleString("es-AR")}`,
+        );
         setCart({});
         setClientId(null);
         setClient("");
@@ -12959,6 +13084,8 @@ export function NuevaVentaTab({
         setDiscountPanelOpen(false);
         setTipAmountInput("");
         setTipPanelOpen(false);
+        setPagoPendiente(false);
+        setPendingCollectedInput("");
         clearReceiptFile();
         normalSaleCompleted = true;
       }
@@ -13557,11 +13684,15 @@ export function NuevaVentaTab({
             </button>
             <button
               onClick={() => setPaymentMode("multiple")}
+              disabled={pagoPendiente}
+              title={pagoPendiente ? "No disponible con Pago pendiente activo" : undefined}
               className={cn(
                 "py-2 text-sm font-semibold last:rounded-tr-3xl",
-                paymentMode === "multiple"
-                  ? "bg-[linear-gradient(135deg,rgba(96,165,250,0.55),rgba(139,92,246,0.62))] text-white"
-                  : "text-muted-foreground hover:text-foreground",
+                pagoPendiente
+                  ? "cursor-not-allowed text-muted-foreground/40"
+                  : paymentMode === "multiple"
+                    ? "bg-[linear-gradient(135deg,rgba(96,165,250,0.55),rgba(139,92,246,0.62))] text-white"
+                    : "text-muted-foreground hover:text-foreground",
               )}
             >
               Pago múltiple
@@ -13799,6 +13930,45 @@ export function NuevaVentaTab({
                   </button>
                 )}
               </div>
+
+              {/* Pago pendiente — deja la venta con saldo a favor del
+                  negocio en vez de asumirla cobrada. Al activarlo: fuerza
+                  Pago simple (un cobro parcial inicial usa un solo
+                  método), reemplaza "Monto recibido"/vuelto por un campo
+                  opcional "¿Cobrás algo ahora?" (ver más abajo) y la
+                  validación de handleCobrar deja de exigir que el monto
+                  cubra el total. El método elegido abajo sigue
+                  aplicando: es el método nominal de la venta y, si se
+                  cobra algo ahora, el de ese cobro puntual. No disponible
+                  en "Enviar a caja" (turnoChargeMode="manual"): ahí
+                  todavía no existe ningún cobro que dejar pendiente. */}
+              {!isManualFlow && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPagoPendiente((v) => {
+                      const next = !v;
+                      if (next) setPaymentMode("simple");
+                      else setPendingCollectedInput("");
+                      return next;
+                    });
+                  }}
+                  className={cn(
+                    "mt-1.5 flex w-full items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left text-xs font-semibold transition",
+                    pagoPendiente
+                      ? "border-amber-300/40 bg-amber-400/10 text-amber-200"
+                      : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  <span className="flex items-center gap-1.5">
+                    <Clock className="size-3.5 shrink-0" />
+                    Pago pendiente
+                  </span>
+                  <span className="text-[11px] font-normal opacity-80">
+                    {pagoPendiente ? "Queda con saldo pendiente" : "Se cobra ahora"}
+                  </span>
+                </button>
+              )}
             </div>
           </Card>
           </div>
@@ -13859,75 +14029,117 @@ export function NuevaVentaTab({
                   </div>
                 </div>
               </div>
-              {method === "cash" && (
-                // Sin borde propio acá (antes tenía uno, más el del input
-                // de adentro — se veían dos círculos/bordes concéntricos).
-                // Queda solo el borde del input, el único que hace falta.
-                <div className="rounded-2xl bg-[linear-gradient(135deg,rgba(37,99,235,0.16),rgba(8,11,20,0.96),rgba(2,4,12,0.98))] p-2.5 shadow-[0_0_34px_rgba(96,165,250,0.14),0_18px_55px_-34px_rgba(0,0,0,1)]">
-                  {/* Una sola fila: campo a la izquierda ($ + hint "Monto
-                      recibido", visible solo mientras está vacío — nunca
-                      un placeholder tipo "0" que se lea como precargado;
-                      nunca se autocompleta con el total, received arranca
-                      "" y solo lo cambia el usuario tipeando) y el
-                      resultado a la derecha, en la MISMA fila (antes
-                      quedaba en un renglón aparte debajo, agrandando el
-                      bloque). Si entrega el importe exacto no se muestra
-                      absolutamente nada a la derecha (ni "$0" ni
-                      "Exacto") — cashShortfall y change dan 0 en ese caso
-                      igual, así que alcanza con gatear el render en
-                      "> 0" en vez de en receivedNumber > 0. */}
-                  <div className="flex items-center gap-2">
-                    {/* Valor Y hint van al mismo lado (izquierda) ahora —
-                        ya no hace falta el span superpuesto de antes (que
-                        existía solo para poder tener hint a la izquierda
-                        + valor a la derecha con alineaciones distintas).
-                        Con los dos a la izquierda alcanza con el
-                        placeholder nativo, que ya se alinea solo con el
-                        texto que se escribe. */}
-                    <div className="relative min-w-0 flex-1">
-                      <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-base font-bold text-white/55">
-                        $
-                      </span>
-                      <input
-                        // received en sí sigue guardando solo dígitos
-                        // crudos ("20000") — lo único que cambia es cómo
-                        // se MUESTRA (con separador de miles, mismo
-                        // patrón que ya usa formatThousands en Liquidaciones
-                        // y Precios/Catálogo). change/cashShortfall siguen
-                        // calculando sobre Number(received), sin cambios.
-                        value={received ? Number(received).toLocaleString("es-AR") : ""}
-                        // Tope de 9 dígitos (hasta $999.999.999) — evita
-                        // escribir un número interminable que rompa el
-                        // layout o el cálculo, mismo criterio que Pago
-                        // múltiple (multi-method-payment-split.tsx).
-                        onChange={(e) => setReceived(e.target.value.replace(/\D/g, "").slice(0, 9))}
-                        inputMode="numeric"
-                        placeholder="Monto recibido"
-                        aria-label="Monto recibido"
-                        className="h-10 w-full rounded-xl border border-blue-300/30 bg-black/45 pl-8 pr-3 text-left text-lg font-extrabold tabular-nums text-white outline-none placeholder:text-sm placeholder:font-normal placeholder:text-white/30 focus:border-blue-300/65 focus:ring-2 focus:ring-blue-400/20"
-                      />
-                    </div>
-                    {(cashShortfall > 0 || change > 0) && (
-                      <span
-                        className={cn(
-                          "shrink-0 whitespace-nowrap text-sm font-bold",
-                          cashShortfall > 0 ? "text-red-300" : "text-emerald-300",
-                        )}
-                      >
-                        {cashShortfall > 0
-                          ? `Falta $${cashShortfall.toLocaleString("es-AR")}`
-                          : `Vuelto $${change.toLocaleString("es-AR")}`}
-                      </span>
-                    )}
+              {pagoPendiente ? (
+                // Pago pendiente: reemplaza "Monto recibido"/vuelto por un
+                // campo opcional "¿Cobrás algo ahora?" — vacío/"0" = la
+                // venta queda 100% pendiente; cualquier otro valor (hasta
+                // el total) queda como pago parcial, con el resto pendiente
+                // de cobro vía Caja → Ingresar dinero → Cobrar pendiente.
+                // Nunca se autocompleta con el total (mismo criterio que
+                // "received" arriba).
+                <div className="rounded-2xl border border-amber-300/25 bg-amber-400/[0.06] p-2.5">
+                  <p className="mb-1.5 text-[11px] font-semibold tracking-[0.1em] text-amber-200/80">
+                    ¿COBRÁS ALGO AHORA? (OPCIONAL)
+                  </p>
+                  <div className="relative min-w-0 flex-1">
+                    <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-base font-bold text-white/55">
+                      $
+                    </span>
+                    <input
+                      value={
+                        pendingCollectedInput
+                          ? Number(pendingCollectedInput).toLocaleString("es-AR")
+                          : ""
+                      }
+                      onChange={(e) =>
+                        setPendingCollectedInput(e.target.value.replace(/\D/g, "").slice(0, 9))
+                      }
+                      inputMode="numeric"
+                      placeholder="0 = queda 100% pendiente"
+                      aria-label="Monto cobrado ahora"
+                      className="h-10 w-full rounded-xl border border-amber-300/30 bg-black/45 pl-8 pr-3 text-left text-lg font-extrabold tabular-nums text-white outline-none placeholder:text-xs placeholder:font-normal placeholder:text-white/30 focus:border-amber-300/65 focus:ring-2 focus:ring-amber-400/20"
+                    />
                   </div>
+                  <p className="mt-1.5 text-[11px] text-amber-200/60">
+                    Saldo pendiente: $
+                    {Math.max(0, Math.round(finalTotal - (Number(pendingCollectedInput) || 0))).toLocaleString(
+                      "es-AR",
+                    )}
+                  </p>
                 </div>
-              )}
-              {method === "transfer" && (
-                <TransferReceiptField
-                  previewUrl={receiptPreviewUrl}
-                  onSelect={handleReceiptFileSelected}
-                  onClear={clearReceiptFile}
-                />
+              ) : (
+                <>
+                  {method === "cash" && (
+                    // Sin borde propio acá (antes tenía uno, más el del input
+                    // de adentro — se veían dos círculos/bordes concéntricos).
+                    // Queda solo el borde del input, el único que hace falta.
+                    <div className="rounded-2xl bg-[linear-gradient(135deg,rgba(37,99,235,0.16),rgba(8,11,20,0.96),rgba(2,4,12,0.98))] p-2.5 shadow-[0_0_34px_rgba(96,165,250,0.14),0_18px_55px_-34px_rgba(0,0,0,1)]">
+                      {/* Una sola fila: campo a la izquierda ($ + hint "Monto
+                          recibido", visible solo mientras está vacío — nunca
+                          un placeholder tipo "0" que se lea como precargado;
+                          nunca se autocompleta con el total, received arranca
+                          "" y solo lo cambia el usuario tipeando) y el
+                          resultado a la derecha, en la MISMA fila (antes
+                          quedaba en un renglón aparte debajo, agrandando el
+                          bloque). Si entrega el importe exacto no se muestra
+                          absolutamente nada a la derecha (ni "$0" ni
+                          "Exacto") — cashShortfall y change dan 0 en ese caso
+                          igual, así que alcanza con gatear el render en
+                          "> 0" en vez de en receivedNumber > 0. */}
+                      <div className="flex items-center gap-2">
+                        {/* Valor Y hint van al mismo lado (izquierda) ahora —
+                            ya no hace falta el span superpuesto de antes (que
+                            existía solo para poder tener hint a la izquierda
+                            + valor a la derecha con alineaciones distintas).
+                            Con los dos a la izquierda alcanza con el
+                            placeholder nativo, que ya se alinea solo con el
+                            texto que se escribe. */}
+                        <div className="relative min-w-0 flex-1">
+                          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-base font-bold text-white/55">
+                            $
+                          </span>
+                          <input
+                            // received en sí sigue guardando solo dígitos
+                            // crudos ("20000") — lo único que cambia es cómo
+                            // se MUESTRA (con separador de miles, mismo
+                            // patrón que ya usa formatThousands en Liquidaciones
+                            // y Precios/Catálogo). change/cashShortfall siguen
+                            // calculando sobre Number(received), sin cambios.
+                            value={received ? Number(received).toLocaleString("es-AR") : ""}
+                            // Tope de 9 dígitos (hasta $999.999.999) — evita
+                            // escribir un número interminable que rompa el
+                            // layout o el cálculo, mismo criterio que Pago
+                            // múltiple (multi-method-payment-split.tsx).
+                            onChange={(e) => setReceived(e.target.value.replace(/\D/g, "").slice(0, 9))}
+                            inputMode="numeric"
+                            placeholder="Monto recibido"
+                            aria-label="Monto recibido"
+                            className="h-10 w-full rounded-xl border border-blue-300/30 bg-black/45 pl-8 pr-3 text-left text-lg font-extrabold tabular-nums text-white outline-none placeholder:text-sm placeholder:font-normal placeholder:text-white/30 focus:border-blue-300/65 focus:ring-2 focus:ring-blue-400/20"
+                          />
+                        </div>
+                        {(cashShortfall > 0 || change > 0) && (
+                          <span
+                            className={cn(
+                              "shrink-0 whitespace-nowrap text-sm font-bold",
+                              cashShortfall > 0 ? "text-red-300" : "text-emerald-300",
+                            )}
+                          >
+                            {cashShortfall > 0
+                              ? `Falta $${cashShortfall.toLocaleString("es-AR")}`
+                              : `Vuelto $${change.toLocaleString("es-AR")}`}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {method === "transfer" && (
+                    <TransferReceiptField
+                      previewUrl={receiptPreviewUrl}
+                      onSelect={handleReceiptFileSelected}
+                      onClear={clearReceiptFile}
+                    />
+                  )}
+                </>
               )}
             </>
           ) : (
@@ -14050,8 +14262,8 @@ export function NuevaVentaTab({
                 !clientId ||
                 cartCount === 0 ||
                 submitting ||
-                (!isManualFlow && paymentMode === "multiple" && splitsRemaining !== 0) ||
-                (!isManualFlow && paymentMode === "simple" && method === "cash" && cashShortfall > 0)
+                (!isManualFlow && !pagoPendiente && paymentMode === "multiple" && splitsRemaining !== 0) ||
+                (!isManualFlow && !pagoPendiente && paymentMode === "simple" && method === "cash" && cashShortfall > 0)
               }
               onClick={handleCobrar}
               className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl px-7 py-2 text-sm font-extrabold text-white bg-[linear-gradient(135deg,#6EA8FF,#8B5CF6)] shadow-[0_0_40px_rgba(110,168,255,0.32),0_18px_45px_-28px_rgba(0,0,0,0.95)] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_56px_rgba(139,92,246,0.46)] disabled:opacity-40 transition-all"
@@ -14063,6 +14275,10 @@ export function NuevaVentaTab({
               ) : isManualFlow ? (
                 <>
                   Enviar a caja <ArrowRight className="size-4" />
+                </>
+              ) : pagoPendiente ? (
+                <>
+                  {Number(pendingCollectedInput) > 0 ? "CONFIRMAR PAGO PARCIAL" : "DEJAR PENDIENTE"} <Clock className="size-4" />
                 </>
               ) : (
                 <>
