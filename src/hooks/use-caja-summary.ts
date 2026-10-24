@@ -78,6 +78,11 @@ export type CajaSummary = {
   // dinero que entró hoy por una venta de cualquier fecha. Ver "Cobro de
   // pendiente" en Últimos ingresos/Revisar cierre.
   collectionsToday: PaymentCollectionRow[];
+  // Mismos cobros, pero del período ABIERTO completo (hoy + backlog sin
+  // cerrar, igual criterio que paymentsToday/expensesToday) — para
+  // pantallas que necesitan filtrar por una fecha puntual del backlog
+  // ("Ver todos los movimientos"), no solo estrictamente hoy.
+  collectionsForPeriod: PaymentCollectionRow[];
   revHoy: number;
   cobros: number;
   totalGastosHoy: number;
@@ -263,7 +268,9 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     // lugar).
     let collQuery = supabase
       .from("payment_collections")
-      .select("id,payment_id,amount,method,branch_id,collected_at,payments(client_name,service_name,employee_id)")
+      .select(
+        "id,payment_id,amount,method,branch_id,collected_at,collected_by_name,payments(client_name,service_name,employee_id,total,amount,collected_amount,status,created_at)",
+      )
       .eq("business_id", businessId)
       .gte("collected_at", dayStart.toISOString())
       .lte("collected_at", dayEnd.toISOString());
@@ -349,6 +356,7 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
         method: (row.method as string | null) ?? null,
         branch_id: (row.branch_id as string | null) ?? null,
         collected_at: String(row.collected_at),
+        collected_by_name: (row.collected_by_name as string | null) ?? null,
         payments: Array.isArray(row.payments) ? (row.payments[0] ?? null) : (row.payments as PaymentCollectionRow["payments"]) ?? null,
       }),
     );
@@ -579,6 +587,7 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     paymentsToday,
     expensesToday,
     collectionsToday: collectionsStrictlyToday,
+    collectionsForPeriod,
     revHoy,
     cobros,
     totalGastosHoy,

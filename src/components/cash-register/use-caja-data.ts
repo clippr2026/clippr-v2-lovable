@@ -251,7 +251,21 @@ export type PaymentCollectionRow = {
   method: string | null;
   branch_id: string | null;
   collected_at: string;
-  payments?: { client_name: string | null; service_name: string | null; employee_id: string | null } | null;
+  collected_by_name?: string | null;
+  // Snapshot de la venta original (embed vía FK) — incluye total/
+  // collected_amount/status para poder armar la fila agrupada "venta +
+  // cobros de hoy" sin una segunda consulta, aunque la venta sea de un día
+  // anterior (no está en paymentsToday).
+  payments?: {
+    client_name: string | null;
+    service_name: string | null;
+    employee_id: string | null;
+    total: number | null;
+    amount: number | null;
+    collected_amount: number | null;
+    status: string | null;
+    created_at: string;
+  } | null;
 };
 
 export type PendingCharge = {
@@ -1243,6 +1257,7 @@ export function useCajaData() {
     // sale de useCajaSummary y sobreescribe esto en el `data` fusionado de
     // cash-register.tsx (mismo patrón que paymentsToday/revHoy de abajo).
     collectionsToday: [] as PaymentCollectionRow[],
+    collectionsForPeriod: [] as PaymentCollectionRow[],
     pendingCierre,
     cajaStatus,
     revHoy, cobros, ticket, totalGastos,

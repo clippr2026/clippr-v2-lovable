@@ -200,6 +200,48 @@ export async function collectPendingPayment(input: {
   };
 }
 
+export type PaymentCollectionHistoryItem = {
+  id: string;
+  amount: number;
+  method: string | null;
+  collected_at: string;
+  collected_by_name: string | null;
+  observations: string | null;
+  receipt_path: string | null;
+  // Reversión (ver reverse_payment_collection) — nunca se borra/edita el
+  // renglón original, se marca acá para que el historial muestre "cobro
+  // revertido" en vez de ocultarlo o dejarlo ambiguo.
+  reverses_id: string | null;
+  reversed_at: string | null;
+  reversal_reason: string | null;
+};
+
+// Historial completo (todos los cobros, incluidas reversiones) de UNA
+// venta puntual — se pide on-demand al desplegar una fila agrupada en
+// Movimientos de caja, nunca precargado: una venta puede tener semanas de
+// cobros parciales acumulados que no hace falta traer si nadie despliega
+// el detalle.
+export async function getPaymentCollectionHistory(paymentId: string): Promise<PaymentCollectionHistoryItem[]> {
+  const { data, error } = await supabase
+    .from("payment_collections")
+    .select("id,amount,method,collected_at,collected_by_name,observations,receipt_path,reverses_id,reversed_at,reversal_reason")
+    .eq("payment_id", paymentId)
+    .order("collected_at", { ascending: true });
+  if (error) throw new Error(error.message);
+  return ((data ?? []) as Array<Record<string, unknown>>).map((r) => ({
+    id: String(r.id),
+    amount: Number(r.amount ?? 0),
+    method: (r.method as string | null) ?? null,
+    collected_at: String(r.collected_at),
+    collected_by_name: (r.collected_by_name as string | null) ?? null,
+    observations: (r.observations as string | null) ?? null,
+    receipt_path: (r.receipt_path as string | null) ?? null,
+    reverses_id: (r.reverses_id as string | null) ?? null,
+    reversed_at: (r.reversed_at as string | null) ?? null,
+    reversal_reason: (r.reversal_reason as string | null) ?? null,
+  }));
+}
+
 function StatusChip({ status }: { status: string }) {
   const isParcial = status === "parcial";
   return (

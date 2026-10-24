@@ -71,7 +71,12 @@ import {
   closeCashSession,
   reopenCashSession,
 } from "@/components/cash-register/session-actions";
-import { CobrarPendienteModal, usePendingDebtSummary } from "@/components/cash-register/cobrar-pendiente";
+import {
+  CobrarPendienteModal,
+  usePendingDebtSummary,
+  getPaymentCollectionHistory,
+  type PaymentCollectionHistoryItem,
+} from "@/components/cash-register/cobrar-pendiente";
 import {
   attachReceiptToPayment,
   getPaymentReceiptSignedUrl,
@@ -768,6 +773,7 @@ function CashRegisterPage() {
       paymentsToday: summary.paymentsToday,
       expensesToday: summary.expensesToday,
       collectionsToday: summary.collectionsToday,
+      collectionsForPeriod: summary.collectionsForPeriod,
       refresh: (reason?: string) =>
         Promise.all([cajaData.refresh(reason), summary.refresh(reason)]).then(() => undefined),
     };
@@ -9070,8 +9076,43 @@ function movimientoRow(m: CashMovement) {
 // "ingresos" fue reemplazado acá para la vista unificada, pero el bloque
 // "Cobrar pendientes" dentro de FacturacionPanel sigue intacto) — este feed
 // es solo para visualizar, no duplica esa interacción.
-type UnifiedMovKind = "pago" | "gasto" | "pendiente" | "movimiento" | "cobro_pendiente";
+type UnifiedMovKind = "pago" | "gasto" | "pendiente" | "movimiento" | "venta_pendiente";
 type UnifiedMovColor = "verde" | "rojo" | "ambar";
+
+// Una venta con saldo (payments.status en pendiente/parcial — ver
+// 20261023010000_pending_payments_schema.sql), agrupada con TODOS sus
+// cobros de HOY en un solo ítem — nunca una fila por la venta y otra por
+// cada cobro (eso duplicaba visualmente el mismo cobro inicial parcial,
+// reportado en vivo). El detalle de cada pago individual (fecha exacta,
+// método, quién) se consulta aparte, on-demand, al desplegar (ver
+// getPaymentCollectionHistory) — acá solo vive el resumen necesario para
+// la fila colapsada.
+type VentaPendienteGroup = {
+  paymentId: string;
+  clientName: string | null;
+  serviceName: string | null;
+  employeeId: string | null;
+  method: string | null;
+  // Snapshot ACTUAL (al momento de esta carga) de la venta — total de la
+  // venta, cuánto se cobró en total hasta ahora (toda la vida, no solo
+  // hoy) y su status vigente.
+  total: number;
+  collectedToDate: number;
+  status: string;
+  saleCreatedAt: string;
+  // Cuánto de ese collectedToDate entró HOY específicamente — es lo que se
+  // muestra como "+$X"/"-$X" en la fila (puede ser 0 si la venta se creó
+  // hoy sin cobrar nada, o negativo si hoy se revirtió más de lo que se
+  // cobró hoy mismo).
+  collectedTodayAmount: number;
+  // Quién hizo el último cobro de HOY (o quién cargó la venta, si hoy no
+  // hubo ningún cobro) — para la columna "Quién".
+  lastActorLabel: string;
+  // Momento más reciente de actividad de HOY contra esta venta (el último
+  // cobro, o si no hubo ninguno, el de la creación) — determina dónde cae
+  // este ítem en el orden cronológico del feed.
+  ts: number;
+};
 
 type UnifiedMov = {
   id: string;
@@ -9083,11 +9124,7 @@ type UnifiedMov = {
   expense?: ReturnType<typeof useCajaData>["expensesToday"][number];
   pending?: ReturnType<typeof useCajaData>["pendingCharges"][number];
   movement?: CashMovement;
-  // Cobro de un pago pendiente (payment_collections) — ver
-  // 20261023010000_pending_payments_schema.sql. amount puede ser negativo
-  // (reversión, ver reverse_payment_collection), ya contemplado por
-  // `color`/el signo que arma UnifiedMovRow/UnifiedMovCardMobile.
-  collection?: PaymentCollectionRow;
+  venta?: VentaPendienteGroup;
 };
 
 const UNIFIED_COLOR_CLASSES: Record<
@@ -9129,43 +9166,98 @@ function buildUnifiedMovements(
 ): UnifiedMov[] {
   const items: UnifiedMov[] = [];
 
+  // Ventas con saldo (pendiente/parcial) — una sola fila por venta,
+  // agrupando CUALQUIER cobro de hoy contra ella (el inicial al vender Y
+  // cualquiera posterior el mismo día), en vez de una fila por la venta y
+  // otra por cada cobro (eso mostraba el mismo cobro inicial dos veces,
+  // reportado en vivo). Dos pasadas: primero se siembra el grupo desde la
+  // venta (si se creó hoy), después se van sumando los cobros de hoy —
+  // así una venta de un día anterior que recién hoy recibe un cobro
+  // también arma su grupo (sembrado desde el embed de la propia
+  // collection), sin necesitar estar en paymentsToday.
+  const ventaGroups = new Map<string, VentaPendienteGroup>();
+
   for (const p of paymentsToday) {
+    if (p.status !== "pendiente" && p.status !== "parcial") continue;
     const raw = (p as { sort_ts?: string | null }).sort_ts ?? p.created_at;
     const ts = raw ? new Date(raw).getTime() : 0;
-    // Pago pendiente/parcial (ver 20261023010000_pending_payments_schema.sql):
-    // esta fila es SOLO "se registró una venta" — nunca plata. Toda la
-    // plata real de esta venta (incluido cualquier cobro inicial parcial
-    // al vender, que register_sale ya registra como su propio renglón de
-    // payment_collections) se muestra exclusivamente en las filas
-    // "cobro_pendiente" de más abajo — mostrar acá TAMBIÉN
-    // collected_amount duplicaba visualmente ese mismo cobro inicial (dos
-    // filas de "+$1.000" para un solo cobro real).
-    const isPending = p.status === "pendiente" || p.status === "parcial";
+    const paymentRecord = p as unknown as Record<string, unknown>;
+    const chargeType = getChargeType(paymentRecord);
+    const actorLabel = getChargedByLabel(paymentRecord, null, chargeType);
+    ventaGroups.set(p.id, {
+      paymentId: p.id,
+      clientName: p.client_name ?? null,
+      serviceName: getSaleDetailLabel(paymentRecord),
+      employeeId: p.employee_id ?? null,
+      method: p.method ?? p.payment_method ?? null,
+      total: Number(p.total ?? p.amount ?? 0),
+      collectedToDate: Number(p.collected_amount ?? 0),
+      status: p.status,
+      saleCreatedAt: p.created_at,
+      collectedTodayAmount: 0,
+      lastActorLabel: `${actorLabel} → Cargó`,
+      // Arranca en el momento de la venta — si hoy también se cobra algo,
+      // el loop de collections de abajo lo corre al momento real del
+      // cobro (más tarde).
+      ts: Number.isFinite(ts) ? ts : 0,
+    });
+  }
+
+  for (const c of collections) {
+    const ts = c.collected_at ? new Date(c.collected_at).getTime() : 0;
+    const amount = Number(c.amount ?? 0);
+    let g = ventaGroups.get(c.payment_id);
+    if (!g) {
+      // Venta de un día anterior (no está en paymentsToday) — se siembra
+      // acá mismo desde el snapshot embebido de la venta (ver el select de
+      // payment_collections en use-caja-summary.ts).
+      const snap = c.payments;
+      g = {
+        paymentId: c.payment_id,
+        clientName: snap?.client_name ?? null,
+        serviceName: snap?.service_name ?? null,
+        employeeId: snap?.employee_id ?? null,
+        method: c.method ?? null,
+        total: Number(snap?.total ?? snap?.amount ?? 0),
+        collectedToDate: Number(snap?.collected_amount ?? 0),
+        status: snap?.status ?? "parcial",
+        saleCreatedAt: snap?.created_at ?? c.collected_at,
+        collectedTodayAmount: 0,
+        lastActorLabel: "—",
+        ts: Number.isFinite(ts) ? ts : 0,
+      };
+      ventaGroups.set(c.payment_id, g);
+    }
+    g.collectedTodayAmount += amount;
+    g.lastActorLabel = `${c.collected_by_name || "—"} → ${amount < 0 ? "Revirtió" : "Cobró"}`;
+    if (Number.isFinite(ts) && ts > g.ts) g.ts = ts;
+  }
+
+  for (const g of ventaGroups.values()) {
+    items.push({
+      id: `venta-${g.paymentId}`,
+      kind: "venta_pendiente",
+      ts: g.ts,
+      color: g.collectedTodayAmount > 0 ? "verde" : g.collectedTodayAmount < 0 ? "rojo" : "ambar",
+      amount: g.collectedTodayAmount,
+      venta: g,
+    });
+  }
+
+  // Ventas cobradas por completo en el momento (status='cobrado', nunca
+  // pasaron por el ledger de pendientes) — sin cambios respecto de
+  // siempre.
+  for (const p of paymentsToday) {
+    if (p.status === "pendiente" || p.status === "parcial") continue;
+    const raw = (p as { sort_ts?: string | null }).sort_ts ?? p.created_at;
+    const ts = raw ? new Date(raw).getTime() : 0;
     items.push({
       id: `pago-${p.id}`,
       kind: "pago",
       ts: Number.isFinite(ts) ? ts : 0,
-      color: isPending ? "ambar" : "verde",
-      amount: isPending ? 0 : Number(p.total ?? p.amount ?? 0) + Number(p.tip_amount ?? 0),
+      color: "verde",
+      amount: Number(p.total ?? p.amount ?? 0) + Number(p.tip_amount ?? 0),
       payment: p,
-    });
-  }
-
-  // Cobros de pagos pendientes — fila propia, fechada por collected_at (la
-  // fecha REAL del cobro), nunca mezclada con la fila "pago" de la venta
-  // original (que puede ser de cualquier día anterior). Nunca duplica: una
-  // venta pendiente de $0 no tiene ningún renglón acá hasta que se cobra
-  // algo de verdad.
-  for (const c of collections) {
-    const ts = c.collected_at ? new Date(c.collected_at).getTime() : 0;
-    const amount = Number(c.amount ?? 0);
-    items.push({
-      id: `cobro-${c.id}`,
-      kind: "cobro_pendiente",
-      ts: Number.isFinite(ts) ? ts : 0,
-      color: amount < 0 ? "rojo" : "verde",
-      amount,
-      collection: c,
     });
   }
 
@@ -9271,37 +9363,17 @@ function unifiedMovView(
     );
     const servicio = getSaleDetailLabel(paymentRecord);
     const nota = getCashRowNote(paymentRecord, servicio);
-    const isPending = p.status === "pendiente" || p.status === "parcial";
-    const saldo = isPending ? Math.round(Number(p.total ?? p.amount ?? 0) - Number(p.collected_amount ?? 0)) : 0;
     return {
-      typeLabel: isPending ? (p.status === "pendiente" ? "Venta pendiente" : "Venta parcial") : "Ingreso",
+      typeLabel: "Ingreso",
       fecha: formatArgFecha(dt),
       hora: formatArgHora(dt),
       quien: `${chargedByName} → Cobró`,
       clienteOConcepto: p.client_name ?? "—",
       profesional: empName,
-      servicio: isPending ? `${servicio} · saldo $${saldo.toLocaleString("es-AR")}` : servicio,
+      servicio,
       metodoLabel: getPaymentMethodLabel(paymentRecord),
       nota,
       notaTitle: nota ? `${p.client_name ?? "Cliente"} · ${servicio ?? "Servicio"}` : null,
-    };
-  }
-
-  if (item.kind === "cobro_pendiente" && item.collection) {
-    const c = item.collection;
-    const dt = new Date(c.collected_at);
-    const empName = employees.find((e) => e.id === c.payments?.employee_id)?.name ?? "—";
-    return {
-      typeLabel: "Cobro de pendiente",
-      fecha: formatArgFecha(dt),
-      hora: formatArgHora(dt),
-      quien: "Cobró",
-      clienteOConcepto: c.payments?.client_name ?? "—",
-      profesional: empName,
-      servicio: c.payments?.service_name ?? "—",
-      metodoLabel: paymentMethodLabel(c.method ?? ""),
-      nota: null,
-      notaTitle: null,
     };
   }
 
@@ -9522,6 +9594,223 @@ function UnifiedMovCardMobile({
   );
 }
 
+function VentaPendienteBadge({ status }: { status: string }) {
+  const map: Record<string, { label: string; cls: string }> = {
+    pendiente: { label: "Pendiente", cls: "bg-amber-400/15 text-amber-200 ring-amber-400/25" },
+    parcial: { label: "Parcialmente pagado", cls: "bg-sky-400/15 text-sky-200 ring-sky-400/25" },
+    cobrado: { label: "Pagado", cls: "bg-emerald-400/15 text-emerald-200 ring-emerald-400/25" },
+  };
+  const v = map[status] ?? map.pendiente;
+  return (
+    <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1", v.cls)}>
+      {v.label}
+    </span>
+  );
+}
+
+// Historial completo de pagos de UNA venta (todos los cobros, incluidas
+// reversiones) — se pide on-demand recién al desplegar la fila, nunca
+// precargado (ver getPaymentCollectionHistory). Mantiene el registro
+// contable individual de cada pago a la vista, sin sumarlos entre sí
+// salvo en el resumen de arriba (venta/total.cobrado/saldo, que vienen
+// del snapshot ya cargado, no de este fetch).
+function VentaPendienteHistoryPanel({ paymentId }: { paymentId: string }) {
+  const [items, setItems] = React.useState<PaymentCollectionHistoryItem[] | null>(null);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    getPaymentCollectionHistory(paymentId)
+      .then((rows) => {
+        if (!cancelled) setItems(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setItems([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [paymentId]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 px-5 py-3 text-xs text-muted-foreground">
+        <Loader2 className="size-3.5 animate-spin" /> Cargando historial de pagos…
+      </div>
+    );
+  }
+  if (!items || items.length === 0) {
+    return <div className="px-5 py-3 text-xs text-muted-foreground">Todavía no se cobró nada de esta venta.</div>;
+  }
+
+  return (
+    <div className="divide-y divide-white/[0.06] px-5 py-1">
+      {items.map((it) => {
+        const dt = new Date(it.collected_at);
+        const isReversal = it.amount < 0;
+        return (
+          <div key={it.id} className="flex items-center justify-between gap-3 py-2 text-xs">
+            <div className="flex min-w-0 flex-col">
+              <span className="text-foreground/85">
+                {formatArgFecha(dt)} · {formatArgHora(dt)}
+              </span>
+              <span className="truncate text-muted-foreground">
+                {paymentMethodLabel(it.method ?? "")}
+                {it.collected_by_name ? ` · ${it.collected_by_name}` : ""}
+                {isReversal && it.reversal_reason ? ` · Reversión: ${it.reversal_reason}` : ""}
+                {it.observations ? ` · ${it.observations}` : ""}
+              </span>
+            </div>
+            <span className={cn("shrink-0 font-bold tabular-nums", isReversal ? "text-rose-300" : "text-emerald-300")}>
+              {isReversal ? "-" : "+"}${Math.abs(it.amount).toLocaleString("es-AR")}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Fila de "venta con saldo" (pendiente/parcial) — agrupa la venta y TODOS
+// sus cobros de hoy en un solo renglón (nunca una fila por la venta y otra
+// por cada cobro, eso duplicaba visualmente el mismo cobro). Se despliega
+// (expanded, estado propio) para ver el historial completo de pagos, vía
+// VentaPendienteHistoryPanel.
+function VentaPendienteRow({
+  item,
+  employees,
+}: {
+  item: UnifiedMov;
+  employees: ReturnType<typeof useCajaData>["employees"];
+}) {
+  const [expanded, setExpanded] = React.useState(false);
+  const g = item.venta!;
+  const empName = employees.find((e) => e.id === g.employeeId)?.name ?? "—";
+  const dt = new Date(item.ts || Date.now());
+  const saldo = Math.max(0, Math.round(g.total - g.collectedToDate));
+  const colorCls = UNIFIED_COLOR_CLASSES[item.color];
+  const sign = item.amount < 0 ? "-" : item.amount > 0 ? "+" : "";
+
+  return (
+    <div className={cn("border-l-2 border-b border-white/[0.07] last:border-b-0", colorCls.border, colorCls.bg)}>
+      <button
+        type="button"
+        onClick={() => setExpanded((v) => !v)}
+        className={cn("grid w-full items-center gap-x-3 px-5 py-3 text-left text-xs transition-colors hover:brightness-125", UNIFIED_GRID_COLS)}
+      >
+        <div className="text-muted-foreground whitespace-nowrap">{formatArgFecha(dt)}</div>
+        <div className="flex min-w-0 items-center gap-1.5 text-foreground">
+          <ChevronRight className={cn("size-3.5 shrink-0 text-muted-foreground/60 transition-transform", expanded && "rotate-90")} />
+          <span className="truncate">{g.clientName ?? "—"}</span>
+        </div>
+        <div className="text-muted-foreground truncate">{empName}</div>
+        <div className="min-w-0 truncate text-muted-foreground">
+          <span>{g.serviceName ?? "—"}</span>
+          <VentaPendienteBadge status={g.status} />
+          <span className="ml-2 text-[10px] text-muted-foreground/70">
+            Venta ${Math.round(g.total).toLocaleString("es-AR")} · Cobrado ${Math.round(g.collectedToDate).toLocaleString("es-AR")} · Saldo ${saldo.toLocaleString("es-AR")}
+          </span>
+        </div>
+        <div className={cn("text-right font-bold tabular-nums", sign ? colorCls.text : "text-muted-foreground/50")}>
+          {sign}${Math.round(Math.abs(item.amount)).toLocaleString("es-AR")}
+        </div>
+        <div className="min-w-0 truncate text-muted-foreground">{paymentMethodLabel(g.method ?? "")}</div>
+        <div className="text-muted-foreground whitespace-nowrap">{formatArgHora(dt)}</div>
+        <div className="min-w-0 truncate text-muted-foreground">{g.lastActorLabel}</div>
+      </button>
+      {expanded && (
+        <div className="border-t border-white/[0.06] bg-black/20">
+          <VentaPendienteHistoryPanel paymentId={g.paymentId} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VentaPendienteCardMobile({
+  item,
+  employees,
+}: {
+  item: UnifiedMov;
+  employees: ReturnType<typeof useCajaData>["employees"];
+}) {
+  const [expanded, setExpanded] = React.useState(false);
+  const g = item.venta!;
+  const empName = employees.find((e) => e.id === g.employeeId)?.name ?? "—";
+  const dt = new Date(item.ts || Date.now());
+  const saldo = Math.max(0, Math.round(g.total - g.collectedToDate));
+  const colorCls = UNIFIED_COLOR_CLASSES[item.color];
+  const sign = item.amount < 0 ? "-" : item.amount > 0 ? "+" : "";
+
+  return (
+    <div className={cn("w-full overflow-hidden rounded-2xl border-l-2 border border-white/[0.07]", colorCls.border, colorCls.bgMobile)}>
+      <button type="button" onClick={() => setExpanded((v) => !v)} className="w-full px-3.5 py-3 text-left text-xs">
+        <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] pb-2">
+          <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+            <ChevronRight className={cn("size-3.5 shrink-0 transition-transform", expanded && "rotate-90")} />
+            {formatArgFecha(dt)} · {formatArgHora(dt)}
+          </span>
+          <span className={cn("text-sm font-bold tabular-nums", sign ? colorCls.text : "text-muted-foreground/50")}>
+            {sign}${Math.round(Math.abs(item.amount)).toLocaleString("es-AR")}
+          </span>
+        </div>
+        <div className="mt-2 space-y-1.5">
+          <div className="flex items-start justify-between gap-3">
+            <span className="shrink-0 text-muted-foreground/70">Cliente</span>
+            <span className="flex items-center gap-1.5 truncate text-right text-foreground/90">
+              {g.clientName ?? "—"} <VentaPendienteBadge status={g.status} />
+            </span>
+          </div>
+          <div className="flex items-start justify-between gap-3">
+            <span className="shrink-0 text-muted-foreground/70">Profesional</span>
+            <span className="truncate text-right text-muted-foreground">{empName}</span>
+          </div>
+          <div className="flex items-start justify-between gap-3">
+            <span className="shrink-0 text-muted-foreground/70">Servicio</span>
+            <span className="truncate text-right text-muted-foreground">{g.serviceName ?? "—"}</span>
+          </div>
+          <div className="flex items-start justify-between gap-3">
+            <span className="shrink-0 text-muted-foreground/70">Venta / cobrado / saldo</span>
+            <span className="truncate text-right text-muted-foreground">
+              ${Math.round(g.total).toLocaleString("es-AR")} / ${Math.round(g.collectedToDate).toLocaleString("es-AR")} / ${saldo.toLocaleString("es-AR")}
+            </span>
+          </div>
+          <div className="flex items-start justify-between gap-3">
+            <span className="shrink-0 text-muted-foreground/70">Quién</span>
+            <span className="truncate text-right text-muted-foreground">{g.lastActorLabel}</span>
+          </div>
+        </div>
+      </button>
+      {expanded && (
+        <div className="border-t border-white/[0.06] bg-black/20">
+          <VentaPendienteHistoryPanel paymentId={g.paymentId} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Despacha al componente correcto según el tipo — "venta_pendiente" usa su
+// propia fila agrupada+desplegable, el resto sigue con UnifiedMovRow/
+// UnifiedMovCardMobile de siempre. Evita tocar los 4 call-sites (feed +
+// modal "Ver todos", desktop + mobile) con un ternario cada uno.
+function UnifiedRowAny(props: React.ComponentProps<typeof UnifiedMovRow>) {
+  if (props.item.kind === "venta_pendiente") {
+    return <VentaPendienteRow item={props.item} employees={props.employees} />;
+  }
+  return <UnifiedMovRow {...props} />;
+}
+function UnifiedCardAny(props: React.ComponentProps<typeof UnifiedMovCardMobile>) {
+  if (props.item.kind === "venta_pendiente") {
+    return <VentaPendienteCardMobile item={props.item} employees={props.employees} />;
+  }
+  return <UnifiedMovCardMobile {...props} />;
+}
+
 // Historial unificado que reemplaza "Últimos ingresos" + el bloque viejo
 // "Movimientos de caja" (cash_movements) + la tabla de Gastos — últimos 10,
 // más reciente primero. "Ver todos los movimientos" abre el mismo feed sin
@@ -9628,6 +9917,15 @@ function MovimientosUnificados({
     () => filterToDayBA(data.paymentsToday, (p) => p.created_at, selectedDateKey),
     [data.paymentsToday, selectedDateKey],
   );
+  // Cobros de pendientes (payment_collections) de la fecha elegida — por
+  // collected_at, igual criterio que paymentsForSelectedDate. Necesario
+  // para que "Resumen por método de pago" cuente la plata real de una
+  // venta pendiente/parcial (su total NO se suma ahí, ver closeoutByMethod
+  // más abajo — mismo criterio que computeExpectedCashAndDigital).
+  const collectionsForSelectedDate = React.useMemo(
+    () => filterToDayBA(data.collectionsForPeriod, (c) => c.collected_at, selectedDateKey),
+    [data.collectionsForPeriod, selectedDateKey],
+  );
 
   // Selector de profesional del modal "Ver todos los movimientos" — null =
   // Todos los profesionales. Solo lista profesionales con al menos un cobro
@@ -9651,6 +9949,13 @@ function MovimientosUnificados({
         : [],
     [paymentsForSelectedDate, selectedProfessionalId],
   );
+  const professionalCollections = React.useMemo(
+    () =>
+      selectedProfessionalId
+        ? collectionsForSelectedDate.filter((c) => c.payments?.employee_id === selectedProfessionalId)
+        : [],
+    [collectionsForSelectedDate, selectedProfessionalId],
+  );
 
   // Resumen por método de pago — mismo cálculo que ya existía en History
   // (closeout). Con un profesional elegido, reutiliza professionalPayments
@@ -9666,19 +9971,29 @@ function MovimientosUnificados({
   // físicamente entra a la caja —, nunca para facturación/Ingresos como
   // este resumen.)
   const closeoutByMethod = React.useMemo(() => {
-    const source = selectedProfessionalId ? professionalPayments : paymentsForSelectedDate;
-    const groups = source.reduce(
-      (acc, payment) => {
-        const method = String(payment.method ?? payment.payment_method ?? "cash");
-        if (!acc[method]) acc[method] = { method, total: 0, count: 0 };
-        acc[method].total += Number(payment.total ?? payment.amount ?? 0);
-        acc[method].count += 1;
-        return acc;
-      },
-      {} as Record<string, { method: string; total: number; count: number }>,
-    );
+    const paySource = selectedProfessionalId ? professionalPayments : paymentsForSelectedDate;
+    const collSource = selectedProfessionalId ? professionalCollections : collectionsForSelectedDate;
+    const groups: Record<string, { method: string; total: number; count: number }> = {};
+    for (const payment of paySource) {
+      // pendiente/parcial: su plata real (al vender Y cualquier cobro
+      // posterior) se cuenta exclusivamente vía collSource, más abajo —
+      // sumar acá TAMBIÉN payment.total mostraría el total de la venta
+      // como si estuviera cobrado por ese medio, mismo bug que ya se
+      // corrigió en computeExpectedCashAndDigital.
+      if (payment.status === "pendiente" || payment.status === "parcial") continue;
+      const method = String(payment.method ?? payment.payment_method ?? "cash");
+      if (!groups[method]) groups[method] = { method, total: 0, count: 0 };
+      groups[method].total += Number(payment.total ?? payment.amount ?? 0);
+      groups[method].count += 1;
+    }
+    for (const c of collSource) {
+      const method = String(c.method ?? "cash");
+      if (!groups[method]) groups[method] = { method, total: 0, count: 0 };
+      groups[method].total += Number(c.amount ?? 0);
+      groups[method].count += 1;
+    }
     return Object.values(groups).sort((a, b) => b.total - a.total);
-  }, [selectedProfessionalId, professionalPayments, paymentsForSelectedDate]);
+  }, [selectedProfessionalId, professionalPayments, paymentsForSelectedDate, professionalCollections, collectionsForSelectedDate]);
 
   // Comisión real de cada cobro — commission_records.amount, la misma
   // fuente que ya usa DetailModal (computeCommissionAmount al momento del
@@ -9739,7 +10054,9 @@ function MovimientosUnificados({
     const byDate = all.filter((item) => item.ts >= startMs && item.ts <= endMs);
     if (!selectedProfessionalId) return byDate;
     return byDate.filter(
-      (item) => item.kind === "pago" && item.payment?.employee_id === selectedProfessionalId,
+      (item) =>
+        (item.kind === "pago" && item.payment?.employee_id === selectedProfessionalId) ||
+        (item.kind === "venta_pendiente" && item.venta?.employeeId === selectedProfessionalId),
     );
   }, [all, selectedDateKey, selectedProfessionalId]);
 
@@ -9777,7 +10094,7 @@ function MovimientosUnificados({
             ) : (
               <div>
                 {recent.map((item) => (
-                  <UnifiedMovRow
+                  <UnifiedRowAny
                     key={item.id}
                     item={item}
                     employees={data.employees}
@@ -9801,7 +10118,7 @@ function MovimientosUnificados({
           ) : (
             <div className="flex flex-col gap-3 p-3">
               {recent.map((item) => (
-                <UnifiedMovCardMobile
+                <UnifiedCardAny
                   key={item.id}
                   item={item}
                   employees={data.employees}
@@ -9955,7 +10272,7 @@ function MovimientosUnificados({
                   </div>
                 ) : (
                   modalItems.map((item) => (
-                    <UnifiedMovRow
+                    <UnifiedRowAny
                       key={item.id}
                       item={item}
                       employees={data.employees}
@@ -9974,7 +10291,7 @@ function MovimientosUnificados({
                 ) : (
                   <div className="flex flex-col gap-2.5 p-3">
                     {modalItems.map((item) => (
-                      <UnifiedMovCardMobile
+                      <UnifiedCardAny
                         key={item.id}
                         item={item}
                         employees={data.employees}
