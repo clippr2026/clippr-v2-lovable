@@ -949,7 +949,12 @@ function normalizeServiceName(name: unknown): string {
 // (precio de lista actual del catálogo, solo como aproximación visual para
 // ventas viejas sin original_amount).
 export async function fetchPendingVentasForProfessional(businessId: string, professionalId: string) {
-  const [{ data: commissionRows, error }, { data: tipRows, error: tipError }] = await Promise.all([
+  const [
+    { data: commissionRows, error },
+    { data: tipRows, error: tipError },
+    { data: commissionEventRows, error: ceError },
+    { data: tipEventRows, error: teError },
+  ] = await Promise.all([
     supabase
       .from("commission_records" as any)
       .select("id,professional_id,amount,pending_amount,commission_pct,sale_date,created_at,sale_id")
@@ -974,31 +979,105 @@ export async function fetchPendingVentasForProfessional(businessId: string, prof
       .eq("professional_id", professionalId)
       .is("settlement_run_id", null)
       .gt("pending_amount", 0),
+    // Eventos de cobro de pendientes sin liquidar — ver el mismo fix en
+    // openDetail (cash-register.tsx) y computeLiquidacionSummary
+    // (historial-movimientos.ts): el pending_amount de una venta
+    // pendiente/parcial incluye plata TODAVÍA NO cobrada, nunca debe
+    // listarse como "venta pendiente de liquidar" con ese monto — lo
+    // realmente disponible de esas ventas sale de acá, un renglón por
+    // cobro real.
+    supabase
+      .from("commission_collection_events" as any)
+      .select(
+        "id,commission_record_id,amount,collected_at,commission_records!inner(professional_id,sale_id,commission_pct)",
+      )
+      .eq("business_id", businessId)
+      .is("settlement_run_id", null)
+      .eq("commission_records.professional_id", professionalId),
+    supabase
+      .from("tip_collection_events" as any)
+      .select("id,tip_record_id,amount,collected_at,tip_records!inner(professional_id,sale_id)")
+      .eq("business_id", businessId)
+      .is("settlement_run_id", null)
+      .eq("tip_records.professional_id", professionalId),
   ]);
   if (error) throw new Error(error.message);
   if (tipError) throw new Error(tipError.message);
+  if (ceError) throw new Error(ceError.message);
+  if (teError) throw new Error(teError.message);
+
+  const saleIdsForStatus = Array.from(
+    new Set([
+      ...(commissionRows ?? []).map((c: any) => c.sale_id),
+      ...(tipRows ?? []).map((t: any) => t.sale_id),
+      ...((commissionEventRows ?? []) as any[]).map((e) => e.commission_records?.sale_id),
+      ...((tipEventRows ?? []) as any[]).map((e) => e.tip_records?.sale_id),
+    ]),
+  ).filter(Boolean);
+  let paymentsById: Record<string, any> = {};
+  if (saleIdsForStatus.length > 0) {
+    const { data: pays, error: payError } = await supabase
+      .from("payments" as any)
+      .select(
+        "id,client_name,service_name,total,amount,method,payment_method,created_at,discount,original_amount,promotion_id,promotion_name,tip_amount,items,notes,observations,status,collected_amount",
+      )
+      .in("id", saleIdsForStatus);
+    if (payError) throw new Error(payError.message);
+    paymentsById = Object.fromEntries((pays ?? []).map((p: any) => [p.id, p]));
+  }
+
+  // Ventas pendientes/parciales nunca entran con su pending_amount crudo —
+  // lo que sí está disponible de esas ventas entra como fila sintética por
+  // cada evento de cobro, más abajo. Una venta ya cobrada del todo por el
+  // flujo de pendientes vuelve a pending_amount=0 (status='cobrado' en ese
+  // punto), así que ni siquiera pasa el .gt("pending_amount", 0) de arriba.
+  const normalCommissionRows = (commissionRows ?? []).filter((c: any) => {
+    const st = paymentsById[c.sale_id]?.status;
+    return st !== "pendiente" && st !== "parcial";
+  });
+  const normalTipRows = (tipRows ?? []).filter((t: any) => {
+    const st = paymentsById[t.sale_id]?.status;
+    return st !== "pendiente" && st !== "parcial";
+  });
+  const syntheticCommissionRows = ((commissionEventRows ?? []) as any[]).map((e) => ({
+    id: `recovered-commission-${e.id}`,
+    professional_id: professionalId,
+    amount: Number(e.amount ?? 0),
+    pending_amount: Number(e.amount ?? 0),
+    commission_pct: e.commission_records?.commission_pct ?? null,
+    sale_date: e.collected_at,
+    created_at: e.collected_at,
+    sale_id: e.commission_records?.sale_id,
+    __recovered: true,
+  }));
+  const syntheticTipRows = ((tipEventRows ?? []) as any[]).map((e) => ({
+    id: `recovered-tip-${e.id}`,
+    professional_id: professionalId,
+    amount: Number(e.amount ?? 0),
+    pending_amount: Number(e.amount ?? 0),
+    commission_pct: null,
+    sale_date: e.collected_at,
+    created_at: e.collected_at,
+    sale_id: e.tip_records?.sale_id,
+    __recovered: true,
+  }));
 
   // Mismo orden que antes (más reciente primero) — el merge junta primero
   // comisiones (ya vienen ordenadas) y después las filas sintéticas de
   // propina-sin-comisión (sin orden propio), así que hay que reordenar el
-  // resultado completo.
-  const mergedRows: PendingSaleRow[] = mergePendingSaleIds(
-    (commissionRows ?? []) as PendingSaleRow[],
-    ((tipRows ?? []) as any[]).map((t) => ({ ...t, commission_pct: null })) as PendingSaleRow[],
-  ).sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
-
-  const saleIds = mergedRows.map((c) => c.sale_id).filter(Boolean);
-  let paymentsById: Record<string, any> = {};
-  if (saleIds.length > 0) {
-    const { data: pays, error: payError } = await supabase
-      .from("payments" as any)
-      .select(
-        "id,client_name,service_name,total,amount,method,payment_method,created_at,discount,original_amount,promotion_id,promotion_name,tip_amount,items,notes,observations",
-      )
-      .in("id", saleIds);
-    if (payError) throw new Error(payError.message);
-    paymentsById = Object.fromEntries((pays ?? []).map((p: any) => [p.id, p]));
-  }
+  // resultado completo. Las filas recuperadas (un renglón por cobro real)
+  // se agregan DESPUÉS del merge: a diferencia de mergePendingSaleIds (que
+  // deduplica por sale_id, pensado para "comisión + propina de la misma
+  // venta"), una venta puede tener varios cobros reales distintos — nunca
+  // deben deduplicarse entre sí.
+  const mergedRows: PendingSaleRow[] = [
+    ...mergePendingSaleIds(
+      normalCommissionRows as PendingSaleRow[],
+      normalTipRows.map((t: any) => ({ ...t, commission_pct: null })) as PendingSaleRow[],
+    ),
+    ...(syntheticCommissionRows as unknown as PendingSaleRow[]),
+    ...(syntheticTipRows as unknown as PendingSaleRow[]),
+  ].sort((a, b) => String(b.created_at ?? "").localeCompare(String(a.created_at ?? "")));
 
   // Fallback SOLO visual de "precio de lista" para ventas viejas que no
   // guardaron original_amount — precio ACTUAL del catálogo, por id de ítem

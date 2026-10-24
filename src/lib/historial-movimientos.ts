@@ -395,7 +395,20 @@ export function mergePendingSaleIds(
 // verdad ahora: siempre preferir la fecha del payment real (`sale`); solo si
 // no se pudo traer (dato faltante) cae a la de la fila de comisión, para no
 // mostrar "—" de la nada.
-export function resolveVentaDate(c: { created_at?: string | null; sale?: { created_at?: string | null } | null }): string | null {
+export function resolveVentaDate(c: {
+  created_at?: string | null;
+  sale?: { created_at?: string | null } | null;
+  // Fila sintética de un cobro puntual contra una venta pendiente/parcial
+  // (ver syntheticRecoveredRows en cash-register.tsx/use-professionals-data.ts)
+  // — acá created_at es la fecha REAL del cobro (collected_at), a propósito
+  // distinta de sale.created_at (la fecha de la venta original, de
+  // cualquier día anterior). Para estas filas sale.created_at NUNCA debe
+  // ganarle a created_at — haría que un cobro de hoy de una venta de hace
+  // tres semanas se ordene/posicione como si hubiera pasado hace tres
+  // semanas, perdiendo el sentido entero de "Pago pendiente recuperado".
+  __recovered?: boolean;
+}): string | null {
+  if (c.__recovered) return c.created_at ?? c.sale?.created_at ?? null;
   return c.sale?.created_at ?? c.created_at ?? null;
 }
 

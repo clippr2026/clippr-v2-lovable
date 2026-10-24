@@ -8,12 +8,16 @@
 // se aplica en un solo lugar y se ve igual en ambas.
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, Info, Trash2, X } from "lucide-react";
+import { ChevronDown, Info, Loader2, Trash2, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { money, paymentMethodLabel, realNote } from "./movimiento-format";
 import { normalizeCierreMethodKey } from "@/lib/caja-cierre";
 import { resolveDisplayConcept, type EmployeeCommissionMap } from "@/lib/service-pricing";
 import { resolveVentaDate } from "@/lib/historial-movimientos";
+import {
+  getPaymentCollectionHistory,
+  type PaymentCollectionHistoryItem,
+} from "@/components/cash-register/cobrar-pendiente";
 
 // Grilla compartida por TODAS las filas de la lista única (ventas,
 // adelantos, pagos, ajustes, deducciones) y por su encabezado — mismas 7
@@ -182,6 +186,77 @@ export function InfoPopover({ text }: { text: React.ReactNode }) {
   );
 }
 
+// Historial completo de pagos de UNA venta (todos los cobros reales,
+// incluidas reversiones) — se pide on-demand recién al desplegar una fila
+// "recuperada" (isRecovered), nunca precargado: una venta puede acumular
+// semanas de cobros parciales que no hace falta traer si nadie despliega
+// el detalle. Mismo dato que usa el historial de "Movimientos de caja"
+// (Caja > Resumen), reutilizado acá para no reimplementar el fetch.
+function PaymentHistoryPanel({ paymentId }: { paymentId: string }) {
+  const [items, setItems] = React.useState<PaymentCollectionHistoryItem[] | null>(null);
+  const [loading, setLoading] = React.useState(true);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    getPaymentCollectionHistory(paymentId)
+      .then((rows) => {
+        if (!cancelled) setItems(rows);
+      })
+      .catch(() => {
+        if (!cancelled) setItems([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [paymentId]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center gap-2 px-3.5 py-2.5 text-xs text-sky-100/70 sm:px-4">
+        <Loader2 className="size-3.5 animate-spin" /> Cargando historial de pagos…
+      </div>
+    );
+  }
+  if (!items || items.length === 0) {
+    return (
+      <div className="px-3.5 py-2.5 text-xs text-sky-100/70 sm:px-4">Todavía no se cobró nada de esta venta.</div>
+    );
+  }
+
+  return (
+    <div className="divide-y divide-sky-400/10 px-3.5 py-1 sm:px-4">
+      {items.map((it) => {
+        const dt = new Date(it.collected_at);
+        const isReversal = it.amount < 0;
+        return (
+          <div key={it.id} className="flex items-center justify-between gap-3 py-2 text-xs">
+            <div className="flex min-w-0 flex-col">
+              <span className="text-sky-50/90">
+                {dt.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })} ·{" "}
+                {dt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}
+              </span>
+              <span className="truncate text-sky-100/60">
+                {paymentMethodLabel(it.method ?? "")}
+                {it.collected_by_name ? ` · ${it.collected_by_name}` : ""}
+                {isReversal && it.reversal_reason ? ` · Reversión: ${it.reversal_reason}` : ""}
+                {it.observations ? ` · ${it.observations}` : ""}
+              </span>
+            </div>
+            <span className={cn("shrink-0 font-bold tabular-nums", isReversal ? "text-rose-300" : "text-emerald-300")}>
+              {isReversal ? "-" : "+"}
+              {money(Math.abs(it.amount))}
+            </span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 // Una fila de venta con comisión dentro de la lista única de
 // Liquidaciones/Movimientos — autocontenida (desktop + mobile en un solo
 // bloque) para poder intercalarse cronológicamente con pagos/adelantos/
@@ -207,6 +282,21 @@ export function VentaRow({
   const dateTime = saleDate
     ? `${saleDate.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })} · ${saleDate.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}`
     : "—";
+  // Fila sintética: UN cobro puntual contra una venta pendiente/parcial —
+  // ver syntheticRecoveredRows (cash-register.tsx) / fetchPendingVentasForProfessional
+  // (use-professionals-data.ts). c.amount/c.pending_amount acá NUNCA son la
+  // comisión completa de la venta, son solo lo habilitado por ESE cobro.
+  const isRecovered = Boolean(c.__recovered);
+  // sale.status ya refleja el estado ACTUAL (al momento de esta carga): si
+  // esta fue la última porción que faltaba, sale.status ya es 'cobrado'
+  // acá — "recuperado" (saldo saldado) en vez de "parcial" (todavía debe).
+  const isFullyRecovered = isRecovered && sale.status === "cobrado";
+  const saleOriginalDate = sale.created_at ? new Date(sale.created_at) : null;
+  const saleOriginalDateLabel = saleOriginalDate
+    ? saleOriginalDate.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" })
+    : null;
+  const collectedAmount = Number(sale.collected_amount ?? sale.total ?? sale.amount ?? 0);
+  const saldoPendiente = Math.max(0, Number(sale.total ?? sale.amount ?? 0) - collectedAmount);
   const method = paymentMethodLabel(String(sale.method ?? sale.payment_method ?? ""));
   // Concepto a mostrar: si la venta tuvo varios ítems, saca del nombre
   // concatenado cualquier producto de catálogo sin comisión activa para
@@ -267,6 +357,10 @@ export function VentaRow({
       ? "text-amber-300"
       : "text-emerald-300/80";
   const tipText = hasTip ? `+ ${money(Number(sale.tip_amount))}` : "—";
+  // "Pago parcial" mientras la venta sigue debiendo saldo; "Pago pendiente
+  // recuperado" cuando ESTE cobro fue el que terminó de saldarla — nunca
+  // sobre una venta normal (cobrada de una sola vez, isRecovered=false).
+  const recoveredBadgeLabel = isFullyRecovered ? "Pago pendiente recuperado" : "Pago parcial";
   // Nota real del cliente/staff en esta venta — nunca el marcador técnico
   // [[HIST]] (historial interno de "Envió a caja", ver movimiento-format.ts)
   // ni ningún otro dato de auditoría/metadata del sistema. Si no hay nota
@@ -276,8 +370,10 @@ export function VentaRow({
   // comisión YA son visibles en la fila cerrada (columnas propias o el
   // tachado del precio) — la única razón real para expandir un servicio ya
   // realizado es leer una nota real. Sin nota, no hay flecha ni nada para
-  // abrir.
-  const hasExpandableContent = Boolean(saleNote);
+  // abrir. Una fila recuperada SIEMPRE es desplegable: ahí vive el
+  // historial completo de pagos de la venta (ver PaymentHistoryPanel),
+  // independiente de si además tiene una nota real.
+  const hasExpandableContent = Boolean(saleNote) || isRecovered;
   // Mobile usa <button> real solo cuando hay algo para expandir — igual
   // criterio que el role="button" del bloque desktop de más abajo.
   const MobileTag = hasExpandableContent ? "button" : "div";
@@ -311,52 +407,101 @@ export function VentaRow({
         <div className="truncate text-white/82">{sale.client_name ?? "Sin cliente"}</div>
         <div className="min-w-0">
           <div className="truncate text-white/82">{displayConcept}</div>
+          {isRecovered && (
+            <div className="mt-0.5 flex flex-wrap items-center gap-1">
+              <span
+                className={cn(
+                  "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1",
+                  isFullyRecovered
+                    ? "bg-emerald-400/15 text-emerald-200 ring-emerald-400/25"
+                    : "bg-amber-400/15 text-amber-200 ring-amber-400/25",
+                )}
+              >
+                {recoveredBadgeLabel}
+              </span>
+              {saleOriginalDateLabel && (
+                <span className="truncate text-[10px] text-white/40">Servicio: {saleOriginalDateLabel}</span>
+              )}
+            </div>
+          )}
           {conceptSubtitle && (
             <div className={cn("truncate text-[11px] font-medium", conceptSubtitleClass)}>{conceptSubtitle}</div>
           )}
         </div>
         <div className="text-right tabular-nums text-white/72">
+          {isRecovered ? (
+            // Pago parcial/recuperado: el precio tachado de siempre no
+            // alcanza acá — hace falta distinguir precio total, cuánto se
+            // cobró EN TOTAL hasta ahora (no solo este evento) y cuánto
+            // sigue faltando, para que nunca se confunda con una venta
+            // cobrada completa de una sola vez.
+            <div className="space-y-0.5">
+              <div className="text-[11px] text-white/40">Total {money(saleTotal)}</div>
+              <div className="font-semibold text-emerald-300">Cobrado {money(collectedAmount)}</div>
+              {saldoPendiente > 0 && (
+                <div className="text-[11px] font-semibold text-amber-300">Saldo {money(saldoPendiente)}</div>
+              )}
+            </div>
+          ) : (
+            <div className="flex items-center justify-end gap-1">
+              {showReduction ? (
+                <div>
+                  <div className="text-[11px] text-white/35 line-through">{money(originalAmount)}</div>
+                  <div>{money(saleTotal)}</div>
+                </div>
+              ) : (
+                money(saleTotal)
+              )}
+              {(showReduction || hasTip) && (
+                <InfoPopover
+                  text={
+                    <div className="space-y-1.5">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="text-white/60">Precio original</span>
+                        <span className="font-semibold text-white">{money(originalAmount)}</span>
+                      </div>
+                      {hasDiscount && (
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-white/60">{promoLabel ?? sale.promotion_name ?? "Descuento"}</span>
+                          <span className="font-semibold text-rose-300">-{money(Number(sale.discount))}</span>
+                        </div>
+                      )}
+                      {hasTip && (
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-white/60">Propina</span>
+                          <span className="font-semibold text-emerald-300">+{money(Number(sale.tip_amount))}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-1">
+                        <span className="text-white/60">Total cobrado</span>
+                        <span className="font-semibold text-white">{money(totalCobrado)}</span>
+                      </div>
+                    </div>
+                  }
+                />
+              )}
+            </div>
+          )}
+        </div>
+        <div className="text-right font-bold tabular-nums text-violet-300">
           <div className="flex items-center justify-end gap-1">
-            {showReduction ? (
-              <div>
-                <div className="text-[11px] text-white/35 line-through">{money(originalAmount)}</div>
-                <div>{money(saleTotal)}</div>
-              </div>
-            ) : (
-              money(saleTotal)
-            )}
-            {(showReduction || hasTip) && (
+            {money(Number(c.pending_amount ?? c.amount ?? 0))}
+            {isRecovered && (
               <InfoPopover
                 text={
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="text-white/60">Precio original</span>
-                      <span className="font-semibold text-white">{money(originalAmount)}</span>
+                  <div className="space-y-1">
+                    <div className="text-white/70">
+                      Comisión habilitada por ESTE cobro puntual — no la comisión completa de la venta.
                     </div>
-                    {hasDiscount && (
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-white/60">{promoLabel ?? sale.promotion_name ?? "Descuento"}</span>
-                        <span className="font-semibold text-rose-300">-{money(Number(sale.discount))}</span>
-                      </div>
-                    )}
-                    {hasTip && (
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="text-white/60">Propina</span>
-                        <span className="font-semibold text-emerald-300">+{money(Number(sale.tip_amount))}</span>
-                      </div>
-                    )}
                     <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-1">
-                      <span className="text-white/60">Total cobrado</span>
-                      <span className="font-semibold text-white">{money(totalCobrado)}</span>
+                      <span className="text-white/60">Cobrado este evento</span>
+                      <span className="font-semibold text-white">{money(Number(c.amount ?? 0))}</span>
                     </div>
                   </div>
                 }
               />
             )}
           </div>
-        </div>
-        <div className="text-right font-bold tabular-nums text-violet-300">
-          {money(Number(c.pending_amount ?? c.amount ?? 0))}
         </div>
         <div className={cn("text-right text-sm font-semibold tabular-nums", hasTip ? "text-emerald-300" : "text-white/25")}>
           {tipText}
@@ -378,17 +523,49 @@ export function VentaRow({
           <div className="min-w-0 flex-1">
             <div className="truncate font-semibold text-white/82">{sale.client_name ?? "Sin cliente"}</div>
             <div className="mt-0.5 truncate text-white/60">{displayConcept}</div>
+            {isRecovered && (
+              <div className="mt-0.5 flex flex-wrap items-center gap-1">
+                <span
+                  className={cn(
+                    "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1",
+                    isFullyRecovered
+                      ? "bg-emerald-400/15 text-emerald-200 ring-emerald-400/25"
+                      : "bg-amber-400/15 text-amber-200 ring-amber-400/25",
+                  )}
+                >
+                  {recoveredBadgeLabel}
+                </span>
+                {saleOriginalDateLabel && (
+                  <span className="truncate text-[10px] text-white/40">Servicio: {saleOriginalDateLabel}</span>
+                )}
+              </div>
+            )}
             {conceptSubtitle && (
               <div className={cn("truncate text-[11px] font-medium", conceptSubtitleClass)}>{conceptSubtitle}</div>
             )}
             <div className="mt-1 text-white/45">
-              Precio:{" "}
-              {showReduction ? (
+              {isRecovered ? (
                 <>
-                  <span className="text-white/30 line-through">{money(originalAmount)}</span> {money(saleTotal)}
+                  Total {money(saleTotal)} · Cobrado{" "}
+                  <span className="font-semibold text-emerald-300">{money(collectedAmount)}</span>
+                  {saldoPendiente > 0 && (
+                    <>
+                      {" "}
+                      · Saldo <span className="font-semibold text-amber-300">{money(saldoPendiente)}</span>
+                    </>
+                  )}
                 </>
               ) : (
-                money(saleTotal)
+                <>
+                  Precio:{" "}
+                  {showReduction ? (
+                    <>
+                      <span className="text-white/30 line-through">{money(originalAmount)}</span> {money(saleTotal)}
+                    </>
+                  ) : (
+                    money(saleTotal)
+                  )}
+                </>
               )}
             </div>
           </div>
@@ -400,7 +577,7 @@ export function VentaRow({
               )}
             </div>
             <div className="font-bold tabular-nums text-violet-300">
-              Comisión: {money(Number(c.pending_amount ?? c.amount ?? 0))}
+              Comisión{isRecovered ? " de este cobro" : ""}: {money(Number(c.pending_amount ?? c.amount ?? 0))}
             </div>
             <div className="text-white/60">{method}</div>
             {hasTip && (
@@ -411,14 +588,16 @@ export function VentaRow({
           </div>
         </div>
       </MobileTag>
-      {/* Único contenido expandible: una nota real. Precio de lista/final,
-          descuento, promoción, propina, medio de pago y comisión NUNCA se
-          repiten acá — ya son columnas/tachado visibles en la fila
-          cerrada. Mismo tratamiento que la nota de un Adelanto (ver MovRow
-          más abajo), nunca el marcador técnico [[HIST]]. */}
-      {expanded && saleNote && (
-        <div className="border-t border-sky-400/25 bg-sky-400/[0.12] px-3.5 py-2.5 text-xs text-sky-100 sm:px-4 sm:text-sm">
-          {saleNote}
+      {/* Contenido expandible: nota real (si hay) + historial completo de
+          pagos (solo filas recuperadas) — ver PaymentHistoryPanel. Precio
+          de lista/final, descuento, promoción, propina, medio de pago y
+          comisión NUNCA se repiten acá, ya son columnas/tachado visibles
+          en la fila cerrada; el historial de pagos sí es información
+          nueva, no visible en ningún otro lado de esta fila. */}
+      {expanded && (saleNote || isRecovered) && (
+        <div className="border-t border-sky-400/25 bg-sky-400/[0.12] sm:px-0">
+          {saleNote && <div className="px-3.5 py-2.5 text-xs text-sky-100 sm:px-4 sm:text-sm">{saleNote}</div>}
+          {isRecovered && c.sale_id && <PaymentHistoryPanel paymentId={c.sale_id} />}
         </div>
       )}
     </div>

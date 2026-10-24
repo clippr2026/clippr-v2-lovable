@@ -4266,7 +4266,12 @@ function ProfesionalesTab({
           commission_pct: original?.commission_pct ?? null,
           sale_date: e.collected_at,
           created_at: e.collected_at,
-          status: "recovered",
+          // Marcador para VentaRow (unified-row.tsx): esta fila representa
+          // UN cobro puntual de una venta pendiente/parcial, nunca la
+          // comisión completa de la venta — nunca "status" (ese campo ya
+          // tiene un significado real en commission_records, pending/
+          // partially_paid/paid/voided; no hay que pisarlo).
+          __recovered: true,
           sale_id: saleIdByCommissionId[e.commission_record_id],
           professional_id: professionalId,
         };
@@ -4346,7 +4351,12 @@ function ProfesionalesTab({
         // la fila de comisión si no se pudo traer el payment) — un solo
         // lugar resuelve esto, todo lo demás (filtro de período/corte de
         // abajo, orden, <VentaRow> vía resolveVentaDate) lo hereda gratis.
-        return { ...c, sale, listPriceFallback, created_at: resolveVentaDate({ created_at: c.created_at, sale }) ?? c.created_at };
+        return {
+          ...c,
+          sale,
+          listPriceFallback,
+          created_at: resolveVentaDate({ created_at: c.created_at, sale, __recovered: c.__recovered }) ?? c.created_at,
+        };
       });
       const filteredRows = enrichedRows
         .filter(
