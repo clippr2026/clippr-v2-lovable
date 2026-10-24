@@ -189,6 +189,31 @@ export type LiquidacionPendingRow = {
   settlement_run_id: string | null;
   pending_amount: number;
   created_at: string;
+  sale_id?: string | null;
+  // Status de payments (el de la VENTA, no el de esta fila de comisión/
+  // propina) — ver 20261023010000_pending_payments_schema.sql. Lo agrega
+  // withOperativeDates/resolveOperativeDates (ya resuelven el sale_id de
+  // cada fila para la fecha operativa real; de paso traen esto). Bug real
+  // (24/10/2026, reporte de comisión de Daniel): sin esto, una venta
+  // pendiente/parcial contaba TODO su pending_amount como "nuevo
+  // disponible" apenas se creaba la fila — antes de Fase 0 eso era
+  // correcto (pending_amount siempre reflejaba la comisión completa, sin
+  // cobro parcial posible), ahora pending_amount de una venta parcial
+  // incluye la porción TODAVÍA NO COBRADA, que nunca debe contarse como
+  // disponible.
+  payment_status?: string | null;
+};
+
+// Una porción de comisión/propina HABILITADA por un cobro puntual
+// (commission_collection_events/tip_collection_events — ver
+// 20261023010000_pending_payments_schema.sql), para una venta que nació
+// pendiente/parcial. Es la fuente real de "cuánto hay disponible ahora"
+// para esas ventas — nunca su pending_amount (ver LiquidacionPendingRow).
+export type LiquidacionRecoveredRow = {
+  professional_id: string;
+  settlement_run_id: string | null;
+  amount: number;
+  collected_at: string;
 };
 
 export type LiquidacionRunSummaryRow = {
@@ -237,6 +262,11 @@ export function computeLiquidacionSummary(
   tips: LiquidacionPendingRow[],
   runs: LiquidacionRunSummaryRow[],
   advances: LiquidacionAdvanceSummaryRow[],
+  // Eventos de cobro de pendientes, sin liquidar todavía — opcionales
+  // (default []) para no romper ningún caller que todavía no los pasa.
+  // Ver LiquidacionRecoveredRow.
+  commissionEvents: LiquidacionRecoveredRow[] = [],
+  tipEvents: LiquidacionRecoveredRow[] = [],
 ): LiquidacionSummary {
   const employeeRuns = runs
     .filter((r) => String(r.professional_id) === String(professionalId))
@@ -260,6 +290,10 @@ export function computeLiquidacionSummary(
         : `Hasta ${fmtDayMonth(latestRun.prepared_at)}`
       : null;
 
+  // pendiente/parcial: su pending_amount incluye plata TODAVÍA NO COBRADA
+  // — nunca cuenta acá. Lo que sí está disponible de esas ventas entra por
+  // sumRecovered (commission_collection_events/tip_collection_events),
+  // abajo — eventos reales de cobro, cada uno con su propia fecha.
   const sumNewPending = (rows: LiquidacionPendingRow[]) =>
     rows
       .filter(
@@ -267,12 +301,24 @@ export function computeLiquidacionSummary(
           String(r.professional_id) === String(professionalId) &&
           !r.settlement_run_id &&
           (!periodStartAt || String(r.created_at ?? "") > periodStartAt) &&
-          Number(r.pending_amount ?? 0) > 0,
+          Number(r.pending_amount ?? 0) > 0 &&
+          r.payment_status !== "pendiente" &&
+          r.payment_status !== "parcial",
       )
       .reduce((sum, r) => sum + Number(r.pending_amount ?? 0), 0);
 
-  const newCommissions = sumNewPending(commissions);
-  const newTips = sumNewPending(tips);
+  const sumRecovered = (rows: LiquidacionRecoveredRow[]) =>
+    rows
+      .filter(
+        (r) =>
+          String(r.professional_id) === String(professionalId) &&
+          !r.settlement_run_id &&
+          (!periodStartAt || String(r.collected_at ?? "") > periodStartAt),
+      )
+      .reduce((sum, r) => sum + Number(r.amount ?? 0), 0);
+
+  const newCommissions = sumNewPending(commissions) + sumRecovered(commissionEvents);
+  const newTips = sumNewPending(tips) + sumRecovered(tipEvents);
 
   const pendingAdvances = advances
     .filter((a) => String(a.professional_id) === String(professionalId) && !a.settlement_run_id)
@@ -366,12 +412,19 @@ export function resolveVentaDate(c: { created_at?: string | null; sale?: { creat
 // computeLiquidacionSummary o a cualquier filtro de corte — así ningún
 // consumidor necesita saber que existe esta corrección, ni acordarse de
 // aplicarla cada vez.
-export function withOperativeDates<T extends { sale_id?: string | null; created_at: string }>(
+export function withOperativeDates<
+  T extends { sale_id?: string | null; created_at: string; payment_status?: string | null },
+>(
   rows: T[],
-  paymentCreatedAtBySaleId: Record<string, string | null | undefined>,
+  paymentInfoBySaleId: Record<string, { created_at: string | null; status: string | null } | undefined>,
 ): T[] {
   return rows.map((row) => {
-    const operativeAt = row.sale_id ? paymentCreatedAtBySaleId[row.sale_id] : null;
-    return operativeAt ? { ...row, created_at: operativeAt } : row;
+    const info = row.sale_id ? paymentInfoBySaleId[row.sale_id] : undefined;
+    if (!info) return row;
+    return {
+      ...row,
+      created_at: info.created_at ?? row.created_at,
+      payment_status: info.status ?? null,
+    };
   });
 }

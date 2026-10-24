@@ -1,7 +1,12 @@
 import React from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
-import { mergePendingSaleIds, withOperativeDates, type PendingSaleRow } from "@/lib/historial-movimientos";
+import {
+  mergePendingSaleIds,
+  withOperativeDates,
+  type PendingSaleRow,
+  type LiquidacionRecoveredRow,
+} from "@/lib/historial-movimientos";
 
 /**
  * Portado de cjLoadProfesionales / cjVerPagosProf / cjVerProduccion (app.js)
@@ -630,6 +635,7 @@ export type ProfLiquidacionPendingRow = {
   pending_amount: number;
   created_at: string;
   sale_id?: string | null;
+  payment_status?: string | null;
 };
 
 // withOperativeDates (historial-movimientos.ts) necesita la fecha real del
@@ -638,18 +644,25 @@ export type ProfLiquidacionPendingRow = {
 // hacerlo. Sin esto, computeLiquidacionSummary seguía comparando contra
 // commission_records.created_at (congelado al cobrar, nunca se corrige)
 // — ver mismo comentario en historial-movimientos.ts.
-export async function resolveOperativeDates<T extends { sale_id?: string | null; created_at: string }>(
-  rows: T[],
-): Promise<T[]> {
+export async function resolveOperativeDates<
+  T extends { sale_id?: string | null; created_at: string; payment_status?: string | null },
+>(rows: T[]): Promise<T[]> {
   const saleIds = Array.from(new Set(rows.map((r) => r.sale_id).filter(Boolean))) as string[];
   if (saleIds.length === 0) return rows;
+  // status además de created_at: computeLiquidacionSummary (historial-
+  // movimientos.ts) lo necesita para excluir ventas pendientes/parciales
+  // de "nuevo disponible" — su plata real sale de commission_collection_events/
+  // tip_collection_events, nunca de pending_amount crudo (ver
+  // sumNewPending/sumRecovered).
   const { data, error } = await supabase
     .from("payments" as any)
-    .select("id,created_at")
+    .select("id,created_at,status")
     .in("id", saleIds);
   if (error) throw new Error(error.message);
-  const createdAtBySaleId = Object.fromEntries((data ?? []).map((p: any) => [p.id, p.created_at]));
-  return withOperativeDates(rows, createdAtBySaleId);
+  const infoBySaleId = Object.fromEntries(
+    (data ?? []).map((p: any) => [p.id, { created_at: p.created_at as string | null, status: p.status as string | null }]),
+  );
+  return withOperativeDates(rows, infoBySaleId);
 }
 
 export function useProfCommissionRecords(businessId: string | null, empId: string | null) {
@@ -721,6 +734,103 @@ export function useProfTipRecords(businessId: string | null, empId: string | nul
         "postgres_changes",
         { event: "*", schema: "public", table: "tip_records", filter: `professional_id=eq.${empId}` },
         () => qc.invalidateQueries({ queryKey: ["prof-tip-records", businessId, empId] }),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [businessId, empId, qc]);
+
+  return query;
+}
+
+// Eventos de cobro de comisión/propina de pendientes — commission_records/
+// tip_records de este profesional (ver useProfCommissionRecords/
+// useProfTipRecords arriba) NUNCA alcanzan por sí solos para una venta que
+// nació pendiente/parcial: su pending_amount incluye plata todavía no
+// cobrada. Lo realmente disponible de esas ventas vive acá, un renglón por
+// cobro real (ver 20261023010000_pending_payments_schema.sql) — mismos
+// `commissionEvents`/`tipEvents` que computeLiquidacionSummary necesita
+// para no repetir el bug de Daniel (24/10/2026) en Panel del profesional.
+// `!inner` + filtro por professional_id embebido: estas tablas no tienen
+// professional_id propio, solo llegan a él vía commission_record_id/
+// tip_record_id.
+export function useProfCommissionEvents(businessId: string | null, empId: string | null) {
+  const qc = useQueryClient();
+
+  const query = useQuery({
+    queryKey: ["prof-commission-events", businessId, empId],
+    queryFn: async (): Promise<LiquidacionRecoveredRow[]> => {
+      const { data, error } = await supabase
+        .from("commission_collection_events" as any)
+        .select("amount,collected_at,settlement_run_id,commission_records!inner(professional_id)")
+        .eq("business_id", businessId!)
+        .eq("commission_records.professional_id", empId!);
+      if (error) throw new Error(error.message);
+      return (data ?? []).map((r: any) => ({
+        professional_id: empId!,
+        settlement_run_id: r.settlement_run_id,
+        amount: Number(r.amount ?? 0),
+        collected_at: r.collected_at,
+      }));
+    },
+    enabled: !!businessId && !!empId,
+    staleTime: 30_000,
+  });
+
+  React.useEffect(() => {
+    if (!businessId || !empId) return;
+    const channel = supabase
+      .channel(`prof-commission-events-${empId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "commission_collection_events", filter: `business_id=eq.${businessId}` },
+        () => qc.invalidateQueries({ queryKey: ["prof-commission-events", businessId, empId] }),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [businessId, empId, qc]);
+
+  return query;
+}
+
+export function useProfTipEvents(businessId: string | null, empId: string | null) {
+  const qc = useQueryClient();
+
+  const query = useQuery({
+    queryKey: ["prof-tip-events", businessId, empId],
+    queryFn: async (): Promise<LiquidacionRecoveredRow[]> => {
+      try {
+        const { data, error } = await supabase
+          .from("tip_collection_events" as any)
+          .select("amount,collected_at,settlement_run_id,tip_records!inner(professional_id)")
+          .eq("business_id", businessId!)
+          .eq("tip_records.professional_id", empId!);
+        if (error) throw error;
+        return (data ?? []).map((r: any) => ({
+          professional_id: empId!,
+          settlement_run_id: r.settlement_run_id,
+          amount: Number(r.amount ?? 0),
+          collected_at: r.collected_at,
+        }));
+      } catch {
+        return [];
+      }
+    },
+    enabled: !!businessId && !!empId,
+    staleTime: 30_000,
+  });
+
+  React.useEffect(() => {
+    if (!businessId || !empId) return;
+    const channel = supabase
+      .channel(`prof-tip-events-${empId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tip_collection_events", filter: `business_id=eq.${businessId}` },
+        () => qc.invalidateQueries({ queryKey: ["prof-tip-events", businessId, empId] }),
       )
       .subscribe();
     return () => {

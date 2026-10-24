@@ -370,7 +370,9 @@ describe("resolveVentaDate — Caja > Liquidaciones muestra la fecha real del pa
 describe("withOperativeDates — el CÁLCULO de Liquidaciones usa la fecha real del payment, no la de la fila de comisión/propina", () => {
   it("con el sale_id presente en el mapa, reemplaza created_at por la fecha del payment", () => {
     const rows = [{ sale_id: "sale-1", created_at: "2026-10-21T00:03:06.129Z", amount: 31996 }];
-    const result = withOperativeDates(rows, { "sale-1": "2026-10-18T00:03:06.129Z" });
+    const result = withOperativeDates(rows, {
+      "sale-1": { created_at: "2026-10-18T00:03:06.129Z", status: "cobrado" },
+    });
     expect(result[0].created_at).toBe("2026-10-18T00:03:06.129Z");
   });
 
@@ -381,13 +383,17 @@ describe("withOperativeDates — el CÁLCULO de Liquidaciones usa la fecha real 
 
   it("sin sale_id en la fila, conserva created_at original", () => {
     const rows = [{ created_at: "2026-10-13T10:00:00.000Z", amount: 1000 } as { created_at: string }];
-    expect(withOperativeDates(rows, { x: "y" })[0].created_at).toBe("2026-10-13T10:00:00.000Z");
+    expect(
+      withOperativeDates(rows, { x: { created_at: "y", status: "cobrado" } })[0].created_at,
+    ).toBe("2026-10-13T10:00:00.000Z");
   });
 
   it("no muta el array/objetos originales (devuelve copias nuevas)", () => {
     const original = { sale_id: "sale-1", created_at: "2026-10-21T00:03:06.129Z" };
     const rows = [original];
-    const result = withOperativeDates(rows, { "sale-1": "2026-10-18T00:03:06.129Z" });
+    const result = withOperativeDates(rows, {
+      "sale-1": { created_at: "2026-10-18T00:03:06.129Z", status: "cobrado" },
+    });
     expect(original.created_at).toBe("2026-10-21T00:03:06.129Z");
     expect(result[0]).not.toBe(original);
   });
@@ -398,8 +404,8 @@ describe("withOperativeDates — el CÁLCULO de Liquidaciones usa la fecha real 
       { sale_id: "b", created_at: "2026-10-02T00:00:00.000Z" },
     ];
     const result = withOperativeDates(rows, {
-      a: "2026-09-30T23:00:00.000Z",
-      b: "2026-10-05T00:00:00.000Z",
+      a: { created_at: "2026-09-30T23:00:00.000Z", status: "cobrado" },
+      b: { created_at: "2026-10-05T00:00:00.000Z", status: "cobrado" },
     });
     expect(result.map((r) => r.created_at)).toEqual([
       "2026-09-30T23:00:00.000Z",
@@ -423,7 +429,9 @@ describe("Caso real: corte 'Hasta 17/10' vs 'Hasta 20/10' con una fecha operativ
     pending_amount: 31996,
     created_at: "2026-10-21T00:03:06.129Z", // commission_records.created_at — nunca se corrige
   };
-  const paymentCreatedAtBySaleId = { "sale-alan-chauque": "2026-10-18T00:03:06.129Z" }; // payments.created_at — SÍ corregido (17/10 21:03 ART)
+  const paymentCreatedAtBySaleId = {
+    "sale-alan-chauque": { created_at: "2026-10-18T00:03:06.129Z", status: "cobrado" },
+  }; // payments.created_at — SÍ corregido (17/10 21:03 ART)
 
   it("SIN resolver la fecha operativa (bug viejo): el corte del 17/10 excluye la comisión, el del 20/10 la incluye", () => {
     const cutoff17 = dayBoundsBA("2026-10-17").end;
@@ -500,7 +508,7 @@ describe("Movimientos ya liquidados y liquidaciones parciales — withOperativeD
           sale_id: "sale-alan-chauque",
         } as LiquidacionPendingRow & { sale_id: string },
       ],
-      { "sale-alan-chauque": "2026-10-18T00:03:06.129Z" },
+      { "sale-alan-chauque": { created_at: "2026-10-18T00:03:06.129Z", status: "cobrado" } },
     );
     const summary = computeLiquidacionSummary("franco", commissions, [], [], []);
     expect(summary.newCommissions).toBe(0);
@@ -520,7 +528,7 @@ describe("Movimientos ya liquidados y liquidaciones parciales — withOperativeD
           sale_id: "sale-alan-chauque",
         } as LiquidacionPendingRow & { sale_id: string },
       ],
-      { "sale-alan-chauque": "2026-10-18T00:03:06.129Z" }, // 17/10, posterior al período anterior (10/10)
+      { "sale-alan-chauque": { created_at: "2026-10-18T00:03:06.129Z", status: "cobrado" } }, // 17/10, posterior al período anterior (10/10)
     );
     const summary = computeLiquidacionSummary("franco", commissions, [], runs, []);
     expect(summary.previousBalance).toBe(60000); // 100000 - 40000, deuda parcial anterior
@@ -547,7 +555,7 @@ describe("Profesional asignado al cobrar (no el de la agenda original) — aisla
           sale_id: "sale-alan-chauque",
         } as LiquidacionPendingRow & { sale_id: string },
       ],
-      { "sale-alan-chauque": "2026-10-18T00:03:06.129Z" },
+      { "sale-alan-chauque": { created_at: "2026-10-18T00:03:06.129Z", status: "cobrado" } },
     );
     const summaryFranco = computeLiquidacionSummary("franco", commissions, [], [], []);
     const summaryAlan = computeLiquidacionSummary("alan", commissions, [], [], []);
@@ -573,11 +581,117 @@ describe("Nuevos profesionales/sucursales — mismo cálculo sin historial previ
           sale_id: "sale-nueva",
         } as LiquidacionPendingRow & { sale_id: string },
       ],
-      { "sale-nueva": "2026-10-18T00:03:06.129Z" },
+      { "sale-nueva": { created_at: "2026-10-18T00:03:06.129Z", status: "cobrado" } },
     );
     const summary = computeLiquidacionSummary(brandNewProfessionalId, commissions, [], [], []);
     expect(summary.previousBalance).toBe(0);
     expect(summary.newCommissions).toBe(15000);
     expect(summary.totalToPay).toBe(15000);
+  });
+});
+
+// Caso real reportado (producción, 24/10/2026): Daniel, venta $21.900,
+// comisión potencial $9.000 (45% sobre $20.000, precio con tope — no
+// $21.900), cliente pagó $1.000. El sistema mostraba $8.589
+// (pending_amount completo, incluyendo los $8.589 TODAVÍA NO cobrados)
+// como si fuera la comisión disponible, en vez de los $410,96 realmente
+// habilitados por ese cobro puntual (9000 × 1000/21900). Causa raíz:
+// sumNewPending (vía computeLiquidacionSummary) sumaba pending_amount de
+// CUALQUIER commission_records sin liquidar, sin saber que una venta
+// pendiente/parcial reparte su habilitación por cobro real
+// (commission_collection_events), nunca de una sola vez al crearse.
+describe("Caso real: comisión de pago parcial (Daniel, $21.900 → $1.000 cobrado, 24/10/2026)", () => {
+  const pendingCommission: LiquidacionPendingRow = {
+    professional_id: "daniel",
+    settlement_run_id: null,
+    pending_amount: 8589.04, // 9000 - 410.96 — TODAVÍA NO cobrado
+    created_at: "2026-10-24T04:31:11.479Z",
+    sale_id: "sale-daniel-parcial",
+    payment_status: "parcial", // payments.status de la venta original
+  };
+
+  it("sumNewPending NUNCA cuenta el pending_amount de una venta pendiente/parcial", () => {
+    const summary = computeLiquidacionSummary("daniel", [pendingCommission], [], [], []);
+    expect(summary.newCommissions).toBe(0);
+  });
+
+  it("lo realmente habilitado (evento de cobro, $410.96) SÍ cuenta, aunque pending_amount de la fila padre sea $8.589", () => {
+    const recoveredEvent = {
+      professional_id: "daniel",
+      settlement_run_id: null,
+      amount: 410.96,
+      collected_at: "2026-10-24T04:31:11.479Z",
+    };
+    const summary = computeLiquidacionSummary(
+      "daniel",
+      [pendingCommission],
+      [],
+      [],
+      [],
+      [recoveredEvent],
+    );
+    expect(summary.newCommissions).toBe(410.96);
+  });
+
+  it("una venta 100% pendiente (status='pendiente', $0 cobrado, sin ningún evento) nunca aporta nada — ni su pending_amount completo ni nada por error", () => {
+    const fullyPending: LiquidacionPendingRow = {
+      professional_id: "daniel",
+      settlement_run_id: null,
+      pending_amount: 9000,
+      created_at: "2026-10-24T05:00:00.000Z",
+      sale_id: "sale-daniel-pendiente-total",
+      payment_status: "pendiente",
+    };
+    const summary = computeLiquidacionSummary("daniel", [fullyPending], [], [], []);
+    expect(summary.newCommissions).toBe(0);
+  });
+
+  it("una vez liquidado el evento recuperado (settlement_run_id asignado), no se cuenta de nuevo en la próxima liquidación", () => {
+    const alreadySettledEvent = {
+      professional_id: "daniel",
+      settlement_run_id: "run-ya-liquidado",
+      amount: 410.96,
+      collected_at: "2026-10-24T04:31:11.479Z",
+    };
+    const summary = computeLiquidacionSummary(
+      "daniel",
+      [pendingCommission],
+      [],
+      [],
+      [],
+      [alreadySettledEvent],
+    );
+    expect(summary.newCommissions).toBe(0);
+  });
+
+  it("una venta cobrada normal (status='cobrado') sigue sumando su pending_amount completo, sin cambios", () => {
+    const normalCommission: LiquidacionPendingRow = {
+      professional_id: "daniel",
+      settlement_run_id: null,
+      pending_amount: 9000,
+      created_at: "2026-10-23T16:44:38.237Z",
+      sale_id: "sale-pato-orellana",
+      payment_status: "cobrado",
+    };
+    const summary = computeLiquidacionSummary("daniel", [normalCommission], [], [], []);
+    expect(summary.newCommissions).toBe(9000);
+  });
+
+  it("dos cobros parciales de la MISMA venta en dos eventos distintos se suman sin duplicar", () => {
+    const events = [
+      { professional_id: "daniel", settlement_run_id: null, amount: 410.96, collected_at: "2026-10-24T04:31:11.479Z" },
+      { professional_id: "daniel", settlement_run_id: null, amount: 822.0, collected_at: "2026-10-26T10:00:00.000Z" },
+    ];
+    const summary = computeLiquidacionSummary("daniel", [pendingCommission], [], [], [], events);
+    expect(summary.newCommissions).toBeCloseTo(1232.96, 2);
+  });
+
+  it("un evento de OTRO profesional nunca se mezcla con el total de Daniel", () => {
+    const events = [
+      { professional_id: "daniel", settlement_run_id: null, amount: 410.96, collected_at: "2026-10-24T04:31:11.479Z" },
+      { professional_id: "alan", settlement_run_id: null, amount: 999, collected_at: "2026-10-24T04:31:11.479Z" },
+    ];
+    const summary = computeLiquidacionSummary("daniel", [pendingCommission], [], [], [], events);
+    expect(summary.newCommissions).toBe(410.96);
   });
 });

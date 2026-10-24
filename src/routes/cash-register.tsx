@@ -3690,6 +3690,16 @@ function ProfesionalesTab({
   // sola cifra, ni acá ni en prepare_settlement_run (ver migración
   // 20260927010000_tips_system.sql).
   const [allTips, setAllTips] = React.useState<any[]>([]);
+  // Eventos de cobro de pendientes (commission_collection_events/
+  // tip_collection_events) — sin esto, allCommissions/allTips por sí solos
+  // NO alcanzan para saber cuánto hay realmente disponible de una venta
+  // pendiente/parcial (ver bug real de Daniel, 24/10/2026: se mostraba
+  // pending_amount completo, plata todavía sin cobrar, como si estuviera
+  // disponible). sale_id de cada fila de allCommissions/allTips mapea 1:1
+  // a su id, así que acá solo guardamos los eventos crudos y la
+  // atribución a professional_id se arma más abajo (commissionRecordProById).
+  const [allCommissionEvents, setAllCommissionEvents] = React.useState<any[]>([]);
+  const [allTipEvents, setAllTipEvents] = React.useState<any[]>([]);
   const [allRuns, setAllRuns] = React.useState<any[]>([]);
   const [allRunPayments, setAllRunPayments] = React.useState<any[]>([]);
   const [allAdvances, setAllAdvances] = React.useState<any[]>([]);
@@ -3852,6 +3862,59 @@ function ProfesionalesTab({
     };
   }, [businessId, commissionsVersion]);
 
+  // Eventos de cobro de pendientes — un renglón por cobro real contra una
+  // venta que nació pendiente/parcial (ver 20261023010000_pending_payments_schema.sql).
+  // Sin liquidar todavía (settlement_run_id null) o ya liquidados, los dos
+  // casos hacen falta: computeLiquidacionSummary filtra los sin liquidar
+  // para "nuevo disponible"; openDetail usa los sin liquidar para listar
+  // qué ventas pendientes aportan algo a la próxima liquidación.
+  React.useEffect(() => {
+    let cancelled = false;
+    async function loadEvents() {
+      if (!businessId) {
+        if (!cancelled) {
+          setAllCommissionEvents([]);
+          setAllTipEvents([]);
+        }
+        return;
+      }
+      try {
+        const [cceRows, tceRows] = await Promise.all([
+          fetchAllRows((from, to) =>
+            supabase
+              .from("commission_collection_events" as any)
+              .select("id,commission_record_id,amount,collected_at,settlement_run_id")
+              .eq("business_id", businessId)
+              .order("id", { ascending: true })
+              .range(from, to),
+          ),
+          fetchAllRows((from, to) =>
+            supabase
+              .from("tip_collection_events" as any)
+              .select("id,tip_record_id,amount,collected_at,settlement_run_id")
+              .eq("business_id", businessId)
+              .order("id", { ascending: true })
+              .range(from, to),
+          ),
+        ]);
+        if (!cancelled) {
+          setAllCommissionEvents(cceRows);
+          setAllTipEvents(tceRows);
+        }
+      } catch (e) {
+        if (!cancelled) {
+          setAllCommissionEvents([]);
+          setAllTipEvents([]);
+        }
+        console.warn("[caja] no se pudieron cargar los eventos de cobro:", (e as Error).message);
+      }
+    }
+    loadEvents();
+    return () => {
+      cancelled = true;
+    };
+  }, [businessId, commissionsVersion]);
+
   // Todas las liquidaciones (settlement_runs) y sus pagos (settlement_payments).
   React.useEffect(() => {
     let cancelled = false;
@@ -3976,6 +4039,19 @@ function ProfesionalesTab({
         () => setCommissionsVersion((v) => v + 1),
       )
       .on(
+        // Un cobro de pendiente (Cobrar pendiente) inserta acá — sin esto,
+        // "Comisiones generadas" quedaba desactualizado hasta un refresh
+        // manual después de cobrar un saldo parcial/total.
+        "postgres_changes",
+        { event: "*", schema: "public", table: "commission_collection_events", filter: `business_id=eq.${businessId}` },
+        () => setCommissionsVersion((v) => v + 1),
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "tip_collection_events", filter: `business_id=eq.${businessId}` },
+        () => setCommissionsVersion((v) => v + 1),
+      )
+      .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "settlement_runs", filter: `business_id=eq.${businessId}` },
         () => setCommissionsVersion((v) => v + 1),
@@ -3996,6 +4072,41 @@ function ProfesionalesTab({
     };
   }, [businessId]);
 
+  // commission_collection_events/tip_collection_events no tienen
+  // professional_id propio (solo commission_record_id/tip_record_id) —
+  // estos dos mapas lo resuelven vía allCommissions/allTips, que ya
+  // cargan {id, professional_id} de cada fila.
+  const commissionRecordProById = React.useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const c of allCommissions) m[c.id] = String(c.professional_id);
+    return m;
+  }, [allCommissions]);
+  const tipRecordProById = React.useMemo(() => {
+    const m: Record<string, string> = {};
+    for (const t of allTips) m[t.id] = String(t.professional_id);
+    return m;
+  }, [allTips]);
+  const allCommissionEventsAttributed = React.useMemo(
+    () =>
+      allCommissionEvents.map((e: any) => ({
+        professional_id: commissionRecordProById[e.commission_record_id] ?? "",
+        settlement_run_id: e.settlement_run_id,
+        amount: Number(e.amount ?? 0),
+        collected_at: e.collected_at,
+      })),
+    [allCommissionEvents, commissionRecordProById],
+  );
+  const allTipEventsAttributed = React.useMemo(
+    () =>
+      allTipEvents.map((e: any) => ({
+        professional_id: tipRecordProById[e.tip_record_id] ?? "",
+        settlement_run_id: e.settlement_run_id,
+        amount: Number(e.amount ?? 0),
+        collected_at: e.collected_at,
+      })),
+    [allTipEvents, tipRecordProById],
+  );
+
   const rows = React.useMemo(() => {
     return (data.employees ?? []).map((employee: any) => {
       // Pendiente total: TODA la deuda real, sin importar si la comisión ya
@@ -4013,6 +4124,8 @@ function ProfesionalesTab({
         allTips,
         allRuns,
         allAdvances,
+        allCommissionEventsAttributed,
+        allTipEventsAttributed,
       );
 
       return {
@@ -4030,7 +4143,15 @@ function ProfesionalesTab({
         commissionPct: Number(employee.commission_pct ?? 0),
       };
     });
-  }, [data.employees, allCommissions, allTips, allRuns, allAdvances]);
+  }, [
+    data.employees,
+    allCommissions,
+    allTips,
+    allRuns,
+    allAdvances,
+    allCommissionEventsAttributed,
+    allTipEventsAttributed,
+  ]);
 
   const selectedRow = React.useMemo(() => {
     return rows.find((row) => row.id === selectedEmployeeId) ?? null;
@@ -4094,20 +4215,63 @@ function ProfesionalesTab({
         .is("settlement_run_id", null)
         .gt("pending_amount", 0);
       if (error) throw error;
-      const saleIds = (commissionRows ?? [])
-        .map((c: any) => c.sale_id)
-        .filter(Boolean);
+
+      // Eventos de cobro de pendientes sin liquidar de este profesional —
+      // la plata real de una venta pendiente/parcial sale de acá, nunca de
+      // su pending_amount crudo (bug real: Daniel, 24/10/2026 — se
+      // mostraba pending_amount completo, incluyendo lo TODAVÍA NO
+      // cobrado, como si estuviera disponible para esta liquidación).
+      const recoveredEvents = allCommissionEvents.filter(
+        (e: any) =>
+          !e.settlement_run_id && commissionRecordProById[e.commission_record_id] === String(professionalId),
+      );
+      const saleIdByCommissionId: Record<string, string> = {};
+      for (const c of allCommissions) saleIdByCommissionId[c.id] = c.sale_id;
+
+      const saleIds = Array.from(
+        new Set([
+          ...(commissionRows ?? []).map((c: any) => c.sale_id),
+          ...recoveredEvents.map((e: any) => saleIdByCommissionId[e.commission_record_id]),
+        ]),
+      ).filter(Boolean);
       let paymentsById: Record<string, any> = {};
       if (saleIds.length > 0) {
         const { data: pays, error: payError } = await supabase
           .from("payments" as any)
           .select(
-            "id,client_name,service_name,total,amount,method,payment_method,created_at,discount,original_amount,promotion_id,promotion_name,tip_amount,items,notes,observations",
+            "id,client_name,service_name,total,amount,method,payment_method,created_at,discount,original_amount,promotion_id,promotion_name,tip_amount,items,notes,observations,status,collected_amount",
           )
           .in("id", saleIds);
         if (payError) throw payError;
         paymentsById = Object.fromEntries((pays ?? []).map((p: any) => [p.id, p]));
       }
+
+      // Ventas pendientes/parciales NUNCA entran acá con su pending_amount
+      // crudo — ver syntheticRecoveredRows más abajo, que las representa
+      // correctamente (una fila por cobro real, con su propio monto y
+      // fecha). Una venta ya totalmente cobrada por el flujo de
+      // pendientes vuelve a status='cobrado' y sigue el camino normal
+      // (pending_amount ya está en 0 para esa fila en ese punto, así que
+      // ni siquiera llega hasta acá).
+      const normalCommissionRows = (commissionRows ?? []).filter((c: any) => {
+        const st = paymentsById[c.sale_id]?.status;
+        return st !== "pendiente" && st !== "parcial";
+      });
+      const syntheticRecoveredRows = recoveredEvents.map((e: any) => {
+        const original = allCommissions.find((c: any) => c.id === e.commission_record_id);
+        return {
+          id: `recovered-${e.id}`,
+          amount: Number(e.amount ?? 0),
+          pending_amount: Number(e.amount ?? 0),
+          commission_pct: original?.commission_pct ?? null,
+          sale_date: e.collected_at,
+          created_at: e.collected_at,
+          status: "recovered",
+          sale_id: saleIdByCommissionId[e.commission_record_id],
+          professional_id: professionalId,
+        };
+      });
+      const sourceRows = [...normalCommissionRows, ...syntheticRecoveredRows];
       // Fallback SOLO visual de "precio de lista" para ventas viejas que no
       // guardaron original_amount (de antes de que registerPayment lo
       // empezara a congelar siempre — ver register-payment.ts): precio
@@ -4161,7 +4325,7 @@ function ProfesionalesTab({
         );
       }
       const periodStartAt = row?.periodStartAt ?? null;
-      const enrichedRows = (commissionRows ?? []).map((c: any) => {
+      const enrichedRows = sourceRows.map((c: any) => {
         const sale = paymentsById[c.sale_id] ?? null;
         let listPriceFallback: number | null = null;
         if (sale && !(Number(sale.original_amount ?? 0) > 0)) {

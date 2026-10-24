@@ -27,6 +27,7 @@ import {
   useProfTurnos,
   useProfSettlementRuns, useProfSettlementRunPayments, useProfAdvances,
   useProfCommissionRecords, useProfTipRecords,
+  useProfCommissionEvents, useProfTipEvents,
   useConfirmSettlementRun, useObserveSettlementRun,
   fetchSettlementRunServices,
   fetchSettlementRunSales,
@@ -2082,6 +2083,8 @@ function LiquidacionesPanelView({
   const { data: advances = [], isLoading: loadingAdvances } = useProfAdvances(businessId, empId);
   const { data: commissionRecords = [], isLoading: loadingCommissionRecords } = useProfCommissionRecords(businessId, empId);
   const { data: tipRecords = [], isLoading: loadingTipRecords } = useProfTipRecords(businessId, empId);
+  const { data: commissionEvents = [] } = useProfCommissionEvents(businessId, empId);
+  const { data: tipEvents = [] } = useProfTipEvents(businessId, empId);
   const confirmRun = useConfirmSettlementRun(businessId, empId);
   const observeRun = useObserveSettlementRun(businessId, empId);
 
@@ -2115,8 +2118,16 @@ function LiquidacionesPanelView({
     if (!empId) return null;
     const runsWithPid = runs.map((r) => ({ ...r, professional_id: empId }));
     const advancesWithPid = advances.map((a) => ({ ...a, professional_id: empId }));
-    return computeLiquidacionSummary(empId, commissionRecords, tipRecords, runsWithPid, advancesWithPid);
-  }, [empId, commissionRecords, tipRecords, runs, advances]);
+    return computeLiquidacionSummary(
+      empId,
+      commissionRecords,
+      tipRecords,
+      runsWithPid,
+      advancesWithPid,
+      commissionEvents,
+      tipEvents,
+    );
+  }, [empId, commissionRecords, tipRecords, runs, advances, commissionEvents, tipEvents]);
 
   // Ventas con comisión todavía no liquidada — mismo criterio y misma
   // query que usa Caja > Liquidaciones para este profesional (ver
