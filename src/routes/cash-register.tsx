@@ -12785,19 +12785,7 @@ export function NuevaVentaTab({
   // facturación/comisión, ver register-payment.ts).
   const [tipAmountInput, setTipAmountInput] = React.useState("");
   const [tipPanelOpen, setTipPanelOpen] = React.useState(false);
-  // Importe abonado — reemplaza el viejo botón/toggle independiente "Pago
-  // pendiente": un único campo, siempre presente (salvo en "Enviar a
-  // caja", donde todavía no hay ningún cobro). Vacío = se asume el total
-  // completo (comportamiento de toda la vida, sin tocar nada); cualquier
-  // valor MENOR activa sola la detección de pago parcial (o pendiente si
-  // es $0) — ver abonadoAmount/pagoPendiente más abajo, derivados de este
-  // campo, nunca al revés. Mismo criterio de siempre: nunca se
-  // autocompleta con el total mientras el usuario no tocó nada (ver
-  // placeholder en el input), y viaja como collectedAmount a
-  // registerPayment (register-payment.ts) cuando queda por debajo del
-  // total.
-  const [abonadoInput, setAbonadoInput] = React.useState("");
-  const [showAbonadoConfirm, setShowAbonadoConfirm] = React.useState(false);
+  const [showPartialConfirm, setShowPartialConfirm] = React.useState(false);
   const [method, setMethod] = React.useState<PayMethod>("cash");
   // Método preferido por defecto: Transferencia > Efectivo > primero
   // disponible — se aplica UNA vez por cobro (carga inicial de la
@@ -12809,6 +12797,18 @@ export function NuevaVentaTab({
   const [paymentMode, setPaymentMode] = React.useState<"simple" | "multiple">(
     "simple",
   );
+  // Monto recibido — único campo para ingresar cuánto paga el cliente
+  // ahora (reemplaza los viejos "Importe abonado" + "Monto recibido"
+  // separados que existían antes): siempre presente (salvo en "Enviar a
+  // caja", donde todavía no hay ningún cobro). Vacío = se asume el total
+  // completo (comportamiento de toda la vida, sin tocar nada); cualquier
+  // valor MENOR activa sola la detección de pago parcial (o pendiente si
+  // es $0) — ver receivedAmount/pagoPendiente más abajo, derivados de
+  // este campo, nunca al revés. Mismo criterio de siempre: nunca se
+  // autocompleta con el total mientras el usuario no tocó nada (ver
+  // placeholder en el input), y viaja como collectedAmount a
+  // registerPayment (register-payment.ts) cuando queda por debajo del
+  // total.
   const [received, setReceived] = React.useState("");
   const [splits, setSplits] = React.useState<MultiSplit[]>([
     { method: "cash", amount: "" },
@@ -13162,24 +13162,30 @@ export function NuevaVentaTab({
   const tipAmount = Math.max(0, Number(tipAmountInput) || 0);
   const finalTotal = subtotalAfterDiscount + tipAmount;
 
-  // abonadoAmount: campo vacío = se asume el total completo (mismo
+  // receivedAmount: campo vacío = se asume el total completo (mismo
   // comportamiento de siempre para el caso común); cualquier valor tipeado
-  // es el importe que el cliente realmente abona AHORA. pagoPendiente ya
+  // es el importe que el cliente realmente paga AHORA. pagoPendiente ya
   // no es un toggle manual — se deriva solo comparando contra
   // subtotalAfterDiscount (con descuento, SIN propina: la propina se cobra
   // siempre completa y aparte, nunca entra en esta comparación). No
   // disponible en "Enviar a caja" (isManualFlow): ahí todavía no existe
   // ningún cobro que dejar pendiente.
-  const abonadoAmount =
-    abonadoInput === "" ? subtotalAfterDiscount : Number(abonadoInput) || 0;
-  const pagoPendiente = !isManualFlow && abonadoAmount < subtotalAfterDiscount;
+  const receivedAmount =
+    received === "" ? subtotalAfterDiscount : Number(received) || 0;
+  const pagoPendiente = !isManualFlow && receivedAmount < subtotalAfterDiscount;
 
-  const receivedNumber = Number(received || 0);
+  // Vuelto/falta: solo tiene sentido en Efectivo y solo mientras no hay
+  // pago parcial/pendiente (ahí ya se muestra el aviso de saldo
+  // pendiente en vez de esto) — comparado contra finalTotal (CON
+  // propina: en efectivo, lo que el cliente tiene que entregar en mano sí
+  // la incluye).
   const change =
-    method === "cash" && receivedNumber >= finalTotal ? receivedNumber - finalTotal : 0;
+    method === "cash" && !pagoPendiente && receivedAmount >= finalTotal
+      ? receivedAmount - finalTotal
+      : 0;
   const cashShortfall =
-    method === "cash" && receivedNumber > 0 && receivedNumber < finalTotal
-      ? finalTotal - receivedNumber
+    method === "cash" && !pagoPendiente && receivedAmount < finalTotal
+      ? finalTotal - receivedAmount
       : 0;
   const splitsTotal = splits.reduce((s, sp) => s + Number(sp.amount || 0), 0);
   const splitsRemaining = finalTotal - splitsTotal;
@@ -13360,20 +13366,20 @@ export function NuevaVentaTab({
       return;
     }
 
-    // Importe abonado: válido para los tres casos (pagado completo/
+    // Monto recibido: válido para los tres casos (pagado completo/
     // parcial/pendiente) por igual — nunca negativo, nunca más que el
     // total del servicio (subtotalAfterDiscount: con descuento, SIN
     // propina — la propina se cobra siempre completa y aparte, nunca entra
     // acá). Se valida ANTES de separar en el branch de abajo porque aplica
     // sin importar en cuál se termine cayendo.
     if (turnoChargeMode !== "manual") {
-      if (abonadoAmount < 0) {
-        toast.error("El importe abonado no puede ser negativo.");
+      if (receivedAmount < 0) {
+        toast.error("El monto recibido no puede ser negativo.");
         return;
       }
-      if (abonadoAmount > subtotalAfterDiscount + 0.01) {
+      if (receivedAmount > subtotalAfterDiscount + 0.01) {
         toast.error(
-          `El importe abonado ($${Math.round(abonadoAmount).toLocaleString("es-AR")}) no puede superar el total del servicio ($${Math.round(subtotalAfterDiscount).toLocaleString("es-AR")}, sin contar la propina).`,
+          `El monto recibido ($${Math.round(receivedAmount).toLocaleString("es-AR")}) no puede superar el total del servicio ($${Math.round(subtotalAfterDiscount).toLocaleString("es-AR")}, sin contar la propina).`,
         );
         return;
       }
@@ -13381,24 +13387,18 @@ export function NuevaVentaTab({
 
     // turnoChargeMode="manual": no cobra ahora, envía a Caja para que
     // recepción confirme el cobro después — no tiene sentido pedir monto
-    // abonado / distribución de pago múltiple para algo que todavía no se
-    // está cobrando. pagoPendiente (abonadoAmount < subtotalAfterDiscount,
+    // recibido / distribución de pago múltiple para algo que todavía no se
+    // está cobrando. pagoPendiente (receivedAmount < subtotalAfterDiscount,
     // detectado solo — ver más arriba): tampoco se exige que el monto
     // cubra el total — la venta queda con saldo a favor del negocio a
     // propósito.
     if (turnoChargeMode !== "manual" && !pagoPendiente) {
       if (paymentMode === "simple") {
-        if (method === "cash") {
-          if (!received.trim() || Number(received) <= 0) {
-            toast.error("Ingresá el monto abonado.");
-            return;
-          }
-          if (Number(received) < finalTotal) {
-            toast.error(
-              `El monto abonado ($${Number(received).toLocaleString("es-AR")}) es menor al total ($${finalTotal.toLocaleString("es-AR")}).`,
-            );
-            return;
-          }
+        if (method === "cash" && cashShortfall > 0) {
+          toast.error(
+            `El monto recibido es menor al total ($${finalTotal.toLocaleString("es-AR")}).`,
+          );
+          return;
         }
       }
 
@@ -13417,11 +13417,11 @@ export function NuevaVentaTab({
     }
 
     // pagoPendiente: el único monto relevante es lo que se cobra AHORA es
-    // abonadoAmount (0 = 100% pendiente) — ya validado arriba contra
+    // receivedAmount (0 = 100% pendiente) — ya validado arriba contra
     // subtotalAfterDiscount, nunca contra finalTotal (ese incluye
     // tipAmount, pero payments.total en la base — lo que valida
     // register_sale/p_total — es siempre sin propina).
-    const pendingCollectedAmount = pagoPendiente ? abonadoAmount : undefined;
+    const pendingCollectedAmount = pagoPendiente ? receivedAmount : undefined;
 
     setSubmitting(true);
     let normalSaleCompleted = false;
@@ -13851,7 +13851,6 @@ export function NuevaVentaTab({
         setDiscountPanelOpen(false);
         setTipAmountInput("");
         setTipPanelOpen(false);
-        setAbonadoInput("");
         clearReceiptFile();
         normalSaleCompleted = true;
       }
@@ -14451,7 +14450,7 @@ export function NuevaVentaTab({
             <button
               onClick={() => setPaymentMode("multiple")}
               disabled={pagoPendiente}
-              title={pagoPendiente ? "No disponible con un importe abonado menor al total" : undefined}
+              title={pagoPendiente ? "No disponible con un monto recibido menor al total" : undefined}
               className={cn(
                 "py-2 text-sm font-semibold last:rounded-tr-3xl",
                 pagoPendiente
@@ -14697,34 +14696,34 @@ export function NuevaVentaTab({
                 )}
               </div>
 
-              {/* Importe abonado — reemplaza el viejo botón/toggle
-                  independiente "Pago pendiente": nada que activar a mano,
-                  el pago parcial/pendiente se detecta solo comparando lo
+              {/* Monto recibido — único campo para cobrar (ya no existe
+                  "Importe abonado" aparte): nada que activar a mano, el
+                  pago parcial/pendiente se detecta solo comparando lo
                   tipeado acá contra el total (ver pagoPendiente/
-                  abonadoAmount, derivados de este campo). Vacío = se
+                  receivedAmount, derivados de este campo). Vacío = se
                   asume el total completo, el caso de siempre — cualquier
                   valor por debajo fuerza Pago simple (un cobro parcial/
-                  pendiente usa un solo método) y reemplaza "Monto
-                  recibido"/vuelto de más abajo por el aviso de pago
-                  parcial/pendiente. El método elegido abajo sigue
-                  aplicando: es el método nominal de la venta y, si se
-                  cobra algo ahora, el de ese cobro puntual. No disponible
-                  en "Enviar a caja" (turnoChargeMode="manual"): ahí
-                  todavía no existe ningún cobro que dejar pendiente. */}
+                  pendiente usa un solo método) y reemplaza "Método de
+                  pago"/vuelto de más abajo por el aviso de pago parcial/
+                  pendiente. El método elegido abajo sigue aplicando: es
+                  el método nominal de la venta y, si se cobra algo ahora,
+                  el de ese cobro puntual. No disponible en "Enviar a
+                  caja" (turnoChargeMode="manual"): ahí todavía no existe
+                  ningún cobro que dejar pendiente. */}
               {!isManualFlow && (
                 <div className="mt-1.5">
                   <p className="mb-1 text-[11px] font-semibold tracking-[0.1em] text-muted-foreground/70">
-                    IMPORTE ABONADO
+                    MONTO RECIBIDO
                   </p>
                   <div className="relative min-w-0">
                     <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-base font-bold text-white/55">
                       $
                     </span>
                     <input
-                      value={abonadoInput ? Number(abonadoInput).toLocaleString("es-AR") : ""}
+                      value={received ? Number(received).toLocaleString("es-AR") : ""}
                       onChange={(e) => {
                         const digits = e.target.value.replace(/\D/g, "").slice(0, 9);
-                        setAbonadoInput(digits);
+                        setReceived(digits);
                         // Múltiple no admite saldo (siempre reparte el
                         // total entre métodos) — si lo que se está
                         // tipeando ya quedó corto, se vuelve a Simple
@@ -14736,7 +14735,7 @@ export function NuevaVentaTab({
                       }}
                       inputMode="numeric"
                       placeholder={`Total: $${Math.round(subtotalAfterDiscount).toLocaleString("es-AR")}`}
-                      aria-label="Importe abonado"
+                      aria-label="Monto recibido"
                       className={cn(
                         "h-10 w-full rounded-xl border bg-black/45 pl-8 pr-3 text-left text-lg font-extrabold tabular-nums text-white outline-none placeholder:text-xs placeholder:font-normal placeholder:text-white/30 focus:ring-2",
                         pagoPendiente
@@ -14749,8 +14748,8 @@ export function NuevaVentaTab({
                     <p className="mt-1.5 flex items-start gap-1.5 text-[11px] font-semibold leading-snug text-amber-200/85">
                       <Clock className="mt-0.5 size-3.5 shrink-0" />
                       <span>
-                        {abonadoAmount > 0
-                          ? `Pago parcial — abona $${Math.round(abonadoAmount).toLocaleString("es-AR")} ahora, queda $${Math.round(subtotalAfterDiscount - abonadoAmount).toLocaleString("es-AR")} pendiente de cobro.`
+                        {receivedAmount > 0
+                          ? `Pago parcial — abona $${Math.round(receivedAmount).toLocaleString("es-AR")} ahora, queda $${Math.round(subtotalAfterDiscount - receivedAmount).toLocaleString("es-AR")} pendiente de cobro.`
                           : `Pago pendiente — no se cobra nada ahora, el total ($${Math.round(subtotalAfterDiscount).toLocaleString("es-AR")}) queda pendiente de cobro.`}
                         {tipAmount > 0 && " La propina se cobra siempre completa, aparte."}
                       </span>
@@ -14784,12 +14783,12 @@ export function NuevaVentaTab({
           >
           {paymentMode === "simple" ? (
             <>
-              {/* Método de pago: oculto solo cuando el importe abonado es
+              {/* Método de pago: oculto solo cuando el monto recibido es
                   exactamente $0 — ahí no hay nada que cobrar ahora, no
                   tiene sentido pedir medio de pago ni comprobante (ver
                   requisito explícito). Para cualquier importe > 0 (pago
                   completo o parcial) sigue disponible. */}
-              {abonadoAmount > 0 && (
+              {receivedAmount > 0 && (
                 <div>
                   <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70 mb-1.5">
                     MÉTODO DE PAGO
@@ -14825,74 +14824,28 @@ export function NuevaVentaTab({
                   </div>
                 </div>
               )}
-              {/* "Monto recibido"/vuelto y comprobante de transferencia
+              {/* Vuelto/falta (Efectivo) y comprobante de transferencia
                   solo tienen sentido cuando se cobra el total completo
                   ahora mismo — un pago parcial/pendiente no tiene
                   "vuelto" (el aviso de pago parcial/pendiente ya se
-                  muestra arriba, junto al campo Importe abonado). */}
+                  muestra arriba, junto al campo Monto recibido). El monto
+                  en sí ya se cargó arriba — acá solo se muestra el
+                  resultado para Efectivo, nunca un input duplicado. */}
               {!pagoPendiente && (
                 <>
-                  {method === "cash" && (
-                    // Sin borde propio acá (antes tenía uno, más el del input
-                    // de adentro — se veían dos círculos/bordes concéntricos).
-                    // Queda solo el borde del input, el único que hace falta.
-                    <div className="rounded-2xl bg-[linear-gradient(135deg,rgba(37,99,235,0.16),rgba(8,11,20,0.96),rgba(2,4,12,0.98))] p-2.5 shadow-[0_0_34px_rgba(96,165,250,0.14),0_18px_55px_-34px_rgba(0,0,0,1)]">
-                      {/* Una sola fila: campo a la izquierda ($ + hint "Monto
-                          recibido", visible solo mientras está vacío — nunca
-                          un placeholder tipo "0" que se lea como precargado;
-                          nunca se autocompleta con el total, received arranca
-                          "" y solo lo cambia el usuario tipeando) y el
-                          resultado a la derecha, en la MISMA fila (antes
-                          quedaba en un renglón aparte debajo, agrandando el
-                          bloque). Si entrega el importe exacto no se muestra
-                          absolutamente nada a la derecha (ni "$0" ni
-                          "Exacto") — cashShortfall y change dan 0 en ese caso
-                          igual, así que alcanza con gatear el render en
-                          "> 0" en vez de en receivedNumber > 0. */}
-                      <div className="flex items-center gap-2">
-                        {/* Valor Y hint van al mismo lado (izquierda) ahora —
-                            ya no hace falta el span superpuesto de antes (que
-                            existía solo para poder tener hint a la izquierda
-                            + valor a la derecha con alineaciones distintas).
-                            Con los dos a la izquierda alcanza con el
-                            placeholder nativo, que ya se alinea solo con el
-                            texto que se escribe. */}
-                        <div className="relative min-w-0 flex-1">
-                          <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-base font-bold text-white/55">
-                            $
-                          </span>
-                          <input
-                            // received en sí sigue guardando solo dígitos
-                            // crudos ("20000") — lo único que cambia es cómo
-                            // se MUESTRA (con separador de miles, mismo
-                            // patrón que ya usa formatThousands en Liquidaciones
-                            // y Precios/Catálogo). change/cashShortfall siguen
-                            // calculando sobre Number(received), sin cambios.
-                            value={received ? Number(received).toLocaleString("es-AR") : ""}
-                            // Tope de 9 dígitos (hasta $999.999.999) — evita
-                            // escribir un número interminable que rompa el
-                            // layout o el cálculo, mismo criterio que Pago
-                            // múltiple (multi-method-payment-split.tsx).
-                            onChange={(e) => setReceived(e.target.value.replace(/\D/g, "").slice(0, 9))}
-                            inputMode="numeric"
-                            placeholder="Monto recibido"
-                            aria-label="Monto recibido"
-                            className="h-10 w-full rounded-xl border border-blue-300/30 bg-black/45 pl-8 pr-3 text-left text-lg font-extrabold tabular-nums text-white outline-none placeholder:text-sm placeholder:font-normal placeholder:text-white/30 focus:border-blue-300/65 focus:ring-2 focus:ring-blue-400/20"
-                          />
-                        </div>
-                        {(cashShortfall > 0 || change > 0) && (
-                          <span
-                            className={cn(
-                              "shrink-0 whitespace-nowrap text-sm font-bold",
-                              cashShortfall > 0 ? "text-red-300" : "text-emerald-300",
-                            )}
-                          >
-                            {cashShortfall > 0
-                              ? `Falta $${cashShortfall.toLocaleString("es-AR")}`
-                              : `Vuelto $${change.toLocaleString("es-AR")}`}
-                          </span>
+                  {method === "cash" && (cashShortfall > 0 || change > 0) && (
+                    <div className="flex items-center justify-between gap-2 rounded-2xl bg-[linear-gradient(135deg,rgba(37,99,235,0.16),rgba(8,11,20,0.96),rgba(2,4,12,0.98))] p-2.5 shadow-[0_0_34px_rgba(96,165,250,0.14),0_18px_55px_-34px_rgba(0,0,0,1)]">
+                      <span className="text-sm text-white/55">Efectivo recibido</span>
+                      <span
+                        className={cn(
+                          "shrink-0 whitespace-nowrap text-sm font-bold",
+                          cashShortfall > 0 ? "text-red-300" : "text-emerald-300",
                         )}
-                      </div>
+                      >
+                        {cashShortfall > 0
+                          ? `Falta $${cashShortfall.toLocaleString("es-AR")}`
+                          : `Vuelto $${change.toLocaleString("es-AR")}`}
+                      </span>
                     </div>
                   )}
                   {method === "transfer" && (
@@ -15030,12 +14983,12 @@ export function NuevaVentaTab({
               }
               onClick={() => {
                 // Pago parcial/pendiente: siempre pasa primero por el
-                // modal de confirmación (importe abonado, saldo que
+                // modal de confirmación (monto recibido, saldo que
                 // queda, estado) — evita un toque de más que deje una
                 // venta con saldo por error. Pago completo/"Enviar a
                 // caja": cobra directo, como siempre.
                 if (!isManualFlow && pagoPendiente) {
-                  setShowAbonadoConfirm(true);
+                  setShowPartialConfirm(true);
                 } else {
                   handleCobrar();
                 }
@@ -15052,7 +15005,7 @@ export function NuevaVentaTab({
                 </>
               ) : pagoPendiente ? (
                 <>
-                  {abonadoAmount > 0 ? "CONFIRMAR PAGO PARCIAL" : "DEJAR PENDIENTE"} <Clock className="size-4" />
+                  {receivedAmount > 0 ? "CONFIRMAR PAGO PARCIAL" : "DEJAR PENDIENTE"} <Clock className="size-4" />
                 </>
               ) : (
                 <>
@@ -15066,15 +15019,15 @@ export function NuevaVentaTab({
       </div>
 
       {/* Confirmación de pago parcial/pendiente — se abre al tocar
-          COBRAR/DEJAR PENDIENTE cuando el importe abonado quedó por
-          debajo del total (ver pagoPendiente más arriba), antes de llamar
-          a handleCobrar. z-[60]: por encima del overlay z-50 que usa
+          COBRAR/DEJAR PENDIENTE cuando el monto recibido quedó por debajo
+          del total (ver pagoPendiente más arriba), antes de llamar a
+          handleCobrar. z-[60]: por encima del overlay z-50 que usa
           variant="modal" (Cobrar turno desde Mi Agenda) cuando este
           componente se renderiza adentro de ese modal. */}
-      {showAbonadoConfirm && typeof document !== "undefined" && createPortal(
+      {showPartialConfirm && typeof document !== "undefined" && createPortal(
         <div
           className="fixed inset-0 z-[60] grid place-items-center bg-black/70 backdrop-blur-sm p-4"
-          onClick={() => setShowAbonadoConfirm(false)}
+          onClick={() => setShowPartialConfirm(false)}
         >
           <div
             className="w-full max-w-sm rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden"
@@ -15083,7 +15036,7 @@ export function NuevaVentaTab({
             <div className="border-b border-white/10 px-5 py-4">
               <h3 className="flex items-center gap-2 text-sm font-semibold text-amber-200">
                 <Clock className="size-4 shrink-0" />
-                {abonadoAmount > 0 ? "Confirmar pago parcial" : "Confirmar venta sin cobrar"}
+                {receivedAmount > 0 ? "Confirmar pago parcial" : "Confirmar venta sin cobrar"}
               </h3>
               <p className="mt-1 text-[11px] text-muted-foreground">
                 Revisá los importes antes de confirmar — no se puede deshacer desde acá.
@@ -15099,13 +15052,13 @@ export function NuevaVentaTab({
               <div className="flex items-center justify-between gap-4 py-2.5 border-b border-white/5 text-xs">
                 <span className="text-muted-foreground">Abona ahora</span>
                 <span className="font-semibold text-emerald-300 tabular-nums">
-                  ${Math.round(abonadoAmount).toLocaleString("es-AR")}
+                  ${Math.round(receivedAmount).toLocaleString("es-AR")}
                 </span>
               </div>
               <div className="flex items-center justify-between gap-4 py-2.5 border-b border-white/5 text-xs">
                 <span className="text-muted-foreground">Saldo pendiente</span>
                 <span className="font-semibold text-amber-300 tabular-nums">
-                  ${Math.round(subtotalAfterDiscount - abonadoAmount).toLocaleString("es-AR")}
+                  ${Math.round(subtotalAfterDiscount - receivedAmount).toLocaleString("es-AR")}
                 </span>
               </div>
               {tipAmount > 0 && (
@@ -15119,14 +15072,14 @@ export function NuevaVentaTab({
               <div className="flex items-center justify-between gap-4 py-2.5 text-xs">
                 <span className="text-muted-foreground">Estado</span>
                 <span className="font-semibold text-amber-200">
-                  {abonadoAmount > 0 ? "Parcialmente pagado" : "Pendiente de cobro"}
+                  {receivedAmount > 0 ? "Parcialmente pagado" : "Pendiente de cobro"}
                 </span>
               </div>
             </div>
             <div className="flex items-center gap-2 border-t border-white/10 px-5 py-3">
               <button
                 type="button"
-                onClick={() => setShowAbonadoConfirm(false)}
+                onClick={() => setShowPartialConfirm(false)}
                 className="flex-1 rounded-xl bg-white/5 hover:bg-white/10 px-3 py-2 text-xs font-semibold transition"
               >
                 Cancelar
@@ -15134,12 +15087,12 @@ export function NuevaVentaTab({
               <button
                 type="button"
                 onClick={() => {
-                  setShowAbonadoConfirm(false);
+                  setShowPartialConfirm(false);
                   handleCobrar();
                 }}
                 className="flex-1 rounded-xl bg-amber-400/15 hover:bg-amber-400/25 px-3 py-2 text-xs font-bold text-amber-100 ring-1 ring-amber-400/30 transition"
               >
-                {abonadoAmount > 0 ? "Confirmar pago parcial" : "Dejar pendiente"}
+                {receivedAmount > 0 ? "Confirmar pago parcial" : "Dejar pendiente"}
               </button>
             </div>
           </div>
