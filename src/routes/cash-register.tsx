@@ -10701,6 +10701,11 @@ function FacturacionPanel({
   // — mismo criterio que ya usa el bloque "Modo de aprobación" de
   // Liquidaciones, ningún flag nuevo.
   const showPendientes = data.approvalModeEnabled && equipoEnabled;
+  // "Deudas de clientes" solo se pinta si hay alguna deuda activa (o
+  // todavía no se sabe — ver comentario junto a la tarjeta más abajo).
+  // Nunca borra pendingDebtSummary ni ningún registro histórico, solo
+  // decide si la tarjeta se muestra.
+  const showDeudasCard = pendingDebtSummary.loading || pendingDebtSummary.total > 0;
 
   return (
     <>
@@ -10747,7 +10752,23 @@ function FacturacionPanel({
           (ventas con saldo) | Gastos — reemplaza el selector grande
           Facturación/Gastos de ResumenTab. 2 columnas en mobile (wrap),
           una sola fila desde sm. */}
-      <div className={cn("grid grid-cols-2 gap-2", showPendientes ? "sm:grid-cols-4" : "sm:grid-cols-3")}>
+      <div
+        className={cn(
+          "grid grid-cols-2 gap-2",
+          // "Deudas de clientes" (ver showDeudasCard más abajo) y "Cobros
+          // por confirmar" (showPendientes) son ambas condicionales — la
+          // cantidad de columnas en desktop sigue la cantidad real de
+          // tarjetas visibles (Ingresos y Gastos son siempre fijas), igual
+          // criterio que ya usa el resumen de Liquidaciones más arriba,
+          // para que nunca quede un hueco vacío si una de las dos no se
+          // muestra.
+          2 + (showPendientes ? 1 : 0) + (showDeudasCard ? 1 : 0) >= 4
+            ? "sm:grid-cols-4"
+            : showPendientes || showDeudasCard
+              ? "sm:grid-cols-3"
+              : "sm:grid-cols-2",
+        )}
+      >
         <FacturacionStatCard
           icon={TrendingUp}
           iconClass="text-emerald-400"
@@ -10784,16 +10805,25 @@ function FacturacionPanel({
             arriba — acá no hay nada que aprobar, es dinero que el cliente
             todavía no pagó (suma de saldo de TODAS las ventas con
             payments.status en pendiente/parcial, incluidas las de días
-            anteriores). Clic abre directo "Cobrar pendiente". */}
-        <FacturacionStatCard
-          icon={Clock}
-          iconClass="text-amber-400"
-          label="Deudas de clientes"
-          description="Saldo pendiente de cobro"
-          value={pendingDebtSummary.total}
-          loading={pendingDebtSummary.loading}
-          onClick={() => setShowCobrarPendiente(true)}
-        />
+            anteriores). Clic abre directo "Cobrar pendiente". Si no hay
+            ninguna deuda activa (total=0) la tarjeta se oculta del todo en
+            vez de mostrar "$0" — vuelve a aparecer sola apenas se registre
+            una venta con saldo. Mientras todavía está cargando se muestra
+            igual (con su propio esqueleto, ver FacturacionStatCard) para
+            no parpadear oculta→visible en cada carga de página si resulta
+            que sí hay deuda. No toca pendingDebtSummary.total en sí, solo
+            decide si la tarjeta se pinta. */}
+        {showDeudasCard && (
+          <FacturacionStatCard
+            icon={Clock}
+            iconClass="text-amber-400"
+            label="Deudas de clientes"
+            description="Saldo pendiente de cobro"
+            value={pendingDebtSummary.total}
+            loading={pendingDebtSummary.loading}
+            onClick={() => setShowCobrarPendiente(true)}
+          />
+        )}
         <FacturacionStatCard
           icon={TrendingDown}
           iconClass="text-rose-400"
