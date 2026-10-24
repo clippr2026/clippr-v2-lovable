@@ -57,6 +57,7 @@ import {
   searchClientsLite,
   notifyCajaPendientesChanged,
   type ClientLiteResult,
+  type PaymentCollectionRow,
 } from "@/components/cash-register/use-caja-data";
 import {
   PAY_METHOD_LABEL,
@@ -766,6 +767,7 @@ function CashRegisterPage() {
       totalGastos: summary.totalGastosHoy,
       paymentsToday: summary.paymentsToday,
       expensesToday: summary.expensesToday,
+      collectionsToday: summary.collectionsToday,
       refresh: (reason?: string) =>
         Promise.all([cajaData.refresh(reason), summary.refresh(reason)]).then(() => undefined),
     };
@@ -9068,7 +9070,7 @@ function movimientoRow(m: CashMovement) {
 // "ingresos" fue reemplazado acá para la vista unificada, pero el bloque
 // "Cobrar pendientes" dentro de FacturacionPanel sigue intacto) — este feed
 // es solo para visualizar, no duplica esa interacción.
-type UnifiedMovKind = "pago" | "gasto" | "pendiente" | "movimiento";
+type UnifiedMovKind = "pago" | "gasto" | "pendiente" | "movimiento" | "cobro_pendiente";
 type UnifiedMovColor = "verde" | "rojo" | "ambar";
 
 type UnifiedMov = {
@@ -9081,6 +9083,11 @@ type UnifiedMov = {
   expense?: ReturnType<typeof useCajaData>["expensesToday"][number];
   pending?: ReturnType<typeof useCajaData>["pendingCharges"][number];
   movement?: CashMovement;
+  // Cobro de un pago pendiente (payment_collections) — ver
+  // 20261023010000_pending_payments_schema.sql. amount puede ser negativo
+  // (reversión, ver reverse_payment_collection), ya contemplado por
+  // `color`/el signo que arma UnifiedMovRow/UnifiedMovCardMobile.
+  collection?: PaymentCollectionRow;
 };
 
 const UNIFIED_COLOR_CLASSES: Record<
@@ -9118,19 +9125,46 @@ function buildUnifiedMovements(
   pendingCharges: ReturnType<typeof useCajaData>["pendingCharges"],
   showPendientes: boolean,
   movements: CashMovement[],
+  collections: PaymentCollectionRow[] = [],
 ): UnifiedMov[] {
   const items: UnifiedMov[] = [];
 
   for (const p of paymentsToday) {
     const raw = (p as { sort_ts?: string | null }).sort_ts ?? p.created_at;
     const ts = raw ? new Date(raw).getTime() : 0;
+    // Pago pendiente/parcial (ver 20261023010000_pending_payments_schema.sql):
+    // nunca mostrar acá el total como si estuviera cobrado — solo lo que
+    // efectivamente entró AL VENDER (collected_amount, 0 si quedó 100%
+    // pendiente). Cualquier cobro posterior de esta venta aparece como su
+    // propia fila "cobro_pendiente" más abajo, el día real en que entró.
+    const isPending = p.status === "pendiente" || p.status === "parcial";
     items.push({
       id: `pago-${p.id}`,
       kind: "pago",
       ts: Number.isFinite(ts) ? ts : 0,
-      color: "verde",
-      amount: Number(p.total ?? p.amount ?? 0) + Number(p.tip_amount ?? 0),
+      color: isPending ? "ambar" : "verde",
+      amount: isPending
+        ? Number(p.collected_amount ?? 0)
+        : Number(p.total ?? p.amount ?? 0) + Number(p.tip_amount ?? 0),
       payment: p,
+    });
+  }
+
+  // Cobros de pagos pendientes — fila propia, fechada por collected_at (la
+  // fecha REAL del cobro), nunca mezclada con la fila "pago" de la venta
+  // original (que puede ser de cualquier día anterior). Nunca duplica: una
+  // venta pendiente de $0 no tiene ningún renglón acá hasta que se cobra
+  // algo de verdad.
+  for (const c of collections) {
+    const ts = c.collected_at ? new Date(c.collected_at).getTime() : 0;
+    const amount = Number(c.amount ?? 0);
+    items.push({
+      id: `cobro-${c.id}`,
+      kind: "cobro_pendiente",
+      ts: Number.isFinite(ts) ? ts : 0,
+      color: amount < 0 ? "rojo" : "verde",
+      amount,
+      collection: c,
     });
   }
 
@@ -9236,17 +9270,37 @@ function unifiedMovView(
     );
     const servicio = getSaleDetailLabel(paymentRecord);
     const nota = getCashRowNote(paymentRecord, servicio);
+    const isPending = p.status === "pendiente" || p.status === "parcial";
+    const saldo = isPending ? Math.round(Number(p.total ?? p.amount ?? 0) - Number(p.collected_amount ?? 0)) : 0;
     return {
-      typeLabel: "Ingreso",
+      typeLabel: isPending ? (p.status === "pendiente" ? "Venta pendiente" : "Venta parcial") : "Ingreso",
       fecha: formatArgFecha(dt),
       hora: formatArgHora(dt),
       quien: `${chargedByName} → Cobró`,
       clienteOConcepto: p.client_name ?? "—",
       profesional: empName,
-      servicio,
+      servicio: isPending ? `${servicio} · saldo $${saldo.toLocaleString("es-AR")}` : servicio,
       metodoLabel: getPaymentMethodLabel(paymentRecord),
       nota,
       notaTitle: nota ? `${p.client_name ?? "Cliente"} · ${servicio ?? "Servicio"}` : null,
+    };
+  }
+
+  if (item.kind === "cobro_pendiente" && item.collection) {
+    const c = item.collection;
+    const dt = new Date(c.collected_at);
+    const empName = employees.find((e) => e.id === c.payments?.employee_id)?.name ?? "—";
+    return {
+      typeLabel: "Cobro de pendiente",
+      fecha: formatArgFecha(dt),
+      hora: formatArgHora(dt),
+      quien: "Cobró",
+      clienteOConcepto: c.payments?.client_name ?? "—",
+      profesional: empName,
+      servicio: c.payments?.service_name ?? "—",
+      metodoLabel: paymentMethodLabel(c.method ?? ""),
+      nota: null,
+      notaTitle: null,
     };
   }
 
@@ -9535,8 +9589,16 @@ function MovimientosUnificados({
         data.pendingCharges,
         showPendientes,
         movementsOnlyToday,
+        data.collectionsToday,
       ),
-    [paymentsOnlyToday, expensesOnlyToday, data.pendingCharges, showPendientes, movementsOnlyToday],
+    [
+      paymentsOnlyToday,
+      expensesOnlyToday,
+      data.pendingCharges,
+      showPendientes,
+      movementsOnlyToday,
+      data.collectionsToday,
+    ],
   );
   const recent = all.slice(0, 10);
   const loading = data.loading || movementsData.loading;
@@ -10954,14 +11016,33 @@ function History({
                           </button>
                         )}
                       </div>
-                      <div className="text-emerald-300 tabular-nums font-bold text-right">
-                        {/* Total efectivamente cobrado (incluye propina) —
-                            no payment.total, que es pura facturación de
-                            servicios sin propina. */}
-                        $
-                        {(
-                          Number(p.total ?? p.amount ?? 0) + Number(p.tip_amount ?? 0)
-                        ).toLocaleString("es-AR")}
+                      <div className="tabular-nums font-bold text-right">
+                        {p.status === "pendiente" || p.status === "parcial" ? (
+                          // Pago pendiente/parcial: nunca mostrar el total
+                          // como si estuviera cobrado — solo lo que
+                          // efectivamente entró hasta ahora, con el saldo
+                          // explícito al lado (ver payments.collected_amount,
+                          // 20261023010000_pending_payments_schema.sql).
+                          <div className="flex flex-col items-end gap-0.5">
+                            <span className="text-amber-300">
+                              ${Number(p.collected_amount ?? 0).toLocaleString("es-AR")}
+                            </span>
+                            <span className="text-[10px] font-normal text-amber-200/60">
+                              {p.status === "pendiente" ? "100% pendiente" : "saldo $"}
+                              {p.status === "parcial" &&
+                                Math.round(
+                                  Number(p.total ?? p.amount ?? 0) - Number(p.collected_amount ?? 0),
+                                ).toLocaleString("es-AR")}
+                            </span>
+                          </div>
+                        ) : (
+                          // Total efectivamente cobrado (incluye propina) —
+                          // no payment.total, que es pura facturación de
+                          // servicios sin propina.
+                          <span className="text-emerald-300">
+                            ${(Number(p.total ?? p.amount ?? 0) + Number(p.tip_amount ?? 0)).toLocaleString("es-AR")}
+                          </span>
+                        )}
                       </div>
                       <div className="min-w-0 flex flex-col text-muted-foreground">
                         <span className="truncate">{methodLabel}</span>
@@ -11056,12 +11137,21 @@ function History({
                         <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
                           {fecha}
                         </span>
-                        <span className="text-sm font-bold tabular-nums text-emerald-300">
-                          $
-                          {(
-                            Number(p.total ?? p.amount ?? 0) + Number(p.tip_amount ?? 0)
-                          ).toLocaleString("es-AR")}
-                        </span>
+                        {p.status === "pendiente" || p.status === "parcial" ? (
+                          <span className="flex items-center gap-1 text-sm font-bold tabular-nums text-amber-300">
+                            ${Number(p.collected_amount ?? 0).toLocaleString("es-AR")}
+                            <span className="rounded-full bg-amber-400/15 px-1.5 py-0.5 text-[9px] font-bold uppercase text-amber-200">
+                              {p.status === "pendiente" ? "Pendiente" : "Parcial"}
+                            </span>
+                          </span>
+                        ) : (
+                          <span className="text-sm font-bold tabular-nums text-emerald-300">
+                            $
+                            {(
+                              Number(p.total ?? p.amount ?? 0) + Number(p.tip_amount ?? 0)
+                            ).toLocaleString("es-AR")}
+                          </span>
+                        )}
                       </div>
                       <div className="mt-2 space-y-1.5">
                         <div className="flex items-start justify-between gap-3">
@@ -12647,11 +12737,16 @@ export function NuevaVentaTab({
     }
 
     // pagoPendiente: el único monto relevante es lo que se cobra AHORA
-    // (opcional, "" = $0 = 100% pendiente) — nunca puede superar el total.
+    // (opcional, "" = $0 = 100% pendiente) — nunca puede superar
+    // subtotalAfterDiscount (servicios+productos, YA con descuento, SIN
+    // propina). Nunca finalTotal: ese incluye tipAmount, pero
+    // payments.total en la base (lo que valida register_sale/p_total) es
+    // siempre sin propina — compararlo contra finalTotal podía rechazar un
+    // cobro válido (o aceptar uno que en el backend se recorta solo).
     const pendingCollectedAmount = pagoPendiente ? Number(pendingCollectedInput) || 0 : undefined;
-    if (pagoPendiente && pendingCollectedAmount !== undefined && pendingCollectedAmount > finalTotal) {
+    if (pagoPendiente && pendingCollectedAmount !== undefined && pendingCollectedAmount > subtotalAfterDiscount) {
       toast.error(
-        `No podés cobrar más que el total ($${finalTotal.toLocaleString("es-AR")}) al dejar un pago pendiente.`,
+        `No podés cobrar más que el total del servicio ($${subtotalAfterDiscount.toLocaleString("es-AR")}, sin contar la propina) al dejar un pago pendiente.`,
       );
       return;
     }
@@ -14062,9 +14157,11 @@ export function NuevaVentaTab({
                   </div>
                   <p className="mt-1.5 text-[11px] text-amber-200/60">
                     Saldo pendiente: $
-                    {Math.max(0, Math.round(finalTotal - (Number(pendingCollectedInput) || 0))).toLocaleString(
-                      "es-AR",
-                    )}
+                    {Math.max(
+                      0,
+                      Math.round(subtotalAfterDiscount - (Number(pendingCollectedInput) || 0)),
+                    ).toLocaleString("es-AR")}
+                    {tipAmount > 0 && " (propina aparte, se cobra siempre completa)"}
                   </p>
                 </div>
               ) : (

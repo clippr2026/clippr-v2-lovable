@@ -924,6 +924,17 @@ export function computeExpectedCashAndDigital(params: {
     // distributeCobroByMethod) en vez de caer entero en `method`, que en
     // un pago múltiple puede no reflejar ningún medio real usado.
     splits?: PaymentSplitRaw[] | null;
+    // Pago pendiente/parcial (ver 20261023010000_pending_payments_schema.sql)
+    // — una venta con status 'pendiente'/'parcial' NUNCA aporta plata acá
+    // por su total/amount, sin importar cuánto diga collected_amount: toda
+    // la plata que efectivamente entró (al vender Y cualquier cobro
+    // posterior) se cuenta exclusivamente a través de `collections`
+    // (payment_collections, parámetro nuevo más abajo), fechada el día
+    // real en que entró — nunca el día de la venta. Así una venta pendiente
+    // nunca "aparenta" estar cobrada completa acá, y un cobro posterior de
+    // una venta de otro día no desaparece de la caja del día en que
+    // realmente se cobró.
+    status?: string | null;
   }>;
   expenses: Array<{ amount?: number | null; payment_method?: string | null; method?: string | null }>;
   advances: Array<{ amount?: number | null; payment_method?: string | null }>;
@@ -931,8 +942,14 @@ export function computeExpectedCashAndDigital(params: {
   // de antes de que cash_movements tuviera esta columna, no traen method;
   // se tratan como "efectivo" (mismo comportamiento que tenían).
   cashMovements: Array<{ type: "ingreso" | "retiro"; amount: number | null; method?: string | null }>;
+  // Cobros de pagos pendientes (payment_collections) del mismo período —
+  // ya filtrados por el caller a la ventana que corresponda (collected_at,
+  // nunca la fecha de la venta). amount puede ser negativo (reversión, ver
+  // reverse_payment_collection) — se suma tal cual, restando correctamente.
+  // Opcional (default []) para no romper ningún caller existente.
+  collections?: Array<{ amount?: number | null; method?: string | null }>;
 }): ExpectedCashDigital {
-  const { payments, expenses, advances, cashMovements } = params;
+  const { payments, expenses, advances, cashMovements, collections = [] } = params;
   const isCash = (m: string | null | undefined) => normalizeCierreMethodKey(m) === "cash";
   const isCashMovement = (m: { method?: string | null }) => !m.method || isCash(m.method);
 
@@ -943,6 +960,11 @@ export function computeExpectedCashAndDigital(params: {
   let cashPayments = 0;
   let digitalPayments = 0;
   for (const p of payments) {
+    // pendiente/parcial: cero acá — toda su plata (la cobrada al vender Y
+    // cualquier cobro posterior) se cuenta vía `collections`, más abajo,
+    // fechada el día real del cobro. 'cobrado'/undefined (filas de antes de
+    // este concepto) siguen su comportamiento de siempre.
+    if (p.status === "pendiente" || p.status === "parcial") continue;
     const monto = Number(p.total ?? p.amount ?? 0);
     const propina = Number(p.tip_amount ?? p.tip ?? 0);
     const dist = distributeCobroByMethod(monto, propina, p.method ?? p.payment_method, p.splits);
@@ -950,6 +972,11 @@ export function computeExpectedCashAndDigital(params: {
       if (key === "cash") cashPayments += amt.monto + amt.propina;
       else digitalPayments += amt.monto + amt.propina;
     }
+  }
+  for (const c of collections) {
+    const amount = Number(c.amount ?? 0);
+    if (normalizeCierreMethodKey(c.method) === "cash") cashPayments += amount;
+    else digitalPayments += amount;
   }
 
   const cashExpenses = expenses

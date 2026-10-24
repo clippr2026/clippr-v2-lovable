@@ -192,6 +192,11 @@ export type Payment = {
   charged_by?: string | null;
   charge_type?: "auto" | "manual" | "caja" | string | null;
   status?: string | null;
+  // Cuánto de total/amount se cobró efectivamente hasta ahora (ver
+  // 20261023010000_pending_payments_schema.sql) — == total cuando
+  // status=cobrado; < total cuando status en (pendiente, parcial). El
+  // saldo pendiente es total - collected_amount.
+  collected_amount?: number | null;
   observations?: string | null;
   // Descuento aplicado ($) y precio de lista previo, mismas columnas que
   // escribe registerPayment (register-payment.ts) — discount, no
@@ -229,6 +234,24 @@ export type Payment = {
   // para ordenar por cuándo se originó la venta, no por cuándo se cobró
   // (cobrar un pendiente no debe correrlo de lugar en las listas).
   sort_ts?: string;
+};
+
+// Un renglón de payment_collections (ver 20261023010000_pending_payments_schema.sql)
+// — un cobro de un pago pendiente/parcial, fechado por collected_at (la
+// fecha REAL del cobro, nunca la de la venta original). amount puede ser
+// negativo (reversión, ver reverse_payment_collection). Definido acá (no en
+// use-caja-summary.ts, que es quien realmente lo carga) para que
+// useCajaData pueda declarar el campo en su propio tipo de retorno sin un
+// import circular — use-caja-summary.ts ya importa Payment/Expense/
+// HistorialEvento desde este archivo, nunca al revés.
+export type PaymentCollectionRow = {
+  id: string;
+  payment_id: string;
+  amount: number;
+  method: string | null;
+  branch_id: string | null;
+  collected_at: string;
+  payments?: { client_name: string | null; service_name: string | null; employee_id: string | null } | null;
 };
 
 export type PendingCharge = {
@@ -633,7 +656,7 @@ export function useCajaData() {
       // de "Retirar stock → Pagar ahora" lo necesita para separar
       // cantidad/precio unitario/total sin parsear service_name (que
       // puede traer "Cepita x2" como texto).
-      .select("id,business_id,total,amount,method,payment_method,client_name,service_name,created_at,employee_id,appointment_id,charged_by,charge_type,status,charged_at,observations,discount,original_amount,tip_amount,items,receipt_path")
+      .select("id,business_id,total,amount,method,payment_method,client_name,service_name,created_at,employee_id,appointment_id,charged_by,charge_type,status,collected_amount,charged_at,observations,discount,original_amount,tip_amount,items,receipt_path")
       .eq("business_id", businessId)
       .gte("created_at", today.toISOString())
       .lte("created_at", todayEnd.toISOString());
@@ -1214,6 +1237,12 @@ export function useCajaData() {
     paymentMethods,
     services, employees, promotions,
     paymentsToday, expensesToday, cashSessionId,
+    // Siempre vacío acá — este hook no consulta payment_collections. Solo
+    // existe para que el campo esté tipado en ReturnType<typeof useCajaData>
+    // (varios componentes usan ese tipo para su prop `data`); el valor real
+    // sale de useCajaSummary y sobreescribe esto en el `data` fusionado de
+    // cash-register.tsx (mismo patrón que paymentsToday/revHoy de abajo).
+    collectionsToday: [] as PaymentCollectionRow[],
     pendingCierre,
     cajaStatus,
     revHoy, cobros, ticket, totalGastos,

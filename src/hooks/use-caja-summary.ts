@@ -12,7 +12,7 @@ import {
   type PendingCierre,
   type ExpectedCashDigital,
 } from "@/lib/caja-cierre";
-import type { Payment, Expense, HistorialEvento } from "@/components/cash-register/use-caja-data";
+import type { Payment, Expense, HistorialEvento, PaymentCollectionRow } from "@/components/cash-register/use-caja-data";
 import { fetchAllRows, type PageResult } from "@/lib/supabase-paginate";
 
 // Mismo criterio que pagedSettled en use-caja-data.ts, pero sin el
@@ -73,6 +73,11 @@ export type CajaSummary = {
   pendingCierresLoading: boolean;
   paymentsToday: Payment[];
   expensesToday: Expense[];
+  // Cobros de pendientes de HOY (payment_collections, por collected_at) —
+  // separados de paymentsToday a propósito: no son una venta nueva, son
+  // dinero que entró hoy por una venta de cualquier fecha. Ver "Cobro de
+  // pendiente" en Últimos ingresos/Revisar cierre.
+  collectionsToday: PaymentCollectionRow[];
   revHoy: number;
   cobros: number;
   totalGastosHoy: number;
@@ -144,6 +149,10 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
   // consulta aparte (mismo criterio que paymentsToday/expensesToday).
   const [movementsForPeriod, setMovementsForPeriod] = React.useState<CashMovement[]>([]);
   const [advancesForPeriod, setAdvancesForPeriod] = React.useState<ProfessionalAdvance[]>([]);
+  // Cobros de pagos pendientes (payment_collections) del período abierto —
+  // mismo criterio que movementsForPeriod/advancesForPeriod: crudo acá,
+  // "estrictamente hoy" se deriva más abajo sin una segunda consulta.
+  const [collectionsForPeriod, setCollectionsForPeriod] = React.useState<PaymentCollectionRow[]>([]);
 
   // cash_movements + professional_advances del período abierto — misma
   // fuente que ya usa Caja (CierreCajaBtn) para Ingresar/Retirar dinero.
@@ -234,7 +243,7 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     let payQuery = supabase
       .from("payments")
       .select(
-        "id,business_id,total,amount,method,payment_method,splits,client_name,service_name,created_at,employee_id,appointment_id,charged_by,charge_type,status,charged_at,observations,discount,original_amount,tip_amount,items,receipt_path",
+        "id,business_id,total,amount,method,payment_method,splits,client_name,service_name,created_at,employee_id,appointment_id,charged_by,charge_type,status,collected_amount,charged_at,observations,discount,original_amount,tip_amount,items,receipt_path",
       )
       .eq("business_id", businessId)
       .gte("created_at", dayStart.toISOString())
@@ -243,6 +252,23 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     // order("id") desempata created_at iguales — paginación determinística
     // (fetchAllRows/pagedResult, ver abajo), sin cambiar el orden visible.
     payQuery = payQuery.order("created_at", { ascending: false }).order("id", { ascending: true });
+
+    // Cobros de pagos pendientes (payment_collections) del mismo período —
+    // por collected_at (fecha REAL del cobro), nunca por la fecha de la
+    // venta original. Es lo que hace que un pendiente cobrado hoy (de
+    // cualquier día anterior) aparezca en la caja de HOY, y que una venta
+    // pendiente/parcial nunca "aparente" estar cobrada completa (ver
+    // computeExpectedCashAndDigital, que ahora ignora total/amount de
+    // cualquier payments.status en pendiente/parcial y usa esto en su
+    // lugar).
+    let collQuery = supabase
+      .from("payment_collections")
+      .select("id,payment_id,amount,method,branch_id,collected_at,payments(client_name,service_name,employee_id)")
+      .eq("business_id", businessId)
+      .gte("collected_at", dayStart.toISOString())
+      .lte("collected_at", dayEnd.toISOString());
+    if (branchFilter) collQuery = collQuery.or(branchFilter);
+    collQuery = collQuery.order("collected_at", { ascending: false });
 
     let expQuery = supabase
       .from("expenses")
@@ -270,6 +296,12 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     // TODO lo demás.
     const payResultPromise = pagedResult<Payment>((from, to) => payQuery.range(from, to));
     const expResultPromise = pagedResult<Expense>((from, to) => expQuery.range(from, to));
+    // any acá: el embed payments(...) hace que postgrest-js infiera
+    // `payments` como array (cardinalidad no detectable desde un .select()
+    // armado como string) aunque en runtime, por la FK payment_id → id
+    // (muchos-a-uno), sea siempre 0 o 1 fila — se normaliza a objeto único
+    // (o null) más abajo, al construir collectionsList.
+    const collResultPromise = pagedResult<any>((from, to) => collQuery.range(from, to));
     const carryForwardPromise = getDigitalCarryForward(businessId, branchId);
     const freshMovementsPromise = refreshMovementsRef.current();
 
@@ -291,8 +323,9 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
       ? supabase.from("appointments").select("id,cobro_events").eq("business_id", businessId).in("id", paymentApptIds)
       : Promise.resolve({ data: [] as Array<{ id: string; cobro_events: unknown }> });
 
-    const [expRes, carryForward, freshMovements, apptHistResult] = await Promise.all([
+    const [expRes, collRes, carryForward, freshMovements, apptHistResult] = await Promise.all([
       expResultPromise,
+      collResultPromise,
       carryForwardPromise,
       freshMovementsPromise,
       apptHistPromise,
@@ -308,6 +341,17 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     }
 
     const expensesList = (expRes.error ? [] : (expRes.data ?? [])) as Expense[];
+    const collectionsList: PaymentCollectionRow[] = (collRes.error ? [] : (collRes.data ?? [])).map(
+      (row: Record<string, unknown>) => ({
+        id: String(row.id),
+        payment_id: String(row.payment_id),
+        amount: Number(row.amount ?? 0),
+        method: (row.method as string | null) ?? null,
+        branch_id: (row.branch_id as string | null) ?? null,
+        collected_at: String(row.collected_at),
+        payments: Array.isArray(row.payments) ? (row.payments[0] ?? null) : (row.payments as PaymentCollectionRow["payments"]) ?? null,
+      }),
+    );
 
     const apptHistMap: Record<string, HistorialEvento[]> = {};
     for (const row of apptHistResult.data ?? []) {
@@ -338,6 +382,7 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
       expenses: expensesList,
       advances: freshMovements.advances,
       cashMovements: freshMovements.movements,
+      collections: collectionsList,
     });
 
     if (!keyMatches()) {
@@ -360,6 +405,7 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     setBankExpected(expected.digitalExpected + carryForward);
     setMovementsForPeriod(freshMovements.movements);
     setAdvancesForPeriod(freshMovements.advances);
+    setCollectionsForPeriod(collectionsList);
 
     hasLoadedRef.current = true;
     setLoading(false);
@@ -498,7 +544,16 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
   const todayKeyBA = cajaDateKeyBA();
   const paymentsStrictlyToday = filterToDayBA(paymentsToday, (p) => p.created_at, todayKeyBA);
   const expensesStrictlyToday = expensesToday.filter((e) => e.date === todayKeyBA);
-  const revHoy = paymentsStrictlyToday.reduce((s, p) => s + Number(p.total ?? p.amount ?? 0), 0);
+  // Cobros de pendientes de HOY (por collected_at, no por la fecha de la
+  // venta) — un pendiente/parcial de cualquier día anterior cobrado hoy
+  // cuenta como ingreso de HOY; la venta pendiente en sí nunca aporta su
+  // total/amount acá (ver computeExpectedCashAndDigital).
+  const collectionsStrictlyToday = filterToDayBA(collectionsForPeriod, (c) => c.collected_at, todayKeyBA);
+  const revHoy =
+    paymentsStrictlyToday.reduce(
+      (s, p) => s + (p.status === "pendiente" || p.status === "parcial" ? 0 : Number(p.total ?? p.amount ?? 0)),
+      0,
+    ) + collectionsStrictlyToday.reduce((s, c) => s + Number(c.amount ?? 0), 0);
   const cobros = paymentsStrictlyToday.length;
   const totalGastosHoy = expensesStrictlyToday.reduce((s, e) => s + Number(e.amount ?? 0), 0);
 
@@ -516,12 +571,14 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     expenses: expensesStrictlyToday,
     advances: advancesStrictlyToday,
     cashMovements: movementsStrictlyToday,
+    collections: collectionsStrictlyToday,
   });
 
   return {
     loading,
     paymentsToday,
     expensesToday,
+    collectionsToday: collectionsStrictlyToday,
     revHoy,
     cobros,
     totalGastosHoy,
