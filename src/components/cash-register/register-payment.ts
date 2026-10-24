@@ -430,7 +430,7 @@ export async function registerPayment(input: RegisterPaymentInput) {
  * histórico de qué venta puntual compuso esa liquidación ya cerrada.
  */
 export async function deletePayment(paymentId: string, businessId: string) {
-  const [{ data: commissionRows }, { data: tipRows }] = await Promise.all([
+  const [{ data: commissionRows }, { data: tipRows }, { data: collectionRows }] = await Promise.all([
     supabase
       .from("commission_records" as any)
       .select("settlement_run_id")
@@ -439,10 +439,28 @@ export async function deletePayment(paymentId: string, businessId: string) {
       .from("tip_records" as any)
       .select("settlement_run_id")
       .eq("sale_id", paymentId),
+    // Venta pendiente/parcial: `commission_records.settlement_run_id`
+    // nunca se completa para estas filas (quedan excluidas del barrido
+    // por fecha de venta — ver prepare_settlement_run_fix_pending_exclusion).
+    // Lo que sí puede estar bloqueado a una liquidación ya cerrada es cada
+    // COBRO puntual contra esa venta, vía
+    // commission_collection_events/tip_collection_events.settlement_run_id.
+    // Sin este chequeo, un cobro ya liquidado se podía borrar igual acá,
+    // dejando el total de esa liquidación cerrada sin la venta que lo
+    // compone.
+    supabase
+      .from("payment_collections" as any)
+      .select("id,commission_collection_events(settlement_run_id),tip_collection_events(settlement_run_id)")
+      .eq("payment_id", paymentId),
   ]);
   const alreadySettled =
     (commissionRows ?? []).some((r: any) => r.settlement_run_id) ||
-    (tipRows ?? []).some((r: any) => r.settlement_run_id);
+    (tipRows ?? []).some((r: any) => r.settlement_run_id) ||
+    (collectionRows ?? []).some(
+      (c: any) =>
+        (c.commission_collection_events ?? []).some((e: any) => e.settlement_run_id) ||
+        (c.tip_collection_events ?? []).some((e: any) => e.settlement_run_id),
+    );
   if (alreadySettled) {
     throw new Error(
       "Este cobro ya forma parte de una liquidación cerrada — no se puede eliminar desde acá sin perder ese detalle histórico.",

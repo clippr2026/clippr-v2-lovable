@@ -8633,6 +8633,13 @@ function DetailModal({
   const depositApplied =
     ((payment as Record<string, unknown>).deposit_paid as number | null) ??
     null;
+  // Venta con saldo (pendiente/parcial) — el "Total cobrado" de arriba no
+  // aplica: todavía no entró toda la plata. Se muestra Venta/Cobrado/Saldo
+  // en su lugar, y el historial completo de cobros (ver
+  // VentaPendienteHistoryPanel) más abajo.
+  const isPendingOrParcial = status === "pendiente" || status === "parcial";
+  const collectedAmount = Number((payment as Record<string, unknown>).collected_amount ?? 0) || 0;
+  const saldoPendiente = Math.max(0, Math.round(Number(payment.total ?? payment.amount ?? 0) - collectedAmount));
 
   // Comisión REAL de esta venta puntual — nunca recalculada acá. Antes este
   // bloque adivinaba "precio × commission_pct ACTUAL del profesional" (o
@@ -8698,7 +8705,9 @@ function DetailModal({
   async function handleDelete() {
     if (deleting) return;
     const confirmed = window.confirm(
-      `¿Eliminar este cobro de ${payment.client_name ?? empName ?? "cliente"} por $${totalCobrado.toLocaleString("es-AR")}? No se puede deshacer: se borra el pago junto con su comisión y su propina asociadas.`,
+      isPendingOrParcial
+        ? `¿Eliminar esta venta de ${payment.client_name ?? empName ?? "cliente"} por $${Math.round(Number(payment.total ?? payment.amount ?? 0)).toLocaleString("es-AR")} (de la cual se cobraron $${Math.round(collectedAmount).toLocaleString("es-AR")})? No se puede deshacer: se borra la venta junto con todo su historial de cobros, su comisión y su propina asociadas.`
+        : `¿Eliminar este cobro de ${payment.client_name ?? empName ?? "cliente"} por $${totalCobrado.toLocaleString("es-AR")}? No se puede deshacer: se borra el pago junto con su comisión y su propina asociadas.`,
     );
     if (!confirmed) return;
     setDeleting(true);
@@ -8883,6 +8892,21 @@ function DetailModal({
             </div>
           </div>
 
+          {/* Venta con saldo (pendiente/parcial): el importe grande de
+              arriba es la venta COMPLETA, no lo que entró en caja hasta
+              ahora — este desglose aclara cuánto se cobró de verdad y
+              cuánto falta. */}
+          {isPendingOrParcial && (
+            <div className="py-2 border-b border-white/5 flex items-center justify-between gap-3 flex-wrap text-xs">
+              <span className="text-muted-foreground">
+                Cobrado hasta ahora <span className="font-semibold text-emerald-300">${Math.round(collectedAmount).toLocaleString("es-AR")}</span>
+              </span>
+              <span className="text-muted-foreground">
+                Saldo pendiente <span className="font-semibold text-amber-300">${saldoPendiente.toLocaleString("es-AR")}</span>
+              </span>
+            </div>
+          )}
+
           {/* Bloque: Quién */}
           <div className="mt-2 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3 space-y-0">
             <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">
@@ -8952,7 +8976,7 @@ function DetailModal({
             )}
             {commissionRecord && (
               <Row
-                label="Comisión profesional"
+                label={isPendingOrParcial ? "Comisión potencial (venta completa)" : "Comisión profesional"}
                 value={
                   <>
                     ${Math.round(commissionRecord.amount).toLocaleString("es-AR")}
@@ -8962,6 +8986,11 @@ function DetailModal({
                   </>
                 }
               />
+            )}
+            {isPendingOrParcial && commissionRecord && (
+              <p className="pt-1.5 text-[10px] text-muted-foreground/70">
+                Comisión habilitada únicamente por lo ya cobrado — se ve en Liquidaciones, no acá.
+              </p>
             )}
           </div>
 
@@ -9014,6 +9043,15 @@ function DetailModal({
               )}
             />
           </div>
+
+          {isPendingOrParcial && (
+            <div className="mt-2 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">
+                Historial de cobros
+              </p>
+              <VentaPendienteHistoryPanel paymentId={payment.id} />
+            </div>
+          )}
 
           {obs && (
             <div className="mt-2 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3">
@@ -9812,17 +9850,17 @@ function VentaPendienteHistoryPanel({ paymentId }: { paymentId: string }) {
 
   if (loading) {
     return (
-      <div className="flex items-center gap-2 px-5 py-3 text-xs text-muted-foreground">
+      <div className="flex items-center gap-2 text-xs text-muted-foreground">
         <Loader2 className="size-3.5 animate-spin" /> Cargando historial de pagos…
       </div>
     );
   }
   if (!items || items.length === 0) {
-    return <div className="px-5 py-3 text-xs text-muted-foreground">Todavía no se cobró nada de esta venta.</div>;
+    return <div className="text-xs text-muted-foreground">Todavía no se cobró nada de esta venta.</div>;
   }
 
   return (
-    <div className="divide-y divide-white/[0.06] px-5 py-1">
+    <div className="divide-y divide-white/[0.06]">
       {items.map((it) => {
         const dt = new Date(it.collected_at);
         const isReversal = it.amount < 0;
@@ -9851,17 +9889,20 @@ function VentaPendienteHistoryPanel({ paymentId }: { paymentId: string }) {
 
 // Fila de "venta con saldo" (pendiente/parcial) — agrupa la venta y TODOS
 // sus cobros de hoy en un solo renglón (nunca una fila por la venta y otra
-// por cada cobro, eso duplicaba visualmente el mismo cobro). Se despliega
-// (expanded, estado propio) para ver el historial completo de pagos, vía
-// VentaPendienteHistoryPanel.
+// por cada cobro, eso duplicaba visualmente el mismo cobro). Un click abre
+// el detalle completo de la venta en DetailModal (historial de cobros +
+// eliminar), igual que cualquier otra fila de tipo "pago".
 function VentaPendienteRow({
   item,
   employees,
+  onClick,
+  loading,
 }: {
   item: UnifiedMov;
   employees: ReturnType<typeof useCajaData>["employees"];
+  onClick?: () => void;
+  loading?: boolean;
 }) {
-  const [expanded, setExpanded] = React.useState(false);
   const g = item.venta!;
   const empName = employees.find((e) => e.id === g.employeeId)?.name ?? "—";
   const dt = new Date(item.ts || Date.now());
@@ -9870,37 +9911,36 @@ function VentaPendienteRow({
   const sign = item.amount < 0 ? "-" : item.amount > 0 ? "+" : "";
 
   return (
-    <div className={cn("border-l-2 border-b border-white/[0.07] last:border-b-0", colorCls.border, colorCls.bg)}>
-      <button
-        type="button"
-        onClick={() => setExpanded((v) => !v)}
-        className={cn("grid w-full items-center gap-x-3 px-5 py-3 text-left text-xs transition-colors hover:brightness-125", UNIFIED_GRID_COLS)}
-      >
-        <div className="text-muted-foreground whitespace-nowrap">{formatArgFecha(dt)}</div>
-        <div className="flex min-w-0 items-center gap-1.5 text-foreground">
-          <ChevronRight className={cn("size-3.5 shrink-0 text-muted-foreground/60 transition-transform", expanded && "rotate-90")} />
-          <span className="truncate">{g.clientName ?? "—"}</span>
-        </div>
-        <div className="text-muted-foreground truncate">{empName}</div>
-        <div className="min-w-0 truncate text-muted-foreground">
-          <span>{g.serviceName ?? "—"}</span>
-          <VentaPendienteBadge status={g.status} />
-          <span className="ml-2 text-[10px] text-muted-foreground/70">
-            Venta ${Math.round(g.total).toLocaleString("es-AR")} · Cobrado ${Math.round(g.collectedToDate).toLocaleString("es-AR")} · Saldo ${saldo.toLocaleString("es-AR")}
-          </span>
-        </div>
-        <div className={cn("text-right font-bold tabular-nums", sign ? colorCls.text : "text-muted-foreground/50")}>
-          {sign}${Math.round(Math.abs(item.amount)).toLocaleString("es-AR")}
-        </div>
-        <div className="min-w-0 truncate text-muted-foreground">{paymentMethodLabel(g.method ?? "")}</div>
-        <div className="text-muted-foreground whitespace-nowrap">{formatArgHora(dt)}</div>
-        <div className="min-w-0 truncate text-muted-foreground">{g.lastActorLabel}</div>
-      </button>
-      {expanded && (
-        <div className="border-t border-white/[0.06] bg-black/20">
-          <VentaPendienteHistoryPanel paymentId={g.paymentId} />
-        </div>
+    <div
+      className={cn(
+        "grid items-center gap-x-3 border-l-2 px-5 py-3 text-xs border-b border-white/[0.07] last:border-b-0 transition-colors",
+        UNIFIED_GRID_COLS,
+        colorCls.border,
+        colorCls.bg,
+        onClick ? "cursor-pointer hover:brightness-125" : "",
+        loading ? "opacity-60 pointer-events-none" : "",
       )}
+      onClick={onClick}
+    >
+      <div className="text-muted-foreground whitespace-nowrap">{formatArgFecha(dt)}</div>
+      <div className="flex min-w-0 items-center gap-1.5 text-foreground">
+        {loading && <Loader2 className="size-3 shrink-0 animate-spin text-muted-foreground" />}
+        <span className="truncate">{g.clientName ?? "—"}</span>
+      </div>
+      <div className="text-muted-foreground truncate">{empName}</div>
+      <div className="min-w-0 truncate text-muted-foreground">
+        <span>{g.serviceName ?? "—"}</span>
+        <VentaPendienteBadge status={g.status} />
+        <span className="ml-2 text-[10px] text-muted-foreground/70">
+          Venta ${Math.round(g.total).toLocaleString("es-AR")} · Cobrado ${Math.round(g.collectedToDate).toLocaleString("es-AR")} · Saldo ${saldo.toLocaleString("es-AR")}
+        </span>
+      </div>
+      <div className={cn("text-right font-bold tabular-nums", sign ? colorCls.text : "text-muted-foreground/50")}>
+        {sign}${Math.round(Math.abs(item.amount)).toLocaleString("es-AR")}
+      </div>
+      <div className="min-w-0 truncate text-muted-foreground">{paymentMethodLabel(g.method ?? "")}</div>
+      <div className="text-muted-foreground whitespace-nowrap">{formatArgHora(dt)}</div>
+      <div className="min-w-0 truncate text-muted-foreground">{g.lastActorLabel}</div>
     </div>
   );
 }
@@ -9908,11 +9948,14 @@ function VentaPendienteRow({
 function VentaPendienteCardMobile({
   item,
   employees,
+  onClick,
+  loading,
 }: {
   item: UnifiedMov;
   employees: ReturnType<typeof useCajaData>["employees"];
+  onClick?: () => void;
+  loading?: boolean;
 }) {
-  const [expanded, setExpanded] = React.useState(false);
   const g = item.venta!;
   const empName = employees.find((e) => e.id === g.employeeId)?.name ?? "—";
   const dt = new Date(item.ts || Date.now());
@@ -9921,49 +9964,51 @@ function VentaPendienteCardMobile({
   const sign = item.amount < 0 ? "-" : item.amount > 0 ? "+" : "";
 
   return (
-    <div className={cn("w-full overflow-hidden rounded-2xl border-l-2 border border-white/[0.07]", colorCls.border, colorCls.bgMobile)}>
-      <button type="button" onClick={() => setExpanded((v) => !v)} className="w-full px-3.5 py-3 text-left text-xs">
-        <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] pb-2">
-          <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-            <ChevronRight className={cn("size-3.5 shrink-0 transition-transform", expanded && "rotate-90")} />
-            {formatArgFecha(dt)} · {formatArgHora(dt)}
-          </span>
-          <span className={cn("text-sm font-bold tabular-nums", sign ? colorCls.text : "text-muted-foreground/50")}>
-            {sign}${Math.round(Math.abs(item.amount)).toLocaleString("es-AR")}
-          </span>
-        </div>
-        <div className="mt-2 space-y-1.5">
-          <div className="flex items-start justify-between gap-3">
-            <span className="shrink-0 text-muted-foreground/70">Cliente</span>
-            <span className="flex items-center gap-1.5 truncate text-right text-foreground/90">
-              {g.clientName ?? "—"} <VentaPendienteBadge status={g.status} />
-            </span>
-          </div>
-          <div className="flex items-start justify-between gap-3">
-            <span className="shrink-0 text-muted-foreground/70">Profesional</span>
-            <span className="truncate text-right text-muted-foreground">{empName}</span>
-          </div>
-          <div className="flex items-start justify-between gap-3">
-            <span className="shrink-0 text-muted-foreground/70">Servicio</span>
-            <span className="truncate text-right text-muted-foreground">{g.serviceName ?? "—"}</span>
-          </div>
-          <div className="flex items-start justify-between gap-3">
-            <span className="shrink-0 text-muted-foreground/70">Venta / cobrado / saldo</span>
-            <span className="truncate text-right text-muted-foreground">
-              ${Math.round(g.total).toLocaleString("es-AR")} / ${Math.round(g.collectedToDate).toLocaleString("es-AR")} / ${saldo.toLocaleString("es-AR")}
-            </span>
-          </div>
-          <div className="flex items-start justify-between gap-3">
-            <span className="shrink-0 text-muted-foreground/70">Quién</span>
-            <span className="truncate text-right text-muted-foreground">{g.lastActorLabel}</span>
-          </div>
-        </div>
-      </button>
-      {expanded && (
-        <div className="border-t border-white/[0.06] bg-black/20">
-          <VentaPendienteHistoryPanel paymentId={g.paymentId} />
-        </div>
+    <div
+      className={cn(
+        "w-full rounded-2xl border-l-2 border border-white/[0.07] px-3.5 py-3 text-xs",
+        colorCls.border,
+        colorCls.bgMobile,
+        onClick ? "cursor-pointer active:brightness-125" : "",
+        loading ? "opacity-60 pointer-events-none" : "",
       )}
+      onClick={onClick}
+    >
+      <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] pb-2">
+        <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
+          {loading && <Loader2 className="size-3 shrink-0 animate-spin" />}
+          {formatArgFecha(dt)} · {formatArgHora(dt)}
+        </span>
+        <span className={cn("text-sm font-bold tabular-nums", sign ? colorCls.text : "text-muted-foreground/50")}>
+          {sign}${Math.round(Math.abs(item.amount)).toLocaleString("es-AR")}
+        </span>
+      </div>
+      <div className="mt-2 space-y-1.5">
+        <div className="flex items-start justify-between gap-3">
+          <span className="shrink-0 text-muted-foreground/70">Cliente</span>
+          <span className="flex items-center gap-1.5 truncate text-right text-foreground/90">
+            {g.clientName ?? "—"} <VentaPendienteBadge status={g.status} />
+          </span>
+        </div>
+        <div className="flex items-start justify-between gap-3">
+          <span className="shrink-0 text-muted-foreground/70">Profesional</span>
+          <span className="truncate text-right text-muted-foreground">{empName}</span>
+        </div>
+        <div className="flex items-start justify-between gap-3">
+          <span className="shrink-0 text-muted-foreground/70">Servicio</span>
+          <span className="truncate text-right text-muted-foreground">{g.serviceName ?? "—"}</span>
+        </div>
+        <div className="flex items-start justify-between gap-3">
+          <span className="shrink-0 text-muted-foreground/70">Venta / cobrado / saldo</span>
+          <span className="truncate text-right text-muted-foreground">
+            ${Math.round(g.total).toLocaleString("es-AR")} / ${Math.round(g.collectedToDate).toLocaleString("es-AR")} / ${saldo.toLocaleString("es-AR")}
+          </span>
+        </div>
+        <div className="flex items-start justify-between gap-3">
+          <span className="shrink-0 text-muted-foreground/70">Quién</span>
+          <span className="truncate text-right text-muted-foreground">{g.lastActorLabel}</span>
+        </div>
+      </div>
     </div>
   );
 }
@@ -9972,15 +10017,15 @@ function VentaPendienteCardMobile({
 // propia fila agrupada+desplegable, el resto sigue con UnifiedMovRow/
 // UnifiedMovCardMobile de siempre. Evita tocar los 4 call-sites (feed +
 // modal "Ver todos", desktop + mobile) con un ternario cada uno.
-function UnifiedRowAny(props: React.ComponentProps<typeof UnifiedMovRow>) {
+function UnifiedRowAny(props: React.ComponentProps<typeof UnifiedMovRow> & { loading?: boolean }) {
   if (props.item.kind === "venta_pendiente") {
-    return <VentaPendienteRow item={props.item} employees={props.employees} />;
+    return <VentaPendienteRow item={props.item} employees={props.employees} onClick={props.onClick} loading={props.loading} />;
   }
   return <UnifiedMovRow {...props} />;
 }
-function UnifiedCardAny(props: React.ComponentProps<typeof UnifiedMovCardMobile>) {
+function UnifiedCardAny(props: React.ComponentProps<typeof UnifiedMovCardMobile> & { loading?: boolean }) {
   if (props.item.kind === "venta_pendiente") {
-    return <VentaPendienteCardMobile item={props.item} employees={props.employees} />;
+    return <VentaPendienteCardMobile item={props.item} employees={props.employees} onClick={props.onClick} loading={props.loading} />;
   }
   return <UnifiedMovCardMobile {...props} />;
 }
@@ -10067,8 +10112,32 @@ function MovimientosUnificados({
   const recent = all.slice(0, 10);
   const loading = data.loading || movementsData.loading;
 
+  // Carga la venta completa desde la base (nunca el snapshot resumido del
+  // grupo, que puede faltar columnas si el grupo se sembró desde el embed
+  // de un cobro de un día anterior — ver buildUnifiedMovements) para abrir
+  // el mismo DetailModal que cualquier otro pago, con permiso de eliminar.
+  const [loadingVentaDetailId, setLoadingVentaDetailId] = React.useState<string | null>(null);
+  async function openVentaPendienteDetail(paymentId: string) {
+    setLoadingVentaDetailId(paymentId);
+    try {
+      const { data: full, error } = await supabase
+        .from("payments")
+        .select("*")
+        .eq("id", paymentId)
+        .maybeSingle();
+      if (error) throw error;
+      if (full) setDetailPayment(full as unknown as ReturnType<typeof useCajaData>["paymentsToday"][number]);
+      else toast.error("No se encontró la venta");
+    } catch (e) {
+      toast.error((e as Error).message || "No se pudo abrir el detalle de la venta");
+    } finally {
+      setLoadingVentaDetailId(null);
+    }
+  }
+
   function handleRowClick(item: UnifiedMov) {
     if (item.kind === "pago" && item.payment) setDetailPayment(item.payment);
+    else if (item.kind === "venta_pendiente" && item.venta) openVentaPendienteDetail(item.venta.paymentId);
   }
 
   function closeAllModal() {
@@ -10273,8 +10342,9 @@ function MovimientosUnificados({
                     item={item}
                     employees={data.employees}
                     businessId={data.businessId}
-                    onClick={item.kind === "pago" ? () => handleRowClick(item) : undefined}
+                    onClick={item.kind === "pago" || item.kind === "venta_pendiente" ? () => handleRowClick(item) : undefined}
                     onShowNote={showNote}
+                    loading={item.kind === "venta_pendiente" && item.venta?.paymentId === loadingVentaDetailId}
                   />
                 ))}
               </div>
@@ -10297,8 +10367,9 @@ function MovimientosUnificados({
                   item={item}
                   employees={data.employees}
                   businessId={data.businessId}
-                  onClick={item.kind === "pago" ? () => handleRowClick(item) : undefined}
+                  onClick={item.kind === "pago" || item.kind === "venta_pendiente" ? () => handleRowClick(item) : undefined}
                   onShowNote={showNote}
+                  loading={item.kind === "venta_pendiente" && item.venta?.paymentId === loadingVentaDetailId}
                 />
               ))}
             </div>
@@ -10451,8 +10522,9 @@ function MovimientosUnificados({
                       item={item}
                       employees={data.employees}
                       businessId={data.businessId}
-                      onClick={item.kind === "pago" ? () => handleRowClick(item) : undefined}
+                      onClick={item.kind === "pago" || item.kind === "venta_pendiente" ? () => handleRowClick(item) : undefined}
                       onShowNote={showNote}
+                      loading={item.kind === "venta_pendiente" && item.venta?.paymentId === loadingVentaDetailId}
                     />
                   ))
                 )}
@@ -10470,8 +10542,9 @@ function MovimientosUnificados({
                         item={item}
                         employees={data.employees}
                         businessId={data.businessId}
-                        onClick={item.kind === "pago" ? () => handleRowClick(item) : undefined}
+                        onClick={item.kind === "pago" || item.kind === "venta_pendiente" ? () => handleRowClick(item) : undefined}
                         onShowNote={showNote}
+                        loading={item.kind === "venta_pendiente" && item.venta?.paymentId === loadingVentaDetailId}
                       />
                     ))}
                   </div>
