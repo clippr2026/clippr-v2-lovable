@@ -9133,19 +9133,20 @@ function buildUnifiedMovements(
     const raw = (p as { sort_ts?: string | null }).sort_ts ?? p.created_at;
     const ts = raw ? new Date(raw).getTime() : 0;
     // Pago pendiente/parcial (ver 20261023010000_pending_payments_schema.sql):
-    // nunca mostrar acá el total como si estuviera cobrado — solo lo que
-    // efectivamente entró AL VENDER (collected_amount, 0 si quedó 100%
-    // pendiente). Cualquier cobro posterior de esta venta aparece como su
-    // propia fila "cobro_pendiente" más abajo, el día real en que entró.
+    // esta fila es SOLO "se registró una venta" — nunca plata. Toda la
+    // plata real de esta venta (incluido cualquier cobro inicial parcial
+    // al vender, que register_sale ya registra como su propio renglón de
+    // payment_collections) se muestra exclusivamente en las filas
+    // "cobro_pendiente" de más abajo — mostrar acá TAMBIÉN
+    // collected_amount duplicaba visualmente ese mismo cobro inicial (dos
+    // filas de "+$1.000" para un solo cobro real).
     const isPending = p.status === "pendiente" || p.status === "parcial";
     items.push({
       id: `pago-${p.id}`,
       kind: "pago",
       ts: Number.isFinite(ts) ? ts : 0,
       color: isPending ? "ambar" : "verde",
-      amount: isPending
-        ? Number(p.collected_amount ?? 0)
-        : Number(p.total ?? p.amount ?? 0) + Number(p.tip_amount ?? 0),
+      amount: isPending ? 0 : Number(p.total ?? p.amount ?? 0) + Number(p.tip_amount ?? 0),
       payment: p,
     });
   }
