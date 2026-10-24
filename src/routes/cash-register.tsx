@@ -71,7 +71,7 @@ import {
   closeCashSession,
   reopenCashSession,
 } from "@/components/cash-register/session-actions";
-import { CobrarPendienteModal } from "@/components/cash-register/cobrar-pendiente";
+import { CobrarPendienteModal, usePendingDebtSummary } from "@/components/cash-register/cobrar-pendiente";
 import {
   attachReceiptToPayment,
   getPaymentReceiptSignedUrl,
@@ -10095,6 +10095,16 @@ function FacturacionPanel({
   // pantalla nueva y completamente separada (lista de deudas + cobro).
   const [showIngresoChoice, setShowIngresoChoice] = React.useState(false);
   const [showCobrarPendiente, setShowCobrarPendiente] = React.useState(false);
+  // "Pendiente de cobro" — acumulado de TODAS las deudas abiertas del
+  // negocio (no solo las de hoy), distinto del stat "Pendientes" de arriba
+  // (ese es el concepto viejo: turnos enviados a Caja sin cobrar nada
+  // todavía). Se refresca cada vez que cambian los pagos/cobros del
+  // período (nueva venta pendiente, cobro parcial/total, reversión).
+  const pendingDebtSummary = usePendingDebtSummary(data.businessId, data.activeBranchId);
+  React.useEffect(() => {
+    pendingDebtSummary.refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data.paymentsToday, data.collectionsToday]);
   // Composición de "Efectivo del día"/"Dinero en cuenta del día" — un
   // saldo negativo nunca queda sin explicación, un clic alcanza (ver
   // src/components/caja/saldo-composicion.tsx).
@@ -10153,11 +10163,11 @@ function FacturacionPanel({
         </div>
       )}
 
-      {/* Ingresos | Pendientes | Gastos — reemplaza el selector grande
-          Facturación/Gastos de ResumenTab. Sin Pendientes (negocio sin modo
-          de aprobación habilitado, o usuario sin permiso de Equipo), queda
-          Ingresos | Gastos en 2 columnas iguales, sin hueco. */}
-      <div className={cn("grid gap-2", showPendientes ? "grid-cols-3" : "grid-cols-2")}>
+      {/* Ingresos | Pendientes (turnos sin cobrar) | Pendiente de cobro
+          (ventas con saldo) | Gastos — reemplaza el selector grande
+          Facturación/Gastos de ResumenTab. 2 columnas en mobile (wrap),
+          una sola fila desde sm. */}
+      <div className={cn("grid grid-cols-2 gap-2", showPendientes ? "sm:grid-cols-4" : "sm:grid-cols-3")}>
         <FacturacionStatCard
           icon={TrendingUp}
           iconClass="text-emerald-400"
@@ -10182,6 +10192,18 @@ function FacturacionPanel({
             }}
           />
         )}
+        {/* Distinto del "Pendientes" de arriba: ese es turnos enviados a
+            Caja sin ningún cobro registrado todavía (concepto viejo). Este
+            es la suma de saldo de TODAS las ventas con payments.status en
+            pendiente/parcial — clic abre directo "Cobrar pendiente". */}
+        <FacturacionStatCard
+          icon={Clock}
+          iconClass="text-amber-400"
+          label="Pendiente de cobro"
+          value={pendingDebtSummary.total}
+          loading={pendingDebtSummary.loading}
+          onClick={() => setShowCobrarPendiente(true)}
+        />
         <FacturacionStatCard
           icon={TrendingDown}
           iconClass="text-rose-400"

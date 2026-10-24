@@ -99,6 +99,65 @@ export async function searchPendingDebts(params: {
   }));
 }
 
+// Total acumulado pendiente de cobro (todas las deudas abiertas del
+// negocio, no solo las de hoy — una deuda de hace tres semanas sigue
+// siendo plata que falta cobrar) — para el stat card "Pendiente de
+// cobro" de Facturación. Separado del total ya cobrado por completo.
+export async function getPendingDebtSummary(
+  businessId: string,
+  branchId?: string | null,
+): Promise<{ total: number; count: number }> {
+  let q = supabase
+    .from("payments")
+    .select("total,amount,collected_amount")
+    .eq("business_id", businessId)
+    .in("status", ["pendiente", "parcial"])
+    .limit(2000);
+  if (branchId) q = q.or(`branch_id.eq.${branchId},branch_id.is.null`);
+
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  const rows = (data ?? []) as Array<{ total: number | null; amount: number | null; collected_amount: number | null }>;
+  const total = rows.reduce(
+    (s, r) => s + Math.max(0, Number(r.total ?? r.amount ?? 0) - Number(r.collected_amount ?? 0)),
+    0,
+  );
+  return { total, count: rows.length };
+}
+
+// Hook liviano — carga al montar/cambiar negocio-sucursal, expone
+// refresh() para volver a pedirlo después de un cobro (CobrarPendienteModal
+// ya llama a data.refresh() del caller, que puede encadenar este refresh
+// también).
+export function usePendingDebtSummary(businessId: string | null, branchId: string | null) {
+  const [total, setTotal] = React.useState(0);
+  const [count, setCount] = React.useState(0);
+  const [loading, setLoading] = React.useState(true);
+
+  const load = React.useCallback(async () => {
+    if (!businessId) {
+      setLoading(false);
+      return;
+    }
+    try {
+      const summary = await getPendingDebtSummary(businessId, branchId);
+      setTotal(summary.total);
+      setCount(summary.count);
+    } catch {
+      // Silencioso — este stat es informativo, nunca debe tumbar el resto
+      // de Facturación si falla.
+    } finally {
+      setLoading(false);
+    }
+  }, [businessId, branchId]);
+
+  React.useEffect(() => {
+    void load();
+  }, [load]);
+
+  return { total, count, loading, refresh: load };
+}
+
 export async function collectPendingPayment(input: {
   businessId: string;
   branchId?: string | null;
