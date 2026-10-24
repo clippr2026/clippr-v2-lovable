@@ -12785,14 +12785,19 @@ export function NuevaVentaTab({
   // facturación/comisión, ver register-payment.ts).
   const [tipAmountInput, setTipAmountInput] = React.useState("");
   const [tipPanelOpen, setTipPanelOpen] = React.useState(false);
-  // Pago pendiente — deja la venta con saldo a favor del negocio en vez de
-  // asumirla cobrada (Caja → Nueva venta → "Pago pendiente"). Fuerza Pago
-  // simple (sin Pago múltiple: un cobro parcial inicial usa un solo
-  // método). pendingCollectedInput es cuánto se cobra AHORA (opcional,
-  // vacío/"0" = 100% pendiente) — nunca se autocompleta con el total, y
-  // viaja como collectedAmount a registerPayment (register-payment.ts).
-  const [pagoPendiente, setPagoPendiente] = React.useState(false);
-  const [pendingCollectedInput, setPendingCollectedInput] = React.useState("");
+  // Importe abonado — reemplaza el viejo botón/toggle independiente "Pago
+  // pendiente": un único campo, siempre presente (salvo en "Enviar a
+  // caja", donde todavía no hay ningún cobro). Vacío = se asume el total
+  // completo (comportamiento de toda la vida, sin tocar nada); cualquier
+  // valor MENOR activa sola la detección de pago parcial (o pendiente si
+  // es $0) — ver abonadoAmount/pagoPendiente más abajo, derivados de este
+  // campo, nunca al revés. Mismo criterio de siempre: nunca se
+  // autocompleta con el total mientras el usuario no tocó nada (ver
+  // placeholder en el input), y viaja como collectedAmount a
+  // registerPayment (register-payment.ts) cuando queda por debajo del
+  // total.
+  const [abonadoInput, setAbonadoInput] = React.useState("");
+  const [showAbonadoConfirm, setShowAbonadoConfirm] = React.useState(false);
   const [method, setMethod] = React.useState<PayMethod>("cash");
   // Método preferido por defecto: Transferencia > Efectivo > primero
   // disponible — se aplica UNA vez por cobro (carga inicial de la
@@ -13157,6 +13162,18 @@ export function NuevaVentaTab({
   const tipAmount = Math.max(0, Number(tipAmountInput) || 0);
   const finalTotal = subtotalAfterDiscount + tipAmount;
 
+  // abonadoAmount: campo vacío = se asume el total completo (mismo
+  // comportamiento de siempre para el caso común); cualquier valor tipeado
+  // es el importe que el cliente realmente abona AHORA. pagoPendiente ya
+  // no es un toggle manual — se deriva solo comparando contra
+  // subtotalAfterDiscount (con descuento, SIN propina: la propina se cobra
+  // siempre completa y aparte, nunca entra en esta comparación). No
+  // disponible en "Enviar a caja" (isManualFlow): ahí todavía no existe
+  // ningún cobro que dejar pendiente.
+  const abonadoAmount =
+    abonadoInput === "" ? subtotalAfterDiscount : Number(abonadoInput) || 0;
+  const pagoPendiente = !isManualFlow && abonadoAmount < subtotalAfterDiscount;
+
   const receivedNumber = Number(received || 0);
   const change =
     method === "cash" && receivedNumber >= finalTotal ? receivedNumber - finalTotal : 0;
@@ -13343,12 +13360,32 @@ export function NuevaVentaTab({
       return;
     }
 
+    // Importe abonado: válido para los tres casos (pagado completo/
+    // parcial/pendiente) por igual — nunca negativo, nunca más que el
+    // total del servicio (subtotalAfterDiscount: con descuento, SIN
+    // propina — la propina se cobra siempre completa y aparte, nunca entra
+    // acá). Se valida ANTES de separar en el branch de abajo porque aplica
+    // sin importar en cuál se termine cayendo.
+    if (turnoChargeMode !== "manual") {
+      if (abonadoAmount < 0) {
+        toast.error("El importe abonado no puede ser negativo.");
+        return;
+      }
+      if (abonadoAmount > subtotalAfterDiscount + 0.01) {
+        toast.error(
+          `El importe abonado ($${Math.round(abonadoAmount).toLocaleString("es-AR")}) no puede superar el total del servicio ($${Math.round(subtotalAfterDiscount).toLocaleString("es-AR")}, sin contar la propina).`,
+        );
+        return;
+      }
+    }
+
     // turnoChargeMode="manual": no cobra ahora, envía a Caja para que
     // recepción confirme el cobro después — no tiene sentido pedir monto
     // abonado / distribución de pago múltiple para algo que todavía no se
-    // está cobrando. pagoPendiente: tampoco se exige que el monto cubra el
-    // total — la venta queda con saldo a favor del negocio a propósito,
-    // ver validación propia más abajo.
+    // está cobrando. pagoPendiente (abonadoAmount < subtotalAfterDiscount,
+    // detectado solo — ver más arriba): tampoco se exige que el monto
+    // cubra el total — la venta queda con saldo a favor del negocio a
+    // propósito.
     if (turnoChargeMode !== "manual" && !pagoPendiente) {
       if (paymentMode === "simple") {
         if (method === "cash") {
@@ -13379,20 +13416,12 @@ export function NuevaVentaTab({
       }
     }
 
-    // pagoPendiente: el único monto relevante es lo que se cobra AHORA
-    // (opcional, "" = $0 = 100% pendiente) — nunca puede superar
-    // subtotalAfterDiscount (servicios+productos, YA con descuento, SIN
-    // propina). Nunca finalTotal: ese incluye tipAmount, pero
-    // payments.total en la base (lo que valida register_sale/p_total) es
-    // siempre sin propina — compararlo contra finalTotal podía rechazar un
-    // cobro válido (o aceptar uno que en el backend se recorta solo).
-    const pendingCollectedAmount = pagoPendiente ? Number(pendingCollectedInput) || 0 : undefined;
-    if (pagoPendiente && pendingCollectedAmount !== undefined && pendingCollectedAmount > subtotalAfterDiscount) {
-      toast.error(
-        `No podés cobrar más que el total del servicio ($${subtotalAfterDiscount.toLocaleString("es-AR")}, sin contar la propina) al dejar un pago pendiente.`,
-      );
-      return;
-    }
+    // pagoPendiente: el único monto relevante es lo que se cobra AHORA es
+    // abonadoAmount (0 = 100% pendiente) — ya validado arriba contra
+    // subtotalAfterDiscount, nunca contra finalTotal (ese incluye
+    // tipAmount, pero payments.total en la base — lo que valida
+    // register_sale/p_total — es siempre sin propina).
+    const pendingCollectedAmount = pagoPendiente ? abonadoAmount : undefined;
 
     setSubmitting(true);
     let normalSaleCompleted = false;
@@ -13822,8 +13851,7 @@ export function NuevaVentaTab({
         setDiscountPanelOpen(false);
         setTipAmountInput("");
         setTipPanelOpen(false);
-        setPagoPendiente(false);
-        setPendingCollectedInput("");
+        setAbonadoInput("");
         clearReceiptFile();
         normalSaleCompleted = true;
       }
@@ -14423,7 +14451,7 @@ export function NuevaVentaTab({
             <button
               onClick={() => setPaymentMode("multiple")}
               disabled={pagoPendiente}
-              title={pagoPendiente ? "No disponible con Pago pendiente activo" : undefined}
+              title={pagoPendiente ? "No disponible con un importe abonado menor al total" : undefined}
               className={cn(
                 "py-2 text-sm font-semibold last:rounded-tr-3xl",
                 pagoPendiente
@@ -14669,43 +14697,66 @@ export function NuevaVentaTab({
                 )}
               </div>
 
-              {/* Pago pendiente — deja la venta con saldo a favor del
-                  negocio en vez de asumirla cobrada. Al activarlo: fuerza
-                  Pago simple (un cobro parcial inicial usa un solo
-                  método), reemplaza "Monto recibido"/vuelto por un campo
-                  opcional "¿Cobrás algo ahora?" (ver más abajo) y la
-                  validación de handleCobrar deja de exigir que el monto
-                  cubra el total. El método elegido abajo sigue
+              {/* Importe abonado — reemplaza el viejo botón/toggle
+                  independiente "Pago pendiente": nada que activar a mano,
+                  el pago parcial/pendiente se detecta solo comparando lo
+                  tipeado acá contra el total (ver pagoPendiente/
+                  abonadoAmount, derivados de este campo). Vacío = se
+                  asume el total completo, el caso de siempre — cualquier
+                  valor por debajo fuerza Pago simple (un cobro parcial/
+                  pendiente usa un solo método) y reemplaza "Monto
+                  recibido"/vuelto de más abajo por el aviso de pago
+                  parcial/pendiente. El método elegido abajo sigue
                   aplicando: es el método nominal de la venta y, si se
                   cobra algo ahora, el de ese cobro puntual. No disponible
                   en "Enviar a caja" (turnoChargeMode="manual"): ahí
                   todavía no existe ningún cobro que dejar pendiente. */}
               {!isManualFlow && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setPagoPendiente((v) => {
-                      const next = !v;
-                      if (next) setPaymentMode("simple");
-                      else setPendingCollectedInput("");
-                      return next;
-                    });
-                  }}
-                  className={cn(
-                    "mt-1.5 flex w-full items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left text-xs font-semibold transition",
-                    pagoPendiente
-                      ? "border-amber-300/40 bg-amber-400/10 text-amber-200"
-                      : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground",
+                <div className="mt-1.5">
+                  <p className="mb-1 text-[11px] font-semibold tracking-[0.1em] text-muted-foreground/70">
+                    IMPORTE ABONADO
+                  </p>
+                  <div className="relative min-w-0">
+                    <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-base font-bold text-white/55">
+                      $
+                    </span>
+                    <input
+                      value={abonadoInput ? Number(abonadoInput).toLocaleString("es-AR") : ""}
+                      onChange={(e) => {
+                        const digits = e.target.value.replace(/\D/g, "").slice(0, 9);
+                        setAbonadoInput(digits);
+                        // Múltiple no admite saldo (siempre reparte el
+                        // total entre métodos) — si lo que se está
+                        // tipeando ya quedó corto, se vuelve a Simple
+                        // solo, sin que el usuario tenga que buscar la
+                        // pestaña.
+                        if (digits !== "" && (Number(digits) || 0) < subtotalAfterDiscount) {
+                          setPaymentMode("simple");
+                        }
+                      }}
+                      inputMode="numeric"
+                      placeholder={`Total: $${Math.round(subtotalAfterDiscount).toLocaleString("es-AR")}`}
+                      aria-label="Importe abonado"
+                      className={cn(
+                        "h-10 w-full rounded-xl border bg-black/45 pl-8 pr-3 text-left text-lg font-extrabold tabular-nums text-white outline-none placeholder:text-xs placeholder:font-normal placeholder:text-white/30 focus:ring-2",
+                        pagoPendiente
+                          ? "border-amber-300/30 focus:border-amber-300/65 focus:ring-amber-400/20"
+                          : "border-blue-300/30 focus:border-blue-300/65 focus:ring-blue-400/20",
+                      )}
+                    />
+                  </div>
+                  {pagoPendiente && (
+                    <p className="mt-1.5 flex items-start gap-1.5 text-[11px] font-semibold leading-snug text-amber-200/85">
+                      <Clock className="mt-0.5 size-3.5 shrink-0" />
+                      <span>
+                        {abonadoAmount > 0
+                          ? `Pago parcial — abona $${Math.round(abonadoAmount).toLocaleString("es-AR")} ahora, queda $${Math.round(subtotalAfterDiscount - abonadoAmount).toLocaleString("es-AR")} pendiente de cobro.`
+                          : `Pago pendiente — no se cobra nada ahora, el total ($${Math.round(subtotalAfterDiscount).toLocaleString("es-AR")}) queda pendiente de cobro.`}
+                        {tipAmount > 0 && " La propina se cobra siempre completa, aparte."}
+                      </span>
+                    </p>
                   )}
-                >
-                  <span className="flex items-center gap-1.5">
-                    <Clock className="size-3.5 shrink-0" />
-                    Pago pendiente
-                  </span>
-                  <span className="text-[11px] font-normal opacity-80">
-                    {pagoPendiente ? "Queda con saldo pendiente" : "Se cobra ahora"}
-                  </span>
-                </button>
+                </div>
               )}
             </div>
           </Card>
@@ -14733,81 +14784,53 @@ export function NuevaVentaTab({
           >
           {paymentMode === "simple" ? (
             <>
-              <div>
-                <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70 mb-1.5">
-                  MÉTODO DE PAGO
-                </p>
-                {/* Ícono a la izquierda, nombre a la derecha, en una sola
-                    fila — antes iban apilados (ícono arriba, nombre abajo),
-                    lo que hacía cada tarjeta mucho más alta de lo
-                    necesario. Dos filas FIJAS (no un grid uniforme que
-                    reparte parejo): Efectivo/Transferencia arriba,
-                    Débito/Crédito/QR abajo — mismo orden en mobile y
-                    desktop. */}
-                <div className="space-y-1.5">
-                  <div className="grid grid-cols-2 gap-1.5">
-                    {paymentOptions.slice(0, 2).map((m) => (
-                      <PaymentMethodButton
-                        key={m.id}
-                        method={m}
-                        active={method === m.id}
-                        onClick={() => setMethod(m.id as PayMethod)}
-                      />
-                    ))}
-                  </div>
-                  <div className="grid grid-cols-3 gap-1.5">
-                    {paymentOptions.slice(2).map((m) => (
-                      <PaymentMethodButton
-                        key={m.id}
-                        method={m}
-                        active={method === m.id}
-                        onClick={() => setMethod(m.id as PayMethod)}
-                      />
-                    ))}
+              {/* Método de pago: oculto solo cuando el importe abonado es
+                  exactamente $0 — ahí no hay nada que cobrar ahora, no
+                  tiene sentido pedir medio de pago ni comprobante (ver
+                  requisito explícito). Para cualquier importe > 0 (pago
+                  completo o parcial) sigue disponible. */}
+              {abonadoAmount > 0 && (
+                <div>
+                  <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70 mb-1.5">
+                    MÉTODO DE PAGO
+                  </p>
+                  {/* Ícono a la izquierda, nombre a la derecha, en una sola
+                      fila — antes iban apilados (ícono arriba, nombre abajo),
+                      lo que hacía cada tarjeta mucho más alta de lo
+                      necesario. Dos filas FIJAS (no un grid uniforme que
+                      reparte parejo): Efectivo/Transferencia arriba,
+                      Débito/Crédito/QR abajo — mismo orden en mobile y
+                      desktop. */}
+                  <div className="space-y-1.5">
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {paymentOptions.slice(0, 2).map((m) => (
+                        <PaymentMethodButton
+                          key={m.id}
+                          method={m}
+                          active={method === m.id}
+                          onClick={() => setMethod(m.id as PayMethod)}
+                        />
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {paymentOptions.slice(2).map((m) => (
+                        <PaymentMethodButton
+                          key={m.id}
+                          method={m}
+                          active={method === m.id}
+                          onClick={() => setMethod(m.id as PayMethod)}
+                        />
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
-              {pagoPendiente ? (
-                // Pago pendiente: reemplaza "Monto recibido"/vuelto por un
-                // campo opcional "¿Cobrás algo ahora?" — vacío/"0" = la
-                // venta queda 100% pendiente; cualquier otro valor (hasta
-                // el total) queda como pago parcial, con el resto pendiente
-                // de cobro vía Caja → Ingresar dinero → Cobrar pendiente.
-                // Nunca se autocompleta con el total (mismo criterio que
-                // "received" arriba).
-                <div className="rounded-2xl border border-amber-300/25 bg-amber-400/[0.06] p-2.5">
-                  <p className="mb-1.5 text-[11px] font-semibold tracking-[0.1em] text-amber-200/80">
-                    ¿COBRÁS ALGO AHORA? (OPCIONAL)
-                  </p>
-                  <div className="relative min-w-0 flex-1">
-                    <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-base font-bold text-white/55">
-                      $
-                    </span>
-                    <input
-                      value={
-                        pendingCollectedInput
-                          ? Number(pendingCollectedInput).toLocaleString("es-AR")
-                          : ""
-                      }
-                      onChange={(e) =>
-                        setPendingCollectedInput(e.target.value.replace(/\D/g, "").slice(0, 9))
-                      }
-                      inputMode="numeric"
-                      placeholder="0 = queda 100% pendiente"
-                      aria-label="Monto cobrado ahora"
-                      className="h-10 w-full rounded-xl border border-amber-300/30 bg-black/45 pl-8 pr-3 text-left text-lg font-extrabold tabular-nums text-white outline-none placeholder:text-xs placeholder:font-normal placeholder:text-white/30 focus:border-amber-300/65 focus:ring-2 focus:ring-amber-400/20"
-                    />
-                  </div>
-                  <p className="mt-1.5 text-[11px] text-amber-200/60">
-                    Saldo pendiente: $
-                    {Math.max(
-                      0,
-                      Math.round(subtotalAfterDiscount - (Number(pendingCollectedInput) || 0)),
-                    ).toLocaleString("es-AR")}
-                    {tipAmount > 0 && " (propina aparte, se cobra siempre completa)"}
-                  </p>
-                </div>
-              ) : (
+              )}
+              {/* "Monto recibido"/vuelto y comprobante de transferencia
+                  solo tienen sentido cuando se cobra el total completo
+                  ahora mismo — un pago parcial/pendiente no tiene
+                  "vuelto" (el aviso de pago parcial/pendiente ya se
+                  muestra arriba, junto al campo Importe abonado). */}
+              {!pagoPendiente && (
                 <>
                   {method === "cash" && (
                     // Sin borde propio acá (antes tenía uno, más el del input
@@ -15005,7 +15028,18 @@ export function NuevaVentaTab({
                 (!isManualFlow && !pagoPendiente && paymentMode === "multiple" && splitsRemaining !== 0) ||
                 (!isManualFlow && !pagoPendiente && paymentMode === "simple" && method === "cash" && cashShortfall > 0)
               }
-              onClick={handleCobrar}
+              onClick={() => {
+                // Pago parcial/pendiente: siempre pasa primero por el
+                // modal de confirmación (importe abonado, saldo que
+                // queda, estado) — evita un toque de más que deje una
+                // venta con saldo por error. Pago completo/"Enviar a
+                // caja": cobra directo, como siempre.
+                if (!isManualFlow && pagoPendiente) {
+                  setShowAbonadoConfirm(true);
+                } else {
+                  handleCobrar();
+                }
+              }}
               className="flex-1 inline-flex items-center justify-center gap-2 rounded-2xl px-7 py-2 text-sm font-extrabold text-white bg-[linear-gradient(135deg,#6EA8FF,#8B5CF6)] shadow-[0_0_40px_rgba(110,168,255,0.32),0_18px_45px_-28px_rgba(0,0,0,0.95)] hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_0_56px_rgba(139,92,246,0.46)] disabled:opacity-40 transition-all"
             >
               {submitting ? (
@@ -15018,7 +15052,7 @@ export function NuevaVentaTab({
                 </>
               ) : pagoPendiente ? (
                 <>
-                  {Number(pendingCollectedInput) > 0 ? "CONFIRMAR PAGO PARCIAL" : "DEJAR PENDIENTE"} <Clock className="size-4" />
+                  {abonadoAmount > 0 ? "CONFIRMAR PAGO PARCIAL" : "DEJAR PENDIENTE"} <Clock className="size-4" />
                 </>
               ) : (
                 <>
@@ -15030,6 +15064,88 @@ export function NuevaVentaTab({
         </div>
         </div>
       </div>
+
+      {/* Confirmación de pago parcial/pendiente — se abre al tocar
+          COBRAR/DEJAR PENDIENTE cuando el importe abonado quedó por
+          debajo del total (ver pagoPendiente más arriba), antes de llamar
+          a handleCobrar. z-[60]: por encima del overlay z-50 que usa
+          variant="modal" (Cobrar turno desde Mi Agenda) cuando este
+          componente se renderiza adentro de ese modal. */}
+      {showAbonadoConfirm && typeof document !== "undefined" && createPortal(
+        <div
+          className="fixed inset-0 z-[60] grid place-items-center bg-black/70 backdrop-blur-sm p-4"
+          onClick={() => setShowAbonadoConfirm(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="border-b border-white/10 px-5 py-4">
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-amber-200">
+                <Clock className="size-4 shrink-0" />
+                {abonadoAmount > 0 ? "Confirmar pago parcial" : "Confirmar venta sin cobrar"}
+              </h3>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Revisá los importes antes de confirmar — no se puede deshacer desde acá.
+              </p>
+            </div>
+            <div className="px-5 py-1">
+              <div className="flex items-center justify-between gap-4 py-2.5 border-b border-white/5 text-xs">
+                <span className="text-muted-foreground">Total del servicio</span>
+                <span className="font-semibold text-foreground tabular-nums">
+                  ${Math.round(subtotalAfterDiscount).toLocaleString("es-AR")}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-4 py-2.5 border-b border-white/5 text-xs">
+                <span className="text-muted-foreground">Abona ahora</span>
+                <span className="font-semibold text-emerald-300 tabular-nums">
+                  ${Math.round(abonadoAmount).toLocaleString("es-AR")}
+                </span>
+              </div>
+              <div className="flex items-center justify-between gap-4 py-2.5 border-b border-white/5 text-xs">
+                <span className="text-muted-foreground">Saldo pendiente</span>
+                <span className="font-semibold text-amber-300 tabular-nums">
+                  ${Math.round(subtotalAfterDiscount - abonadoAmount).toLocaleString("es-AR")}
+                </span>
+              </div>
+              {tipAmount > 0 && (
+                <div className="flex items-center justify-between gap-4 py-2.5 border-b border-white/5 text-xs">
+                  <span className="text-muted-foreground">Propina (se cobra completa, aparte)</span>
+                  <span className="font-semibold text-foreground tabular-nums">
+                    ${Math.round(tipAmount).toLocaleString("es-AR")}
+                  </span>
+                </div>
+              )}
+              <div className="flex items-center justify-between gap-4 py-2.5 text-xs">
+                <span className="text-muted-foreground">Estado</span>
+                <span className="font-semibold text-amber-200">
+                  {abonadoAmount > 0 ? "Parcialmente pagado" : "Pendiente de cobro"}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 border-t border-white/10 px-5 py-3">
+              <button
+                type="button"
+                onClick={() => setShowAbonadoConfirm(false)}
+                className="flex-1 rounded-xl bg-white/5 hover:bg-white/10 px-3 py-2 text-xs font-semibold transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAbonadoConfirm(false);
+                  handleCobrar();
+                }}
+                className="flex-1 rounded-xl bg-amber-400/15 hover:bg-amber-400/25 px-3 py-2 text-xs font-bold text-amber-100 ring-1 ring-amber-400/30 transition"
+              >
+                {abonadoAmount > 0 ? "Confirmar pago parcial" : "Dejar pendiente"}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
     </div>
   );
 }
