@@ -14695,21 +14695,89 @@ export function NuevaVentaTab({
                   </button>
                 )}
               </div>
+            </div>
+          </Card>
+          </div>
 
-              {/* Monto recibido — único campo para cobrar (ya no existe
-                  "Importe abonado" aparte): nada que activar a mano, el
-                  pago parcial/pendiente se detecta solo comparando lo
-                  tipeado acá contra el total (ver pagoPendiente/
-                  receivedAmount, derivados de este campo). Vacío = se
-                  asume el total completo, el caso de siempre — cualquier
-                  valor por debajo fuerza Pago simple (un cobro parcial/
-                  pendiente usa un solo método) y reemplaza "Método de
-                  pago"/vuelto de más abajo por el aviso de pago parcial/
-                  pendiente. El método elegido abajo sigue aplicando: es
-                  el método nominal de la venta y, si se cobra algo ahora,
-                  el de ese cobro puntual. No disponible en "Enviar a
-                  caja" (turnoChargeMode="manual"): ahí todavía no existe
-                  ningún cobro que dejar pendiente. */}
+          {/* variant="page": único bloque que scrollea en Paso 4, acotado a
+              "cómo se paga" (método + monto recibido, o Pago múltiple).
+              Resumen/Ajustes/tabs quedan shrink-0 arriba, siempre
+              completos y visibles. Volver/Cobrar (fixed, más abajo) solo
+              compiten por espacio con este bloque puntual, nunca con toda
+              la pantalla.
+              variant="modal": sin flex-1/min-h-0/overflow-y-auto propio —
+              el contenedor del modal entero (max-height, no height fija)
+              es el único scroll posible, y solo entra en juego si el
+              contenido realmente no entra. Fluye en su alto natural en
+              vez de estirarse a ocupar el resto de un alto que ya no está
+              fijo. */}
+          <div
+            className={cn(
+              "pt-1.5",
+              variant === "page"
+                ? "min-h-0 flex-1 overflow-y-auto overscroll-contain pr-0.5 [scrollbar-width:thin] [scrollbar-color:rgba(96,165,250,0.35)_transparent]"
+                : "shrink-0",
+            )}
+          >
+          {paymentMode === "simple" ? (
+            <>
+              {/* Método de pago: oculto solo cuando el monto recibido (más
+                  abajo) es exactamente $0 — ahí no hay nada que cobrar
+                  ahora, no tiene sentido pedir medio de pago ni
+                  comprobante (ver requisito explícito). Para cualquier
+                  importe > 0 (pago completo o parcial) sigue disponible.
+                  Orden fijo: Métodos de pago arriba, Monto recibido
+                  debajo — mismo orden en mobile y desktop. */}
+              {receivedAmount > 0 && (
+                <div>
+                  <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70 mb-1.5">
+                    MÉTODO DE PAGO
+                  </p>
+                  {/* Ícono a la izquierda, nombre a la derecha, en una sola
+                      fila — antes iban apilados (ícono arriba, nombre abajo),
+                      lo que hacía cada tarjeta mucho más alta de lo
+                      necesario. Dos filas FIJAS (no un grid uniforme que
+                      reparte parejo): Efectivo/Transferencia arriba,
+                      Débito/Crédito/QR abajo — mismo orden en mobile y
+                      desktop. */}
+                  <div className="space-y-1.5">
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {paymentOptions.slice(0, 2).map((m) => (
+                        <PaymentMethodButton
+                          key={m.id}
+                          method={m}
+                          active={method === m.id}
+                          onClick={() => setMethod(m.id as PayMethod)}
+                        />
+                      ))}
+                    </div>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {paymentOptions.slice(2).map((m) => (
+                        <PaymentMethodButton
+                          key={m.id}
+                          method={m}
+                          active={method === m.id}
+                          onClick={() => setMethod(m.id as PayMethod)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Monto recibido — único campo para cobrar, debajo de
+                  Métodos de pago (ubicación original): nada que activar a
+                  mano, el pago parcial/pendiente se detecta solo
+                  comparando lo tipeado acá contra el total (ver
+                  pagoPendiente/receivedAmount, derivados de este campo).
+                  Vacío = se asume el total completo, el caso de siempre —
+                  cualquier valor por debajo fuerza Pago simple (un cobro
+                  parcial/pendiente usa un solo método) y dispara el aviso
+                  de pago parcial/pendiente debajo. El método elegido
+                  arriba sigue aplicando: es el método nominal de la venta
+                  y, si se cobra algo ahora, el de ese cobro puntual. No
+                  disponible en "Enviar a caja" (turnoChargeMode="manual"):
+                  ahí todavía no existe ningún cobro que dejar pendiente. */}
               {!isManualFlow && (
                 <div className="mt-1.5">
                   <p className="mb-1 text-[11px] font-semibold tracking-[0.1em] text-muted-foreground/70">
@@ -14757,73 +14825,7 @@ export function NuevaVentaTab({
                   )}
                 </div>
               )}
-            </div>
-          </Card>
-          </div>
 
-          {/* variant="page": único bloque que scrollea en Paso 4, acotado a
-              "cómo se paga" (método + monto recibido, o Pago múltiple).
-              Resumen/Ajustes/tabs quedan shrink-0 arriba, siempre
-              completos y visibles. Volver/Cobrar (fixed, más abajo) solo
-              compiten por espacio con este bloque puntual, nunca con toda
-              la pantalla.
-              variant="modal": sin flex-1/min-h-0/overflow-y-auto propio —
-              el contenedor del modal entero (max-height, no height fija)
-              es el único scroll posible, y solo entra en juego si el
-              contenido realmente no entra. Fluye en su alto natural en
-              vez de estirarse a ocupar el resto de un alto que ya no está
-              fijo. */}
-          <div
-            className={cn(
-              "pt-1.5",
-              variant === "page"
-                ? "min-h-0 flex-1 overflow-y-auto overscroll-contain pr-0.5 [scrollbar-width:thin] [scrollbar-color:rgba(96,165,250,0.35)_transparent]"
-                : "shrink-0",
-            )}
-          >
-          {paymentMode === "simple" ? (
-            <>
-              {/* Método de pago: oculto solo cuando el monto recibido es
-                  exactamente $0 — ahí no hay nada que cobrar ahora, no
-                  tiene sentido pedir medio de pago ni comprobante (ver
-                  requisito explícito). Para cualquier importe > 0 (pago
-                  completo o parcial) sigue disponible. */}
-              {receivedAmount > 0 && (
-                <div>
-                  <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70 mb-1.5">
-                    MÉTODO DE PAGO
-                  </p>
-                  {/* Ícono a la izquierda, nombre a la derecha, en una sola
-                      fila — antes iban apilados (ícono arriba, nombre abajo),
-                      lo que hacía cada tarjeta mucho más alta de lo
-                      necesario. Dos filas FIJAS (no un grid uniforme que
-                      reparte parejo): Efectivo/Transferencia arriba,
-                      Débito/Crédito/QR abajo — mismo orden en mobile y
-                      desktop. */}
-                  <div className="space-y-1.5">
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {paymentOptions.slice(0, 2).map((m) => (
-                        <PaymentMethodButton
-                          key={m.id}
-                          method={m}
-                          active={method === m.id}
-                          onClick={() => setMethod(m.id as PayMethod)}
-                        />
-                      ))}
-                    </div>
-                    <div className="grid grid-cols-3 gap-1.5">
-                      {paymentOptions.slice(2).map((m) => (
-                        <PaymentMethodButton
-                          key={m.id}
-                          method={m}
-                          active={method === m.id}
-                          onClick={() => setMethod(m.id as PayMethod)}
-                        />
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              )}
               {/* Vuelto/falta (Efectivo) y comprobante de transferencia
                   solo tienen sentido cuando se cobra el total completo
                   ahora mismo — un pago parcial/pendiente no tiene
@@ -14834,7 +14836,7 @@ export function NuevaVentaTab({
               {!pagoPendiente && (
                 <>
                   {method === "cash" && (cashShortfall > 0 || change > 0) && (
-                    <div className="flex items-center justify-between gap-2 rounded-2xl bg-[linear-gradient(135deg,rgba(37,99,235,0.16),rgba(8,11,20,0.96),rgba(2,4,12,0.98))] p-2.5 shadow-[0_0_34px_rgba(96,165,250,0.14),0_18px_55px_-34px_rgba(0,0,0,1)]">
+                    <div className="mt-1.5 flex items-center justify-between gap-2 rounded-2xl bg-[linear-gradient(135deg,rgba(37,99,235,0.16),rgba(8,11,20,0.96),rgba(2,4,12,0.98))] p-2.5 shadow-[0_0_34px_rgba(96,165,250,0.14),0_18px_55px_-34px_rgba(0,0,0,1)]">
                       <span className="text-sm text-white/55">Efectivo recibido</span>
                       <span
                         className={cn(
@@ -14849,11 +14851,13 @@ export function NuevaVentaTab({
                     </div>
                   )}
                   {method === "transfer" && (
-                    <TransferReceiptField
-                      previewUrl={receiptPreviewUrl}
-                      onSelect={handleReceiptFileSelected}
-                      onClear={clearReceiptFile}
-                    />
+                    <div className="mt-1.5">
+                      <TransferReceiptField
+                        previewUrl={receiptPreviewUrl}
+                        onSelect={handleReceiptFileSelected}
+                        onClear={clearReceiptFile}
+                      />
+                    </div>
                   )}
                 </>
               )}
