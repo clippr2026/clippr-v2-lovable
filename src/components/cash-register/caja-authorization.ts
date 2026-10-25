@@ -105,6 +105,11 @@ export type CorrectPaymentAuthorizedInput = {
   newMethod?: string;
   newCommissionAmount?: number | null;
   authorizedByName?: string;
+  // "YYYY-MM-DD" — solo si cambia el día calendario (Buenos Aires) de la
+  // venta. El RPC rechaza el cambio si el día de origen o el de destino ya
+  // está cerrado (20261025090000) — mover fecha no tiene equivalente de
+  // "ajuste" tipo delta como las demás correcciones.
+  newDate?: string;
 };
 
 export async function correctPaymentAuthorized(
@@ -121,6 +126,7 @@ export async function correctPaymentAuthorized(
     p_new_method: input.newMethod ?? null,
     p_new_commission_amount: input.newCommissionAmount ?? null,
     p_authorized_by_name: input.authorizedByName?.trim() || null,
+    p_new_date: input.newDate ?? null,
   });
   if (error) throw new Error(rpcErrorMessage(error, "No se pudo corregir el cobro"));
   const row = (Array.isArray(data) ? data[0] : data) as
