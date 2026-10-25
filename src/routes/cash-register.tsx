@@ -9099,12 +9099,11 @@ function DetailModal({
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
-            <button
-              onClick={() => setDeleteAuthOpen(true)}
-              className="rounded-lg bg-rose-500/10 hover:bg-rose-500/20 px-3 py-1.5 text-xs font-semibold text-rose-300 transition disabled:opacity-50"
-            >
-              Eliminar cobro
-            </button>
+            {/* "Eliminar cobro" (borrado físico) se sacó de acá — quedaba
+                redundante con "Anular venta" (Acciones, más abajo), que
+                hace lo mismo pero de forma auditable y sin perder el
+                registro. Sigue existiendo en el detalle de un retiro de
+                stock (rama de arriba), que no tiene esa alternativa. */}
             <button
               onClick={onClose}
               className="rounded-lg bg-white/5 hover:bg-white/10 px-3 py-1.5 text-xs transition"
@@ -9436,15 +9435,8 @@ function DetailModal({
       onCancel={() => setVoidAuthOpen(false)}
       onSubmit={submitVoid}
     />
-    <AuthorizationModal
-      open={deleteAuthOpen}
-      title="Eliminar cobro"
-      tone="danger"
-      confirmLabel="Confirmar eliminación"
-      description={`Se borra definitivamente esta venta de ${payment.client_name ?? empName ?? "cliente"} por $${totalCobrado.toLocaleString("es-AR")}, junto con su comisión y propina asociadas. No se puede deshacer.`}
-      onCancel={() => setDeleteAuthOpen(false)}
-      onSubmit={submitDelete}
-    />
+    {/* Sin AuthorizationModal de "Eliminar cobro" acá — "Anular venta" (arriba)
+        ya cubre este caso para ventas normales, de forma auditable. */}
     </>,
     document.body,
   );
