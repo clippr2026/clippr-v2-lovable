@@ -6829,12 +6829,18 @@ function CierreRevisionDetalle({
   const [showConciliacion, setShowConciliacion] = React.useState(false);
   const { detailPayment, openDetail, closeDetail } = useCierreDetailPayment(businessId);
 
-  // Cobrado por método, sin propina (detalleMetodos) — ya repartido real
-  // entre medios cuando una venta se pagó con pago múltiple (ver
+  // Recibido por método, CON propina (detalleMetodosRecibido) — la plata
+  // que de verdad entró por cada medio, propina incluida (mismo criterio
+  // que CierreDetalleView/metodosRecibidos, más abajo en este archivo —
+  // antes este componente usaba detalleMetodos, sin propina, lo que hacía
+  // que "Transferencia" quedara por debajo de lo real recibido). "Ingresos
+  // totales" (el número grande) sigue siendo pura facturación sin propina
+  // — las dos cosas conviven, no se pisan. Ya viene repartido real entre
+  // medios cuando una venta se pagó con pago múltiple (ver
   // distributeCobroByMethod en caja-cierre.ts), nunca una venta entera
   // atribuida a un solo método porque sea el que quedó seteado en el
   // selector "simple" del carrito.
-  const cobradoPorMetodo = snapshot.detalleMetodos;
+  const recibidoPorMetodo = snapshot.detalleMetodosRecibido;
 
   const efectivoContadoNum = parseMoneyInput(efectivoContado);
   const diferencia = efectivoContadoNum - expected.cashExpected;
@@ -6843,13 +6849,16 @@ function CierreRevisionDetalle({
 
   return (
     <div className="space-y-4">
-      {/* Ingresos totales + desglose por método */}
+      {/* Ingresos totales (pura facturación) + recibido por método (con propina) */}
       <div>
         <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground/70">
           Ingresos totales
         </div>
         <div className="mt-0.5 text-2xl font-semibold tabular-nums text-emerald-300">
           ${Math.round(snapshot.totalCobrado).toLocaleString("es-AR")}
+        </div>
+        <div className="mt-3 text-[10px] uppercase tracking-[0.15em] text-muted-foreground/50">
+          Recibido por medio de pago (incluye propinas)
         </div>
         <div className="mt-2 rounded-xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden">
           {ACTIVE_PAY_METHODS.map((m) => (
@@ -6859,7 +6868,7 @@ function CierreRevisionDetalle({
             >
               <span className="text-muted-foreground">{m.label}</span>
               <span className="font-semibold tabular-nums">
-                ${Math.round(cobradoPorMetodo[m.id]?.ingresos ?? 0).toLocaleString("es-AR")}
+                ${Math.round(recibidoPorMetodo[m.id]?.ingresos ?? 0).toLocaleString("es-AR")}
               </span>
             </div>
           ))}
