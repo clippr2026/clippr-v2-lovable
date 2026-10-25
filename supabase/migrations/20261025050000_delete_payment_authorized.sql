@@ -37,14 +37,20 @@ do $$
 declare
   v_conname text;
 begin
-  select con.conname into v_conname
-  from pg_constraint con
-  join pg_class rel on rel.oid = con.conrelid
-  join pg_namespace nsp on nsp.oid = rel.relnamespace
-  where nsp.nspname = 'public'
-    and rel.relname = 'payment_authorization_log'
-    and con.contype = 'f'
-    and pg_get_constraintdef(con.oid) ilike '%payment_id%references%payments%';
+  -- Por columna EXACTA (key_column_usage), no por texto del constraint —
+  -- "payment_id" es substring de "adjustment_payment_id" (otra columna de
+  -- esta misma tabla, con su propia FK a payments), así que buscar por
+  -- pg_get_constraintdef con ilike podía agarrar la equivocada.
+  select tc.constraint_name into v_conname
+  from information_schema.table_constraints tc
+  join information_schema.key_column_usage kcu
+    on kcu.constraint_name = tc.constraint_name
+    and kcu.table_schema = tc.table_schema
+    and kcu.table_name = tc.table_name
+  where tc.table_schema = 'public'
+    and tc.table_name = 'payment_authorization_log'
+    and tc.constraint_type = 'FOREIGN KEY'
+    and kcu.column_name = 'payment_id';
 
   if v_conname is not null then
     execute format('alter table public.payment_authorization_log drop constraint %I', v_conname);
