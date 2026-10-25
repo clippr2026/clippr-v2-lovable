@@ -3,6 +3,12 @@ import { createPortal } from "react-dom";
 import { Lock, Loader2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+// 200 caracteres — mismo tope que valida _reason_length_ok (RPCs
+// void/correct/delete_payment_authorized, 20261025070000). Esto solo
+// evita el viaje al servidor para el caso común (texto larguísimo
+// pegado); el backend es quien de verdad lo hace cumplir.
+const REASON_MAX_LENGTH = 200;
+
 /**
  * Modal compartido de contraseña de autorización — lo usan tanto "Corregir
  * cobro" como "Anular venta" (DetailModal, cash-register.tsx), en las dos
@@ -112,12 +118,23 @@ export function AuthorizationModal({
             />
           </div>
           <div>
-            <label className="mb-1 block text-[11px] font-semibold tracking-[0.1em] text-muted-foreground/70">
-              MOTIVO
-            </label>
+            <div className="mb-1 flex items-center justify-between">
+              <label className="block text-[11px] font-semibold tracking-[0.1em] text-muted-foreground/70">
+                MOTIVO
+              </label>
+              <span
+                className={cn(
+                  "text-[10px] tabular-nums",
+                  reason.length >= REASON_MAX_LENGTH ? "text-amber-300" : "text-muted-foreground/60",
+                )}
+              >
+                {reason.length}/{REASON_MAX_LENGTH}
+              </span>
+            </div>
             <textarea
               value={reason}
-              onChange={(e) => setReason(e.target.value)}
+              onChange={(e) => setReason(e.target.value.slice(0, REASON_MAX_LENGTH))}
+              maxLength={REASON_MAX_LENGTH}
               rows={2}
               className="w-full resize-none rounded-xl border border-white/10 bg-black/45 px-3 py-2 text-sm text-white outline-none focus:border-blue-300/50 focus:ring-2 focus:ring-blue-400/20"
               placeholder="Ej: se cobró de más por error de tipeo"

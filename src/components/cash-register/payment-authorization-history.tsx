@@ -168,9 +168,16 @@ export function AuthorizationLogRow({
       </div>
 
       {showReason && (
-        <div className="mt-1.5 space-y-1 rounded-lg bg-white/[0.03] px-2.5 py-2 text-[11px] text-white/65">
-          <p>{row.reason || "Sin motivo registrado."}</p>
-          {row.impactNote && <p className="text-white/45">{row.impactNote}</p>}
+        // break-words corta incluso una cadena sin espacios (ej. un motivo
+        // pegado sin cortes) para que nunca empuje el ancho de la tarjeta ni
+        // genere scroll horizontal — min-w-0 para que, si esta fila vive
+        // dentro de un contenedor flex en algún lugar, pueda encogerse en
+        // vez de forzar el ancho. No trunca nada: un motivo histórico
+        // larguísimo (de antes del límite de 200) se sigue viendo completo,
+        // solo envuelve en más líneas.
+        <div className="mt-1.5 min-w-0 space-y-1 overflow-hidden rounded-lg bg-white/[0.03] px-2.5 py-2 text-[11px] text-white/65">
+          <p className="break-words">{row.reason || "Sin motivo registrado."}</p>
+          {row.impactNote && <p className="break-words text-white/45">{row.impactNote}</p>}
         </div>
       )}
     </div>
