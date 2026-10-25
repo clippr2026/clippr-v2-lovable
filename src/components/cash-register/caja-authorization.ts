@@ -189,36 +189,32 @@ export async function getPaymentAuthorizationHistory(paymentId: string): Promise
   return ((data ?? []) as any[]).map(mapLogRow);
 }
 
-export type ActivityLogFilters = {
-  businessId: string;
-  fromDate?: string | null;
-  toDate?: string | null;
-  performedBy?: string | null;
-  actionType?: "all" | PaymentAuthorizationLogAction;
-  limit?: number;
+export type ActivityLogPage = {
+  rows: PaymentAuthorizationLogRow[];
+  // true = hay más filas viejas que estas — mostrar "Cargar más" (sin
+  // filtros, ver seguridad-section.tsx: simplificado a propósito, un solo
+  // orden cronológico descendente, nada que filtrar).
+  hasMore: boolean;
 };
 
-export async function getActivityLog(filters: ActivityLogFilters): Promise<PaymentAuthorizationLogRow[]> {
+// Pide "limit + 1" para saber si hay más SIN una query de count aparte —
+// si vuelven limit+1 filas, se corta a limit y hasMore = true.
+export async function getActivityLog(
+  businessId: string,
+  opts: { beforeCreatedAt?: string | null; limit?: number } = {},
+): Promise<ActivityLogPage> {
+  const limit = opts.limit ?? 30;
   let query = supabase
     .from("payment_authorization_log" as any)
     .select("*")
-    .eq("business_id", filters.businessId)
+    .eq("business_id", businessId)
     .order("created_at", { ascending: false })
-    .limit(filters.limit ?? 300);
-
-  if (filters.fromDate) query = query.gte("created_at", `${filters.fromDate}T00:00:00`);
-  if (filters.toDate) query = query.lte("created_at", `${filters.toDate}T23:59:59.999`);
-  if (filters.performedBy) query = query.eq("performed_by", filters.performedBy);
-  // "deletion" es un sub-caso de action_type="void" (distinguido client-
-  // side por el prefijo del motivo, ver mapLogRow) — filtrar por "void" en
-  // la base y, si corresponde, separar acá mismo en JS.
-  if (filters.actionType === "correction") query = query.eq("action_type", "correction");
-  if (filters.actionType === "void" || filters.actionType === "deletion") query = query.eq("action_type", "void");
+    .limit(limit + 1);
+  if (opts.beforeCreatedAt) query = query.lt("created_at", opts.beforeCreatedAt);
 
   const { data, error } = await query;
   if (error) throw new Error(rpcErrorMessage(error, "No se pudo cargar el historial de actividad"));
-  const rows = ((data ?? []) as any[]).map(mapLogRow);
-  if (filters.actionType === "void") return rows.filter((r) => r.actionType === "void");
-  if (filters.actionType === "deletion") return rows.filter((r) => r.actionType === "deletion");
-  return rows;
+  const allRows = ((data ?? []) as any[]).map(mapLogRow);
+  const hasMore = allRows.length > limit;
+  return { rows: hasMore ? allRows.slice(0, limit) : allRows, hasMore };
 }

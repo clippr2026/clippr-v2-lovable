@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Lock, ShieldCheck, CheckCircle2, Loader2, History } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -197,54 +197,43 @@ function CambiarContrasenaCard({
 // eliminaciones del negocio (payment_authorization_log), no las de UNA
 // venta puntual (eso es PaymentAuthorizationHistoryPanel, en el detalle de
 // cada cobro) — mismo componente de fila (AuthorizationLogRow) en los dos
-// lugares. Filtros por fecha/usuario/tipo, orden ya viene desc del fetch.
-// Solo lectura: no hay ningún botón acá que edite o borre una fila de
-// auditoría.
+// lugares. Simplificado a propósito: sin filtros, un solo orden
+// cronológico descendente, "Cargar más" al final en vez de paginado con
+// controles. Solo lectura: no hay ningún botón acá que edite o borre una
+// fila de auditoría.
+const ACTIVITY_PAGE_SIZE = 30;
+
 function ActivityLogSection({ businessId }: { businessId: string }) {
-  const [fromDate, setFromDate] = useState("");
-  const [toDate, setToDate] = useState("");
-  const [actionType, setActionType] = useState<"all" | "correction" | "void" | "deletion">("all");
-  const [performedBy, setPerformedBy] = useState<string>("all");
-  const [rows, setRows] = useState<PaymentAuthorizationLogRow[] | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [rows, setRows] = useState<PaymentAuthorizationLogRow[]>([]);
+  const [hasMore, setHasMore] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  // Lista de usuarios para el filtro — de un fetch propio, sin filtros de
-  // usuario/tipo (solo business_id), para que no se achique a medida que
-  // se filtra por otra cosa.
-  const [userOptions, setUserOptions] = useState<Array<{ id: string; name: string }>>([]);
 
   useEffect(() => {
-    getActivityLog({ businessId, limit: 300 })
-      .then((allRows) => {
-        const map = new Map<string, string>();
-        allRows.forEach((r) => {
-          if (r.performedBy) map.set(r.performedBy, r.performedByName ?? "Usuario");
-        });
-        setUserOptions(Array.from(map.entries()).map(([id, name]) => ({ id, name })));
-      })
-      .catch(() => {});
-  }, [businessId]);
-
-  const reload = useCallback(() => {
     setLoading(true);
     setError(null);
-    getActivityLog({
-      businessId,
-      fromDate: fromDate || null,
-      toDate: toDate || null,
-      performedBy: performedBy === "all" ? null : performedBy,
-      actionType,
-    })
-      .then(setRows)
+    getActivityLog(businessId, { limit: ACTIVITY_PAGE_SIZE })
+      .then((page) => {
+        setRows(page.rows);
+        setHasMore(page.hasMore);
+      })
       .catch((e) => setError((e as Error).message))
       .finally(() => setLoading(false));
-  }, [businessId, fromDate, toDate, performedBy, actionType]);
+  }, [businessId]);
 
-  useEffect(() => {
-    reload();
-  }, [reload]);
-
-  const hasFilters = Boolean(fromDate || toDate || actionType !== "all" || performedBy !== "all");
+  function loadMore() {
+    const last = rows[rows.length - 1];
+    if (!last || loadingMore) return;
+    setLoadingMore(true);
+    getActivityLog(businessId, { beforeCreatedAt: last.createdAt, limit: ACTIVITY_PAGE_SIZE })
+      .then((page) => {
+        setRows((prev) => [...prev, ...page.rows]);
+        setHasMore(page.hasMore);
+      })
+      .catch((e) => toast.error((e as Error).message))
+      .finally(() => setLoadingMore(false));
+  }
 
   return (
     <SectionCard
@@ -259,49 +248,35 @@ function ActivityLogSection({ businessId }: { businessId: string }) {
         más antigua. Es de solo lectura: ningún registro de acá se puede editar ni borrar.
       </p>
 
-      <div className="mb-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
-        <Field label="Desde">
-          <input type="date" value={fromDate} onChange={(e) => setFromDate(e.target.value)} className={inputCls} />
-        </Field>
-        <Field label="Hasta">
-          <input type="date" value={toDate} onChange={(e) => setToDate(e.target.value)} className={inputCls} />
-        </Field>
-        <Field label="Usuario">
-          <select value={performedBy} onChange={(e) => setPerformedBy(e.target.value)} className={inputCls}>
-            <option value="all">Todos</option>
-            {userOptions.map((u) => (
-              <option key={u.id} value={u.id}>
-                {u.name}
-              </option>
-            ))}
-          </select>
-        </Field>
-        <Field label="Tipo de acción">
-          <select value={actionType} onChange={(e) => setActionType(e.target.value as typeof actionType)} className={inputCls}>
-            <option value="all">Todas</option>
-            <option value="correction">Correcciones</option>
-            <option value="void">Anulaciones</option>
-            <option value="deletion">Eliminaciones</option>
-          </select>
-        </Field>
-      </div>
-
       {loading ? (
         <div className="flex items-center gap-2 py-6 text-xs text-muted-foreground">
           <Loader2 className="size-3.5 animate-spin" /> Cargando…
         </div>
       ) : error ? (
         <p className="text-xs font-semibold text-red-300">{error}</p>
-      ) : !rows || rows.length === 0 ? (
+      ) : rows.length === 0 ? (
         <p className="py-6 text-center text-xs text-muted-foreground">
-          {hasFilters ? "Sin movimientos con estos filtros." : "Todavía no hay correcciones ni anulaciones registradas."}
+          Todavía no hay correcciones ni anulaciones registradas.
         </p>
       ) : (
-        <div className="space-y-1.5">
-          {rows.map((row) => (
-            <AuthorizationLogRow key={row.id} row={row} showPaymentRef />
-          ))}
-        </div>
+        <>
+          <div>
+            {rows.map((row) => (
+              <AuthorizationLogRow key={row.id} row={row} showPaymentRef />
+            ))}
+          </div>
+          {hasMore && (
+            <button
+              type="button"
+              onClick={loadMore}
+              disabled={loadingMore}
+              className="mt-3 inline-flex w-full items-center justify-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 px-3 py-2 text-xs font-semibold text-foreground transition disabled:opacity-50"
+            >
+              {loadingMore && <Loader2 className="size-3.5 animate-spin" />}
+              Cargar más
+            </button>
+          )}
+        </>
       )}
     </SectionCard>
   );

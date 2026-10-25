@@ -1,5 +1,5 @@
 import * as React from "react";
-import { ChevronDown, Loader2, Pencil, Ban, Trash2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import {
   getPaymentAuthorizationHistory,
@@ -14,30 +14,32 @@ import {
 // como en el Historial de actividad general (Configuración → Seguridad →
 // seguridad-section.tsx), con la misma fila (AuthorizationLogRow) en los
 // dos lugares — "mismos componentes, sin duplicar código".
+//
+// Fila compacta de una sola línea (envuelve en varias en mobile, nunca
+// una tarjeta grande): todo visible de entrada — lo único detrás de un
+// clic es el motivo/la nota ("Ver motivo"), a pedido explícito.
 
 const ACTION_LABEL: Record<PaymentAuthorizationLogAction, string> = {
-  correction: "Corrección",
-  void: "Anulación",
-  deletion: "Eliminación",
+  correction: "Cobro corregido",
+  void: "Venta anulada",
+  deletion: "Cobro eliminado",
 };
 
-const ACTION_ICON: Record<PaymentAuthorizationLogAction, React.ComponentType<{ className?: string }>> = {
-  correction: Pencil,
-  void: Ban,
-  deletion: Trash2,
-};
-
+// Rojo para anulación/eliminación (son, en los hechos, la misma
+// contraseña y la misma severidad — un borrado es una anulación más
+// fuerte, ver delete_payment_authorized), un color discreto distinto
+// para corrección.
 const ACTION_TONE: Record<PaymentAuthorizationLogAction, string> = {
-  correction: "bg-blue-500/10 text-blue-300",
-  void: "bg-amber-500/10 text-amber-300",
-  deletion: "bg-rose-500/10 text-rose-300",
+  correction: "text-sky-300",
+  void: "text-red-400",
+  deletion: "text-red-400",
 };
 
 function fmtDT(iso: string) {
   return new Date(iso).toLocaleString("es-AR", {
     day: "2-digit",
     month: "2-digit",
-    year: "numeric",
+    year: "2-digit",
     hour: "2-digit",
     minute: "2-digit",
   });
@@ -58,123 +60,90 @@ const PAY_METHOD_LABEL_LOCAL: Record<string, string> = {
 };
 
 function methodLabel(m: unknown) {
-  if (!m) return "—";
+  if (!m) return null;
   return PAY_METHOD_LABEL_LOCAL[String(m)] ?? String(m);
 }
 
-// Fila expandible — colapsada muestra lo esencial (tipo, cuándo, quién,
-// cliente/servicio), el detalle completo (antes/después, método, motivo,
-// impacto, quién autorizó si fue otra persona) queda a un clic.
 export function AuthorizationLogRow({
   row,
   showPaymentRef = false,
 }: {
   row: PaymentAuthorizationLogRow;
-  // En el historial GENERAL (no el de una venta puntual) conviene mostrar
-  // a qué venta corresponde cada fila — en el de una venta puntual es
-  // redundante (ya se sabe cuál es).
+  // En el historial GENERAL (no el de una venta puntual) hace falta
+  // Cliente/Profesional/Servicio — en el de una venta puntual es
+  // redundante (el detalle de ESA venta ya lo muestra arriba, ver
+  // "evitar información repetida").
   showPaymentRef?: boolean;
 }) {
-  const [open, setOpen] = React.useState(false);
+  const [showReason, setShowReason] = React.useState(false);
   const before = row.beforeSnapshot ?? {};
   const after = row.afterSnapshot ?? {};
-  const Icon = ACTION_ICON[row.actionType];
-  const clientName = before.client_name ?? "Cliente";
-  const serviceName = before.service_name ?? "—";
-  const employeeName = before.employee_name ?? "—";
+
+  // Día abierto: after.total viene directo. Día cerrado
+  // (adjustmentPaymentId presente, solo corrección): after solo trae el
+  // DELTA (la venta original nunca se toca) — el "nuevo importe" efectivo
+  // se deriva sumando ese delta al importe anterior.
+  const newTotal =
+    row.actionType === "correction"
+      ? after.total != null
+        ? Number(after.total)
+        : before.total != null && after.delta_total != null
+          ? Number(before.total) + Number(after.delta_total)
+          : null
+      : null;
+  const amountChanged = newTotal != null && Math.round(newTotal) !== Math.round(Number(before.total ?? 0));
+
+  const newMethodRaw = row.actionType === "correction" ? (after.method ?? after.new_method ?? null) : null;
+  const methodChanged = newMethodRaw != null && String(newMethodRaw) !== String(before.method ?? "");
 
   return (
-    <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/[0.06]">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-3 px-3.5 py-2.5 text-left transition hover:bg-white/[0.03]"
-      >
-        <span className={cn("flex size-7 shrink-0 items-center justify-center rounded-lg", ACTION_TONE[row.actionType])}>
-          <Icon className="size-3.5" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-xs">
-            <span className="font-semibold text-white">{ACTION_LABEL[row.actionType]}</span>
-            <span className="text-white/40">·</span>
-            <span className="text-white/55">{fmtDT(row.createdAt)}</span>
-            {showPaymentRef && (
-              <>
-                <span className="text-white/40">·</span>
-                <span className="truncate text-white/55">{clientName}</span>
-              </>
-            )}
-          </div>
-          <div className="mt-0.5 truncate text-[11px] text-white/45">
-            {row.performedByName ?? "Usuario"}
-            {row.authorizedByName ? ` · autorizó ${row.authorizedByName}` : ""}
-            {" · "}
-            {serviceName}
-          </div>
-        </div>
-        <ChevronDown className={cn("size-4 shrink-0 text-white/35 transition-transform", open && "rotate-180")} />
-      </button>
+    <div className="border-b border-white/[0.06] py-2 last:border-0">
+      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs">
+        <span className="shrink-0 tabular-nums text-white/45">{fmtDT(row.createdAt)}</span>
+        <span className={cn("shrink-0 font-bold", ACTION_TONE[row.actionType])}>{ACTION_LABEL[row.actionType]}</span>
 
-      {open && (
-        <div className="space-y-2 border-t border-white/[0.06] px-3.5 py-3 text-xs">
-          <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
-            <div>
-              <div className="text-[10px] uppercase tracking-wide text-white/35">Profesional</div>
-              <div className="text-white/80">{employeeName}</div>
-            </div>
-            <div>
-              <div className="text-[10px] uppercase tracking-wide text-white/35">Servicio/producto</div>
-              <div className="text-white/80">{serviceName}</div>
-            </div>
+        {showPaymentRef && (
+          <span className="min-w-0 truncate text-white/75">
+            {before.client_name ?? "Cliente"}
+            {before.employee_name ? ` · ${before.employee_name}` : ""}
+            {before.service_name ? ` · ${before.service_name}` : ""}
+          </span>
+        )}
 
-            {row.actionType === "correction" && (() => {
-              // Día abierto: after.total viene directo. Día cerrado
-              // (adjustmentPaymentId presente): after solo trae el DELTA
-              // (la venta original nunca se toca) — el "nuevo importe"
-              // efectivo se deriva sumando ese delta al importe anterior.
-              const newTotal =
-                after.total != null
-                  ? Number(after.total)
-                  : before.total != null && after.delta_total != null
-                    ? Number(before.total) + Number(after.delta_total)
-                    : null;
-              const newMethod = after.method ?? after.new_method ?? before.method;
-              return (
-                <>
-                  <div>
-                    <div className="text-[10px] uppercase tracking-wide text-white/35">Importe anterior → nuevo</div>
-                    <div className="text-white/80">
-                      {money(before.total)} → <span className="font-semibold text-white">{money(newTotal)}</span>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-[10px] uppercase tracking-wide text-white/35">Medio anterior → nuevo</div>
-                    <div className="text-white/80">
-                      {methodLabel(before.method)} → <span className="font-semibold text-white">{methodLabel(newMethod)}</span>
-                    </div>
-                  </div>
-                </>
-              );
-            })()}
-
-            {row.actionType !== "correction" && (
-              <div className="col-span-2">
-                <div className="text-[10px] uppercase tracking-wide text-white/35">Importe de la venta</div>
-                <div className="text-white/80">{money(before.total)} · {methodLabel(before.method)}</div>
-              </div>
-            )}
-          </div>
-
-          <div>
-            <div className="text-[10px] uppercase tracking-wide text-white/35">Motivo</div>
-            <div className="text-white/80">{row.reason || "—"}</div>
-          </div>
-
-          {row.impactNote && (
-            <div className="rounded-lg bg-white/[0.03] px-2.5 py-2 text-[11px] text-white/60">
-              {row.impactNote}
-            </div>
+        <span className="shrink-0 font-semibold tabular-nums text-white">
+          {amountChanged ? (
+            <>
+              {money(before.total)} → {money(newTotal)}
+            </>
+          ) : (
+            money(before.total)
           )}
+        </span>
+
+        {methodChanged && (
+          <span className="shrink-0 text-white/55">
+            {methodLabel(before.method)} → {methodLabel(newMethodRaw)}
+          </span>
+        )}
+
+        <span className="min-w-0 truncate text-white/45">
+          {row.performedByName ?? "Usuario"}
+          {row.authorizedByName ? ` · autorizó ${row.authorizedByName}` : ""}
+        </span>
+
+        <button
+          type="button"
+          onClick={() => setShowReason((v) => !v)}
+          className="ml-auto shrink-0 text-[11px] font-semibold text-blue-300 hover:text-blue-200"
+        >
+          {showReason ? "Ocultar motivo" : "Ver motivo"}
+        </button>
+      </div>
+
+      {showReason && (
+        <div className="mt-1.5 space-y-1 rounded-lg bg-white/[0.03] px-2.5 py-2 text-[11px] text-white/65">
+          <p>{row.reason || "Sin motivo registrado."}</p>
+          {row.impactNote && <p className="text-white/45">{row.impactNote}</p>}
         </div>
       )}
     </div>
@@ -210,7 +179,7 @@ export function PaymentAuthorizationHistoryPanel({ paymentId }: { paymentId: str
   }
 
   return (
-    <div className="space-y-1.5">
+    <div>
       {rows.map((row) => (
         <AuthorizationLogRow key={row.id} row={row} />
       ))}
