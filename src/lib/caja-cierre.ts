@@ -94,6 +94,11 @@ export type CajaCobroSnapshot = {
 
 export type CajaProductoRow = {
   key: string;
+  // payments.id real del cobro padre — un producto no tiene id propio
+  // (es una línea DENTRO de un payment), pero hace falta para poder abrir
+  // el detalle de ESE cobro al clickear la fila (ver onRowClick,
+  // CierreMovimientosDetalleList).
+  id: string | null;
   hora: unknown;
   cliente: unknown;
   profesional: unknown;
@@ -129,6 +134,7 @@ export function splitServiciosYProductos(
       .filter((it) => it?.esProducto)
       .map((it, idx) => ({
         key: `${p.id ?? pIdx}-${idx}`,
+        id: (p as any).id ?? null,
         hora: (p as any).hora,
         cliente: (p as any).cliente,
         profesional: (p as any).profesional,

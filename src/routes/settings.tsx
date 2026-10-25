@@ -65,6 +65,7 @@ import { ReglasTardanzaSection } from "@/components/settings/reglas-tardanza-sec
 import { ServiciosSection, CatalogoSection } from "@/components/settings/price-catalog-section";
 import { PromotionsSection } from "@/components/settings/promotions-section";
 import { CuentaSection } from "@/components/settings/cuenta-section";
+import { SeguridadSection } from "@/components/settings/seguridad-section";
 import { PlanSection } from "@/components/settings/plan-section";
 import {
   SectionCard,
@@ -92,7 +93,8 @@ type SectionId =
   | "sucursales"
   | "tardanza"
   | "cuenta"
-  | "plan";
+  | "plan"
+  | "seguridad";
 
 type NavItem = {
   id: SectionId;
@@ -178,6 +180,13 @@ const groups: { label: string; items: NavItem[] }[] = [
         icon: CreditCard,
         tint: "text-[oklch(0.82_0.16_210)]",
         glow: "from-[oklch(0.82_0.16_210/0.25)] to-[oklch(0.68_0.20_230/0.05)]",
+      },
+      {
+        id: "seguridad" as const,
+        label: "Seguridad",
+        icon: Lock,
+        tint: "text-[oklch(0.75_0.18_25)]",
+        glow: "from-[oklch(0.75_0.18_25/0.25)] to-[oklch(0.65_0.2_10/0.05)]",
       },
     ],
   },
@@ -414,6 +423,7 @@ function SettingsPage() {
                 {active === "tardanza" && <ReglasTardanzaSection />}
                 {active === "cuenta" && <CuentaSection />}
                 {active === "plan" && <PlanSection />}
+                {active === "seguridad" && <SeguridadSection />}
               </section>
             </div>
           </div>

@@ -83,6 +83,11 @@ import {
   paymentReceiptPath,
 } from "@/lib/payment-receipts";
 import { GastosTab } from "@/components/cash-register/gastos-tab";
+import { AuthorizationModal } from "@/components/cash-register/authorization-modal";
+import {
+  voidPaymentAuthorized,
+  correctPaymentAuthorized,
+} from "@/components/cash-register/caja-authorization";
 import {
   Search,
   Plus,
@@ -982,6 +987,7 @@ function CashRegisterPage() {
               expensesToday={data.expensesToday}
               pendingCharges={data.pendingCharges}
               userEmail={session.user.email ?? null}
+              employees={data.employees}
               expected={expected}
               movementsData={movementsData}
               onCajaCerrada={() => {
@@ -1148,6 +1154,7 @@ function CashRegisterPage() {
               expensesToday={data.expensesToday}
               pendingCharges={data.pendingCharges}
               userEmail={session.user.email ?? null}
+              employees={data.employees}
               expected={expected}
               movementsData={movementsData}
               initialPendingDate={search.pendingDate}
@@ -6073,10 +6080,18 @@ function CierreMovimientosDetalleList({
   cobros,
   gastos,
   movimientos,
+  onRowClick,
 }: {
   cobros: any[];
   gastos: any[];
   movimientos: CajaMovimientoManual[];
+  // Click en una fila de servicio/producto → abre el mismo DetailModal que
+  // ya usa Movimientos de caja, con las acciones Corregir cobro/Anular
+  // venta (ver CierreRevisionDetalle/CierreDetalleView más abajo, que son
+  // quienes threadean esto con su propio cajaAbierta). Gastos/retiros no
+  // son payments — nunca abren este modal. undefined = tabla puramente de
+  // presentación, como era antes (ningún caller roto por este cambio).
+  onRowClick?: (paymentId: string) => void;
 }) {
   const [filtro, setFiltro] = React.useState<DetalleFiltro>("todos");
   const [profesionalFiltro, setProfesionalFiltro] = React.useState<string>("todos");
@@ -6326,7 +6341,11 @@ function CierreMovimientosDetalleList({
                     return (
                       <div
                         key={`${p.id ?? idx}`}
-                        className="grid grid-cols-[64px_minmax(120px,1fr)_minmax(100px,0.75fr)_minmax(150px,1.3fr)_95px_90px_120px_90px_minmax(160px,1.1fr)] items-center gap-3 border-b border-white/[0.05] px-4 py-2.5 text-xs last:border-0 hover:bg-white/[0.02]"
+                        onClick={p.id && onRowClick ? () => onRowClick(p.id) : undefined}
+                        className={cn(
+                          "grid grid-cols-[64px_minmax(120px,1fr)_minmax(100px,0.75fr)_minmax(150px,1.3fr)_95px_90px_120px_90px_minmax(160px,1.1fr)] items-center gap-3 border-b border-white/[0.05] px-4 py-2.5 text-xs last:border-0 hover:bg-white/[0.02]",
+                          p.id && onRowClick && "cursor-pointer hover:bg-white/[0.04]",
+                        )}
                       >
                         <div className="tabular-nums text-white/55">{p.hora ?? "—"}</div>
                         <div className="truncate font-semibold text-white" title={p.cliente ?? "Cliente"}>
@@ -6390,7 +6409,14 @@ function CierreMovimientosDetalleList({
                     medioFiltro,
                   );
                   return (
-                    <div key={`${p.id ?? idx}`} className="rounded-xl bg-black/22 px-3.5 py-3 text-xs">
+                    <div
+                      key={`${p.id ?? idx}`}
+                      onClick={p.id && onRowClick ? () => onRowClick(p.id) : undefined}
+                      className={cn(
+                        "rounded-xl bg-black/22 px-3.5 py-3 text-xs",
+                        p.id && onRowClick && "cursor-pointer active:bg-black/30",
+                      )}
+                    >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
                           <div className="truncate font-semibold text-white">{p.cliente ?? "Cliente"}</div>
@@ -6447,7 +6473,14 @@ function CierreMovimientosDetalleList({
               productosFiltrados.map((it: any) => {
                 const { monto: montoMostrado } = montoParaMedio(Number(it.monto ?? 0), 0, it.metodo, it.splits, medioFiltro);
                 return (
-                  <div key={it.key} className="rounded-xl bg-black/22 px-3 py-2 text-xs">
+                  <div
+                    key={it.key}
+                    onClick={it.id && onRowClick ? () => onRowClick(it.id as string) : undefined}
+                    className={cn(
+                      "rounded-xl bg-black/22 px-3 py-2 text-xs",
+                      it.id && onRowClick && "cursor-pointer active:bg-black/30",
+                    )}
+                  >
                     <div className="flex items-center justify-between gap-3">
                       <span className="truncate font-semibold text-white">
                         {it.nombre ?? "Producto"}
@@ -6716,6 +6749,42 @@ function CierreConciliacionPanel({ conciliacion }: { conciliacion: Conciliacion 
 }
 
 // Detalle completo de "Revisar cierre" — compartido entre CierreCajaBtn (la
+// Click en una fila de CierreMovimientosDetalleList (servicio/producto) —
+// compartido por CierreRevisionDetalle y CierreDetalleView (ver más abajo)
+// para que las dos pantallas abran el MISMO DetailModal (con Corregir
+// cobro/Anular venta) sin duplicar el fetch. cobrosSnapshot no trae la fila
+// completa de `payments` (solo el resumen ya aplanado para la tabla), así
+// que hace falta traerla de nuevo por id — scoped por businessId siempre.
+function useCierreDetailPayment(businessId: string | null) {
+  const [detailPayment, setDetailPayment] = React.useState<any | null>(null);
+
+  async function openDetail(paymentId: string) {
+    if (!businessId) return;
+    try {
+      const { data, error } = await supabase
+        .from("payments")
+        .select("*")
+        .eq("id", paymentId)
+        .eq("business_id", businessId)
+        .maybeSingle();
+      if (error) throw error;
+      if (!data) {
+        toast.error("No se encontró el cobro");
+        return;
+      }
+      setDetailPayment(data);
+    } catch (e) {
+      toast.error((e as Error).message || "No se pudo abrir el detalle del cobro");
+    }
+  }
+
+  function closeDetail() {
+    setDetailPayment(null);
+  }
+
+  return { detailPayment, openDetail, closeDetail };
+}
+
 // jornada en curso) y CerrarDiaAnteriorCard (una jornada pendiente de
 // revisión): mismo desglose exacto, sin importar qué fecha se esté
 // revisando. Cubre la lista completa del pedido — ingresos totales,
@@ -6723,9 +6792,14 @@ function CierreConciliacionPanel({ conciliacion }: { conciliacion: Conciliacion 
 // Crédito/QR, propinas, gastos, ingresos y retiros manuales, efectivo
 // contado (editable) y la diferencia resultante — a partir de UN solo
 // cálculo (buildSingleDayCierrePreview), nunca una segunda fuente de
-// verdad. Puramente de presentación: no dispara ninguna query ni cierra
-// nada por sí mismo.
+// verdad. Clickear una fila de servicio/producto abre el detalle de ESE
+// cobro (useCierreDetailPayment) con Corregir cobro/Anular venta — el
+// único efecto nuevo que dispara algo por sí mismo; el resto sigue siendo
+// de presentación pura.
 function CierreRevisionDetalle({
+  businessId,
+  employees,
+  onChanged,
   preview,
   efectivoContado,
   onEfectivoContadoChange,
@@ -6734,6 +6808,12 @@ function CierreRevisionDetalle({
   observacion,
   onObservacionChange,
 }: {
+  businessId: string | null;
+  employees: ReturnType<typeof useCajaData>["employees"];
+  // Se llama después de confirmar una corrección/anulación desde el
+  // detalle de un servicio — el padre (CierreCajaBtn/CerrarDiaAnteriorCard)
+  // es quien sabe cómo volver a calcular SU preview.
+  onChanged?: () => void;
   preview: Awaited<ReturnType<typeof buildSingleDayCierrePreview>>;
   efectivoContado: string;
   onEfectivoContadoChange: (v: string) => void;
@@ -6746,6 +6826,7 @@ function CierreRevisionDetalle({
   const { servicios, productos } = countServiciosYProductos(snapshot.cobrosSnapshot);
   const [showDetalle, setShowDetalle] = React.useState(false);
   const [showConciliacion, setShowConciliacion] = React.useState(false);
+  const { detailPayment, openDetail, closeDetail } = useCierreDetailPayment(businessId);
 
   // Cobrado por método, sin propina (detalleMetodos) — ya repartido real
   // entre medios cuando una venta se pagó con pago múltiple (ver
@@ -6811,6 +6892,7 @@ function CierreRevisionDetalle({
               cobros={snapshot.cobrosSnapshot}
               gastos={snapshot.gastosSnapshot}
               movimientos={movimientosManuales}
+              onRowClick={openDetail}
             />
           </div>
         )}
@@ -6991,6 +7073,19 @@ function CierreRevisionDetalle({
           )}
         />
       </div>
+
+      {detailPayment && (
+        <DetailModal
+          payment={detailPayment}
+          employees={employees}
+          cajaAbierta={true}
+          onClose={closeDetail}
+          onDeleted={() => {
+            closeDetail();
+            onChanged?.();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -7071,6 +7166,7 @@ function CierreCajaBtn({
   businessId,
   branchId,
   userEmail,
+  employees,
   onCajaCerrada,
   cajaAbiertaDesde,
   cajaRangeStartDate,
@@ -7078,6 +7174,7 @@ function CierreCajaBtn({
   businessId: string | null;
   branchId: string | null;
   userEmail: string | null;
+  employees: ReturnType<typeof useCajaData>["employees"];
   onCajaCerrada: () => void;
   cajaAbiertaDesde: string;
   // Fecha (YYYY-MM-DD) que identifica la fila de caja_cierres a cerrar —
@@ -7108,6 +7205,10 @@ function CierreCajaBtn({
   // puntual y no puede mezclar otro día en el snapshot que guarda).
   const [preview, setPreview] = useState<Awaited<ReturnType<typeof buildSingleDayCierrePreview>> | null>(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
+  // Se bumpea después de Corregir cobro/Anular venta desde el detalle de un
+  // servicio (ver CierreRevisionDetalle → onChanged) para recalcular este
+  // preview con el cambio ya aplicado.
+  const [refreshTick, setRefreshTick] = useState(0);
 
   useEffect(() => {
     if (!open || !businessId) return;
@@ -7126,7 +7227,7 @@ function CierreCajaBtn({
     return () => {
       cancelled = true;
     };
-  }, [open, businessId, branchId, cajaRangeStartDate]);
+  }, [open, businessId, branchId, cajaRangeStartDate, refreshTick]);
 
   const expected = preview?.expected ?? { cashExpected: 0, cashOutflows: 0, cashInflows: 0, digitalExpected: 0, digitalOutflows: 0 };
 
@@ -7240,6 +7341,9 @@ function CierreCajaBtn({
               ) : (
                 <>
                   <CierreRevisionDetalle
+                    businessId={businessId}
+                    employees={employees}
+                    onChanged={() => setRefreshTick((t) => t + 1)}
                     preview={preview}
                     efectivoContado={efectivoContado}
                     onEfectivoContadoChange={(v) => {
@@ -7287,6 +7391,7 @@ function CerrarDiaAnteriorCard({
   businessId,
   branchId,
   userEmail,
+  employees,
   cierresExistentes,
   jumpToDate,
   onJumped,
@@ -7295,6 +7400,7 @@ function CerrarDiaAnteriorCard({
   businessId: string | null;
   branchId: string | null;
   userEmail: string | null;
+  employees: ReturnType<typeof useCajaData>["employees"];
   cierresExistentes: any[];
   // Fecha a la que hay que saltar y mostrar su vista previa automáticamente
   // (viene del aviso "Caja vencida") — null en el uso normal, donde el
@@ -7508,6 +7614,9 @@ function CerrarDiaAnteriorCard({
             ) : (
               <>
                 <CierreRevisionDetalle
+                  businessId={businessId}
+                  employees={employees}
+                  onChanged={() => verVistaPrevia()}
                   preview={preview}
                   efectivoContado={efectivoContado}
                   onEfectivoContadoChange={(v) => {
@@ -7551,6 +7660,7 @@ function CierreDetalleView({
   cierre,
   businessId,
   branchId,
+  employees,
   onVolver,
   cierreEventos,
   getCierreObservacion,
@@ -7564,6 +7674,7 @@ function CierreDetalleView({
   cierre: any;
   businessId: string | null;
   branchId: string | null;
+  employees: ReturnType<typeof useCajaData>["employees"];
   onVolver: () => void;
   cierreEventos: (c: any) => any[];
   getCierreObservacion: (c: any) => string | null;
@@ -7576,29 +7687,33 @@ function CierreDetalleView({
 }) {
   const [loading, setLoading] = useState(true);
   const [preview, setPreview] = useState<Awaited<ReturnType<typeof buildSingleDayCierrePreview>> | null>(null);
+  const { detailPayment, openDetail, closeDetail } = useCierreDetailPayment(businessId);
 
   const fecha = cierre?.fecha ?? null;
 
-  useEffect(() => {
+  // Extraído a función nombrada (en vez de quedar solo dentro del efecto)
+  // para poder volver a calcular este preview después de Corregir cobro/
+  // Anular venta desde el detalle de un servicio — ver onDeleted del
+  // DetailModal más abajo.
+  const loadPreview = React.useCallback(() => {
     if (!businessId || !fecha) {
       setLoading(false);
       return;
     }
-    let cancelled = false;
     setLoading(true);
     buildSingleDayCierrePreview(businessId, branchId, fecha)
       .then((result) => {
-        if (cancelled) return;
         setPreview(result);
         setLoading(false);
       })
       .catch(() => {
-        if (!cancelled) setLoading(false);
+        setLoading(false);
       });
-    return () => {
-      cancelled = true;
-    };
   }, [businessId, branchId, fecha]);
+
+  useEffect(() => {
+    loadPreview();
+  }, [loadPreview]);
 
   const snapshot = preview?.snapshot ?? null;
   const movimientos = preview?.movimientosManuales ?? [];
@@ -7746,7 +7861,12 @@ function CierreDetalleView({
 
           <div className="mt-5">
             <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">Movimientos del día</div>
-            <CierreMovimientosDetalleList cobros={cobros} gastos={gastos} movimientos={movimientos} />
+            <CierreMovimientosDetalleList
+              cobros={cobros}
+              gastos={gastos}
+              movimientos={movimientos}
+              onRowClick={openDetail}
+            />
           </div>
         </>
       )}
@@ -7793,6 +7913,19 @@ function CierreDetalleView({
           </button>
         )}
       </div>
+
+      {detailPayment && (
+        <DetailModal
+          payment={detailPayment}
+          employees={employees}
+          cajaAbierta={false}
+          onClose={closeDetail}
+          onDeleted={() => {
+            closeDetail();
+            loadPreview();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -7821,6 +7954,7 @@ function CierresTab({
   expensesToday,
   pendingCharges,
   userEmail,
+  employees,
   expected,
   movementsData,
   initialPendingDate,
@@ -7834,6 +7968,7 @@ function CierresTab({
   expensesToday: ReturnType<typeof useCajaData>["expensesToday"];
   pendingCharges: ReturnType<typeof useCajaData>["pendingCharges"];
   userEmail: string | null;
+  employees: ReturnType<typeof useCajaData>["employees"];
   expected: ExpectedCashDigital;
   movementsData: ReturnType<typeof useCashMovements>;
   // Fecha (YYYY-MM-DD) con la que esta pestaña debe abrir directo la vista
@@ -8273,6 +8408,7 @@ function CierresTab({
                     businessId={businessId}
                     branchId={activeBranchId}
                     userEmail={userEmail}
+                    employees={employees}
                     onCajaCerrada={() => {
                       onCajaCerrada();
                       loadCierres();
@@ -8316,6 +8452,7 @@ function CierresTab({
               businessId={businessId}
               branchId={activeBranchId}
               userEmail={userEmail}
+              employees={employees}
               cierresExistentes={cierres}
               jumpToDate={jumpToDate}
               onJumped={() => setJumpToDate(null)}
@@ -8353,6 +8490,7 @@ function CierresTab({
                 cierre={selected}
                 businessId={businessId}
                 branchId={activeBranchId}
+                employees={employees}
                 onVolver={() => setSelected(null)}
                 cierreEventos={cierreEventos}
                 getCierreObservacion={getCierreObservacion}
@@ -8561,11 +8699,20 @@ function getSaleDetailLabel(payment: Record<string, unknown>) {
 function DetailModal({
   payment,
   employees,
+  cajaAbierta = true,
   onClose,
   onDeleted,
 }: {
   payment: ReturnType<typeof useCajaData>["paymentsToday"][number];
   employees: ReturnType<typeof useCajaData>["employees"];
+  // true (default) = día actual/pendiente de revisión, todavía sin cierre
+  // guardado — usado por los dos callers de siempre (Movimientos de caja,
+  // Cobros por confirmar). false = detalle de un cierre YA guardado
+  // (Cierre de caja → ver día cerrado) — ver CierreDetalleView más abajo.
+  // Solo cambia el copy del modal de autorización; la regla real (tocar o
+  // no la fila original) la decide siempre el RPC server-side, nunca el
+  // cliente.
+  cajaAbierta?: boolean;
   onClose: () => void;
   onDeleted: () => void;
 }) {
@@ -8577,6 +8724,17 @@ function DetailModal({
   // en History), así que el lock es simplemente "true" mientras exista.
   useBodyScrollLock(true);
   const [deleting, setDeleting] = React.useState(false);
+  // Corregir cobro / Anular venta — protegidos por contraseña de
+  // autorización (ver authorization-modal.tsx/caja-authorization.ts).
+  // correctFormOpen: paso 1 (elegir los nuevos valores) — correctAuthOpen/
+  // voidAuthOpen: paso 2 (contraseña + motivo), recién ahí se llama al RPC.
+  const [correctFormOpen, setCorrectFormOpen] = React.useState(false);
+  const [correctAuthOpen, setCorrectAuthOpen] = React.useState(false);
+  const [voidAuthOpen, setVoidAuthOpen] = React.useState(false);
+  const [correctTotal, setCorrectTotal] = React.useState("");
+  const [correctDiscount, setCorrectDiscount] = React.useState("");
+  const [correctTip, setCorrectTip] = React.useState("");
+  const [correctMethod, setCorrectMethod] = React.useState<PayMethod>("cash");
   const method = (payment.method ??
     payment.payment_method ??
     "cash") as PayMethod;
@@ -8702,6 +8860,74 @@ function DetailModal({
     (payment as Record<string, unknown>).observations ?? "",
   ).startsWith(STOCK_WITHDRAWAL_NOTE_MARKER);
 
+  const businessId = (payment as Record<string, unknown>).business_id as string | null;
+  // Ni Corregir ni Anular tienen sentido sobre algo que ya está
+  // anulado/reembolsado, ni sobre un ajuste en sí mismo (adjustment_of_
+  // payment_id no nulo) — el RPC ya lo bloquea igual, esto solo evita
+  // mostrar botones que van a fallar seguro.
+  const isVoided = status === "anulado" || status === "reembolsado";
+  const isAdjustment = Boolean((payment as Record<string, unknown>).adjustment_of_payment_id);
+  const canCorrectOrVoid = !isStockWithdrawal && !isVoided && !isAdjustment;
+
+  function openCorrectForm() {
+    setCorrectTotal(String(Math.round(Number(payment.total ?? payment.amount ?? 0))));
+    setCorrectDiscount(String(Math.round(discountAmount)));
+    setCorrectTip(String(Math.round(tipAmount)));
+    setCorrectMethod(method);
+    setCorrectFormOpen(true);
+  }
+
+  async function submitVoid(password: string, reason: string) {
+    if (!businessId) throw new Error("Falta business_id en este cobro");
+    await voidPaymentAuthorized({ paymentId: payment.id, businessId, password, reason });
+    toast.success("Venta anulada");
+    setVoidAuthOpen(false);
+    onDeleted();
+  }
+
+  async function submitCorrect(password: string, reason: string) {
+    if (!businessId) throw new Error("Falta business_id en este cobro");
+    const newTotal = Number(correctTotal.replace(/\D/g, "")) || 0;
+    const newDiscount = Number(correctDiscount.replace(/\D/g, "")) || 0;
+    const newTip = Number(correctTip.replace(/\D/g, "")) || 0;
+    const oldTotal = Number(payment.total ?? payment.amount ?? 0);
+    // Comisión recalculada acá mismo, aproximada: si la venta tenía un %
+    // congelado (commission_pct), se aplica ese mismo % al monto nuevo —
+    // es exacto en el caso más común. Si no (comisión fija/por servicio,
+    // sin un único % que represente el total), se escala proporcional al
+    // cambio de monto — no se reimplementa computeCommissionAmount acá
+    // porque el detalle no tiene el desglose por ítem de la venta
+    // original, solo el total ya calculado.
+    let newCommissionAmount: number | null = null;
+    if (commissionRecord) {
+      newCommissionAmount =
+        commissionRecord.commission_pct != null
+          ? Math.round((newTotal * commissionRecord.commission_pct) / 100)
+          : oldTotal > 0
+            ? Math.round((commissionRecord.amount * newTotal) / oldTotal)
+            : commissionRecord.amount;
+    }
+    const result = await correctPaymentAuthorized({
+      paymentId: payment.id,
+      businessId,
+      password,
+      reason,
+      newTotal,
+      newDiscount,
+      newTip,
+      newMethod: correctMethod,
+      newCommissionAmount,
+    });
+    toast.success(
+      result.wasClosed
+        ? "Ajuste registrado — el día ya estaba cerrado, se sumó como un movimiento aparte de hoy."
+        : "Cobro corregido",
+    );
+    setCorrectAuthOpen(false);
+    setCorrectFormOpen(false);
+    onDeleted();
+  }
+
   async function handleDelete() {
     if (deleting) return;
     const confirmed = window.confirm(
@@ -8712,7 +8938,6 @@ function DetailModal({
     if (!confirmed) return;
     setDeleting(true);
     try {
-      const businessId = (payment as Record<string, unknown>).business_id as string | null;
       if (!businessId) throw new Error("Falta business_id en este cobro");
       await deletePayment(payment.id, businessId);
       toast.success("Cobro eliminado");
@@ -8834,6 +9059,7 @@ function DetailModal({
   }
 
   return createPortal(
+    <>
     <div
       className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4"
       onClick={onClose}
@@ -9064,10 +9290,125 @@ function DetailModal({
             </div>
           )}
 
+          {/* Bloque: Acciones — Corregir cobro/Anular venta, protegidas por
+              contraseña de autorización (Configuración → Seguridad →
+              Autorizaciones de caja). No disponible sobre algo ya anulado
+              ni sobre un ajuste en sí mismo (ver canCorrectOrVoid). */}
+          {canCorrectOrVoid && (
+            <div className="mt-2 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3 space-y-2.5">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60">
+                Acciones
+              </p>
+              {!correctFormOpen ? (
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={openCorrectForm}
+                    className="rounded-lg bg-blue-500/10 hover:bg-blue-500/20 px-3 py-1.5 text-xs font-semibold text-blue-300 transition"
+                  >
+                    Corregir cobro
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setVoidAuthOpen(true)}
+                    className="rounded-lg bg-rose-500/10 hover:bg-rose-500/20 px-3 py-1.5 text-xs font-semibold text-rose-300 transition"
+                  >
+                    Anular venta
+                  </button>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <label className="mb-1 block text-[10px] text-muted-foreground/70">Monto</label>
+                      <input
+                        value={correctTotal}
+                        onChange={(e) => setCorrectTotal(e.target.value.replace(/\D/g, "").slice(0, 9))}
+                        inputMode="numeric"
+                        className="h-9 w-full rounded-lg border border-white/10 bg-black/45 px-2.5 text-sm text-white outline-none focus:border-blue-300/50"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[10px] text-muted-foreground/70">Descuento</label>
+                      <input
+                        value={correctDiscount}
+                        onChange={(e) => setCorrectDiscount(e.target.value.replace(/\D/g, "").slice(0, 9))}
+                        inputMode="numeric"
+                        className="h-9 w-full rounded-lg border border-white/10 bg-black/45 px-2.5 text-sm text-white outline-none focus:border-blue-300/50"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[10px] text-muted-foreground/70">Propina</label>
+                      <input
+                        value={correctTip}
+                        onChange={(e) => setCorrectTip(e.target.value.replace(/\D/g, "").slice(0, 9))}
+                        inputMode="numeric"
+                        className="h-9 w-full rounded-lg border border-white/10 bg-black/45 px-2.5 text-sm text-white outline-none focus:border-blue-300/50"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-[10px] text-muted-foreground/70">Método</label>
+                      <select
+                        value={correctMethod}
+                        onChange={(e) => setCorrectMethod(e.target.value as PayMethod)}
+                        className="h-9 w-full rounded-lg border border-white/10 bg-black/45 px-2.5 text-sm text-white outline-none focus:border-blue-300/50"
+                      >
+                        {ACTIVE_PAY_METHODS.map((m) => (
+                          <option key={m.id} value={m.id}>
+                            {m.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setCorrectFormOpen(false)}
+                      className="flex-1 rounded-lg bg-white/5 hover:bg-white/10 px-3 py-1.5 text-xs font-semibold transition"
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCorrectAuthOpen(true)}
+                      className="flex-1 rounded-lg bg-blue-500/15 hover:bg-blue-500/25 px-3 py-1.5 text-xs font-bold text-blue-200 transition"
+                    >
+                      Continuar
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="h-4" />
         </div>
       </div>
-    </div>,
+    </div>
+    <AuthorizationModal
+      open={correctAuthOpen}
+      title="Corregir cobro"
+      tone="default"
+      confirmLabel="Confirmar corrección"
+      description={
+        cajaAbierta
+          ? "Se actualiza esta venta y su comisión directamente."
+          : "El día de esta venta ya está cerrado — se va a registrar como un ajuste aparte, visible hoy, sin tocar el cierre original."
+      }
+      onCancel={() => setCorrectAuthOpen(false)}
+      onSubmit={submitCorrect}
+    />
+    <AuthorizationModal
+      open={voidAuthOpen}
+      title="Anular venta"
+      tone="danger"
+      confirmLabel="Confirmar anulación"
+      description={`Se anula la venta de ${payment.client_name ?? empName ?? "cliente"} por $${totalCobrado.toLocaleString("es-AR")}. No borra el registro — queda marcada como anulada, de forma auditable.`}
+      onCancel={() => setVoidAuthOpen(false)}
+      onSubmit={submitVoid}
+    />
+    </>,
     document.body,
   );
 }
@@ -10576,6 +10917,7 @@ function MovimientosUnificados({
         <DetailModal
           payment={detailPayment}
           employees={data.employees}
+          cajaAbierta={true}
           onClose={() => setDetailPayment(null)}
           onDeleted={() => {
             setDetailPayment(null);
@@ -10887,6 +11229,7 @@ function FacturacionPanel({
           businessId={data.businessId}
           branchId={data.activeBranchId}
           userEmail={userEmail}
+          employees={data.employees}
           onCajaCerrada={onCajaCerrada}
           cajaAbiertaDesde={cajaAbiertaDesde}
           cajaRangeStartDate={cajaRangeStartDate}
@@ -12019,6 +12362,7 @@ function History({
         <DetailModal
           payment={detailPayment}
           employees={data.employees}
+          cajaAbierta={true}
           onClose={() => setDetailPayment(null)}
           onDeleted={() => {
             setDetailPayment(null);
