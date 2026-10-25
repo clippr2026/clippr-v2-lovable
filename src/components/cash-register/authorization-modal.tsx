@@ -3,11 +3,11 @@ import { createPortal } from "react-dom";
 import { Lock, Loader2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-// 200 caracteres — mismo tope que valida _reason_length_ok (RPCs
-// void/correct/delete_payment_authorized, 20261025070000). Esto solo
-// evita el viaje al servidor para el caso común (texto larguísimo
-// pegado); el backend es quien de verdad lo hace cumplir.
-const REASON_MAX_LENGTH = 200;
+// Mismos topes que valida el body de void/correct/delete_payment_authorized
+// (20261025080000). Esto solo evita el viaje al servidor para el caso
+// común (texto largo pegado); el backend es quien de verdad lo hace cumplir.
+const REASON_MAX_LENGTH = 50;
+const AUTHORIZED_BY_MAX_LENGTH = 20;
 
 /**
  * Modal compartido de contraseña de autorización — lo usan tanto "Corregir
@@ -141,13 +141,24 @@ export function AuthorizationModal({
             />
           </div>
           <div>
-            <label className="mb-1 block text-[11px] font-semibold tracking-[0.1em] text-muted-foreground/70">
-              ¿LO AUTORIZÓ OTRA PERSONA? (OPCIONAL)
-            </label>
+            <div className="mb-1 flex items-center justify-between">
+              <label className="block text-[11px] font-semibold tracking-[0.1em] text-muted-foreground/70">
+                ¿LO AUTORIZÓ OTRA PERSONA? (OPCIONAL)
+              </label>
+              <span
+                className={cn(
+                  "text-[10px] tabular-nums",
+                  authorizedByName.length >= AUTHORIZED_BY_MAX_LENGTH ? "text-amber-300" : "text-muted-foreground/60",
+                )}
+              >
+                {authorizedByName.length}/{AUTHORIZED_BY_MAX_LENGTH}
+              </span>
+            </div>
             <input
               type="text"
               value={authorizedByName}
-              onChange={(e) => setAuthorizedByName(e.target.value)}
+              onChange={(e) => setAuthorizedByName(e.target.value.slice(0, AUTHORIZED_BY_MAX_LENGTH))}
+              maxLength={AUTHORIZED_BY_MAX_LENGTH}
               className="h-9 w-full rounded-xl border border-white/10 bg-black/45 px-3 text-sm text-white outline-none focus:border-blue-300/50 focus:ring-2 focus:ring-blue-400/20"
               placeholder="Vacío = lo autorizaste vos mismo"
             />
