@@ -1,11 +1,11 @@
 import { supabase } from "@/integrations/supabase/client";
 
 /**
- * Corregir cobro / Anular venta — protegidos por una contraseña de
- * autorización propia por acción (ver Configuración → Seguridad →
- * Autorizaciones de caja). Toda la validación (contraseña, rol, día
- * abierto/cerrado, liquidaciones) vive server-side en los RPCs
- * (20261025020000/30000/40000) — este archivo solo wrappea las llamadas,
+ * Corregir cobro / Anular venta / Eliminar cobro — protegidos por una
+ * contraseña de autorización propia por acción (ver Configuración →
+ * Seguridad → Autorizaciones de caja). Toda la validación (contraseña,
+ * rol, día abierto/cerrado, liquidaciones) vive server-side en los RPCs
+ * (20261025020000 en adelante) — este archivo solo wrappea las llamadas,
  * mismo estilo que register-payment.ts.
  */
 
@@ -45,6 +45,10 @@ export type VoidPaymentAuthorizedInput = {
   businessId: string;
   password: string;
   reason: string;
+  // Nombre de quien AUTORIZÓ, si es distinto de quien ejecuta la acción
+  // (auth.uid() — ver performed_by/performed_by_name). undefined/"" =
+  // misma persona, no se guarda nada aparte.
+  authorizedByName?: string;
 };
 
 export async function voidPaymentAuthorized(
@@ -55,6 +59,7 @@ export async function voidPaymentAuthorized(
     p_business_id: input.businessId,
     p_password: input.password,
     p_reason: input.reason,
+    p_authorized_by_name: input.authorizedByName?.trim() || null,
   });
   if (error) throw new Error(rpcErrorMessage(error, "No se pudo anular la venta"));
   const row = (Array.isArray(data) ? data[0] : data) as { new_status?: string } | undefined;
@@ -66,6 +71,7 @@ export type DeletePaymentAuthorizedInput = {
   businessId: string;
   password: string;
   reason: string;
+  authorizedByName?: string;
 };
 
 // Reutiliza la contraseña de "void" (ver 20261025050000_delete_payment_authorized.sql)
@@ -78,6 +84,7 @@ export async function deletePaymentAuthorized(input: DeletePaymentAuthorizedInpu
     p_business_id: input.businessId,
     p_password: input.password,
     p_reason: input.reason,
+    p_authorized_by_name: input.authorizedByName?.trim() || null,
   });
   if (error) throw new Error(rpcErrorMessage(error, "No se pudo eliminar el cobro"));
 }
@@ -97,6 +104,7 @@ export type CorrectPaymentAuthorizedInput = {
   newTip?: number;
   newMethod?: string;
   newCommissionAmount?: number | null;
+  authorizedByName?: string;
 };
 
 export async function correctPaymentAuthorized(
@@ -112,6 +120,7 @@ export async function correctPaymentAuthorized(
     p_new_tip: input.newTip ?? null,
     p_new_method: input.newMethod ?? null,
     p_new_commission_amount: input.newCommissionAmount ?? null,
+    p_authorized_by_name: input.authorizedByName?.trim() || null,
   });
   if (error) throw new Error(rpcErrorMessage(error, "No se pudo corregir el cobro"));
   const row = (Array.isArray(data) ? data[0] : data) as
@@ -121,4 +130,95 @@ export async function correctPaymentAuthorized(
     adjustmentPaymentId: row?.adjustment_payment_id ?? null,
     wasClosed: Boolean(row?.was_closed),
   };
+}
+
+// ── Historial de actividad ───────────────────────────────────────────────
+// Lee directo de payment_authorization_log (select ya permitido por su
+// policy — scoped a business_id, ver 20261025010000) — sin RPC propio,
+// es de solo lectura y no hay nada sensible que filtrar acá (a diferencia
+// de caja_authorization_codes, que nunca se expone). before_snapshot ya
+// trae client_name/service_name/employee_name "horneados" desde
+// 20261025060000, así que esto nunca necesita un join en vivo contra
+// payments/employees.
+
+export type PaymentAuthorizationLogAction = "correction" | "void" | "deletion";
+
+export type PaymentAuthorizationLogRow = {
+  id: string;
+  paymentId: string | null;
+  actionType: PaymentAuthorizationLogAction;
+  reason: string;
+  performedBy: string | null;
+  performedByName: string | null;
+  authorizedByName: string | null;
+  impactNote: string | null;
+  beforeSnapshot: Record<string, any> | null;
+  afterSnapshot: Record<string, any> | null;
+  adjustmentPaymentId: string | null;
+  createdAt: string;
+};
+
+const DELETION_REASON_PREFIX = "Eliminación completa — ";
+
+function mapLogRow(row: any): PaymentAuthorizationLogRow {
+  const rawReason = String(row.reason ?? "");
+  const isDeletion = row.action_type === "void" && rawReason.startsWith(DELETION_REASON_PREFIX);
+  return {
+    id: row.id,
+    paymentId: row.payment_id ?? null,
+    actionType: isDeletion ? "deletion" : row.action_type,
+    reason: isDeletion ? rawReason.slice(DELETION_REASON_PREFIX.length) : rawReason,
+    performedBy: row.performed_by ?? null,
+    performedByName: row.performed_by_name ?? null,
+    authorizedByName: row.authorized_by_name ?? null,
+    impactNote: row.impact_note ?? null,
+    beforeSnapshot: row.before_snapshot ?? null,
+    afterSnapshot: row.after_snapshot ?? null,
+    adjustmentPaymentId: row.adjustment_payment_id ?? null,
+    createdAt: row.created_at,
+  };
+}
+
+export async function getPaymentAuthorizationHistory(paymentId: string): Promise<PaymentAuthorizationLogRow[]> {
+  const { data, error } = await supabase
+    .from("payment_authorization_log" as any)
+    .select("*")
+    .eq("payment_id", paymentId)
+    .order("created_at", { ascending: false });
+  if (error) throw new Error(rpcErrorMessage(error, "No se pudo cargar el historial de este cobro"));
+  return ((data ?? []) as any[]).map(mapLogRow);
+}
+
+export type ActivityLogFilters = {
+  businessId: string;
+  fromDate?: string | null;
+  toDate?: string | null;
+  performedBy?: string | null;
+  actionType?: "all" | PaymentAuthorizationLogAction;
+  limit?: number;
+};
+
+export async function getActivityLog(filters: ActivityLogFilters): Promise<PaymentAuthorizationLogRow[]> {
+  let query = supabase
+    .from("payment_authorization_log" as any)
+    .select("*")
+    .eq("business_id", filters.businessId)
+    .order("created_at", { ascending: false })
+    .limit(filters.limit ?? 300);
+
+  if (filters.fromDate) query = query.gte("created_at", `${filters.fromDate}T00:00:00`);
+  if (filters.toDate) query = query.lte("created_at", `${filters.toDate}T23:59:59.999`);
+  if (filters.performedBy) query = query.eq("performed_by", filters.performedBy);
+  // "deletion" es un sub-caso de action_type="void" (distinguido client-
+  // side por el prefijo del motivo, ver mapLogRow) — filtrar por "void" en
+  // la base y, si corresponde, separar acá mismo en JS.
+  if (filters.actionType === "correction") query = query.eq("action_type", "correction");
+  if (filters.actionType === "void" || filters.actionType === "deletion") query = query.eq("action_type", "void");
+
+  const { data, error } = await query;
+  if (error) throw new Error(rpcErrorMessage(error, "No se pudo cargar el historial de actividad"));
+  const rows = ((data ?? []) as any[]).map(mapLogRow);
+  if (filters.actionType === "void") return rows.filter((r) => r.actionType === "void");
+  if (filters.actionType === "deletion") return rows.filter((r) => r.actionType === "deletion");
+  return rows;
 }

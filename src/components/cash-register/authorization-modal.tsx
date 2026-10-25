@@ -31,10 +31,11 @@ export function AuthorizationModal({
   confirmLabel?: string;
   tone?: "default" | "danger";
   onCancel: () => void;
-  onSubmit: (password: string, reason: string) => Promise<void>;
+  onSubmit: (password: string, reason: string, authorizedByName: string | null) => Promise<void>;
 }) {
   const [password, setPassword] = React.useState("");
   const [reason, setReason] = React.useState("");
+  const [authorizedByName, setAuthorizedByName] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -42,6 +43,7 @@ export function AuthorizationModal({
     if (open) {
       setPassword("");
       setReason("");
+      setAuthorizedByName("");
       setError(null);
       setSubmitting(false);
     }
@@ -61,7 +63,7 @@ export function AuthorizationModal({
     setSubmitting(true);
     setError(null);
     try {
-      await onSubmit(password, reason.trim());
+      await onSubmit(password, reason.trim(), authorizedByName.trim() || null);
       setPassword("");
     } catch (e) {
       setError((e as Error).message || "No se pudo completar la operación");
@@ -119,6 +121,18 @@ export function AuthorizationModal({
               rows={2}
               className="w-full resize-none rounded-xl border border-white/10 bg-black/45 px-3 py-2 text-sm text-white outline-none focus:border-blue-300/50 focus:ring-2 focus:ring-blue-400/20"
               placeholder="Ej: se cobró de más por error de tipeo"
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-[11px] font-semibold tracking-[0.1em] text-muted-foreground/70">
+              ¿LO AUTORIZÓ OTRA PERSONA? (OPCIONAL)
+            </label>
+            <input
+              type="text"
+              value={authorizedByName}
+              onChange={(e) => setAuthorizedByName(e.target.value)}
+              className="h-9 w-full rounded-xl border border-white/10 bg-black/45 px-3 text-sm text-white outline-none focus:border-blue-300/50 focus:ring-2 focus:ring-blue-400/20"
+              placeholder="Vacío = lo autorizaste vos mismo"
             />
           </div>
           {error && (

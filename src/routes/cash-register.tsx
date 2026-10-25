@@ -88,6 +88,7 @@ import {
   correctPaymentAuthorized,
   deletePaymentAuthorized,
 } from "@/components/cash-register/caja-authorization";
+import { PaymentAuthorizationHistoryPanel } from "@/components/cash-register/payment-authorization-history";
 import {
   Search,
   Plus,
@@ -8877,15 +8878,18 @@ function DetailModal({
     setCorrectFormOpen(true);
   }
 
-  async function submitVoid(password: string, reason: string) {
+  async function submitVoid(password: string, reason: string, authorizedByName: string | null) {
     if (!businessId) throw new Error("Falta business_id en este cobro");
-    await voidPaymentAuthorized({ paymentId: payment.id, businessId, password, reason });
+    await voidPaymentAuthorized({
+      paymentId: payment.id, businessId, password, reason,
+      authorizedByName: authorizedByName ?? undefined,
+    });
     toast.success("Venta anulada");
     setVoidAuthOpen(false);
     onDeleted();
   }
 
-  async function submitCorrect(password: string, reason: string) {
+  async function submitCorrect(password: string, reason: string, authorizedByName: string | null) {
     if (!businessId) throw new Error("Falta business_id en este cobro");
     const newTotal = Number(correctTotal.replace(/\D/g, "")) || 0;
     const newDiscount = Number(correctDiscount.replace(/\D/g, "")) || 0;
@@ -8917,6 +8921,7 @@ function DetailModal({
       newTip,
       newMethod: correctMethod,
       newCommissionAmount,
+      authorizedByName: authorizedByName ?? undefined,
     });
     toast.success(
       result.wasClosed
@@ -8933,9 +8938,12 @@ function DetailModal({
   // contraseña de autorización de "Anular venta" (ver
   // delete_payment_authorized, 20261025050000) en vez de un window.confirm
   // sin ningún control, como era antes.
-  async function submitDelete(password: string, reason: string) {
+  async function submitDelete(password: string, reason: string, authorizedByName: string | null) {
     if (!businessId) throw new Error("Falta business_id en este cobro");
-    await deletePaymentAuthorized({ paymentId: payment.id, businessId, password, reason });
+    await deletePaymentAuthorized({
+      paymentId: payment.id, businessId, password, reason,
+      authorizedByName: authorizedByName ?? undefined,
+    });
     toast.success("Cobro eliminado");
     setDeleteAuthOpen(false);
     onDeleted();
@@ -9040,6 +9048,13 @@ function DetailModal({
                 Método de pago
               </p>
               <Row label="Método de pago" value={PAY_METHOD_LABEL[method] ?? method} />
+            </div>
+
+            <div className="mt-2 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">
+                Historial
+              </p>
+              <PaymentAuthorizationHistoryPanel paymentId={payment.id} />
             </div>
 
             <div className="h-4" />
@@ -9290,6 +9305,18 @@ function DetailModal({
               </p>
             </div>
           )}
+
+          {/* Bloque: Historial — correcciones/anulaciones/eliminaciones de
+              ESTA venta puntual (payment_authorization_log), no las de
+              otras ventas. Mismo componente que usa el Historial de
+              actividad general de Configuración → Seguridad — nunca una
+              segunda lista implementada aparte. */}
+          <div className="mt-2 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3">
+            <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">
+              Historial
+            </p>
+            <PaymentAuthorizationHistoryPanel paymentId={payment.id} />
+          </div>
 
           {/* Bloque: Acciones — Corregir cobro/Anular venta, protegidas por
               contraseña de autorización (Configuración → Seguridad →
