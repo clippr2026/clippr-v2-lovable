@@ -8736,7 +8736,6 @@ function DetailModal({
   const [correctDiscount, setCorrectDiscount] = React.useState("");
   const [correctTip, setCorrectTip] = React.useState("");
   const [correctMethod, setCorrectMethod] = React.useState<PayMethod>("cash");
-  const [correctDate, setCorrectDate] = React.useState("");
   const method = (payment.method ??
     payment.payment_method ??
     "cash") as PayMethod;
@@ -8876,7 +8875,6 @@ function DetailModal({
     setCorrectDiscount(String(Math.round(discountAmount)));
     setCorrectTip(String(Math.round(tipAmount)));
     setCorrectMethod(method);
-    setCorrectDate(cajaDateKeyBA(new Date(payment.created_at)));
     setCorrectFormOpen(true);
   }
 
@@ -8913,7 +8911,6 @@ function DetailModal({
             ? Math.round((commissionRecord.amount * newTotal) / oldTotal)
             : commissionRecord.amount;
     }
-    const originalDateKey = cajaDateKeyBA(new Date(payment.created_at));
     const result = await correctPaymentAuthorized({
       paymentId: payment.id,
       businessId,
@@ -8925,7 +8922,6 @@ function DetailModal({
       newMethod: correctMethod,
       newCommissionAmount,
       authorizedByName: authorizedByName ?? undefined,
-      newDate: correctDate !== originalDateKey ? correctDate : undefined,
     });
     toast.success(
       result.wasClosed
@@ -9391,21 +9387,7 @@ function DetailModal({
                         ))}
                       </select>
                     </div>
-                    <div>
-                      <label className="mb-1 block text-[10px] text-muted-foreground/70">Fecha</label>
-                      <input
-                        type="date"
-                        value={correctDate}
-                        max={cajaDateKeyBA()}
-                        onChange={(e) => setCorrectDate(e.target.value)}
-                        className="h-9 w-full rounded-lg border border-white/10 bg-black/45 px-2.5 text-sm text-white outline-none focus:border-blue-300/50 [color-scheme:dark]"
-                      />
-                    </div>
                   </div>
-                  <p className="text-[10px] leading-snug text-muted-foreground/60">
-                    Cambiar la fecha solo funciona si ni el día actual de la venta ni el
-                    nuevo día están cerrados todavía.
-                  </p>
                   <div className="flex gap-2">
                     <button
                       type="button"
