@@ -23,16 +23,19 @@ const ACTION_LABEL: Record<PaymentAuthorizationLogAction, string> = {
   correction: "Cobro corregido",
   void: "Venta anulada",
   deletion: "Cobro eliminado",
+  restoration: "Venta restablecida",
 };
 
 // Rojo para anulación/eliminación (son, en los hechos, la misma
 // contraseña y la misma severidad — un borrado es una anulación más
 // fuerte, ver delete_payment_authorized), un color discreto distinto
-// para corrección.
+// para corrección, verde para restablecer (deshace una anulación, es la
+// acción "buena" de este grupo).
 const ACTION_TONE: Record<PaymentAuthorizationLogAction, string> = {
   correction: "text-sky-300",
   void: "text-red-400",
   deletion: "text-red-400",
+  restoration: "text-emerald-400",
 };
 
 function fmtDT(iso: string) {

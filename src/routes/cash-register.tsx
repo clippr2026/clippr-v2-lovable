@@ -85,6 +85,7 @@ import { GastosTab } from "@/components/cash-register/gastos-tab";
 import { AuthorizationModal } from "@/components/cash-register/authorization-modal";
 import {
   voidPaymentAuthorized,
+  restorePaymentAuthorized,
   correctPaymentAuthorized,
   deletePaymentAuthorized,
 } from "@/components/cash-register/caja-authorization";
@@ -8741,6 +8742,7 @@ function DetailModal({
   const [correctFormOpen, setCorrectFormOpen] = React.useState(false);
   const [correctAuthOpen, setCorrectAuthOpen] = React.useState(false);
   const [voidAuthOpen, setVoidAuthOpen] = React.useState(false);
+  const [restoreAuthOpen, setRestoreAuthOpen] = React.useState(false);
   const [correctTotal, setCorrectTotal] = React.useState("");
   const [correctDiscount, setCorrectDiscount] = React.useState("");
   const [correctTip, setCorrectTip] = React.useState("");
@@ -8887,18 +8889,46 @@ function DetailModal({
     setCorrectFormOpen(true);
   }
 
-  async function submitVoid(password: string, reason: string, authorizedByName: string | null) {
+  async function submitVoid(
+    password: string,
+    reason: string,
+    authorizedByName: string | null,
+    performedByName: string | null,
+  ) {
     if (!businessId) throw new Error("Falta business_id en este cobro");
     await voidPaymentAuthorized({
       paymentId: payment.id, businessId, password, reason,
       authorizedByName: authorizedByName ?? undefined,
+      performedByName: performedByName ?? undefined,
     });
     toast.success("Venta anulada");
     setVoidAuthOpen(false);
     onDeleted();
   }
 
-  async function submitCorrect(password: string, reason: string, authorizedByName: string | null) {
+  async function submitRestore(
+    password: string,
+    reason: string,
+    authorizedByName: string | null,
+    performedByName: string | null,
+  ) {
+    if (!businessId) throw new Error("Falta business_id en este cobro");
+    await restorePaymentAuthorized({
+      paymentId: payment.id, businessId, password, reason,
+      authorizedByName: authorizedByName ?? undefined,
+      performedByName: performedByName ?? undefined,
+    });
+    toast.success("Venta restablecida");
+    setRestoreAuthOpen(false);
+    onDeleted();
+  }
+
+  async function submitCorrect(
+    password: string,
+    reason: string,
+    authorizedByName: string | null,
+    performedByName: string | null,
+  ) {
     if (!businessId) throw new Error("Falta business_id en este cobro");
     const newTotal = Number(correctTotal.replace(/\D/g, "")) || 0;
     const newDiscount = Number(correctDiscount.replace(/\D/g, "")) || 0;
@@ -8931,6 +8961,7 @@ function DetailModal({
       newMethod: correctMethod,
       newCommissionAmount,
       authorizedByName: authorizedByName ?? undefined,
+      performedByName: performedByName ?? undefined,
     });
     toast.success(
       result.wasClosed
@@ -8947,11 +8978,17 @@ function DetailModal({
   // contraseña de autorización de "Anular venta" (ver
   // delete_payment_authorized, 20261025050000) en vez de un window.confirm
   // sin ningún control, como era antes.
-  async function submitDelete(password: string, reason: string, authorizedByName: string | null) {
+  async function submitDelete(
+    password: string,
+    reason: string,
+    authorizedByName: string | null,
+    performedByName: string | null,
+  ) {
     if (!businessId) throw new Error("Falta business_id en este cobro");
     await deletePaymentAuthorized({
       paymentId: payment.id, businessId, password, reason,
       authorizedByName: authorizedByName ?? undefined,
+      performedByName: performedByName ?? undefined,
     });
     toast.success("Cobro eliminado");
     setDeleteAuthOpen(false);
@@ -9326,6 +9363,25 @@ function DetailModal({
             <PaymentAuthorizationHistoryPanel paymentId={payment.id} />
           </div>
 
+          {/* Bloque: Restablecer venta — el "deshacer" de Anular venta, para
+              una venta anulada por error. Misma contraseña que Anular (ver
+              restore_payment_authorized, 20261025110000). No disponible
+              sobre un retiro de stock ni sobre un ajuste. */}
+          {isVoided && !isStockWithdrawal && !isAdjustment && (
+            <div className="mt-2 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3 space-y-2.5">
+              <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60">
+                Acciones
+              </p>
+              <button
+                type="button"
+                onClick={() => setRestoreAuthOpen(true)}
+                className="rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 px-3 py-1.5 text-xs font-semibold text-emerald-300 transition"
+              >
+                Restablecer venta
+              </button>
+            </div>
+          )}
+
           {/* Bloque: Acciones — Corregir cobro/Anular venta, protegidas por
               contraseña de autorización (Configuración → Seguridad →
               Autorizaciones de caja). No disponible sobre algo ya anulado
@@ -9443,6 +9499,15 @@ function DetailModal({
       description={`Se anula la venta de ${payment.client_name ?? empName ?? "cliente"} por $${totalCobrado.toLocaleString("es-AR")}. No borra el registro — queda marcada como anulada, de forma auditable.`}
       onCancel={() => setVoidAuthOpen(false)}
       onSubmit={submitVoid}
+    />
+    <AuthorizationModal
+      open={restoreAuthOpen}
+      title="Restablecer venta"
+      tone="default"
+      confirmLabel="Confirmar restablecimiento"
+      description={`Se vuelve a marcar como cobrada la venta de ${payment.client_name ?? empName ?? "cliente"} por $${totalCobrado.toLocaleString("es-AR")}. Si tenía comisión o propina y no estaban liquidadas, vuelven a quedar pendientes de cobro.`}
+      onCancel={() => setRestoreAuthOpen(false)}
+      onSubmit={submitRestore}
     />
     {/* Sin AuthorizationModal de "Eliminar cobro" acá — "Anular venta" (arriba)
         ya cubre este caso para ventas normales, de forma auditable. */}

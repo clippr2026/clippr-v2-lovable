@@ -49,6 +49,12 @@ export type VoidPaymentAuthorizedInput = {
   // (auth.uid() — ver performed_by/performed_by_name). undefined/"" =
   // misma persona, no se guarda nada aparte.
   authorizedByName?: string;
+  // Nombre de quien EJECUTA la acción, tal cual lo escribió en el modal —
+  // reemplaza al "Usuario" genérico cuando el login es compartido entre
+  // varias personas y auth.uid() no alcanza para saber quién fue (ver
+  // 20261025110000). Se guarda como performed_by_name; performed_by (el
+  // uuid de la sesión real) nunca se toca.
+  performedByName?: string;
 };
 
 export async function voidPaymentAuthorized(
@@ -60,10 +66,38 @@ export async function voidPaymentAuthorized(
     p_password: input.password,
     p_reason: input.reason,
     p_authorized_by_name: input.authorizedByName?.trim() || null,
+    p_performed_by_name: input.performedByName?.trim() || null,
   });
   if (error) throw new Error(rpcErrorMessage(error, "No se pudo anular la venta"));
   const row = (Array.isArray(data) ? data[0] : data) as { new_status?: string } | undefined;
   return { newStatus: row?.new_status ?? "anulado" };
+}
+
+export type RestorePaymentAuthorizedInput = {
+  paymentId: string;
+  businessId: string;
+  password: string;
+  reason: string;
+  authorizedByName?: string;
+  performedByName?: string;
+};
+
+// "Deshacer" de Anular venta — reutiliza la contraseña de 'void' (mismo
+// nivel de riesgo, ver 20261025110000_performed_by_name_and_restore.sql).
+export async function restorePaymentAuthorized(
+  input: RestorePaymentAuthorizedInput,
+): Promise<{ newStatus: string }> {
+  const { data, error } = await supabase.rpc("restore_payment_authorized" as any, {
+    p_payment_id: input.paymentId,
+    p_business_id: input.businessId,
+    p_password: input.password,
+    p_reason: input.reason,
+    p_authorized_by_name: input.authorizedByName?.trim() || null,
+    p_performed_by_name: input.performedByName?.trim() || null,
+  });
+  if (error) throw new Error(rpcErrorMessage(error, "No se pudo restablecer la venta"));
+  const row = (Array.isArray(data) ? data[0] : data) as { new_status?: string } | undefined;
+  return { newStatus: row?.new_status ?? "cobrado" };
 }
 
 export type DeletePaymentAuthorizedInput = {
@@ -72,6 +106,7 @@ export type DeletePaymentAuthorizedInput = {
   password: string;
   reason: string;
   authorizedByName?: string;
+  performedByName?: string;
 };
 
 // Reutiliza la contraseña de "void" (ver 20261025050000_delete_payment_authorized.sql)
@@ -85,6 +120,7 @@ export async function deletePaymentAuthorized(input: DeletePaymentAuthorizedInpu
     p_password: input.password,
     p_reason: input.reason,
     p_authorized_by_name: input.authorizedByName?.trim() || null,
+    p_performed_by_name: input.performedByName?.trim() || null,
   });
   if (error) throw new Error(rpcErrorMessage(error, "No se pudo eliminar el cobro"));
 }
@@ -105,6 +141,7 @@ export type CorrectPaymentAuthorizedInput = {
   newMethod?: string;
   newCommissionAmount?: number | null;
   authorizedByName?: string;
+  performedByName?: string;
 };
 
 export async function correctPaymentAuthorized(
@@ -121,6 +158,7 @@ export async function correctPaymentAuthorized(
     p_new_method: input.newMethod ?? null,
     p_new_commission_amount: input.newCommissionAmount ?? null,
     p_authorized_by_name: input.authorizedByName?.trim() || null,
+    p_performed_by_name: input.performedByName?.trim() || null,
   });
   if (error) throw new Error(rpcErrorMessage(error, "No se pudo corregir el cobro"));
   const row = (Array.isArray(data) ? data[0] : data) as
@@ -141,7 +179,7 @@ export async function correctPaymentAuthorized(
 // 20261025060000, así que esto nunca necesita un join en vivo contra
 // payments/employees.
 
-export type PaymentAuthorizationLogAction = "correction" | "void" | "deletion";
+export type PaymentAuthorizationLogAction = "correction" | "void" | "deletion" | "restoration";
 
 export type PaymentAuthorizationLogRow = {
   id: string;
@@ -159,15 +197,27 @@ export type PaymentAuthorizationLogRow = {
 };
 
 const DELETION_REASON_PREFIX = "Eliminación completa — ";
+const RESTORATION_REASON_PREFIX = "Restablecimiento — ";
 
 function mapLogRow(row: any): PaymentAuthorizationLogRow {
   const rawReason = String(row.reason ?? "");
   const isDeletion = row.action_type === "void" && rawReason.startsWith(DELETION_REASON_PREFIX);
+  const isRestoration = row.action_type === "correction" && rawReason.startsWith(RESTORATION_REASON_PREFIX);
+  const actionType: PaymentAuthorizationLogAction = isDeletion
+    ? "deletion"
+    : isRestoration
+      ? "restoration"
+      : row.action_type;
+  const reasonPrefixLength = isDeletion
+    ? DELETION_REASON_PREFIX.length
+    : isRestoration
+      ? RESTORATION_REASON_PREFIX.length
+      : 0;
   return {
     id: row.id,
     paymentId: row.payment_id ?? null,
-    actionType: isDeletion ? "deletion" : row.action_type,
-    reason: isDeletion ? rawReason.slice(DELETION_REASON_PREFIX.length) : rawReason,
+    actionType,
+    reason: reasonPrefixLength > 0 ? rawReason.slice(reasonPrefixLength) : rawReason,
     performedBy: row.performed_by ?? null,
     performedByName: row.performed_by_name ?? null,
     authorizedByName: row.authorized_by_name ?? null,

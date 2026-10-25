@@ -8,6 +8,13 @@ import { cn } from "@/lib/utils";
 // común (texto largo pegado); el backend es quien de verdad lo hace cumplir.
 const REASON_MAX_LENGTH = 50;
 const AUTHORIZED_BY_MAX_LENGTH = 20;
+const PERFORMED_BY_MAX_LENGTH = 20;
+// El login de Caja suele ser compartido entre varias personas — auth.uid()
+// no alcanza para saber quién de verdad hizo el cambio (por eso "Modificado
+// por" caía siempre al genérico "Usuario", ver 20261025110000). Se guarda
+// el último nombre tipeado en localStorage para no tener que reescribirlo
+// en cada autorización — igual queda editable cada vez.
+const PERFORMED_BY_STORAGE_KEY = "clippr:caja-auth-performed-by";
 
 /**
  * Modal compartido de contraseña de autorización — lo usan tanto "Corregir
@@ -37,11 +44,17 @@ export function AuthorizationModal({
   confirmLabel?: string;
   tone?: "default" | "danger";
   onCancel: () => void;
-  onSubmit: (password: string, reason: string, authorizedByName: string | null) => Promise<void>;
+  onSubmit: (
+    password: string,
+    reason: string,
+    authorizedByName: string | null,
+    performedByName: string | null,
+  ) => Promise<void>;
 }) {
   const [password, setPassword] = React.useState("");
   const [reason, setReason] = React.useState("");
   const [authorizedByName, setAuthorizedByName] = React.useState("");
+  const [performedByName, setPerformedByName] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
@@ -50,6 +63,9 @@ export function AuthorizationModal({
       setPassword("");
       setReason("");
       setAuthorizedByName("");
+      setPerformedByName(
+        typeof window !== "undefined" ? (localStorage.getItem(PERFORMED_BY_STORAGE_KEY) ?? "") : "",
+      );
       setError(null);
       setSubmitting(false);
     }
@@ -66,10 +82,17 @@ export function AuthorizationModal({
       setError("El motivo es obligatorio.");
       return;
     }
+    if (!performedByName.trim()) {
+      setError("Decí quién está haciendo este cambio.");
+      return;
+    }
     setSubmitting(true);
     setError(null);
     try {
-      await onSubmit(password, reason.trim(), authorizedByName.trim() || null);
+      await onSubmit(password, reason.trim(), authorizedByName.trim() || null, performedByName.trim());
+      if (typeof window !== "undefined") {
+        localStorage.setItem(PERFORMED_BY_STORAGE_KEY, performedByName.trim());
+      }
       setPassword("");
     } catch (e) {
       setError((e as Error).message || "No se pudo completar la operación");
@@ -138,6 +161,29 @@ export function AuthorizationModal({
               rows={2}
               className="w-full resize-none rounded-xl border border-white/10 bg-black/45 px-3 py-2 text-sm text-white outline-none focus:border-blue-300/50 focus:ring-2 focus:ring-blue-400/20"
               placeholder="Ej: se cobró de más por error de tipeo"
+            />
+          </div>
+          <div>
+            <div className="mb-1 flex items-center justify-between">
+              <label className="block text-[11px] font-semibold tracking-[0.1em] text-muted-foreground/70">
+                ¿QUIÉN HACE ESTE CAMBIO?
+              </label>
+              <span
+                className={cn(
+                  "text-[10px] tabular-nums",
+                  performedByName.length >= PERFORMED_BY_MAX_LENGTH ? "text-amber-300" : "text-muted-foreground/60",
+                )}
+              >
+                {performedByName.length}/{PERFORMED_BY_MAX_LENGTH}
+              </span>
+            </div>
+            <input
+              type="text"
+              value={performedByName}
+              onChange={(e) => setPerformedByName(e.target.value.slice(0, PERFORMED_BY_MAX_LENGTH))}
+              maxLength={PERFORMED_BY_MAX_LENGTH}
+              className="h-9 w-full rounded-xl border border-white/10 bg-black/45 px-3 text-sm text-white outline-none focus:border-blue-300/50 focus:ring-2 focus:ring-blue-400/20"
+              placeholder="Tu nombre"
             />
           </div>
           <div>
