@@ -243,10 +243,12 @@ function ActivityLogSection({ businessId }: { businessId: string }) {
         </span>
       }
     >
-      <p className="mb-3 text-xs text-muted-foreground">
+      <p className="text-xs text-muted-foreground">
         Todas las correcciones, anulaciones y eliminaciones de cobros del negocio — de más reciente a
         más antigua. Es de solo lectura: ningún registro de acá se puede editar ni borrar.
       </p>
+
+      <div className="my-3 border-t border-white/[0.08]" />
 
       {loading ? (
         <div className="flex items-center gap-2 py-6 text-xs text-muted-foreground">

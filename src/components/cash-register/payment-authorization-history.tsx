@@ -64,6 +64,22 @@ function methodLabel(m: unknown) {
   return PAY_METHOD_LABEL_LOCAL[String(m)] ?? String(m);
 }
 
+// "No disponible" — nunca un dato inventado: antes de la migración
+// 20261025060000, before_snapshot de corrección/anulación todavía no
+// guardaba client_name/service_name/employee_name (solo lo hacía
+// delete_payment_authorized) — un registro viejo puede legítimamente no
+// tenerlo. Distinto de "—" (que podría leerse como "vacío a propósito").
+const NOT_AVAILABLE = "No disponible";
+
+function LabeledItem({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <span className="min-w-0 truncate">
+      <span className="text-white/35">{label}: </span>
+      <span className="text-white/80">{value}</span>
+    </span>
+  );
+}
+
 export function AuthorizationLogRow({
   row,
   showPaymentRef = false,
@@ -96,19 +112,18 @@ export function AuthorizationLogRow({
   const newMethodRaw = row.actionType === "correction" ? (after.method ?? after.new_method ?? null) : null;
   const methodChanged = newMethodRaw != null && String(newMethodRaw) !== String(before.method ?? "");
 
+  // "Modificado por" (quién ejecutó la corrección/anulación/eliminación)
+  // — nunca confundir con "Profesional" (quién atendió la venta, abajo).
+  // performed_by_name ya viene resuelto server-side (coalesce contra el
+  // full_name real del empleado logueado); el fallback acá es solo por
+  // si esa columna llegara null en algún registro viejo.
+  const modifiedByName = row.performedByName ?? "Usuario sin nombre registrado";
+
   return (
-    <div className="border-b border-white/[0.06] py-2 last:border-0">
+    <div className="border-b border-white/[0.06] py-2.5 last:border-0">
       <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs">
         <span className="shrink-0 tabular-nums text-white/45">{fmtDT(row.createdAt)}</span>
         <span className={cn("shrink-0 font-bold", ACTION_TONE[row.actionType])}>{ACTION_LABEL[row.actionType]}</span>
-
-        {showPaymentRef && (
-          <span className="min-w-0 truncate text-white/75">
-            {before.client_name ?? "Cliente"}
-            {before.employee_name ? ` · ${before.employee_name}` : ""}
-            {before.service_name ? ` · ${before.service_name}` : ""}
-          </span>
-        )}
 
         <span className="shrink-0 font-semibold tabular-nums text-white">
           {amountChanged ? (
@@ -126,11 +141,6 @@ export function AuthorizationLogRow({
           </span>
         )}
 
-        <span className="min-w-0 truncate text-white/45">
-          {row.performedByName ?? "Usuario"}
-          {row.authorizedByName ? ` · autorizó ${row.authorizedByName}` : ""}
-        </span>
-
         <button
           type="button"
           onClick={() => setShowReason((v) => !v)}
@@ -138,6 +148,23 @@ export function AuthorizationLogRow({
         >
           {showReason ? "Ocultar motivo" : "Ver motivo"}
         </button>
+      </div>
+
+      {/* Segunda línea: identidades — quién es el cliente/profesional/
+          servicio de la venta (Cliente/Profesional/Servicio, solo en el
+          historial general, showPaymentRef) vs. quién hizo ESTA
+          modificación (Modificado por, siempre) — nunca mezclados en el
+          mismo campo. */}
+      <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[11px] text-white/55">
+        {showPaymentRef && (
+          <>
+            <LabeledItem label="Cliente" value={before.client_name ?? NOT_AVAILABLE} />
+            <LabeledItem label="Profesional" value={before.employee_name ?? NOT_AVAILABLE} />
+            <LabeledItem label="Servicio" value={before.service_name ?? NOT_AVAILABLE} />
+          </>
+        )}
+        <LabeledItem label="Modificado por" value={modifiedByName} />
+        {row.authorizedByName && <LabeledItem label="Autorizó" value={row.authorizedByName} />}
       </div>
 
       {showReason && (
