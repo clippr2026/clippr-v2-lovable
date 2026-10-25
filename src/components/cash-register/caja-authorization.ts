@@ -61,6 +61,27 @@ export async function voidPaymentAuthorized(
   return { newStatus: row?.new_status ?? "anulado" };
 }
 
+export type DeletePaymentAuthorizedInput = {
+  paymentId: string;
+  businessId: string;
+  password: string;
+  reason: string;
+};
+
+// Reutiliza la contraseña de "void" (ver 20261025050000_delete_payment_authorized.sql)
+// — eliminar un cobro es, si acaso, una anulación más fuerte (borrado
+// físico en vez de marcarlo anulado), no una categoría de acción distinta
+// que necesite su propia contraseña.
+export async function deletePaymentAuthorized(input: DeletePaymentAuthorizedInput): Promise<void> {
+  const { error } = await supabase.rpc("delete_payment_authorized" as any, {
+    p_payment_id: input.paymentId,
+    p_business_id: input.businessId,
+    p_password: input.password,
+    p_reason: input.reason,
+  });
+  if (error) throw new Error(rpcErrorMessage(error, "No se pudo eliminar el cobro"));
+}
+
 export type CorrectPaymentAuthorizedInput = {
   paymentId: string;
   businessId: string;

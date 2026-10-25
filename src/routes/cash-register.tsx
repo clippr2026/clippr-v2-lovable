@@ -63,7 +63,6 @@ import {
   PAY_METHOD_LABEL,
   ACTIVE_PAY_METHODS,
   registerPayment,
-  deletePayment,
   deleteProfessionalAdvance,
   type PayMethod,
 } from "@/components/cash-register/register-payment";
@@ -87,6 +86,7 @@ import { AuthorizationModal } from "@/components/cash-register/authorization-mod
 import {
   voidPaymentAuthorized,
   correctPaymentAuthorized,
+  deletePaymentAuthorized,
 } from "@/components/cash-register/caja-authorization";
 import {
   Search,
@@ -8723,7 +8723,7 @@ function DetailModal({
   // monta mientras el detalle está abierto (ver detailPayment && <...>
   // en History), así que el lock es simplemente "true" mientras exista.
   useBodyScrollLock(true);
-  const [deleting, setDeleting] = React.useState(false);
+  const [deleteAuthOpen, setDeleteAuthOpen] = React.useState(false);
   // Corregir cobro / Anular venta — protegidos por contraseña de
   // autorización (ver authorization-modal.tsx/caja-authorization.ts).
   // correctFormOpen: paso 1 (elegir los nuevos valores) — correctAuthOpen/
@@ -8928,25 +8928,17 @@ function DetailModal({
     onDeleted();
   }
 
-  async function handleDelete() {
-    if (deleting) return;
-    const confirmed = window.confirm(
-      isPendingOrParcial
-        ? `¿Eliminar esta venta de ${payment.client_name ?? empName ?? "cliente"} por $${Math.round(Number(payment.total ?? payment.amount ?? 0)).toLocaleString("es-AR")} (de la cual se cobraron $${Math.round(collectedAmount).toLocaleString("es-AR")})? No se puede deshacer: se borra la venta junto con todo su historial de cobros, su comisión y su propina asociadas.`
-        : `¿Eliminar este cobro de ${payment.client_name ?? empName ?? "cliente"} por $${totalCobrado.toLocaleString("es-AR")}? No se puede deshacer: se borra el pago junto con su comisión y su propina asociadas.`,
-    );
-    if (!confirmed) return;
-    setDeleting(true);
-    try {
-      if (!businessId) throw new Error("Falta business_id en este cobro");
-      await deletePayment(payment.id, businessId);
-      toast.success("Cobro eliminado");
-      onDeleted();
-    } catch (e) {
-      toast.error((e as Error).message || "No se pudo eliminar el cobro");
-    } finally {
-      setDeleting(false);
-    }
+  // "Eliminar cobro" — borrado físico (se lleva comisión/propina por
+  // cascade), la acción más destructiva de todas: pasa por la MISMA
+  // contraseña de autorización de "Anular venta" (ver
+  // delete_payment_authorized, 20261025050000) en vez de un window.confirm
+  // sin ningún control, como era antes.
+  async function submitDelete(password: string, reason: string) {
+    if (!businessId) throw new Error("Falta business_id en este cobro");
+    await deletePaymentAuthorized({ paymentId: payment.id, businessId, password, reason });
+    toast.success("Cobro eliminado");
+    setDeleteAuthOpen(false);
+    onDeleted();
   }
 
   if (typeof document === "undefined") return null;
@@ -8965,6 +8957,7 @@ function DetailModal({
     const productName = lineItem?.name ?? payment.service_name ?? "Producto";
 
     return createPortal(
+      <>
       <div
         className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4"
         onClick={onClose}
@@ -8987,11 +8980,10 @@ function DetailModal({
             </div>
             <div className="flex shrink-0 items-center gap-2">
               <button
-                onClick={handleDelete}
-                disabled={deleting}
+                onClick={() => setDeleteAuthOpen(true)}
                 className="rounded-lg bg-rose-500/10 hover:bg-rose-500/20 px-3 py-1.5 text-xs font-semibold text-rose-300 transition disabled:opacity-50"
               >
-                {deleting ? "Eliminando…" : "Eliminar cobro"}
+                Eliminar cobro
               </button>
               <button
                 onClick={onClose}
@@ -9053,7 +9045,17 @@ function DetailModal({
             <div className="h-4" />
           </div>
         </div>
-      </div>,
+      </div>
+      <AuthorizationModal
+        open={deleteAuthOpen}
+        title="Eliminar cobro"
+        tone="danger"
+        confirmLabel="Confirmar eliminación"
+        description={`Se borra definitivamente este retiro de ${payment.client_name ?? empName ?? "—"} por $${Math.round(Number(payment.total ?? payment.amount ?? 0)).toLocaleString("es-AR")}. No se puede deshacer.`}
+        onCancel={() => setDeleteAuthOpen(false)}
+        onSubmit={submitDelete}
+      />
+      </>,
       document.body,
     );
   }
@@ -9083,11 +9085,10 @@ function DetailModal({
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <button
-              onClick={handleDelete}
-              disabled={deleting}
+              onClick={() => setDeleteAuthOpen(true)}
               className="rounded-lg bg-rose-500/10 hover:bg-rose-500/20 px-3 py-1.5 text-xs font-semibold text-rose-300 transition disabled:opacity-50"
             >
-              {deleting ? "Eliminando…" : "Eliminar cobro"}
+              Eliminar cobro
             </button>
             <button
               onClick={onClose}
@@ -9407,6 +9408,15 @@ function DetailModal({
       description={`Se anula la venta de ${payment.client_name ?? empName ?? "cliente"} por $${totalCobrado.toLocaleString("es-AR")}. No borra el registro — queda marcada como anulada, de forma auditable.`}
       onCancel={() => setVoidAuthOpen(false)}
       onSubmit={submitVoid}
+    />
+    <AuthorizationModal
+      open={deleteAuthOpen}
+      title="Eliminar cobro"
+      tone="danger"
+      confirmLabel="Confirmar eliminación"
+      description={`Se borra definitivamente esta venta de ${payment.client_name ?? empName ?? "cliente"} por $${totalCobrado.toLocaleString("es-AR")}, junto con su comisión y propina asociadas. No se puede deshacer.`}
+      onCancel={() => setDeleteAuthOpen(false)}
+      onSubmit={submitDelete}
     />
     </>,
     document.body,
