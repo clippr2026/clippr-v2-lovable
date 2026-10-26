@@ -21,6 +21,44 @@ export type CajaEvento = {
   [key: string]: unknown;
 };
 
+// Estados de payments que NUNCA deben contarse como ingreso válido ni
+// como dinero disponible en Caja/Cierre — una venta anulada o reembolsada
+// sigue existiendo (para trazabilidad en el historial), pero no aportó
+// (o dejó de aportar) plata real. Bug real (26/10/2026): varios lugares
+// de Caja solo excluían 'pendiente'/'parcial' y se olvidaban de estos dos,
+// así que una venta anulada seguía sumando en Ingresos/Dinero en cuenta/
+// Movimientos como si siguiera cobrada. Centralizado acá para que no
+// vuelva a pasar en un quinto lugar nuevo — cualquier cálculo de Caja que
+// sume payments.total/amount tiene que pasar por este chequeo.
+export function isVoidedPaymentStatus(status: string | null | undefined): boolean {
+  return status === "anulado" || status === "reembolsado";
+}
+
+// Un pago NUNCA debe sumar en Caja si está pendiente/parcial (su plata real
+// sale de payment_collections, no de total/amount) o si está anulado/
+// reembolsado (no aportó plata real). Úsalo en vez de repetir la lista de
+// estados a mano en cada cálculo nuevo.
+export function isCountableCajaPayment(status: string | null | undefined): boolean {
+  return status !== "pendiente" && status !== "parcial" && !isVoidedPaymentStatus(status);
+}
+
+// Color de una fila "pago" en el historial unificado de Caja. Una venta
+// anulada/reembolsada siempre va en gris (trazabilidad, nunca como ingreso
+// activo). Un pago normal con monto negativo (ajuste de un día ya cerrado,
+// ver void_payment_authorized/correct_payment_authorized — 26/10/2026)
+// tiene que ir en rojo con signo "-", nunca en verde con "+" como si fuera
+// plata entrando — antes de esto, cualquier ajuste negativo se mostraba
+// igual que un cobro normal.
+export type PagoRowColor = "verde" | "rojo" | "gris";
+
+export function pagoRowColor(
+  status: string | null | undefined,
+  amount: number,
+): PagoRowColor {
+  if (isVoidedPaymentStatus(status)) return "gris";
+  return amount < 0 ? "rojo" : "verde";
+}
+
 export function cajaEventosArray(value: unknown): CajaEvento[] {
   return Array.isArray(value) ? (value as CajaEvento[]) : [];
 }
@@ -969,8 +1007,9 @@ export function computeExpectedCashAndDigital(params: {
     // pendiente/parcial: cero acá — toda su plata (la cobrada al vender Y
     // cualquier cobro posterior) se cuenta vía `collections`, más abajo,
     // fechada el día real del cobro. 'cobrado'/undefined (filas de antes de
-    // este concepto) siguen su comportamiento de siempre.
-    if (p.status === "pendiente" || p.status === "parcial") continue;
+    // este concepto) siguen su comportamiento de siempre. anulado/
+    // reembolsado: tampoco aportan plata real (ver isCountableCajaPayment).
+    if (!isCountableCajaPayment(p.status)) continue;
     const monto = Number(p.total ?? p.amount ?? 0);
     const propina = Number(p.tip_amount ?? p.tip ?? 0);
     const dist = distributeCobroByMethod(monto, propina, p.method ?? p.payment_method, p.splits);

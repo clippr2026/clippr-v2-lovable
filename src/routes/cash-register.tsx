@@ -42,6 +42,8 @@ import {
   type CajaMovimientoManual,
   type Conciliacion,
   distributeCobroByMethod,
+  isCountableCajaPayment,
+  pagoRowColor,
 } from "@/lib/caja-cierre";
 import { SaldoComposicionLado, SaldoComposicionModal } from "@/components/caja/saldo-composicion";
 import { useCashMovements, type CashMovement } from "@/hooks/use-cash-movements";
@@ -9749,7 +9751,11 @@ function movimientoRow(m: CashMovement) {
 // "Cobrar pendientes" dentro de FacturacionPanel sigue intacto) — este feed
 // es solo para visualizar, no duplica esa interacción.
 type UnifiedMovKind = "pago" | "gasto" | "pendiente" | "movimiento" | "venta_pendiente";
-type UnifiedMovColor = "verde" | "rojo" | "ambar";
+// "gris" — venta anulada/reembolsada: sigue visible en el historial (nunca
+// se saca, se necesita para trazabilidad), pero nunca en verde como si
+// fuera un ingreso activo. No suma en ningún total (ver
+// isCountableCajaPayment) — acá es puramente visual.
+type UnifiedMovColor = "verde" | "rojo" | "ambar" | "gris";
 
 // Una venta con saldo (payments.status en pendiente/parcial — ver
 // 20261023010000_pending_payments_schema.sql), agrupada con TODOS sus
@@ -9825,6 +9831,12 @@ const UNIFIED_COLOR_CLASSES: Record<
     border: "border-l-sky-300/80",
     bg: "bg-sky-500/[0.075]",
     bgMobile: "bg-sky-500/[0.11]",
+  },
+  gris: {
+    text: "text-muted-foreground line-through",
+    border: "border-l-white/15",
+    bg: "bg-white/[0.02]",
+    bgMobile: "bg-white/[0.03]",
   },
 };
 
@@ -9918,17 +9930,21 @@ function buildUnifiedMovements(
 
   // Ventas cobradas por completo en el momento (status='cobrado', nunca
   // pasaron por el ledger de pendientes) — sin cambios respecto de
-  // siempre.
+  // siempre. anulado/reembolsado: SIGUE apareciendo (trazabilidad, nunca
+  // se saca del historial), pero en gris, nunca en verde como si fuera un
+  // ingreso activo — su monto es solo informativo acá, no suma en ningún
+  // total (ver isCountableCajaPayment, bug real 26/10/2026).
   for (const p of paymentsToday) {
     if (p.status === "pendiente" || p.status === "parcial") continue;
     const raw = (p as { sort_ts?: string | null }).sort_ts ?? p.created_at;
     const ts = raw ? new Date(raw).getTime() : 0;
+    const montoConPropina = Number(p.total ?? p.amount ?? 0) + Number(p.tip_amount ?? 0);
     items.push({
       id: `pago-${p.id}`,
       kind: "pago",
       ts: Number.isFinite(ts) ? ts : 0,
-      color: "verde",
-      amount: Number(p.total ?? p.amount ?? 0) + Number(p.tip_amount ?? 0),
+      color: pagoRowColor(p.status, montoConPropina),
+      amount: montoConPropina,
       payment: p,
     });
   }
@@ -10035,12 +10051,19 @@ function unifiedMovView(
     );
     const servicio = getSaleDetailLabel(paymentRecord);
     const nota = getCashRowNote(paymentRecord, servicio);
+    // anulado/reembolsado: mismo monto a la vista (trazabilidad), pero
+    // marcado como tal — nunca "Ingreso" a secas, para que no se confunda
+    // con un cobro activo aunque alguien no repare en el color gris.
+    const voidedLabel =
+      p.status === "anulado" ? "Anulada" : p.status === "reembolsado" ? "Reembolsada" : null;
     return {
-      typeLabel: "Ingreso",
+      typeLabel: voidedLabel ? `Venta ${voidedLabel.toLowerCase()}` : "Ingreso",
       fecha: formatArgFecha(dt),
       hora: formatArgHora(dt),
       quien: `${chargedByName} → Cobró`,
-      clienteOConcepto: p.client_name ?? "—",
+      clienteOConcepto: voidedLabel
+        ? `${p.client_name ?? "—"} (${voidedLabel})`
+        : p.client_name ?? "—",
       profesional: empName,
       servicio,
       metodoLabel: getPaymentMethodLabel(paymentRecord),
@@ -10134,7 +10157,7 @@ function UnifiedMovRow({
 }) {
   const view = unifiedMovView(item, employees);
   const colorCls = UNIFIED_COLOR_CLASSES[item.color];
-  const sign = item.color === "rojo" ? "-" : "+";
+  const sign = item.color === "rojo" ? "-" : item.color === "gris" ? "" : "+";
   return (
     <div
       className={cn(
@@ -10195,7 +10218,7 @@ function UnifiedMovCardMobile({
 }) {
   const view = unifiedMovView(item, employees);
   const colorCls = UNIFIED_COLOR_CLASSES[item.color];
-  const sign = item.color === "rojo" ? "-" : "+";
+  const sign = item.color === "rojo" ? "-" : item.color === "gris" ? "" : "+";
   return (
     <div
       className={cn(
@@ -10682,8 +10705,9 @@ function MovimientosUnificados({
       // posterior) se cuenta exclusivamente vía collSource, más abajo —
       // sumar acá TAMBIÉN payment.total mostraría el total de la venta
       // como si estuviera cobrado por ese medio, mismo bug que ya se
-      // corrigió en computeExpectedCashAndDigital.
-      if (payment.status === "pendiente" || payment.status === "parcial") continue;
+      // corrigió en computeExpectedCashAndDigital. anulado/reembolsado:
+      // tampoco (bug real 26/10/2026, ver isCountableCajaPayment).
+      if (!isCountableCajaPayment(payment.status)) continue;
       const method = String(payment.method ?? payment.payment_method ?? "cash");
       if (!groups[method]) groups[method] = { method, total: 0, count: 0 };
       groups[method].total += Number(payment.total ?? payment.amount ?? 0);

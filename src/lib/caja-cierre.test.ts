@@ -10,6 +10,9 @@ import {
   filterToDayBA,
   isCajaCerradaRow,
   isCajaReabiertaRow,
+  isCountableCajaPayment,
+  isVoidedPaymentStatus,
+  pagoRowColor,
   normalizeCierreMethodKey,
   pendingDatesFromActivity,
   splitServiciosYProductos,
@@ -511,6 +514,181 @@ describe("computeExpectedCashAndDigital — propinas: entran a caja, nunca a la 
       cashMovements: [],
     });
     expect(result.cashExpected).toBe(30000);
+  });
+});
+
+// Bug real (26/10/2026): una venta anulada seguía sumando en Ingresos y en
+// Dinero en cuenta/efectivo esperado, como si siguiera cobrada — varios
+// lugares de Caja solo excluían 'pendiente'/'parcial' y se olvidaban de
+// 'anulado'/'reembolsado'. isVoidedPaymentStatus/isCountableCajaPayment
+// son el único punto de verdad ahora — estos tests cubren la función
+// compartida (los 4 lugares que la usan quedan protegidos por extensión:
+// use-caja-summary.ts revHoy/cobros, computeExpectedCashAndDigital,
+// closeoutByMethod y el historial unificado en cash-register.tsx).
+describe("isVoidedPaymentStatus / isCountableCajaPayment — estados que nunca cuentan como ingreso", () => {
+  it("anulado y reembolsado son 'voided'", () => {
+    expect(isVoidedPaymentStatus("anulado")).toBe(true);
+    expect(isVoidedPaymentStatus("reembolsado")).toBe(true);
+  });
+
+  it("cobrado, pendiente, parcial y null/undefined no son 'voided'", () => {
+    expect(isVoidedPaymentStatus("cobrado")).toBe(false);
+    expect(isVoidedPaymentStatus("pendiente")).toBe(false);
+    expect(isVoidedPaymentStatus("parcial")).toBe(false);
+    expect(isVoidedPaymentStatus(null)).toBe(false);
+    expect(isVoidedPaymentStatus(undefined)).toBe(false);
+  });
+
+  it("isCountableCajaPayment excluye los 4 estados que nunca aportan plata real", () => {
+    expect(isCountableCajaPayment("pendiente")).toBe(false);
+    expect(isCountableCajaPayment("parcial")).toBe(false);
+    expect(isCountableCajaPayment("anulado")).toBe(false);
+    expect(isCountableCajaPayment("reembolsado")).toBe(false);
+  });
+
+  it("isCountableCajaPayment cuenta 'cobrado' y filas viejas sin status (undefined)", () => {
+    expect(isCountableCajaPayment("cobrado")).toBe(true);
+    expect(isCountableCajaPayment(undefined)).toBe(true);
+    expect(isCountableCajaPayment(null)).toBe(true);
+  });
+});
+
+describe("computeExpectedCashAndDigital — ventas anuladas/reembolsadas/restablecidas", () => {
+  it("una venta anulada en efectivo NO suma al efectivo esperado", () => {
+    const result = computeExpectedCashAndDigital({
+      payments: [
+        { total: 20000, method: "cash", status: "cobrado" },
+        { total: 9000, method: "cash", status: "anulado" },
+      ],
+      expenses: [],
+      advances: [],
+      cashMovements: [],
+    });
+    expect(result.cashExpected).toBe(20000);
+  });
+
+  it("una venta reembolsada por transferencia NO suma al dinero en cuenta esperado", () => {
+    const result = computeExpectedCashAndDigital({
+      payments: [
+        { total: 15000, method: "transfer", status: "cobrado" },
+        { total: 21900, method: "transfer", status: "reembolsado" },
+      ],
+      expenses: [],
+      advances: [],
+      cashMovements: [],
+    });
+    expect(result.digitalExpected).toBe(15000);
+  });
+
+  it("restablecer una venta (vuelve a status='cobrado') la hace contar exactamente una vez", () => {
+    const anulada = { total: 21900, method: "transfer" as const, status: "anulado" };
+    const restablecida = { ...anulada, status: "cobrado" };
+    const soloAnulada = computeExpectedCashAndDigital({
+      payments: [anulada],
+      expenses: [],
+      advances: [],
+      cashMovements: [],
+    });
+    const soloRestablecida = computeExpectedCashAndDigital({
+      payments: [restablecida],
+      expenses: [],
+      advances: [],
+      cashMovements: [],
+    });
+    expect(soloAnulada.digitalExpected).toBe(0);
+    expect(soloRestablecida.digitalExpected).toBe(21900);
+  });
+
+  it("cobro mixto: cobrado + anulado + reembolsado + pendiente en el mismo día, solo el cobrado cuenta", () => {
+    const result = computeExpectedCashAndDigital({
+      payments: [
+        { total: 20000, method: "cash", status: "cobrado" },
+        { total: 9000, method: "cash", status: "anulado" },
+        { total: 21900, method: "transfer", status: "reembolsado" },
+        { total: 30000, method: "transfer", status: "pendiente" },
+      ],
+      expenses: [],
+      advances: [],
+      cashMovements: [],
+    });
+    expect(result.cashExpected).toBe(20000);
+    expect(result.digitalExpected).toBe(0);
+  });
+});
+
+// Guarda estructural: si alguien agrega un QUINTO lugar en Caja que suma
+// payments.total/amount filtrando a mano por status, y se olvida de pasar
+// por isCountableCajaPayment/isVoidedPaymentStatus, este test no detecta
+// ESE caso nuevo (no hay forma genérica de auditar código no escrito
+// todavía) — pero sí asegura que los 4 lugares ya conocidos donde pasó
+// este bug real sigan usando la función compartida, en vez de volver a un
+// chequeo manual de 'pendiente'/'parcial' que se olvide de anulado.
+describe("Guarda contra la reaparición del bug de ventas anuladas en Caja (26/10/2026)", () => {
+  const repoRootForGuard = path.resolve(__dirname, "..", "..");
+  const readGuardSrc = (rel: string) => fs.readFileSync(path.join(repoRootForGuard, rel), "utf8");
+
+  it("caja-cierre.ts: computeExpectedCashAndDigital usa isCountableCajaPayment, no un chequeo manual", () => {
+    const src = readGuardSrc("src/lib/caja-cierre.ts");
+    expect(src).toMatch(/if \(!isCountableCajaPayment\(p\.status\)\) continue;/);
+  });
+
+  it("use-caja-summary.ts: revHoy y cobros usan isCountableCajaPayment", () => {
+    const src = readGuardSrc("src/hooks/use-caja-summary.ts");
+    expect(src).toMatch(/isCountableCajaPayment\(p\.status\)/);
+    expect(src.match(/isCountableCajaPayment/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
+  });
+
+  it("cash-register.tsx: closeoutByMethod usa isCountableCajaPayment", () => {
+    const src = readGuardSrc("src/routes/cash-register.tsx");
+    expect(src).toMatch(/if \(!isCountableCajaPayment\(payment\.status\)\) continue;/);
+  });
+
+  it("cash-register.tsx: el historial unificado usa pagoRowColor, no un chequeo manual de color", () => {
+    const src = readGuardSrc("src/routes/cash-register.tsx");
+    expect(src).toMatch(/color: pagoRowColor\(p\.status, montoConPropina\)/);
+  });
+});
+
+// pagoRowColor: una venta anulada/reembolsada siempre gris; un ajuste con
+// monto negativo (venta anulada de un día ya cerrado, ver
+// void_payment_authorized) tiene que ir en rojo, nunca en verde con "+"
+// como si fuera plata entrando.
+describe("pagoRowColor — color correcto según estado y signo del monto", () => {
+  it("anulado/reembolsado siempre gris, sin importar el signo del monto", () => {
+    expect(pagoRowColor("anulado", 20000)).toBe("gris");
+    expect(pagoRowColor("reembolsado", -20000)).toBe("gris");
+  });
+
+  it("cobrado con monto positivo es verde", () => {
+    expect(pagoRowColor("cobrado", 20000)).toBe("verde");
+  });
+
+  it("cobrado con monto negativo (ajuste a la baja) es rojo, nunca verde", () => {
+    expect(pagoRowColor("cobrado", -20000)).toBe("rojo");
+  });
+
+  it("monto cero es verde (no hay nada que mostrar como negativo)", () => {
+    expect(pagoRowColor("cobrado", 0)).toBe("verde");
+  });
+});
+
+// Bug real (26/10/2026): anular una venta de un día YA CERRADO no dejaba
+// ningún rastro en Caja de hoy — el cierre histórico (correcto) seguía
+// con su total_cobrado de siempre, pero la plata "desaparecía" sin ningún
+// movimiento compensándola. Fix: void_payment_authorized/
+// restore_payment_authorized (ver supabase/migrations/
+// 20261026010000_void_closed_day_cash_adjustment.sql) insertan un
+// cash_movements (retiro/ingreso) ligado por sale_id, SQL puro — no hay
+// código de frontend que probar acá, solo documentamos la referencia para
+// quien busque el test de este caso.
+describe("Ajuste de caja por anulación de venta de día cerrado (26/10/2026)", () => {
+  it("referencia: la lógica vive en la migración SQL, probada manualmente en entorno aislado (ver migración para el detalle)", () => {
+    const src = readSrc(
+      "supabase/migrations/20261026010000_void_closed_day_cash_adjustment.sql",
+    );
+    expect(src).toMatch(/AJUSTE-ANULACION/);
+    expect(src).toMatch(/AJUSTE-RESTABLECIMIENTO/);
+    expect(src).toMatch(/sale_id/);
   });
 });
 
