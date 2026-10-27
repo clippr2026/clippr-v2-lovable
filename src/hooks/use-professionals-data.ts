@@ -6,6 +6,7 @@ import {
   withOperativeDates,
   type PendingSaleRow,
   type LiquidacionRecoveredRow,
+  type HistorialVentaAnuladaRow,
 } from "@/lib/historial-movimientos";
 
 /**
@@ -663,6 +664,148 @@ export async function resolveOperativeDates<
     (data ?? []).map((p: any) => [p.id, { created_at: p.created_at as string | null, status: p.status as string | null }]),
   );
   return withOperativeDates(rows, infoBySaleId);
+}
+
+// "Venta anulada" (ver 20261026020000_void_adjustment_settlement_tracking.sql)
+// — commission_adjustment_queue + sus joins resueltos a mano: payments
+// (datos de la venta), commission_records (% y la liquidación ORIGINAL
+// donde se pagó), settlement_runs (número de esa liquidación y de la que
+// compensó, si ya compensó), payment_authorization_log (motivo/quién
+// anuló/quién autorizó, vía authorization_log_id), employees (nombre del
+// profesional). Varios fetches simples + merge en JS en vez de un select
+// anidado de PostgREST — commission_adjustment_queue no tiene una FK
+// directa a la liquidación ORIGINAL (sale indirectamente de
+// commission_records.settlement_run_id, dos saltos), así que un embed
+// anidado no alcanza en un solo viaje. Mismo criterio que
+// resolveOperativeDates, arriba. Compartida por Caja > Liquidaciones
+// (sin professionalId, trae las de todo el negocio) y por Panel del
+// profesional (useProfVentasAnuladas, abajo, con professionalId).
+export async function fetchVentasAnuladas(
+  businessId: string,
+  professionalId?: string | null,
+): Promise<HistorialVentaAnuladaRow[]> {
+  let query = supabase
+    .from("commission_adjustment_queue" as any)
+    .select(
+      "id,sale_id,professional_id,commission_amount,reason,created_at,applied_settlement_run_id,authorization_log_id,kind",
+    )
+    .eq("business_id", businessId);
+  if (professionalId) query = query.eq("professional_id", professionalId);
+  const { data: queueData, error: queueError } = await query;
+  if (queueError) throw new Error(queueError.message);
+  const rows = (queueData ?? []) as any[];
+  if (rows.length === 0) return [];
+
+  const saleIds = Array.from(new Set(rows.map((r) => r.sale_id).filter(Boolean)));
+  const profIds = Array.from(new Set(rows.map((r) => r.professional_id).filter(Boolean)));
+  const logIds = Array.from(new Set(rows.map((r) => r.authorization_log_id).filter(Boolean)));
+
+  const [salesRes, commissionsRes, employeesRes, logsRes] = await Promise.all([
+    saleIds.length
+      ? supabase
+          .from("payments" as any)
+          .select("id,created_at,client_name,service_name,total,amount,method,payment_method")
+          .in("id", saleIds)
+      : Promise.resolve({ data: [] as any[], error: null }),
+    saleIds.length
+      ? supabase.from("commission_records" as any).select("sale_id,commission_pct,settlement_run_id").in("sale_id", saleIds)
+      : Promise.resolve({ data: [] as any[], error: null }),
+    profIds.length
+      ? supabase.from("employees" as any).select("id,full_name").in("id", profIds)
+      : Promise.resolve({ data: [] as any[], error: null }),
+    logIds.length
+      ? supabase
+          .from("payment_authorization_log" as any)
+          .select("id,reason,performed_by_name,authorized_by_name")
+          .in("id", logIds)
+      : Promise.resolve({ data: [] as any[], error: null }),
+  ]);
+  if (salesRes.error) throw new Error(salesRes.error.message);
+  if (commissionsRes.error) throw new Error(commissionsRes.error.message);
+  if (employeesRes.error) throw new Error(employeesRes.error.message);
+  if (logsRes.error) throw new Error(logsRes.error.message);
+
+  const originalRunIds = Array.from(
+    new Set((commissionsRes.data ?? []).map((c: any) => c.settlement_run_id).filter(Boolean)),
+  );
+  const appliedRunIds = Array.from(new Set(rows.map((r) => r.applied_settlement_run_id).filter(Boolean)));
+  const allRunIds = Array.from(new Set([...originalRunIds, ...appliedRunIds]));
+  const runsRes = allRunIds.length
+    ? await supabase.from("settlement_runs" as any).select("id,run_number,prepared_at").in("id", allRunIds)
+    : { data: [] as any[], error: null };
+  if (runsRes.error) throw new Error(runsRes.error.message);
+
+  const saleById = Object.fromEntries((salesRes.data ?? []).map((p: any) => [p.id, p]));
+  const commissionBySaleId = Object.fromEntries((commissionsRes.data ?? []).map((c: any) => [c.sale_id, c]));
+  const employeeById = Object.fromEntries((employeesRes.data ?? []).map((e: any) => [e.id, e]));
+  const logById = Object.fromEntries((logsRes.data ?? []).map((l: any) => [l.id, l]));
+  const runById = Object.fromEntries((runsRes.data ?? []).map((r: any) => [r.id, r]));
+
+  return rows.map((r): HistorialVentaAnuladaRow => {
+    const sale = saleById[r.sale_id] ?? {};
+    const commission = commissionBySaleId[r.sale_id] ?? {};
+    // log: null para filas viejas sin authorization_log_id (de antes de
+    // 20261026020000) — ahí cae al reason ya compuesto en la propia cola
+    // ("Venta anulada (ya liquidada) — <motivo>"), sin quién anuló/autorizó
+    // por separado (esa info no quedaba linkeada todavía).
+    const log = r.authorization_log_id ? logById[r.authorization_log_id] : undefined;
+    const originalRun = commission.settlement_run_id ? runById[commission.settlement_run_id] : undefined;
+    const appliedRun = r.applied_settlement_run_id ? runById[r.applied_settlement_run_id] : undefined;
+    return {
+      id: r.id,
+      saleId: r.sale_id,
+      saleCreatedAt: sale.created_at ?? null,
+      clientName: sale.client_name ?? null,
+      serviceName: sale.service_name ?? null,
+      saleTotal: Number(sale.total ?? sale.amount ?? 0),
+      method: sale.method ?? sale.payment_method ?? null,
+      commissionPct: commission.commission_pct != null ? Number(commission.commission_pct) : null,
+      commissionAmount: Number(r.commission_amount ?? 0),
+      kind: r.kind === "credito" ? "credito" : "deduccion",
+      reason: log?.reason ?? r.reason ?? null,
+      performedByName: log?.performed_by_name ?? null,
+      authorizedByName: log?.authorized_by_name ?? null,
+      voidedAt: r.created_at,
+      professionalId: r.professional_id,
+      professionalName: employeeById[r.professional_id]?.full_name ?? null,
+      originalSettlementRunNumber: originalRun?.run_number ?? null,
+      appliedSettlementRunId: r.applied_settlement_run_id ?? null,
+      appliedSettlementRunNumber: appliedRun?.run_number ?? null,
+      appliedAt: appliedRun?.prepared_at ?? null,
+    };
+  });
+}
+
+// Panel del profesional > Movimientos — mismo patrón que useProfAdvances
+// (arriba): react-query + canal realtime propio de commission_adjustment_queue,
+// invalidando el query en cualquier cambio (insert al anular, update al
+// compensar/restablecer).
+export function useProfVentasAnuladas(businessId: string | null, empId: string | null) {
+  const qc = useQueryClient();
+
+  const query = useQuery({
+    queryKey: ["prof-ventas-anuladas", businessId, empId],
+    queryFn: () => fetchVentasAnuladas(businessId!, empId),
+    enabled: !!businessId && !!empId,
+    staleTime: 30_000,
+  });
+
+  React.useEffect(() => {
+    if (!businessId || !empId) return;
+    const channel = supabase
+      .channel(`prof-ventas-anuladas-${empId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "commission_adjustment_queue", filter: `professional_id=eq.${empId}` },
+        () => qc.invalidateQueries({ queryKey: ["prof-ventas-anuladas", businessId, empId] }),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [businessId, empId, qc]);
+
+  return query;
 }
 
 export function useProfCommissionRecords(businessId: string | null, empId: string | null) {

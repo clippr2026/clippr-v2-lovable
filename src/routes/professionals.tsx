@@ -25,7 +25,7 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   useProfessionals, useProfPayments,
   useProfTurnos,
-  useProfSettlementRuns, useProfSettlementRunPayments, useProfAdvances,
+  useProfSettlementRuns, useProfSettlementRunPayments, useProfAdvances, useProfVentasAnuladas,
   useProfCommissionRecords, useProfTipRecords,
   useProfCommissionEvents, useProfTipEvents,
   useConfirmSettlementRun, useObserveSettlementRun,
@@ -48,12 +48,14 @@ import {
   type MovimientoAjuste,
   type MovimientoDeduccion,
   type HistorialAdvanceRow,
+  type HistorialVentaAnuladaRow,
 } from "@/lib/historial-movimientos";
 import {
   PagoDetalleContent,
   AdelantoDetalleContent,
   AjusteDetalleContent,
   DeduccionDetalleContent,
+  VentaAnuladaDetalleContent,
   type PagoDetalleService,
 } from "@/components/liquidaciones/movimiento-detalle-content";
 import {
@@ -2081,6 +2083,7 @@ function LiquidacionesPanelView({
   const { data: runs = [], isLoading: loadingRuns } = useProfSettlementRuns(businessId, empId);
   const { data: payments = [], isLoading: loadingPayments } = useProfSettlementRunPayments(businessId, empId);
   const { data: advances = [], isLoading: loadingAdvances } = useProfAdvances(businessId, empId);
+  const { data: ventasAnuladas = [] } = useProfVentasAnuladas(businessId, empId);
   const { data: commissionRecords = [], isLoading: loadingCommissionRecords } = useProfCommissionRecords(businessId, empId);
   const { data: tipRecords = [], isLoading: loadingTipRecords } = useProfTipRecords(businessId, empId);
   const { data: commissionEvents = [] } = useProfCommissionEvents(businessId, empId);
@@ -2168,12 +2171,13 @@ function LiquidacionesPanelView({
   // mismo contenido que usa Caja > Liquidaciones > Movimientos, ver
   // src/components/liquidaciones/. Un solo estado de "kind" controla cuál
   // de los cuatro contenidos se muestra, nunca más de uno a la vez.
-  const [movimientoDetailKind, setMovimientoDetailKind] = useState<"pago" | "adelanto" | "ajuste" | "deduccion" | null>(null);
+  const [movimientoDetailKind, setMovimientoDetailKind] = useState<"pago" | "adelanto" | "ajuste" | "deduccion" | "venta_anulada" | null>(null);
   const [movimientoDetailRun, setMovimientoDetailRun] = useState<SettlementRun | null>(null);
   const [movimientoDetailMovementNumber, setMovimientoDetailMovementNumber] = useState<number | null>(null);
   const [movimientoDetailAdvance, setMovimientoDetailAdvance] = useState<HistorialAdvanceRow | null>(null);
   const [movimientoDetailAjuste, setMovimientoDetailAjuste] = useState<MovimientoAjuste | null>(null);
   const [movimientoDetailDeduccion, setMovimientoDetailDeduccion] = useState<MovimientoDeduccion | null>(null);
+  const [movimientoDetailVentaAnulada, setMovimientoDetailVentaAnulada] = useState<HistorialVentaAnuladaRow | null>(null);
   const [movimientoDetailServices, setMovimientoDetailServices] = useState<PagoDetalleService[] | null>(null);
   const [loadingMovimientoDetailServices, setLoadingMovimientoDetailServices] = useState(false);
 
@@ -2184,6 +2188,7 @@ function LiquidacionesPanelView({
     setMovimientoDetailAdvance(null);
     setMovimientoDetailAjuste(null);
     setMovimientoDetailDeduccion(null);
+    setMovimientoDetailVentaAnulada(null);
     setMovimientoDetailServices(null);
   }
 
@@ -2216,6 +2221,11 @@ function LiquidacionesPanelView({
   function openDeduccionDetalle(item: MovimientoDeduccion) {
     setMovimientoDetailKind("deduccion");
     setMovimientoDetailDeduccion(item);
+  }
+
+  function openVentaAnuladaDetalle(data: HistorialVentaAnuladaRow) {
+    setMovimientoDetailKind("venta_anulada");
+    setMovimientoDetailVentaAnulada(data);
   }
 
   async function openServicios(runId: string) {
@@ -2259,14 +2269,25 @@ function LiquidacionesPanelView({
     () => runs.filter((r) => !closedRunIds.has(r.id)),
     [runs, closedRunIds],
   );
+  // Mismo criterio que openAdvances: una "Venta anulada" ya compensada en
+  // una liquidación que ya está efectivamente cerrada pasa a Historial,
+  // no a Movimientos — la pendiente (sin compensar todavía) siempre queda
+  // acá, no tiene settlement_run_id que pueda estar cerrado.
+  const openVentasAnuladas = React.useMemo(
+    () =>
+      ventasAnuladas.filter(
+        (v) => !v.appliedSettlementRunId || !closedRunIds.has(v.appliedSettlementRunId),
+      ),
+    [ventasAnuladas, closedRunIds],
+  );
 
   // Mismo timeline que Caja > Historial: pagos agrupados por Movimiento #
   // (un pago múltiple con varios métodos es UNA sola card) y adelantos,
   // mezclados y ordenados por fecha — ya sin nada de liquidaciones
   // cerradas (ver closedRunIds arriba).
   const movimientos = React.useMemo(
-    () => buildHistorialMovimientos(openPayments, openAdvances, openRuns),
-    [openPayments, openAdvances, openRuns],
+    () => buildHistorialMovimientos(openPayments, openAdvances, openRuns, openVentasAnuladas),
+    [openPayments, openAdvances, openRuns, openVentasAnuladas],
   );
 
   // Lista única de Movimientos: ventas con comisión todavía pendiente +
@@ -2675,6 +2696,31 @@ function LiquidacionesPanelView({
               );
             }
 
+            if (item.kind === "venta_anulada") {
+              const v = item.data;
+              const isCompensado = Boolean(v.appliedSettlementRunId);
+              const isCredito = v.kind === "credito";
+              const estadoLabel = isCompensado ? "Compensado" : "Pendiente";
+              return (
+                <MovRow
+                  key={`venta_anulada-${v.id}`}
+                  dateTime={dateTime}
+                  cliente={v.clientName ?? "—"}
+                  concepto={
+                    isCredito ? `Crédito restablecimiento · ${estadoLabel}` : `Venta anulada · ${estadoLabel}`
+                  }
+                  precioText={`${isCredito ? "+" : "-"}${money(v.commissionAmount)}`}
+                  precioClass={isCredito ? "text-emerald-300" : "text-violet-300"}
+                  detalle={
+                    isCredito
+                      ? `Restablecido por ${displayResponsable(v.performedByName)}`
+                      : `Anulado por ${displayResponsable(v.performedByName)}`
+                  }
+                  onToggle={() => openVentaAnuladaDetalle(v)}
+                />
+              );
+            }
+
             const run = runsById.get(item.settlementRunId) ?? null;
             const lastPayment = item.splits[item.splits.length - 1];
             const paidBy = displayResponsable(item.splits[0]?.paid_by_name);
@@ -2787,6 +2833,9 @@ function LiquidacionesPanelView({
               items: movimientoDetailDeduccion.items,
             }}
           />
+        )}
+        {movimientoDetailKind === "venta_anulada" && movimientoDetailVentaAnulada && (
+          <VentaAnuladaDetalleContent data={movimientoDetailVentaAnulada} />
         )}
       </AgendaCenteredModal>
 

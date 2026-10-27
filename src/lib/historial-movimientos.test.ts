@@ -9,6 +9,7 @@ import {
   withOperativeDates,
   type HistorialAdvanceRow,
   type HistorialPaymentRow,
+  type HistorialVentaAnuladaRow,
   type LiquidacionAdvanceSummaryRow,
   type LiquidacionPendingRow,
   type LiquidacionRunSummaryRow,
@@ -118,6 +119,123 @@ describe("buildHistorialMovimientos — Movimientos respeta el corte elegido", (
     expect(items).toHaveLength(1);
     expect(items[0].kind).toBe("pago");
     if (items[0].kind === "pago") expect(items[0].totalAmount).toBe(20000);
+  });
+});
+
+// "Venta anulada" (ver 20261026020000_void_adjustment_settlement_tracking.sql)
+// — caso de referencia real: venta #1CB24B (26/10/2026), anulada con la
+// comisión ya liquidada. Pendiente hasta que prepare_settlement_run la
+// compensa de verdad en una liquidación nueva.
+describe("buildHistorialMovimientos — 'Venta anulada' (commission_adjustment_queue)", () => {
+  function makeVentaAnulada(overrides: Partial<HistorialVentaAnuladaRow>): HistorialVentaAnuladaRow {
+    return {
+      id: "caq-1",
+      saleId: "92eb4bb2-68c6-4e2f-9a42-b024471cb24b",
+      saleCreatedAt: "2026-10-26T03:04:00.391Z",
+      clientName: "sin turno",
+      serviceName: "Corte en cabello corto",
+      saleTotal: 21900,
+      method: "transfer",
+      commissionPct: null,
+      commissionAmount: 9000,
+      reason: "segundo ciclo",
+      performedByName: "Operador",
+      authorizedByName: "Admin",
+      voidedAt: "2026-10-26T17:18:22.772Z",
+      professionalId: "8f1f393e-84db-4907-9ad7-b30c55636dd3",
+      professionalName: "Franco",
+      originalSettlementRunNumber: 116,
+      appliedSettlementRunId: null,
+      appliedSettlementRunNumber: null,
+      appliedAt: null,
+      kind: "deduccion",
+      ...overrides,
+    };
+  }
+
+  it("una venta anulada pendiente aparece como item propio, nunca mezclada con un adelanto", () => {
+    const items = buildHistorialMovimientos([], [], [], [makeVentaAnulada({})]);
+    expect(items).toHaveLength(1);
+    expect(items[0].kind).toBe("venta_anulada");
+    if (items[0].kind === "venta_anulada") {
+      expect(items[0].data.commissionAmount).toBe(9000);
+      expect(items[0].data.appliedSettlementRunId).toBeNull();
+    }
+  });
+
+  it("un crédito por restablecimiento (kind: 'credito') conserva su kind propio, distinto de una deducción pendiente", () => {
+    const items = buildHistorialMovimientos([], [], [], [
+      makeVentaAnulada({ id: "caq-credito", kind: "credito", reason: "Venta restablecida (su deducción ya estaba compensada) — vuelta a pedir" }),
+    ]);
+    expect(items).toHaveLength(1);
+    expect(items[0].kind).toBe("venta_anulada");
+    if (items[0].kind === "venta_anulada") {
+      expect(items[0].data.kind).toBe("credito");
+      expect(items[0].data.commissionAmount).toBe(9000);
+    }
+  });
+
+  it("se ordena junto con pagos/adelantos/ajustes por fecha, sin un tratamiento especial", () => {
+    const advances: HistorialAdvanceRow[] = [
+      {
+        id: "adv-1",
+        amount: 5000,
+        payment_method: "efectivo",
+        note: null,
+        advanced_at: "2026-10-26T10:00:00.000Z",
+        registered_by_name: "Admin",
+        movement_number: 50,
+      },
+    ];
+    const items = buildHistorialMovimientos(
+      [],
+      advances,
+      [],
+      [makeVentaAnulada({ voidedAt: "2026-10-26T17:18:22.772Z" })],
+    );
+    expect(items.map((i) => i.kind)).toEqual(["venta_anulada", "adelanto"]);
+  });
+
+  it("compensada: trae el número y la fecha de la liquidación que la absorbió", () => {
+    const items = buildHistorialMovimientos(
+      [],
+      [],
+      [],
+      [
+        makeVentaAnulada({
+          appliedSettlementRunId: "run-116-uuid",
+          appliedSettlementRunNumber: 116,
+          appliedAt: "2026-10-26T18:00:00.000Z",
+        }),
+      ],
+    );
+    if (items[0].kind === "venta_anulada") {
+      expect(items[0].data.appliedSettlementRunId).toBe("run-116-uuid");
+      expect(items[0].data.appliedSettlementRunNumber).toBe(116);
+    }
+  });
+
+  it("sin % de comisión histórico (commissionPct null) — nunca se inventa uno, el consumidor debe mostrar '—'", () => {
+    const items = buildHistorialMovimientos([], [], [], [makeVentaAnulada({ commissionPct: null })]);
+    if (items[0].kind === "venta_anulada") {
+      expect(items[0].data.commissionPct).toBeNull();
+    }
+  });
+
+  it("varias ventas anuladas (ciclos repetidos de anular/restablecer) no se mezclan entre sí", () => {
+    const items = buildHistorialMovimientos(
+      [],
+      [],
+      [],
+      [
+        makeVentaAnulada({ id: "caq-1", voidedAt: "2026-10-26T03:04:31.000Z", commissionAmount: 9000 }),
+        makeVentaAnulada({ id: "caq-2", voidedAt: "2026-10-26T17:18:22.000Z", commissionAmount: 9000 }),
+      ],
+    );
+    expect(items).toHaveLength(2);
+    expect(new Set(items.map((i) => (i.kind === "venta_anulada" ? i.data.id : null)))).toEqual(
+      new Set(["caq-1", "caq-2"]),
+    );
   });
 });
 

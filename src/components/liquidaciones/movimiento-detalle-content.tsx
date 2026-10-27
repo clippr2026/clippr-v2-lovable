@@ -525,3 +525,127 @@ export function AjusteDetalleContent({ data }: { data: ItemsDetalleData }) {
 export function DeduccionDetalleContent({ data }: { data: ItemsDetalleData }) {
   return <ItemsDetalleContent data={data} tone="deduccion" />;
 }
+
+// "Venta anulada" — ver historial-movimientos.ts (HistorialVentaAnuladaRow) y
+// 20261026020000_void_adjustment_settlement_tracking.sql. Tono violeta,
+// distinto del verde/rojo de Ajuste/Deducción y del rojo de Adelanto —
+// pedido explícito de distinguirlo visualmente de un adelanto normal,
+// aunque aparezca en la misma lista.
+export function VentaAnuladaDetalleContent({ data }: { data: import("@/lib/historial-movimientos").HistorialVentaAnuladaRow }) {
+  const isCompensado = Boolean(data.appliedSettlementRunId);
+  // "credito" — ver restore_payment_authorized: la venta se restableció
+  // después de que su deducción ya se había compensado en una liquidación
+  // cerrada (que no se toca) — esto es un crédito A FAVOR del profesional,
+  // nunca otra deducción. Mismo monto, signo y título opuestos.
+  const isCredito = data.kind === "credito";
+  const metodoLabel = data.method
+    ? (PAY_METHOD_LABEL[data.method as PayMethod] ?? data.method)
+    : "—";
+  return (
+    <div className="overflow-hidden rounded-2xl border border-violet-300/25 bg-[linear-gradient(135deg,rgba(167,139,250,0.14),rgba(8,11,20,0.96),rgba(2,4,12,0.98))] text-sm shadow-[0_0_40px_rgba(167,139,250,0.12),0_18px_55px_-34px_rgba(0,0,0,1)]">
+      <div className="flex items-center justify-between px-3.5 py-2.5">
+        <span className="text-sm font-bold text-white">
+          {isCredito ? "Crédito por venta restablecida" : "Venta anulada"}
+        </span>
+        <span
+          className={cn(
+            "rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1",
+            isCompensado
+              ? "text-emerald-300 bg-emerald-400/10 ring-emerald-400/20"
+              : "text-amber-300 bg-amber-400/10 ring-amber-400/20",
+          )}
+        >
+          {isCompensado ? "Compensado" : "Pendiente"}
+        </span>
+      </div>
+      <div className="divide-y divide-violet-300/10">
+        <div className="flex items-center justify-between px-3.5 py-2.5">
+          <span className="text-white/50">Número de venta</span>
+          <span className="font-semibold text-white">#{data.saleId.slice(-6).toUpperCase()}</span>
+        </div>
+        <div className="flex items-center justify-between px-3.5 py-2.5">
+          <span className="text-white/50">Fecha y hora de la venta</span>
+          <span className="font-semibold text-white">
+            {data.saleCreatedAt ? fmtDetalleDateTime(data.saleCreatedAt) : "—"}
+          </span>
+        </div>
+        <div className="flex items-center justify-between px-3.5 py-2.5">
+          <span className="text-white/50">Cliente</span>
+          <span className="font-semibold text-white">{data.clientName || "—"}</span>
+        </div>
+        <div className="flex items-center justify-between px-3.5 py-2.5">
+          <span className="text-white/50">Profesional</span>
+          <span className="font-semibold text-white">{data.professionalName || "—"}</span>
+        </div>
+        <div className="flex items-center justify-between px-3.5 py-2.5">
+          <span className="text-white/50">Servicio/producto</span>
+          <span className="font-semibold text-white">{data.serviceName || "—"}</span>
+        </div>
+        <div className="flex items-center justify-between px-3.5 py-2.5">
+          <span className="text-white/50">Importe original cobrado</span>
+          <span className="font-semibold text-white">{money(data.saleTotal)}</span>
+        </div>
+        <div className="flex items-center justify-between px-3.5 py-2.5">
+          <span className="text-white/50">Medio de pago</span>
+          <span className="font-semibold capitalize text-white">{metodoLabel}</span>
+        </div>
+        <div className="flex items-center justify-between px-3.5 py-2.5">
+          <span className="text-white/50">% de comisión original</span>
+          <span className="font-semibold text-white">
+            {data.commissionPct != null ? `${data.commissionPct}%` : "—"}
+          </span>
+        </div>
+        <div className="flex items-center justify-between px-3.5 py-2.5">
+          <span className="text-white/50">{isCredito ? "Crédito a favor del profesional" : "Comisión ya pagada"}</span>
+          <span className={cn("font-semibold", isCredito ? "text-emerald-300" : "text-violet-300")}>
+            {isCredito ? "+" : ""}
+            {money(data.commissionAmount)}
+          </span>
+        </div>
+        <div className="flex items-center justify-between px-3.5 py-2.5">
+          <span className="text-white/50">Liquidación donde se pagó</span>
+          <span className="font-semibold text-white">
+            {data.originalSettlementRunNumber != null ? `#${data.originalSettlementRunNumber}` : "—"}
+          </span>
+        </div>
+        <div className="flex items-center justify-between gap-2 px-3.5 py-2.5">
+          <span className="text-white/50">{isCredito ? "Motivo del restablecimiento" : "Motivo de la anulación"}</span>
+          <span className="truncate font-semibold text-white">{data.reason || "—"}</span>
+        </div>
+        <div className="flex items-center justify-between px-3.5 py-2.5">
+          <span className="text-white/50">{isCredito ? "Restablecido por" : "Anulado por"}</span>
+          <span className="font-semibold text-white">{displayResponsable(data.performedByName)}</span>
+        </div>
+        <div className="flex items-center justify-between px-3.5 py-2.5">
+          <span className="text-white/50">Autorizado por</span>
+          <span className="font-semibold text-white">{data.authorizedByName || "—"}</span>
+        </div>
+        <div className="flex items-center justify-between px-3.5 py-2.5">
+          <span className="text-white/50">{isCredito ? "Fecha y hora del restablecimiento" : "Fecha y hora de la anulación"}</span>
+          <span className="font-semibold text-white">{fmtDetalleDateTime(data.voidedAt)}</span>
+        </div>
+        {isCompensado ? (
+          <>
+            <div className="flex items-center justify-between px-3.5 py-2.5">
+              <span className="text-white/50">Compensado en liquidación</span>
+              <span className="font-semibold text-emerald-300">
+                {data.appliedSettlementRunNumber != null ? `#${data.appliedSettlementRunNumber}` : "—"}
+              </span>
+            </div>
+            <div className="flex items-center justify-between px-3.5 py-2.5">
+              <span className="text-white/50">Fecha de la compensación</span>
+              <span className="font-semibold text-white">
+                {data.appliedAt ? fmtDetalleDateTime(data.appliedAt) : "—"}
+              </span>
+            </div>
+          </>
+        ) : (
+          <div className="flex items-center justify-between px-3.5 py-2.5">
+            <span className="text-white/50">Estado</span>
+            <span className="font-semibold text-amber-300">Pendiente de la próxima liquidación</span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}

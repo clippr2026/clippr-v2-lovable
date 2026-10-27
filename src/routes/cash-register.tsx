@@ -138,7 +138,7 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { AgendaCenteredModal } from "@/components/agenda/agenda-drawer";
-import { fetchSettlementRunServices, fetchSettlementRunSales, resolveOperativeDates } from "@/hooks/use-professionals-data";
+import { fetchSettlementRunServices, fetchSettlementRunSales, resolveOperativeDates, fetchVentasAnuladas } from "@/hooks/use-professionals-data";
 import { MultiMethodPaymentSplit, type MultiSplit } from "@/components/cash-register/multi-method-payment-split";
 import {
   buildHistorialMovimientos,
@@ -147,6 +147,7 @@ import {
   resolveVentaDate,
   type MovimientoAjuste,
   type MovimientoDeduccion,
+  type HistorialVentaAnuladaRow,
 } from "@/lib/historial-movimientos";
 import { fetchAllRows } from "@/lib/supabase-paginate";
 import { displayResponsable, isRunEffectivelySettled } from "@/components/liquidaciones/movimiento-format";
@@ -155,6 +156,7 @@ import {
   PagoDetalleContent,
   AjusteDetalleContent,
   DeduccionDetalleContent,
+  VentaAnuladaDetalleContent,
 } from "@/components/liquidaciones/movimiento-detalle-content";
 import {
   VentaRow,
@@ -3604,6 +3606,7 @@ function ProfesionalesTab({
   // (ya vienen completos con sus items dentro del movimiento derivado).
   const [historialDetailAjuste, setHistorialDetailAjuste] = React.useState<MovimientoAjuste | null>(null);
   const [historialDetailDeduccion, setHistorialDetailDeduccion] = React.useState<MovimientoDeduccion | null>(null);
+  const [historialDetailVentaAnulada, setHistorialDetailVentaAnulada] = React.useState<HistorialVentaAnuladaRow | null>(null);
   const [loadingCommissions, setLoadingCommissions] = React.useState(true);
   const [loadingRuns, setLoadingRuns] = React.useState(true);
   // Errores reales (no silenciados en $0): si la query falla (RLS, columna
@@ -3714,6 +3717,7 @@ function ProfesionalesTab({
   const [allRuns, setAllRuns] = React.useState<any[]>([]);
   const [allRunPayments, setAllRunPayments] = React.useState<any[]>([]);
   const [allAdvances, setAllAdvances] = React.useState<any[]>([]);
+  const [allVentasAnuladas, setAllVentasAnuladas] = React.useState<HistorialVentaAnuladaRow[]>([]);
   const [commissionsVersion, setCommissionsVersion] = React.useState(0);
 
   // Red de seguridad además de Realtime (ver canal de postgres_changes más
@@ -4028,6 +4032,32 @@ function ProfesionalesTab({
     };
   }, [businessId, commissionsVersion]);
 
+  // "Venta anulada" (commission_adjustment_queue, ver
+  // 20261026020000_void_adjustment_settlement_tracking.sql) — mismo
+  // criterio que Adelantos arriba: fetch aparte, con su propio try/catch,
+  // para que si la migración todavía no corrió en producción (columna/
+  // tabla inexistente) no tire abajo el resto de Liquidaciones.
+  React.useEffect(() => {
+    let cancelled = false;
+    async function loadVentasAnuladas() {
+      if (!businessId) {
+        if (!cancelled) setAllVentasAnuladas([]);
+        return;
+      }
+      try {
+        const rows = await fetchVentasAnuladas(businessId);
+        if (!cancelled) setAllVentasAnuladas(rows);
+      } catch (e) {
+        if (!cancelled) setAllVentasAnuladas([]);
+        console.warn("[caja] no se pudieron cargar las ventas anuladas:", (e as Error).message);
+      }
+    }
+    loadVentasAnuladas();
+    return () => {
+      cancelled = true;
+    };
+  }, [businessId, commissionsVersion]);
+
   // Tiempo real: si se prepara/paga una liquidación desde otra pestaña/
   // dispositivo (o Profesionales, que usa las mismas tablas), este panel
   // se actualiza solo.
@@ -4075,6 +4105,14 @@ function ProfesionalesTab({
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "professional_advances", filter: `business_id=eq.${businessId}` },
+        () => setCommissionsVersion((v) => v + 1),
+      )
+      .on(
+        // "Venta anulada" — insert al anular una venta ya liquidada,
+        // update al compensarla (prepare_settlement_run) o revertirla
+        // (restore_payment_authorized).
+        "postgres_changes",
+        { event: "*", schema: "public", table: "commission_adjustment_queue", filter: `business_id=eq.${businessId}` },
         () => setCommissionsVersion((v) => v + 1),
       )
       .subscribe();
@@ -4436,6 +4474,13 @@ function ProfesionalesTab({
       .sort((a: any, b: any) => String(b.advanced_at ?? "").localeCompare(String(a.advanced_at ?? "")));
   }, [allAdvances, selectedRow]);
 
+  const selectedVentasAnuladas = React.useMemo(() => {
+    if (!selectedRow) return [] as HistorialVentaAnuladaRow[];
+    return allVentasAnuladas
+      .filter((v) => String(v.professionalId) === selectedRow.id)
+      .sort((a, b) => String(b.voidedAt ?? "").localeCompare(String(a.voidedAt ?? "")));
+  }, [allVentasAnuladas, selectedRow]);
+
   // Mismos métodos/orden que Nueva venta (PAYMENT_OPTIONS, fijo a nivel de
   // módulo) — "Pagar" usa exactamente las mismas opciones, método simple y
   // las filas de pago múltiple comparten esta lista.
@@ -4512,14 +4557,26 @@ function ProfesionalesTab({
     () => selectedRuns.filter((r: any) => !closedRunIds.has(r.id)),
     [selectedRuns, closedRunIds],
   );
+  // Mismo criterio que openAdvances: una "Venta anulada" ya compensada en
+  // una liquidación ya cerrada pasa a Historial, no a Movimientos — la
+  // pendiente (sin compensar todavía) siempre queda acá.
+  const openVentasAnuladas = React.useMemo(
+    () =>
+      selectedVentasAnuladas.filter(
+        (v) =>
+          (!v.appliedSettlementRunId || !closedRunIds.has(v.appliedSettlementRunId)) &&
+          isWithinCutoff(v.voidedAt, liquidarCutoffAt),
+      ),
+    [selectedVentasAnuladas, closedRunIds, liquidarCutoffAt],
+  );
 
   // Movimientos es un timeline único — pagos de liquidación (agrupados por
   // movement_number: un pago múltiple con varios métodos es UNA sola
   // card), adelantos, ajustes y deducciones, mezclados y ordenados por
   // fecha — ya sin nada de liquidaciones cerradas (ver closedRunIds arriba).
   const historialItems = React.useMemo(
-    () => buildHistorialMovimientos(openRunPayments, openAdvances, openRuns),
-    [openRunPayments, openAdvances, openRuns],
+    () => buildHistorialMovimientos(openRunPayments, openAdvances, openRuns, openVentasAnuladas),
+    [openRunPayments, openAdvances, openRuns, openVentasAnuladas],
   );
 
   // Lista única de Liquidaciones: ventas con comisión (detailRows) +
@@ -5264,6 +5321,33 @@ function ProfesionalesTab({
                               <DeduccionDetalleContent data={detalleData} />
                             )
                           }
+                        />
+                      );
+                    }
+                    if (item.kind === "venta_anulada") {
+                      const v = item.data;
+                      const isCompensado = Boolean(v.appliedSettlementRunId);
+                      const isCredito = v.kind === "credito";
+                      const isExpanded = historialDetailVentaAnulada?.id === v.id;
+                      const estadoLabel = isCompensado ? "Compensado" : "Pendiente";
+                      return (
+                        <MovRow
+                          key={`venta_anulada-${v.id}`}
+                          dateTime={dateTime}
+                          cliente={v.clientName ?? "—"}
+                          concepto={
+                            isCredito ? `Crédito restablecimiento · ${estadoLabel}` : `Venta anulada · ${estadoLabel}`
+                          }
+                          precioText={`${isCredito ? "+" : "-"}${money(v.commissionAmount)}`}
+                          precioClass={isCredito ? "text-emerald-300" : "text-violet-300"}
+                          detalle={
+                            isCredito
+                              ? `Restablecido por ${displayResponsable(v.performedByName)}`
+                              : `Anulado por ${displayResponsable(v.performedByName)}`
+                          }
+                          expanded={isExpanded}
+                          onToggle={() => setHistorialDetailVentaAnulada(isExpanded ? null : v)}
+                          detail={<VentaAnuladaDetalleContent data={v} />}
                         />
                       );
                     }

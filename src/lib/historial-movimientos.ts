@@ -86,7 +86,54 @@ export type MovimientoDeduccion = {
   preparedByName: string;
 };
 
-export type MovimientoItem = MovimientoPago | MovimientoAdelanto | MovimientoAjuste | MovimientoDeduccion;
+// "Venta anulada" (ver 20261026020000_void_adjustment_settlement_tracking.sql)
+// — una venta cuya comisión ya estaba pagada en una liquidación cerrada se
+// anuló: queda una fila en commission_adjustment_queue, pendiente hasta que
+// prepare_settlement_run la absorbe de verdad en una liquidación nueva
+// (recién ahí pasa a "compensado", con appliedSettlementRunId/At). Todos los
+// datos de la venta original se traen ya resueltos (join hecho por el
+// caller) — este tipo nunca vuelve a tocar la base para mostrar el detalle.
+export type HistorialVentaAnuladaRow = {
+  id: string; // commission_adjustment_queue.id
+  saleId: string;
+  saleCreatedAt: string | null;
+  clientName: string | null;
+  serviceName: string | null;
+  saleTotal: number;
+  method: string | null;
+  commissionPct: number | null; // null = sin % histórico guardado → mostrar "—", nunca inventar uno
+  commissionAmount: number; // importe REAL ya pagado al profesional, nunca recalculado desde un %
+  // "deduccion" (default, filas de antes de 20261026020000 también caen
+  // acá) = se descuenta de la próxima liquidación. "credito" = venta
+  // restablecida cuya deducción ya estaba compensada en una liquidación
+  // cerrada — a favor del profesional, se SUMA en la próxima liquidación
+  // (ver restore_payment_authorized/prepare_settlement_run).
+  kind: "deduccion" | "credito";
+  reason: string | null;
+  performedByName: string | null;
+  authorizedByName: string | null;
+  voidedAt: string; // commission_adjustment_queue.created_at
+  professionalId: string;
+  professionalName: string | null;
+  originalSettlementRunNumber: number | null; // liquidación donde se pagó la comisión originalmente
+  appliedSettlementRunId: string | null; // null = Pendiente; con valor = Compensado
+  appliedSettlementRunNumber: number | null;
+  appliedAt: string | null;
+};
+
+export type MovimientoVentaAnulada = {
+  kind: "venta_anulada";
+  movementNumber: null;
+  at: string;
+  data: HistorialVentaAnuladaRow;
+};
+
+export type MovimientoItem =
+  | MovimientoPago
+  | MovimientoAdelanto
+  | MovimientoAjuste
+  | MovimientoDeduccion
+  | MovimientoVentaAnulada;
 
 // Único criterio para "¿este movimiento entra en un período que termina en
 // `cutoffAt`?" — usado tanto por la tabla de Movimientos como por las
@@ -110,6 +157,7 @@ export function buildHistorialMovimientos(
   payments: HistorialPaymentRow[],
   advances: HistorialAdvanceRow[],
   runs: HistorialRunRow[] = [],
+  ventasAnuladas: HistorialVentaAnuladaRow[] = [],
 ): MovimientoItem[] {
   const groups = new Map<string, HistorialPaymentRow[]>();
   for (const p of payments) {
@@ -169,7 +217,14 @@ export function buildHistorialMovimientos(
       preparedByName: r.prepared_by_name,
     }));
 
-  return [...pagoItems, ...adelantoItems, ...ajusteItems, ...deduccionItems].sort((a, b) =>
+  const ventaAnuladaItems: MovimientoVentaAnulada[] = ventasAnuladas.map((v) => ({
+    kind: "venta_anulada",
+    movementNumber: null,
+    at: v.voidedAt,
+    data: v,
+  }));
+
+  return [...pagoItems, ...adelantoItems, ...ajusteItems, ...deduccionItems, ...ventaAnuladaItems].sort((a, b) =>
     String(b.at ?? "").localeCompare(String(a.at ?? "")),
   );
 }

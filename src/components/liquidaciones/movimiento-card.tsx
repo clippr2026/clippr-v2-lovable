@@ -29,6 +29,10 @@ const BADGE_TONE = {
   emerald: "text-emerald-300 bg-emerald-400/10 ring-emerald-400/20",
   amber: "text-amber-300 bg-amber-400/10 ring-amber-400/20",
   rose: "text-rose-300 bg-rose-400/10 ring-rose-400/20",
+  // "venta_anulada" — violeta a propósito, distinto del rose de Adelanto/
+  // Deducción, para que nunca se confunda con un adelanto normal aunque
+  // aparezca en la misma lista (pedido explícito).
+  violet: "text-violet-300 bg-violet-400/10 ring-violet-400/20",
 };
 
 function badgeClass(tone: keyof typeof BADGE_TONE) {
@@ -85,6 +89,15 @@ export function MovimientoCard({
       amount = item.amount;
       at = item.at ?? null;
       registeredBy = displayResponsable(item.preparedByName);
+    } else if (item.kind === "venta_anulada") {
+      const isCredito = item.data.kind === "credito";
+      tone = isCredito ? "emerald" : "violet";
+      const estado = item.data.appliedSettlementRunId ? "Compensado" : "Pendiente";
+      label = isCredito ? `Crédito restablecimiento · ${estado}` : `Venta anulada · ${estado}`;
+      sign = isCredito ? "+" : "−";
+      amount = item.data.commissionAmount;
+      at = item.at ?? null;
+      registeredBy = displayResponsable(item.data.performedByName);
     } else {
       tone = item.isFull ? "emerald" : "amber";
       label = item.isFull ? "Pago total" : "Pago parcial";
@@ -95,7 +108,14 @@ export function MovimientoCard({
       period = run ? (run.period_start_at ? `${shortDate(run.period_start_at)}–${shortDate(run.prepared_at)}` : "Primera liquidación") : null;
     }
 
-    const amountColor = tone === "emerald" ? "text-emerald-300" : tone === "amber" ? "text-amber-300" : "text-rose-300";
+    const amountColor =
+      tone === "emerald"
+        ? "text-emerald-300"
+        : tone === "amber"
+          ? "text-amber-300"
+          : tone === "violet"
+            ? "text-violet-300"
+            : "text-rose-300";
 
     return (
       <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-black/18">
@@ -239,6 +259,72 @@ export function MovimientoCard({
           <div className="flex items-center justify-between">
             <span className="text-white/45">Registrado por</span>
             <span className="font-semibold text-white/80">{displayResponsable(item.preparedByName)}</span>
+          </div>
+        </div>
+
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            onClick={onVerDetalle}
+            className="rounded-full bg-white/[0.04] px-3 py-1 text-[11px] font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
+          >
+            Ver detalle
+          </button>
+          {extraActions}
+        </div>
+      </div>
+    );
+  }
+
+  if (item.kind === "venta_anulada") {
+    const v = item.data;
+    const isCompensado = Boolean(v.appliedSettlementRunId);
+    const isCredito = v.kind === "credito";
+    return (
+      <div className="rounded-2xl border border-white/[0.07] bg-black/18 px-4 py-3.5 text-sm">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <div className="text-sm font-semibold text-white/70">{v.professionalName || professionalName}</div>
+            <div className="text-xs text-white/50">{item.at ? fmtDateTime(item.at) : "—"}</div>
+          </div>
+          <div className="flex flex-col items-end gap-1">
+            <span
+              className={cn(
+                "rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1",
+                isCredito
+                  ? "bg-emerald-400/10 text-emerald-300 ring-emerald-400/20"
+                  : "bg-violet-400/10 text-violet-300 ring-violet-400/20",
+              )}
+            >
+              {isCredito ? "Crédito restablecimiento" : "Venta anulada"}
+            </span>
+            <span
+              className={cn(
+                "rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wider ring-1",
+                isCompensado
+                  ? "text-emerald-300 bg-emerald-400/10 ring-emerald-400/20"
+                  : "text-amber-300 bg-amber-400/10 ring-amber-400/20",
+              )}
+            >
+              {isCompensado ? "Compensado" : "Pendiente"}
+            </span>
+          </div>
+        </div>
+
+        <div className="mt-3 space-y-1 text-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-white/45">{isCredito ? "Crédito a favor" : "Comisión a descontar"}</span>
+            <span className={cn("font-bold tabular-nums", isCredito ? "text-emerald-300" : "text-violet-300")}>
+              {isCredito ? "+" : "−"}
+              {money(v.commissionAmount)}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-white/45">Venta #{v.saleId.slice(-6).toUpperCase()}</span>
+            <span className="font-semibold text-white/80">{v.clientName || "—"}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-white/45">{isCredito ? "Restablecido por" : "Anulado por"}</span>
+            <span className="font-semibold text-white/80">{displayResponsable(v.performedByName)}</span>
           </div>
         </div>
 
