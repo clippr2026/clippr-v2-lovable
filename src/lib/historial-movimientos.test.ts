@@ -6,6 +6,7 @@ import {
   isWithinCutoff,
   mergePendingSaleIds,
   resolveVentaDate,
+  sumPendingAdjustmentQueue,
   withOperativeDates,
   type HistorialAdvanceRow,
   type HistorialPaymentRow,
@@ -297,6 +298,112 @@ describe("computeLiquidacionSummary — Total a pagar = Comisiones + Propinas �
     ];
     const summary = computeLiquidacionSummary("pipo", commissions, [], runs, []);
     expect(summary.newCommissions).toBe(5000);
+  });
+});
+
+// Caso real (producción, 26/10/2026): Franco anuló una venta #1CB24B cuya
+// comisión de $9.000 ya estaba liquidada y pagada (run #115). Quedó
+// correctamente encolada como deducción pendiente en
+// commission_adjustment_queue, pero el resumen de Liquidaciones (Comisiones
+// generadas/Adelantos/Total a pagar) no sabía nada de esa cola — mostraba
+// $0 en todo aunque hubiera $9.000 pendientes de descontar. Ver
+// 20261027000000_pending_deduction_cap_and_action_labels.sql para la parte
+// de backend (prepare_settlement_run ya no falla si la deducción supera lo
+// disponible).
+describe("sumPendingAdjustmentQueue / computeLiquidacionSummary — 'Deducciones pendientes' (commission_adjustment_queue)", () => {
+  function makeQueueRow(overrides: Partial<HistorialVentaAnuladaRow>): HistorialVentaAnuladaRow {
+    return {
+      id: "caq-1",
+      saleId: "92eb4bb2-68c6-4e2f-9a42-b024471cb24b",
+      saleCreatedAt: "2026-10-26T03:04:00.391Z",
+      clientName: "sin turno",
+      serviceName: "Corte en cabello corto",
+      saleTotal: 21900,
+      method: "transfer",
+      commissionPct: null,
+      commissionAmount: 9000,
+      reason: "Venta anulada (ya liquidada) — a",
+      performedByName: "a",
+      authorizedByName: null,
+      voidedAt: "2026-10-26T17:18:22.772Z",
+      professionalId: "franco",
+      professionalName: "Franco",
+      originalSettlementRunNumber: 115,
+      appliedSettlementRunId: null,
+      appliedSettlementRunNumber: null,
+      appliedAt: null,
+      kind: "deduccion",
+      ...overrides,
+    };
+  }
+
+  it("caso real de Franco: $9.000 pendientes de una venta anulada ya liquidada, sin nada más — Total a pagar da $0, nunca negativo", () => {
+    const franco = makeQueueRow({});
+    const summary = computeLiquidacionSummary("franco", [], [], [], [], [], [], [franco]);
+    expect(summary.pendingDeductions).toBe(9000);
+    expect(summary.pendingCredits).toBe(0);
+    expect(summary.newCommissions).toBe(0);
+    // max(0 + 0 + 0 + 0 - 0 - 9000, 0) — nunca un total negativo en pantalla.
+    expect(summary.totalToPay).toBe(0);
+  });
+
+  it("si Franco genera una comisión nueva que no alcanza a cubrir la deducción, Total a pagar sigue en $0 (nunca negativo)", () => {
+    const franco = makeQueueRow({});
+    const commissions: LiquidacionPendingRow[] = [
+      { professional_id: "franco", settlement_run_id: null, pending_amount: 3000, created_at: "2026-10-27T00:00:00.000Z" },
+    ];
+    const summary = computeLiquidacionSummary("franco", commissions, [], [], [], [], [], [franco]);
+    expect(summary.newCommissions).toBe(3000);
+    expect(summary.pendingDeductions).toBe(9000);
+    expect(summary.totalToPay).toBe(0);
+  });
+
+  it("si Franco genera comisión de sobra, Total a pagar refleja la resta real (no solo el piso en $0)", () => {
+    const franco = makeQueueRow({});
+    const commissions: LiquidacionPendingRow[] = [
+      { professional_id: "franco", settlement_run_id: null, pending_amount: 15000, created_at: "2026-10-27T00:00:00.000Z" },
+    ];
+    const summary = computeLiquidacionSummary("franco", commissions, [], [], [], [], [], [franco]);
+    expect(summary.totalToPay).toBe(15000 - 9000);
+  });
+
+  it("una deducción YA compensada (applied_settlement_run_id con valor) no se vuelve a descontar — evita duplicar el descuento", () => {
+    const yaAplicada = makeQueueRow({ appliedSettlementRunId: "run-116", appliedSettlementRunNumber: 116 });
+    const summary = computeLiquidacionSummary("franco", [], [], [], [], [], [], [yaAplicada]);
+    expect(summary.pendingDeductions).toBe(0);
+    expect(summary.totalToPay).toBe(0);
+  });
+
+  it("un crédito por restablecimiento (kind: 'credito') pendiente SUMA al total, nunca resta", () => {
+    const credito = makeQueueRow({ id: "caq-2", kind: "credito", commissionAmount: 9000 });
+    const summary = computeLiquidacionSummary("franco", [], [], [], [], [], [], [credito]);
+    expect(summary.pendingCredits).toBe(9000);
+    expect(summary.pendingDeductions).toBe(0);
+    expect(summary.totalToPay).toBe(9000);
+  });
+
+  it("ciclo completo sin duplicar: una deducción pendiente y su crédito de reversa (misma venta) se cancelan netos a $0", () => {
+    const deduccionVieja = makeQueueRow({ id: "caq-1", kind: "deduccion", appliedSettlementRunId: "run-115" });
+    const creditoNuevo = makeQueueRow({ id: "caq-2", kind: "credito", appliedSettlementRunId: null });
+    const summary = computeLiquidacionSummary("franco", [], [], [], [], [], [], [deduccionVieja, creditoNuevo]);
+    // La deducción ya está compensada (no se vuelve a contar) y el crédito
+    // de reversa está pendiente — el neto a favor de Franco es +$9.000, no $18.000.
+    expect(summary.pendingDeductions).toBe(0);
+    expect(summary.pendingCredits).toBe(9000);
+    expect(summary.totalToPay).toBe(9000);
+  });
+
+  it("no mezcla las deducciones pendientes de otro profesional", () => {
+    const deFranco = makeQueueRow({});
+    const deOtro = makeQueueRow({ id: "caq-otro", professionalId: "melany", professionalName: "Melany" });
+    expect(sumPendingAdjustmentQueue([deFranco, deOtro], "franco")).toEqual({
+      pendingDeductions: 9000,
+      pendingCredits: 0,
+    });
+    expect(sumPendingAdjustmentQueue([deFranco, deOtro], "melany")).toEqual({
+      pendingDeductions: 9000,
+      pendingCredits: 0,
+    });
   });
 });
 

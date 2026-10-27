@@ -143,6 +143,7 @@ import { MultiMethodPaymentSplit, type MultiSplit } from "@/components/cash-regi
 import {
   buildHistorialMovimientos,
   computeLiquidacionSummary,
+  sumPendingAdjustmentQueue,
   isWithinCutoff,
   resolveVentaDate,
   type MovimientoAjuste,
@@ -4923,6 +4924,24 @@ function ProfesionalesTab({
       .reduce((sum: number, a: any) => sum + Number(a.amount ?? 0), 0);
   }, [allAdvances, selectedRow, liquidarCutoffAt]);
 
+  // "Venta anulada" pendiente (commission_adjustment_queue) hasta el corte
+  // elegido — misma fórmula que computeLiquidacionSummary (sumPendingAdjustmentQueue),
+  // filtrada por liquidarCutoffAt igual que liquidarPendingAdvances arriba,
+  // para que "Preparar liquidación" muestre exactamente lo que
+  // prepare_settlement_run va a aplicar de verdad.
+  const liquidarPendingAdjustmentQueue = React.useMemo(() => {
+    if (!selectedRow) return { pendingDeductions: 0, pendingCredits: 0 };
+    const pending = selectedVentasAnuladas.filter(
+      (v) => !v.appliedSettlementRunId && isWithinCutoff(v.voidedAt, liquidarCutoffAt),
+    );
+    return sumPendingAdjustmentQueue(pending, selectedRow.id);
+  }, [selectedVentasAnuladas, selectedRow, liquidarCutoffAt]);
+
+  // Neto para la tarjeta "Deducciones pendientes" — positivo = deducción a
+  // descontar, negativo = crédito a favor (se muestra con "+").
+  const liquidarPendingDeductionNet =
+    liquidarPendingAdjustmentQueue.pendingDeductions - liquidarPendingAdjustmentQueue.pendingCredits;
+
   // Totales en vivo del modal "Preparar liquidación" — se recalculan en
   // cada tecla mientras se agregan/editan ajustes y deducciones, y cada
   // vez que cambia el corte elegido.
@@ -4935,7 +4954,12 @@ function ProfesionalesTab({
     0,
   );
   const liquidarBaseTotal = selectedRow
-    ? selectedRow.previousBalance + liquidarNewCommissions + liquidarNewTips - liquidarPendingAdvances
+    ? selectedRow.previousBalance +
+      liquidarNewCommissions +
+      liquidarNewTips +
+      liquidarPendingAdjustmentQueue.pendingCredits -
+      liquidarPendingAdvances -
+      liquidarPendingAdjustmentQueue.pendingDeductions
     : 0;
   const liquidarFinalTotal = liquidarBaseTotal + liquidarAdjustmentsSum - liquidarDeductionsSum;
   const liquidarValidAdjustmentsCount = validSettlementItems(adjustmentItems).length;
@@ -5028,17 +5052,24 @@ function ProfesionalesTab({
               className={cn(
                 "grid flex-1 grid-cols-2 gap-2.5",
                 // Comisiones generadas + Adelantos son siempre fijas;
-                // Comisiones pendientes y Propinas son condicionales — la
-                // cantidad de columnas en desktop sigue la cantidad real de
-                // tarjetas visibles para que no queden huecos. previousBalance
-                // redondeado: un resto de centavos (ej. $0,17 por un
-                // adelanto con decimales) no debe mostrar una tarjeta de
-                // "$0" — ver money(), que ya redondea para mostrar.
-                2 + (hasPendingPreviousBalance ? 1 : 0) + (liquidarNewTips > 0 ? 1 : 0) >= 4
-                  ? "sm:grid-cols-4"
-                  : hasPendingPreviousBalance || liquidarNewTips > 0
-                    ? "sm:grid-cols-3"
-                    : "sm:grid-cols-2",
+                // Comisiones pendientes, Propinas y Deducciones pendientes
+                // son condicionales — la cantidad de columnas en desktop
+                // sigue la cantidad real de tarjetas visibles para que no
+                // queden huecos. previousBalance redondeado: un resto de
+                // centavos (ej. $0,17 por un adelanto con decimales) no
+                // debe mostrar una tarjeta de "$0" — ver money(), que ya
+                // redondea para mostrar.
+                2 +
+                  (hasPendingPreviousBalance ? 1 : 0) +
+                  (liquidarNewTips > 0 ? 1 : 0) +
+                  (liquidarPendingDeductionNet !== 0 ? 1 : 0) >=
+                  5
+                  ? "sm:grid-cols-5"
+                  : 2 + (hasPendingPreviousBalance ? 1 : 0) + (liquidarNewTips > 0 ? 1 : 0) + (liquidarPendingDeductionNet !== 0 ? 1 : 0) >= 4
+                    ? "sm:grid-cols-4"
+                    : hasPendingPreviousBalance || liquidarNewTips > 0 || liquidarPendingDeductionNet !== 0
+                      ? "sm:grid-cols-3"
+                      : "sm:grid-cols-2",
               )}
             >
               <StatCard
@@ -5063,6 +5094,24 @@ function ProfesionalesTab({
                   value={money(liquidarNewTips)}
                   tone="violet"
                   info="Propinas cobradas junto con ventas de este profesional, pendientes de liquidar. Nunca forman parte de las comisiones ni de la facturación del negocio."
+                />
+              )}
+              {/* "Venta anulada" pendiente de compensar (commission_adjustment_queue)
+                  — concepto propio, separado de Adelantos a propósito (son
+                  tablas y motivos distintos: un adelanto es plata que se le
+                  dio al profesional, esto es comisión que ya cobró de una
+                  venta que se anuló después). Positivo = crédito a favor
+                  (venta restablecida cuya deducción ya estaba compensada). */}
+              {liquidarPendingDeductionNet !== 0 && (
+                <StatCard
+                  label="Deducciones pendientes"
+                  value={
+                    liquidarPendingDeductionNet > 0
+                      ? `−${money(liquidarPendingDeductionNet)}`
+                      : `+${money(-liquidarPendingDeductionNet)}`
+                  }
+                  tone="rose"
+                  info="Comisión ya pagada de una venta que se anuló después (o un crédito a favor si esa venta se restableció). Se descuenta (o suma) automáticamente de la próxima liquidación."
                 />
               )}
               {/* Adelantos: misma tarjeta de siempre (tono rose, igual
@@ -5103,12 +5152,7 @@ function ProfesionalesTab({
                   Total a pagar
                 </div>
                 <div className="mt-0.5 text-xl font-bold tabular-nums text-emerald-300 sm:text-2xl">
-                  {money(
-                    Math.max(
-                      totals.previousBalance + liquidarNewCommissions + liquidarNewTips - liquidarPendingAdvances,
-                      0,
-                    ),
-                  )}
+                  {money(Math.max(liquidarBaseTotal, 0))}
                 </div>
               </div>
               <div className="flex shrink-0 gap-2">

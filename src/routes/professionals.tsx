@@ -2129,8 +2129,9 @@ function LiquidacionesPanelView({
       advancesWithPid,
       commissionEvents,
       tipEvents,
+      ventasAnuladas,
     );
-  }, [empId, commissionRecords, tipRecords, runs, advances, commissionEvents, tipEvents]);
+  }, [empId, commissionRecords, tipRecords, runs, advances, commissionEvents, tipEvents, ventasAnuladas]);
 
   // Ventas con comisión todavía no liquidada — mismo criterio y misma
   // query que usa Caja > Liquidaciones para este profesional (ver
@@ -2459,14 +2460,27 @@ function LiquidacionesPanelView({
   // Resumen — mismos 3 bloques que arriba de Caja > Liquidaciones, misma
   // fuente/fórmula (computeLiquidacionSummary). Se muestra siempre que haya
   // un profesional elegido, aunque todavía no tenga ningún movimiento.
+  // Deducciones pendientes (commission_adjustment_queue, ver
+  // sumPendingAdjustmentQueue en historial-movimientos.ts) — neto
+  // deducción-crédito todavía sin compensar. Concepto propio, nunca
+  // mezclado con "Adelantos" (son tablas y motivos distintos); solo se
+  // muestra si hay algo pendiente de verdad, igual que "Propinas" arriba.
+  const pendingDeductionNet = summary ? summary.pendingDeductions - summary.pendingCredits : 0;
   const summaryCards = summary && (
-    <div className="grid grid-cols-3 gap-2.5">
+    <div className={cn("grid gap-2.5", pendingDeductionNet !== 0 ? "grid-cols-2" : "grid-cols-3")}>
       <StatCard label="Comisiones generadas" value={money(summary.newCommissions)} tone="violet" />
       <StatCard
         label="Adelantos"
         value={summary.pendingAdvances > 0 ? `−${money(summary.pendingAdvances)}` : money(0)}
         tone="rose"
       />
+      {pendingDeductionNet !== 0 && (
+        <StatCard
+          label="Deducciones pendientes"
+          value={pendingDeductionNet > 0 ? `−${money(pendingDeductionNet)}` : `+${money(-pendingDeductionNet)}`}
+          tone="rose"
+        />
+      )}
       <StatCard label="Total a pagar" value={money(summary.totalToPay)} tone="green" />
     </div>
   );

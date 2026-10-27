@@ -294,17 +294,50 @@ export type LiquidacionSummary = {
   newCommissions: number;
   newTips: number;
   pendingAdvances: number;
+  // "Venta anulada" pendiente (commission_adjustment_queue, ver
+  // 20261026020000) — deducciones (comisión ya pagada de una venta
+  // anulada) y créditos (venta restablecida cuya deducción ya estaba
+  // compensada) todavía sin aplicar a ninguna liquidación. Concepto
+  // propio, nunca mezclado con "Adelantos" (son tablas y motivos
+  // distintos) — ver sumPendingAdjustmentQueue.
+  pendingDeductions: number;
+  pendingCredits: number;
   periodStart: string | null;
   periodStartAt: string | null;
   latestRun: LiquidacionRunSummaryRow | null;
-  // max(previousBalance + newCommissions + newTips - pendingAdvances, 0) —
-  // mismo "Total a pagar" que la tarjeta de Caja.
+  // max(previousBalance + newCommissions + newTips + pendingCredits
+  //     - pendingAdvances - pendingDeductions, 0) — mismo "Total a pagar"
+  // en todas las pantallas (Caja y Panel del profesional).
   totalToPay: number;
   // "Del DD/MM al DD/MM" — rango real del período que generó
   // previousBalance (el de latestRun), para la tarjeta "Comisiones
   // pendientes". null si no hay latestRun o no tiene period_start_at.
   previousPeriodLabel: string | null;
 };
+
+// "Venta anulada" pendiente de compensar — misma fórmula en TODAS las
+// pantallas que muestran o calculan un total a pagar (computeLiquidacionSummary
+// abajo, y el cálculo del modal "Preparar liquidación" en cash-register.tsx,
+// que además filtra por el corte "Liquidar hasta" elegido). kind='deduccion'
+// resta (comisión ya pagada de una venta que se anuló); kind='credito' suma
+// (venta restablecida cuya deducción ya estaba compensada en una liquidación
+// cerrada). Solo cuenta lo que TODAVÍA no se aplicó a ninguna liquidación
+// (appliedSettlementRunId == null) — lo ya aplicado vive en esa liquidación,
+// nunca se vuelve a contar acá.
+export function sumPendingAdjustmentQueue(
+  rows: HistorialVentaAnuladaRow[],
+  professionalId: string,
+): { pendingDeductions: number; pendingCredits: number } {
+  let pendingDeductions = 0;
+  let pendingCredits = 0;
+  for (const r of rows) {
+    if (String(r.professionalId) !== String(professionalId)) continue;
+    if (r.appliedSettlementRunId) continue;
+    if (r.kind === "credito") pendingCredits += Number(r.commissionAmount ?? 0);
+    else pendingDeductions += Number(r.commissionAmount ?? 0);
+  }
+  return { pendingDeductions, pendingCredits };
+}
 
 function fmtDayMonth(iso: string): string {
   const d = new Date(iso);
@@ -322,6 +355,9 @@ export function computeLiquidacionSummary(
   // Ver LiquidacionRecoveredRow.
   commissionEvents: LiquidacionRecoveredRow[] = [],
   tipEvents: LiquidacionRecoveredRow[] = [],
+  // "Venta anulada" pendiente (commission_adjustment_queue) — opcional
+  // (default []) por la misma razón que commissionEvents/tipEvents.
+  ventasAnuladas: HistorialVentaAnuladaRow[] = [],
 ): LiquidacionSummary {
   const employeeRuns = runs
     .filter((r) => String(r.professional_id) === String(professionalId))
@@ -379,16 +415,23 @@ export function computeLiquidacionSummary(
     .filter((a) => String(a.professional_id) === String(professionalId) && !a.settlement_run_id)
     .reduce((sum, a) => sum + Number(a.amount ?? 0), 0);
 
+  const { pendingDeductions, pendingCredits } = sumPendingAdjustmentQueue(ventasAnuladas, professionalId);
+
   return {
     previousBalance,
     newCommissions,
     newTips,
     pendingAdvances,
+    pendingDeductions,
+    pendingCredits,
     periodStart,
     periodStartAt,
     latestRun,
     previousPeriodLabel,
-    totalToPay: Math.max(previousBalance + newCommissions + newTips - pendingAdvances, 0),
+    totalToPay: Math.max(
+      previousBalance + newCommissions + newTips + pendingCredits - pendingAdvances - pendingDeductions,
+      0,
+    ),
   };
 }
 
