@@ -1525,3 +1525,54 @@ describe("Pagar una liquidación nunca duplica el descuento vía cash_movements"
     }
   });
 });
+
+// Caso real: un adelanto necesita una fecha de VISUALIZACIÓN (Adelantos/
+// Movimientos) independiente de su fecha financiera real — ver
+// 20261028170000_professional_advances_display_date.sql. Guarda contra
+// la reaparición del problema que motivó esto (mover advanced_at directo
+// alteraba la conciliación de un día ya cerrado): ningún cálculo
+// financiero (conciliación de Caja, corte/período de liquidación) puede
+// empezar a leer display_date — tiene que seguir siendo advanced_at,
+// siempre.
+describe("professional_advances.display_date — solo para mostrar, nunca para calcular dinero/período", () => {
+  it("caja-cierre.ts: la consulta de adelantos para conciliación sigue filtrando por advanced_at, nunca por display_date", () => {
+    const src = readSrc("src/lib/caja-cierre.ts");
+    expect(src).toMatch(/advQuery[\s\S]{0,200}\.gte\("advanced_at", dayStart\.toISOString\(\)\)/);
+    expect(src).not.toMatch(/display_date/);
+  });
+
+  it("cash-register.tsx: el filtro de corte de Movimientos (isWithinCutoff) sigue leyendo a.advanced_at, no a.display_date", () => {
+    const src = readSrc("src/routes/cash-register.tsx");
+    expect(src).toMatch(/isWithinCutoff\(a\.advanced_at, liquidarCutoffAt\)/);
+    expect(src).toMatch(/String\(a\.advanced_at \?\?\s*""\)/);
+  });
+
+  it("ninguna migración de prepare_settlement_run/register_professional_advance filtra o escribe display_date (ese campo es 100% frontend)", () => {
+    const migrationsDir = path.join(repoRoot, "supabase", "migrations");
+    // Excluye la migración que agrega la columna (20261028170000) a
+    // propósito — ESA sí tiene que mencionar display_date (define la
+    // columna). Lo que este test vigila es que NINGUNA OTRA migración de
+    // settlement_run/professional_advance (prepare_settlement_run, el
+    // insert de un adelanto, etc.) empiece a leerla para calcular nada.
+    const settlementFiles = fs
+      .readdirSync(migrationsDir)
+      .filter(
+        (f) =>
+          /settlement_run|professional_advance/i.test(f) &&
+          f.endsWith(".sql") &&
+          f !== "20261028170000_professional_advances_display_date.sql",
+      );
+    expect(settlementFiles.length).toBeGreaterThan(0);
+    for (const file of settlementFiles) {
+      const sql = readSrc(`supabase/migrations/${file}`);
+      expect(sql).not.toMatch(/display_date/);
+    }
+  });
+
+  it("la migración que agrega display_date es puramente aditiva (add column if not exists, nullable, sin default distinto de null)", () => {
+    const sql = readSrc("supabase/migrations/20261028170000_professional_advances_display_date.sql");
+    expect(sql).toMatch(/add column if not exists display_date timestamptz;/);
+    expect(sql).not.toMatch(/not null/i);
+    expect(sql).not.toMatch(/update\s+public\.professional_advances/i);
+  });
+});

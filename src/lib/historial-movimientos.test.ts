@@ -123,6 +123,53 @@ describe("buildHistorialMovimientos — Movimientos respeta el corte elegido", (
   });
 });
 
+// Caso real: adelanto a Pipo registrado el 28/10 (fecha financiera real,
+// la que sigue usando Caja/conciliación/período de liquidación) que el
+// negocio quiere ORGANIZAR como si fuera del 24/10 en Adelantos/
+// Movimientos — ver 20261028170000_professional_advances_display_date.sql.
+// display_date es puramente de presentación: buildHistorialMovimientos
+// (la única función que decide qué fecha se MUESTRA) tiene que preferirlo
+// sobre advanced_at cuando existe, y caer a advanced_at cuando no.
+describe("buildHistorialMovimientos — display_date de un adelanto (fecha de visualización, nunca financiera)", () => {
+  function makeAdvance(overrides: Partial<HistorialAdvanceRow>): HistorialAdvanceRow {
+    return {
+      id: "adv-pipo",
+      amount: 125864,
+      payment_method: "debito",
+      note: "6 pagos con tarjeta",
+      advanced_at: "2026-10-28T19:11:50.587Z",
+      registered_by_name: "alangmelgar",
+      movement_number: 186,
+      ...overrides,
+    };
+  }
+
+  it("con display_date, el adelanto se muestra/ordena por esa fecha, nunca por advanced_at", () => {
+    const advance = makeAdvance({ display_date: "2026-10-24T19:11:00.000Z" });
+    const items = buildHistorialMovimientos([], [advance], []);
+    expect(items).toHaveLength(1);
+    expect(items[0].at).toBe("2026-10-24T19:11:00.000Z");
+  });
+
+  it("sin display_date (null o ausente), sigue mostrando advanced_at — ningún adelanto existente cambia de fecha visible", () => {
+    const sinCampo = makeAdvance({});
+    const conNull = makeAdvance({ id: "adv-2", display_date: null });
+    const items = buildHistorialMovimientos([], [sinCampo, conNull], []);
+    expect(items.every((i) => i.at === "2026-10-28T19:11:50.587Z")).toBe(true);
+  });
+
+  it("display_date nunca pisa el dato guardado en `data` — advanced_at real sigue intacto para quien lo necesite (Caja, detalle)", () => {
+    const advance = makeAdvance({ display_date: "2026-10-24T19:11:00.000Z" });
+    const items = buildHistorialMovimientos([], [advance], []);
+    expect(items[0].kind).toBe("adelanto");
+    if (items[0].kind === "adelanto") {
+      expect(items[0].data.advanced_at).toBe("2026-10-28T19:11:50.587Z");
+      expect(items[0].data.display_date).toBe("2026-10-24T19:11:00.000Z");
+      expect(items[0].data.amount).toBe(125864);
+    }
+  });
+});
+
 // "Venta anulada" (ver 20261026020000_void_adjustment_settlement_tracking.sql)
 // — caso de referencia real: venta #1CB24B (26/10/2026), anulada con la
 // comisión ya liquidada. Pendiente hasta que prepare_settlement_run la

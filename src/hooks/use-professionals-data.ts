@@ -581,6 +581,11 @@ export type ProfAdvance = {
   payment_method: string | null;
   note: string | null;
   advanced_at: string;
+  // Ver 20261028170000_professional_advances_display_date.sql — null/
+  // ausente = mostrar advanced_at, como siempre. Nunca reemplaza
+  // advanced_at para el período de liquidación (isWithinCutoff lo sigue
+  // leyendo directo, nunca a través de este campo).
+  display_date?: string | null;
   registered_by_name: string;
   movement_number: number | null;
   settlement_run_id: string | null;
@@ -594,7 +599,7 @@ export function useProfAdvances(businessId: string | null, empId: string | null)
     queryFn: async (): Promise<ProfAdvance[]> => {
       const { data, error } = await supabase
         .from("professional_advances" as any)
-        .select("id,amount,payment_method,note,advanced_at,registered_by_name,movement_number,settlement_run_id")
+        .select("id,amount,payment_method,note,advanced_at,display_date,registered_by_name,movement_number,settlement_run_id")
         .eq("business_id", businessId!)
         .eq("professional_id", empId!)
         .order("advanced_at", { ascending: false });

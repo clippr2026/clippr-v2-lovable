@@ -421,10 +421,14 @@ export function AdelantoDetalleContent({
     amount: number;
     payment_method: string | null;
     advanced_at: string;
+    // Ver 20261028170000_professional_advances_display_date.sql — null/
+    // ausente = mostrar advanced_at, como siempre.
+    display_date?: string | null;
     registered_by_name: string;
     note: string | null;
   };
 }) {
+  const fechaMostrada = advance.display_date ?? advance.advanced_at;
   return (
     <div className="overflow-hidden rounded-2xl border border-rose-300/25 bg-[linear-gradient(135deg,rgba(244,63,94,0.14),rgba(8,11,20,0.96),rgba(2,4,12,0.98))] text-sm shadow-[0_0_40px_rgba(244,63,94,0.12),0_18px_55px_-34px_rgba(0,0,0,1)]">
       <div className="divide-y divide-rose-300/10">
@@ -443,7 +447,7 @@ export function AdelantoDetalleContent({
         <div className="flex items-center justify-between px-3.5 py-2.5">
           <span className="text-white/50">Fecha y hora</span>
           <span className="font-semibold text-white">
-            {advance.advanced_at ? fmtDetalleDateTime(advance.advanced_at) : "—"}
+            {fechaMostrada ? fmtDetalleDateTime(fechaMostrada) : "—"}
           </span>
         </div>
         <div className="flex items-center justify-between px-3.5 py-2.5">

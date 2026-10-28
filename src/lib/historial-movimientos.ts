@@ -25,6 +25,11 @@ export type HistorialAdvanceRow = {
   payment_method: string | null;
   note: string | null;
   advanced_at: string;
+  // Fecha SOLO para mostrar (ver 20261028170000_professional_advances_display_date.sql)
+  // — null/ausente = mostrar advanced_at, como siempre. advanced_at sigue
+  // siendo la única fecha real para Caja/conciliación/período de
+  // liquidación; esto nunca reemplaza esa fuente, solo lo que se renderiza.
+  display_date?: string | null;
   registered_by_name: string;
   movement_number: number | null;
 };
@@ -187,7 +192,10 @@ export function buildHistorialMovimientos(
   const adelantoItems: MovimientoAdelanto[] = advances.map((a) => ({
     kind: "adelanto",
     movementNumber: a.movement_number,
-    at: a.advanced_at,
+    // display_date (si existe) manda para MOSTRAR — nunca para el corte
+    // de período, eso lo siguen resolviendo isWithinCutoff/prepare_settlement_run
+    // directo sobre advanced_at, nunca sobre este campo derivado.
+    at: a.display_date ?? a.advanced_at,
     data: a,
   }));
 

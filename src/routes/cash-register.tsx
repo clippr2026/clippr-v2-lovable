@@ -4012,7 +4012,7 @@ function ProfesionalesTab({
           supabase
             .from("professional_advances" as any)
             .select(
-              "id,professional_id,amount,payment_method,note,advanced_at,registered_by_name,settlement_run_id,movement_number",
+              "id,professional_id,amount,payment_method,note,advanced_at,display_date,registered_by_name,settlement_run_id,movement_number",
             )
             .eq("business_id", businessId)
             .order("id", { ascending: true })
