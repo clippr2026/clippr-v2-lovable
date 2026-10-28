@@ -4551,7 +4551,11 @@ function ProfesionalesTab({
       selectedAdvances.filter(
         (a: any) =>
           (!a.settlement_run_id || !closedRunIds.has(a.settlement_run_id)) &&
-          isWithinCutoff(a.advanced_at, liquidarCutoffAt),
+          // display_date (si existe) decide el período — mismo criterio
+          // que prepare_settlement_run (ver
+          // 20261028190000_prepare_settlement_run_advance_display_date.sql).
+          // Sin display_date, es exactamente advanced_at.
+          isWithinCutoff(a.display_date ?? a.advanced_at, liquidarCutoffAt),
       ),
     [selectedAdvances, closedRunIds, liquidarCutoffAt],
   );
@@ -4920,7 +4924,7 @@ function ProfesionalesTab({
         (a: any) =>
           String(a.professional_id) === selectedRow.id &&
           !a.settlement_run_id &&
-          String(a.advanced_at ?? "") <= cutoffIso,
+          String(a.display_date ?? a.advanced_at ?? "") <= cutoffIso,
       )
       .reduce((sum: number, a: any) => sum + Number(a.amount ?? 0), 0);
   }, [allAdvances, selectedRow, liquidarCutoffAt]);

@@ -1528,39 +1528,68 @@ describe("Pagar una liquidación nunca duplica el descuento vía cash_movements"
 
 // Caso real: un adelanto necesita una fecha de VISUALIZACIÓN (Adelantos/
 // Movimientos) independiente de su fecha financiera real — ver
-// 20261028170000_professional_advances_display_date.sql. Guarda contra
-// la reaparición del problema que motivó esto (mover advanced_at directo
-// alteraba la conciliación de un día ya cerrado): ningún cálculo
-// financiero (conciliación de Caja, corte/período de liquidación) puede
-// empezar a leer display_date — tiene que seguir siendo advanced_at,
-// siempre.
-describe("professional_advances.display_date — solo para mostrar, nunca para calcular dinero/período", () => {
+// 20261028170000_professional_advances_display_date.sql. Decisión
+// confirmada por el negocio: la conciliación de Caja SIGUE usando
+// advanced_at solo (mover la fecha real de un adelanto puede corromper un
+// cierre ya cerrado), pero el corte/período de liquidación SÍ usa
+// coalesce(display_date, advanced_at) — ver
+// 20261028190000_prepare_settlement_run_advance_display_date.sql.
+describe("professional_advances.display_date — Caja usa advanced_at solo; Liquidaciones usa coalesce(display_date, advanced_at)", () => {
   it("caja-cierre.ts: la consulta de adelantos para conciliación sigue filtrando por advanced_at, nunca por display_date", () => {
     const src = readSrc("src/lib/caja-cierre.ts");
     expect(src).toMatch(/advQuery[\s\S]{0,200}\.gte\("advanced_at", dayStart\.toISOString\(\)\)/);
     expect(src).not.toMatch(/display_date/);
   });
 
-  it("cash-register.tsx: el filtro de corte de Movimientos (isWithinCutoff) sigue leyendo a.advanced_at, no a.display_date", () => {
+  it("cash-register.tsx: los dos filtros de corte de Liquidaciones (openAdvances/liquidarPendingAdvances) usan display_date ?? advanced_at", () => {
     const src = readSrc("src/routes/cash-register.tsx");
-    expect(src).toMatch(/isWithinCutoff\(a\.advanced_at, liquidarCutoffAt\)/);
-    expect(src).toMatch(/String\(a\.advanced_at \?\?\s*""\)/);
+    expect(src).toMatch(/isWithinCutoff\(a\.display_date \?\? a\.advanced_at, liquidarCutoffAt\)/);
+    expect(src).toMatch(/String\(a\.display_date \?\? a\.advanced_at \?\?\s*""\)/);
   });
 
-  it("ninguna migración de prepare_settlement_run/register_professional_advance filtra o escribe display_date (ese campo es 100% frontend)", () => {
+  it("prepare_settlement_run (la migración más reciente) usa coalesce(display_date, advanced_at) en el SELECT y en el UPDATE que bloquea adelantos", () => {
+    const sql = readSrc(
+      "supabase/migrations/20261028190000_prepare_settlement_run_advance_display_date.sql",
+    );
+    // 2 funcionales (el SELECT y el UPDATE) + 1 mención en el comentario
+    // del encabezado del archivo.
+    expect(sql.match(/coalesce\(display_date, advanced_at\) <= v_cutoff_at/g)?.length ?? 0).toBeGreaterThanOrEqual(2);
+  });
+
+  it("la migración de prepare_settlement_run no cambió nada más que esas dos cláusulas (mismo largo de función, sin otra lógica tocada)", () => {
+    const sql = readSrc(
+      "supabase/migrations/20261028190000_prepare_settlement_run_advance_display_date.sql",
+    );
+    // Guarda de alcance: todas las reglas que ya estaban probadas antes
+    // (venta anulada con tope, comisiones/propinas recuperadas, etc.)
+    // siguen presentes tal cual.
+    expect(sql).toMatch(/exit when v_queue_row\.commission_amount > v_available_for_deduction;/);
+    expect(sql).toMatch(/El total a liquidar no puede ser negativo/);
+    expect(sql).toMatch(/array_length\(v_applied_queue_ids, 1\) > 0/);
+  });
+
+  it("ningún registro de adelanto ya bloqueado (settlement_run_id no nulo) puede volver a entrar en un sweep futuro — la condición settlement_run_id is null sigue en las dos cláusulas de adelantos", () => {
+    const sql = readSrc(
+      "supabase/migrations/20261028190000_prepare_settlement_run_advance_display_date.sql",
+    );
+    expect(sql).toMatch(
+      /where business_id = p_business_id\s*\n\s*and professional_id = p_professional_id\s*\n\s*and settlement_run_id is null\s*\n\s*and coalesce\(display_date, advanced_at\) <= v_cutoff_at;/,
+    );
+    expect(sql).toMatch(
+      /set settlement_run_id = v_run\.id\s*\n\s*where business_id = p_business_id\s*\n\s*and professional_id = p_professional_id\s*\n\s*and settlement_run_id is null\s*\n\s*and coalesce\(display_date, advanced_at\) <= v_cutoff_at;/,
+    );
+  });
+
+  it("ninguna otra migración de settlement_run/professional_advance (aparte de las dos que definen/usan display_date) lo menciona", () => {
     const migrationsDir = path.join(repoRoot, "supabase", "migrations");
-    // Excluye la migración que agrega la columna (20261028170000) a
-    // propósito — ESA sí tiene que mencionar display_date (define la
-    // columna). Lo que este test vigila es que NINGUNA OTRA migración de
-    // settlement_run/professional_advance (prepare_settlement_run, el
-    // insert de un adelanto, etc.) empiece a leerla para calcular nada.
     const settlementFiles = fs
       .readdirSync(migrationsDir)
       .filter(
         (f) =>
           /settlement_run|professional_advance/i.test(f) &&
           f.endsWith(".sql") &&
-          f !== "20261028170000_professional_advances_display_date.sql",
+          f !== "20261028170000_professional_advances_display_date.sql" &&
+          f !== "20261028190000_prepare_settlement_run_advance_display_date.sql",
       );
     expect(settlementFiles.length).toBeGreaterThan(0);
     for (const file of settlementFiles) {
