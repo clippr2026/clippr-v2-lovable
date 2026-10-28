@@ -1,17 +1,30 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { supabase } from "@/integrations/supabase/client";
 
-// Comprobantes de transferencia — vinculados a payments.id (nunca a
-// clients/appointments, ver 20261003030000_payment_receipts.sql). Bucket
-// privado "payment-receipts", path determinístico
-// `${businessId}/${paymentId}.webp` — un reintento (cambiar/reemplazar o
-// recuperar una subida que falló) sobreescribe con upsert en vez de
-// acumular archivos.
+// Comprobantes de pagos no efectivo (transferencia/débito/crédito/QR) —
+// vinculados a payments.id (nunca a clients/appointments, ver
+// 20261003030000_payment_receipts.sql). Bucket privado "payment-receipts",
+// path determinístico `${businessId}/${paymentId}.webp` — un reintento
+// (cambiar/reemplazar o recuperar una subida que falló) sobreescribe con
+// upsert en vez de acumular archivos.
 
 export const PAYMENT_RECEIPTS_BUCKET = "payment-receipts";
 
 export function paymentReceiptPath(businessId: string, paymentId: string): string {
   return `${businessId}/${paymentId}.webp`;
+}
+
+// Comprobante de UN componente de un pago múltiple (ej. mitad en
+// transferencia, mitad en débito — cada una con su propio comprobante).
+// Importante: el sufijo va DESPUÉS de un punto, nunca con guion — las
+// policies de RLS de este bucket matchean
+// `split_part(storage.filename(name), '.', 1) = payments.id`, es decir,
+// todo ANTES del primer punto tiene que ser exactamente el uuid del pago.
+// "<uuid>.split0.webp" cumple eso; "<uuid>-split-0.webp" NO (el primer
+// punto quedaría después de todo el nombre, rompiendo el matcheo y
+// bloqueando la subida con un 403 de policy).
+export function paymentSplitReceiptPath(businessId: string, paymentId: string, splitIndex: number): string {
+  return `${businessId}/${paymentId}.split${splitIndex}.webp`;
 }
 
 // Adaptado de compressProfessionalAvatar (equipo-section.tsx): mismo
@@ -140,6 +153,66 @@ export async function attachReceiptToPayment(
     } else {
       console.warn(
         `[payment-receipts] UPDATE falló, se borró el archivo recién subido en ${path}:`,
+        updateError.message,
+      );
+    }
+    throw new Error(updateError.message);
+  }
+}
+
+// Comprobante de UN componente de un pago múltiple — mismo patrón que
+// attachReceiptToPayment (upload + link, con limpieza del archivo
+// huérfano si el UPDATE falla), pero el "link" va dentro de
+// payments.splits (jsonb), no en la columna receipt_path (esa sigue
+// siendo solo para Pago simple). Matchea el split por `method` (nunca por
+// índice de array): MultiMethodPaymentSplit no permite dos splits del
+// mismo método en un mismo pago, así que el método alcanza para
+// identificar cuál es sin depender del orden exacto en que viajaron.
+export async function attachReceiptToPaymentSplit(
+  businessId: string,
+  paymentId: string,
+  method: string,
+  file: File,
+): Promise<void> {
+  const { data: row, error: readError } = await supabase
+    .from("payments")
+    .select("splits")
+    .eq("id", paymentId)
+    .maybeSingle();
+  if (readError) throw new Error(readError.message);
+
+  const splits = Array.isArray((row as Record<string, unknown> | null)?.splits)
+    ? ((row as Record<string, unknown>).splits as Array<Record<string, unknown>>)
+    : [];
+  const idx = splits.findIndex((s) => s?.method === method);
+  if (idx === -1) return; // Ese método ya no está en los splits — nada que adjuntar.
+
+  const blob = await compressReceiptImage(file);
+  const path = paymentSplitReceiptPath(businessId, paymentId, idx);
+  const { error: uploadError } = await supabase.storage.from(PAYMENT_RECEIPTS_BUCKET).upload(path, blob, {
+    upsert: true,
+    contentType: "image/webp",
+    cacheControl: "0",
+  });
+  if (uploadError) throw new Error(uploadError.message);
+
+  const nextSplits = splits.map((s, i) => (i === idx ? { ...s, receipt_path: path } : s));
+  const { error: updateError } = await supabase
+    .from("payments")
+    .update({ splits: nextSplits })
+    .eq("id", paymentId);
+
+  if (updateError) {
+    const cleanup = await removeReceiptObject(supabase, path);
+    if (!cleanup.ok) {
+      console.error(
+        `[payment-receipts] subida OK pero UPDATE de splits falló y la limpieza también falló — archivo huérfano en ${path}:`,
+        updateError.message,
+        cleanup.error,
+      );
+    } else {
+      console.warn(
+        `[payment-receipts] UPDATE de splits falló, se borró el archivo recién subido en ${path}:`,
         updateError.message,
       );
     }

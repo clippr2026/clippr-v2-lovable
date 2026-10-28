@@ -80,6 +80,7 @@ import {
 } from "@/components/cash-register/cobrar-pendiente";
 import {
   attachReceiptToPayment,
+  attachReceiptToPaymentSplit,
   getPaymentReceiptSignedUrl,
   paymentReceiptPath,
 } from "@/lib/payment-receipts";
@@ -9024,6 +9025,17 @@ function DetailModal({
     ((payment as Record<string, unknown>).status as string | null) ?? "cobrado";
   const comprobante =
     ((payment as Record<string, unknown>).reference as string | null) ?? null;
+  // Componentes no efectivo de un pago múltiple — cada uno puede tener su
+  // propio comprobante (ver attachReceiptToPaymentSplit, payment-
+  // receipts.ts). [] en un cobro de un solo medio (sin splits).
+  const nonCashSplits = (
+    Array.isArray((payment as Record<string, unknown>).splits)
+      ? ((payment as Record<string, unknown>).splits as Array<{
+          method?: string | null;
+          receipt_path?: string | null;
+        }>)
+      : []
+  ).filter((sp) => sp.method && sp.method !== "cash");
   const obs =
     (((payment as Record<string, unknown>).observations as string | null) ??
       null) ||
@@ -9549,16 +9561,40 @@ function DetailModal({
             {comprobante && (
               <Row label="Referencia / Comprobante" value={comprobante} />
             )}
-            {method === "transfer" && (
+            {/* Pago múltiple: un comprobante por componente no efectivo
+                (ver payments.splits[].receipt_path) — nunca el botón de
+                abajo, que es para un cobro de un solo medio. Sin splits
+                no efectivo (el caso de siempre, o un múltiple 100% en
+                efectivo), sigue siendo el botón único. */}
+            {nonCashSplits.length > 0 ? (
               <Row
-                label="Comprobante"
+                label="Comprobantes"
                 value={
-                  <ReceiptButton
-                    payment={payment}
-                    businessId={((payment as Record<string, unknown>).business_id as string) ?? null}
-                  />
+                  <div className="flex flex-col items-end gap-1">
+                    {nonCashSplits.map((sp) =>
+                      sp.receipt_path ? (
+                        <SplitReceiptButton key={sp.method} method={sp.method as string} receiptPath={sp.receipt_path} />
+                      ) : (
+                        <span key={sp.method} className="text-[11px] text-white/35">
+                          Sin comprobante · {PAY_METHOD_LABEL[sp.method as PayMethod] ?? sp.method}
+                        </span>
+                      ),
+                    )}
+                  </div>
                 }
               />
+            ) : (
+              method !== "cash" && (
+                <Row
+                  label="Comprobante"
+                  value={
+                    <ReceiptButton
+                      payment={payment}
+                      businessId={((payment as Record<string, unknown>).business_id as string) ?? null}
+                    />
+                  }
+                />
+              )
             )}
           </div>
 
@@ -11910,12 +11946,14 @@ function AttachReceiptModal({
   );
 }
 
-// "Ver comprobante" / "Agregar comprobante" — solo para pagos por
-// Transferencia. La URL firmada se pide recién al tocar el botón (nunca
-// al renderizar la fila/lista), para no generar tráfico de Storage de
-// más. Renderizado como <span role="button"> (no <button>) a propósito:
-// se usa dentro de filas que a veces ya son un <button> completo (cards
-// mobile) — mismo criterio que "Ver nota" en estas mismas tablas.
+// "Ver comprobante" / "Agregar comprobante" — para cualquier medio
+// distinto de Efectivo (Transferencia/Débito/Crédito/QR). En Efectivo no
+// hay comprobante que adjuntar — no corresponde mostrar nada acá. La URL
+// firmada se pide recién al tocar el botón (nunca al renderizar la fila/
+// lista), para no generar tráfico de Storage de más. Renderizado como
+// <span role="button"> (no <button>) a propósito: se usa dentro de filas
+// que a veces ya son un <button> completo (cards mobile) — mismo criterio
+// que "Ver nota" en estas mismas tablas.
 function ReceiptButton({
   payment,
   businessId,
@@ -11933,7 +11971,7 @@ function ReceiptButton({
     setReceiptPath(payment.receipt_path ?? null);
   }, [payment.receipt_path]);
 
-  if (method !== "transfer") return null;
+  if (method === "cash") return null;
 
   async function openReceipt(event: React.MouseEvent) {
     event.stopPropagation();
@@ -11977,6 +12015,45 @@ function ReceiptButton({
           }}
         />
       )}
+    </>
+  );
+}
+
+// "Ver comprobante" de UN componente de un pago múltiple — mismo patrón
+// que ReceiptButton (URL firmada recién al tocar, mismo lightbox), pero
+// sin "Agregar": el comprobante de un split se carga en el momento de
+// cobrar (ver TransferReceiptField por método, NuevaVentaTab) — acá solo
+// se visualiza lo que ya quedó guardado en payments.splits[].receipt_path.
+function SplitReceiptButton({ method, receiptPath }: { method: string; receiptPath: string }) {
+  const [lightboxUrl, setLightboxUrl] = React.useState<string | null>(null);
+  const [loading, setLoading] = React.useState(false);
+
+  async function openReceipt(event: React.MouseEvent) {
+    event.stopPropagation();
+    if (loading) return;
+    setLoading(true);
+    try {
+      const url = await getPaymentReceiptSignedUrl(receiptPath);
+      setLightboxUrl(url);
+    } catch {
+      toast.error("No se pudo abrir el comprobante.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <>
+      <span
+        role="button"
+        tabIndex={0}
+        onClick={openReceipt}
+        className="mt-1 inline-flex items-center gap-1 text-[11px] font-semibold text-sky-300 transition hover:text-sky-200"
+      >
+        <ImageIcon className="size-3 shrink-0" />
+        {loading ? "Abriendo…" : `Ver comprobante · ${PAY_METHOD_LABEL[method as PayMethod] ?? method}`}
+      </span>
+      {lightboxUrl && <ReceiptLightboxModal url={lightboxUrl} onClose={() => setLightboxUrl(null)} />}
     </>
   );
 }
@@ -13540,6 +13617,14 @@ export function NuevaVentaTab({
   // devolvió el id real (ver attachReceiptIfNeeded más abajo).
   const [receiptFile, setReceiptFile] = React.useState<File | null>(null);
   const [receiptPreviewUrl, setReceiptPreviewUrl] = React.useState<string | null>(null);
+  // Mismo criterio que receiptFile/receiptPreviewUrl, pero uno por cada
+  // componente no efectivo de Pago múltiple — llave por `method`, nunca
+  // por índice de array (MultiMethodPaymentSplit no permite dos splits
+  // del mismo método a la vez, así que el método identifica al split sin
+  // depender del orden). 100% local hasta confirmar el cobro, igual que
+  // el de Pago simple (ver attachSplitReceiptsIfNeeded más abajo).
+  const [splitReceiptFiles, setSplitReceiptFiles] = React.useState<Record<string, File>>({});
+  const [splitReceiptPreviews, setSplitReceiptPreviews] = React.useState<Record<string, string>>({});
   const [submitting, setSubmitting] = React.useState(false);
   // Idempotencia de cobros (ver 20261019040000_payments_idempotency_key.sql)
   // — se genera una vez por intento de cobro y se reutiliza SOLO si
@@ -13587,6 +13672,7 @@ export function NuevaVentaTab({
     setReceived("");
     setPaymentMode("simple");
     setSplits([{ method: "cash", amount: "" }]);
+    clearAllSplitReceipts();
     methodDefaultAppliedRef.current = false;
     setPromotionId(pendingCharge.promotion_id ?? "");
     setManualDiscountAmount("");
@@ -14027,7 +14113,7 @@ export function NuevaVentaTab({
   // esto. attachReceiptToPayment (payment-receipts.ts) ya se encarga de
   // no dejar el archivo huérfano si el UPDATE de receipt_path falla.
   async function attachReceiptIfNeeded(paymentId: string) {
-    if (method !== "transfer" || !receiptFile || !data.businessId) return;
+    if (method === "cash" || !receiptFile || !data.businessId) return;
     try {
       await attachReceiptToPayment(data.businessId, paymentId, receiptFile);
     } catch (e) {
@@ -14053,6 +14139,60 @@ export function NuevaVentaTab({
     if (receiptPreviewUrl) URL.revokeObjectURL(receiptPreviewUrl);
     setReceiptFile(file);
     setReceiptPreviewUrl(URL.createObjectURL(file));
+  }
+
+  // Mismo patrón que attachReceiptIfNeeded, pero recorre splits: cada
+  // componente no efectivo con un archivo cargado se sube y queda linkeado
+  // dentro de payments.splits (ver attachReceiptToPaymentSplit). Un split
+  // sin archivo simplemente no genera ningún comprobante — nunca bloquea
+  // el resto ni el cobro ya confirmado.
+  async function attachSplitReceiptsIfNeeded(paymentId: string) {
+    if (!data.businessId) return;
+    const entries = Object.entries(splitReceiptFiles);
+    if (entries.length === 0) return;
+    for (const [splitMethod, file] of entries) {
+      try {
+        await attachReceiptToPaymentSplit(data.businessId, paymentId, splitMethod, file);
+      } catch (e) {
+        toast.error(
+          `El cobro se registró, pero el comprobante de ${PAY_METHOD_LABEL[splitMethod as PayMethod] ?? splitMethod} no se pudo subir. Podés agregarlo después desde el historial.`,
+        );
+        console.warn("[cash-register] no se pudo adjuntar el comprobante de un split:", (e as Error).message);
+      }
+    }
+  }
+
+  function clearSplitReceipt(splitMethod: string) {
+    setSplitReceiptPreviews((prev) => {
+      const url = prev[splitMethod];
+      if (url) URL.revokeObjectURL(url);
+      const { [splitMethod]: _removed, ...rest } = prev;
+      return rest;
+    });
+    setSplitReceiptFiles((prev) => {
+      const { [splitMethod]: _removed, ...rest } = prev;
+      return rest;
+    });
+  }
+
+  function handleSplitReceiptFileSelected(splitMethod: string, file: File | null) {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      toast.error("Elegí una imagen (foto o captura) del comprobante.");
+      return;
+    }
+    setSplitReceiptPreviews((prev) => {
+      const prevUrl = prev[splitMethod];
+      if (prevUrl) URL.revokeObjectURL(prevUrl);
+      return { ...prev, [splitMethod]: URL.createObjectURL(file) };
+    });
+    setSplitReceiptFiles((prev) => ({ ...prev, [splitMethod]: file }));
+  }
+
+  function clearAllSplitReceipts() {
+    Object.values(splitReceiptPreviews).forEach((url) => URL.revokeObjectURL(url));
+    setSplitReceiptFiles({});
+    setSplitReceiptPreviews({});
   }
 
   async function handleCobrar() {
@@ -14086,20 +14226,30 @@ export function NuevaVentaTab({
       return;
     }
 
-    // Monto recibido: válido para los tres casos (pagado completo/
-    // parcial/pendiente) por igual — nunca negativo, nunca más que el
-    // total del servicio (subtotalAfterDiscount: con descuento, SIN
-    // propina — la propina se cobra siempre completa y aparte, nunca entra
-    // acá). Se valida ANTES de separar en el branch de abajo porque aplica
-    // sin importar en cuál se termine cayendo.
-    if (turnoChargeMode !== "manual") {
+    // Monto recibido (Pago simple — Pago múltiple tiene su propia
+    // validación más abajo, splitsTotal contra finalTotal, ya correcta):
+    // el campo nunca se completa solo. Vacío bloquea el cobro entero, sin
+    // importar completo/parcial/pendiente — un cobro vacío no es lo mismo
+    // que "0 pendiente de cobro" (eso sigue existiendo, pero el usuario
+    // tiene que tipear "0" a propósito, nunca dejarlo en blanco). Bug real
+    // (producción): el tope de arriba comparaba contra subtotalAfterDiscount
+    // (CON descuento, pero SIN propina) en vez de finalTotal (CON propina)
+    // — cobrar $26.000 de un servicio de $25.000 + $1.000 de propina
+    // rechazaba el cobro completo y válido. finalTotal ya es la cifra
+    // correcta: es la misma que exige el resumen de arriba y la que usan
+    // change/cashShortfall más abajo.
+    if (turnoChargeMode !== "manual" && paymentMode === "simple") {
+      if (received.trim() === "") {
+        toast.error("Ingresá el monto recibido para continuar");
+        return;
+      }
       if (receivedAmount < 0) {
         toast.error("El monto recibido no puede ser negativo.");
         return;
       }
-      if (receivedAmount > subtotalAfterDiscount + 0.01) {
+      if (receivedAmount > finalTotal + 0.01) {
         toast.error(
-          `El monto recibido ($${Math.round(receivedAmount).toLocaleString("es-AR")}) no puede superar el total del servicio ($${Math.round(subtotalAfterDiscount).toLocaleString("es-AR")}, sin contar la propina).`,
+          `El monto recibido ($${Math.round(receivedAmount).toLocaleString("es-AR")}) no puede superar el total a cobrar ($${Math.round(finalTotal).toLocaleString("es-AR")}, con propina incluida).`,
         );
         return;
       }
@@ -14114,7 +14264,13 @@ export function NuevaVentaTab({
     // propósito.
     if (turnoChargeMode !== "manual" && !pagoPendiente) {
       if (paymentMode === "simple") {
-        if (method === "cash" && cashShortfall > 0) {
+        // Antes solo chequeaba esto en efectivo (cashShortfall) — un pago
+        // sin vuelto (transferencia/débito/crédito/QR) por debajo del
+        // total (con propina) pasaba sin ningún aviso. Ahora se exige
+        // igual para cualquier medio: si no es pago parcial/pendiente a
+        // propósito (!pagoPendiente, ya excluido arriba), tiene que cubrir
+        // finalTotal completo.
+        if (receivedAmount < finalTotal - 0.01) {
           toast.error(
             `El monto recibido es menor al total ($${finalTotal.toLocaleString("es-AR")}).`,
           );
@@ -14382,7 +14538,10 @@ export function NuevaVentaTab({
           clientEmail: email,
           collectedAmount: pendingCollectedAmount,
         });
-        if (walkinRows[0]?.id) await attachReceiptIfNeeded(walkinRows[0].id);
+        if (walkinRows[0]?.id) {
+          await attachReceiptIfNeeded(walkinRows[0].id);
+          await attachSplitReceiptsIfNeeded(walkinRows[0].id);
+        }
 
         const { error: removeError } = await supabase
           .from("business_settings")
@@ -14401,6 +14560,7 @@ export function NuevaVentaTab({
             : `Cobro confirmado · $${finalTotal.toLocaleString("es-AR")}`,
         );
         clearReceiptFile();
+        clearAllSplitReceipts();
         onPendingDone?.();
         await data.refresh();
         notifyCajaPendientesChanged();
@@ -14460,7 +14620,10 @@ export function NuevaVentaTab({
           clientEmail: email,
           collectedAmount: pendingCollectedAmount,
         });
-        if (pendingRows[0]?.id) await attachReceiptIfNeeded(pendingRows[0].id);
+        if (pendingRows[0]?.id) {
+          await attachReceiptIfNeeded(pendingRows[0].id);
+          await attachSplitReceiptsIfNeeded(pendingRows[0].id);
+        }
 
         // 3. Registrar en el historial del turno que el usuario de caja cobró el
         //    pendiente. Persiste en appointments.cobro_events (Supabase).
@@ -14490,6 +14653,7 @@ export function NuevaVentaTab({
             : `Cobro confirmado · $${finalTotal.toLocaleString("es-AR")}`,
         );
         clearReceiptFile();
+        clearAllSplitReceipts();
         onPendingDone?.();
         notifyCajaPendientesChanged();
       } else {
@@ -14542,7 +14706,10 @@ export function NuevaVentaTab({
           clientEmail: email,
           collectedAmount: pendingCollectedAmount,
         });
-        if (saleRows[0]?.id) await attachReceiptIfNeeded(saleRows[0].id);
+        if (saleRows[0]?.id) {
+          await attachReceiptIfNeeded(saleRows[0].id);
+          await attachSplitReceiptsIfNeeded(saleRows[0].id);
+        }
 
         chargeAttemptKeyRef.current = null;
         toast.success(
@@ -14572,6 +14739,7 @@ export function NuevaVentaTab({
         setTipAmountInput("");
         setTipPanelOpen(false);
         clearReceiptFile();
+        clearAllSplitReceipts();
         normalSaleCompleted = true;
       }
 
@@ -15522,7 +15690,7 @@ export function NuevaVentaTab({
                         }
                       }}
                       inputMode="numeric"
-                      placeholder={`Total: $${Math.round(subtotalAfterDiscount).toLocaleString("es-AR")}`}
+                      placeholder={`Total: $${Math.round(finalTotal).toLocaleString("es-AR")}`}
                       aria-label="Monto recibido"
                       className={cn(
                         "h-10 w-full rounded-xl border bg-black/45 pl-8 pr-3 text-left text-lg font-extrabold tabular-nums text-white outline-none placeholder:text-xs placeholder:font-normal placeholder:text-white/30 focus:ring-2",
@@ -15570,7 +15738,7 @@ export function NuevaVentaTab({
                       </span>
                     </div>
                   )}
-                  {method === "transfer" && (
+                  {method !== "cash" && (
                     <div className="mt-1.5">
                       <TransferReceiptField
                         previewUrl={receiptPreviewUrl}
@@ -15583,12 +15751,32 @@ export function NuevaVentaTab({
               )}
             </>
           ) : (
-            <MultiMethodPaymentSplit
-              splits={splits}
-              onChange={setSplits}
-              paymentOptions={paymentOptions}
-              total={finalTotal}
-            />
+            <>
+              <MultiMethodPaymentSplit
+                splits={splits}
+                onChange={setSplits}
+                paymentOptions={paymentOptions}
+                total={finalTotal}
+              />
+              {/* Un comprobante por cada componente no efectivo del pago
+                  múltiple — llave por método (ver splitReceiptFiles
+                  arriba). Efectivo nunca tiene comprobante, igual que en
+                  Pago simple. */}
+              {splits
+                .filter((sp) => sp.method !== "cash")
+                .map((sp) => (
+                  <div key={sp.method} className="mt-1.5">
+                    <p className="mb-1 text-[11px] font-semibold tracking-[0.1em] text-muted-foreground/70">
+                      COMPROBANTE · {PAY_METHOD_LABEL[sp.method as PayMethod] ?? sp.method}
+                    </p>
+                    <TransferReceiptField
+                      previewUrl={splitReceiptPreviews[sp.method] ?? null}
+                      onSelect={(file) => handleSplitReceiptFileSelected(sp.method, file)}
+                      onClear={() => clearSplitReceipt(sp.method)}
+                    />
+                  </div>
+                ))}
+            </>
           )}
           </div>
         </Card>

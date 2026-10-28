@@ -208,8 +208,11 @@ export type Payment = {
   // Pago múltiple — un cobro con splits se reparte proporcionalmente entre
   // sus medios reales (ver distributeCobroByMethod en caja-cierre.ts) en
   // vez de caer entero en `method`, que en un pago múltiple puede no
-  // reflejar ningún medio real usado.
-  splits?: Array<{ method?: string | null; amount?: number | null }> | null;
+  // reflejar ningún medio real usado. receipt_path: comprobante de ESE
+  // componente puntual (ver attachReceiptToPaymentSplit, payment-
+  // receipts.ts) — null/ausente hasta que se adjunta uno, nunca para el
+  // componente en efectivo.
+  splits?: Array<{ method?: string | null; amount?: number | null; receipt_path?: string | null }> | null;
   // Ítems de la venta (registerPayment los guarda siempre) — id/nombre/
   // monto YA multiplicado por cantidad/qty/is_catalog. Detalle de venta
   // lo usa para un retiro de stock pagado (producto/cantidad/precio
@@ -670,7 +673,12 @@ export function useCajaData() {
       // de "Retirar stock → Pagar ahora" lo necesita para separar
       // cantidad/precio unitario/total sin parsear service_name (que
       // puede traer "Cepita x2" como texto).
-      .select("id,business_id,total,amount,method,payment_method,client_name,service_name,created_at,employee_id,appointment_id,charged_by,charge_type,status,collected_amount,charged_at,observations,discount,original_amount,tip_amount,items,receipt_path")
+      // splits: el detalle de un pago múltiple (DetailModal → "Cómo se
+      // cobró") necesita el receipt_path de CADA componente no efectivo
+      // (ver attachReceiptToPaymentSplit, payment-receipts.ts) — sin esto
+      // acá, esas filas llegaban sin splits y el comprobante de cada
+      // medio quedaba invisible en el detalle.
+      .select("id,business_id,total,amount,method,payment_method,client_name,service_name,created_at,employee_id,appointment_id,charged_by,charge_type,status,collected_amount,charged_at,observations,discount,original_amount,tip_amount,items,receipt_path,splits")
       .eq("business_id", businessId)
       .gte("created_at", today.toISOString())
       .lte("created_at", todayEnd.toISOString());
