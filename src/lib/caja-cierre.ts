@@ -680,17 +680,40 @@ export async function buildCierreSnapshotForDate(
   const employeesQuery = supabase.from("employees").select("id,full_name").eq("business_id", businessId);
   const profilesQuery = supabase.from("profiles").select("id,full_name").eq("business_id", businessId);
 
-  const [payRes, expRes, employeesRes, profilesRes] = await Promise.allSettled([
+  // Ventas anuladas/reembolsadas del mismo día — SOLO para mostrarlas en
+  // el detalle de "Revisar cierre" (identificadas, nunca mezcladas con
+  // `payments` de arriba, que a propósito las excluye de todo cálculo de
+  // ingresos). Caso real (26/10/2026): Franco anuló dos ventas ($21.900 y
+  // $19.000) y no había ningún lugar en Caja para verlas — "Ingresos"
+  // seguía bien calculado, pero quedaban invisibles. Una sola fila por
+  // payments.id (el status ACTUAL, "anulado" o "reembolsado") — anular,
+  // restablecer y volver a anular la misma venta nunca duplica esta fila,
+  // porque es el mismo id de siempre, no un evento del historial.
+  let anuladosQuery = supabase
+    .from("payments")
+    .select(
+      "id,total,amount,method,payment_method,splits,client_name,service_name,created_at,employee_id,charged_by,items,original_amount,status",
+    )
+    .eq("business_id", businessId)
+    .gte("created_at", dayStart.toISOString())
+    .lte("created_at", dayEnd.toISOString())
+    .in("status", ["anulado", "reembolsado"]);
+  if (branchFilter) anuladosQuery = anuladosQuery.or(branchFilter);
+
+  const [payRes, expRes, employeesRes, profilesRes, anuladosRes] = await Promise.allSettled([
     payQuery,
     expQuery,
     employeesQuery,
     profilesQuery,
+    anuladosQuery,
   ]);
 
   const payments =
     payRes.status === "fulfilled" && !payRes.value.error ? ((payRes.value.data ?? []) as any[]) : [];
   const expenses =
     expRes.status === "fulfilled" && !expRes.value.error ? ((expRes.value.data ?? []) as any[]) : [];
+  const anulados =
+    anuladosRes.status === "fulfilled" && !anuladosRes.value.error ? ((anuladosRes.value.data ?? []) as any[]) : [];
   const employeeNameById = new Map<string, string>(
     (employeesRes.status === "fulfilled" && !employeesRes.value.error
       ? ((employeesRes.value.data ?? []) as any[])
@@ -840,6 +863,41 @@ export async function buildCierreSnapshotForDate(
     };
   });
 
+  // Mismo mapeo que cobrosSnapshot, pero para `anulados` (arriba) — nunca
+  // entra en totalCobrado/detalleMetodos/detalleMetodosRecibido ni en
+  // ningún otro cálculo de este archivo, a propósito: existe solo para
+  // que CierreMovimientosDetalleList pueda MOSTRARLAS, identificadas con
+  // su propio tag, sin volver a tocar ningún total ya correcto.
+  const cobrosAnuladosSnapshot = anulados.map((p) => {
+    const monto = Number(p.total ?? p.amount ?? 0);
+    const precioLista = p.original_amount != null ? Number(p.original_amount) : monto;
+    return {
+      id: p.id,
+      fecha_hora: p.created_at ?? null,
+      hora: p.created_at
+        ? new Date(p.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
+        : null,
+      cliente: p.client_name ?? null,
+      profesional: employeeNameById.get(p.employee_id) ?? null,
+      servicio: p.service_name ?? null,
+      items: Array.isArray(p.items)
+        ? p.items.map((it: any) => ({
+            nombre: it?.name ?? null,
+            cantidad: Number(it?.qty ?? 1),
+            monto: Number(it?.amount ?? 0),
+            esProducto: Boolean(it?.is_catalog),
+          }))
+        : [],
+      metodo: p.method ?? p.payment_method ?? null,
+      monto,
+      precio_lista: precioLista,
+      usuario: resolveUsuario(p.charged_by),
+      splits: Array.isArray((p as any).splits) && (p as any).splits.length > 0 ? (p as any).splits : null,
+      anulado: true as const,
+      estado: p.status as "anulado" | "reembolsado",
+    };
+  });
+
   const gastosSnapshot = expenses.map((e) => ({
     id: e.id,
     hora: e.created_at
@@ -902,6 +960,7 @@ export async function buildCierreSnapshotForDate(
     detalleMetodos,
     detalleMetodosRecibido,
     cobrosSnapshot,
+    cobrosAnuladosSnapshot,
     gastosSnapshot,
     cantidadCobros: payments.length,
     hadActivity: payments.length > 0 || expenses.length > 0,

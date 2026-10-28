@@ -6210,11 +6210,19 @@ function montoParaMedio(
 
 function CierreMovimientosDetalleList({
   cobros,
+  cobrosAnulados,
   gastos,
   movimientos,
   onRowClick,
 }: {
   cobros: any[];
+  // Ventas anuladas/reembolsadas del mismo día (ver cobrosAnuladosSnapshot,
+  // caja-cierre.ts) — puramente para IDENTIFICARLAS en la misma tabla de
+  // Servicios, con su propio tag rojo. Nunca entran en ningún total de
+  // este componente (totalGeneralDia, desglosePorMedio, etc. siguen
+  // sumando SOLO `cobros`) — default [] para no romper ningún caller
+  // viejo que todavía no las pase.
+  cobrosAnulados?: any[];
   gastos: any[];
   movimientos: CajaMovimientoManual[];
   // Click en una fila de servicio/producto → abre el mismo DetailModal que
@@ -6242,8 +6250,17 @@ function CierreMovimientosDetalleList({
   const retiros = movimientos.filter((m) => m.tipo === "retiro");
   const ingresosManuales = movimientos.filter((m) => m.tipo === "ingreso");
   const { servicios: serviciosRows, productos: productosRows } = splitServiciosYProductos(cobros);
+  // Ventas anuladas/reembolsadas — mismo split (una venta mixta igual
+  // podría tener un servicio adentro), pero SOLO se muestran en la tabla
+  // de Servicios (lo que pidió el negocio) — nunca entran en ningún total
+  // ni en la lista de Productos.
+  const { servicios: serviciosAnuladosRows } = splitServiciosYProductos(cobrosAnulados ?? []);
   const profesionales = Array.from(
-    new Set([...serviciosRows.map((p) => p.profesional), ...productosRows.map((p) => p.profesional)].filter(Boolean)),
+    new Set(
+      [...serviciosRows.map((p) => p.profesional), ...productosRows.map((p) => p.profesional), ...serviciosAnuladosRows.map((p) => p.profesional)].filter(
+        Boolean,
+      ),
+    ),
   ) as string[];
 
   // Profesional primero, medio de pago después — las dos dimensiones se
@@ -6254,6 +6271,19 @@ function CierreMovimientosDetalleList({
     medioFiltro === "todos"
       ? serviciosPorProfesional
       : serviciosPorProfesional.filter((p: any) => montoParaMedio(p.monto, p.propina, p.metodo, p.splits, medioFiltro).incluido);
+  // Mismos dos filtros (profesional + medio), misma función montoParaMedio
+  // — para que "ocultar" una venta anulada por medio de pago se comporte
+  // exactamente igual que para una venta cobrada.
+  const serviciosAnuladosPorProfesional =
+    profesionalFiltro === "todos"
+      ? serviciosAnuladosRows
+      : serviciosAnuladosRows.filter((p: any) => p.profesional === profesionalFiltro);
+  const serviciosAnuladosFiltrados =
+    medioFiltro === "todos"
+      ? serviciosAnuladosPorProfesional
+      : serviciosAnuladosPorProfesional.filter(
+          (p: any) => montoParaMedio(p.monto, 0, p.metodo, p.splits, medioFiltro).incluido,
+        );
   const productosPorProfesional =
     profesionalFiltro === "todos" ? productosRows : productosRows.filter((p) => p.profesional === profesionalFiltro);
   // Sin el filtro de medio — pareja de totalFacturadoProfesional más
@@ -6428,8 +6458,13 @@ function CierreMovimientosDetalleList({
         <div className="mt-4 overflow-hidden rounded-2xl border border-white/[0.075] bg-white/[0.03]">
           <div className="p-4 pb-0 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
             Servicios ({serviciosFiltrados.length})
+            {serviciosAnuladosFiltrados.length > 0 && (
+              <span className="ml-2 normal-case tracking-normal text-rose-300/80">
+                + {serviciosAnuladosFiltrados.length} anulada{serviciosAnuladosFiltrados.length === 1 ? "" : "s"}
+              </span>
+            )}
           </div>
-          {serviciosFiltrados.length === 0 ? (
+          {serviciosFiltrados.length === 0 && serviciosAnuladosFiltrados.length === 0 ? (
             <p className="p-4 text-sm text-muted-foreground">Sin servicios cobrados.</p>
           ) : (
             <>
@@ -6519,6 +6554,48 @@ function CierreMovimientosDetalleList({
                       </div>
                     );
                   })}
+                  {/* Ventas anuladas — misma tabla, mismas columnas, importe
+                      original tachado/atenuado en vez del cobrado (nunca
+                      hubo un cobro real que mostrar) y tag rojo "Anulado"
+                      en vez del medio de pago, para que no se confunda con
+                      una venta cobrada aunque esté en la misma fila visual. */}
+                  {serviciosAnuladosFiltrados.map((p: any, idx: number) => {
+                    const items: any[] = Array.isArray(p.items) ? p.items : [];
+                    const servicioNombre =
+                      items.filter((it) => !it?.esProducto).map((it) => it.nombre).join(" + ") || p.servicio || "Servicio";
+                    const precioLista = Number(p.precio_lista ?? p.monto ?? 0);
+                    return (
+                      <div
+                        key={`anulado-${p.id ?? idx}`}
+                        onClick={p.id && onRowClick ? () => onRowClick(p.id) : undefined}
+                        className={cn(
+                          "grid grid-cols-[64px_minmax(120px,1fr)_minmax(100px,0.75fr)_minmax(150px,1.3fr)_95px_90px_120px_90px_minmax(160px,1.1fr)] items-center gap-3 border-b border-white/[0.05] px-4 py-2.5 text-xs last:border-0 opacity-60 hover:opacity-80",
+                          p.id && onRowClick && "cursor-pointer",
+                        )}
+                      >
+                        <div className="tabular-nums text-white/55">{p.hora ?? "—"}</div>
+                        <div className="truncate font-semibold text-white" title={p.cliente ?? "Cliente"}>
+                          {p.cliente ?? "Cliente"}
+                        </div>
+                        <div className="truncate text-white/70">{p.profesional ?? "—"}</div>
+                        <div className="truncate text-white/70" title={servicioNombre}>
+                          {servicioNombre}
+                          <span className="ml-1.5 inline-flex rounded-full bg-rose-500/15 px-2 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wide text-rose-300 ring-1 ring-rose-400/30">
+                            Anulado
+                          </span>
+                        </div>
+                        <div className="text-right text-sm font-bold tabular-nums text-white/45 line-through decoration-rose-400/50">
+                          {money(precioLista)}
+                        </div>
+                        <div className="text-right tabular-nums text-white/35">—</div>
+                        <div className="text-right tabular-nums text-white/35">—</div>
+                        <div className="text-right tabular-nums text-white/35">—</div>
+                        <div>
+                          <MetodoBadges metodo={p.metodo} splits={p.splits} />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
 
@@ -6582,6 +6659,47 @@ function CierreMovimientosDetalleList({
                         <div>
                           <div className="text-[10px] uppercase tracking-wide text-white/35">Propina</div>
                           <div className="tabular-nums text-amber-200">{propinaMostrada > 0 ? money(propinaMostrada) : "—"}</div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                {/* Ventas anuladas — misma tarjeta, importe original tachado
+                    en vez del cobrado, tag rojo "Anulado" junto al nombre
+                    del servicio, medio de pago real se mantiene. */}
+                {serviciosAnuladosFiltrados.map((p: any, idx: number) => {
+                  const items: any[] = Array.isArray(p.items) ? p.items : [];
+                  const servicioNombre =
+                    items.filter((it) => !it?.esProducto).map((it) => it.nombre).join(" + ") || p.servicio || "Servicio";
+                  const precioLista = Number(p.precio_lista ?? p.monto ?? 0);
+                  return (
+                    <div
+                      key={`anulado-${p.id ?? idx}`}
+                      onClick={p.id && onRowClick ? () => onRowClick(p.id) : undefined}
+                      className={cn(
+                        "rounded-xl bg-black/22 px-3.5 py-3 text-xs opacity-60",
+                        p.id && onRowClick && "cursor-pointer active:opacity-80",
+                      )}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="min-w-0">
+                          <div className="truncate font-semibold text-white">{p.cliente ?? "Cliente"}</div>
+                          <div className="mt-0.5 truncate text-white/50">
+                            {p.hora ?? "—"}
+                            {p.profesional ? ` · ${p.profesional}` : ""} · {servicioNombre}
+                          </div>
+                        </div>
+                        <MetodoBadges metodo={p.metodo} splits={p.splits} />
+                      </div>
+                      <div className="mt-1">
+                        <span className="rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-rose-300 ring-1 ring-rose-400/30">
+                          Anulado
+                        </span>
+                      </div>
+                      <div className="mt-2.5 rounded-lg bg-white/[0.03] p-2.5">
+                        <div className="text-[10px] uppercase tracking-wide text-white/35">Importe original</div>
+                        <div className="text-sm font-bold tabular-nums text-white/45 line-through decoration-rose-400/50">
+                          {money(precioLista)}
                         </div>
                       </div>
                     </div>
@@ -7031,6 +7149,7 @@ function CierreRevisionDetalle({
           <div className="border-t border-white/10 p-4">
             <CierreMovimientosDetalleList
               cobros={snapshot.cobrosSnapshot}
+              cobrosAnulados={snapshot.cobrosAnuladosSnapshot}
               gastos={snapshot.gastosSnapshot}
               movimientos={movimientosManuales}
               onRowClick={openDetail}
@@ -7859,6 +7978,7 @@ function CierreDetalleView({
   const snapshot = preview?.snapshot ?? null;
   const movimientos = preview?.movimientosManuales ?? [];
   const cobros = (snapshot?.cobrosSnapshot ?? []) as any[];
+  const cobrosAnulados = (snapshot?.cobrosAnuladosSnapshot ?? []) as any[];
   const gastos = (snapshot?.gastosSnapshot ?? []) as any[];
   const retiros = movimientos.filter((m) => m.tipo === "retiro");
   const ingresosManuales = movimientos.filter((m) => m.tipo === "ingreso");
@@ -8004,6 +8124,7 @@ function CierreDetalleView({
             <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">Movimientos del día</div>
             <CierreMovimientosDetalleList
               cobros={cobros}
+              cobrosAnulados={cobrosAnulados}
               gastos={gastos}
               movimientos={movimientos}
               onRowClick={openDetail}

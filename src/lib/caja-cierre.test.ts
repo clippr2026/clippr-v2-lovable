@@ -649,6 +649,83 @@ describe("Guarda contra la reaparición del bug de ventas anuladas en Caja (26/1
   });
 });
 
+// Caso real (26/10/2026): Franco anuló dos ventas ($21.900 y $19.000) y
+// Revisar cierre no tenía ningún lugar para verlas — "Ingresos" seguía
+// bien calculado ($353.500, 17 servicios) pero quedaban invisibles. Fix:
+// cobrosAnuladosSnapshot (caja-cierre.ts) + CierreMovimientosDetalleList
+// (cash-register.tsx) las muestra en la MISMA tabla de Servicios, con tag
+// "Anulado" e importe tachado, sin tocar ningún total.
+describe("Ventas anuladas visibles en Revisar cierre (26/10/2026) — sin alterar ningún total", () => {
+  it("caja-cierre.ts: hay una query aparte que trae status in (anulado,reembolsado) del mismo día/negocio/sucursal", () => {
+    const src = readSrc("src/lib/caja-cierre.ts");
+    expect(src).toMatch(/anuladosQuery[\s\S]{0,400}\.in\(\s*"status",\s*\["anulado",\s*"reembolsado"\]\s*\)/);
+  });
+
+  it("caja-cierre.ts: cobrosAnuladosSnapshot se construye desde `anulados`, nunca desde `payments`", () => {
+    const src = readSrc("src/lib/caja-cierre.ts");
+    const fnMatch = src.match(/const cobrosAnuladosSnapshot = anulados\.map\(([\s\S]*?)\n  \}\);/);
+    expect(fnMatch).not.toBeNull();
+  });
+
+  it("caja-cierre.ts: cobrosAnuladosSnapshot se devuelve en el resultado de buildCierreSnapshotForDate", () => {
+    const src = readSrc("src/lib/caja-cierre.ts");
+    expect(src).toMatch(/cobrosSnapshot,\s*\n\s*cobrosAnuladosSnapshot,/);
+  });
+
+  it("caja-cierre.ts: totalCobrado/detalleMetodos/detalleMetodosRecibido se calculan SOLO sobre `payments`, nunca sobre `anulados`/cobrosAnuladosSnapshot", () => {
+    const src = readSrc("src/lib/caja-cierre.ts");
+    // El bloque que suma totalCobrado/totalPropinas (payments.reduce) no
+    // menciona `anulados` en ningún lado de esa sección.
+    const totalesBlock = src.slice(src.indexOf("const totalCobrado"), src.indexOf("const detalleMetodos:"));
+    expect(totalesBlock).not.toMatch(/anulados/);
+    // El loop que arma detalleMetodos/detalleMetodosRecibido itera `payments`,
+    // nunca `anulados`.
+    expect(src).toMatch(/for \(const p of payments\) \{/);
+    expect(src).not.toMatch(/for \(const p of anulados\)/);
+  });
+
+  it("cash-register.tsx: CierreMovimientosDetalleList acepta cobrosAnulados y los dos call sites lo pasan", () => {
+    const src = readSrc("src/routes/cash-register.tsx");
+    expect(src).toMatch(/cobrosAnulados\?:\s*any\[\]/);
+    expect(src.match(/cobrosAnulados=\{(?:snapshot\.cobrosAnuladosSnapshot|cobrosAnulados)\}/g)?.length ?? 0).toBe(2);
+  });
+
+  it("cash-register.tsx: las ventas anuladas se filtran por profesional Y medio de pago, igual que las cobradas", () => {
+    const src = readSrc("src/routes/cash-register.tsx");
+    expect(src).toMatch(
+      /serviciosAnuladosRows\.filter\(\(p: any\) => p\.profesional === profesionalFiltro\)/,
+    );
+    expect(src).toMatch(
+      /serviciosAnuladosPorProfesional\.filter\(\s*\(p: any\) => montoParaMedio\(p\.monto, 0, p\.metodo, p\.splits, medioFiltro\)\.incluido,?\s*\)/,
+    );
+  });
+
+  it("cash-register.tsx: el tag rojo \"Anulado\" y el importe tachado (line-through) existen en el render de servicios", () => {
+    const src = readSrc("src/routes/cash-register.tsx");
+    expect(src).toMatch(/text-rose-300[^"]*">\s*\n\s*Anulado/);
+    expect(src).toMatch(/line-through decoration-rose-400\/50/);
+  });
+
+  it("cash-register.tsx: ningún total (totalGeneralDia, cobrosPorProfesional, desglosePorMedio, facturacionPorProfesional) se calcula sobre cobrosAnulados/serviciosAnuladosFiltrados", () => {
+    const src = readSrc("src/routes/cash-register.tsx");
+    const totalsBlock = src.slice(
+      src.indexOf("const totalGeneralDia ="),
+      src.indexOf("const filtroChips:"),
+    );
+    expect(totalsBlock).not.toMatch(/cobrosAnulados/);
+    expect(totalsBlock).not.toMatch(/serviciosAnuladosFiltrados/);
+  });
+
+  it("cash-register.tsx: anular/restablecer/anular de nuevo la misma venta nunca duplica su fila (una sola query por payments.id, estado actual)", () => {
+    const src = readSrc("src/lib/caja-cierre.ts");
+    // Una sola fila por payments.id — no hay ningún join con
+    // payment_authorization_log (que sí tendría varias filas por venta)
+    // para armar cobrosAnuladosSnapshot.
+    const fnMatch = src.match(/const cobrosAnuladosSnapshot = anulados\.map\(([\s\S]*?)\n  \}\);/);
+    expect(fnMatch![1]).not.toMatch(/payment_authorization_log/);
+  });
+});
+
 // pagoRowColor: una venta anulada/reembolsada siempre gris; un ajuste con
 // monto negativo (venta anulada de un día ya cerrado, ver
 // void_payment_authorized) tiene que ir en rojo, nunca en verde con "+"
