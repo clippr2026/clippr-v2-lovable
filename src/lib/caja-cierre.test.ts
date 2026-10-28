@@ -1221,14 +1221,48 @@ describe("useCajaSummary — 'Efectivo del día' separado de 'Saldos acumulados'
     const src = readSrc("src/hooks/use-caja-summary.ts");
     expect(src).toMatch(/movementsStrictlyToday = filterToDayBA\(movementsForPeriod/);
     expect(src).toMatch(/advancesStrictlyToday = filterToDayBA\(advancesForPeriod/);
-    expect(src).toMatch(/todayCashExpected: todayExpected\.cashExpected/);
-    expect(src).toMatch(/todayDigitalExpected: todayExpected\.digitalExpected/);
+    expect(src).toMatch(/todayCashExpected: todayExpected\.cashExpected \+ todayExpected\.cashAdvancesOut/);
+    expect(src).toMatch(
+      /todayDigitalExpected: todayExpected\.digitalExpected \+ todayExpected\.digitalAdvancesOut/,
+    );
+    expect(src).toMatch(
+      /todayAdvancesOut: todayExpected\.cashAdvancesOut \+ todayExpected\.digitalAdvancesOut/,
+    );
   });
 
-  it("useCajaHoy (Inicio) expone esos mismos dos valores, sin recalcularlos", () => {
+  it("useCajaHoy (Inicio) expone esos mismos tres valores, sin recalcularlos", () => {
     const src = readSrc("src/components/dashboard/use-caja-hoy.ts");
     expect(src).toMatch(/todayCashExpected: summary\.todayCashExpected/);
     expect(src).toMatch(/todayDigitalExpected: summary\.todayDigitalExpected/);
+    expect(src).toMatch(/todayAdvancesOut: summary\.todayAdvancesOut/);
+  });
+
+  // "Dinero en cuenta del día"/"Efectivo del día" NO deben restar adelantos
+  // a profesionales — se muestran aparte como "Adelantos del día", para que
+  // un adelanto grande no produzca un total negativo sin explicación
+  // (Inicio y Caja comparten el mismo criterio visual).
+  it("Inicio y Caja muestran 'Adelantos del día' como tarjeta aparte, nunca mezclada con Efectivo/Dinero en cuenta", () => {
+    const dashboardSrc = readSrc("src/routes/dashboard.tsx");
+    expect(dashboardSrc).toMatch(/label="Adelantos del día"/);
+    expect(dashboardSrc).toMatch(/caja\.todayAdvancesOut/);
+
+    const cashRegisterSrc = readSrc("src/routes/cash-register.tsx");
+    expect(cashRegisterSrc).toMatch(/label="Adelantos del día"/);
+    expect(cashRegisterSrc).toMatch(/summary\.todayAdvancesOut/);
+  });
+
+  it("expectedToLado (SaldoComposicionModal) no resta adelantos del total — adelantos:0 y esperado suma cashAdvancesOut/digitalAdvancesOut de vuelta", () => {
+    const src = readSrc("src/components/caja/saldo-composicion.tsx");
+    expect(src).toMatch(/adelantos: 0,\s*\n\s*esperado: expected\.cashExpected \+ expected\.cashAdvancesOut/);
+    expect(src).toMatch(
+      /adelantos: 0,\s*\n\s*esperado: expected\.digitalExpected \+ expected\.digitalAdvancesOut/,
+    );
+  });
+
+  it("computeExpectedCashAndDigital (el cálculo real para conciliar un cierre) sigue restando adelantos — no se tocó", () => {
+    const src = readSrc("src/lib/caja-cierre.ts");
+    expect(src).toMatch(/cashOutflows = cashExpenses \+ cashAdvances \+ retirosCajaEfectivo/);
+    expect(src).toMatch(/cashExpected: cashPayments \+ ingresosCajaEfectivo - cashOutflows/);
   });
 
   it("Inicio ya NO muestra la sección 'Saldos acumulados' — solo 'Caja de hoy' estrictamente del día", () => {

@@ -99,8 +99,18 @@ export type CajaSummary = {
   // "Efectivo del día"/"Dinero en cuenta del día" — SOLO hoy, nunca el
   // acumulado de jornadas pendientes (eso es cashExpected/bankExpected,
   // sección "Saldos acumulados"). Mismo criterio que revHoy/totalGastosHoy.
+  // NO restan adelantos a profesionales (eso es todayAdvancesOut, aparte) —
+  // la tarjeta "Dinero en cuenta/Efectivo del día" muestra solo cobros menos
+  // gastos/retiros bancarios reales; mezclar un adelanto ahí generaba un
+  // "-$70.064" sin explicación. El dato con adelantos restados (el real
+  // para conciliar un cierre) sigue intacto en todayExpectedFull.cashExpected
+  // /digitalExpected — nadie dejó de usarlo.
   todayCashExpected: number;
   todayDigitalExpected: number;
+  // Adelantos a profesionales de HOY (efectivo + digital) — mostrados aparte
+  // como "Adelantos del día", nunca restados de todayCashExpected/
+  // todayDigitalExpected.
+  todayAdvancesOut: number;
   // Desglose completo de hoy (cobros/ingresos manuales/gastos/retiros/
   // adelantos, efectivo y digital por separado) — mismos 9 campos que ya
   // usa la Conciliación de "Revisar cierre", para que un saldo negativo en
@@ -602,8 +612,9 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     digitalExpected,
     digitalOutflows,
     bankExpected,
-    todayCashExpected: todayExpected.cashExpected,
-    todayDigitalExpected: todayExpected.digitalExpected,
+    todayCashExpected: todayExpected.cashExpected + todayExpected.cashAdvancesOut,
+    todayDigitalExpected: todayExpected.digitalExpected + todayExpected.digitalAdvancesOut,
+    todayAdvancesOut: todayExpected.cashAdvancesOut + todayExpected.digitalAdvancesOut,
     todayExpectedFull: todayExpected,
     pendingCierre,
     pendingCierres,

@@ -17,7 +17,19 @@ function money(v: number) {
 
 // De ExpectedCashDigital (lo que ya expone useCajaSummary.todayExpectedFull)
 // a la forma ConciliacionLado que ya sabe renderizar SaldoComposicionLado —
-// mismos 9 campos, solo reempaquetados, nunca recalculados.
+// mismos 9 campos, solo reempaquetados, nunca recalculados. ÚNICO uso real:
+// SaldoComposicionModal (abajo, el detalle de "Efectivo/Dinero en cuenta
+// del día" de Inicio/Caja) — la Conciliación de un cierre (Revisar cierre)
+// arma su propio ConciliacionLado vía buildConciliacion, nunca pasa por
+// acá, así que tocar esto no afecta ese cálculo.
+//
+// adelantos: 0 y esperado SIN restarlos — los adelantos a profesionales
+// ahora se muestran aparte, como su propia tarjeta "Adelantos del día"
+// (ver todayAdvancesOut, useCajaSummary.ts), nunca mezclados con "cuánto
+// dinero hay" de una venta o un gasto operativo. expected.cashExpected/
+// digitalExpected (el dato real, con los adelantos restados) sigue
+// existiendo sin tocar — lo sigue usando quien cierra una caja de verdad
+// (efectivo contado/saldo real vs. esperado).
 export function expectedToLado(expected: ExpectedCashDigital, side: "cash" | "digital"): ConciliacionLado {
   return side === "cash"
     ? {
@@ -25,16 +37,16 @@ export function expectedToLado(expected: ExpectedCashDigital, side: "cash" | "di
         ingresosManuales: expected.cashInflows,
         gastos: expected.cashExpenses,
         retirosManuales: expected.cashRetirosManual,
-        adelantos: expected.cashAdvancesOut,
-        esperado: expected.cashExpected,
+        adelantos: 0,
+        esperado: expected.cashExpected + expected.cashAdvancesOut,
       }
     : {
         cobros: expected.digitalFromPayments,
         ingresosManuales: expected.digitalInflows,
         gastos: expected.digitalExpenses,
         retirosManuales: expected.digitalRetirosManual,
-        adelantos: expected.digitalAdvancesOut,
-        esperado: expected.digitalExpected,
+        adelantos: 0,
+        esperado: expected.digitalExpected + expected.digitalAdvancesOut,
       };
 }
 

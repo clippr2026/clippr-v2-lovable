@@ -54,6 +54,7 @@ export function useCajaHoy(businessId: string | null, branchId: string | null) {
     // pendientes, sección aparte "Saldos acumulados").
     todayCashExpected: summary.todayCashExpected,
     todayDigitalExpected: summary.todayDigitalExpected,
+    todayAdvancesOut: summary.todayAdvancesOut,
     todayExpectedFull: summary.todayExpectedFull,
   };
 }

@@ -128,6 +128,7 @@ import {
   Image as ImageIcon,
   ChevronDown,
   ChevronRight,
+  HandCoins,
 } from "lucide-react";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 import {
@@ -11594,7 +11595,10 @@ function FacturacionPanel({
       {/* Movimientos de hoy: Efectivo/Dinero en cuenta ESTRICTAMENTE de
           hoy (summary.todayCashExpected/todayDigitalExpected) — misma
           fuente que Inicio, nunca una query/cálculo aparte (antes este
-          panel llamaba a buildSingleDayCierrePreview por su cuenta). */}
+          panel llamaba a buildSingleDayCierrePreview por su cuenta).
+          NO restan adelantos a profesionales — eso es la tarjeta aparte
+          de abajo, "Adelantos del día", para no mezclar un adelanto con
+          cobros/gastos y producir un total negativo sin explicación. */}
       <div className="grid grid-cols-2 gap-2">
         <FacturacionStatCard
           icon={Wallet}
@@ -11613,6 +11617,18 @@ function FacturacionPanel({
           onClick={() => setSaldoDetalle("digital")}
         />
       </div>
+
+      {summary.todayAdvancesOut > 0 && (
+        <div className="mt-2">
+          <FacturacionStatCard
+            icon={HandCoins}
+            iconClass="text-rose-400"
+            label="Adelantos del día"
+            value={summary.todayAdvancesOut}
+            loading={summary.loading}
+          />
+        </div>
+      )}
 
       {saldoDetalle && (
         <SaldoComposicionModal

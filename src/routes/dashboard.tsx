@@ -31,6 +31,7 @@ import {
   Receipt,
   Wallet,
   CreditCard,
+  HandCoins,
 } from "lucide-react";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 
@@ -377,7 +378,10 @@ function CajaHoyCard({
           misma fuente que ya usa Caja > Resumen. Cierra el bloque
           "Movimientos de hoy": todo lo de arriba (Ingresos/Egresos/
           Utilidad/Servicios/Productos) y esto son siempre $0 si todavía
-          no hubo actividad hoy, sin importar cuánto backlog exista. */}
+          no hubo actividad hoy, sin importar cuánto backlog exista.
+          NO restan adelantos a profesionales — eso es la tarjeta aparte
+          de abajo, "Adelantos del día", para no mezclar un adelanto con
+          cobros/gastos y producir un total negativo sin explicación. */}
       <div className="mt-2 grid grid-cols-2 gap-2">
         <MiniStat
           icon={Wallet}
@@ -392,6 +396,12 @@ function CajaHoyCard({
           onClick={() => setSaldoDetalle("digital")}
         />
       </div>
+
+      {caja.todayAdvancesOut > 0 && (
+        <div className="mt-2">
+          <MiniStat icon={HandCoins} label="Adelantos del día" value={fmtAR(caja.todayAdvancesOut)} />
+        </div>
+      )}
 
       {saldoDetalle && (
         <SaldoComposicionModal
