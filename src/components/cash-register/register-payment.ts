@@ -303,6 +303,13 @@ export async function registerPayment(input: RegisterPaymentInput) {
   const commissionPct = Number(input.commissionPct ?? 0);
   let commissionAmount = 0;
   let usedSpecificOverride = false;
+  // Porción de commissionAmount que corresponde a ítems de catálogo (se
+  // completa más abajo) — se la informa al RPC como p_commission_amount_products
+  // para que la red de seguridad server-side (ver register_sale, migración
+  // 20261029010000_register_sale_product_commission_safety_net) sepa cuánto
+  // de esto YA está contemplado y solo complete la diferencia si corresponde
+  // más, nunca la duplique.
+  let productCommissionAmount = 0;
   if (input.employeeId && input.commissionsEnabled !== false) {
     // Regla de base de comisión (ítem por ítem, ver commissionBaseForLine
     // en service-pricing.ts): base = MIN(precio efectivo del servicio,
@@ -342,7 +349,44 @@ export async function registerPayment(input: RegisterPaymentInput) {
       const cfg = input.employeeCommissions?.[input.employeeId!]?.[item.serviceId];
       return !!cfg && cfg.enabled !== false;
     });
+
+    // Mismo cálculo, pero solo con los ítems de catálogo — para informar al
+    // RPC qué parte de commissionAmount ya es de productos (nunca cambia
+    // commissionAmount en sí, solo lo desglosa).
+    const catalogOnly = computeCommissionAmount(
+      input.items
+        .filter((item) => item.isCatalog)
+        .map((item) => ({
+          amount: Number(item.amount ?? 0),
+          qty: item.qty,
+          serviceId: item.serviceId,
+          effectivePrice: null,
+          discountAmount: Number(item.discountAmount ?? 0),
+          isCatalog: true,
+        })),
+      input.employeeId,
+      input.employeeCommissions ?? null,
+      { commissionFixed: 0, commissionPct: 0 },
+    );
+    productCommissionAmount = Math.round(catalogOnly.pctAmount + catalogOnly.fixedAmount * discountRatio);
   }
+
+  // Red de seguridad server-side (ver register_sale, migración
+  // 20261029010000_register_sale_product_commission_safety_net): se manda
+  // además el detalle neto (ya con descuento restado) de cada ítem de
+  // catálogo, para que el RPC pueda recalcular del lado del servidor, contra
+  // la configuración REAL (business_settings), cuánto debería valer la
+  // comisión de productos — y completar la diferencia si este cálculo de
+  // acá (por lo que sea: employeeCommissions no se resolvió bien, un flujo
+  // nuevo que no lo contempla, etc.) la subestimó. Nunca reduce nada de lo
+  // ya calculado arriba; services queda 100% intacto, sin cambios.
+  const productCommissionLines = input.items
+    .filter((item) => item.isCatalog && item.serviceId)
+    .map((item) => {
+      const qty = Number(item.qty ?? 1) || 1;
+      const netAmount = Math.max(0, Number(item.amount ?? 0) * qty - Number(item.discountAmount ?? 0));
+      return { id: item.serviceId, net_amount: Math.round(netAmount * 100) / 100 };
+    });
 
   const tipAmount = Math.max(0, Number(input.tipAmount ?? 0));
   const nowIso = new Date().toISOString();
@@ -387,6 +431,9 @@ export async function registerPayment(input: RegisterPaymentInput) {
     p_created_at: nowIso,
     p_idempotency_key: input.idempotencyKey ?? null,
     p_collected_amount: input.collectedAmount ?? null,
+    p_commission_amount_products: productCommissionAmount,
+    p_commission_amount_services: commissionAmount - productCommissionAmount,
+    p_product_commission_lines: productCommissionLines.length > 0 ? productCommissionLines : null,
   });
 
   if (rpcError) {
