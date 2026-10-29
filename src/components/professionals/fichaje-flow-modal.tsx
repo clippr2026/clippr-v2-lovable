@@ -1,4 +1,5 @@
 import * as React from "react";
+import { createPortal } from "react-dom";
 import jsQR from "jsqr";
 import { toast } from "sonner";
 import {
@@ -57,6 +58,18 @@ export function FichajeFlowModal({
   const [submitting, setSubmitting] = React.useState(false);
   const [result, setResult] = React.useState<{ kind: "in" | "out"; time: string } | null>(null);
 
+  // Bloqueo de scroll de fondo mientras el modal está abierto — antes no
+  // existía ninguno acá (a diferencia de FichajeQrModal, que tampoco lo
+  // tenía pero sí vive en un portal). Se restaura el valor previo al
+  // desmontar, nunca se asume "" (otro modal pudo haberlo dejado distinto).
+  React.useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, []);
+
   async function submitCode(branchId: string, code: string) {
     if (!businessId || submitting) return;
     if (activeBranchId && branchId !== activeBranchId) {
@@ -88,7 +101,15 @@ export function FichajeFlowModal({
     }
   }
 
-  return (
+  // createPortal al document.body — antes este modal se renderizaba inline
+  // dentro de la tarjeta que lo abre (FichajeProfesionalCard/
+  // FichajeAdminSummaryCard), y un ancestro con overflow/transform (las
+  // tarjetas de Mi Agenda) rompe el position:fixed, mezclando el modal
+  // con el resto de la pantalla. Mismo patrón que SaldoComposicionModal/
+  // FichajeQrModal, que sí usan portal.
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
     <div className="fixed inset-0 z-[10000] grid place-items-center bg-black/80 p-4" onClick={onClose}>
       <div
         className="w-full max-w-sm rounded-3xl border border-white/10 bg-zinc-950 p-6"
@@ -167,7 +188,8 @@ export function FichajeFlowModal({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

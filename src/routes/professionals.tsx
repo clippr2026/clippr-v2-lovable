@@ -26,6 +26,7 @@ import {
   useProfessionals, useProfPayments,
   useProfTurnos,
   useProfSettlementRuns, useProfSettlementRunPayments, useProfAdvances, useProfVentasAnuladas,
+  useProfPresentismo,
   useProfCommissionRecords, useProfTipRecords,
   useProfCommissionEvents, useProfTipEvents,
   useConfirmSettlementRun, useObserveSettlementRun,
@@ -49,6 +50,7 @@ import {
   type MovimientoDeduccion,
   type HistorialAdvanceRow,
   type HistorialVentaAnuladaRow,
+  type HistorialPresentismoRow,
 } from "@/lib/historial-movimientos";
 import {
   PagoDetalleContent,
@@ -56,6 +58,7 @@ import {
   AjusteDetalleContent,
   DeduccionDetalleContent,
   VentaAnuladaDetalleContent,
+  PresentismoDetalleContent,
   type PagoDetalleService,
 } from "@/components/liquidaciones/movimiento-detalle-content";
 import {
@@ -2084,6 +2087,7 @@ function LiquidacionesPanelView({
   const { data: payments = [], isLoading: loadingPayments } = useProfSettlementRunPayments(businessId, empId);
   const { data: advances = [], isLoading: loadingAdvances } = useProfAdvances(businessId, empId);
   const { data: ventasAnuladas = [] } = useProfVentasAnuladas(businessId, empId);
+  const { data: presentismo = [] } = useProfPresentismo(businessId, empId);
   const { data: commissionRecords = [], isLoading: loadingCommissionRecords } = useProfCommissionRecords(businessId, empId);
   const { data: tipRecords = [], isLoading: loadingTipRecords } = useProfTipRecords(businessId, empId);
   const { data: commissionEvents = [] } = useProfCommissionEvents(businessId, empId);
@@ -2121,6 +2125,7 @@ function LiquidacionesPanelView({
     if (!empId) return null;
     const runsWithPid = runs.map((r) => ({ ...r, professional_id: empId }));
     const advancesWithPid = advances.map((a) => ({ ...a, professional_id: empId }));
+    const presentismoWithPid = presentismo.map((p) => ({ ...p, professional_id: empId }));
     return computeLiquidacionSummary(
       empId,
       commissionRecords,
@@ -2130,8 +2135,9 @@ function LiquidacionesPanelView({
       commissionEvents,
       tipEvents,
       ventasAnuladas,
+      presentismoWithPid,
     );
-  }, [empId, commissionRecords, tipRecords, runs, advances, commissionEvents, tipEvents, ventasAnuladas]);
+  }, [empId, commissionRecords, tipRecords, runs, advances, commissionEvents, tipEvents, ventasAnuladas, presentismo]);
 
   // Ventas con comisión todavía no liquidada — mismo criterio y misma
   // query que usa Caja > Liquidaciones para este profesional (ver
@@ -2172,13 +2178,14 @@ function LiquidacionesPanelView({
   // mismo contenido que usa Caja > Liquidaciones > Movimientos, ver
   // src/components/liquidaciones/. Un solo estado de "kind" controla cuál
   // de los cuatro contenidos se muestra, nunca más de uno a la vez.
-  const [movimientoDetailKind, setMovimientoDetailKind] = useState<"pago" | "adelanto" | "ajuste" | "deduccion" | "venta_anulada" | null>(null);
+  const [movimientoDetailKind, setMovimientoDetailKind] = useState<"pago" | "adelanto" | "ajuste" | "deduccion" | "venta_anulada" | "presentismo" | null>(null);
   const [movimientoDetailRun, setMovimientoDetailRun] = useState<SettlementRun | null>(null);
   const [movimientoDetailMovementNumber, setMovimientoDetailMovementNumber] = useState<number | null>(null);
   const [movimientoDetailAdvance, setMovimientoDetailAdvance] = useState<HistorialAdvanceRow | null>(null);
   const [movimientoDetailAjuste, setMovimientoDetailAjuste] = useState<MovimientoAjuste | null>(null);
   const [movimientoDetailDeduccion, setMovimientoDetailDeduccion] = useState<MovimientoDeduccion | null>(null);
   const [movimientoDetailVentaAnulada, setMovimientoDetailVentaAnulada] = useState<HistorialVentaAnuladaRow | null>(null);
+  const [movimientoDetailPresentismo, setMovimientoDetailPresentismo] = useState<HistorialPresentismoRow | null>(null);
   const [movimientoDetailServices, setMovimientoDetailServices] = useState<PagoDetalleService[] | null>(null);
   const [loadingMovimientoDetailServices, setLoadingMovimientoDetailServices] = useState(false);
 
@@ -2190,6 +2197,7 @@ function LiquidacionesPanelView({
     setMovimientoDetailAjuste(null);
     setMovimientoDetailDeduccion(null);
     setMovimientoDetailVentaAnulada(null);
+    setMovimientoDetailPresentismo(null);
     setMovimientoDetailServices(null);
   }
 
@@ -2227,6 +2235,11 @@ function LiquidacionesPanelView({
   function openVentaAnuladaDetalle(data: HistorialVentaAnuladaRow) {
     setMovimientoDetailKind("venta_anulada");
     setMovimientoDetailVentaAnulada(data);
+  }
+
+  function openPresentismoDetalle(data: HistorialPresentismoRow) {
+    setMovimientoDetailKind("presentismo");
+    setMovimientoDetailPresentismo(data);
   }
 
   async function openServicios(runId: string) {
@@ -2281,14 +2294,40 @@ function LiquidacionesPanelView({
       ),
     [ventasAnuladas, closedRunIds],
   );
+  // Mismo criterio que openAdvances — una confirmación de presentismo ya
+  // absorbida en una liquidación efectivamente saldada pasa a Historial.
+  // Se muestra SIEMPRE que esté pendiente, incluso con $0 de impacto ("A
+  // tiempo") — ver HistorialPresentismoRow.
+  const openPresentismo = React.useMemo(
+    () =>
+      presentismo
+        .filter((p) => !p.settlement_run_id || !closedRunIds.has(p.settlement_run_id))
+        .map(
+          (p): HistorialPresentismoRow => ({
+            id: p.id,
+            professionalId: p.employee_id,
+            date: p.date,
+            status: p.status,
+            expectedStartAt: p.expected_start_at ?? null,
+            effectiveClockInAt: p.effective_clock_in_at ?? null,
+            lateMinutes: Number(p.late_minutes ?? 0),
+            discountAmountApplied: Number(p.discount_amount_applied ?? 0),
+            penaltyOverridden: Boolean(p.penalty_overridden),
+            confirmedByName: p.confirmed_by_name,
+            confirmedAt: p.confirmed_at,
+            settlementRunId: p.settlement_run_id ?? null,
+          }),
+        ),
+    [presentismo, closedRunIds],
+  );
 
   // Mismo timeline que Caja > Historial: pagos agrupados por Movimiento #
-  // (un pago múltiple con varios métodos es UNA sola card) y adelantos,
-  // mezclados y ordenados por fecha — ya sin nada de liquidaciones
-  // cerradas (ver closedRunIds arriba).
+  // (un pago múltiple con varios métodos es UNA sola card), adelantos y
+  // presentismo, mezclados y ordenados por fecha — ya sin nada de
+  // liquidaciones cerradas (ver closedRunIds arriba).
   const movimientos = React.useMemo(
-    () => buildHistorialMovimientos(openPayments, openAdvances, openRuns, openVentasAnuladas),
-    [openPayments, openAdvances, openRuns, openVentasAnuladas],
+    () => buildHistorialMovimientos(openPayments, openAdvances, openRuns, openVentasAnuladas, openPresentismo),
+    [openPayments, openAdvances, openRuns, openVentasAnuladas, openPresentismo],
   );
 
   // Lista única de Movimientos: ventas con comisión todavía pendiente +
@@ -2466,8 +2505,12 @@ function LiquidacionesPanelView({
   // mezclado con "Adelantos" (son tablas y motivos distintos); solo se
   // muestra si hay algo pendiente de verdad, igual que "Propinas" arriba.
   const pendingDeductionNet = summary ? summary.pendingDeductions - summary.pendingCredits : 0;
+  // Presentismo pendiente — mismo criterio que Caja > Liquidaciones
+  // (tarjeta propia, nunca fusionada con "Comisiones generadas").
+  const pendingPresentismo = summary ? summary.pendingPresentismoAdjustment : 0;
+  const extraCards = (pendingDeductionNet !== 0 ? 1 : 0) + (pendingPresentismo !== 0 ? 1 : 0);
   const summaryCards = summary && (
-    <div className={cn("grid gap-2.5", pendingDeductionNet !== 0 ? "grid-cols-2" : "grid-cols-3")}>
+    <div className={cn("grid gap-2.5", extraCards > 0 ? "grid-cols-2" : "grid-cols-3")}>
       <StatCard label="Comisiones generadas" value={money(summary.newCommissions)} tone="violet" />
       <StatCard
         label="Adelantos"
@@ -2479,6 +2522,13 @@ function LiquidacionesPanelView({
           label="Deducciones pendientes"
           value={pendingDeductionNet > 0 ? `−${money(pendingDeductionNet)}` : `+${money(-pendingDeductionNet)}`}
           tone="rose"
+        />
+      )}
+      {pendingPresentismo !== 0 && (
+        <StatCard
+          label="Presentismo"
+          value={pendingPresentismo > 0 ? `−${money(pendingPresentismo)}` : `+${money(-pendingPresentismo)}`}
+          tone={pendingPresentismo > 0 ? "rose" : "green"}
         />
       )}
       <StatCard label="Total a pagar" value={money(summary.totalToPay)} tone="green" />
@@ -2735,6 +2785,31 @@ function LiquidacionesPanelView({
               );
             }
 
+            if (item.kind === "presentismo") {
+              const p: HistorialPresentismoRow = item.data;
+              const statusLabel =
+                p.status === "a_tiempo" ? "A tiempo" : p.status === "tarde" ? "Tarde" : "Ausente";
+              const amount = p.discountAmountApplied;
+              const presentismoText =
+                amount === 0 ? money(0) : amount > 0 ? `-${money(amount)}` : `+${money(-amount)}`;
+              const presentismoClass = amount > 0 ? "text-rose-300" : "text-emerald-300";
+              const llegada = p.effectiveClockInAt
+                ? new Date(p.effectiveClockInAt).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
+                : "—";
+              return (
+                <MovRow
+                  key={`presentismo-${p.id}`}
+                  dateTime={dateTime}
+                  concepto={`Presentismo · ${statusLabel}${p.penaltyOverridden ? " (ajustado)" : ""}`}
+                  precioText="—"
+                  presentismoText={presentismoText}
+                  presentismoClass={presentismoClass}
+                  detalle={`Llegó ${llegada} · Confirmado por ${displayResponsable(p.confirmedByName)}`}
+                  onToggle={() => openPresentismoDetalle(p)}
+                />
+              );
+            }
+
             const run = runsById.get(item.settlementRunId) ?? null;
             const lastPayment = item.splits[item.splits.length - 1];
             const paidBy = displayResponsable(item.splits[0]?.paid_by_name);
@@ -2850,6 +2925,9 @@ function LiquidacionesPanelView({
         )}
         {movimientoDetailKind === "venta_anulada" && movimientoDetailVentaAnulada && (
           <VentaAnuladaDetalleContent data={movimientoDetailVentaAnulada} />
+        )}
+        {movimientoDetailKind === "presentismo" && movimientoDetailPresentismo && (
+          <PresentismoDetalleContent data={movimientoDetailPresentismo} />
         )}
       </AgendaCenteredModal>
 

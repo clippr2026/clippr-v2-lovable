@@ -1463,6 +1463,15 @@ export async function closeSingleDayCierre({
   const diferencia = efectivoContado != null ? efectivoContado - expected.cashExpected : null;
   const ajusteCuenta = saldoReal != null ? saldoReal - expected.digitalExpected : null;
 
+  // presentismo_snapshot NO se arma acá — lo completa el trigger SQL
+  // check_attendance_confirmed_before_close, en el mismo instante en que
+  // valida que el presentismo esté confirmado (misma transacción que este
+  // INSERT/UPDATE). Armarlo acá, en un fetch aparte antes de guardar, deja
+  // una ventana de carrera entre leer attendance_confirmations y guardar
+  // caja_cierres — moverlo al trigger la elimina del todo: lo que queda
+  // congelado es exactamente lo vigente en el instante real de la
+  // escritura, nunca una lectura de un momento antes.
+
   // "efectivo_esperado" y "diferencia" no son columnas reales de
   // caja_cierres (solo efectivo_contado/dinero_cuenta_* lo son) — viajan
   // dentro del propio evento jsonb, mismo criterio que pendientes_count/
@@ -1547,6 +1556,12 @@ export async function closeSingleDayCierre({
     return { closed: false, alreadyClosed: true };
   }
   if (saved?.id) {
+    // Trazabilidad inversa (attendance_confirmations.caja_cierre_id =
+    // "esta confirmación quedó incluida en este cierre") la completa un
+    // trigger SQL (set_attendance_caja_cierre_id, security definer) sobre
+    // caja_cierres — attendance_confirmations no tiene policy de UPDATE
+    // para el cliente a propósito (todo cambio pasa por confirm_attendance,
+    // nunca un UPDATE directo), así que esto nunca se hace desde acá.
     // Solo si se está cerrando el día de HOY (huso Buenos Aires) tiene
     // sentido cerrar también la cash_session en curso — cerrar un día
     // pasado (backlog) nunca debe tocar la sesión de hoy, que sigue

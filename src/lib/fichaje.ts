@@ -265,11 +265,11 @@ async function resolveExpectedStartToday(businessId: string, employeeId: string)
   return expected;
 }
 
-// Exportada para que la UI (Inicio) pueda clasificar Temprano/A
-// tiempo/Tarde con el mismo criterio exacto que ya usa clockIn acá abajo
-// para calcular late_minutes — nunca un número duplicado a mano.
-export const TOLERANCE_MINUTES = 5;
-
+// Sin tolerancia: 11:00 en punto es "A tiempo"; 11:01 ya es "Tarde" (y
+// dispara la regla "desde 1 minuto" si existe). Antes había 5 minutos de
+// gracia hardcodeados acá, que contradecían directamente ese criterio —
+// cualquier llegada entre 11:00 y 11:05 quedaba como 0 minutos tarde, sin
+// aplicar ninguna regla aunque hubiera una configurada "desde 1 minuto".
 export async function clockIn({
   businessId,
   branchId,
@@ -281,8 +281,7 @@ export async function clockIn({
 }): Promise<WorkSession> {
   const now = new Date();
   const expected = await resolveExpectedStartToday(businessId, employeeId);
-  const lateMinutesRaw = expected ? Math.round((now.getTime() - expected.getTime()) / 60000) : 0;
-  const lateMinutes = Math.max(0, lateMinutesRaw - TOLERANCE_MINUTES);
+  const lateMinutes = expected ? Math.max(0, Math.round((now.getTime() - expected.getTime()) / 60000)) : 0;
 
   const { data, error } = await supabase
     .from("work_sessions" as any)
@@ -298,21 +297,15 @@ export async function clockIn({
     .select("*")
     .single();
   if (error) throw new Error(error.message);
-  const session = data as WorkSession;
-
-  if (lateMinutes > 0) {
-    await applyLatenessDiscount({
-      businessId,
-      branchId,
-      employeeId,
-      workSessionId: session.id,
-      expectedStartAt: expected,
-      actualStartAt: now,
-      lateMinutes,
-    });
-  }
-
-  return session;
+  // El descuento de tardanza YA NO se calcula acá: a esta hora casi
+  // siempre no hay ninguna comisión de servicios generada todavía ese día
+  // (recién está llegando), así que calcularlo ahora lo congelaba contra
+  // $0 para siempre. Ahora se calcula en el momento de la confirmación
+  // administrativa de presentismo (confirm_attendance, RPC), recalculado
+  // contra las comisiones de servicios reales acumuladas ese día — ver
+  // Configuración → Reglas de tardanza y el panel de revisión de
+  // presentismo en Caja → Cierre de caja.
+  return data as WorkSession;
 }
 
 export async function clockOut(sessionId: string): Promise<void> {
@@ -324,75 +317,15 @@ export async function clockOut(sessionId: string): Promise<void> {
   if (error) throw new Error(error.message);
 }
 
-function findMatchingRule(rules: LatenessRule[], lateMinutes: number): LatenessRule | null {
-  return (
-    rules.find(
-      (r) => lateMinutes >= r.min_minutes && (r.max_minutes == null || lateMinutes <= r.max_minutes),
-    ) ?? null
-  );
-}
-
-// Comisión generada por el profesional EN EL DÍA (misma fuente que
-// Liquidaciones: commission_records) — el tope para no generar saldo
-// negativo con el descuento.
-async function getCommissionAvailableToday(businessId: string, employeeId: string): Promise<number> {
-  const dayStart = new Date(`${todayKey()}T00:00:00`).toISOString();
-  const dayEnd = new Date(`${todayKey()}T23:59:59.999`).toISOString();
-  const { data } = await supabase
-    .from("commission_records" as any)
-    .select("amount")
-    .eq("business_id", businessId)
-    .eq("employee_id", employeeId)
-    .gte("created_at", dayStart)
-    .lte("created_at", dayEnd);
-  return ((data ?? []) as any[]).reduce((s, r) => s + Number(r.amount ?? 0), 0);
-}
-
-async function applyLatenessDiscount({
-  businessId,
-  branchId,
-  employeeId,
-  workSessionId,
-  expectedStartAt,
-  actualStartAt,
-  lateMinutes,
-}: {
-  businessId: string;
-  branchId: string;
-  employeeId: string;
-  workSessionId: string;
-  expectedStartAt: Date | null;
-  actualStartAt: Date;
-  lateMinutes: number;
-}): Promise<void> {
-  const { data: rulesData } = await supabase
-    .from("lateness_rules" as any)
-    .select("*")
-    .eq("branch_id", branchId)
-    .order("min_minutes", { ascending: true });
-  const rules = (rulesData ?? []) as LatenessRule[];
-  const rule = findMatchingRule(rules, lateMinutes);
-  if (!rule) return;
-
-  const commissionAvailable = await getCommissionAvailableToday(businessId, employeeId);
-  const requested =
-    rule.discount_type === "percent"
-      ? Math.round((commissionAvailable * rule.discount_value) / 100)
-      : Math.round(rule.discount_value);
-  const applied = Math.max(0, Math.min(requested, commissionAvailable));
-
-  await supabase.from("lateness_discounts" as any).insert({
-    business_id: businessId,
-    branch_id: branchId,
-    employee_id: employeeId,
-    work_session_id: workSessionId,
-    date: todayKey(),
-    expected_start_at: expectedStartAt ? expectedStartAt.toISOString() : null,
-    actual_start_at: actualStartAt.toISOString(),
-    late_minutes: lateMinutes,
-    rule_id: rule.id,
-    commission_available: commissionAvailable,
-    discount_amount_requested: requested,
-    discount_amount_applied: applied,
-  });
+// Regla vigente para una tardanza puntual: la de min_minutes más alto ya
+// alcanzado (nunca un rango [min,max] — "desde 15 minutos: 10%" aplica
+// igual a 15, 20 o 40 minutos tarde, no solo dentro de un tramo cerrado).
+// max_minutes queda sin usar acá a propósito; se mantiene en la tabla por
+// compatibilidad con filas viejas. Exportada: la usa también
+// confirm_attendance de forma equivalente en SQL (ver migración de
+// presentismo) — este es el único lugar en TS donde hace falta.
+export function findMatchingRule(rules: LatenessRule[], lateMinutes: number): LatenessRule | null {
+  const applicable = rules.filter((r) => lateMinutes >= r.min_minutes);
+  if (applicable.length === 0) return null;
+  return applicable.reduce((best, r) => (r.min_minutes > best.min_minutes ? r : best));
 }

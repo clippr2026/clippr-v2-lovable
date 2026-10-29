@@ -13,7 +13,7 @@ import { useCajaHoy } from "@/components/dashboard/use-caja-hoy";
 import { useInicioWidgets, type ActividadItem } from "@/components/dashboard/use-inicio-widgets";
 import { useFichajeHoy } from "@/components/dashboard/use-fichaje-hoy";
 import { FichajeQrModal } from "@/components/dashboard/fichaje-qr-modal";
-import { TOLERANCE_MINUTES, type FichajeHoyPersona } from "@/lib/fichaje";
+import { type FichajeHoyPersona } from "@/lib/fichaje";
 import { cajaDateKeyBA, dayBoundsBA } from "@/lib/caja-cierre";
 import { SaldoComposicionModal } from "@/components/caja/saldo-composicion";
 import {
@@ -554,34 +554,32 @@ function FichajeHoyCard({
   );
 }
 
-type Puntualidad = "temprano" | "a_tiempo" | "tarde";
+// Solo 2 estados acá — "Temprano" se fusionó en "A tiempo" (llegar antes o
+// justo a horario nunca es un estado aparte). "Ausente"/"Pendiente" no
+// corresponden a esta chip (son los profesionales que SÍ ficharon); esos
+// dos viven en la sección "Pendientes" de más abajo.
+type Puntualidad = "a_tiempo" | "tarde";
 
 const PUNTUALIDAD_LABEL: Record<Puntualidad, string> = {
-  temprano: "Temprano",
   a_tiempo: "A tiempo",
   tarde: "Tarde",
 };
 
 const PUNTUALIDAD_CLASS: Record<Puntualidad, string> = {
-  temprano: "bg-emerald-400/10 text-emerald-300 ring-emerald-400/25",
-  a_tiempo: "bg-sky-400/10 text-sky-300 ring-sky-400/25",
-  tarde: "bg-orange-400/10 text-orange-300 ring-orange-400/25",
+  a_tiempo: "bg-emerald-400/10 text-emerald-300 ring-emerald-400/25",
+  tarde: "bg-rose-400/10 text-rose-300 ring-rose-400/25",
 };
 
-// Mismo criterio exacto que clockIn (ver lib/fichaje.ts) para decidir si
-// hubo tardanza — TOLERANCE_MINUTES importado de ahí, nunca un número
-// duplicado a mano. A diferencia del late_minutes guardado (que ya viene
-// recortado a >= 0, así que no distingue "temprano" de "a tiempo"), acá se
-// compara la hora real contra la esperada sin recortar, solo para elegir
-// qué mostrar — no se guarda ni se recalcula ninguna comisión/descuento.
+// Mismo criterio exacto que clockIn (ver lib/fichaje.ts): sin tolerancia,
+// antes o justo a horario es "A tiempo", cualquier minuto después es
+// "Tarde". Comparación sobre la hora real, nunca sobre late_minutes
+// guardado (ese ya viene recortado a >= 0, no sirve para esta distinción).
 function puntualidadDe(persona: FichajeHoyPersona): Puntualidad | null {
   if (!persona.expectedStartAt) return null;
   const diffMin = Math.round(
     (new Date(persona.clockInAt).getTime() - new Date(persona.expectedStartAt).getTime()) / 60000,
   );
-  if (diffMin < 0) return "temprano";
-  if (diffMin <= TOLERANCE_MINUTES) return "a_tiempo";
-  return "tarde";
+  return diffMin <= 0 ? "a_tiempo" : "tarde";
 }
 
 function inicialAvatar(name: string) {
@@ -591,33 +589,44 @@ function inicialAvatar(name: string) {
 // Mini tarjeta de "Hoy ficharon" — una hilera horizontal con scroll propio
 // (ver contenedor en FichajeCard), cada persona separada visualmente con su
 // propio fondo/borde para que no se mezclen entre sí aunque fichen muchos.
+// Ancho fijo más generoso que antes (232px, no 186px) y en dos filas en vez
+// de una sola: con todo (nombre + programada + real + estado) apretado en
+// una línea, "En curso" quedaba cortado como "En…" — acá nunca se trunca,
+// cada dato tiene su propia etiqueta corta (Prog./Real/Salió).
 function FichajePersonaChip({ persona }: { persona: FichajeHoyPersona }) {
   const enCurso = persona.clockOutAt === null;
   const puntualidad = puntualidadDe(persona);
 
   return (
-    <div className="flex w-[186px] shrink-0 items-center gap-2 rounded-xl bg-white/[0.035] px-2.5 py-2 ring-1 ring-white/10">
-      <div className="grid size-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-sky-400/25 to-violet-500/25 text-[11px] font-bold text-white ring-1 ring-white/10">
-        {inicialAvatar(persona.name)}
-      </div>
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-xs font-medium text-foreground">{persona.name}</div>
-        <div className="flex items-center gap-1 text-[11px] text-muted-foreground">
-          <span className="tabular-nums">{horaCorta(persona.clockInAt)}</span>
-          {enCurso ? (
-            <span className="truncate font-medium text-emerald-300">En curso</span>
-          ) : (
-            <span className="tabular-nums">{horaCorta(persona.clockOutAt as string)}</span>
-          )}
+    <div className="flex w-[232px] shrink-0 flex-col gap-1.5 rounded-xl bg-white/[0.035] px-3 py-2.5 ring-1 ring-white/10">
+      <div className="flex items-center gap-2">
+        <div className="grid size-7 shrink-0 place-items-center rounded-full bg-gradient-to-br from-sky-400/25 to-violet-500/25 text-[11px] font-bold text-white ring-1 ring-white/10">
+          {inicialAvatar(persona.name)}
         </div>
+        <div className="min-w-0 flex-1 truncate text-xs font-medium text-foreground">{persona.name}</div>
+        {puntualidad && (
+          <span
+            className={`shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ring-1 ${PUNTUALIDAD_CLASS[puntualidad]}`}
+          >
+            {PUNTUALIDAD_LABEL[puntualidad]}
+          </span>
+        )}
       </div>
-      {puntualidad && (
-        <span
-          className={`ml-auto shrink-0 rounded-full px-1.5 py-0.5 text-[9px] font-semibold ring-1 ${PUNTUALIDAD_CLASS[puntualidad]}`}
-        >
-          {PUNTUALIDAD_LABEL[puntualidad]}
+      <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-muted-foreground">
+        <span>
+          Prog. <span className="tabular-nums text-foreground/80">{persona.expectedStartAt ? horaCorta(persona.expectedStartAt) : "—"}</span>
         </span>
-      )}
+        <span>
+          Real <span className="tabular-nums text-foreground/80">{horaCorta(persona.clockInAt)}</span>
+        </span>
+        {enCurso ? (
+          <span className="font-medium text-emerald-300">En curso</span>
+        ) : (
+          <span>
+            Salió <span className="tabular-nums text-foreground/80">{horaCorta(persona.clockOutAt as string)}</span>
+          </span>
+        )}
+      </div>
     </div>
   );
 }

@@ -628,6 +628,65 @@ export function useProfAdvances(businessId: string | null, empId: string | null)
   return query;
 }
 
+// attendance_confirmations de UN profesional — mismo patrón exacto que
+// useProfAdvances (query + realtime), para que Panel del profesional >
+// Movimientos muestre presentismo con la MISMA fuente y fórmula que Caja >
+// Liquidaciones (computeLiquidacionSummary/buildHistorialMovimientos en
+// historial-movimientos.ts), nunca una reimplementada acá.
+export type ProfPresentismo = {
+  id: string;
+  employee_id: string;
+  date: string;
+  status: "a_tiempo" | "tarde" | "ausente";
+  expected_start_at: string | null;
+  effective_clock_in_at: string | null;
+  late_minutes: number;
+  discount_amount_applied: number;
+  penalty_overridden: boolean;
+  confirmed_by_name: string;
+  confirmed_at: string;
+  settlement_run_id: string | null;
+};
+
+export function useProfPresentismo(businessId: string | null, empId: string | null) {
+  const qc = useQueryClient();
+
+  const query = useQuery({
+    queryKey: ["prof-presentismo", businessId, empId],
+    queryFn: async (): Promise<ProfPresentismo[]> => {
+      const { data, error } = await supabase
+        .from("attendance_confirmations" as any)
+        .select(
+          "id,employee_id,date,status,expected_start_at,effective_clock_in_at,late_minutes,discount_amount_applied,penalty_overridden,confirmed_by_name,confirmed_at,settlement_run_id",
+        )
+        .eq("business_id", businessId!)
+        .eq("employee_id", empId!)
+        .order("date", { ascending: false });
+      if (error) throw new Error(error.message);
+      return (data ?? []) as unknown as ProfPresentismo[];
+    },
+    enabled: !!businessId && !!empId,
+    staleTime: 30_000,
+  });
+
+  React.useEffect(() => {
+    if (!businessId || !empId) return;
+    const channel = supabase
+      .channel(`prof-presentismo-${empId}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "attendance_confirmations", filter: `employee_id=eq.${empId}` },
+        () => qc.invalidateQueries({ queryKey: ["prof-presentismo", businessId, empId] }),
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [businessId, empId, qc]);
+
+  return query;
+}
+
 // commission_records/tip_records de UN profesional, sin filtrar por
 // settlement_run_id ni rango de fechas — misma fuente cruda que allCommissions/
 // allTips en Caja > Liquidaciones (ahí se cargan para TODO el negocio de

@@ -20,11 +20,13 @@ import {
 } from "@/components/cash-register/cobrar-pendiente";
 
 // Grilla compartida por TODAS las filas de la lista única (ventas,
-// adelantos, pagos, ajustes, deducciones) y por su encabezado — mismas 7
-// columnas siempre: Fecha y hora | Cliente | Concepto | Precio | Comisión |
-// Propina | Medio de pago.
+// adelantos, pagos, ajustes, deducciones, presentismo) y por su
+// encabezado — mismas 8 columnas siempre: Fecha y hora | Cliente |
+// Concepto | Precio | Comisión | Presentismo | Propina | Medio de pago.
+// "Presentismo" se agregó inmediatamente después de "Comisión" (único
+// requisito explícito) sin reordenar las demás columnas ya existentes.
 export const LIQ_GRID_COLS =
-  "grid-cols-[116px_minmax(100px,1fr)_minmax(130px,1.1fr)_100px_100px_100px_minmax(90px,1fr)]";
+  "grid-cols-[116px_minmax(100px,1fr)_minmax(130px,1.1fr)_100px_100px_100px_100px_minmax(90px,1fr)]";
 
 export function UnifiedMovimientosHeader() {
   return (
@@ -39,6 +41,7 @@ export function UnifiedMovimientosHeader() {
       <div>Concepto</div>
       <div className="text-right">Precio</div>
       <div className="text-right">Comisión</div>
+      <div className="text-right">Presentismo</div>
       <div className="text-right">Propina</div>
       <div>Medio de pago</div>
     </div>
@@ -503,6 +506,10 @@ export function VentaRow({
             )}
           </div>
         </div>
+        {/* Presentismo no es por venta — vive aparte, en su propia fila
+            diaria (ver kind:"presentismo" en MovRow/historial-movimientos.ts),
+            nunca repetido acá para no duplicar el descuento visualmente. */}
+        <div className="text-right text-white/25">—</div>
         <div className={cn("text-right text-sm font-semibold tabular-nums", hasTip ? "text-emerald-300" : "text-white/25")}>
           {tipText}
         </div>
@@ -616,6 +623,8 @@ export function MovRow({
   concepto,
   precioText,
   precioClass,
+  presentismoText,
+  presentismoClass,
   detalle,
   note,
   redStripe = false,
@@ -634,6 +643,13 @@ export function MovRow({
   concepto: string;
   precioText: string;
   precioClass?: string;
+  // Solo la fila de presentismo los usa — el resto (Adelanto/Pago/Ajuste/
+  // Deducción/Venta anulada) deja la columna "Presentismo" en blanco
+  // (emptyFiller), ningún cambio de comportamiento para esos casos. En
+  // mobile (sin columnas discretas) reemplaza al monto en negrita de
+  // siempre, para no perder visibilidad ahí.
+  presentismoText?: string;
+  presentismoClass?: string;
   detalle: React.ReactNode;
   // Nota opcional de un adelanto — NUNCA se muestra sola: aparece como un
   // botón "Ver nota" a la izquierda del tacho, y el contenido solo se
@@ -707,6 +723,9 @@ export function MovRow({
         </div>
         <div className={cn("text-right tabular-nums", precioClass ?? "text-white/72")}>{precioText}</div>
         <div className="text-right text-white/30">{emptyFiller}</div>
+        <div className={cn("text-right tabular-nums", presentismoText ? (presentismoClass ?? "text-white/72") : "text-white/30")}>
+          {presentismoText ?? emptyFiller}
+        </div>
         <div className="text-right text-white/30">{emptyFiller}</div>
         <div className="flex items-center justify-between gap-2 text-white/52">
           <span>{emptyFiller}</span>
@@ -744,7 +763,9 @@ export function MovRow({
           <div className="mt-0.5 text-[10px] text-white/35">{dateTime}</div>
         </div>
         <div className="flex shrink-0 items-center gap-1.5">
-          <span className={cn("font-bold tabular-nums", precioClass ?? "text-white")}>{precioText}</span>
+          <span className={cn("font-bold tabular-nums", (presentismoText ? presentismoClass : precioClass) ?? "text-white")}>
+            {presentismoText ?? precioText}
+          </span>
           {verNotaButton}
           {onDelete ? (
             <button

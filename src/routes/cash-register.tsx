@@ -46,6 +46,8 @@ import {
   pagoRowColor,
 } from "@/lib/caja-cierre";
 import { SaldoComposicionLado, SaldoComposicionModal } from "@/components/caja/saldo-composicion";
+import { PresentismoRevisionPanel } from "@/components/professionals/presentismo-revision-panel";
+import { getPendingCierresInPeriod } from "@/lib/presentismo";
 import { useCashMovements, type CashMovement } from "@/hooks/use-cash-movements";
 import { useCajaSummary, type CajaSummary } from "@/hooks/use-caja-summary";
 import {
@@ -151,6 +153,7 @@ import {
   type MovimientoAjuste,
   type MovimientoDeduccion,
   type HistorialVentaAnuladaRow,
+  type HistorialPresentismoRow,
 } from "@/lib/historial-movimientos";
 import { fetchAllRows } from "@/lib/supabase-paginate";
 import { displayResponsable, isRunEffectivelySettled } from "@/components/liquidaciones/movimiento-format";
@@ -160,6 +163,7 @@ import {
   AjusteDetalleContent,
   DeduccionDetalleContent,
   VentaAnuladaDetalleContent,
+  PresentismoDetalleContent,
 } from "@/components/liquidaciones/movimiento-detalle-content";
 import {
   VentaRow,
@@ -1153,6 +1157,7 @@ function CashRegisterPage() {
               businessId={data.businessId}
               chargedByName={profile?.full_name || chargedByUsername(session.user.email)}
               data={data}
+              onGoToCierres={() => setTab("cierres")}
             />
           )}
           {tab === "cierres" && (
@@ -3568,10 +3573,15 @@ function ProfesionalesTab({
   businessId,
   chargedByName,
   data,
+  onGoToCierres,
 }: {
   businessId: string | null;
   chargedByName: string;
   data: ReturnType<typeof useCajaData>;
+  // "Ir a cierre de caja" del aviso de liquidación bloqueada por cajas
+  // pendientes — lleva directo a la pestaña Cierres (ya lista el backlog
+  // pendiente por su cuenta, acá no hace falta pasarle las fechas).
+  onGoToCierres: () => void;
 }) {
   // Antes esta pestaña llamaba a su propia useCajaData(), que vuelve a
   // pedir todo (servicios, empleados, pagos, gastos) cada vez que se monta
@@ -3610,6 +3620,7 @@ function ProfesionalesTab({
   const [historialDetailAjuste, setHistorialDetailAjuste] = React.useState<MovimientoAjuste | null>(null);
   const [historialDetailDeduccion, setHistorialDetailDeduccion] = React.useState<MovimientoDeduccion | null>(null);
   const [historialDetailVentaAnulada, setHistorialDetailVentaAnulada] = React.useState<HistorialVentaAnuladaRow | null>(null);
+  const [historialDetailPresentismo, setHistorialDetailPresentismo] = React.useState<HistorialPresentismoRow | null>(null);
   const [loadingCommissions, setLoadingCommissions] = React.useState(true);
   const [loadingRuns, setLoadingRuns] = React.useState(true);
   // Errores reales (no silenciados en $0): si la query falla (RLS, columna
@@ -3620,6 +3631,13 @@ function ProfesionalesTab({
   const [loadingTips, setLoadingTips] = React.useState(true);
   const [tipsError, setTipsError] = React.useState<string | null>(null);
   const [preparingRunFor, setPreparingRunFor] = React.useState<string | null>(null);
+  // Bloqueo de liquidación por cajas pendientes en el período — chequeo
+  // previo en el cliente (UX, mensaje con las fechas + botón "Ir a cierre
+  // de caja") antes de intentar el RPC. prepare_settlement_run valida lo
+  // mismo server-side como última instancia (ver migración
+  // 20261029070000_prepare_settlement_run_pending_cierres_gate.sql) —
+  // esto nunca reemplaza esa validación, solo evita mostrar el error crudo.
+  const [pendingCierresBlock, setPendingCierresBlock] = React.useState<{ row: (typeof rows)[number]; fechas: string[] } | null>(null);
   const [paymentForm, setPaymentForm] = React.useState({
     amount: "",
     method: "transfer",
@@ -3721,6 +3739,7 @@ function ProfesionalesTab({
   const [allRunPayments, setAllRunPayments] = React.useState<any[]>([]);
   const [allAdvances, setAllAdvances] = React.useState<any[]>([]);
   const [allVentasAnuladas, setAllVentasAnuladas] = React.useState<HistorialVentaAnuladaRow[]>([]);
+  const [allPresentismo, setAllPresentismo] = React.useState<any[]>([]);
   const [commissionsVersion, setCommissionsVersion] = React.useState(0);
 
   // Red de seguridad además de Realtime (ver canal de postgres_changes más
@@ -4030,6 +4049,42 @@ function ProfesionalesTab({
       }
     }
     loadAdvances();
+    return () => {
+      cancelled = true;
+    };
+  }, [businessId, commissionsVersion]);
+
+  // Presentismo (attendance_confirmations) — mismo criterio que Adelantos:
+  // fetch aparte, con su propio try/catch, para que si la migración de
+  // presentismo todavía no corrió en producción (tabla inexistente) no
+  // tire abajo el resto de Liquidaciones.
+  React.useEffect(() => {
+    let cancelled = false;
+    async function loadPresentismo() {
+      if (!businessId) {
+        if (!cancelled) setAllPresentismo([]);
+        return;
+      }
+      try {
+        const rows = await fetchAllRows((from, to) =>
+          supabase
+            .from("attendance_confirmations" as any)
+            .select(
+              "id,employee_id,date,status,expected_start_at,effective_clock_in_at,late_minutes,discount_amount_applied,penalty_overridden,confirmed_by_name,confirmed_at,settlement_run_id",
+            )
+            .eq("business_id", businessId)
+            .order("date", { ascending: true })
+            .range(from, to),
+        );
+        if (!cancelled) {
+          setAllPresentismo([...rows].sort((a: any, b: any) => String(b.date ?? "").localeCompare(String(a.date ?? ""))));
+        }
+      } catch (e) {
+        if (!cancelled) setAllPresentismo([]);
+        console.warn("[caja] no se pudo cargar el presentismo:", (e as Error).message);
+      }
+    }
+    loadPresentismo();
     return () => {
       cancelled = true;
     };
@@ -4484,6 +4539,13 @@ function ProfesionalesTab({
       .sort((a, b) => String(b.voidedAt ?? "").localeCompare(String(a.voidedAt ?? "")));
   }, [allVentasAnuladas, selectedRow]);
 
+  const selectedPresentismo = React.useMemo(() => {
+    if (!selectedRow) return [] as any[];
+    return allPresentismo
+      .filter((p: any) => String(p.employee_id) === selectedRow.id)
+      .sort((a: any, b: any) => String(b.date ?? "").localeCompare(String(a.date ?? "")));
+  }, [allPresentismo, selectedRow]);
+
   // Mismos métodos/orden que Nueva venta (PAYMENT_OPTIONS, fijo a nivel de
   // módulo) — "Pagar" usa exactamente las mismas opciones, método simple y
   // las filas de pago múltiple comparten esta lista.
@@ -4576,14 +4638,47 @@ function ProfesionalesTab({
       ),
     [selectedVentasAnuladas, closedRunIds, liquidarCutoffAt],
   );
+  // Mismo criterio que openAdvances/openVentasAnuladas: una confirmación
+  // de presentismo ya absorbida en una liquidación efectivamente saldada
+  // pasa a Historial, no a Movimientos — la pendiente (o la de una
+  // liquidación todavía no pagada del todo) siempre queda acá. Se muestra
+  // SIEMPRE que esté dentro del corte, incluso con descuento $0 ("A
+  // tiempo") — ver HistorialPresentismoRow.
+  const openPresentismo = React.useMemo(
+    () =>
+      selectedPresentismo
+        .filter(
+          (p: any) =>
+            (!p.settlement_run_id || !closedRunIds.has(p.settlement_run_id)) &&
+            isWithinCutoff(`${p.date}T12:00:00`, liquidarCutoffAt),
+        )
+        .map(
+          (p: any): HistorialPresentismoRow => ({
+            id: p.id,
+            professionalId: p.employee_id,
+            date: p.date,
+            status: p.status,
+            expectedStartAt: p.expected_start_at ?? null,
+            effectiveClockInAt: p.effective_clock_in_at ?? null,
+            lateMinutes: Number(p.late_minutes ?? 0),
+            discountAmountApplied: Number(p.discount_amount_applied ?? 0),
+            penaltyOverridden: Boolean(p.penalty_overridden),
+            confirmedByName: p.confirmed_by_name,
+            confirmedAt: p.confirmed_at,
+            settlementRunId: p.settlement_run_id ?? null,
+          }),
+        ),
+    [selectedPresentismo, closedRunIds, liquidarCutoffAt],
+  );
 
   // Movimientos es un timeline único — pagos de liquidación (agrupados por
   // movement_number: un pago múltiple con varios métodos es UNA sola
-  // card), adelantos, ajustes y deducciones, mezclados y ordenados por
-  // fecha — ya sin nada de liquidaciones cerradas (ver closedRunIds arriba).
+  // card), adelantos, ajustes, deducciones y presentismo, mezclados y
+  // ordenados por fecha — ya sin nada de liquidaciones cerradas (ver
+  // closedRunIds arriba).
   const historialItems = React.useMemo(
-    () => buildHistorialMovimientos(openRunPayments, openAdvances, openRuns, openVentasAnuladas),
-    [openRunPayments, openAdvances, openRuns, openVentasAnuladas],
+    () => buildHistorialMovimientos(openRunPayments, openAdvances, openRuns, openVentasAnuladas, openPresentismo),
+    [openRunPayments, openAdvances, openRuns, openVentasAnuladas, openPresentismo],
   );
 
   // Lista única de Liquidaciones: ventas con comisión (detailRows) +
@@ -4640,6 +4735,49 @@ function ProfesionalesTab({
       toast.error("Cada adicional o deducción con importe necesita un motivo");
       return;
     }
+
+    // Cajas pendientes en el período — chequeo previo para mostrar el
+    // mensaje con las fechas + botón "Ir a cierre de caja" en vez de
+    // dejar que el usuario vea la excepción cruda del RPC. Mismo rango
+    // que usa prepare_settlement_run: desde el prepared_at de la última
+    // liquidación de ESTE profesional (o "siempre" si nunca tuvo una),
+    // hasta la fecha de corte elegida.
+    if (businessId) {
+      try {
+        const { data: lastRun } = await supabase
+          .from("settlement_runs" as any)
+          .select("prepared_at")
+          .eq("business_id", businessId)
+          .eq("professional_id", row.id)
+          .order("cutoff_date", { ascending: false })
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        const { data: employeeRow } = await supabase
+          .from("employees")
+          .select("branch_id")
+          .eq("id", row.id)
+          .maybeSingle();
+        const periodStart = (lastRun as any)?.prepared_at
+          ? String((lastRun as any).prepared_at).slice(0, 10)
+          : "2000-01-01";
+        const cutoffDateStr = liquidarCutoffAt.toISOString().slice(0, 10);
+        const pendientes = await getPendingCierresInPeriod(
+          businessId,
+          (employeeRow as any)?.branch_id ?? null,
+          periodStart,
+          cutoffDateStr,
+        );
+        if (pendientes.length > 0) {
+          setPendingCierresBlock({ row, fechas: pendientes });
+          return;
+        }
+      } catch {
+        // Best-effort: si este chequeo previo falla, se sigue igual — el
+        // RPC valida lo mismo server-side y bloquea si corresponde.
+      }
+    }
+
     // El monto a pagar es opcional acá: si se completó, el pago se
     // registra apenas se crea la liquidación, en la misma acción — si se
     // deja vacío, solo se prepara (se puede pagar después desde "Pagar",
@@ -4948,6 +5086,27 @@ function ProfesionalesTab({
   const liquidarPendingDeductionNet =
     liquidarPendingAdjustmentQueue.pendingDeductions - liquidarPendingAdjustmentQueue.pendingCredits;
 
+  // Presentismo pendiente del mismo profesional/período/corte — mismo
+  // criterio EXACTO que prepare_settlement_run (migración 20261029090000):
+  // ventana por la fecha de la JORNADA (nunca confirmed_at), sin
+  // settlement_run_id todavía, hasta el corte "Liquidar hasta" elegido.
+  // Positivo = descuento neto (resta de "Total a pagar"); negativo =
+  // ajuste a favor neto (suma).
+  const liquidarPendingPresentismo = React.useMemo(() => {
+    if (!selectedRow) return 0;
+    const periodStart = selectedRow.periodStart;
+    const cutoffDateStr = liquidarCutoffAt.toLocaleDateString("sv-SE");
+    return allPresentismo
+      .filter(
+        (p: any) =>
+          String(p.employee_id) === selectedRow.id &&
+          !p.settlement_run_id &&
+          (!periodStart || String(p.date ?? "") > periodStart) &&
+          String(p.date ?? "") <= cutoffDateStr,
+      )
+      .reduce((sum: number, p: any) => sum + Number(p.discount_amount_applied ?? 0), 0);
+  }, [allPresentismo, selectedRow, liquidarCutoffAt]);
+
   // Totales en vivo del modal "Preparar liquidación" — se recalculan en
   // cada tecla mientras se agregan/editan ajustes y deducciones, y cada
   // vez que cambia el corte elegido.
@@ -4965,7 +5124,8 @@ function ProfesionalesTab({
       liquidarNewTips +
       liquidarPendingAdjustmentQueue.pendingCredits -
       liquidarPendingAdvances -
-      liquidarPendingAdjustmentQueue.pendingDeductions
+      liquidarPendingAdjustmentQueue.pendingDeductions -
+      liquidarPendingPresentismo
     : 0;
   const liquidarFinalTotal = liquidarBaseTotal + liquidarAdjustmentsSum - liquidarDeductionsSum;
   const liquidarValidAdjustmentsCount = validSettlementItems(adjustmentItems).length;
@@ -5068,12 +5228,21 @@ function ProfesionalesTab({
                 2 +
                   (hasPendingPreviousBalance ? 1 : 0) +
                   (liquidarNewTips > 0 ? 1 : 0) +
-                  (liquidarPendingDeductionNet !== 0 ? 1 : 0) >=
+                  (liquidarPendingDeductionNet !== 0 ? 1 : 0) +
+                  (liquidarPendingPresentismo !== 0 ? 1 : 0) >=
                   5
                   ? "sm:grid-cols-5"
-                  : 2 + (hasPendingPreviousBalance ? 1 : 0) + (liquidarNewTips > 0 ? 1 : 0) + (liquidarPendingDeductionNet !== 0 ? 1 : 0) >= 4
+                  : 2 +
+                        (hasPendingPreviousBalance ? 1 : 0) +
+                        (liquidarNewTips > 0 ? 1 : 0) +
+                        (liquidarPendingDeductionNet !== 0 ? 1 : 0) +
+                        (liquidarPendingPresentismo !== 0 ? 1 : 0) >=
+                      4
                     ? "sm:grid-cols-4"
-                    : hasPendingPreviousBalance || liquidarNewTips > 0 || liquidarPendingDeductionNet !== 0
+                    : hasPendingPreviousBalance ||
+                        liquidarNewTips > 0 ||
+                        liquidarPendingDeductionNet !== 0 ||
+                        liquidarPendingPresentismo !== 0
                       ? "sm:grid-cols-3"
                       : "sm:grid-cols-2",
               )}
@@ -5118,6 +5287,24 @@ function ProfesionalesTab({
                   }
                   tone="rose"
                   info="Comisión ya pagada de una venta que se anuló después (o un crédito a favor si esa venta se restableció). Se descuenta (o suma) automáticamente de la próxima liquidación."
+                />
+              )}
+              {/* Presentismo: tarjeta propia, separada de "Comisiones
+                  generadas" a propósito (decisión explícita: fusionarla ahí
+                  haría que ese número ya no coincida con lo que queda
+                  congelado en settlement_runs.new_commissions, visible
+                  después en Historial). Positivo = descuento neto
+                  (tardanzas); negativo = ajuste a favor neto. */}
+              {liquidarPendingPresentismo !== 0 && (
+                <StatCard
+                  label="Presentismo"
+                  value={
+                    liquidarPendingPresentismo > 0
+                      ? `−${money(liquidarPendingPresentismo)}`
+                      : `+${money(-liquidarPendingPresentismo)}`
+                  }
+                  tone={liquidarPendingPresentismo > 0 ? "rose" : "green"}
+                  info="Descuentos por tardanza confirmados (o ajustes a favor autorizados) de este profesional, todavía sin liquidar. Se descuenta (o suma) automáticamente al preparar la liquidación — ver el detalle día por día en Movimientos."
                 />
               )}
               {/* Adelantos: misma tarjeta de siempre (tono rose, igual
@@ -5398,6 +5585,36 @@ function ProfesionalesTab({
                           expanded={isExpanded}
                           onToggle={() => setHistorialDetailVentaAnulada(isExpanded ? null : v)}
                           detail={<VentaAnuladaDetalleContent data={v} />}
+                        />
+                      );
+                    }
+                    if (item.kind === "presentismo") {
+                      const p: HistorialPresentismoRow = item.data;
+                      const isExpanded = historialDetailPresentismo?.id === p.id;
+                      const statusLabel =
+                        p.status === "a_tiempo" ? "A tiempo" : p.status === "tarde" ? "Tarde" : "Ausente";
+                      const amount = p.discountAmountApplied;
+                      const presentismoText =
+                        amount === 0 ? money(0) : amount > 0 ? `-${money(amount)}` : `+${money(-amount)}`;
+                      const presentismoClass = amount > 0 ? "text-rose-300" : "text-emerald-300";
+                      const llegada = p.effectiveClockInAt
+                        ? new Date(p.effectiveClockInAt).toLocaleTimeString("es-AR", {
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "—";
+                      return (
+                        <MovRow
+                          key={`presentismo-${p.id}`}
+                          dateTime={dateTime}
+                          concepto={`Presentismo · ${statusLabel}${p.penaltyOverridden ? " (ajustado)" : ""}`}
+                          precioText="—"
+                          presentismoText={presentismoText}
+                          presentismoClass={presentismoClass}
+                          detalle={`Llegó ${llegada} · Confirmado por ${displayResponsable(p.confirmedByName)}`}
+                          expanded={isExpanded}
+                          onToggle={() => setHistorialDetailPresentismo(isExpanded ? null : p)}
+                          detail={<PresentismoDetalleContent data={p} />}
                         />
                       );
                     }
@@ -5864,6 +6081,56 @@ function ProfesionalesTab({
           </AgendaCenteredModal>
         );
       })()}
+
+      {pendingCierresBlock &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[10000] grid place-items-center bg-black/80 p-4"
+            onClick={() => setPendingCierresBlock(null)}
+          >
+            <div
+              className="w-full max-w-sm rounded-3xl border border-white/10 bg-zinc-950 p-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <h3 className="text-lg font-semibold text-foreground">No se puede realizar la liquidación</h3>
+              <p className="mt-2 text-sm text-muted-foreground">
+                Existen cajas pendientes de cierre dentro del período seleccionado.
+              </p>
+              <div className="mt-3 rounded-xl bg-rose-500/10 p-3 ring-1 ring-rose-500/20">
+                <p className="text-xs font-semibold uppercase tracking-wide text-rose-300">Fechas pendientes</p>
+                <ul className="mt-1.5 space-y-0.5 text-sm text-rose-200">
+                  {pendingCierresBlock.fechas.map((f) => (
+                    <li key={f}>· {new Date(`${f}T12:00:00`).toLocaleDateString("es-AR")}</li>
+                  ))}
+                </ul>
+              </div>
+              <p className="mt-3 text-xs text-muted-foreground">
+                Para liquidar las comisiones, primero debés cerrar todas las cajas correspondientes al período.
+              </p>
+              <div className="mt-4 flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPendingCierresBlock(null);
+                    onGoToCierres();
+                  }}
+                  className="flex-1 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 py-2.5 text-sm font-semibold text-white"
+                >
+                  Ir a cierre de caja
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPendingCierresBlock(null)}
+                  className="rounded-xl border border-white/10 px-4 py-2.5 text-sm text-muted-foreground"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }
@@ -7473,6 +7740,27 @@ function CierreCajaBtn({
   // recién un segundo clic ahí dispara closeSingleDayCierre.
   const [confirmStep, setConfirmStep] = useState(false);
 
+  // Presentismo: no se puede cerrar la caja de este día mientras algún
+  // profesional programado (incluidos los ausentes) no tenga su asistencia
+  // confirmada por administración — el candado real es el trigger SQL
+  // check_attendance_confirmed_before_close (ver migración de
+  // presentismo); esto es solo la UX para no dejar que el usuario llegue a
+  // intentarlo y se encuentre con el error crudo de Postgres. null =
+  // todavía no se sabe (PresentismoRevisionPanel no terminó de cargar) —
+  // se trata igual que "hay pendientes" para no habilitar el botón antes
+  // de tiempo. El propio panel reporta esta lista en cada carga (inicial
+  // y después de cada confirmación), nunca una segunda consulta aparte.
+  const [presentismoPending, setPresentismoPending] = useState<string[] | null>(null);
+  const [profileId, setProfileId] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setProfileId(data.user?.id ?? null));
+  }, []);
+
+  useEffect(() => {
+    setPresentismoPending(null);
+  }, [open, cajaRangeStartDate]);
+
   // Vista previa propia, acotada EXACTAMENTE a cajaRangeStartDate — nunca
   // los `paymentsToday`/`expensesToday` acumulados de la pantalla (esos
   // sí deben seguir incluyendo todo el backlog sin cerrar para "Efectivo/
@@ -7615,6 +7903,46 @@ function CierreCajaBtn({
                 />
               ) : (
                 <>
+                  {/* El panel queda SIEMPRE visible acá (no solo mientras falte
+                      alguien) — así se puede revisar/editar una confirmación ya
+                      hecha sin salir de "Cerrar caja". El aviso rojo de bloqueo
+                      es un mensaje aparte, encima del panel, solo mientras
+                      falte confirmar a alguien. */}
+                  {businessId && branchId && (
+                    <div className="rounded-xl bg-white/[0.02] p-3.5 ring-1 ring-white/10">
+                      <div className="mb-3 flex items-center justify-between gap-2">
+                        <p className="text-sm font-semibold text-foreground">Presentismo del día</p>
+                        {presentismoPending === null ? (
+                          <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground ring-1 ring-white/10">
+                            Verificando…
+                          </span>
+                        ) : presentismoPending.length > 0 ? (
+                          <span className="rounded-full bg-rose-400/10 px-2 py-0.5 text-[10px] font-semibold text-rose-300 ring-1 ring-rose-400/25">
+                            {presentismoPending.length} sin confirmar
+                          </span>
+                        ) : (
+                          <span className="rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300 ring-1 ring-emerald-400/25">
+                            Todo confirmado
+                          </span>
+                        )}
+                      </div>
+                      {presentismoPending && presentismoPending.length > 0 && (
+                        <p className="mb-3 text-xs text-rose-200/80">
+                          No podés cerrar la caja hasta confirmar a: {presentismoPending.join(", ")}.
+                        </p>
+                      )}
+                      {profileId && (
+                        <PresentismoRevisionPanel
+                          businessId={businessId}
+                          branchId={branchId}
+                          date={cajaRangeStartDate}
+                          confirmedBy={profileId}
+                          confirmedByName={chargedByUsername(userEmail)}
+                          onPendingChange={setPresentismoPending}
+                        />
+                      )}
+                    </div>
+                  )}
                   <CierreRevisionDetalle
                     businessId={businessId}
                     employees={employees}
@@ -7636,8 +7964,16 @@ function CierreCajaBtn({
                   <button
                     type="button"
                     onClick={() => setConfirmStep(true)}
-                    disabled={obsRequeridaFalta}
-                    title={obsRequeridaFalta ? "Contá qué pasó con la diferencia antes de continuar" : undefined}
+                    disabled={obsRequeridaFalta || presentismoPending === null || presentismoPending.length > 0}
+                    title={
+                      obsRequeridaFalta
+                        ? "Contá qué pasó con la diferencia antes de continuar"
+                        : presentismoPending === null
+                          ? "Verificando presentismo…"
+                          : presentismoPending.length > 0
+                            ? "Confirmá el presentismo pendiente antes de continuar"
+                            : undefined
+                    }
                     className="w-full inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold bg-gradient-to-b from-blue-400 to-violet-500 text-white hover:brightness-105 disabled:opacity-50 transition-all"
                   >
                     Confirmar cierre de caja

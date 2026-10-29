@@ -1613,7 +1613,7 @@ describe("professional_advances.display_date — Caja usa advanced_at solo; Liqu
     );
   });
 
-  it("ninguna otra migración de settlement_run/professional_advance (aparte de las dos que definen/usan display_date) lo menciona", () => {
+  it("ninguna migración de settlement_run/professional_advance altera la lógica de display_date — las que no son un CREATE OR REPLACE completo de prepare_settlement_run ni la mencionan; las que sí reemplazan la función entera (fases posteriores) la trasladan byte-a-byte, sin tocarla", () => {
     const migrationsDir = path.join(repoRoot, "supabase", "migrations");
     const settlementFiles = fs
       .readdirSync(migrationsDir)
@@ -1625,9 +1625,29 @@ describe("professional_advances.display_date — Caja usa advanced_at solo; Liqu
           f !== "20261028190000_prepare_settlement_run_advance_display_date.sql",
       );
     expect(settlementFiles.length).toBeGreaterThan(0);
+    // display_date nació en 20261028170000 — cualquier migración más
+    // vieja que reemplace prepare_settlement_run es de antes de que
+    // existiera, nunca tiene por qué mencionarlo. Solo las posteriores
+    // (fases nuevas que reemplazan la función entera) tienen la
+    // obligación de arrastrarlo sin tocarlo.
+    const displayDateBirth = "20261028170000_professional_advances_display_date.sql";
     for (const file of settlementFiles) {
       const sql = readSrc(`supabase/migrations/${file}`);
-      expect(sql).not.toMatch(/display_date/);
+      const isFullReplace = /create or replace function public\.prepare_settlement_run/i.test(sql);
+      if (isFullReplace && file > displayDateBirth) {
+        // Reemplaza la función entera por una fase posterior (gate de cajas
+        // pendientes, presentismo, etc.) — tiene que llevarse puesta la
+        // lógica de display_date sin modificarla, nunca omitirla ni
+        // reescribirla distinto.
+        expect(sql).toMatch(
+          /select coalesce\(sum\(amount\), 0\) into v_advances\s*\n\s*from public\.professional_advances\s*\n\s*where business_id = p_business_id\s*\n\s*and professional_id = p_professional_id\s*\n\s*and settlement_run_id is null\s*\n\s*and coalesce\(display_date, advanced_at\) <= v_cutoff_at;/,
+        );
+        expect(sql).toMatch(
+          /set settlement_run_id = v_run\.id\s*\n\s*where business_id = p_business_id\s*\n\s*and professional_id = p_professional_id\s*\n\s*and settlement_run_id is null\s*\n\s*and coalesce\(display_date, advanced_at\) <= v_cutoff_at;/,
+        );
+      } else {
+        expect(sql).not.toMatch(/display_date/);
+      }
     }
   });
 

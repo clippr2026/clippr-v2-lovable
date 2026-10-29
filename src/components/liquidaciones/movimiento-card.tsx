@@ -98,6 +98,15 @@ export function MovimientoCard({
       amount = item.data.commissionAmount;
       at = item.at ?? null;
       registeredBy = displayResponsable(item.data.performedByName);
+    } else if (item.kind === "presentismo") {
+      const statusLabel =
+        item.data.status === "a_tiempo" ? "A tiempo" : item.data.status === "tarde" ? "Tarde" : "Ausente";
+      tone = item.data.discountAmountApplied > 0 ? "rose" : "emerald";
+      label = `Presentismo · ${statusLabel}`;
+      sign = item.data.discountAmountApplied === 0 ? "" : item.data.discountAmountApplied > 0 ? "−" : "+";
+      amount = Math.abs(item.data.discountAmountApplied);
+      at = item.at ?? null;
+      registeredBy = displayResponsable(item.data.confirmedByName);
     } else {
       tone = item.isFull ? "emerald" : "amber";
       label = item.isFull ? "Pago total" : "Pago parcial";
@@ -328,6 +337,54 @@ export function MovimientoCard({
           </div>
         </div>
 
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            onClick={onVerDetalle}
+            className="rounded-full bg-white/[0.04] px-3 py-1 text-[11px] font-medium ring-1 ring-white/10 hover:bg-white/[0.07]"
+          >
+            Ver detalle
+          </button>
+          {extraActions}
+        </div>
+      </div>
+    );
+  }
+
+  if (item.kind === "presentismo") {
+    const p = item.data;
+    const statusLabel = p.status === "a_tiempo" ? "A tiempo" : p.status === "tarde" ? "Tarde" : "Ausente";
+    const isDeduccion = p.discountAmountApplied > 0;
+    return (
+      <div className="rounded-2xl border border-white/[0.07] bg-black/18 px-4 py-3.5 text-sm">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <div className="text-sm font-semibold text-white/70">{professionalName}</div>
+            <div className="text-xs text-white/50">{item.at ? fmtDateTime(item.at) : "—"}</div>
+          </div>
+          <span
+            className={cn(
+              "rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1",
+              isDeduccion
+                ? "text-rose-300 bg-rose-400/10 ring-rose-400/20"
+                : "text-emerald-300 bg-emerald-400/10 ring-emerald-400/20",
+            )}
+          >
+            Presentismo · {statusLabel}
+          </span>
+        </div>
+        <div className="mt-3 space-y-1 text-xs">
+          <div className="flex items-center justify-between">
+            <span className="text-white/45">Ajuste</span>
+            <span className={cn("font-bold tabular-nums", isDeduccion ? "text-rose-300" : "text-emerald-300")}>
+              {p.discountAmountApplied === 0 ? "" : isDeduccion ? "−" : "+"}
+              {money(Math.abs(p.discountAmountApplied))}
+            </span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-white/45">Confirmado por</span>
+            <span className="font-semibold text-white/80">{displayResponsable(p.confirmedByName)}</span>
+          </div>
+        </div>
         <div className="mt-3 flex flex-wrap gap-2">
           <button
             onClick={onVerDetalle}

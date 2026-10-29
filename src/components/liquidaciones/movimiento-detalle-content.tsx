@@ -653,3 +653,87 @@ export function VentaAnuladaDetalleContent({ data }: { data: import("@/lib/histo
     </div>
   );
 }
+
+// Presentismo de UNA jornada confirmada — ver historial-movimientos.ts
+// (HistorialPresentismoRow) y la migración de presentismo
+// (attendance_confirmations/attendance_adjustments). Un único movimiento
+// diario, nunca por venta. Tono según impacto: rojo si descontó, verde si
+// no descontó nada o si fue un ajuste a favor.
+export function PresentismoDetalleContent({
+  data,
+}: {
+  data: import("@/lib/historial-movimientos").HistorialPresentismoRow;
+}) {
+  const statusLabel = data.status === "a_tiempo" ? "A tiempo" : data.status === "tarde" ? "Tarde" : "Ausente";
+  const statusClass =
+    data.status === "a_tiempo"
+      ? "text-emerald-300 bg-emerald-400/10 ring-emerald-400/20"
+      : data.status === "tarde"
+        ? "text-rose-300 bg-rose-400/10 ring-rose-400/20"
+        : "text-zinc-300 bg-zinc-400/10 ring-zinc-400/20";
+  const amount = data.discountAmountApplied;
+  const amountColor = amount > 0 ? "text-rose-300" : "text-emerald-300";
+  const amountSign = amount === 0 ? "" : amount > 0 ? "-" : "+";
+  const borderTone = amount > 0 ? "border-rose-400/25" : "border-emerald-400/25";
+  const bgTone =
+    amount > 0
+      ? "bg-[linear-gradient(135deg,rgba(244,63,94,0.13),rgba(20,7,9,0.94),rgba(10,3,4,0.96))]"
+      : "bg-[linear-gradient(135deg,rgba(52,211,153,0.10),rgba(5,14,11,0.95),rgba(2,8,6,0.98))]";
+  return (
+    <div className={cn("overflow-hidden rounded-2xl border text-sm", borderTone, bgTone)}>
+      <div className="flex items-center justify-between px-3.5 py-2.5">
+        <span className="text-sm font-bold text-white">Presentismo</span>
+        <span className={cn("rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1", statusClass)}>
+          {statusLabel}
+        </span>
+      </div>
+      <div className="divide-y divide-white/10">
+        <div className="flex items-center justify-between px-3.5 py-2.5">
+          <span className="text-white/50">Fecha</span>
+          <span className="font-semibold text-white">
+            {new Date(`${data.date}T12:00:00`).toLocaleDateString("es-AR", {
+              day: "2-digit",
+              month: "2-digit",
+              year: "numeric",
+            })}
+          </span>
+        </div>
+        <div className="flex items-center justify-between px-3.5 py-2.5">
+          <span className="text-white/50">Horario programado</span>
+          <span className="font-semibold text-white">
+            {data.expectedStartAt
+              ? new Date(data.expectedStartAt).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
+              : "—"}
+          </span>
+        </div>
+        <div className="flex items-center justify-between px-3.5 py-2.5">
+          <span className="text-white/50">Hora real de llegada</span>
+          <span className="font-semibold text-white">
+            {data.effectiveClockInAt
+              ? new Date(data.effectiveClockInAt).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
+              : "—"}
+          </span>
+        </div>
+        <div className="flex items-center justify-between px-3.5 py-2.5">
+          <span className="text-white/50">Minutos de tardanza</span>
+          <span className="font-semibold text-white">{data.lateMinutes > 0 ? `${data.lateMinutes} min` : "—"}</span>
+        </div>
+        <div className="flex items-center justify-between px-3.5 py-2.5">
+          <span className="text-white/50">{data.penaltyOverridden ? "Ajuste manual" : "Ajuste automático"}</span>
+          <span className={cn("text-base font-bold", amountColor)}>
+            {amountSign}
+            {money(Math.abs(amount))}
+          </span>
+        </div>
+        <div className="flex items-center justify-between px-3.5 py-2.5">
+          <span className="text-white/50">Confirmado por</span>
+          <span className="font-semibold text-white">{displayResponsable(data.confirmedByName)}</span>
+        </div>
+        <div className="flex items-center justify-between px-3.5 py-2.5">
+          <span className="text-white/50">Fecha y hora de confirmación</span>
+          <span className="font-semibold text-white">{fmtDetalleDateTime(data.confirmedAt)}</span>
+        </div>
+      </div>
+    </div>
+  );
+}

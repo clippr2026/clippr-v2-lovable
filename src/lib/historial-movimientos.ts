@@ -133,12 +133,45 @@ export type MovimientoVentaAnulada = {
   data: HistorialVentaAnuladaRow;
 };
 
+// Presentismo de UNA jornada confirmada (ver migración de presentismo,
+// tabla attendance_confirmations) — un único movimiento diario por
+// profesional, nunca uno por venta (el descuento/ajuste ya es neto de esa
+// jornada completa, no se reparte entre los servicios de ese día). Se
+// muestra SIEMPRE que esté confirmada, incluso con discountAmountApplied
+// en $0 ("A tiempo", para que quede visible la hora de llegada) — solo
+// deja de aparecer en Movimientos (pasa a Historial) una vez que
+// settlementRunId ya no es null.
+export type HistorialPresentismoRow = {
+  id: string;
+  professionalId: string;
+  date: string;
+  status: "a_tiempo" | "tarde" | "ausente";
+  expectedStartAt: string | null;
+  effectiveClockInAt: string | null;
+  lateMinutes: number;
+  // Positivo = descuento (resta del total a pagar); negativo = ajuste a
+  // favor autorizado (suma); 0 = sin impacto económico (ej. "A tiempo").
+  discountAmountApplied: number;
+  penaltyOverridden: boolean;
+  confirmedByName: string;
+  confirmedAt: string;
+  settlementRunId: string | null;
+};
+
+export type MovimientoPresentismo = {
+  kind: "presentismo";
+  movementNumber: null;
+  at: string;
+  data: HistorialPresentismoRow;
+};
+
 export type MovimientoItem =
   | MovimientoPago
   | MovimientoAdelanto
   | MovimientoAjuste
   | MovimientoDeduccion
-  | MovimientoVentaAnulada;
+  | MovimientoVentaAnulada
+  | MovimientoPresentismo;
 
 // Único criterio para "¿este movimiento entra en un período que termina en
 // `cutoffAt`?" — usado tanto por la tabla de Movimientos como por las
@@ -163,6 +196,7 @@ export function buildHistorialMovimientos(
   advances: HistorialAdvanceRow[],
   runs: HistorialRunRow[] = [],
   ventasAnuladas: HistorialVentaAnuladaRow[] = [],
+  presentismo: HistorialPresentismoRow[] = [],
 ): MovimientoItem[] {
   const groups = new Map<string, HistorialPaymentRow[]>();
   for (const p of payments) {
@@ -232,9 +266,21 @@ export function buildHistorialMovimientos(
     data: v,
   }));
 
-  return [...pagoItems, ...adelantoItems, ...ajusteItems, ...deduccionItems, ...ventaAnuladaItems].sort((a, b) =>
-    String(b.at ?? "").localeCompare(String(a.at ?? "")),
-  );
+  const presentismoItems: MovimientoPresentismo[] = presentismo.map((p) => ({
+    kind: "presentismo",
+    movementNumber: null,
+    at: p.effectiveClockInAt ?? `${p.date}T12:00:00`,
+    data: p,
+  }));
+
+  return [
+    ...pagoItems,
+    ...adelantoItems,
+    ...ajusteItems,
+    ...deduccionItems,
+    ...ventaAnuladaItems,
+    ...presentismoItems,
+  ].sort((a, b) => String(b.at ?? "").localeCompare(String(a.at ?? "")));
 }
 
 // ── Resumen de liquidación de un profesional ────────────────────────────────
@@ -297,6 +343,17 @@ export type LiquidacionAdvanceSummaryRow = {
   amount: number;
 };
 
+// Mismo subset que usa prepare_settlement_run para absorber presentismo
+// (ver migración 20261029090000): solo lo necesario para sumar el neto
+// pendiente, nunca el detalle completo (eso vive en
+// HistorialPresentismoRow, para Movimientos).
+export type LiquidacionPresentismoSummaryRow = {
+  professional_id: string;
+  settlement_run_id: string | null;
+  date: string;
+  discount_amount_applied: number;
+};
+
 export type LiquidacionSummary = {
   previousBalance: number;
   newCommissions: number;
@@ -310,6 +367,10 @@ export type LiquidacionSummary = {
   // distintos) — ver sumPendingAdjustmentQueue.
   pendingDeductions: number;
   pendingCredits: number;
+  // Neto de presentismo todavía sin liquidar (positivo = descuento,
+  // negativo = ajuste a favor) — mismo criterio que prepare_settlement_run
+  // (ventana por la fecha de la JORNADA, nunca por cuándo se confirmó).
+  pendingPresentismoAdjustment: number;
   periodStart: string | null;
   periodStartAt: string | null;
   latestRun: LiquidacionRunSummaryRow | null;
@@ -366,6 +427,8 @@ export function computeLiquidacionSummary(
   // "Venta anulada" pendiente (commission_adjustment_queue) — opcional
   // (default []) por la misma razón que commissionEvents/tipEvents.
   ventasAnuladas: HistorialVentaAnuladaRow[] = [],
+  // Presentismo pendiente — opcional (default []), misma razón.
+  presentismo: LiquidacionPresentismoSummaryRow[] = [],
 ): LiquidacionSummary {
   const employeeRuns = runs
     .filter((r) => String(r.professional_id) === String(professionalId))
@@ -425,6 +488,17 @@ export function computeLiquidacionSummary(
 
   const { pendingDeductions, pendingCredits } = sumPendingAdjustmentQueue(ventasAnuladas, professionalId);
 
+  // Ventana por la fecha de la JORNADA (ac.date), igual criterio que
+  // prepare_settlement_run — nunca por cuándo se confirmó (confirmedAt).
+  const pendingPresentismoAdjustment = presentismo
+    .filter(
+      (p) =>
+        String(p.professional_id) === String(professionalId) &&
+        !p.settlement_run_id &&
+        (!periodStart || String(p.date ?? "") > periodStart),
+    )
+    .reduce((sum, p) => sum + Number(p.discount_amount_applied ?? 0), 0);
+
   return {
     previousBalance,
     newCommissions,
@@ -432,12 +506,19 @@ export function computeLiquidacionSummary(
     pendingAdvances,
     pendingDeductions,
     pendingCredits,
+    pendingPresentismoAdjustment,
     periodStart,
     periodStartAt,
     latestRun,
     previousPeriodLabel,
     totalToPay: Math.max(
-      previousBalance + newCommissions + newTips + pendingCredits - pendingAdvances - pendingDeductions,
+      previousBalance +
+        newCommissions +
+        newTips +
+        pendingCredits -
+        pendingAdvances -
+        pendingDeductions -
+        pendingPresentismoAdjustment,
       0,
     ),
   };
