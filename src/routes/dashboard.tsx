@@ -397,12 +397,6 @@ function CajaHoyCard({
         />
       </div>
 
-      {caja.todayAdvancesOut > 0 && (
-        <div className="mt-2">
-          <MiniStat icon={HandCoins} label="Adelantos del día" value={fmtAR(caja.todayAdvancesOut)} />
-        </div>
-      )}
-
       {saldoDetalle && (
         <SaldoComposicionModal
           title={saldoDetalle === "cash" ? "Efectivo del día" : "Dinero en cuenta del día"}

@@ -1238,17 +1238,16 @@ describe("useCajaSummary — 'Efectivo del día' separado de 'Saldos acumulados'
   });
 
   // "Dinero en cuenta del día"/"Efectivo del día" NO deben restar adelantos
-  // a profesionales — se muestran aparte como "Adelantos del día", para que
-  // un adelanto grande no produzca un total negativo sin explicación
-  // (Inicio y Caja comparten el mismo criterio visual).
-  it("Inicio y Caja muestran 'Adelantos del día' como tarjeta aparte, nunca mezclada con Efectivo/Dinero en cuenta", () => {
+  // a profesionales. La tarjeta "Adelantos del día" se sacó de Inicio y Caja
+  // (por ahora los adelantos solo se ven en Caja > Liquidaciones, dentro del
+  // profesional) — pero el total de las dos tarjetas que quedan sigue sin
+  // restarlos.
+  it("Inicio y Caja ya NO muestran una tarjeta 'Adelantos del día' — por ahora los adelantos se ven solo en Liquidaciones", () => {
     const dashboardSrc = readSrc("src/routes/dashboard.tsx");
-    expect(dashboardSrc).toMatch(/label="Adelantos del día"/);
-    expect(dashboardSrc).toMatch(/caja\.todayAdvancesOut/);
+    expect(dashboardSrc).not.toMatch(/label="Adelantos del día"/);
 
     const cashRegisterSrc = readSrc("src/routes/cash-register.tsx");
-    expect(cashRegisterSrc).toMatch(/label="Adelantos del día"/);
-    expect(cashRegisterSrc).toMatch(/summary\.todayAdvancesOut/);
+    expect(cashRegisterSrc).not.toMatch(/label="Adelantos del día"/);
   });
 
   it("expectedToLado (SaldoComposicionModal) no resta adelantos del total — adelantos:0 y esperado suma cashAdvancesOut/digitalAdvancesOut de vuelta", () => {

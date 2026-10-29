@@ -11618,18 +11618,6 @@ function FacturacionPanel({
         />
       </div>
 
-      {summary.todayAdvancesOut > 0 && (
-        <div className="mt-2">
-          <FacturacionStatCard
-            icon={HandCoins}
-            iconClass="text-rose-400"
-            label="Adelantos del día"
-            value={summary.todayAdvancesOut}
-            loading={summary.loading}
-          />
-        </div>
-      )}
-
       {saldoDetalle && (
         <SaldoComposicionModal
           title={saldoDetalle === "cash" ? "Efectivo del día" : "Dinero en cuenta del día"}
