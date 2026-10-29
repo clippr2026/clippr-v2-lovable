@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { Loader2, X, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
+import { cajaDateKeyBA } from "@/lib/caja-cierre";
 
 /**
  * Portado de cjLoadGastos / cjGuardarGasto / cjDeleteGasto (app.js ~9579-9707).
@@ -26,7 +27,11 @@ const METHODS = ["efectivo", "transferencia", "débito", "crédito", "mercado pa
 
 export function GastosTab({ businessId, createOnly = false, onSaved, onCancel }: { businessId: string | null; createOnly?: boolean; onSaved?: () => void; onCancel?: () => void }) {
   const { activeBranchId } = useAuth();
-  const today = new Date().toISOString().slice(0, 10);
+  // cajaDateKeyBA(), NO toISOString().slice(0,10): un gasto cargado de
+  // noche (21-23:59 ART) cae en 00:00-02:59 UTC del día siguiente —
+  // .toISOString() daba el día de MAÑANA, así que tanto el filtro de la
+  // lista como el insert quedaban desalineados con "hoy" real.
+  const today = cajaDateKeyBA();
   const [rows, setRows] = React.useState<Expense[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [form, setForm] = React.useState({
@@ -59,7 +64,7 @@ export function GastosTab({ businessId, createOnly = false, onSaved, onCancel }:
   }, [load]);
 
   async function save() {
-    if (!businessId) return;
+    if (!businessId || saving) return;
     const name = form.name.trim();
     const amount = parseFloat(form.amount);
     if (!name || !amount || amount <= 0)

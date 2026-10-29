@@ -16,6 +16,7 @@ import {
   reopenCashSession,
 } from "@/components/cash-register/session-actions";
 import { GastosTab } from "@/components/cash-register/gastos-tab";
+import { cajaDateKeyBA } from "@/lib/caja-cierre";
 import { ProfesionalesTab as LegacyProfesionalesTab } from "@/components/cash-register/profesionales-tab";
 import {
   Search,
@@ -1612,11 +1613,15 @@ function NuevoGastoTab({
 }) {
   const [form, setForm] = React.useState({ name: "", amount: "", type: "", method: "", note: "" });
   const [saving, setSaving] = React.useState(false);
-  const today = new Date().toISOString().slice(0, 10);
+  // cajaDateKeyBA(), NO toISOString().slice(0,10): un gasto cargado de
+  // noche (21-23:59 ART) cae en 00:00-02:59 UTC del día siguiente —
+  // .toISOString() daba el día de MAÑANA en vez de hoy.
+  const today = cajaDateKeyBA();
   const GTYPES = ["fijo", "variable", "ocasional", "marketing"];
   const GMETHODS = ["efectivo", "transferencia", "débito", "crédito", "mercado pago"];
 
   async function saveGasto() {
+    if (saving) return;
     const name = form.name.trim();
     const amount = parseFloat(form.amount);
     if (!name) return toast.error("El nombre del gasto es obligatorio.");

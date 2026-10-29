@@ -1638,3 +1638,37 @@ describe("professional_advances.display_date — Caja usa advanced_at solo; Liqu
     expect(sql).not.toMatch(/update\s+public\.professional_advances/i);
   });
 });
+
+// Un gasto cargado de noche en Buenos Aires (21-23:59 ART) cae en
+// 00:00-02:59 del día siguiente en UTC — new Date().toISOString().slice(0,10)
+// usa el día en UTC, así que el gasto se guardaba con la fecha de MAÑANA y
+// quedaba invisible en "Gastos"/"Movimientos de caja" de HOY aunque sí se
+// hubiera guardado bien. Las tres copias del flujo de "Nuevo gasto" tienen
+// que usar cajaDateKeyBA() (anclado a America/Argentina/Buenos_Aires), nunca
+// toISOString().slice(0,10) (huso horario del proceso).
+describe("Flujo de 'Nuevo gasto' — fecha anclada a Buenos Aires, no a UTC", () => {
+  it("cash-register.tsx (Nuevo gasto) guarda date con cajaDateKeyBA(), no con toISOString()", () => {
+    const src = readSrc("src/routes/cash-register.tsx");
+    const fnMatch = src.match(/async function saveGasto\(\) \{[\s\S]*?\n  \}\n/);
+    expect(fnMatch).not.toBeNull();
+    expect(fnMatch![0]).toMatch(/date: cajaDateKeyBA\(\)/);
+    expect(fnMatch![0]).not.toMatch(/toISOString\(\)\.slice\(0, 10\)/);
+    expect(fnMatch![0]).toMatch(/if \(saving\) return;/);
+  });
+
+  it("gastos-tab.tsx (tab Gastos) usa cajaDateKeyBA() tanto para el filtro de la lista como para el insert, y guarda contra doble submit", () => {
+    const src = readSrc("src/components/cash-register/gastos-tab.tsx");
+    expect(src).toMatch(/const today = cajaDateKeyBA\(\);/);
+    expect(src).not.toMatch(/toISOString\(\)\.slice\(0, 10\)/);
+    expect(src).toMatch(/if \(!businessId \|\| saving\) return;/);
+  });
+
+  it("cash-register-liquidaciones-compacto.tsx (Nuevo gasto) usa cajaDateKeyBA() y guarda contra doble submit", () => {
+    const src = readSrc("src/routes/cash-register-liquidaciones-compacto.tsx");
+    expect(src).toMatch(/const today = cajaDateKeyBA\(\);/);
+    expect(src).not.toMatch(/toISOString\(\)\.slice\(0, 10\)/);
+    const fnMatch = src.match(/async function saveGasto\(\) \{[\s\S]*?\n  \}\n/);
+    expect(fnMatch).not.toBeNull();
+    expect(fnMatch![0]).toMatch(/if \(saving\) return;/);
+  });
+});

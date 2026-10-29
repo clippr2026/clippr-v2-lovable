@@ -5910,6 +5910,10 @@ function NuevoGastoTab({
   ];
 
   async function saveGasto() {
+    // Guarda contra doble clic/doble submit: el botón ya queda disabled
+    // con `saving`, pero ese cambio solo se ve después de re-renderizar —
+    // este chequeo corta un segundo click que entre antes de ese repaint.
+    if (saving) return;
     const amount = parseFloat(form.amount);
     if (!form.category) return toast.error("Elegí el tipo de gasto.");
     if (!amount || amount <= 0)
@@ -5932,7 +5936,12 @@ function NuevoGastoTab({
       amount,
       category: form.category,
       payment_method: form.method || null,
-      date: new Date().toISOString().slice(0, 10),
+      // cajaDateKeyBA(), NO toISOString().slice(0,10): un gasto cargado de
+      // noche (21-23:59 ART) cae en 00:00-02:59 UTC del día siguiente —
+      // .toISOString() daba el día de MAÑANA en vez de hoy, así que el
+      // gasto quedaba invisible en "Gastos"/"Movimientos de caja" de hoy
+      // aunque sí se hubiera guardado.
+      date: cajaDateKeyBA(),
       note: description || null,
       user_name: userEmail ?? "Caja",
       created_by: userEmail ?? "Caja",
