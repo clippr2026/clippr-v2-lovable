@@ -592,7 +592,7 @@ function inicialAvatar(name: string) {
 // Ancho fijo más generoso que antes (232px, no 186px) y en dos filas en vez
 // de una sola: con todo (nombre + programada + real + estado) apretado en
 // una línea, "En curso" quedaba cortado como "En…" — acá nunca se trunca,
-// cada dato tiene su propia etiqueta corta (Prog./Real/Salió).
+// cada dato tiene su propia etiqueta corta (Entrada/Salida).
 function FichajePersonaChip({ persona }: { persona: FichajeHoyPersona }) {
   const enCurso = persona.clockOutAt === null;
   const puntualidad = puntualidadDe(persona);
@@ -614,16 +614,13 @@ function FichajePersonaChip({ persona }: { persona: FichajeHoyPersona }) {
       </div>
       <div className="flex flex-wrap items-center gap-x-2.5 gap-y-0.5 text-[11px] text-muted-foreground">
         <span>
-          Prog. <span className="tabular-nums text-foreground/80">{persona.expectedStartAt ? horaCorta(persona.expectedStartAt) : "—"}</span>
-        </span>
-        <span>
-          Real <span className="tabular-nums text-foreground/80">{horaCorta(persona.clockInAt)}</span>
+          Entrada <span className="tabular-nums text-foreground/80">{horaCorta(persona.clockInAt)}</span>
         </span>
         {enCurso ? (
           <span className="font-medium text-emerald-300">En curso</span>
         ) : (
           <span>
-            Salió <span className="tabular-nums text-foreground/80">{horaCorta(persona.clockOutAt as string)}</span>
+            Salida <span className="tabular-nums text-foreground/80">{horaCorta(persona.clockOutAt as string)}</span>
           </span>
         )}
       </div>
