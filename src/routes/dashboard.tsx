@@ -323,8 +323,13 @@ function CajaHoyCard({
       ) : null}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+        <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
           Caja de hoy
+          {caja.cajaCerradaHoy && (
+            <span className="rounded-full bg-emerald-400/10 px-2 py-0.5 text-[9px] font-semibold tracking-normal text-emerald-300 ring-1 ring-emerald-400/25">
+              Caja cerrada
+            </span>
+          )}
         </div>
         <Link
           to="/cash-register"

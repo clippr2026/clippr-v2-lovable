@@ -10,6 +10,7 @@ import {
   computeExpectedCashAndDigital,
   getDigitalCarryForward,
   isCountableCajaPayment,
+  isCajaCerradaRow,
   type PendingCierre,
   type ExpectedCashDigital,
 } from "@/lib/caja-cierre";
@@ -120,6 +121,10 @@ export type CajaSummary = {
   // todayDigitalExpected — nunca un segundo cálculo aparte.
   todayExpectedFull: ExpectedCashDigital;
   pendingCierre: PendingCierre | null;
+  // ¿La caja de HOY (huso Buenos Aires) ya tiene un cierre guardado? Mismo
+  // criterio que usa Caja para mostrarse "cerrada" — así Inicio no sigue
+  // mostrando los números del día como si la caja estuviera abierta.
+  cajaCerradaHoy: boolean;
   // TODAS las jornadas con actividad sin cerrar (no solo la más vieja, que
   // es la única que pendingCierre reporta porque es la que define desde
   // cuándo arranca el período operativo de hoy) — para el aviso "Tenés N
@@ -152,6 +157,7 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
   const [pendingCierresLoading, setPendingCierresLoading] = React.useState(
     () => !pendingCierresCache.has(pendingCierresCacheKey(businessId, branchId)),
   );
+  const [cajaCerradaHoy, setCajaCerradaHoy] = React.useState(false);
   const [rangeStartDate, setRangeStartDate] = React.useState(cajaDateKey());
   const [cashExpected, setCashExpected] = React.useState(0);
   const [cashOutflows, setCashOutflows] = React.useState(0);
@@ -249,6 +255,23 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     setPendingCierres(period.allPendingCierres);
     setPendingCierresLoading(false);
     pendingCierresCache.set(pendingCierresCacheKey(businessId, branchId), period.allPendingCierres);
+
+    // ¿Hoy ya tiene un cierre guardado? Misma consulta que hace Caja para
+    // mostrarse "cerrada" (caja_cierres de la fecha de hoy, estado 'cerrada',
+    // misma sucursal). Best-effort: si falla, se queda como estaba — nunca
+    // rompe el resto de la carga.
+    try {
+      let todayCierreQuery = supabase
+        .from("caja_cierres" as any)
+        .select("estado")
+        .eq("business_id", businessId)
+        .eq("fecha", cajaDateKeyBA());
+      if (branchId) todayCierreQuery = todayCierreQuery.eq("branch_id", branchId);
+      const { data: todayCierre } = await todayCierreQuery.maybeSingle();
+      if (keyMatches()) setCajaCerradaHoy(isCajaCerradaRow(todayCierre));
+    } catch (e) {
+      console.warn("[CajaSummary] no se pudo leer el cierre de hoy:", (e as Error).message);
+    }
 
     // branch_id = null nunca se excluye (.or en vez de .eq) — mismo criterio
     // que use-caja-data.ts/use-dashboard-data.ts: una fila real (vieja, o
@@ -617,6 +640,7 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     todayAdvancesOut: todayExpected.cashAdvancesOut + todayExpected.digitalAdvancesOut,
     todayExpectedFull: todayExpected,
     pendingCierre,
+    cajaCerradaHoy,
     pendingCierres,
     pendingCierresLoading,
     rangeStartDate,

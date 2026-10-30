@@ -964,6 +964,14 @@ function CashRegisterPage() {
     };
   }, [data.businessId, data.activeBranchId, session?.user?.id]);
 
+  // Con la caja cerrada no se puede cargar plata nueva sobre ese día: si
+  // algo (un enlace desde Agenda, "Cobrar pendiente") intenta abrir Nueva
+  // venta o Nuevo gasto, se vuelve a Resumen, donde el aviso de arriba
+  // explica por qué.
+  useEffect(() => {
+    if (cajaCerrada && (tab === "nueva" || tab === "nuevo-gasto")) setTab("resumen");
+  }, [cajaCerrada, tab]);
+
   function handleCobrarPendiente(
     appt: ReturnType<typeof useCajaData>["pendingCharges"][number],
   ) {
@@ -982,44 +990,11 @@ function CashRegisterPage() {
     );
   }
 
-  // ── GATE: caja cerrada ────────────────────────────────────────────────────
-  if (cajaCerrada) {
-    return (
-      <AppShell>
-        <div className="cash-premium-shell">
-          {/* Glow ambiental unificado con el resto de la app (Dashboard,
-              Agenda, Profesionales, Asesor IA, Clientes, Configuración) —
-              antes Caja tenía dos capas propias (una extra con blur(80px))
-              más fuertes que en cualquier otra sección. */}
-          <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />
-          <div className="mt-4">
-            <CierresTab
-              businessId={data.businessId}
-              cajaCerrada={cajaCerrada}
-              paymentsToday={data.paymentsToday}
-              expensesToday={data.expensesToday}
-              pendingCharges={data.pendingCharges}
-              userEmail={session.user.email ?? null}
-              employees={data.employees}
-              expected={expected}
-              movementsData={movementsData}
-              onCajaCerrada={() => {
-                setCajaCerrada(true);
-                setShowClosedHistory(false);
-                setPendingToCharge(null);
-                setTab("resumen");
-              }}
-              onCajaReopened={() => {
-                setCajaCerrada(false);
-                setShowClosedHistory(false);
-                data.refresh();
-              }}
-            />
-          </div>
-        </div>
-      </AppShell>
-    );
-  }
+  // Con la caja cerrada la pantalla se ve igual que abierta (Resumen, Precios,
+  // Inventario, Liquidaciones, Cierre de caja), con un aviso arriba. Lo único
+  // que se bloquea es cargar plata nueva sobre un día ya cerrado (ventas,
+  // gastos, ingresos/retiros): ver `cajaCerrada` en el efecto de pestañas,
+  // el aviso y los botones de Resumen.
 
   // ── CAJA ABIERTA ──────────────────────────────────────────────────────────
   return (
@@ -1032,6 +1007,23 @@ function CashRegisterPage() {
         <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />
 
         <Header data={data} />
+        {cajaCerrada && (
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2xl border border-rose-400/25 bg-rose-500/10 px-4 py-3">
+            <div>
+              <div className="text-sm font-semibold text-rose-200">Caja cerrada</div>
+              <div className="text-xs text-rose-100/70">
+                Podés mirar todo, pero no cargar ventas, gastos ni movimientos hasta reabrirla.
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setTab("cierres")}
+              className="rounded-xl bg-white/10 px-3 py-1.5 text-xs font-semibold text-rose-50 ring-1 ring-white/15 transition hover:bg-white/15"
+            >
+              Ir a Cierre de caja
+            </button>
+          </div>
+        )}
         {/* Oculto mientras Nueva venta o Nuevo gasto están activos — el
             formulario sube y aprovecha ese espacio. El resto de las
             secciones (Resumen/Precios/Inventario/Liquidaciones/Cierre de
@@ -1063,6 +1055,7 @@ function CashRegisterPage() {
             <ResumenTab
               data={data}
               equipoEnabled={permissions.equipo}
+              cajaCerrada={cajaCerrada}
               onCobrarPendiente={handleCobrarPendiente}
               onNuevaVenta={() => {
                 setPendingToCharge(null);
@@ -1404,6 +1397,7 @@ const SearchBox = ({
 function ResumenTab({
   data,
   equipoEnabled,
+  cajaCerrada,
   onCobrarPendiente,
   onNuevaVenta,
   onNuevoGasto,
@@ -1418,6 +1412,9 @@ function ResumenTab({
 }: {
   data: ReturnType<typeof useCajaData>;
   equipoEnabled: boolean;
+  // Caja ya cerrada hoy: se muestra todo pero se ocultan los botones que
+  // cargan plata (Nueva venta/Nuevo gasto, Ingresar/Retirar, Cerrar caja).
+  cajaCerrada: boolean;
   onCobrarPendiente: (
     appt: ReturnType<typeof useCajaData>["pendingCharges"][number],
   ) => void;
@@ -1497,7 +1494,7 @@ function ResumenTab({
           acción según la pestaña Facturación/Gastos activa; sin esa
           pestaña (vista unificada), los dos accesos quedan siempre visibles
           lado a lado. */}
-      <div className="mb-4 flex flex-wrap items-center justify-center gap-3">
+      <div className={`mb-4 flex flex-wrap items-center justify-center gap-3 ${cajaCerrada ? "hidden" : ""}`}>
         <button
           type="button"
           onClick={onNuevaVenta}
@@ -1527,6 +1524,7 @@ function ResumenTab({
           <FacturacionPanel
             data={data}
             equipoEnabled={equipoEnabled}
+            cajaCerrada={cajaCerrada}
             summary={summary}
             movementsData={movementsData}
             userEmail={userEmail}
@@ -11736,6 +11734,7 @@ function MovimientosUnificados({
 function FacturacionPanel({
   data,
   equipoEnabled,
+  cajaCerrada,
   summary,
   movementsData,
   userEmail,
@@ -11748,6 +11747,7 @@ function FacturacionPanel({
 }: {
   data: ReturnType<typeof useCajaData>;
   equipoEnabled: boolean;
+  cajaCerrada: boolean;
   summary: CajaSummary;
   movementsData: ReturnType<typeof useCashMovements>;
   userEmail: string | null;
@@ -11972,7 +11972,7 @@ function FacturacionPanel({
         />
       )}
 
-      <div className="grid grid-cols-2 gap-2">
+      <div className={`grid grid-cols-2 gap-2 ${cajaCerrada ? "hidden" : ""}`}>
         <button
           type="button"
           onClick={() => setShowIngresoChoice(true)}
@@ -11989,7 +11989,7 @@ function FacturacionPanel({
         </button>
       </div>
 
-      <div className="flex justify-center">
+      <div className={`flex justify-center ${cajaCerrada ? "hidden" : ""}`}>
         <CierreCajaBtn
           businessId={data.businessId}
           branchId={data.activeBranchId}
