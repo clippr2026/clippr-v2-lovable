@@ -62,6 +62,7 @@ import {
   type ExpenseFundsSource,
   type ExpenseKind,
 } from "@/lib/expense-origin";
+import { activePromoOffersForService } from "@/lib/promo-view";
 import { allocateProportional, hasCatalogItems, serviceCommissionOf } from "@/lib/lateness-penalty";
 import { getPenaltyBreakdown } from "@/lib/presentismo";
 import { PresentismoRevisionPanel } from "@/components/professionals/presentismo-revision-panel";
@@ -1584,6 +1585,8 @@ function PreciosTab({
   // Mobile: pestañas Servicios/Catálogo para mostrar una sección a la vez
   // (en desktop las dos siguen viéndose lado a lado, sin cambios ahí).
   const [mobileSection, setMobileSection] = React.useState<"servicios" | "catalogo">("servicios");
+  // Servicio cuyo detalle de promos está abierto (botón "Ver promo").
+  const [openPromoSvc, setOpenPromoSvc] = React.useState<string | null>(null);
 
   const items = React.useMemo(() => data.services ?? [], [data.services]);
   const serviceItems = React.useMemo(
@@ -1667,6 +1670,51 @@ function PreciosTab({
 
   const money = (value: unknown) =>
     `$${Number(value ?? 0).toLocaleString("es-AR")}`;
+  const promoNow = React.useMemo(() => new Date(), []);
+  const offersFor = (item: any) =>
+    item.is_catalog ? [] : activePromoOffersForService(item, data.promotions ?? [], promoNow);
+  // Promos vigentes hoy y sin código (las que piden código no tienen un precio mostrable). El botón
+  // "Ver promo" va al lado de Lista y despliega debajo del servicio:
+  // "Promo AMIGOS · $18.000 · solo algunos profesionales".
+  const promoLabel = (name: string) => (/^promo\b/i.test(name.trim()) ? name.trim() : `Promo ${name.trim()}`);
+  const PromoButton = ({ item }: { item: any }) => {
+    const offers = offersFor(item);
+    if (offers.length === 0) return null;
+    const open = openPromoSvc === item.id;
+    return (
+      <button
+        type="button"
+        onClick={() => setOpenPromoSvc(open ? null : item.id)}
+        aria-expanded={open}
+        className={cn(
+          "inline-flex shrink-0 items-center gap-1 rounded-xl border px-2.5 py-2 text-[11px] font-bold transition",
+          open
+            ? "border-amber-300/50 bg-amber-400/20 text-amber-200"
+            : "border-amber-300/25 bg-amber-400/10 text-amber-300 hover:bg-amber-400/20",
+        )}
+      >
+        <Tag className="size-3.5" />
+        {offers.length === 1 ? "Ver promo" : "Ver promos"}
+      </button>
+    );
+  };
+  const PromoPanel = ({ item }: { item: any }) => {
+    if (openPromoSvc !== item.id) return null;
+    const offers = offersFor(item);
+    if (offers.length === 0) return null;
+    return (
+      <div className="space-y-0.5 border-t border-white/[0.055] bg-amber-400/[0.03] px-3 py-1.5">
+        {offers.map(({ promo, price }) => (
+          <div key={promo.id} className="truncate text-xs text-white/70">
+            <span className="font-semibold text-amber-300">{promoLabel(promo.name)}</span>
+            {" · "}
+            <span className="font-bold tabular-nums text-white">{money(price)}</span>
+            {promo.employeeIds.length > 0 ? " · solo algunos profesionales" : ""}
+          </div>
+        ))}
+      </div>
+    );
+  };
   // Precio en efectivo = precio de lista con el descuento por efectivo del
   // servicio/producto (price_catalog.cash_discount, Configuración → Servicios).
   // Sin descuento configurado, el efectivo es igual al de lista.
@@ -1802,12 +1850,13 @@ function PreciosTab({
   // Fila de escritorio: estilo original, línea divisoria dentro de una caja
   // continua (sin cambios respecto de la versión web de siempre).
   const ServiceRow = ({ item }: { item: any }) => (
-    <div className="group grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-3 border-b border-white/[0.055] px-3 py-2 transition-all duration-200 last:border-0 hover:bg-white/[0.026]">
+    <div className="border-b border-white/[0.055] last:border-0">
+    <div className="group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 px-3 py-2 transition-all duration-200 hover:bg-white/[0.026]">
       <div className="flex min-w-0 items-center gap-4">
         <Thumb item={item} fallback="✂" />
         <div className="min-w-0">
-          <div className="truncate text-sm font-bold text-white">
-            {item.name ?? "Servicio"}
+          <div className="flex items-center truncate text-sm font-bold text-white">
+            <span className="truncate">{item.name ?? "Servicio"}</span>
           </div>
           <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-white/55">
             <Clock className="size-3.5" />
@@ -1815,8 +1864,13 @@ function PreciosTab({
           </div>
         </div>
       </div>
-      <PriceBadge label="Lista" value={Number(item.price ?? 0)} />
+      <div className="flex items-center gap-3">
+        <PromoButton item={item} />
+        <PriceBadge label="Lista" value={Number(item.price ?? 0)} />
       <PriceBadge label="Efectivo" value={effectivePrice(item)} tone="green" />
+      </div>
+    </div>
+    <PromoPanel item={item} />
     </div>
   );
 
@@ -1843,21 +1897,27 @@ function PreciosTab({
   // continua con líneas divisorias — SOLO mobile, la versión de escritorio
   // (ServiceRow/CatalogRow de arriba) no cambia.
   const ServiceRowMobile = ({ item }: { item: any }) => (
-    <div className="flex items-center gap-2.5 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-3 py-2.5 active:bg-white/[0.045]">
-      <Thumb item={item} fallback="✂" />
-      <div className="min-w-0 flex-1">
-        <div className="truncate text-sm font-bold text-white">
-          {item.name ?? "Servicio"}
+    <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.03]">
+      <div className="flex items-center gap-2.5 px-3 py-2.5 active:bg-white/[0.045]">
+        <Thumb item={item} fallback="✂" />
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-bold text-white">
+            {item.name ?? "Servicio"}
+          </div>
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-white/55">
+            <Clock className="size-3.5" />
+            {duration(item) > 0 ? `${duration(item)} min` : "Sin duración"}
+          </div>
+          <div className="mt-1.5 empty:hidden">
+            <PromoButton item={item} />
+          </div>
         </div>
-        <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-white/55">
-          <Clock className="size-3.5" />
-          {duration(item) > 0 ? `${duration(item)} min` : "Sin duración"}
+        <div className="flex shrink-0 items-center gap-1.5">
+          <PriceBadge label="Lista" value={Number(item.price ?? 0)} compact />
+          <PriceBadge label="Efectivo" value={effectivePrice(item)} tone="green" compact />
         </div>
       </div>
-      <div className="flex shrink-0 items-center gap-1.5">
-        <PriceBadge label="Lista" value={Number(item.price ?? 0)} compact />
-        <PriceBadge label="Efectivo" value={effectivePrice(item)} tone="green" compact />
-      </div>
+      <PromoPanel item={item} />
     </div>
   );
 
