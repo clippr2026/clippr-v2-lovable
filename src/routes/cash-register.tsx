@@ -5110,6 +5110,71 @@ function ProfesionalesTab({
     };
   }, [selectedRow]);
 
+  // Primer día CON ACTIVIDAD del período abierto: el más antiguo entre comisiones, propinas,
+  // adelantos, puntualidad y ventas anuladas todavía sin liquidar de este profesional. El período
+  // "Desde" arranca ahí (no el día siguiente a la última liquidación): si el profesional no trabajó
+  // el domingo, no aparece el domingo. null = todavía no hay nada para liquidar.
+  const firstActivityDayIso = React.useMemo(() => {
+    if (!selectedRow) return null;
+    const BA = "America/Argentina/Buenos_Aires";
+    const dayOf = (ts: unknown) => {
+      const d = new Date(String(ts ?? ""));
+      return Number.isNaN(d.getTime()) ? null : d.toLocaleDateString("sv-SE", { timeZone: BA });
+    };
+    const startAt = selectedRow.periodStartAt;
+    const days: string[] = [];
+    const push = (d: string | null) => {
+      if (d) days.push(d);
+    };
+    for (const c of allCommissions as any[]) {
+      if (
+        String(c.professional_id) === selectedRow.id &&
+        !c.settlement_run_id &&
+        Number(c.pending_amount ?? 0) > 0 &&
+        (!startAt || String(c.created_at ?? "") > startAt)
+      )
+        push(dayOf(c.created_at));
+    }
+    for (const t of allTips as any[]) {
+      if (
+        String(t.professional_id) === selectedRow.id &&
+        !t.settlement_run_id &&
+        Number(t.pending_amount ?? 0) > 0 &&
+        (!startAt || String(t.created_at ?? "") > startAt)
+      )
+        push(dayOf(t.created_at));
+    }
+    for (const a of allAdvances as any[]) {
+      if (String(a.professional_id) === selectedRow.id && !a.settlement_run_id)
+        push(dayOf(a.display_date ?? a.advanced_at));
+    }
+    for (const p of allPresentismo as any[]) {
+      if (
+        String(p.employee_id) === selectedRow.id &&
+        !p.settlement_run_id &&
+        (!selectedRow.periodStart || String(p.date ?? "") > selectedRow.periodStart)
+      )
+        push(p.date ? String(p.date).slice(0, 10) : null);
+    }
+    for (const v of selectedVentasAnuladas) {
+      if (!v.appliedSettlementRunId) push(dayOf(v.voidedAt));
+    }
+    return days.length ? days.sort()[0] : null;
+  }, [selectedRow, allCommissions, allTips, allAdvances, allPresentismo, selectedVentasAnuladas]);
+
+  // Desde del período: el primer día con actividad, nunca antes del día siguiente al último
+  // liquidado completo. Sin actividad, cae al primer día abierto.
+  const periodFromIso = React.useMemo(() => {
+    const open = lastLiquidacionInfo?.firstOpenDayIso ?? selectedRow?.periodStart ?? null;
+    if (firstActivityDayIso && (!open || firstActivityDayIso > open)) return firstActivityDayIso;
+    return open;
+  }, [firstActivityDayIso, lastLiquidacionInfo, selectedRow]);
+  const periodFromLabel = React.useMemo(() => {
+    if (!periodFromIso) return null;
+    const [y, m, d] = periodFromIso.split("-");
+    return `${d}/${m}/${y}`;
+  }, [periodFromIso]);
+
   // "Desde"/"hasta" del período que se va a liquidar — hasta refleja el
   // corte elegido (hoy/ahora por default, o las 23:59 del día elegido).
   const liquidarPeriodLabel = React.useMemo(() => {
@@ -5120,10 +5185,10 @@ function ProfesionalesTab({
     });
     const hastaLabel = `Hasta ${hastaDate}`;
     if (lastLiquidacionInfo) {
-      return `Desde ${lastLiquidacionInfo.firstOpenDateLabel} ${hastaLabel}`;
+      return `Desde ${periodFromLabel ?? lastLiquidacionInfo.firstOpenDateLabel} ${hastaLabel}`;
     }
     return `Primera liquidación · ${hastaLabel}`;
-  }, [lastLiquidacionInfo, liquidarCutoffAt]);
+  }, [lastLiquidacionInfo, liquidarCutoffAt, periodFromLabel]);
 
   // Para la tarjeta "Período actual" del header — "hasta" ahora refleja
   // el corte elegido (liquidarCutoffAt: hoy/ahora por default, ticking
@@ -5138,11 +5203,11 @@ function ProfesionalesTab({
     });
     return {
       desde: lastLiquidacionInfo
-        ? `Desde ${lastLiquidacionInfo.firstOpenDateLabel}`
+        ? `Desde ${periodFromLabel ?? lastLiquidacionInfo.firstOpenDateLabel}`
         : "Primera liquidación",
       hasta: `Hasta ${hastaDate}`,
     };
-  }, [lastLiquidacionInfo, liquidarCutoffAt]);
+  }, [lastLiquidacionInfo, liquidarCutoffAt, periodFromLabel]);
 
   const calendarDays = React.useMemo(() => {
     const year = calendarMonth.getFullYear();
@@ -6025,7 +6090,7 @@ function ProfesionalesTab({
                 // Elegible: entre el inicio del período actual y hoy —
                 // nunca futuro, nunca antes de la última liquidación.
                 // Primer día que se puede liquidar: el siguiente al último día liquidado completo.
-                const rangeFrom = lastLiquidacionInfo?.firstOpenDayIso ?? selectedRow.periodStart;
+                const rangeFrom = periodFromIso;
                 const selectable = Boolean(
                   day.iso && (!rangeFrom || day.iso >= rangeFrom) && day.iso <= today,
                 );
