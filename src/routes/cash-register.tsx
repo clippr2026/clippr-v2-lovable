@@ -5083,9 +5083,30 @@ function ProfesionalesTab({
   const lastLiquidacionInfo = React.useMemo(() => {
     if (!selectedRow?.latestRun) return null;
     const d = new Date(selectedRow.latestRun.prepared_at);
+    const lastDayIso = d.toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" });
+    const hhmm = d.toLocaleTimeString("en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+      timeZone: "America/Argentina/Buenos_Aires",
+    });
+    // Si se liquidó "hasta el día X" el corte queda a las 23:59: ese día ya está completo y el
+    // período nuevo arranca al día siguiente. Si se liquidó "hasta ahora" a media jornada, ese
+    // día todavía tiene movimientos sin liquidar y el período sigue desde ese mismo día.
+    const dayClosed = hhmm >= "23:59";
+    const next = new Date(`${lastDayIso}T12:00:00`);
+    next.setDate(next.getDate() + 1);
+    const firstOpenDayIso = dayClosed ? next.toLocaleDateString("sv-SE") : lastDayIso;
+    const fmt = (iso: string) => {
+      const [y, m, dd] = iso.split("-");
+      return `${dd}/${m}/${y}`;
+    };
     return {
-      dateLabel: d.toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit", year: "numeric" }),
-      timeLabel: `${d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })} h`,
+      dateLabel: fmt(lastDayIso),
+      lastDayIso,
+      firstOpenDayIso,
+      firstOpenDateLabel: fmt(firstOpenDayIso),
+      dayClosed,
     };
   }, [selectedRow]);
 
@@ -5097,14 +5118,9 @@ function ProfesionalesTab({
       month: "2-digit",
       year: "numeric",
     });
-    const hastaTime = liquidarCutoffAt.toLocaleTimeString("es-AR", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
-    const hastaLabel = `Hasta ${hastaDate} • ${hastaTime} h`;
+    const hastaLabel = `Hasta ${hastaDate}`;
     if (lastLiquidacionInfo) {
-      return `Desde ${lastLiquidacionInfo.dateLabel} • ${lastLiquidacionInfo.timeLabel} ${hastaLabel}`;
+      return `Desde ${lastLiquidacionInfo.firstOpenDateLabel} ${hastaLabel}`;
     }
     return `Primera liquidación · ${hastaLabel}`;
   }, [lastLiquidacionInfo, liquidarCutoffAt]);
@@ -5120,16 +5136,11 @@ function ProfesionalesTab({
       month: "2-digit",
       year: "numeric",
     });
-    const hastaTime = liquidarCutoffAt.toLocaleTimeString("es-AR", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    });
     return {
       desde: lastLiquidacionInfo
-        ? `Desde ${lastLiquidacionInfo.dateLabel} • ${lastLiquidacionInfo.timeLabel}`
+        ? `Desde ${lastLiquidacionInfo.firstOpenDateLabel}`
         : "Primera liquidación",
-      hasta: `Hasta ${hastaDate} • ${hastaTime} h`,
+      hasta: `Hasta ${hastaDate}`,
     };
   }, [lastLiquidacionInfo, liquidarCutoffAt]);
 
@@ -6013,22 +6024,20 @@ function ProfesionalesTab({
               {calendarDays.map((day, index) => {
                 // Elegible: entre el inicio del período actual y hoy —
                 // nunca futuro, nunca antes de la última liquidación.
+                // Primer día que se puede liquidar: el siguiente al último día liquidado completo.
+                const rangeFrom = lastLiquidacionInfo?.firstOpenDayIso ?? selectedRow.periodStart;
                 const selectable = Boolean(
-                  day.iso &&
-                    (!selectedRow.periodStart || day.iso >= selectedRow.periodStart) &&
-                    day.iso <= today,
+                  day.iso && (!rangeFrom || day.iso >= rangeFrom) && day.iso <= today,
                 );
                 const isToday = day.iso === today;
                 const hastaIso = liquidarCutoffDate || today;
                 // Rango que se va a liquidar: desde el inicio real del
                 // período (Desde) hasta el corte elegido (Hasta) — nunca
                 // "desde el elegido hasta hoy", ni un solo día suelto.
-                const isRangeStart = Boolean(selectedRow.periodStart && day.iso === selectedRow.periodStart);
+                const isRangeStart = Boolean(rangeFrom && day.iso === rangeFrom);
                 const isRangeEnd = day.iso === hastaIso;
                 const isInRange = Boolean(
-                  day.iso &&
-                    (!selectedRow.periodStart || day.iso >= selectedRow.periodStart) &&
-                    day.iso <= hastaIso,
+                  day.iso && (!rangeFrom || day.iso >= rangeFrom) && day.iso <= hastaIso,
                 );
                 const isRangeMiddle = isInRange && !isRangeStart && !isRangeEnd;
                 return (
@@ -6072,7 +6081,10 @@ function ProfesionalesTab({
             </div>
 
             <div className="mt-5 text-center text-xs text-white/28">
-              Elegí hasta qué día liquidar — el día elegido queda completo incluido, hasta las 23:59 h
+              {lastLiquidacionInfo?.dayClosed
+                ? `Liquidado hasta el ${lastLiquidacionInfo.dateLabel}. `
+                : ""}
+              Elegí hasta qué día liquidar — el día elegido queda completo incluido
             </div>
           </div>
         </AgendaCenteredModal>
