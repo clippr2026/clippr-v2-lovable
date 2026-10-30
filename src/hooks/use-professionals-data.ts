@@ -589,6 +589,8 @@ export type ProfAdvance = {
   registered_by_name: string;
   movement_number: number | null;
   settlement_run_id: string | null;
+  // Origen del adelanto: 'caja' | 'externo' | null (anterior al origen, sin reclasificar).
+  funds_source?: string | null;
 };
 
 export function useProfAdvances(businessId: string | null, empId: string | null) {
@@ -599,7 +601,7 @@ export function useProfAdvances(businessId: string | null, empId: string | null)
     queryFn: async (): Promise<ProfAdvance[]> => {
       const { data, error } = await supabase
         .from("professional_advances" as any)
-        .select("id,amount,payment_method,note,advanced_at,display_date,registered_by_name,movement_number,settlement_run_id")
+        .select("*") // incluye funds_source; con select * no falla si la columna todavía no existe
         .eq("business_id", businessId!)
         .eq("professional_id", empId!)
         .order("advanced_at", { ascending: false });

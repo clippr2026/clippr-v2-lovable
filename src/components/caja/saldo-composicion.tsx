@@ -23,13 +23,10 @@ function money(v: number) {
 // arma su propio ConciliacionLado vía buildConciliacion, nunca pasa por
 // acá, así que tocar esto no afecta ese cálculo.
 //
-// adelantos: 0 y esperado SIN restarlos — los adelantos a profesionales
-// ahora se muestran aparte, como su propia tarjeta "Adelantos del día"
-// (ver todayAdvancesOut, useCajaSummary.ts), nunca mezclados con "cuánto
-// dinero hay" de una venta o un gasto operativo. expected.cashExpected/
-// digitalExpected (el dato real, con los adelantos restados) sigue
-// existiendo sin tocar — lo sigue usando quien cierra una caja de verdad
-// (efectivo contado/saldo real vs. esperado).
+// adelantos: los adelantos a profesionales con origen "Caja del negocio" van
+// como línea propia y ya están restados del esperado (cashExpected/
+// digitalExpected), así un saldo que baja siempre tiene su explicación. Los de
+// "Fondos externos" no llegan acá (computeExpectedCashAndDigital los excluye).
 export function expectedToLado(expected: ExpectedCashDigital, side: "cash" | "digital"): ConciliacionLado {
   return side === "cash"
     ? {
@@ -37,16 +34,16 @@ export function expectedToLado(expected: ExpectedCashDigital, side: "cash" | "di
         ingresosManuales: expected.cashInflows,
         gastos: expected.cashExpenses,
         retirosManuales: expected.cashRetirosManual,
-        adelantos: 0,
-        esperado: expected.cashExpected + expected.cashAdvancesOut,
+        adelantos: expected.cashAdvancesOut,
+        esperado: expected.cashExpected,
       }
     : {
         cobros: expected.digitalFromPayments,
         ingresosManuales: expected.digitalInflows,
         gastos: expected.digitalExpenses,
         retirosManuales: expected.digitalRetirosManual,
-        adelantos: 0,
-        esperado: expected.digitalExpected + expected.digitalAdvancesOut,
+        adelantos: expected.digitalAdvancesOut,
+        esperado: expected.digitalExpected,
       };
 }
 

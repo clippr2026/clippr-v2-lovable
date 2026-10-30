@@ -21,6 +21,13 @@ export type CashMovement = {
 export type ProfessionalAdvance = {
   amount: number;
   payment_method: string | null;
+  // 'caja' | 'externo' | null (histórico, anterior al origen: se trata como de la caja).
+  funds_source?: string | null;
+  // Para listar el adelanto como egreso en Movimientos de caja.
+  id?: string;
+  professional_id?: string;
+  note?: string | null;
+  registered_by_name?: string | null;
   // Necesario para poder acotar "Efectivo del día"/"Dinero en cuenta del
   // día" (useCajaSummary) a estrictamente HOY — sin esta columna no había
   // forma de separar un adelanto de hoy de uno de un día anterior sin
@@ -74,7 +81,7 @@ export function useCashMovements(
     // tabla es nueva, falla en silencio si todavía no corrió esa migración.
     const advQuery = supabase
       .from("professional_advances" as any)
-      .select("amount,payment_method,advanced_at")
+      .select("*") // incluye funds_source; con select * no falla si la columna todavía no existe
       .eq("business_id", businessId)
       .gte("advanced_at", dayStart)
       .lte("advanced_at", dayEnd);

@@ -40,6 +40,7 @@ import {
   parseMoneyInput,
   type ExpectedCashDigital,
   type CajaMovimientoManual,
+  type CierreAdelantoDetalle,
   type Conciliacion,
   distributeCobroByMethod,
   isCountableCajaPayment,
@@ -47,11 +48,17 @@ import {
 } from "@/lib/caja-cierre";
 import { SaldoComposicionLado, SaldoComposicionModal } from "@/components/caja/saldo-composicion";
 import { puntualidadMessage } from "@/lib/puntualidad-text";
+import {
+  advanceAffectsCaja,
+  advanceMethodLabel,
+  advanceOriginLabel,
+  type AdvanceFundsSource,
+} from "@/lib/advance-origin";
 import { allocateProportional, hasCatalogItems, serviceCommissionOf } from "@/lib/lateness-penalty";
 import { getPenaltyBreakdown } from "@/lib/presentismo";
 import { PresentismoRevisionPanel } from "@/components/professionals/presentismo-revision-panel";
 import { getPendingCierresInPeriod } from "@/lib/presentismo";
-import { useCashMovements, type CashMovement } from "@/hooks/use-cash-movements";
+import { useCashMovements, type CashMovement, type ProfessionalAdvance } from "@/hooks/use-cash-movements";
 import { useCajaSummary, type CajaSummary } from "@/hooks/use-caja-summary";
 import {
   cleanSearchParam,
@@ -2673,6 +2680,9 @@ function InventarioTab({
             p_advanced_at: new Date().toISOString(),
             p_registered_by: user.id,
             p_registered_by_name: chargedByName,
+            // El producto sale del stock a cuenta del profesional: no se mueve
+            // plata de la caja, así que no toca el efectivo ni el cierre.
+            p_funds_source: "externo",
           },
         );
         if (advanceError) throw advanceError;
@@ -3683,16 +3693,24 @@ function ProfesionalesTab({
   }
 
   const [adelantoModalOpen, setAdelantoModalOpen] = React.useState(false);
-  const [adelantoForm, setAdelantoForm] = React.useState({
+  // source: origen del adelanto — "caja" (Caja del negocio, por defecto) o
+  // "externo" (Fondos externos). Ver src/lib/advance-origin.ts.
+  const [adelantoForm, setAdelantoForm] = React.useState<{
+    amount: string;
+    method: string;
+    note: string;
+    source: AdvanceFundsSource;
+  }>({
     amount: "",
     method: "efectivo",
     note: "",
+    source: "caja",
   });
   const [registeringAdvance, setRegisteringAdvance] = React.useState(false);
 
   function resetAdelantoForm() {
     setAdelantoModalOpen(false);
-    setAdelantoForm({ amount: "", method: "efectivo", note: "" });
+    setAdelantoForm({ amount: "", method: "efectivo", note: "", source: "caja" });
   }
 
   const [deletingAdvanceId, setDeletingAdvanceId] = React.useState<string | null>(null);
@@ -4032,9 +4050,7 @@ function ProfesionalesTab({
         const rows = await fetchAllRows((from, to) =>
           supabase
             .from("professional_advances" as any)
-            .select(
-              "id,professional_id,amount,payment_method,note,advanced_at,display_date,registered_by_name,settlement_run_id,movement_number",
-            )
+            .select("*") // incluye funds_source (origen del adelanto); con select * no falla si la columna todavía no existe
             .eq("business_id", businessId)
             .order("id", { ascending: true })
             .range(from, to),
@@ -4971,9 +4987,12 @@ function ProfesionalesTab({
         p_advanced_at: new Date().toISOString(),
         p_registered_by: user.id,
         p_registered_by_name: chargedByName,
+        p_funds_source: adelantoForm.source,
       });
       if (error) throw error;
-      toast.success(`Adelanto registrado para ${row.name}: ${money(amount)}`);
+      toast.success(
+        `Adelanto registrado para ${row.name}: ${money(amount)} · ${advanceOriginLabel(adelantoForm.source)}`,
+      );
       resetAdelantoForm();
       setCommissionsVersion((v) => v + 1);
     } catch (e) {
@@ -5605,7 +5624,8 @@ function ProfesionalesTab({
                           concepto="Adelanto"
                           precioText={`-${money(Number(item.data.amount ?? 0))}`}
                           precioClass="text-rose-300"
-                          detalle={`Dado por ${displayResponsable(item.data.registered_by_name)}`}
+                          detalle={`Dado por ${displayResponsable(item.data.registered_by_name)} · ${advanceOriginLabel(item.data.funds_source)}`}
+                          medioText={advanceMethodLabel(item.data.payment_method)}
                           note={item.data.note ?? null}
                           redStripe
                           clickable={false}
@@ -5817,8 +5837,39 @@ function ProfesionalesTab({
                 className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-base text-white outline-none placeholder:text-white/30 focus:border-amber-300/35"
               />
             </label>
+            <div className="space-y-1.5 text-xs font-semibold text-white/55">
+              Origen del adelanto
+              <div className="grid grid-cols-2 gap-2">
+                {(
+                  [
+                    { value: "caja", label: "Caja del negocio" },
+                    { value: "externo", label: "Fondos externos" },
+                  ] as const
+                ).map((opt) => (
+                  <button
+                    key={opt.value}
+                    type="button"
+                    onClick={() => setAdelantoForm((form) => ({ ...form, source: opt.value }))}
+                    aria-pressed={adelantoForm.source === opt.value}
+                    className={cn(
+                      "h-11 rounded-2xl border px-3 text-sm font-bold transition",
+                      adelantoForm.source === opt.value
+                        ? "border-amber-300/45 bg-amber-400/12 text-amber-100"
+                        : "border-white/[0.08] bg-black/30 text-white/55 hover:bg-white/[0.04]",
+                    )}
+                  >
+                    {opt.label}
+                  </button>
+                ))}
+              </div>
+              <p className="text-[11px] font-medium leading-snug text-white/40">
+                {adelantoForm.source === "caja"
+                  ? `Sale de los fondos del negocio: se descuenta de ${adelantoForm.method === "efectivo" ? "Efectivo del día" : "Dinero en cuenta del día"}, queda como egreso en Movimientos de caja y entra en el cierre.`
+                  : "Sale de tu bolsillo u otra cuenta: no toca Efectivo del día, Dinero en cuenta del día ni el cierre. Igual baja el Total a pagar del profesional."}
+              </p>
+            </div>
             <label className="space-y-1.5 text-xs font-semibold text-white/55">
-              Método
+              {adelantoForm.source === "caja" ? "Medio de pago" : "Medio de pago (solo informativo)"}
               <select
                 value={adelantoForm.method}
                 onChange={(event) => setAdelantoForm((form) => ({ ...form, method: event.target.value }))}
@@ -5826,7 +5877,6 @@ function ProfesionalesTab({
               >
                 <option value="efectivo">Efectivo</option>
                 <option value="transferencia">Transferencia</option>
-                <option value="debito">Débito</option>
               </select>
             </label>
             <label className="block space-y-1.5 text-xs font-semibold text-white/55">
@@ -7418,6 +7468,45 @@ function useCierreDetailPayment(businessId: string | null) {
 // cobro (useCierreDetailPayment) con Corregir cobro/Anular venta — el
 // único efecto nuevo que dispara algo por sí mismo; el resto sigue siendo
 // de presentación pura.
+function CierreAdelantosBlock({ adelantos }: { adelantos: CierreAdelantoDetalle[] }) {
+  const money = (v: number) => `$${Math.round(v).toLocaleString("es-AR")}`;
+  if (adelantos.length === 0) return null;
+  const deLaCaja = adelantos.filter((a) => advanceAffectsCaja(a.origen));
+  const externos = adelantos.filter((a) => !advanceAffectsCaja(a.origen));
+  const hora = (iso: string) =>
+    new Date(iso).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: ARG_TIME_ZONE });
+  const fila = (a: CierreAdelantoDetalle) => (
+    <div key={a.id} className="flex flex-wrap items-center justify-between gap-x-3 gap-y-0.5 text-sm">
+      <div className="min-w-0">
+        <span className="font-semibold text-white/85">{a.profesional}</span>
+        <span className="ml-2 text-xs text-white/45">
+          {hora(a.advancedAt)} · {advanceOriginLabel(a.origen)} · {advanceMethodLabel(a.medio)}
+        </span>
+      </div>
+      <div className="font-bold tabular-nums text-rose-300">-{money(a.monto)}</div>
+    </div>
+  );
+  return (
+    <div className="space-y-2 rounded-xl bg-white/[0.025] p-4 ring-1 ring-white/10">
+      <div className="text-sm font-semibold text-white/85">Adelantos a profesionales</div>
+      {deLaCaja.length > 0 && (
+        <div className="space-y-1.5">
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-white/40">Egreso del cierre</div>
+          {deLaCaja.map(fila)}
+        </div>
+      )}
+      {externos.length > 0 && (
+        <div className="space-y-1.5 opacity-70">
+          <div className="text-[11px] font-semibold uppercase tracking-wide text-white/40">
+            Fondos externos — no incluidos en el cierre
+          </div>
+          {externos.map(fila)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function CierreRevisionDetalle({
   businessId,
   employees,
@@ -7444,7 +7533,7 @@ function CierreRevisionDetalle({
   observacion: string;
   onObservacionChange: (v: string) => void;
 }) {
-  const { snapshot, expected, manualMovements, movimientosManuales, conciliacion } = preview;
+  const { snapshot, expected, manualMovements, movimientosManuales, adelantosDetalle, conciliacion } = preview;
   const { servicios, productos } = countServiciosYProductos(snapshot.cobrosSnapshot);
   const [showDetalle, setShowDetalle] = React.useState(false);
   const [showConciliacion, setShowConciliacion] = React.useState(false);
@@ -7529,6 +7618,11 @@ function CierreRevisionDetalle({
           </div>
         )}
       </div>
+
+      {/* Adelantos a profesionales de la jornada: los de "Caja del negocio" son
+          un egreso incluido en el efectivo/cuenta esperados de abajo; los de
+          "Fondos externos" se listan aparte y NO entran en el cierre. */}
+      <CierreAdelantosBlock adelantos={adelantosDetalle} />
 
       {/* Conciliación — por medio de pago + desglose de la fórmula de
           efectivo/cuenta esperados + alertas de pagos múltiples que no
@@ -10475,7 +10569,7 @@ function movimientoRow(m: CashMovement) {
 // "ingresos" fue reemplazado acá para la vista unificada, pero el bloque
 // "Cobrar pendientes" dentro de FacturacionPanel sigue intacto) — este feed
 // es solo para visualizar, no duplica esa interacción.
-type UnifiedMovKind = "pago" | "gasto" | "pendiente" | "movimiento" | "venta_pendiente";
+type UnifiedMovKind = "pago" | "gasto" | "pendiente" | "movimiento" | "venta_pendiente" | "adelanto";
 // "gris" — venta anulada/reembolsada: sigue visible en el historial (nunca
 // se saca, se necesita para trazabilidad), pero nunca en verde como si
 // fuera un ingreso activo. No suma en ningún total (ver
@@ -10528,6 +10622,8 @@ type UnifiedMov = {
   pending?: ReturnType<typeof useCajaData>["pendingCharges"][number];
   movement?: CashMovement;
   venta?: VentaPendienteGroup;
+  // Adelanto a un profesional pagado con fondos de la caja (egreso de Caja).
+  advance?: ProfessionalAdvance;
 };
 
 const UNIFIED_COLOR_CLASSES: Record<
@@ -10572,6 +10668,9 @@ function buildUnifiedMovements(
   showPendientes: boolean,
   movements: CashMovement[],
   collections: PaymentCollectionRow[] = [],
+  // Solo adelantos con origen "Caja del negocio" (los de fondos externos no
+  // son plata de la caja y no se listan acá).
+  advances: ProfessionalAdvance[] = [],
 ): UnifiedMov[] {
   const items: UnifiedMov[] = [];
 
@@ -10718,6 +10817,21 @@ function buildUnifiedMovements(
     });
   }
 
+  // Adelantos a profesionales pagados con fondos de la caja: un egreso más, UNA
+  // sola fila (el cálculo del saldo y del cierre ya los resta una vez, aparte —
+  // esta fila es solo la lista, no genera ningún movimiento de dinero).
+  for (const a of advances) {
+    const ts = a.advanced_at ? new Date(a.advanced_at).getTime() : 0;
+    items.push({
+      id: `adelanto-${a.id ?? a.advanced_at}`,
+      kind: "adelanto",
+      ts: Number.isFinite(ts) ? ts : 0,
+      color: "rojo",
+      amount: Number(a.amount ?? 0),
+      advance: a,
+    });
+  }
+
   // Más reciente primero. Empate de timestamp (dos movimientos en el mismo
   // segundo): orden estable de Array.sort alcanza, no hace falta un
   // desempate artificial — no hay ninguna expectativa de orden entre dos
@@ -10838,6 +10952,24 @@ function unifiedMovView(
       metodoLabel: "—",
       nota,
       notaTitle: nota ? `${p.client_name ?? "Cliente"} · ${p.service_name ?? "Servicio"}` : null,
+    };
+  }
+
+  if (item.kind === "adelanto" && item.advance) {
+    const a = item.advance;
+    const dt = new Date(a.advanced_at);
+    const profName = employees.find((e) => e.id === a.professional_id)?.name ?? "—";
+    return {
+      typeLabel: "Adelanto",
+      fecha: formatArgFecha(dt),
+      hora: formatArgHora(dt),
+      quien: `${a.registered_by_name?.trim() || "—"} → Adelantó`,
+      clienteOConcepto: a.note?.trim() || "Adelanto a profesional",
+      profesional: profName,
+      servicio: `Adelanto · ${advanceOriginLabel(a.funds_source)}`,
+      metodoLabel: paymentMethodLabel(a.payment_method ?? ""),
+      nota: null,
+      notaTitle: null,
     };
   }
 
@@ -11297,6 +11429,15 @@ function MovimientosUnificados({
     () => filterToDayBA(movementsData.movements, (m) => m.created_at, todayKeyBA),
     [movementsData.movements, todayKeyBA],
   );
+  // Adelantos de hoy pagados con fondos de la caja (origen "Caja del negocio",
+  // o histórico sin origen, que siempre se trató como de la caja).
+  const advancesOnlyToday = React.useMemo(
+    () =>
+      filterToDayBA(movementsData.advances, (a) => a.advanced_at, todayKeyBA).filter(
+        (a) => advanceAffectsCaja(a.funds_source),
+      ),
+    [movementsData.advances, todayKeyBA],
+  );
 
   const all = React.useMemo(
     () =>
@@ -11307,6 +11448,7 @@ function MovimientosUnificados({
         showPendientes,
         movementsOnlyToday,
         data.collectionsToday,
+        advancesOnlyToday,
       ),
     [
       paymentsOnlyToday,
@@ -11315,6 +11457,7 @@ function MovimientosUnificados({
       showPendientes,
       movementsOnlyToday,
       data.collectionsToday,
+      advancesOnlyToday,
     ],
   );
   const recent = all.slice(0, 10);
@@ -11508,7 +11651,8 @@ function MovimientosUnificados({
     return byDate.filter(
       (item) =>
         (item.kind === "pago" && item.payment?.employee_id === selectedProfessionalId) ||
-        (item.kind === "venta_pendiente" && item.venta?.employeeId === selectedProfessionalId),
+        (item.kind === "venta_pendiente" && item.venta?.employeeId === selectedProfessionalId) ||
+        (item.kind === "adelanto" && item.advance?.professional_id === selectedProfessionalId),
     );
   }, [all, selectedDateKey, selectedProfessionalId]);
 
@@ -12034,9 +12178,9 @@ function FacturacionPanel({
           hoy (summary.todayCashExpected/todayDigitalExpected) — misma
           fuente que Inicio, nunca una query/cálculo aparte (antes este
           panel llamaba a buildSingleDayCierrePreview por su cuenta).
-          NO restan adelantos a profesionales — eso es la tarjeta aparte
-          de abajo, "Adelantos del día", para no mezclar un adelanto con
-          cobros/gastos y producir un total negativo sin explicación. */}
+          Descuentan los adelantos a profesionales con origen "Caja del negocio"
+          (ver computeExpectedCashAndDigital); los de "Fondos externos" no. El
+          detalle de cada saldo muestra el adelanto como línea propia. */}
       <div className="grid grid-cols-2 gap-2">
         <FacturacionStatCard
           icon={Wallet}

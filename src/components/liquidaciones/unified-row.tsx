@@ -649,6 +649,7 @@ export function MovRow({
   precioClass,
   presentismoText,
   presentismoClass,
+  medioText,
   detalle,
   note,
   redStripe = false,
@@ -674,6 +675,8 @@ export function MovRow({
   // siempre, para no perder visibilidad ahí.
   presentismoText?: string;
   presentismoClass?: string;
+  // Medio de pago de la fila (hoy solo lo usa el adelanto: Efectivo/Transferencia).
+  medioText?: string;
   detalle: React.ReactNode;
   // Nota opcional de un adelanto — NUNCA se muestra sola: aparece como un
   // botón "Ver nota" a la izquierda del tacho, y el contenido solo se
@@ -752,7 +755,7 @@ export function MovRow({
         </div>
         <div className="text-right text-white/30">{emptyFiller}</div>
         <div className="flex items-center justify-between gap-2 text-white/52">
-          <span>{emptyFiller}</span>
+          <span>{medioText ?? emptyFiller}</span>
           <div className="flex shrink-0 items-center gap-1">
             {verNotaButton}
             {onDelete ? (

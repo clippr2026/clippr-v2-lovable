@@ -32,6 +32,8 @@ export type HistorialAdvanceRow = {
   display_date?: string | null;
   registered_by_name: string;
   movement_number: number | null;
+  // Origen del adelanto: 'caja' | 'externo' | null (anterior al origen, sin reclasificar).
+  funds_source?: string | null;
 };
 
 // Subset de SettlementRun con lo necesario para derivar sus movimientos de

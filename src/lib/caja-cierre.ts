@@ -971,6 +971,18 @@ export async function buildCierreSnapshotForDate(
   };
 }
 
+// Adelanto a un profesional listado en el detalle de un cierre: quién, cuánto, con
+// qué origen (caja = entra en el cierre; externo = no) y medio de pago.
+export type CierreAdelantoDetalle = {
+  id: string;
+  advancedAt: string;
+  profesional: string;
+  monto: number;
+  origen: "caja" | "externo" | null;
+  medio: string | null;
+  nota: string | null;
+};
+
 export type ExpectedCashDigital = {
   cashExpected: number;
   cashOutflows: number;
@@ -1040,7 +1052,10 @@ export function computeExpectedCashAndDigital(params: {
     status?: string | null;
   }>;
   expenses: Array<{ amount?: number | null; payment_method?: string | null; method?: string | null }>;
-  advances: Array<{ amount?: number | null; payment_method?: string | null }>;
+  // funds_source: 'caja' (sale de los fondos del negocio) | 'externo' (otro
+  // bolsillo/cuenta: NO toca la caja) | null/undefined (adelanto histórico,
+  // anterior al origen: se trata como siempre, como de la caja).
+  advances: Array<{ amount?: number | null; payment_method?: string | null; funds_source?: string | null }>;
   // method: "efectivo" (cajón físico) | "cuenta" (digital) — filas viejas,
   // de antes de que cash_movements tuviera esta columna, no traen method;
   // se tratan como "efectivo" (mismo comportamiento que tenían).
@@ -1090,10 +1105,14 @@ export function computeExpectedCashAndDigital(params: {
     .filter((e) => !isCash(e.payment_method ?? e.method))
     .reduce((s, e) => s + Number(e.amount ?? 0), 0);
 
-  const cashAdvances = advances
+  // Un adelanto de FONDOS EXTERNOS es un adelanto al profesional (baja su Total a
+  // pagar) pero no plata de la caja: no entra en el efectivo ni en el dinero en
+  // cuenta esperados, ni en las salidas del cierre.
+  const cajaAdvances = advances.filter((a) => a.funds_source !== "externo");
+  const cashAdvances = cajaAdvances
     .filter((a) => isCash(a.payment_method))
     .reduce((s, a) => s + Number(a.amount ?? 0), 0);
-  const digitalAdvances = advances
+  const digitalAdvances = cajaAdvances
     .filter((a) => !isCash(a.payment_method))
     .reduce((s, a) => s + Number(a.amount ?? 0), 0);
 
@@ -1329,11 +1348,14 @@ export async function buildSingleDayCierrePreview(
   // (computeExpectedCashAndDigital).
   let advQuery = supabase
     .from("professional_advances" as any)
-    .select("amount,payment_method,advanced_at")
+    .select("*")
     .eq("business_id", businessId)
     .gte("advanced_at", dayStart.toISOString())
     .lte("advanced_at", dayEnd.toISOString());
-  if (branchFilter) advQuery = advQuery.or(branchFilter);
+  // professional_advances NO tiene branch_id: filtrar por sucursal acá hacía
+  // fallar la consulta en silencio y los adelantos no entraban en el cierre de
+  // un día anterior. Los adelantos son del negocio, como en el cierre de hoy
+  // (useCashMovements).
 
   // snapshot, movimientosManuales y advances en paralelo (una sola tanda
   // de red, ninguna depende de otra) — buildCajaMovimientosManualesForDate
@@ -1349,10 +1371,32 @@ export async function buildSingleDayCierrePreview(
     advQuery,
   ]);
 
-  const advances = ((advRes.data ?? []) as any[]).map((a) => ({
+  const advRows = (advRes.data ?? []) as any[];
+  const advances = advRows.map((a) => ({
     amount: a.amount,
     payment_method: a.payment_method,
+    funds_source: a.funds_source ?? null,
   }));
+  // Detalle de cada adelanto del día (con el nombre del profesional) para
+  // mostrarlo en el cierre: los de la caja se suman al esperado, los de fondos
+  // externos solo se listan como "no incluidos".
+  const advProfIds = [...new Set(advRows.map((a) => a.professional_id).filter(Boolean))] as string[];
+  const advNameById = new Map<string, string>();
+  if (advProfIds.length > 0) {
+    const { data: advEmps } = await supabase.from("employees").select("id,full_name").in("id", advProfIds);
+    for (const e of (advEmps ?? []) as any[]) advNameById.set(e.id, e.full_name ?? "—");
+  }
+  const adelantosDetalle: CierreAdelantoDetalle[] = advRows
+    .map((a) => ({
+      id: String(a.id),
+      advancedAt: String(a.advanced_at),
+      profesional: advNameById.get(a.professional_id) ?? "—",
+      monto: Number(a.amount ?? 0),
+      origen: (a.funds_source ?? null) as CierreAdelantoDetalle["origen"],
+      medio: a.payment_method ?? null,
+      nota: a.note ?? null,
+    }))
+    .sort((x, y) => x.advancedAt.localeCompare(y.advancedAt));
   const cashMovements = movimientosManuales.map((m) => ({
     type: m.tipo,
     amount: m.monto,
@@ -1398,7 +1442,7 @@ export async function buildSingleDayCierrePreview(
     snapshot.conciliacionAlertas,
   );
 
-  return { snapshot, expected, manualMovements, movimientosManuales, conciliacion };
+  return { snapshot, expected, manualMovements, movimientosManuales, adelantosDetalle, conciliacion };
 }
 
 // Cierra un día PASADO puntual, acotado exactamente a ese día — a

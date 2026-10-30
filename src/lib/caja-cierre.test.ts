@@ -1221,10 +1221,10 @@ describe("useCajaSummary — 'Efectivo del día' separado de 'Saldos acumulados'
     const src = readSrc("src/hooks/use-caja-summary.ts");
     expect(src).toMatch(/movementsStrictlyToday = filterToDayBA\(movementsForPeriod/);
     expect(src).toMatch(/advancesStrictlyToday = filterToDayBA\(advancesForPeriod/);
-    expect(src).toMatch(/todayCashExpected: todayExpected\.cashExpected \+ todayExpected\.cashAdvancesOut/);
-    expect(src).toMatch(
-      /todayDigitalExpected: todayExpected\.digitalExpected \+ todayExpected\.digitalAdvancesOut/,
-    );
+    // Un adelanto con origen "Caja del negocio" SÍ descuenta del saldo de su
+    // medio (los de "Fondos externos" no llegan a este cálculo).
+    expect(src).toMatch(/todayCashExpected: todayExpected\.cashExpected,/);
+    expect(src).toMatch(/todayDigitalExpected: todayExpected\.digitalExpected,/);
     expect(src).toMatch(
       /todayAdvancesOut: todayExpected\.cashAdvancesOut \+ todayExpected\.digitalAdvancesOut/,
     );
@@ -1237,11 +1237,11 @@ describe("useCajaSummary — 'Efectivo del día' separado de 'Saldos acumulados'
     expect(src).toMatch(/todayAdvancesOut: summary\.todayAdvancesOut/);
   });
 
-  // "Dinero en cuenta del día"/"Efectivo del día" NO deben restar adelantos
-  // a profesionales. La tarjeta "Adelantos del día" se sacó de Inicio y Caja
-  // (por ahora los adelantos solo se ven en Caja > Liquidaciones, dentro del
-  // profesional) — pero el total de las dos tarjetas que quedan sigue sin
-  // restarlos.
+  // "Efectivo del día"/"Dinero en cuenta del día" descuentan los adelantos a
+  // profesionales con origen "Caja del negocio" (efectivo o transferencia
+  // según el medio); los de "Fondos externos" no los tocan. La tarjeta
+  // "Adelantos del día" sigue sin existir: el adelanto se ve como línea del
+  // detalle de cada saldo y como egreso en Movimientos de caja.
   it("Inicio y Caja ya NO muestran una tarjeta 'Adelantos del día' — por ahora los adelantos se ven solo en Liquidaciones", () => {
     const dashboardSrc = readSrc("src/routes/dashboard.tsx");
     expect(dashboardSrc).not.toMatch(/label="Adelantos del día"/);
@@ -1250,11 +1250,11 @@ describe("useCajaSummary — 'Efectivo del día' separado de 'Saldos acumulados'
     expect(cashRegisterSrc).not.toMatch(/label="Adelantos del día"/);
   });
 
-  it("expectedToLado (SaldoComposicionModal) no resta adelantos del total — adelantos:0 y esperado suma cashAdvancesOut/digitalAdvancesOut de vuelta", () => {
+  it("expectedToLado (SaldoComposicionModal) muestra los adelantos de la caja como línea propia y el esperado ya los tiene restados", () => {
     const src = readSrc("src/components/caja/saldo-composicion.tsx");
-    expect(src).toMatch(/adelantos: 0,\s*\n\s*esperado: expected\.cashExpected \+ expected\.cashAdvancesOut/);
+    expect(src).toMatch(/adelantos: expected\.cashAdvancesOut,\s*\n\s*esperado: expected\.cashExpected,/);
     expect(src).toMatch(
-      /adelantos: 0,\s*\n\s*esperado: expected\.digitalExpected \+ expected\.digitalAdvancesOut/,
+      /adelantos: expected\.digitalAdvancesOut,\s*\n\s*esperado: expected\.digitalExpected,/,
     );
   });
 

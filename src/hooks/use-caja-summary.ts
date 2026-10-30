@@ -100,12 +100,11 @@ export type CajaSummary = {
   // "Efectivo del día"/"Dinero en cuenta del día" — SOLO hoy, nunca el
   // acumulado de jornadas pendientes (eso es cashExpected/bankExpected,
   // sección "Saldos acumulados"). Mismo criterio que revHoy/totalGastosHoy.
-  // NO restan adelantos a profesionales (eso es todayAdvancesOut, aparte) —
-  // la tarjeta "Dinero en cuenta/Efectivo del día" muestra solo cobros menos
-  // gastos/retiros bancarios reales; mezclar un adelanto ahí generaba un
-  // "-$70.064" sin explicación. El dato con adelantos restados (el real
-  // para conciliar un cierre) sigue intacto en todayExpectedFull.cashExpected
-  // /digitalExpected — nadie dejó de usarlo.
+  // Descuentan los adelantos a profesionales con origen "Caja del negocio" (del
+  // efectivo o de la cuenta según el medio de pago); los de "Fondos externos"
+  // no tocan estos saldos. Antes ningún adelanto se restaba acá y no había forma
+  // de decir de dónde salía la plata; el detalle de cada saldo (todayExpectedFull)
+  // muestra el adelanto como línea propia, así el descuento no queda sin explicación.
   todayCashExpected: number;
   todayDigitalExpected: number;
   // Adelantos a profesionales de HOY (efectivo + digital) — mostrados aparte
@@ -635,8 +634,11 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     digitalExpected,
     digitalOutflows,
     bankExpected,
-    todayCashExpected: todayExpected.cashExpected + todayExpected.cashAdvancesOut,
-    todayDigitalExpected: todayExpected.digitalExpected + todayExpected.digitalAdvancesOut,
+    // Un adelanto con origen "Caja del negocio" descuenta del saldo de su medio
+    // (efectivo o cuenta); uno de "Fondos externos" no llega acá (ver
+    // computeExpectedCashAndDigital). El detalle de cada saldo lo muestra.
+    todayCashExpected: todayExpected.cashExpected,
+    todayDigitalExpected: todayExpected.digitalExpected,
     todayAdvancesOut: todayExpected.cashAdvancesOut + todayExpected.digitalAdvancesOut,
     todayExpectedFull: todayExpected,
     pendingCierre,

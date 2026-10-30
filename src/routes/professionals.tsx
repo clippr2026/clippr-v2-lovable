@@ -68,6 +68,7 @@ import {
   StatCard,
 } from "@/components/liquidaciones/unified-row";
 import { money, displayResponsable, isRunEffectivelySettled } from "@/components/liquidaciones/movimiento-format";
+import { advanceMethodLabel, advanceOriginLabel } from "@/lib/advance-origin";
 import { HistorialPanelView } from "@/components/liquidaciones/historial-panel-view";
 import { AgendaCenteredModal } from "@/components/agenda/agenda-drawer";
 import type { EmployeeCommissionMap } from "@/lib/service-pricing";
@@ -2679,7 +2680,8 @@ function LiquidacionesPanelView({
                   concepto="Adelanto"
                   precioText={`-${money(Number(advance.amount ?? 0))}`}
                   precioClass="text-rose-300"
-                  detalle={`Dado por ${displayResponsable(advance.registered_by_name)}`}
+                  detalle={`Dado por ${displayResponsable(advance.registered_by_name)} · ${advanceOriginLabel(advance.funds_source)}`}
+                  medioText={advanceMethodLabel(advance.payment_method)}
                   note={advance.note ?? null}
                   redStripe
                   emptyFiller=""
