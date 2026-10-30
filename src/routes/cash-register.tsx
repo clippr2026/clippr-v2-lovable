@@ -153,6 +153,7 @@ import {
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 import {
   resolveServicePricing,
+  computeStandardEffectivePrice,
   isPromotionCurrentlyValid,
   isPromotionApplicable,
   applyPromotionDiscount,
@@ -1666,6 +1667,9 @@ function PreciosTab({
 
   const money = (value: unknown) =>
     `$${Number(value ?? 0).toLocaleString("es-AR")}`;
+  // Precio en efectivo = precio de lista con el descuento por efectivo del
+  // servicio/producto (price_catalog.cash_discount, Configuración → Servicios).
+  // Sin descuento configurado, el efectivo es igual al de lista.
   const effectivePrice = (item: any) =>
     Number(
       item.cash_price ??
@@ -1673,6 +1677,7 @@ function PreciosTab({
         item.efectivo_price ??
         item.effective_price ??
         item.cashPrice ??
+        computeStandardEffectivePrice(item.price, item.cash_discount) ??
         item.price ??
         0,
     );
