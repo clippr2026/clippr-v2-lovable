@@ -22,14 +22,13 @@ import {
 // Grilla compartida por TODAS las filas de la lista única (ventas,
 // adelantos, pagos, ajustes, deducciones, presentismo) y por su
 // encabezado — mismas 8 columnas siempre: Fecha y hora | Cliente |
-// Concepto | Precio | Comisión | Presentismo | Propina | Medio de pago.
-// "Presentismo" se agregó inmediatamente después de "Comisión" (único
-// requisito explícito) sin reordenar las demás columnas ya existentes.
-// La 8ª celda (Medio de pago) lleva un poco de aire a la izquierda: Propina
+// Concepto | Precio | Comisión | Propina | Medio de pago | Puntualidad.
+// "Puntualidad" va en la última columna, después de Medio de pago.
+// La 7ª celda (Medio de pago) lleva un poco de aire a la izquierda: Propina
 // va alineada a la derecha y Medio de pago a la izquierda, y sin esto el
 // título "PROPINA" quedaba pegado a "MEDIO DE PAGO".
 export const LIQ_GRID_COLS =
-  "grid-cols-[116px_minmax(100px,1fr)_minmax(130px,1.1fr)_100px_100px_100px_100px_minmax(90px,1fr)] [&>*:nth-child(8)]:pl-4";
+  "grid-cols-[116px_minmax(100px,1fr)_minmax(130px,1.1fr)_100px_100px_100px_minmax(90px,1fr)_100px] [&>*:nth-child(7)]:pl-4";
 
 export function UnifiedMovimientosHeader() {
   return (
@@ -44,9 +43,9 @@ export function UnifiedMovimientosHeader() {
       <div>Concepto</div>
       <div className="text-right">Precio</div>
       <div className="text-right">Comisión</div>
-      <div className="text-right">Puntualidad</div>
       <div className="text-right">Propina</div>
       <div>Medio de pago</div>
+      <div className="text-right">Puntualidad</div>
     </div>
   );
 }
@@ -522,13 +521,6 @@ export function VentaRow({
             )}
           </div>
         </div>
-        {/* Presentismo por porcentaje: la parte de ESTE servicio del descuento
-            del día (ver presentismoRepartido en cash-register.tsx). Uno fijo
-            va en su propia fila diaria (kind:"presentismo"), no acá — nunca
-            las dos cosas, para no duplicar el descuento. */}
-        <div className={cn("text-right tabular-nums", presentismoVenta ? cn("font-semibold", presentismoVenta.className) : "text-white/25")}>
-          {presentismoVenta ? presentismoVenta.text : "—"}
-        </div>
         <div className={cn("text-right text-sm font-semibold tabular-nums", hasTip ? "text-emerald-300" : "text-white/25")}>
           {tipText}
         </div>
@@ -537,6 +529,13 @@ export function VentaRow({
           {hasExpandableContent && (
             <ChevronDown className={cn("size-3.5 shrink-0 text-white/30 transition-transform", expanded && "rotate-180")} />
           )}
+        </div>
+        {/* Presentismo por porcentaje: la parte de ESTE servicio del descuento
+            del día (ver presentismoRepartido en cash-register.tsx). Uno fijo
+            va en su propia fila diaria (kind:"presentismo"), no acá — nunca
+            las dos cosas, para no duplicar el descuento. */}
+        <div className={cn("text-right tabular-nums", presentismoVenta ? cn("font-semibold", presentismoVenta.className) : "text-white/25")}>
+          {presentismoVenta ? presentismoVenta.text : "—"}
         </div>
       </div>
       {/* Mobile — sin InfoPopover acá, un <button> real es seguro. */}
@@ -750,9 +749,6 @@ export function MovRow({
         </div>
         <div className={cn("text-right tabular-nums", precioClass ?? "text-white/72")}>{precioText}</div>
         <div className="text-right text-white/30">{emptyFiller}</div>
-        <div className={cn("text-right tabular-nums", presentismoText ? (presentismoClass ?? "text-white/72") : "text-white/30")}>
-          {presentismoText ?? emptyFiller}
-        </div>
         <div className="text-right text-white/30">{emptyFiller}</div>
         <div className="flex items-center justify-between gap-2 text-white/52">
           <span>{medioText ?? emptyFiller}</span>
@@ -776,6 +772,9 @@ export function MovRow({
               )
             )}
           </div>
+        </div>
+        <div className={cn("text-right tabular-nums", presentismoText ? (presentismoClass ?? "text-white/72") : "text-white/30")}>
+          {presentismoText ?? emptyFiller}
         </div>
       </Tag>
       {/* Mobile */}

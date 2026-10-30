@@ -4374,7 +4374,7 @@ function ProfesionalesTab({
   // Historial (liquidaciones ya pagadas, detalle completo) — mismo
   // patrón que Panel del profesional, ver LiquidacionesPanelView/
   // HistorialPanelView en professionals.tsx.
-  const [liqSubTab, setLiqSubTab] = React.useState<"movimientos" | "historial">("movimientos");
+  const [liqSubTab, setLiqSubTab] = React.useState<"movimientos" | "historial" | "llegadas">("movimientos");
   React.useEffect(() => {
     setLiqSubTab("movimientos");
   }, [selectedEmployeeId]);
@@ -5712,7 +5712,8 @@ function ProfesionalesTab({
               {(
                 [
                   { key: "movimientos", label: "Movimientos" },
-                  { key: "historial", label: "Historial" },
+                  { key: "historial", label: "Pagos" },
+                  { key: "llegadas", label: "Llegadas" },
                 ] as const
               ).map(({ key, label }) => (
                 <button
@@ -5731,7 +5732,58 @@ function ProfesionalesTab({
               ))}
             </div>
 
-            {liqSubTab === "historial" ? (
+            {liqSubTab === "llegadas" ? (
+              <div className="min-h-0 flex-1 overflow-visible sm:overflow-y-auto px-5 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+                {selectedPresentismo.length === 0 ? (
+                  <div className="rounded-xl border border-white/[0.07] bg-black/18 px-4 py-8 text-center text-sm text-white/45">
+                    Todavía no hay llegadas registradas para este profesional.
+                  </div>
+                ) : (
+                  <div className="flex flex-col">
+                    <div className="hidden grid-cols-[110px_90px_90px_minmax(110px,1fr)_100px_110px_minmax(120px,1fr)] gap-3 border-b border-white/[0.07] px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38 sm:grid">
+                      <div>Fecha</div>
+                      <div>Horario</div>
+                      <div>Llegada</div>
+                      <div>Estado</div>
+                      <div className="text-right">Descuento</div>
+                      <div>Liquidación</div>
+                      <div>Confirmó</div>
+                    </div>
+                    {selectedPresentismo.map((p: any) => {
+                      const hhmm = (v?: string | null) =>
+                        v ? new Date(v).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false }) : "—";
+                      const [yy, mm, dd] = String(p.date ?? "").split("-");
+                      const fecha = dd ? `${dd}/${mm}/${yy}` : "—";
+                      const late = Number(p.late_minutes ?? 0);
+                      const statusLabel =
+                        p.status === "a_tiempo" ? "A tiempo" : p.status === "tarde" ? `Tarde${late > 0 ? ` · ${late} min` : ""}` : "Ausente";
+                      const statusCls =
+                        p.status === "a_tiempo" ? "text-emerald-300" : p.status === "tarde" ? "text-amber-300" : "text-rose-300";
+                      const amount = Number(p.discount_amount_applied ?? 0);
+                      const amountText = amount === 0 ? "—" : amount > 0 ? `-${money(amount)}` : `+${money(-amount)}`;
+                      const settled = Boolean(p.settlement_run_id) && closedRunIds.has(p.settlement_run_id);
+                      return (
+                        <div
+                          key={p.id}
+                          className="grid grid-cols-2 items-center gap-x-3 gap-y-1 border-b border-white/[0.055] px-4 py-3 text-sm last:border-0 sm:grid-cols-[110px_90px_90px_minmax(110px,1fr)_100px_110px_minmax(120px,1fr)]"
+                        >
+                          <div className="text-white/70">{fecha}</div>
+                          <div className="text-white/50">{hhmm(p.expected_start_at)}</div>
+                          <div className="text-white/82">{hhmm(p.effective_clock_in_at)}</div>
+                          <div className={cn("font-semibold", statusCls)}>
+                            {statusLabel}
+                            {p.penalty_overridden ? <span className="ml-1 text-[11px] font-normal text-white/40">(ajustado)</span> : null}
+                          </div>
+                          <div className={cn("tabular-nums sm:text-right", amount > 0 ? "text-rose-300" : amount < 0 ? "text-emerald-300" : "text-white/30")}>{amountText}</div>
+                          <div className={settled ? "text-white/45" : "text-violet-300"}>{settled ? "Liquidada" : "Pendiente"}</div>
+                          <div className="truncate text-white/45">{displayResponsable(p.confirmed_by_name)}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : liqSubTab === "historial" ? (
               <div className="min-h-0 flex-1 overflow-visible sm:overflow-y-auto px-5 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
                 <HistorialPanelView businessId={businessId} empId={selectedRow.id} />
               </div>
