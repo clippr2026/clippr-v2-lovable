@@ -5447,9 +5447,11 @@ function ProfesionalesTab({
                   <CalendarDays className="size-3.5" />
                   Período actual
                 </span>
-                <span className="max-w-full break-words text-xs font-semibold text-white">
+                <div className="flex max-w-full flex-wrap items-center justify-center gap-x-2 gap-y-0.5">
+                <span className="break-words text-xs font-semibold text-white">
                   {periodoActualLabel.desde}
                 </span>
+                <span aria-hidden className="text-xs text-white/30">→</span>
                 {/* Solo "Hasta" es editable — "Desde" queda fijo (es la
                     última liquidación pagada). Tocarlo abre el calendario
                     de abajo para elegir hasta qué día liquidar. */}
@@ -5459,10 +5461,11 @@ function ProfesionalesTab({
                     setCalendarMonth(new Date(`${liquidarCutoffDate || today}T12:00:00`));
                     setPeriodInfoOpen(true);
                   }}
-                  className="max-w-full break-words text-xs font-semibold text-violet-200 underline decoration-dotted underline-offset-2 transition hover:text-violet-100"
+                  className="break-words text-xs font-semibold text-violet-200 underline decoration-dotted underline-offset-2 transition hover:text-violet-100"
                 >
                   {periodoActualLabel.hasta}
                 </button>
+                </div>
               </div>
             )}
           </div>
