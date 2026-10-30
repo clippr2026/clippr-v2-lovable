@@ -129,10 +129,19 @@ export async function getPendingDebtSummary(
 // refresh() para volver a pedirlo después de un cobro (CobrarPendienteModal
 // ya llama a data.refresh() del caller, que puede encadenar este refresh
 // también).
+// Último resumen de deudas conocido por negocio+sucursal, solo en memoria (se
+// pierde al recargar la página a propósito: nunca se muestra un dato financiero
+// viejo como definitivo). Sirve para que, al volver a Caja dentro de la misma
+// sesión, la tarjeta "Deudas de clientes" se pinte de entrada si hay deuda en
+// vez de aparecer recién al terminar de cargar; el fetch real la corrige solo.
+const pendingDebtSummaryCache = new Map<string, { total: number; count: number }>();
+
 export function usePendingDebtSummary(businessId: string | null, branchId: string | null) {
-  const [total, setTotal] = React.useState(0);
-  const [count, setCount] = React.useState(0);
-  const [loading, setLoading] = React.useState(true);
+  const cacheKey = `${businessId ?? ""}:${branchId ?? ""}`;
+  const cached = pendingDebtSummaryCache.get(cacheKey);
+  const [total, setTotal] = React.useState(cached?.total ?? 0);
+  const [count, setCount] = React.useState(cached?.count ?? 0);
+  const [loading, setLoading] = React.useState(!cached);
 
   const load = React.useCallback(async () => {
     if (!businessId) {
@@ -141,6 +150,7 @@ export function usePendingDebtSummary(businessId: string | null, branchId: strin
     }
     try {
       const summary = await getPendingDebtSummary(businessId, branchId);
+      pendingDebtSummaryCache.set(`${businessId}:${branchId ?? ""}`, { total: summary.total, count: summary.count });
       setTotal(summary.total);
       setCount(summary.count);
     } catch {

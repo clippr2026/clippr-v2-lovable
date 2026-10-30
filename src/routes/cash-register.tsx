@@ -11897,11 +11897,14 @@ function FacturacionPanel({
   // — mismo criterio que ya usa el bloque "Modo de aprobación" de
   // Liquidaciones, ningún flag nuevo.
   const showPendientes = data.approvalModeEnabled && equipoEnabled;
-  // "Deudas de clientes" solo se pinta si hay alguna deuda activa (o
-  // todavía no se sabe — ver comentario junto a la tarjeta más abajo).
+  // "Deudas de clientes" solo se pinta cuando YA se sabe que hay alguna deuda
+  // activa: mientras carga no se muestra (antes aparecía con su esqueleto y se
+  // escondía apenas terminaba, en cada entrada a Caja, porque casi siempre no
+  // hay deudas). Dentro de la misma sesión el hook recuerda el último valor
+  // (ver usePendingDebtSummary), así que si hay deuda no vuelve a parpadear.
   // Nunca borra pendingDebtSummary ni ningún registro histórico, solo
   // decide si la tarjeta se muestra.
-  const showDeudasCard = pendingDebtSummary.loading || pendingDebtSummary.total > 0;
+  const showDeudasCard = !pendingDebtSummary.loading && pendingDebtSummary.total > 0;
 
   return (
     <>
@@ -12004,11 +12007,9 @@ function FacturacionPanel({
             anteriores). Clic abre directo "Cobrar pendiente". Si no hay
             ninguna deuda activa (total=0) la tarjeta se oculta del todo en
             vez de mostrar "$0" — vuelve a aparecer sola apenas se registre
-            una venta con saldo. Mientras todavía está cargando se muestra
-            igual (con su propio esqueleto, ver FacturacionStatCard) para
-            no parpadear oculta→visible en cada carga de página si resulta
-            que sí hay deuda. No toca pendingDebtSummary.total en sí, solo
-            decide si la tarjeta se pinta. */}
+            una venta con saldo. Mientras todavía está cargando tampoco se
+            muestra (ver showDeudasCard). No toca pendingDebtSummary.total
+            en sí, solo decide si la tarjeta se pinta. */}
         {showDeudasCard && (
           <FacturacionStatCard
             icon={Clock}
