@@ -156,6 +156,13 @@ export type HistorialPresentismoRow = {
   confirmedByName: string;
   confirmedAt: string;
   settlementRunId: string | null;
+  // Tipo de la regla de tardanza que originó el descuento ("percent" o
+  // "fixed"). Un descuento por porcentaje se muestra repartido en cada
+  // servicio del día; uno fijo, como una fila propia (igual que un adelanto).
+  // Opcional: quien no lo informe se muestra siempre como fila propia.
+  ruleType?: string | null;
+  // Regla de tardanza con la que se calculó (para pedir el desglose por venta).
+  ruleId?: string | null;
 };
 
 export type MovimientoPresentismo = {

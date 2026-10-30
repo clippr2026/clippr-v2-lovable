@@ -25,8 +25,11 @@ import {
 // Concepto | Precio | Comisión | Presentismo | Propina | Medio de pago.
 // "Presentismo" se agregó inmediatamente después de "Comisión" (único
 // requisito explícito) sin reordenar las demás columnas ya existentes.
+// La 8ª celda (Medio de pago) lleva un poco de aire a la izquierda: Propina
+// va alineada a la derecha y Medio de pago a la izquierda, y sin esto el
+// título "PROPINA" quedaba pegado a "MEDIO DE PAGO".
 export const LIQ_GRID_COLS =
-  "grid-cols-[116px_minmax(100px,1fr)_minmax(130px,1.1fr)_100px_100px_100px_100px_minmax(90px,1fr)]";
+  "grid-cols-[116px_minmax(100px,1fr)_minmax(130px,1.1fr)_100px_100px_100px_100px_minmax(90px,1fr)] [&>*:nth-child(8)]:pl-4";
 
 export function UnifiedMovimientosHeader() {
   return (
@@ -41,7 +44,7 @@ export function UnifiedMovimientosHeader() {
       <div>Concepto</div>
       <div className="text-right">Precio</div>
       <div className="text-right">Comisión</div>
-      <div className="text-right">Presentismo</div>
+      <div className="text-right">Puntualidad</div>
       <div className="text-right">Propina</div>
       <div>Medio de pago</div>
     </div>
@@ -272,10 +275,23 @@ function PaymentHistoryPanel({ paymentId }: { paymentId: string }) {
 export function VentaRow({
   c,
   commissionsMap,
+  presentismoDescuento,
 }: {
   c: any;
   commissionsMap?: EmployeeCommissionMap | null;
+  // Parte de este servicio del descuento de presentismo del día, cuando la
+  // regla es por porcentaje (positivo = descuento, negativo = a favor).
+  // undefined = este servicio no lleva presentismo propio.
+  presentismoDescuento?: number;
 }) {
+  const presentismoVenta =
+    presentismoDescuento === undefined || presentismoDescuento === 0
+      ? null
+      : {
+          text:
+            presentismoDescuento > 0 ? `-${money(presentismoDescuento)}` : `+${money(-presentismoDescuento)}`,
+          className: presentismoDescuento > 0 ? "text-rose-300" : "text-emerald-300",
+        };
   const [expanded, setExpanded] = React.useState(false);
   const sale = c.sale ?? {};
   // resolveVentaDate: payments.created_at (== charged_at) siempre antes que
@@ -506,10 +522,13 @@ export function VentaRow({
             )}
           </div>
         </div>
-        {/* Presentismo no es por venta — vive aparte, en su propia fila
-            diaria (ver kind:"presentismo" en MovRow/historial-movimientos.ts),
-            nunca repetido acá para no duplicar el descuento visualmente. */}
-        <div className="text-right text-white/25">—</div>
+        {/* Presentismo por porcentaje: la parte de ESTE servicio del descuento
+            del día (ver presentismoRepartido en cash-register.tsx). Uno fijo
+            va en su propia fila diaria (kind:"presentismo"), no acá — nunca
+            las dos cosas, para no duplicar el descuento. */}
+        <div className={cn("text-right tabular-nums", presentismoVenta ? cn("font-semibold", presentismoVenta.className) : "text-white/25")}>
+          {presentismoVenta ? presentismoVenta.text : "—"}
+        </div>
         <div className={cn("text-right text-sm font-semibold tabular-nums", hasTip ? "text-emerald-300" : "text-white/25")}>
           {tipText}
         </div>
@@ -586,6 +605,11 @@ export function VentaRow({
             <div className="font-bold tabular-nums text-violet-300">
               Comisión{isRecovered ? " de este cobro" : ""}: {money(Number(c.pending_amount ?? c.amount ?? 0))}
             </div>
+            {presentismoVenta && (
+              <div className={cn("text-xs font-semibold tabular-nums", presentismoVenta.className)}>
+                Puntualidad {presentismoVenta.text}
+              </div>
+            )}
             <div className="text-white/60">{method}</div>
             {hasTip && (
               <div className="text-sm font-semibold tabular-nums text-emerald-300">

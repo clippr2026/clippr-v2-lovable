@@ -1,4 +1,5 @@
 import * as React from "react";
+import { puntualidadMessage } from "@/lib/puntualidad-text";
 import { Clock3, Plus, Trash2, Loader2, History } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -108,7 +109,7 @@ export function ReglasTardanzaSection() {
                   <div className="text-sm text-foreground">
                     Desde {r.min_minutes} min →{" "}
                     <span className="font-semibold">
-                      {r.discount_type === "percent" ? `${r.discount_value}%` : `$${r.discount_value.toLocaleString("es-AR")}`}
+                      {r.discount_type === "percent" ? `−${r.discount_value} pts de comisión` : `$${r.discount_value.toLocaleString("es-AR")}`}
                     </span>
                   </div>
                 </div>
@@ -146,11 +147,11 @@ export function ReglasTardanzaSection() {
                 value={form.discountType}
                 onChange={(e) => setForm((f) => ({ ...f, discountType: e.target.value as "percent" | "fixed" }))}
               >
-                <option value="percent">Porcentaje de la comisión de SERVICIOS del día</option>
+                <option value="percent">Puntos porcentuales menos en la tasa de comisión de cada servicio</option>
                 <option value="fixed">Monto fijo</option>
               </select>
             </Field>
-            <Field label={form.discountType === "percent" ? "Porcentaje (%)" : "Monto ($)"}>
+            <Field label={form.discountType === "percent" ? "Puntos a restar (ej. 10 = 45% pasa a 35%)" : "Monto ($)"}>
               <input
                 type="number"
                 min={0}
@@ -240,7 +241,7 @@ function PresentismoAjustesHistorial({ rules }: { rules: LatenessRule[] }) {
         );
       } catch (e) {
         if (!cancelled) {
-          toast.error("Error cargando historial de presentismo: " + (e as Error).message);
+          toast.error("Error cargando historial de puntualidad: " + puntualidadMessage((e as Error).message));
           setRows([]);
         }
       } finally {
@@ -257,11 +258,11 @@ function PresentismoAjustesHistorial({ rules }: { rules: LatenessRule[] }) {
     if (!ruleId) return "—";
     const r = rules.find((x) => x.id === ruleId);
     if (!r) return "—";
-    return `Desde ${r.min_minutes} min → ${r.discount_type === "percent" ? `${r.discount_value}%` : money(Number(r.discount_value))}`;
+    return `Desde ${r.min_minutes} min → ${r.discount_type === "percent" ? `−${r.discount_value} pts de comisión` : money(Number(r.discount_value))}`;
   }
 
   return (
-    <SectionCard label="Historial de ajustes manuales de presentismo">
+    <SectionCard label="Historial de ajustes manuales de puntualidad">
       {!activeBranchId ? (
         <div className="text-sm text-muted-foreground">Elegí una sucursal para ver su historial.</div>
       ) : loading || rows === null ? (
@@ -269,7 +270,7 @@ function PresentismoAjustesHistorial({ rules }: { rules: LatenessRule[] }) {
           <Loader2 className="size-4 animate-spin" /> Cargando…
         </div>
       ) : rows.length === 0 ? (
-        <div className="text-sm text-muted-foreground">Todavía no se registró ninguna confirmación o corrección de presentismo.</div>
+        <div className="text-sm text-muted-foreground">Todavía no se registró ninguna confirmación o corrección de puntualidad.</div>
       ) : (
         <div className="space-y-2">
           {rows.map((r) => (

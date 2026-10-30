@@ -46,6 +46,9 @@ import {
   pagoRowColor,
 } from "@/lib/caja-cierre";
 import { SaldoComposicionLado, SaldoComposicionModal } from "@/components/caja/saldo-composicion";
+import { puntualidadMessage } from "@/lib/puntualidad-text";
+import { allocateProportional, hasCatalogItems, serviceCommissionOf } from "@/lib/lateness-penalty";
+import { getPenaltyBreakdown } from "@/lib/presentismo";
 import { PresentismoRevisionPanel } from "@/components/professionals/presentismo-revision-panel";
 import { getPendingCierresInPeriod } from "@/lib/presentismo";
 import { useCashMovements, type CashMovement } from "@/hooks/use-cash-movements";
@@ -4068,14 +4071,29 @@ function ProfesionalesTab({
           supabase
             .from("attendance_confirmations" as any)
             .select(
-              "id,employee_id,date,status,expected_start_at,effective_clock_in_at,late_minutes,discount_amount_applied,penalty_overridden,confirmed_by_name,confirmed_at,settlement_run_id",
+              "id,employee_id,date,status,expected_start_at,effective_clock_in_at,late_minutes,discount_amount_applied,penalty_overridden,confirmed_by_name,confirmed_at,settlement_run_id,rule_id",
             )
             .eq("business_id", businessId)
             .order("date", { ascending: true })
             .range(from, to),
         );
+        // Tipo (porcentaje/fijo) de la regla de cada confirmación: decide si
+        // el descuento se reparte en los servicios del día o va en una fila
+        // propia. Si no se puede leer, queda sin tipo y se muestra como fila
+        // propia (el comportamiento de siempre).
+        const { data: ruleRows } = await supabase.from("lateness_rules" as any).select("id,discount_type");
+        const ruleTypeById = new Map(
+          ((ruleRows ?? []) as any[]).map((r) => [String(r.id), String(r.discount_type)]),
+        );
         if (!cancelled) {
-          setAllPresentismo([...rows].sort((a: any, b: any) => String(b.date ?? "").localeCompare(String(a.date ?? ""))));
+          setAllPresentismo(
+            [...rows]
+              .map((r: any) => ({
+                ...r,
+                rule_type: r.rule_id ? (ruleTypeById.get(String(r.rule_id)) ?? null) : null,
+              }))
+              .sort((a: any, b: any) => String(b.date ?? "").localeCompare(String(a.date ?? ""))),
+          );
         }
       } catch (e) {
         if (!cancelled) setAllPresentismo([]);
@@ -4314,7 +4332,7 @@ function ProfesionalesTab({
       // por la fecha real es seguro en volumen.
       const { data: commissionRows, error } = await supabase
         .from("commission_records" as any)
-        .select("id,amount,pending_amount,commission_pct,sale_date,created_at,status,sale_id,professional_id")
+        .select("id,amount,amount_services,pending_amount,commission_pct,sale_date,created_at,status,sale_id,professional_id")
         .eq("business_id", businessId)
         .eq("professional_id", professionalId)
         .is("settlement_run_id", null)
@@ -4664,6 +4682,8 @@ function ProfesionalesTab({
             confirmedByName: p.confirmed_by_name,
             confirmedAt: p.confirmed_at,
             settlementRunId: p.settlement_run_id ?? null,
+            ruleType: p.rule_type ?? null,
+            ruleId: p.rule_id ?? null,
           }),
         ),
     [selectedPresentismo, closedRunIds, liquidarCutoffAt],
@@ -4674,9 +4694,79 @@ function ProfesionalesTab({
   // card), adelantos, ajustes, deducciones y presentismo, mezclados y
   // ordenados por fecha — ya sin nada de liquidaciones cerradas (ver
   // closedRunIds arriba).
+  // Puntualidad por porcentaje (puntos de comisión): el descuento de la jornada
+  // se muestra repartido en cada servicio de ESE día, en la columna
+  // Puntualidad, sin fila aparte. Uno fijo (o sin servicios que repartir)
+  // queda como fila propia, igual que un adelanto. El reparto usa la
+  // penalización REAL de cada venta que calcula el servidor (tasa propia de su
+  // servicio; el catálogo y los servicios de importe fijo dan 0); si esa
+  // función todavía no existe, se reparte proporcional a la comisión de
+  // servicios. En ambos casos lo repartido suma exacto el descuento total.
+  const [desglosesPenalizacion, setDesglosesPenalizacion] = React.useState<Record<string, Record<string, number>>>({});
+  React.useEffect(() => {
+    let cancelled = false;
+    const pendientes = openPresentismo.filter(
+      (p) => p.ruleType === "percent" && p.discountAmountApplied !== 0 && p.ruleId,
+    );
+    if (pendientes.length === 0) {
+      setDesglosesPenalizacion({});
+      return;
+    }
+    (async () => {
+      const pares = await Promise.all(
+        pendientes.map(async (p) => [p.id, await getPenaltyBreakdown(p.professionalId, p.date, p.ruleId as string)] as const),
+      );
+      if (cancelled) return;
+      setDesglosesPenalizacion(
+        Object.fromEntries(pares.filter(([, m]) => m).map(([id, m]) => [id, Object.fromEntries(m as Map<string, number>)])),
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [openPresentismo]);
+
+  const presentismoRepartido = React.useMemo(() => {
+    // Respaldo: solo servicios — una venta de catálogo (producto) nunca lleva
+    // descuento por puntualidad, ni se le reparte parte de él.
+    const baseServicio = (c: any) =>
+      serviceCommissionOf({
+        amount: c.amount,
+        amount_services: c.amount_services,
+        hasCatalogItems: hasCatalogItems(c.sale?.items),
+      });
+    const porVenta = new Map<string, number>();
+    const repartidos = new Set<string>();
+    for (const p of openPresentismo) {
+      if (p.ruleType !== "percent" || p.discountAmountApplied === 0) continue;
+      const delDia = (detailRows ?? []).filter(
+        (c: any) => !c.__recovered && String(c.sale_date ?? "").slice(0, 10) === p.date,
+      );
+      const real = desglosesPenalizacion[p.id];
+      const pesosReales = real ? delDia.map((c: any) => real[String(c.id)] ?? 0) : null;
+      const usaReal = Boolean(pesosReales && pesosReales.some((w) => w > 0));
+      // Con el desglose del servidor: solo las ventas con penalización real
+      // (> 0). Con el respaldo: las ventas con comisión de servicios.
+      const filas = delDia.filter((c: any, i: number) => (usaReal ? (pesosReales as number[])[i] > 0 : baseServicio(c) > 0));
+      if (filas.length === 0) continue;
+      const pesos = filas.map((c: any) => (usaReal ? (real as Record<string, number>)[String(c.id)] : baseServicio(c)));
+      const partes = allocateProportional(p.discountAmountApplied, pesos);
+      filas.forEach((c: any, i: number) => porVenta.set(String(c.id), partes[i]));
+      repartidos.add(p.id);
+    }
+    return { porVenta, repartidos };
+  }, [openPresentismo, detailRows, desglosesPenalizacion]);
+
   const historialItems = React.useMemo(
-    () => buildHistorialMovimientos(openRunPayments, openAdvances, openRuns, openVentasAnuladas, openPresentismo),
-    [openRunPayments, openAdvances, openRuns, openVentasAnuladas, openPresentismo],
+    () =>
+      buildHistorialMovimientos(
+        openRunPayments,
+        openAdvances,
+        openRuns,
+        openVentasAnuladas,
+        openPresentismo.filter((p) => !presentismoRepartido.repartidos.has(p.id)),
+      ),
+    [openRunPayments, openAdvances, openRuns, openVentasAnuladas, openPresentismo, presentismoRepartido],
   );
 
   // Lista única de Liquidaciones: ventas con comisión (detailRows) +
@@ -5295,7 +5385,7 @@ function ProfesionalesTab({
                   (tardanzas); negativo = ajuste a favor neto. */}
               {liquidarPendingPresentismo !== 0 && (
                 <StatCard
-                  label="Presentismo"
+                  label="Puntualidad"
                   value={
                     liquidarPendingPresentismo > 0
                       ? `−${money(liquidarPendingPresentismo)}`
@@ -5499,6 +5589,7 @@ function ProfesionalesTab({
                           key={`venta-${item.commission.id}`}
                           c={item.commission}
                           commissionsMap={data.employeeCommissions}
+                          presentismoDescuento={presentismoRepartido.porVenta.get(String(item.commission.id))}
                         />
                       );
                     }
@@ -5605,10 +5696,11 @@ function ProfesionalesTab({
                         <MovRow
                           key={`presentismo-${p.id}`}
                           dateTime={dateTime}
-                          concepto={`Presentismo · ${statusLabel}${p.penaltyOverridden ? " (ajustado)" : ""}`}
+                          concepto={`Puntualidad · ${statusLabel}${p.penaltyOverridden ? " (ajustado)" : ""}`}
                           precioText="—"
                           presentismoText={presentismoText}
                           presentismoClass={presentismoClass}
+                          redStripe={amount > 0}
                           detalle={`Llegó ${llegada} · Confirmado por ${displayResponsable(p.confirmedByName)}`}
                           expanded={isExpanded}
                           onToggle={() => setHistorialDetailPresentismo(isExpanded ? null : p)}
@@ -7780,7 +7872,7 @@ function CierreCajaBtn({
         if (!cancelled) setPreview(result);
       })
       .catch((e) => {
-        if (!cancelled) toast.error((e as Error).message || "No se pudo calcular el cierre.");
+        if (!cancelled) toast.error(puntualidadMessage((e as Error).message) || "No se pudo calcular el cierre.");
       })
       .finally(() => {
         if (!cancelled) setLoadingPreview(false);
@@ -7851,7 +7943,7 @@ function CierreCajaBtn({
       setPreview(null);
       onCajaCerrada(); // ← bloquea la pantalla inmediatamente
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(puntualidadMessage((e as Error).message));
     } finally {
       setSaving(false);
     }
@@ -7909,7 +8001,7 @@ function CierreCajaBtn({
                   {businessId && branchId && (
                     <div className="rounded-xl bg-white/[0.02] p-3.5 ring-1 ring-white/10">
                       <div className="mb-3 flex items-center justify-between gap-2">
-                        <p className="text-sm font-semibold text-foreground">Presentismo del día</p>
+                        <p className="text-sm font-semibold text-foreground">Puntualidad del día</p>
                         {presentismoPending === null ? (
                           <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground ring-1 ring-white/10">
                             Verificando…
@@ -7967,9 +8059,9 @@ function CierreCajaBtn({
                       obsRequeridaFalta
                         ? "Contá qué pasó con la diferencia antes de continuar"
                         : presentismoPending === null
-                          ? "Verificando presentismo…"
+                          ? "Verificando puntualidad…"
                           : presentismoPending.length > 0
-                            ? "Confirmá el presentismo pendiente antes de continuar"
+                            ? "Confirmá la puntualidad pendiente antes de continuar"
                             : undefined
                     }
                     className="w-full inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold bg-gradient-to-b from-blue-400 to-violet-500 text-white hover:brightness-105 disabled:opacity-50 transition-all"
@@ -8055,7 +8147,7 @@ function CerrarDiaAnteriorCard({
       const result = await buildSingleDayCierrePreview(businessId, branchId, date);
       setPreview(result);
     } catch (e) {
-      toast.error((e as Error).message || "No se pudo calcular la vista previa.");
+      toast.error(puntualidadMessage((e as Error).message) || "No se pudo calcular la vista previa.");
     } finally {
       setLoadingPreview(false);
     }
@@ -8160,7 +8252,7 @@ function CerrarDiaAnteriorCard({
         toast.error("No se pudo guardar el cierre.");
       }
     } catch (e) {
-      toast.error((e as Error).message || "No se pudo cerrar ese día.");
+      toast.error(puntualidadMessage((e as Error).message) || "No se pudo cerrar ese día.");
     } finally {
       setConfirming(false);
     }

@@ -682,7 +682,7 @@ export function PresentismoDetalleContent({
   return (
     <div className={cn("overflow-hidden rounded-2xl border text-sm", borderTone, bgTone)}>
       <div className="flex items-center justify-between px-3.5 py-2.5">
-        <span className="text-sm font-bold text-white">Presentismo</span>
+        <span className="text-sm font-bold text-white">Puntualidad</span>
         <span className={cn("rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider ring-1", statusClass)}>
           {statusLabel}
         </span>

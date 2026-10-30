@@ -102,7 +102,7 @@ export function MovimientoCard({
       const statusLabel =
         item.data.status === "a_tiempo" ? "A tiempo" : item.data.status === "tarde" ? "Tarde" : "Ausente";
       tone = item.data.discountAmountApplied > 0 ? "rose" : "emerald";
-      label = `Presentismo · ${statusLabel}`;
+      label = `Puntualidad · ${statusLabel}`;
       sign = item.data.discountAmountApplied === 0 ? "" : item.data.discountAmountApplied > 0 ? "−" : "+";
       amount = Math.abs(item.data.discountAmountApplied);
       at = item.at ?? null;
@@ -369,7 +369,7 @@ export function MovimientoCard({
                 : "text-emerald-300 bg-emerald-400/10 ring-emerald-400/20",
             )}
           >
-            Presentismo · {statusLabel}
+            Puntualidad · {statusLabel}
           </span>
         </div>
         <div className="mt-3 space-y-1 text-xs">

@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { puntualidadMessage } from "@/lib/puntualidad-text";
 
 // Presentismo — confirmación administrativa de asistencia por profesional
 // programado/jornada, con descuento de tardanza recalculado server-side
@@ -65,7 +66,7 @@ export async function getScheduledProfessionalsForDate(
     p_branch_id: branchId,
     p_date: date,
   });
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(puntualidadMessage(error.message));
   return ((data ?? []) as any[]).map((r) => ({
     employeeId: r.employee_id as string,
     expectedStartAt: (r.expected_start_at as string | null) ?? null,
@@ -84,7 +85,7 @@ export async function previewAttendance(
     p_branch_id: branchId,
     p_date: date,
   });
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(puntualidadMessage(error.message));
   const row = Array.isArray(data) ? data[0] : data;
   if (!row) return null;
   return {
@@ -99,6 +100,58 @@ export async function previewAttendance(
   };
 }
 
+// Igual que previewAttendance pero con una hora de llegada corregida: el
+// servidor calcula estado, minutos, regla y penalización con ESA hora, así
+// la pantalla muestra el resultado real antes de guardar, sin repetir la
+// cuenta. Devuelve null si la función todavía no existe en la base (la
+// pantalla entonces muestra solo estado y minutos, sin importe).
+export async function previewAttendanceAt(
+  businessId: string,
+  employeeId: string,
+  branchId: string,
+  date: string,
+  correctedClockInAt: string,
+): Promise<AttendancePreview | null> {
+  const { data, error } = await supabase.rpc("preview_attendance_at" as any, {
+    p_business_id: businessId,
+    p_employee_id: employeeId,
+    p_branch_id: branchId,
+    p_date: date,
+    p_corrected_clock_in_at: correctedClockInAt,
+  });
+  if (error) return null;
+  const row = Array.isArray(data) ? data[0] : data;
+  if (!row) return null;
+  return {
+    workSessionId: row.work_session_id ?? null,
+    expectedStartAt: row.expected_start_at ?? null,
+    effectiveClockInAt: row.effective_clock_in_at ?? null,
+    lateMinutes: Number(row.late_minutes ?? 0),
+    status: (row.status as AttendanceStatus | null) ?? null,
+    ruleId: row.rule_id ?? null,
+    commissionServicesAvailable: Number(row.commission_services_available ?? 0),
+    discountAmountRequested: Number(row.discount_amount_requested ?? 0),
+  };
+}
+
+// Penalización de cada venta de una jornada con la regla indicada, tal como la
+// calcula el servidor (tasa propia de cada servicio; el catálogo y los
+// servicios de importe fijo dan 0). Mapa id de comisión -> importe. null si la
+// función todavía no existe: el reparto por servicio usa entonces un respaldo.
+export async function getPenaltyBreakdown(
+  employeeId: string,
+  date: string,
+  ruleId: string,
+): Promise<Map<string, number> | null> {
+  const { data, error } = await supabase.rpc("attendance_penalty_breakdown" as any, {
+    p_employee_id: employeeId,
+    p_date: date,
+    p_rule_id: ruleId,
+  });
+  if (error) return null;
+  return new Map(((data ?? []) as any[]).map((r) => [String(r.commission_record_id), Number(r.penalty ?? 0)]));
+}
+
 export async function getAttendanceConfirmationsForDate(
   businessId: string,
   branchId: string,
@@ -110,7 +163,7 @@ export async function getAttendanceConfirmationsForDate(
     .eq("business_id", businessId)
     .eq("branch_id", branchId)
     .eq("date", date);
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(puntualidadMessage(error.message));
   return ((data ?? []) as any[]).map(mapConfirmationRow);
 }
 
@@ -161,7 +214,7 @@ export async function confirmAttendance(params: {
     p_confirmed_by: params.confirmedBy,
     p_confirmed_by_name: params.confirmedByName,
   });
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(puntualidadMessage(error.message));
   const row = Array.isArray(data) ? data[0] : data;
   return mapConfirmationRow(row);
 }
@@ -178,7 +231,7 @@ export async function getPendingCierresInPeriod(
     p_from: from,
     p_to: to,
   });
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(puntualidadMessage(error.message));
   return ((data ?? []) as any[]).map((r) => r.fecha as string);
 }
 
@@ -221,7 +274,7 @@ export async function getAttendanceAdjustments(
     .limit(limit);
   if (branchId) query = query.eq("branch_id", branchId);
   const { data, error } = await query;
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(puntualidadMessage(error.message));
   return ((data ?? []) as any[]).map((r) => ({
     id: r.id,
     businessId: r.business_id,
@@ -255,6 +308,6 @@ export async function isCajaClosedNow(
     p_branch_id: branchId,
     p_fecha: fecha,
   });
-  if (error) throw new Error(error.message);
+  if (error) throw new Error(puntualidadMessage(error.message));
   return Boolean(data);
 }

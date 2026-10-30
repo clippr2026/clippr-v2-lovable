@@ -2526,7 +2526,7 @@ function LiquidacionesPanelView({
       )}
       {pendingPresentismo !== 0 && (
         <StatCard
-          label="Presentismo"
+          label="Puntualidad"
           value={pendingPresentismo > 0 ? `−${money(pendingPresentismo)}` : `+${money(-pendingPresentismo)}`}
           tone={pendingPresentismo > 0 ? "rose" : "green"}
         />
@@ -2800,7 +2800,7 @@ function LiquidacionesPanelView({
                 <MovRow
                   key={`presentismo-${p.id}`}
                   dateTime={dateTime}
-                  concepto={`Presentismo · ${statusLabel}${p.penaltyOverridden ? " (ajustado)" : ""}`}
+                  concepto={`Puntualidad · ${statusLabel}${p.penaltyOverridden ? " (ajustado)" : ""}`}
                   precioText="—"
                   presentismoText={presentismoText}
                   presentismoClass={presentismoClass}

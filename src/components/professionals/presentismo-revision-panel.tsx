@@ -2,11 +2,14 @@ import * as React from "react";
 import { toast } from "sonner";
 import { Check, Clock3, Loader2, Pencil, UserX, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { puntualidadMessage } from "@/lib/puntualidad-text";
+import { latenessMinutes, pickLatenessRule } from "@/lib/lateness-penalty";
 import {
   confirmAttendance,
   getAttendanceConfirmationsForDate,
   getScheduledProfessionalsForDate,
   previewAttendance,
+  previewAttendanceAt,
   type AttendanceAction,
   type AttendanceConfirmation,
   type AttendancePreview,
@@ -113,9 +116,15 @@ export function PresentismoRevisionPanel({
   const [correctedTime, setCorrectedTime] = React.useState("");
   const [penaltyChoice, setPenaltyChoice] = React.useState<"aplicar" | "anular" | null>(null);
   const [saving, setSaving] = React.useState(false);
-  // Comisión de servicios del día de quien se está editando: hace falta para
-  // mostrar cuánto sería la penalización mientras se escribe una hora nueva.
-  const [editServices, setEditServices] = React.useState<number | null>(null);
+  // Resultado REAL (calculado por el servidor, preview_attendance_at) de la hora
+  // que se está escribiendo. `key` evita mostrar el de una hora anterior.
+  const [livePreview, setLivePreview] = React.useState<{
+    key: string;
+    lateMinutes: number;
+    status: "tarde" | "a_tiempo";
+    ruleId: string | null;
+    discount: number;
+  } | null>(null);
 
   const load = React.useCallback(async () => {
     setLoading(true);
@@ -153,7 +162,7 @@ export function PresentismoRevisionPanel({
       // va confirmando de a uno.
       onPendingChange?.(built.filter((r) => !r.confirmation).map((r) => r.name));
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(puntualidadMessage((e as Error).message));
       setRows([]);
     } finally {
       setLoading(false);
@@ -165,11 +174,38 @@ export function PresentismoRevisionPanel({
     load();
   }, [load]);
 
+  // Consulta al servidor el resultado de la hora que se está escribiendo.
+  React.useEffect(() => {
+    if (!actionFor || actionFor.action !== "correct_time" || !correctedTime) {
+      setLivePreview(null);
+      return;
+    }
+    const employeeId = actionFor.employeeId;
+    const key = `${employeeId}|${correctedTime}`;
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      const iso = new Date(`${date}T${correctedTime}:00.000-03:00`).toISOString();
+      const p = await previewAttendanceAt(businessId, employeeId, branchId, date, iso);
+      if (cancelled || !p) return;
+      setLivePreview({
+        key,
+        lateMinutes: p.lateMinutes,
+        status: p.status === "tarde" ? "tarde" : "a_tiempo",
+        ruleId: p.ruleId,
+        discount: p.discountAmountRequested,
+      });
+    }, 250);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [actionFor, correctedTime, businessId, branchId, date]);
+
   function ruleLabel(ruleId: string | null) {
     if (!ruleId) return "—";
     const r = rules.find((x) => x.id === ruleId);
     if (!r) return "—";
-    return `Desde ${r.min_minutes} min → ${r.discount_type === "percent" ? `${r.discount_value}%` : money(Number(r.discount_value))}`;
+    return `Desde ${r.min_minutes} min → ${r.discount_type === "percent" ? `−${r.discount_value} pts de comisión` : money(Number(r.discount_value))}`;
   }
 
   function startAction(employeeId: string, action: AttendanceAction) {
@@ -179,34 +215,27 @@ export function PresentismoRevisionPanel({
     const currentClockIn = row?.confirmation?.effectiveClockInAt ?? row?.preview?.effectiveClockInAt ?? null;
     setCorrectedTime(action === "correct_time" ? horaBuenosAires(currentClockIn) : "");
     setPenaltyChoice(null);
-    setEditServices(row?.preview?.commissionServicesAvailable ?? row?.confirmation?.commissionServicesAvailable ?? null);
   }
 
-  // Estado y penalización que daría una hora de llegada corregida — la misma
-  // fórmula que _compute_attendance (tarde = pasa del horario programado;
-  // regla = la de mayor min_minutes alcanzado; tope = comisión de servicios).
+  // Vista previa de una hora de llegada corregida. La penalización la calcula
+  // el SERVIDOR (preview_attendance_at): la misma cuenta que se guarda al
+  // confirmar, con la tasa propia de cada servicio. Mientras llega la
+  // respuesta (o si esa función todavía no existe en la base) se muestran
+  // estado y minutos calculados acá, sin importe (discount = null).
   function liveFor(row: Row, time: string) {
     if (!time || !row.expectedStartAt) return null;
     const iso = `${date}T${time}:00.000-03:00`;
-    const diff = new Date(iso).getTime() - new Date(row.expectedStartAt).getTime();
-    const lateMinutes = Math.max(0, Math.round(diff / 60000));
-    const rule =
-      lateMinutes > 0
-        ? [...rules].filter((r) => r.min_minutes <= lateMinutes).sort((a, b) => b.min_minutes - a.min_minutes)[0] ?? null
-        : null;
-    const services = editServices ?? 0;
-    let discount = !rule
-      ? 0
-      : rule.discount_type === "fixed"
-        ? Math.round(Number(rule.discount_value))
-        : Math.round((services * Number(rule.discount_value)) / 100);
-    discount = Math.max(0, Math.min(discount, services));
+    if (livePreview && livePreview.key === `${row.employeeId}|${time}`) {
+      return { iso, lateMinutes: livePreview.lateMinutes, status: livePreview.status, ruleId: livePreview.ruleId, discount: livePreview.discount as number | null };
+    }
+    const lateMinutes = latenessMinutes(row.expectedStartAt, iso);
+    const rule = pickLatenessRule(rules, lateMinutes);
     return {
       iso,
       lateMinutes,
       status: (lateMinutes > 0 ? "tarde" : "a_tiempo") as "tarde" | "a_tiempo",
       ruleId: rule?.id ?? null,
-      discount,
+      discount: null as number | null,
     };
   }
 
@@ -264,11 +293,11 @@ export function PresentismoRevisionPanel({
           confirmedByName,
         });
       }
-      toast.success(`Presentismo de ${row.name} actualizado`);
+      toast.success(`Puntualidad de ${row.name} actualizada`);
       setActionFor(null);
       await load();
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(puntualidadMessage((e as Error).message));
     } finally {
       setSaving(false);
     }
@@ -292,11 +321,11 @@ export function PresentismoRevisionPanel({
         confirmedBy,
         confirmedByName,
       });
-      toast.success(`Presentismo de ${row.name} actualizado`);
+      toast.success(`Puntualidad de ${row.name} actualizada`);
       setActionFor(null);
       await load();
     } catch (e) {
-      toast.error((e as Error).message);
+      toast.error(puntualidadMessage((e as Error).message));
     } finally {
       setSaving(false);
     }
@@ -305,7 +334,7 @@ export function PresentismoRevisionPanel({
   if (loading || !rows) {
     return (
       <div className="flex items-center gap-2 py-8 justify-center text-sm text-muted-foreground">
-        <Loader2 className="size-4 animate-spin" /> Cargando presentismo…
+        <Loader2 className="size-4 animate-spin" /> Cargando puntualidad…
       </div>
     );
   }
@@ -341,7 +370,7 @@ export function PresentismoRevisionPanel({
         const shownStatus = live?.status ?? status;
         const shownLate = live ? live.lateMinutes : lateMinutes;
         const shownRuleId = live ? live.ruleId : ruleId;
-        const shownDiscount = live ? (live.ruleId && liveDecision === "aplicar" ? live.discount : 0) : discount;
+        const shownDiscount = live ? (live.ruleId && liveDecision === "aplicar" ? (live.discount ?? 0) : 0) : discount;
         const shownClockIn = live ? live.iso : effectiveClockIn;
 
         return (
@@ -415,7 +444,7 @@ export function PresentismoRevisionPanel({
                     {actionFor!.action === "mark_absent" && "Marcar ausente"}
                     {actionFor!.action === "correct_time" && "Corregir hora de llegada"}
                     {actionFor!.action === "override_penalty" && "Penalización"}
-                    {(actionFor!.action === "confirm_late" || actionFor!.action === "confirm_on_time") && "Confirmar presentismo"}
+                    {(actionFor!.action === "confirm_late" || actionFor!.action === "confirm_on_time") && "Confirmar puntualidad"}
                   </div>
                   <button type="button" onClick={() => setActionFor(null)} className="text-muted-foreground hover:text-foreground">
                     <X className="size-3.5" />
@@ -441,7 +470,7 @@ export function PresentismoRevisionPanel({
                       <>
                         <div className="text-xs text-muted-foreground">
                           Con esa hora llega {live.lateMinutes} min tarde. ¿Aplicar penalización
-                          {editServices !== null ? ` (${money(live.discount)})` : ""}?
+                          {live.discount !== null ? ` (${money(live.discount)})` : ""}?
                         </div>
                         <PenaltyChoice selected={liveDecision} onSelect={setPenaltyChoice} />
                       </>
