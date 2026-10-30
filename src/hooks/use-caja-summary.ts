@@ -313,7 +313,7 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     let expQuery = supabase
       .from("expenses")
       .select(
-        "id,name,amount,type,category,payment_method,date,note,created_at,user_id,user_name,user_email,created_by",
+        "id,name,amount,type,category,payment_method,funds_source,date,note,created_at,user_id,user_name,user_email,created_by",
       )
       .eq("business_id", businessId)
       .gte("date", newRangeStartDate)

@@ -667,7 +667,7 @@ export async function buildCierreSnapshotForDate(
   // intermedios, no solo el de apertura.
   let expQuery = supabase
     .from("expenses")
-    .select("id,name,amount,type,category,payment_method,date,note,created_at,user_name,created_by")
+    .select("id,name,amount,type,category,payment_method,funds_source,date,note,created_at,user_name,created_by")
     .eq("business_id", businessId)
     .gte("date", dateStr)
     .lte("date", endDateStr);
@@ -811,6 +811,7 @@ export async function buildCierreSnapshotForDate(
     }
   }
   for (const e of expenses) {
+    if (e.funds_source === "otros") continue; // Otros fondos: no mueve la plata de la caja
     ensure(e.payment_method ?? e.method).gastos += Number(e.amount ?? 0);
     ensureRecibido(e.payment_method ?? e.method).gastos += Number(e.amount ?? 0);
   }
@@ -905,6 +906,8 @@ export async function buildCierreSnapshotForDate(
       : null,
     nombre: e.name ?? e.concept ?? e.category ?? "Gasto",
     tipo: e.type ?? e.category ?? null,
+    categoria: e.category ?? null,
+    origen: (e.funds_source ?? null) as string | null,
     metodo: e.payment_method ?? e.method ?? null,
     monto: Number(e.amount ?? 0),
     nota: e.note ?? null,
@@ -1051,7 +1054,8 @@ export function computeExpectedCashAndDigital(params: {
     // realmente se cobró.
     status?: string | null;
   }>;
-  expenses: Array<{ amount?: number | null; payment_method?: string | null; method?: string | null }>;
+  // funds_source: 'otros' (Otros fondos: no toca la caja) | 'caja'/null (Caja del día).
+  expenses: Array<{ amount?: number | null; payment_method?: string | null; method?: string | null; funds_source?: string | null }>;
   // funds_source: 'caja' (sale de los fondos del negocio) | 'externo' (otro
   // bolsillo/cuenta: NO toca la caja) | null/undefined (adelanto histórico,
   // anterior al origen: se trata como siempre, como de la caja).
@@ -1098,10 +1102,13 @@ export function computeExpectedCashAndDigital(params: {
     else digitalPayments += amount;
   }
 
-  const cashExpenses = expenses
+  // Un gasto de OTROS FONDOS se registra y cuenta en reportes, pero no es plata de la
+  // caja: no baja el efectivo ni el dinero en cuenta esperados.
+  const cajaExpenses = expenses.filter((e) => e.funds_source !== "otros");
+  const cashExpenses = cajaExpenses
     .filter((e) => isCash(e.payment_method ?? e.method))
     .reduce((s, e) => s + Number(e.amount ?? 0), 0);
-  const digitalExpenses = expenses
+  const digitalExpenses = cajaExpenses
     .filter((e) => !isCash(e.payment_method ?? e.method))
     .reduce((s, e) => s + Number(e.amount ?? 0), 0);
 
@@ -1414,7 +1421,7 @@ export async function buildSingleDayCierrePreview(
       tip: c.propina,
       splits: c.splits as PaymentSplitRaw[] | null,
     })),
-    expenses: snapshot.gastosSnapshot.map((g) => ({ amount: g.monto, payment_method: g.metodo })),
+    expenses: snapshot.gastosSnapshot.map((g) => ({ amount: g.monto, payment_method: g.metodo, funds_source: g.origen })),
     advances,
     cashMovements,
   });

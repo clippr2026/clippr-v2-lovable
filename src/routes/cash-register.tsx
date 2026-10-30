@@ -54,6 +54,14 @@ import {
   advanceOriginLabel,
   type AdvanceFundsSource,
 } from "@/lib/advance-origin";
+import {
+  EXPENSE_KINDS,
+  expenseAffectsCaja,
+  expenseKindLabel,
+  expenseOriginLabel,
+  type ExpenseFundsSource,
+  type ExpenseKind,
+} from "@/lib/expense-origin";
 import { allocateProportional, hasCatalogItems, serviceCommissionOf } from "@/lib/lateness-penalty";
 import { getPenaltyBreakdown } from "@/lib/presentismo";
 import { PresentismoRevisionPanel } from "@/components/professionals/presentismo-revision-panel";
@@ -6286,35 +6294,18 @@ function NuevoGastoTab({
   onCancel: () => void;
   onSaved: () => void;
 }) {
-  const [form, setForm] = React.useState({
-    amount: "",
-    category: "",
-    method: "",
-    // "Descripción del gasto" — opcional, funciona como aclaración/nota.
-    // Reemplaza a los dos campos que había antes (nombre obligatorio +
-    // nota opcional aparte): quedaban duplicados, así que se unifican en
-    // uno solo.
-    description: "",
-  });
+  // Orden: tipo → nombre → monto → origen del dinero → medio de pago → nota
+  // (opcional). Tipo y nombre reemplazan a las categorías viejas (Alquiler,
+  // Insumos…), que siguen en los gastos históricos sin tocarse.
+  const [form, setForm] = React.useState<{
+    kind: ExpenseKind | "";
+    name: string;
+    amount: string;
+    source: ExpenseFundsSource;
+    method: "efectivo" | "transferencia";
+    note: string;
+  }>({ kind: "", name: "", amount: "", source: "caja", method: "efectivo", note: "" });
   const [saving, setSaving] = React.useState(false);
-  const GCATEGORIES = [
-    "Alquiler",
-    "Impuestos y servicios",
-    "Insumos",
-    "Mercadería",
-    "Profesionales",
-    "Mantenimiento",
-    "Marketing",
-    "Equipamiento",
-    "Otros",
-  ];
-  const GMETHODS = [
-    "efectivo",
-    "transferencia",
-    "débito",
-    "crédito",
-    "mercado pago",
-  ];
 
   async function saveGasto() {
     // Guarda contra doble clic/doble submit: el botón ya queda disabled
@@ -6322,43 +6313,53 @@ function NuevoGastoTab({
     // este chequeo corta un segundo click que entre antes de ese repaint.
     if (saving) return;
     const amount = parseFloat(form.amount);
-    if (!form.category) return toast.error("Elegí el tipo de gasto.");
+    const name = form.name.trim();
+    if (!form.kind) return toast.error("Elegí qué tipo de gasto es.");
+    if (!name) return toast.error("Escribí el nombre del gasto.");
     if (!amount || amount <= 0)
       return toast.error("El monto debe ser mayor a 0.");
-    if (!form.method) return toast.error("Seleccioná el método de pago.");
-    const description = form.description.trim();
     setSaving(true);
-    // El usuario que registra el gasto se sigue guardando internamente
-    // (user_name/created_by) para historial y auditoría, aunque ya no se
-    // muestre como campo en el formulario — no hace falta pedirlo, ya se
-    // sabe quién está cargando. Misma lógica para la fecha: se toma la
-    // fecha y hora actuales al momento de guardar, sin pedirla — created_at
-    // ya la registra con precisión de hora, "date" es solo el día para
-    // filtros/reportes. name (usado para mostrar el gasto en listados) sale
-    // de la descripción si se cargó algo, o del tipo de gasto si no.
+    // El usuario que registra el gasto se guarda internamente (user_name/
+    // created_by) para historial y auditoría; la fecha es la de hoy en
+    // Buenos Aires (cajaDateKeyBA, NO toISOString: un gasto cargado de noche
+    // quedaría con el día de mañana y invisible en la caja de hoy).
+    // funds_source: "caja" baja Efectivo/Dinero en cuenta del día y entra en
+    // el cierre; "otros" solo se registra el gasto (cuenta una vez en
+    // reportes) sin tocar la recaudación de hoy.
     const { error } = await supabase.from("expenses").insert({
       business_id: data.businessId,
       branch_id: data.activeBranchId,
-      name: description || form.category,
+      name,
       amount,
-      category: form.category,
-      payment_method: form.method || null,
-      // cajaDateKeyBA(), NO toISOString().slice(0,10): un gasto cargado de
-      // noche (21-23:59 ART) cae en 00:00-02:59 UTC del día siguiente —
-      // .toISOString() daba el día de MAÑANA en vez de hoy, así que el
-      // gasto quedaba invisible en "Gastos"/"Movimientos de caja" de hoy
-      // aunque sí se hubiera guardado.
+      type: form.kind,
+      payment_method: form.method,
+      funds_source: form.source,
       date: cajaDateKeyBA(),
-      note: description || null,
+      note: form.note.trim() || null,
       user_name: userEmail ?? "Caja",
       created_by: userEmail ?? "Caja",
     });
     setSaving(false);
     if (error) return toast.error("Error guardando gasto: " + error.message);
-    toast.success("✓ Gasto registrado");
+    toast.success(
+      form.source === "otros"
+        ? "✓ Gasto registrado con Otros fondos (no descuenta de la caja)"
+        : "✓ Gasto registrado",
+    );
     window.dispatchEvent(new CustomEvent("clippr:gasto-guardado"));
     onSaved();
   }
+
+  const optionBtn = (active: boolean) =>
+    cn(
+      "w-full rounded-xl border px-4 py-3 text-left transition",
+      active
+        ? "border-rose-300/60 bg-rose-400/10 text-foreground"
+        : "border-white/10 bg-white/[0.03] text-muted-foreground hover:bg-white/[0.06]",
+    );
+  const labelCls = "mb-1.5 block text-xs font-semibold text-muted-foreground";
+  const inputCls =
+    "w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-blue-300/50";
 
   return (
     <div className="animate-fade-up">
@@ -6368,59 +6369,109 @@ function NuevoGastoTab({
             Nuevo gasto
           </h3>
           <p className="mt-1 text-sm text-muted-foreground">
-            Registrá un egreso de caja.
+            Registrá los gastos de tu negocio de forma simple.
           </p>
         </div>
 
-        <div className="space-y-3">
-          {/* Orden: Tipo de gasto → Monto → Método de pago → Descripción
-              (opcional, al final, funciona como nota/aclaración). */}
-          <Select
-            value={form.category}
-            onValueChange={(v) => setForm((f) => ({ ...f, category: v }))}
-          >
-            <SelectTrigger className="h-auto w-full rounded-xl border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground focus:border-blue-300/50 focus:ring-0">
-              <SelectValue placeholder="Tipo de gasto *" />
-            </SelectTrigger>
-            <SelectContent>
-              {GCATEGORIES.map((c) => (
-                <SelectItem key={c} value={c}>
-                  {c}
-                </SelectItem>
+        <div className="space-y-4">
+          <div>
+            <span className={labelCls}>¿Qué tipo de gasto es?</span>
+            <div className="grid gap-2">
+              {EXPENSE_KINDS.map((k) => (
+                <button
+                  key={k.value}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, kind: k.value }))}
+                  className={optionBtn(form.kind === k.value)}
+                  aria-pressed={form.kind === k.value}
+                >
+                  <span className="block text-sm font-semibold">{k.label}</span>
+                  <span className="block text-xs text-muted-foreground">{k.hint}</span>
+                </button>
               ))}
-            </SelectContent>
-          </Select>
-          <input
-            value={form.amount}
-            onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
-            placeholder="Monto *"
-            type="number"
-            min={0}
-            className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-blue-300/50"
-          />
-          <Select
-            value={form.method}
-            onValueChange={(v) => setForm((f) => ({ ...f, method: v }))}
-          >
-            <SelectTrigger className="h-auto w-full rounded-xl border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground focus:border-blue-300/50 focus:ring-0">
-              <SelectValue placeholder="Método de pago *" />
-            </SelectTrigger>
-            <SelectContent>
-              {GMETHODS.map((m) => (
-                <SelectItem key={m} value={m}>
-                  {m.charAt(0).toUpperCase() + m.slice(1)}
-                </SelectItem>
+            </div>
+          </div>
+
+          <label className="block">
+            <span className={labelCls}>Nombre del gasto</span>
+            <input
+              value={form.name}
+              onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+              placeholder="Ej. Alquiler del local, Internet, Compra de productos"
+              maxLength={120}
+              className={inputCls}
+            />
+          </label>
+
+          <label className="block">
+            <span className={labelCls}>Monto</span>
+            <input
+              value={form.amount}
+              onChange={(e) => setForm((f) => ({ ...f, amount: e.target.value }))}
+              placeholder="$ 0"
+              type="number"
+              inputMode="decimal"
+              min={0}
+              className={inputCls}
+            />
+          </label>
+
+          <div>
+            <span className={labelCls}>Origen del dinero</span>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, source: "caja" }))}
+                className={optionBtn(form.source === "caja")}
+                aria-pressed={form.source === "caja"}
+              >
+                <span className="block text-sm font-semibold">Caja del día</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, source: "otros" }))}
+                className={optionBtn(form.source === "otros")}
+                aria-pressed={form.source === "otros"}
+              >
+                <span className="block text-sm font-semibold">Otros fondos</span>
+              </button>
+            </div>
+            <p className="mt-1.5 text-xs text-muted-foreground">
+              {form.source === "caja"
+                ? "Se descuenta del efectivo o del dinero en cuenta del día y entra en el cierre."
+                : "Se registra el gasto, pero no se descuenta de la recaudación de hoy ni entra en el cierre."}
+            </p>
+          </div>
+
+          <div>
+            <span className={labelCls}>Medio de pago</span>
+            <div className="grid grid-cols-2 gap-2">
+              {(["efectivo", "transferencia"] as const).map((m) => (
+                <button
+                  key={m}
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, method: m }))}
+                  className={optionBtn(form.method === m)}
+                  aria-pressed={form.method === m}
+                >
+                  <span className="block text-center text-sm font-semibold">
+                    {m === "efectivo" ? "Efectivo" : "Transferencia"}
+                  </span>
+                </button>
               ))}
-            </SelectContent>
-          </Select>
-          <input
-            value={form.description}
-            onChange={(e) =>
-              setForm((f) => ({ ...f, description: e.target.value }))
-            }
-            placeholder="Descripción del gasto (opcional)"
-            className="w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-blue-300/50"
-          />
+            </div>
+          </div>
+
+          <label className="block">
+            <span className={labelCls}>Nota (opcional)</span>
+            <textarea
+              value={form.note}
+              onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
+              placeholder="Agregá algún detalle..."
+              rows={2}
+              className={cn(inputCls, "resize-none")}
+            />
+          </label>
 
           <div className="flex gap-2 pt-1">
             <button
@@ -6434,7 +6485,7 @@ function NuevoGastoTab({
               type="button"
               onClick={saveGasto}
               disabled={saving}
-              className="flex-1 inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-rose-500 to-red-600 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-105 disabled:opacity-50"
+              className="flex-[2] inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-rose-500 to-red-600 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-105 disabled:opacity-50"
             >
               {saving ? (
                 <Loader2 className="size-4 animate-spin" />
@@ -7294,9 +7345,14 @@ function CierreMovimientosDetalleList({
                     <span className="font-bold text-rose-300">-{money(g.monto ?? 0)}</span>
                   </div>
                   <div className="mt-1 truncate text-white/45">
-                    {g.hora ?? "—"} · {paymentMethodLabel(g.metodo ?? "cash")}
+                    {g.hora ?? "—"} · {expenseKindLabel(g.tipo, g.categoria)} · {paymentMethodLabel(g.metodo ?? "cash")}
                     {g.usuario ? ` · ${g.usuario}` : ""}
                   </div>
+                  {!expenseAffectsCaja(g.origen) && (
+                    <div className="mt-1 text-[11px] font-semibold text-amber-300">
+                      Otros fondos — no incluido en el efectivo ni en el dinero en cuenta del cierre
+                    </div>
+                  )}
                 </div>
               ))
             )}
@@ -10873,6 +10929,11 @@ function formatArgHora(dt: Date) {
 // usaba cada historial por separado (getSaleDetailLabel, getChargedByLabel,
 // displayCashActor, displayResponsibleUser, etc.) — nada de lógica nueva de
 // quién hizo qué, solo de cómo se presenta.
+function expenseNoteExtra(e: { name?: string | null; note?: string | null }): string | null {
+  const note = e.note?.trim();
+  return note && note !== e.name?.trim() ? note : null;
+}
+
 function unifiedMovView(
   item: UnifiedMov,
   employees: ReturnType<typeof useCajaData>["employees"],
@@ -10917,9 +10978,12 @@ function unifiedMovView(
     const rawDate = e.date || (createdDate ? createdDate.toISOString().slice(0, 10) : "");
     const fecha = rawDate ? formatArgFecha(new Date(`${rawDate}T00:00:00`)) : "—";
     const hora = createdDate ? formatArgHora(createdDate) : "—";
-    const concepto = String(e.note?.trim() || e.name || "").trim();
+    // Nombre del gasto + tipo (Fijo/Variable/Ocasional) + origen del dinero. Los
+    // gastos históricos conservan su categoría vieja y no tienen origen (= Caja del día).
+    const concepto = String(e.name || e.note?.trim() || "").trim();
+    const otros = !expenseAffectsCaja(e.funds_source);
     return {
-      typeLabel: "Gasto",
+      typeLabel: otros ? "Gasto · Otros fondos" : "Gasto",
       fecha,
       hora,
       // "Cargó" — mismo verbo en pasado que el resto (Cobró/Ingresó/
@@ -10927,10 +10991,12 @@ function unifiedMovView(
       quien: `${displayCashActor(e)} → Cargó`,
       clienteOConcepto: concepto || "—",
       profesional: "—",
-      servicio: e.category ?? e.type ?? "—",
-      metodoLabel: paymentMethodLabel(e.payment_method ?? ""),
-      nota: null,
-      notaTitle: null,
+      servicio: expenseKindLabel(e.type, e.category),
+      metodoLabel: `${paymentMethodLabel(e.payment_method ?? "")} · ${expenseOriginLabel(e.funds_source)}`,
+      // La nota solo se ofrece si aporta algo distinto del nombre (los gastos
+      // históricos guardaban la misma descripción en name y note).
+      nota: expenseNoteExtra(e) ,
+      notaTitle: expenseNoteExtra(e) ? String(e.name) : null,
     };
   }
 
@@ -11031,6 +11097,11 @@ function UnifiedMovRow({
       <div className="text-muted-foreground truncate">{view.profesional}</div>
       <div className="min-w-0 truncate text-muted-foreground">
         <span>{view.servicio}</span>
+        {item.kind === "gasto" && !expenseAffectsCaja(item.expense?.funds_source) && (
+          <span className="ml-2 rounded-full bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300 ring-1 ring-amber-300/20">
+            Otros fondos
+          </span>
+        )}
         {view.nota && (
           <button
             type="button"
@@ -11497,6 +11568,7 @@ function MovimientosUnificados({
     // próxima vez que se abra, en vez de quedar pegado al último filtro
     // elegido.
     setSelectedProfessionalId(null);
+    setGastoOriginFilter("");
     setSelectedDateKey(cajaDateKeyBA());
   }
 
@@ -11642,11 +11714,21 @@ function MovimientosUnificados({
   // Filtra el listado del modal (no el acotado a 10 de abajo, que no tiene
   // selector) a la fecha elegida y, si hay uno, al profesional elegido —
   // los dos filtros se combinan, nunca uno pisa al otro.
+  // Filtro por origen del dinero: acota a los gastos de ese origen (Caja del día
+  // incluye los gastos históricos, que no tienen origen).
+  const [gastoOriginFilter, setGastoOriginFilter] = React.useState<"" | ExpenseFundsSource>("");
   const modalItems = React.useMemo(() => {
     const { start, end } = dayBoundsBA(selectedDateKey);
     const startMs = start.getTime();
     const endMs = end.getTime();
-    const byDate = all.filter((item) => item.ts >= startMs && item.ts <= endMs);
+    let byDate = all.filter((item) => item.ts >= startMs && item.ts <= endMs);
+    if (gastoOriginFilter) {
+      byDate = byDate.filter(
+        (item) =>
+          item.kind === "gasto" &&
+          expenseAffectsCaja(item.expense?.funds_source) === (gastoOriginFilter === "caja"),
+      );
+    }
     if (!selectedProfessionalId) return byDate;
     return byDate.filter(
       (item) =>
@@ -11654,7 +11736,7 @@ function MovimientosUnificados({
         (item.kind === "venta_pendiente" && item.venta?.employeeId === selectedProfessionalId) ||
         (item.kind === "adelanto" && item.advance?.professional_id === selectedProfessionalId),
     );
-  }, [all, selectedDateKey, selectedProfessionalId]);
+  }, [all, selectedDateKey, selectedProfessionalId, gastoOriginFilter]);
 
   return (
     <>
@@ -11811,6 +11893,16 @@ function MovimientosUnificados({
                       {p.name}
                     </option>
                   ))}
+                </select>
+                <select
+                  value={gastoOriginFilter}
+                  onChange={(e) => setGastoOriginFilter(e.target.value as "" | ExpenseFundsSource)}
+                  aria-label="Origen del dinero de los gastos"
+                  className="h-10 w-full shrink-0 rounded-xl bg-white/[0.05] ring-1 ring-white/10 px-3 text-sm text-white outline-none focus:ring-2 focus:ring-primary/50 sm:w-auto"
+                >
+                  <option value="">Todos los movimientos</option>
+                  <option value="caja">Gastos: Caja del día</option>
+                  <option value="otros">Gastos: Otros fondos</option>
                 </select>
               </div>
 

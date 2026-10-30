@@ -301,6 +301,8 @@ export type Expense = {
   type?: string | null;
   category: string | null;
   payment_method: string | null;
+  // 'caja' | 'otros' | null (histórico = Caja del día). Ver lib/expense-origin.ts.
+  funds_source?: string | null;
   date?: string | null;
   note?: string | null;
   created_at?: string | null;
@@ -693,7 +695,7 @@ export function useCajaData() {
     // hasta hoy, no solo "hoy" exacto.
     let expQuery = supabase
       .from("expenses")
-      .select("id,name,amount,type,category,payment_method,date,note,created_at,user_id,user_name,user_email,created_by")
+      .select("id,name,amount,type,category,payment_method,funds_source,date,note,created_at,user_id,user_name,user_email,created_by")
       .eq("business_id", businessId)
       .gte("date", rangeStartDate)
       .lte("date", dateStr);
