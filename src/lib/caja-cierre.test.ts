@@ -1293,25 +1293,27 @@ describe("useCajaSummary — 'Efectivo del día' separado de 'Saldos acumulados'
   });
 });
 
-// El aviso "Tenés N cajas pendientes" no puede aparecer varios segundos
-// después de que el resto de Inicio ya se vio, desplazando todo el
-// contenido hacia abajo — mientras se confirma, va un placeholder del
-// mismo alto aproximado, nunca nada (eso es lo que generaba el salto) ni
-// "no hay pendientes" en falso.
-describe("CajaHoyCard (Inicio) — sin saltos visuales mientras se confirma el aviso de pendientes", () => {
+// El aviso "Tenés N cajas pendientes" aparece solo cuando de verdad hay una
+// caja pendiente. Mientras se confirma NO se pinta ningún relleno: casi
+// siempre no hay pendientes, y un rectángulo de relleno que desaparecía al
+// llegar el dato corría toda la tarjeta hacia arriba en cada carga. Dentro de
+// la misma sesión el hook recuerda el último valor (pendingCierresCache), así
+// que si hay pendientes no vuelve a parpadear.
+describe("CajaHoyCard (Inicio) — sin relleno ni saltos mientras se confirma el aviso de pendientes", () => {
   it("useCajaHoy expone pendingCierresLoading, independiente de loading (el de pagos/gastos/movimientos)", () => {
     const src = readSrc("src/components/dashboard/use-caja-hoy.ts");
     expect(src).toMatch(/pendingCierresLoading: summary\.pendingCierresLoading/);
   });
 
-  it("mientras pendingCierresLoading y sin dato todavía, muestra un placeholder — nunca nada y nunca 'sin pendientes' en falso", () => {
+  it("mientras se confirma el aviso no se pinta ningún relleno (no hay salto hacia arriba al llegar el dato) y el aviso solo aparece con pendientes reales", () => {
     const src = readSrc("src/routes/dashboard.tsx");
     const fnMatch = src.match(/function CajaHoyCard\(([\s\S]*?)\n\}\n/);
     expect(fnMatch).not.toBeNull();
-    expect(fnMatch![1]).toMatch(
-      /caja\.pendingCierresLoading && caja\.pendingCierres\.length === 0 \? \(/,
-    );
-    expect(fnMatch![1]).toMatch(/animate-pulse/);
+    // el aviso depende solo de que haya pendientes...
+    expect(fnMatch![1]).toMatch(/caja\.pendingCierres\.length > 0 \? \(/);
+    // ...y no queda ningún esqueleto atado a pendingCierresLoading
+    expect(fnMatch![1]).not.toMatch(/caja\.pendingCierresLoading/);
+    expect(fnMatch![1]).not.toMatch(/animate-pulse/);
   });
 
   it("con un valor ya en caché de una navegación anterior en la misma sesión, no hay esqueleto — se pinta directo y se corrige solo", () => {

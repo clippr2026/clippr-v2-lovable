@@ -284,18 +284,13 @@ function CajaHoyCard({
           previa de Caja > Cierres (ver sección 2/4 del pedido) — nunca
           cierra nada desde Inicio. Lista TODAS las jornadas pendientes,
           no solo la más vieja.
-          Mientras pendingCierresLoading (y todavía no hay nada que
-          mostrar), un placeholder del mismo alto aproximado — nunca nada
-          (eso corre el resto de la tarjeta hacia abajo apenas llega el
-          dato real) ni "no hay pendientes" en falso mientras se está
-          cargando. Si ya había un valor en caché de una navegación
-          anterior en esta misma sesión, se pinta directo sin esqueleto. */}
-      {caja.pendingCierresLoading && caja.pendingCierres.length === 0 ? (
-        <div className="mb-3 animate-pulse rounded-xl bg-white/[0.04] px-3 py-2.5 ring-1 ring-white/8">
-          <div className="h-4 w-48 rounded bg-white/10" />
-          <div className="mt-2 h-5 w-full rounded bg-white/[0.06]" />
-        </div>
-      ) : caja.pendingCierres.length > 0 ? (
+          Mientras se averigua si hay pendientes NO se pinta nada (antes se
+          mostraba un rectángulo de relleno que desaparecía apenas llegaba el
+          dato, porque casi siempre no hay ninguna, y corría toda la tarjeta
+          hacia arriba en cada carga). El aviso aparece solo cuando de verdad
+          hay una caja pendiente; dentro de la misma sesión el hook recuerda
+          el último valor (pendingCierresCache), así que no vuelve a parpadear. */}
+      {caja.pendingCierres.length > 0 ? (
         <div className="mb-3 rounded-xl bg-amber-400/10 px-3 py-2.5 ring-1 ring-amber-400/25">
           <div className="flex items-center gap-2 text-sm font-medium text-amber-200">
             <AlertTriangle className="h-4 w-4 shrink-0" />
