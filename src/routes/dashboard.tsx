@@ -476,7 +476,9 @@ function FichajeHoyCard({
           </select>
         )}
       </div>
-      {placeholder || !fichaje.summary || !branchId ? (
+      {placeholder === "Cargando…" ? (
+        <FichajeHoyCardSkeleton />
+      ) : placeholder || !fichaje.summary || !branchId ? (
         <div className="mt-3 text-sm text-muted-foreground">{placeholder ?? "Cargando…"}</div>
       ) : (
         <div className="mt-3 flex flex-row gap-3 sm:gap-4">
@@ -550,6 +552,40 @@ function FichajeHoyCard({
           onClose={() => setQrOpen(false)}
         />
       )}
+    </div>
+  );
+}
+
+// Silueta de la tarjeta mientras carga: misma estructura, mismas clases y
+// mismos tamaños que la tarjeta cargada (el texto va transparente sobre una
+// barra, así ocupa exactamente la misma altura), para que al llegar los datos
+// no se mueva nada — antes solo decía "Cargando…" en una franja baja y al
+// terminar la tarjeta crecía y empujaba todo lo de abajo.
+function FichajeHoyCardSkeleton() {
+  const bar = "w-fit rounded bg-white/10 text-transparent";
+  return (
+    <div role="status" aria-label="Cargando fichaje" className="mt-3 flex flex-row gap-3 animate-pulse sm:gap-4">
+      <div className="flex w-[86px] shrink-0 flex-col items-center gap-1.5 sm:w-[110px]">
+        <div className="h-[78px] w-[78px] rounded-xl border border-white/10 bg-white/[0.06] sm:h-[94px] sm:w-[94px]" />
+        <div className="text-center">
+          <div className={`mx-auto text-[9px] uppercase tracking-[0.18em] ${bar}`}>Código</div>
+          <div className={`mx-auto mt-0.5 font-mono text-sm font-bold tracking-[0.15em] sm:text-base ${bar}`}>ABC DEF</div>
+        </div>
+      </div>
+      <div className="min-w-0 flex-1">
+        <div className={`text-[10px] uppercase tracking-[0.18em] ${bar}`}>Hoy ficharon (0)</div>
+        <div className={`mt-1.5 text-xs ${bar}`}>Todavía nadie fichó hoy.</div>
+        <div className="mt-2.5">
+          <div className={`text-[10px] uppercase tracking-wider ${bar}`}>Pendientes (0)</div>
+          <div className="mt-1 flex flex-wrap gap-1.5">
+            {[64, 52, 72, 60].map((w) => (
+              <span key={w} className="rounded-full bg-white/[0.06] px-2.5 py-1 text-xs text-transparent ring-1 ring-white/10" style={{ width: w }}>
+                .
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
     </div>
   );
 }
