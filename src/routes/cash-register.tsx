@@ -1272,7 +1272,7 @@ const TABS: {
   { id: "precios", label: "Precios", icon: CreditCard },
   { id: "inventario", label: "Inventario", icon: ClipboardList },
   { id: "profesionales", label: "Liquidaciones", icon: Wallet },
-  { id: "cierres", label: "Cierre de caja", icon: CalendarDays },
+  { id: "cierres", label: "Historial de cierres", icon: CalendarDays },
 ];
 
 // Botón de pestaña usado solo en la fila mobile de 2 filas (ver Tabs). `compact`
@@ -1334,10 +1334,7 @@ function Tabs({
   userEmail: string | null;
   onCajaCerrada: () => void;
 }) {
-  // Con la caja cerrada esa pestaña es solo el historial de cierres.
-  const tabs = TABS.map((t) =>
-    t.id === "cierres" && cajaCerrada ? { ...t, label: "Historial de cierres" } : t,
-  );
+  const tabs = TABS;
   const [firstTab, ...restTabs] = tabs;
   return (
     <div className="mt-2 flex flex-wrap items-end justify-between gap-5 border-b border-white/[0.055] pb-1.5 sm:mt-3 sm:pb-2">
@@ -9210,9 +9207,9 @@ function CierresTab({
   const [reopeningId, setReopeningId] = useState<string | null>(null);
   const [reopenTarget, setReopenTarget] = useState<any | null>(null);
   const [reopenNote, setReopenNote] = useState("");
-  // Con la caja cerrada no hay nada para operar en "Cierre de caja": abre
-  // directo en el historial de cierres.
-  const [subtab, setSubtab] = useState<"dia" | "historial">(cajaCerrada ? "historial" : "dia");
+  // Abre directo en el historial de cierres; la vista del día (revisar un día
+  // pendiente) se abre desde un día "Pendiente de revisión" o desde el aviso.
+  const [subtab, setSubtab] = useState<"dia" | "historial">("historial");
 
   // `selected.detalle_metodos_pago` es una foto guardada en la fila del
   // cierre al momento de cerrarlo — si esa foto se guardó ANTES del fix de
@@ -9407,11 +9404,6 @@ function CierresTab({
   const lastClosedToday = cajaHoraDisplay(lastCloseEntryToday?.hora ?? lastCloseEventToday?.hora ?? lastCierreToday?.hora_cierre ?? closedAt);
   const closedCountToday = cierreCandidates.length || cierresToday.length;
 
-  // Al reabrir la caja se vuelve a la vista del día.
-  useEffect(() => {
-    if (!cajaCerrada) setSubtab("dia");
-  }, [cajaCerrada]);
-
   const consumedReopenRequestRef = React.useRef(0);
   useEffect(() => {
     if (!reopenRequest || consumedReopenRequestRef.current === reopenRequest || !latestCierre) return;
@@ -9569,7 +9561,7 @@ function CierresTab({
   return (
     <div className="-mt-3 space-y-4">
       <section className="overflow-hidden rounded-[32px] border border-white/[0.085] bg-[radial-gradient(circle_at_14%_0%,rgba(96,165,250,0.08),transparent_32%),radial-gradient(circle_at_90%_6%,rgba(139,92,246,0.10),transparent_36%),linear-gradient(135deg,rgba(5,8,15,0.98),rgba(8,10,20,0.97),rgba(2,4,12,0.99))] p-5 shadow-[0_38px_120px_-62px_rgba(0,0,0,1),0_0_70px_-52px_rgba(139,92,246,0.62)]">
-        <div className={cn("flex justify-end border-b border-white/[0.065] pb-5", cajaCerrada && "hidden")}>
+        <div className={cn("flex justify-end border-b border-white/[0.065] pb-5", subtab === "historial" && "hidden")}>
           <button
             type="button"
             onClick={() => setSubtab(subtab === "historial" ? "dia" : "historial")}
