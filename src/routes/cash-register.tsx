@@ -9025,29 +9025,24 @@ function CierreDetalleView({
   const observacion = getCierreObservacion(cierre);
   const money = (v: number) => `$${Math.round(v).toLocaleString("es-AR")}`;
 
-  // Fila 1: facturación + los dos movimientos manuales de efectivo.
-  const filaIngresosYMovimientos = [
-    { l: "Ingresos totales", v: money(ingresosTotales), cls: "text-emerald-300" },
-    { l: "Gastos", v: money(totalGastos), cls: "text-rose-300" },
-    { l: "Ingreso de efectivo", v: money(ingresoEfectivoManual), cls: "text-emerald-300" },
-    { l: "Retiro de efectivo", v: money(retiroEfectivoManual), cls: "text-rose-300" },
-  ];
-  // Fila 2: todos los medios de pago juntos — cobro + propina por medio.
-  const filaMedios = [
-    { l: "Efectivo", v: money(metodoRecibido("cash")), cls: "text-white" },
-    { l: "Transferencias", v: money(metodoRecibido("transfer")), cls: "text-white" },
-    { l: "Débito", v: money(metodoRecibido("debit")), cls: "text-white" },
-    { l: "Crédito", v: money(metodoRecibido("credit")), cls: "text-white" },
-    { l: "QR", v: money(metodoRecibido("qr")), cls: "text-white" },
-    ...(otrosTotal > 0 ? [{ l: "Otros medios", v: money(otrosTotal), cls: "text-white" }] : []),
-  ];
-  // Fila 3: propinas separadas de la facturación + los dos totales que
-  // tienen que coincidir con la plata real (efectivo esperado/cuenta).
-  const filaPropinasYTotales = [
-    { l: "Propinas recibidas", v: money(totalPropinas), cls: "text-amber-300" },
-    { l: "Total de dinero recibido", v: money(totalRecibido), cls: "text-emerald-300" },
-    { l: "Dinero recibido en cuenta", v: money(dineroEnCuentaRecibido), cls: "text-white" },
-  ];
+  // Valores guardados al cerrar (si el cierre es viejo y no los tiene, se
+  // usan los recalculados del día).
+  const efectivoEsperado = Number(cierreEvt?.efectivo_esperado ?? preview?.expected.cashExpected ?? 0);
+  const efectivoContadoNum = efectivoContado != null ? Number(efectivoContado) : null;
+  const diferenciaCierre =
+    diferenciaEfectivo != null
+      ? Number(diferenciaEfectivo)
+      : efectivoContadoNum != null
+        ? efectivoContadoNum - efectivoEsperado
+        : null;
+  const cuentaEsperada = Number(cierre?.dinero_cuenta_esperado ?? preview?.expected.digitalExpected ?? 0);
+  const cuentaReal = cierre?.dinero_cuenta_real != null ? Number(cierre.dinero_cuenta_real) : null;
+  const cuentaAjuste =
+    cierre?.dinero_cuenta_ajuste != null
+      ? Number(cierre.dinero_cuenta_ajuste)
+      : cuentaReal != null
+        ? cuentaReal - cuentaEsperada
+        : null;
 
   return (
     <div className="pt-5">
@@ -9075,69 +9070,92 @@ function CierreDetalleView({
       )}
 
       {loading ? (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          {[0, 1, 2, 3].map((i) => (
+        <div className="space-y-3">
+          {[0, 1, 2].map((i) => (
             <div key={i} className="h-16 animate-pulse rounded-2xl bg-white/[0.04]" />
           ))}
         </div>
       ) : (
-        <>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-            {filaIngresosYMovimientos.map((k) => (
-              <div key={k.l} className="rounded-2xl border border-white/[0.075] bg-white/[0.035] p-3">
-                <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">{k.l}</div>
-                <div className={cn("mt-1 text-base font-extrabold tabular-nums", k.cls)}>{k.v}</div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
-            {filaMedios.map((k) => (
-              <div key={k.l} className="rounded-2xl border border-white/[0.075] bg-white/[0.035] p-3">
-                <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">{k.l}</div>
-                <div className={cn("mt-1 text-base font-extrabold tabular-nums", k.cls)}>{k.v}</div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-3 grid grid-cols-2 gap-3 md:grid-cols-3">
-            {filaPropinasYTotales.map((k) => (
-              <div key={k.l} className="rounded-2xl border border-white/[0.075] bg-white/[0.035] p-3">
-                <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">{k.l}</div>
-                <div className={cn("mt-1 text-base font-extrabold tabular-nums", k.cls)}>{k.v}</div>
-              </div>
-            ))}
-            {efectivoContado != null && (
-              <div className="rounded-2xl border border-white/[0.075] bg-white/[0.035] p-3">
-                <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Efectivo contado</div>
-                <div className="mt-1 text-base font-extrabold tabular-nums text-white">{money(Number(efectivoContado))}</div>
-                {diferenciaEfectivo != null && Number(diferenciaEfectivo) !== 0 && (
-                  <div className={cn("mt-0.5 text-[11px] font-bold", Number(diferenciaEfectivo) > 0 ? "text-emerald-300" : "text-rose-300")}>
-                    {Number(diferenciaEfectivo) > 0 ? "Sobra" : "Falta"} {money(Math.abs(Number(diferenciaEfectivo)))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-
-          {preview?.conciliacion && (
-            <div className="mt-5">
-              <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">Conciliación</div>
-              <CierreConciliacionPanel conciliacion={preview.conciliacion} />
-            </div>
-          )}
-
-          <div className="mt-5">
-            <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">Movimientos del día</div>
+        <div className="space-y-4">
+          {/* Mismo orden que la revisión de cierre: detalle de la jornada y,
+              abajo, efectivo esperado/contado y dinero en banco. */}
+          <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 p-4">
+            <div className="mb-3 text-sm font-semibold text-white/85">Detalle de la jornada</div>
             <CierreMovimientosDetalleList
               cobros={cobros}
               cobrosAnulados={cobrosAnulados}
               gastos={gastos}
               movimientos={movimientos}
+              adelantos={preview?.adelantosDetalle}
               onRowClick={openDetail}
             />
           </div>
-        </>
+
+          <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.035] ring-1 ring-white/10 px-4 py-3">
+            <span className="text-sm text-muted-foreground">Efectivo esperado en caja</span>
+            <span className="text-lg font-semibold tabular-nums">{money(efectivoEsperado)}</span>
+          </div>
+
+          {efectivoContadoNum != null && (
+            <>
+              <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.035] ring-1 ring-white/10 px-4 py-3">
+                <span className="text-sm text-muted-foreground">Efectivo contado</span>
+                <span className="text-lg font-semibold tabular-nums">{money(efectivoContadoNum)}</span>
+              </div>
+              {diferenciaCierre != null && (
+                <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.035] ring-1 ring-white/10 px-4 py-3">
+                  <span className="text-sm text-muted-foreground">
+                    {diferenciaCierre === 0 ? "Diferencia" : diferenciaCierre > 0 ? "Sobra" : "Falta"}
+                  </span>
+                  <span
+                    className={cn(
+                      "text-lg font-semibold tabular-nums",
+                      diferenciaCierre === 0 ? "text-white" : diferenciaCierre > 0 ? "text-emerald-300" : "text-rose-300",
+                    )}
+                  >
+                    {money(Math.abs(diferenciaCierre))}
+                  </span>
+                </div>
+              )}
+            </>
+          )}
+
+          <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 p-4">
+            <div className="text-sm font-semibold text-sky-200">Dinero en banco</div>
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <span className="text-sm text-muted-foreground">Saldo esperado</span>
+              <span className="text-lg font-semibold tabular-nums text-sky-300">{money(cuentaEsperada)}</span>
+            </div>
+            {cuentaReal != null && (
+              <>
+                <div className="mt-2 flex items-center justify-between gap-3">
+                  <span className="text-sm text-muted-foreground">Saldo real en cuenta</span>
+                  <span className="text-lg font-semibold tabular-nums">{money(cuentaReal)}</span>
+                </div>
+                {cuentaAjuste != null && cuentaAjuste !== 0 && (
+                  <div className="mt-2 flex items-center justify-between gap-3">
+                    <span className="text-sm text-muted-foreground">{cuentaAjuste > 0 ? "Sobra" : "Falta"}</span>
+                    <span
+                      className={cn(
+                        "text-sm font-bold tabular-nums",
+                        cuentaAjuste > 0 ? "text-emerald-300" : "text-rose-300",
+                      )}
+                    >
+                      {money(Math.abs(cuentaAjuste))}
+                    </span>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+
+          {observacion && (
+            <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 px-4 py-3">
+              <div className="text-xs text-muted-foreground">Observación</div>
+              <div className="mt-1 text-sm text-white/75">{observacion}</div>
+            </div>
+          )}
+        </div>
       )}
 
       <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
@@ -9166,11 +9184,6 @@ function CierreDetalleView({
             </div>
           </div>
         </div>
-        {observacion && (
-          <div className="mt-3 rounded-xl border border-white/[0.055] bg-white/[0.03] px-3 py-2 text-xs text-white/65">
-            {observacion}
-          </div>
-        )}
         {puedeReabrir && (
           <button
             type="button"
