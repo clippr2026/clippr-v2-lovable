@@ -8107,31 +8107,7 @@ function CierreRevisionDetalle({
 }) {
   const { snapshot, expected, manualMovements, movimientosManuales, adelantosDetalle, conciliacion } = preview;
   const { servicios, productos } = countServiciosYProductos(snapshot.cobrosSnapshot);
-  const [showConciliacion, setShowConciliacion] = React.useState(false);
   const { detailPayment, openDetail, closeDetail } = useCierreDetailPayment(businessId);
-  // Clientes nuevos del día: los que se registraron en la app esa jornada.
-  const [clientesNuevos, setClientesNuevos] = React.useState<number | null>(null);
-  React.useEffect(() => {
-    if (!businessId || !fecha) {
-      setClientesNuevos(null);
-      return;
-    }
-    let cancelled = false;
-    const { start, end } = dayBoundsBA(fecha);
-    supabase
-      .from("clients")
-      .select("id", { count: "exact", head: true })
-      .eq("business_id", businessId)
-      .gte("created_at", start.toISOString())
-      .lte("created_at", end.toISOString())
-      .then(({ count, error }) => {
-        if (!cancelled) setClientesNuevos(error ? null : (count ?? 0));
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [businessId, fecha]);
-
   // Recibido por método, CON propina (detalleMetodosRecibido) — la plata
   // que de verdad entró por cada medio, propina incluida (mismo criterio
   // que CierreDetalleView/metodosRecibidos, más abajo en este archivo —
@@ -8152,54 +8128,6 @@ function CierreRevisionDetalle({
 
   return (
     <div className="space-y-4">
-      {/* Ingresos totales (pura facturación) + recibido por método (con propina) */}
-      <div>
-        <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground/70">
-          Ingresos totales
-        </div>
-        <div className="mt-0.5 flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-          <span className="text-2xl font-semibold tabular-nums text-emerald-300">
-            ${Math.round(snapshot.totalCobrado).toLocaleString("es-AR")}
-          </span>
-          <span className="text-sm font-semibold tabular-nums text-amber-200">
-            + ${Math.round(snapshot.totalPropinas).toLocaleString("es-AR")} de propina
-          </span>
-        </div>
-        <div className="mt-3 text-[10px] uppercase tracking-[0.15em] text-muted-foreground/50">
-          Recibido por medio de pago (incluye propinas)
-        </div>
-        <div className="mt-2 rounded-xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden">
-          {ACTIVE_PAY_METHODS.filter(
-            (m) => m.id === "cash" || m.id === "transfer" || Math.round(recibidoPorMetodo[m.id]?.ingresos ?? 0) !== 0,
-          ).map((m) => (
-            <div
-              key={m.id}
-              className="flex items-center justify-between gap-2 px-4 py-2 border-b border-white/5 last:border-0 text-sm"
-            >
-              <span className="text-muted-foreground">{m.label}</span>
-              <span className="font-semibold tabular-nums">
-                ${Math.round(recibidoPorMetodo[m.id]?.ingresos ?? 0).toLocaleString("es-AR")}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Servicios y productos cobrados */}
-      <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.025] ring-1 ring-white/10 px-4 py-3">
-        <span className="text-sm text-muted-foreground">Servicios y productos cobrados</span>
-        <span className="text-sm font-semibold tabular-nums">
-          {servicios} servicio{servicios === 1 ? "" : "s"} · {productos} producto{productos === 1 ? "" : "s"}
-        </span>
-      </div>
-
-      {clientesNuevos !== null && (
-        <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.025] ring-1 ring-white/10 px-4 py-3">
-          <span className="text-sm text-muted-foreground">Clientes nuevos</span>
-          <span className="text-sm font-semibold tabular-nums">{clientesNuevos}</span>
-        </div>
-      )}
-
       {/* Detalle de servicios, productos, gastos, retiros y adelantos de la
           jornada, siempre visible: los adelantos de "Caja del negocio" son un
           egreso incluido en el efectivo/cuenta esperados de abajo; los de
@@ -8214,60 +8142,6 @@ function CierreRevisionDetalle({
           adelantos={adelantosDetalle}
           onRowClick={openDetail}
         />
-      </div>
-
-      {/* Conciliación — por medio de pago + desglose de la fórmula de
-          efectivo/cuenta esperados + alertas de pagos múltiples que no
-          cierran, para poder identificar qué movimiento explica una
-          diferencia antes de confirmar. */}
-      <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden">
-        <button
-          type="button"
-          onClick={() => setShowConciliacion((v) => !v)}
-          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-white/85 transition hover:bg-white/[0.04]"
-        >
-          <span className="flex items-center gap-2">
-            Conciliación
-            {conciliacion.alertas.length > 0 && (
-              <span className="rounded-full bg-amber-400/15 px-2 py-0.5 text-[10px] font-bold text-amber-300 ring-1 ring-amber-400/30">
-                {conciliacion.alertas.length} alerta{conciliacion.alertas.length === 1 ? "" : "s"}
-              </span>
-            )}
-          </span>
-          <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", showConciliacion && "rotate-180")} />
-        </button>
-        {showConciliacion && (
-          <div className="border-t border-white/10 p-4">
-            <CierreConciliacionPanel conciliacion={conciliacion} />
-          </div>
-        )}
-      </div>
-
-      {/* Gastos (solo si hubo) */}
-      {Math.round(snapshot.totalGastos) > 0 && (
-        <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.025] ring-1 ring-white/10 px-4 py-3">
-          <span className="text-sm text-muted-foreground">Gastos</span>
-          <span className="text-lg font-semibold tabular-nums text-rose-300">
-            -${Math.round(snapshot.totalGastos).toLocaleString("es-AR")}
-          </span>
-        </div>
-      )}
-
-      {/* Ingresos y retiros manuales (cash_movements) — separados de
-          gastos/adelantos, que ya se ven arriba y en Movimientos. */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 px-4 py-3">
-          <div className="text-xs text-muted-foreground">Ingresos manuales</div>
-          <div className="mt-0.5 text-lg font-semibold tabular-nums text-emerald-300">
-            +${Math.round(manualMovements.ingresos).toLocaleString("es-AR")}
-          </div>
-        </div>
-        <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 px-4 py-3">
-          <div className="text-xs text-muted-foreground">Retiros manuales</div>
-          <div className="mt-0.5 text-lg font-semibold tabular-nums text-rose-300">
-            -${Math.round(manualMovements.retiros).toLocaleString("es-AR")}
-          </div>
-        </div>
       </div>
 
       {/* Efectivo esperado en caja */}
