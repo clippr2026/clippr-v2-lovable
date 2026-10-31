@@ -13,8 +13,10 @@ import { cn } from "@/lib/utils";
  * repetir el nombre. Con 2 o más, desplegable para elegir.
  */
 export function BranchSelector({ className }: { className?: string }) {
-  const { branches, activeBranchId, setActiveBranchId } = useAuth();
+  const { branches, activeBranchId, setActiveBranchId, profile } = useAuth();
 
+  // Un profesional no elige sucursal: trabaja en la suya.
+  if (profile?.role === "profesional") return null;
   if (branches.length <= 1) return null;
 
   return (

@@ -679,8 +679,9 @@ function MobileBottomNav() {
 function MobileSectionBanner() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { permissions, profile, loading, branches } = useAuth();
-  // Sin franja de sucursal (una sola) el banner queda justo debajo del header.
-  const hasBranchBar = branches.length > 1;
+  // Sin franja de sucursal (una sola, o un profesional) el banner queda justo
+  // debajo del header.
+  const hasBranchBar = branches.length > 1 && profile?.role !== "profesional";
 
   if (loading) return null;
 
@@ -712,8 +713,8 @@ function MobileSectionBanner() {
 }
 
 export function AppSidebar() {
-  const { branches } = useAuth();
-  const hasBranchBar = branches.length > 1;
+  const { branches, profile } = useAuth();
+  const hasBranchBar = branches.length > 1 && profile?.role !== "profesional";
   return (
     <>
       <header className="sticky top-0 z-40 w-full border-b border-white/10 bg-black shadow-[0_1px_0_rgba(255,255,255,.05)]">

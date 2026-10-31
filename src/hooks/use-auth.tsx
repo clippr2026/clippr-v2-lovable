@@ -416,10 +416,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     await loadBranches(businessId);
   }, [loadBranches, businessId]);
 
+  // Un profesional trabaja en SU sucursal: no puede elegir otra. Su sucursal
+  // sale de su ficha de profesional (employees.branch_id); si no se pudiera
+  // leer, queda la sucursal por defecto, nunca una elegida a mano.
+  const isProfessionalRole = profile?.role === "profesional";
+
   const setActiveBranchId = React.useCallback((id: string) => {
+    if (isProfessionalRole) return;
     setActiveBranchIdState(id);
     if (businessId) localStorage.setItem(activeBranchStorageKey(businessId), id);
-  }, [businessId]);
+  }, [businessId, isProfessionalRole]);
+
+  const professionalEmployeeId = profile?.employee_id ?? null;
+  React.useEffect(() => {
+    if (!isProfessionalRole || !professionalEmployeeId || branches.length === 0) return;
+    let cancelled = false;
+    supabase
+      .from("employees" as any)
+      .select("branch_id")
+      .eq("id", professionalEmployeeId)
+      .maybeSingle()
+      .then(({ data }) => {
+        const own = (data as any)?.branch_id as string | null | undefined;
+        if (!cancelled && own && branches.some((b) => b.id === own)) setActiveBranchIdState(own);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isProfessionalRole, professionalEmployeeId, branches]);
 
   const hydrate = React.useCallback(async (s: Session | null) => {
     setSession(s);
