@@ -14621,6 +14621,16 @@ export function NuevaVentaTab({
   const [tipAmountInput, setTipAmountInput] = React.useState("");
   const [tipPanelOpen, setTipPanelOpen] = React.useState(false);
   const [showPartialConfirm, setShowPartialConfirm] = React.useState(false);
+  // "Sin cargo": cortesía/garantía/modelo de práctica. Se registra como una
+  // venta de $0 (descuento del 100%) con el motivo en el nombre del descuento
+  // — sin cobro, sin deuda y sin comisión (todo sale de total = 0). null =
+  // venta normal.
+  const [sinCargoReason, setSinCargoReason] = React.useState<string | null>(null);
+  const [showSinCargoConfirm, setShowSinCargoConfirm] = React.useState(false);
+  const isSinCargo = sinCargoReason !== null;
+  // Pago pendiente elegido con el botón: el monto queda fijo en $0 (no se
+  // puede editar), el total es el de lista y se puede aplicar descuento.
+  const [pendienteBtn, setPendienteBtn] = React.useState(false);
   const [method, setMethod] = React.useState<PayMethod>("cash");
   // Método preferido por defecto: Transferencia > Efectivo > primero
   // disponible — se aplica UNA vez por cobro (carga inicial de la
@@ -14716,6 +14726,7 @@ export function NuevaVentaTab({
     setManualDiscountAmount("");
     setManualDiscountMode("fixed");
     setManualDiscountReason("Descuento manual");
+    setSinCargoReason(null);
     setDiscountPanelOpen(false);
     setTipAmountInput("");
     setTipPanelOpen(false);
@@ -14897,7 +14908,10 @@ export function NuevaVentaTab({
   // de lista sin tocar nada más. Única fuente para "total" — de acá bajan
   // el descuento de promo, "Total" en pantalla, y lo que se guarda en
   // payments/comisión/liquidación (ver items en handleCobrar más abajo).
-  const isCashMethod = method === "cash";
+  // Pago pendiente (nada abonado) y Sin cargo no tienen medio de pago: ahí
+  // rige el precio de LISTA, nunca el precio en efectivo.
+  const nadaAbonado = received !== "" && (Number(received) || 0) === 0;
+  const isCashMethod = method === "cash" && !nadaAbonado && !isSinCargo;
   const cartUnitPrice = (svc: (typeof cartItems)[number]["svc"]) =>
     isCashMethod && svc.cashPrice != null ? Number(svc.cashPrice) : Number(svc.price);
   // Precio de lista del carrito (ignora precio en efectivo) — solo para
@@ -14979,7 +14993,7 @@ export function NuevaVentaTab({
         : Number(manualDiscountAmount) || 0,
     ),
   );
-  const discountAmount = selectedPromotion ? promoDiscountAmount : manualDiscountValue;
+  const discountAmount = isSinCargo ? total : selectedPromotion ? promoDiscountAmount : manualDiscountValue;
   // Descuento por ÍTEM final — fuente única para lo que se manda a
   // registerPayment (ver items en handleCobrar), así la comisión de cada
   // servicio se calcula sobre lo realmente cobrado de ESE servicio, no
@@ -14987,12 +15001,18 @@ export function NuevaVentaTab({
   // repartido arriba (promoItemDiscounts). Descuento manual: el cajero no
   // elige a qué ítems aplica, así que se prorratea por peso (subtotal del
   // ítem / total del carrito) entre todos.
-  const itemDiscounts: number[] = selectedPromotion
+  const itemDiscounts: number[] = isSinCargo
+    ? cartItems.map(({ svc, qty }) => cartUnitPrice(svc) * qty)
+    : selectedPromotion
     ? promoItemDiscounts
     : manualDiscountValue > 0 && total > 0
       ? cartItems.map(({ svc, qty }) => ((cartUnitPrice(svc) * qty) / total) * manualDiscountValue)
       : cartItems.map(() => 0);
-  const discountLabel = selectedPromotion
+  const discountLabel = isSinCargo
+    ? sinCargoReason
+      ? `Sin cargo · ${sinCargoReason}`
+      : "Sin cargo"
+    : selectedPromotion
     ? selectedPromotion.name
     : manualDiscountValue > 0
       ? manualDiscountReason.trim() || "Descuento manual"
@@ -15003,7 +15023,7 @@ export function NuevaVentaTab({
   // facturación server-side (ver register-payment.ts, tip_amount es una
   // columna aparte). finalTotal sigue siendo la única fuente para vuelto,
   // validación de monto recibido/pago múltiple y el resumen del Paso 4.
-  const tipAmount = Math.max(0, Number(tipAmountInput) || 0);
+  const tipAmount = isSinCargo ? 0 : Math.max(0, Number(tipAmountInput) || 0);
   const finalTotal = subtotalAfterDiscount + tipAmount;
 
   // receivedAmount: campo vacío = se asume el total completo (mismo
@@ -15016,7 +15036,18 @@ export function NuevaVentaTab({
   // ningún cobro que dejar pendiente.
   const receivedAmount =
     received === "" ? subtotalAfterDiscount : Number(received) || 0;
+  // Con cualquier medio, abonar menos del total es pago parcial (queda el
+  // saldo como deuda); abonar $0 es Pago pendiente.
   const pagoPendiente = !isManualFlow && receivedAmount < subtotalAfterDiscount;
+  // Pago pendiente (nada abonado) o Sin cargo: no hay medio de pago
+  // elegido. Tocar un medio vuelve al cobro normal (sale de esa modalidad).
+  const sinPagoAhora = isSinCargo || (received !== "" && receivedAmount === 0);
+  const elegirMedio = (m: PayMethod) => {
+    setMethod(m);
+    if (isSinCargo) setSinCargoReason(null);
+    if (received !== "" && receivedAmount === 0) setReceived("");
+    setPendienteBtn(false);
+  };
 
   // Vuelto/falta: solo tiene sentido en Efectivo y solo mientras no hay
   // pago parcial/pendiente (ahí ya se muestra el aviso de saldo
@@ -15276,7 +15307,7 @@ export function NuevaVentaTab({
     // rechazaba el cobro completo y válido. finalTotal ya es la cifra
     // correcta: es la misma que exige el resumen de arriba y la que usan
     // change/cashShortfall más abajo.
-    if (turnoChargeMode !== "manual" && paymentMode === "simple") {
+    if (turnoChargeMode !== "manual" && paymentMode === "simple" && !isSinCargo) {
       if (received.trim() === "") {
         toast.error("Ingresá el monto recibido para continuar");
         return;
@@ -15561,15 +15592,18 @@ export function NuevaVentaTab({
           chargedBy: data.profileId,
           chargeOrigin: "manual",
           notes: `${PAY_HIST_MARKER}${JSON.stringify(fullHist)}`,
-          promotionId: selectedPromotion?.id ?? null,
+          promotionId: isSinCargo ? null : (selectedPromotion?.id ?? null),
           // Sin promoción, promotionName pasa a ser el motivo del
           // descuento manual (ej. "Cortesía") — misma columna, ver
           // register-payment.ts.
           promotionName: discountLabel,
-          discountType: selectedPromotion?.discountType ?? (manualDiscountValue > 0 ? manualDiscountMode : null),
-          discountValue:
-            selectedPromotion?.discountValue ??
-            (manualDiscountValue > 0 ? String(Number(manualDiscountAmount) || 0) : null),
+          discountType: isSinCargo
+            ? "percent"
+            : (selectedPromotion?.discountType ?? (manualDiscountValue > 0 ? manualDiscountMode : null)),
+          discountValue: isSinCargo
+            ? "100"
+            : (selectedPromotion?.discountValue ??
+              (manualDiscountValue > 0 ? String(Number(manualDiscountAmount) || 0) : null)),
           discountAmount,
           tipAmount,
           clientPhone: phone,
@@ -15643,15 +15677,18 @@ export function NuevaVentaTab({
           chargedBy: data.profileId,
           chargeOrigin: "manual",
           notes: professionalNote || null,
-          promotionId: selectedPromotion?.id ?? null,
+          promotionId: isSinCargo ? null : (selectedPromotion?.id ?? null),
           // Sin promoción, promotionName pasa a ser el motivo del
           // descuento manual (ej. "Cortesía") — misma columna, ver
           // register-payment.ts.
           promotionName: discountLabel,
-          discountType: selectedPromotion?.discountType ?? (manualDiscountValue > 0 ? manualDiscountMode : null),
-          discountValue:
-            selectedPromotion?.discountValue ??
-            (manualDiscountValue > 0 ? String(Number(manualDiscountAmount) || 0) : null),
+          discountType: isSinCargo
+            ? "percent"
+            : (selectedPromotion?.discountType ?? (manualDiscountValue > 0 ? manualDiscountMode : null)),
+          discountValue: isSinCargo
+            ? "100"
+            : (selectedPromotion?.discountValue ??
+              (manualDiscountValue > 0 ? String(Number(manualDiscountAmount) || 0) : null)),
           discountAmount,
           tipAmount,
           clientPhone: phone,
@@ -15729,15 +15766,18 @@ export function NuevaVentaTab({
           chargedBy: data.profileId,
           chargeOrigin: "caja",
           notes: `${PAY_HIST_MARKER}${JSON.stringify([chargeEvent])}`,
-          promotionId: selectedPromotion?.id ?? null,
+          promotionId: isSinCargo ? null : (selectedPromotion?.id ?? null),
           // Sin promoción, promotionName pasa a ser el motivo del
           // descuento manual (ej. "Cortesía") — misma columna, ver
           // register-payment.ts.
           promotionName: discountLabel,
-          discountType: selectedPromotion?.discountType ?? (manualDiscountValue > 0 ? manualDiscountMode : null),
-          discountValue:
-            selectedPromotion?.discountValue ??
-            (manualDiscountValue > 0 ? String(Number(manualDiscountAmount) || 0) : null),
+          discountType: isSinCargo
+            ? "percent"
+            : (selectedPromotion?.discountType ?? (manualDiscountValue > 0 ? manualDiscountMode : null)),
+          discountValue: isSinCargo
+            ? "100"
+            : (selectedPromotion?.discountValue ??
+              (manualDiscountValue > 0 ? String(Number(manualDiscountAmount) || 0) : null)),
           discountAmount,
           tipAmount,
           clientPhone: phone,
@@ -15773,6 +15813,7 @@ export function NuevaVentaTab({
         setManualDiscountAmount("");
         setManualDiscountMode("fixed");
         setManualDiscountReason("Descuento manual");
+        setSinCargoReason(null);
         setDiscountPanelOpen(false);
         setTipAmountInput("");
         setTipPanelOpen(false);
@@ -16654,7 +16695,7 @@ export function NuevaVentaTab({
                   importe > 0 (pago completo o parcial) sigue disponible.
                   Orden fijo: Métodos de pago arriba, Monto recibido
                   debajo — mismo orden en mobile y desktop. */}
-              {receivedAmount > 0 && (
+              {!isManualFlow || receivedAmount > 0 ? (
                 <div>
                   <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70 mb-1.5">
                     MÉTODO DE PAGO
@@ -16672,8 +16713,8 @@ export function NuevaVentaTab({
                         <PaymentMethodButton
                           key={m.id}
                           method={m}
-                          active={method === m.id}
-                          onClick={() => setMethod(m.id as PayMethod)}
+                          active={method === m.id && !sinPagoAhora}
+                          onClick={() => elegirMedio(m.id as PayMethod)}
                         />
                       ))}
                     </div>
@@ -16682,14 +16723,14 @@ export function NuevaVentaTab({
                         <PaymentMethodButton
                           key={m.id}
                           method={m}
-                          active={method === m.id}
-                          onClick={() => setMethod(m.id as PayMethod)}
+                          active={method === m.id && !sinPagoAhora}
+                          onClick={() => elegirMedio(m.id as PayMethod)}
                         />
                       ))}
                     </div>
                   </div>
                 </div>
-              )}
+              ) : null}
 
               {/* Monto recibido — único campo para cobrar, debajo de
                   Métodos de pago (ubicación original): nada que activar a
@@ -16704,8 +16745,67 @@ export function NuevaVentaTab({
                   y, si se cobra algo ahora, el de ese cobro puntual. No
                   disponible en "Enviar a caja" (turnoChargeMode="manual"):
                   ahí todavía no existe ningún cobro que dejar pendiente. */}
+              {/* Modalidades de cobro (no son medios de pago): Pago pendiente
+                  deja todo como deuda ($0 recibido); Sin cargo es cortesía/
+                  garantía (sin cobro, deuda ni comisión). El pago parcial no
+                  tiene botón: se detecta solo al tipear un monto menor. */}
               {!isManualFlow && (
+                <div className="mt-1.5 grid grid-cols-2 gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSinCargoReason(null);
+                      const activar = !(pendienteBtn && received === "0");
+                      setPendienteBtn(activar);
+                      setReceived(activar ? "0" : "");
+                      setPaymentMode("simple");
+                    }}
+                    className={cn(
+                      "flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition",
+                      pendienteBtn && received === "0" && !isSinCargo
+                        ? "border-amber-300/60 bg-amber-400/15 text-amber-100"
+                        : "border-white/10 bg-white/[0.03] text-white/70 hover:bg-white/[0.07]",
+                    )}
+                  >
+                    <Clock className="size-3.5" /> Pago pendiente
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (isSinCargo) {
+                        setSinCargoReason(null);
+                        return;
+                      }
+                      setSinCargoReason("");
+                      setPendienteBtn(false);
+                      setReceived("");
+                      setTipAmountInput("");
+                      setPromotionId("");
+                      setPaymentMode("simple");
+                    }}
+                    className={cn(
+                      "flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition",
+                      isSinCargo
+                        ? "border-emerald-300/60 bg-emerald-400/15 text-emerald-100"
+                        : "border-white/10 bg-white/[0.03] text-white/70 hover:bg-white/[0.07]",
+                    )}
+                  >
+                    <Gift className="size-3.5" /> Sin cargo
+                  </button>
+                </div>
+              )}
+              {isSinCargo && (
+                <p className="mt-1.5 flex items-start gap-1.5 text-[11px] font-semibold leading-snug text-emerald-200/85">
+                  <Gift className="mt-0.5 size-3.5 shrink-0" />
+                  <span>
+                    No se cobra nada, no genera deuda ni comisión.
+                  </span>
+                </p>
+              )}
+              {!isManualFlow && !isSinCargo && (
                 <div className="mt-1.5">
+                  {!(pendienteBtn && received === "0") && (
+                    <>
                   <p className="mb-1 text-[11px] font-semibold tracking-[0.1em] text-muted-foreground/70">
                     MONTO RECIBIDO
                   </p>
@@ -16728,6 +16828,7 @@ export function NuevaVentaTab({
                         }
                       }}
                       inputMode="numeric"
+                      disabled={pendienteBtn && received === "0"}
                       placeholder={`Total: $${Math.round(finalTotal).toLocaleString("es-AR")}`}
                       aria-label="Monto recibido"
                       className={cn(
@@ -16738,13 +16839,15 @@ export function NuevaVentaTab({
                       )}
                     />
                   </div>
+                    </>
+                  )}
                   {pagoPendiente && (
                     <p className="mt-1.5 flex items-start gap-1.5 text-[11px] font-semibold leading-snug text-amber-200/85">
                       <Clock className="mt-0.5 size-3.5 shrink-0" />
                       <span>
                         {receivedAmount > 0
                           ? `Pago parcial — abona $${Math.round(receivedAmount).toLocaleString("es-AR")} ahora, queda $${Math.round(subtotalAfterDiscount - receivedAmount).toLocaleString("es-AR")} pendiente de cobro.`
-                          : `Pago pendiente — no se cobra nada ahora, el total ($${Math.round(subtotalAfterDiscount).toLocaleString("es-AR")}) queda pendiente de cobro.`}
+                          : `No se cobra nada ahora, el total ($${Math.round(subtotalAfterDiscount).toLocaleString("es-AR")}) queda pendiente de cobro.`}
                         {tipAmount > 0 && " La propina se cobra siempre completa, aparte."}
                       </span>
                     </p>
@@ -16759,7 +16862,7 @@ export function NuevaVentaTab({
                   muestra arriba, junto al campo Monto recibido). El monto
                   en sí ya se cargó arriba — acá solo se muestra el
                   resultado para Efectivo, nunca un input duplicado. */}
-              {!pagoPendiente && (
+              {!pagoPendiente && !isSinCargo && (
                 <>
                   {method === "cash" && (cashShortfall > 0 || change > 0) && (
                     <div className="mt-1.5 flex items-center justify-between gap-2 rounded-2xl bg-[linear-gradient(135deg,rgba(37,99,235,0.16),rgba(8,11,20,0.96),rgba(2,4,12,0.98))] p-2.5 shadow-[0_0_34px_rgba(96,165,250,0.14),0_18px_55px_-34px_rgba(0,0,0,1)]">
@@ -16937,7 +17040,9 @@ export function NuevaVentaTab({
                 // queda, estado) — evita un toque de más que deje una
                 // venta con saldo por error. Pago completo/"Enviar a
                 // caja": cobra directo, como siempre.
-                if (!isManualFlow && pagoPendiente) {
+                if (!isManualFlow && isSinCargo) {
+                  setShowSinCargoConfirm(true);
+                } else if (!isManualFlow && pagoPendiente) {
                   setShowPartialConfirm(true);
                 } else {
                   handleCobrar();
@@ -16953,9 +17058,13 @@ export function NuevaVentaTab({
                 <>
                   Enviar a caja <ArrowRight className="size-4" />
                 </>
+              ) : isSinCargo ? (
+                <>
+                  CONFIRMAR SIN CARGO <Gift className="size-4" />
+                </>
               ) : pagoPendiente ? (
                 <>
-                  {receivedAmount > 0 ? "CONFIRMAR PAGO PARCIAL" : "DEJAR PENDIENTE"} <Clock className="size-4" />
+                  {receivedAmount > 0 ? "REGISTRAR PAGO PARCIAL" : "CONFIRMAR DEUDA"} <Clock className="size-4" />
                 </>
               ) : (
                 <>
@@ -16967,6 +17076,55 @@ export function NuevaVentaTab({
         </div>
         </div>
       </div>
+
+      {showSinCargoConfirm && typeof document !== "undefined" && createPortal(
+        <div
+          className="fixed inset-0 z-[60] grid place-items-center bg-black/70 backdrop-blur-sm p-4"
+          onClick={() => setShowSinCargoConfirm(false)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="border-b border-white/10 px-5 py-4">
+              <h3 className="flex items-center gap-2 text-sm font-semibold text-emerald-200">
+                <Gift className="size-4 shrink-0" /> Servicio sin cargo
+              </h3>
+              <p className="mt-1 text-[11px] text-muted-foreground">
+                Este servicio se registrará sin cobro, sin deuda y sin comisión para el profesional.
+              </p>
+            </div>
+            <div className="px-5 py-3 text-xs">
+              <div className="flex items-center justify-between gap-4 py-1.5">
+                <span className="text-muted-foreground">Valor del servicio</span>
+                <span className="font-semibold text-foreground tabular-nums">
+                  ${Math.round(total).toLocaleString("es-AR")}
+                </span>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 border-t border-white/10 px-5 py-3">
+              <button
+                type="button"
+                onClick={() => setShowSinCargoConfirm(false)}
+                className="flex-1 rounded-xl bg-white/5 hover:bg-white/10 px-3 py-2 text-xs font-semibold transition"
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSinCargoConfirm(false);
+                  handleCobrar();
+                }}
+                className="flex-1 rounded-xl bg-emerald-400/15 hover:bg-emerald-400/25 px-3 py-2 text-xs font-bold text-emerald-100 ring-1 ring-emerald-400/30 transition"
+              >
+                Confirmar sin cargo
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
 
       {/* Confirmación de pago parcial/pendiente — se abre al tocar
           COBRAR/DEJAR PENDIENTE cuando el monto recibido quedó por debajo
@@ -16986,10 +17144,12 @@ export function NuevaVentaTab({
             <div className="border-b border-white/10 px-5 py-4">
               <h3 className="flex items-center gap-2 text-sm font-semibold text-amber-200">
                 <Clock className="size-4 shrink-0" />
-                {receivedAmount > 0 ? "Confirmar pago parcial" : "Confirmar venta sin cobrar"}
+                {receivedAmount > 0 ? "Pago parcial detectado" : "Pago pendiente"}
               </h3>
               <p className="mt-1 text-[11px] text-muted-foreground">
-                Revisá los importes antes de confirmar — no se puede deshacer desde acá.
+                {receivedAmount > 0
+                  ? `El cliente abonó $${Math.round(receivedAmount).toLocaleString("es-AR")} de $${Math.round(subtotalAfterDiscount).toLocaleString("es-AR")}. Quedarán $${Math.round(subtotalAfterDiscount - receivedAmount).toLocaleString("es-AR")} como deuda pendiente en su cuenta.`
+                  : `Quedarán $${Math.round(subtotalAfterDiscount).toLocaleString("es-AR")} como deuda pendiente en su cuenta.`}
               </p>
             </div>
             <div className="px-5 py-1">
@@ -17032,7 +17192,7 @@ export function NuevaVentaTab({
                 onClick={() => setShowPartialConfirm(false)}
                 className="flex-1 rounded-xl bg-white/5 hover:bg-white/10 px-3 py-2 text-xs font-semibold transition"
               >
-                Cancelar
+                {receivedAmount > 0 ? "Volver" : "Cancelar"}
               </button>
               <button
                 type="button"
@@ -17042,7 +17202,7 @@ export function NuevaVentaTab({
                 }}
                 className="flex-1 rounded-xl bg-amber-400/15 hover:bg-amber-400/25 px-3 py-2 text-xs font-bold text-amber-100 ring-1 ring-amber-400/30 transition"
               >
-                {receivedAmount > 0 ? "Confirmar pago parcial" : "Dejar pendiente"}
+                {receivedAmount > 0 ? "Registrar pago parcial" : "Confirmar deuda"}
               </button>
             </div>
           </div>

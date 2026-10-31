@@ -56,7 +56,7 @@ describe("Monto recibido obligatorio — un campo vacío nunca genera un cobro",
 
   it("el chequeo de vacío está acotado a Pago simple (nunca bloquea Pago múltiple)", () => {
     expect(cashRegisterSrc).toMatch(
-      /if \(turnoChargeMode !== "manual" && paymentMode === "simple"\) \{\s*\n\s*if \(received\.trim\(\) === ""\)/,
+      /if \(turnoChargeMode !== "manual" && paymentMode === "simple"( && !isSinCargo)?\) \{\s*\n\s*if \(received\.trim\(\) === ""\)/,
     );
   });
 
