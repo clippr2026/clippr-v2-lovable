@@ -20,7 +20,7 @@ const compute = (advances: Array<{ amount: number; payment_method: string; funds
   computeExpectedCashAndDigital({ ...BASE, advances });
 
 describe("Origen del adelanto: cómo entra en el efectivo y el dinero en cuenta esperados", () => {
-  it("1) $10.000 en efectivo desde Caja del negocio: descuenta del efectivo, no de la cuenta", () => {
+  it("1) $10.000 en efectivo desde Caja del día: descuenta del efectivo, no de la cuenta", () => {
     const r = compute([{ amount: 10000, payment_method: "efectivo", funds_source: "caja" }]);
     expect(r.cashExpected).toBe(90000);
     expect(r.cashAdvancesOut).toBe(10000);
@@ -28,7 +28,7 @@ describe("Origen del adelanto: cómo entra en el efectivo y el dinero en cuenta 
     expect(r.digitalAdvancesOut).toBe(0);
   });
 
-  it("2) $10.000 por transferencia desde Caja del negocio: descuenta de la cuenta, no del efectivo", () => {
+  it("2) $10.000 por transferencia desde Caja del día: descuenta de la cuenta, no del efectivo", () => {
     const r = compute([{ amount: 10000, payment_method: "transferencia", funds_source: "caja" }]);
     expect(r.digitalExpected).toBe(190000);
     expect(r.digitalAdvancesOut).toBe(10000);
@@ -85,7 +85,7 @@ describe("Origen del adelanto: cómo entra en el efectivo y el dinero en cuenta 
 
 describe("Origen del adelanto: textos y reglas de pantalla", () => {
   it("etiquetas de origen y medio", () => {
-    expect(advanceOriginLabel("caja")).toBe("Caja del negocio");
+    expect(advanceOriginLabel("caja")).toBe("Caja del día");
     expect(advanceOriginLabel("externo")).toBe("Fondos externos");
     expect(advanceOriginLabel(null)).toBe("Anterior (sin origen)");
     expect(advanceMethodLabel("efectivo")).toBe("Efectivo");
@@ -100,11 +100,17 @@ describe("Origen del adelanto: textos y reglas de pantalla", () => {
     expect(advanceAffectsCaja("externo")).toBe(false);
   });
 
-  it("el formulario pide el origen (Caja del negocio por defecto) y lo manda al backend", () => {
+  it("el formulario pide el origen (Fondos externos por defecto) y lo manda al backend", () => {
     const src = readSrc("src/routes/cash-register.tsx");
     expect(src).toMatch(/Origen del adelanto/);
-    expect(src).toMatch(/source: "caja",\s*\n\s*\}\);/);
+    expect(src).toMatch(/source: "externo",\s*\n\s*\}\);/);
     expect(src).toMatch(/p_funds_source: adelantoForm\.source/);
+  });
+
+  it("con la caja del día cerrada el adelanto no puede salir de la caja", () => {
+    const src = readSrc("src/routes/cash-register.tsx");
+    expect(src).toMatch(/adelantoForm\.source === "caja" && cajaCerrada/);
+    expect(src).toMatch(/disabled=\{opt\.value === "caja" && cajaCerrada\}/);
   });
 
   it("el retiro de stock a cuenta de adelanto no mueve plata de la caja (origen externo)", () => {

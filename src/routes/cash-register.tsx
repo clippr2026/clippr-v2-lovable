@@ -1063,9 +1063,19 @@ function CashRegisterPage() {
                 {cajaCerradaHora && <span className="ml-2 font-normal text-rose-100/80">· Hora de cierre: {cajaCerradaHora}</span>}
               </div>
               <div className="text-xs text-rose-100/70">
-                Podés mirar todo, pero no cargar ventas, gastos ni movimientos: una caja cerrada no se reabre.
+                Podés mirar todo, pero no cargar ventas, gastos ni movimientos hasta reabrirla. Queda registrado quién y cuándo la reabrió.
               </div>
             </div>
+            <button
+              type="button"
+              onClick={() => {
+                setReopenRequest((n) => n + 1);
+                setTab("cierres");
+              }}
+              className="rounded-xl bg-white/10 px-3 py-1.5 text-xs font-semibold text-rose-50 ring-1 ring-white/15 transition hover:bg-white/15"
+            >
+              Reabrir caja
+            </button>
           </div>
         )}
         {/* Oculto mientras Nueva venta o Nuevo gasto están activos — el
@@ -1187,6 +1197,7 @@ function CashRegisterPage() {
               userEmail={session.user.email ?? null}
               chargedByName={profile?.full_name || chargedByUsername(session.user.email)}
               data={data}
+              cajaCerrada={cajaCerrada}
             />
           )}
           {tab === "gastos" && <GastosTab businessId={data.businessId} />}
@@ -1195,6 +1206,8 @@ function CashRegisterPage() {
               businessId={data.businessId}
               chargedByName={profile?.full_name || chargedByUsername(session.user.email)}
               data={data}
+              cajaCerrada={cajaCerrada}
+              cajaDisponible={expected}
               onGoToCierres={() => setTab("cierres")}
             />
           )}
@@ -1589,6 +1602,7 @@ function ResumenTab({
             data={data}
             movementsData={movementsData}
             showPendientes={showPendientes}
+            cajaCerrada={cajaCerrada}
           />
         </div>
       </div>
@@ -2234,11 +2248,13 @@ function InventarioTab({
   userEmail,
   chargedByName,
   data,
+  cajaCerrada = false,
 }: {
   businessId: string | null;
   userEmail: string | null;
   chargedByName: string;
   data: ReturnType<typeof useCajaData>;
+  cajaCerrada?: boolean;
 }) {
   // Reutiliza el `data` que ya cargó CashRegisterPage (mismo fix que
   // ProfesionalesTab/PreciosTab) — evita el refetch redundante y el flash
@@ -2556,7 +2572,7 @@ function InventarioTab({
     );
 
   function openStockAdjustment(item: any, direction: "in" | "out") {
-    if (adjustingId) return;
+    if (adjustingId || cajaCerrada) return;
     setStockAdjustment({ item, direction });
     // "out": selector −/1/+, siempre arranca en 1. "in": sigue siendo un
     // input numérico libre, vacío hasta que se escribe algo.
@@ -3019,7 +3035,7 @@ function InventarioTab({
                       <button
                         type="button"
                         onClick={() => openStockAdjustment(item, "out")}
-                        disabled={loading}
+                        disabled={loading || cajaCerrada}
                         className="grid size-9 place-items-center rounded-full border border-white/10 bg-white/[0.035] text-white/70 transition hover:-translate-y-0.5 hover:bg-rose-500/12 hover:text-rose-200 disabled:opacity-50"
                       >
                         <Minus className="size-4" />
@@ -3027,7 +3043,7 @@ function InventarioTab({
                       <button
                         type="button"
                         onClick={() => openStockAdjustment(item, "in")}
-                        disabled={loading}
+                        disabled={loading || cajaCerrada}
                         className="grid size-9 place-items-center rounded-full border border-emerald-300/18 bg-emerald-400/12 text-emerald-200 shadow-[0_0_22px_rgba(16,185,129,0.18)] transition hover:-translate-y-0.5 hover:bg-emerald-400/18 disabled:opacity-50"
                       >
                         <Plus className="size-4" />
@@ -3071,7 +3087,7 @@ function InventarioTab({
                         <button
                           type="button"
                           onClick={() => openStockAdjustment(item, "out")}
-                          disabled={loading}
+                          disabled={loading || cajaCerrada}
                           className="grid size-8 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.035] text-white/70 transition active:bg-rose-500/12 active:text-rose-200 disabled:opacity-50"
                         >
                           <Minus className="size-4" />
@@ -3079,7 +3095,7 @@ function InventarioTab({
                         <button
                           type="button"
                           onClick={() => openStockAdjustment(item, "in")}
-                          disabled={loading}
+                          disabled={loading || cajaCerrada}
                           className="grid size-8 shrink-0 place-items-center rounded-full border border-emerald-300/18 bg-emerald-400/12 text-emerald-200 shadow-[0_0_18px_rgba(16,185,129,0.16)] transition active:bg-emerald-400/18 disabled:opacity-50"
                         >
                           <Plus className="size-4" />
@@ -3687,11 +3703,17 @@ function ProfesionalesTab({
   businessId,
   chargedByName,
   data,
+  cajaCerrada = false,
+  cajaDisponible,
   onGoToCierres,
 }: {
   businessId: string | null;
   chargedByName: string;
   data: ReturnType<typeof useCajaData>;
+  cajaCerrada?: boolean;
+  // Efectivo / dinero en cuenta esperados del día: tope de lo que un
+  // adelanto "de la caja" puede sacar.
+  cajaDisponible?: { cashExpected: number; digitalExpected: number };
   // "Ir a cierre de caja" del aviso de liquidación bloqueada por cajas
   // pendientes — lleva directo a la pestaña Cierres (ya lista el backlog
   // pendiente por su cuenta, acá no hace falta pasarle las fechas).
@@ -3796,24 +3818,26 @@ function ProfesionalesTab({
   }
 
   const [adelantoModalOpen, setAdelantoModalOpen] = React.useState(false);
-  // source: origen del adelanto — "caja" (Caja del negocio, por defecto) o
-  // "externo" (Fondos externos). Ver src/lib/advance-origin.ts.
+  // source: origen del adelanto — "caja" (Caja del día) o "externo"
+  // (Fondos externos). Arranca en "externo"; con la caja del día cerrada es
+  // el único origen posible.
+  // Ver src/lib/advance-origin.ts.
   const [adelantoForm, setAdelantoForm] = React.useState<{
     amount: string;
     method: string;
     note: string;
-    source: AdvanceFundsSource;
+    source: AdvanceFundsSource | "";
   }>({
     amount: "",
     method: "efectivo",
     note: "",
-    source: "caja",
+    source: "externo",
   });
   const [registeringAdvance, setRegisteringAdvance] = React.useState(false);
 
   function resetAdelantoForm() {
     setAdelantoModalOpen(false);
-    setAdelantoForm({ amount: "", method: "efectivo", note: "", source: "caja" });
+    setAdelantoForm({ amount: "", method: "efectivo", note: "", source: "externo" });
   }
 
   const [deletingAdvanceId, setDeletingAdvanceId] = React.useState<string | null>(null);
@@ -5072,6 +5096,24 @@ function ProfesionalesTab({
       toast.error("Ingresá un monto válido");
       return;
     }
+    if (adelantoForm.source === "") {
+      toast.error("Elegí el origen del adelanto");
+      return;
+    }
+    if (adelantoForm.source === "caja" && cajaCerrada) {
+      toast.error("La caja del día está cerrada: el adelanto solo puede salir de fondos externos");
+      return;
+    }
+    if (adelantoForm.source === "caja" && cajaDisponible) {
+      const esEfectivo = adelantoForm.method === "efectivo";
+      const disponible = esEfectivo ? cajaDisponible.cashExpected : cajaDisponible.digitalExpected;
+      if (amount > disponible + 0.01) {
+        toast.error(
+          `No hay ese dinero en la caja: ${esEfectivo ? "efectivo" : "dinero en cuenta"} disponible ${money(Math.max(0, disponible))}`,
+        );
+        return;
+      }
+    }
     setRegisteringAdvance(true);
     try {
       const {
@@ -6175,7 +6217,13 @@ function ProfesionalesTab({
             <button
               type="button"
               onClick={() => registerAdvance(selectedRow)}
-              disabled={registeringAdvance || !Number.isFinite(Number(adelantoForm.amount)) || Number(adelantoForm.amount) <= 0}
+              disabled={
+                registeringAdvance ||
+                !Number.isFinite(Number(adelantoForm.amount)) ||
+                Number(adelantoForm.amount) <= 0 ||
+                adelantoForm.source === "" ||
+                (adelantoForm.source === "caja" && cajaCerrada)
+              }
               className="w-full rounded-2xl bg-rose-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_35px_rgba(244,63,94,0.28)] transition hover:brightness-110 disabled:opacity-60"
             >
               {registeringAdvance ? "Adelantando…" : "Adelantar"}
@@ -6199,17 +6247,18 @@ function ProfesionalesTab({
               <div className="grid grid-cols-2 gap-2">
                 {(
                   [
-                    { value: "caja", label: "Caja del negocio" },
                     { value: "externo", label: "Fondos externos" },
+                    { value: "caja", label: "Caja del día" },
                   ] as const
                 ).map((opt) => (
                   <button
                     key={opt.value}
                     type="button"
                     onClick={() => setAdelantoForm((form) => ({ ...form, source: opt.value }))}
+                    disabled={opt.value === "caja" && cajaCerrada}
                     aria-pressed={adelantoForm.source === opt.value}
                     className={cn(
-                      "h-11 rounded-2xl border px-3 text-sm font-bold transition",
+                      "h-11 rounded-2xl border px-3 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-40",
                       adelantoForm.source === opt.value
                         ? "border-amber-300/45 bg-amber-400/12 text-amber-100"
                         : "border-white/[0.08] bg-black/30 text-white/55 hover:bg-white/[0.04]",
@@ -6221,9 +6270,14 @@ function ProfesionalesTab({
               </div>
               <p className="text-[11px] font-medium leading-snug text-white/40">
                 {adelantoForm.source === "caja"
-                  ? `Sale de los fondos del negocio: se descuenta de ${adelantoForm.method === "efectivo" ? "Efectivo del día" : "Dinero en cuenta del día"}, queda como egreso en Movimientos de caja y entra en el cierre.`
-                  : "Sale de tu bolsillo u otra cuenta: no toca Efectivo del día, Dinero en cuenta del día ni el cierre. Igual baja el Total a pagar del profesional."}
+                  ? "Pagás con dinero de la jornada. Se descuenta de Efectivo o Dinero en cuenta, según el medio de pago, y se registra en el cierre."
+                  : "Pagás con dinero fuera de la caja del día. No afecta los saldos ni el cierre, pero se descuenta de la liquidación del profesional."}
               </p>
+              {cajaCerrada && (
+                <p className="text-[11px] font-medium leading-snug text-rose-200/70">
+                  La caja del día está cerrada: solo se puede usar Fondos externos.
+                </p>
+              )}
             </div>
             <label className="space-y-1.5 text-xs font-semibold text-white/55">
               {adelantoForm.source === "caja" ? "Medio de pago" : "Medio de pago (solo informativo)"}
@@ -6766,49 +6820,57 @@ function NuevoGastoTab({
             />
           </label>
 
-          <div>
-            <span className={labelCls}>Origen del dinero</span>
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() => setForm((f) => ({ ...f, source: "caja" }))}
-                className={optionBtn(form.source === "caja")}
-                aria-pressed={form.source === "caja"}
-              >
-                <span className="block text-sm font-semibold">Caja del día</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setForm((f) => ({ ...f, source: "otros" }))}
-                className={optionBtn(form.source === "otros")}
-                aria-pressed={form.source === "otros"}
-              >
-                <span className="block text-sm font-semibold">Otros fondos</span>
-              </button>
-            </div>
-            <p className="mt-1.5 text-xs text-muted-foreground">
-              {form.source === "caja"
-                ? "Se descuenta del efectivo o del dinero en cuenta del día y entra en el cierre."
-                : "Se registra el gasto, pero no se descuenta de la recaudación de hoy ni entra en el cierre."}
-            </p>
-          </div>
-
-          <div>
-            <span className={labelCls}>Medio de pago</span>
-            <div className="grid grid-cols-2 gap-2">
-              {(["efectivo", "transferencia"] as const).map((m) => (
+          <div className="space-y-4 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4">
+            <div>
+              <span className={labelCls}>1. ¿De dónde sale la plata?</span>
+              <div className="grid gap-2.5 sm:grid-cols-2">
                 <button
-                  key={m}
                   type="button"
-                  onClick={() => setForm((f) => ({ ...f, method: m }))}
-                  className={optionBtn(form.method === m)}
-                  aria-pressed={form.method === m}
+                  onClick={() => setForm((f) => ({ ...f, source: "caja" }))}
+                  className={cn(optionBtn(form.source === "caja"), "text-left")}
+                  aria-pressed={form.source === "caja"}
                 >
-                  <span className="block text-center text-sm font-semibold">
-                    {m === "efectivo" ? "Efectivo" : "Transferencia"}
+                  <span className="block text-sm font-semibold">Caja del día</span>
+                  <span className="mt-1 block text-xs font-normal leading-snug text-muted-foreground">
+                    Se paga con dinero de la jornada. Se descuenta de Efectivo o Dinero en cuenta y se registra en el cierre.
                   </span>
                 </button>
-              ))}
+                <button
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, source: "otros" }))}
+                  className={cn(optionBtn(form.source === "otros"), "text-left")}
+                  aria-pressed={form.source === "otros"}
+                >
+                  <span className="block text-sm font-semibold">Otros fondos</span>
+                  <span className="mt-1 block text-xs font-normal leading-snug text-muted-foreground">
+                    Se paga con dinero ajeno a la caja del día. Se registra el gasto, pero no descuenta de la recaudación ni entra en el cierre.
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            <div>
+              <span className={labelCls}>2. ¿Con qué medio se pagó?</span>
+              <div className="grid grid-cols-2 gap-2.5">
+                {(["efectivo", "transferencia"] as const).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, method: m }))}
+                    className={optionBtn(form.method === m)}
+                    aria-pressed={form.method === m}
+                  >
+                    <span className="block text-center text-sm font-semibold">
+                      {m === "efectivo" ? "Efectivo" : "Transferencia"}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                {form.source === "caja"
+                  ? `Se descuenta de ${form.method === "efectivo" ? "Efectivo" : "Dinero en cuenta"} de la caja del día.`
+                  : "Con otros fondos el medio es solo informativo: no mueve los saldos de la caja."}
+              </p>
             </div>
           </div>
 
@@ -8119,7 +8181,7 @@ function CierreRevisionDetalle({
   return (
     <div className="space-y-4">
       {/* Detalle de servicios, productos, gastos, retiros y adelantos de la
-          jornada, siempre visible: los adelantos de "Caja del negocio" son un
+          jornada, siempre visible: los adelantos de "Caja del día" son un
           egreso incluido en el efectivo/cuenta esperados de abajo; los de
           "Fondos externos" se listan aparte y NO entran en el cierre. */}
       <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 p-4">
@@ -8292,7 +8354,7 @@ function CierreConfirmarStep({
         </p>
         <p className="mt-1 text-xs text-amber-200/70">
           Una vez confirmado, la jornada queda "Cerrada" con el detalle de movimientos conservado.
-          Una caja cerrada no se puede reabrir.
+          Si hace falta corregir algo, solo la caja del día puede reabrirse — queda registrado quién y cuándo lo hizo.
         </p>
       </div>
       {(diferencia !== 0 || ajusteCuenta !== 0) && (
@@ -9013,6 +9075,7 @@ function CierreDetalleView({
   const efectivoContado = cierre?.efectivo_contado;
   const diferenciaEfectivo = cierreEvt?.diferencia ?? null;
   const observacion = getCierreObservacion(cierre);
+  const reaperturas = cierreEventos(cierre).filter((e: any) => e?.tipo === "reapertura");
   const money = (v: number) => `$${Math.round(v).toLocaleString("es-AR")}`;
 
   // Valores guardados al cerrar (si el cierre es viejo y no los tiene, se
@@ -9067,8 +9130,131 @@ function CierreDetalleView({
         </div>
       ) : (
         <div className="space-y-4">
-          {/* Mismo orden que la revisión de cierre: detalle de la jornada y,
-              abajo, efectivo esperado/contado y dinero en banco. */}
+          {/* Resumen del cierre arriba: efectivo, banco, observación y datos. */}
+          <div className="grid gap-4 md:grid-cols-2">
+            <section className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 p-4">
+              <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-emerald-200/80">Efectivo en caja</div>
+              <dl className="space-y-2.5">
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="text-sm text-muted-foreground">Esperado</dt>
+                  <dd className="text-base font-semibold tabular-nums text-white">{money(efectivoEsperado)}</dd>
+                </div>
+                {efectivoContadoNum != null && (
+                  <div className="flex items-center justify-between gap-3">
+                    <dt className="text-sm text-muted-foreground">Contado</dt>
+                    <dd className="text-base font-semibold tabular-nums text-white">{money(efectivoContadoNum)}</dd>
+                  </div>
+                )}
+                {diferenciaCierre != null && (
+                  <div className="flex items-center justify-between gap-3 border-t border-white/[0.07] pt-2.5">
+                    <dt className="text-sm font-semibold text-white/80">
+                      {diferenciaCierre === 0 ? "Diferencia" : diferenciaCierre > 0 ? "Sobra" : "Falta"}
+                    </dt>
+                    <dd
+                      className={cn(
+                        "text-lg font-bold tabular-nums",
+                        diferenciaCierre === 0 ? "text-white" : diferenciaCierre > 0 ? "text-emerald-300" : "text-rose-300",
+                      )}
+                    >
+                      {money(Math.abs(diferenciaCierre))}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+            </section>
+
+            <section className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 p-4">
+              <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-sky-200/80">Dinero en banco</div>
+              <dl className="space-y-2.5">
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="text-sm text-muted-foreground">Saldo esperado</dt>
+                  <dd className="text-base font-semibold tabular-nums text-sky-300">{money(cuentaEsperada)}</dd>
+                </div>
+                {cuentaReal != null && (
+                  <div className="flex items-center justify-between gap-3">
+                    <dt className="text-sm text-muted-foreground">Saldo real en cuenta</dt>
+                    <dd className="text-base font-semibold tabular-nums text-white">{money(cuentaReal)}</dd>
+                  </div>
+                )}
+                {cuentaAjuste != null && (
+                  <div className="flex items-center justify-between gap-3 border-t border-white/[0.07] pt-2.5">
+                    <dt className="text-sm font-semibold text-white/80">
+                      {cuentaAjuste === 0 ? "Diferencia" : cuentaAjuste > 0 ? "Sobra" : "Falta"}
+                    </dt>
+                    <dd
+                      className={cn(
+                        "text-lg font-bold tabular-nums",
+                        cuentaAjuste === 0 ? "text-white" : cuentaAjuste > 0 ? "text-emerald-300" : "text-rose-300",
+                      )}
+                    >
+                      {money(Math.abs(cuentaAjuste))}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+            </section>
+          </div>
+
+          {observacion && (
+            <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 px-4 py-3">
+              <div className="text-xs text-muted-foreground">Observación</div>
+              <div className="mt-1 text-sm text-white/80">{observacion}</div>
+            </div>
+          )}
+
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-1.5 rounded-2xl bg-white/[0.02] ring-1 ring-white/[0.07] px-4 py-2.5 text-xs">
+            <span className="text-white/40">
+              Tipo de cierre <span className="ml-1 font-semibold text-white/85">{tipoCierreLabel(cierre)}</span>
+            </span>
+            <span className="text-white/40">
+              Responsable{" "}
+              <span className="ml-1 font-semibold text-white/85">
+                {actor(cierreEvt?.usuario ?? cierre?.closed_by ?? cierre?.usuario_nombre)}
+              </span>
+            </span>
+            <span className="text-white/40">
+              Registrado el{" "}
+              <span className="ml-1 font-semibold text-white/85">
+                {cierreEvt?.fecha_hora
+                  ? new Date(cierreEvt.fecha_hora).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })
+                  : "—"}
+              </span>
+            </span>
+          </div>
+
+          {reaperturas.length > 0 && (
+            <div className="rounded-2xl border border-amber-400/20 bg-amber-400/[0.06] px-4 py-3">
+              <div className="text-xs font-bold uppercase tracking-[0.16em] text-amber-200/80">
+                Reaperturas registradas
+              </div>
+              <ul className="mt-2 space-y-1.5 text-xs text-amber-100/85">
+                {reaperturas.map((e: any, i: number) => (
+                  <li key={i}>
+                    <span className="font-semibold">
+                      {e?.fecha_hora
+                        ? new Date(e.fecha_hora).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })
+                        : "—"}
+                    </span>
+                    {" · "}
+                    {actor(e?.usuario)}
+                    {e?.motivo ? ` · ${e.motivo}` : ""}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {puedeReabrir && (
+            <button
+              type="button"
+              disabled={reabriendo}
+              onClick={onReabrir}
+              className="w-full rounded-2xl border border-white/[0.10] bg-white/[0.055] px-4 py-3 text-sm font-extrabold text-white transition hover:bg-white/[0.09] disabled:opacity-50"
+            >
+              {reabriendo ? "Reabriendo…" : "Reabrir caja"}
+            </button>
+          )}
+
           <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 p-4">
             <div className="mb-3 text-sm font-semibold text-white/85">Detalle de la jornada</div>
             <CierreMovimientosDetalleList
@@ -9080,111 +9266,8 @@ function CierreDetalleView({
               onRowClick={openDetail}
             />
           </div>
-
-          <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.035] ring-1 ring-white/10 px-4 py-3">
-            <span className="text-sm text-muted-foreground">Efectivo esperado en caja</span>
-            <span className="text-lg font-semibold tabular-nums">{money(efectivoEsperado)}</span>
-          </div>
-
-          {efectivoContadoNum != null && (
-            <>
-              <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.035] ring-1 ring-white/10 px-4 py-3">
-                <span className="text-sm text-muted-foreground">Efectivo contado</span>
-                <span className="text-lg font-semibold tabular-nums">{money(efectivoContadoNum)}</span>
-              </div>
-              {diferenciaCierre != null && (
-                <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.035] ring-1 ring-white/10 px-4 py-3">
-                  <span className="text-sm text-muted-foreground">
-                    {diferenciaCierre === 0 ? "Diferencia" : diferenciaCierre > 0 ? "Sobra" : "Falta"}
-                  </span>
-                  <span
-                    className={cn(
-                      "text-lg font-semibold tabular-nums",
-                      diferenciaCierre === 0 ? "text-white" : diferenciaCierre > 0 ? "text-emerald-300" : "text-rose-300",
-                    )}
-                  >
-                    {money(Math.abs(diferenciaCierre))}
-                  </span>
-                </div>
-              )}
-            </>
-          )}
-
-          <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 p-4">
-            <div className="text-sm font-semibold text-sky-200">Dinero en banco</div>
-            <div className="mt-3 flex items-center justify-between gap-3">
-              <span className="text-sm text-muted-foreground">Saldo esperado</span>
-              <span className="text-lg font-semibold tabular-nums text-sky-300">{money(cuentaEsperada)}</span>
-            </div>
-            {cuentaReal != null && (
-              <>
-                <div className="mt-2 flex items-center justify-between gap-3">
-                  <span className="text-sm text-muted-foreground">Saldo real en cuenta</span>
-                  <span className="text-lg font-semibold tabular-nums">{money(cuentaReal)}</span>
-                </div>
-                {cuentaAjuste != null && cuentaAjuste !== 0 && (
-                  <div className="mt-2 flex items-center justify-between gap-3">
-                    <span className="text-sm text-muted-foreground">{cuentaAjuste > 0 ? "Sobra" : "Falta"}</span>
-                    <span
-                      className={cn(
-                        "text-sm font-bold tabular-nums",
-                        cuentaAjuste > 0 ? "text-emerald-300" : "text-rose-300",
-                      )}
-                    >
-                      {money(Math.abs(cuentaAjuste))}
-                    </span>
-                  </div>
-                )}
-              </>
-            )}
-          </div>
-
-          {observacion && (
-            <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 px-4 py-3">
-              <div className="text-xs text-muted-foreground">Observación</div>
-              <div className="mt-1 text-sm text-white/75">{observacion}</div>
-            </div>
-          )}
         </div>
       )}
-
-      <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
-        <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">Datos del cierre</div>
-        <div className="grid grid-cols-2 gap-3 text-xs md:grid-cols-4">
-          <div>
-            <div className="text-white/40">Fecha operativa</div>
-            <div className="mt-0.5 font-semibold text-white">{fecha ?? "—"}</div>
-          </div>
-          <div>
-            <div className="text-white/40">Tipo de cierre</div>
-            <div className="mt-0.5 font-semibold text-white">{tipoCierreLabel(cierre)}</div>
-          </div>
-          <div>
-            <div className="text-white/40">Responsable</div>
-            <div className="mt-0.5 font-semibold text-white">
-              {actor(cierreEvt?.usuario ?? cierre?.closed_by ?? cierre?.usuario_nombre)}
-            </div>
-          </div>
-          <div>
-            <div className="text-white/40">Registrado el</div>
-            <div className="mt-0.5 font-semibold text-white">
-              {cierreEvt?.fecha_hora
-                ? new Date(cierreEvt.fecha_hora).toLocaleString("es-AR", { dateStyle: "short", timeStyle: "short" })
-                : "—"}
-            </div>
-          </div>
-        </div>
-        {puedeReabrir && (
-          <button
-            type="button"
-            disabled={reabriendo}
-            onClick={onReabrir}
-            className="mt-4 w-full rounded-2xl border border-white/[0.10] bg-white/[0.055] px-4 py-3 text-sm font-extrabold text-white transition hover:bg-white/[0.09] disabled:opacity-50"
-          >
-            {reabriendo ? "Reabriendo…" : "Reabrir caja"}
-          </button>
-        )}
-      </div>
 
       {detailPayment && (
         <DetailModal
@@ -9687,7 +9770,7 @@ function CierresTab({
                   setReopenTarget(selected);
                   setReopenNote("");
                 }}
-                puedeReabrir={false}
+                puedeReabrir={selected.fecha === cajaDateKey() && selected.estado !== "reabierta"}
                 reabriendo={reopeningId === selected.id}
               />
             ) : (
@@ -10065,7 +10148,9 @@ function DetailModal({
   // mostrar botones que van a fallar seguro.
   const isVoided = status === "anulado" || status === "reembolsado";
   const isAdjustment = Boolean((payment as Record<string, unknown>).adjustment_of_payment_id);
-  const canCorrectOrVoid = !isStockWithdrawal && !isVoided && !isAdjustment;
+  // Con la caja cerrada (día cerrado o caja del día cerrada) no se corrige,
+  // anula ni restablece ninguna venta: el modal queda solo de lectura.
+  const canCorrectOrVoid = cajaAbierta && !isStockWithdrawal && !isVoided && !isAdjustment;
 
   function openCorrectForm() {
     setCorrectTotal(String(Math.round(Number(payment.total ?? payment.amount ?? 0))));
@@ -10577,7 +10662,7 @@ function DetailModal({
               una venta anulada por error. Misma contraseña que Anular (ver
               restore_payment_authorized, 20261025110000). No disponible
               sobre un retiro de stock ni sobre un ajuste. */}
-          {isVoided && !isStockWithdrawal && !isAdjustment && (
+          {cajaAbierta && isVoided && !isStockWithdrawal && !isAdjustment && (
             <div className="mt-2 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3 space-y-2.5">
               <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60">
                 Acciones
@@ -11057,7 +11142,7 @@ function buildUnifiedMovements(
   showPendientes: boolean,
   movements: CashMovement[],
   collections: PaymentCollectionRow[] = [],
-  // Solo adelantos con origen "Caja del negocio" (los de fondos externos no
+  // Solo adelantos con origen "Caja del día" (los de fondos externos no
   // son plata de la caja y no se listan acá).
   advances: ProfessionalAdvance[] = [],
 ): UnifiedMov[] {
@@ -11785,10 +11870,12 @@ function MovimientosUnificados({
   data,
   movementsData,
   showPendientes,
+  cajaCerrada = false,
 }: {
   data: ReturnType<typeof useCajaData>;
   movementsData: ReturnType<typeof useCashMovements>;
   showPendientes: boolean;
+  cajaCerrada?: boolean;
 }) {
   const [allOpen, setAllOpen] = React.useState(false);
   const [detailPayment, setDetailPayment] = React.useState<
@@ -11833,7 +11920,7 @@ function MovimientosUnificados({
     () => filterToDayBA(movementsData.movements, (m) => m.created_at, todayKeyBA),
     [movementsData.movements, todayKeyBA],
   );
-  // Adelantos de hoy pagados con fondos de la caja (origen "Caja del negocio",
+  // Adelantos de hoy pagados con fondos de la caja (origen "Caja del día",
   // o histórico sin origen, que siempre se trató como de la caja).
   const advancesOnlyToday = React.useMemo(
     () =>
@@ -12356,7 +12443,7 @@ function MovimientosUnificados({
         <DetailModal
           payment={detailPayment}
           employees={data.employees}
-          cajaAbierta={true}
+          cajaAbierta={!cajaCerrada}
           onClose={() => setDetailPayment(null)}
           onDeleted={() => {
             setDetailPayment(null);
@@ -12621,7 +12708,7 @@ function FacturacionPanel({
           hoy (summary.todayCashExpected/todayDigitalExpected) — misma
           fuente que Inicio, nunca una query/cálculo aparte (antes este
           panel llamaba a buildSingleDayCierrePreview por su cuenta).
-          Descuentan los adelantos a profesionales con origen "Caja del negocio"
+          Descuentan los adelantos a profesionales con origen "Caja del día"
           (ver computeExpectedCashAndDigital); los de "Fondos externos" no. El
           detalle de cada saldo muestra el adelanto como línea propia. */}
       <div className="grid grid-cols-2 gap-2">
@@ -12690,6 +12777,7 @@ function FacturacionPanel({
             title="Cobros por confirmar"
             panel="pendientes"
             theme={pendientesTheme}
+            cajaCerrada={cajaCerrada}
           />
         </div>
       )}
@@ -13098,8 +13186,10 @@ function History({
   title = "Cobros",
   panel = "ingresos",
   theme,
+  cajaCerrada = false,
 }: {
   data: ReturnType<typeof useCajaData>;
+  cajaCerrada?: boolean;
   equipoEnabled: boolean;
   onCobrarPendiente: (
     appt: ReturnType<typeof useCajaData>["pendingCharges"][number],
@@ -13848,7 +13938,7 @@ function History({
         <DetailModal
           payment={detailPayment}
           employees={data.employees}
-          cajaAbierta={true}
+          cajaAbierta={!cajaCerrada}
           onClose={() => setDetailPayment(null)}
           onDeleted={() => {
             setDetailPayment(null);

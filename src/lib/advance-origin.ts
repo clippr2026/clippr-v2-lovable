@@ -11,7 +11,7 @@ export type AdvanceFundsSource = "caja" | "externo";
 
 export function advanceOriginLabel(source: string | null | undefined): string {
   if (source === "externo") return "Fondos externos";
-  if (source === "caja") return "Caja del negocio";
+  if (source === "caja") return "Caja del día";
   return "Anterior (sin origen)";
 }
 

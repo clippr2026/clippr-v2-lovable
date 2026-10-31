@@ -102,7 +102,7 @@ describe("Gastos: tipos, etiquetas y formulario", () => {
     expect(form).toContain("funds_source: form.source");
     expect(form).toContain("name,");
     expect(form).not.toContain("GCATEGORIES");
-    const order = ["¿Qué tipo de gasto es?", "Nombre del gasto", ">Monto<", "Origen del dinero", "Medio de pago", "Nota (opcional)", "Registrar gasto"].map(
+    const order = ["¿Qué tipo de gasto es?", "Nombre del gasto", ">Monto<", "¿De dónde sale la plata?", "¿Con qué medio se pagó?", "Nota (opcional)", "Registrar gasto"].map(
       (t) => form.indexOf(t),
     );
     expect(order.every((i) => i > 0)).toBe(true);
