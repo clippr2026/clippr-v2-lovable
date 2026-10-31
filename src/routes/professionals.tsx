@@ -450,45 +450,7 @@ function ProfessionalsPage() {
               </div>
               <div className="text-sm text-muted-foreground mt-0.5 flex items-center flex-wrap gap-x-2 gap-y-1">
                 <span>{active.role_label?.trim() || "Profesional"}</span>
-                {/* ONLINE/OFFLINE: mismo dato que el switch "Acepta reservas
-                    en línea" de Equipo (_publicVisibility.employees) — no
-                    Activo/Inactivo (is_active), que es un concepto distinto
-                    (si el profesional existe/opera en la barbería, no si
-                    acepta reservas desde la página pública). */}
-                <span
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full ring-1 px-2 py-0.5 text-[10px] uppercase tracking-wider",
-                    employeeOnlineMap[active.id] !== false
-                      ? "bg-[oklch(0.78_0.17_140/0.12)] ring-[oklch(0.78_0.17_140/0.3)] text-[oklch(0.85_0.17_140)]"
-                      : "bg-white/5 ring-white/10 text-muted-foreground",
-                  )}
-                >
-                  <span
-                    className={cn(
-                      "h-1.5 w-1.5 rounded-full",
-                      employeeOnlineMap[active.id] !== false ? "bg-[oklch(0.78_0.17_140)]" : "bg-muted-foreground",
-                    )}
-                  />
-                  {employeeOnlineMap[active.id] !== false ? "ONLINE" : "OFFLINE"}
-                </span>
               </div>
-              {/* Antes solo se mostraba con permissions.equipo (Admin/Dueño) —
-                  un profesional viendo su PROPIA ficha (típicamente desde Mi
-                  Agenda en el celular) nunca tiene ese permiso, así que este
-                  badge nunca le aparecía a él mismo aunque el diseño no
-                  tuviera nada de "solo desktop". isProfessionalAccess cubre
-                  ese caso: puede ver su propio modo de cobro sin necesitar
-                  permiso de gestión de equipo. */}
-              {(permissions.equipo || isProfessionalAccess) && <div className={cn(
-                "mt-2 inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-medium ring-1",
-                approvalMode === "auto" && "bg-emerald-500/10 ring-emerald-400/30 text-emerald-300",
-                approvalMode === "manual" && "bg-sky-500/10 ring-sky-400/30 text-sky-300",
-                approvalMode === "disabled" && "bg-white/5 ring-white/15 text-muted-foreground",
-              )}>
-                {approvalMode === "auto" && <>🟢 Cobra servicios</>}
-                {approvalMode === "manual" && <>🔵 Envía servicios</>}
-                {approvalMode === "disabled" && <>⚪ No cobra servicios</>}
-              </div>}
             </div>
           </div>
 
