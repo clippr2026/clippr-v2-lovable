@@ -71,6 +71,7 @@ import { money, displayResponsable, isRunEffectivelySettled } from "@/components
 import { advanceMethodLabel, advanceOriginLabel } from "@/lib/advance-origin";
 import { HistorialPanelView } from "@/components/liquidaciones/historial-panel-view";
 import { AgendaCenteredModal } from "@/components/agenda/agenda-drawer";
+import { HorarioEspecialPanel } from "@/components/professionals/horario-especial-panel";
 import type { EmployeeCommissionMap } from "@/lib/service-pricing";
 import { cancelAppointment } from "@/components/agenda/use-agenda-data";
 import { useAgendaData } from "@/components/agenda/use-agenda-data";
@@ -428,13 +429,13 @@ function ProfessionalsPage() {
       <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />
 <div className="space-y-6 animate-fade-up">
       {/* Header card */}
-      <div className="glass rounded-3xl p-5 md:p-6 relative overflow-hidden">
+      <div className="glass rounded-2xl md:rounded-3xl px-3 py-2 md:p-6 relative overflow-hidden">
         <div className="absolute -top-24 -left-16 h-64 w-64 rounded-full bg-cyan-500/10 blur-3xl pointer-events-none" />
         <div className="flex flex-col md:flex-row md:items-center gap-5 md:gap-6 relative">
-          <div className="flex items-center gap-4 flex-1 min-w-0">
+          <div className="flex items-center gap-2.5 md:gap-4 flex-1 min-w-0">
             <div
               className={cn(
-                "h-16 w-16 md:h-[68px] md:w-[68px] rounded-full overflow-hidden grid place-items-center text-2xl font-display font-semibold text-background bg-gradient-to-br shadow-[0_0_40px_-4px_rgba(251,191,36,0.55)] ring-1 ring-white/10",
+                "h-9 w-9 md:h-[68px] md:w-[68px] rounded-full overflow-hidden grid place-items-center text-sm md:text-2xl font-display font-semibold text-background bg-gradient-to-br shadow-[0_0_40px_-4px_rgba(251,191,36,0.55)] ring-1 ring-white/10",
                 activeColor.color
               )}
             >
@@ -444,11 +445,14 @@ function ProfessionalsPage() {
                 initials
               )}
             </div>
-            <div className="min-w-0">
-              <div className="text-2xl md:text-[26px] font-display font-semibold tracking-tight leading-tight">
+            {/* En celular: nombre y rol uno al lado del otro, en una sola línea;
+                en escritorio se mantiene apilado como siempre. */}
+            <div className="min-w-0 flex items-baseline gap-x-2 md:block">
+              <div className="truncate text-base md:text-[26px] font-display font-semibold tracking-tight leading-tight">
                 {active.full_name}
               </div>
-              <div className="text-sm text-muted-foreground mt-0.5 flex items-center flex-wrap gap-x-2 gap-y-1">
+              <div className="shrink-0 text-xs md:text-sm text-muted-foreground md:mt-0.5 flex items-center flex-wrap gap-x-2 gap-y-1">
+                <span className="md:hidden">·</span>
                 <span>{active.role_label?.trim() || "Profesional"}</span>
               </div>
             </div>
@@ -583,6 +587,7 @@ function ProfessionalsPage() {
           equipoEnabled={approvalModeEnabled}
           canAddTurno={canAddTurno}
           canDeleteTurno={canDeleteTurno}
+          canEditOwnSchedule={isProfessionalAccess}
           dateControl={
             <div className="flex shrink-0 items-center gap-1.5 sm:gap-2 rounded-full bg-[#070814]/85 p-1 ring-1 ring-white/10 shadow-[0_0_24px_rgba(0,0,0,0.22)]">
               <button
@@ -966,7 +971,7 @@ function DayStripNav({ cursor, onSelect }: { cursor: Date; onSelect: (d: Date) =
   );
 }
 
-function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approvalModeEnabled, profile, canOperate, equipoEnabled, canAddTurno, canDeleteTurno, dateControl }: {
+function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approvalModeEnabled, profile, canOperate, equipoEnabled, canAddTurno, canDeleteTurno, canEditOwnSchedule, dateControl }: {
   businessId: string | null; empId: string | null;
   fromDate: string;
   toDate: string;
@@ -977,6 +982,9 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
   equipoEnabled: boolean;
   canAddTurno: boolean;
   canDeleteTurno: boolean;
+  // Cuenta Profesional viendo SU propio panel: puede crear/administrar sus
+  // propios horarios especiales (nunca los de otro profesional).
+  canEditOwnSchedule?: boolean;
   dateControl?: React.ReactNode;
 }) {
   const from = fromDate;
@@ -1342,8 +1350,27 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
           ~16px). */}
       <div className="flex flex-nowrap items-center justify-between gap-2 mb-4">
         {dateControl ?? <div />}
-        {(canAddTurno || approvalMode !== "disabled") && (
+        {(canAddTurno || approvalMode !== "disabled" || canEditOwnSchedule) && (
           <div className="flex shrink-0 flex-nowrap gap-1.5 sm:gap-2">
+            {/* Horario especial propio — mismo editor y misma persistencia que
+                la Agenda general (ver HorarioEspecialPanel). */}
+            {canEditOwnSchedule && empId && (
+              <HorarioEspecialPanel
+                shortLabelOnMobile
+                businessId={businessId}
+                employeeId={empId}
+                employeeName={
+                  agendaData.employees.find((e) => e.id === empId)?.full_name ??
+                  agendaData.employees.find((e) => e.id === empId)?.name ??
+                  "Profesional"
+                }
+                schedule={agendaData.schedule}
+                employeeSchedules={agendaData.employeeSchedules}
+                businessSpecialDates={agendaData.businessSpecialDates}
+                employeeSpecialDates={agendaData.employeeSpecialDates}
+                onChanged={() => agendaData.refresh()}
+              />
+            )}
             {/* + Turno: violeta (identidad Clippr) — crear un turno nuevo.
                 Enviar: celeste (el mismo que antes tenía + Turno) — acción
                 operativa de mandar servicios a caja. + Venta (modo
