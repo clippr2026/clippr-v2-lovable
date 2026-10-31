@@ -7713,58 +7713,9 @@ function CierreMovimientosDetalleList({
             </div>
           </div>
 
-          <div className="rounded-2xl border border-white/[0.075] bg-white/[0.025] p-4">
-            <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
-              {profesionalFiltro === "todos" ? "Resumen del equipo" : `Resumen de ${profesionalFiltro}`}
-            </div>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {profesionalFiltro === "todos" && facturacionPorProfesional.length > 0 && (
+            <div className="rounded-2xl border border-white/[0.075] bg-white/[0.025] p-4">
               <div>
-                <div className="text-[10px] uppercase tracking-wide text-white/40">Total facturado por servicios</div>
-                <div className="mt-0.5 text-base font-extrabold tabular-nums text-emerald-300">
-                  {money(totalFacturadoProfesional)}
-                </div>
-                <div className="mt-0.5 text-[11px] text-white/40">
-                  de los cuales, productos (todos los medios): {money(totalProductosProfesional)}
-                </div>
-              </div>
-              <div>
-                <div className="text-[10px] uppercase tracking-wide text-white/40">Propinas (separadas)</div>
-                <div className="mt-0.5 text-base font-extrabold tabular-nums text-amber-200">
-                  {money(propinasProfesional)}
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-3 border-t border-white/[0.06] pt-3">
-              <div className="text-[10px] uppercase tracking-wide text-white/40">
-                Por medio de pago (sin propina) — tocá uno para filtrar
-              </div>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {ACTIVE_PAY_METHODS.map((m) => (
-                  <MetodoBadge
-                    key={m.id}
-                    method={m.id}
-                    amount={desglosePorMedio[m.id]?.monto ?? 0}
-                    active={medioFiltro === m.id}
-                    onClick={() => setMedioFiltro(m.id)}
-                  />
-                ))}
-                {/* Medios legado (tarjeta/Mercado Pago genéricos, solo en
-                    pagos viejos — ACTIVE_PAY_METHODS ya no los ofrece para
-                    cobros nuevos) — informativo, sin click: no hay chip de
-                    "otros" arriba con el que combinarlo. Se muestra para
-                    que los 5 badges de arriba más este nunca sumen menos
-                    que "Total facturado por servicios". */}
-                {Object.entries(desglosePorMedio)
-                  .filter(([key, v]) => !ACTIVE_PAY_METHODS.some((m) => m.id === key) && v.monto !== 0)
-                  .map(([key, v]) => (
-                    <MetodoBadge key={key} method={key} amount={v.monto} />
-                  ))}
-              </div>
-            </div>
-
-            {profesionalFiltro === "todos" && facturacionPorProfesional.length > 0 && (
-              <div className="mt-3 border-t border-white/[0.06] pt-3">
                 <div className="text-[10px] uppercase tracking-wide text-white/40">
                   Facturación por profesional{medioFiltro !== "todos" ? ` · ${paymentMethodLabel(medioFiltro)}` : ""}
                 </div>
@@ -7780,8 +7731,8 @@ function CierreMovimientosDetalleList({
                   ))}
                 </div>
               </div>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       )}
 
