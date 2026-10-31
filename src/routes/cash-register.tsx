@@ -1063,19 +1063,9 @@ function CashRegisterPage() {
                 {cajaCerradaHora && <span className="ml-2 font-normal text-rose-100/80">· Hora de cierre: {cajaCerradaHora}</span>}
               </div>
               <div className="text-xs text-rose-100/70">
-                Podés mirar todo, pero no cargar ventas, gastos ni movimientos hasta reabrirla.
+                Podés mirar todo, pero no cargar ventas, gastos ni movimientos: una caja cerrada no se reabre.
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => {
-                setReopenRequest((n) => n + 1);
-                setTab("cierres");
-              }}
-              className="rounded-xl bg-white/10 px-3 py-1.5 text-xs font-semibold text-rose-50 ring-1 ring-white/15 transition hover:bg-white/15"
-            >
-              Reabrir caja
-            </button>
           </div>
         )}
         {/* Oculto mientras Nueva venta o Nuevo gasto están activos — el
@@ -8302,7 +8292,7 @@ function CierreConfirmarStep({
         </p>
         <p className="mt-1 text-xs text-amber-200/70">
           Una vez confirmado, la jornada queda "Cerrada" con el detalle de movimientos conservado.
-          Para corregir algo después hay que reabrirla — queda registrado quién y cuándo lo hizo.
+          Una caja cerrada no se puede reabrir.
         </p>
       </div>
       {(diferencia !== 0 || ajusteCuenta !== 0) && (
@@ -9697,7 +9687,7 @@ function CierresTab({
                   setReopenTarget(selected);
                   setReopenNote("");
                 }}
-                puedeReabrir={selected.estado !== "reabierta"}
+                puedeReabrir={false}
                 reabriendo={reopeningId === selected.id}
               />
             ) : (
