@@ -12006,7 +12006,10 @@ function MovimientosUnificados({
       if (!isCountableCajaPayment(payment.status)) continue;
       const method = String(payment.method ?? payment.payment_method ?? "cash");
       if (!groups[method]) groups[method] = { method, total: 0, count: 0 };
-      groups[method].total += Number(payment.total ?? payment.amount ?? 0);
+      // Con la propina: es plata real que entra por el mismo medio (así el
+      // chip coincide con "Dinero en cuenta del día" y con el banco).
+      groups[method].total +=
+        Number(payment.total ?? payment.amount ?? 0) + Number((payment as any).tip_amount ?? (payment as any).tip ?? 0);
       groups[method].count += 1;
     }
     for (const c of collSource) {
@@ -12312,6 +12315,21 @@ function MovimientosUnificados({
                 listado largo empuja el alto del padre en vez de scrollear. */}
             <div className="min-h-0 flex-1 overflow-y-auto [scrollbar-width:thin]">
               <div className="hidden min-w-[1020px] sm:block">
+                <div
+                  className={cn(
+                    "sticky top-0 z-10 grid items-center gap-x-3 border-b border-white/[0.07] bg-[#0A0D18] px-5 py-2.5 text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground/60",
+                    UNIFIED_GRID_COLS,
+                  )}
+                >
+                  <div>Fecha</div>
+                  <div>Cliente / concepto</div>
+                  <div>Profesional</div>
+                  <div>Servicio / categoría</div>
+                  <div className="text-right">Monto</div>
+                  <div>Método</div>
+                  <div>Hora</div>
+                  <div>Quién</div>
+                </div>
                 {modalItems.length === 0 ? (
                   <div className="px-5 py-10 text-center text-sm text-white/45">
                     Sin movimientos registrados.
