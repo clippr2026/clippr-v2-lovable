@@ -8259,115 +8259,88 @@ function CierreRevisionDetalle({
 
   return (
     <div className="space-y-4">
-      {/* Detalle de servicios, productos, gastos, retiros y adelantos de la
-          jornada, siempre visible: los adelantos de "Caja del día" son un
-          egreso incluido en el efectivo/cuenta esperados de abajo; los de
-          "Fondos externos" se listan aparte y NO entran en el cierre. */}
-      <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 p-4">
-        <div className="mb-3 text-sm font-semibold text-white/85">Detalle de la jornada</div>
-        <CierreMovimientosDetalleList
-          cobros={snapshot.cobrosSnapshot}
-          cobrosAnulados={snapshot.cobrosAnuladosSnapshot}
-          gastos={snapshot.gastosSnapshot}
-          movimientos={movimientosManuales}
-          adelantos={adelantosDetalle}
-          onRowClick={openDetail}
-        />
-      </div>
-
-      {/* Efectivo esperado en caja */}
-      <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.035] ring-1 ring-white/10 px-4 py-3">
-        <span className="text-sm text-muted-foreground">Efectivo esperado en caja</span>
-        <span className="text-lg font-semibold tabular-nums">
-          ${Math.round(expected.cashExpected).toLocaleString("es-AR")}
-        </span>
-      </div>
-
-      {/* Efectivo contado — editable, precargado con lo esperado por el padre */}
-      <div>
-        <div className="text-sm font-semibold">Efectivo contado</div>
-        <p className="mt-1 text-xs text-muted-foreground">
-          Contá el efectivo de la caja e ingresá el monto real.
-        </p>
-        <div className="mt-2 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 focus-within:border-blue-300/40">
-          <span className="text-muted-foreground/70">$</span>
-          <input
-            type="text"
-            inputMode="numeric"
-            value={efectivoContado}
-            onChange={(e) => onEfectivoContadoChange(e.target.value.replace(/[^\d.,]/g, ""))}
-            className="w-full bg-transparent text-sm outline-none tabular-nums"
-          />
-        </div>
-        <p className="mt-1.5 text-xs text-muted-foreground">
-          Si coincide con lo esperado, no se registra diferencia.
-        </p>
-      </div>
-
-      {/* Diferencia */}
-      <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.035] ring-1 ring-white/10 px-4 py-3">
-        <span className="text-sm text-muted-foreground">
-          {diferencia === 0 ? "Diferencia" : diferencia > 0 ? "Sobra" : "Falta"}
-        </span>
-        <span
-          className={cn(
-            "text-lg font-semibold tabular-nums",
-            diferencia === 0 ? "text-white" : diferencia > 0 ? "text-emerald-300" : "text-rose-300",
-          )}
-        >
-          ${Math.round(Math.abs(diferencia)).toLocaleString("es-AR")}
-        </span>
-      </div>
-
-      {/* Dinero en cuenta — a diferencia del efectivo, NO se resetea: el
-          saldo esperado ya arrastra el carry-forward del último cierre (ver
-          getDigitalCarryForward). Acá solo se deja constancia del saldo
-          real al momento de cerrar; el ajuste nunca se mezcla con la
-          diferencia de efectivo. */}
-      <div className="rounded-xl bg-white/[0.02] ring-1 ring-white/10 px-4 py-3 space-y-3">
-        <div>
-          <div className="text-sm font-semibold text-sky-200">Dinero en banco</div>
-        </div>
-
-        <div className="flex items-center justify-between gap-3">
-          <span className="text-sm text-muted-foreground">Saldo esperado</span>
-          <span className="text-lg font-semibold tabular-nums text-sky-300">
-            ${Math.round(expected.digitalExpected).toLocaleString("es-AR")}
-          </span>
-        </div>
-
-        <div>
-          <label className="text-xs text-muted-foreground">Saldo real en cuenta</label>
-          <div className="mt-1 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 focus-within:border-blue-300/40">
-            <span className="text-muted-foreground/70">$</span>
-            <input
-              type="text"
-              inputMode="numeric"
-              value={saldoReal}
-              onChange={(e) => onSaldoRealChange(e.target.value.replace(/[^\d.,]/g, ""))}
-              className="w-full bg-transparent text-sm outline-none tabular-nums"
-            />
-          </div>
-          <p className="mt-1.5 text-xs text-muted-foreground">
-            Ingresá el saldo que ves actualmente en tu cuenta. Si coincide con lo esperado,
-            no se registra ningún ajuste.
-          </p>
-        </div>
-
-        {ajusteCuenta !== 0 && (
+      {/* Resumen del cierre arriba (efectivo y banco, lado a lado) y, abajo,
+          el detalle de la jornada — mismo orden que el detalle de un día
+          cerrado. El efectivo contado y el saldo real son editables. */}
+      <div className="grid gap-4 md:grid-cols-2">
+        <section className="space-y-3 rounded-2xl bg-white/[0.03] ring-1 ring-white/10 p-4">
+          <div className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-200/80">Efectivo en caja</div>
           <div className="flex items-center justify-between gap-3">
-            <span className="text-sm text-muted-foreground">Ajuste</span>
-            <span
-              className={cn(
-                "text-sm font-semibold tabular-nums",
-                ajusteCuenta > 0 ? "text-emerald-300" : "text-rose-300",
-              )}
-            >
-              {ajusteCuenta > 0 ? "+" : "-"}$
-              {Math.round(Math.abs(ajusteCuenta)).toLocaleString("es-AR")}
+            <span className="text-sm text-muted-foreground">Esperado</span>
+            <span className="text-base font-semibold tabular-nums">
+              ${Math.round(expected.cashExpected).toLocaleString("es-AR")}
             </span>
           </div>
-        )}
+          <div>
+            <label className="text-xs text-muted-foreground">Contado — contá el efectivo e ingresá el monto real</label>
+            <div className="mt-1 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 focus-within:border-blue-300/40">
+              <span className="text-muted-foreground/70">$</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={efectivoContado}
+                onChange={(e) => onEfectivoContadoChange(e.target.value.replace(/[^\d.,]/g, ""))}
+                className="w-full bg-transparent text-sm outline-none tabular-nums"
+              />
+            </div>
+          </div>
+          <div className="flex items-center justify-between gap-3 border-t border-white/[0.07] pt-3">
+            <span className="text-sm font-semibold text-white/80">
+              {diferencia === 0 ? "Diferencia" : diferencia > 0 ? "Sobra" : "Falta"}
+            </span>
+            <span
+              className={cn(
+                "text-lg font-bold tabular-nums",
+                diferencia === 0 ? "text-white" : diferencia > 0 ? "text-emerald-300" : "text-rose-300",
+              )}
+            >
+              ${Math.round(Math.abs(diferencia)).toLocaleString("es-AR")}
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground">Si coincide con lo esperado, no se registra diferencia.</p>
+        </section>
+
+        {/* Dinero en cuenta — a diferencia del efectivo, NO se resetea: el
+            saldo esperado ya arrastra el carry-forward del último cierre (ver
+            getDigitalCarryForward). Acá solo se deja constancia del saldo
+            real al momento de cerrar; el ajuste nunca se mezcla con la
+            diferencia de efectivo. */}
+        <section className="space-y-3 rounded-2xl bg-white/[0.03] ring-1 ring-white/10 p-4">
+          <div className="text-xs font-bold uppercase tracking-[0.16em] text-sky-200/80">Dinero en banco</div>
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-sm text-muted-foreground">Saldo esperado</span>
+            <span className="text-base font-semibold tabular-nums text-sky-300">
+              ${Math.round(expected.digitalExpected).toLocaleString("es-AR")}
+            </span>
+          </div>
+          <div>
+            <label className="text-xs text-muted-foreground">Saldo real en cuenta — el que ves hoy en tu cuenta</label>
+            <div className="mt-1 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 focus-within:border-blue-300/40">
+              <span className="text-muted-foreground/70">$</span>
+              <input
+                type="text"
+                inputMode="numeric"
+                value={saldoReal}
+                onChange={(e) => onSaldoRealChange(e.target.value.replace(/[^\d.,]/g, ""))}
+                className="w-full bg-transparent text-sm outline-none tabular-nums"
+              />
+            </div>
+          </div>
+          <div className="flex items-center justify-between gap-3 border-t border-white/[0.07] pt-3">
+            <span className="text-sm font-semibold text-white/80">
+              {ajusteCuenta === 0 ? "Diferencia" : ajusteCuenta > 0 ? "Sobra" : "Falta"}
+            </span>
+            <span
+              className={cn(
+                "text-lg font-bold tabular-nums",
+                ajusteCuenta === 0 ? "text-white" : ajusteCuenta > 0 ? "text-emerald-300" : "text-rose-300",
+              )}
+            >
+              ${Math.round(Math.abs(ajusteCuenta)).toLocaleString("es-AR")}
+            </span>
+          </div>
+          <p className="text-xs text-muted-foreground">Si coincide con lo esperado, no se registra ningún ajuste.</p>
+        </section>
       </div>
 
       <div>
@@ -8387,6 +8360,22 @@ function CierreRevisionDetalle({
             "mt-1 w-full rounded-xl border px-3 py-2.5 text-sm outline-none resize-none bg-white/[0.03] focus:border-blue-300/40",
             diferencia !== 0 && !observacion.trim() ? "border-amber-400/40" : "border-white/10",
           )}
+        />
+      </div>
+
+      {/* Detalle de servicios, productos, gastos, retiros y adelantos de la
+          jornada: los adelantos de "Caja del día" son un egreso incluido en
+          el efectivo/cuenta esperados de arriba; los de "Fondos externos"
+          se listan aparte y NO entran en el cierre. */}
+      <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 p-4">
+        <div className="mb-3 text-sm font-semibold text-white/85">Detalle de la jornada</div>
+        <CierreMovimientosDetalleList
+          cobros={snapshot.cobrosSnapshot}
+          cobrosAnulados={snapshot.cobrosAnuladosSnapshot}
+          gastos={snapshot.gastosSnapshot}
+          movimientos={movimientosManuales}
+          adelantos={adelantosDetalle}
+          onRowClick={openDetail}
         />
       </div>
 
