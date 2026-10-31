@@ -8606,6 +8606,7 @@ function CerrarDiaAnteriorCard({
   cierresExistentes,
   jumpToDate,
   onJumped,
+  compact = false,
   onCierreGuardado,
 }: {
   businessId: string | null;
@@ -8613,6 +8614,9 @@ function CerrarDiaAnteriorCard({
   userEmail: string | null;
   employees: ReturnType<typeof useCajaData>["employees"];
   cierresExistentes: any[];
+  // Solo la revisión del día elegido: sin el título, el selector de fecha ni
+  // el botón "Revisar cierre" (se llega acá desde un día pendiente).
+  compact?: boolean;
   // Fecha a la que hay que saltar y mostrar su vista previa automáticamente
   // (viene del aviso "Caja vencida") — null en el uso normal, donde el
   // usuario elige la fecha a mano con el selector de abajo.
@@ -8770,6 +8774,8 @@ function CerrarDiaAnteriorCard({
 
   return (
     <div className="mt-4 rounded-[28px] border border-white/[0.085] bg-black/20 p-5">
+      {!compact && (
+        <>
       <p className="text-sm font-bold text-white/85">Revisar un día anterior</p>
       <p className="mt-1 text-xs text-muted-foreground">
         Para ponerse al día con jornadas pendientes de revisión, una por una — cada cierre queda
@@ -8800,6 +8806,12 @@ function CerrarDiaAnteriorCard({
           {loadingPreview ? "Calculando…" : "Revisar cierre"}
         </button>
       </div>
+
+        </>
+      )}
+      {compact && loadingPreview && !preview && (
+        <p className="text-sm text-muted-foreground">Calculando el cierre…</p>
+      )}
 
       {yaCerrado && (
         <p className="mt-3 text-sm font-semibold text-amber-300">
@@ -9578,77 +9590,6 @@ function CierresTab({
 
         {subtab === "dia" ? (
           <div className="pt-5">
-            {pendingCierres.length > 0 && (
-              <div className="mb-4 rounded-[24px] border border-amber-400/25 bg-amber-400/[0.08] p-4">
-                <div className="flex items-start gap-2.5">
-                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-bold text-amber-200">
-                      {pendingCierres.length === 1
-                        ? `Tenés una caja pendiente de revisión del ${fechaDDMMYYYY(pendingCierres[0].date)}`
-                        : `Tenés ${pendingCierres.length} cajas pendientes de revisión`}
-                    </p>
-                    <p className="mt-1 text-xs text-amber-200/70">
-                      Ninguna se cierra sola — revisá cada una y confirmá el cierre a mano.
-                    </p>
-                    <div className="mt-3 space-y-1.5">
-                      {pendingCierres.map((p) => (
-                        <div
-                          key={p.date}
-                          className="flex items-center justify-between gap-3 rounded-xl bg-black/15 px-3 py-2"
-                        >
-                          <span className="text-sm font-semibold text-white/85">
-                            {fechaDDMMYYYY(p.date)}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setSubtab("dia");
-                              setJumpToDate(p.date);
-                            }}
-                            className="rounded-lg bg-amber-400/15 px-3 py-1.5 text-xs font-bold text-amber-100 ring-1 ring-amber-400/30 transition hover:bg-amber-400/25"
-                          >
-                            Revisar cierre
-                          </button>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-            {!cajaCerrada ? (
-              <div className="rounded-[28px] border border-emerald-300/14 bg-[linear-gradient(135deg,rgba(16,185,129,0.08),rgba(0,0,0,0.20))] p-5">
-                <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <div className="inline-flex rounded-full border border-emerald-400/25 bg-emerald-400/10 px-3 py-1 text-xs font-bold text-emerald-300">
-                      Caja abierta
-                    </div>
-                    <p className="mt-2 text-sm text-muted-foreground">
-                      Caja abierta desde{" "}
-                      <span className="font-semibold text-white">
-                        {fechaDDMMYYYY(latestCierre?.fecha)} · {openedAt}
-                      </span>
-                    </p>
-                    <p className="mt-1 text-sm text-muted-foreground">
-                      Responsable: <span className="font-semibold text-white">{openedBy}</span>
-                    </p>
-                  </div>
-                  <CierreCajaBtn
-                    businessId={businessId}
-                    branchId={activeBranchId}
-                    userEmail={userEmail}
-                    employees={employees}
-                    onCajaCerrada={() => {
-                      onCajaCerrada();
-                      loadCierres();
-                    }}
-                    cajaAbiertaDesde={`${fechaDDMMYYYY(latestCierre?.fecha)} · ${openedAt}`}
-                    cajaRangeStartDate={latestCierre?.fecha ?? cajaDateKey()}
-                  />
-                </div>
-              </div>
-            ) : null}
             <CerrarDiaAnteriorCard
               businessId={businessId}
               branchId={activeBranchId}
@@ -9657,10 +9598,12 @@ function CierresTab({
               cierresExistentes={cierres}
               jumpToDate={jumpToDate}
               onJumped={() => setJumpToDate(null)}
+              compact
               onCierreGuardado={() => {
                 onCajaCerrada();
                 loadCierres();
                 loadPendingCierres();
+                setSubtab("historial");
               }}
             />
           </div>
