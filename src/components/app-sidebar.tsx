@@ -1,4 +1,5 @@
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { Link, useRouterState } from "@tanstack/react-router";
 import {
   LayoutDashboard,
@@ -636,10 +637,26 @@ function MobileBottomNav() {
 
   if (items.length === 0) return null;
 
+  // Barra fija abajo, en TODAS las pantallas del celular (incluida la Agenda):
+  // se monta directo en <body> (portal) para que ningún contenedor de la
+  // página (scroll, overflow, transform, stacking context) pueda arrastrarla
+  // al hacer scroll, y se le da su propia capa de composición para que iOS no
+  // la mueva junto con el contenido. Respeta el safe-area de iPhone; el
+  // contenido deja su espacio abajo en <main> (pb-[calc(3.5rem+safe-area)]).
   return (
+    <MobileFixedBottom>
     <nav
       className="lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-black"
-      style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+      style={{
+        position: "fixed",
+        left: 0,
+        right: 0,
+        bottom: 0,
+        paddingBottom: "env(safe-area-inset-bottom, 0px)",
+        transform: "translate3d(0, 0, 0)",
+        WebkitTransform: "translate3d(0, 0, 0)",
+        willChange: "transform",
+      }}
     >
       <div className="grid h-14" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
         {items.map((item) => {
@@ -669,7 +686,18 @@ function MobileBottomNav() {
         })}
       </div>
     </nav>
+    </MobileFixedBottom>
   );
+}
+
+// Monta a sus hijos en document.body (solo en el cliente). Evita que un
+// contenedor con scroll/overflow/transform de la página convierta a la barra
+// "fixed" en algo que se mueve con el contenido.
+function MobileFixedBottom({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = React.useState(false);
+  React.useEffect(() => setMounted(true), []);
+  if (!mounted || typeof document === "undefined") return null;
+  return createPortal(children, document.body);
 }
 
 // Barra fina debajo del header con la sección actual (ícono + nombre) — sin
