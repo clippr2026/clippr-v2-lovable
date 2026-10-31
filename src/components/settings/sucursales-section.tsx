@@ -282,15 +282,18 @@ export function SucursalesSection() {
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
-                      <Link
-                        to="/fichaje-kiosco/$branchId"
-                        params={{ branchId: b.id }}
-                        target="_blank"
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-white/5 px-2.5 py-1.5 text-xs font-medium text-muted-foreground ring-1 ring-white/10 transition hover:text-foreground hover:bg-white/10"
-                      >
-                        <ScanLine className="size-3.5" />
-                        Kiosco
-                      </Link>
+                      {/* El kiosco de fichaje todavía no se ofrece en producción: solo en desarrollo. */}
+                      {import.meta.env.DEV && (
+                        <Link
+                          to="/fichaje-kiosco/$branchId"
+                          params={{ branchId: b.id }}
+                          target="_blank"
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-white/5 px-2.5 py-1.5 text-xs font-medium text-muted-foreground ring-1 ring-white/10 transition hover:text-foreground hover:bg-white/10"
+                        >
+                          <ScanLine className="size-3.5" />
+                          Kiosco
+                        </Link>
+                      )}
                       <button
                         type="button"
                         onClick={() => startEdit(b)}
