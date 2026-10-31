@@ -7133,6 +7133,11 @@ function CierreMovimientosDetalleList({
       ? productosPorProfesional
       : productosPorProfesional.filter((it: any) => montoParaMedio(it.monto, 0, it.metodo, it.splits, medioFiltro).incluido);
   const money = (v: number) => `$${Math.round(v).toLocaleString("es-AR")}`;
+  // En "Todos" una venta mixta (corte + catálogo) va en UNA fila con todo
+  // junto; el catálogo aparte solo para las ventas que no tienen servicio.
+  const idsConServicio = new Set(serviciosRows.map((p: any) => p.id));
+  const productosVisibles =
+    filtro === "todos" ? productosFiltrados.filter((it: any) => !idsConServicio.has(it.id)) : productosFiltrados;
 
   // Gastos/retiros NUNCA se filtran por profesional (no les corresponde:
   // sección 5 del pedido, "no atribuirse a un profesional si no
@@ -7210,7 +7215,7 @@ function CierreMovimientosDetalleList({
   const filtroChips: Array<{ key: DetalleFiltro; label: string }> = [
     { key: "todos", label: "Todos" },
     { key: "servicios", label: "Servicios" },
-    { key: "productos", label: "Productos" },
+    { key: "productos", label: "Catálogo" },
     { key: "gastos", label: "Gastos" },
     { key: "retiros", label: "Retiros" },
     ...(adelantos ? [{ key: "adelantos" as DetalleFiltro, label: "Adelantos" }] : []),
@@ -7325,11 +7330,15 @@ function CierreMovimientosDetalleList({
                   {serviciosFiltrados.map((p: any, idx: number) => {
                     const items: any[] = Array.isArray(p.items) ? p.items : [];
                     const servicioNombre =
-                      items.filter((it) => !it?.esProducto).map((it) => it.nombre).join(" + ") || p.servicio || "Servicio";
+                      filtro === "servicios"
+                        ? items.filter((it) => !it?.esProducto).map((it) => it.nombre).join(" + ") || p.servicio || "Servicio"
+                        : items.length > 0
+                          ? items.map((it) => it.nombre).join(" / ")
+                          : p.servicio || "Servicio";
                     const descuento = Number(p.descuento ?? 0);
                     // Venta mixta (corte + producto): la fila de Servicios muestra solo la parte
                     // del servicio — el producto (ej. Corona) va aparte en Productos.
-                    const productosEnVenta = items
+                    const productosEnVenta = filtro !== "servicios" ? 0 : items
                       .filter((it) => it?.esProducto)
                       .reduce((acc, it) => acc + Number(it.monto ?? 0), 0);
                     const montoVenta = Number(p.monto ?? 0);
@@ -7452,11 +7461,15 @@ function CierreMovimientosDetalleList({
                 {serviciosFiltrados.map((p: any, idx: number) => {
                   const items: any[] = Array.isArray(p.items) ? p.items : [];
                   const servicioNombre =
-                    items.filter((it) => !it?.esProducto).map((it) => it.nombre).join(" + ") || p.servicio || "Servicio";
+                    filtro === "servicios"
+                      ? items.filter((it) => !it?.esProducto).map((it) => it.nombre).join(" + ") || p.servicio || "Servicio"
+                      : items.length > 0
+                        ? items.map((it) => it.nombre).join(" / ")
+                        : p.servicio || "Servicio";
                   const descuento = Number(p.descuento ?? 0);
                   // Venta mixta (corte + producto): la fila de Servicios muestra solo la parte
                   // del servicio — el producto (ej. Corona) va aparte en Productos.
-                  const productosEnVenta = items
+                  const productosEnVenta = filtro !== "servicios" ? 0 : items
                     .filter((it) => it?.esProducto)
                     .reduce((acc, it) => acc + Number(it.monto ?? 0), 0);
                   const montoVenta = Number(p.monto ?? 0);
@@ -7565,16 +7578,16 @@ function CierreMovimientosDetalleList({
         </div>
       )}
 
-      {(filtro === "todos" || filtro === "productos") && (
+      {(filtro === "productos" || (filtro === "todos" && productosVisibles.length > 0)) && (
         <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
           <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
-            Productos ({productosFiltrados.length})
+            Catálogo ({productosVisibles.length})
           </div>
           <div className="space-y-2">
-            {productosFiltrados.length === 0 ? (
+            {productosVisibles.length === 0 ? (
               <p className="text-sm text-muted-foreground">Sin productos vendidos.</p>
             ) : (
-              productosFiltrados.map((it: any) => {
+              productosVisibles.map((it: any) => {
                 const { monto: montoMostrado } = montoParaMedio(Number(it.monto ?? 0), 0, it.metodo, it.splits, medioFiltro);
                 return (
                   <div
