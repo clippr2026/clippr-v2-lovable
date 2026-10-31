@@ -1009,6 +1009,10 @@ export type ExpectedCashDigital = {
   digitalFromPayments: number;
   digitalExpenses: number;
   digitalAdvancesOut: number;
+  // Pagos de liquidación con origen "caja" (settlement_payments.funds_source),
+  // por separado: ya están sumados dentro de cashOutflows/digitalOutflows.
+  cashSettlementOut?: number;
+  digitalSettlementOut?: number;
   digitalInflows: number;
   digitalRetirosManual: number;
 };
@@ -1070,8 +1074,14 @@ export function computeExpectedCashAndDigital(params: {
   // reverse_payment_collection) — se suma tal cual, restando correctamente.
   // Opcional (default []) para no romper ningún caller existente.
   collections?: Array<{ amount?: number | null; method?: string | null }>;
+  // Pagos de liquidación con origen "caja": salen del efectivo o de la cuenta
+  // según su medio, en el día en que se pagan. Los de origen "externo" (y los
+  // históricos, sin origen) NO se pasan acá — no tocan la caja. Va separado
+  // de `advances` a propósito: un adelanto baja el Total a pagar del
+  // profesional y esto no.
+  settlementOutflows?: Array<{ amount?: number | null; payment_method?: string | null }>;
 }): ExpectedCashDigital {
-  const { payments, expenses, advances, cashMovements, collections = [] } = params;
+  const { payments, expenses, advances, cashMovements, collections = [], settlementOutflows = [] } = params;
   const isCash = (m: string | null | undefined) => normalizeCierreMethodKey(m) === "cash";
   const isCashMovement = (m: { method?: string | null }) => !m.method || isCash(m.method);
 
@@ -1136,8 +1146,15 @@ export function computeExpectedCashAndDigital(params: {
     .filter((m) => m.type === "retiro" && !isCashMovement(m))
     .reduce((s, m) => s + Number(m.amount ?? 0), 0);
 
-  const cashOutflows = cashExpenses + cashAdvances + retirosCajaEfectivo;
-  const digitalOutflows = digitalExpenses + digitalAdvances + retirosCajaDigital;
+  const cashSettlement = settlementOutflows
+    .filter((x) => isCash(x.payment_method))
+    .reduce((s, x) => s + Number(x.amount ?? 0), 0);
+  const digitalSettlement = settlementOutflows
+    .filter((x) => !isCash(x.payment_method))
+    .reduce((s, x) => s + Number(x.amount ?? 0), 0);
+
+  const cashOutflows = cashExpenses + cashAdvances + retirosCajaEfectivo + cashSettlement;
+  const digitalOutflows = digitalExpenses + digitalAdvances + retirosCajaDigital + digitalSettlement;
 
   return {
     cashExpected: cashPayments + ingresosCajaEfectivo - cashOutflows,
@@ -1148,6 +1165,8 @@ export function computeExpectedCashAndDigital(params: {
     cashFromPayments: cashPayments,
     cashExpenses,
     cashAdvancesOut: cashAdvances,
+    cashSettlementOut: cashSettlement,
+    digitalSettlementOut: digitalSettlement,
     cashRetirosManual: retirosCajaEfectivo,
     digitalFromPayments: digitalPayments,
     digitalExpenses,
@@ -1378,6 +1397,17 @@ export async function buildSingleDayCierrePreview(
     advQuery,
   ]);
 
+  // Pagos de liquidación con origen "caja" del mismo día (falla en silencio si
+  // la columna todavía no existe en esa base).
+  const settleRes = await supabase
+    .from("settlement_payments" as any)
+    .select("amount,payment_method")
+    .eq("business_id", businessId)
+    .eq("funds_source", "caja")
+    .gte("paid_at", dayStart.toISOString())
+    .lte("paid_at", dayEnd.toISOString());
+  const settlementOutflows = settleRes.error ? [] : ((settleRes.data ?? []) as any[]);
+
   const advRows = (advRes.data ?? []) as any[];
   const advances = advRows.map((a) => ({
     amount: a.amount,
@@ -1424,6 +1454,7 @@ export async function buildSingleDayCierrePreview(
     expenses: snapshot.gastosSnapshot.map((g) => ({ amount: g.monto, payment_method: g.metodo, funds_source: g.origen })),
     advances,
     cashMovements,
+    settlementOutflows,
   });
 
   // Ingresos/retiros manuales (cash_movements), efectivo y digital por

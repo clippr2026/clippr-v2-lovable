@@ -3807,7 +3807,12 @@ function ProfesionalesTab({
   // entre aperturas del modal.
   const [liquidarCutoffDate, setLiquidarCutoffDate] = React.useState("");
 
+  // Origen del pago de la liquidación: "" (sin elegir) | "caja" | "externo".
+  // Con la caja del día cerrada solo se puede "externo".
+  const [liquidarFunds, setLiquidarFunds] = React.useState<AdvanceFundsSource | "">("externo");
+
   function resetLiquidarForm() {
+    setLiquidarFunds("externo");
     setAdjustmentItems([]);
     setDeductionItems([]);
     setLiquidarModalOpen(false);
@@ -5028,6 +5033,33 @@ function ProfesionalesTab({
       toast.error("El monto a pagar no puede superar el total a pagar");
       return;
     }
+    if (paymentAmount > 0) {
+      if (liquidarFunds === "") {
+        toast.error("Elegí de dónde sale el dinero del pago");
+        return;
+      }
+      if (liquidarFunds === "caja") {
+        if (cajaCerrada) {
+          toast.error("La caja del día está cerrada: el pago solo puede salir de fondos externos");
+          return;
+        }
+        if (cajaDisponible) {
+          const isCashMethod = (m: string | null | undefined) => (m ?? "") === "cash" || (m ?? "") === "efectivo";
+          const pagoEfectivo = paymentsToRegister.filter((x) => isCashMethod(x.method)).reduce((a, x) => a + x.amount, 0);
+          const pagoCuenta = paymentAmount - pagoEfectivo;
+          if (pagoEfectivo > cajaDisponible.cashExpected + 0.01) {
+            toast.error(`No hay ese dinero en la caja: efectivo disponible ${money(Math.max(0, cajaDisponible.cashExpected))}`);
+            return;
+          }
+          if (pagoCuenta > cajaDisponible.digitalExpected + 0.01) {
+            toast.error(
+              `No hay ese dinero en la caja: dinero en cuenta disponible ${money(Math.max(0, cajaDisponible.digitalExpected))}`,
+            );
+            return;
+          }
+        }
+      }
+    }
     setPreparingRunFor(row.id);
     try {
       const {
@@ -5060,6 +5092,7 @@ function ProfesionalesTab({
           p_note: note,
           p_paid_by: user.id,
           p_paid_by_name: chargedByName,
+          p_funds_source: liquidarFunds || "externo",
         });
         if (payError) {
           toast.error(
@@ -6436,8 +6469,16 @@ function ProfesionalesTab({
         const liquidarPeriodValid = periodStartAtMs === null || liquidarCutoffAt.getTime() > periodStartAtMs;
         const paymentSplitsSum = paymentSplits.reduce((s, sp) => s + Number(sp.amount || 0), 0);
         const multipleSumOver = paymentMode === "multiple" && Math.round(paymentSplitsSum) > Math.round(liquidarFinalTotal);
+        const hayPagoCargado =
+          paymentMode === "multiple"
+            ? paymentSplitsSum > 0
+            : Number(paymentForm.amount || 0) > 0;
         const payDisabled =
-          preparingRunFor === selectedRow.id || !liquidarPeriodValid || liquidarFinalTotal <= 0 || multipleSumOver;
+          preparingRunFor === selectedRow.id ||
+          !liquidarPeriodValid ||
+          liquidarFinalTotal <= 0 ||
+          multipleSumOver ||
+          (hayPagoCargado && (liquidarFunds === "" || (liquidarFunds === "caja" && cajaCerrada)));
 
         return (
           <AgendaCenteredModal
@@ -6506,6 +6547,44 @@ function ProfesionalesTab({
                   <span className="font-bold text-white/70">Total final</span>
                   <span className="text-base font-bold text-emerald-300">{money(liquidarFinalTotal)}</span>
                 </div>
+              </div>
+
+              <div className="space-y-1.5 text-xs font-semibold text-white/55">
+                Origen del dinero
+                <div className="grid grid-cols-2 gap-2">
+                  {(
+                    [
+                      { value: "externo", label: "Fondos externos" },
+                      { value: "caja", label: "Caja del día" },
+                    ] as const
+                  ).map((opt) => (
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setLiquidarFunds(opt.value)}
+                      disabled={opt.value === "caja" && cajaCerrada}
+                      aria-pressed={liquidarFunds === opt.value}
+                      className={cn(
+                        "h-11 rounded-2xl border px-3 text-sm font-bold transition disabled:cursor-not-allowed disabled:opacity-40",
+                        liquidarFunds === opt.value
+                          ? "border-emerald-300/45 bg-emerald-400/12 text-emerald-100"
+                          : "border-white/[0.08] bg-black/30 text-white/55 hover:bg-white/[0.04]",
+                      )}
+                    >
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+                <p className="text-[11px] font-medium leading-snug text-white/40">
+                  {liquidarFunds === "caja"
+                    ? "Pagás con dinero de la jornada. Se descuenta de Efectivo o Dinero en cuenta, según el medio de pago, y se registra en el cierre."
+                    : "Pagás con dinero fuera de la caja del día. No afecta los saldos ni el cierre, pero se descuenta de la liquidación del profesional."}
+                </p>
+                {cajaCerrada && (
+                  <p className="text-[11px] font-medium leading-snug text-rose-200/70">
+                    La caja del día está cerrada: solo se puede usar Fondos externos.
+                  </p>
+                )}
               </div>
 
               <div>

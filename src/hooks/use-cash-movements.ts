@@ -35,6 +35,16 @@ export type ProfessionalAdvance = {
   advanced_at: string;
 };
 
+// Pago de liquidación con origen "caja" (settlement_payments.funds_source):
+// sale del efectivo/cuenta del día en que se pagó. Va aparte de los adelantos
+// (esos bajan el Total a pagar; esto no).
+export type SettlementOutflow = {
+  id: string;
+  amount: number;
+  payment_method: string | null;
+  paid_at: string;
+};
+
 export function useCashMovements(
   businessId: string | null,
   branchId: string | null,
@@ -42,17 +52,20 @@ export function useCashMovements(
 ) {
   const [movements, setMovements] = React.useState<CashMovement[]>([]);
   const [advances, setAdvances] = React.useState<ProfessionalAdvance[]>([]);
+  const [settlementOutflows, setSettlementOutflows] = React.useState<SettlementOutflow[]>([]);
   const [loading, setLoading] = React.useState(true);
 
   const load = React.useCallback(async (): Promise<{
     movements: CashMovement[];
     advances: ProfessionalAdvance[];
+    settlementOutflows: SettlementOutflow[];
   }> => {
     if (!businessId) {
       setMovements([]);
       setAdvances([]);
+      setSettlementOutflows([]);
       setLoading(false);
-      return { movements: [], advances: [] };
+      return { movements: [], advances: [], settlementOutflows: [] };
     }
     setLoading(true);
 
@@ -86,19 +99,35 @@ export function useCashMovements(
       .gte("advanced_at", dayStart)
       .lte("advanced_at", dayEnd);
 
-    const [movRes, advRes] = await Promise.allSettled([
+    // Pagos de liquidación de la caja: falla en silencio (queda vacío) si la
+    // columna funds_source todavía no existe en esa base.
+    const settleQuery = supabase
+      .from("settlement_payments" as any)
+      .select("id,amount,payment_method,paid_at")
+      .eq("business_id", businessId)
+      .eq("funds_source", "caja")
+      .gte("paid_at", dayStart)
+      .lte("paid_at", dayEnd);
+
+    const [movRes, advRes, settleRes] = await Promise.allSettled([
       movQuery.order("created_at", { ascending: false }),
       advQuery,
+      settleQuery,
     ]);
 
     const freshMovements =
       movRes.status === "fulfilled" && !movRes.value.error ? ((movRes.value.data ?? []) as CashMovement[]) : [];
     const freshAdvances =
       advRes.status === "fulfilled" && !advRes.value.error ? ((advRes.value.data ?? []) as ProfessionalAdvance[]) : [];
+    const freshSettlement =
+      settleRes.status === "fulfilled" && !settleRes.value.error
+        ? ((settleRes.value.data ?? []) as SettlementOutflow[])
+        : [];
     setMovements(freshMovements);
     setAdvances(freshAdvances);
+    setSettlementOutflows(freshSettlement);
     setLoading(false);
-    return { movements: freshMovements, advances: freshAdvances };
+    return { movements: freshMovements, advances: freshAdvances, settlementOutflows: freshSettlement };
   }, [businessId, branchId, rangeStartDate]);
 
   React.useEffect(() => {
@@ -129,5 +158,5 @@ export function useCashMovements(
     [businessId, branchId, load],
   );
 
-  return { movements, advances, loading, refresh: load, registerMovement };
+  return { movements, advances, settlementOutflows, loading, refresh: load, registerMovement };
 }

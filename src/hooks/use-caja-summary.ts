@@ -1,7 +1,12 @@
 import * as React from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { useCashMovements, type CashMovement, type ProfessionalAdvance } from "@/hooks/use-cash-movements";
+import {
+  useCashMovements,
+  type CashMovement,
+  type ProfessionalAdvance,
+  type SettlementOutflow,
+} from "@/hooks/use-cash-movements";
 import {
   cajaOpenRangeStartDate,
   cajaDateKey,
@@ -170,6 +175,7 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
   // consulta aparte (mismo criterio que paymentsToday/expensesToday).
   const [movementsForPeriod, setMovementsForPeriod] = React.useState<CashMovement[]>([]);
   const [advancesForPeriod, setAdvancesForPeriod] = React.useState<ProfessionalAdvance[]>([]);
+  const [settlementForPeriod, setSettlementForPeriod] = React.useState<SettlementOutflow[]>([]);
   // Cobros de pagos pendientes (payment_collections) del período abierto —
   // mismo criterio que movementsForPeriod/advancesForPeriod: crudo acá,
   // "estrictamente hoy" se deriva más abajo sin una segunda consulta.
@@ -424,6 +430,7 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
       advances: freshMovements.advances,
       cashMovements: freshMovements.movements,
       collections: collectionsList,
+      settlementOutflows: freshMovements.settlementOutflows,
     });
 
     if (!keyMatches()) {
@@ -446,6 +453,7 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     setBankExpected(expected.digitalExpected + carryForward);
     setMovementsForPeriod(freshMovements.movements);
     setAdvancesForPeriod(freshMovements.advances);
+    setSettlementForPeriod(freshMovements.settlementOutflows);
     setCollectionsForPeriod(collectionsList);
 
     hasLoadedRef.current = true;
@@ -617,6 +625,7 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     advances: advancesStrictlyToday,
     cashMovements: movementsStrictlyToday,
     collections: collectionsStrictlyToday,
+    settlementOutflows: filterToDayBA(settlementForPeriod, (x) => x.paid_at, todayKeyBA),
   });
 
   return {
