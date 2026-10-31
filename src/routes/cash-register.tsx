@@ -937,6 +937,11 @@ function CashRegisterPage() {
   // Instant lock — set to true the moment confirmar() succeeds, no need to wait for refresh
   const [cajaCerrada, setCajaCerrada] = useState(false);
   const [showClosedHistory, setShowClosedHistory] = useState(false);
+  // Hora del último cierre de hoy, para el aviso "Caja cerrada" de arriba.
+  const [cajaCerradaHora, setCajaCerradaHora] = useState<string | null>(null);
+  // Cada click en "Reabrir caja" del aviso sube el contador; Cierre de caja
+  // lo ve y abre su confirmación de reapertura.
+  const [reopenRequest, setReopenRequest] = useState(0);
 
   React.useEffect(() => {
     if (search.depositAppointmentId && search.depositAmount) {
@@ -984,6 +989,29 @@ function CashRegisterPage() {
     };
   }, [data.businessId, data.activeBranchId, session?.user?.id]);
 
+  useEffect(() => {
+    if (!cajaCerrada || !data.businessId) {
+      setCajaCerradaHora(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      let q = supabase
+        .from("caja_cierres" as any)
+        .select("hora_cierre,eventos")
+        .eq("business_id", data.businessId)
+        .eq("fecha", cajaDateKey());
+      if (data.activeBranchId) q = q.eq("branch_id", data.activeBranchId);
+      const { data: row } = await q.maybeSingle();
+      if (cancelled || !row) return;
+      const hora = getCajaLastEvent(row, "cierre")?.hora ?? (row as any).hora_cierre;
+      if (hora) setCajaCerradaHora(cajaHoraDisplay(hora));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [cajaCerrada, data.businessId, data.activeBranchId]);
+
   // Con la caja cerrada no se puede cargar plata nueva sobre ese día: si
   // algo (un enlace desde Agenda, "Cobrar pendiente") intenta abrir Nueva
   // venta o Nuevo gasto, se vuelve a Resumen, donde el aviso de arriba
@@ -1030,17 +1058,23 @@ function CashRegisterPage() {
         {cajaCerrada && (
           <div className="mb-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2xl border border-rose-400/25 bg-rose-500/10 px-4 py-3">
             <div>
-              <div className="text-sm font-semibold text-rose-200">Caja cerrada</div>
+              <div className="text-sm font-semibold text-rose-200">
+                Caja cerrada
+                {cajaCerradaHora && <span className="ml-2 font-normal text-rose-100/80">· Hora de cierre: {cajaCerradaHora}</span>}
+              </div>
               <div className="text-xs text-rose-100/70">
                 Podés mirar todo, pero no cargar ventas, gastos ni movimientos hasta reabrirla.
               </div>
             </div>
             <button
               type="button"
-              onClick={() => setTab("cierres")}
+              onClick={() => {
+                setReopenRequest((n) => n + 1);
+                setTab("cierres");
+              }}
               className="rounded-xl bg-white/10 px-3 py-1.5 text-xs font-semibold text-rose-50 ring-1 ring-white/15 transition hover:bg-white/15"
             >
-              Ir a Cierre de caja
+              Reabrir caja
             </button>
           </div>
         )}
@@ -1060,6 +1094,7 @@ function CashRegisterPage() {
               setTab(t);
             }}
             data={data}
+            cajaCerrada={cajaCerrada}
             userEmail={session.user.email ?? null}
             onCajaCerrada={() => {
               setCajaCerrada(true);
@@ -1186,6 +1221,8 @@ function CashRegisterPage() {
               movementsData={movementsData}
               initialPendingDate={search.pendingDate}
               onPendingDateConsumed={clearChargeSearchParams}
+              reopenRequest={reopenRequest}
+              onReopenRequestConsumed={() => setReopenRequest(0)}
               onCajaCerrada={() => {
                 setCajaCerrada(true);
                 setShowClosedHistory(false);
@@ -1286,16 +1323,22 @@ function Tabs({
   tab,
   onChange,
   data,
+  cajaCerrada,
   userEmail: _userEmail,
   onCajaCerrada: _onCajaCerrada,
 }: {
   tab: Tab;
   onChange: (t: Tab) => void;
   data: ReturnType<typeof useCajaData>;
+  cajaCerrada: boolean;
   userEmail: string | null;
   onCajaCerrada: () => void;
 }) {
-  const [firstTab, ...restTabs] = TABS;
+  // Con la caja cerrada esa pestaña es solo el historial de cierres.
+  const tabs = TABS.map((t) =>
+    t.id === "cierres" && cajaCerrada ? { ...t, label: "Historial de cierres" } : t,
+  );
+  const [firstTab, ...restTabs] = tabs;
   return (
     <div className="mt-2 flex flex-wrap items-end justify-between gap-5 border-b border-white/[0.055] pb-1.5 sm:mt-3 sm:pb-2">
       {/* Mobile: sin scroll horizontal — Resumen ocupa toda la fila 1, el
@@ -1313,7 +1356,7 @@ function Tabs({
       {/* Desktop/tablet: fila única, sin cambios visuales. */}
       <div className="relative hidden sm:flex gap-1.5 overflow-x-auto rounded-3xl border border-white/[0.085] bg-[linear-gradient(135deg,rgba(8,10,20,0.96),rgba(12,16,32,0.88))] p-1.5 backdrop-blur-2xl shadow-[0_18px_55px_-28px_rgba(0,0,0,0.95),0_1px_0_rgba(255,255,255,0.06)_inset] sm:flex-none">
         <div className="pointer-events-none absolute inset-0 rounded-3xl bg-[radial-gradient(circle_at_8%_0%,rgba(59,130,246,0.12),transparent_35%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,0.13),transparent_35%)]" />
-        {TABS.map((t) => {
+        {tabs.map((t) => {
           const active = t.id === tab;
           const Icon = t.icon;
           return (
@@ -5247,6 +5290,20 @@ function ProfesionalesTab({
   // visual, compartida con Panel del profesional > Movimientos
   // (professionals.tsx). No duplicar acá.
 
+  // Cambiar de profesional nunca abre un modal solo — se queda en la lista
+  // unificada mostrando los datos del profesional entrante. Cierra cualquier
+  // modal que hubiera quedado abierto para el anterior, así no se reutiliza
+  // su estado (montos precargados, etc.).
+  function selectEmployee(nextId: string) {
+    setSelectedEmployeeId(nextId);
+    resetLiquidarForm();
+    resetAdelantoForm();
+    setLiquidarCutoffDate("");
+    setPeriodInfoOpen(false);
+    setHistorialDetailRun(null);
+    setHistorialDetailServices(null);
+  }
+
   // Pagar es un botón de acción (como Adelantar): abre su modal directo,
   // precargando el monto sugerido. Usa liquidarNewCommissions/liquidarPendingAdvances
   // (recalculados para el corte "Hasta" ya elegido desde la tarjeta
@@ -5396,6 +5453,64 @@ function ProfesionalesTab({
     setPaymentForm((f) => ({ ...f, amount: liquidarFinalTotal > 0 ? String(Math.round(liquidarFinalTotal)) : "" }));
   }, [liquidarModalOpen, paymentAmountTouched, liquidarFinalTotal]);
 
+  // Resumen de todos los profesionales (pantalla inicial, sin nadie elegido):
+  // mismo cálculo que liquidarBaseTotal pero para cada uno, con corte "ahora".
+  const overviewRows = React.useMemo(() => {
+    const todayStr = nowClock.toLocaleDateString("sv-SE");
+    return rows.map((r) => {
+      const commissions = allCommissions
+        .filter(
+          (c: any) =>
+            String(c.professional_id) === r.id &&
+            !c.settlement_run_id &&
+            (!r.periodStartAt || String(c.created_at ?? "") > r.periodStartAt) &&
+            isWithinCutoff(c.created_at, nowClock) &&
+            Number(c.pending_amount ?? 0) > 0,
+        )
+        .reduce((sum: number, c: any) => sum + Number(c.pending_amount ?? 0), 0);
+      const tips = allTips
+        .filter(
+          (t: any) =>
+            String(t.professional_id) === r.id &&
+            !t.settlement_run_id &&
+            (!r.periodStartAt || String(t.created_at ?? "") > r.periodStartAt) &&
+            isWithinCutoff(t.created_at, nowClock) &&
+            Number(t.pending_amount ?? 0) > 0,
+        )
+        .reduce((sum: number, t: any) => sum + Number(t.pending_amount ?? 0), 0);
+      const nowIso = nowClock.toISOString();
+      const advances = allAdvances
+        .filter(
+          (a: any) =>
+            String(a.professional_id) === r.id &&
+            !a.settlement_run_id &&
+            String(a.display_date ?? a.advanced_at ?? "") <= nowIso,
+        )
+        .reduce((sum: number, a: any) => sum + Number(a.amount ?? 0), 0);
+      const queue = sumPendingAdjustmentQueue(
+        allVentasAnuladas.filter(
+          (v) =>
+            String(v.professionalId) === r.id &&
+            !v.appliedSettlementRunId &&
+            isWithinCutoff(v.voidedAt, nowClock),
+        ),
+        r.id,
+      );
+      const presentismo = allPresentismo
+        .filter(
+          (p: any) =>
+            String(p.employee_id) === r.id &&
+            !p.settlement_run_id &&
+            (!r.periodStart || String(p.date ?? "") > r.periodStart) &&
+            String(p.date ?? "") <= todayStr,
+        )
+        .reduce((sum: number, p: any) => sum + Number(p.discount_amount_applied ?? 0), 0);
+      const total =
+        r.previousBalance + commissions + tips + queue.pendingCredits - advances - queue.pendingDeductions - presentismo;
+      return { id: r.id, name: r.name, role: r.role, commissions, tips, advances, presentismo, total };
+    });
+  }, [rows, allCommissions, allTips, allAdvances, allVentasAnuladas, allPresentismo, nowClock]);
+
   return (
     <div className="-mt-5 h-auto overflow-visible pb-6 sm:h-[calc(100vh-270px)] sm:min-h-[470px] sm:overflow-hidden">
       {/* Mobile: un solo shadow liviano (mismo costo de paint que
@@ -5411,21 +5526,7 @@ function ProfesionalesTab({
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <select
               value={selectedEmployeeId}
-              onChange={(event) => {
-                const nextId = event.target.value;
-                setSelectedEmployeeId(nextId);
-                // Cambiar de profesional nunca abre un modal solo — se
-                // queda en la lista unificada mostrando los datos del
-                // profesional entrante. Cierra cualquier modal que hubiera
-                // quedado abierto para el anterior, así no se reutiliza su
-                // estado (montos precargados, etc.).
-                resetLiquidarForm();
-                resetAdelantoForm();
-                setLiquidarCutoffDate("");
-                setPeriodInfoOpen(false);
-                setHistorialDetailRun(null);
-                setHistorialDetailServices(null);
-              }}
+              onChange={(event) => selectEmployee(event.target.value)}
               className="h-10 w-full rounded-2xl border border-white/[0.09] bg-[#070A13]/80 px-3.5 text-base text-white outline-none backdrop-blur-xl focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12 sm:min-w-[230px] sm:w-auto sm:text-sm"
             >
               <option value="" disabled>
@@ -6003,8 +6104,73 @@ function ProfesionalesTab({
             Todavía no hay profesionales cargados en Equipo.
           </div>
         ) : (
-          <div className="px-5 py-10 text-center text-sm text-white/45">
-            Seleccioná un profesional para ver sus comisiones.
+          <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
+            <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-emerald-400/25 bg-emerald-400/[0.07] px-4 py-3">
+              <div>
+                <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-200/70">
+                  Total a pagar al equipo
+                </div>
+                <div className="mt-0.5 text-xl font-bold tabular-nums text-emerald-300">
+                  {money(overviewRows.reduce((sum, r) => sum + Math.max(r.total, 0), 0))}
+                </div>
+              </div>
+              <div className="text-xs text-white/45">Elegí un profesional para ver el detalle</div>
+            </div>
+            <div className="flex flex-col gap-2">
+              {overviewRows.map((r) => (
+                <div
+                  key={r.id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => selectEmployee(r.id)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") selectEmployee(r.id);
+                  }}
+                  className="flex cursor-pointer flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3 transition hover:bg-white/[0.05]"
+                >
+                  <div className="min-w-[140px] flex-1">
+                    <div className="truncate text-sm font-semibold text-white/90">{r.name}</div>
+                    <div className="mt-0.5 flex flex-wrap gap-x-3 text-[11px] text-white/45">
+                      <span>Comisiones {money(r.commissions)}</span>
+                      {r.tips > 0 && <span>Propinas {money(r.tips)}</span>}
+                      {r.advances > 0 && <span className="text-rose-300/80">Adelantos −{money(r.advances)}</span>}
+                      {r.presentismo !== 0 && (
+                        <span className={r.presentismo > 0 ? "text-rose-300/80" : "text-emerald-300/80"}>
+                          Puntualidad {r.presentismo > 0 ? "−" : "+"}
+                          {money(Math.abs(r.presentismo))}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">A pagar</div>
+                      <div
+                        className={cn(
+                          "text-base font-bold tabular-nums",
+                          r.total > 0 ? "text-emerald-300" : "text-white/40",
+                        )}
+                      >
+                        {money(Math.max(r.total, 0))}
+                      </div>
+                    </div>
+                    {r.total > 0 && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          selectEmployee(r.id);
+                          setLiquidarModalOpen(true);
+                        }}
+                        className="rounded-xl bg-emerald-500 px-3 py-2 text-xs font-bold text-white shadow-[0_0_18px_rgba(16,185,129,0.28)] transition hover:brightness-110"
+                      >
+                        Pagar
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
           </div>
         )}
       </section>
@@ -9009,11 +9175,15 @@ function CierresTab({
   movementsData,
   initialPendingDate,
   onPendingDateConsumed,
+  reopenRequest = 0,
+  onReopenRequestConsumed,
   onCajaCerrada,
   onCajaReopened,
 }: {
   businessId: string | null;
   cajaCerrada: boolean;
+  reopenRequest?: number;
+  onReopenRequestConsumed?: () => void;
   paymentsToday: ReturnType<typeof useCajaData>["paymentsToday"];
   expensesToday: ReturnType<typeof useCajaData>["expensesToday"];
   pendingCharges: ReturnType<typeof useCajaData>["pendingCharges"];
@@ -9040,7 +9210,9 @@ function CierresTab({
   const [reopeningId, setReopeningId] = useState<string | null>(null);
   const [reopenTarget, setReopenTarget] = useState<any | null>(null);
   const [reopenNote, setReopenNote] = useState("");
-  const [subtab, setSubtab] = useState<"dia" | "historial">("dia");
+  // Con la caja cerrada no hay nada para operar en "Cierre de caja": abre
+  // directo en el historial de cierres.
+  const [subtab, setSubtab] = useState<"dia" | "historial">(cajaCerrada ? "historial" : "dia");
 
   // `selected.detalle_metodos_pago` es una foto guardada en la fila del
   // cierre al momento de cerrarlo — si esa foto se guardó ANTES del fix de
@@ -9235,6 +9407,22 @@ function CierresTab({
   const lastClosedToday = cajaHoraDisplay(lastCloseEntryToday?.hora ?? lastCloseEventToday?.hora ?? lastCierreToday?.hora_cierre ?? closedAt);
   const closedCountToday = cierreCandidates.length || cierresToday.length;
 
+  // Al reabrir la caja se vuelve a la vista del día.
+  useEffect(() => {
+    if (!cajaCerrada) setSubtab("dia");
+  }, [cajaCerrada]);
+
+  const consumedReopenRequestRef = React.useRef(0);
+  useEffect(() => {
+    if (!reopenRequest || consumedReopenRequestRef.current === reopenRequest || !latestCierre) return;
+    consumedReopenRequestRef.current = reopenRequest;
+    setReopenTarget(latestCierre);
+    setReopenNote("");
+    // Se consume una sola vez: si no, al volver a montar la pestaña
+    // (ej. tocar "Historial de cierres") reabriría el modal solo.
+    onReopenRequestConsumed?.();
+  }, [reopenRequest, latestCierre, onReopenRequestConsumed]);
+
 
   function fechaLabel(fecha?: string | null, long = false) {
     if (!fecha) return "—";
@@ -9381,7 +9569,7 @@ function CierresTab({
   return (
     <div className="-mt-3 space-y-4">
       <section className="overflow-hidden rounded-[32px] border border-white/[0.085] bg-[radial-gradient(circle_at_14%_0%,rgba(96,165,250,0.08),transparent_32%),radial-gradient(circle_at_90%_6%,rgba(139,92,246,0.10),transparent_36%),linear-gradient(135deg,rgba(5,8,15,0.98),rgba(8,10,20,0.97),rgba(2,4,12,0.99))] p-5 shadow-[0_38px_120px_-62px_rgba(0,0,0,1),0_0_70px_-52px_rgba(139,92,246,0.62)]">
-        <div className="flex justify-end border-b border-white/[0.065] pb-5">
+        <div className={cn("flex justify-end border-b border-white/[0.065] pb-5", cajaCerrada && "hidden")}>
           <button
             type="button"
             onClick={() => setSubtab(subtab === "historial" ? "dia" : "historial")}
@@ -9392,7 +9580,7 @@ function CierresTab({
                 : "text-white/70 hover:bg-white/[0.06] hover:text-white",
             )}
           >
-            Historial
+            Historial de cierres
           </button>
         </div>
 
@@ -9468,36 +9656,7 @@ function CierresTab({
                   />
                 </div>
               </div>
-            ) : (
-              <div className="rounded-[28px] border border-red-500/18 bg-[linear-gradient(90deg,rgba(90,18,28,0.22)_0%,rgba(35,12,18,0.15)_55%,rgba(15,15,20,0.10)_100%)] p-5 shadow-[0_0_45px_rgba(239,68,68,0.10)]">
-                <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-                  <div>
-                    <div className="text-3xl font-extrabold tracking-tight text-red-300">
-                      Caja cerrada
-                    </div>
-                    <p className="mt-3 text-sm font-semibold text-white/70">
-                      Hora de cierre: <span className="text-white">{lastClosedToday}</span>
-                    </p>
-                    <p className="mt-2 text-sm text-white/50">
-                      Podés reabrirla hasta las 00:00.
-                    </p>
-                  </div>
-                  {latestCierre && (
-                    <button
-                      type="button"
-                      disabled={reopeningId === latestCierre.id}
-                      onClick={() => {
-                        setReopenTarget(latestCierre);
-                        setReopenNote("");
-                      }}
-                      className="rounded-2xl border border-white/[0.10] bg-white/[0.055] px-5 py-3 text-sm font-extrabold text-white shadow-[0_20px_70px_-45px_rgba(0,0,0,1)] transition hover:bg-white/[0.09] disabled:opacity-50"
-                    >
-                      {reopeningId === latestCierre.id ? "Reabriendo…" : "Reabrir caja"}
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
+            ) : null}
             <CerrarDiaAnteriorCard
               businessId={businessId}
               branchId={activeBranchId}
