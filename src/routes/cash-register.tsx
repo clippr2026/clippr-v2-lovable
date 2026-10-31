@@ -7010,7 +7010,7 @@ function MetodoBadges({ metodo, splits }: { metodo: string | null | undefined; s
   );
 }
 
-type DetalleFiltro = "todos" | "servicios" | "productos" | "gastos" | "retiros";
+type DetalleFiltro = "todos" | "servicios" | "productos" | "gastos" | "retiros" | "adelantos";
 
 // Listado línea por línea de servicios/productos/gastos/retiros de UN
 // día — compartido entre CierreRevisionDetalle (revisión de una jornada
@@ -7046,9 +7046,13 @@ function CierreMovimientosDetalleList({
   cobrosAnulados,
   gastos,
   movimientos,
+  adelantos,
   onRowClick,
 }: {
   cobros: any[];
+  // Adelantos a profesionales de la jornada (opcional: si no se pasa, no hay
+  // chip ni sección de adelantos).
+  adelantos?: CierreAdelantoDetalle[];
   // Ventas anuladas/reembolsadas del mismo día (ver cobrosAnuladosSnapshot,
   // caja-cierre.ts) — puramente para IDENTIFICARLAS en la misma tabla de
   // Servicios, con su propio tag rojo. Nunca entran en ningún total de
@@ -7209,6 +7213,7 @@ function CierreMovimientosDetalleList({
     { key: "productos", label: "Productos" },
     { key: "gastos", label: "Gastos" },
     { key: "retiros", label: "Retiros" },
+    ...(adelantos ? [{ key: "adelantos" as DetalleFiltro, label: "Adelantos" }] : []),
   ];
 
   return (
@@ -7322,7 +7327,14 @@ function CierreMovimientosDetalleList({
                     const servicioNombre =
                       items.filter((it) => !it?.esProducto).map((it) => it.nombre).join(" + ") || p.servicio || "Servicio";
                     const descuento = Number(p.descuento ?? 0);
-                    const precioLista = Number(p.precio_lista ?? p.monto ?? 0);
+                    // Venta mixta (corte + producto): la fila de Servicios muestra solo la parte
+                    // del servicio — el producto (ej. Corona) va aparte en Productos.
+                    const productosEnVenta = items
+                      .filter((it) => it?.esProducto)
+                      .reduce((acc, it) => acc + Number(it.monto ?? 0), 0);
+                    const montoVenta = Number(p.monto ?? 0);
+                    const ratioServ = productosEnVenta > 0 && montoVenta > 0 ? Math.max(0, montoVenta - productosEnVenta) / montoVenta : 1;
+                    const precioLista = Math.max(0, Number(p.precio_lista ?? p.monto ?? 0) - productosEnVenta);
                     // Con un medio de pago elegido y esta venta pagada con
                     // VARIOS medios, el importe/propina a mostrar es SOLO
                     // la fracción de ese medio (nunca el total de la
@@ -7331,13 +7343,14 @@ function CierreMovimientosDetalleList({
                     // acá para no mostrar un número de otra escala al
                     // lado del importe parcial.
                     const esSplitParcial = medioFiltro !== "todos" && Array.isArray(p.splits) && p.splits.length > 0;
-                    const { monto: montoMostrado, propina: propinaMostrada } = montoParaMedio(
+                    const { monto: montoMedio, propina: propinaMostrada } = montoParaMedio(
                       Number(p.monto ?? 0),
                       Number(p.propina ?? 0),
                       p.metodo,
                       p.splits,
                       medioFiltro,
                     );
+                    const montoMostrado = montoMedio * ratioServ;
                     return (
                       <div
                         key={`${p.id ?? idx}`}
@@ -7441,15 +7454,23 @@ function CierreMovimientosDetalleList({
                   const servicioNombre =
                     items.filter((it) => !it?.esProducto).map((it) => it.nombre).join(" + ") || p.servicio || "Servicio";
                   const descuento = Number(p.descuento ?? 0);
-                  const precioLista = Number(p.precio_lista ?? p.monto ?? 0);
+                  // Venta mixta (corte + producto): la fila de Servicios muestra solo la parte
+                  // del servicio — el producto (ej. Corona) va aparte en Productos.
+                  const productosEnVenta = items
+                    .filter((it) => it?.esProducto)
+                    .reduce((acc, it) => acc + Number(it.monto ?? 0), 0);
+                  const montoVenta = Number(p.monto ?? 0);
+                  const ratioServ = productosEnVenta > 0 && montoVenta > 0 ? Math.max(0, montoVenta - productosEnVenta) / montoVenta : 1;
+                  const precioLista = Math.max(0, Number(p.precio_lista ?? p.monto ?? 0) - productosEnVenta);
                   const esSplitParcial = medioFiltro !== "todos" && Array.isArray(p.splits) && p.splits.length > 0;
-                  const { monto: montoMostrado, propina: propinaMostrada } = montoParaMedio(
+                  const { monto: montoMedio, propina: propinaMostrada } = montoParaMedio(
                     Number(p.monto ?? 0),
                     Number(p.propina ?? 0),
                     p.metodo,
                     p.splits,
                     medioFiltro,
                   );
+                  const montoMostrado = montoMedio * ratioServ;
                   return (
                     <div
                       key={`${p.id ?? idx}`}
@@ -7667,20 +7688,17 @@ function CierreMovimientosDetalleList({
             {profesionalFiltro === "todos" && facturacionPorProfesional.length > 0 && (
               <div className="mt-3 border-t border-white/[0.06] pt-3">
                 <div className="text-[10px] uppercase tracking-wide text-white/40">
-                  Facturación por profesional{medioFiltro !== "todos" ? ` · ${paymentMethodLabel(medioFiltro)}` : ""} — tocá
-                  uno para filtrar
+                  Facturación por profesional{medioFiltro !== "todos" ? ` · ${paymentMethodLabel(medioFiltro)}` : ""}
                 </div>
                 <div className="mt-2 space-y-1.5">
                   {facturacionPorProfesional.map(([nombre, total]) => (
-                    <button
+                    <div
                       key={nombre}
-                      type="button"
-                      onClick={() => setProfesionalFiltro(nombre)}
-                      className="flex w-full items-center justify-between rounded-lg bg-white/[0.03] px-3 py-1.5 text-xs transition hover:bg-white/[0.06]"
+                      className="flex w-full items-center justify-between rounded-lg bg-white/[0.03] px-3 py-1.5 text-xs"
                     >
                       <span className="text-white/75">{nombre}</span>
                       <span className="font-bold tabular-nums text-emerald-300">{money(total)}</span>
-                    </button>
+                    </div>
                   ))}
                 </div>
               </div>
@@ -7749,6 +7767,34 @@ function CierreMovimientosDetalleList({
                     </div>
                   </div>
                 ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {adelantos && (filtro === "todos" || filtro === "adelantos") && (
+        <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
+          <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
+            Adelantos ({adelantos.length})
+          </div>
+          <div className="space-y-2">
+            {adelantos.length === 0 ? (
+              <p className="text-sm text-muted-foreground">Sin adelantos.</p>
+            ) : (
+              adelantos.map((a) => (
+                <div key={a.id} className={cn("rounded-xl bg-black/22 px-3 py-2 text-xs", !advanceAffectsCaja(a.origen) && "opacity-70")}>
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="truncate font-semibold text-white">Adelanto · {a.profesional}</span>
+                    <span className="font-bold text-rose-300">-{money(a.monto)}</span>
+                  </div>
+                  <div className="mt-1 truncate text-white/45">
+                    {new Date(a.advancedAt).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: ARG_TIME_ZONE })}
+                    {" · "}
+                    {advanceOriginLabel(a.origen)} · {advanceMethodLabel(a.medio)}
+                    {!advanceAffectsCaja(a.origen) && " · no incluido en el cierre"}
+                  </div>
+                </div>
+              ))
             )}
           </div>
         </div>
@@ -7934,9 +7980,12 @@ function CierreRevisionDetalle({
   onSaldoRealChange,
   observacion,
   onObservacionChange,
+  fecha,
 }: {
   businessId: string | null;
   employees: ReturnType<typeof useCajaData>["employees"];
+  // Día revisado (YYYY-MM-DD) — para contar los clientes nuevos de esa jornada.
+  fecha?: string;
   // Se llama después de confirmar una corrección/anulación desde el
   // detalle de un servicio — el padre (CierreCajaBtn/CerrarDiaAnteriorCard)
   // es quien sabe cómo volver a calcular SU preview.
@@ -7951,9 +8000,30 @@ function CierreRevisionDetalle({
 }) {
   const { snapshot, expected, manualMovements, movimientosManuales, adelantosDetalle, conciliacion } = preview;
   const { servicios, productos } = countServiciosYProductos(snapshot.cobrosSnapshot);
-  const [showDetalle, setShowDetalle] = React.useState(false);
   const [showConciliacion, setShowConciliacion] = React.useState(false);
   const { detailPayment, openDetail, closeDetail } = useCierreDetailPayment(businessId);
+  // Clientes nuevos del día: los que se registraron en la app esa jornada.
+  const [clientesNuevos, setClientesNuevos] = React.useState<number | null>(null);
+  React.useEffect(() => {
+    if (!businessId || !fecha) {
+      setClientesNuevos(null);
+      return;
+    }
+    let cancelled = false;
+    const { start, end } = dayBoundsBA(fecha);
+    supabase
+      .from("clients")
+      .select("id", { count: "exact", head: true })
+      .eq("business_id", businessId)
+      .gte("created_at", start.toISOString())
+      .lte("created_at", end.toISOString())
+      .then(({ count, error }) => {
+        if (!cancelled) setClientesNuevos(error ? null : (count ?? 0));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [businessId, fecha]);
 
   // Recibido por método, CON propina (detalleMetodosRecibido) — la plata
   // que de verdad entró por cada medio, propina incluida (mismo criterio
@@ -7987,7 +8057,9 @@ function CierreRevisionDetalle({
           Recibido por medio de pago (incluye propinas)
         </div>
         <div className="mt-2 rounded-xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden">
-          {ACTIVE_PAY_METHODS.map((m) => (
+          {ACTIVE_PAY_METHODS.filter(
+            (m) => m.id === "cash" || m.id === "transfer" || Math.round(recibidoPorMetodo[m.id]?.ingresos ?? 0) !== 0,
+          ).map((m) => (
             <div
               key={m.id}
               className="flex items-center justify-between gap-2 px-4 py-2 border-b border-white/5 last:border-0 text-sm"
@@ -8009,36 +8081,28 @@ function CierreRevisionDetalle({
         </span>
       </div>
 
-      {/* Ver detalle de servicios/productos/gastos/retiros SIN salir de
-          esta pantalla de revisión — antes solo mostraba el conteo de
-          arriba, para ver el detalle línea por línea había que esperar a
-          confirmar el cierre y volver a entrar desde Historial. */}
-      <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 overflow-hidden">
-        <button
-          type="button"
-          onClick={() => setShowDetalle((v) => !v)}
-          className="flex w-full items-center justify-between gap-3 px-4 py-3 text-sm font-semibold text-white/85 transition hover:bg-white/[0.04]"
-        >
-          <span>Ver detalle de servicios, gastos y retiros</span>
-          <ChevronDown className={cn("h-4 w-4 shrink-0 transition-transform", showDetalle && "rotate-180")} />
-        </button>
-        {showDetalle && (
-          <div className="border-t border-white/10 p-4">
-            <CierreMovimientosDetalleList
-              cobros={snapshot.cobrosSnapshot}
-              cobrosAnulados={snapshot.cobrosAnuladosSnapshot}
-              gastos={snapshot.gastosSnapshot}
-              movimientos={movimientosManuales}
-              onRowClick={openDetail}
-            />
-          </div>
-        )}
-      </div>
+      {clientesNuevos !== null && (
+        <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.025] ring-1 ring-white/10 px-4 py-3">
+          <span className="text-sm text-muted-foreground">Clientes nuevos</span>
+          <span className="text-sm font-semibold tabular-nums">{clientesNuevos}</span>
+        </div>
+      )}
 
-      {/* Adelantos a profesionales de la jornada: los de "Caja del negocio" son
-          un egreso incluido en el efectivo/cuenta esperados de abajo; los de
+      {/* Detalle de servicios, productos, gastos, retiros y adelantos de la
+          jornada, siempre visible: los adelantos de "Caja del negocio" son un
+          egreso incluido en el efectivo/cuenta esperados de abajo; los de
           "Fondos externos" se listan aparte y NO entran en el cierre. */}
-      <CierreAdelantosBlock adelantos={adelantosDetalle} />
+      <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 p-4">
+        <div className="mb-3 text-sm font-semibold text-white/85">Detalle de la jornada</div>
+        <CierreMovimientosDetalleList
+          cobros={snapshot.cobrosSnapshot}
+          cobrosAnulados={snapshot.cobrosAnuladosSnapshot}
+          gastos={snapshot.gastosSnapshot}
+          movimientos={movimientosManuales}
+          adelantos={adelantosDetalle}
+          onRowClick={openDetail}
+        />
+      </div>
 
       {/* Conciliación — por medio de pago + desglose de la fórmula de
           efectivo/cuenta esperados + alertas de pagos múltiples que no
@@ -8773,7 +8837,7 @@ function CerrarDiaAnteriorCard({
   }
 
   return (
-    <div className="mt-4 rounded-[28px] border border-white/[0.085] bg-black/20 p-5">
+    <div className={compact ? "" : "mt-4 rounded-[28px] border border-white/[0.085] bg-black/20 p-5"}>
       {!compact && (
         <>
       <p className="text-sm font-bold text-white/85">Revisar un día anterior</p>
@@ -8820,7 +8884,7 @@ function CerrarDiaAnteriorCard({
       )}
 
       {preview && !yaCerrado && (
-        <div className="mt-4 rounded-2xl border border-white/[0.07] bg-white/[0.03] p-4">
+        <div className={cn("rounded-2xl border border-white/[0.07] bg-white/[0.03] p-4", !compact && "mt-4")}>
           <p className="text-sm font-bold text-white">
             {confirmStep ? "Confirmar cierre de caja" : "Revisar cierre"} — {fechaDDMMYYYY(selectedDate)}
           </p>
@@ -8838,6 +8902,7 @@ function CerrarDiaAnteriorCard({
               <>
                 <CierreRevisionDetalle
                   businessId={businessId}
+                  fecha={selectedDate}
                   employees={employees}
                   onChanged={() => verVistaPrevia()}
                   preview={preview}
@@ -9573,23 +9638,18 @@ function CierresTab({
   return (
     <div className="-mt-3 space-y-4">
       <section className="overflow-hidden rounded-[32px] border border-white/[0.085] bg-[radial-gradient(circle_at_14%_0%,rgba(96,165,250,0.08),transparent_32%),radial-gradient(circle_at_90%_6%,rgba(139,92,246,0.10),transparent_36%),linear-gradient(135deg,rgba(5,8,15,0.98),rgba(8,10,20,0.97),rgba(2,4,12,0.99))] p-5 shadow-[0_38px_120px_-62px_rgba(0,0,0,1),0_0_70px_-52px_rgba(139,92,246,0.62)]">
-        <div className={cn("flex justify-end border-b border-white/[0.065] pb-5", subtab === "historial" && "hidden")}>
+        <div className={cn("flex justify-start", subtab === "historial" && "hidden")}>
           <button
             type="button"
-            onClick={() => setSubtab(subtab === "historial" ? "dia" : "historial")}
-            className={cn(
-              "rounded-2xl border border-white/[0.085] bg-black/35 px-4 py-2 text-sm font-bold transition",
-              subtab === "historial"
-                ? "bg-[linear-gradient(135deg,rgba(59,130,246,0.22),rgba(139,92,246,0.22))] text-white ring-1 ring-violet-200/25"
-                : "text-white/70 hover:bg-white/[0.06] hover:text-white",
-            )}
+            onClick={() => setSubtab("historial")}
+            className="inline-flex items-center gap-2 rounded-xl px-2 py-1.5 text-sm font-bold text-white/70 transition hover:bg-white/[0.06] hover:text-white"
           >
-            Historial de cierres
+            <ArrowLeft className="size-4" /> Historial
           </button>
         </div>
 
         {subtab === "dia" ? (
-          <div className="pt-5">
+          <div className="pt-1">
             <CerrarDiaAnteriorCard
               businessId={businessId}
               branchId={activeBranchId}
