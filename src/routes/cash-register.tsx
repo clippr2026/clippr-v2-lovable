@@ -7685,34 +7685,6 @@ function CierreMovimientosDetalleList({
 
       {(filtro === "todos" || filtro === "servicios" || filtro === "productos") && (
         <div className="mt-4 space-y-3">
-          {/* Total general del día (fijo, nunca cambia con los filtros) vs
-              subtotal filtrado (sección 5 del pedido: "diferenciar
-              claramente" los dos) — ambos sin propina en la cifra
-              grande, propina aparte siempre (nunca mezclada). */}
-          <div className="rounded-2xl border border-white/[0.075] bg-white/[0.025] p-4">
-            <div className="flex flex-wrap items-center justify-between gap-4">
-              <div>
-                <div className="text-[10px] uppercase tracking-wide text-white/40">Total general del día</div>
-                <div className="mt-0.5 text-lg font-extrabold tabular-nums text-white">{money(totalGeneralDia)}</div>
-                <div className="mt-0.5 text-[11px] text-white/40">+ {money(propinasGeneralDia)} de propinas</div>
-              </div>
-              {/* Solo profesional/medio afectan este subtotal (el chip de
-                  tipo de movimiento decide qué SECCIÓN se ve, no cuánto
-                  suma el cobrado) — mostrarlo también con solo el tipo
-                  activo daría un "subtotal filtrado" idéntico al total
-                  general, como si hubiera filtrado algo sin filtrar nada. */}
-              {(profesionalFiltro !== "todos" || medioFiltro !== "todos") && (
-                <div className="text-right">
-                  <div className="text-[10px] uppercase tracking-wide text-violet-300/75">Subtotal filtrado</div>
-                  <div className="mt-0.5 text-lg font-extrabold tabular-nums text-violet-200">
-                    {money(totalSubtotalFiltrado)}
-                  </div>
-                  <div className="mt-0.5 text-[11px] text-white/40">+ {money(propinasSubtotalFiltrado)} de propinas</div>
-                </div>
-              )}
-            </div>
-          </div>
-
           {profesionalFiltro === "todos" && facturacionPorProfesional.length > 0 && (
             <div className="rounded-2xl border border-white/[0.075] bg-white/[0.025] p-4">
               <div>
@@ -7736,7 +7708,7 @@ function CierreMovimientosDetalleList({
         </div>
       )}
 
-      {(filtro === "todos" || filtro === "gastos") && (
+      {((filtro === "todos" && gastos.length > 0) || filtro === "gastos") && (
         <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
           <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
             Gastos ({gastos.length})
@@ -7767,7 +7739,7 @@ function CierreMovimientosDetalleList({
         </div>
       )}
 
-      {(filtro === "todos" || filtro === "retiros") && (
+      {((filtro === "todos" && retiros.length + ingresosManuales.length > 0) || filtro === "retiros") && (
         <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
           <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
             Retiros e ingresos manuales ({retiros.length + ingresosManuales.length})
@@ -7801,7 +7773,7 @@ function CierreMovimientosDetalleList({
         </div>
       )}
 
-      {adelantos && (filtro === "todos" || filtro === "adelantos") && (
+      {adelantos && ((filtro === "todos" && adelantos.length > 0) || filtro === "adelantos") && (
         <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
           <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
             Adelantos ({adelantos.length})
@@ -8079,8 +8051,13 @@ function CierreRevisionDetalle({
         <div className="text-[10px] uppercase tracking-[0.15em] text-muted-foreground/70">
           Ingresos totales
         </div>
-        <div className="mt-0.5 text-2xl font-semibold tabular-nums text-emerald-300">
-          ${Math.round(snapshot.totalCobrado).toLocaleString("es-AR")}
+        <div className="mt-0.5 flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+          <span className="text-2xl font-semibold tabular-nums text-emerald-300">
+            ${Math.round(snapshot.totalCobrado).toLocaleString("es-AR")}
+          </span>
+          <span className="text-sm font-semibold tabular-nums text-amber-200">
+            + ${Math.round(snapshot.totalPropinas).toLocaleString("es-AR")} de propina
+          </span>
         </div>
         <div className="mt-3 text-[10px] uppercase tracking-[0.15em] text-muted-foreground/50">
           Recibido por medio de pago (incluye propinas)
@@ -8160,22 +8137,15 @@ function CierreRevisionDetalle({
         )}
       </div>
 
-      {/* Propinas — del profesional, nunca de la facturación, pero sí
-          plata real que entró a caja y hay que dejar constancia. */}
-      <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.025] ring-1 ring-white/10 px-4 py-3">
-        <span className="text-sm text-muted-foreground">Propinas</span>
-        <span className="text-lg font-semibold tabular-nums text-amber-200">
-          ${Math.round(snapshot.totalPropinas).toLocaleString("es-AR")}
-        </span>
-      </div>
-
-      {/* Gastos */}
-      <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.025] ring-1 ring-white/10 px-4 py-3">
-        <span className="text-sm text-muted-foreground">Gastos</span>
-        <span className="text-lg font-semibold tabular-nums text-rose-300">
-          -${Math.round(snapshot.totalGastos).toLocaleString("es-AR")}
-        </span>
-      </div>
+      {/* Gastos (solo si hubo) */}
+      {Math.round(snapshot.totalGastos) > 0 && (
+        <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.025] ring-1 ring-white/10 px-4 py-3">
+          <span className="text-sm text-muted-foreground">Gastos</span>
+          <span className="text-lg font-semibold tabular-nums text-rose-300">
+            -${Math.round(snapshot.totalGastos).toLocaleString("es-AR")}
+          </span>
+        </div>
+      )}
 
       {/* Ingresos y retiros manuales (cash_movements) — separados de
           gastos/adelantos, que ya se ven arriba y en Movimientos. */}
