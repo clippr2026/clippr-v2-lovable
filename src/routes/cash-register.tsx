@@ -7139,6 +7139,82 @@ function CierreMovimientosDetalleList({
   const productosVisibles =
     filtro === "todos" ? productosFiltrados.filter((it: any) => !idsConServicio.has(it.id)) : productosFiltrados;
 
+  // "Todos": catálogo suelto, gastos, retiros/ingresos y adelantos van en la
+  // MISMA tabla que los servicios (desktop), ordenados por hora.
+  const minutosDeHora = (h: unknown) => {
+    const m = String(h ?? "").match(/(\d{1,2}):(\d{2})\s*([ap])?/i);
+    if (!m) return 0;
+    let hh = Number(m[1]);
+    const mm = Number(m[2]);
+    const suf = (m[3] ?? "").toLowerCase();
+    if (suf === "p" && hh < 12) hh += 12;
+    if (suf === "a" && hh === 12) hh = 0;
+    return hh * 60 + mm;
+  };
+  const medioKey = (m: string | null | undefined) => normalizeCierreMethodKey(m);
+  const otrosMovimientos = React.useMemo(() => {
+    if (filtro !== "todos") return [] as any[];
+    const out: any[] = [];
+    for (const it of productosVisibles as any[]) {
+      out.push({
+        key: `prod-${it.key}`,
+        id: it.id as string | null,
+        hora: it.hora,
+        cliente: it.cliente,
+        profesional: it.profesional,
+        concepto: `${it.nombre ?? "Producto"}${it.cantidad > 1 ? ` x${it.cantidad}` : ""}`,
+        lista: Number(it.monto ?? 0),
+        cobrado: Number(it.monto ?? 0),
+        signo: "+",
+        metodo: it.metodo,
+        splits: it.splits,
+      });
+    }
+    for (const g of gastos as any[]) {
+      if (medioFiltro !== "todos" && medioKey(g.metodo ?? "cash") !== medioFiltro) continue;
+      out.push({
+        key: `gasto-${g.id ?? out.length}`,
+        hora: g.hora,
+        cliente: "Gasto",
+        profesional: null,
+        concepto: `${g.nombre ?? "Gasto"} · ${expenseKindLabel(g.tipo, g.categoria)}${expenseAffectsCaja(g.origen) ? "" : " · Otros fondos"}`,
+        cobrado: Number(g.monto ?? 0),
+        signo: "-",
+        metodo: g.metodo ?? "cash",
+      });
+    }
+    for (const m of [...retiros, ...ingresosManuales]) {
+      const metodo = m.metodo === "cuenta" ? "transfer" : "cash";
+      if (medioFiltro !== "todos" && metodo !== medioFiltro) continue;
+      out.push({
+        key: `mov-${m.id}`,
+        hora: m.hora,
+        cliente: m.tipo === "retiro" ? "Retiro" : "Ingreso manual",
+        profesional: null,
+        concepto: m.nota ?? "—",
+        cobrado: Number(m.monto ?? 0),
+        signo: m.tipo === "retiro" ? "-" : "+",
+        metodo,
+      });
+    }
+    for (const a of adelantos ?? []) {
+      const metodo = medioKey(a.medio === "efectivo" ? "cash" : a.medio === "transferencia" ? "transfer" : a.medio);
+      if (medioFiltro !== "todos" && metodo !== medioFiltro) continue;
+      out.push({
+        key: `adel-${a.id}`,
+        hora: new Date(a.advancedAt).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", timeZone: ARG_TIME_ZONE }),
+        cliente: "Adelanto",
+        profesional: a.profesional,
+        concepto: `Adelanto · ${advanceOriginLabel(a.origen)}${advanceAffectsCaja(a.origen) ? "" : " · no incluido en el cierre"}`,
+        cobrado: Number(a.monto ?? 0),
+        signo: "-",
+        metodo,
+      });
+    }
+    return out.sort((x, y) => minutosDeHora(x.hora) - minutosDeHora(y.hora));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filtro, productosVisibles, gastos, movimientos, adelantos, medioFiltro]);
+
   // Gastos/retiros NUNCA se filtran por profesional (no les corresponde:
   // sección 5 del pedido, "no atribuirse a un profesional si no
   // corresponde") — quedan siempre en su propia sección, con todos los
@@ -7300,14 +7376,14 @@ function CierreMovimientosDetalleList({
       {(filtro === "todos" || filtro === "servicios") && (
         <div className="mt-4 overflow-hidden rounded-2xl border border-white/[0.075] bg-white/[0.03]">
           <div className="p-4 pb-0 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
-            Servicios ({serviciosFiltrados.length})
+            {filtro === "todos" ? "Movimientos" : "Servicios"} ({serviciosFiltrados.length + otrosMovimientos.length})
             {serviciosAnuladosFiltrados.length > 0 && (
               <span className="ml-2 normal-case tracking-normal text-rose-300/80">
                 + {serviciosAnuladosFiltrados.length} anulada{serviciosAnuladosFiltrados.length === 1 ? "" : "s"}
               </span>
             )}
           </div>
-          {serviciosFiltrados.length === 0 && serviciosAnuladosFiltrados.length === 0 ? (
+          {serviciosFiltrados.length === 0 && serviciosAnuladosFiltrados.length === 0 && otrosMovimientos.length === 0 ? (
             <p className="p-4 text-sm text-muted-foreground">Sin servicios cobrados.</p>
           ) : (
             <>
@@ -7451,6 +7527,36 @@ function CierreMovimientosDetalleList({
                       </div>
                     );
                   })}
+                  {otrosMovimientos.map((o: any) => (
+                    <div
+                      key={o.key}
+                      onClick={o.id && onRowClick ? () => onRowClick(o.id as string) : undefined}
+                      className={cn(
+                        "grid grid-cols-[64px_minmax(120px,1fr)_minmax(100px,0.75fr)_minmax(150px,1.3fr)_95px_90px_120px_90px_minmax(160px,1.1fr)] items-center gap-3 border-b border-white/[0.05] px-4 py-2.5 text-xs last:border-0 hover:bg-white/[0.02]",
+                        o.id && onRowClick && "cursor-pointer hover:bg-white/[0.04]",
+                      )}
+                    >
+                      <div className="tabular-nums text-white/55">{(o.hora as string) ?? "—"}</div>
+                      <div className="truncate font-semibold text-white">{(o.cliente as string) ?? "—"}</div>
+                      <div className="truncate text-white/70">{(o.profesional as string) ?? "—"}</div>
+                      <div className="truncate text-white/70" title={o.concepto}>{o.concepto}</div>
+                      <div className="text-right tabular-nums text-white/35">{o.lista ? money(o.lista) : "—"}</div>
+                      <div className="text-right tabular-nums text-amber-300/90">—</div>
+                      <div
+                        className={cn(
+                          "text-right text-sm font-extrabold tabular-nums",
+                          o.signo === "-" ? "text-rose-300" : "text-emerald-300",
+                        )}
+                      >
+                        {o.signo === "-" ? "-" : ""}
+                        {money(o.cobrado)}
+                      </div>
+                      <div className="text-right tabular-nums text-amber-200">—</div>
+                      <div>
+                        {o.splits ? <MetodoBadges metodo={o.metodo} splits={o.splits} /> : <MetodoBadge method={medioKey(o.metodo)} />}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
 
@@ -7579,7 +7685,7 @@ function CierreMovimientosDetalleList({
       )}
 
       {(filtro === "productos" || (filtro === "todos" && productosVisibles.length > 0)) && (
-        <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
+        <div className={cn("mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4", filtro === "todos" && "lg:hidden")}>
           <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
             Catálogo ({productosVisibles.length})
           </div>
@@ -7709,7 +7815,7 @@ function CierreMovimientosDetalleList({
       )}
 
       {((filtro === "todos" && gastos.length > 0) || filtro === "gastos") && (
-        <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
+        <div className={cn("mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4", filtro === "todos" && "lg:hidden")}>
           <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
             Gastos ({gastos.length})
           </div>
@@ -7740,7 +7846,7 @@ function CierreMovimientosDetalleList({
       )}
 
       {((filtro === "todos" && retiros.length + ingresosManuales.length > 0) || filtro === "retiros") && (
-        <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
+        <div className={cn("mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4", filtro === "todos" && "lg:hidden")}>
           <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
             Retiros e ingresos manuales ({retiros.length + ingresosManuales.length})
           </div>
@@ -7774,7 +7880,7 @@ function CierreMovimientosDetalleList({
       )}
 
       {adelantos && ((filtro === "todos" && adelantos.length > 0) || filtro === "adelantos") && (
-        <div className="mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4">
+        <div className={cn("mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4", filtro === "todos" && "lg:hidden")}>
           <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
             Adelantos ({adelantos.length})
           </div>
