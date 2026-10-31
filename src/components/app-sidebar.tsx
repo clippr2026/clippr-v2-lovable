@@ -678,7 +678,9 @@ function MobileBottomNav() {
 // <header>) en vez de flotar tapando contenido.
 function MobileSectionBanner() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { permissions, profile, loading } = useAuth();
+  const { permissions, profile, loading, branches } = useAuth();
+  // Sin franja de sucursal (una sola) el banner queda justo debajo del header.
+  const hasBranchBar = branches.length > 1;
 
   if (loading) return null;
 
@@ -696,7 +698,7 @@ function MobileSectionBanner() {
       // top-[84px] = altura del header (h-12 = 48px) + franja del selector
       // de sucursal (h-9 = 36px) — ver la franja en AppSidebar, justo
       // arriba de este banner en el DOM.
-      className="lg:hidden sticky top-[84px] z-30 flex items-center gap-2 border-b border-white/[0.08] px-4 py-3 backdrop-blur-sm"
+      className={`lg:hidden sticky ${hasBranchBar ? "top-[84px]" : "top-12"} z-30 flex items-center gap-2 border-b border-white/[0.08] px-4 py-3 backdrop-blur-sm`}
       style={{
         background: "linear-gradient(90deg, oklch(0.24 0.06 292 / 0.55), oklch(0.09 0.02 280 / 0.88))",
         boxShadow: "0 10px 28px -22px oklch(0.65 0.24 290 / 0.6)",
@@ -710,6 +712,8 @@ function MobileSectionBanner() {
 }
 
 export function AppSidebar() {
+  const { branches } = useAuth();
+  const hasBranchBar = branches.length > 1;
   return (
     <>
       <header className="sticky top-0 z-40 w-full border-b border-white/10 bg-black shadow-[0_1px_0_rgba(255,255,255,.05)]">
@@ -745,9 +749,11 @@ export function AppSidebar() {
           desaparezca. MobileSectionBanner suma esta altura a su propio
           offset para no superponerse (dos sticky con el mismo `top` se
           pisan, no se apilan solos). */}
-      <div className="lg:hidden sticky top-12 z-30 flex h-9 items-center justify-center border-b border-white/[0.06] bg-black/95 backdrop-blur-sm">
-        <BranchSelector />
-      </div>
+      {hasBranchBar && (
+        <div className="lg:hidden sticky top-12 z-30 flex h-9 items-center justify-center border-b border-white/[0.06] bg-black/95 backdrop-blur-sm">
+          <BranchSelector />
+        </div>
+      )}
 
       <MobileSectionBanner />
       <MobileBottomNav />

@@ -77,6 +77,8 @@ export function SucursalesSection() {
   const [deleteTarget, setDeleteTarget] = React.useState<Branch | null>(null);
 
   const activeCount = branches.filter((b) => b.is_active).length;
+  const activeBranches = branches.filter((b) => b.is_active);
+  const archivedBranches = branches.filter((b) => !b.is_active);
 
   function openAdd() {
     setName(suggestBranchName(branches));
@@ -211,6 +213,154 @@ export function SucursalesSection() {
     await reloadBranches();
   }
 
+  const actionBtn =
+    "inline-flex items-center gap-1.5 rounded-lg bg-white/5 px-3 py-1.5 text-xs font-medium text-muted-foreground ring-1 ring-white/10 transition hover:text-foreground hover:bg-white/10 disabled:opacity-50";
+
+  function renderBranch(b: Branch) {
+    return (
+      <div key={b.id} className="rounded-xl bg-white/[0.03] px-3 py-2.5 ring-1 ring-white/5">
+        {editingId === b.id ? (
+          <div className="space-y-3">
+            <input
+              className={inputCls}
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              placeholder="Nombre"
+              autoFocus
+            />
+            <input
+              className={inputCls}
+              value={editAddress}
+              onChange={(e) => setEditAddress(e.target.value)}
+              placeholder="Dirección (opcional)"
+            />
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => saveEdit(b.id)}
+                disabled={savingEdit}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-sky-400 to-violet-500 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+              >
+                {savingEdit ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+                Guardar
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditingId(null)}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-white/5 px-3 py-1.5 text-xs font-medium text-muted-foreground ring-1 ring-white/10"
+              >
+                <X className="size-3.5" /> Cancelar
+              </button>
+            </div>
+
+            <div className="space-y-2 border-t border-white/[0.07] pt-3">
+              <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">
+                Otras acciones
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                {!b.is_principal && b.is_active && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await handleMakePrincipal(b);
+                      setEditingId(null);
+                    }}
+                    disabled={actionId === b.id}
+                    className={actionBtn}
+                  >
+                    {actionId === b.id ? <Loader2 className="size-3.5 animate-spin" /> : <Crown className="size-3.5" />}
+                    Hacer principal
+                  </button>
+                )}
+                {!b.is_principal && (
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      await handleArchive(b);
+                      setEditingId(null);
+                    }}
+                    disabled={actionId === b.id}
+                    className={actionBtn}
+                  >
+                    {actionId === b.id ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : b.is_active ? (
+                      <Archive className="size-3.5" />
+                    ) : (
+                      <ArchiveRestore className="size-3.5" />
+                    )}
+                    {b.is_active ? "Archivar" : "Reactivar"}
+                  </button>
+                )}
+                {/* Eliminar definitivamente solo se ofrece ya archivada — Archivar
+                    es siempre el primer paso para una sucursal con historial;
+                    ver findBranchHistorial. */}
+                {!b.is_principal && !b.is_active && (
+                  <button
+                    type="button"
+                    onClick={() => openDeleteCheck(b)}
+                    disabled={checkingDeleteId === b.id || actionId === b.id}
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-rose-500/10 px-3 py-1.5 text-xs font-medium text-rose-300 ring-1 ring-rose-500/25 transition hover:bg-rose-500/20 disabled:opacity-50"
+                  >
+                    {checkingDeleteId === b.id ? (
+                      <Loader2 className="size-3.5 animate-spin" />
+                    ) : (
+                      <Trash2 className="size-3.5" />
+                    )}
+                    Eliminar
+                  </button>
+                )}
+                {b.is_principal && (
+                  <p className="text-xs text-muted-foreground">
+                    Es la sucursal principal. Para archivarla, marcá primero otra como principal.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <Building2 className="size-4 shrink-0 text-muted-foreground/70" />
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-sm font-medium text-foreground truncate">{b.name}</span>
+                  {b.is_principal && (
+                    <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300 ring-1 ring-amber-400/25">
+                      <Crown className="size-3" /> Principal
+                    </span>
+                  )}
+                </div>
+                {b.address && <div className="text-xs text-muted-foreground truncate">{b.address}</div>}
+              </div>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+              {/* El kiosco de fichaje todavía no se ofrece en producción: solo en desarrollo. */}
+              {import.meta.env.DEV && (
+                <Link
+                  to="/fichaje-kiosco/$branchId"
+                  params={{ branchId: b.id }}
+                  target="_blank"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-white/5 px-2.5 py-1.5 text-xs font-medium text-muted-foreground ring-1 ring-white/10 transition hover:text-foreground hover:bg-white/10"
+                >
+                  <ScanLine className="size-3.5" />
+                  Kiosco
+                </Link>
+              )}
+              <button
+                type="button"
+                onClick={() => startEdit(b)}
+                className="inline-flex items-center gap-1 rounded-lg bg-white/5 px-2.5 py-1.5 text-xs font-medium text-muted-foreground ring-1 ring-white/10 transition hover:text-foreground hover:bg-white/10"
+              >
+                <Pencil className="size-3.5" /> Editar
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <SectionCard label="Sucursales">
@@ -221,144 +371,15 @@ export function SucursalesSection() {
             Todavía no hay sucursales cargadas.
           </div>
         ) : (
-          <div className="space-y-2">
-            {branches.map((b) => (
-              <div key={b.id} className="rounded-xl bg-white/[0.03] px-3 py-2.5 ring-1 ring-white/5">
-                {editingId === b.id ? (
-                  <div className="space-y-2">
-                    <input
-                      className={inputCls}
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      placeholder="Nombre"
-                      autoFocus
-                    />
-                    <input
-                      className={inputCls}
-                      value={editAddress}
-                      onChange={(e) => setEditAddress(e.target.value)}
-                      placeholder="Dirección (opcional)"
-                    />
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => saveEdit(b.id)}
-                        disabled={savingEdit}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-sky-400 to-violet-500 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-                      >
-                        {savingEdit ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
-                        Guardar
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setEditingId(null)}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-white/5 px-3 py-1.5 text-xs font-medium text-muted-foreground ring-1 ring-white/10"
-                      >
-                        <X className="size-3.5" /> Cancelar
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div className="flex items-center gap-2.5 min-w-0">
-                      <Building2 className="size-4 shrink-0 text-muted-foreground/70" />
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-1.5">
-                          <span className="text-sm font-medium text-foreground truncate">{b.name}</span>
-                          {b.is_principal && (
-                            <span className="inline-flex items-center gap-1 rounded-full bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300 ring-1 ring-amber-400/25">
-                              <Crown className="size-3" /> Principal
-                            </span>
-                          )}
-                          {!b.is_active && (
-                            <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-medium text-muted-foreground ring-1 ring-white/10">
-                              Archivada
-                            </span>
-                          )}
-                        </div>
-                        {b.address && (
-                          <div className="text-xs text-muted-foreground truncate">{b.address}</div>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
-                      {/* El kiosco de fichaje todavía no se ofrece en producción: solo en desarrollo. */}
-                      {import.meta.env.DEV && (
-                        <Link
-                          to="/fichaje-kiosco/$branchId"
-                          params={{ branchId: b.id }}
-                          target="_blank"
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-white/5 px-2.5 py-1.5 text-xs font-medium text-muted-foreground ring-1 ring-white/10 transition hover:text-foreground hover:bg-white/10"
-                        >
-                          <ScanLine className="size-3.5" />
-                          Kiosco
-                        </Link>
-                      )}
-                      <button
-                        type="button"
-                        onClick={() => startEdit(b)}
-                        className="inline-flex items-center gap-1 rounded-lg bg-white/5 px-2.5 py-1.5 text-xs font-medium text-muted-foreground ring-1 ring-white/10 transition hover:text-foreground hover:bg-white/10"
-                      >
-                        <Pencil className="size-3.5" /> Editar
-                      </button>
-                      {!b.is_principal && b.is_active && (
-                        <button
-                          type="button"
-                          onClick={() => handleMakePrincipal(b)}
-                          disabled={actionId === b.id}
-                          className="inline-flex items-center gap-1 rounded-lg bg-white/5 px-2.5 py-1.5 text-xs font-medium text-muted-foreground ring-1 ring-white/10 transition hover:text-foreground hover:bg-white/10 disabled:opacity-50"
-                        >
-                          {actionId === b.id ? (
-                            <Loader2 className="size-3.5 animate-spin" />
-                          ) : (
-                            <Crown className="size-3.5" />
-                          )}
-                          Hacer principal
-                        </button>
-                      )}
-                      {!b.is_principal && (
-                        <button
-                          type="button"
-                          onClick={() => handleArchive(b)}
-                          disabled={actionId === b.id}
-                          className="inline-flex items-center gap-1 rounded-lg bg-white/5 px-2.5 py-1.5 text-xs font-medium text-muted-foreground ring-1 ring-white/10 transition hover:text-foreground hover:bg-white/10 disabled:opacity-50"
-                        >
-                          {actionId === b.id ? (
-                            <Loader2 className="size-3.5 animate-spin" />
-                          ) : b.is_active ? (
-                            <Archive className="size-3.5" />
-                          ) : (
-                            <ArchiveRestore className="size-3.5" />
-                          )}
-                          {b.is_active ? "Archivar" : "Reactivar"}
-                        </button>
-                      )}
-                      {/* Eliminar definitivamente solo se ofrece ya archivada
-                          — Archivar es siempre el primer paso para una
-                          sucursal con historial; ver findBranchHistorial. */}
-                      {!b.is_principal && !b.is_active && (
-                        <button
-                          type="button"
-                          onClick={() => openDeleteCheck(b)}
-                          disabled={checkingDeleteId === b.id || actionId === b.id}
-                          className="inline-flex items-center gap-1 rounded-lg bg-rose-500/10 px-2.5 py-1.5 text-xs font-medium text-rose-300 ring-1 ring-rose-500/25 transition hover:bg-rose-500/20 disabled:opacity-50"
-                        >
-                          {checkingDeleteId === b.id ? (
-                            <Loader2 className="size-3.5 animate-spin" />
-                          ) : (
-                            <Trash2 className="size-3.5" />
-                          )}
-                          Eliminar
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
+          <div className="space-y-2">{activeBranches.map(renderBranch)}</div>
         )}
       </SectionCard>
+
+      {archivedBranches.length > 0 && (
+        <SectionCard label="Archivadas">
+          <div className="space-y-2">{archivedBranches.map(renderBranch)}</div>
+        </SectionCard>
+      )}
 
       {addOpen ? (
         <SectionCard label="Agregar sucursal">

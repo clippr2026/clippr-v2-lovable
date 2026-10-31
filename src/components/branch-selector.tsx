@@ -8,28 +8,14 @@ import { cn } from "@/lib/utils";
  * (useAuth().activeBranchId), así cambiar de sucursal en una pantalla se
  * refleja en todas sin recargar la página.
  *
- * branches.length <= 1: texto fijo con el nombre, nunca un desplegable
- * innecesario con una sola sucursal (incluye el caso de 0 filas — negocio
- * todavía no migrado — donde no hay nada que elegir).
+ * branches.length <= 1: no se muestra nada — con una sola sucursal (o con 0
+ * filas, negocio todavía no migrado) no hay nada que elegir ni hace falta
+ * repetir el nombre. Con 2 o más, desplegable para elegir.
  */
 export function BranchSelector({ className }: { className?: string }) {
   const { branches, activeBranchId, setActiveBranchId } = useAuth();
 
-  if (branches.length <= 1) {
-    const name = branches[0]?.name ?? null;
-    if (!name) return null;
-    return (
-      <span
-        className={cn(
-          "inline-flex items-center gap-1.5 text-sm font-semibold text-white/80",
-          className,
-        )}
-      >
-        <Building2 className="size-3.5 shrink-0 text-white/40" />
-        {name}
-      </span>
-    );
-  }
+  if (branches.length <= 1) return null;
 
   return (
     <div className={cn("relative inline-flex items-center", className)}>
