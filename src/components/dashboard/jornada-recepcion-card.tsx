@@ -81,30 +81,28 @@ export function JornadaRecepcionCard({ businessId, branchId }: { businessId: str
   const open = current && !current.clock_out_at;
   const closed = current && current.clock_out_at;
 
+  // Jornada ya iniciada y cerrada: no queda nada para hacer acá, y su
+  // entrada/salida ya se ven en "Fichaje de jornada".
+  if (closed) return null;
+
   return (
     <div className="glass rounded-2xl p-4 sm:p-5 ring-1 ring-white/5">
       <div className="flex items-center justify-between gap-3">
         <div className="min-w-0">
           <div className="text-sm font-semibold text-foreground">Jornada de hoy</div>
           <div className="mt-0.5 text-xs text-muted-foreground">
-            {open
-              ? `Iniciada a las ${hora(current!.clock_in_at)}`
-              : closed
-                ? `${hora(current!.clock_in_at)} a ${hora(current!.clock_out_at!)}`
-                : "Sin iniciar"}
+            {open ? `Iniciada a las ${hora(current!.clock_in_at)}` : "Sin iniciar"}
           </div>
         </div>
-        {!closed && (
-          <button
-            type="button"
-            onClick={open ? cerrar : iniciar}
-            disabled={busy}
-            className="inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 px-4 text-sm font-semibold text-white disabled:opacity-60"
-          >
-            {busy ? <Loader2 className="size-4 animate-spin" /> : open ? <LogOut className="size-4" /> : <LogIn className="size-4" />}
-            {open ? "Cerrar jornada" : "Iniciar jornada"}
-          </button>
-        )}
+        <button
+          type="button"
+          onClick={open ? cerrar : iniciar}
+          disabled={busy}
+          className="inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 px-4 text-sm font-semibold text-white disabled:opacity-60"
+        >
+          {busy ? <Loader2 className="size-4 animate-spin" /> : open ? <LogOut className="size-4" /> : <LogIn className="size-4" />}
+          {open ? "Cerrar jornada" : "Iniciar jornada"}
+        </button>
       </div>
     </div>
   );
