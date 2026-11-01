@@ -700,16 +700,35 @@ export async function buildCierreSnapshotForDate(
     .in("status", ["anulado", "reembolsado"]);
   if (branchFilter) anuladosQuery = anuladosQuery.or(branchFilter);
 
-  const [payRes, expRes, employeesRes, profilesRes, anuladosRes] = await Promise.allSettled([
+  // Cobros de pagos pendientes/parciales (payment_collections) de ESE día,
+  // por collected_at — la plata que de verdad entró, sea de una venta de hoy
+  // o de otro día. Una venta pendiente/parcial NO aporta su total al cierre:
+  // solo entra lo que se cobró (ver isCountableCajaPayment).
+  let collQuery = supabase
+    .from("payment_collections")
+    .select("id,payment_id,amount,method,collected_at")
+    .eq("business_id", businessId)
+    .gte("collected_at", dayStart.toISOString())
+    .lte("collected_at", dayEnd.toISOString());
+  if (branchFilter) collQuery = collQuery.or(branchFilter);
+
+  const [payRes, expRes, employeesRes, profilesRes, anuladosRes, collRes] = await Promise.allSettled([
     payQuery,
     expQuery,
     employeesQuery,
     profilesQuery,
     anuladosQuery,
+    collQuery,
   ]);
 
-  const payments =
+  const allPayments =
     payRes.status === "fulfilled" && !payRes.value.error ? ((payRes.value.data ?? []) as any[]) : [];
+  // Solo las ventas que de verdad entraron a caja suman en el cierre: una
+  // venta 'pendiente'/'parcial' se muestra aparte, con su estado.
+  const payments = allPayments.filter((p) => isCountableCajaPayment(p.status));
+  const pagosPendientes = allPayments.filter((p) => !isCountableCajaPayment(p.status));
+  const collections =
+    collRes.status === "fulfilled" && !collRes.value.error ? ((collRes.value.data ?? []) as any[]) : [];
   const expenses =
     expRes.status === "fulfilled" && !expRes.value.error ? ((expRes.value.data ?? []) as any[]) : [];
   const anulados =
@@ -737,7 +756,9 @@ export async function buildCierreSnapshotForDate(
   // totalRecibido son los que sí la incluyen, para "dinero realmente
   // recibido" (efectivo esperado, dinero en cuenta esperado, Resumen del
   // cierre) sin mezclarla con "Ingresos"/facturación.
-  const totalCobrado = payments.reduce((s, p) => s + Number(p.total ?? p.amount ?? 0), 0);
+  const totalCobrado =
+    payments.reduce((s, p) => s + Number(p.total ?? p.amount ?? 0), 0) +
+    collections.reduce((s, c) => s + Number(c.amount ?? 0), 0);
   const totalPropinas = payments.reduce((s, p) => s + Number(p.tip_amount ?? p.tip ?? 0), 0);
   const totalRecibido = totalCobrado + totalPropinas;
   const totalGastos = expenses.reduce((s, e) => s + Number(e.amount ?? 0), 0);
@@ -810,6 +831,13 @@ export async function buildCierreSnapshotForDate(
       }
     }
   }
+  // Lo cobrado de pagos pendientes/parciales entra por el medio con el que se
+  // cobró, el día en que se cobró.
+  for (const c of collections) {
+    const amount = Number(c.amount ?? 0);
+    ensure(c.method).ingresos += amount;
+    ensureRecibido(c.method).ingresos += amount;
+  }
   for (const e of expenses) {
     if (e.funds_source === "otros") continue; // Otros fondos: no mueve la plata de la caja
     ensure(e.payment_method ?? e.method).gastos += Number(e.amount ?? 0);
@@ -869,6 +897,37 @@ export async function buildCierreSnapshotForDate(
   // ningún otro cálculo de este archivo, a propósito: existe solo para
   // que CierreMovimientosDetalleList pueda MOSTRARLAS, identificadas con
   // su propio tag, sin volver a tocar ningún total ya correcto.
+  // Ventas pendientes/parciales: se listan en el detalle con su estado (nunca
+  // como cobradas ni con un medio de pago inventado) y no suman en ningún total.
+  const cobrosPendientesSnapshot = pagosPendientes.map((p) => {
+    const monto = Number(p.total ?? p.amount ?? 0);
+    return {
+      id: p.id,
+      fecha_hora: p.created_at ?? null,
+      hora: p.created_at
+        ? new Date(p.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
+        : null,
+      cliente: p.client_name ?? null,
+      profesional: employeeNameById.get(p.employee_id) ?? null,
+      servicio: p.service_name ?? null,
+      items: Array.isArray(p.items)
+        ? p.items.map((it: any) => ({
+            nombre: it?.name ?? null,
+            cantidad: Number(it?.qty ?? 1),
+            monto: Number(it?.amount ?? 0),
+            esProducto: Boolean(it?.is_catalog),
+          }))
+        : [],
+      metodo: "pendiente" as string | null,
+      monto,
+      precio_lista: monto,
+      usuario: resolveUsuario(p.charged_by),
+      splits: null,
+      anulado: false as const,
+      estado: p.status as "pendiente" | "parcial",
+    };
+  });
+
   const cobrosAnuladosSnapshot = anulados.map((p) => {
     const monto = Number(p.total ?? p.amount ?? 0);
     const precioLista = p.original_amount != null ? Number(p.original_amount) : monto;
@@ -964,9 +1023,18 @@ export async function buildCierreSnapshotForDate(
     detalleMetodosRecibido,
     cobrosSnapshot,
     cobrosAnuladosSnapshot,
+    // Ventas pendientes/parciales: solo para mostrarlas, identificadas con su
+    // estado — nunca suman en ningún total.
+    cobrosPendientesSnapshot,
+    // Lo cobrado ese día de pagos pendientes/parciales (por medio).
+    cobranzasSnapshot: collections.map((c) => ({
+      id: c.id as string,
+      monto: Number(c.amount ?? 0),
+      metodo: (c.method as string | null) ?? null,
+    })),
     gastosSnapshot,
     cantidadCobros: payments.length,
-    hadActivity: payments.length > 0 || expenses.length > 0,
+    hadActivity: allPayments.length > 0 || collections.length > 0 || expenses.length > 0,
     pendientesCount: pendientesDetalle.length,
     pendientesMonto,
     pendientesDetalle,
@@ -1454,6 +1522,7 @@ export async function buildSingleDayCierrePreview(
     expenses: snapshot.gastosSnapshot.map((g) => ({ amount: g.monto, payment_method: g.metodo, funds_source: g.origen })),
     advances,
     cashMovements,
+    collections: snapshot.cobranzasSnapshot.map((c) => ({ amount: c.monto, method: c.metodo })),
     settlementOutflows,
   });
 

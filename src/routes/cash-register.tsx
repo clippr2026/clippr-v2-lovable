@@ -7176,12 +7176,17 @@ function montoParaMedio(
 function CierreMovimientosDetalleList({
   cobros,
   cobrosAnulados,
+  cobrosPendientes,
   gastos,
   movimientos,
   adelantos,
   onRowClick,
 }: {
   cobros: any[];
+  // Ventas pendientes/parciales del día (ver cobrosPendientesSnapshot,
+  // caja-cierre.ts): se identifican con su estado, sin medio de pago, y nunca
+  // entran en ningún total.
+  cobrosPendientes?: any[];
   // Adelantos a profesionales de la jornada (opcional: si no se pasa, no hay
   // chip ni sección de adelantos).
   adelantos?: CierreAdelantoDetalle[];
@@ -7224,6 +7229,7 @@ function CierreMovimientosDetalleList({
   // de Servicios (lo que pidió el negocio) — nunca entran en ningún total
   // ni en la lista de Productos.
   const { servicios: serviciosAnuladosRows } = splitServiciosYProductos(cobrosAnulados ?? []);
+  const { servicios: serviciosPendientesRows } = splitServiciosYProductos(cobrosPendientes ?? []);
   const profesionales = Array.from(
     new Set(
       [...serviciosRows.map((p) => p.profesional), ...productosRows.map((p) => p.profesional), ...serviciosAnuladosRows.map((p) => p.profesional)].filter(
@@ -7253,6 +7259,13 @@ function CierreMovimientosDetalleList({
       : serviciosAnuladosPorProfesional.filter(
           (p: any) => montoParaMedio(p.monto, 0, p.metodo, p.splits, medioFiltro).incluido,
         );
+  // Sin medio de pago: solo se muestran con "Todos los medios".
+  const serviciosPendientesFiltrados =
+    medioFiltro !== "todos"
+      ? []
+      : profesionalFiltro === "todos"
+        ? serviciosPendientesRows
+        : serviciosPendientesRows.filter((p: any) => p.profesional === profesionalFiltro);
   const productosPorProfesional =
     profesionalFiltro === "todos" ? productosRows : productosRows.filter((p) => p.profesional === profesionalFiltro);
   // Sin el filtro de medio — pareja de totalFacturadoProfesional más
@@ -7659,6 +7672,38 @@ function CierreMovimientosDetalleList({
                       </div>
                     );
                   })}
+                  {serviciosPendientesFiltrados.map((p: any, idx: number) => {
+                    const items: any[] = Array.isArray(p.items) ? p.items : [];
+                    const servicioNombre =
+                      items.filter((it) => !it?.esProducto).map((it) => it.nombre).join(" + ") || p.servicio || "Servicio";
+                    return (
+                      <div
+                        key={`pendiente-${p.id ?? idx}`}
+                        onClick={p.id && onRowClick ? () => onRowClick(p.id) : undefined}
+                        className={cn(
+                          "grid grid-cols-[64px_minmax(120px,1fr)_minmax(100px,0.75fr)_minmax(150px,1.3fr)_95px_90px_120px_90px_minmax(160px,1.1fr)] items-center gap-3 border-b border-white/[0.05] px-4 py-2.5 text-xs last:border-0 hover:bg-white/[0.02]",
+                          p.id && onRowClick && "cursor-pointer",
+                        )}
+                      >
+                        <div className="tabular-nums text-white/55">{p.hora ?? "—"}</div>
+                        <div className="truncate font-semibold text-white" title={p.cliente ?? "Cliente"}>
+                          {p.cliente ?? "Cliente"}
+                        </div>
+                        <div className="truncate text-white/70">{p.profesional ?? "—"}</div>
+                        <div className="truncate text-white/70" title={servicioNombre}>
+                          {servicioNombre}
+                          <span className="ml-1.5 inline-flex rounded-full bg-amber-500/15 px-2 py-0.5 align-middle text-[10px] font-bold uppercase tracking-wide text-amber-300 ring-1 ring-amber-400/30">
+                            {p.estado === "parcial" ? "Pago parcial" : "Pago pendiente"}
+                          </span>
+                        </div>
+                        <div className="text-right text-sm font-bold tabular-nums text-white/55">{money(Number(p.precio_lista ?? p.monto ?? 0))}</div>
+                        <div className="text-right tabular-nums text-white/35">—</div>
+                        <div className="text-right text-xs font-semibold text-amber-300/90">Sin cobrar</div>
+                        <div className="text-right tabular-nums text-white/35">—</div>
+                        <div className="text-white/40">—</div>
+                      </div>
+                    );
+                  })}
                   {otrosMovimientos.map((o: any) => (
                     <div
                       key={o.key}
@@ -7806,6 +7851,35 @@ function CierreMovimientosDetalleList({
                         <div className="text-sm font-bold tabular-nums text-white/45 line-through decoration-rose-400/50">
                           {money(precioLista)}
                         </div>
+                      </div>
+                    </div>
+                  );
+                })}
+                {serviciosPendientesFiltrados.map((p: any, idx: number) => {
+                  const items: any[] = Array.isArray(p.items) ? p.items : [];
+                  const servicioNombre =
+                    items.filter((it) => !it?.esProducto).map((it) => it.nombre).join(" + ") || p.servicio || "Servicio";
+                  return (
+                    <div
+                      key={`pendiente-${p.id ?? idx}`}
+                      onClick={p.id && onRowClick ? () => onRowClick(p.id) : undefined}
+                      className={cn("rounded-xl bg-black/22 px-3.5 py-3 text-xs", p.id && onRowClick && "cursor-pointer active:opacity-80")}
+                    >
+                      <div className="min-w-0">
+                        <div className="truncate font-semibold text-white">{p.cliente ?? "Cliente"}</div>
+                        <div className="mt-0.5 truncate text-white/50">
+                          {p.hora ?? "—"}
+                          {p.profesional ? ` · ${p.profesional}` : ""} · {servicioNombre}
+                        </div>
+                      </div>
+                      <div className="mt-1">
+                        <span className="rounded-full bg-amber-500/15 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-300 ring-1 ring-amber-400/30">
+                          {p.estado === "parcial" ? "Pago parcial" : "Pago pendiente"}
+                        </span>
+                      </div>
+                      <div className="mt-2.5 rounded-lg bg-white/[0.03] p-2.5">
+                        <div className="text-[10px] uppercase tracking-wide text-white/35">Importe de la venta · sin cobrar</div>
+                        <div className="text-sm font-bold tabular-nums text-white/70">{money(Number(p.precio_lista ?? p.monto ?? 0))}</div>
                       </div>
                     </div>
                   );
@@ -8373,6 +8447,7 @@ function CierreRevisionDetalle({
         <CierreMovimientosDetalleList
           cobros={snapshot.cobrosSnapshot}
           cobrosAnulados={snapshot.cobrosAnuladosSnapshot}
+          cobrosPendientes={snapshot.cobrosPendientesSnapshot}
           gastos={snapshot.gastosSnapshot}
           movimientos={movimientosManuales}
           adelantos={adelantosDetalle}
@@ -9355,6 +9430,7 @@ function CierreDetalleView({
             <CierreMovimientosDetalleList
               cobros={cobros}
               cobrosAnulados={cobrosAnulados}
+              cobrosPendientes={(snapshot?.cobrosPendientesSnapshot ?? []) as any[]}
               gastos={gastos}
               movimientos={movimientos}
               adelantos={preview?.adelantosDetalle}
