@@ -199,9 +199,8 @@ export function HorarioEspecialPanel({
           allowBreak
           closedLabel="No disponible"
           saving={editor.saving}
-          professionals={[{ id: employeeId, full_name: employeeName }]}
-          selectedEmployeeId={employeeId}
-          onSelectEmployee={() => {}}
+          // Sin selector de profesional: el horario es siempre del profesional
+          // que tiene la sesión abierta.
           onSave={save}
           onCancel={() => {
             setOverrideConfirm(null);
