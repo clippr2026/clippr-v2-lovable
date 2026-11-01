@@ -200,7 +200,7 @@ export function HorarioEspecialPanel({
         }}
         className={
           className ??
-          "inline-flex h-9 items-center gap-1 sm:gap-1.5 whitespace-nowrap rounded-xl bg-white/5 px-2.5 sm:px-3 text-xs font-semibold text-foreground ring-1 ring-white/10 transition hover:bg-white/10" +
+          "inline-flex h-11 sm:h-9 items-center gap-1 sm:gap-1.5 whitespace-nowrap rounded-[10px] border border-white/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.16),rgba(255,255,255,0.07))] px-2.5 sm:px-3 text-sm sm:text-xs font-semibold text-foreground shadow-[0_4px_12px_-2px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.18)] transition hover:bg-white/15 active:translate-y-px" +
           (fillOnMobile ? " flex-1 justify-center sm:flex-none" : "")
         }
       >

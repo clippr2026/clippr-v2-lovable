@@ -428,7 +428,9 @@ function ProfessionalsPage() {
       
       <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />
 <div className="space-y-6 animate-fade-up">
-      {/* Header card */}
+      {/* Header card — una cuenta Profesional no lo ve (su foto ya está arriba a
+          la derecha y su panel es solo el suyo); queda solo la jornada de hoy. */}
+      {!isProfessional && (
       <div className="glass rounded-2xl md:rounded-3xl px-3 py-2 md:p-6 relative overflow-hidden">
         <div className="absolute -top-24 -left-16 h-64 w-64 rounded-full bg-cyan-500/10 blur-3xl pointer-events-none" />
         <div className="flex flex-col md:flex-row md:items-center gap-5 md:gap-6 relative">
@@ -499,19 +501,16 @@ function ProfessionalsPage() {
             </div>
           )}
         </div>
-
-        {/* Jornada de hoy, dentro de la misma tarjeta que foto y nombre. */}
-        {isProfessionalAccess && (
-          <div className="relative mt-2 border-t border-white/10 pt-2 md:mt-4 md:pt-4">
-            <FichajeProfesionalCard
-              compact
-              businessId={businessId}
-              employeeId={profileEmployeeId}
-              activeBranchId={activeBranchId}
-            />
-          </div>
-        )}
       </div>
+      )}
+
+      {isProfessionalAccess && (
+        <FichajeProfesionalCard
+          businessId={businessId}
+          employeeId={profileEmployeeId}
+          activeBranchId={activeBranchId}
+        />
+      )}
 
       {/* Tabs */}
       {/* pb-3: separación garantizada hacia la fila de fecha/acciones de
@@ -1394,7 +1393,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
               <button
                 type="button"
                 onClick={() => setAddTurnoOpen(true)}
-                className="inline-flex h-9 flex-1 items-center justify-center gap-1 sm:flex-none sm:gap-1.5 whitespace-nowrap rounded-xl bg-[linear-gradient(135deg,#A78BFA,#7C3AED)] px-2.5 sm:px-3 text-xs font-semibold text-white shadow-[0_0_18px_-4px_rgba(139,92,246,0.55)] transition hover:brightness-110"
+                className="inline-flex h-11 sm:h-9 flex-1 items-center justify-center gap-1 sm:flex-none sm:gap-1.5 whitespace-nowrap rounded-[10px] border border-white/25 bg-[linear-gradient(180deg,#A78BFA,#7C3AED)] px-2.5 sm:px-3 text-sm sm:text-xs font-semibold text-white shadow-[0_4px_14px_-2px_rgba(124,58,237,0.6),inset_0_1px_0_rgba(255,255,255,0.28)] transition hover:brightness-110 active:translate-y-px active:brightness-95"
               >
                 <CalendarPlus className="h-3.5 w-3.5 shrink-0" />
                 <span className="sm:hidden">+ Turno</span>
@@ -1406,10 +1405,10 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                 type="button"
                 onClick={() => setWalkInChargeOpen(true)}
                 className={cn(
-                  "inline-flex h-9 flex-1 items-center justify-center gap-1 sm:flex-none sm:gap-1.5 whitespace-nowrap rounded-xl px-2.5 sm:px-3 text-xs font-semibold text-white transition hover:brightness-110",
+                  "inline-flex h-11 sm:h-9 flex-1 items-center justify-center gap-1 sm:flex-none sm:gap-1.5 whitespace-nowrap rounded-[10px] border border-white/25 px-2.5 sm:px-3 text-sm sm:text-xs font-semibold text-white transition hover:brightness-110 active:translate-y-px active:brightness-95",
                   approvalMode === "manual"
-                    ? "bg-[linear-gradient(135deg,#60A5FA,#3B82F6)] shadow-[0_0_18px_-4px_rgba(96,165,250,0.55)]"
-                    : "bg-[linear-gradient(135deg,#34D399,#10B981)] shadow-[0_0_18px_-4px_rgba(16,185,129,0.55)]"
+                    ? "bg-[linear-gradient(180deg,#60A5FA,#3B82F6)] shadow-[0_4px_14px_-2px_rgba(59,130,246,0.6),inset_0_1px_0_rgba(255,255,255,0.28)]"
+                    : "bg-[linear-gradient(180deg,#34D399,#10B981)] shadow-[0_4px_14px_-2px_rgba(16,185,129,0.6),inset_0_1px_0_rgba(255,255,255,0.28)]"
                 )}
               >
                 <CreditCard className="h-3.5 w-3.5 shrink-0" />
