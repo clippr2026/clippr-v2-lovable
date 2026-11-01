@@ -499,6 +499,18 @@ function ProfessionalsPage() {
             </div>
           )}
         </div>
+
+        {/* Jornada de hoy, dentro de la misma tarjeta que foto y nombre. */}
+        {isProfessionalAccess && (
+          <div className="relative mt-2 border-t border-white/10 pt-2 md:mt-4 md:pt-4">
+            <FichajeProfesionalCard
+              compact
+              businessId={businessId}
+              employeeId={profileEmployeeId}
+              activeBranchId={activeBranchId}
+            />
+          </div>
+        )}
       </div>
 
       {/* Tabs */}
@@ -532,14 +544,6 @@ function ProfessionalsPage() {
           );
         })}
       </div>
-
-      {isProfessionalAccess && (
-        <FichajeProfesionalCard
-          businessId={businessId}
-          employeeId={profileEmployeeId}
-          activeBranchId={activeBranchId}
-        />
-      )}
 
       {/* Vista admin/dueño: jornada de hoy del barbero seleccionado, con
           botón "Fichar jornada" (mismo flujo Escanear QR / Ingresar

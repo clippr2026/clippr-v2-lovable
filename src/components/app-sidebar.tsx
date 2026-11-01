@@ -276,6 +276,29 @@ const AVATAR_GRADIENT = "linear-gradient(135deg, oklch(0.7 0.22 245), oklch(0.65
 function UserMenu() {
   const { profile, signOut } = useAuth();
   const initials = initialsOf(profile?.full_name, profile?.email);
+  // Una cuenta de profesional muestra la foto de SU ficha de profesional en
+  // vez de las iniciales (si no tiene foto, quedan las iniciales de siempre).
+  const professionalEmployeeId =
+    profile?.role === "profesional" ? ((profile as { employee_id?: string | null }).employee_id ?? null) : null;
+  const [avatarUrl, setAvatarUrl] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    if (!professionalEmployeeId) {
+      setAvatarUrl(null);
+      return;
+    }
+    supabase
+      .from("employees")
+      .select("avatar_url")
+      .eq("id", professionalEmployeeId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setAvatarUrl(((data as { avatar_url?: string | null } | null)?.avatar_url ?? null) || null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [professionalEmployeeId]);
   const roleLabel = (profile?.role && ROLE_LABELS[profile.role]) || "Sin rol asignado";
 
   return (
@@ -285,12 +308,16 @@ function UserMenu() {
           aria-label="Cuenta"
           className="h-10 w-10 rounded-xl grid place-items-center glass glass-hover transition active:scale-[0.96]"
         >
-          <span
-            className="grid h-6 w-6 place-items-center rounded-full text-[11px] font-semibold text-white"
-            style={{ background: AVATAR_GRADIENT }}
-          >
-            {initials}
-          </span>
+          {avatarUrl ? (
+            <img src={avatarUrl} alt="" className="h-7 w-7 rounded-full object-cover ring-1 ring-white/15" />
+          ) : (
+            <span
+              className="grid h-6 w-6 place-items-center rounded-full text-[11px] font-semibold text-white"
+              style={{ background: AVATAR_GRADIENT }}
+            >
+              {initials}
+            </span>
+          )}
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent
@@ -299,12 +326,16 @@ function UserMenu() {
         className="w-64 max-w-[calc(100vw-2rem)] rounded-2xl border-white/10 bg-[oklch(0.10_0.025_265/0.98)] p-3 shadow-2xl shadow-black/40 backdrop-blur-xl"
       >
         <div className="flex items-center gap-3 px-1 py-1.5">
-          <span
-            className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-sm font-semibold text-white"
-            style={{ background: AVATAR_GRADIENT }}
-          >
-            {initials}
-          </span>
+          {avatarUrl ? (
+            <img src={avatarUrl} alt="" className="h-11 w-11 shrink-0 rounded-full object-cover ring-1 ring-white/15" />
+          ) : (
+            <span
+              className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-sm font-semibold text-white"
+              style={{ background: AVATAR_GRADIENT }}
+            >
+              {initials}
+            </span>
+          )}
           <div className="min-w-0 flex-1">
             <div className="truncate text-sm font-semibold text-white">
               {profile?.full_name || "Usuario"}

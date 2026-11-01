@@ -23,10 +23,14 @@ export function FichajeProfesionalCard({
   businessId,
   employeeId,
   activeBranchId,
+  compact = false,
 }: {
   businessId: string | null;
   employeeId: string | null;
   activeBranchId: string | null;
+  // Versión para ir DENTRO de la tarjeta del profesional (debajo de foto y
+  // nombre): sin caja propia, más baja y con el botón más chico.
+  compact?: boolean;
 }) {
   const [openSession, setOpenSession] = React.useState<WorkSession | null>(null);
   const [loadingStatus, setLoadingStatus] = React.useState(true);
@@ -50,21 +54,25 @@ export function FichajeProfesionalCard({
   if (!employeeId) return null;
 
   return (
-    <div className="glass rounded-2xl p-4 sm:p-5 ring-1 ring-white/5">
+    <div className={compact ? "" : "glass rounded-2xl p-4 sm:p-5 ring-1 ring-white/5"}>
       <div className="flex items-center justify-between gap-3">
-        <div>
-          <div className="flex items-center gap-2 text-sm font-semibold text-foreground">
-            <ScanLine className="h-4 w-4 text-emerald-300" />
+        <div className="min-w-0">
+          <div className={compact ? "flex items-center gap-1.5 text-xs font-semibold text-foreground" : "flex items-center gap-2 text-sm font-semibold text-foreground"}>
+            <ScanLine className={compact ? "h-3.5 w-3.5 text-emerald-300" : "h-4 w-4 text-emerald-300"} />
             Jornada de hoy
           </div>
-          <div className="mt-1.5 text-sm text-muted-foreground">
+          <div className={compact ? "mt-0.5 truncate text-xs text-muted-foreground" : "mt-1.5 text-sm text-muted-foreground"}>
             {loadingStatus ? "Cargando…" : !openSession ? "Sin iniciar" : jornadaLinea(openSession)}
           </div>
         </div>
         <button
           type="button"
           onClick={() => setModalOpen(true)}
-          className="shrink-0 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-2.5 text-sm font-semibold text-white"
+          className={
+            compact
+              ? "shrink-0 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 px-3 py-1.5 text-xs font-semibold text-white"
+              : "shrink-0 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-2.5 text-sm font-semibold text-white"
+          }
         >
           Fichar jornada
         </button>
