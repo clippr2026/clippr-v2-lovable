@@ -67,6 +67,7 @@ import { allocateProportional, hasCatalogItems, serviceCommissionOf } from "@/li
 import { getPenaltyBreakdown } from "@/lib/presentismo";
 import { PresentismoRevisionPanel } from "@/components/professionals/presentismo-revision-panel";
 import { SalidasPendientesPanel } from "@/components/professionals/salidas-pendientes-panel";
+import { CierrePrerequisitosStep } from "@/components/cash-register/cierre-prerequisitos-step";
 import { getPendingCierresInPeriod } from "@/lib/presentismo";
 import { useCashMovements, type CashMovement, type ProfessionalAdvance } from "@/hooks/use-cash-movements";
 import { useCajaSummary, type CajaSummary } from "@/hooks/use-caja-summary";
@@ -8912,6 +8913,9 @@ function CerrarDiaAnteriorCard({
   const [obs, setObs] = useState("");
   // Sección 5 del pedido: resumen final + segundo clic antes de confirmar.
   const [confirmStep, setConfirmStep] = useState(false);
+  // Paso previo: salidas sin fichar + puntualidad del día (solo se ve si hay
+  // algo para resolver).
+  const [prereqStep, setPrereqStep] = useState(false);
 
   const closedDates = useMemo(
     () => new Set(cierresExistentes.filter((c) => isCajaCerradaRow(c)).map((c) => c.fecha)),
@@ -8922,6 +8926,7 @@ function CerrarDiaAnteriorCard({
   function resetReview() {
     setPreview(null);
     setConfirmStep(false);
+    setPrereqStep(false);
     setContadoTouched(false);
     setSaldoRealTouched(false);
     setEfectivoContado("");
@@ -8977,6 +8982,7 @@ function CerrarDiaAnteriorCard({
         if (changed) {
           toast.info(`Los movimientos del ${fechaDDMMYYYY(selectedDate)} cambiaron — se actualizó la vista previa.`);
           setConfirmStep(false);
+          setPrereqStep(false);
         }
       } catch {
         // Red de seguridad: si falla, el usuario sigue viendo el último
@@ -9111,6 +9117,18 @@ function CerrarDiaAnteriorCard({
                 onVolver={() => setConfirmStep(false)}
                 onConfirmar={confirmarCierre}
               />
+            ) : prereqStep && businessId && branchId ? (
+              <CierrePrerequisitosStep
+                businessId={businessId}
+                branchId={branchId}
+                date={selectedDate}
+                userName={chargedByUsername(userEmail)}
+                onVolver={() => setPrereqStep(false)}
+                onContinue={() => {
+                  setPrereqStep(false);
+                  setConfirmStep(true);
+                }}
+              />
             ) : (
               <>
                 <CierreRevisionDetalle
@@ -9136,7 +9154,7 @@ function CerrarDiaAnteriorCard({
                   type="button"
                   disabled={obsRequeridaFalta}
                   title={obsRequeridaFalta ? "Contá qué pasó con la diferencia antes de continuar" : undefined}
-                  onClick={() => setConfirmStep(true)}
+                  onClick={() => setPrereqStep(true)}
                   className="mt-4 h-10 w-full rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-4 text-sm font-extrabold text-emerald-300 transition hover:bg-emerald-400/15 disabled:opacity-50"
                 >
                   {`Confirmar cierre de caja del ${fechaDDMMYYYY(selectedDate)}`}

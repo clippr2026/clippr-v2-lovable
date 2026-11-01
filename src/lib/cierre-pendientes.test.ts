@@ -28,3 +28,21 @@ describe("Revisar cierre: las ventas pendientes/parciales no suman", () => {
     expect(ui).toContain("cobrosPendientes={snapshot.cobrosPendientesSnapshot}");
   });
 });
+
+describe("Cerrar un día desde Historial: paso previo de salidas y puntualidad", () => {
+  const ui = readSrc("src/routes/cash-register.tsx");
+  const step = readSrc("src/components/cash-register/cierre-prerequisitos-step.tsx");
+
+  it("'Confirmar cierre' abre primero el paso previo y recién después la confirmación final", () => {
+    expect(ui).toContain("onClick={() => setPrereqStep(true)}");
+    expect(ui).toContain("<CierrePrerequisitosStep");
+    expect(ui).toMatch(/onContinue=\{\(\) => \{\s*setPrereqStep\(false\);\s*setConfirmStep\(true\);/);
+  });
+
+  it("el paso se saltea solo si no hay nada pendiente y 'Continuar' exige resolver todo", () => {
+    expect(step).toContain('setDecided(nothing ? "saltar" : "mostrar")');
+    expect(step).toContain("disabled={cargando || pendientes > 0}");
+    expect(step).toContain("<SalidasPendientesPanel");
+    expect(step).toContain("<PresentismoRevisionPanel");
+  });
+});
