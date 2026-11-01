@@ -1348,14 +1348,24 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
           "Tabs" de arriba + el gap normal entre bloques. mb-4 separa esta
           fila de "Estados" (colapsa con el space-y-2 de TurnosView y deja
           ~16px). */}
-      <div className="flex flex-nowrap items-center justify-between gap-2 mb-4">
-        {dateControl ?? <div />}
+      <div
+        className={cn(
+          "flex-nowrap items-center justify-between gap-2 mb-4",
+          // Sin acciones, en celular la fila quedaría vacía (la fecha baja
+          // arriba de la agenda): se oculta entera para no dejar un hueco.
+          canAddTurno || approvalMode !== "disabled" || canEditOwnSchedule ? "flex" : "hidden sm:flex",
+        )}
+      >
+        {/* En celular la fecha baja justo arriba de la agenda (ver más abajo) y
+            acá quedan juntos los botones de acción, repartidos en el ancho. */}
+        <div className="hidden sm:block">{dateControl ?? <div />}</div>
         {(canAddTurno || approvalMode !== "disabled" || canEditOwnSchedule) && (
-          <div className="flex shrink-0 flex-nowrap gap-1.5 sm:gap-2">
+          <div className="flex w-full flex-nowrap gap-1.5 sm:w-auto sm:shrink-0 sm:gap-2">
             {/* Horario especial propio — mismo editor y misma persistencia que
                 la Agenda general (ver HorarioEspecialPanel). */}
             {canEditOwnSchedule && empId && (
               <HorarioEspecialPanel
+                fillOnMobile
                 shortLabelOnMobile
                 businessId={businessId}
                 employeeId={empId}
@@ -1380,7 +1390,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
               <button
                 type="button"
                 onClick={() => setAddTurnoOpen(true)}
-                className="inline-flex h-9 items-center gap-1 sm:gap-1.5 whitespace-nowrap rounded-xl bg-[linear-gradient(135deg,#A78BFA,#7C3AED)] px-2.5 sm:px-3 text-xs font-semibold text-white shadow-[0_0_18px_-4px_rgba(139,92,246,0.55)] transition hover:brightness-110"
+                className="inline-flex h-9 flex-1 items-center justify-center gap-1 sm:flex-none sm:gap-1.5 whitespace-nowrap rounded-xl bg-[linear-gradient(135deg,#A78BFA,#7C3AED)] px-2.5 sm:px-3 text-xs font-semibold text-white shadow-[0_0_18px_-4px_rgba(139,92,246,0.55)] transition hover:brightness-110"
               >
                 <CalendarPlus className="h-3.5 w-3.5 shrink-0" />
                 <span className="sm:hidden">+ Turno</span>
@@ -1392,7 +1402,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                 type="button"
                 onClick={() => setWalkInChargeOpen(true)}
                 className={cn(
-                  "inline-flex h-9 items-center gap-1 sm:gap-1.5 whitespace-nowrap rounded-xl px-2.5 sm:px-3 text-xs font-semibold text-white transition hover:brightness-110",
+                  "inline-flex h-9 flex-1 items-center justify-center gap-1 sm:flex-none sm:gap-1.5 whitespace-nowrap rounded-xl px-2.5 sm:px-3 text-xs font-semibold text-white transition hover:brightness-110",
                   approvalMode === "manual"
                     ? "bg-[linear-gradient(135deg,#60A5FA,#3B82F6)] shadow-[0_0_18px_-4px_rgba(96,165,250,0.55)]"
                     : "bg-[linear-gradient(135deg,#34D399,#10B981)] shadow-[0_0_18px_-4px_rgba(16,185,129,0.55)]"
@@ -1429,6 +1439,9 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
           </button>
         ))}
       </div>
+
+      {/* Celular: Hoy + fecha, justo arriba de la agenda. */}
+      <div className="mb-3 flex justify-center sm:hidden">{dateControl}</div>
 
       {/* Agenda visual */}
       {isLoading ? (

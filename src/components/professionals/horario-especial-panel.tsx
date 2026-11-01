@@ -76,6 +76,7 @@ export function HorarioEspecialPanel({
   onChanged,
   className,
   shortLabelOnMobile = false,
+  fillOnMobile = false,
 }: {
   businessId: string | null;
   employeeId: string | null;
@@ -88,6 +89,8 @@ export function HorarioEspecialPanel({
   className?: string;
   // En celular el botón muestra solo "Horario" (la fila de acciones es angosta).
   shortLabelOnMobile?: boolean;
+  // En celular el botón se reparte el ancho de la fila con sus vecinos.
+  fillOnMobile?: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
   const todayKey = toDateKey(new Date());
@@ -197,7 +200,8 @@ export function HorarioEspecialPanel({
         }}
         className={
           className ??
-          "inline-flex h-9 items-center gap-1 sm:gap-1.5 whitespace-nowrap rounded-xl bg-white/5 px-2.5 sm:px-3 text-xs font-semibold text-foreground ring-1 ring-white/10 transition hover:bg-white/10"
+          "inline-flex h-9 items-center gap-1 sm:gap-1.5 whitespace-nowrap rounded-xl bg-white/5 px-2.5 sm:px-3 text-xs font-semibold text-foreground ring-1 ring-white/10 transition hover:bg-white/10" +
+          (fillOnMobile ? " flex-1 justify-center sm:flex-none" : "")
         }
       >
         <CalendarClock className="h-4 w-4 shrink-0 text-violet-300" />
