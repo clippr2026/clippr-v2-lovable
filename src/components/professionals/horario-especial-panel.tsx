@@ -1,6 +1,6 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { CalendarClock, Pencil, Trash2 } from "lucide-react";
+import { CalendarClock } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { SpecialDayEditor } from "@/components/settings/special-hours-editor";
@@ -73,6 +73,7 @@ export function HorarioEspecialPanel({
   employeeSchedules,
   businessSpecialDates,
   employeeSpecialDates,
+  dateKey,
   onChanged,
   className,
   shortLabelOnMobile = false,
@@ -85,6 +86,9 @@ export function HorarioEspecialPanel({
   employeeSchedules: Record<string, ScheduleMap>;
   businessSpecialDates: SpecialDateMap;
   employeeSpecialDates: EmployeeSpecialDateMap;
+  // Día que el profesional tiene abierto en su agenda: "Horario" abre el
+  // editor de ESE día, igual que tocar un casillero en la Agenda general.
+  dateKey: string;
   onChanged?: () => void;
   className?: string;
   // En celular el botón muestra solo "Horario" (la fila de acciones es angosta).
@@ -92,20 +96,9 @@ export function HorarioEspecialPanel({
   // En celular el botón se reparte el ancho de la fila con sus vecinos.
   fillOnMobile?: boolean;
 }) {
-  const [open, setOpen] = React.useState(false);
   const todayKey = toDateKey(new Date());
-  const [pickedKey, setPickedKey] = React.useState(todayKey);
   const [editor, setEditor] = React.useState<EditorState | null>(null);
   const [overrideConfirm, setOverrideConfirm] = React.useState<DaySchedule | null>(null);
-  const [removingKey, setRemovingKey] = React.useState<string | null>(null);
-
-  const own = React.useMemo(
-    () =>
-      Object.entries(employeeId ? employeeSpecialDates[employeeId] ?? {} : {})
-        .filter(([key]) => key >= todayKey)
-        .sort(([a], [b]) => a.localeCompare(b)),
-    [employeeId, employeeSpecialDates, todayKey],
-  );
 
   if (!businessId || !employeeId) return null;
 
@@ -162,19 +155,6 @@ export function HorarioEspecialPanel({
     }
   };
 
-  const remove = async (dateKey: string) => {
-    setRemovingKey(dateKey);
-    try {
-      await persistEmployeeSpecialDay(businessId, employeeId, dateKey, null);
-      toast.success("Horario especial quitado.");
-      onChanged?.();
-    } catch {
-      toast.error("No se pudo quitar el horario especial. Probá de nuevo.");
-    } finally {
-      setRemovingKey(null);
-    }
-  };
-
   const overlay = (children: React.ReactNode, z: string, onClose: () => void) =>
     typeof document === "undefined"
       ? null
@@ -194,10 +174,7 @@ export function HorarioEspecialPanel({
     <>
       <button
         type="button"
-        onClick={() => {
-          setPickedKey(todayKey);
-          setOpen(true);
-        }}
+        onClick={() => openEditor(dateKey)}
         className={
           className ??
           "inline-flex h-11 sm:h-9 items-center gap-1 sm:gap-1.5 whitespace-nowrap rounded-[10px] border border-white/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.16),rgba(255,255,255,0.07))] px-2.5 sm:px-3 text-sm sm:text-xs font-semibold text-foreground shadow-[0_4px_12px_-2px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.18)] transition hover:bg-white/15 active:translate-y-px" +
@@ -214,81 +191,6 @@ export function HorarioEspecialPanel({
           "Horario especial"
         )}
       </button>
-
-      {open && !editor
-        ? overlay(
-            <>
-              <div className="text-lg font-semibold">Horario especial</div>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Cambiá tu horario para un día puntual. Se ve en tu agenda y en la Agenda general.
-              </p>
-
-              <label className="mt-4 block text-xs font-medium text-muted-foreground">Día</label>
-              <div className="mt-1 flex items-center gap-2">
-                <input
-                  type="date"
-                  min={todayKey}
-                  value={pickedKey}
-                  onChange={(e) => setPickedKey(e.target.value)}
-                  className="h-11 min-w-0 flex-1 rounded-xl border border-white/10 bg-black/30 px-3 text-sm text-white outline-none focus:border-violet-300/40"
-                />
-                <button
-                  type="button"
-                  disabled={!pickedKey}
-                  onClick={() => pickedKey && openEditor(pickedKey)}
-                  className="h-11 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 px-4 text-sm font-semibold text-white disabled:opacity-50"
-                >
-                  Elegir
-                </button>
-              </div>
-
-              <div className="mt-5 text-xs font-bold uppercase tracking-[0.16em] text-white/40">Tus horarios especiales</div>
-              {own.length === 0 ? (
-                <p className="mt-2 text-sm text-muted-foreground">Todavía no tenés horarios especiales cargados.</p>
-              ) : (
-                <ul className="mt-2 space-y-2">
-                  {own.map(([key, day]) => (
-                    <li key={key} className="flex items-center justify-between gap-2 rounded-xl bg-white/[0.04] px-3 py-2.5 ring-1 ring-white/5">
-                      <div className="min-w-0">
-                        <div className="truncate text-sm font-medium capitalize">{labelForDate(key)}</div>
-                        <div className="truncate text-xs text-muted-foreground">{describeDay(day)}</div>
-                      </div>
-                      <div className="flex shrink-0 items-center gap-1.5">
-                        <button
-                          type="button"
-                          onClick={() => openEditor(key)}
-                          aria-label="Editar"
-                          className="grid h-8 w-8 place-items-center rounded-lg bg-white/5 text-muted-foreground ring-1 ring-white/10 hover:text-foreground"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          disabled={removingKey === key}
-                          onClick={() => remove(key)}
-                          aria-label="Quitar"
-                          className="grid h-8 w-8 place-items-center rounded-lg bg-rose-500/10 text-rose-300 ring-1 ring-rose-400/25 hover:bg-rose-500/20 disabled:opacity-50"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-
-              <button
-                type="button"
-                onClick={() => setOpen(false)}
-                className="mt-5 h-11 w-full rounded-xl bg-white/5 text-sm text-muted-foreground ring-1 ring-white/10 hover:text-foreground"
-              >
-                Cerrar
-              </button>
-            </>,
-            "z-[120]",
-            () => setOpen(false),
-          )
-        : null}
 
       {editor ? (
         <SpecialDayEditor

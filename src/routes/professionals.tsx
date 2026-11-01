@@ -1381,6 +1381,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                 employeeSchedules={agendaData.employeeSchedules}
                 businessSpecialDates={agendaData.businessSpecialDates}
                 employeeSpecialDates={agendaData.employeeSpecialDates}
+                dateKey={from}
                 onChanged={() => agendaData.refresh()}
               />
             )}
