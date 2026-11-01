@@ -69,7 +69,7 @@ import {
 } from "@/components/liquidaciones/unified-row";
 import { money, displayResponsable, isRunEffectivelySettled } from "@/components/liquidaciones/movimiento-format";
 import { advanceMethodLabel, advanceOriginLabel } from "@/lib/advance-origin";
-import { HistorialPanelView } from "@/components/liquidaciones/historial-panel-view";
+import { HistorialTabs } from "@/components/professionals/historial-tabs";
 import { AgendaCenteredModal } from "@/components/agenda/agenda-drawer";
 import { HorarioEspecialPanel } from "@/components/professionals/horario-especial-panel";
 import type { EmployeeCommissionMap } from "@/lib/service-pricing";
@@ -723,7 +723,7 @@ function ProfessionalsPage() {
         />
       )}
       {tab === "historial" && (
-        <HistorialPanelView businessId={businessId} empId={empId} />
+        <HistorialTabs businessId={businessId} empId={empId} />
       )}
       </div>
       </div>
