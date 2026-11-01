@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { AppSidebar } from "./app-sidebar";
+import { AppSidebar, useMobileNavItems } from "./app-sidebar";
 import { useAuth } from "@/hooks/use-auth";
 
 export function AppShell({
@@ -27,6 +27,7 @@ export function AppShell({
   containedScroll?: boolean;
 }) {
   const { loading, session } = useAuth();
+  const { loading: navLoading, visible: hasBottomNav } = useMobileNavItems();
   const navigate = useNavigate();
 
   // Una vez que la sesión se estableció con éxito, el shell (y todo lo que
@@ -110,7 +111,8 @@ export function AppShell({
       <main
         className={
           "clippr-app-main flex-1 min-w-0 w-full py-2 sm:py-3 lg:py-4 " +
-          "pb-[calc(3.5rem+env(safe-area-inset-bottom))] lg:pb-2 " +
+          // Sin barra inferior (un solo ítem) no se reserva su espacio.
+          (navLoading || hasBottomNav ? "pb-[calc(3.5rem+env(safe-area-inset-bottom))] lg:pb-2 " : "pb-2 ") +
           // Sin [-webkit-overflow-scrolling:touch] a propósito: es la única
           // propiedad de scroll con momentum "legacy" de todo el proyecto —
           // desde iOS 13, overflow-y:auto ya tiene momentum nativo sin ella,

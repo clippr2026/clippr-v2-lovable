@@ -627,19 +627,12 @@ function MobileBottomNavSkeleton() {
   );
 }
 
-function MobileBottomNav() {
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
+// Ítems de la barra inferior según rol y permisos. Con un solo ítem (por
+// ejemplo, un profesional que solo tiene "Mi Agenda") la barra no se muestra:
+// no hay nada que elegir. La usan la barra y el AppShell (para no reservar el
+// espacio de la barra cuando no aparece).
+export function useMobileNavItems() {
   const { permissions, profile, loading } = useAuth();
-
-  // Mientras se resuelve la sesión/rol (F5, primera carga), profile todavía
-  // es null. isOwner de abajo (`!profile?.role || ...`) lo trataría como
-  // dueño/admin y `order` caería en MOBILE_NAV_ORDER_DEFAULT (nav de
-  // Admin: Inicio/Agenda/Caja/Clientes) por un instante — el "flash" del
-  // menú de administración en cuentas Profesional al recargar. Un
-  // skeleton neutro (mismo alto, sin items reales) evita mostrar cualquier
-  // navegación hasta conocer el rol real.
-  if (loading) return <MobileBottomNavSkeleton />;
-
   const isOwner = !profile?.role || profile.role === "owner" || profile.role === "admin_general";
   const isProfessional = profile?.role === "profesional";
 
@@ -666,7 +659,21 @@ function MobileBottomNav() {
       return item;
     });
 
-  if (items.length === 0) return null;
+  return { loading, items, visible: items.length > 1 };
+}
+
+function MobileBottomNav() {
+  const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const { loading, items, visible } = useMobileNavItems();
+
+  // Mientras se resuelve la sesión/rol (F5, primera carga), profile todavía
+  // es null y el rol real no se conoce. Un skeleton neutro (mismo alto, sin
+  // items reales) evita mostrar cualquier navegación — el "flash" del menú
+  // de administración en cuentas Profesional al recargar.
+  if (loading) return <MobileBottomNavSkeleton />;
+
+  // Con un solo ítem (o ninguno) no se muestra la barra.
+  if (!visible) return null;
 
   // Barra fija abajo, en TODAS las pantallas del celular (incluida la Agenda):
   // se monta directo en <body> (portal) para que ningún contenedor de la
