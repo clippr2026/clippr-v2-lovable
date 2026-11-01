@@ -13,6 +13,7 @@ import { useCajaHoy } from "@/components/dashboard/use-caja-hoy";
 import { useInicioWidgets, type ActividadItem } from "@/components/dashboard/use-inicio-widgets";
 import { useFichajeHoy } from "@/components/dashboard/use-fichaje-hoy";
 import { FichajeQrModal } from "@/components/dashboard/fichaje-qr-modal";
+import { JornadaRecepcionCard } from "@/components/dashboard/jornada-recepcion-card";
 import { type FichajeHoyPersona } from "@/lib/fichaje";
 import { cajaDateKeyBA, dayBoundsBA } from "@/lib/caja-cierre";
 import { SaldoComposicionModal } from "@/components/caja/saldo-composicion";
@@ -166,6 +167,7 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
   return (
     <div className="dashboard-premium-shell space-y-3 animate-fade-in-safe">
       <CajaHoyCard caja={cajaHoy} data={data} userEmail={userEmail} />
+      <JornadaRecepcionCard businessId={businessId} branchId={fichajeBranchId} />
       <FichajeHoyCard
         fichaje={fichajeHoy}
         branchId={fichajeBranchId}

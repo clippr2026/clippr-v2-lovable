@@ -42,6 +42,7 @@ import {
   type PriceRow,
 } from "@/components/settings/shared";
 import { JornadasHistorial } from "@/components/professionals/jornadas-historial";
+import { getJornadaRecepcionMap, jornadaEmailKey, setJornadaRecepcion } from "@/lib/jornada-recepcion";
 
 // ─────────── Equipo ───────────
 const PRO_TINTS = [
@@ -750,6 +751,10 @@ export function EquipoSection() {
     return map;
   }, [accessUsers]);
   const [accessForm, setAccessForm] = useState(EMPTY_ACCESS_FORM);
+  // Recepcionista: "Registrar su jornada (inicio y cierre)" — opcional, apagado
+  // por defecto (ver lib/jornada-recepcion). Se guarda por mail del acceso.
+  const [jornadaRecepcion, setJornadaRecepcionForm] = useState(false);
+  const [jornadaMap, setJornadaMap] = useState<Record<string, boolean>>({});
   const [editingAccessUserId, setEditingAccessUserId] = useState<string | null>(
     null,
   );
@@ -892,6 +897,11 @@ export function EquipoSection() {
   useEffect(() => {
     load();
   }, [load]);
+
+  useEffect(() => {
+    if (!businessId) return;
+    getJornadaRecepcionMap(businessId).then(setJornadaMap).catch(() => {});
+  }, [businessId]);
 
   const loadTeamMembers = useCallback(async (): Promise<
     AccessUser[] | undefined
@@ -2201,6 +2211,24 @@ export function EquipoSection() {
       toast.error(result.error);
       return false;
     }
+    // Jornada de la recepcionista: se enciende o apaga junto con el acceso.
+    // Si cambió el mail, se baja la marca del anterior.
+    try {
+      const previousEmail = editingAccessUserId
+        ? accessUsers.find((user) => user.id === editingAccessUserId)?.email
+        : null;
+      if (previousEmail && jornadaEmailKey(previousEmail) !== jornadaEmailKey(email)) {
+        await setJornadaRecepcion(businessId, previousEmail, false);
+      }
+      if (accessForm.role === "recepcionista") {
+        await setJornadaRecepcion(businessId, email, jornadaRecepcion);
+      } else if (jornadaMap[jornadaEmailKey(email)]) {
+        await setJornadaRecepcion(businessId, email, false);
+      }
+      setJornadaMap(await getJornadaRecepcionMap(businessId));
+    } catch {
+      toast.error("El acceso se guardó, pero no se pudo guardar la opción de jornada. Probá de nuevo.");
+    }
     return true;
   }
 
@@ -2243,6 +2271,7 @@ export function EquipoSection() {
   // así los tres quedan viendo y editando el mismo registro de la misma forma.
   function loadAccessRecordIntoForm(user: AccessUser) {
     setEditingAccessUserId(user.id);
+    setJornadaRecepcionForm(jornadaMap[jornadaEmailKey(user.email)] === true);
     setAccessForm({
       name: user.name,
       email: user.email,
@@ -2266,6 +2295,7 @@ export function EquipoSection() {
 
   function cancelEditAccessUser() {
     setEditingAccessUserId(null);
+    setJornadaRecepcionForm(false);
     setAccessForm(EMPTY_ACCESS_FORM);
     setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS.profesional);
     setAccessTouched(false);
@@ -2995,6 +3025,18 @@ export function EquipoSection() {
                         Debés seleccionar un profesional para este acceso.
                       </div>
                     )}
+                  </div>
+                )}
+
+                {accessForm.role === "recepcionista" && (
+                  <div className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.03] px-3.5 py-3 ring-1 ring-white/10">
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold">Registrar su jornada (inicio y cierre)</div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">
+                        Aparece "Iniciar jornada" y "Cerrar jornada" en su Inicio para guardar su horario. No genera descuentos.
+                      </div>
+                    </div>
+                    <Toggle on={jornadaRecepcion} onChange={setJornadaRecepcionForm} />
                   </div>
                 )}
 

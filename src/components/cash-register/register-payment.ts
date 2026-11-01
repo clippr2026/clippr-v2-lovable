@@ -6,6 +6,7 @@ import {
   type EmployeeCommissionMap,
 } from "@/lib/service-pricing";
 import { incrementPromotionUsage } from "@/lib/promotion-usage";
+import { assertProfessionalClockedIn } from "@/lib/fichaje-cobro-gate";
 
 /**
  * Registra una venta en Caja.
@@ -263,6 +264,12 @@ export async function registerPayment(input: RegisterPaymentInput) {
       .limit(1)
       .maybeSingle();
     resolvedBranchId = (fallbackBranch as { id?: string } | null)?.id ?? null;
+  }
+
+  // Cobrar un servicio exige que el profesional haya fichado su jornada de
+  // hoy (la venta de productos de catálogo, como el retiro de stock, no).
+  if (input.employeeId && input.items.some((item) => !item.isCatalog)) {
+    await assertProfessionalClockedIn(input.businessId, resolvedBranchId, input.employeeId);
   }
 
   // session_id tiene FK a cash_sessions ("payments_session_id_fkey") — un

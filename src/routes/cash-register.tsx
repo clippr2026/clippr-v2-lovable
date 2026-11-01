@@ -66,6 +66,7 @@ import { activePromoOffersForService } from "@/lib/promo-view";
 import { allocateProportional, hasCatalogItems, serviceCommissionOf } from "@/lib/lateness-penalty";
 import { getPenaltyBreakdown } from "@/lib/presentismo";
 import { PresentismoRevisionPanel } from "@/components/professionals/presentismo-revision-panel";
+import { SalidasPendientesPanel } from "@/components/professionals/salidas-pendientes-panel";
 import { getPendingCierresInPeriod } from "@/lib/presentismo";
 import { useCashMovements, type CashMovement, type ProfessionalAdvance } from "@/hooks/use-cash-movements";
 import { useCajaSummary, type CajaSummary } from "@/hooks/use-caja-summary";
@@ -8514,11 +8515,18 @@ function CierreCajaBtn({
   // de tiempo. El propio panel reporta esta lista en cada carga (inicial
   // y después de cada confirmación), nunca una segunda consulta aparte.
   const [presentismoPending, setPresentismoPending] = useState<string[] | null>(null);
+  // Profesionales que ficharon entrada ese día y no la salida — la caja no se
+  // cierra hasta cargarles la hora de salida (SalidasPendientesPanel).
+  const [salidasPending, setSalidasPending] = useState<string[] | null>(null);
   const [profileId, setProfileId] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setProfileId(data.user?.id ?? null));
   }, []);
+
+  useEffect(() => {
+    setSalidasPending(null);
+  }, [open, cajaRangeStartDate]);
 
   useEffect(() => {
     setPresentismoPending(null);
@@ -8671,6 +8679,16 @@ function CierreCajaBtn({
                       hecha sin salir de "Cerrar caja". El aviso rojo de bloqueo
                       es un mensaje aparte, encima del panel, solo mientras
                       falte confirmar a alguien. */}
+                  {businessId && branchId ? (
+                    <SalidasPendientesPanel
+                      key={cajaRangeStartDate}
+                      businessId={businessId}
+                      branchId={branchId}
+                      date={cajaRangeStartDate}
+                      editedBy={chargedByUsername(userEmail)}
+                      onPendingChange={setSalidasPending}
+                    />
+                  ) : null}
                   {businessId && branchId && (
                     <div className="rounded-xl bg-white/[0.02] p-3.5 ring-1 ring-white/10">
                       <div className="mb-3 flex items-center justify-between gap-2">
@@ -8724,6 +8742,12 @@ function CierreCajaBtn({
                     observacion={obs}
                     onObservacionChange={setObs}
                   />
+                  {/* Con salidas sin cargar el botón queda deshabilitado (fieldset
+                      disabled deshabilita al botón de adentro sin tocar su regla). */}
+                  <fieldset
+                    disabled={!!businessId && !!branchId && (salidasPending === null || salidasPending.length > 0)}
+                    className="contents"
+                  >
                   <button
                     type="button"
                     onClick={() => setConfirmStep(true)}
@@ -8733,6 +8757,8 @@ function CierreCajaBtn({
                         ? "Contá qué pasó con la diferencia antes de continuar"
                         : presentismoPending === null
                           ? "Verificando puntualidad…"
+                          : salidasPending && salidasPending.length > 0
+                            ? "Cargá la hora de salida pendiente antes de continuar"
                           : presentismoPending.length > 0
                             ? "Confirmá la puntualidad pendiente antes de continuar"
                             : undefined
@@ -8741,6 +8767,7 @@ function CierreCajaBtn({
                   >
                     Confirmar cierre de caja
                   </button>
+                  </fieldset>
                 </>
               )}
             </div>
