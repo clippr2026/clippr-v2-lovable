@@ -520,8 +520,8 @@ function ProfessionalsPage() {
       <div className="grid grid-cols-3 gap-2 sm:gap-3 pb-3">
         {([
           { key: "turnos",             label: "Mi Agenda",             Icon: ClipboardList, tint: "text-cyan-300" },
-          { key: "historial-pagos",    label: "Movimientos",           Icon: HandCoins,     tint: "text-amber-300" },
           { key: "historial",         label: "Historial",             Icon: History,       tint: "text-sky-300"   },
+          { key: "historial-pagos",    label: "Movimientos",           Icon: HandCoins,     tint: "text-amber-300" },
         ] as const).map(({ key, label, Icon, tint }) => {
           const isActive = tab === key;
           return (
@@ -2515,10 +2515,15 @@ function LiquidacionesPanelView({
   // Presentismo pendiente — mismo criterio que Caja > Liquidaciones
   // (tarjeta propia, nunca fusionada con "Comisiones generadas").
   const pendingPresentismo = summary ? summary.pendingPresentismoAdjustment : 0;
-  const extraCards = (pendingDeductionNet !== 0 ? 1 : 0) + (pendingPresentismo !== 0 ? 1 : 0);
+  const pendingTips = summary ? summary.newTips : 0;
+  const extraCards = (pendingDeductionNet !== 0 ? 1 : 0) + (pendingPresentismo !== 0 ? 1 : 0) + (pendingTips > 0 ? 1 : 0);
+  // Celular: "Total a pagar" primero y más grande (es lo que más le importa al
+  // profesional), debajo las demás tarjetas de a dos. Escritorio: igual que
+  // siempre (el Total queda al final de la fila).
   const summaryCards = summary && (
-    <div className={cn("grid gap-2.5", extraCards > 0 ? "grid-cols-2" : "grid-cols-3")}>
+    <div className={cn("grid grid-cols-2 gap-2.5", extraCards > 0 ? "sm:grid-cols-2" : "sm:grid-cols-3")}>
       <StatCard label="Comisiones generadas" value={money(summary.newCommissions)} tone="violet" />
+      {pendingTips > 0 && <StatCard label="Propinas" value={money(pendingTips)} tone="green" />}
       <StatCard
         label="Adelantos"
         value={summary.pendingAdvances > 0 ? `−${money(summary.pendingAdvances)}` : money(0)}
@@ -2538,7 +2543,12 @@ function LiquidacionesPanelView({
           tone={pendingPresentismo > 0 ? "rose" : "green"}
         />
       )}
-      <StatCard label="Total a pagar" value={money(summary.totalToPay)} tone="green" />
+      <StatCard
+        label="Total a pagar"
+        value={money(summary.totalToPay)}
+        tone="green"
+        className="col-span-2 order-first py-3.5 sm:order-last sm:col-span-1 sm:py-2.5 [&_.text-lg]:text-3xl sm:[&_.text-lg]:text-lg"
+      />
     </div>
   );
 
@@ -2661,6 +2671,7 @@ function LiquidacionesPanelView({
         </div>
       ) : (
         <div className="flex flex-col gap-2">
+          <div className="pt-1 text-base font-bold text-foreground">Movimientos recientes</div>
           <UnifiedMovimientosHeader />
           {unifiedMovimientos.map((item: any) => {
             if (item.kind === "venta") {
