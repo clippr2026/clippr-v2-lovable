@@ -40,4 +40,11 @@ describe("Fichaje: cobrar servicios y cerrar la caja", () => {
     // la regla de cobro solo mira a profesionales, nunca a la recepción
     expect(readSrc("src/lib/fichaje-cobro-gate.ts")).not.toContain("recepcion");
   });
+
+  it("la recepcionista con jornada encendida aparece entre los que ficharon o los pendientes de Inicio", () => {
+    const src = readSrc("src/lib/fichaje.ts");
+    expect(src).toContain("getJornadaRecepcionMap(businessId)");
+    expect(src).toContain('.eq("role", "recepcionista")');
+    expect(src).toContain("jornadaMap[jornadaEmailKey(m.email)] !== true");
+  });
 });

@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { DAY_KEYS, normalizeEmployeeSchedule, parseTimeStrict } from "@/lib/availability";
+import { getJornadaRecepcionMap, jornadaEmailKey } from "@/lib/jornada-recepcion";
 
 // Fichaje de jornada — kiosco QR/código por sucursal, entrada/salida desde
 // el panel del propio profesional, descuento por tardanza configurable.
@@ -144,7 +145,7 @@ export async function getTodayFichajeSummary(
   const code = await getOrCreateDailyCode(businessId, branchId);
   const dayStart = new Date(`${todayKey()}T00:00:00`).toISOString();
 
-  const [{ data: sessions }, { data: employees }] = await Promise.all([
+  const [{ data: sessions }, { data: employees }, jornadaMap, { data: members }] = await Promise.all([
     supabase
       .from("work_sessions" as any)
       .select("employee_id,clock_in_at,clock_out_at,expected_start_at")
@@ -158,6 +159,13 @@ export async function getTodayFichajeSummary(
       .eq("business_id", businessId)
       .eq("branch_id", branchId)
       .eq("is_active", true),
+    getJornadaRecepcionMap(businessId),
+    // Recepcionistas: ficharon con su usuario (no tienen ficha de empleado).
+    supabase
+      .from("team_members")
+      .select("auth_user_id,full_name,email,role,status,branch_id")
+      .eq("business_id", businessId)
+      .eq("role", "recepcionista"),
   ]);
 
   // Última sesión de hoy por profesional — si fichó entrada/salida más de
@@ -171,6 +179,20 @@ export async function getTodayFichajeSummary(
   }
 
   const activos = (employees ?? []) as { id: string; full_name: string | null }[];
+  // Recepcionistas con "Registrar su jornada" encendido (Equipo → Accesos):
+  // aparecen entre los que ficharon o los pendientes, igual que el equipo.
+  for (const m of (members ?? []) as {
+    auth_user_id: string | null;
+    full_name: string | null;
+    email: string | null;
+    status: string | null;
+    branch_id: string | null;
+  }[]) {
+    if (!m.auth_user_id || ["deleted", "removed", "suspended"].includes(String(m.status ?? "").toLowerCase())) continue;
+    if (jornadaMap[jornadaEmailKey(m.email)] !== true) continue;
+    if (m.branch_id && m.branch_id !== branchId) continue;
+    activos.push({ id: m.auth_user_id, full_name: m.full_name || "Recepción" });
+  }
   const fichadosDetalle: FichajeHoyPersona[] = [];
   const pendientesNames: string[] = [];
 
