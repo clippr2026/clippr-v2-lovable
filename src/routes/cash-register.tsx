@@ -7278,6 +7278,14 @@ function CierreMovimientosDetalleList({
       ? productosPorProfesional
       : productosPorProfesional.filter((it: any) => montoParaMedio(it.monto, 0, it.metodo, it.splits, medioFiltro).incluido);
   const money = (v: number) => `$${Math.round(v).toLocaleString("es-AR")}`;
+  // Adelantos a la vista: los del profesional elegido (si hay uno) y del medio
+  // de pago elegido (si hay uno) — un adelanto de otro profesional no se mezcla.
+  const adelantosVisibles = (adelantos ?? []).filter((a) => {
+    if (profesionalFiltro !== "todos" && a.profesional !== profesionalFiltro) return false;
+    if (medioFiltro === "todos") return true;
+    const metodo = normalizeCierreMethodKey(a.medio === "efectivo" ? "cash" : a.medio === "transferencia" ? "transfer" : a.medio);
+    return metodo === medioFiltro;
+  });
   // En "Todos" una venta mixta (corte + catálogo) va en UNA fila con todo
   // junto; el catálogo aparte solo para las ventas que no tienen servicio.
   const idsConServicio = new Set(serviciosRows.map((p: any) => p.id));
@@ -7345,6 +7353,8 @@ function CierreMovimientosDetalleList({
     for (const a of adelantos ?? []) {
       const metodo = medioKey(a.medio === "efectivo" ? "cash" : a.medio === "transferencia" ? "transfer" : a.medio);
       if (medioFiltro !== "todos" && metodo !== medioFiltro) continue;
+      // Un adelanto es de UN profesional: con un profesional elegido, solo los suyos.
+      if (profesionalFiltro !== "todos" && a.profesional !== profesionalFiltro) continue;
       out.push({
         key: `adel-${a.id}`,
         hora: new Date(a.advancedAt).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", timeZone: ARG_TIME_ZONE }),
@@ -7358,7 +7368,7 @@ function CierreMovimientosDetalleList({
     }
     return out.sort((x, y) => minutosDeHora(x.hora) - minutosDeHora(y.hora));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filtro, productosVisibles, gastos, movimientos, adelantos, medioFiltro]);
+  }, [filtro, productosVisibles, gastos, movimientos, adelantos, medioFiltro, profesionalFiltro]);
 
   // Gastos/retiros NUNCA se filtran por profesional (no les corresponde:
   // sección 5 del pedido, "no atribuirse a un profesional si no
@@ -8085,16 +8095,16 @@ function CierreMovimientosDetalleList({
         </div>
       )}
 
-      {adelantos && ((filtro === "todos" && adelantos.length > 0) || filtro === "adelantos") && (
+      {adelantos && ((filtro === "todos" && adelantosVisibles.length > 0) || filtro === "adelantos") && (
         <div className={cn("mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4", filtro === "todos" && "lg:hidden")}>
           <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
-            Adelantos ({adelantos.length})
+            Adelantos ({adelantosVisibles.length})
           </div>
           <div className="space-y-2">
-            {adelantos.length === 0 ? (
+            {adelantosVisibles.length === 0 ? (
               <p className="text-sm text-muted-foreground">Sin adelantos.</p>
             ) : (
-              adelantos.map((a) => (
+              adelantosVisibles.map((a) => (
                 <div key={a.id} className={cn("rounded-xl bg-black/22 px-3 py-2 text-xs", !advanceAffectsCaja(a.origen) && "opacity-70")}>
                   <div className="flex items-center justify-between gap-3">
                     <span className="truncate font-semibold text-white">Adelanto · {a.profesional}</span>
@@ -10176,6 +10186,10 @@ function DetailModal({
   const [correctDiscount, setCorrectDiscount] = React.useState("");
   const [correctTip, setCorrectTip] = React.useState("");
   const [correctMethod, setCorrectMethod] = React.useState<PayMethod>("cash");
+  // Precios de la venta según el medio de pago (precio de lista / precio en
+  // efectivo del catálogo): el Monto de "Corregir cobro" no se edita a mano,
+  // sale de acá. null = todavía no se pudo calcular.
+  const [correctPrices, setCorrectPrices] = React.useState<{ list: number | null; cash: number | null } | null>(null);
   const method = (payment.method ??
     payment.payment_method ??
     "cash") as PayMethod;
@@ -10323,12 +10337,71 @@ function DetailModal({
   // anula ni restablece ninguna venta: el modal queda solo de lectura.
   const canCorrectOrVoid = cajaAbierta && !isStockWithdrawal && !isVoided && !isAdjustment;
 
-  function openCorrectForm() {
-    setCorrectTotal(String(Math.round(Number(payment.total ?? payment.amount ?? 0))));
+  // Monto de la venta ANTES del descuento, según el medio elegido:
+  //  · mismo medio que la venta → lo que ya se había cobrado + su descuento;
+  //  · pasar a Efectivo → precio en efectivo del catálogo (si el servicio lo tiene);
+  //  · pasar de Efectivo a otro medio → precio de lista;
+  //  · entre medios que no son Efectivo → el mismo monto.
+  // El Monto nunca se escribe a mano: para cobrar menos se usa el Descuento.
+  const correctOriginalGross = (Number(payment.total ?? payment.amount ?? 0) || 0) + discountAmount;
+  const correctMonto = (() => {
+    if (correctMethod === method) return correctOriginalGross;
+    if (correctMethod === "cash") return correctPrices?.cash ?? correctOriginalGross;
+    if (method === "cash") {
+      const listAtSale = Number((payment as Record<string, unknown>).original_amount ?? 0) || 0;
+      return listAtSale || (correctPrices?.list ?? correctOriginalGross);
+    }
+    return correctOriginalGross;
+  })();
+  const correctDiscountNum = Math.min(Number(correctDiscount.replace(/\D/g, "")) || 0, correctMonto);
+  const correctFinalTotal = Math.max(0, correctMonto - correctDiscountNum);
+
+  async function openCorrectForm() {
     setCorrectDiscount(String(Math.round(discountAmount)));
     setCorrectTip(String(Math.round(tipAmount)));
     setCorrectMethod(method);
+    setCorrectPrices(null);
     setCorrectFormOpen(true);
+    // Precio de lista y precio en efectivo de lo que se vendió, del catálogo.
+    try {
+      const items = ((payment as Record<string, unknown>).items as Array<{ id?: string | null; amount?: number; qty?: number }> | null) ?? [];
+      const ids = items.map((it) => it?.id).filter((id): id is string => !!id);
+      if (!businessId || ids.length === 0) {
+        setCorrectPrices({ list: null, cash: null });
+        return;
+      }
+      const [{ data: catalog }, { data: settings }] = await Promise.all([
+        supabase.from("price_catalog").select("id,price,duration_min,cash_discount").in("id", ids),
+        supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle(),
+      ]);
+      const overrides = ((settings?.schedule as Record<string, unknown> | null)?._employeeServiceOverrides ?? {}) as Parameters<
+        typeof resolveServicePricing
+      >[2];
+      const byId = new Map(((catalog ?? []) as Array<{ id: string; price: number; duration_min?: number; cash_discount?: number | null }>).map((c) => [c.id, c]));
+      let list = 0;
+      let cash = 0;
+      let found = 0;
+      for (const it of items) {
+        const qty = Number(it?.qty ?? 1) || 1;
+        const row = it?.id ? byId.get(it.id) : undefined;
+        if (!row) {
+          list += Number(it?.amount ?? 0);
+          cash += Number(it?.amount ?? 0);
+          continue;
+        }
+        found += 1;
+        const r = resolveServicePricing(
+          { id: row.id, price: row.price, duration_min: row.duration_min, cash_discount: row.cash_discount },
+          (payment as Record<string, unknown>).employee_id as string | null,
+          overrides,
+        );
+        list += r.price * qty;
+        cash += (r.effectivePrice ?? r.price) * qty;
+      }
+      setCorrectPrices(found > 0 ? { list: Math.round(list), cash: Math.round(cash) } : { list: null, cash: null });
+    } catch {
+      setCorrectPrices({ list: null, cash: null });
+    }
   }
 
   async function submitVoid(
@@ -10372,8 +10445,9 @@ function DetailModal({
     performedByName: string | null,
   ) {
     if (!businessId) throw new Error("Falta business_id en este cobro");
-    const newTotal = Number(correctTotal.replace(/\D/g, "")) || 0;
-    const newDiscount = Number(correctDiscount.replace(/\D/g, "")) || 0;
+    // El total sale del Monto (según el medio) menos el Descuento: no se edita directo.
+    const newTotal = correctFinalTotal;
+    const newDiscount = correctDiscountNum;
     const newTip = Number(correctTip.replace(/\D/g, "")) || 0;
     const oldTotal = Number(payment.total ?? payment.amount ?? 0);
     // Comisión recalculada acá mismo, aproximada: si la venta tenía un %
@@ -10878,13 +10952,10 @@ function DetailModal({
                 <div className="space-y-2">
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="mb-1 block text-[10px] text-muted-foreground/70">Monto</label>
-                      <input
-                        value={correctTotal}
-                        onChange={(e) => setCorrectTotal(e.target.value.replace(/\D/g, "").slice(0, 9))}
-                        inputMode="numeric"
-                        className="h-9 w-full rounded-lg border border-white/10 bg-black/45 px-2.5 text-sm text-white outline-none focus:border-blue-300/50"
-                      />
+                      <label className="mb-1 block text-[10px] text-muted-foreground/70">Monto (según el medio)</label>
+                      <div className="flex h-9 w-full items-center rounded-lg border border-white/10 bg-white/[0.03] px-2.5 text-sm font-semibold text-white/80">
+                        ${Math.round(correctMonto).toLocaleString("es-AR")}
+                      </div>
                     </div>
                     <div>
                       <label className="mb-1 block text-[10px] text-muted-foreground/70">Descuento</label>
@@ -10919,6 +10990,13 @@ function DetailModal({
                       </select>
                     </div>
                   </div>
+                  <div className="flex items-center justify-between rounded-lg bg-white/[0.04] px-3 py-2 text-xs">
+                    <span className="text-muted-foreground">Total a cobrar</span>
+                    <span className="text-sm font-bold text-emerald-300">${Math.round(correctFinalTotal).toLocaleString("es-AR")}</span>
+                  </div>
+                  <p className="text-[10px] text-muted-foreground/60">
+                    El monto no se edita: cambia según el medio de pago. Para cobrar menos, usá el descuento.
+                  </p>
                   <div className="flex gap-2">
                     <button
                       type="button"
