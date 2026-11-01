@@ -557,9 +557,8 @@ export function VentaRow({
             {money(Number(c.pending_amount ?? c.amount ?? 0))}
           </div>
         </div>
-        <div className="mt-0.5 flex items-center justify-between gap-2 text-[11px] text-white/50">
-          <div className="flex min-w-0 flex-1 items-center gap-1">
-            <span className="min-w-0 truncate">
+        <div className="mt-0.5 text-[11px] text-white/55">
+            <span className="block truncate">
               {displayConcept}
               {" · "}
               {isRecovered ? (
@@ -583,13 +582,14 @@ export function VentaRow({
               {" · "}
               {method}
             </span>
-            {hasTip && (
-              <span className="shrink-0 font-semibold tabular-nums text-emerald-300">
-                + propina {money(Number(sale.tip_amount))}
-              </span>
-            )}
-          </div>
-          <div className="flex shrink-0 items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-white/40">
+        </div>
+        <div className="mt-0.5 flex items-center justify-between gap-2 text-[10px]">
+          {hasTip ? (
+            <span className="font-semibold tabular-nums text-emerald-300">+ propina {money(Number(sale.tip_amount))}</span>
+          ) : (
+            <span />
+          )}
+          <div className="flex shrink-0 items-center gap-1 font-semibold uppercase tracking-wider text-white/40">
             {dateTime}
             {hasExpandableContent && (
               <ChevronDown className={cn("size-3 shrink-0 text-white/30 transition-transform", expanded && "rotate-180")} />
