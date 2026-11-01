@@ -542,33 +542,26 @@ export function VentaRow({
       <MobileTag
         type={hasExpandableContent ? "button" : undefined}
         onClick={hasExpandableContent ? () => setExpanded((v) => !v) : undefined}
-        className="w-full px-3.5 py-3 text-left text-xs sm:hidden"
+        className="w-full px-3 py-2 text-left text-xs sm:hidden"
       >
-        <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <div className="truncate font-semibold text-white/82">{sale.client_name ?? "Sin cliente"}</div>
-            <div className="mt-0.5 truncate text-white/60">{displayConcept}</div>
-            {isRecovered && (
-              <div className="mt-0.5 flex flex-wrap items-center gap-1">
-                <span
-                  className={cn(
-                    "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1",
-                    isFullyRecovered
-                      ? "bg-emerald-400/15 text-emerald-200 ring-emerald-400/25"
-                      : "bg-amber-400/15 text-amber-200 ring-amber-400/25",
-                  )}
-                >
-                  {recoveredBadgeLabel}
-                </span>
-                {saleOriginalDateLabel && (
-                  <span className="truncate text-[10px] text-white/40">Servicio: {saleOriginalDateLabel}</span>
-                )}
-              </div>
-            )}
-            {conceptSubtitle && (
-              <div className={cn("truncate text-[11px] font-medium", conceptSubtitleClass)}>{conceptSubtitle}</div>
-            )}
-            <div className="mt-1 text-white/45">
+        {/* Celular: dos líneas. Arriba, cliente y comisión; abajo, servicio ·
+            precio · medio (y la propina) y la fecha. */}
+        <div className="flex items-baseline justify-between gap-2">
+          <div className="min-w-0 flex-1 truncate text-sm font-semibold text-white/85">
+            {sale.client_name ?? "Sin cliente"}
+          </div>
+          <div className="shrink-0 font-bold tabular-nums text-violet-300">
+            <span className="mr-1 text-[10px] font-semibold uppercase tracking-wide text-violet-200/60">
+              Comisión{isRecovered ? " del cobro" : ""}
+            </span>
+            {money(Number(c.pending_amount ?? c.amount ?? 0))}
+          </div>
+        </div>
+        <div className="mt-0.5 flex items-center justify-between gap-2 text-[11px] text-white/50">
+          <div className="flex min-w-0 flex-1 items-center gap-1">
+            <span className="min-w-0 truncate">
+              {displayConcept}
+              {" · "}
               {isRecovered ? (
                 <>
                   Total {money(saleTotal)} · Cobrado{" "}
@@ -580,43 +573,56 @@ export function VentaRow({
                     </>
                   )}
                 </>
-              ) : (
+              ) : showReduction ? (
                 <>
-                  Precio:{" "}
-                  {showReduction ? (
-                    <>
-                      <span className="text-white/30 line-through">{money(originalAmount)}</span> {money(saleTotal)}
-                    </>
-                  ) : (
-                    money(saleTotal)
-                  )}
+                  <span className="text-white/30 line-through">{money(originalAmount)}</span> {money(saleTotal)}
                 </>
+              ) : (
+                money(saleTotal)
               )}
-            </div>
-          </div>
-          <div className="shrink-0 space-y-0.5 text-right">
-            <div className="flex items-center justify-end gap-1 text-[10px] font-semibold uppercase tracking-wider text-white/45">
-              {dateTime}
-              {hasExpandableContent && (
-                <ChevronDown className={cn("size-3 shrink-0 text-white/30 transition-transform", expanded && "rotate-180")} />
-              )}
-            </div>
-            <div className="font-bold tabular-nums text-violet-300">
-              Comisión{isRecovered ? " de este cobro" : ""}: {money(Number(c.pending_amount ?? c.amount ?? 0))}
-            </div>
-            {presentismoVenta && (
-              <div className={cn("text-xs font-semibold tabular-nums", presentismoVenta.className)}>
-                Puntualidad {presentismoVenta.text}
-              </div>
-            )}
-            <div className="text-white/60">{method}</div>
+              {" · "}
+              {method}
+            </span>
             {hasTip && (
-              <div className="text-sm font-semibold tabular-nums text-emerald-300">
+              <span className="shrink-0 font-semibold tabular-nums text-emerald-300">
                 + propina {money(Number(sale.tip_amount))}
-              </div>
+              </span>
+            )}
+          </div>
+          <div className="flex shrink-0 items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-white/40">
+            {dateTime}
+            {hasExpandableContent && (
+              <ChevronDown className={cn("size-3 shrink-0 text-white/30 transition-transform", expanded && "rotate-180")} />
             )}
           </div>
         </div>
+        {(isRecovered || conceptSubtitle || presentismoVenta) && (
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            {isRecovered && (
+              <span
+                className={cn(
+                  "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1",
+                  isFullyRecovered
+                    ? "bg-emerald-400/15 text-emerald-200 ring-emerald-400/25"
+                    : "bg-amber-400/15 text-amber-200 ring-amber-400/25",
+                )}
+              >
+                {recoveredBadgeLabel}
+              </span>
+            )}
+            {isRecovered && saleOriginalDateLabel && (
+              <span className="truncate text-[10px] text-white/40">Servicio: {saleOriginalDateLabel}</span>
+            )}
+            {conceptSubtitle && (
+              <span className={cn("truncate text-[11px] font-medium", conceptSubtitleClass)}>{conceptSubtitle}</span>
+            )}
+            {presentismoVenta && (
+              <span className={cn("text-[11px] font-semibold tabular-nums", presentismoVenta.className)}>
+                Puntualidad {presentismoVenta.text}
+              </span>
+            )}
+          </div>
+        )}
       </MobileTag>
       {/* Contenido expandible: nota real (si hay) + historial completo de
           pagos (solo filas recuperadas) — ver PaymentHistoryPanel. Precio
@@ -781,35 +787,37 @@ export function MovRow({
       <Tag
         type={clickable ? "button" : undefined}
         onClick={clickable ? onToggle : undefined}
-        className="flex w-full items-center justify-between gap-3 px-3.5 py-3 text-left text-xs sm:hidden"
+        className="w-full px-3 py-2 text-left text-xs sm:hidden"
       >
-        <div className="min-w-0 flex-1">
-          <div className="truncate font-semibold text-white/82">{concepto}</div>
-          <div className="mt-0.5 truncate text-white/50">{detalle}</div>
-          <div className="mt-0.5 text-[10px] text-white/35">{dateTime}</div>
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0 flex-1 truncate text-sm font-semibold text-white/85">{concepto}</div>
+          <div className="flex shrink-0 items-center gap-1.5">
+            <span className={cn("font-bold tabular-nums", (presentismoText ? presentismoClass : precioClass) ?? "text-white")}>
+              {presentismoText ?? precioText}
+            </span>
+            {verNotaButton}
+            {onDelete ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
+                disabled={deletingThis}
+                className="grid size-6 shrink-0 place-items-center rounded-lg text-white/40 transition hover:bg-rose-500/10 hover:text-rose-300 disabled:opacity-50"
+              >
+                <Trash2 className="size-3.5" />
+              </button>
+            ) : (
+              clickable && (
+                <ChevronDown className={cn("size-3.5 transition-transform", expanded && "rotate-180")} />
+              )
+            )}
+          </div>
         </div>
-        <div className="flex shrink-0 items-center gap-1.5">
-          <span className={cn("font-bold tabular-nums", (presentismoText ? presentismoClass : precioClass) ?? "text-white")}>
-            {presentismoText ?? precioText}
-          </span>
-          {verNotaButton}
-          {onDelete ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onDelete();
-              }}
-              disabled={deletingThis}
-              className="grid size-6 shrink-0 place-items-center rounded-lg text-white/40 transition hover:bg-rose-500/10 hover:text-rose-300 disabled:opacity-50"
-            >
-              <Trash2 className="size-3.5" />
-            </button>
-          ) : (
-            clickable && (
-              <ChevronDown className={cn("size-3.5 transition-transform", expanded && "rotate-180")} />
-            )
-          )}
+        <div className="mt-0.5 flex items-center justify-between gap-2 text-white/50">
+          <div className="min-w-0 flex-1 truncate">{detalle}</div>
+          <div className="shrink-0 text-[10px] tabular-nums text-white/35">{dateTime}</div>
         </div>
       </Tag>
       {actions && (
