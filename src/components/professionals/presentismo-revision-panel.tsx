@@ -3,6 +3,7 @@ import { toast } from "sonner";
 import { Check, Clock3, Loader2, Pencil, UserX, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { puntualidadMessage } from "@/lib/puntualidad-text";
+import { dayWindowBA, fetchBusinessClosingTime, horaBA, saveSessionExit } from "@/lib/work-session-exit";
 import { latenessMinutes, pickLatenessRule } from "@/lib/lateness-penalty";
 import {
   confirmAttendance,
@@ -90,6 +91,67 @@ function PenaltyChoice({
 // permite: Confirmar A tiempo/Tarde, Marcar ausente, Corregir hora,
 // Ajustar/anular la penalización — todas con motivo obligatorio, todas
 // pasan por confirm_attendance (nunca un UPDATE directo).
+// Salida de un profesional: la hora si ya la fichó, o el campo para cargarla
+// si quedó sin fichar (se guarda como cargada al cerrar la caja).
+function SalidaRow({
+  session,
+  defaultOut,
+  date,
+  editedBy,
+  onSaved,
+}: {
+  session: { id: string; clock_in_at: string; clock_out_at: string | null };
+  defaultOut: string;
+  date: string;
+  editedBy: string;
+  onSaved: () => void;
+}) {
+  const [time, setTime] = React.useState(defaultOut);
+  const [saving, setSaving] = React.useState(false);
+  React.useEffect(() => setTime(defaultOut), [defaultOut]);
+
+  if (session.clock_out_at) {
+    return (
+      <div className="mt-2 flex flex-wrap items-center gap-x-3 text-xs text-muted-foreground">
+        <span>
+          Entrada <span className="tabular-nums text-foreground/80">{horaBA(session.clock_in_at)}</span>
+        </span>
+        <span>
+          Salida <span className="tabular-nums text-foreground/80">{horaBA(session.clock_out_at)}</span>
+        </span>
+      </div>
+    );
+  }
+  return (
+    <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-rose-400/[0.06] px-3 py-2 ring-1 ring-rose-400/20">
+      <span className="text-xs text-rose-200/90">
+        Entrada <span className="tabular-nums">{horaBA(session.clock_in_at)}</span> · falta la salida
+      </span>
+      <input
+        type="time"
+        value={time}
+        onChange={(e) => setTime(e.target.value)}
+        className="h-9 w-[104px] rounded-lg border border-white/10 bg-white/[0.04] px-2 text-sm text-foreground"
+      />
+      <button
+        type="button"
+        disabled={saving}
+        onClick={async () => {
+          setSaving(true);
+          const r = await saveSessionExit({ sessionId: session.id, clockInAt: session.clock_in_at, date, hhmm: time, editedBy });
+          setSaving(false);
+          if (!r.ok) return toast.error(r.error);
+          toast.success("Salida guardada");
+          onSaved();
+        }}
+        className="inline-flex h-9 items-center gap-1 rounded-lg bg-gradient-to-r from-sky-400 to-violet-500 px-3 text-xs font-semibold text-white disabled:opacity-50"
+      >
+        {saving ? <Loader2 className="size-3.5 animate-spin" /> : null} Guardar salida
+      </button>
+    </div>
+  );
+}
+
 export function PresentismoRevisionPanel({
   businessId,
   branchId,
@@ -97,18 +159,30 @@ export function PresentismoRevisionPanel({
   confirmedBy,
   confirmedByName,
   onPendingChange,
+  showSalida = false,
+  onSalidasPendingChange,
+  onScheduledIdsChange,
 }: {
   businessId: string;
   branchId: string;
   date: string; // YYYY-MM-DD
   confirmedBy: string;
   confirmedByName: string;
+  // Muestra, en cada profesional, su salida (y permite cargarla si quedó sin
+  // fichar): entrada y salida en el mismo lugar al cerrar la caja.
+  showSalida?: boolean;
+  // Nombres de quienes ficharon entrada pero no salida (para bloquear el cierre).
+  onSalidasPendingChange?: (pendingNames: string[]) => void;
+  // Ids de los profesionales programados ese día (para no repetirlos abajo).
+  onScheduledIdsChange?: (ids: string[]) => void;
   // Se llama después de cada carga (inicial y tras cada confirmación) con
   // los nombres de quienes TODAVÍA no tienen presentismo confirmado —
   // array vacío = todos confirmados, cierre de caja habilitado.
   onPendingChange?: (pendingNames: string[]) => void;
 }) {
   const [rows, setRows] = React.useState<Row[] | null>(null);
+  const [sessionByEmp, setSessionByEmp] = React.useState<Map<string, { id: string; clock_in_at: string; clock_out_at: string | null }>>(new Map());
+  const [defaultOut, setDefaultOut] = React.useState("20:00");
   const [rules, setRules] = React.useState<LatenessRule[]>([]);
   const [loading, setLoading] = React.useState(true);
   const [actionFor, setActionFor] = React.useState<{ employeeId: string; action: AttendanceAction } | null>(null);
@@ -154,6 +228,28 @@ export function PresentismoRevisionPanel({
         }),
       );
       built.sort((a, b) => a.name.localeCompare(b.name));
+      if (showSalida) {
+        const win = dayWindowBA(date);
+        const [{ data: sess }, closing] = await Promise.all([
+          supabase
+            .from("work_sessions" as any)
+            .select("id,employee_id,clock_in_at,clock_out_at")
+            .eq("business_id", businessId)
+            .eq("branch_id", branchId)
+            .gte("clock_in_at", win.start.toISOString())
+            .lt("clock_in_at", win.end.toISOString())
+            .order("clock_in_at", { ascending: true }),
+          fetchBusinessClosingTime(businessId, date),
+        ]);
+        const map = new Map<string, { id: string; clock_in_at: string; clock_out_at: string | null }>();
+        for (const s of (sess ?? []) as { id: string; employee_id: string; clock_in_at: string; clock_out_at: string | null }[]) {
+          map.set(s.employee_id, { id: s.id, clock_in_at: s.clock_in_at, clock_out_at: s.clock_out_at });
+        }
+        setSessionByEmp(map);
+        setDefaultOut(closing);
+        onSalidasPendingChange?.(built.filter((r) => map.get(r.employeeId) && !map.get(r.employeeId)!.clock_out_at).map((r) => r.name));
+      }
+      onScheduledIdsChange?.(built.map((r) => r.employeeId));
       setRows(built);
       setRules((rulesRes.data ?? []) as unknown as LatenessRule[]);
       // Se reporta en CADA carga, no solo cuando queda todo confirmado —
@@ -436,6 +532,16 @@ export function PresentismoRevisionPanel({
                 </button>
               </div>
             </div>
+
+            {showSalida && sessionByEmp.get(row.employeeId) && (
+              <SalidaRow
+                session={sessionByEmp.get(row.employeeId)!}
+                defaultOut={defaultOut}
+                date={date}
+                editedBy={confirmedByName}
+                onSaved={load}
+              />
+            )}
 
             {editingThis && (
               <div className="mt-3 space-y-2 rounded-lg bg-black/20 p-3 ring-1 ring-white/10">

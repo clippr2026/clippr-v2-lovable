@@ -25,10 +25,11 @@ describe("Fichaje: cobrar servicios y cerrar la caja", () => {
     expect(src).toContain("<CierrePrerequisitosStep");
     const step = readSrc("src/components/cash-register/cierre-prerequisitos-step.tsx");
     expect(step).toContain("<SalidasPendientesPanel");
+    expect(step).toContain("showSalida");
     expect(step).toContain("disabled={cargando || pendientes > 0}");
-    const panel = readSrc("src/components/professionals/salidas-pendientes-panel.tsx");
-    expect(panel).toContain("Salida cargada al cerrar la caja");
-    expect(panel).toContain(".is(\"clock_out_at\", null)");
+    // la salida queda marcada como cargada al cerrar la caja (nunca como fichada del profesional)
+    expect(readSrc("src/lib/work-session-exit.ts")).toContain("Salida cargada al cerrar la caja");
+    expect(readSrc("src/components/professionals/salidas-pendientes-panel.tsx")).toContain(".is(\"clock_out_at\", null)");
   });
 
   it("la jornada de la recepcionista es opcional (Equipo → Accesos), no bloquea a nadie y no genera descuento", () => {

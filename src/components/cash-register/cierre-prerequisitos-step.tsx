@@ -32,7 +32,11 @@ export function CierrePrerequisitosStep({
 }) {
   const applies = date >= PRESENTISMO_START_DATE;
   const [profileId, setProfileId] = React.useState<string | null>(null);
-  const [salidasPending, setSalidasPending] = React.useState<string[] | null>(null);
+  // Salidas pendientes: las de los profesionales programados (se cargan en su
+  // propia fila, junto a la puntualidad) y las de otras personas (ej. recepción).
+  const [salidasProg, setSalidasProg] = React.useState<string[] | null>(applies ? null : []);
+  const [salidasOtros, setSalidasOtros] = React.useState<string[] | null>(null);
+  const [scheduledIds, setScheduledIds] = React.useState<string[] | null>(applies ? null : []);
   const [presentismoPending, setPresentismoPending] = React.useState<string[] | null>(applies ? null : []);
   // "decidido": en la primera carga se decide una sola vez si se muestra el
   // paso. Desde el corte siempre se muestra (la puntualidad se confirma todos
@@ -45,15 +49,15 @@ export function CierrePrerequisitosStep({
   }, []);
 
   React.useEffect(() => {
-    if (decided || salidasPending === null || presentismoPending === null) return;
-    const skip = !applies && salidasPending.length === 0;
+    if (decided || salidasProg === null || salidasOtros === null || presentismoPending === null) return;
+    const skip = !applies && salidasOtros.length === 0;
     setDecided(skip ? "saltar" : "mostrar");
     if (skip) onContinue();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [salidasPending, presentismoPending, decided]);
+  }, [salidasProg, salidasOtros, presentismoPending, decided]);
 
-  const pendientes = (salidasPending?.length ?? 0) + (presentismoPending?.length ?? 0);
-  const cargando = salidasPending === null || presentismoPending === null;
+  const pendientes = (salidasProg?.length ?? 0) + (salidasOtros?.length ?? 0) + (presentismoPending?.length ?? 0);
+  const cargando = salidasProg === null || salidasOtros === null || presentismoPending === null;
 
   return (
     <div className="space-y-4">
@@ -63,35 +67,33 @@ export function CierrePrerequisitosStep({
         <div>
           <p className="text-sm font-semibold text-white">Antes de cerrar la caja</p>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Cargá las salidas que faltan y confirmá la puntualidad de cada profesional. Después se habilita "Continuar".
+            Confirmá la puntualidad de cada profesional y cargá las salidas que falten. Después se habilita "Continuar".
           </p>
         </div>
-        <SalidasPendientesPanel
-          businessId={businessId}
-          branchId={branchId}
-          date={date}
-          editedBy={userName}
-          onPendingChange={setSalidasPending}
-        />
-        {applies && profileId && (
-          <div className="rounded-xl bg-white/[0.02] p-3.5 ring-1 ring-white/10">
-            <div className="mb-3 flex items-center justify-between gap-2">
-              <p className="text-sm font-semibold text-foreground">Puntualidad del día</p>
-              {presentismoPending && presentismoPending.length > 0 ? (
-                <span className="rounded-full bg-rose-400/10 px-2 py-0.5 text-[10px] font-semibold text-rose-300 ring-1 ring-rose-400/25">
-                  {presentismoPending.length} sin confirmar
-                </span>
-              ) : (
-                <span className="rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300 ring-1 ring-emerald-400/25">
-                  Todo confirmado
-                </span>
-              )}
-            </div>
-            {presentismoPending && presentismoPending.length > 0 && (
-              <p className="mb-3 text-xs text-rose-200/80">
-                No podés cerrar la caja hasta confirmar a: {presentismoPending.join(", ")}.
-              </p>
+        <div className="rounded-xl bg-white/[0.02] p-3.5 ring-1 ring-white/10">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <p className="text-sm font-semibold text-foreground">Entradas y salidas del día</p>
+            {pendientes > 0 ? (
+              <span className="rounded-full bg-rose-400/10 px-2 py-0.5 text-[10px] font-semibold text-rose-300 ring-1 ring-rose-400/25">
+                {pendientes} sin resolver
+              </span>
+            ) : (
+              <span className="rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300 ring-1 ring-emerald-400/25">
+                Todo confirmado
+              </span>
             )}
+          </div>
+          {presentismoPending && presentismoPending.length > 0 && (
+            <p className="mb-3 text-xs text-rose-200/80">
+              Falta confirmar la puntualidad de: {presentismoPending.join(", ")}.
+            </p>
+          )}
+          {((salidasProg?.length ?? 0) + (salidasOtros?.length ?? 0)) > 0 && (
+            <p className="mb-3 text-xs text-rose-200/80">
+              Falta cargar la salida de: {[...(salidasProg ?? []), ...(salidasOtros ?? [])].join(", ")}.
+            </p>
+          )}
+          {applies && profileId && (
             <PresentismoRevisionPanel
               businessId={businessId}
               branchId={branchId}
@@ -99,9 +101,23 @@ export function CierrePrerequisitosStep({
               confirmedBy={profileId}
               confirmedByName={userName}
               onPendingChange={setPresentismoPending}
+              showSalida
+              onSalidasPendingChange={setSalidasProg}
+              onScheduledIdsChange={setScheduledIds}
             />
-          </div>
-        )}
+          )}
+          {(!applies || scheduledIds !== null) && (
+            <SalidasPendientesPanel
+              embedded
+              businessId={businessId}
+              branchId={branchId}
+              date={date}
+              editedBy={userName}
+              excludeIds={scheduledIds ?? []}
+              onPendingChange={setSalidasOtros}
+            />
+          )}
+        </div>
         <div className="flex gap-2">
           <button
             type="button"
