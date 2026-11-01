@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { hiddenPublicBranchIds } from "@/lib/public-branches";
 import * as React from "react";
 import { supabase } from "@/integrations/supabase/client";
 import {
@@ -594,12 +595,24 @@ function PublicProfilePage() {
         // que la primera carga ya salga filtrada (sin flash mostrando todo
         // mezclado y después angostándose). Con 0 o 1 sucursal, el negocio
         // se comporta exactamente igual que antes de esta migración.
+        // Sucursales activas que el negocio decidió NO mostrar en la página
+        // pública (Configuración → Sucursales → "Mostrar en la página pública"):
+        // siguen funcionando adentro de la app, solo no se ofrecen acá.
+        const { data: publicSettingsRow } = await supabase
+          .from("public_booking_settings")
+          .select("schedule")
+          .eq("business_id", businessId)
+          .maybeSingle();
+        const hiddenBranchIds = hiddenPublicBranchIds((publicSettingsRow as { schedule?: unknown } | null)?.schedule);
         const { data: branchRows } = await supabase
           .from("public_booking_branches" as any)
           .select("id,name,address")
           .eq("business_id", businessId)
           .order("name", { ascending: true });
-        const branchList = (branchRows ?? []) as PublicBranch[];
+        const allBranches = (branchRows ?? []) as PublicBranch[];
+        const visibleBranches = allBranches.filter((b) => !hiddenBranchIds.includes(b.id));
+        // Si por error se ocultaran todas, se muestran todas (nunca una página sin sucursales).
+        const branchList = visibleBranches.length > 0 ? visibleBranches : allBranches;
         let effectiveBranchId: string | null = null;
         if (branchList.length > 0) {
           const candidate =

@@ -15,7 +15,8 @@ import {
 import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, type Branch } from "@/hooks/use-auth";
-import { SectionCard, Field, inputCls, reportSaveStatus, ConfirmDialog } from "@/components/settings/shared";
+import { SectionCard, Field, inputCls, reportSaveStatus, ConfirmDialog, Toggle } from "@/components/settings/shared";
+import { getHiddenPublicBranchIds, setBranchPublicVisible } from "@/lib/public-branches";
 import { toast } from "sonner";
 
 // Tablas con datos operativos reales de una sucursal — si cualquiera tiene
@@ -64,6 +65,25 @@ export function SucursalesSection() {
   const [name, setName] = React.useState("");
   const [address, setAddress] = React.useState("");
   const [creating, setCreating] = React.useState(false);
+
+  // Sucursales ocultas en la página pública (siguen activas en la app).
+  const [hiddenPublic, setHiddenPublic] = React.useState<string[]>([]);
+  React.useEffect(() => {
+    if (!businessId) return;
+    getHiddenPublicBranchIds(businessId).then(setHiddenPublic).catch(() => {});
+  }, [businessId]);
+  async function togglePublicVisible(branchId: string, visible: boolean) {
+    if (!businessId) return;
+    const previous = hiddenPublic;
+    setHiddenPublic(visible ? previous.filter((id) => id !== branchId) : [...previous, branchId]);
+    try {
+      await setBranchPublicVisible(businessId, branchId, visible);
+      toast.success(visible ? "Se muestra en la página pública" : "Se oculta de la página pública");
+    } catch {
+      setHiddenPublic(previous);
+      toast.error("No se pudo guardar. Probá de nuevo.");
+    }
+  }
 
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [editName, setEditName] = React.useState("");
@@ -252,6 +272,18 @@ export function SucursalesSection() {
                 <X className="size-3.5" /> Cancelar
               </button>
             </div>
+
+            {b.is_active && (
+              <div className="flex items-center justify-between gap-3 border-t border-white/[0.07] pt-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold">Mostrar en la página pública</div>
+                  <div className="mt-0.5 text-xs text-muted-foreground">
+                    Apagado, sigue activa en la app pero no aparece para quienes sacan turno.
+                  </div>
+                </div>
+                <Toggle on={!hiddenPublic.includes(b.id)} onChange={(v) => togglePublicVisible(b.id, v)} />
+              </div>
+            )}
 
             <div className="space-y-2 border-t border-white/[0.07] pt-3">
               <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">
