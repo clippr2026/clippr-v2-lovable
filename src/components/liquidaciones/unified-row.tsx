@@ -584,13 +584,11 @@ export function VentaRow({
             </span>
         </div>
         <div className="mt-0.5 flex items-center justify-between gap-2 text-[10px]">
-          {hasTip ? (
-            <span className="font-semibold tabular-nums text-emerald-300">+ propina {money(Number(sale.tip_amount))}</span>
-          ) : (
-            <span />
-          )}
-          <div className="flex shrink-0 items-center gap-1 font-semibold uppercase tracking-wider text-white/40">
-            {dateTime}
+          <span className="font-semibold uppercase tracking-wider text-white/40">{dateTime}</span>
+          <div className="flex shrink-0 items-center gap-1">
+            {hasTip && (
+              <span className="font-semibold tabular-nums text-emerald-300">+ propina {money(Number(sale.tip_amount))}</span>
+            )}
             {hasExpandableContent && (
               <ChevronDown className={cn("size-3 shrink-0 text-white/30 transition-transform", expanded && "rotate-180")} />
             )}
