@@ -155,6 +155,8 @@ import {
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 import {
   resolveServicePricing,
+  computeCommissionAmount,
+  type EmployeeCommissionMap,
   computeStandardEffectivePrice,
   isPromotionCurrentlyValid,
   isPromotionApplicable,
@@ -10190,6 +10192,21 @@ function DetailModal({
   // efectivo del catálogo): el Monto de "Corregir cobro" no se edita a mano,
   // sale de acá. null = todavía no se pudo calcular.
   const [correctPrices, setCorrectPrices] = React.useState<{ list: number | null; cash: number | null } | null>(null);
+  // Datos para recalcular la comisión con la MISMA regla del cobro
+  // (computeCommissionAmount: base = mínimo entre el precio en efectivo y lo
+  // realmente cobrado), no con una proporción del total.
+  const [correctCtx, setCorrectCtx] = React.useState<{
+    items: Array<{
+      id: string | null;
+      qty: number;
+      savedUnit: number;
+      listUnit: number | null;
+      cashUnit: number | null;
+      cap: number | null;
+      isCatalog: boolean;
+    }>;
+    commissionsMap: EmployeeCommissionMap | null;
+  } | null>(null);
   const method = (payment.method ??
     payment.payment_method ??
     "cash") as PayMethod;
@@ -10361,10 +10378,11 @@ function DetailModal({
     setCorrectTip(String(Math.round(tipAmount)));
     setCorrectMethod(method);
     setCorrectPrices(null);
+    setCorrectCtx(null);
     setCorrectFormOpen(true);
     // Precio de lista y precio en efectivo de lo que se vendió, del catálogo.
     try {
-      const items = ((payment as Record<string, unknown>).items as Array<{ id?: string | null; amount?: number; qty?: number }> | null) ?? [];
+      const items = ((payment as Record<string, unknown>).items as Array<{ id?: string | null; amount?: number; qty?: number; is_catalog?: boolean }> | null) ?? [];
       const ids = items.map((it) => it?.id).filter((id): id is string => !!id);
       if (!businessId || ids.length === 0) {
         setCorrectPrices({ list: null, cash: null });
@@ -10381,12 +10399,15 @@ function DetailModal({
       let list = 0;
       let cash = 0;
       let found = 0;
+      const ctxItems: NonNullable<typeof correctCtx>["items"] = [];
       for (const it of items) {
         const qty = Number(it?.qty ?? 1) || 1;
         const row = it?.id ? byId.get(it.id) : undefined;
+        const savedUnit = Number(it?.amount ?? 0) / qty;
         if (!row) {
           list += Number(it?.amount ?? 0);
           cash += Number(it?.amount ?? 0);
+          ctxItems.push({ id: it?.id ?? null, qty, savedUnit, listUnit: null, cashUnit: null, cap: null, isCatalog: Boolean(it?.is_catalog) });
           continue;
         }
         found += 1;
@@ -10397,7 +10418,20 @@ function DetailModal({
         );
         list += r.price * qty;
         cash += (r.effectivePrice ?? r.price) * qty;
+        ctxItems.push({
+          id: row.id,
+          qty,
+          savedUnit,
+          listUnit: r.price,
+          cashUnit: r.effectivePrice ?? r.price,
+          cap: r.commissionCapPrice,
+          isCatalog: Boolean(it?.is_catalog),
+        });
       }
+      setCorrectCtx({
+        items: ctxItems,
+        commissionsMap: ((settings?.schedule as Record<string, unknown> | null)?._employeeCommissions ?? null) as EmployeeCommissionMap | null,
+      });
       setCorrectPrices(found > 0 ? { list: Math.round(list), cash: Math.round(cash) } : { list: null, cash: null });
     } catch {
       setCorrectPrices({ list: null, cash: null });
@@ -10450,21 +10484,48 @@ function DetailModal({
     const newDiscount = correctDiscountNum;
     const newTip = Number(correctTip.replace(/\D/g, "")) || 0;
     const oldTotal = Number(payment.total ?? payment.amount ?? 0);
-    // Comisión recalculada acá mismo, aproximada: si la venta tenía un %
-    // congelado (commission_pct), se aplica ese mismo % al monto nuevo —
-    // es exacto en el caso más común. Si no (comisión fija/por servicio,
-    // sin un único % que represente el total), se escala proporcional al
-    // cambio de monto — no se reimplementa computeCommissionAmount acá
-    // porque el detalle no tiene el desglose por ítem de la venta
-    // original, solo el total ya calculado.
+    // Comisión con la MISMA regla que al cobrar (computeCommissionAmount):
+    // la base de cada servicio es el MENOR entre su precio en efectivo y lo
+    // realmente cobrado. Un descuento que deja el total por encima del precio
+    // en efectivo no baja la comisión; uno por debajo, sí. Si no se pueden
+    // reunir los datos, la comisión no se toca (nunca se adivina por proporción).
     let newCommissionAmount: number | null = null;
-    if (commissionRecord) {
-      newCommissionAmount =
-        commissionRecord.commission_pct != null
-          ? Math.round((newTotal * commissionRecord.commission_pct) / 100)
-          : oldTotal > 0
-            ? Math.round((commissionRecord.amount * newTotal) / oldTotal)
-            : commissionRecord.amount;
+    const corrEmployee = employees.find((e) => e.id === payment.employee_id) as
+      | { commission_pct?: number | null; commission_enabled?: boolean | null }
+      | undefined;
+    if (commissionRecord && correctCtx && correctCtx.items.length > 0) {
+      if (corrEmployee?.commission_enabled === false) {
+        newCommissionAmount = 0;
+      } else {
+        const useCash = correctMethod === "cash";
+        const unit = (it: (typeof correctCtx.items)[number]) =>
+          correctMethod === method
+            ? it.savedUnit
+            : useCash
+              ? (it.cashUnit ?? it.savedUnit)
+              : (it.listUnit ?? it.savedUnit);
+        const grossTotal = correctCtx.items.reduce((sum, it) => sum + unit(it) * it.qty, 0);
+        const lineItems = correctCtx.items.map((it) => {
+          const gross = unit(it) * it.qty;
+          return {
+            amount: unit(it),
+            qty: it.qty,
+            serviceId: it.id,
+            effectivePrice: it.isCatalog ? null : it.cap,
+            // El descuento se reparte entre las líneas según su peso.
+            discountAmount: grossTotal > 0 ? (correctDiscountNum * gross) / grossTotal : 0,
+            isCatalog: it.isCatalog,
+          };
+        });
+        const { pctAmount, fixedAmount } = computeCommissionAmount(
+          lineItems,
+          payment.employee_id as string | null,
+          correctCtx.commissionsMap,
+          { commissionFixed: 0, commissionPct: Number(corrEmployee?.commission_pct ?? 0) },
+        );
+        const discountRatio = grossTotal > 0 && newTotal !== grossTotal ? newTotal / grossTotal : 1;
+        newCommissionAmount = Math.round(pctAmount + fixedAmount * discountRatio);
+      }
     }
     const result = await correctPaymentAuthorized({
       paymentId: payment.id,

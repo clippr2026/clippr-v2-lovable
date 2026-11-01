@@ -1,6 +1,6 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { Lock, Loader2, AlertTriangle } from "lucide-react";
+import { Lock, Loader2, AlertTriangle, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Mismos topes que valida el body de void/correct/delete_payment_authorized
@@ -52,6 +52,8 @@ export function AuthorizationModal({
   ) => Promise<void>;
 }) {
   const [password, setPassword] = React.useState("");
+  // Ojo para ver/ocultar la contraseña mientras se escribe.
+  const [showPassword, setShowPassword] = React.useState(false);
   const [reason, setReason] = React.useState("");
   const [authorizedByName, setAuthorizedByName] = React.useState("");
   const [performedByName, setPerformedByName] = React.useState("");
@@ -128,17 +130,27 @@ export function AuthorizationModal({
             <label className="mb-1 block text-[11px] font-semibold tracking-[0.1em] text-muted-foreground/70">
               CONTRASEÑA DE AUTORIZACIÓN
             </label>
-            <input
-              type="password"
-              autoFocus
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleConfirm();
-              }}
-              className="h-10 w-full rounded-xl border border-white/10 bg-black/45 px-3 text-sm text-white outline-none focus:border-blue-300/50 focus:ring-2 focus:ring-blue-400/20"
-              placeholder="••••••"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? "text" : "password"}
+                autoFocus
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleConfirm();
+                }}
+                className="h-10 w-full rounded-xl border border-white/10 bg-black/45 pl-3 pr-11 text-sm text-white outline-none focus:border-blue-300/50 focus:ring-2 focus:ring-blue-400/20"
+                placeholder="••••••"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
+                className="absolute inset-y-0 right-0 grid w-11 place-items-center text-muted-foreground transition hover:text-foreground"
+              >
+                {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
+              </button>
+            </div>
           </div>
           <div>
             <div className="mb-1 flex items-center justify-between">
