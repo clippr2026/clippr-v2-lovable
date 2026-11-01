@@ -20,10 +20,12 @@ describe("Fichaje: cobrar servicios y cerrar la caja", () => {
     expect(src).toContain("todavía no fichó su jornada");
   });
 
-  it("el cierre de caja pide la salida de quien quedó sin fichar y bloquea el botón hasta cargarla", () => {
+  it("el cierre de caja pide la salida de quien quedó sin fichar antes de la confirmación final", () => {
     const src = readSrc("src/routes/cash-register.tsx");
-    expect(src).toContain("<SalidasPendientesPanel");
-    expect(src).toContain("salidasPending === null || salidasPending.length > 0");
+    expect(src).toContain("<CierrePrerequisitosStep");
+    const step = readSrc("src/components/cash-register/cierre-prerequisitos-step.tsx");
+    expect(step).toContain("<SalidasPendientesPanel");
+    expect(step).toContain("disabled={cargando || pendientes > 0}");
     const panel = readSrc("src/components/professionals/salidas-pendientes-panel.tsx");
     expect(panel).toContain("Salida cargada al cerrar la caja");
     expect(panel).toContain(".is(\"clock_out_at\", null)");

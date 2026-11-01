@@ -10,10 +10,11 @@ import { SalidasPendientesPanel } from "@/components/professionals/salidas-pendi
 const PRESENTISMO_START_DATE = "2026-10-29";
 
 // Paso previo a la confirmación final del cierre: "Salidas sin fichar" y
-// "Puntualidad del día". Solo se ve si hay algo para resolver — si no hay
-// nada pendiente, pasa solo al paso siguiente. "Continuar" se habilita cuando
-// no queda nada pendiente. El candado real de la puntualidad sigue siendo el
-// trigger SQL check_attendance_confirmed_before_close.
+// "Puntualidad del día". La puntualidad se revisa y confirma SIEMPRE al cerrar
+// (aunque todos hayan fichado entrada y salida); solo en un día anterior al
+// corte del sistema, sin salidas pendientes, el paso se saltea. "Continuar" se
+// habilita cuando no queda nada pendiente. El candado real de la puntualidad
+// sigue siendo el trigger SQL check_attendance_confirmed_before_close.
 export function CierrePrerequisitosStep({
   businessId,
   branchId,
@@ -33,9 +34,10 @@ export function CierrePrerequisitosStep({
   const [profileId, setProfileId] = React.useState<string | null>(null);
   const [salidasPending, setSalidasPending] = React.useState<string[] | null>(null);
   const [presentismoPending, setPresentismoPending] = React.useState<string[] | null>(applies ? null : []);
-  // "decidido": en la primera carga se decide una sola vez si hay algo para
-  // mostrar; si no hay nada se salta el paso, y si hay algo se queda aunque
-  // después se resuelva todo (así no desaparece mientras se está confirmando).
+  // "decidido": en la primera carga se decide una sola vez si se muestra el
+  // paso. Desde el corte siempre se muestra (la puntualidad se confirma todos
+  // los días); antes del corte solo si hay salidas pendientes. Una vez
+  // mostrado, se queda aunque se resuelva todo (no desaparece al confirmar).
   const [decided, setDecided] = React.useState<"saltar" | "mostrar" | null>(null);
 
   React.useEffect(() => {
@@ -44,9 +46,9 @@ export function CierrePrerequisitosStep({
 
   React.useEffect(() => {
     if (decided || salidasPending === null || presentismoPending === null) return;
-    const nothing = salidasPending.length === 0 && presentismoPending.length === 0;
-    setDecided(nothing ? "saltar" : "mostrar");
-    if (nothing) onContinue();
+    const skip = !applies && salidasPending.length === 0;
+    setDecided(skip ? "saltar" : "mostrar");
+    if (skip) onContinue();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [salidasPending, presentismoPending, decided]);
 
@@ -61,7 +63,7 @@ export function CierrePrerequisitosStep({
         <div>
           <p className="text-sm font-semibold text-white">Antes de cerrar la caja</p>
           <p className="mt-0.5 text-xs text-muted-foreground">
-            Cargá las salidas que faltan y confirmá la puntualidad del día. Después se habilita "Continuar".
+            Cargá las salidas que faltan y confirmá la puntualidad de cada profesional. Después se habilita "Continuar".
           </p>
         </div>
         <SalidasPendientesPanel

@@ -66,7 +66,6 @@ import { activePromoOffersForService } from "@/lib/promo-view";
 import { allocateProportional, hasCatalogItems, serviceCommissionOf } from "@/lib/lateness-penalty";
 import { getPenaltyBreakdown } from "@/lib/presentismo";
 import { PresentismoRevisionPanel } from "@/components/professionals/presentismo-revision-panel";
-import { SalidasPendientesPanel } from "@/components/professionals/salidas-pendientes-panel";
 import { CierrePrerequisitosStep } from "@/components/cash-register/cierre-prerequisitos-step";
 import { getPendingCierresInPeriod } from "@/lib/presentismo";
 import { useCashMovements, type CashMovement, type ProfessionalAdvance } from "@/hooks/use-cash-movements";
@@ -8603,18 +8602,14 @@ function CierreCajaBtn({
   // de tiempo. El propio panel reporta esta lista en cada carga (inicial
   // y después de cada confirmación), nunca una segunda consulta aparte.
   const [presentismoPending, setPresentismoPending] = useState<string[] | null>(null);
-  // Profesionales que ficharon entrada ese día y no la salida — la caja no se
-  // cierra hasta cargarles la hora de salida (SalidasPendientesPanel).
-  const [salidasPending, setSalidasPending] = useState<string[] | null>(null);
+  // Paso previo a la confirmación final: salidas sin fichar + puntualidad del
+  // día (solo se ve si hay algo para resolver, ver CierrePrerequisitosStep).
+  const [prereqStep, setPrereqStep] = useState(false);
   const [profileId, setProfileId] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setProfileId(data.user?.id ?? null));
   }, []);
-
-  useEffect(() => {
-    setSalidasPending(null);
-  }, [open, cajaRangeStartDate]);
 
   useEffect(() => {
     setPresentismoPending(null);
@@ -8677,6 +8672,7 @@ function CierreCajaBtn({
   function cerrarModal() {
     setOpen(false);
     setConfirmStep(false);
+    setPrereqStep(false);
     setContadoTouched(false);
     setSaldoRealTouched(false);
   }
@@ -8760,58 +8756,20 @@ function CierreCajaBtn({
                   onVolver={() => setConfirmStep(false)}
                   onConfirmar={confirmar}
                 />
+              ) : prereqStep && businessId && branchId ? (
+                <CierrePrerequisitosStep
+                  businessId={businessId}
+                  branchId={branchId}
+                  date={cajaRangeStartDate}
+                  userName={chargedByUsername(userEmail)}
+                  onVolver={() => setPrereqStep(false)}
+                  onContinue={() => {
+                    setPrereqStep(false);
+                    setConfirmStep(true);
+                  }}
+                />
               ) : (
                 <>
-                  {/* El panel queda SIEMPRE visible acá (no solo mientras falte
-                      alguien) — así se puede revisar/editar una confirmación ya
-                      hecha sin salir de "Cerrar caja". El aviso rojo de bloqueo
-                      es un mensaje aparte, encima del panel, solo mientras
-                      falte confirmar a alguien. */}
-                  {businessId && branchId ? (
-                    <SalidasPendientesPanel
-                      key={cajaRangeStartDate}
-                      businessId={businessId}
-                      branchId={branchId}
-                      date={cajaRangeStartDate}
-                      editedBy={chargedByUsername(userEmail)}
-                      onPendingChange={setSalidasPending}
-                    />
-                  ) : null}
-                  {businessId && branchId && (
-                    <div className="rounded-xl bg-white/[0.02] p-3.5 ring-1 ring-white/10">
-                      <div className="mb-3 flex items-center justify-between gap-2">
-                        <p className="text-sm font-semibold text-foreground">Puntualidad del día</p>
-                        {presentismoPending === null ? (
-                          <span className="rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-muted-foreground ring-1 ring-white/10">
-                            Verificando…
-                          </span>
-                        ) : presentismoPending.length > 0 ? (
-                          <span className="rounded-full bg-rose-400/10 px-2 py-0.5 text-[10px] font-semibold text-rose-300 ring-1 ring-rose-400/25">
-                            {presentismoPending.length} sin confirmar
-                          </span>
-                        ) : (
-                          <span className="rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300 ring-1 ring-emerald-400/25">
-                            Todo confirmado
-                          </span>
-                        )}
-                      </div>
-                      {presentismoPending && presentismoPending.length > 0 && (
-                        <p className="mb-3 text-xs text-rose-200/80">
-                          No podés cerrar la caja hasta confirmar a: {presentismoPending.join(", ")}.
-                        </p>
-                      )}
-                      {profileId && (
-                        <PresentismoRevisionPanel
-                          businessId={businessId}
-                          branchId={branchId}
-                          date={cajaRangeStartDate}
-                          confirmedBy={profileId}
-                          confirmedByName={chargedByUsername(userEmail)}
-                          onPendingChange={setPresentismoPending}
-                        />
-                      )}
-                    </div>
-                  )}
                   <CierreRevisionDetalle
                     businessId={businessId}
                     employees={employees}
@@ -8830,32 +8788,15 @@ function CierreCajaBtn({
                     observacion={obs}
                     onObservacionChange={setObs}
                   />
-                  {/* Con salidas sin cargar el botón queda deshabilitado (fieldset
-                      disabled deshabilita al botón de adentro sin tocar su regla). */}
-                  <fieldset
-                    disabled={!!businessId && !!branchId && (salidasPending === null || salidasPending.length > 0)}
-                    className="contents"
-                  >
                   <button
                     type="button"
-                    onClick={() => setConfirmStep(true)}
-                    disabled={obsRequeridaFalta || presentismoPending === null || presentismoPending.length > 0}
-                    title={
-                      obsRequeridaFalta
-                        ? "Contá qué pasó con la diferencia antes de continuar"
-                        : presentismoPending === null
-                          ? "Verificando puntualidad…"
-                          : salidasPending && salidasPending.length > 0
-                            ? "Cargá la hora de salida pendiente antes de continuar"
-                          : presentismoPending.length > 0
-                            ? "Confirmá la puntualidad pendiente antes de continuar"
-                            : undefined
-                    }
+                    onClick={() => setPrereqStep(true)}
+                    disabled={obsRequeridaFalta}
+                    title={obsRequeridaFalta ? "Contá qué pasó con la diferencia antes de continuar" : undefined}
                     className="w-full inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold bg-gradient-to-b from-blue-400 to-violet-500 text-white hover:brightness-105 disabled:opacity-50 transition-all"
                   >
                     Confirmar cierre de caja
                   </button>
-                  </fieldset>
                 </>
               )}
             </div>

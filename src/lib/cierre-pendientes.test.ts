@@ -39,8 +39,9 @@ describe("Cerrar un día desde Historial: paso previo de salidas y puntualidad",
     expect(ui).toMatch(/onContinue=\{\(\) => \{\s*setPrereqStep\(false\);\s*setConfirmStep\(true\);/);
   });
 
-  it("el paso se saltea solo si no hay nada pendiente y 'Continuar' exige resolver todo", () => {
-    expect(step).toContain('setDecided(nothing ? "saltar" : "mostrar")');
+  it("la puntualidad se confirma siempre al cerrar (solo se saltea antes del corte) y 'Continuar' exige resolver todo", () => {
+    expect(step).toContain("const skip = !applies && salidasPending.length === 0;");
+    expect(step).toContain('setDecided(skip ? "saltar" : "mostrar")');
     expect(step).toContain("disabled={cargando || pendientes > 0}");
     expect(step).toContain("<SalidasPendientesPanel");
     expect(step).toContain("<PresentismoRevisionPanel");
