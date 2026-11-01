@@ -628,7 +628,7 @@ function MobileBottomNavSkeleton() {
 }
 
 // Ítems de la barra inferior según rol y permisos. Con un solo ítem (por
-// ejemplo, un profesional que solo tiene "Mi Agenda") la barra no se muestra:
+// ejemplo, un profesional que solo tiene "Mi Panel") la barra no se muestra:
 // no hay nada que elegir. La usan la barra y el AppShell (para no reservar el
 // espacio de la barra cuando no aparece).
 export function useMobileNavItems() {
@@ -654,7 +654,7 @@ export function useMobileNavItems() {
     .filter((item) => isOwner || permissions[item.permKey] === true)
     .map((item) => {
       if (item.permKey === "profesionales" && isProfessional) {
-        return { ...item, label: "Mi Agenda", icon: ClipboardList };
+        return { ...item, label: "Mi Panel", icon: ClipboardList };
       }
       return item;
     });
@@ -748,15 +748,18 @@ function MobileSectionBanner() {
   // Sin franja de sucursal (una sola, o un profesional) el banner queda justo
   // debajo del header.
   const hasBranchBar = branches.length > 1 && profile?.role !== "profesional";
+  // Con un solo ítem no hay barra inferior ni nada que elegir: el nombre de la
+  // sección sería puro ruido (el profesional con solo "Mi Panel").
+  const { visible: hasBottomNav } = useMobileNavItems();
 
-  if (loading) return null;
+  if (loading || !hasBottomNav) return null;
 
   const isOwner = !profile?.role || profile.role === "owner" || profile.role === "admin_general";
   const isProfessional = profile?.role === "profesional";
   const current = ALL_NAV.find((item) => item.to === pathname);
   if (!current || (!isOwner && current.permKey && permissions[current.permKey] !== true)) return null;
 
-  const label = current.permKey === "profesionales" && isProfessional ? "Mi Agenda" : current.label;
+  const label = current.permKey === "profesionales" && isProfessional ? "Mi Panel" : current.label;
   const Icon = current.permKey === "profesionales" && isProfessional ? ClipboardList : current.icon;
 
   return (
