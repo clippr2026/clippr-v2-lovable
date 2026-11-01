@@ -397,7 +397,7 @@ export function VentaRow({
   const MobileTag = hasExpandableContent ? "button" : "div";
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-black/18">
+    <div className="overflow-hidden rounded-2xl border border-white/[0.14] bg-white/[0.05] shadow-[0_2px_10px_-2px_rgba(0,0,0,0.5)] sm:border-white/[0.07] sm:bg-black/18 sm:shadow-none">
       {/* Desktop — div con role="button", no <button> real: la celda de
           precio contiene su propio InfoPopover (un <button>), y un <button>
           no puede anidar otro <button> válidamente en HTML. */}
@@ -583,17 +583,6 @@ export function VentaRow({
               {method}
             </span>
         </div>
-        <div className="mt-0.5 flex items-center justify-between gap-2 text-[10px]">
-          <span className="font-semibold uppercase tracking-wider text-white/40">{dateTime}</span>
-          <div className="flex shrink-0 items-center gap-1">
-            {hasTip && (
-              <span className="font-semibold tabular-nums text-emerald-300">+ propina {money(Number(sale.tip_amount))}</span>
-            )}
-            {hasExpandableContent && (
-              <ChevronDown className={cn("size-3 shrink-0 text-white/30 transition-transform", expanded && "rotate-180")} />
-            )}
-          </div>
-        </div>
         {(isRecovered || conceptSubtitle || presentismoVenta) && (
           <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
             {isRecovered && (
@@ -621,6 +610,17 @@ export function VentaRow({
             )}
           </div>
         )}
+        <div className="mt-0.5 flex items-center justify-between gap-2 text-[10px]">
+          <span className="font-semibold uppercase tracking-wider text-white/40">{dateTime}</span>
+          <div className="flex shrink-0 items-center gap-1">
+            {hasTip && (
+              <span className="font-semibold tabular-nums text-emerald-300">+ propina {money(Number(sale.tip_amount))}</span>
+            )}
+            {hasExpandableContent && (
+              <ChevronDown className={cn("size-3 shrink-0 text-white/30 transition-transform", expanded && "rotate-180")} />
+            )}
+          </div>
+        </div>
       </MobileTag>
       {/* Contenido expandible: nota real (si hay) + historial completo de
           pagos (solo filas recuperadas) — ver PaymentHistoryPanel. Precio
@@ -732,7 +732,7 @@ export function MovRow({
         "overflow-hidden rounded-2xl border",
         redStripe
           ? "border-rose-900/50 border-l-2 border-l-rose-500 bg-[linear-gradient(135deg,rgba(244,63,94,0.13),rgba(20,7,9,0.94),rgba(10,3,4,0.96))]"
-          : "border-white/[0.07] bg-black/18",
+          : "border-white/[0.14] bg-white/[0.05] shadow-[0_2px_10px_-2px_rgba(0,0,0,0.5)] sm:border-white/[0.07] sm:bg-black/18 sm:shadow-none",
       )}
     >
       {/* Desktop */}
