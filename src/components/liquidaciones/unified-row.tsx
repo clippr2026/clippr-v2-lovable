@@ -669,10 +669,18 @@ type DayHeaderItem = { kind: "dia"; dayKey: string; presentismo: any | null };
 // (la lista ya viene ordenada de más nuevo a más viejo). La puntualidad del
 // día NO es una fila aparte: se muestra en el encabezado del día, a la
 // derecha, y se saca de la lista de filas.
+// `todoPresentismo`: toda la puntualidad del período, incluida la que NO es
+// una fila propia (un descuento por porcentaje se reparte entre las ventas
+// del día y nunca llega a `items`).
 export function withDayHeaders<T extends { at?: unknown; kind?: string; data?: any }>(
   items: T[],
+  todoPresentismo: any[] = [],
 ): Array<T | DayHeaderItem> {
   const presentismoPorDia = new Map<string, any>();
+  for (const p of todoPresentismo) {
+    const key = movDayKey(p.effectiveClockInAt ?? `${p.date}T12:00:00`);
+    if (key && !presentismoPorDia.has(key)) presentismoPorDia.set(key, p);
+  }
   for (const item of items) {
     if (item.kind !== "presentismo") continue;
     const key = movDayKey(item.at);
@@ -698,7 +706,7 @@ export function MovDayHeader({ dayKey, presentismo }: { dayKey: string; presenti
   const statusLabel = p ? (p.status === "a_tiempo" ? "A tiempo" : p.status === "tarde" ? "Tarde" : "Ausente") : "";
   const montoText = amount > 0 ? `-${money(amount)}` : amount < 0 ? `+${money(-amount)}` : "";
   const text = [statusLabel, montoText].filter(Boolean).join(" ");
-  const cls = amount > 0 || p?.status !== "a_tiempo" ? "text-rose-300" : "text-emerald-300";
+  const cls = p?.status === "ausente" ? "text-white/50" : p?.status === "tarde" ? "text-rose-300" : "text-emerald-300";
   const llegada = p?.effectiveClockInAt
     ? new Date(p.effectiveClockInAt).toLocaleTimeString("es-AR", {
         hour: "2-digit",
