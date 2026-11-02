@@ -6088,7 +6088,7 @@ function ProfesionalesTab({
                           ? "text-rose-300"
                           : p.status === "a_tiempo" || amount < 0
                             ? "text-emerald-300"
-                            : "text-amber-300";
+                            : "text-rose-300";
                       return (
                         <MovRow
                           key={`presentismo-${p.id}`}
