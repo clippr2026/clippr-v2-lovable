@@ -6844,7 +6844,7 @@ function NuevoGastoTab({
     if (error) return toast.error("Error guardando gasto: " + error.message);
     toast.success(
       form.source === "otros"
-        ? "✓ Gasto registrado con Otros fondos (no descuenta de la caja)"
+        ? "✓ Gasto registrado con Fondos externos (no descuenta de la caja)"
         : "✓ Gasto registrado",
     );
     window.dispatchEvent(new CustomEvent("clippr:gasto-guardado"));
@@ -6938,7 +6938,7 @@ function NuevoGastoTab({
                   className={cn(optionBtn(form.source === "otros"), "text-left")}
                   aria-pressed={form.source === "otros"}
                 >
-                  <span className="block text-sm font-semibold">Otros fondos</span>
+                  <span className="block text-sm font-semibold">Fondos externos</span>
                   <span className="mt-1 block text-xs font-normal leading-snug text-muted-foreground">
                     Se paga con dinero ajeno a la caja del día. Se registra el gasto, pero no descuenta de la recaudación ni entra en el cierre.
                   </span>
@@ -6966,7 +6966,7 @@ function NuevoGastoTab({
               <p className="mt-1.5 text-xs text-muted-foreground">
                 {form.source === "caja"
                   ? `Se descuenta de ${form.method === "efectivo" ? "Efectivo" : "Dinero en cuenta"} de la caja del día.`
-                  : "Con otros fondos el medio es solo informativo: no mueve los saldos de la caja."}
+                  : "Con fondos externos el medio es solo informativo: no mueve los saldos de la caja."}
               </p>
             </div>
           </div>
@@ -7347,7 +7347,7 @@ function CierreMovimientosDetalleList({
         hora: g.hora,
         cliente: "Gasto",
         profesional: null,
-        concepto: `${g.nombre ?? "Gasto"} · ${expenseKindLabel(g.tipo, g.categoria)}${expenseAffectsCaja(g.origen) ? "" : " · Otros fondos"}`,
+        concepto: `${g.nombre ?? "Gasto"} · ${expenseKindLabel(g.tipo, g.categoria)}${expenseAffectsCaja(g.origen) ? "" : " · Fondos externos"}`,
         cobrado: Number(g.monto ?? 0),
         signo: "-",
         metodo: g.metodo ?? "cash",
@@ -8068,7 +8068,7 @@ function CierreMovimientosDetalleList({
                   </div>
                   {!expenseAffectsCaja(g.origen) && (
                     <div className="mt-1 text-[11px] font-semibold text-amber-300">
-                      Otros fondos — no incluido en el efectivo ni en el dinero en cuenta del cierre
+                      Fondos externos — no incluido en el efectivo ni en el dinero en cuenta del cierre
                     </div>
                   )}
                 </div>
@@ -11685,7 +11685,7 @@ function unifiedMovView(
     const concepto = String(e.name || e.note?.trim() || "").trim();
     const otros = !expenseAffectsCaja(e.funds_source);
     return {
-      typeLabel: otros ? "Gasto · Otros fondos" : "Gasto",
+      typeLabel: otros ? "Gasto · Fondos externos" : "Gasto",
       fecha,
       hora,
       // "Cargó" — mismo verbo en pasado que el resto (Cobró/Ingresó/
@@ -11801,7 +11801,7 @@ function UnifiedMovRow({
         <span>{view.servicio}</span>
         {item.kind === "gasto" && !expenseAffectsCaja(item.expense?.funds_source) && (
           <span className="ml-2 rounded-full bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300 ring-1 ring-amber-300/20">
-            Otros fondos
+            Fondos externos
           </span>
         )}
         {view.nota && (
@@ -12609,7 +12609,7 @@ function MovimientosUnificados({
                 >
                   <option value="">Todos los movimientos</option>
                   <option value="caja">Gastos: Caja del día</option>
-                  <option value="otros">Gastos: Otros fondos</option>
+                  <option value="otros">Gastos: Fondos externos</option>
                 </select>
               </div>
 

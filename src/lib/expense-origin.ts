@@ -17,7 +17,7 @@ export function expenseAffectsCaja(source: string | null | undefined): boolean {
 }
 
 export function expenseOriginLabel(source: string | null | undefined): string {
-  return source === "otros" ? "Otros fondos" : source === "caja" ? "Caja del día" : "Caja del día (anterior)";
+  return source === "otros" ? "Fondos externos" : source === "caja" ? "Caja del día" : "Caja del día (anterior)";
 }
 
 // Tipo legible. Gastos históricos: se muestra su categoría vieja (Alquiler, Insumos…)

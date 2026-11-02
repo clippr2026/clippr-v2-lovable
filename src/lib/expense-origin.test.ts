@@ -90,7 +90,7 @@ describe("Gastos: tipos, etiquetas y formulario", () => {
     expect(expenseKindLabel(null, "Insumos")).toBe("Insumos");
     expect(expenseKindLabel("marketing")).toBe("Marketing");
     expect(expenseKindLabel(null, null)).toBe("—");
-    expect(expenseOriginLabel("otros")).toBe("Otros fondos");
+    expect(expenseOriginLabel("otros")).toBe("Fondos externos");
     expect(expenseOriginLabel("caja")).toBe("Caja del día");
     expect(expenseOriginLabel(null)).toBe("Caja del día (anterior)");
   });
@@ -112,7 +112,7 @@ describe("Gastos: tipos, etiquetas y formulario", () => {
   it("Movimientos y el detalle del cierre muestran nombre, tipo y origen; hay filtro por origen", () => {
     const src = readSrc("src/routes/cash-register.tsx");
     expect(src).toContain("expenseKindLabel(e.type, e.category)");
-    expect(src).toContain("Gastos: Otros fondos");
+    expect(src).toContain("Gastos: Fondos externos");
     expect(src).toContain("expenseKindLabel(g.tipo, g.categoria)");
   });
 
