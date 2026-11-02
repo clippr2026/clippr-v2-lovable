@@ -638,6 +638,58 @@ export function VentaRow({
   );
 }
 
+
+// Separador por día de la lista de Movimientos (Caja → Liquidaciones y Panel
+// del profesional). Los días se cuentan en hora de Argentina, nunca en la del
+// dispositivo, para que un movimiento de las 23:30 no caiga en el día siguiente.
+const MOV_DAY_TZ = "America/Argentina/Buenos_Aires";
+
+function movDayKey(at: unknown): string | null {
+  const d = new Date(String(at ?? ""));
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString("sv-SE", { timeZone: MOV_DAY_TZ });
+}
+
+function movDayLabel(dayKey: string): string {
+  const todayKey = new Date().toLocaleDateString("sv-SE", { timeZone: MOV_DAY_TZ });
+  const yesterday = new Date(`${todayKey}T12:00:00`);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const yesterdayKey = yesterday.toLocaleDateString("sv-SE");
+  const [y, m, d] = dayKey.split("-");
+  const date = `${d}/${m}`;
+  if (dayKey === todayKey) return `Hoy · ${date}`;
+  if (dayKey === yesterdayKey) return `Ayer · ${date}`;
+  const weekday = new Date(`${dayKey}T12:00:00`).toLocaleDateString("es-AR", { weekday: "long" });
+  return `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)} · ${date}${y !== todayKey.slice(0, 4) ? `/${y}` : ""}`;
+}
+
+// Intercala un item { kind: "dia" } antes del primer movimiento de cada día
+// (la lista ya viene ordenada de más nuevo a más viejo).
+export function withDayHeaders<T extends { at?: unknown }>(items: T[]): Array<T | { kind: "dia"; dayKey: string }> {
+  const out: Array<T | { kind: "dia"; dayKey: string }> = [];
+  let prev: string | null = null;
+  for (const item of items) {
+    const key = movDayKey(item.at);
+    if (key && key !== prev) {
+      out.push({ kind: "dia", dayKey: key });
+      prev = key;
+    }
+    out.push(item);
+  }
+  return out;
+}
+
+export function MovDayHeader({ dayKey }: { dayKey: string }) {
+  return (
+    <div className="flex items-center gap-3 px-1 pb-0.5 pt-3 first:pt-0">
+      <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/45">
+        {movDayLabel(dayKey)}
+      </span>
+      <div className="h-px flex-1 bg-white/[0.08]" />
+    </div>
+  );
+}
+
 // Fila genérica para Adelanto/Pago/Ajuste/Deducción dentro de la misma
 // lista única — mismas 7 columnas que VentaRow (Comisión/Medio de pago no
 // aplican a estos movimientos, quedan en "—"). "Detalles" es clickeable

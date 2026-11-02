@@ -193,6 +193,8 @@ import {
   MovRow,
   InfoPopover,
   UnifiedMovimientosHeader,
+  MovDayHeader,
+  withDayHeaders,
   StatCard,
 } from "@/components/liquidaciones/unified-row";
 
@@ -5975,7 +5977,8 @@ function ProfesionalesTab({
               ) : (
                 <div className="flex flex-col gap-2">
                   <UnifiedMovimientosHeader />
-                  {unifiedMovimientos.map((item: any) => {
+                  {withDayHeaders(unifiedMovimientos).map((item: any) => {
+                    if (item.kind === "dia") return <MovDayHeader key={`dia-${item.dayKey}`} dayKey={item.dayKey} />;
                     if (item.kind === "venta") {
                       return (
                         <VentaRow

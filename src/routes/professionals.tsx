@@ -65,6 +65,8 @@ import {
   VentaRow,
   MovRow,
   UnifiedMovimientosHeader,
+  MovDayHeader,
+  withDayHeaders,
   StatCard,
 } from "@/components/liquidaciones/unified-row";
 import { money, displayResponsable, isRunEffectivelySettled } from "@/components/liquidaciones/movimiento-format";
@@ -2673,7 +2675,8 @@ function LiquidacionesPanelView({
         <div className="flex flex-col gap-2">
           <div className="pt-1 text-base font-bold text-foreground">Movimientos recientes</div>
           <UnifiedMovimientosHeader />
-          {unifiedMovimientos.map((item: any) => {
+          {withDayHeaders(unifiedMovimientos).map((item: any) => {
+            if (item.kind === "dia") return <MovDayHeader key={`dia-${item.dayKey}`} dayKey={item.dayKey} />;
             if (item.kind === "venta") {
               return (
                 <VentaRow
