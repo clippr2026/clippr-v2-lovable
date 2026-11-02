@@ -12894,21 +12894,35 @@ function FacturacionPanel({
           (ventas con saldo) | Gastos — reemplaza el selector grande
           Facturación/Gastos de ResumenTab. 2 columnas en mobile (wrap),
           una sola fila desde sm. */}
+      {/* "Deudas de clientes": no es un número del día sino saldo que los
+          clientes todavía no pagaron (de cualquier fecha), por eso va como
+          aviso y no como tarjeta junto a Ingresos/Gastos. Solo se pinta
+          cuando hay deuda (ver showDeudasCard). Toque abre "Cobrar pendiente". */}
+      {showDeudasCard && (
+        <button
+          type="button"
+          onClick={() => setShowCobrarPendiente(true)}
+          className="flex w-full items-center gap-2.5 rounded-2xl border border-amber-400/20 bg-amber-400/[0.06] px-3.5 py-2.5 text-left transition hover:bg-amber-400/[0.1]"
+        >
+          <Clock className="h-4 w-4 shrink-0 text-amber-300" />
+          <span className="min-w-0 flex-1 truncate text-xs text-amber-100/80">
+            Clientes con saldo pendiente
+          </span>
+          <span className="shrink-0 text-sm font-semibold tabular-nums text-amber-200">
+            <Money value={pendingDebtSummary.total} />
+          </span>
+          <span className="shrink-0 text-xs font-semibold text-amber-300">Cobrar</span>
+          <ChevronRight className="h-4 w-4 shrink-0 text-amber-300/60" />
+        </button>
+      )}
       <div
         className={cn(
           "grid grid-cols-2 gap-2",
-          // "Deudas de clientes" (ver showDeudasCard más abajo) y "Cobros
-          // por confirmar" (showPendientes) son ambas condicionales — la
+          // "Cobros por confirmar" (showPendientes) es condicional — la
           // cantidad de columnas en desktop sigue la cantidad real de
-          // tarjetas visibles (Ingresos y Gastos son siempre fijas), igual
-          // criterio que ya usa el resumen de Liquidaciones más arriba,
-          // para que nunca quede un hueco vacío si una de las dos no se
-          // muestra.
-          2 + (showPendientes ? 1 : 0) + (showDeudasCard ? 1 : 0) >= 4
-            ? "sm:grid-cols-4"
-            : showPendientes || showDeudasCard
-              ? "sm:grid-cols-3"
-              : "sm:grid-cols-2",
+          // tarjetas visibles (Ingresos y Gastos son siempre fijas), para
+          // que nunca quede un hueco vacío si no se muestra.
+          showPendientes ? "sm:grid-cols-3" : "sm:grid-cols-2",
         )}
       >
         <FacturacionStatCard
@@ -12941,27 +12955,6 @@ function FacturacionPanel({
                 cobrosPendientesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
               });
             }}
-          />
-        )}
-        {/* "Deudas de clientes": distinto de "Cobros por confirmar" de
-            arriba — acá no hay nada que aprobar, es dinero que el cliente
-            todavía no pagó (suma de saldo de TODAS las ventas con
-            payments.status en pendiente/parcial, incluidas las de días
-            anteriores). Clic abre directo "Cobrar pendiente". Si no hay
-            ninguna deuda activa (total=0) la tarjeta se oculta del todo en
-            vez de mostrar "$0" — vuelve a aparecer sola apenas se registre
-            una venta con saldo. Mientras todavía está cargando tampoco se
-            muestra (ver showDeudasCard). No toca pendingDebtSummary.total
-            en sí, solo decide si la tarjeta se pinta. */}
-        {showDeudasCard && (
-          <FacturacionStatCard
-            icon={Clock}
-            iconClass="text-amber-400"
-            label="Deudas de clientes"
-            description="Saldo pendiente de cobro"
-            value={pendingDebtSummary.total}
-            loading={pendingDebtSummary.loading}
-            onClick={() => setShowCobrarPendiente(true)}
           />
         )}
         <FacturacionStatCard
