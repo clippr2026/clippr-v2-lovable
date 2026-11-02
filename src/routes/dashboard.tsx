@@ -464,7 +464,7 @@ function FichajeHoyCard({
           <ScanLine className="h-4 w-4 text-emerald-300" />
           Fichaje de jornada
         </div>
-        {needsPicker && (
+        {needsPicker && !branchId && (
           <select
             value={branchId ?? ""}
             onChange={(e) => setActiveBranchId(e.target.value)}
