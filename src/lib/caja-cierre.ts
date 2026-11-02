@@ -554,7 +554,7 @@ async function datesWithActivity(
 
   let expQuery = supabase
     .from("expenses")
-    .select("date")
+    .select("date,funds_source")
     .eq("business_id", businessId)
     .gte("date", oldest)
     .lte("date", newest);
@@ -569,7 +569,10 @@ async function datesWithActivity(
     // calendario de otro huso horario.
     if (row.created_at) active.add(cajaDateKeyBA(new Date(row.created_at)));
   }
-  for (const row of (expRes.data ?? []) as { date: string | null }[]) {
+  for (const row of (expRes.data ?? []) as { date: string | null; funds_source?: string | null }[]) {
+    // Un gasto de Fondos externos no mueve la caja: cargarlo con fecha de un
+    // día sin ventas ni cierre no puede convertir ese día en "caja pendiente".
+    if (row.funds_source === "otros") continue;
     if (row.date) active.add(String(row.date));
   }
   return active;
