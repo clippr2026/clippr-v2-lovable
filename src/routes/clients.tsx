@@ -47,6 +47,7 @@ import {
   type ClientStatus,
 } from "@/hooks/use-clients-data";
 import { useAuth } from "@/hooks/use-auth";
+import { DeudaClientesBanner } from "@/components/clients/deuda-clientes-banner";
 import { PAY_METHOD_LABEL, type PayMethod } from "@/components/cash-register/register-payment";
 import { cancelAppointment, checkOverlap, saveAppointment } from "@/components/agenda/use-agenda-data";
 import { computeRepeatDates, WEEKDAYS, type RepeatWeekday } from "@/lib/recurring-schedule";
@@ -1625,6 +1626,7 @@ function ClientsPage() {
               Mobile: VIP+Activos / Nuevos+Inactivos / Perdidos a pantalla
               completa (destacado, misma altura que el resto — ver StatCard
               featured). Desktop (sm+): sin cambios, grilla pareja de 5. */}
+          <DeudaClientesBanner />
           <div className="grid shrink-0 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             <StatCard
               label="VIP"
