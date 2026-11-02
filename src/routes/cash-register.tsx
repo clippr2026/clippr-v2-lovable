@@ -5978,7 +5978,7 @@ function ProfesionalesTab({
                 <div className="flex flex-col gap-2">
                   <UnifiedMovimientosHeader />
                   {withDayHeaders(unifiedMovimientos).map((item: any) => {
-                    if (item.kind === "dia") return <MovDayHeader key={`dia-${item.dayKey}`} dayKey={item.dayKey} />;
+                    if (item.kind === "dia") return <MovDayHeader key={`dia-${item.dayKey}`} dayKey={item.dayKey} presentismo={item.presentismo} />;
                     if (item.kind === "venta") {
                       return (
                         <VentaRow

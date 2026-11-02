@@ -2676,7 +2676,7 @@ function LiquidacionesPanelView({
           <div className="pt-1 text-base font-bold text-foreground">Movimientos recientes</div>
           <UnifiedMovimientosHeader />
           {withDayHeaders(unifiedMovimientos).map((item: any) => {
-            if (item.kind === "dia") return <MovDayHeader key={`dia-${item.dayKey}`} dayKey={item.dayKey} />;
+            if (item.kind === "dia") return <MovDayHeader key={`dia-${item.dayKey}`} dayKey={item.dayKey} presentismo={item.presentismo} />;
             if (item.kind === "venta") {
               return (
                 <VentaRow

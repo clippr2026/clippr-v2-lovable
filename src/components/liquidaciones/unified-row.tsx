@@ -663,29 +663,65 @@ function movDayLabel(dayKey: string): string {
   return `${weekday.charAt(0).toUpperCase()}${weekday.slice(1)} · ${date}${y !== todayKey.slice(0, 4) ? `/${y}` : ""}`;
 }
 
+type DayHeaderItem = { kind: "dia"; dayKey: string; presentismo: any | null };
+
 // Intercala un item { kind: "dia" } antes del primer movimiento de cada día
-// (la lista ya viene ordenada de más nuevo a más viejo).
-export function withDayHeaders<T extends { at?: unknown }>(items: T[]): Array<T | { kind: "dia"; dayKey: string }> {
-  const out: Array<T | { kind: "dia"; dayKey: string }> = [];
+// (la lista ya viene ordenada de más nuevo a más viejo). La puntualidad del
+// día NO es una fila aparte: se muestra en el encabezado del día, a la
+// derecha, y se saca de la lista de filas.
+export function withDayHeaders<T extends { at?: unknown; kind?: string; data?: any }>(
+  items: T[],
+): Array<T | DayHeaderItem> {
+  const presentismoPorDia = new Map<string, any>();
+  for (const item of items) {
+    if (item.kind !== "presentismo") continue;
+    const key = movDayKey(item.at);
+    if (key && !presentismoPorDia.has(key)) presentismoPorDia.set(key, item.data);
+  }
+  const out: Array<T | DayHeaderItem> = [];
   let prev: string | null = null;
   for (const item of items) {
     const key = movDayKey(item.at);
     if (key && key !== prev) {
-      out.push({ kind: "dia", dayKey: key });
+      out.push({ kind: "dia", dayKey: key, presentismo: presentismoPorDia.get(key) ?? null });
       prev = key;
     }
+    if (item.kind === "presentismo") continue;
     out.push(item);
   }
   return out;
 }
 
-export function MovDayHeader({ dayKey }: { dayKey: string }) {
+export function MovDayHeader({ dayKey, presentismo }: { dayKey: string; presentismo?: any | null }) {
+  const p = presentismo;
+  const amount = p ? Number(p.discountAmountApplied ?? 0) : 0;
+  const statusLabel = p ? (p.status === "a_tiempo" ? "A tiempo" : p.status === "tarde" ? "Tarde" : "Ausente") : "";
+  const montoText = amount > 0 ? `-${money(amount)}` : amount < 0 ? `+${money(-amount)}` : "";
+  const text = [statusLabel, montoText].filter(Boolean).join(" ");
+  const cls = amount > 0 || p?.status !== "a_tiempo" ? "text-rose-300" : "text-emerald-300";
+  const llegada = p?.effectiveClockInAt
+    ? new Date(p.effectiveClockInAt).toLocaleTimeString("es-AR", {
+        hour: "2-digit",
+        minute: "2-digit",
+        hour12: false,
+        timeZone: MOV_DAY_TZ,
+      })
+    : null;
   return (
-    <div className="flex items-center gap-3 px-1 pb-0.5 pt-3 first:pt-0">
-      <span className="shrink-0 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/45">
+    <div className="flex items-center gap-3 px-1 pb-1 pt-6">
+      <span className="shrink-0 rounded-full bg-white/[0.07] px-3 py-1 text-xs font-semibold text-white/80 ring-1 ring-white/10">
         {movDayLabel(dayKey)}
       </span>
-      <div className="h-px flex-1 bg-white/[0.08]" />
+      {p && (
+        <span className="flex shrink-0 items-center gap-1.5 text-xs">
+          <span className="text-white/45">
+            Puntualidad{llegada ? ` · ${llegada}hs` : ""}
+            {p.penaltyOverridden ? " (ajustado)" : ""}
+          </span>
+          <span className={cn("font-semibold", cls)}>{text}</span>
+        </span>
+      )}
+      <div className="h-px flex-1 bg-white/[0.12]" />
     </div>
   );
 }
@@ -787,9 +823,9 @@ export function MovRow({
       className={cn(
         "overflow-hidden rounded-2xl border",
         redStripe
-          ? "border-rose-900/50 border-l-2 border-l-rose-500 bg-[linear-gradient(135deg,rgba(244,63,94,0.13),rgba(20,7,9,0.94),rgba(10,3,4,0.96))]"
+          ? "border-rose-900/30 border-l-2 border-l-rose-500/55 bg-[linear-gradient(135deg,rgba(244,63,94,0.06),rgba(14,8,10,0.94),rgba(10,5,6,0.96))]"
           : skyStripe
-            ? "border-sky-900/50 border-l-2 border-l-sky-400 bg-[linear-gradient(135deg,rgba(56,189,248,0.13),rgba(5,16,24,0.94),rgba(3,10,16,0.96))]"
+            ? "border-sky-900/30 border-l-2 border-l-sky-400/55 bg-[linear-gradient(135deg,rgba(56,189,248,0.06),rgba(8,13,18,0.94),rgba(6,10,14,0.96))]"
             : "border-white/[0.14] bg-white/[0.05] shadow-[0_2px_10px_-2px_rgba(0,0,0,0.5)] sm:border-white/[0.07] sm:bg-black/18 sm:shadow-none",
       )}
     >
