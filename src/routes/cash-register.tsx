@@ -5002,7 +5002,12 @@ function ProfesionalesTab({
         const periodStart = (lastRun as any)?.prepared_at
           ? String((lastRun as any).prepared_at).slice(0, 10)
           : "2000-01-01";
-        const cutoffDateStr = liquidarCutoffAt.toISOString().slice(0, 10);
+        // Fecha del corte en hora de Argentina (igual que el RPC): con
+        // toISOString() el corte de las 23:59 del 01/11 daba 02/11 (UTC) y
+        // marcaba como pendiente una caja que quedaba fuera del período.
+        const cutoffDateStr = liquidarCutoffAt.toLocaleDateString("sv-SE", {
+          timeZone: "America/Argentina/Buenos_Aires",
+        });
         const pendientes = await getPendingCierresInPeriod(
           businessId,
           (employeeRow as any)?.branch_id ?? null,
