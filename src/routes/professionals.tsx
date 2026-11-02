@@ -2684,7 +2684,7 @@ function LiquidacionesPanelView({
               );
             }
             const dateTime = item.at
-              ? `${new Date(item.at).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })} · ${new Date(item.at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}`
+              ? `${new Date(item.at).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })} · ${new Date(item.at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}hs`
               : "—";
 
             if (item.kind === "adelanto") {
@@ -2810,11 +2810,14 @@ function LiquidacionesPanelView({
                 p.status === "a_tiempo" ? "A tiempo" : p.status === "tarde" ? "Tarde" : "Ausente";
               const amount = p.discountAmountApplied;
               const presentismoText =
-                amount === 0 ? money(0) : amount > 0 ? `-${money(amount)}` : `+${money(-amount)}`;
+                p.status === "a_tiempo" && amount === 0
+                  ? "A tiempo"
+                  : amount === 0
+                    ? money(0)
+                    : amount > 0
+                      ? `-${money(amount)}`
+                      : `+${money(-amount)}`;
               const presentismoClass = amount > 0 ? "text-rose-300" : "text-emerald-300";
-              const llegada = p.effectiveClockInAt
-                ? new Date(p.effectiveClockInAt).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })
-                : "—";
               return (
                 <MovRow
                   key={`presentismo-${p.id}`}
@@ -2823,8 +2826,9 @@ function LiquidacionesPanelView({
                   precioText="—"
                   presentismoText={presentismoText}
                   presentismoClass={presentismoClass}
-                  detalle={`Llegó ${llegada} · Confirmado por ${displayResponsable(p.confirmedByName)}`}
-                  onToggle={() => openPresentismoDetalle(p)}
+                  skyStripe
+                  detalle=""
+                  clickable={false}
                 />
               );
             }

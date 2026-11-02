@@ -1626,7 +1626,6 @@ function ClientsPage() {
               Mobile: VIP+Activos / Nuevos+Inactivos / Perdidos a pantalla
               completa (destacado, misma altura que el resto — ver StatCard
               featured). Desktop (sm+): sin cambios, grilla pareja de 5. */}
-          <DeudaClientesBanner />
           <div className="grid shrink-0 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
             <StatCard
               label="VIP"
@@ -1687,7 +1686,8 @@ function ClientsPage() {
               className="col-span-2 sm:col-span-1"
             />
           </div>
-          <div className="flex shrink-0 flex-wrap justify-end gap-2">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+            <DeudaClientesBanner />
             <button
               onClick={() => setAcquisitionModalOpen(true)}
               className="h-10 flex-1 sm:flex-none px-4 rounded-xl text-sm font-medium flex items-center justify-center gap-2 bg-white/5 ring-1 ring-white/10 hover:bg-white/10 transition"

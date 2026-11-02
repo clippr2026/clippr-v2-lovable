@@ -656,6 +656,7 @@ export function MovRow({
   detalle,
   note,
   redStripe = false,
+  skyStripe = false,
   expanded,
   onToggle,
   detail,
@@ -686,6 +687,9 @@ export function MovRow({
   // despliega al tocarlo (colapsado por defecto, no deforma la fila).
   note?: string | null;
   redStripe?: boolean;
+  // Banner celeste — fila de Puntualidad (mismo recurso que redStripe del
+  // adelanto, otro color para distinguirlas de un vistazo).
+  skyStripe?: boolean;
   expanded?: boolean;
   onToggle?: () => void;
   detail?: React.ReactNode;
@@ -732,7 +736,9 @@ export function MovRow({
         "overflow-hidden rounded-2xl border",
         redStripe
           ? "border-rose-900/50 border-l-2 border-l-rose-500 bg-[linear-gradient(135deg,rgba(244,63,94,0.13),rgba(20,7,9,0.94),rgba(10,3,4,0.96))]"
-          : "border-white/[0.14] bg-white/[0.05] shadow-[0_2px_10px_-2px_rgba(0,0,0,0.5)] sm:border-white/[0.07] sm:bg-black/18 sm:shadow-none",
+          : skyStripe
+            ? "border-sky-900/50 border-l-2 border-l-sky-400 bg-[linear-gradient(135deg,rgba(56,189,248,0.13),rgba(5,16,24,0.94),rgba(3,10,16,0.96))]"
+            : "border-white/[0.14] bg-white/[0.05] shadow-[0_2px_10px_-2px_rgba(0,0,0,0.5)] sm:border-white/[0.07] sm:bg-black/18 sm:shadow-none",
       )}
     >
       {/* Desktop */}
