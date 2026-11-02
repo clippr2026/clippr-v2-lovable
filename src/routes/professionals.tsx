@@ -2809,21 +2809,25 @@ function LiquidacionesPanelView({
               const statusLabel =
                 p.status === "a_tiempo" ? "A tiempo" : p.status === "tarde" ? "Tarde" : "Ausente";
               const amount = p.discountAmountApplied;
+              const montoText = amount > 0 ? `-${money(amount)}` : amount < 0 ? `+${money(-amount)}` : "";
               const presentismoText =
                 p.status === "a_tiempo" && amount === 0
                   ? "A tiempo"
-                  : amount === 0
-                    ? money(0)
-                    : amount > 0
-                      ? `-${money(amount)}`
-                      : `+${money(-amount)}`;
-              const presentismoClass = amount > 0 ? "text-rose-300" : "text-emerald-300";
+                  : [statusLabel, montoText].filter(Boolean).join(" ");
+              const presentismoClass =
+                amount > 0
+                  ? "text-rose-300"
+                  : p.status === "a_tiempo" || amount < 0
+                    ? "text-emerald-300"
+                    : "text-amber-300";
               return (
                 <MovRow
                   key={`presentismo-${p.id}`}
                   dateTime={dateTime}
-                  concepto={`Puntualidad · ${statusLabel}${p.penaltyOverridden ? " (ajustado)" : ""}`}
-                  precioText="—"
+                  concepto={`Puntualidad${p.penaltyOverridden ? " (ajustado)" : ""}`}
+                  cliente=""
+                  precioText=""
+                  emptyFiller=""
                   presentismoText={presentismoText}
                   presentismoClass={presentismoClass}
                   skyStripe
