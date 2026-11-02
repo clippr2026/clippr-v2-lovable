@@ -328,7 +328,6 @@ function CollectForm({
   const [amountStr, setAmountStr] = React.useState(String(Math.round(saldo)));
   const [method, setMethod] = React.useState<PayMethod>("cash");
   const [observations, setObservations] = React.useState("");
-  const [reference, setReference] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
   const idempotencyKeyRef = React.useRef<string>(crypto.randomUUID());
 
@@ -355,7 +354,7 @@ function CollectForm({
         collectedBy,
         collectedByName,
         observations: observations.trim() || null,
-        receiptPath: reference.trim() || null,
+        receiptPath: null,
         idempotencyKey: idempotencyKeyRef.current,
       });
       toast.success(
@@ -451,25 +450,14 @@ function CollectForm({
         </div>
       </div>
 
-      <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-        <div>
-          <label className="text-[11px] text-white/50">Referencia / comprobante (opcional)</label>
-          <input
-            value={reference}
-            onChange={(e) => setReference(e.target.value)}
-            placeholder="Nº operación, etc."
-            className="mt-1 w-full rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white outline-none focus:border-blue-300/40"
-          />
-        </div>
-        <div>
-          <label className="text-[11px] text-white/50">Observación (opcional)</label>
-          <input
-            value={observations}
-            onChange={(e) => setObservations(e.target.value)}
-            placeholder="Nota interna"
-            className="mt-1 w-full rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white outline-none focus:border-blue-300/40"
-          />
-        </div>
+      <div>
+        <label className="text-[11px] text-white/50">Observación (opcional)</label>
+        <input
+          value={observations}
+          onChange={(e) => setObservations(e.target.value)}
+          placeholder="Nota interna"
+          className="mt-1 w-full rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white outline-none focus:border-blue-300/40"
+        />
       </div>
 
       <button
