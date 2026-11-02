@@ -5176,6 +5176,10 @@ function ProfesionalesTab({
       );
       resetAdelantoForm();
       setCommissionsVersion((v) => v + 1);
+      // El adelanto de "Caja del día" descuenta del efectivo/dinero en
+      // cuenta y aparece en Movimientos: sin este refresh() había que
+      // recargar la página para verlo en Resumen.
+      void data.refresh("adelanto registrado");
     } catch (e) {
       toast.error(friendlyRpcError(e, "No pudimos registrar el adelanto. Intentá nuevamente."));
     } finally {

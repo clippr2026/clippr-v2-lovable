@@ -549,6 +549,11 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
         () => void requestReload("realtime business_settings"),
       )
       .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "professional_advances", filter: `business_id=eq.${businessId}` },
+        () => void requestReload("realtime professional_advances"),
+      )
+      .on(
         // Si otro dispositivo confirma (o reabre) un cierre, el aviso
         // "Caja vencida"/pendingCierres de ESTE dispositivo tiene que
         // actualizarse solo — el CustomEvent que dispara closeSingleDayCierre
