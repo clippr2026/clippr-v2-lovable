@@ -3839,7 +3839,7 @@ function ProfesionalesTab({
     source: AdvanceFundsSource | "";
   }>({
     amount: "",
-    method: "efectivo",
+    method: "",
     note: "",
     source: "externo",
   });
@@ -3847,7 +3847,7 @@ function ProfesionalesTab({
 
   function resetAdelantoForm() {
     setAdelantoModalOpen(false);
-    setAdelantoForm({ amount: "", method: "efectivo", note: "", source: "externo" });
+    setAdelantoForm({ amount: "", method: "", note: "", source: "externo" });
   }
 
   const [deletingAdvanceId, setDeletingAdvanceId] = React.useState<string | null>(null);
@@ -5143,6 +5143,10 @@ function ProfesionalesTab({
       toast.error("Elegí el origen del adelanto");
       return;
     }
+    if (adelantoForm.method !== "efectivo" && adelantoForm.method !== "transferencia") {
+      toast.error("Elegí el medio de pago: efectivo o transferencia");
+      return;
+    }
     if (adelantoForm.source === "caja" && cajaCerrada) {
       toast.error("La caja del día está cerrada: el adelanto solo puede salir de fondos externos");
       return;
@@ -6273,6 +6277,7 @@ function ProfesionalesTab({
                 !Number.isFinite(Number(adelantoForm.amount)) ||
                 Number(adelantoForm.amount) <= 0 ||
                 adelantoForm.source === "" ||
+                adelantoForm.method === "" ||
                 (adelantoForm.source === "caja" && cajaCerrada)
               }
               className="w-full rounded-2xl bg-rose-500 px-4 py-3 text-sm font-bold text-white shadow-[0_0_35px_rgba(244,63,94,0.28)] transition hover:brightness-110 disabled:opacity-60"
@@ -6331,12 +6336,15 @@ function ProfesionalesTab({
               )}
             </div>
             <label className="space-y-1.5 text-xs font-semibold text-white/55">
-              {adelantoForm.source === "caja" ? "Medio de pago" : "Medio de pago (solo informativo)"}
+              Medio de pago
               <select
                 value={adelantoForm.method}
                 onChange={(event) => setAdelantoForm((form) => ({ ...form, method: event.target.value }))}
                 className="h-11 w-full rounded-2xl border border-white/[0.08] bg-black/30 px-3 text-base text-white outline-none focus:border-amber-300/35"
               >
+                <option value="" disabled>
+                  Elegí un medio…
+                </option>
                 <option value="efectivo">Efectivo</option>
                 <option value="transferencia">Transferencia</option>
               </select>
