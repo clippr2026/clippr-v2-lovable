@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useClientsData, type Client } from "@/hooks/use-clients-data";
 import { useAdvisorAnalytics } from "@/hooks/use-advisor-analytics";
+import { RendimientoMensual } from "@/components/advisor/rendimiento-mensual";
 import { useAiRecommendations, type RecommendationAchievement, type UseAiRecommendationsResult } from "@/hooks/use-ai-recommendations";
 import { MEASURABLE_CHANNELS } from "@/lib/acquisition-channels";
 import { AcquisitionChannelIcon } from "@/components/acquisition-channel-icon";
@@ -636,114 +637,12 @@ function AdvisorContent({
               </span>
               <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
             </div>
-            <GlassCard className="p-3 sm:p-5 space-y-2.5 sm:space-y-3 border border-sky-300/[0.32] bg-white/[0.052] shadow-[0_0_0_1px_rgba(56,189,248,0.16),0_35px_125px_-40px_rgba(14,165,233,1)]">
-              <h2 className="font-display text-xl sm:text-2xl font-bold tracking-tight">
-                Resultados del período
-              </h2>
-
-              {/* Bloque superior: crecimiento real de facturación */}
-              <div className="relative flex items-center gap-3 rounded-2xl border border-white/[0.12] bg-white/[0.035] px-3 py-2.5 sm:gap-4 sm:px-4 sm:py-3">
-                {/* Icono izquierda */}
-                <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-sky-400/12 ring-1 ring-sky-300/25 sm:h-10 sm:w-10">
-                  <TrendingUp className="h-4 w-4 text-sky-300 sm:h-5 sm:w-5" />
-                </div>
-                {/* Textos */}
-                <div className="flex-1 min-w-0">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">
-                    Crecimiento mensual
-                  </div>
-                  <div className="flex items-baseline gap-3 mt-1 flex-wrap">
-                    {(() => {
-                      const growth =
-                        analytics.current && analytics.previous?.hasData
-                          ? pctDelta(analytics.current.revenue, analytics.previous.revenue)
-                          : null;
-                      return growth == null ? (
-                        <span className="font-display text-2xl font-bold text-white/40">
-                          Sin datos del mes anterior todavía
-                        </span>
-                      ) : (
-                        <>
-                          <span className="font-display text-3xl font-bold text-sky-300 leading-none sm:text-4xl">
-                            {growth >= 0 ? "+" : ""}
-                            {growth}%
-                          </span>
-                          <span className="text-sm text-muted-foreground">vs mes anterior</span>
-                        </>
-                      );
-                    })()}
-                  </div>
-                </div>
-              </div>
-
-              {/* Etiqueta IMPULSADOS POR */}
-              <div className="flex flex-col items-center gap-0.5 text-center">
-                <div className="text-xs font-bold uppercase tracking-[0.25em] text-muted-foreground">
-                  Impulsados por
-                </div>
-                <div className="text-muted-foreground text-base leading-none">↓</div>
-              </div>
-
-              {/* 3 tarjetas: Clientes / Ticket / Ocupación */}
-              <div className="grid gap-2 sm:gap-2.5 md:grid-cols-3">
-                {/* Clientes atendidos */}
-                <div className="rounded-2xl border border-white/[0.12] bg-white/[0.035] p-2.5 flex flex-col gap-1.5 sm:p-3 sm:gap-2">
-                  <div className="grid h-8 w-8 place-items-center rounded-xl bg-violet-400/10 ring-1 ring-violet-400/20 sm:h-9 sm:w-9">
-                    <Users className="h-4 w-4 text-violet-400" />
-                  </div>
-                  <div>
-                    <div className="text-sm text-muted-foreground">Clientes atendidos</div>
-                    <div className="font-display text-2xl font-bold text-violet-300 mt-1 leading-none sm:text-3xl">
-                      {Math.round((analytics.current?.clientsServed ?? 0) * animationProgress)}
-                    </div>
-                  </div>
-                  <div className="rounded-xl bg-violet-400/10 px-2.5 py-1 sm:px-3 sm:py-1.5">
-                    {(() => {
-                      const g =
-                        analytics.current && analytics.previous?.hasData
-                          ? pctDelta(analytics.current.clientsServed, analytics.previous.clientsServed)
-                          : null;
-                      return (
-                        <>
-                          <div className="text-sm font-bold text-violet-300">
-                            {g == null ? "—" : `${g >= 0 ? "+" : ""}${g}%`}
-                          </div>
-                          <div className="text-xs text-muted-foreground">vs mes anterior</div>
-                        </>
-                      );
-                    })()}
-                  </div>
-                </div>
-
-                {/* Ticket promedio */}
-                <div className="rounded-2xl border border-white/[0.12] bg-white/[0.035] p-2.5 flex flex-col gap-1.5 sm:p-3 sm:gap-2">
-                  <div className="grid h-8 w-8 place-items-center rounded-xl bg-sky-400/10 ring-1 ring-sky-400/20 sm:h-9 sm:w-9">
-                    <DollarSign className="h-4 w-4 text-sky-400" />
-                  </div>
-                  <div>
-                    <div className="text-sm text-muted-foreground">Ticket promedio</div>
-                    <div className="font-display text-xl font-bold text-sky-300 mt-1 leading-none sm:text-2xl">
-                      {fmtAR(Math.round((analytics.current?.ticket ?? 0) * animationProgress))}
-                    </div>
-                  </div>
-                  <div className="rounded-xl bg-sky-400/10 px-2.5 py-1 sm:px-3 sm:py-1.5">
-                    {(() => {
-                      const g =
-                        analytics.current && analytics.previous?.hasData
-                          ? pctDelta(analytics.current.ticket, analytics.previous.ticket)
-                          : null;
-                      return (
-                        <>
-                          <div className="text-sm font-bold text-sky-300">
-                            {g == null ? "—" : `${g >= 0 ? "+" : ""}${g}%`}
-                          </div>
-                          <div className="text-xs text-muted-foreground">vs mes anterior</div>
-                        </>
-                      );
-                    })()}
-                  </div>
-                </div>
-
+            <div className="px-0.5 pb-1 pt-1 sm:px-1">
+              <RendimientoMensual />
+            </div>
+            <div className="px-0.5 pb-1 pt-3 sm:px-1">
+              <GlassCard className="mx-auto max-w-5xl p-3 sm:p-4">
+                <div className="grid gap-2 sm:gap-2.5 md:grid-cols-3">
                 {/* Ocupación */}
                 <div className="rounded-2xl border border-white/[0.12] bg-white/[0.035] p-2.5 flex flex-col gap-1.5 sm:p-3 sm:gap-2">
                   <div className="grid h-8 w-8 place-items-center rounded-xl bg-orange-400/10 ring-1 ring-orange-400/20 sm:h-9 sm:w-9">
@@ -754,22 +653,6 @@ function AdvisorContent({
                     <div className="font-display text-2xl font-bold text-orange-300 mt-1 leading-none sm:text-3xl">
                       {Math.round((analytics.current?.occupancy ?? 0) * animationProgress)}%
                     </div>
-                  </div>
-                  <div className="rounded-xl bg-orange-400/10 px-2.5 py-1 sm:px-3 sm:py-1.5">
-                    {(() => {
-                      const g =
-                        analytics.current && analytics.previous?.hasData
-                          ? pctDelta(analytics.current.occupancy, analytics.previous.occupancy)
-                          : null;
-                      return (
-                        <>
-                          <div className="text-sm font-bold text-orange-300">
-                            {g == null ? "—" : `${g >= 0 ? "+" : ""}${g}%`}
-                          </div>
-                          <div className="text-xs text-muted-foreground">vs mes anterior</div>
-                        </>
-                      );
-                    })()}
                   </div>
                   {analytics.freeSlotsMonth > 0 && (
                     <div className="rounded-xl border border-orange-300/15 bg-orange-300/[0.05] px-2.5 py-1 text-[11px] sm:px-3 sm:py-1.5">
@@ -782,47 +665,9 @@ function AdvisorContent({
                     </div>
                   )}
                 </div>
-              </div>
-
-              {/* Etiqueta GENERARON MÁS */}
-              <div className="flex flex-col items-center gap-0.5 text-center">
-                <div className="text-xs font-bold uppercase tracking-[0.25em] text-muted-foreground">
-                  Generaron más
                 </div>
-                <div className="text-muted-foreground text-base leading-none">↓</div>
-              </div>
-
-              {/* Bloque Utilidad */}
-              <div className="relative overflow-hidden rounded-2xl border border-emerald-400/25 bg-emerald-400/[0.08] px-3.5 py-2.5 flex items-center justify-between gap-3 sm:px-5 sm:py-3.5 sm:gap-4">
-                {/* Left */}
-                <div className="z-10">
-                  <div className="flex items-center gap-2 sm:gap-3">
-                    <div className="grid h-8 w-8 place-items-center rounded-2xl bg-emerald-400/15 ring-1 ring-emerald-400/25 sm:h-9 sm:w-9">
-                      <DollarSign className="h-4 w-4 text-emerald-400 sm:h-5 sm:w-5" />
-                    </div>
-                    <div className="text-sm font-bold uppercase tracking-[0.2em] text-emerald-300">
-                      Utilidad
-                    </div>
-                    {(() => {
-                      const g =
-                        analytics.current && analytics.previous?.hasData
-                          ? pctDelta(analytics.current.profit, analytics.previous.profit)
-                          : null;
-                      if (g == null) return null;
-                      return (
-                        <span className="rounded-lg bg-emerald-400/15 px-2.5 py-1 text-xs font-bold text-emerald-300 ring-1 ring-emerald-400/25">
-                          {g >= 0 ? "+" : ""}
-                          {g}%
-                        </span>
-                      );
-                    })()}
-                  </div>
-                  <div className="font-display text-2xl sm:text-4xl font-bold text-emerald-300 mt-1.5 sm:mt-2 leading-none">
-                    {analytics.current ? fmtAR(animatedProfit) : "—"}
-                  </div>
-                </div>
-              </div>
-            </GlassCard>
+              </GlassCard>
+            </div>
           </div>
           {/* /Evolución */}
 
