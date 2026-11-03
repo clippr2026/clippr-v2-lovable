@@ -24,11 +24,23 @@ export function DeudaClientesBanner() {
     if (!open || !businessId) return;
     let cancelled = false;
     void (async () => {
+      // employees no tiene columna `name`: el nombre está en `full_name`. Pedir `name` fallaba
+      // en silencio, la lista quedaba vacía y la venta salía sin profesional ("—").
       const { data } = await supabase
-        .from("employees" as any)
-        .select("id, name")
+        .from("employees")
+        .select("id, full_name, avatar_url")
         .eq("business_id", businessId);
-      if (!cancelled) setEmployees(((data ?? []) as unknown) as Employee[]);
+      if (cancelled) return;
+      setEmployees(
+        ((data ?? []) as any[]).map((e) => ({
+          id: e.id as string,
+          name: (e.full_name as string | null) || "Profesional",
+          avatar_url: (e.avatar_url as string | null) ?? null,
+          commission_pct: null,
+          commission_fixed: null,
+          commission_enabled: true,
+        })),
+      );
     })();
     return () => {
       cancelled = true;
