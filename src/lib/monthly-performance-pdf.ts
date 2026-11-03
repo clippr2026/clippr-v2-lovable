@@ -12,6 +12,7 @@ const METHOD_LABEL: Record<string, string> = {
   mp: "Mercado Pago",
   qr: "QR",
   cuenta: "Cuenta",
+  sin_cobrar: "Sin cobrar",
 };
 export const methodLabel = (key: string) =>
   METHOD_LABEL[key] ?? `${key.charAt(0).toUpperCase()}${key.slice(1)}`;
@@ -83,7 +84,7 @@ export function buildMonthlyPerformanceHtml(
   <div class="kpi"><div class="l">Facturación</div><div class="v">${money(perf.facturacion)}</div><div class="muted">${esc(deltaText(perf.facturacion, prev?.hasData ? prev.facturacion : null))}</div></div>
   <div class="kpi"><div class="l">Gastos</div><div class="v">${money(perf.gastosTotal)}</div></div>
   <div class="kpi"><div class="l">Pago a profesionales</div><div class="v">${money(perf.pagoProfesionales)}</div><div class="muted">Comisiones ${money(perf.comisiones)}</div></div>
-  <div class="kpi"><div class="l">Ventas cobradas</div><div class="v">${perf.ventas}</div><div class="muted">${esc(deltaText(perf.ventas, prev?.hasData ? prev.ventas : null))}</div></div>
+  <div class="kpi"><div class="l">Ventas</div><div class="v">${perf.ventas}</div><div class="muted">${esc(deltaText(perf.ventas, prev?.hasData ? prev.ventas : null))}</div></div>
   <div class="kpi"><div class="l">Ticket promedio</div><div class="v">${money(perf.ticket)}</div></div>
   <div class="kpi"><div class="l">Clientes atendidos</div><div class="v">${perf.clientes}</div></div>
 </div>
@@ -92,8 +93,8 @@ export function buildMonthlyPerformanceHtml(
 <h2>Gastos por tipo</h2><table>${gastos || row("Sin gastos", "—")}</table>
 <h2>Por profesional</h2>
 <table><tr><th>Profesional</th><th class="r">Facturación</th><th class="r">Ventas</th><th class="r">Comisión</th><th class="r">Tardes</th><th class="r">Ausencias</th><th class="r">Desc. puntualidad</th></tr>${profesionales || row("Sin datos", "—")}</table>
-${perf.pendienteDeCobro > 0 ? `<div class="note">Hay ${money(perf.pendienteDeCobro)} en ventas de este mes todavía sin cobrar: no están incluidas en la facturación.</div>` : ""}
-<div class="note">La facturación cuenta solo lo efectivamente cobrado (ventas pendientes y anuladas quedan afuera). Los gastos incluyen Caja del día y Fondos externos. El pago a profesionales son las comisiones de las ventas cobradas del mes, neto de los descuentos de puntualidad. La facturación incluye los consumos de profesionales (productos retirados del inventario y anotados como adelanto), que cuentan en el mes del retiro aunque se descuenten después en la liquidación. Las propinas no se incluyen en la facturación.</div>
+${perf.pendienteDeCobro > 0 ? `<div class="note">La facturación incluye ${money(perf.pendienteDeCobro)} de ventas de este mes todavía sin cobrar.</div>` : ""}
+<div class="note">La facturación cuenta lo vendido en el mes en que se hizo el servicio, aunque se cobre después (las ventas anuladas quedan afuera). Los gastos incluyen Caja del día y Fondos externos. El pago a profesionales son las comisiones de las ventas cobradas del mes, neto de los descuentos de puntualidad. La facturación incluye los consumos de profesionales (productos retirados del inventario y anotados como adelanto), que cuentan en el mes del retiro aunque se descuenten después en la liquidación. Las propinas no se incluyen en la facturación.</div>
 </body></html>`;
 }
 

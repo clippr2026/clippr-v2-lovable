@@ -1,7 +1,8 @@
 // Rendimiento mensual del negocio — Asesor IA → Rendimiento.
 //
-// Misma regla que Caja: una venta pendiente/parcial NO suma su total (solo lo
-// que se cobró, vía payment_collections), una anulada/reembolsada nunca suma,
+// La facturación cuenta por el mes en que se HIZO el servicio (devengado): una venta
+// pendiente/parcial entra completa en el mes de la venta, aunque se cobre después, y
+// ese cobro posterior no se vuelve a sumar en otro mes. Una anulada/reembolsada nunca suma,
 // y los gastos cuentan TODOS (Caja del día y Fondos externos), porque la
 // ganancia del mes es plata que realmente se gastó. Lo que se le paga a los
 // profesionales (comisiones de las ventas cobradas, neto de los descuentos o
@@ -54,10 +55,9 @@ export type MonthlyAttendanceRow = {
 
 export type MonthlyRawData = {
   payments: MonthlyPaymentRow[];
+  // Cobros (payment_collections) de las ventas pendientes/parcial DEL MES, se hayan
+  // cobrado cuando se hayan cobrado.
   collections: MonthlyCollectionRow[];
-  // Pagos a los que pertenece un cobro del mes pero que son de otro mes
-  // (para saber de qué profesional es esa plata).
-  collectionPayments: { id: string; employee_id: string | null }[];
   expenses: MonthlyExpenseRow[];
   commissions: MonthlyCommissionRow[];
   attendance: MonthlyAttendanceRow[];
@@ -79,10 +79,10 @@ export type MonthlyProfessional = {
 
 export type MonthlyPerformance = {
   monthKey: string;
-  // Facturación = lo cobrado + los consumos de profesionales. Las propinas NO entran
+  // Facturación = lo vendido en el mes (cobrado o no) + los consumos de profesionales. Las propinas NO entran
   // (son plata del cliente para el profesional, igual que en el total cobrado de Caja).
   facturacion: number;
-  // Solo lo efectivamente cobrado (ventas cobradas + cobros de pendientes).
+  // Cuánto de lo vendido en el mes ya se cobró.
   cobrado: number;
   ventas: number;
   ticket: number;
@@ -108,6 +108,17 @@ export type MonthlyPerformance = {
   pendienteDeCobro: number;
   hasData: boolean;
 };
+
+// Carga + cálculo de UN mes. La usan el Rendimiento mensual y el resto del Asesor IA
+// (Salud del negocio, informes mensuales), así todos muestran los mismos números.
+export async function loadMonthlyPerformance(
+  businessId: string,
+  branchId: string | null,
+  monthKey: string,
+): Promise<MonthlyPerformance> {
+  const raw = await fetchMonthlyRawData(businessId, branchId, monthKey);
+  return computeMonthlyPerformance(monthKey, raw);
+}
 
 export function monthBounds(monthKey: string): { start: Date; end: Date; firstDay: string; lastDay: string } {
   const [y, m] = monthKey.split("-").map(Number);
@@ -136,19 +147,26 @@ const EXPENSE_TYPE_LABEL: Record<string, string> = {
 };
 
 export function computeMonthlyPerformance(monthKey: string, raw: MonthlyRawData): MonthlyPerformance {
-  const countable = raw.payments.filter((p) => isCountableCajaPayment(p.status));
-  const pendientes = raw.payments.filter((p) => p.status === "pendiente" || p.status === "parcial");
+  // Todas las ventas del mes salvo las anuladas/reembolsadas.
+  const ventasMes = raw.payments.filter((p) => p.status !== "anulado" && p.status !== "reembolsado");
+  const countable = ventasMes.filter((p) => isCountableCajaPayment(p.status));
+  const pendientes = ventasMes.filter((p) => !isCountableCajaPayment(p.status));
+  const pendienteIds = new Set(pendientes.map((p) => p.id));
 
   const paymentTotal = (p: MonthlyPaymentRow) => Number(p.total ?? p.amount ?? 0);
+  const ventasTotal = ventasMes.reduce((s, p) => s + paymentTotal(p), 0);
   const cobradoPagos = countable.reduce((s, p) => s + paymentTotal(p), 0);
-  const cobradoCobranzas = raw.collections.reduce((s, c) => s + Number(c.amount ?? 0), 0);
+  // Solo los cobros de ventas pendientes/parcial de este mes (nunca de ventas de otro mes).
+  const cobros = raw.collections.filter((c) => c.payment_id && pendienteIds.has(c.payment_id));
+  const cobradoCobranzas = cobros.reduce((s, c) => s + Number(c.amount ?? 0), 0);
   const cobrado = cobradoPagos + cobradoCobranzas;
-  const ventas = countable.length;
-  const ticket = ventas > 0 ? Math.round(cobradoPagos / ventas) : 0;
+  const sinCobrar = Math.max(0, ventasTotal - cobrado);
+  const ventas = ventasMes.length;
+  const ticket = ventas > 0 ? Math.round(ventasTotal / ventas) : 0;
   const propinas = countable.reduce((s, p) => s + Number(p.tip_amount ?? 0), 0);
 
   const clientesSet = new Set<string>();
-  for (const p of countable) {
+  for (const p of ventasMes) {
     const key = p.client_id || p.client_name?.trim().toLowerCase();
     if (key) clientesSet.add(String(key));
   }
@@ -177,17 +195,15 @@ export function computeMonthlyPerformance(monthKey: string, raw: MonthlyRawData)
     );
     for (const [key, v] of Object.entries(dist)) metodosMap.set(key, (metodosMap.get(key) ?? 0) + v.monto);
   }
-  for (const c of raw.collections) {
+  for (const c of cobros) {
     const dist = distributeCobroByMethod(Number(c.amount ?? 0), 0, c.method, null);
     for (const [key, v] of Object.entries(dist)) metodosMap.set(key, (metodosMap.get(key) ?? 0) + v.monto);
   }
+  // Lo vendido y todavía no cobrado va aparte, para que los medios sumen la facturación de ventas.
+  if (sinCobrar > 0) metodosMap.set("sin_cobrar", sinCobrar);
 
   // Por profesional.
   const nombre = new Map(raw.employees.map((e) => [e.id, e.full_name || "Profesional"]));
-  const pagoEmpleado = new Map<string, string | null>();
-  for (const p of raw.payments) pagoEmpleado.set(p.id, p.employee_id);
-  for (const p of raw.collectionPayments) if (!pagoEmpleado.has(p.id)) pagoEmpleado.set(p.id, p.employee_id);
-
   const pro = new Map<string, MonthlyProfessional>();
   const proOf = (id: string): MonthlyProfessional => {
     let row = pro.get(id);
@@ -206,22 +222,18 @@ export function computeMonthlyPerformance(monthKey: string, raw: MonthlyRawData)
     }
     return row;
   };
-  for (const p of countable) {
+  for (const p of ventasMes) {
     if (!p.employee_id) continue;
     const r = proOf(p.employee_id);
     r.facturacion += paymentTotal(p);
     r.ventas += 1;
   }
-  for (const c of raw.collections) {
-    const empId = c.payment_id ? pagoEmpleado.get(c.payment_id) : null;
-    if (empId) proOf(empId).facturacion += Number(c.amount ?? 0);
-  }
 
-  // Comisión: solo de las ventas cobradas del mes (la misma base que la facturación).
-  const countableIds = new Set(countable.map((p) => p.id));
+  // Comisión: de las ventas del mes (la misma base que la facturación).
+  const ventaIds = new Set(ventasMes.map((p) => p.id));
   let comisiones = 0;
   for (const c of raw.commissions) {
-    if (!c.sale_id || !countableIds.has(c.sale_id) || !c.professional_id) continue;
+    if (!c.sale_id || !ventaIds.has(c.sale_id) || !c.professional_id) continue;
     const amount = Number(c.amount ?? 0);
     comisiones += amount;
     proOf(c.professional_id).comision += amount;
@@ -237,11 +249,11 @@ export function computeMonthlyPerformance(monthKey: string, raw: MonthlyRawData)
   const descuentoPuntualidad = raw.attendance.reduce((s, a) => s + Number(a.discount_amount_applied ?? 0), 0);
   const pagoProfesionales = comisiones - descuentoPuntualidad;
   const consumosProfesionales = raw.consumos.reduce((s, c) => s + Number(c.amount ?? 0), 0);
-  const facturacion = cobrado + consumosProfesionales;
+  const facturacion = ventasTotal + consumosProfesionales;
   const ganancia = facturacion - gastosTotal - pagoProfesionales;
   const margen = facturacion > 0 ? (ganancia / facturacion) * 100 : null;
 
-  const pendienteDeCobro = pendientes.reduce((s, p) => s + paymentTotal(p), 0);
+  const pendienteDeCobro = sinCobrar;
 
   return {
     monthKey,
@@ -265,7 +277,7 @@ export function computeMonthlyPerformance(monthKey: string, raw: MonthlyRawData)
     metodos: [...metodosMap.entries()].map(([key, monto]) => ({ key, monto })).sort((a, b) => b.monto - a.monto),
     profesionales: [...pro.values()].sort((a, b) => b.facturacion - a.facturacion),
     pendienteDeCobro,
-    hasData: ventas > 0 || cobradoCobranzas > 0 || gastosTotal > 0 || consumosProfesionales > 0,
+    hasData: ventas > 0 || gastosTotal > 0 || consumosProfesionales > 0,
   };
 }
 
@@ -301,17 +313,17 @@ export async function fetchMonthlyRawData(
     return q.range(from, to) as any;
   });
 
-  const collections = await fetchAllRows<MonthlyCollectionRow>((from, to) => {
-    let q = supabase
+  // Cobros de las ventas pendientes/parcial de ESTE mes, se hayan cobrado cuando se hayan cobrado.
+  const pendientesIds = payments.filter((p) => p.status === "pendiente" || p.status === "parcial").map((p) => p.id);
+  const collections: MonthlyCollectionRow[] = [];
+  for (let i = 0; i < pendientesIds.length; i += IN_CHUNK) {
+    const { data } = await supabase
       .from("payment_collections")
       .select("id,payment_id,amount,method")
       .eq("business_id", businessId)
-      .gte("collected_at", startIso)
-      .lte("collected_at", endIso)
-      .order("id", { ascending: true });
-    if (branchFilter) q = q.or(branchFilter);
-    return q.range(from, to) as any;
-  });
+      .in("payment_id", pendientesIds.slice(i, i + IN_CHUNK));
+    collections.push(...((data ?? []) as any[]));
+  }
 
   const expenses = await fetchAllRows<MonthlyExpenseRow>((from, to) => {
     let q = supabase
@@ -325,29 +337,15 @@ export async function fetchMonthlyRawData(
     return q.range(from, to) as any;
   });
 
-  const monthPaymentIds = new Set(payments.map((p) => p.id));
-  const missingIds = [
-    ...new Set(collections.map((c) => c.payment_id).filter((id): id is string => !!id && !monthPaymentIds.has(id))),
-  ];
-  const collectionPayments: { id: string; employee_id: string | null }[] = [];
-  for (let i = 0; i < missingIds.length; i += IN_CHUNK) {
-    const { data } = await supabase
-      .from("payments")
-      .select("id,employee_id")
-      .eq("business_id", businessId)
-      .in("id", missingIds.slice(i, i + IN_CHUNK));
-    collectionPayments.push(...((data ?? []) as any[]));
-  }
-
-  // Comisiones de las ventas cobradas del mes.
-  const countableIds = payments.filter((p) => isCountableCajaPayment(p.status)).map((p) => p.id);
+  // Comisiones de las ventas del mes.
+  const ventaIds = payments.map((p) => p.id);
   const commissions: MonthlyCommissionRow[] = [];
-  for (let i = 0; i < countableIds.length; i += IN_CHUNK) {
+  for (let i = 0; i < ventaIds.length; i += IN_CHUNK) {
     const { data } = await supabase
       .from("commission_records" as any)
       .select("sale_id,professional_id,amount")
       .eq("business_id", businessId)
-      .in("sale_id", countableIds.slice(i, i + IN_CHUNK));
+      .in("sale_id", ventaIds.slice(i, i + IN_CHUNK));
     commissions.push(...((data ?? []) as any[]));
   }
 
@@ -391,7 +389,6 @@ export async function fetchMonthlyRawData(
   return {
     payments,
     collections,
-    collectionPayments,
     expenses,
     commissions,
     attendance,

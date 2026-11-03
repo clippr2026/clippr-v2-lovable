@@ -7,8 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { cajaDateKeyBA } from "@/lib/caja-cierre";
 import { cn } from "@/lib/utils";
 import {
-  computeMonthlyPerformance,
-  fetchMonthlyRawData,
+  loadMonthlyPerformance,
   monthLabel,
   shiftMonth,
   variationPct,
@@ -24,10 +23,7 @@ function useMonthlyPerformance(businessId: string | null, branchId: string | nul
     queryKey: ["monthly-performance", businessId, branchId, monthKey],
     enabled: !!businessId,
     staleTime: 60_000,
-    queryFn: async (): Promise<MonthlyPerformance> => {
-      const raw = await fetchMonthlyRawData(businessId!, branchId, monthKey);
-      return computeMonthlyPerformance(monthKey, raw);
-    },
+    queryFn: (): Promise<MonthlyPerformance> => loadMonthlyPerformance(businessId!, branchId, monthKey),
   });
 }
 
@@ -195,7 +191,7 @@ export function RendimientoMensual() {
               sub={`Comisiones ${money(perf.comisiones)}`}
             />
             <Kpi
-              label="Ventas cobradas"
+              label="Ventas"
               value={perf.ventas.toLocaleString("es-AR")}
               sub={<DeltaValue pct={prev?.hasData ? variationPct(perf.ventas, prev.ventas) : null} />}
             />
@@ -205,8 +201,8 @@ export function RendimientoMensual() {
 
           {perf.pendienteDeCobro > 0 && (
             <div className="rounded-xl border border-amber-400/25 bg-amber-400/[0.06] px-4 py-2.5 text-xs text-amber-100/85">
-              Hay <b>{money(perf.pendienteDeCobro)}</b> en ventas de este mes todavía sin cobrar. No están incluidas en la
-              facturación: entran cuando se cobran.
+              La facturación incluye <b>{money(perf.pendienteDeCobro)}</b> de ventas de este mes todavía sin cobrar. Cuando se
+              cobren, siguen contando en este mes.
             </div>
           )}
 
@@ -295,8 +291,8 @@ export function RendimientoMensual() {
           </Section>
 
           <p className="px-1 text-[11px] leading-relaxed text-white/35">
-            La facturación cuenta solo lo efectivamente cobrado, igual que la caja: las ventas pendientes y las anuladas quedan
-            afuera. Los gastos incluyen Caja del día y Fondos externos. El pago a profesionales son las comisiones de las ventas
+            La facturación cuenta lo vendido en el mes en que se hizo el servicio, aunque se cobre después: las ventas anuladas
+            quedan afuera. Los gastos incluyen Caja del día y Fondos externos. El pago a profesionales son las comisiones de las ventas
             cobradas del mes, neto de los descuentos de puntualidad. La facturación incluye los consumos de profesionales
             (productos retirados del inventario y anotados como adelanto), que cuentan en el mes del retiro aunque se descuenten
             después al liquidar. Las propinas no entran en la facturación.

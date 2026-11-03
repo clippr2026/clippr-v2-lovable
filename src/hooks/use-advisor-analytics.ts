@@ -13,9 +13,13 @@
 // ════════════════════════════════════════════════════════════════════════════
 
 import * as React from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 import { useClientsData } from "@/hooks/use-clients-data";
+import { cajaDateKeyBA } from "@/lib/caja-cierre";
+import { loadMonthlyPerformance, shiftMonth, type MonthlyPerformance } from "@/lib/monthly-performance";
+import { fetchAllRows } from "@/lib/supabase-paginate";
 
 const DONE_STATUSES = ["completed", "charged"];
 const MONTHS_OF_HISTORY = 6;
@@ -84,9 +88,10 @@ type RawExpense = { amount: number | null; date: string | null };
 type RawEmployee = { id: string; full_name: string };
 type RawCatalogItem = { id: string; name: string; price: number | null; duration_min: number | null };
 
+// El mes de un movimiento se decide en hora de Argentina, nunca en la del dispositivo
+// (un cobro de las 23:30 del último día del mes no puede caer en el mes siguiente).
 function monthKeyOf(iso: string): string {
-  const d = new Date(iso);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+  return new Date(iso).toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }).slice(0, 7);
 }
 
 function monthLabelOf(monthKey: string): string {
@@ -108,29 +113,79 @@ async function loadAdvisorAnalytics(businessId: string): Promise<{
   employees: RawEmployee[];
   catalog: RawCatalogItem[];
 }> {
-  const since = new Date();
-  since.setMonth(since.getMonth() - MONTHS_OF_HISTORY);
-  since.setDate(1);
-  since.setHours(0, 0, 0, 0);
-  const sinceIso = since.toISOString();
-  const sinceDate = since.toISOString().slice(0, 10);
+  const sinceDate = `${shiftMonth(cajaDateKeyBA().slice(0, 7), -MONTHS_OF_HISTORY)}-01`;
+  const sinceIso = new Date(`${sinceDate}T00:00:00-03:00`).toISOString();
+
+  // Cobros: sin anulados/reembolsados (la caja tampoco los cuenta) y paginados — una
+  // consulta sin .range() corta en silencio a las 1.000 filas.
+  const paymentsPromise = fetchAllRows<RawPayment>(
+    (from, to) =>
+      supabase
+        .from("payments")
+        .select("id,total,amount,service_name,client_name,client_id,created_at")
+        .eq("business_id", businessId)
+        .gte("created_at", sinceIso)
+        .not("status", "in", "(anulado,reembolsado)")
+        .order("id", { ascending: true })
+        .range(from, to) as any,
+  ).then(
+    (data) => ({ data, error: null as { message: string } | null }),
+    (error: Error) => ({ data: [] as RawPayment[], error: { message: error.message } }),
+  );
+  const apptsPromise = (async () => {
+    try {
+      return {
+        data: await fetchAllRows<RawAppt>(
+          (from, to) =>
+            supabase
+              .from("appointments")
+              .select("id,status,starts_at,service_name,service_price,employee_id,recurring_series_id")
+              .eq("business_id", businessId)
+              .gte("starts_at", sinceIso)
+              .order("id", { ascending: true })
+              .range(from, to) as any,
+        ),
+        error: null as { message: string } | null,
+      };
+    } catch (e) {
+      // recurring_series_id puede no existir todavía (columna nueva) — reintenta sin ella.
+      try {
+        return {
+          data: await fetchAllRows<RawAppt>(
+            (from, to) =>
+              supabase
+                .from("appointments")
+                .select("id,status,starts_at,service_name,service_price,employee_id")
+                .eq("business_id", businessId)
+                .gte("starts_at", sinceIso)
+                .order("id", { ascending: true })
+                .range(from, to) as any,
+          ),
+          error: null as { message: string } | null,
+        };
+      } catch (e2) {
+        return { data: [] as RawAppt[], error: { message: (e2 as Error).message } };
+      }
+    }
+  })();
+  const expensesPromise = fetchAllRows<RawExpense & { id: string }>(
+    (from, to) =>
+      supabase
+        .from("expenses")
+        .select("id,amount,date")
+        .eq("business_id", businessId)
+        .gte("date", sinceDate)
+        .order("id", { ascending: true })
+        .range(from, to) as any,
+  ).then(
+    (data) => ({ data, error: null as { message: string } | null }),
+    (error: Error) => ({ data: [] as RawExpense[], error: { message: error.message } }),
+  );
 
   const [payRes, apptRes, expRes, empRes, catRes] = await Promise.all([
-    supabase
-      .from("payments")
-      .select("id,total,amount,service_name,client_name,client_id,created_at")
-      .eq("business_id", businessId)
-      .gte("created_at", sinceIso),
-    supabase
-      .from("appointments")
-      .select("id,status,starts_at,service_name,service_price,employee_id,recurring_series_id")
-      .eq("business_id", businessId)
-      .gte("starts_at", sinceIso),
-    supabase
-      .from("expenses")
-      .select("amount,date")
-      .eq("business_id", businessId)
-      .gte("date", sinceDate),
+    paymentsPromise,
+    apptsPromise,
+    expensesPromise,
     supabase.from("employees").select("id,full_name").eq("business_id", businessId),
     supabase
       .from("price_catalog")
@@ -139,24 +194,9 @@ async function loadAdvisorAnalytics(businessId: string): Promise<{
       .eq("active", true),
   ]);
 
-  // recurring_series_id puede no existir todavía (columna nueva) — reintenta
-  // sin ella en vez de perder TODOS los turnos del Asesor IA por un campo
-  // secundario que solo afecta el cálculo de Ocupación.
-  let apptData: RawAppt[] | null = apptRes.data as RawAppt[] | null;
-  let apptError = apptRes.error;
-  if (apptError) {
-    const retry = await supabase
-      .from("appointments")
-      .select("id,status,starts_at,service_name,service_price,employee_id")
-      .eq("business_id", businessId)
-      .gte("starts_at", sinceIso);
-    apptData = retry.data as RawAppt[] | null;
-    apptError = retry.error;
-  }
-
   return {
     payments: payRes.error ? [] : ((payRes.data ?? []) as RawPayment[]),
-    appts: apptError ? [] : ((apptData ?? []) as RawAppt[]),
+    appts: apptRes.error ? [] : ((apptRes.data ?? []) as RawAppt[]),
     expenses: expRes.error ? [] : ((expRes.data ?? []) as RawExpense[]),
     employees: empRes.error ? [] : ((empRes.data ?? []) as RawEmployee[]),
     catalog: catRes.error ? [] : ((catRes.data ?? []) as RawCatalogItem[]),
@@ -169,17 +209,21 @@ function buildMonthSnapshot(
   appts: RawAppt[],
   expenses: RawExpense[],
   employeeCount: number,
+  perf: MonthlyPerformance | undefined,
 ): AdvisorMonthSnapshot {
   const monthPayments = payments.filter((p) => monthKeyOf(p.created_at) === monthKey);
   const monthAppts = appts.filter((a) => monthKeyOf(a.starts_at) === monthKey);
   const monthExpenses = expenses.filter((e) => e.date && e.date.slice(0, 7) === monthKey);
 
-  const revenue = monthPayments.reduce((s, p) => s + Number(p.total ?? p.amount ?? 0), 0);
-  const expensesTotal = monthExpenses.reduce((s, e) => s + Number(e.amount ?? 0), 0);
-  const clientsServed = new Set(
-    monthPayments.map((p) => p.client_id || p.client_name?.trim().toLowerCase()).filter(Boolean),
-  ).size;
-  const ticket = monthPayments.length > 0 ? Math.round(revenue / monthPayments.length) : 0;
+  // Facturación, gastos, ganancia, clientes y ticket salen del mismo cálculo que el
+  // Rendimiento mensual (por mes del servicio, sin anuladas, con todos los gastos y
+  // el pago a profesionales), así ninguna parte del Asesor muestra otro número.
+  const revenue = perf ? perf.facturacion : monthPayments.reduce((s, p) => s + Number(p.total ?? p.amount ?? 0), 0);
+  const expensesTotal = perf ? perf.gastosTotal : monthExpenses.reduce((s, e) => s + Number(e.amount ?? 0), 0);
+  const clientsServed = perf
+    ? perf.clientes
+    : new Set(monthPayments.map((p) => p.client_id || p.client_name?.trim().toLowerCase()).filter(Boolean)).size;
+  const ticket = perf ? perf.ticket : monthPayments.length > 0 ? Math.round(revenue / monthPayments.length) : 0;
 
   const cancellations = monthAppts.filter((a) => a.status === "cancelled").length;
   const doneCount = monthAppts.filter((a) => DONE_STATUSES.includes(a.status)).length;
@@ -203,7 +247,7 @@ function buildMonthSnapshot(
     monthLabel: monthLabelOf(monthKey),
     revenue,
     expenses: expensesTotal,
-    profit: revenue - expensesTotal,
+    profit: perf ? perf.ganancia : revenue - expensesTotal,
     clientsServed,
     ticket,
     occupancy,
@@ -223,13 +267,35 @@ function useAdvisorAnalyticsQuery(businessId: string | null | undefined) {
 }
 
 export function useAdvisorAnalytics(businessId: string | null | undefined): AdvisorAnalytics {
+  const { activeBranchId } = useAuth();
   const clientsQuery = useClientsData(businessId ?? null);
   const dataQuery = useAdvisorAnalyticsQuery(businessId);
+
+  // Los 6 meses de historial, en hora de Argentina (el más reciente primero).
+  const currentMonth = cajaDateKeyBA().slice(0, 7);
+  const monthKeys = React.useMemo(
+    () => Array.from({ length: MONTHS_OF_HISTORY }, (_, i) => shiftMonth(currentMonth, -i)),
+    [currentMonth],
+  );
+  // Misma consulta (y misma caché) que el Rendimiento mensual.
+  const perfQueries = useQueries({
+    queries: monthKeys.map((mk) => ({
+      queryKey: ["monthly-performance", businessId, activeBranchId, mk],
+      queryFn: () => loadMonthlyPerformance(businessId!, activeBranchId, mk),
+      enabled: !!businessId,
+      staleTime: 60_000,
+    })),
+  });
+  const perfSignature = perfQueries.map((q) => `${q.status}:${q.dataUpdatedAt}`).join("|");
 
   return React.useMemo(() => {
     const data = dataQuery.data;
     const clients = clientsQuery.data ?? [];
-    const loading = dataQuery.isLoading || clientsQuery.isLoading;
+    const loading = dataQuery.isLoading || clientsQuery.isLoading || perfQueries.some((q) => q.isLoading);
+    const perfByMonth = new Map<string, MonthlyPerformance>();
+    perfQueries.forEach((q, i) => {
+      if (q.data) perfByMonth.set(monthKeys[i], q.data);
+    });
 
     if (!data) {
       return {
@@ -248,14 +314,9 @@ export function useAdvisorAnalytics(businessId: string | null | undefined): Advi
 
     const { payments, appts, expenses, employees, catalog } = data;
     const now = new Date();
-    const monthKeys: string[] = [];
-    for (let i = 0; i < MONTHS_OF_HISTORY; i += 1) {
-      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-      monthKeys.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`);
-    }
 
     const history = monthKeys.map((mk) =>
-      buildMonthSnapshot(mk, payments, appts, expenses, employees.length),
+      buildMonthSnapshot(mk, payments, appts, expenses, employees.length, perfByMonth.get(mk)),
     );
     const current = history[0] ?? null;
     const previous = history[1] ?? null;
@@ -446,7 +507,8 @@ export function useAdvisorAnalytics(businessId: string | null | undefined): Advi
       freeSlotsMonth,
       productSharePct,
     };
-  }, [dataQuery.data, dataQuery.isLoading, clientsQuery.data, clientsQuery.isLoading]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dataQuery.data, dataQuery.isLoading, clientsQuery.data, clientsQuery.isLoading, monthKeys, perfSignature]);
 }
 
 function clampPct(n: number): number {

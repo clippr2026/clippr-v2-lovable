@@ -6803,9 +6803,9 @@ function NuevoGastoTab({
     name: string;
     amount: string;
     source: ExpenseFundsSource;
-    method: "efectivo" | "transferencia";
+    method: "efectivo" | "transferencia" | "";
     note: string;
-  }>({ kind: "", name: "", amount: "", source: "caja", method: "efectivo", note: "" });
+  }>({ kind: "", name: "", amount: "", source: "caja", method: "", note: "" });
   const [saving, setSaving] = React.useState(false);
 
   async function saveGasto() {
@@ -6819,6 +6819,7 @@ function NuevoGastoTab({
     if (!name) return toast.error("Escribí el nombre del gasto.");
     if (!amount || amount <= 0)
       return toast.error("El monto debe ser mayor a 0.");
+    if (!form.method) return toast.error("Elegí con qué medio se pagó: efectivo o transferencia.");
     setSaving(true);
     // El usuario que registra el gasto se guarda internamente (user_name/
     // created_by) para historial y auditoría; la fecha es la de hoy en
@@ -6965,8 +6966,10 @@ function NuevoGastoTab({
               </div>
               <p className="mt-1.5 text-xs text-muted-foreground">
                 {form.source === "caja"
-                  ? `Se descuenta de ${form.method === "efectivo" ? "Efectivo" : "Dinero en cuenta"} de la caja del día.`
-                  : "Con fondos externos el medio es solo informativo: no mueve los saldos de la caja."}
+                  ? form.method === ""
+                    ? "Elegí un medio: según cuál sea, se descuenta de Efectivo o de Dinero en cuenta de la caja del día."
+                    : `Se descuenta de ${form.method === "efectivo" ? "Efectivo" : "Dinero en cuenta"} de la caja del día.`
+                  : "Elegí cómo se pagó. Con fondos externos el medio queda registrado en el gasto pero no mueve los saldos de la caja."}
               </p>
             </div>
           </div>

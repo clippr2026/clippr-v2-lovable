@@ -26,7 +26,6 @@ const pay = (over: Partial<MonthlyRawData["payments"][number]> & { id: string })
 const base = (over: Partial<MonthlyRawData> = {}): MonthlyRawData => ({
   payments: [],
   collections: [],
-  collectionPayments: [],
   expenses: [],
   commissions: [],
   attendance: [],
@@ -39,25 +38,33 @@ const base = (over: Partial<MonthlyRawData> = {}): MonthlyRawData => ({
 });
 
 describe("Rendimiento mensual", () => {
-  it("la facturación cuenta solo lo cobrado: pendientes y anuladas quedan afuera, los cobros de pendientes suman", () => {
+  it("la facturación cuenta por el mes del servicio: una venta pendiente entra completa y su cobro posterior no se suma otra vez", () => {
     const perf = computeMonthlyPerformance(
       "2026-10",
       base({
         payments: [
           pay({ id: "p1", total: 20000 }),
           pay({ id: "p2", total: 25000, method: "transferencia" }),
-          pay({ id: "p3", total: 20000, status: "pendiente" }),
+          pay({ id: "p3", total: 20000, status: "pendiente", employee_id: "emp-b" }),
           pay({ id: "p4", total: 21900, status: "anulado" }),
         ],
-        collections: [{ id: "c1", payment_id: "p9", amount: 15000, method: "transferencia" }],
-        collectionPayments: [{ id: "p9", employee_id: "emp-b" }],
+        // se cobraron 8.000 de la venta pendiente (en noviembre, da igual): no suman de nuevo
+        collections: [
+          { id: "c1", payment_id: "p3", amount: 8000, method: "transferencia" },
+          // un cobro de una venta de OTRO mes no cuenta en este
+          { id: "c2", payment_id: "p-de-septiembre", amount: 99999, method: "efectivo" },
+        ],
       }),
     );
-    expect(perf.facturacion).toBe(20000 + 25000 + 15000);
-    expect(perf.ventas).toBe(2);
-    expect(perf.pendienteDeCobro).toBe(20000);
-    // el cobro de una venta de otro mes se le atribuye al profesional de esa venta
-    expect(perf.profesionales.find((p) => p.id === "emp-b")?.facturacion).toBe(15000);
+    expect(perf.facturacion).toBe(20000 + 25000 + 20000);
+    expect(perf.ventas).toBe(3);
+    expect(perf.cobrado).toBe(20000 + 25000 + 8000);
+    expect(perf.pendienteDeCobro).toBe(12000);
+    // a cada profesional le corresponde la venta completa
+    expect(perf.profesionales.find((p) => p.id === "emp-b")?.facturacion).toBe(20000);
+    // los medios de pago suman la facturación de ventas, con lo no cobrado aparte
+    expect(perf.metodos.reduce((s, m) => s + m.monto, 0)).toBeCloseTo(65000, 5);
+    expect(perf.metodos.find((m) => m.key === "sin_cobrar")?.monto).toBe(12000);
   });
 
   it("la ganancia resta TODOS los gastos (caja y fondos externos) y separa cuánto fue externo", () => {
@@ -80,7 +87,7 @@ describe("Rendimiento mensual", () => {
     expect(perf.gastosPorTipo[0]).toEqual({ tipo: "Variable", total: 35000 });
   });
 
-  it("lo que se le paga a los profesionales (comisiones) se descuenta de la ganancia", () => {
+  it("lo que se le paga a los profesionales (comisiones de las ventas del mes) se descuenta de la ganancia", () => {
     const perf = computeMonthlyPerformance(
       "2026-10",
       base({
@@ -92,11 +99,11 @@ describe("Rendimiento mensual", () => {
         expenses: [{ id: "e1", amount: 2000, type: "variable", funds_source: "otros" }],
       }),
     );
-    // solo cuenta la comisión de la venta cobrada, no la de la pendiente
-    expect(perf.comisiones).toBe(9000);
-    expect(perf.pagoProfesionales).toBe(9000);
-    // 20.000 de facturación − 2.000 de gastos − 9.000 de comisiones
-    expect(perf.ganancia).toBe(9000);
+    // cuentan las comisiones de las dos ventas del mes (la pendiente también)
+    expect(perf.comisiones).toBe(18000);
+    expect(perf.pagoProfesionales).toBe(18000);
+    // 40.000 de facturación − 2.000 de gastos − 18.000 de comisiones
+    expect(perf.ganancia).toBe(20000);
   });
 
   it("los medios de pago reparten una venta con pago múltiple entre sus medios", () => {
