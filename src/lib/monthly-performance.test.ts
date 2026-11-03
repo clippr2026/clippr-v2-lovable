@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   computeMonthlyPerformance,
+  isStartMonth,
   monthBounds,
   monthLabel,
   shiftMonth,
@@ -240,6 +241,60 @@ describe("Rendimiento mensual", () => {
     const advisor = read("src/routes/advisor.tsx");
     expect(advisor).not.toContain("0.21");
     expect(advisor).toContain("analytics.potentialAt75");
+  });
+
+  it("el mes de arranque se detecta por la fecha de la primera venta: si empezó pasado el día 5, ese mes no sirve de base", () => {
+    expect(isStartMonth("2026-09", "2026-09-12")).toBe(true);
+    expect(isStartMonth("2026-09", "2026-09-02")).toBe(false); // arrancó casi a principio de mes
+    // el corte es el día 5: hasta el 5 el mes cuenta completo, desde el 6 es mes de arranque
+    expect(isStartMonth("2026-09", "2026-09-05")).toBe(false);
+    expect(isStartMonth("2026-09", "2026-09-06")).toBe(true);
+    expect(isStartMonth("2026-10", "2026-09-12")).toBe(false); // otro mes
+    expect(isStartMonth("2026-09", null)).toBe(false);
+    const dias = (mes: string, n: number) =>
+      Array.from({ length: n }, (_, i) =>
+        pay({ id: `${mes}-${i}`, created_at: `${mes}-${String(i + 12).padStart(2, "0")}T15:00:00Z` }),
+      );
+    // Septiembre: arrancó el 12 con ventas casi todos los días hábiles, pero igual es el mes de arranque
+    const sept = computeMonthlyPerformance("2026-09", base({ payments: dias("2026-09", 15), startDate: "2026-09-12" }));
+    expect(sept.partialStart).toBe(true);
+    expect(sept.representative).toBe(false);
+    expect(sept.hasData).toBe(true); // se muestra normal
+    // Octubre no es de arranque y sí sirve de base para noviembre
+    const oct = computeMonthlyPerformance("2026-10", base({ payments: dias("2026-10", 18), startDate: "2026-09-12" }));
+    expect(oct.partialStart).toBe(false);
+    expect(oct.representative).toBe(true);
+  });
+
+  it("un mes con pocas ventas NO deja de servir de base cuando el negocio ya estaba en marcha: solo cuenta el mes de arranque", () => {
+    const dias = (n: number) =>
+      Array.from({ length: n }, (_, i) =>
+        pay({ id: `p${i}`, created_at: `2026-11-${String(i + 1).padStart(2, "0")}T15:00:00Z` }),
+      );
+    // el negocio arrancó en septiembre; noviembre tuvo ventas solo 4 días y igual sirve de base
+    const poco = computeMonthlyPerformance("2026-11", base({ payments: dias(4), startDate: "2026-09-12" }));
+    expect(poco.partialStart).toBe(false);
+    expect(poco.representative).toBe(true);
+    // en cambio el mes de arranque (primera venta pasado el día 5) no sirve de base
+    const arranque = computeMonthlyPerformance("2026-09", base({ payments: dias(20), startDate: "2026-09-12" }));
+    expect(arranque.partialStart).toBe(true);
+    expect(arranque.representative).toBe(false);
+  });
+
+  it("el mes de arranque no se usa como base de comparación del mes siguiente", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const read = (rel: string) => fs.readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
+    const hook = read("src/hooks/use-advisor-analytics.ts");
+    expect(hook).toContain("comparisonSparse");
+    expect(hook).toContain("porque fue el mes de arranque");
+    expect(hook).toContain("Primer mes de uso");
+    const comp = read("src/components/advisor/rendimiento-mensual.tsx");
+    expect(comp).toContain("prev.representative");
+    expect(hook).not.toContain("días hábiles");
+    expect(comp).toContain("Mes anterior de arranque: no se compara");
+    expect(read("src/routes/advisor.tsx")).toContain("Mes de arranque");
+    expect(read("src/routes/advisor.tsx")).toContain("prev.representative");
   });
 
   it("truncateRawToDay recorta el mes a los días 1..N en hora de Argentina para comparar el mes en curso contra el mismo período", () => {

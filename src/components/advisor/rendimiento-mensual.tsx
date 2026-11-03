@@ -32,8 +32,21 @@ function useMonthlyPerformance(
   });
 }
 
-function DeltaValue({ pct, label = "vs mes anterior" }: { pct: number | null; label?: string }) {
-  if (pct == null) return <span className="text-xs text-white/35">Sin mes anterior para comparar</span>;
+function DeltaValue({
+  pct,
+  label = "vs mes anterior",
+  partialStart = false,
+}: {
+  pct: number | null;
+  label?: string;
+  partialStart?: boolean;
+}) {
+  if (pct == null)
+    return (
+      <span className="text-xs text-white/35">
+        {partialStart ? "Mes anterior de arranque: no se compara" : "Sin mes anterior para comparar"}
+      </span>
+    );
   const good = pct >= 0;
   const Icon = pct >= 0 ? TrendingUp : TrendingDown;
   return (
@@ -126,10 +139,15 @@ export function RendimientoMensual({ monthKey: controlledMonthKey, onMonthKeyCha
 
   const perf = current.data;
   const prev = previous.data;
+  // El mes anterior solo sirve de base si tuvo actividad durante todo el mes; si fue de
+  // pruebas o arrancó a medias, no se compara (sería una variación sin sentido).
+  const comparable = prev?.hasData && prev.representative ? prev : null;
+  const canCompare = comparable !== null;
+  const prevIsStart = Boolean(prev?.hasData && prev.partialStart);
 
   function exportPdf() {
     if (!perf) return;
-    const ok = printMonthlyPerformance(perf, prev?.hasData ? prev : null, businessName.data ?? "Mi negocio", vsLabel);
+    const ok = printMonthlyPerformance(perf, comparable, businessName.data ?? "Mi negocio", vsLabel);
     if (!ok) toast.error("El navegador bloqueó la ventana. Permití ventanas emergentes para exportar el PDF.");
   }
 
@@ -197,7 +215,7 @@ export function RendimientoMensual({ monthKey: controlledMonthKey, onMonthKeyCha
               {money(perf.ganancia)}
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
-              <DeltaValue pct={prev?.hasData ? variationPct(perf.ganancia, prev.ganancia) : null} label={vsLabel} />
+              <DeltaValue pct={canCompare ? variationPct(perf.ganancia, comparable!.ganancia) : null} label={vsLabel} partialStart={prevIsStart} />
               {perf.margen != null && <span className="text-xs text-white/50">Margen {pctText(perf.margen)}</span>}
             </div>
             <div className="mt-3 grid gap-1 text-sm text-white/65">
@@ -213,7 +231,7 @@ export function RendimientoMensual({ monthKey: controlledMonthKey, onMonthKeyCha
             <Kpi
               label="Facturación"
               value={money(perf.facturacion)}
-              sub={<DeltaValue pct={prev?.hasData ? variationPct(perf.facturacion, prev.facturacion) : null} label={vsLabel} />}
+              sub={<DeltaValue pct={canCompare ? variationPct(perf.facturacion, comparable!.facturacion) : null} label={vsLabel} partialStart={prevIsStart} />}
             />
             <Kpi label="Gastos" value={money(perf.gastosTotal)} />
             <Kpi
@@ -224,7 +242,7 @@ export function RendimientoMensual({ monthKey: controlledMonthKey, onMonthKeyCha
             <Kpi
               label="Ventas"
               value={perf.ventas.toLocaleString("es-AR")}
-              sub={<DeltaValue pct={prev?.hasData ? variationPct(perf.ventas, prev.ventas) : null} label={vsLabel} />}
+              sub={<DeltaValue pct={canCompare ? variationPct(perf.ventas, comparable!.ventas) : null} label={vsLabel} partialStart={prevIsStart} />}
             />
             <Kpi label="Ticket promedio" value={money(perf.ticket)} />
             <Kpi label="Clientes atendidos" value={perf.clientes.toLocaleString("es-AR")} />

@@ -809,7 +809,7 @@ function AdvisorContent({
                           ? analytics.mtd.previousRevenue != null && analytics.mtd.previousRevenue > 0
                             ? pctDelta(report.revenue, analytics.mtd.previousRevenue)
                             : null
-                          : prev?.hasData
+                          : prev?.hasData && prev.representative
                             ? pctDelta(report.revenue, prev.revenue)
                             : null;
                       return (
@@ -836,7 +836,13 @@ function AdvisorContent({
                           </div>
                           {/* Estado del mes */}
                           <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.14em] text-white/55">
-                            {isPrimary ? "Mes en curso" : growthPct != null && growthPct >= 0 ? "Creciendo" : "Informe guardado"}
+                            {isPrimary && isMtd
+                              ? "Mes en curso"
+                              : report.partialStart
+                                ? "Mes de arranque"
+                                : growthPct != null && growthPct >= 0
+                                  ? "Creciendo"
+                                  : "Informe guardado"}
                           </p>
                           {/* Resumen con datos reales */}
                           <p className="mt-3 flex-1 text-xs leading-relaxed text-white/72">

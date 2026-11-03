@@ -46,6 +46,11 @@ export type AdvisorMonthSnapshot = {
   doneCount: number;
   // Turnos sin ocupar en los días que se trabajó (capacidad − turnos usados).
   freeSlots: number;
+  // ¿Sirve de base para comparar el mes siguiente? Solo deja de servir el mes de arranque.
+  representative: boolean;
+  // Mes de arranque del negocio (la primera venta fue pasados los primeros días del mes).
+  partialStart: boolean;
+  startDate: string | null;
   // Capacidad total del período (turnos que entran en los horarios) y turnos usados.
   totalSlots: number;
   usedSlots: number;
@@ -355,6 +360,9 @@ function buildMonthSnapshot(
     cancellations,
     doneCount,
     freeSlots,
+    representative: perf ? perf.representative : true,
+    partialStart: perf ? perf.partialStart : false,
+    startDate: perf ? perf.startDate : null,
     totalSlots,
     usedSlots: used,
     employeeLoad,
@@ -466,20 +474,37 @@ export function useAdvisorAnalytics(
     const current = history[analysisIdx] ?? null;
     // Contra qué se compara: el mismo período del mes anterior (mes en curso) o el mes
     // anterior completo (mes cerrado).
-    const previous = buildMonthSnapshot(
-      prevKey,
-      payments,
-      appts,
-      expenses,
-      capacityData,
-      comparisonPerf,
-      isCurrentMonth ? todayDay : undefined,
-    );
+    // Si el mes anterior fue el de arranque del negocio (empezó a usar la app pasado el día 5),
+    // no se usa como base: no hay comparación en vez de una comparación engañosa.
+    const comparisonSparse = Boolean(comparisonPerf && comparisonPerf.hasData && !comparisonPerf.representative);
+    const previous = comparisonSparse
+      ? null
+      : buildMonthSnapshot(
+          prevKey,
+          payments,
+          appts,
+          expenses,
+          capacityData,
+          comparisonPerf,
+          isCurrentMonth ? todayDay : undefined,
+        );
     const vsLabel = isCurrentMonth ? "vs el mismo período del mes anterior" : "vs mes anterior";
-    const analysisNote =
-      isCurrentMonth && todayDay < MIN_DAYS_TO_JUDGE
-        ? `Mes en curso: lleva ${todayDay} ${todayDay === 1 ? "día" : "días"}, así que los indicadores todavía son provisorios.`
-        : null;
+    const notes: string[] = [];
+    if (isCurrentMonth && todayDay < MIN_DAYS_TO_JUDGE) {
+      notes.push(`Mes en curso: lleva ${todayDay} ${todayDay === 1 ? "día" : "días"}, así que los indicadores todavía son provisorios.`);
+    }
+    const arranque = (d: string | null) => (d ? `${d.slice(8, 10)}/${d.slice(5, 7)}` : "mitad de mes");
+    if (current && current.hasData && current.partialStart) {
+      notes.push(
+        `Primer mes de uso: el negocio arrancó el ${arranque(current.startDate)}, así que ${monthLabelOf(analysisKey)} está incompleto.`,
+      );
+    }
+    if (comparisonSparse && comparisonPerf) {
+      notes.push(
+        `No se compara con ${monthLabelOf(prevKey)} porque fue el mes de arranque (el negocio empezó el ${arranque(comparisonPerf.startDate)}) y está incompleto.`,
+      );
+    }
+    const analysisNote = notes.length > 0 ? notes.join(" ") : null;
     const hasAnyData = history.some((h) => h.hasData);
 
     // ── Puntaje de salud (0-100): ocupación + crecimiento + cancelaciones +
@@ -688,7 +713,8 @@ export function useAdvisorAnalytics(
           ? {
               monthKey: monthKeys[0],
               upToDay: todayDay,
-              previousRevenue: samePeriodQuery.data ? samePeriodQuery.data.facturacion : null,
+              previousRevenue:
+                samePeriodQuery.data && samePeriodQuery.data.representative ? samePeriodQuery.data.facturacion : null,
             }
           : null,
     };

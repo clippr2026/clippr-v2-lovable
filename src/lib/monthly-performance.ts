@@ -70,6 +70,9 @@ export type MonthlyRawData = {
   attendance: MonthlyAttendanceRow[];
   // Productos retirados del inventario por un profesional, anotados como adelanto.
   consumos: MonthlyConsumoRow[];
+  // Fecha (hora de Argentina) de la primera venta del negocio: sirve para saber qué mes fue
+  // el de arranque. null si todavía no hay ventas o no se pudo leer.
+  startDate?: string | null;
   employees: { id: string; full_name: string | null }[];
 };
 
@@ -113,6 +116,15 @@ export type MonthlyPerformance = {
   metodos: { key: string; monto: number }[];
   profesionales: MonthlyProfessional[];
   pendienteDeCobro: number;
+  // ¿Sirve de base para comparar el mes siguiente? Solo deja de servir un mes de arranque
+  // (ver partialStart): cuando el negocio ya estaba en marcha, un mes con pocas ventas igual
+  // se compara.
+  representative: boolean;
+  // Mes de arranque: el negocio empezó a usar la app pasado el comienzo de ese mes (por
+  // ejemplo, la primera venta fue el 12). Se muestra normal, pero no sirve de base de
+  // comparación para el mes siguiente.
+  partialStart: boolean;
+  startDate: string | null;
   hasData: boolean;
 };
 
@@ -129,7 +141,19 @@ export async function loadMonthlyPerformance(
   uptoDay?: number,
 ): Promise<MonthlyPerformance> {
   const raw = await fetchMonthlyRawDataCached(businessId, branchId, monthKey);
-  return computeMonthlyPerformance(monthKey, uptoDay ? truncateRawToDay(raw, uptoDay) : raw);
+  const perf = computeMonthlyPerformance(monthKey, uptoDay ? truncateRawToDay(raw, uptoDay) : raw);
+  if (uptoDay) {
+    // Si se recorta el mes (mismo período), "tuvo actividad todo el mes" se evalúa igual
+    // sobre el mes completo, no sobre los pocos días recortados.
+    const full = computeMonthlyPerformance(monthKey, raw);
+    return {
+      ...perf,
+      representative: full.representative,
+      partialStart: full.partialStart,
+      startDate: full.startDate,
+    };
+  }
+  return perf;
 }
 
 const AR_TZ = "America/Argentina/Buenos_Aires";
@@ -155,6 +179,30 @@ export function truncateRawToDay(raw: MonthlyRawData, day: number): MonthlyRawDa
     attendance: raw.attendance.filter((a) => (dayOfDate(a.date) ?? 99) <= day),
     consumos: raw.consumos.filter((c) => (dayOfIso(c.advanced_at) ?? 99) <= day),
   };
+}
+
+// Fecha de la primera venta del negocio (hora de Argentina). Se pide una sola vez por un rato.
+const startCache = new Map<string, { at: number; promise: Promise<string | null> }>();
+function fetchBusinessStartDateCached(businessId: string): Promise<string | null> {
+  const hit = startCache.get(businessId);
+  if (hit && Date.now() - hit.at < 5 * 60_000) return hit.promise;
+  const promise = (async () => {
+    try {
+      const { data } = await supabase
+        .from("payments")
+        .select("created_at")
+        .eq("business_id", businessId)
+        .not("status", "in", "(anulado,reembolsado)")
+        .order("created_at", { ascending: true })
+        .limit(1);
+      const iso = (data as any[] | null)?.[0]?.created_at as string | undefined;
+      return iso ? arDay(iso) : null;
+    } catch {
+      return null;
+    }
+  })();
+  startCache.set(businessId, { at: Date.now(), promise });
+  return promise;
 }
 
 // Caché corta de los datos crudos por mes: el mes anterior se pide dos veces (completo y
@@ -308,6 +356,8 @@ export function computeMonthlyPerformance(monthKey: string, raw: MonthlyRawData)
 
   const pendienteDeCobro = sinCobrar;
 
+  const partialStart = isStartMonth(monthKey, raw.startDate ?? null);
+
   return {
     monthKey,
     facturacion,
@@ -330,9 +380,25 @@ export function computeMonthlyPerformance(monthKey: string, raw: MonthlyRawData)
     metodos: [...metodosMap.entries()].map(([key, monto]) => ({ key, monto })).sort((a, b) => b.monto - a.monto),
     profesionales: [...pro.values()].sort((a, b) => b.facturacion - a.facturacion),
     pendienteDeCobro,
+    representative: !partialStart,
+    partialStart,
+    startDate: raw.startDate ?? null,
     hasData: ventas > 0 || gastosTotal > 0 || consumosProfesionales > 0,
   };
 }
+
+const AR_TZ_NAME = "America/Argentina/Buenos_Aires";
+const arDay = (iso: string): string => new Date(iso).toLocaleDateString("sv-SE", { timeZone: AR_TZ_NAME });
+
+// Si la primera venta del negocio cae pasados los primeros días de un mes, ese mes es de arranque
+// y el mes siguiente no se compara contra él. Regla general para todos los negocios: hasta el
+// día 5 inclusive se considera un mes completo; desde el día 6, mes de arranque.
+export const START_MONTH_GRACE_DAYS = 5;
+export function isStartMonth(monthKey: string, startDate: string | null): boolean {
+  if (!startDate || startDate.slice(0, 7) !== monthKey) return false;
+  return Number(startDate.slice(8, 10)) > START_MONTH_GRACE_DAYS;
+}
+
 
 // Variación porcentual contra el mes anterior (null si no hay base para comparar).
 export function variationPct(current: number, previous: number): number | null {
@@ -439,6 +505,8 @@ export async function fetchMonthlyRawData(
 
   const { data: employees } = await supabase.from("employees").select("id,full_name").eq("business_id", businessId);
 
+  const startDate = await fetchBusinessStartDateCached(businessId);
+
   return {
     payments,
     collections,
@@ -446,6 +514,7 @@ export async function fetchMonthlyRawData(
     commissions,
     attendance,
     consumos,
+    startDate,
     employees: (employees ?? []) as any[],
   };
 }
