@@ -77,17 +77,15 @@ export function buildMonthlyPerformanceHtml(
   <div class="big ${perf.ganancia >= 0 ? "pos" : "neg"}">${money(perf.ganancia)}</div>
   <div class="muted">${esc(deltaText(perf.ganancia, prev?.hasData ? prev.ganancia : null))}${perf.margen != null ? ` · Margen ${perf.margen.toFixed(1).replace(".", ",")}%` : ""}</div>
   <div style="margin-top:6px">Facturación ${money(perf.facturacion)} − Gastos ${money(perf.gastosTotal)} − Profesionales ${money(perf.pagoProfesionales)} = <b>${money(perf.ganancia)}</b></div>
-  <div class="muted">Profesionales: comisiones ${money(perf.comisiones)}${perf.descuentoPuntualidad ? ` ${perf.descuentoPuntualidad > 0 ? "−" : "+"} puntualidad ${money(Math.abs(perf.descuentoPuntualidad))}` : ""}</div>
 </div>
 
 <div class="kpis">
-  <div class="kpi"><div class="l">Facturación</div><div class="v">${money(perf.facturacion)}</div><div class="muted">Cobrado ${money(perf.cobrado)}${perf.consumosProfesionales > 0 ? ` + consumos de profesionales ${money(perf.consumosProfesionales)}` : ""}</div><div class="muted">${esc(deltaText(perf.facturacion, prev?.hasData ? prev.facturacion : null))}</div></div>
-  <div class="kpi"><div class="l">Gastos</div><div class="v">${money(perf.gastosTotal)}</div><div class="muted">Fondos externos ${money(perf.gastosExternos)}</div></div>
+  <div class="kpi"><div class="l">Facturación</div><div class="v">${money(perf.facturacion)}</div><div class="muted">${esc(deltaText(perf.facturacion, prev?.hasData ? prev.facturacion : null))}</div></div>
+  <div class="kpi"><div class="l">Gastos</div><div class="v">${money(perf.gastosTotal)}</div></div>
   <div class="kpi"><div class="l">Pago a profesionales</div><div class="v">${money(perf.pagoProfesionales)}</div><div class="muted">Comisiones ${money(perf.comisiones)}</div></div>
   <div class="kpi"><div class="l">Ventas cobradas</div><div class="v">${perf.ventas}</div><div class="muted">${esc(deltaText(perf.ventas, prev?.hasData ? prev.ventas : null))}</div></div>
   <div class="kpi"><div class="l">Ticket promedio</div><div class="v">${money(perf.ticket)}</div></div>
   <div class="kpi"><div class="l">Clientes atendidos</div><div class="v">${perf.clientes}</div></div>
-  <div class="kpi"><div class="l">Propinas</div><div class="v">${money(perf.propinas)}</div></div>
 </div>
 
 <h2>Medios de pago</h2><table>${metodos || row("Sin cobros", "—")}</table>

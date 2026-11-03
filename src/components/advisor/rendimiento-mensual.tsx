@@ -179,12 +179,6 @@ export function RendimientoMensual() {
                 <b className="text-white">{money(perf.gastosTotal)}</b> − Profesionales{" "}
                 <b className="text-white">{money(perf.pagoProfesionales)}</b>
               </div>
-              <div className="text-xs text-white/45">
-                Profesionales: comisiones {money(perf.comisiones)}
-                {perf.descuentoPuntualidad !== 0
-                  ? ` ${perf.descuentoPuntualidad > 0 ? "−" : "+"} puntualidad ${money(Math.abs(perf.descuentoPuntualidad))}`
-                  : ""}
-              </div>
             </div>
           </div>
 
@@ -192,21 +186,9 @@ export function RendimientoMensual() {
             <Kpi
               label="Facturación"
               value={money(perf.facturacion)}
-              sub={
-                <>
-                  <div>
-                    Cobrado {money(perf.cobrado)}
-                    {perf.consumosProfesionales > 0 && ` + consumos de profesionales ${money(perf.consumosProfesionales)}`}
-                  </div>
-                  <DeltaValue pct={prev?.hasData ? variationPct(perf.facturacion, prev.facturacion) : null} />
-                </>
-              }
+              sub={<DeltaValue pct={prev?.hasData ? variationPct(perf.facturacion, prev.facturacion) : null} />}
             />
-            <Kpi
-              label="Gastos"
-              value={money(perf.gastosTotal)}
-              sub={perf.gastosExternos > 0 ? `Fondos externos ${money(perf.gastosExternos)}` : "Todo de caja"}
-            />
+            <Kpi label="Gastos" value={money(perf.gastosTotal)} />
             <Kpi
               label="Pago a profesionales"
               value={money(perf.pagoProfesionales)}
@@ -219,7 +201,6 @@ export function RendimientoMensual() {
             />
             <Kpi label="Ticket promedio" value={money(perf.ticket)} />
             <Kpi label="Clientes atendidos" value={perf.clientes.toLocaleString("es-AR")} />
-            <Kpi label="Propinas" value={money(perf.propinas)} sub="Informativo: no entra en la facturación" />
           </div>
 
           {perf.pendienteDeCobro > 0 && (
