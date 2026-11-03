@@ -19,17 +19,18 @@ export const methodLabel = (key: string) =>
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
-function deltaText(current: number, previous: number | null | undefined): string {
+function deltaText(current: number, previous: number | null | undefined, label = "vs mes anterior"): string {
   if (previous == null) return "";
   const pct = variationPct(current, previous);
   if (pct == null) return "";
-  return `${pct >= 0 ? "▲" : "▼"} ${Math.abs(pct).toFixed(1).replace(".", ",")}% vs mes anterior`;
+  return `${pct >= 0 ? "▲" : "▼"} ${Math.abs(pct).toFixed(1).replace(".", ",")}% ${label}`;
 }
 
 export function buildMonthlyPerformanceHtml(
   perf: MonthlyPerformance,
   prev: MonthlyPerformance | null,
   businessName: string,
+  vsLabel = "vs mes anterior",
 ): string {
   const label = monthLabel(perf.monthKey);
   const totalMetodos = perf.metodos.reduce((s, m) => s + m.monto, 0);
@@ -76,15 +77,15 @@ export function buildMonthlyPerformanceHtml(
 <div class="hero">
   <div class="muted">Ganancia del mes</div>
   <div class="big ${perf.ganancia >= 0 ? "pos" : "neg"}">${money(perf.ganancia)}</div>
-  <div class="muted">${esc(deltaText(perf.ganancia, prev?.hasData ? prev.ganancia : null))}${perf.margen != null ? ` · Margen ${perf.margen.toFixed(1).replace(".", ",")}%` : ""}</div>
+  <div class="muted">${esc(deltaText(perf.ganancia, prev?.hasData ? prev.ganancia : null, vsLabel))}${perf.margen != null ? ` · Margen ${perf.margen.toFixed(1).replace(".", ",")}%` : ""}</div>
   <div style="margin-top:6px">Facturación ${money(perf.facturacion)} − Gastos ${money(perf.gastosTotal)} − Profesionales ${money(perf.pagoProfesionales)} = <b>${money(perf.ganancia)}</b></div>
 </div>
 
 <div class="kpis">
-  <div class="kpi"><div class="l">Facturación</div><div class="v">${money(perf.facturacion)}</div><div class="muted">${esc(deltaText(perf.facturacion, prev?.hasData ? prev.facturacion : null))}</div></div>
+  <div class="kpi"><div class="l">Facturación</div><div class="v">${money(perf.facturacion)}</div><div class="muted">${esc(deltaText(perf.facturacion, prev?.hasData ? prev.facturacion : null, vsLabel))}</div></div>
   <div class="kpi"><div class="l">Gastos</div><div class="v">${money(perf.gastosTotal)}</div></div>
   <div class="kpi"><div class="l">Pago a profesionales</div><div class="v">${money(perf.pagoProfesionales)}</div><div class="muted">Comisiones ${money(perf.comisiones)}</div></div>
-  <div class="kpi"><div class="l">Ventas</div><div class="v">${perf.ventas}</div><div class="muted">${esc(deltaText(perf.ventas, prev?.hasData ? prev.ventas : null))}</div></div>
+  <div class="kpi"><div class="l">Ventas</div><div class="v">${perf.ventas}</div><div class="muted">${esc(deltaText(perf.ventas, prev?.hasData ? prev.ventas : null, vsLabel))}</div></div>
   <div class="kpi"><div class="l">Ticket promedio</div><div class="v">${money(perf.ticket)}</div></div>
   <div class="kpi"><div class="l">Clientes atendidos</div><div class="v">${perf.clientes}</div></div>
 </div>
@@ -102,10 +103,11 @@ export function printMonthlyPerformance(
   perf: MonthlyPerformance,
   prev: MonthlyPerformance | null,
   businessName: string,
+  vsLabel = "vs mes anterior",
 ) {
   const win = window.open("", "_blank", "width=900,height=1000");
   if (!win) return false;
-  win.document.write(buildMonthlyPerformanceHtml(perf, prev, businessName));
+  win.document.write(buildMonthlyPerformanceHtml(perf, prev, businessName, vsLabel));
   win.document.close();
   win.focus();
   // Deja que el navegador pinte la página antes de abrir el diálogo de impresión.

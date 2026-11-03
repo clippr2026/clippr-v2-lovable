@@ -4,6 +4,7 @@ import {
   monthBounds,
   monthLabel,
   shiftMonth,
+  truncateRawToDay,
   variationPct,
   type MonthlyRawData,
 } from "@/lib/monthly-performance";
@@ -207,6 +208,59 @@ describe("Rendimiento mensual", () => {
     expect(monthLabel("2026-10")).toBe("Octubre 2026");
     expect(variationPct(150, 100)).toBe(50);
     expect(variationPct(10, 0)).toBeNull();
+  });
+
+  it("truncateRawToDay recorta el mes a los días 1..N en hora de Argentina para comparar el mes en curso contra el mismo período", () => {
+    const raw = base({
+      payments: [
+        pay({ id: "p1", total: 10000, created_at: "2026-10-01T15:00:00Z" }),
+        pay({ id: "p2", total: 20000, created_at: "2026-10-03T15:00:00Z" }),
+        // 02:30 UTC del 04/10 = 23:30 del 03/10 en Argentina: todavía es día 3
+        pay({ id: "p3", total: 30000, created_at: "2026-10-04T02:30:00Z" }),
+        pay({ id: "p4", total: 40000, created_at: "2026-10-04T15:00:00Z" }),
+        pay({ id: "p5", total: 50000, created_at: "2026-10-20T15:00:00Z", status: "pendiente" }),
+      ],
+      collections: [
+        { id: "c1", payment_id: "p5", amount: 1000, method: "efectivo" },
+        { id: "c2", payment_id: "p1", amount: 500, method: "efectivo" },
+      ],
+      expenses: [
+        { id: "e1", amount: 100, type: "fijo", funds_source: "otros", date: "2026-10-03" },
+        { id: "e2", amount: 200, type: "fijo", funds_source: "otros", date: "2026-10-04" },
+      ],
+      commissions: [
+        { sale_id: "p2", professional_id: "emp-a", amount: 9000 },
+        { sale_id: "p4", professional_id: "emp-a", amount: 9000 },
+      ],
+      attendance: [
+        { employee_id: "emp-a", status: "tarde", discount_amount_applied: 1000, date: "2026-10-02" },
+        { employee_id: "emp-a", status: "tarde", discount_amount_applied: 1000, date: "2026-10-09" },
+      ],
+      consumos: [
+        { id: "k1", amount: 3000, professional_id: "emp-a", advanced_at: "2026-10-03T12:00:00Z" },
+        { id: "k2", amount: 4000, professional_id: "emp-a", advanced_at: "2026-10-15T12:00:00Z" },
+      ],
+    });
+    const t = truncateRawToDay(raw, 3);
+    expect(t.payments.map((p) => p.id)).toEqual(["p1", "p2", "p3"]);
+    expect(t.collections.map((c) => c.id)).toEqual(["c2"]);
+    expect(t.expenses.map((e) => e.id)).toEqual(["e1"]);
+    expect(t.commissions.map((c) => c.sale_id)).toEqual(["p2"]);
+    expect(t.attendance).toHaveLength(1);
+    expect(t.consumos.map((c) => c.id)).toEqual(["k1"]);
+    const perf = computeMonthlyPerformance("2026-10", t);
+    expect(perf.facturacion).toBe(10000 + 20000 + 30000 + 3000);
+  });
+
+  it("Evolución del negocio va primero y Salud del negocio segundo; con menos de 7 días se analiza el último mes completo", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const read = (rel: string) => fs.readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
+    const advisor = read("src/routes/advisor.tsx");
+    expect(advisor.indexOf("EVOLUCIÓN DEL NEGOCIO")).toBeLessThan(advisor.indexOf("SALUD DEL NEGOCIO"));
+    const hook = read("src/hooks/use-advisor-analytics.ts");
+    expect(hook).toContain("MIN_DAYS_TO_JUDGE = 7");
+    expect(hook).toContain("vs el mismo período del mes anterior");
   });
 
   it("está montado en Asesor IA → Análisis → Evolución del negocio (sin pestaña propia) y exporta con el diálogo de impresión", async () => {

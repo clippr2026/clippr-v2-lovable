@@ -44,13 +44,20 @@ export type MonthlyExpenseRow = {
   amount: number | null;
   type: string | null;
   funds_source: string | null;
+  date?: string | null;
 };
-export type MonthlyConsumoRow = { id: string; amount: number | null; professional_id: string | null };
+export type MonthlyConsumoRow = {
+  id: string;
+  amount: number | null;
+  professional_id: string | null;
+  advanced_at?: string | null;
+};
 export type MonthlyCommissionRow = { sale_id: string | null; professional_id: string | null; amount: number | null };
 export type MonthlyAttendanceRow = {
   employee_id: string | null;
   status: string | null;
   discount_amount_applied: number | null;
+  date?: string | null;
 };
 
 export type MonthlyRawData = {
@@ -111,13 +118,56 @@ export type MonthlyPerformance = {
 
 // Carga + cálculo de UN mes. La usan el Rendimiento mensual y el resto del Asesor IA
 // (Salud del negocio, informes mensuales), así todos muestran los mismos números.
+//
+// `uptoDay` (opcional): solo cuenta hasta ese día del mes (inclusive). Sirve para comparar
+// el mes en curso contra el MISMO período del mes anterior (del 1 al 3 contra del 1 al 3),
+// en vez de contra el mes completo.
 export async function loadMonthlyPerformance(
   businessId: string,
   branchId: string | null,
   monthKey: string,
+  uptoDay?: number,
 ): Promise<MonthlyPerformance> {
-  const raw = await fetchMonthlyRawData(businessId, branchId, monthKey);
-  return computeMonthlyPerformance(monthKey, raw);
+  const raw = await fetchMonthlyRawDataCached(businessId, branchId, monthKey);
+  return computeMonthlyPerformance(monthKey, uptoDay ? truncateRawToDay(raw, uptoDay) : raw);
+}
+
+const AR_TZ = "America/Argentina/Buenos_Aires";
+const dayOfIso = (iso: string | null | undefined): number | null => {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return Number(d.toLocaleDateString("sv-SE", { timeZone: AR_TZ }).slice(8, 10));
+};
+const dayOfDate = (date: string | null | undefined): number | null =>
+  date && /^\d{4}-\d{2}-\d{2}/.test(date) ? Number(date.slice(8, 10)) : null;
+
+// Recorta los datos crudos de un mes a los días 1..day (hora de Argentina).
+export function truncateRawToDay(raw: MonthlyRawData, day: number): MonthlyRawData {
+  const payments = raw.payments.filter((p) => (dayOfIso(p.created_at) ?? 99) <= day);
+  const ids = new Set(payments.map((p) => p.id));
+  return {
+    ...raw,
+    payments,
+    collections: raw.collections.filter((c) => c.payment_id && ids.has(c.payment_id)),
+    expenses: raw.expenses.filter((e) => (dayOfDate(e.date) ?? 99) <= day),
+    commissions: raw.commissions.filter((c) => c.sale_id && ids.has(c.sale_id)),
+    attendance: raw.attendance.filter((a) => (dayOfDate(a.date) ?? 99) <= day),
+    consumos: raw.consumos.filter((c) => (dayOfIso(c.advanced_at) ?? 99) <= day),
+  };
+}
+
+// Caché corta de los datos crudos por mes: el mes anterior se pide dos veces (completo y
+// recortado al mismo día) y no hace falta bajar los cobros dos veces.
+const rawCache = new Map<string, { at: number; promise: Promise<MonthlyRawData> }>();
+function fetchMonthlyRawDataCached(businessId: string, branchId: string | null, monthKey: string) {
+  const key = `${businessId}|${branchId ?? ""}|${monthKey}`;
+  const hit = rawCache.get(key);
+  if (hit && Date.now() - hit.at < 30_000) return hit.promise;
+  const promise = fetchMonthlyRawData(businessId, branchId, monthKey);
+  rawCache.set(key, { at: Date.now(), promise });
+  promise.catch(() => rawCache.delete(key));
+  return promise;
 }
 
 export function monthBounds(monthKey: string): { start: Date; end: Date; firstDay: string; lastDay: string } {
@@ -328,7 +378,7 @@ export async function fetchMonthlyRawData(
   const expenses = await fetchAllRows<MonthlyExpenseRow>((from, to) => {
     let q = supabase
       .from("expenses")
-      .select("id,amount,type,funds_source")
+      .select("id,amount,type,funds_source,date")
       .eq("business_id", businessId)
       .gte("date", firstDay)
       .lte("date", lastDay)
@@ -355,7 +405,7 @@ export async function fetchMonthlyRawData(
     attendance = await fetchAllRows<MonthlyAttendanceRow>((from, to) =>
       supabase
         .from("attendance_confirmations" as any)
-        .select("employee_id,status,discount_amount_applied")
+        .select("employee_id,status,discount_amount_applied,date")
         .eq("business_id", businessId)
         .gte("date", firstDay)
         .lte("date", lastDay)
@@ -372,7 +422,7 @@ export async function fetchMonthlyRawData(
     consumos = await fetchAllRows<MonthlyConsumoRow>((from, to) =>
       supabase
         .from("professional_advances" as any)
-        .select("id,amount,professional_id")
+        .select("id,amount,professional_id,advanced_at")
         .eq("business_id", businessId)
         .gte("advanced_at", startIso)
         .lte("advanced_at", endIso)

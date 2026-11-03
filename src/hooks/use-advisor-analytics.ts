@@ -20,9 +20,16 @@ import { useClientsData } from "@/hooks/use-clients-data";
 import { cajaDateKeyBA } from "@/lib/caja-cierre";
 import { loadMonthlyPerformance, shiftMonth, type MonthlyPerformance } from "@/lib/monthly-performance";
 import { fetchAllRows } from "@/lib/supabase-paginate";
+import {
+  computeCapacity,
+  parseCapacityContext,
+  slotMinutesForEmployee,
+  type CapacityContext,
+} from "@/lib/agenda-capacity";
 
 const DONE_STATUSES = ["completed", "charged"];
 const MONTHS_OF_HISTORY = 6;
+const MIN_DAYS_TO_JUDGE = 7;
 
 export type AdvisorMonthSnapshot = {
   monthKey: string; // "2026-06"
@@ -35,6 +42,8 @@ export type AdvisorMonthSnapshot = {
   occupancy: number;
   cancellations: number;
   doneCount: number;
+  // Turnos sin ocupar en los días que se trabajó (capacidad − turnos usados).
+  freeSlots: number;
   hasData: boolean;
 };
 
@@ -62,6 +71,14 @@ export type AdvisorAnalytics = {
   radar: RadarItem[];
   freeSlotsMonth: number;
   productSharePct: number | null;
+  // Mes que está analizando "Salud del negocio" y la Radiografía. Con menos de 7 días del
+  // mes en curso es el último mes completo (3 días no alcanzan para juzgar la salud).
+  analysisMonthLabel: string;
+  analysisNote: string | null;
+  // Texto de la comparación: "vs mes anterior" o "vs el mismo período del mes anterior".
+  vsLabel: string;
+  // Mes en curso (si está en curso): facturación del mismo período del mes anterior.
+  mtd: { monthKey: string; previousRevenue: number | null; upToDay: number } | null;
 };
 
 type RawPayment = {
@@ -72,6 +89,9 @@ type RawPayment = {
   client_name: string | null;
   client_id: string | null;
   created_at: string;
+  // Detalle ítem por ítem de la venta (servicio o producto de catálogo).
+  items?: Array<{ name?: string | null; amount?: number | null; qty?: number | null; is_catalog?: boolean }> | null;
+  employee_id?: string | null;
 };
 
 type RawAppt = {
@@ -85,7 +105,7 @@ type RawAppt = {
 };
 
 type RawExpense = { amount: number | null; date: string | null };
-type RawEmployee = { id: string; full_name: string };
+type RawEmployee = { id: string; full_name: string; is_active?: boolean | null };
 type RawCatalogItem = { id: string; name: string; price: number | null; duration_min: number | null };
 
 // El mes de un movimiento se decide en hora de Argentina, nunca en la del dispositivo
@@ -112,6 +132,7 @@ async function loadAdvisorAnalytics(businessId: string): Promise<{
   expenses: RawExpense[];
   employees: RawEmployee[];
   catalog: RawCatalogItem[];
+  schedule: unknown;
 }> {
   const sinceDate = `${shiftMonth(cajaDateKeyBA().slice(0, 7), -MONTHS_OF_HISTORY)}-01`;
   const sinceIso = new Date(`${sinceDate}T00:00:00-03:00`).toISOString();
@@ -122,7 +143,7 @@ async function loadAdvisorAnalytics(businessId: string): Promise<{
     (from, to) =>
       supabase
         .from("payments")
-        .select("id,total,amount,service_name,client_name,client_id,created_at")
+        .select("id,total,amount,service_name,client_name,client_id,created_at,items,employee_id")
         .eq("business_id", businessId)
         .gte("created_at", sinceIso)
         .not("status", "in", "(anulado,reembolsado)")
@@ -182,11 +203,17 @@ async function loadAdvisorAnalytics(businessId: string): Promise<{
     (error: Error) => ({ data: [] as RawExpense[], error: { message: error.message } }),
   );
 
+  const scheduleRes = await supabase
+    .from("business_settings")
+    .select("schedule")
+    .eq("business_id", businessId)
+    .maybeSingle();
+
   const [payRes, apptRes, expRes, empRes, catRes] = await Promise.all([
     paymentsPromise,
     apptsPromise,
     expensesPromise,
-    supabase.from("employees").select("id,full_name").eq("business_id", businessId),
+    supabase.from("employees").select("id,full_name,is_active").eq("business_id", businessId),
     supabase
       .from("price_catalog")
       .select("id,name,price,duration_min")
@@ -200,20 +227,34 @@ async function loadAdvisorAnalytics(businessId: string): Promise<{
     expenses: expRes.error ? [] : ((expRes.data ?? []) as RawExpense[]),
     employees: empRes.error ? [] : ((empRes.data ?? []) as RawEmployee[]),
     catalog: catRes.error ? [] : ((catRes.data ?? []) as RawCatalogItem[]),
+    schedule: scheduleRes.error ? null : ((scheduleRes.data as any)?.schedule ?? null),
   };
 }
+
+type CapacityData = { employees: RawEmployee[]; catalog: RawCatalogItem[]; ctx: CapacityContext };
 
 function buildMonthSnapshot(
   monthKey: string,
   payments: RawPayment[],
   appts: RawAppt[],
   expenses: RawExpense[],
-  employeeCount: number,
+  capacityData: CapacityData,
   perf: MonthlyPerformance | undefined,
+  uptoDay?: number,
 ): AdvisorMonthSnapshot {
-  const monthPayments = payments.filter((p) => monthKeyOf(p.created_at) === monthKey);
-  const monthAppts = appts.filter((a) => monthKeyOf(a.starts_at) === monthKey);
-  const monthExpenses = expenses.filter((e) => e.date && e.date.slice(0, 7) === monthKey);
+  // Día de corte: el mes en curso solo llega hasta hoy; un mes cerrado, hasta su último día.
+  const todayKeyBA = cajaDateKeyBA();
+  const [y, m] = monthKey.split("-").map(Number);
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const cutoffDay = uptoDay ?? (monthKey === todayKeyBA.slice(0, 7) ? Number(todayKeyBA.slice(8, 10)) : daysInMonth);
+  const dayOf = (iso: string) =>
+    Number(new Date(iso).toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }).slice(8, 10));
+
+  const monthPayments = payments.filter((p) => monthKeyOf(p.created_at) === monthKey && dayOf(p.created_at) <= cutoffDay);
+  const monthAppts = appts.filter((a) => monthKeyOf(a.starts_at) === monthKey && dayOf(a.starts_at) <= cutoffDay);
+  const monthExpenses = expenses.filter(
+    (e) => e.date && e.date.slice(0, 7) === monthKey && Number(e.date.slice(8, 10)) <= cutoffDay,
+  );
 
   // Facturación, gastos, ganancia, clientes y ticket salen del mismo cálculo que el
   // Rendimiento mensual (por mes del servicio, sin anuladas, con todos los gastos y
@@ -237,10 +278,46 @@ function buildMonthSnapshot(
     const isFutureRecurring = Boolean(a.recurring_series_id) && new Date(a.starts_at).getTime() > now && !DONE_STATUSES.includes(a.status);
     return !isFutureRecurring;
   }).length;
-  const [y, m] = monthKey.split("-").map(Number);
-  const daysInMonth = new Date(y, m, 0).getDate();
-  const totalSlots = Math.max(employeeCount, 1) * daysInMonth * 8; // 8 turnos/día por profesional, mismo criterio que el Dashboard
-  const occupancy = totalSlots > 0 ? Math.min(100, Math.round((usable / totalSlots) * 100)) : 0;
+  // Capacidad REAL: para cada profesional activo, los turnos que entran en SU horario
+  // (días que trabaja, entrada, salida y descanso) según cuánto dura lo que atiende —
+  // 11 a 20 con 1 h de descanso y turnos de 1 h son 8; sin descanso, 9; con servicios de
+  // 40 min, más. Solo hasta el día de corte (el mes en curso no cuenta días que no llegaron).
+  // Lo usado son los servicios realmente vendidos en el período (los cobros sin turno
+  // también ocupan agenda), o los turnos si fuera mayor.
+  const activeEmployees = capacityData.employees.filter((e) => e.is_active !== false);
+  const soldByEmployee = new Map<string, Array<{ name: string; qty: number }>>();
+  let servicesSold = 0;
+  for (const p of monthPayments) {
+    const lines = Array.isArray(p.items) ? p.items.filter((it) => it && !it.is_catalog) : [];
+    const entries = lines.length > 0
+      ? lines.map((it) => ({ name: String(it.name ?? "").trim(), qty: Number(it.qty ?? 1) > 0 ? Number(it.qty ?? 1) : 1 }))
+      : [{ name: (p.service_name ?? "").trim(), qty: 1 }];
+    servicesSold += entries.reduce((s, e) => s + e.qty, 0);
+    if (p.employee_id) {
+      const list = soldByEmployee.get(p.employee_id) ?? [];
+      list.push(...entries.filter((e) => e.name));
+      soldByEmployee.set(p.employee_id, list);
+    }
+  }
+  const slotMinutesByEmployee: Record<string, number> = {};
+  for (const e of activeEmployees) {
+    slotMinutesByEmployee[e.id] = slotMinutesForEmployee(
+      e.id,
+      soldByEmployee.get(e.id) ?? [],
+      capacityData.catalog,
+      capacityData.ctx.serviceOverrides,
+    );
+  }
+  const { totalSlots } = computeCapacity({
+    ctx: capacityData.ctx,
+    employeeIds: activeEmployees.map((e) => e.id),
+    monthKey,
+    cutoffDay,
+    slotMinutesByEmployee,
+  });
+  const used = Math.max(usable, servicesSold);
+  const occupancy = totalSlots > 0 ? Math.min(100, Math.round((used / totalSlots) * 100)) : 0;
+  const freeSlots = Math.max(0, totalSlots - used);
 
   return {
     monthKey,
@@ -253,6 +330,7 @@ function buildMonthSnapshot(
     occupancy,
     cancellations,
     doneCount,
+    freeSlots,
     hasData: monthPayments.length > 0 || monthAppts.length > 0,
   };
 }
@@ -280,18 +358,30 @@ export function useAdvisorAnalytics(businessId: string | null | undefined): Advi
   // Misma consulta (y misma caché) que el Rendimiento mensual.
   const perfQueries = useQueries({
     queries: monthKeys.map((mk) => ({
-      queryKey: ["monthly-performance", businessId, activeBranchId, mk],
+      queryKey: ["monthly-performance", businessId, activeBranchId, mk, "mes-completo"],
       queryFn: () => loadMonthlyPerformance(businessId!, activeBranchId, mk),
       enabled: !!businessId,
       staleTime: 60_000,
     })),
   });
-  const perfSignature = perfQueries.map((q) => `${q.status}:${q.dataUpdatedAt}`).join("|");
+  // Mes en curso: con menos de 7 días no se puede juzgar la salud (3 días contra un mes
+  // entero siempre da "-98%"), así que se analiza el último mes completo. Con 7 o más,
+  // se compara contra el MISMO período del mes anterior (del 1 al día de hoy).
+  const todayDay = Number(cajaDateKeyBA().slice(8, 10));
+  const analysisIdx = todayDay >= MIN_DAYS_TO_JUDGE ? 0 : 1;
+  const samePeriodQuery = useQuery({
+    queryKey: ["monthly-performance", businessId, activeBranchId, monthKeys[1], todayDay],
+    queryFn: () => loadMonthlyPerformance(businessId!, activeBranchId, monthKeys[1], todayDay),
+    enabled: !!businessId,
+    staleTime: 60_000,
+  });
+  const perfSignature = `${perfQueries.map((q) => `${q.status}:${q.dataUpdatedAt}`).join("|")}#${samePeriodQuery.dataUpdatedAt}`;
 
   return React.useMemo(() => {
     const data = dataQuery.data;
     const clients = clientsQuery.data ?? [];
-    const loading = dataQuery.isLoading || clientsQuery.isLoading || perfQueries.some((q) => q.isLoading);
+    const loading =
+      dataQuery.isLoading || clientsQuery.isLoading || perfQueries.some((q) => q.isLoading) || samePeriodQuery.isLoading;
     const perfByMonth = new Map<string, MonthlyPerformance>();
     perfQueries.forEach((q, i) => {
       if (q.data) perfByMonth.set(monthKeys[i], q.data);
@@ -309,17 +399,40 @@ export function useAdvisorAnalytics(businessId: string | null | undefined): Advi
         radar: [],
         freeSlotsMonth: 0,
         productSharePct: null,
+        analysisMonthLabel: monthLabelOf(monthKeys[analysisIdx]),
+        analysisNote: null,
+        vsLabel: "vs mes anterior",
+        mtd: null,
       };
     }
 
-    const { payments, appts, expenses, employees, catalog } = data;
-    const now = new Date();
+    const { payments, appts, expenses, employees, catalog, schedule } = data;
+    const capacityData: CapacityData = { employees, catalog, ctx: parseCapacityContext(schedule) };
 
     const history = monthKeys.map((mk) =>
-      buildMonthSnapshot(mk, payments, appts, expenses, employees.length, perfByMonth.get(mk)),
+      buildMonthSnapshot(mk, payments, appts, expenses, capacityData, perfByMonth.get(mk)),
     );
-    const current = history[0] ?? null;
-    const previous = history[1] ?? null;
+    const analysisKey = monthKeys[analysisIdx];
+    const current = history[analysisIdx] ?? null;
+    // Contra qué se compara: el mismo período del mes anterior (mes en curso) o el mes
+    // anterior completo (mes cerrado).
+    const previous =
+      analysisIdx === 0
+        ? buildMonthSnapshot(
+            monthKeys[1],
+            payments,
+            appts,
+            expenses,
+            capacityData,
+            samePeriodQuery.data,
+            todayDay,
+          )
+        : (history[2] ?? null);
+    const vsLabel = analysisIdx === 0 ? "vs el mismo período del mes anterior" : "vs mes anterior";
+    const analysisNote =
+      analysisIdx === 1
+        ? `Se analiza ${monthLabelOf(analysisKey)} (último mes completo): el mes en curso lleva menos de ${MIN_DAYS_TO_JUDGE} días y todavía no alcanza para evaluar.`
+        : null;
     const hasAnyData = history.some((h) => h.hasData);
 
     // ── Puntaje de salud (0-100): ocupación + crecimiento + cancelaciones +
@@ -346,7 +459,7 @@ export function useAdvisorAnalytics(businessId: string | null | undefined): Advi
     ).length;
     const vipCount = clients.filter((c) => c.vipTag === "vip").length;
 
-    const currentMonthAppts = appts.filter((a) => monthKeyOf(a.starts_at) === monthKeys[0]);
+    const currentMonthAppts = appts.filter((a) => monthKeyOf(a.starts_at) === analysisKey);
     const doneThisMonth = currentMonthAppts.filter((a) => DONE_STATUSES.includes(a.status));
     const byEmployee = new Map<string, number>();
     doneThisMonth.forEach((a) => {
@@ -362,8 +475,21 @@ export function useAdvisorAnalytics(businessId: string | null | undefined): Advi
 
     const serviceUsage = new Map<string, { count: number; revenue: number }>();
     payments
-      .filter((p) => monthKeyOf(p.created_at) === monthKeys[0])
+      .filter((p) => monthKeyOf(p.created_at) === analysisKey)
       .forEach((p) => {
+        // Por ítem de la venta (no por el texto del cobro, que mezcla combos como
+        // "Corte + Barba" o "Corte / Cepita"): cuenta cada servicio una vez y su monto.
+        const lines = Array.isArray(p.items) ? p.items.filter((it) => it && !it.is_catalog) : [];
+        if (lines.length > 0) {
+          for (const it of lines) {
+            const name = String(it.name ?? "").trim() || "Servicio";
+            const entry = serviceUsage.get(name) ?? { count: 0, revenue: 0 };
+            entry.count += Number(it.qty ?? 1) > 0 ? Number(it.qty ?? 1) : 1;
+            entry.revenue += Number(it.amount ?? 0);
+            serviceUsage.set(name, entry);
+          }
+          return;
+        }
         const name = (p.service_name ?? "").trim() || "Servicio";
         const entry = serviceUsage.get(name) ?? { count: 0, revenue: 0 };
         entry.count += 1;
@@ -384,7 +510,7 @@ export function useAdvisorAnalytics(businessId: string | null | undefined): Advi
     if (productNames.size > 0) {
       const payersThisMonth = new Set(
         payments
-          .filter((p) => monthKeyOf(p.created_at) === monthKeys[0])
+          .filter((p) => monthKeyOf(p.created_at) === analysisKey)
           .map((p) => p.client_id || p.client_name)
           .filter(Boolean),
       );
@@ -392,8 +518,9 @@ export function useAdvisorAnalytics(businessId: string | null | undefined): Advi
         payments
           .filter(
             (p) =>
-              monthKeyOf(p.created_at) === monthKeys[0] &&
-              productNames.has((p.service_name ?? "").trim().toLowerCase()),
+              monthKeyOf(p.created_at) === analysisKey &&
+              (productNames.has((p.service_name ?? "").trim().toLowerCase()) ||
+                (Array.isArray(p.items) && p.items.some((it) => it?.is_catalog))),
           )
           .map((p) => p.client_id || p.client_name)
           .filter(Boolean),
@@ -402,9 +529,7 @@ export function useAdvisorAnalytics(businessId: string | null | undefined): Advi
         payersThisMonth.size > 0 ? Math.round((buyersThisMonth.size / payersThisMonth.size) * 100) : 0;
     }
 
-    const freeSlotsMonth = current
-      ? Math.max(0, Math.max(employees.length, 1) * new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate() * 8 - current.doneCount)
-      : 0;
+    const freeSlotsMonth = current ? current.freeSlots : 0;
 
     const radiografia: RadiografiaItem[] = [
       {
@@ -415,7 +540,7 @@ export function useAdvisorAnalytics(businessId: string | null | undefined): Advi
       },
       {
         key: "turnos-vacios",
-        label: "Turnos vacíos este mes",
+        label: "Turnos vacíos en los días trabajados",
         value: String(freeSlotsMonth),
         tone: freeSlotsMonth > 0 ? "warn" : "good",
       },
@@ -465,7 +590,7 @@ export function useAdvisorAnalytics(businessId: string | null | undefined): Advi
         radar.push({
           key: "utilidad",
           tone: profitPct >= 0 ? "ok" : "bad",
-          label: `Utilidad ${profitPct >= 0 ? "creciendo" : "cayendo"} (${profitPct >= 0 ? "+" : ""}${profitPct}% vs mes anterior)`,
+          label: `Utilidad ${profitPct >= 0 ? "creciendo" : "cayendo"} (${profitPct >= 0 ? "+" : ""}${profitPct}% ${vsLabel})`,
         });
       }
       const clientsPct = pctDelta(current.clientsServed, previous.clientsServed);
@@ -473,7 +598,7 @@ export function useAdvisorAnalytics(businessId: string | null | undefined): Advi
         radar.push({
           key: "clientes",
           tone: clientsPct >= 0 ? "ok" : "warn",
-          label: `Clientes atendidos ${clientsPct >= 0 ? "creciendo" : "bajando"} (${clientsPct >= 0 ? "+" : ""}${clientsPct}%)`,
+          label: `Clientes atendidos ${clientsPct >= 0 ? "creciendo" : "bajando"} (${clientsPct >= 0 ? "+" : ""}${clientsPct}% ${vsLabel})`,
         });
       }
     }
@@ -491,7 +616,7 @@ export function useAdvisorAnalytics(businessId: string | null | undefined): Advi
       radar.push({
         key: "turnos",
         tone: "warn",
-        label: `${freeSlotsMonth} turnos disponibles sin ocupar este mes`,
+        label: `${freeSlotsMonth} turnos sin ocupar en los días trabajados`,
       });
     }
 
@@ -506,6 +631,17 @@ export function useAdvisorAnalytics(businessId: string | null | undefined): Advi
       radar,
       freeSlotsMonth,
       productSharePct,
+      analysisMonthLabel: monthLabelOf(analysisKey),
+      analysisNote,
+      vsLabel,
+      mtd:
+        analysisIdx === 0 || history[0]?.hasData
+          ? {
+              monthKey: monthKeys[0],
+              upToDay: todayDay,
+              previousRevenue: samePeriodQuery.data ? samePeriodQuery.data.facturacion : null,
+            }
+          : null,
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataQuery.data, dataQuery.isLoading, clientsQuery.data, clientsQuery.isLoading, monthKeys, perfSignature]);

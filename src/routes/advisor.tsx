@@ -395,6 +395,69 @@ function AdvisorContent({
 
       {advisorTab === "analisis" && (
         <>
+          {/* ── EVOLUCIÓN DEL NEGOCIO ─────────────────────────────── */}
+          {/* Mismo fix que Salud del negocio: overflow-hidden contiene el
+              glow decorativo (-inset-x-6) para que no fuerce scroll
+              horizontal en toda la página. */}
+          <div className="relative overflow-hidden rounded-[1.7rem] border border-sky-300/[0.30] bg-white/[0.018] p-2.5 pt-14 shadow-[0_0_0_1px_rgba(56,189,248,0.16),0_24px_90px_-42px_rgba(14,165,233,0.9)] sm:p-3 sm:pt-16">
+            <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-sky-400/[0.16] blur-3xl" />
+            {/* Ver mismo comentario en Salud del negocio: "Cómo funciona"
+                una sola vez por sección, en la esquina superior derecha del
+                bloque completo — antes vivía adentro del bloque de
+                "Crecimiento mensual" y podía superponerse al porcentaje.
+                pt-14/16 + más margen del borde: mismo fix que Salud del
+                negocio (el botón quedaba dentro de la curva del borde
+                redondeado grande y se veía cortado/colgando). */}
+            <button
+              type="button"
+              onClick={() => setInfoModal(INFO_CONTENT.growth)}
+              className="absolute right-4 top-4 z-20 inline-flex h-6 shrink-0 items-center justify-center gap-1.5 rounded-full border border-sky-300/35 bg-sky-300/10 px-2 text-[11px] font-bold text-sky-200 transition hover:border-sky-200/55 hover:bg-sky-300/16 hover:text-white sm:right-5 sm:top-5 sm:h-7 sm:px-2.5"
+              aria-label="Cómo funciona crecimiento"
+            >
+              <CircleHelp className="h-3 w-3" />
+              <span className="hidden sm:inline">Cómo funciona</span>
+            </button>
+            <div className="flex items-center gap-4 mb-3">
+              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+              <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">
+                Evolución del negocio
+              </span>
+              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
+            </div>
+            <div className="px-0.5 pb-1 pt-1 sm:px-1">
+              <RendimientoMensual />
+            </div>
+            <div className="px-0.5 pb-1 pt-3 sm:px-1">
+              <GlassCard className="mx-auto max-w-5xl p-3 sm:p-4">
+                <div className="grid gap-2 sm:gap-2.5 md:grid-cols-3">
+                {/* Ocupación */}
+                <div className="rounded-2xl border border-white/[0.12] bg-white/[0.035] p-2.5 flex flex-col gap-1.5 sm:p-3 sm:gap-2">
+                  <div className="grid h-8 w-8 place-items-center rounded-xl bg-orange-400/10 ring-1 ring-orange-400/20 sm:h-9 sm:w-9">
+                    <ClipboardList className="h-4 w-4 text-orange-400" />
+                  </div>
+                  <div>
+                    <div className="text-sm text-muted-foreground">Ocupación</div>
+                    <div className="font-display text-2xl font-bold text-orange-300 mt-1 leading-none sm:text-3xl">
+                      {Math.round((analytics.current?.occupancy ?? 0) * animationProgress)}%
+                    </div>
+                  </div>
+                  {analytics.freeSlotsMonth > 0 && (
+                    <div className="rounded-xl border border-orange-300/15 bg-orange-300/[0.05] px-2.5 py-1 text-[11px] sm:px-3 sm:py-1.5">
+                      <div className="text-white/70">{analytics.freeSlotsMonth} turnos vacíos en los días trabajados</div>
+                      <div className="mt-0.5 text-white/45">
+                        Potencial: +
+                        {fmtAR(Math.round(analytics.freeSlotsMonth * 0.21 * (analytics.current?.ticket ?? 0)))} si los
+                        llenás.
+                      </div>
+                    </div>
+                  )}
+                </div>
+                </div>
+              </GlassCard>
+            </div>
+          </div>
+          {/* /Evolución */}
+
           {/* ── SALUD DEL NEGOCIO ─────────────────────────────────── */}
           {/* overflow-hidden (no visible): el glow decorativo de abajo usa
               -inset-x-6, que sin clip podía sobresalir del ancho real de
@@ -439,8 +502,11 @@ function AdvisorContent({
                   Estado actual
                 </h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  Rentabilidad, clientes y ocupación del período.
+                  Rentabilidad, clientes y ocupación de {analytics.analysisMonthLabel}.
                 </p>
+                {analytics.analysisNote && (
+                  <p className="mt-1.5 text-xs leading-snug text-amber-200/80">{analytics.analysisNote}</p>
+                )}
               </div>
 
               <div className="grid gap-3 sm:gap-5 md:grid-cols-[0.95fr_1.05fr] items-center">
@@ -608,69 +674,6 @@ function AdvisorContent({
           </div>
           {/* /Salud */}
 
-          {/* ── EVOLUCIÓN DEL NEGOCIO ─────────────────────────────── */}
-          {/* Mismo fix que Salud del negocio: overflow-hidden contiene el
-              glow decorativo (-inset-x-6) para que no fuerce scroll
-              horizontal en toda la página. */}
-          <div className="relative overflow-hidden rounded-[1.7rem] border border-sky-300/[0.30] bg-white/[0.018] p-2.5 pt-14 shadow-[0_0_0_1px_rgba(56,189,248,0.16),0_24px_90px_-42px_rgba(14,165,233,0.9)] sm:p-3 sm:pt-16">
-            <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-sky-400/[0.16] blur-3xl" />
-            {/* Ver mismo comentario en Salud del negocio: "Cómo funciona"
-                una sola vez por sección, en la esquina superior derecha del
-                bloque completo — antes vivía adentro del bloque de
-                "Crecimiento mensual" y podía superponerse al porcentaje.
-                pt-14/16 + más margen del borde: mismo fix que Salud del
-                negocio (el botón quedaba dentro de la curva del borde
-                redondeado grande y se veía cortado/colgando). */}
-            <button
-              type="button"
-              onClick={() => setInfoModal(INFO_CONTENT.growth)}
-              className="absolute right-4 top-4 z-20 inline-flex h-6 shrink-0 items-center justify-center gap-1.5 rounded-full border border-sky-300/35 bg-sky-300/10 px-2 text-[11px] font-bold text-sky-200 transition hover:border-sky-200/55 hover:bg-sky-300/16 hover:text-white sm:right-5 sm:top-5 sm:h-7 sm:px-2.5"
-              aria-label="Cómo funciona crecimiento"
-            >
-              <CircleHelp className="h-3 w-3" />
-              <span className="hidden sm:inline">Cómo funciona</span>
-            </button>
-            <div className="flex items-center gap-4 mb-3">
-              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-              <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">
-                Evolución del negocio
-              </span>
-              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
-            </div>
-            <div className="px-0.5 pb-1 pt-1 sm:px-1">
-              <RendimientoMensual />
-            </div>
-            <div className="px-0.5 pb-1 pt-3 sm:px-1">
-              <GlassCard className="mx-auto max-w-5xl p-3 sm:p-4">
-                <div className="grid gap-2 sm:gap-2.5 md:grid-cols-3">
-                {/* Ocupación */}
-                <div className="rounded-2xl border border-white/[0.12] bg-white/[0.035] p-2.5 flex flex-col gap-1.5 sm:p-3 sm:gap-2">
-                  <div className="grid h-8 w-8 place-items-center rounded-xl bg-orange-400/10 ring-1 ring-orange-400/20 sm:h-9 sm:w-9">
-                    <ClipboardList className="h-4 w-4 text-orange-400" />
-                  </div>
-                  <div>
-                    <div className="text-sm text-muted-foreground">Ocupación</div>
-                    <div className="font-display text-2xl font-bold text-orange-300 mt-1 leading-none sm:text-3xl">
-                      {Math.round((analytics.current?.occupancy ?? 0) * animationProgress)}%
-                    </div>
-                  </div>
-                  {analytics.freeSlotsMonth > 0 && (
-                    <div className="rounded-xl border border-orange-300/15 bg-orange-300/[0.05] px-2.5 py-1 text-[11px] sm:px-3 sm:py-1.5">
-                      <div className="text-white/70">{analytics.freeSlotsMonth} turnos vacíos este mes</div>
-                      <div className="mt-0.5 text-white/45">
-                        Potencial: +
-                        {fmtAR(Math.round(analytics.freeSlotsMonth * 0.21 * (analytics.current?.ticket ?? 0)))} por
-                        mes si los llenás.
-                      </div>
-                    </div>
-                  )}
-                </div>
-                </div>
-              </GlassCard>
-            </div>
-          </div>
-          {/* /Evolución */}
-
           {/* ── RADIOGRAFÍA DEL LOCAL ─────────────────────────────── */}
           {/* overflow-hidden: mismo fix que Salud/Evolución — el glow
               decorativo (-inset-x-6) podía sobresalir del ancho real y
@@ -785,10 +788,19 @@ function AdvisorContent({
                     .slice(0, 3)
                     .map((report, index) => {
                       const isPrimary = index === 0;
-                      const health = isPrimary ? analytics.health : null;
+                      const health = report.monthLabel === analytics.analysisMonthLabel ? analytics.health : null;
+                      const isMtd = report.monthKey === analytics.mtd?.monthKey;
                       const tone = getHealthTone(health ?? 50);
                       const prev = analytics.history[analytics.history.indexOf(report) + 1];
-                      const growthPct = prev?.hasData ? pctDelta(report.revenue, prev.revenue) : null;
+                      // El mes en curso se compara contra el MISMO período del mes anterior.
+                      const growthPct =
+                        isMtd && analytics.mtd
+                          ? analytics.mtd.previousRevenue != null && analytics.mtd.previousRevenue > 0
+                            ? pctDelta(report.revenue, analytics.mtd.previousRevenue)
+                            : null
+                          : prev?.hasData
+                            ? pctDelta(report.revenue, prev.revenue)
+                            : null;
                       return (
                         <div
                           key={report.monthKey}
@@ -822,7 +834,7 @@ function AdvisorContent({
                               <>
                                 {" "}
                                 ({growthPct >= 0 ? "+" : ""}
-                                {growthPct}% vs mes anterior)
+                                {growthPct}% {isMtd && analytics.mtd ? `vs del 1 al ${analytics.mtd.upToDay} del mes anterior` : "vs mes anterior"})
                               </>
                             )}
                             . Utilidad: {fmtAR(report.profit)}.

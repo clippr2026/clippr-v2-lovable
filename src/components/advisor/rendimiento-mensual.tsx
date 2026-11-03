@@ -18,16 +18,21 @@ import { methodLabel, printMonthlyPerformance } from "@/lib/monthly-performance-
 const money = (n: number) => `${n < 0 ? "-" : ""}$${Math.abs(Math.round(n)).toLocaleString("es-AR")}`;
 const pctText = (n: number) => `${Math.abs(n).toFixed(1).replace(".", ",")}%`;
 
-function useMonthlyPerformance(businessId: string | null, branchId: string | null, monthKey: string) {
+function useMonthlyPerformance(
+  businessId: string | null,
+  branchId: string | null,
+  monthKey: string,
+  uptoDay?: number,
+) {
   return useQuery({
-    queryKey: ["monthly-performance", businessId, branchId, monthKey],
+    queryKey: ["monthly-performance", businessId, branchId, monthKey, uptoDay ?? "mes-completo"],
     enabled: !!businessId,
     staleTime: 60_000,
-    queryFn: (): Promise<MonthlyPerformance> => loadMonthlyPerformance(businessId!, branchId, monthKey),
+    queryFn: (): Promise<MonthlyPerformance> => loadMonthlyPerformance(businessId!, branchId, monthKey, uptoDay),
   });
 }
 
-function DeltaValue({ pct }: { pct: number | null }) {
+function DeltaValue({ pct, label = "vs mes anterior" }: { pct: number | null; label?: string }) {
   if (pct == null) return <span className="text-xs text-white/35">Sin mes anterior para comparar</span>;
   const good = pct >= 0;
   const Icon = pct >= 0 ? TrendingUp : TrendingDown;
@@ -35,7 +40,7 @@ function DeltaValue({ pct }: { pct: number | null }) {
     <span className={cn("inline-flex items-center gap-1 text-xs font-semibold", good ? "text-emerald-300" : "text-rose-300")}>
       <Icon className="size-3.5" />
       {pct >= 0 ? "+" : "-"}
-      {pctText(pct)} vs mes anterior
+      {pctText(pct)} {label}
     </span>
   );
 }
@@ -78,11 +83,22 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 export function RendimientoMensual() {
   const { businessId, activeBranchId } = useAuth();
-  const currentMonth = cajaDateKeyBA().slice(0, 7);
+  const todayKey = cajaDateKeyBA();
+  const currentMonth = todayKey.slice(0, 7);
+  const todayDay = Number(todayKey.slice(8, 10));
   const [monthKey, setMonthKey] = React.useState(currentMonth);
+  const isCurrentMonth = monthKey >= currentMonth;
 
   const current = useMonthlyPerformance(businessId, activeBranchId, monthKey);
-  const previous = useMonthlyPerformance(businessId, activeBranchId, shiftMonth(monthKey, -1));
+  // Mes en curso: se compara contra el MISMO período del mes anterior (del 1 al día de hoy),
+  // no contra el mes completo, que daría una caída falsa de -90%.
+  const previous = useMonthlyPerformance(
+    businessId,
+    activeBranchId,
+    shiftMonth(monthKey, -1),
+    isCurrentMonth ? todayDay : undefined,
+  );
+  const vsLabel = isCurrentMonth ? `vs del 1 al ${todayDay} del mes anterior` : "vs mes anterior";
   const businessName = useQuery({
     queryKey: ["business-name", businessId],
     enabled: !!businessId,
@@ -95,11 +111,10 @@ export function RendimientoMensual() {
 
   const perf = current.data;
   const prev = previous.data;
-  const isCurrentMonth = monthKey >= currentMonth;
 
   function exportPdf() {
     if (!perf) return;
-    const ok = printMonthlyPerformance(perf, prev?.hasData ? prev : null, businessName.data ?? "Mi negocio");
+    const ok = printMonthlyPerformance(perf, prev?.hasData ? prev : null, businessName.data ?? "Mi negocio", vsLabel);
     if (!ok) toast.error("El navegador bloqueó la ventana. Permití ventanas emergentes para exportar el PDF.");
   }
 
@@ -166,7 +181,7 @@ export function RendimientoMensual() {
               {money(perf.ganancia)}
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
-              <DeltaValue pct={prev?.hasData ? variationPct(perf.ganancia, prev.ganancia) : null} />
+              <DeltaValue pct={prev?.hasData ? variationPct(perf.ganancia, prev.ganancia) : null} label={vsLabel} />
               {perf.margen != null && <span className="text-xs text-white/50">Margen {pctText(perf.margen)}</span>}
             </div>
             <div className="mt-3 grid gap-1 text-sm text-white/65">
@@ -182,7 +197,7 @@ export function RendimientoMensual() {
             <Kpi
               label="Facturación"
               value={money(perf.facturacion)}
-              sub={<DeltaValue pct={prev?.hasData ? variationPct(perf.facturacion, prev.facturacion) : null} />}
+              sub={<DeltaValue pct={prev?.hasData ? variationPct(perf.facturacion, prev.facturacion) : null} label={vsLabel} />}
             />
             <Kpi label="Gastos" value={money(perf.gastosTotal)} />
             <Kpi
@@ -193,7 +208,7 @@ export function RendimientoMensual() {
             <Kpi
               label="Ventas"
               value={perf.ventas.toLocaleString("es-AR")}
-              sub={<DeltaValue pct={prev?.hasData ? variationPct(perf.ventas, prev.ventas) : null} />}
+              sub={<DeltaValue pct={prev?.hasData ? variationPct(perf.ventas, prev.ventas) : null} label={vsLabel} />}
             />
             <Kpi label="Ticket promedio" value={money(perf.ticket)} />
             <Kpi label="Clientes atendidos" value={perf.clientes.toLocaleString("es-AR")} />
