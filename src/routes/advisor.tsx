@@ -10,7 +10,9 @@ import { fmtAR, pctDelta } from "@/components/dashboard/use-dashboard-data";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useClientsData, type Client } from "@/hooks/use-clients-data";
-import { useAdvisorAnalytics } from "@/hooks/use-advisor-analytics";
+import { ADVISOR_MONTHS_SELECTABLE, useAdvisorAnalytics } from "@/hooks/use-advisor-analytics";
+import { cajaDateKeyBA } from "@/lib/caja-cierre";
+import { shiftMonth } from "@/lib/monthly-performance";
 import { RendimientoMensual } from "@/components/advisor/rendimiento-mensual";
 import { useAiRecommendations, type RecommendationAchievement, type UseAiRecommendationsResult } from "@/hooks/use-ai-recommendations";
 import { MEASURABLE_CHANNELS } from "@/lib/acquisition-channels";
@@ -346,7 +348,11 @@ function AdvisorContent({
     return () => window.clearInterval(interval);
   }, [isAnalyzing, todayKey]);
 
-  const analytics = useAdvisorAnalytics(businessId);
+  // Mes elegido en Evolución del negocio: manda sobre las tres tarjetas grandes (Evolución,
+  // Salud del negocio y Radiografía del local) — al cambiarlo cambian todos sus datos.
+  const currentMonthKey = cajaDateKeyBA().slice(0, 7);
+  const [selectedMonthKey, setSelectedMonthKey] = React.useState(currentMonthKey);
+  const analytics = useAdvisorAnalytics(businessId, selectedMonthKey);
   const aiRecs = useAiRecommendations(businessId);
 
   const healthTone = analytics.health != null ? getHealthTone(analytics.health) : getHealthTone(0);
@@ -425,7 +431,11 @@ function AdvisorContent({
               <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
             </div>
             <div className="px-0.5 pb-1 pt-1 sm:px-1">
-              <RendimientoMensual />
+              <RendimientoMensual
+                monthKey={selectedMonthKey}
+                onMonthKeyChange={setSelectedMonthKey}
+                minMonthKey={shiftMonth(currentMonthKey, -(ADVISOR_MONTHS_SELECTABLE - 1))}
+              />
             </div>
             <div className="px-0.5 pb-1 pt-3 sm:px-1">
               <GlassCard className="mx-auto max-w-5xl p-3 sm:p-4">
@@ -436,7 +446,7 @@ function AdvisorContent({
                     <ClipboardList className="h-4 w-4 text-orange-400" />
                   </div>
                   <div>
-                    <div className="text-sm text-muted-foreground">Ocupación</div>
+                    <div className="text-sm text-muted-foreground">Ocupación · {analytics.analysisMonthLabel}</div>
                     <div className="font-display text-2xl font-bold text-orange-300 mt-1 leading-none sm:text-3xl">
                       {Math.round((analytics.current?.occupancy ?? 0) * animationProgress)}%
                     </div>
@@ -444,11 +454,12 @@ function AdvisorContent({
                   {analytics.freeSlotsMonth > 0 && (
                     <div className="rounded-xl border border-orange-300/15 bg-orange-300/[0.05] px-2.5 py-1 text-[11px] sm:px-3 sm:py-1.5">
                       <div className="text-white/70">{analytics.freeSlotsMonth} turnos vacíos en los días trabajados</div>
-                      <div className="mt-0.5 text-white/45">
-                        Potencial: +
-                        {fmtAR(Math.round(analytics.freeSlotsMonth * 0.21 * (analytics.current?.ticket ?? 0)))} si los
-                        llenás.
-                      </div>
+                      {analytics.slotsTo75 > 0 && (
+                        <div className="mt-0.5 text-white/45">
+                          Llegando al 75% de ocupación serían {analytics.slotsTo75} turnos más: +
+                          {fmtAR(Math.round(analytics.potentialAt75))}.
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -578,28 +589,28 @@ function AdvisorContent({
                               <Brain className="h-3.5 w-3.5" /> Insight IA
                             </div>
                             <div className="space-y-1.5 text-xs leading-relaxed text-white/72">
-                              {analytics.freeSlotsMonth > 0 ? (
+                              {analytics.slotsTo75 > 0 ? (
                                 <>
                                   <p>La principal oportunidad detectada está en la ocupación.</p>
                                   <p>
                                     Tenés{" "}
                                     <span className="font-semibold text-white">
-                                      {analytics.freeSlotsMonth} turnos disponibles
+                                      {analytics.freeSlotsMonth} turnos sin ocupar
                                     </span>{" "}
-                                    este mes.
+                                    en los días trabajados de {analytics.analysisMonthLabel}.
                                   </p>
                                   <p>
                                     Si alcanzás una ocupación del{" "}
-                                    <span className="font-semibold text-white">75%</span>, podrías generar
-                                    aproximadamente{" "}
+                                    <span className="font-semibold text-white">75%</span> (
+                                    {analytics.slotsTo75} turnos más), podrías generar aproximadamente{" "}
                                     <span className="font-semibold text-emerald-300">
-                                      {fmtAR(Math.round(analytics.freeSlotsMonth * 0.21 * (analytics.current?.ticket ?? 0)))}
+                                      {fmtAR(Math.round(analytics.potentialAt75))}
                                     </span>{" "}
                                     adicionales sin incorporar más personal.
                                   </p>
                                 </>
                               ) : (
-                                <p>La agenda está prácticamente completa este mes. Buen trabajo.</p>
+                                <p>La agenda está bien aprovechada en {analytics.analysisMonthLabel}: la ocupación supera el 75%. Buen trabajo.</p>
                               )}
                             </div>
                           </div>
@@ -692,7 +703,7 @@ function AdvisorContent({
                 Tu negocio de un vistazo
               </h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Los números que un dueño de barbería o peluquería mira todos los días.
+                Los números que un dueño de barbería o peluquería mira todos los días · {analytics.analysisMonthLabel}.
               </p>
               {/* grid-cols-2 desde mobile (antes era 1 sola columna hasta
                   sm:, una tarjeta enorme abajo de otra) — en pantallas

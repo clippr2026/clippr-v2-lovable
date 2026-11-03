@@ -81,13 +81,28 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   );
 }
 
-export function RendimientoMensual() {
+type RendimientoMensualProps = {
+  // Mes elegido ("2026-10"). Si se pasa, el selector es controlado desde afuera para que
+  // el resto de la pantalla (ocupación, salud, radiografía) siga el mismo mes.
+  monthKey?: string;
+  onMonthKeyChange?: (monthKey: string) => void;
+  // Primer mes que se puede elegir (no se puede ir más atrás).
+  minMonthKey?: string;
+};
+
+export function RendimientoMensual({ monthKey: controlledMonthKey, onMonthKeyChange, minMonthKey }: RendimientoMensualProps = {}) {
   const { businessId, activeBranchId } = useAuth();
   const todayKey = cajaDateKeyBA();
   const currentMonth = todayKey.slice(0, 7);
   const todayDay = Number(todayKey.slice(8, 10));
-  const [monthKey, setMonthKey] = React.useState(currentMonth);
+  const [internalMonthKey, setInternalMonthKey] = React.useState(currentMonth);
+  const monthKey = controlledMonthKey ?? internalMonthKey;
+  const setMonthKey = (key: string) => {
+    if (onMonthKeyChange) onMonthKeyChange(key);
+    else setInternalMonthKey(key);
+  };
   const isCurrentMonth = monthKey >= currentMonth;
+  const isOldestMonth = minMonthKey ? monthKey <= minMonthKey : false;
 
   const current = useMonthlyPerformance(businessId, activeBranchId, monthKey);
   // Mes en curso: se compara contra el MISMO período del mes anterior (del 1 al día de hoy),
@@ -128,8 +143,9 @@ export function RendimientoMensual() {
           <button
             type="button"
             onClick={() => setMonthKey(shiftMonth(monthKey, -1))}
+            disabled={isOldestMonth}
             aria-label="Mes anterior"
-            className="grid size-9 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-white/70 transition hover:bg-white/[0.08]"
+            className="grid size-9 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-white/70 transition hover:bg-white/[0.08] disabled:opacity-30"
           >
             <ChevronLeft className="size-4" />
           </button>

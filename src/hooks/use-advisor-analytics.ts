@@ -29,6 +29,8 @@ import {
 
 const DONE_STATUSES = ["completed", "charged"];
 const MONTHS_OF_HISTORY = 6;
+// Cuántos meses se pueden elegir en el selector del Asesor (el actual + los 5 anteriores).
+export const ADVISOR_MONTHS_SELECTABLE = MONTHS_OF_HISTORY;
 const MIN_DAYS_TO_JUDGE = 7;
 
 export type AdvisorMonthSnapshot = {
@@ -44,6 +46,11 @@ export type AdvisorMonthSnapshot = {
   doneCount: number;
   // Turnos sin ocupar en los días que se trabajó (capacidad − turnos usados).
   freeSlots: number;
+  // Capacidad total del período (turnos que entran en los horarios) y turnos usados.
+  totalSlots: number;
+  usedSlots: number;
+  // Ocupación de cada profesional activo: servicios vendidos contra SU capacidad.
+  employeeLoad: Array<{ name: string; used: number; capacity: number }>;
   hasData: boolean;
 };
 
@@ -70,6 +77,9 @@ export type AdvisorAnalytics = {
   radiografia: RadiografiaItem[];
   radar: RadarItem[];
   freeSlotsMonth: number;
+  // Lo que se facturaría de más si la ocupación llegara al 75% (turnos que faltan × ticket).
+  potentialAt75: number;
+  slotsTo75: number;
   productSharePct: number | null;
   // Mes que está analizando "Salud del negocio" y la Radiografía. Con menos de 7 días del
   // mes en curso es el último mes completo (3 días no alcanzan para juzgar la salud).
@@ -286,17 +296,20 @@ function buildMonthSnapshot(
   // también ocupan agenda), o los turnos si fuera mayor.
   const activeEmployees = capacityData.employees.filter((e) => e.is_active !== false);
   const soldByEmployee = new Map<string, Array<{ name: string; qty: number }>>();
+  const usedByEmployee = new Map<string, number>();
   let servicesSold = 0;
   for (const p of monthPayments) {
     const lines = Array.isArray(p.items) ? p.items.filter((it) => it && !it.is_catalog) : [];
     const entries = lines.length > 0
       ? lines.map((it) => ({ name: String(it.name ?? "").trim(), qty: Number(it.qty ?? 1) > 0 ? Number(it.qty ?? 1) : 1 }))
       : [{ name: (p.service_name ?? "").trim(), qty: 1 }];
-    servicesSold += entries.reduce((s, e) => s + e.qty, 0);
+    const qtyTotal = entries.reduce((s, e) => s + e.qty, 0);
+    servicesSold += qtyTotal;
     if (p.employee_id) {
       const list = soldByEmployee.get(p.employee_id) ?? [];
       list.push(...entries.filter((e) => e.name));
       soldByEmployee.set(p.employee_id, list);
+      usedByEmployee.set(p.employee_id, (usedByEmployee.get(p.employee_id) ?? 0) + qtyTotal);
     }
   }
   const slotMinutesByEmployee: Record<string, number> = {};
@@ -315,6 +328,17 @@ function buildMonthSnapshot(
     cutoffDay,
     slotMinutesByEmployee,
   });
+  const employeeLoad = activeEmployees.map((e) => ({
+    name: e.full_name,
+    used: usedByEmployee.get(e.id) ?? 0,
+    capacity: computeCapacity({
+      ctx: capacityData.ctx,
+      employeeIds: [e.id],
+      monthKey,
+      cutoffDay,
+      slotMinutesByEmployee,
+    }).totalSlots,
+  }));
   const used = Math.max(usable, servicesSold);
   const occupancy = totalSlots > 0 ? Math.min(100, Math.round((used / totalSlots) * 100)) : 0;
   const freeSlots = Math.max(0, totalSlots - used);
@@ -331,6 +355,9 @@ function buildMonthSnapshot(
     cancellations,
     doneCount,
     freeSlots,
+    totalSlots,
+    usedSlots: used,
+    employeeLoad,
     hasData: monthPayments.length > 0 || monthAppts.length > 0,
   };
 }
@@ -344,7 +371,13 @@ function useAdvisorAnalyticsQuery(businessId: string | null | undefined) {
   });
 }
 
-export function useAdvisorAnalytics(businessId: string | null | undefined): AdvisorAnalytics {
+// `selectedMonthKey`: el mes que se está mirando ("2026-10"). Todo el análisis (ocupación,
+// salud, radiografía) sigue ese mes; sin él, el mes en curso. Tiene que estar dentro de
+// los últimos MONTHS_OF_HISTORY meses.
+export function useAdvisorAnalytics(
+  businessId: string | null | undefined,
+  selectedMonthKey?: string,
+): AdvisorAnalytics {
   const { activeBranchId } = useAuth();
   const clientsQuery = useClientsData(businessId ?? null);
   const dataQuery = useAdvisorAnalyticsQuery(businessId);
@@ -364,24 +397,39 @@ export function useAdvisorAnalytics(businessId: string | null | undefined): Advi
       staleTime: 60_000,
     })),
   });
-  // Mes en curso: con menos de 7 días no se puede juzgar la salud (3 días contra un mes
-  // entero siempre da "-98%"), así que se analiza el último mes completo. Con 7 o más,
-  // se compara contra el MISMO período del mes anterior (del 1 al día de hoy).
+  // Mes que se analiza: el elegido (por defecto el mes en curso).
   const todayDay = Number(cajaDateKeyBA().slice(8, 10));
-  const analysisIdx = todayDay >= MIN_DAYS_TO_JUDGE ? 0 : 1;
+  const selectedKey = selectedMonthKey && monthKeys.includes(selectedMonthKey) ? selectedMonthKey : monthKeys[0];
+  const analysisIdx = monthKeys.indexOf(selectedKey);
+  const isCurrentMonth = analysisIdx === 0;
+  const prevKey = shiftMonth(selectedKey, -1);
+  // Mes en curso: se compara contra el MISMO período del mes anterior (del 1 al día de hoy);
+  // 3 días contra un mes entero daría siempre "-98%". Un mes cerrado, contra el mes anterior
+  // completo. (La del mes en curso también la usan los informes mensuales.)
   const samePeriodQuery = useQuery({
     queryKey: ["monthly-performance", businessId, activeBranchId, monthKeys[1], todayDay],
     queryFn: () => loadMonthlyPerformance(businessId!, activeBranchId, monthKeys[1], todayDay),
     enabled: !!businessId,
     staleTime: 60_000,
   });
-  const perfSignature = `${perfQueries.map((q) => `${q.status}:${q.dataUpdatedAt}`).join("|")}#${samePeriodQuery.dataUpdatedAt}`;
+  const prevFullQuery = useQuery({
+    queryKey: ["monthly-performance", businessId, activeBranchId, prevKey, "mes-completo"],
+    queryFn: () => loadMonthlyPerformance(businessId!, activeBranchId, prevKey),
+    enabled: !!businessId && !isCurrentMonth,
+    staleTime: 60_000,
+  });
+  const comparisonPerf = isCurrentMonth ? samePeriodQuery.data : prevFullQuery.data;
+  const perfSignature = `${perfQueries.map((q) => `${q.status}:${q.dataUpdatedAt}`).join("|")}#${samePeriodQuery.dataUpdatedAt}#${prevFullQuery.dataUpdatedAt}#${selectedKey}`;
 
   return React.useMemo(() => {
     const data = dataQuery.data;
     const clients = clientsQuery.data ?? [];
     const loading =
-      dataQuery.isLoading || clientsQuery.isLoading || perfQueries.some((q) => q.isLoading) || samePeriodQuery.isLoading;
+      dataQuery.isLoading ||
+      clientsQuery.isLoading ||
+      perfQueries.some((q) => q.isLoading) ||
+      samePeriodQuery.isLoading ||
+      (!isCurrentMonth && prevFullQuery.isLoading);
     const perfByMonth = new Map<string, MonthlyPerformance>();
     perfQueries.forEach((q, i) => {
       if (q.data) perfByMonth.set(monthKeys[i], q.data);
@@ -398,8 +446,10 @@ export function useAdvisorAnalytics(businessId: string | null | undefined): Advi
         radiografia: [],
         radar: [],
         freeSlotsMonth: 0,
+        potentialAt75: 0,
+        slotsTo75: 0,
         productSharePct: null,
-        analysisMonthLabel: monthLabelOf(monthKeys[analysisIdx]),
+        analysisMonthLabel: monthLabelOf(selectedKey),
         analysisNote: null,
         vsLabel: "vs mes anterior",
         mtd: null,
@@ -412,26 +462,23 @@ export function useAdvisorAnalytics(businessId: string | null | undefined): Advi
     const history = monthKeys.map((mk) =>
       buildMonthSnapshot(mk, payments, appts, expenses, capacityData, perfByMonth.get(mk)),
     );
-    const analysisKey = monthKeys[analysisIdx];
+    const analysisKey = selectedKey;
     const current = history[analysisIdx] ?? null;
     // Contra qué se compara: el mismo período del mes anterior (mes en curso) o el mes
     // anterior completo (mes cerrado).
-    const previous =
-      analysisIdx === 0
-        ? buildMonthSnapshot(
-            monthKeys[1],
-            payments,
-            appts,
-            expenses,
-            capacityData,
-            samePeriodQuery.data,
-            todayDay,
-          )
-        : (history[2] ?? null);
-    const vsLabel = analysisIdx === 0 ? "vs el mismo período del mes anterior" : "vs mes anterior";
+    const previous = buildMonthSnapshot(
+      prevKey,
+      payments,
+      appts,
+      expenses,
+      capacityData,
+      comparisonPerf,
+      isCurrentMonth ? todayDay : undefined,
+    );
+    const vsLabel = isCurrentMonth ? "vs el mismo período del mes anterior" : "vs mes anterior";
     const analysisNote =
-      analysisIdx === 1
-        ? `Se analiza ${monthLabelOf(analysisKey)} (último mes completo): el mes en curso lleva menos de ${MIN_DAYS_TO_JUDGE} días y todavía no alcanza para evaluar.`
+      isCurrentMonth && todayDay < MIN_DAYS_TO_JUDGE
+        ? `Mes en curso: lleva ${todayDay} ${todayDay === 1 ? "día" : "días"}, así que los indicadores todavía son provisorios.`
         : null;
     const hasAnyData = history.some((h) => h.hasData);
 
@@ -459,16 +506,12 @@ export function useAdvisorAnalytics(businessId: string | null | undefined): Advi
     ).length;
     const vipCount = clients.filter((c) => c.vipTag === "vip").length;
 
-    const currentMonthAppts = appts.filter((a) => monthKeyOf(a.starts_at) === analysisKey);
-    const doneThisMonth = currentMonthAppts.filter((a) => DONE_STATUSES.includes(a.status));
-    const byEmployee = new Map<string, number>();
-    doneThisMonth.forEach((a) => {
-      if (!a.employee_id) return;
-      byEmployee.set(a.employee_id, (byEmployee.get(a.employee_id) ?? 0) + 1);
-    });
-    const employeesRanked = employees
-      .map((e) => ({ name: e.full_name, count: byEmployee.get(e.id) ?? 0 }))
-      .filter((e) => e.count > 0)
+    // Ocupación de cada profesional: servicios realmente vendidos ÷ SU capacidad (horario,
+    // descanso y duración de sus servicios). Antes se contaban solo los turnos de la Agenda,
+    // y los cobros sin turno no figuraban.
+    const employeesRanked = (current?.employeeLoad ?? [])
+      .filter((e) => e.capacity > 0 && e.used > 0)
+      .map((e) => ({ name: e.name, count: e.used / e.capacity }))
       .sort((a, b) => b.count - a.count);
     const topEmployee = employeesRanked[0] ?? null;
     const bottomEmployee = employeesRanked.length > 1 ? employeesRanked[employeesRanked.length - 1] : null;
@@ -530,6 +573,10 @@ export function useAdvisorAnalytics(businessId: string | null | undefined): Advi
     }
 
     const freeSlotsMonth = current ? current.freeSlots : 0;
+    // Turnos que faltan para llegar al 75% de ocupación × ticket promedio. Si ya se supera
+    // el 75%, no hay "potencial" que mostrar.
+    const slotsTo75 = current ? Math.max(0, Math.ceil(current.totalSlots * 0.75) - current.usedSlots) : 0;
+    const potentialAt75 = current ? slotsTo75 * current.ticket : 0;
 
     const radiografia: RadiografiaItem[] = [
       {
@@ -630,12 +677,14 @@ export function useAdvisorAnalytics(businessId: string | null | undefined): Advi
       radiografia,
       radar,
       freeSlotsMonth,
+      potentialAt75,
+      slotsTo75,
       productSharePct,
       analysisMonthLabel: monthLabelOf(analysisKey),
       analysisNote,
       vsLabel,
       mtd:
-        analysisIdx === 0 || history[0]?.hasData
+        history[0]?.hasData
           ? {
               monthKey: monthKeys[0],
               upToDay: todayDay,

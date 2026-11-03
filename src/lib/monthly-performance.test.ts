@@ -210,6 +210,38 @@ describe("Rendimiento mensual", () => {
     expect(variationPct(10, 0)).toBeNull();
   });
 
+  it("clientes atendidos: cada venta 'sin turno' es una visita anónima y no se junta con otras; un cliente repetido cuenta una vez", () => {
+    const perf = computeMonthlyPerformance(
+      "2026-10",
+      base({
+        payments: [
+          pay({ id: "p1", client_name: "sin turno" }),
+          pay({ id: "p2", client_name: "Sin turno" }),
+          pay({ id: "p3", client_name: "" }),
+          pay({ id: "p4", client_name: "Matias Besares" }),
+          pay({ id: "p5", client_name: "matias besares" }),
+          pay({ id: "p6", client_id: "cli-1", client_name: "Otro" }),
+          pay({ id: "p7", client_id: "cli-1", client_name: "Otro (editado)" }),
+        ],
+      }),
+    );
+    // 3 anónimos + Matias (una vez) + cli-1 (una vez)
+    expect(perf.clientes).toBe(5);
+  });
+
+  it("el potencial de ocupación se calcula hasta el 75% real (turnos que faltan × ticket) y el ranking sale de las ventas de cada profesional", async () => {
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const read = (rel: string) => fs.readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
+    const hook = read("src/hooks/use-advisor-analytics.ts");
+    expect(hook).toContain("Math.ceil(current.totalSlots * 0.75) - current.usedSlots");
+    expect(hook).toContain("employeeLoad");
+    expect(hook).not.toContain("0.21");
+    const advisor = read("src/routes/advisor.tsx");
+    expect(advisor).not.toContain("0.21");
+    expect(advisor).toContain("analytics.potentialAt75");
+  });
+
   it("truncateRawToDay recorta el mes a los días 1..N en hora de Argentina para comparar el mes en curso contra el mismo período", () => {
     const raw = base({
       payments: [
@@ -261,6 +293,10 @@ describe("Rendimiento mensual", () => {
     const hook = read("src/hooks/use-advisor-analytics.ts");
     expect(hook).toContain("MIN_DAYS_TO_JUDGE = 7");
     expect(hook).toContain("vs el mismo período del mes anterior");
+    // el mes elegido en Evolución del negocio manda sobre ocupación, salud y radiografía
+    expect(advisor).toContain("useAdvisorAnalytics(businessId, selectedMonthKey)");
+    expect(advisor).toContain("onMonthKeyChange={setSelectedMonthKey}");
+    expect(hook).toContain("selectedMonthKey");
   });
 
   it("está montado en Asesor IA → Análisis → Evolución del negocio (sin pestaña propia) y exporta con el diálogo de impresión", async () => {
@@ -269,9 +305,9 @@ describe("Rendimiento mensual", () => {
     const read = (rel: string) => fs.readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
     const advisor = read("src/routes/advisor.tsx");
     expect(advisor).not.toContain('key: "rendimiento"');
-    expect(advisor).toContain("<RendimientoMensual />");
-    expect(advisor.indexOf("<RendimientoMensual />")).toBeGreaterThan(advisor.indexOf("EVOLUCIÓN DEL NEGOCIO"));
-    expect(advisor.indexOf("<RendimientoMensual />")).toBeLessThan(advisor.indexOf("RADIOGRAFÍA DEL LOCAL"));
+    expect(advisor).toContain("<RendimientoMensual");
+    expect(advisor.indexOf("<RendimientoMensual")).toBeGreaterThan(advisor.indexOf("EVOLUCIÓN DEL NEGOCIO"));
+    expect(advisor.indexOf("<RendimientoMensual")).toBeLessThan(advisor.indexOf("RADIOGRAFÍA DEL LOCAL"));
     expect(read("src/lib/monthly-performance-pdf.ts")).toContain("win.print()");
   });
 });

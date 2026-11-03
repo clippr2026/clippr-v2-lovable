@@ -215,10 +215,13 @@ export function computeMonthlyPerformance(monthKey: string, raw: MonthlyRawData)
   const ticket = ventas > 0 ? Math.round(ventasTotal / ventas) : 0;
   const propinas = countable.reduce((s, p) => s + Number(p.tip_amount ?? 0), 0);
 
+  // Clientes atendidos: personas identificadas una sola vez (por id o por nombre); una venta
+  // "sin turno" o sin nombre es una visita anónima y cuenta aparte, nunca se junta con otras.
   const clientesSet = new Set<string>();
   for (const p of ventasMes) {
-    const key = p.client_id || p.client_name?.trim().toLowerCase();
-    if (key) clientesSet.add(String(key));
+    const name = p.client_name?.trim().toLowerCase() ?? "";
+    const anonimo = !p.client_id && (name === "" || name === "sin turno");
+    clientesSet.add(anonimo ? `anonimo:${p.id}` : String(p.client_id || name));
   }
 
   // Gastos: todos suman; se separa cuánto salió de la caja y cuánto de Fondos externos.
