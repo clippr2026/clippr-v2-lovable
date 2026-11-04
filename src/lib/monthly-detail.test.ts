@@ -101,6 +101,9 @@ describe("Detalle del mes", () => {
     expect(d.ventas.conTurno).toBe(1);
     expect(d.ventas.sinTurno).toBe(1);
     expect(d.ventas.combos).toBe(1);
+    // un servicio armado como combo ("Corte + Barba") también cuenta
+    const combo = [pay({ id: "d", items: [{ name: "Corte + Barba", qty: 1, amount: 24000 }] })];
+    expect(computeMonthlyDetail("2026-10", detailRaw(combo), perfOf(combo), []).ventas.combos).toBe(1);
     expect(d.ventas.anuladas).toEqual({ count: 1, monto: 9000 });
   });
 

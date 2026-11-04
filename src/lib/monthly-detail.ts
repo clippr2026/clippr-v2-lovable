@@ -269,9 +269,8 @@ export type MonthlyDetail = {
     comisionTotal: number;
     comisionServicios: number;
     comisionProductos: number;
-    habilitada: number;
-    pendienteDeCobro: number;
-    yaLiquidada: number;
+    incluidaEnLiquidacion: number;
+    sinLiquidar: number;
     puntualidadTotal: number;
     tardes: number;
     ausencias: number;
@@ -450,9 +449,10 @@ export function computeMonthlyDetail(
   }
   const porFecha = [...fechasMap.values()].sort((a, b) => a.date.localeCompare(b.date));
   const fechasOrd = [...porFecha].sort((a, b) => b.total - a.total);
+  const FRANJAS = ["Mañana (antes de las 13)", "Tarde (13 a 18)", "Noche (desde las 18)"];
   const franjaOf = (p: DetailPayment) => {
     const h = arHour(p.created_at);
-    return h < 13 ? "Mañana (antes de las 13)" : h < 18 ? "Tarde (13 a 18)" : "Noche (desde las 18)";
+    return h < 13 ? FRANJAS[0] : h < 18 ? FRANJAS[1] : FRANJAS[2];
   };
   const franjas = new Map<string, { value: number; count: number }>();
   for (const p of sales) {
@@ -464,7 +464,7 @@ export function computeMonthlyDetail(
   }
   const porFranja = [...franjas.entries()]
     .map(([label, v]) => ({ label, value: v.value, count: v.count }))
-    .sort((a, b) => a.label.localeCompare(b.label));
+    .sort((a, b) => FRANJAS.indexOf(a.label) - FRANJAS.indexOf(b.label));
   const propinas = sales.reduce((s, p) => s + Number(p.tip_amount ?? 0), 0);
 
   // ── Gastos ──
@@ -500,8 +500,6 @@ export function computeMonthlyDetail(
   // ── Profesionales ──
   const comPorPro = new Map<string, { com: number; svc: number; prod: number }>();
   let comisionTotal = 0;
-  let habilitada = 0;
-  let pendienteCom = 0;
   let liquidada = 0;
   let comServ = 0;
   let comProd = 0;
@@ -510,8 +508,6 @@ export function computeMonthlyDetail(
     if (!c.sale_id || !saleIds.has(c.sale_id) || !c.professional_id) continue;
     const a = Number(c.amount ?? 0);
     comisionTotal += a;
-    habilitada += Number(c.paid_amount ?? 0);
-    pendienteCom += Number(c.pending_amount ?? 0);
     if (c.settlement_run_id) liquidada += a;
     comServ += Number(c.amount_services ?? 0);
     comProd += Number(c.amount_products ?? 0);
@@ -571,7 +567,11 @@ export function computeMonthlyDetail(
   const ticketsOf = (list: DetailPayment[]) => list.map(payTotal);
   const allTickets = ticketsOf(sales);
   const tk = (list: DetailPayment[]) => ({ ventas: list.length, ticket: avg(list.reduce((s, p) => s + payTotal(p), 0), list.length) });
-  const comboOf = (p: DetailPayment) => linesOf(p).filter((l) => !l.isProduct).reduce((s, l) => s + l.qty, 0) > 1;
+  // Combo: más de un servicio en la venta, o un servicio armado como combo ("Corte + Barba").
+  const comboOf = (p: DetailPayment) => {
+    const svcLines = linesOf(p).filter((l) => !l.isProduct);
+    return svcLines.reduce((s, l) => s + l.qty, 0) > 1 || svcLines.some((l) => l.name.includes("+"));
+  };
   const tkProf = new Map<string, { value: number; count: number }>();
   const tkMedio = new Map<string, { value: number; count: number }>();
   for (const p of sales) {
@@ -686,9 +686,8 @@ export function computeMonthlyDetail(
       comisionTotal,
       comisionServicios: comServ,
       comisionProductos: comProd,
-      habilitada,
-      pendienteDeCobro: pendienteCom,
-      yaLiquidada: liquidada,
+      incluidaEnLiquidacion: liquidada,
+      sinLiquidar: comisionTotal - liquidada,
       puntualidadTotal: perf.descuentoPuntualidad,
       tardes: perf.profesionales.reduce((s, p) => s + p.tardes, 0),
       ausencias: perf.profesionales.reduce((s, p) => s + p.ausencias, 0),

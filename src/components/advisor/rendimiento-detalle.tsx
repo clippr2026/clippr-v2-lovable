@@ -124,11 +124,13 @@ function Callout({ children }: { children: React.ReactNode }) {
   );
 }
 
-function Delta({ cur, prev, label }: { cur: number; prev: number | null; label: string }) {
+// `lowerIsBetter`: en gastos, que baje es bueno (verde).
+function Delta({ cur, prev, label, lowerIsBetter = false }: { cur: number; prev: number | null; label: string; lowerIsBetter?: boolean }) {
   const v = prev != null ? variationPct(cur, prev) : null;
   if (v == null) return <span>Sin mes anterior para comparar</span>;
+  const good = lowerIsBetter ? v <= 0 : v >= 0;
   return (
-    <span className={v >= 0 ? "text-emerald-300" : "text-rose-300"}>
+    <span className={good ? "text-emerald-300" : "text-rose-300"}>
       {v >= 0 ? "+" : "-"}
       {pct1(Math.abs(v))} {label}
     </span>
@@ -237,7 +239,7 @@ function GastosView({ d, perf, prev, vsLabel }: ViewProps) {
   return (
     <div className="space-y-3">
       <StatGrid>
-        <Stat label="Gastos del mes" value={money(g.total)} sub={<Delta cur={perf.gastosTotal} prev={prev?.gastosTotal ?? null} label={vsLabel} />} />
+        <Stat label="Gastos del mes" value={money(g.total)} sub={<Delta cur={perf.gastosTotal} prev={prev?.gastosTotal ?? null} label={vsLabel} lowerIsBetter />} />
         <Stat label="Cantidad de gastos" value={int(g.cantidad)} />
         <Stat
           label="% de la facturación"
@@ -353,9 +355,8 @@ function ProfesionalesView({ d, perf, prev, vsLabel }: ViewProps) {
         <KV
           rows={[
             ["Comisión total", money(p.comisionTotal)],
-            ["Habilitada para pagar", money(p.habilitada)],
-            ["Pendiente de cobro a clientes", money(p.pendienteDeCobro)],
-            ["Ya incluida en una liquidación", money(p.yaLiquidada)],
+            ["Incluida en una liquidación", money(p.incluidaEnLiquidacion)],
+            ["Todavía sin liquidar", money(p.sinLiquidar)],
             ["Por servicios", money(p.comisionServicios)],
             ["Por productos", money(p.comisionProductos)],
           ]}
