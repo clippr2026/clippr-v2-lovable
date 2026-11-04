@@ -5,6 +5,8 @@
 import { supabase } from "@/integrations/supabase/client";
 import { fetchAllRows } from "@/lib/supabase-paginate";
 import { monthBounds, type MonthlyPerformance } from "@/lib/monthly-performance";
+import { resolveDaySchedule } from "@/lib/availability";
+import { parseCapacityContext } from "@/lib/agenda-capacity";
 
 const AR_TZ = "America/Argentina/Buenos_Aires";
 const IN_CHUNK = 150;
@@ -63,6 +65,10 @@ export type DetailAppt = {
   employee_id: string | null;
 };
 export type MonthlyDetailRaw = {
+  // Horarios de la Agenda (business_settings.schedule) y profesionales: de ahí sale cuántos
+  // barberos están programados cada día de la semana.
+  schedule?: unknown;
+  employees?: Array<{ id: string; is_active?: boolean | null }>;
   payments: DetailPayment[];
   expenses: DetailExpense[];
   commissions: DetailCommission[];
@@ -150,7 +156,19 @@ export async function fetchMonthlyDetailRaw(
     appts = [];
   }
 
-  return { payments, expenses, commissions, advances, appts };
+  let schedule: unknown = null;
+  let employees: Array<{ id: string; is_active?: boolean | null }> = [];
+  try {
+    const { data } = await supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle();
+    schedule = (data as any)?.schedule ?? null;
+    const emp = await supabase.from("employees").select("id,is_active").eq("business_id", businessId);
+    employees = ((emp.data ?? []) as any[]).map((e) => ({ id: e.id, is_active: e.is_active }));
+  } catch {
+    schedule = null;
+    employees = [];
+  }
+
+  return { schedule, employees, payments, expenses, commissions, advances, appts };
 }
 
 // ───────────────────────────── cálculo ─────────────────────────────
@@ -356,7 +374,57 @@ export type MonthlyDetail = {
 
 const avg = (sum: number, n: number) => (n > 0 ? sum / n : 0);
 
-function byWeekday(payments: DetailPayment[], comBySale: Map<string, number> = new Map()): DayRow[] {
+// Cantidad habitual de barberos por día de la semana (0 = domingo … 6 = sábado): los que la
+// Agenda tiene programados ese día. Si uno estuvo ausente casi todo el mes (vendió en menos de
+// la cuarta parte de sus jornadas programadas) no se cuenta. Un barbero que no estaba
+// programado pero trabajó la mitad de las jornadas o más, sí. Sin horarios, devuelve vacío.
+function habitualBarbers(payments: DetailPayment[], raw: MonthlyDetailRaw): Map<number, number> {
+  const out = new Map<number, number>();
+  if (!raw.schedule || !raw.employees || raw.employees.length === 0) return out;
+  const ctx = parseCapacityContext(raw.schedule);
+  const active = raw.employees.filter((e) => e.is_active !== false).map((e) => e.id);
+  const datesByDow = new Map<number, Map<string, Set<string>>>();
+  for (const p of payments) {
+    const key = arDateKey(p.created_at);
+    const dow = weekdayOf(key);
+    const byDate = datesByDow.get(dow) ?? new Map<string, Set<string>>();
+    const set = byDate.get(key) ?? new Set<string>();
+    if (p.employee_id) set.add(p.employee_id);
+    byDate.set(key, set);
+    datesByDow.set(dow, byDate);
+  }
+  for (const [dow, byDate] of datesByDow) {
+    const dates = [...byDate.keys()];
+    let count = 0;
+    for (const empId of active) {
+      let scheduledDays = 0;
+      let scheduledPresent = 0;
+      let presentDays = 0;
+      for (const key of dates) {
+        const [y, m, d] = key.split("-").map(Number);
+        const day = resolveDaySchedule(ctx.businessSchedule, ctx.employeeSchedules, ctx.businessSpecial, ctx.employeeSpecial, empId, new Date(y, m - 1, d, 12, 0, 0));
+        const scheduled = Boolean(day && day.enabled !== false);
+        const present = byDate.get(key)?.has(empId) ?? false;
+        if (scheduled) scheduledDays += 1;
+        if (scheduled && present) scheduledPresent += 1;
+        if (present) presentDays += 1;
+      }
+      if (scheduledDays > 0) {
+        if (scheduledPresent / scheduledDays >= 0.25) count += 1;
+      } else if (presentDays / dates.length >= 0.5) {
+        count += 1;
+      }
+    }
+    if (count > 0) out.set(dow, count);
+  }
+  return out;
+}
+
+function byWeekday(
+  payments: DetailPayment[],
+  comBySale: Map<string, number> = new Map(),
+  habitual: Map<number, number> = new Map(),
+): DayRow[] {
   const acc = WEEKDAYS.map((label) => ({
     label,
     total: 0,
@@ -380,7 +448,7 @@ function byWeekday(payments: DetailPayment[], comBySale: Map<string, number> = n
   }
   // Lunes primero, domingo al final.
   return [1, 2, 3, 4, 5, 6, 0]
-    .map((d) => acc[d])
+    .map((d) => ({ ...acc[d], dow: d }))
     .map((a) => {
       const sizes = [...a.barberosPorFecha.values()].map((set) => set.size);
       const barberDays = sizes.reduce((s, n) => s + n, 0);
@@ -394,13 +462,17 @@ function byWeekday(payments: DetailPayment[], comBySale: Map<string, number> = n
         barberos: avg(barberDays, a.fechas.size),
         barberosMin: sizes.length ? Math.min(...sizes) : 0,
         barberosMax: sizes.length ? Math.max(...sizes) : 0,
-        barberosHabitual: (() => {
+        barberosHabitual: habitual.get(a.dow) ?? (() => {
           const freq = new Map<number, number>();
           for (const n of sizes) freq.set(n, (freq.get(n) ?? 0) + 1);
           // La más repetida; si empatan, la mayor.
           return [...freq.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0]?.[0] ?? 0;
         })(),
-        facturaPorBarbero: avg(a.total, barberDays),
+        facturaPorBarbero: (() => {
+          const hab = habitual.get(a.dow);
+          // Con los barberos programados: promedio por día ÷ barberos habituales.
+          return hab && hab > 0 ? avg(a.total, a.fechas.size) / hab : avg(a.total, barberDays);
+        })(),
         ganaPorBarbero: avg(a.comision, barberDays),
       };
     });
@@ -484,7 +556,7 @@ export function computeMonthlyDetail(
   for (const c of raw.commissions) {
     if (c.sale_id) comBySale.set(c.sale_id, (comBySale.get(c.sale_id) ?? 0) + Number(c.amount ?? 0));
   }
-  const dias = byWeekday(sales, comBySale);
+  const dias = byWeekday(sales, comBySale, habitualBarbers(sales, raw));
   const { best, worst } = pickBestWorst(dias);
   const fechasMap = new Map<string, DateRow>();
   for (const p of sales) {

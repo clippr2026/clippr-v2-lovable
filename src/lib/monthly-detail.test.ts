@@ -94,6 +94,27 @@ describe("Detalle del mes", () => {
     expect(d.facturacion.porDiaSemana.find((r) => r.label === "Lunes")?.barberosHabitual).toBe(1);
   });
 
+  it("barberos habituales: los programados en la Agenda, sin el que estuvo ausente casi todo el mes", () => {
+    const week = Object.fromEntries(
+      ["sun", "mon", "tue", "wed", "thu", "fri", "sat"].map((k) => [k, { enabled: k !== "sun", start: "11:00", end: "20:00" }]),
+    );
+    const lunes = ["2026-10-05", "2026-10-12", "2026-10-19", "2026-10-26"];
+    const base = lunes.flatMap((d, i) => [
+      pay({ id: `a${i}`, employee_id: "emp-a", total: 20000, created_at: `${d}T15:00:00Z` }),
+      pay({ id: `b${i}`, employee_id: "emp-b", total: 20000, created_at: `${d}T16:00:00Z` }),
+    ]);
+    const employees = [{ id: "emp-a" }, { id: "emp-b" }, { id: "emp-c" }];
+    const d = computeMonthlyDetail("2026-10", detailRaw(base, { schedule: week, employees }), perfOf(base), []);
+    const lun = d.facturacion.porDiaSemana.find((r) => r.label === "Lunes")!;
+    // emp-c está programado pero nunca vendió: no cuenta → 2 barberos
+    expect(lun.barberosHabitual).toBe(2);
+    expect(lun.facturaPorBarbero).toBe(20000); // promedio por día 40.000 ÷ 2
+    // si vendió 1 de las 4 jornadas (25%), sí cuenta → 3 barberos
+    const conC = [...base, pay({ id: "c0", employee_id: "emp-c", total: 20000, created_at: "2026-10-05T17:00:00Z" })];
+    const d2 = computeMonthlyDetail("2026-10", detailRaw(conC, { schedule: week, employees }), perfOf(conC), []);
+    expect(d2.facturacion.porDiaSemana.find((r) => r.label === "Lunes")!.barberosHabitual).toBe(3);
+  });
+
   it("ventas con turno vs orden de llegada, anuladas y combos", () => {
     const payments = [
       pay({ id: "a", appointment_id: "t1", items: [{ name: "Corte", qty: 1, amount: 20000 }] }),
