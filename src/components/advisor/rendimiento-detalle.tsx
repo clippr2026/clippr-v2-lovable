@@ -124,6 +124,24 @@ function Callout({ children }: { children: React.ReactNode }) {
   );
 }
 
+// Barra simple (0 a 1) para comparar valores dentro de una tarjeta.
+function Track({ pct, color }: { pct: number; color: string }) {
+  return (
+    <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-white/[0.07]">
+      <div className={cn("h-full rounded-full", color)} style={{ width: `${Math.max(3, Math.min(100, pct * 100))}%` }} />
+    </div>
+  );
+}
+
+function MiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg bg-white/[0.05] px-2.5 py-2">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.1em] text-white/45">{label}</div>
+      <div className="mt-0.5 font-semibold tabular-nums text-white">{value}</div>
+    </div>
+  );
+}
+
 // `lowerIsBetter`: en gastos, que baje es bueno (verde).
 function Delta({ cur, prev, label, lowerIsBetter = false }: { cur: number; prev: number | null; label: string; lowerIsBetter?: boolean }) {
   const v = prev != null ? variationPct(cur, prev) : null;
@@ -207,27 +225,69 @@ function FacturacionView({ d, perf, prev, vsLabel }: ViewProps) {
         {diasTrabajados.length === 0 ? (
           <div className="text-sm text-white/40">Sin ventas en el mes.</div>
         ) : (
-          <div className="space-y-2.5">
-            {diasTrabajados.map((r) => (
-              <div key={r.label} className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-3">
-                <div className="flex items-baseline justify-between gap-3">
-                  <span className="font-semibold text-white">{r.label}</span>
-                  <span className="text-xs text-white/45">
-                    {r.dias} {r.dias === 1 ? "día trabajado" : "días trabajados"}
-                  </span>
+          <div className="space-y-3">
+            {diasTrabajados.map((r) => {
+              const isBest = mejorPorBarbero?.label === r.label && peorPorBarbero?.label !== r.label;
+              const isWorst = peorPorBarbero?.label === r.label && mejorPorBarbero?.label !== r.label;
+              const nb = Math.round(r.barberos * 10) / 10;
+              const nbText = Number.isInteger(nb) ? int(nb) : nb.toFixed(1).replace(".", ",");
+              return (
+                <div
+                  key={r.label}
+                  className={cn(
+                    "rounded-xl border p-3.5",
+                    isBest
+                      ? "border-emerald-400/35 bg-emerald-400/[0.06]"
+                      : isWorst
+                        ? "border-rose-400/35 bg-rose-400/[0.06]"
+                        : "border-white/[0.1] bg-white/[0.04]",
+                  )}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-2">
+                      <span className="text-base font-semibold text-white">{r.label}</span>
+                      {isBest && (
+                        <span className="rounded-full bg-emerald-400/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-300">
+                          Más alto
+                        </span>
+                      )}
+                      {isWorst && (
+                        <span className="rounded-full bg-rose-400/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-rose-300">
+                          Más bajo
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-right text-xs text-white/55">
+                      {r.dias} {r.dias === 1 ? "día" : "días"} · <b className="text-white/80">{money(r.total)}</b>
+                    </span>
+                  </div>
+                  <div className="mt-3 space-y-3">
+                    <div>
+                      <div className="flex items-baseline justify-between gap-3 text-sm">
+                        <span className="text-white/75">Promedio por día</span>
+                        <span className="font-semibold tabular-nums text-white">{money(r.promedio)}</span>
+                      </div>
+                      <Track pct={r.promedio / Math.max(1, ...diasTrabajados.map((x) => x.promedio))} color="bg-sky-400" />
+                    </div>
+                    <div>
+                      <div className="flex items-baseline justify-between gap-3 text-sm">
+                        <span className="text-white/75">
+                          Factura cada barbero{" "}
+                          <span className="text-xs text-white/45">
+                            ({nbText} {nb === 1 ? "barbero" : "barberos"})
+                          </span>
+                        </span>
+                        <span className="font-semibold tabular-nums text-white">{money(r.facturaPorBarbero)}</span>
+                      </div>
+                      <Track
+                        pct={r.facturaPorBarbero / Math.max(1, ...diasTrabajados.map((x) => x.facturaPorBarbero))}
+                        color={isBest ? "bg-emerald-400" : isWorst ? "bg-rose-400" : "bg-violet-400"}
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div className="mt-2">
-                  <KV
-                    rows={[
-                      ["Facturación del mes", money(r.total)],
-                      ["Promedio por día", money(r.promedio)],
-                      ["Barberos por día", Number.isInteger(Math.round(r.barberos * 10) / 10) ? int(r.barberos) : r.barberos.toFixed(1).replace(".", ",")],
-                      ["Factura cada barbero", money(r.facturaPorBarbero)],
-                    ]}
-                  />
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
         {mejorPorBarbero && peorPorBarbero && mejorPorBarbero.label !== peorPorBarbero.label && (
@@ -247,24 +307,35 @@ function FacturacionView({ d, perf, prev, vsLabel }: ViewProps) {
       </Block>
 
       <Block title="Por quincena">
-        <div className="grid gap-2.5 sm:grid-cols-2">
+        <div className="space-y-3">
           {f.porQuincena.map((q) => (
-            <div key={q.label} className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-3">
-              <div className="font-semibold text-white">{q.label}</div>
-              <div className="mt-2">
-                <KV
-                  rows={[
-                    ["Facturación", money(q.total)],
-                    ["Ventas", int(q.ventas)],
-                    ["Días con ventas", int(q.dias)],
-                    ["Promedio por día", money(q.promedio)],
-                    ["Ticket promedio", money(q.ticket)],
-                  ]}
-                />
+            <div key={q.label} className="rounded-xl border border-sky-400/25 bg-sky-400/[0.05] p-3.5">
+              <div className="flex items-baseline justify-between gap-3">
+                <span className="text-sm font-semibold text-white/80">{q.label}</span>
+                <span className="font-display text-2xl font-semibold tabular-nums text-sky-300">{money(q.total)}</span>
+              </div>
+              <Track pct={q.total / Math.max(1, ...f.porQuincena.map((x) => x.total))} color="bg-sky-400" />
+              <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                <MiniStat label="Ventas" value={int(q.ventas)} />
+                <MiniStat label="Días con ventas" value={int(q.dias)} />
+                <MiniStat label="Promedio por día" value={money(q.promedio)} />
+                <MiniStat label="Ticket promedio" value={money(q.ticket)} />
               </div>
             </div>
           ))}
         </div>
+        {f.porQuincena.length === 2 && f.porQuincena[0].promedio > 0 && f.porQuincena[1].promedio > 0 && (
+          <div className="mt-3">
+            <Callout>
+              Promedio por día de la 2ª quincena vs la 1ª:{" "}
+              <b>
+                {variationPct(f.porQuincena[1].promedio, f.porQuincena[0].promedio)! >= 0 ? "+" : "-"}
+                {pct1(Math.abs(variationPct(f.porQuincena[1].promedio, f.porQuincena[0].promedio)!))}
+              </b>
+              .
+            </Callout>
+          </div>
+        )}
       </Block>
 
       <Block title="Por franja horaria" hint="Según la hora en que se registró el cobro.">
