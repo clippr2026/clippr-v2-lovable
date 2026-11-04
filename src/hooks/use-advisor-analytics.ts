@@ -25,6 +25,7 @@ import {
   parseCapacityContext,
   slotMinutesForEmployee,
   type CapacityContext,
+  type BlockInterval,
 } from "@/lib/agenda-capacity";
 
 const DONE_STATUSES = ["completed", "charged"];
@@ -117,6 +118,7 @@ type RawAppt = {
   service_price: number | null;
   employee_id: string | null;
   recurring_series_id?: string | null;
+  ends_at?: string | null;
 };
 
 type RawExpense = { amount: number | null; date: string | null };
@@ -175,7 +177,7 @@ async function loadAdvisorAnalytics(businessId: string): Promise<{
           (from, to) =>
             supabase
               .from("appointments")
-              .select("id,status,starts_at,service_name,service_price,employee_id,recurring_series_id")
+              .select("id,status,starts_at,ends_at,service_name,service_price,employee_id,recurring_series_id")
               .eq("business_id", businessId)
               .gte("starts_at", sinceIso)
               .order("id", { ascending: true })
@@ -191,7 +193,7 @@ async function loadAdvisorAnalytics(businessId: string): Promise<{
             (from, to) =>
               supabase
                 .from("appointments")
-                .select("id,status,starts_at,service_name,service_price,employee_id")
+                .select("id,status,starts_at,ends_at,service_name,service_price,employee_id")
                 .eq("business_id", businessId)
                 .gte("starts_at", sinceIso)
                 .order("id", { ascending: true })
@@ -287,22 +289,25 @@ function buildMonthSnapshot(
 
   const cancellations = monthAppts.filter((a) => a.status === "cancelled").length;
   const doneCount = monthAppts.filter((a) => DONE_STATUSES.includes(a.status)).length;
-  // Ocupación: no cuenta turnos generados por una recurrencia ("Repetir
-  // turno") que todavía no ocurrieron ni se cobraron — son compromisos
-  // futuros, no ocupación real de la agenda actual. Un turno de la misma
-  // serie que ya pasó/se cobró sí cuenta, igual que cualquier otro.
-  const now = Date.now();
-  const usable = monthAppts.filter((a) => {
-    if (["cancelled", "blocked"].includes(a.status)) return false;
-    const isFutureRecurring = Boolean(a.recurring_series_id) && new Date(a.starts_at).getTime() > now && !DONE_STATUSES.includes(a.status);
-    return !isFutureRecurring;
-  }).length;
+  // Bloqueos de agenda (horarios que el profesional no estaba disponible): se restan de la capacidad.
+  const baParts = (iso: string) => {
+    const s = new Date(iso).toLocaleString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" });
+    return { dateKey: s.slice(0, 10), min: Number(s.slice(11, 13)) * 60 + Number(s.slice(14, 16)) };
+  };
+  const blocks: BlockInterval[] = [];
+  for (const a of appts) {
+    if (a.status !== "blocked" || !a.employee_id || !a.ends_at) continue;
+    const s = baParts(a.starts_at);
+    const e = baParts(a.ends_at);
+    blocks.push({ employeeId: a.employee_id, dateKey: s.dateKey, startMin: s.min, endMin: e.dateKey === s.dateKey ? e.min : 1440 });
+  }
   // Capacidad REAL: para cada profesional activo, los turnos que entran en SU horario
   // (días que trabaja, entrada, salida y descanso) según cuánto dura lo que atiende —
   // 11 a 20 con 1 h de descanso y turnos de 1 h son 8; sin descanso, 9; con servicios de
   // 40 min, más. Solo hasta el día de corte (el mes en curso no cuenta días que no llegaron).
-  // Lo usado son los servicios realmente vendidos en el período (los cobros sin turno
-  // también ocupan agenda), o los turnos si fuera mayor.
+  // Lo usado son los servicios realmente cobrados en el período (con turno o por orden de
+  // llegada): un turno agendado que nunca se cobró no ocupó la silla. Los bloqueos de agenda
+  // se restan de la capacidad.
   const activeEmployees = capacityData.employees.filter((e) => e.is_active !== false);
   const soldByEmployee = new Map<string, Array<{ name: string; qty: number }>>();
   const usedByEmployee = new Map<string, number>();
@@ -338,6 +343,7 @@ function buildMonthSnapshot(
     monthKey,
     cutoffDay,
     fromDay,
+    blocks,
     slotMinutesByEmployee,
   });
   const employeeLoad = activeEmployees.map((e) => ({
@@ -349,10 +355,11 @@ function buildMonthSnapshot(
       monthKey,
       cutoffDay,
       fromDay,
+      blocks,
       slotMinutesByEmployee,
     }).totalSlots,
   }));
-  const used = Math.max(usable, servicesSold);
+  const used = servicesSold;
   const occupancy = totalSlots > 0 ? Math.min(100, Math.round((used / totalSlots) * 100)) : 0;
   const freeSlots = Math.max(0, totalSlots - used);
 

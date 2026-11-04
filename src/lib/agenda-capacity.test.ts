@@ -67,6 +67,26 @@ describe("Capacidad real de la agenda", () => {
     expect(r.totalSlots).toBe(9 * 2);
   });
 
+  it("los bloqueos de agenda se restan de la capacidad (ni ocupado ni libre)", () => {
+    // 11 a 20 sin descanso = 540 min; un bloqueo de 14:00 a 16:00 (840 a 960) saca 120
+    const day = { enabled: true, start: "11:00", end: "20:00" };
+    expect(dayWorkMinutes(day, [{ startMin: 840, endMin: 960 }])).toBe(420);
+    // el bloqueo que cae sobre el descanso solo resta lo que sí era horario de atención
+    const conDescanso = { ...day, breakStart: "13:00", breakEnd: "14:00" };
+    expect(dayWorkMinutes(conDescanso, [{ startMin: 780, endMin: 900 }])).toBe(480 - 60);
+    const ctx = parseCapacityContext(week());
+    const sin = computeCapacity({ ctx, employeeIds: ["a"], monthKey: "2026-11", cutoffDay: 3, slotMinutesByEmployee: { a: 60 } });
+    const con = computeCapacity({
+      ctx,
+      employeeIds: ["a"],
+      monthKey: "2026-11",
+      cutoffDay: 3,
+      slotMinutesByEmployee: { a: 60 },
+      blocks: [{ employeeId: "a", dateKey: "2026-11-02", startMin: 840, endMin: 960 }],
+    });
+    expect(sin.totalSlots - con.totalSlots).toBe(2);
+  });
+
   it("el horario especial de una fecha pisa al semanal", () => {
     const ctx = parseCapacityContext({
       ...week(),

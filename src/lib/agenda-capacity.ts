@@ -75,8 +75,25 @@ export function parseCapacityContext(rawSchedule: unknown): CapacityContext {
   return { businessSchedule, employeeSchedules, businessSpecial, employeeSpecial, serviceOverrides };
 }
 
-// Minutos efectivos de atención de un día ya resuelto: horario − descansos.
-export function dayWorkMinutes(day: DaySchedule | null): number {
+// Bloqueo de agenda de un profesional (minutos desde las 00:00 de ese día). No es ni ocupado
+// ni libre: ese tiempo se saca de la capacidad, porque el profesional no estaba disponible.
+export type BlockInterval = { employeeId: string; dateKey: string; startMin: number; endMin: number };
+
+function cutInterval(intervals: Array<[number, number]>, s: number, e: number): Array<[number, number]> {
+  const out: Array<[number, number]> = [];
+  for (const [a, b] of intervals) {
+    if (e <= a || s >= b) {
+      out.push([a, b]);
+      continue;
+    }
+    if (s > a) out.push([a, s]);
+    if (e < b) out.push([e, b]);
+  }
+  return out;
+}
+
+// Minutos efectivos de atención de un día ya resuelto: horario − descansos − bloqueos.
+export function dayWorkMinutes(day: DaySchedule | null, blocks: ReadonlyArray<{ startMin: number; endMin: number }> = []): number {
   if (!day || day.enabled === false) return 0;
   const open = parseTimeStrict(day.start);
   const close = parseTimeStrict(day.end);
@@ -87,15 +104,17 @@ export function dayWorkMinutes(day: DaySchedule | null): number {
       : day.breakStart && day.breakEnd
         ? [{ start: day.breakStart, end: day.breakEnd }]
         : [];
-  let minutes = close - open;
+  let intervals: Array<[number, number]> = [[open, close]];
   for (const b of breaks) {
     const bs = parseTimeStrict(b.start);
     const be = parseTimeStrict(b.end);
     if (bs === null || be === null || be <= bs) continue;
-    const overlap = Math.min(be, close) - Math.max(bs, open);
-    if (overlap > 0) minutes -= overlap;
+    intervals = cutInterval(intervals, bs, be);
   }
-  return Math.max(0, minutes);
+  for (const bl of blocks) {
+    if (bl.endMin > bl.startMin) intervals = cutInterval(intervals, bl.startMin, bl.endMin);
+  }
+  return Math.max(0, intervals.reduce((s, [a, b]) => s + (b - a), 0));
 }
 
 export type SoldServiceLine = { name: string; qty: number };
@@ -146,6 +165,8 @@ export type CapacityInput = {
   cutoffDay: number; // cuenta los días fromDay..cutoffDay
   // Primer día que cuenta (default 1): en el mes de arranque, el día en que el negocio empezó.
   fromDay?: number;
+  // Bloqueos de agenda: se restan de la capacidad de cada profesional.
+  blocks?: BlockInterval[];
   // Minutos por turno de cada profesional (ver slotMinutesForEmployee).
   slotMinutesByEmployee: Record<string, number>;
 };
@@ -154,7 +175,7 @@ export type CapacityResult = { totalSlots: number; workedDays: number };
 
 // Capacidad total: para cada profesional y cada día 1..cutoffDay, turnos = minutos de
 // atención ÷ minutos por turno (hacia abajo).
-export function computeCapacity({ ctx, employeeIds, monthKey, cutoffDay, fromDay, slotMinutesByEmployee }: CapacityInput): CapacityResult {
+export function computeCapacity({ ctx, employeeIds, monthKey, cutoffDay, fromDay, blocks = [], slotMinutesByEmployee }: CapacityInput): CapacityResult {
   const [y, m] = monthKey.split("-").map(Number);
   const lastDay = new Date(y, m, 0).getDate();
   const until = Math.min(Math.max(cutoffDay, 0), lastDay);
@@ -166,7 +187,9 @@ export function computeCapacity({ ctx, employeeIds, monthKey, cutoffDay, fromDay
       // Mediodía local: el día de la semana coincide con la fecha del calendario.
       const date = new Date(y, m - 1, d, 12, 0, 0);
       const day = resolveDaySchedule(ctx.businessSchedule, ctx.employeeSchedules, ctx.businessSpecial, ctx.employeeSpecial, empId, date);
-      const minutes = dayWorkMinutes(day);
+      const dateKey = `${monthKey}-${String(d).padStart(2, "0")}`;
+      const dayBlocks = blocks.filter((b) => b.employeeId === empId && b.dateKey === dateKey);
+      const minutes = dayWorkMinutes(day, dayBlocks);
       if (minutes <= 0) continue;
       workedDates.add(d);
       totalSlots += Math.floor(minutes / slot);
