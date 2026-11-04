@@ -330,11 +330,14 @@ function buildMonthSnapshot(
       capacityData.ctx.serviceOverrides,
     );
   }
+  // En el mes de arranque la agenda cuenta desde el día en que el negocio empezó.
+  const fromDay = perf?.startDate && perf.startDate.slice(0, 7) === monthKey ? Number(perf.startDate.slice(8, 10)) : 1;
   const { totalSlots } = computeCapacity({
     ctx: capacityData.ctx,
     employeeIds: activeEmployees.map((e) => e.id),
     monthKey,
     cutoffDay,
+    fromDay,
     slotMinutesByEmployee,
   });
   const employeeLoad = activeEmployees.map((e) => ({
@@ -345,6 +348,7 @@ function buildMonthSnapshot(
       employeeIds: [e.id],
       monthKey,
       cutoffDay,
+      fromDay,
       slotMinutesByEmployee,
     }).totalSlots,
   }));

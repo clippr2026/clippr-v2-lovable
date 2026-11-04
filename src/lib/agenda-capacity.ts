@@ -143,7 +143,9 @@ export type CapacityInput = {
   ctx: CapacityContext;
   employeeIds: string[];
   monthKey: string; // "2026-10"
-  cutoffDay: number; // cuenta los días 1..cutoffDay
+  cutoffDay: number; // cuenta los días fromDay..cutoffDay
+  // Primer día que cuenta (default 1): en el mes de arranque, el día en que el negocio empezó.
+  fromDay?: number;
   // Minutos por turno de cada profesional (ver slotMinutesForEmployee).
   slotMinutesByEmployee: Record<string, number>;
 };
@@ -152,7 +154,7 @@ export type CapacityResult = { totalSlots: number; workedDays: number };
 
 // Capacidad total: para cada profesional y cada día 1..cutoffDay, turnos = minutos de
 // atención ÷ minutos por turno (hacia abajo).
-export function computeCapacity({ ctx, employeeIds, monthKey, cutoffDay, slotMinutesByEmployee }: CapacityInput): CapacityResult {
+export function computeCapacity({ ctx, employeeIds, monthKey, cutoffDay, fromDay, slotMinutesByEmployee }: CapacityInput): CapacityResult {
   const [y, m] = monthKey.split("-").map(Number);
   const lastDay = new Date(y, m, 0).getDate();
   const until = Math.min(Math.max(cutoffDay, 0), lastDay);
@@ -160,7 +162,7 @@ export function computeCapacity({ ctx, employeeIds, monthKey, cutoffDay, slotMin
   const workedDates = new Set<number>();
   for (const empId of employeeIds) {
     const slot = Math.max(10, slotMinutesByEmployee[empId] ?? DEFAULT_SLOT_MINUTES);
-    for (let d = 1; d <= until; d += 1) {
+    for (let d = Math.max(1, fromDay ?? 1); d <= until; d += 1) {
       // Mediodía local: el día de la semana coincide con la fecha del calendario.
       const date = new Date(y, m - 1, d, 12, 0, 0);
       const day = resolveDaySchedule(ctx.businessSchedule, ctx.employeeSchedules, ctx.businessSpecial, ctx.employeeSpecial, empId, date);

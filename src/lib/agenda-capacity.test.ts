@@ -60,6 +60,13 @@ describe("Capacidad real de la agenda", () => {
     expect(tres.totalSlots).toBe(9 * 2);
   });
 
+  it("desde el día de arranque: no cuenta los días anteriores al inicio del negocio", () => {
+    const ctx = parseCapacityContext(week());
+    // 01/11/2026 es domingo: lun 2, mar 3, mié 4 → con arranque el 3 solo cuentan mar y mié
+    const r = computeCapacity({ ctx, employeeIds: ["a"], monthKey: "2026-11", cutoffDay: 4, fromDay: 3, slotMinutesByEmployee: { a: 60 } });
+    expect(r.totalSlots).toBe(9 * 2);
+  });
+
   it("el horario especial de una fecha pisa al semanal", () => {
     const ctx = parseCapacityContext({
       ...week(),

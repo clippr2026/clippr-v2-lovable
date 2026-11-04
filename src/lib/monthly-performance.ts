@@ -68,9 +68,6 @@ export type MonthlyRawData = {
   expenses: MonthlyExpenseRow[];
   commissions: MonthlyCommissionRow[];
   attendance: MonthlyAttendanceRow[];
-  // Cantidad de reglas de tardanza configuradas en la sucursal: sin reglas, la puntualidad
-  // no está activada y no se muestra su cuadro.
-  latenessRulesCount?: number;
   // Productos retirados del inventario por un profesional, anotados como adelanto.
   consumos: MonthlyConsumoRow[];
   // Fecha (hora de Argentina) de la primera venta del negocio: sirve para saber qué mes fue
@@ -114,7 +111,7 @@ export type MonthlyPerformance = {
   comisiones: number;
   // Descuento de puntualidad aplicado (positivo = se le descontó; negativo = ajuste a favor).
   descuentoPuntualidad: number;
-  // ¿Está activada la puntualidad? (hay reglas de tardanza o hubo faltas/descuentos en el mes).
+  // ¿Estaba activada la puntualidad ese mes? (hay asistencia registrada o descuentos en el mes).
   puntualidadActiva: boolean;
   // Lo que se le paga a los profesionales por el mes: comisiones − descuento de puntualidad.
   pagoProfesionales: number;
@@ -379,10 +376,7 @@ export function computeMonthlyPerformance(monthKey: string, raw: MonthlyRawData)
     margen,
     comisiones,
     descuentoPuntualidad,
-    puntualidadActiva:
-      (raw.latenessRulesCount ?? 0) > 0 ||
-      descuentoPuntualidad !== 0 ||
-      raw.attendance.some((a) => a.status === "tarde" || a.status === "ausente"),
+    puntualidadActiva: raw.attendance.length > 0 || descuentoPuntualidad !== 0,
     pagoProfesionales,
     consumosProfesionales,
     consumosCount: raw.consumos.length,
@@ -514,16 +508,6 @@ export async function fetchMonthlyRawData(
 
   const { data: employees } = await supabase.from("employees").select("id,full_name").eq("business_id", businessId);
 
-  let latenessRulesCount = 0;
-  try {
-    let rq = supabase.from("lateness_rules" as any).select("id", { count: "exact", head: true }).eq("business_id", businessId);
-    if (branchFilter) rq = rq.or(branchFilter);
-    const { count } = await rq;
-    latenessRulesCount = count ?? 0;
-  } catch {
-    latenessRulesCount = 0;
-  }
-
   const startDate = await fetchBusinessStartDateCached(businessId);
 
   return {
@@ -532,7 +516,6 @@ export async function fetchMonthlyRawData(
     expenses,
     commissions,
     attendance,
-    latenessRulesCount,
     consumos,
     startDate,
     employees: (employees ?? []) as any[],
