@@ -87,7 +87,10 @@ describe("Detalle del mes", () => {
     const d = computeMonthlyDetail("2026-10", detailRaw(payments), perfOf(payments), []);
     expect(d.facturacion.mejorDia?.label).toBe("Lunes");
     expect(d.facturacion.peorDia?.label).toBe("Martes");
-    expect(d.facturacion.mejorFecha?.date).toBe("2026-10-05");
+    expect(d.facturacion.porQuincena[0].total).toBe(70000);
+    expect(d.facturacion.porQuincena[1].total).toBe(0);
+    // un barbero por jornada: cada uno factura el promedio del día
+    expect(d.facturacion.porDiaSemana.find((r) => r.label === "Lunes")?.facturaPorBarbero).toBe(50000);
   });
 
   it("ventas con turno vs orden de llegada, anuladas y combos", () => {

@@ -127,7 +127,7 @@ function Callout({ children }: { children: React.ReactNode }) {
 // `lowerIsBetter`: en gastos, que baje es bueno (verde).
 function Delta({ cur, prev, label, lowerIsBetter = false }: { cur: number; prev: number | null; label: string; lowerIsBetter?: boolean }) {
   const v = prev != null ? variationPct(cur, prev) : null;
-  if (v == null) return <span>Sin mes anterior para comparar</span>;
+  if (v == null) return null;
   const good = lowerIsBetter ? v <= 0 : v >= 0;
   return (
     <span className={good ? "text-emerald-300" : "text-rose-300"}>
@@ -160,16 +160,21 @@ function bestWorst(d: DayRow[], rows: { best: DayRow | null; worst: DayRow | nul
 
 function FacturacionView({ d, perf, prev, vsLabel }: ViewProps) {
   const f = d.facturacion;
-  const porDia = weekdayRows(f.porDiaSemana, (r) => r.promedio);
+  const diasTrabajados = f.porDiaSemana.filter((r) => r.dias > 0);
+  const conBarberos = diasTrabajados.filter((r) => r.barberos > 0);
+  const mejorPorBarbero = [...conBarberos].sort((a, b) => b.facturaPorBarbero - a.facturaPorBarbero)[0];
+  const peorPorBarbero = [...conBarberos].sort((a, b) => a.facturaPorBarbero - b.facturaPorBarbero)[0];
   return (
     <div className="space-y-3">
       <StatGrid>
         <Stat label="Facturación" value={money(f.total)} sub={<Delta cur={perf.facturacion} prev={prev?.facturacion ?? null} label={vsLabel} />} />
         <Stat label="Servicios" value={money(f.ventasServicios)} />
-        <Stat label="Productos vendidos" value={money(f.ventasProductos)} />
-        <Stat label="Consumos de profesionales" value={money(f.consumos)} sub="Productos retirados a cuenta" />
+        <Stat
+          label="Productos vendidos"
+          value={money(f.ventasProductos + f.consumos)}
+          sub={f.consumos > 0 ? `Incluye ${money(f.consumos)} de consumos de profesionales` : undefined}
+        />
         <Stat label="Descuentos otorgados" value={money(f.descuentoTotal)} sub="Promos y descuentos manuales" />
-        <Stat label="Propinas" value={money(f.propinas)} sub="No entran en la facturación" />
       </StatGrid>
 
       <Block title="Por servicio" hint="Monto de cada servicio después de descuentos y promos.">
@@ -195,32 +200,67 @@ function FacturacionView({ d, perf, prev, vsLabel }: ViewProps) {
         </div>
       </Block>
 
-      <Block title="Por día de la semana" hint="Promedio por día en que hubo ventas, para que cada día sea comparable.">
-        <Bars rows={porDia} sub={(r) => `${r.count} ${r.count === 1 ? "día" : "días"}`} color="bg-emerald-400/70" />
-        <div className="mt-3">{bestWorst(f.porDiaSemana, { best: f.mejorDia, worst: f.peorDia }, "factura")}</div>
-      </Block>
-
-      <Block title="Por fecha">
-        <div className="max-h-72 overflow-y-auto pr-1">
-          <Bars
-            rows={f.porFecha.map((r) => ({ label: dateLabel(r.date), value: r.total, count: r.ventas }))}
-            sub={(r) => `${r.count} ventas`}
-            color="bg-sky-400/70"
-          />
-        </div>
-        {f.mejorFecha && (
+      <Block
+        title="Por día de la semana"
+        hint="Solo los días en que se trabajó. Los barberos son los que vendieron ese día (promedio por jornada). «Gana» es la comisión de cada barbero."
+      >
+        {diasTrabajados.length === 0 ? (
+          <div className="text-sm text-white/40">Sin ventas en el mes.</div>
+        ) : (
+          <div className="space-y-2.5">
+            {diasTrabajados.map((r) => (
+              <div key={r.label} className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-3">
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="font-semibold text-white">{r.label}</span>
+                  <span className="text-xs text-white/45">
+                    {r.dias} {r.dias === 1 ? "día trabajado" : "días trabajados"}
+                  </span>
+                </div>
+                <div className="mt-2">
+                  <KV
+                    rows={[
+                      ["Facturación del mes", money(r.total)],
+                      ["Promedio por día", money(r.promedio)],
+                      ["Barberos por día", r.barberos.toFixed(1).replace(".", ",")],
+                      ["Factura cada barbero", money(r.facturaPorBarbero)],
+                      ["Gana cada barbero", money(r.ganaPorBarbero)],
+                    ]}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {mejorPorBarbero && peorPorBarbero && mejorPorBarbero.label !== peorPorBarbero.label && (
           <div className="mt-3">
             <Callout>
-              Mejor día: <b>{dateLabel(f.mejorFecha.date)}</b> ({money(f.mejorFecha.total)}).
-              {f.peorFecha && f.peorFecha.date !== f.mejorFecha.date && (
-                <>
-                  {" "}
-                  Día más bajo con ventas: <b>{dateLabel(f.peorFecha.date)}</b> ({money(f.peorFecha.total)}).
-                </>
-              )}
+              Cada barbero factura más los <b>{mejorPorBarbero.label.toLowerCase()}</b> ({money(mejorPorBarbero.facturaPorBarbero)}) y
+              menos los <b>{peorPorBarbero.label.toLowerCase()}</b> ({money(peorPorBarbero.facturaPorBarbero)}). Sirve para decidir si
+              conviene mover barberos de un día a otro o sumar uno.
             </Callout>
           </div>
         )}
+      </Block>
+
+      <Block title="Por quincena">
+        <div className="grid gap-2.5 sm:grid-cols-2">
+          {f.porQuincena.map((q) => (
+            <div key={q.label} className="rounded-xl border border-white/[0.07] bg-white/[0.02] p-3">
+              <div className="font-semibold text-white">{q.label}</div>
+              <div className="mt-2">
+                <KV
+                  rows={[
+                    ["Facturación", money(q.total)],
+                    ["Ventas", int(q.ventas)],
+                    ["Días con ventas", int(q.dias)],
+                    ["Promedio por día", money(q.promedio)],
+                    ["Ticket promedio", money(q.ticket)],
+                  ]}
+                />
+              </div>
+            </div>
+          ))}
+        </div>
       </Block>
 
       <Block title="Por franja horaria" hint="Según la hora en que se registró el cobro.">

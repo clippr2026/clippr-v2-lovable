@@ -156,7 +156,20 @@ export async function fetchMonthlyDetailRaw(
 // ───────────────────────────── cálculo ─────────────────────────────
 
 export type ShareRow = { label: string; value: number; count?: number; extra?: number };
-export type DayRow = { label: string; total: number; ventas: number; dias: number; promedio: number; ticket: number };
+export type DayRow = {
+  label: string;
+  total: number;
+  ventas: number;
+  dias: number;
+  promedio: number;
+  ticket: number;
+  // Barberos que vendieron ese día de la semana (promedio por jornada) y lo que le toca a cada
+  // uno: lo que factura y lo que gana (su comisión) en una jornada de ese día.
+  barberos: number;
+  facturaPorBarbero: number;
+  ganaPorBarbero: number;
+};
+export type QuincenaRow = { label: string; total: number; ventas: number; dias: number; promedio: number; ticket: number };
 export type DateRow = { date: string; total: number; ventas: number };
 
 const WEEKDAYS = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
@@ -229,9 +242,7 @@ export type MonthlyDetail = {
     porDiaSemana: DayRow[];
     mejorDia: DayRow | null;
     peorDia: DayRow | null;
-    porFecha: DateRow[];
-    mejorFecha: DateRow | null;
-    peorFecha: DateRow | null;
+    porQuincena: QuincenaRow[];
     porFranja: ShareRow[];
     propinas: number;
   };
@@ -341,26 +352,45 @@ export type MonthlyDetail = {
 
 const avg = (sum: number, n: number) => (n > 0 ? sum / n : 0);
 
-function byWeekday(payments: DetailPayment[]): DayRow[] {
-  const acc = WEEKDAYS.map((label) => ({ label, total: 0, ventas: 0, fechas: new Set<string>() }));
+function byWeekday(payments: DetailPayment[], comBySale: Map<string, number> = new Map()): DayRow[] {
+  const acc = WEEKDAYS.map((label) => ({
+    label,
+    total: 0,
+    ventas: 0,
+    comision: 0,
+    fechas: new Set<string>(),
+    barberosPorFecha: new Map<string, Set<string>>(),
+  }));
   for (const p of payments) {
     const key = arDateKey(p.created_at);
     const d = weekdayOf(key);
     acc[d].total += payTotal(p);
     acc[d].ventas += 1;
+    acc[d].comision += comBySale.get(p.id) ?? 0;
     acc[d].fechas.add(key);
+    if (p.employee_id) {
+      const set = acc[d].barberosPorFecha.get(key) ?? new Set<string>();
+      set.add(p.employee_id);
+      acc[d].barberosPorFecha.set(key, set);
+    }
   }
   // Lunes primero, domingo al final.
   return [1, 2, 3, 4, 5, 6, 0]
     .map((d) => acc[d])
-    .map((a) => ({
-      label: a.label,
-      total: a.total,
-      ventas: a.ventas,
-      dias: a.fechas.size,
-      promedio: avg(a.total, a.fechas.size),
-      ticket: avg(a.total, a.ventas),
-    }));
+    .map((a) => {
+      const barberDays = [...a.barberosPorFecha.values()].reduce((s, set) => s + set.size, 0);
+      return {
+        label: a.label,
+        total: a.total,
+        ventas: a.ventas,
+        dias: a.fechas.size,
+        promedio: avg(a.total, a.fechas.size),
+        ticket: avg(a.total, a.ventas),
+        barberos: avg(barberDays, a.fechas.size),
+        facturaPorBarbero: avg(a.total, barberDays),
+        ganaPorBarbero: avg(a.comision, barberDays),
+      };
+    });
 }
 
 function pickBestWorst(rows: DayRow[]): { best: DayRow | null; worst: DayRow | null } {
@@ -437,7 +467,11 @@ export function computeMonthlyDetail(
   }
 
   // ── Días / fechas / franjas ──
-  const dias = byWeekday(sales);
+  const comBySale = new Map<string, number>();
+  for (const c of raw.commissions) {
+    if (c.sale_id) comBySale.set(c.sale_id, (comBySale.get(c.sale_id) ?? 0) + Number(c.amount ?? 0));
+  }
+  const dias = byWeekday(sales, comBySale);
   const { best, worst } = pickBestWorst(dias);
   const fechasMap = new Map<string, DateRow>();
   for (const p of sales) {
@@ -448,7 +482,19 @@ export function computeMonthlyDetail(
     fechasMap.set(key, cur);
   }
   const porFecha = [...fechasMap.values()].sort((a, b) => a.date.localeCompare(b.date));
-  const fechasOrd = [...porFecha].sort((a, b) => b.total - a.total);
+  const lastDayNum = new Date(Number(monthKey.slice(0, 4)), Number(monthKey.slice(5, 7)), 0).getDate();
+  const porQuincena: QuincenaRow[] = [
+    { label: "Del 1 al 15", from: 1, to: 15 },
+    { label: `Del 16 al ${lastDayNum}`, from: 16, to: lastDayNum },
+  ].map((q) => {
+    const rows = porFecha.filter((r) => {
+      const day = Number(r.date.slice(8, 10));
+      return day >= q.from && day <= q.to;
+    });
+    const tot = rows.reduce((s, r) => s + r.total, 0);
+    const vts = rows.reduce((s, r) => s + r.ventas, 0);
+    return { label: q.label, total: tot, ventas: vts, dias: rows.length, promedio: avg(tot, rows.length), ticket: avg(tot, vts) };
+  });
   const FRANJAS = ["Mañana (antes de las 13)", "Tarde (13 a 18)", "Noche (desde las 18)"];
   const franjaOf = (p: DetailPayment) => {
     const h = arHour(p.created_at);
@@ -652,9 +698,7 @@ export function computeMonthlyDetail(
       porDiaSemana: dias,
       mejorDia: best,
       peorDia: worst,
-      porFecha,
-      mejorFecha: fechasOrd[0] ?? null,
-      peorFecha: fechasOrd.length > 1 ? fechasOrd[fechasOrd.length - 1] : null,
+      porQuincena,
       porFranja,
       propinas,
     },
