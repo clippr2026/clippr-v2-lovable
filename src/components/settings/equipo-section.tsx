@@ -836,9 +836,11 @@ export function EquipoSection() {
   const { businessId, activeBranchId, branches } = useAuth();
   // "Agregar persona": una sola puerta de entrada (barbero, acceso o las dos cosas).
   const [addChooserOpen, setAddChooserOpen] = useState(false);
-  const [chooserBarbero, setChooserBarbero] = useState(true);
-  const [chooserAccess, setChooserAccess] = useState(true);
-  const [chooserRole, setChooserRole] = useState<RolePermissionId>("admin_general");
+  // Rol elegido (Barbero = "profesional"). Barbero siempre atiende clientes; en los demás roles
+  // "Atiende clientes" es opcional.
+  const [chooserRole, setChooserRole] = useState<RolePermissionId>("profesional");
+  const [chooserAtiende, setChooserAtiende] = useState(false);
+  const atiendeAfterAccessRef = useRef(false);
   // Administrador/recepcionista que quiere atender clientes: elige su perfil de barbero.
   const [linkBarberFor, setLinkBarberFor] = useState<AccessUser | null>(null);
   const [linkChoice, setLinkChoice] = useState<string>("new");
@@ -2383,14 +2385,24 @@ export function EquipoSection() {
   // siempre, cierra el modal y limpia el form al terminar.
   async function saveAccessUser() {
     const wasEditing = !!editingAccessUserId;
+    const savedEmail = accessForm.email.trim().toLowerCase();
+    const wantsAtender = atiendeAfterAccessRef.current;
     const ok = await submitAccessForm();
     if (!ok) return;
     toast.success(
       wasEditing ? "Acceso actualizado correctamente" : "Invitación enviada por email",
     );
+    atiendeAfterAccessRef.current = false;
     cancelEditAccessUser();
     setAccessModalOpen(false);
-    await loadTeamMembers();
+    const refreshed = await loadTeamMembers();
+    if (wantsAtender && !wasEditing) {
+      const created = refreshed?.find((u) => u.email.trim().toLowerCase() === savedEmail);
+      if (created) {
+        setLinkChoice("new");
+        setLinkBarberFor(created);
+      }
+    }
   }
 
   // Guardado desde Profesionales → Editar profesional → Acceso: el mismo
@@ -2454,6 +2466,7 @@ export function EquipoSection() {
   }
 
   function closeAccessModal() {
+    atiendeAfterAccessRef.current = false;
     setAccessModalOpen(false);
     cancelEditAccessUser();
   }
@@ -2577,15 +2590,18 @@ export function EquipoSection() {
 
   function continueAddPerson() {
     setAddChooserOpen(false);
-    if (chooserBarbero) {
-      accessAfterCreateRef.current = chooserAccess;
+    if (chooserRole === "profesional") {
+      // Barbero: alta del barbero y, al guardarlo, queda abierta su pestaña de Acceso.
+      accessAfterCreateRef.current = true;
       openNew();
-    } else if (chooserAccess) {
-      openNewAccessModal();
-      setAccessForm((f) => ({ ...f, role: chooserRole }));
-      setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS[chooserRole]);
-      setSelectedPermRole(chooserRole);
+      return;
     }
+    openNewAccessModal();
+    setAccessForm((f) => ({ ...f, role: chooserRole }));
+    setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS[chooserRole]);
+    setSelectedPermRole(chooserRole);
+    // Si además atiende clientes: al guardar el acceso se le pide su perfil de barbero.
+    atiendeAfterAccessRef.current = chooserAtiende;
   }
 
   // Etiqueta de acceso de una persona para la lista unificada.
@@ -3033,47 +3049,43 @@ export function EquipoSection() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="text-lg font-semibold">Agregar persona</div>
-              <p className="mt-1 text-sm text-muted-foreground">Marcá lo que hace esta persona.</p>
-              <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl bg-white/[0.04] p-3 ring-1 ring-white/10">
+              <p className="mt-1 text-sm text-muted-foreground">Elegí el rol de la persona.</p>
+              <label className="mt-4 block text-sm font-semibold">
+                Rol
+                <select
+                  value={chooserRole}
+                  onChange={(e) => setChooserRole(e.target.value as RolePermissionId)}
+                  className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none"
+                >
+                  {(["profesional", "admin_general", "admin_local", "socio", "recepcionista"] as RolePermissionId[]).map((role) => (
+                    <option key={role} value={role}>
+                      {role === "profesional" ? "Barbero" : ROLE_LABEL_BY_ID[role]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label
+                className={cn(
+                  "mt-3 flex items-start gap-3 rounded-xl bg-white/[0.04] p-3 ring-1 ring-white/10",
+                  chooserRole === "profesional" ? "cursor-not-allowed opacity-80" : "cursor-pointer",
+                )}
+              >
                 <input
                   type="checkbox"
-                  checked={chooserBarbero}
-                  onChange={(e) => setChooserBarbero(e.target.checked)}
+                  checked={chooserRole === "profesional" || chooserAtiende}
+                  disabled={chooserRole === "profesional"}
+                  onChange={(e) => setChooserAtiende(e.target.checked)}
                   className="mt-0.5 h-4 w-4 accent-sky-400"
                 />
                 <span className="text-sm">
                   <b>Atiende clientes</b>
-                  <span className="block text-xs text-muted-foreground">Aparece en la Agenda y puede cobrar sus servicios.</span>
+                  <span className="block text-xs text-muted-foreground">
+                    {chooserRole === "profesional"
+                      ? "Un barbero siempre atiende clientes: aparece en la Agenda y cobra sus servicios."
+                      : "Aparece en la Agenda y puede cobrar sus servicios."}
+                  </span>
                 </span>
               </label>
-              <label className="mt-2 flex cursor-pointer items-start gap-3 rounded-xl bg-white/[0.04] p-3 ring-1 ring-white/10">
-                <input
-                  type="checkbox"
-                  checked={chooserAccess}
-                  onChange={(e) => setChooserAccess(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 accent-sky-400"
-                />
-                <span className="text-sm">
-                  <b>Puede entrar a Clippr</b>
-                  <span className="block text-xs text-muted-foreground">Recibe una invitación por correo para crear su contraseña.</span>
-                </span>
-              </label>
-              {chooserAccess && !chooserBarbero && (
-                <label className="mt-3 block text-sm font-semibold">
-                  Rol
-                  <select
-                    value={chooserRole}
-                    onChange={(e) => setChooserRole(e.target.value as RolePermissionId)}
-                    className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none"
-                  >
-                    {(["admin_general", "admin_local", "socio", "recepcionista"] as RolePermissionId[]).map((role) => (
-                      <option key={role} value={role}>
-                        {ROLE_LABEL_BY_ID[role]}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-              )}
               <div className="mt-5 flex items-center gap-2">
                 <button
                   type="button"
@@ -3084,7 +3096,6 @@ export function EquipoSection() {
                 </button>
                 <button
                   type="button"
-                  disabled={!chooserBarbero && !chooserAccess}
                   onClick={continueAddPerson}
                   className="h-11 flex-1 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 px-4 text-sm font-semibold text-white disabled:opacity-50"
                 >
