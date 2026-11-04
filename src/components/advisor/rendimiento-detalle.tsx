@@ -234,10 +234,7 @@ function FacturacionView({ d, perf, prev, vsLabel }: ViewProps) {
             {diasTrabajados.map((r) => {
               const isBest = mejorPorBarbero?.label === r.label && peorPorBarbero?.label !== r.label;
               const isWorst = peorPorBarbero?.label === r.label && mejorPorBarbero?.label !== r.label;
-              const rango =
-                r.barberosMin === r.barberosMax
-                  ? `${int(r.barberosMax)} ${r.barberosMax === 1 ? "barbero" : "barberos"}`
-                  : `${int(r.barberosMin)} a ${int(r.barberosMax)} barberos`;
+              const rango = `${int(r.barberosHabitual)} ${r.barberosHabitual === 1 ? "barbero" : "barberos"}`;
               const maxProm = Math.max(1, ...diasTrabajados.map((x) => x.promedio));
               return (
                 <div key={r.label} className="rounded-xl border border-white/[0.09] bg-black/20 p-3.5">

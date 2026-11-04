@@ -91,6 +91,7 @@ describe("Detalle del mes", () => {
     expect(d.facturacion.porQuincena[1].total).toBe(0);
     // un barbero por jornada: cada uno factura el promedio del día
     expect(d.facturacion.porDiaSemana.find((r) => r.label === "Lunes")?.facturaPorBarbero).toBe(50000);
+    expect(d.facturacion.porDiaSemana.find((r) => r.label === "Lunes")?.barberosHabitual).toBe(1);
   });
 
   it("ventas con turno vs orden de llegada, anuladas y combos", () => {

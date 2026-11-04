@@ -168,6 +168,8 @@ export type DayRow = {
   barberos: number;
   barberosMin: number;
   barberosMax: number;
+  // Cantidad de barberos más frecuente en ese día de la semana (la "habitual").
+  barberosHabitual: number;
   facturaPorBarbero: number;
   ganaPorBarbero: number;
 };
@@ -392,6 +394,12 @@ function byWeekday(payments: DetailPayment[], comBySale: Map<string, number> = n
         barberos: avg(barberDays, a.fechas.size),
         barberosMin: sizes.length ? Math.min(...sizes) : 0,
         barberosMax: sizes.length ? Math.max(...sizes) : 0,
+        barberosHabitual: (() => {
+          const freq = new Map<number, number>();
+          for (const n of sizes) freq.set(n, (freq.get(n) ?? 0) + 1);
+          // La más repetida; si empatan, la mayor.
+          return [...freq.entries()].sort((a, b) => b[1] - a[1] || b[0] - a[0])[0]?.[0] ?? 0;
+        })(),
         facturaPorBarbero: avg(a.total, barberDays),
         ganaPorBarbero: avg(a.comision, barberDays),
       };
