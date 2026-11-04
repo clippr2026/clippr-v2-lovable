@@ -641,6 +641,61 @@ function normalizePermissionMap(value: unknown): PermissionMap {
 // Tarjeta de profesional memoizada: solo se re-renderiza si cambian sus props
 // (este profesional o sus callbacks), no cuando cambia cualquier otro estado de
 // Configuración. Reduce drásticamente los re-renders con muchos profesionales.
+// Estado del acceso de una persona (para las etiquetas de la lista unificada).
+type PersonAccessInfo = {
+  roleLabel: string;
+  badge: { label: string; cls: string } | null;
+  email: string;
+  expired: boolean;
+  resending: boolean;
+  onResend: () => void;
+  // Solo administradores/recepcionista: interruptor "Atiendo clientes".
+  atiende?: { on: boolean; onToggle: () => void };
+};
+
+function AccessChips({ access }: { access: PersonAccessInfo }) {
+  return (
+    <div className="mt-3 space-y-2">
+      <div className="flex flex-wrap items-center gap-1.5">
+        <span className="rounded-full bg-violet-500/10 px-2 py-0.5 text-[10px] text-violet-200 ring-1 ring-violet-400/25">
+          {access.roleLabel}
+        </span>
+        {access.badge && (
+          <span className={cn("rounded-full px-2 py-0.5 text-[10px] ring-1", access.badge.cls)}>{access.badge.label}</span>
+        )}
+        {access.expired && (
+          <button
+            type="button"
+            disabled={access.resending}
+            onClick={access.onResend}
+            className="rounded-full bg-amber-500/10 px-2.5 py-0.5 text-[10px] text-amber-200 ring-1 ring-amber-400/25 disabled:opacity-60"
+          >
+            {access.resending ? "Enviando…" : "Reenviar"}
+          </button>
+        )}
+      </div>
+      <div className="truncate text-xs text-muted-foreground">{access.email}</div>
+      {access.atiende && (
+        <button
+          type="button"
+          onClick={access.atiende.onToggle}
+          className="flex w-full items-center justify-between gap-3 rounded-lg bg-white/[0.04] px-3 py-2 text-left text-xs ring-1 ring-white/10"
+        >
+          <span>Atiendo clientes</span>
+          <span
+            className={cn(
+              "inline-flex h-5 w-9 items-center rounded-full px-0.5 transition",
+              access.atiende.on ? "bg-emerald-500/70" : "bg-white/15",
+            )}
+          >
+            <span className={cn("h-4 w-4 rounded-full bg-white transition-transform", access.atiende.on && "translate-x-4")} />
+          </span>
+        </button>
+      )}
+    </div>
+  );
+}
+
 const ProfessionalCard = React.memo(function ProfessionalCard({
   emp,
   tintClass,
@@ -649,6 +704,7 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
   onEdit,
   onToggleOnline,
   onRemove,
+  access,
 }: {
   emp: EmployeeRow;
   tintClass: string;
@@ -657,6 +713,7 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
   onEdit: (emp: EmployeeRow) => void;
   onToggleOnline: (emp: EmployeeRow) => void;
   onRemove: (emp: EmployeeRow) => void;
+  access?: PersonAccessInfo | null;
 }) {
   const displayName = emp.full_name || emp.name || "—";
   return (
@@ -713,6 +770,11 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
           {online ? "ONLINE" : "OFFLINE"}
         </button>
       </div>
+      {access ? (
+        <AccessChips access={access} />
+      ) : (
+        <div className="mt-3 text-xs text-muted-foreground">Sin acceso a Clippr</div>
+      )}
       <div className="mt-3 flex items-center gap-2">
         <button
           onClick={() => onEdit(emp)}
@@ -726,11 +788,63 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
   );
 });
 
+// Persona con acceso a Clippr que no atiende clientes (administrador, socio, recepcionista…).
+function AccessPersonCard({
+  title,
+  access,
+  onEdit,
+  onRemove,
+}: {
+  title: string;
+  access: PersonAccessInfo;
+  onEdit: () => void;
+  onRemove?: () => void;
+}) {
+  return (
+    <div className="glass rounded-2xl p-4 ring-1 ring-white/5">
+      <div className="flex items-center gap-3">
+        <div className="grid h-10 w-10 place-items-center rounded-full bg-white/8 text-sm font-semibold ring-1 ring-white/10">
+          {(title[0] || "A").toUpperCase()}
+        </div>
+        <div className="min-w-0 flex-1 text-sm font-medium">{title}</div>
+      </div>
+      <AccessChips access={access} />
+      <div className="mt-3 flex items-center gap-2">
+        <button
+          type="button"
+          onClick={onEdit}
+          className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs"
+        >
+          Editar
+        </button>
+        {onRemove && (
+          <button
+            type="button"
+            onClick={onRemove}
+            className="rounded-lg bg-red-500/10 px-2.5 py-1.5 text-red-300 ring-1 ring-red-500/30 hover:bg-red-500/20"
+            title="Quitar acceso"
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function EquipoSection() {
   const { businessId, activeBranchId, branches } = useAuth();
-  const [equipoTab, setEquipoTab] = useState<"profesionales" | "accesos">(
-    "profesionales",
-  );
+  // "Agregar persona": una sola puerta de entrada (barbero, acceso o las dos cosas).
+  const [addChooserOpen, setAddChooserOpen] = useState(false);
+  const [chooserBarbero, setChooserBarbero] = useState(true);
+  const [chooserAccess, setChooserAccess] = useState(true);
+  const [chooserRole, setChooserRole] = useState<RolePermissionId>("admin_general");
+  // Administrador/recepcionista que quiere atender clientes: elige su perfil de barbero.
+  const [linkBarberFor, setLinkBarberFor] = useState<AccessUser | null>(null);
+  const [linkChoice, setLinkChoice] = useState<string>("new");
+  const [linkSaving, setLinkSaving] = useState(false);
+  const accessAfterCreateRef = useRef(false);
+  const linkAfterCreateRef = useRef<string | null>(null);
   const [selectedPermRole, setSelectedPermRole] =
     useState<RolePermissionId>("admin_general");
   const [rolePermissions, setRolePermissions] = useState<RolePermissions>(
@@ -1856,8 +1970,41 @@ export function EquipoSection() {
         [newId]: form.specialDates,
       }));
 
-      toast.success("Profesional agregado.");
-      setOpen(false);
+      const linkMemberId = linkAfterCreateRef.current;
+      linkAfterCreateRef.current = null;
+      if (linkMemberId) {
+        const member = accessUsers.find((u) => u.id === linkMemberId);
+        if (member) await linkAccessToBarber(member, newId);
+      }
+      if (accessAfterCreateRef.current) {
+        // Barbero + acceso: sigue en la pestaña "Acceso" del barbero recién creado.
+        accessAfterCreateRef.current = false;
+        setEditingEmp({
+          id: newId,
+          full_name: name,
+          avatar_url: form.avatarUrl || null,
+          role: form.role.trim() || "Profesional",
+          is_active: form.isActive,
+          commission_pct: commission,
+          commission_enabled: form.commissionsEnabled,
+          branch_id: form.branchId ?? activeBranchId ?? null,
+        } as EmployeeRow);
+        setEditingAccessUserId(null);
+        setAccessForm({
+          ...EMPTY_ACCESS_FORM,
+          role: "profesional",
+          employee_id: newId,
+          branch_id: form.branchId ?? activeBranchId ?? null,
+        });
+        setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS.profesional);
+        setSelectedPermRole("profesional");
+        setAccessTouched(false);
+        setDlgTab("acceso");
+        toast.success("Profesional agregado. Ahora cargá su correo para darle acceso.");
+      } else {
+        toast.success("Profesional agregado.");
+        setOpen(false);
+      }
     } catch {
       toast.error("No se pudo guardar el profesional. Probá de nuevo.");
     } finally {
@@ -2201,7 +2348,7 @@ export function EquipoSection() {
       professional_id:
         accessForm.role === "profesional"
           ? (selectedEmployee?.id ?? null)
-          : null,
+          : (accessForm.employee_id ?? null),
       branch_id: accessForm.branch_id ?? null,
       permissions: accessPermissionsForm,
     });
@@ -2383,6 +2530,102 @@ export function EquipoSection() {
     if (b.id === principalAdminId) return 1;
     return 0;
   });
+
+  // Vincula (o con employeeId = null, desvincula) el acceso de un administrador/recepcionista
+  // con un barbero. Usa la misma Edge Function de siempre: solo cambia professional_id y
+  // reenvía el resto del acceso tal cual está.
+  async function linkAccessToBarber(user: AccessUser, employeeId: string | null): Promise<boolean> {
+    if (!businessId) return false;
+    setLinkSaving(true);
+    const result = await inviteTeamMember({
+      action: "update",
+      member_id: user.id,
+      business_id: businessId,
+      email: user.email,
+      full_name: user.name,
+      role: user.role,
+      status: user.status === "invited" ? "invited" : user.status === "suspended" ? "suspended" : "active",
+      professional_id: employeeId,
+      branch_id: user.branch_id ?? null,
+      permissions: userPermissions[user.id] ?? DEFAULT_ROLE_PERMISSIONS[user.role],
+    });
+    setLinkSaving(false);
+    if (!result.ok) {
+      toast.error(result.error);
+      return false;
+    }
+    await loadTeamMembers();
+    toast.success(employeeId ? "Listo: ahora atendés clientes." : "Dejaste de atender clientes. Tu perfil de barbero se conserva.");
+    return true;
+  }
+
+  async function confirmLinkBarber() {
+    const user = linkBarberFor;
+    if (!user) return;
+    if (linkChoice === "new") {
+      // Perfil nuevo: se abre el alta del barbero y, al guardarlo, se vincula solo.
+      linkAfterCreateRef.current = user.id;
+      setLinkBarberFor(null);
+      openNew();
+      const own = user.name && user.name !== ROLE_LABEL_BY_ID[user.role] ? user.name : "";
+      if (own) setForm((f) => ({ ...f, fullName: own }));
+      return;
+    }
+    const ok = await linkAccessToBarber(user, linkChoice);
+    if (ok) setLinkBarberFor(null);
+  }
+
+  function continueAddPerson() {
+    setAddChooserOpen(false);
+    if (chooserBarbero) {
+      accessAfterCreateRef.current = chooserAccess;
+      openNew();
+    } else if (chooserAccess) {
+      openNewAccessModal();
+      setAccessForm((f) => ({ ...f, role: chooserRole }));
+      setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS[chooserRole]);
+      setSelectedPermRole(chooserRole);
+    }
+  }
+
+  // Etiqueta de acceso de una persona para la lista unificada.
+  function accessInfoFor(user: AccessUser, linkedEmployee: boolean): PersonAccessInfo {
+    const isPrincipal = user.id === principalAdminId;
+    const expired = isInviteExpired(user);
+    const badge = isPrincipal
+      ? { label: "Principal", cls: "bg-white/[0.05] text-muted-foreground ring-white/15" }
+      : user.status === "active"
+        ? { label: "Acceso activo", cls: "bg-emerald-500/10 text-emerald-300 ring-emerald-400/20" }
+        : user.status === "invited"
+          ? expired
+            ? { label: "Invitación vencida", cls: "bg-amber-500/10 text-amber-300 ring-amber-400/20" }
+            : { label: "Invitación enviada", cls: "bg-cyan-500/10 text-cyan-300 ring-cyan-400/20" }
+          : user.status === "suspended"
+            ? { label: "Acceso suspendido", cls: "bg-white/[0.05] text-muted-foreground ring-white/15" }
+            : null;
+    const canAtender = user.role !== "profesional";
+    return {
+      roleLabel: ROLE_LABEL_BY_ID[user.role],
+      badge,
+      email: user.email,
+      expired,
+      resending: resendingAccessId === user.id,
+      onResend: () => resendAccessInvite(user.id),
+      atiende: canAtender
+        ? {
+            on: linkedEmployee,
+            onToggle: () => {
+              if (linkedEmployee) void linkAccessToBarber(user, null);
+              else {
+                const libres = rows.filter((emp) => !accessByEmployeeId.has(emp.id));
+                setLinkChoice(libres.length > 0 ? libres[0].id : "new");
+                setLinkBarberFor(user);
+              }
+            },
+          }
+        : undefined,
+    };
+  }
 
   function toggleUserPermission(userId: string, key: PermissionKey) {
     const user = accessUsers.find((item) => item.id === userId);
@@ -2719,60 +2962,48 @@ export function EquipoSection() {
         </p>
       </div>
 
-      {/* Pestañas Profesionales / Accesos — separación de siempre, restaurada
-          después de un cambio anterior que las había apilado en una sola
-          pantalla. Segmented control de ancho completo: en mobile queda
-          claro cuál está seleccionada y no compite en ancho con nada más
-          (sin scroll horizontal). */}
-      <div className="flex gap-1.5 rounded-2xl border border-white/10 bg-white/[0.03] p-1.5">
-        {(
-          [
-            ["profesionales", "Profesionales"],
-            ["accesos", "Accesos"],
-          ] as const
-        ).map(([id, label]) => {
-          const active = equipoTab === id;
-          return (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setEquipoTab(id)}
-              className={cn(
-                "flex-1 rounded-xl px-3.5 py-2.5 text-sm font-bold transition-all",
-                active
-                  ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white shadow-lg shadow-sky-500/20"
-                  : "text-muted-foreground hover:bg-white/[0.05] hover:text-foreground",
-              )}
-            >
-              {label}
-            </button>
-          );
-        })}
-      </div>
-
-      {equipoTab === "profesionales" && (
+      {/* Equipo unificado: una sola lista de personas. Cada tarjeta junta a quien atiende
+          clientes (barbero) con su acceso a Clippr; los administradores/recepcionistas sin
+          perfil de barbero aparecen igual, y pueden activar "Atiendo clientes". */}
       <div className="mt-4 space-y-3">
-          <div className="flex justify-end">
-            <button
-              onClick={openNew}
-              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 py-2.5 text-sm shadow-lg shadow-sky-500/20"
-            >
-              <Plus className="h-4 w-4" /> Agregar profesional
-            </button>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-lg font-display font-semibold">Personas del equipo</h3>
+            <p className="text-sm text-muted-foreground">Barberos y quienes pueden entrar a Clippr.</p>
           </div>
+          <button
+            type="button"
+            onClick={() => setAddChooserOpen(true)}
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sky-500/20"
+          >
+            <Plus className="h-4 w-4" /> Agregar persona
+          </button>
+        </div>
 
-          {loading ? (
-            <div className="grid place-items-center py-16">
-              <ClipprLoader size="screen" delayMs={130} />
-            </div>
-          ) : rows.length === 0 ? (
-            <div className="glass rounded-2xl p-10 text-center text-sm text-muted-foreground">
-              No hay profesionales cargados. Agregá el primero con el botón de
-              arriba.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
-              {rows.map((emp) => (
+        {loading ? (
+          <div className="grid place-items-center py-16">
+            <ClipprLoader size="screen" delayMs={130} />
+          </div>
+        ) : rows.length === 0 && accessUsers.length === 0 ? (
+          <div className="glass rounded-2xl p-10 text-center text-sm text-muted-foreground">
+            Todavía no hay personas en el equipo. Agregá la primera con el botón de arriba.
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {sortedAccessUsers
+              .filter((user) => !user.employee_id || !rows.some((emp) => emp.id === user.employee_id))
+              .map((user) => (
+                <AccessPersonCard
+                  key={user.id}
+                  title={user.role === "profesional" ? user.name || ROLE_LABEL_BY_ID[user.role] : ROLE_LABEL_BY_ID[user.role]}
+                  access={accessInfoFor(user, false)}
+                  onEdit={() => editAccessUser(user)}
+                  onRemove={user.id === principalAdminId ? undefined : () => setPendingDeleteUser(user)}
+                />
+              ))}
+            {rows.map((emp) => {
+              const user = accessByEmployeeId.get(emp.id);
+              return (
                 <ProfessionalCard
                   key={emp.id}
                   emp={emp}
@@ -2782,130 +3013,138 @@ export function EquipoSection() {
                   onEdit={handleEditPro}
                   onToggleOnline={toggleOnline}
                   onRemove={remove}
+                  access={user ? accessInfoFor(user, true) : null}
                 />
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+              );
+            })}
+          </div>
+        )}
+      </div>
 
-      {equipoTab === "accesos" && (
-      <div className="mt-4 space-y-3">
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h3 className="text-lg font-display font-semibold">
-                Accesos del equipo
-              </h3>
-              <p className="text-sm text-muted-foreground">
-                Invitá y administrá quién puede entrar a Clippr.
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={openNewAccessModal}
-              className="shrink-0 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 py-2.5 text-sm shadow-lg shadow-sky-500/20 flex items-center gap-1.5"
+      {addChooserOpen &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+            onClick={() => setAddChooserOpen(false)}
+          >
+            <div
+              className="w-full max-w-sm rounded-2xl bg-[#15161c] p-5 shadow-2xl ring-1 ring-white/10"
+              onClick={(e) => e.stopPropagation()}
             >
-              <UserPlus className="h-4 w-4" />
-              Nuevo acceso
-            </button>
-          </div>
-
-          <div className="glass rounded-2xl p-4 ring-1 ring-white/5 space-y-3">
-            <div>
-              <div className="text-xs text-muted-foreground">
-                {accessUsers.length}{" "}
-                {accessUsers.length === 1
-                  ? "acceso creado"
-                  : "accesos creados"}
+              <div className="text-lg font-semibold">Agregar persona</div>
+              <p className="mt-1 text-sm text-muted-foreground">Marcá lo que hace esta persona.</p>
+              <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl bg-white/[0.04] p-3 ring-1 ring-white/10">
+                <input
+                  type="checkbox"
+                  checked={chooserBarbero}
+                  onChange={(e) => setChooserBarbero(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 accent-sky-400"
+                />
+                <span className="text-sm">
+                  <b>Atiende clientes</b>
+                  <span className="block text-xs text-muted-foreground">Aparece en la Agenda y puede cobrar sus servicios.</span>
+                </span>
+              </label>
+              <label className="mt-2 flex cursor-pointer items-start gap-3 rounded-xl bg-white/[0.04] p-3 ring-1 ring-white/10">
+                <input
+                  type="checkbox"
+                  checked={chooserAccess}
+                  onChange={(e) => setChooserAccess(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 accent-sky-400"
+                />
+                <span className="text-sm">
+                  <b>Puede entrar a Clippr</b>
+                  <span className="block text-xs text-muted-foreground">Recibe una invitación por correo para crear su contraseña.</span>
+                </span>
+              </label>
+              {chooserAccess && !chooserBarbero && (
+                <label className="mt-3 block text-sm font-semibold">
+                  Rol
+                  <select
+                    value={chooserRole}
+                    onChange={(e) => setChooserRole(e.target.value as RolePermissionId)}
+                    className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none"
+                  >
+                    {(["admin_general", "admin_local", "socio", "recepcionista"] as RolePermissionId[]).map((role) => (
+                      <option key={role} value={role}>
+                        {ROLE_LABEL_BY_ID[role]}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <div className="mt-5 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAddChooserOpen(false)}
+                  className="h-11 flex-1 rounded-xl bg-white/5 px-4 text-sm text-muted-foreground ring-1 ring-white/10"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={!chooserBarbero && !chooserAccess}
+                  onClick={continueAddPerson}
+                  className="h-11 flex-1 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 px-4 text-sm font-semibold text-white disabled:opacity-50"
+                >
+                  Continuar
+                </button>
               </div>
             </div>
+          </div>,
+          document.body,
+        )}
 
-            {accessUsers.length === 0 ? (
-              <div className="rounded-xl bg-white/[0.03] ring-1 ring-white/10 p-5 text-sm text-muted-foreground text-center">
-                Todavía no hay accesos creados.
+      {linkBarberFor &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div
+            className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+            onClick={() => !linkSaving && setLinkBarberFor(null)}
+          >
+            <div
+              className="w-full max-w-sm rounded-2xl bg-[#15161c] p-5 shadow-2xl ring-1 ring-white/10"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="text-lg font-semibold">Atiendo clientes</div>
+              <p className="mt-1 text-sm text-muted-foreground">Elegí tu perfil de barbero. Podés dejar de atender cuando quieras sin perder nada.</p>
+              <div className="mt-4 space-y-2">
+                {rows
+                  .filter((emp) => !accessByEmployeeId.has(emp.id))
+                  .map((emp) => (
+                    <label key={emp.id} className="flex cursor-pointer items-center gap-3 rounded-xl bg-white/[0.04] p-3 text-sm ring-1 ring-white/10">
+                      <input type="radio" name="link-barber" checked={linkChoice === emp.id} onChange={() => setLinkChoice(emp.id)} className="accent-sky-400" />
+                      <span>{emp.full_name || emp.name || "Barbero"} <span className="text-xs text-muted-foreground">· sin cuenta asociada</span></span>
+                    </label>
+                  ))}
+                <label className="flex cursor-pointer items-center gap-3 rounded-xl bg-white/[0.04] p-3 text-sm ring-1 ring-white/10">
+                  <input type="radio" name="link-barber" checked={linkChoice === "new"} onChange={() => setLinkChoice("new")} className="accent-sky-400" />
+                  <span>Crear mi perfil de barbero</span>
+                </label>
               </div>
-            ) : (
-              <div className="space-y-2">
-                {sortedAccessUsers.map((user) => {
-                  const displayTitle =
-                    user.role === "profesional"
-                      ? user.name || ROLE_LABEL_BY_ID[user.role]
-                      : ROLE_LABEL_BY_ID[user.role];
-                  // Principal siempre gana — es el único badge que importa
-                  // mostrar ahí (no tiene sentido "Activo" + "Principal" a
-                  // la vez). Sin acceso (ninguno de los 3 estados de
-                  // arriba) no muestra ningún badge — nada que decir.
-                  const isPrincipal = user.id === principalAdminId;
-                  const expired = isInviteExpired(user);
-                  const statusBadge = isPrincipal
-                    ? { label: "Principal", cls: "bg-white/[0.05] text-muted-foreground ring-white/15" }
-                    : user.status === "active"
-                      ? { label: "Activo", cls: "bg-emerald-500/10 text-emerald-300 ring-emerald-400/20" }
-                      : user.status === "invited"
-                        ? expired
-                          ? { label: "Venció", cls: "bg-amber-500/10 text-amber-300 ring-amber-400/20" }
-                          : { label: "Pendiente", cls: "bg-cyan-500/10 text-cyan-300 ring-cyan-400/20" }
-                        : null;
-                  return (
-                  <div
-                    key={user.id}
-                    className="flex items-center gap-3 rounded-xl bg-white/[0.04] ring-1 ring-white/10 p-3"
-                  >
-                    <div className="h-9 w-9 shrink-0 rounded-full bg-white/8 ring-1 ring-white/10 grid place-items-center text-xs font-semibold">
-                      {(displayTitle[0] || "A").toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium">
-                        {displayTitle}
-                      </div>
-                      {statusBadge && (
-                        <span
-                          className={cn(
-                            "mt-1 inline-flex rounded-full px-2 py-0.5 text-[10px] ring-1",
-                            statusBadge.cls,
-                          )}
-                        >
-                          {statusBadge.label}
-                        </span>
-                      )}
-                      <div className="text-xs text-muted-foreground mt-1">
-                        {user.email}
-                      </div>
-                    </div>
-                    {expired && (
-                      <button
-                        type="button"
-                        disabled={resendingAccessId === user.id}
-                        onClick={() => resendAccessInvite(user.id)}
-                        className="rounded-lg bg-amber-500/10 hover:bg-amber-500/20 ring-1 ring-amber-400/25 text-amber-200 px-2.5 py-1.5 text-xs disabled:opacity-60"
-                      >
-                        {resendingAccessId === user.id ? "Enviando…" : "Reenviar"}
-                      </button>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() => editAccessUser(user)}
-                      className="rounded-lg bg-white/[0.05] hover:bg-white/[0.09] ring-1 ring-white/10 text-foreground px-2.5 py-1.5 text-xs"
-                    >
-                      Editar
-                    </button>
-                    {!isPrincipal && (
-                      <button
-                        type="button"
-                        onClick={() => setPendingDeleteUser(user)}
-                        className="rounded-lg bg-red-500/10 hover:bg-red-500/20 ring-1 ring-red-500/30 text-red-300 px-2.5 py-1.5"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </button>
-                    )}
-                  </div>
-                  );
-                })}
+              <div className="mt-5 flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={linkSaving}
+                  onClick={() => setLinkBarberFor(null)}
+                  className="h-11 flex-1 rounded-xl bg-white/5 px-4 text-sm text-muted-foreground ring-1 ring-white/10 disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  disabled={linkSaving}
+                  onClick={confirmLinkBarber}
+                  className="h-11 flex-1 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 px-4 text-sm font-semibold text-white disabled:opacity-50"
+                >
+                  {linkSaving ? "Guardando…" : linkChoice === "new" ? "Crear perfil" : "Vincular"}
+                </button>
               </div>
-            )}
-          </div>
-        </div>
-      )}
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {accessModalOpen && typeof document !== "undefined" && createPortal(
         // Portal a document.body por la misma razón que el modal de
