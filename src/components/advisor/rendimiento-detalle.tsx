@@ -32,10 +32,10 @@ const TITLES: Record<DetalleKind, string> = {
 
 function Block({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-3.5 sm:p-4">
-      <h3 className="text-[11px] font-bold uppercase tracking-[0.15em] text-white/50">{title}</h3>
+    <section className="rounded-2xl border border-white/[0.16] bg-white/[0.04] p-4 shadow-[0_8px_24px_-16px_rgba(0,0,0,0.8)] sm:p-5">
+      <h3 className="border-b border-white/[0.1] pb-2.5 text-[11px] font-bold uppercase tracking-[0.15em] text-white/60">{title}</h3>
       {hint && <p className="mt-1 text-[11px] leading-snug text-white/35">{hint}</p>}
-      <div className="mt-3">{children}</div>
+      <div className="mt-4">{children}</div>
     </section>
   );
 }
@@ -124,6 +124,11 @@ function Callout({ children }: { children: React.ReactNode }) {
   );
 }
 
+const diaPlural = (label: string) => {
+  const l = label.toLowerCase();
+  return ["lunes", "martes", "miércoles", "jueves", "viernes"].includes(l) ? l : `${l}s`;
+};
+
 // Barra simple (0 a 1) para comparar valores dentro de una tarjeta.
 function Track({ pct, color }: { pct: number; color: string }) {
   return (
@@ -183,7 +188,7 @@ function FacturacionView({ d, perf, prev, vsLabel }: ViewProps) {
   const mejorPorBarbero = [...conBarberos].sort((a, b) => b.facturaPorBarbero - a.facturaPorBarbero)[0];
   const peorPorBarbero = [...conBarberos].sort((a, b) => a.facturaPorBarbero - b.facturaPorBarbero)[0];
   return (
-    <div className="space-y-3">
+    <div className="space-y-5">
       <StatGrid twoCols>
         <Stat label="Facturación" value={money(f.total)} sub={<Delta cur={perf.facturacion} prev={prev?.facturacion ?? null} label={vsLabel} />} />
         <Stat label="Servicios" value={money(f.ventasServicios)} />
@@ -220,7 +225,7 @@ function FacturacionView({ d, perf, prev, vsLabel }: ViewProps) {
 
       <Block
         title="Por día de la semana"
-        hint="Solo los días en que se trabajó. Los barberos son los que vendieron ese día (promedio por jornada)."
+        hint="Solo los días en que se trabajó. Los barberos son los que vendieron ese día."
       >
         {diasTrabajados.length === 0 ? (
           <div className="text-sm text-white/40">Sin ventas en el mes.</div>
@@ -229,60 +234,53 @@ function FacturacionView({ d, perf, prev, vsLabel }: ViewProps) {
             {diasTrabajados.map((r) => {
               const isBest = mejorPorBarbero?.label === r.label && peorPorBarbero?.label !== r.label;
               const isWorst = peorPorBarbero?.label === r.label && mejorPorBarbero?.label !== r.label;
-              const nb = Math.round(r.barberos * 10) / 10;
-              const nbText = Number.isInteger(nb) ? int(nb) : nb.toFixed(1).replace(".", ",");
+              const rango =
+                r.barberosMin === r.barberosMax
+                  ? `${int(r.barberosMax)} ${r.barberosMax === 1 ? "barbero" : "barberos"}`
+                  : `${int(r.barberosMin)} a ${int(r.barberosMax)} barberos`;
+              const maxProm = Math.max(1, ...diasTrabajados.map((x) => x.promedio));
               return (
-                <div
-                  key={r.label}
-                  className={cn(
-                    "rounded-xl border p-3.5",
-                    isBest
-                      ? "border-emerald-400/35 bg-emerald-400/[0.06]"
-                      : isWorst
-                        ? "border-rose-400/35 bg-rose-400/[0.06]"
-                        : "border-white/[0.1] bg-white/[0.04]",
-                  )}
-                >
+                <div key={r.label} className="rounded-xl border border-white/[0.09] bg-black/20 p-3.5">
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2">
                       <span className="text-base font-semibold text-white">{r.label}</span>
                       {isBest && (
-                        <span className="rounded-full bg-emerald-400/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-300">
+                        <span className="rounded-full border border-emerald-400/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-300">
                           Más alto
                         </span>
                       )}
                       {isWorst && (
-                        <span className="rounded-full bg-rose-400/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-rose-300">
+                        <span className="rounded-full border border-rose-400/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-300">
                           Más bajo
                         </span>
                       )}
                     </div>
-                    <span className="text-right text-xs text-white/55">
-                      {r.dias} {r.dias === 1 ? "día" : "días"} · <b className="text-white/80">{money(r.total)}</b>
-                    </span>
                   </div>
-                  <div className="mt-3 space-y-3">
+                  <div className="mt-3 flex items-baseline justify-between gap-3 text-sm">
+                    <span className="text-white/70">
+                      Total de los {diaPlural(r.label)}{" "}
+                      <span className="text-xs text-white/40">
+                        ({r.dias} {r.dias === 1 ? "día" : "días"})
+                      </span>
+                    </span>
+                    <span className="font-display text-lg font-semibold tabular-nums text-white">{money(r.total)}</span>
+                  </div>
+                  <div className="mt-3 space-y-3 border-t border-white/[0.07] pt-3">
                     <div>
                       <div className="flex items-baseline justify-between gap-3 text-sm">
-                        <span className="text-white/75">Promedio por día</span>
+                        <span className="text-white/70">Promedio por día</span>
                         <span className="font-semibold tabular-nums text-white">{money(r.promedio)}</span>
                       </div>
-                      <Track pct={r.promedio / Math.max(1, ...diasTrabajados.map((x) => x.promedio))} color="bg-sky-400" />
+                      <Track pct={r.promedio / maxProm} color="bg-sky-400/70" />
                     </div>
                     <div>
                       <div className="flex items-baseline justify-between gap-3 text-sm">
-                        <span className="text-white/75">
-                          Factura cada barbero{" "}
-                          <span className="text-xs text-white/45">
-                            ({nbText} {nb === 1 ? "barbero" : "barberos"})
-                          </span>
+                        <span className="text-white/70">
+                          Factura cada barbero <span className="text-xs text-white/40">({rango})</span>
                         </span>
                         <span className="font-semibold tabular-nums text-white">{money(r.facturaPorBarbero)}</span>
                       </div>
-                      <Track
-                        pct={r.facturaPorBarbero / Math.max(1, ...diasTrabajados.map((x) => x.facturaPorBarbero))}
-                        color={isBest ? "bg-emerald-400" : isWorst ? "bg-rose-400" : "bg-violet-400"}
-                      />
+                      <Track pct={r.facturaPorBarbero / maxProm} color="bg-white/40" />
                     </div>
                   </div>
                 </div>
@@ -291,7 +289,7 @@ function FacturacionView({ d, perf, prev, vsLabel }: ViewProps) {
           </div>
         )}
         {mejorPorBarbero && peorPorBarbero && mejorPorBarbero.label !== peorPorBarbero.label && (
-          <div className="mt-3">
+          <div className="mt-4">
             <Callout>
               <div>
                 <b>Día más alto:</b> {mejorPorBarbero.label.toLowerCase()}, cada barbero factura{" "}
@@ -309,12 +307,12 @@ function FacturacionView({ d, perf, prev, vsLabel }: ViewProps) {
       <Block title="Por quincena">
         <div className="space-y-3">
           {f.porQuincena.map((q) => (
-            <div key={q.label} className="rounded-xl border border-sky-400/25 bg-sky-400/[0.05] p-3.5">
+            <div key={q.label} className="rounded-xl border border-white/[0.09] bg-black/20 p-3.5">
               <div className="flex items-baseline justify-between gap-3">
                 <span className="text-sm font-semibold text-white/80">{q.label}</span>
-                <span className="font-display text-2xl font-semibold tabular-nums text-sky-300">{money(q.total)}</span>
+                <span className="font-display text-xl font-semibold tabular-nums text-white">{money(q.total)}</span>
               </div>
-              <Track pct={q.total / Math.max(1, ...f.porQuincena.map((x) => x.total))} color="bg-sky-400" />
+              <Track pct={q.total / Math.max(1, ...f.porQuincena.map((x) => x.total))} color="bg-sky-400/70" />
               <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                 <MiniStat label="Ventas" value={int(q.ventas)} />
                 <MiniStat label="Días con ventas" value={int(q.dias)} />
@@ -325,7 +323,7 @@ function FacturacionView({ d, perf, prev, vsLabel }: ViewProps) {
           ))}
         </div>
         {f.porQuincena.length === 2 && f.porQuincena[0].promedio > 0 && f.porQuincena[1].promedio > 0 && (
-          <div className="mt-3">
+          <div className="mt-4">
             <Callout>
               Promedio por día de la 2ª quincena vs la 1ª:{" "}
               <b>
@@ -352,7 +350,7 @@ function FacturacionView({ d, perf, prev, vsLabel }: ViewProps) {
 function GastosView({ d, perf, prev, vsLabel }: ViewProps) {
   const g = d.gastos;
   return (
-    <div className="space-y-3">
+    <div className="space-y-5">
       <StatGrid>
         <Stat label="Gastos del mes" value={money(g.total)} sub={<Delta cur={perf.gastosTotal} prev={prev?.gastosTotal ?? null} label={vsLabel} lowerIsBetter />} />
         <Stat label="Cantidad de gastos" value={int(g.cantidad)} />
@@ -407,7 +405,7 @@ function GastosView({ d, perf, prev, vsLabel }: ViewProps) {
 function ProfesionalesView({ d, perf, prev, vsLabel }: ViewProps) {
   const p = d.profesionales;
   return (
-    <div className="space-y-3">
+    <div className="space-y-5">
       <StatGrid>
         <Stat
           label="Pago a profesionales"
@@ -493,7 +491,7 @@ function VentasView({ d, perf, prev, vsLabel }: ViewProps) {
   const v = d.ventas;
   const porDia = v.porDiaSemana.map((r) => ({ label: r.label, value: r.dias > 0 ? r.ventas / r.dias : 0, count: r.dias }));
   return (
-    <div className="space-y-3">
+    <div className="space-y-5">
       <StatGrid>
         <Stat label="Ventas" value={int(v.total)} sub={<Delta cur={perf.ventas} prev={prev?.ventas ?? null} label={vsLabel} />} />
         <Stat label="Promedio por día" value={v.promedioPorDia.toFixed(1).replace(".", ",")} sub={`${v.diasConVentas} días con ventas`} />
@@ -545,7 +543,7 @@ function TicketView({ d, perf, prev, vsLabel }: ViewProps) {
     count: x.ventas,
   });
   return (
-    <div className="space-y-3">
+    <div className="space-y-5">
       <StatGrid>
         <Stat label="Ticket promedio" value={money(t.promedio)} sub={<Delta cur={perf.ticket} prev={prev?.ticket ?? null} label={vsLabel} />} />
         <Stat label="Ticket mediano" value={money(t.mediana)} sub="La mitad de las ventas está por debajo" />
@@ -595,7 +593,7 @@ function ClientesView({ d, perf, prev, vsLabel }: ViewProps) {
   const c = d.clientes;
   const tn = c.turnos;
   return (
-    <div className="space-y-3">
+    <div className="space-y-5">
       <StatGrid>
         <Stat label="Clientes atendidos" value={int(c.atendidos)} sub={<Delta cur={perf.clientes} prev={prev?.clientes ?? null} label={vsLabel} />} />
         <Stat label="Nuevos del mes" value={int(c.nuevos)} sub="Se registraron este mes" />

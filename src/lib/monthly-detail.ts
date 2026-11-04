@@ -166,6 +166,8 @@ export type DayRow = {
   // Barberos que vendieron ese día de la semana (promedio por jornada) y lo que le toca a cada
   // uno: lo que factura y lo que gana (su comisión) en una jornada de ese día.
   barberos: number;
+  barberosMin: number;
+  barberosMax: number;
   facturaPorBarbero: number;
   ganaPorBarbero: number;
 };
@@ -378,7 +380,8 @@ function byWeekday(payments: DetailPayment[], comBySale: Map<string, number> = n
   return [1, 2, 3, 4, 5, 6, 0]
     .map((d) => acc[d])
     .map((a) => {
-      const barberDays = [...a.barberosPorFecha.values()].reduce((s, set) => s + set.size, 0);
+      const sizes = [...a.barberosPorFecha.values()].map((set) => set.size);
+      const barberDays = sizes.reduce((s, n) => s + n, 0);
       return {
         label: a.label,
         total: a.total,
@@ -387,6 +390,8 @@ function byWeekday(payments: DetailPayment[], comBySale: Map<string, number> = n
         promedio: avg(a.total, a.fechas.size),
         ticket: avg(a.total, a.ventas),
         barberos: avg(barberDays, a.fechas.size),
+        barberosMin: sizes.length ? Math.min(...sizes) : 0,
+        barberosMax: sizes.length ? Math.max(...sizes) : 0,
         facturaPorBarbero: avg(a.total, barberDays),
         ganaPorBarbero: avg(a.comision, barberDays),
       };
