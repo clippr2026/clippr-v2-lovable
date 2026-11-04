@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { CalendarClock } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
 import { SpecialDayEditor } from "@/components/settings/special-hours-editor";
 import {
   parseTime,
@@ -65,6 +66,14 @@ async function persistEmployeeSpecialDay(
 
 type EditorState = { dateKey: string; value: DaySchedule; saving: boolean };
 
+// Bloqueo puntual de horas del profesional: mismo registro que "Bloquear horas" de la Agenda
+// (un turno con estado "blocked" a su nombre), así la Agenda y la capacidad lo respetan.
+type BlockState = { dateKey: string; startH: string; startM: string; endH: string; endM: string; label: string; saving: boolean };
+
+const HOURS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, "0"));
+const MINUTES = ["00", "15", "30", "45"];
+const selectClass = "h-11 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none focus:border-violet-300/45";
+
 export function HorarioEspecialPanel({
   businessId,
   employeeId,
@@ -99,6 +108,8 @@ export function HorarioEspecialPanel({
   const todayKey = toDateKey(new Date());
   const [editor, setEditor] = React.useState<EditorState | null>(null);
   const [overrideConfirm, setOverrideConfirm] = React.useState<DaySchedule | null>(null);
+  const [block, setBlock] = React.useState<BlockState | null>(null);
+  const { activeBranchId, profile } = useAuth();
 
   if (!businessId || !employeeId) return null;
 
@@ -155,6 +166,68 @@ export function HorarioEspecialPanel({
     }
   };
 
+  // "Bloquear horas": acción independiente del switch Descanso. Si Descanso tiene un rango
+  // válido, arranca con ese; si no, desde el inicio del horario del día (1 hora).
+  const openBlock = (breakStart: string, breakEnd: string) => {
+    if (!editor) return;
+    const hasRange = Boolean(breakStart && breakEnd && breakEnd > breakStart && breakStart !== "00:00");
+    const start = hasRange ? breakStart : editor.value.start || "11:00";
+    const [sh, sm] = start.split(":");
+    let endH: string;
+    let endM: string;
+    if (hasRange) {
+      [endH, endM] = breakEnd.split(":");
+    } else {
+      endH = String(Math.min(23, Number(sh) + 1)).padStart(2, "0");
+      endM = sm;
+    }
+    const nearest = (m: string) => MINUTES.reduce((a, b) => (Math.abs(Number(b) - Number(m)) < Math.abs(Number(a) - Number(m)) ? b : a));
+    setBlock({ dateKey: editor.dateKey, startH: sh, startM: nearest(sm), endH, endM: nearest(endM), label: "", saving: false });
+  };
+
+  const saveBlock = async () => {
+    if (!block) return;
+    const startsAt = new Date(`${block.dateKey}T${block.startH}:${block.startM}:00`);
+    const endsAt = new Date(`${block.dateKey}T${block.endH}:${block.endM}:00`);
+    if (endsAt.getTime() <= startsAt.getTime()) {
+      toast.error("La hora de fin debe ser posterior a la hora de inicio.");
+      return;
+    }
+    if (startsAt.getTime() < Date.now()) {
+      toast.error("No podés bloquear horarios que ya pasaron.");
+      return;
+    }
+    setBlock((b) => (b ? { ...b, saving: true } : b));
+    const label = block.label.trim();
+    const durationMin = Math.max(15, Math.round((endsAt.getTime() - startsAt.getTime()) / 60_000));
+    const { error } = await supabase.from("appointments").insert({
+      business_id: businessId,
+      branch_id: activeBranchId,
+      client_id: null,
+      client_name: label || "Horario bloqueado",
+      employee_id: employeeId,
+      service_name: "Bloqueo de horario",
+      service_price: 0,
+      starts_at: startsAt.toISOString(),
+      ends_at: endsAt.toISOString(),
+      duration_min: durationMin,
+      status: "blocked",
+      notes: label ? `Horario bloqueado: ${label}` : "Horario bloqueado desde el Panel Profesional",
+      created_by_name: profile?.full_name ?? null,
+      created_by_role: profile?.role ?? null,
+      updated_at: new Date().toISOString(),
+    } as any);
+    if (error) {
+      toast.error("No se pudo bloquear el horario. Probá de nuevo.");
+      setBlock((b) => (b ? { ...b, saving: false } : b));
+      return;
+    }
+    toast.success("Horario bloqueado");
+    setBlock(null);
+    setEditor(null);
+    onChanged?.();
+  };
+
   const overlay = (children: React.ReactNode, z: string, onClose: () => void) =>
     typeof document === "undefined"
       ? null
@@ -201,6 +274,7 @@ export function HorarioEspecialPanel({
           saving={editor.saving}
           // Sin selector de profesional: el horario es siempre del profesional
           // que tiene la sesión abierta.
+          onBlock={openBlock}
           onSave={save}
           onCancel={() => {
             setOverrideConfirm(null);
@@ -208,6 +282,71 @@ export function HorarioEspecialPanel({
           }}
         />
       ) : null}
+
+      {block
+        ? overlay(
+            <>
+              <div className="text-lg font-semibold">Bloquear horas</div>
+              <p className="mt-1 text-sm capitalize text-muted-foreground">{labelForDate(block.dateKey)}</p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Ese tramo no se va a poder reservar y no cuenta como disponible en tu agenda.
+              </p>
+              <label className="mt-4 block text-sm font-semibold">
+                Motivo (opcional)
+                <input
+                  value={block.label}
+                  onChange={(e) => setBlock((b) => (b ? { ...b, label: e.target.value } : b))}
+                  placeholder="Ej: Almuerzo, trámite"
+                  className="mt-2 h-11 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none focus:border-violet-300/45"
+                />
+              </label>
+              <div className="mt-4 grid grid-cols-[auto_1fr_1fr] items-center gap-2 text-sm">
+                <span className="text-muted-foreground">Desde</span>
+                <select value={block.startH} onChange={(e) => setBlock((b) => (b ? { ...b, startH: e.target.value } : b))} className={selectClass}>
+                  {HOURS.map((h) => (
+                    <option key={h} value={h}>{h}</option>
+                  ))}
+                </select>
+                <select value={block.startM} onChange={(e) => setBlock((b) => (b ? { ...b, startM: e.target.value } : b))} className={selectClass}>
+                  {MINUTES.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+                <span className="text-muted-foreground">Hasta</span>
+                <select value={block.endH} onChange={(e) => setBlock((b) => (b ? { ...b, endH: e.target.value } : b))} className={selectClass}>
+                  {HOURS.map((h) => (
+                    <option key={h} value={h}>{h}</option>
+                  ))}
+                </select>
+                <select value={block.endM} onChange={(e) => setBlock((b) => (b ? { ...b, endM: e.target.value } : b))} className={selectClass}>
+                  {MINUTES.map((m) => (
+                    <option key={m} value={m}>{m}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="mt-5 flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setBlock(null)}
+                  disabled={block.saving}
+                  className="h-11 flex-1 rounded-xl bg-white/5 px-4 text-sm text-muted-foreground ring-1 ring-white/10 hover:text-foreground disabled:opacity-50"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={saveBlock}
+                  disabled={block.saving}
+                  className="h-11 flex-1 rounded-xl bg-amber-500 px-4 text-sm font-semibold text-[#1a1300] shadow-md shadow-amber-500/25 disabled:opacity-50"
+                >
+                  {block.saving ? "Guardando…" : "Guardar bloqueo"}
+                </button>
+              </div>
+            </>,
+            "z-[140]",
+            () => setBlock(null),
+          )
+        : null}
 
       {overrideConfirm && editor
         ? overlay(
