@@ -20,7 +20,6 @@ import { SaldoComposicionModal } from "@/components/caja/saldo-composicion";
 import {
   TrendingUp,
   TrendingDown,
-  BarChart3,
   Scissors,
   Package,
   XCircle,
@@ -337,10 +336,10 @@ function CajaHoyCard({
         </Link>
       </div>
 
-      {/* Ingresos / Egresos / Utilidad — los únicos 3 montos grandes acá, el
+      {/* Ingresos / Egresos — los únicos 2 montos grandes acá, el
           detalle completo (gráficos, desglose por servicio/categoría) vive
           en Caja, no se repite en Inicio. */}
-      <div className="mt-2 grid grid-cols-3 gap-3">
+      <div className="mt-2 grid grid-cols-2 gap-3">
         <div>
           <div className="flex items-center gap-1.5 text-muted-foreground">
             <TrendingUp className="h-3.5 w-3.5 text-blue-400" />
@@ -357,15 +356,6 @@ function CajaHoyCard({
           </div>
           <div className="mt-0.5 text-xl sm:text-2xl font-display font-semibold tracking-tight">
             {fmtExpenseAR(caja.totalGastosHoy)}
-          </div>
-        </div>
-        <div>
-          <div className="flex items-center gap-1.5 text-muted-foreground">
-            <BarChart3 className="h-3.5 w-3.5 text-violet-400" />
-            <span className="text-xs">Utilidad</span>
-          </div>
-          <div className="mt-0.5 text-xl sm:text-2xl font-display font-semibold tracking-tight">
-            {fmtAR(caja.revHoy - caja.totalGastosHoy)}
           </div>
         </div>
       </div>
