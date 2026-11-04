@@ -797,7 +797,7 @@ function AccessPersonCard({
 }: {
   title: string;
   access: PersonAccessInfo;
-  onEdit: () => void;
+  onEdit?: () => void;
   onRemove?: () => void;
 }) {
   return (
@@ -810,13 +810,15 @@ function AccessPersonCard({
       </div>
       <AccessChips access={access} />
       <div className="mt-3 flex items-center gap-2">
-        <button
-          type="button"
-          onClick={onEdit}
-          className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs"
-        >
-          Editar
-        </button>
+        {onEdit && (
+          <button
+            type="button"
+            onClick={onEdit}
+            className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs"
+          >
+            Editar
+          </button>
+        )}
         {onRemove && (
           <button
             type="button"
@@ -2619,7 +2621,9 @@ export function EquipoSection() {
           : user.status === "suspended"
             ? { label: "Acceso suspendido", cls: "bg-white/[0.05] text-muted-foreground ring-white/15" }
             : null;
-    const canAtender = user.role !== "profesional";
+    // Solo el Admin. General puede activar "Atiendo clientes" desde acá; los demás roles lo
+    // definen al crearlos.
+    const canAtender = user.role === "admin_general";
     return {
       roleLabel: ROLE_LABEL_BY_ID[user.role],
       badge,
@@ -3013,7 +3017,9 @@ export function EquipoSection() {
                   key={user.id}
                   title={user.role === "profesional" ? user.name || ROLE_LABEL_BY_ID[user.role] : ROLE_LABEL_BY_ID[user.role]}
                   access={accessInfoFor(user, false)}
-                  onEdit={() => editAccessUser(user)}
+                  // El Admin. General no se edita desde acá: si atiende clientes se edita como
+                  // barbero (su tarjeta de barbero); si no, no hay nada que editar.
+                  onEdit={user.role === "admin_general" ? undefined : () => editAccessUser(user)}
                   onRemove={user.id === principalAdminId ? undefined : () => setPendingDeleteUser(user)}
                 />
               ))}
