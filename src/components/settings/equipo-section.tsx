@@ -843,13 +843,14 @@ export function EquipoSection() {
   const [chooserRole, setChooserRole] = useState<RolePermissionId>("profesional");
   const [chooserAtiende, setChooserAtiende] = useState(false);
   const atiendeAfterAccessRef = useRef(false);
-  // Rol del acceso que se completa en la pestaña "Acceso" del barbero recién creado.
-  const accessRoleAfterCreateRef = useRef<RolePermissionId>("profesional");
+  // Alta de un barbero NUEVO junto con su acceso: rol elegido (Barbero, Socio…). La pestaña
+  // "Acceso" muestra el formulario completo y un solo "Guardar" crea el barbero y envía la
+  // invitación.
+  const [newPersonAccess, setNewPersonAccess] = useState<RolePermissionId | null>(null);
   // Administrador/recepcionista que quiere atender clientes: elige su perfil de barbero.
   const [linkBarberFor, setLinkBarberFor] = useState<AccessUser | null>(null);
   const [linkChoice, setLinkChoice] = useState<string>("new");
   const [linkSaving, setLinkSaving] = useState(false);
-  const accessAfterCreateRef = useRef(false);
   const linkAfterCreateRef = useRef<string | null>(null);
   const [selectedPermRole, setSelectedPermRole] =
     useState<RolePermissionId>("admin_general");
@@ -1562,6 +1563,7 @@ export function EquipoSection() {
     // está trabajando "dentro" de una sucursal puntual. Sigue siendo
     // editable en el form antes de guardar.
     setForm({ ...EMPTY_FORM, branchId: activeBranchId ?? null });
+    setNewPersonAccess(null);
     setDlgTab("perfil");
     setOpen(true);
   }
@@ -1610,6 +1612,12 @@ export function EquipoSection() {
     }
 
     const commission = form.commissionPct ? Number(form.commissionPct) : null;
+
+    if (!editingEmp && newPersonAccess && !accessForm.email.trim()) {
+      setAccessTouched(true);
+      setDlgTab("acceso");
+      return toast.error("Cargá el correo de la persona en la pestaña Acceso");
+    }
 
     if (editingEmp) {
       // Guardado INMEDIATO y completo: antes esta rama solo persistía el
@@ -1982,33 +1990,42 @@ export function EquipoSection() {
         const member = accessUsers.find((u) => u.id === linkMemberId);
         if (member) await linkAccessToBarber(member, newId);
       }
-      if (accessAfterCreateRef.current) {
-        // Barbero + acceso: sigue en la pestaña "Acceso" del barbero recién creado.
-        accessAfterCreateRef.current = false;
-        setEditingEmp({
-          id: newId,
+      if (newPersonAccess) {
+        // Un solo "Guardar": ya se creó el barbero, ahora se crea su acceso y se envía la invitación.
+        const invite = await inviteTeamMember({
+          action: "create",
+          business_id: businessId,
+          email: accessForm.email.trim(),
           full_name: name,
-          avatar_url: form.avatarUrl || null,
-          role: form.role.trim() || "Profesional",
-          is_active: form.isActive,
-          commission_pct: commission,
-          commission_enabled: form.commissionsEnabled,
-          branch_id: form.branchId ?? activeBranchId ?? null,
-        } as EmployeeRow);
-        setEditingAccessUserId(null);
-        const accessRole = accessRoleAfterCreateRef.current;
-        accessRoleAfterCreateRef.current = "profesional";
-        setAccessForm({
-          ...EMPTY_ACCESS_FORM,
-          role: accessRole,
-          employee_id: newId,
-          branch_id: form.branchId ?? activeBranchId ?? null,
+          role: accessForm.role,
+          status: accessForm.status === "inactive" ? "suspended" : "active",
+          professional_id: newId,
+          branch_id: accessForm.branch_id ?? null,
+          permissions: accessPermissionsForm,
         });
-        setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS[accessRole]);
-        setSelectedPermRole(accessRole);
-        setAccessTouched(false);
-        setDlgTab("acceso");
-        toast.success("Profesional agregado. Ahora cargá su correo para darle acceso.");
+        if (invite.ok) {
+          toast.success("Profesional agregado. Invitación enviada por email.");
+          setNewPersonAccess(null);
+          setOpen(false);
+          await loadTeamMembers();
+        } else {
+          // El barbero ya quedó creado: se sigue en su pestaña Acceso para reintentar.
+          setEditingEmp({
+            id: newId,
+            full_name: name,
+            avatar_url: form.avatarUrl || null,
+            role: form.role.trim() || "Profesional",
+            is_active: form.isActive,
+            commission_pct: commission,
+            commission_enabled: form.commissionsEnabled,
+            branch_id: form.branchId ?? activeBranchId ?? null,
+          } as EmployeeRow);
+          setEditingAccessUserId(null);
+          setAccessForm((f) => ({ ...f, employee_id: newId }));
+          setNewPersonAccess(null);
+          setDlgTab("acceso");
+          toast.error(`Profesional agregado, pero no se pudo crear el acceso: ${invite.error}`);
+        }
       } else {
         toast.success("Profesional agregado.");
         setOpen(false);
@@ -2106,6 +2123,7 @@ export function EquipoSection() {
   const handleEditPro = useCallback(
     (emp: EmployeeRow) => {
       setEditingEmp(emp);
+      setNewPersonAccess(null);
       setForm({
         ...EMPTY_FORM,
         fullName: emp.full_name ?? emp.name ?? "",
@@ -2599,9 +2617,13 @@ export function EquipoSection() {
     if (chooserRole === "profesional" || chooserAtiende) {
       // Atiende clientes: primero el perfil del barbero y, al guardarlo, queda abierta su
       // pestaña "Acceso" con el rol elegido (Barbero, Socio, etc.).
-      accessAfterCreateRef.current = true;
-      accessRoleAfterCreateRef.current = chooserRole;
       openNew();
+      setNewPersonAccess(chooserRole);
+      setEditingAccessUserId(null);
+      setAccessForm({ ...EMPTY_ACCESS_FORM, role: chooserRole, branch_id: activeBranchId ?? null });
+      setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS[chooserRole]);
+      setSelectedPermRole(chooserRole);
+      setAccessTouched(false);
       return;
     }
     // No atiende clientes: solo se completa el acceso.
@@ -4194,11 +4216,41 @@ export function EquipoSection() {
 
               {dlgTab === "acceso" && (
                 !editingEmp ? (
-                  // Mismo patrón que la pestaña "Jornadas": sin professional_id
-                  // real todavía no hay a qué vincular un acceso.
-                  <div className="py-10 text-center text-sm text-muted-foreground">
-                    Guardá el profesional primero para poder crear su acceso.
-                  </div>
+                  newPersonAccess ? (
+                    <div className="space-y-3">
+                      <p className="text-xs text-muted-foreground">
+                        Al guardar se crea el profesional y se envía la invitación por correo.
+                      </p>
+                      <Field label="Rol">
+                        <div className={cn(inputCls, "opacity-80")}>
+                          {newPersonAccess === "profesional" ? "Barbero" : ROLE_LABEL_BY_ID[newPersonAccess]}
+                        </div>
+                      </Field>
+                      {branches.length > 1 && (
+                        <Field label="Sucursal">
+                          <select
+                            value={accessForm.branch_id ?? ""}
+                            onChange={(e) => setAccessForm((f) => ({ ...f, branch_id: e.target.value || null }))}
+                            className={inputCls}
+                          >
+                            <option value="">Sin asignar</option>
+                            {branches.map((b) => (
+                              <option key={b.id} value={b.id}>
+                                {b.name}
+                              </option>
+                            ))}
+                          </select>
+                        </Field>
+                      )}
+                      {renderAccessFormCore()}
+                    </div>
+                  ) : (
+                    // Mismo patrón que la pestaña "Jornadas": sin professional_id
+                    // real todavía no hay a qué vincular un acceso.
+                    <div className="py-10 text-center text-sm text-muted-foreground">
+                      Guardá el profesional primero para poder crear su acceso.
+                    </div>
+                  )
                 ) : (
                   <div className="space-y-3">
                     {/* Mismo accessForm/accessPermissionsForm que Equipo →
