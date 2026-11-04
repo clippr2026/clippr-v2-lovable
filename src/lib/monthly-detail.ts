@@ -375,8 +375,9 @@ export type MonthlyDetail = {
 const avg = (sum: number, n: number) => (n > 0 ? sum / n : 0);
 
 // Cantidad de barberos de cada día de la semana (0 = domingo … 6 = sábado): los que la Agenda
-// (panel de horarios) tiene programados ese día. Si hay horarios especiales por fecha, la
-// cantidad que más se repite (si empatan, la mayor). Sin horarios, devuelve vacío.
+// (panel de horarios) tiene programados ese día, con sus horarios especiales por fecha. Es el
+// promedio redondeado de los barberos programados en cada jornada trabajada. Sin horarios,
+// devuelve vacío.
 function habitualBarbers(payments: DetailPayment[], raw: MonthlyDetailRaw): Map<number, number> {
   const out = new Map<number, number>();
   if (!raw.schedule || !raw.employees || raw.employees.length === 0) return out;
@@ -391,7 +392,7 @@ function habitualBarbers(payments: DetailPayment[], raw: MonthlyDetailRaw): Map<
     datesByDow.set(dow, set);
   }
   for (const [dow, dates] of datesByDow) {
-    const freq = new Map<number, number>();
+    let sum = 0;
     for (const key of dates) {
       const [y, m, d] = key.split("-").map(Number);
       const date = new Date(y, m - 1, d, 12, 0, 0);
@@ -400,10 +401,10 @@ function habitualBarbers(payments: DetailPayment[], raw: MonthlyDetailRaw): Map<
         const day = resolveDaySchedule(ctx.businessSchedule, ctx.employeeSchedules, ctx.businessSpecial, ctx.employeeSpecial, empId, date);
         if (day && day.enabled !== false) scheduled += 1;
       }
-      freq.set(scheduled, (freq.get(scheduled) ?? 0) + 1);
+      sum += scheduled;
     }
-    const best = [...freq.entries()].sort((x, y) => y[1] - x[1] || y[0] - x[0])[0]?.[0] ?? 0;
-    if (best > 0) out.set(dow, best);
+    const typical = Math.round(sum / Math.max(1, dates.size));
+    if (typical > 0) out.set(dow, typical);
   }
   return out;
 }

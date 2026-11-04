@@ -225,7 +225,7 @@ function FacturacionView({ d, perf, prev, vsLabel }: ViewProps) {
 
       <Block
         title="Por día de la semana"
-        hint="Solo los días en que se trabajó. Los barberos son los que vendieron ese día."
+        hint="Solo los días en que se trabajó. Los barberos son los programados en el panel de horarios ese día."
       >
         {diasTrabajados.length === 0 ? (
           <div className="text-sm text-white/40">Sin ventas en el mes.</div>
