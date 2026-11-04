@@ -13,7 +13,7 @@ import { useClientsData, type Client } from "@/hooks/use-clients-data";
 import { ADVISOR_MONTHS_SELECTABLE, useAdvisorAnalytics } from "@/hooks/use-advisor-analytics";
 import { cajaDateKeyBA } from "@/lib/caja-cierre";
 import { shiftMonth } from "@/lib/monthly-performance";
-import { RendimientoMensual } from "@/components/advisor/rendimiento-mensual";
+import { MesSelector, RendimientoMensual } from "@/components/advisor/rendimiento-mensual";
 import { useAiRecommendations, type RecommendationAchievement, type UseAiRecommendationsResult } from "@/hooks/use-ai-recommendations";
 import { MEASURABLE_CHANNELS } from "@/lib/acquisition-channels";
 import { AcquisitionChannelIcon } from "@/components/acquisition-channel-icon";
@@ -423,6 +423,11 @@ function AdvisorContent({
               <CircleHelp className="h-3 w-3" />
               <span className="hidden sm:inline">Cómo funciona</span>
             </button>
+            <MesSelector
+              monthKey={selectedMonthKey}
+              onMonthKeyChange={setSelectedMonthKey}
+              minMonthKey={shiftMonth(currentMonthKey, -(ADVISOR_MONTHS_SELECTABLE - 1))}
+            />
             <div className="flex items-center gap-4 mb-3">
               <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
               <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">
@@ -431,11 +436,7 @@ function AdvisorContent({
               <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
             </div>
             <div className="px-0.5 pb-1 pt-1 sm:px-1">
-              <RendimientoMensual
-                monthKey={selectedMonthKey}
-                onMonthKeyChange={setSelectedMonthKey}
-                minMonthKey={shiftMonth(currentMonthKey, -(ADVISOR_MONTHS_SELECTABLE - 1))}
-              />
+              <RendimientoMensual monthKey={selectedMonthKey} />
             </div>
             <div className="px-0.5 pb-1 pt-3 sm:px-1">
               <GlassCard className="mx-auto max-w-5xl p-3 sm:p-4">

@@ -1,6 +1,6 @@
 import * as React from "react";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeft, ChevronRight, Download, TrendingDown, TrendingUp } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, Info, TrendingDown, TrendingUp } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
@@ -14,6 +14,7 @@ import {
   type MonthlyPerformance,
 } from "@/lib/monthly-performance";
 import { methodLabel, printMonthlyPerformance } from "@/lib/monthly-performance-pdf";
+import { DetalleSheet, type DetalleKind } from "@/components/advisor/rendimiento-detalle";
 
 const money = (n: number) => `${n < 0 ? "-" : ""}$${Math.abs(Math.round(n)).toLocaleString("es-AR")}`;
 const pctText = (n: number) => `${Math.abs(n).toFixed(1).replace(".", ",")}%`;
@@ -63,11 +64,13 @@ function Kpi({
   value,
   sub,
   tone,
+  onDetail,
 }: {
   label: string;
   value: string;
   sub?: React.ReactNode;
   tone?: "pos" | "neg";
+  onDetail?: () => void;
 }) {
   return (
     <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-3.5 sm:p-4">
@@ -81,6 +84,82 @@ function Kpi({
         {value}
       </div>
       {sub && <div className="mt-0.5 text-[11px] text-white/45">{sub}</div>}
+      {onDetail && (
+        <button
+          type="button"
+          onClick={onDetail}
+          className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-sky-300 transition hover:text-sky-200"
+        >
+          Ver detalles
+          <ChevronRight className="size-3" />
+        </button>
+      )}
+    </div>
+  );
+}
+
+// Explicación corta del margen, con un ícono de info que abre/cierra el texto.
+function MargenInfo() {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-label="Qué es el margen"
+        aria-expanded={open}
+        className="grid size-5 place-items-center rounded-full border border-white/15 text-white/55 transition hover:text-white"
+      >
+        <Info className="size-3" />
+      </button>
+      {open && (
+        <div className="absolute bottom-7 left-0 z-30 w-72 max-w-[80vw] rounded-xl border border-white/15 bg-[#12141f] p-3 text-xs leading-relaxed text-white/75 shadow-xl">
+          <b className="text-white">Margen</b> es el porcentaje de lo que facturás que te queda como ganancia, después de pagar
+          los gastos y a los profesionales. Es Ganancia ÷ Facturación: con 30%, de cada $100 que entran te quedan $30.
+          <div className="mt-2 text-white/55">
+            Referencia general: menos de 15% es ajustado, entre 15% y 30% es sano y más de 30% es muy bueno. Si todavía no
+            cargaste los gastos del mes, el margen se ve más alto de lo real.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Selector de mes: va arriba del título "Evolución del negocio" y manda sobre toda la pantalla.
+export function MesSelector({
+  monthKey,
+  onMonthKeyChange,
+  minMonthKey,
+}: {
+  monthKey: string;
+  onMonthKeyChange: (monthKey: string) => void;
+  minMonthKey?: string;
+}) {
+  const currentMonth = cajaDateKeyBA().slice(0, 7);
+  const isCurrentMonth = monthKey >= currentMonth;
+  const isOldestMonth = minMonthKey ? monthKey <= minMonthKey : false;
+  return (
+    <div className="mb-3 flex items-center justify-center gap-2">
+      <button
+        type="button"
+        onClick={() => onMonthKeyChange(shiftMonth(monthKey, -1))}
+        disabled={isOldestMonth}
+        aria-label="Mes anterior"
+        className="grid size-9 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-white/70 transition hover:bg-white/[0.08] disabled:opacity-30"
+      >
+        <ChevronLeft className="size-4" />
+      </button>
+      <div className="min-w-[10.5rem] text-center text-base font-bold text-white sm:text-lg">{monthLabel(monthKey)}</div>
+      <button
+        type="button"
+        onClick={() => onMonthKeyChange(shiftMonth(monthKey, 1))}
+        disabled={isCurrentMonth}
+        aria-label="Mes siguiente"
+        className="grid size-9 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-white/70 transition hover:bg-white/[0.08] disabled:opacity-30"
+      >
+        <ChevronRight className="size-4" />
+      </button>
     </div>
   );
 }
@@ -103,19 +182,14 @@ type RendimientoMensualProps = {
   minMonthKey?: string;
 };
 
-export function RendimientoMensual({ monthKey: controlledMonthKey, onMonthKeyChange, minMonthKey }: RendimientoMensualProps = {}) {
+export function RendimientoMensual({ monthKey: controlledMonthKey }: RendimientoMensualProps = {}) {
   const { businessId, activeBranchId } = useAuth();
   const todayKey = cajaDateKeyBA();
   const currentMonth = todayKey.slice(0, 7);
   const todayDay = Number(todayKey.slice(8, 10));
-  const [internalMonthKey, setInternalMonthKey] = React.useState(currentMonth);
-  const monthKey = controlledMonthKey ?? internalMonthKey;
-  const setMonthKey = (key: string) => {
-    if (onMonthKeyChange) onMonthKeyChange(key);
-    else setInternalMonthKey(key);
-  };
+  const monthKey = controlledMonthKey ?? currentMonth;
   const isCurrentMonth = monthKey >= currentMonth;
-  const isOldestMonth = minMonthKey ? monthKey <= minMonthKey : false;
+  const [detalle, setDetalle] = React.useState<DetalleKind | null>(null);
 
   const current = useMonthlyPerformance(businessId, activeBranchId, monthKey);
   // Mes en curso: se compara contra el MISMO período del mes anterior (del 1 al día de hoy),
@@ -156,28 +230,7 @@ export function RendimientoMensual({ monthKey: controlledMonthKey, onMonthKeyCha
 
   return (
     <div className="mx-auto w-full max-w-5xl space-y-4 sm:space-y-5">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setMonthKey(shiftMonth(monthKey, -1))}
-            disabled={isOldestMonth}
-            aria-label="Mes anterior"
-            className="grid size-9 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-white/70 transition hover:bg-white/[0.08] disabled:opacity-30"
-          >
-            <ChevronLeft className="size-4" />
-          </button>
-          <div className="min-w-[10.5rem] text-center text-base font-bold text-white sm:text-lg">{monthLabel(monthKey)}</div>
-          <button
-            type="button"
-            onClick={() => setMonthKey(shiftMonth(monthKey, 1))}
-            disabled={isCurrentMonth}
-            aria-label="Mes siguiente"
-            className="grid size-9 place-items-center rounded-xl border border-white/10 bg-white/[0.04] text-white/70 transition hover:bg-white/[0.08] disabled:opacity-30"
-          >
-            <ChevronRight className="size-4" />
-          </button>
-        </div>
+      <div className="flex flex-wrap items-center justify-end gap-3">
         <button
           type="button"
           onClick={exportPdf}
@@ -219,8 +272,27 @@ export function RendimientoMensual({ monthKey: controlledMonthKey, onMonthKeyCha
             </div>
             {perf.margen != null && (
               <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.03] px-3.5 py-2.5 text-sm">
-                <span className="text-white/60">Margen</span>
-                <b className="tabular-nums text-white">{perf.margen < 0 ? "−" : ""}{pctText(perf.margen)}</b>
+                <span className="flex items-center gap-2 text-white/60">
+                  Margen
+                  <MargenInfo />
+                </span>
+                <span className="flex flex-wrap items-center justify-end gap-x-3 gap-y-0.5">
+                  {canCompare && comparable!.margen != null ? (
+                    <span
+                      className={cn(
+                        "inline-flex items-center gap-1 text-xs font-semibold",
+                        perf.margen - comparable!.margen >= 0 ? "text-emerald-300" : "text-rose-300",
+                      )}
+                    >
+                      {perf.margen - comparable!.margen >= 0 ? <TrendingUp className="size-3.5" /> : <TrendingDown className="size-3.5" />}
+                      {perf.margen - comparable!.margen >= 0 ? "+" : "-"}
+                      {Math.abs(perf.margen - comparable!.margen).toFixed(1).replace(".", ",")} pts {vsLabel}
+                    </span>
+                  ) : prevIsStart ? null : (
+                    <span className="text-xs text-white/35">Sin mes anterior para comparar</span>
+                  )}
+                  <b className="tabular-nums text-white">{perf.margen < 0 ? "−" : ""}{pctText(perf.margen)}</b>
+                </span>
               </div>
             )}
           </div>
@@ -230,17 +302,27 @@ export function RendimientoMensual({ monthKey: controlledMonthKey, onMonthKeyCha
               label="Facturación"
               value={money(perf.facturacion)}
               sub={<DeltaValue pct={canCompare ? variationPct(perf.facturacion, comparable!.facturacion) : null} label={vsLabel} partialStart={prevIsStart} />}
+              onDetail={() => setDetalle("facturacion")}
             />
-            <Kpi label="Gastos" value={money(perf.gastosTotal)} />
-            <Kpi label="Pago a profesionales" value={money(perf.pagoProfesionales)} />
+            <Kpi label="Gastos" value={money(perf.gastosTotal)} onDetail={() => setDetalle("gastos")} />
+            <Kpi label="Pago a profesionales" value={money(perf.pagoProfesionales)} onDetail={() => setDetalle("profesionales")} />
             <Kpi
               label="Ventas"
               value={perf.ventas.toLocaleString("es-AR")}
               sub={<DeltaValue pct={canCompare ? variationPct(perf.ventas, comparable!.ventas) : null} label={vsLabel} partialStart={prevIsStart} />}
+              onDetail={() => setDetalle("ventas")}
             />
-            <Kpi label="Ticket promedio" value={money(perf.ticket)} />
-            <Kpi label="Clientes atendidos" value={perf.clientes.toLocaleString("es-AR")} />
+            <Kpi label="Ticket promedio" value={money(perf.ticket)} onDetail={() => setDetalle("ticket")} />
+            <Kpi label="Clientes atendidos" value={perf.clientes.toLocaleString("es-AR")} onDetail={() => setDetalle("clientes")} />
           </div>
+          <DetalleSheet
+            kind={detalle}
+            onClose={() => setDetalle(null)}
+            monthKey={monthKey}
+            perf={perf}
+            prev={comparable}
+            vsLabel={vsLabel}
+          />
 
           {perf.pendienteDeCobro > 0 && (
             <div className="rounded-xl border border-amber-400/25 bg-amber-400/[0.06] px-4 py-2.5 text-xs text-amber-100/85">
