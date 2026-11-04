@@ -44,6 +44,7 @@ import {
   type Conciliacion,
   distributeCobroByMethod,
   isCountableCajaPayment,
+  collectionPaymentIdSet,
   pagoRowColor,
 } from "@/lib/caja-cierre";
 import { SaldoComposicionLado, SaldoComposicionModal } from "@/components/caja/saldo-composicion";
@@ -11538,6 +11539,8 @@ function buildUnifiedMovements(
   // total (ver isCountableCajaPayment, bug real 26/10/2026).
   for (const p of paymentsToday) {
     if (p.status === "pendiente" || p.status === "parcial") continue;
+    // Ya figura en su grupo de cobros (venta que pasó por pendientes): una sola fila.
+    if (ventaGroups.has(p.id)) continue;
     const raw = (p as { sort_ts?: string | null }).sort_ts ?? p.created_at;
     const ts = raw ? new Date(raw).getTime() : 0;
     const montoConPropina = Number(p.total ?? p.amount ?? 0) + Number(p.tip_amount ?? 0);
@@ -12364,7 +12367,9 @@ function MovimientosUnificados({
     const paySource = selectedProfessionalId ? professionalPayments : paymentsForSelectedDate;
     const collSource = selectedProfessionalId ? professionalCollections : collectionsForSelectedDate;
     const groups: Record<string, { method: string; total: number; count: number }> = {};
+    const viaCobros = collectionPaymentIdSet(collSource);
     for (const payment of paySource) {
+      if (viaCobros.has(payment.id)) continue;
       // pendiente/parcial: su plata real (al vender Y cualquier cobro
       // posterior) se cuenta exclusivamente vía collSource, más abajo —
       // sumar acá TAMBIÉN payment.total mostraría el total de la venta

@@ -15,6 +15,7 @@ import {
   computeExpectedCashAndDigital,
   getDigitalCarryForward,
   isCountableCajaPayment,
+  collectionPaymentIdSet,
   isCajaCerradaRow,
   type PendingCierre,
   type ExpectedCashDigital,
@@ -603,16 +604,17 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
   // cuenta como ingreso de HOY; la venta pendiente en sí nunca aporta su
   // total/amount acá (ver computeExpectedCashAndDigital).
   const collectionsStrictlyToday = filterToDayBA(collectionsForPeriod, (c) => c.collected_at, todayKeyBA);
+  const viaCobrosHoy = collectionPaymentIdSet(collectionsForPeriod);
   const revHoy =
     paymentsStrictlyToday.reduce(
       // anulado/reembolsado: nunca aporta — no es un ingreso válido (ver
       // isCountableCajaPayment, bug real 26/10/2026).
-      (s, p) => s + (isCountableCajaPayment(p.status) ? Number(p.total ?? p.amount ?? 0) : 0),
+      (s, p) => s + (isCountableCajaPayment(p.status) && !viaCobrosHoy.has(p.id) ? Number(p.total ?? p.amount ?? 0) : 0),
       0,
     ) + collectionsStrictlyToday.reduce((s, c) => s + Number(c.amount ?? 0), 0);
   // Mismo criterio que revHoy — una venta anulada/reembolsada no es un
   // cobro real, no debe inflar el "ticket promedio" (revHoy/cobros).
-  const cobros = paymentsStrictlyToday.filter((p) => isCountableCajaPayment(p.status)).length;
+  const cobros = paymentsStrictlyToday.filter((p) => isCountableCajaPayment(p.status) && !viaCobrosHoy.has(p.id)).length;
   const totalGastosHoy = expensesStrictlyToday.reduce((s, e) => s + Number(e.amount ?? 0), 0);
 
   // "Efectivo del día"/"Dinero en cuenta del día" — a diferencia de

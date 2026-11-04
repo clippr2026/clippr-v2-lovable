@@ -42,6 +42,19 @@ export function isCountableCajaPayment(status: string | null | undefined): boole
   return status !== "pendiente" && status !== "parcial" && !isVoidedPaymentStatus(status);
 }
 
+// Una venta que pasó por el ledger de pendientes (tiene filas en payment_collections)
+// cuenta su plata SOLO a través de esos cobros, aunque hoy figure 'cobrado' (el cobro
+// final la pasa a 'cobrado', y "Corregir cobro" también). Sumarla además por su total
+// la contaba dos veces. Las ventas cobradas completas en el momento nunca tienen filas
+// en payment_collections.
+export function collectionPaymentIdSet(
+  collections: ReadonlyArray<{ payment_id?: string | null }> | null | undefined,
+): Set<string> {
+  const ids = new Set<string>();
+  for (const c of collections ?? []) if (c.payment_id) ids.add(String(c.payment_id));
+  return ids;
+}
+
 // Color de una fila "pago" en el historial unificado de Caja. Una venta
 // anulada/reembolsada siempre va en gris (trazabilidad, nunca como ingreso
 // activo). Un pago normal con monto negativo (ajuste de un día ya cerrado,
@@ -728,10 +741,11 @@ export async function buildCierreSnapshotForDate(
     payRes.status === "fulfilled" && !payRes.value.error ? ((payRes.value.data ?? []) as any[]) : [];
   // Solo las ventas que de verdad entraron a caja suman en el cierre: una
   // venta 'pendiente'/'parcial' se muestra aparte, con su estado.
-  const payments = allPayments.filter((p) => isCountableCajaPayment(p.status));
   const pagosPendientes = allPayments.filter((p) => !isCountableCajaPayment(p.status));
   const collections =
     collRes.status === "fulfilled" && !collRes.value.error ? ((collRes.value.data ?? []) as any[]) : [];
+  const viaCobros = collectionPaymentIdSet(collections);
+  const payments = allPayments.filter((p) => isCountableCajaPayment(p.status) && !viaCobros.has(String(p.id)));
   const expenses =
     expRes.status === "fulfilled" && !expRes.value.error ? ((expRes.value.data ?? []) as any[]) : [];
   const anulados =
@@ -1098,6 +1112,7 @@ export type ExpectedCashDigital = {
 // "adelanto" o gasto), no mientras siguen pendientes.
 export function computeExpectedCashAndDigital(params: {
   payments: Array<{
+    id?: string | null;
     total?: number | null;
     amount?: number | null;
     method?: string | null;
@@ -1144,7 +1159,7 @@ export function computeExpectedCashAndDigital(params: {
   // nunca la fecha de la venta). amount puede ser negativo (reversión, ver
   // reverse_payment_collection) — se suma tal cual, restando correctamente.
   // Opcional (default []) para no romper ningún caller existente.
-  collections?: Array<{ amount?: number | null; method?: string | null }>;
+  collections?: Array<{ amount?: number | null; method?: string | null; payment_id?: string | null }>;
   // Pagos de liquidación con origen "caja": salen del efectivo o de la cuenta
   // según su medio, en el día en que se pagan. Los de origen "externo" (y los
   // históricos, sin origen) NO se pasan acá — no tocan la caja. Va separado
@@ -1162,7 +1177,9 @@ export function computeExpectedCashAndDigital(params: {
   // distinta de sus splits reales.
   let cashPayments = 0;
   let digitalPayments = 0;
+  const viaCobros = collectionPaymentIdSet(collections);
   for (const p of payments) {
+    if (p.id && viaCobros.has(String(p.id))) continue;
     // pendiente/parcial: cero acá — toda su plata (la cobrada al vender Y
     // cualquier cobro posterior) se cuenta vía `collections`, más abajo,
     // fechada el día real del cobro. 'cobrado'/undefined (filas de antes de

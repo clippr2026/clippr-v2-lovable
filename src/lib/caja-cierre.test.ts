@@ -395,6 +395,20 @@ describe("normalizeCierreMethodKey — mismo vocabulario sin importar el origen 
 // implícito. El filtrado por fecha vive en el caller (buildCierreSnapshotForDate/
 // buildSingleDayCierrePreview); esta función solo hace la cuenta.
 describe("computeExpectedCashAndDigital — efectivo/transferencia de un día acotado", () => {
+  it("una venta 'cobrado' que pasó por cobros (payment_collections) cuenta una sola vez", () => {
+    const result = computeExpectedCashAndDigital({
+      payments: [
+        { id: "a", total: 21000, method: "transfer", status: "cobrado" },
+        { id: "b", total: 21900, method: "transfer", status: "cobrado" },
+      ],
+      collections: [{ payment_id: "a", amount: 21000, method: "transfer" }],
+      expenses: [],
+      advances: [],
+      cashMovements: [],
+    });
+    expect(result.digitalExpected).toBe(21000 + 21900);
+  });
+
   it("separa cobros en efectivo de cobros digitales, sin mezclarlos", () => {
     const result = computeExpectedCashAndDigital({
       payments: [
