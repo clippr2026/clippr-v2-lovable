@@ -31,6 +31,7 @@ import { Route as ServicesRouteImport } from './routes/services'
 import { Route as SetPasswordRouteImport } from './routes/set-password'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ApiCleanupReceiptsRouteImport } from './routes/api/cleanup-receipts'
+import { Route as ApiVersionRouteImport } from './routes/api/version'
 import { Route as FichajeKioscoBranchIdRouteImport } from './routes/fichaje-kiosco/$branchId'
 import { Route as FicharBranchIdRouteImport } from './routes/fichar/$branchId'
 import { Route as NegocioSlugRouteImport } from './routes/negocio/$slug'
@@ -147,6 +148,11 @@ const ApiCleanupReceiptsRoute = ApiCleanupReceiptsRouteImport.update({
   path: '/api/cleanup-receipts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiVersionRoute = ApiVersionRouteImport.update({
+  id: '/api/version',
+  path: '/api/version',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const FichajeKioscoBranchIdRoute = FichajeKioscoBranchIdRouteImport.update({
   id: '/fichaje-kiosco/$branchId',
   path: '/fichaje-kiosco/$branchId',
@@ -191,6 +197,7 @@ export interface FileRoutesByFullPath {
   '/set-password': typeof SetPasswordRoute
   '/settings': typeof SettingsRoute
   '/api/cleanup-receipts': typeof ApiCleanupReceiptsRoute
+  '/api/version': typeof ApiVersionRoute
   '/fichaje-kiosco/$branchId': typeof FichajeKioscoBranchIdRoute
   '/fichar/$branchId': typeof FicharBranchIdRoute
   '/negocio/$slug': typeof NegocioSlugRoute
@@ -219,6 +226,7 @@ export interface FileRoutesByTo {
   '/set-password': typeof SetPasswordRoute
   '/settings': typeof SettingsRoute
   '/api/cleanup-receipts': typeof ApiCleanupReceiptsRoute
+  '/api/version': typeof ApiVersionRoute
   '/fichaje-kiosco/$branchId': typeof FichajeKioscoBranchIdRoute
   '/fichar/$branchId': typeof FicharBranchIdRoute
   '/negocio/$slug': typeof NegocioSlugRoute
@@ -248,6 +256,7 @@ export interface FileRoutesById {
   '/set-password': typeof SetPasswordRoute
   '/settings': typeof SettingsRoute
   '/api/cleanup-receipts': typeof ApiCleanupReceiptsRoute
+  '/api/version': typeof ApiVersionRoute
   '/fichaje-kiosco/$branchId': typeof FichajeKioscoBranchIdRoute
   '/fichar/$branchId': typeof FicharBranchIdRoute
   '/negocio/$slug': typeof NegocioSlugRoute
@@ -278,6 +287,7 @@ export interface FileRouteTypes {
     | '/set-password'
     | '/settings'
     | '/api/cleanup-receipts'
+    | '/api/version'
     | '/fichaje-kiosco/$branchId'
     | '/fichar/$branchId'
     | '/negocio/$slug'
@@ -306,6 +316,7 @@ export interface FileRouteTypes {
     | '/set-password'
     | '/settings'
     | '/api/cleanup-receipts'
+    | '/api/version'
     | '/fichaje-kiosco/$branchId'
     | '/fichar/$branchId'
     | '/negocio/$slug'
@@ -334,6 +345,7 @@ export interface FileRouteTypes {
     | '/set-password'
     | '/settings'
     | '/api/cleanup-receipts'
+    | '/api/version'
     | '/fichaje-kiosco/$branchId'
     | '/fichar/$branchId'
     | '/negocio/$slug'
@@ -363,6 +375,7 @@ export interface RootRouteChildren {
   SetPasswordRoute: typeof SetPasswordRoute
   SettingsRoute: typeof SettingsRoute
   ApiCleanupReceiptsRoute: typeof ApiCleanupReceiptsRoute
+  ApiVersionRoute: typeof ApiVersionRoute
   FichajeKioscoBranchIdRoute: typeof FichajeKioscoBranchIdRoute
   FicharBranchIdRoute: typeof FicharBranchIdRoute
   NegocioSlugRoute: typeof NegocioSlugRoute
@@ -525,6 +538,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCleanupReceiptsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/version': {
+      id: '/api/version'
+      path: '/api/version'
+      fullPath: '/api/version'
+      preLoaderRoute: typeof ApiVersionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/fichaje-kiosco/$branchId': {
       id: '/fichaje-kiosco/$branchId'
       path: '/fichaje-kiosco/$branchId'
@@ -580,6 +600,7 @@ const rootRouteChildren: RootRouteChildren = {
   SetPasswordRoute: SetPasswordRoute,
   SettingsRoute: SettingsRoute,
   ApiCleanupReceiptsRoute: ApiCleanupReceiptsRoute,
+  ApiVersionRoute: ApiVersionRoute,
   FichajeKioscoBranchIdRoute: FichajeKioscoBranchIdRoute,
   FicharBranchIdRoute: FicharBranchIdRoute,
   NegocioSlugRoute: NegocioSlugRoute,
