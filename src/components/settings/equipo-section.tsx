@@ -843,6 +843,8 @@ export function EquipoSection() {
   const [chooserRole, setChooserRole] = useState<RolePermissionId>("profesional");
   const [chooserAtiende, setChooserAtiende] = useState(false);
   const atiendeAfterAccessRef = useRef(false);
+  // Rol del acceso que se completa en la pestaña "Acceso" del barbero recién creado.
+  const accessRoleAfterCreateRef = useRef<RolePermissionId>("profesional");
   // Administrador/recepcionista que quiere atender clientes: elige su perfil de barbero.
   const [linkBarberFor, setLinkBarberFor] = useState<AccessUser | null>(null);
   const [linkChoice, setLinkChoice] = useState<string>("new");
@@ -1994,14 +1996,16 @@ export function EquipoSection() {
           branch_id: form.branchId ?? activeBranchId ?? null,
         } as EmployeeRow);
         setEditingAccessUserId(null);
+        const accessRole = accessRoleAfterCreateRef.current;
+        accessRoleAfterCreateRef.current = "profesional";
         setAccessForm({
           ...EMPTY_ACCESS_FORM,
-          role: "profesional",
+          role: accessRole,
           employee_id: newId,
           branch_id: form.branchId ?? activeBranchId ?? null,
         });
-        setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS.profesional);
-        setSelectedPermRole("profesional");
+        setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS[accessRole]);
+        setSelectedPermRole(accessRole);
         setAccessTouched(false);
         setDlgTab("acceso");
         toast.success("Profesional agregado. Ahora cargá su correo para darle acceso.");
@@ -2300,7 +2304,7 @@ export function EquipoSection() {
       (emp) => emp.id === accessForm.employee_id,
     );
     const fallbackName =
-      accessForm.role === "profesional"
+      accessForm.role === "profesional" || selectedEmployee
         ? selectedEmployee?.full_name || selectedEmployee?.name || ""
         : ROLE_LABEL_BY_ID[accessForm.role];
     const name = fallbackName.trim();
@@ -2592,18 +2596,19 @@ export function EquipoSection() {
 
   function continueAddPerson() {
     setAddChooserOpen(false);
-    if (chooserRole === "profesional") {
-      // Barbero: alta del barbero y, al guardarlo, queda abierta su pestaña de Acceso.
+    if (chooserRole === "profesional" || chooserAtiende) {
+      // Atiende clientes: primero el perfil del barbero y, al guardarlo, queda abierta su
+      // pestaña "Acceso" con el rol elegido (Barbero, Socio, etc.).
       accessAfterCreateRef.current = true;
+      accessRoleAfterCreateRef.current = chooserRole;
       openNew();
       return;
     }
+    // No atiende clientes: solo se completa el acceso.
     openNewAccessModal();
     setAccessForm((f) => ({ ...f, role: chooserRole }));
     setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS[chooserRole]);
     setSelectedPermRole(chooserRole);
-    // Si además atiende clientes: al guardar el acceso se le pide su perfil de barbero.
-    atiendeAfterAccessRef.current = chooserAtiende;
   }
 
   // Etiqueta de acceso de una persona para la lista unificada.
@@ -4201,6 +4206,31 @@ export function EquipoSection() {
                         precarga con el registro vinculado a este profesional
                         si ya existe) — rol y profesional van fijos, así que
                         acá no se muestran esos dos selectores. */}
+                    {accessForm.role !== "profesional" && (
+                      <>
+                        <Field label="Rol">
+                          <div className={cn(inputCls, "opacity-80")}>{ROLE_LABEL_BY_ID[accessForm.role]}</div>
+                        </Field>
+                        {branches.length > 1 && (
+                          <Field label="Sucursal">
+                            <select
+                              value={accessForm.branch_id ?? ""}
+                              onChange={(e) =>
+                                setAccessForm((f) => ({ ...f, branch_id: e.target.value || null }))
+                              }
+                              className={inputCls}
+                            >
+                              <option value="">Sin asignar</option>
+                              {branches.map((b) => (
+                                <option key={b.id} value={b.id}>
+                                  {b.name}
+                                </option>
+                              ))}
+                            </select>
+                          </Field>
+                        )}
+                      </>
+                    )}
                     {renderAccessFormCore()}
                     <div className="flex flex-wrap items-center gap-2 pt-1">
                       {editingAccessUserId &&
