@@ -374,48 +374,36 @@ export type MonthlyDetail = {
 
 const avg = (sum: number, n: number) => (n > 0 ? sum / n : 0);
 
-// Cantidad habitual de barberos por día de la semana (0 = domingo … 6 = sábado): los que la
-// Agenda tiene programados ese día. Si uno estuvo ausente casi todo el mes (vendió en menos de
-// la cuarta parte de sus jornadas programadas) no se cuenta. Un barbero que no estaba
-// programado pero trabajó la mitad de las jornadas o más, sí. Sin horarios, devuelve vacío.
+// Cantidad de barberos de cada día de la semana (0 = domingo … 6 = sábado): los que la Agenda
+// (panel de horarios) tiene programados ese día. Si hay horarios especiales por fecha, la
+// cantidad que más se repite (si empatan, la mayor). Sin horarios, devuelve vacío.
 function habitualBarbers(payments: DetailPayment[], raw: MonthlyDetailRaw): Map<number, number> {
   const out = new Map<number, number>();
   if (!raw.schedule || !raw.employees || raw.employees.length === 0) return out;
   const ctx = parseCapacityContext(raw.schedule);
   const active = raw.employees.filter((e) => e.is_active !== false).map((e) => e.id);
-  const datesByDow = new Map<number, Map<string, Set<string>>>();
+  const datesByDow = new Map<number, Set<string>>();
   for (const p of payments) {
     const key = arDateKey(p.created_at);
     const dow = weekdayOf(key);
-    const byDate = datesByDow.get(dow) ?? new Map<string, Set<string>>();
-    const set = byDate.get(key) ?? new Set<string>();
-    if (p.employee_id) set.add(p.employee_id);
-    byDate.set(key, set);
-    datesByDow.set(dow, byDate);
+    const set = datesByDow.get(dow) ?? new Set<string>();
+    set.add(key);
+    datesByDow.set(dow, set);
   }
-  for (const [dow, byDate] of datesByDow) {
-    const dates = [...byDate.keys()];
-    let count = 0;
-    for (const empId of active) {
-      let scheduledDays = 0;
-      let scheduledPresent = 0;
-      let presentDays = 0;
-      for (const key of dates) {
-        const [y, m, d] = key.split("-").map(Number);
-        const day = resolveDaySchedule(ctx.businessSchedule, ctx.employeeSchedules, ctx.businessSpecial, ctx.employeeSpecial, empId, new Date(y, m - 1, d, 12, 0, 0));
-        const scheduled = Boolean(day && day.enabled !== false);
-        const present = byDate.get(key)?.has(empId) ?? false;
-        if (scheduled) scheduledDays += 1;
-        if (scheduled && present) scheduledPresent += 1;
-        if (present) presentDays += 1;
+  for (const [dow, dates] of datesByDow) {
+    const freq = new Map<number, number>();
+    for (const key of dates) {
+      const [y, m, d] = key.split("-").map(Number);
+      const date = new Date(y, m - 1, d, 12, 0, 0);
+      let scheduled = 0;
+      for (const empId of active) {
+        const day = resolveDaySchedule(ctx.businessSchedule, ctx.employeeSchedules, ctx.businessSpecial, ctx.employeeSpecial, empId, date);
+        if (day && day.enabled !== false) scheduled += 1;
       }
-      if (scheduledDays > 0) {
-        if (scheduledPresent / scheduledDays >= 0.25) count += 1;
-      } else if (presentDays / dates.length >= 0.5) {
-        count += 1;
-      }
+      freq.set(scheduled, (freq.get(scheduled) ?? 0) + 1);
     }
-    if (count > 0) out.set(dow, count);
+    const best = [...freq.entries()].sort((x, y) => y[1] - x[1] || y[0] - x[0])[0]?.[0] ?? 0;
+    if (best > 0) out.set(dow, best);
   }
   return out;
 }
