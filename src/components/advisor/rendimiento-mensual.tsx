@@ -234,11 +234,7 @@ export function RendimientoMensual({ monthKey: controlledMonthKey, onMonthKeyCha
               sub={<DeltaValue pct={canCompare ? variationPct(perf.facturacion, comparable!.facturacion) : null} label={vsLabel} partialStart={prevIsStart} />}
             />
             <Kpi label="Gastos" value={money(perf.gastosTotal)} />
-            <Kpi
-              label="Pago a profesionales"
-              value={money(perf.pagoProfesionales)}
-              sub={`Comisiones ${money(perf.comisiones)}`}
-            />
+            <Kpi label="Pago a profesionales" value={money(perf.pagoProfesionales)} />
             <Kpi
               label="Ventas"
               value={perf.ventas.toLocaleString("es-AR")}
