@@ -233,8 +233,14 @@ function FacturacionView({ d, perf, prev, vsLabel }: ViewProps) {
         {mejorPorBarbero && peorPorBarbero && mejorPorBarbero.label !== peorPorBarbero.label && (
           <div className="mt-3">
             <Callout>
-              Cada barbero factura más los <b>{mejorPorBarbero.label.toLowerCase()}</b> ({money(mejorPorBarbero.facturaPorBarbero)}) y
-              menos los <b>{peorPorBarbero.label.toLowerCase()}</b> ({money(peorPorBarbero.facturaPorBarbero)}).
+              <div>
+                <b>Día más alto:</b> {mejorPorBarbero.label.toLowerCase()}, cada barbero factura{" "}
+                <b>{money(mejorPorBarbero.facturaPorBarbero)}</b>
+              </div>
+              <div className="mt-1">
+                <b>Día más bajo:</b> {peorPorBarbero.label.toLowerCase()}, cada barbero factura{" "}
+                <b>{money(peorPorBarbero.facturaPorBarbero)}</b>
+              </div>
             </Callout>
           </div>
         )}
