@@ -578,7 +578,13 @@ function AdvisorContent({
                       <p className="text-xs leading-relaxed text-muted-foreground">
                         {analytics.health == null
                           ? "Todavía no hay datos suficientes para calcular la salud del negocio."
-                          : "Tu local está sólido. El próximo salto está en llenar la agenda y recuperar clientes, no en bajar precios."}
+                          : analytics.health >= 80
+                            ? "Tu local está muy bien. Mantené el ritmo y seguí cuidando a tus clientes."
+                            : analytics.health >= 65
+                              ? "Vas bien. El próximo salto está en llenar la agenda y recuperar clientes, no en bajar precios."
+                              : analytics.health >= 50
+                                ? "Hay margen de mejora. Empezá por llenar la agenda y recuperar clientes."
+                                : "Hay varios indicadores para mejorar. Empezá por llenar la agenda y recuperar clientes."}
                       </p>
 
                       {analytics.health != null && (

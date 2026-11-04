@@ -148,6 +148,18 @@ describe("Rendimiento mensual", () => {
     expect(alan.descuentoPuntualidad).toBe(6000);
   });
 
+  it("la puntualidad solo figura como activada si hay reglas de tardanza o hubo faltas en el mes", () => {
+    const sin = computeMonthlyPerformance("2026-10", base({ payments: [pay({ id: "p1" })] }));
+    expect(sin.puntualidadActiva).toBe(false);
+    const conReglas = computeMonthlyPerformance("2026-10", base({ payments: [pay({ id: "p1" })], latenessRulesCount: 2 }));
+    expect(conReglas.puntualidadActiva).toBe(true);
+    const conFalta = computeMonthlyPerformance(
+      "2026-10",
+      base({ payments: [pay({ id: "p1" })], attendance: [{ employee_id: "emp-a", status: "tarde", discount_amount_applied: 0 }] }),
+    );
+    expect(conFalta.puntualidadActiva).toBe(true);
+  });
+
   it("los productos que un profesional retira a cuenta (adelanto de inventario) suman como ingreso del mes", () => {
     const perf = computeMonthlyPerformance(
       "2026-10",

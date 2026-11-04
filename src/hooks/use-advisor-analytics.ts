@@ -261,7 +261,11 @@ function buildMonthSnapshot(
   const todayKeyBA = cajaDateKeyBA();
   const [y, m] = monthKey.split("-").map(Number);
   const daysInMonth = new Date(y, m, 0).getDate();
-  const cutoffDay = uptoDay ?? (monthKey === todayKeyBA.slice(0, 7) ? Number(todayKeyBA.slice(8, 10)) : daysInMonth);
+  // En el mes en curso la ocupación se mide con días COMPLETOS (hasta ayer): hoy todavía no
+  // terminó, y contar toda su agenda como vacía bajaba el porcentaje (a la madrugada, por ejemplo).
+  const todayDayBA = Number(todayKeyBA.slice(8, 10));
+  const cutoffDay =
+    uptoDay ?? (monthKey === todayKeyBA.slice(0, 7) ? Math.max(1, todayDayBA - 1) : daysInMonth);
   const dayOf = (iso: string) =>
     Number(new Date(iso).toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }).slice(8, 10));
 

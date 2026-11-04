@@ -95,7 +95,7 @@ export function buildMonthlyPerformanceHtml(
 <h2>Por profesional</h2>
 <table><tr><th>Profesional</th><th class="r">Facturación</th><th class="r">Ventas</th><th class="r">Comisión</th><th class="r">Tardes</th><th class="r">Ausencias</th><th class="r">Desc. puntualidad</th></tr>${profesionales || row("Sin datos", "—")}</table>
 ${perf.pendienteDeCobro > 0 ? `<div class="note">La facturación incluye ${money(perf.pendienteDeCobro)} de ventas de este mes todavía sin cobrar.</div>` : ""}
-<div class="note">La facturación cuenta lo vendido en el mes en que se hizo el servicio, aunque se cobre después (las ventas anuladas quedan afuera). Los gastos incluyen Caja del día y Fondos externos. El pago a profesionales son las comisiones de las ventas cobradas del mes, neto de los descuentos de puntualidad. La facturación incluye los consumos de profesionales (productos retirados del inventario y anotados como adelanto), que cuentan en el mes del retiro aunque se descuenten después en la liquidación. Las propinas no se incluyen en la facturación.</div>
+<div class="note">La facturación cuenta lo vendido en el mes en que se hizo el servicio, aunque se cobre después (las ventas anuladas quedan afuera). Los gastos incluyen Caja del día y Fondos externos. El pago a profesionales son las comisiones de las ventas del mes (aunque se cobren después), neto de los descuentos de puntualidad. La facturación incluye los consumos de profesionales (productos retirados del inventario y anotados como adelanto), que cuentan en el mes del retiro aunque se descuenten después en la liquidación. Las propinas no se incluyen en la facturación.</div>
 </body></html>`;
 }
 

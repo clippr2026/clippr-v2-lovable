@@ -216,13 +216,45 @@ export function RendimientoMensual({ monthKey: controlledMonthKey, onMonthKeyCha
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
               <DeltaValue pct={canCompare ? variationPct(perf.ganancia, comparable!.ganancia) : null} label={vsLabel} partialStart={prevIsStart} />
-              {perf.margen != null && <span className="text-xs text-white/50">Margen {pctText(perf.margen)}</span>}
             </div>
-            <div className="mt-3 grid gap-1 text-sm text-white/65">
-              <div>
-                Facturación <b className="text-white">{money(perf.facturacion)}</b> − Gastos{" "}
-                <b className="text-white">{money(perf.gastosTotal)}</b> − Profesionales{" "}
-                <b className="text-white">{money(perf.pagoProfesionales)}</b>
+            <div className="mt-4 divide-y divide-white/[0.07] rounded-2xl border border-white/[0.08] bg-white/[0.03] text-sm">
+              {perf.margen != null && (
+                <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                  <span className="text-white/60">Margen</span>
+                  <b className="tabular-nums text-white">{perf.margen < 0 ? "−" : ""}{pctText(perf.margen)}</b>
+                </div>
+              )}
+              <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                <span className="text-white/60">Facturación</span>
+                <b className="tabular-nums text-white">{money(perf.facturacion)}</b>
+              </div>
+              <div className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+                <span className="text-white/60">Gastos</span>
+                <b className="tabular-nums text-white">− {money(perf.gastosTotal)}</b>
+              </div>
+              <div className="px-3.5 py-2.5">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-white/60">Profesionales</span>
+                  <b className="tabular-nums text-white">− {money(perf.pagoProfesionales)}</b>
+                </div>
+                {perf.puntualidadActiva && (
+                  <div className="mt-1.5 space-y-1 border-l border-white/10 pl-3 text-xs text-white/50">
+                    <div className="flex items-center justify-between gap-3">
+                      <span>Comisiones</span>
+                      <span className="tabular-nums">{money(perf.comisiones)}</span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3">
+                      <span>Puntualidad</span>
+                      <span className="tabular-nums text-rose-300/90">
+                        {perf.descuentoPuntualidad === 0 ? money(0) : `${perf.descuentoPuntualidad > 0 ? "−" : "+"} ${money(Math.abs(perf.descuentoPuntualidad))}`}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between gap-3 border-t border-white/[0.07] pt-1 text-white/70">
+                      <span>Total profesionales</span>
+                      <span className="tabular-nums">{money(perf.pagoProfesionales)}</span>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -338,7 +370,7 @@ export function RendimientoMensual({ monthKey: controlledMonthKey, onMonthKeyCha
           <p className="px-1 text-[11px] leading-relaxed text-white/35">
             La facturación cuenta lo vendido en el mes en que se hizo el servicio, aunque se cobre después: las ventas anuladas
             quedan afuera. Los gastos incluyen Caja del día y Fondos externos. El pago a profesionales son las comisiones de las ventas
-            cobradas del mes, neto de los descuentos de puntualidad. La facturación incluye los consumos de profesionales
+            del mes (aunque se cobren después), neto de los descuentos de puntualidad. La facturación incluye los consumos de profesionales
             (productos retirados del inventario y anotados como adelanto), que cuentan en el mes del retiro aunque se descuenten
             después al liquidar. Las propinas no entran en la facturación.
           </p>
