@@ -57,8 +57,8 @@ function Stat({ label, value, sub, tone }: { label: string; value: string; sub?:
   );
 }
 
-function StatGrid({ children }: { children: React.ReactNode }) {
-  return <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">{children}</div>;
+function StatGrid({ children, twoCols = false }: { children: React.ReactNode; twoCols?: boolean }) {
+  return <div className={cn("grid grid-cols-2 gap-2.5", !twoCols && "sm:grid-cols-3")}>{children}</div>;
 }
 
 // Filas con barra: `value` define el largo; `text` es lo que se muestra a la derecha.
@@ -166,7 +166,7 @@ function FacturacionView({ d, perf, prev, vsLabel }: ViewProps) {
   const peorPorBarbero = [...conBarberos].sort((a, b) => a.facturaPorBarbero - b.facturaPorBarbero)[0];
   return (
     <div className="space-y-3">
-      <StatGrid>
+      <StatGrid twoCols>
         <Stat label="Facturación" value={money(f.total)} sub={<Delta cur={perf.facturacion} prev={prev?.facturacion ?? null} label={vsLabel} />} />
         <Stat label="Servicios" value={money(f.ventasServicios)} />
         <Stat
@@ -202,7 +202,7 @@ function FacturacionView({ d, perf, prev, vsLabel }: ViewProps) {
 
       <Block
         title="Por día de la semana"
-        hint="Solo los días en que se trabajó. Los barberos son los que vendieron ese día (promedio por jornada). «Gana» es la comisión de cada barbero."
+        hint="Solo los días en que se trabajó. Los barberos son los que vendieron ese día (promedio por jornada)."
       >
         {diasTrabajados.length === 0 ? (
           <div className="text-sm text-white/40">Sin ventas en el mes.</div>
@@ -221,9 +221,8 @@ function FacturacionView({ d, perf, prev, vsLabel }: ViewProps) {
                     rows={[
                       ["Facturación del mes", money(r.total)],
                       ["Promedio por día", money(r.promedio)],
-                      ["Barberos por día", r.barberos.toFixed(1).replace(".", ",")],
+                      ["Barberos por día", Number.isInteger(Math.round(r.barberos * 10) / 10) ? int(r.barberos) : r.barberos.toFixed(1).replace(".", ",")],
                       ["Factura cada barbero", money(r.facturaPorBarbero)],
-                      ["Gana cada barbero", money(r.ganaPorBarbero)],
                     ]}
                   />
                 </div>
@@ -235,8 +234,7 @@ function FacturacionView({ d, perf, prev, vsLabel }: ViewProps) {
           <div className="mt-3">
             <Callout>
               Cada barbero factura más los <b>{mejorPorBarbero.label.toLowerCase()}</b> ({money(mejorPorBarbero.facturaPorBarbero)}) y
-              menos los <b>{peorPorBarbero.label.toLowerCase()}</b> ({money(peorPorBarbero.facturaPorBarbero)}). Sirve para decidir si
-              conviene mover barberos de un día a otro o sumar uno.
+              menos los <b>{peorPorBarbero.label.toLowerCase()}</b> ({money(peorPorBarbero.facturaPorBarbero)}).
             </Callout>
           </div>
         )}
