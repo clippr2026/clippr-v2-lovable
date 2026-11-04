@@ -526,7 +526,13 @@ export function useAdvisorAnalytics(
       const cancelScore = Math.round((1 - clampPct(cancelRate * 100) / 100) * 20);
       const ticketPct = previous?.hasData ? (pctDelta(current.ticket, previous.ticket) ?? 0) : 0;
       const ticketScore = Math.round(saturate01(Math.max(0, ticketPct), 20) * 15);
-      health = Math.max(0, Math.min(100, occupancyScore + growthScore + cancelScore + ticketScore + 15));
+      // Sin mes comparable (p. ej. el primero tras el mes de arranque) crecimiento y ticket no se
+      // pueden medir: el puntaje se calcula con lo que sí se mide (ocupación, cancelaciones y la
+      // base fija = 60 puntos) y se lleva a escala de 100, para no topar esos meses en 60.
+      const hasComparison = Boolean(previous?.hasData);
+      health = hasComparison
+        ? Math.max(0, Math.min(100, occupancyScore + growthScore + cancelScore + ticketScore + 15))
+        : Math.max(0, Math.min(100, Math.round(((occupancyScore + cancelScore + 15) / 60) * 100)));
     }
 
     // ── Radiografía del local ──────────────────────────────────────────────
