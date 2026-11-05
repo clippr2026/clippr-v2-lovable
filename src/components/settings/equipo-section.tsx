@@ -2386,9 +2386,9 @@ export function EquipoSection() {
     toast.success("Perfil desactivado. Su historial se conserva.");
   }
 
-  async function doRemoveEmp() {
-    if (!confirmDel) return;
-    const emp = confirmDel;
+  async function doRemoveEmp(target?: EmployeeRow) {
+    const emp = target ?? confirmDel;
+    if (!emp) return;
     setConfirmDel(null);
     setDeletingId(emp.id);
 
@@ -4714,7 +4714,7 @@ export function EquipoSection() {
                         type="button"
                         onClick={() => {
                           setRemoveInfo(null);
-                          setConfirmDel(i.emp);
+                          void doRemoveEmp(i.emp);
                         }}
                         className="rounded-xl bg-red-500/90 px-4 py-2 text-sm font-semibold text-white hover:bg-red-500"
                       >
@@ -4735,7 +4735,7 @@ export function EquipoSection() {
         open={!!confirmDel}
         title="Eliminar perfil"
         message={`¿Deseás eliminar a "${confirmDel?.full_name ?? confirmDel?.name}"?`}
-        onConfirm={doRemoveEmp}
+        onConfirm={() => void doRemoveEmp()}
         onCancel={() => setConfirmDel(null)}
       />
     </>
