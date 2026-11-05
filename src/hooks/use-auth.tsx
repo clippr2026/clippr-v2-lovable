@@ -592,8 +592,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const permissions = React.useMemo(
     // Si el usuario es un team_member, sus permisos reales mandan.
     // Si no (dueño), se usan los defaults por rol.
-    () => teamPermissions ?? getPermissions(profile?.role, rolePermissions),
-    [teamPermissions, profile?.role, rolePermissions]
+    // "Profesionales" no depende del rol: lo tiene quien está vinculado a un perfil de barbero.
+    () => ({
+      ...(teamPermissions ?? getPermissions(profile?.role, rolePermissions)),
+      profesionales: Boolean(profile?.employee_id),
+    }),
+    [teamPermissions, profile?.role, profile?.employee_id, rolePermissions]
   );
 
   const value: AuthState = {

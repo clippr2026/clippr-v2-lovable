@@ -593,6 +593,10 @@ const MAIN_PERMISSION_ITEMS: {
   },
 ];
 
+// El acceso a "Profesionales" ya no es un permiso de rol: lo da tener un perfil de barbero
+// vinculado ("Atiende clientes"). Sigue guardado en los datos, pero no se muestra ni se elige.
+const VISIBLE_MAIN_PERMISSION_ITEMS = MAIN_PERMISSION_ITEMS.filter((item) => item.key !== "panel_profesionales");
+
 const CONFIG_PERMISSION_ITEMS: {
   key: PermissionKey;
   label: string;
@@ -2823,13 +2827,13 @@ export function EquipoSection() {
   }
 
   function getRecommendedPermissionKeys(role: RolePermissionId) {
-    return MAIN_PERMISSION_ITEMS.map((i) => i.key).filter(
+    return VISIBLE_MAIN_PERMISSION_ITEMS.map((i) => i.key).filter(
       (key) => DEFAULT_ROLE_PERMISSIONS[role][key],
     );
   }
 
   function getAdditionalPermissionKeys(role: RolePermissionId) {
-    return MAIN_PERMISSION_ITEMS.map((i) => i.key).filter(
+    return VISIBLE_MAIN_PERMISSION_ITEMS.map((i) => i.key).filter(
       (key) => !DEFAULT_ROLE_PERMISSIONS[role][key],
     );
   }
@@ -2900,7 +2904,7 @@ export function EquipoSection() {
   // accessPermissionsForm (no el default fijo del rol) — así, al
   // personalizar permisos, el módulo aparece/desaparece de esta lista al
   // toque, en vez de mostrar siempre el mismo resumen del rol.
-  const liveAccessLabels = MAIN_PERMISSION_ITEMS.filter(
+  const liveAccessLabels = VISIBLE_MAIN_PERMISSION_ITEMS.filter(
     (item) => accessPermissionsForm[item.key],
   ).map((item) => item.label);
 

@@ -115,6 +115,9 @@ function NavItems({ onNavigate, vertical }: { onNavigate?: () => void; vertical?
   const isOwner = !profile?.role || profile.role === "owner" || profile.role === "admin_general";
   const nav = ALL_NAV.filter((item) => {
     if (!item.permKey) return true; // Configuración always visible
+    // Quien no atiende clientes (sin perfil de barbero vinculado), sea cual sea su rol, no
+    // tiene un Panel Profesional propio: la pestaña no aparece.
+    if (item.permKey === "profesionales" && !profile?.employee_id) return false;
     if (isOwner) return true;
     return permissions[item.permKey] === true;
   });
@@ -651,6 +654,7 @@ export function useMobileNavItems() {
   const items: MobileNavEntry[] = order
     .map((key) => ALL_NAV.find((item) => item.permKey === key))
     .filter((item): item is (typeof ALL_NAV)[number] & { permKey: PermKey } => !!item)
+    .filter((item) => !(item.permKey === "profesionales" && !profile?.employee_id))
     .filter((item) => isOwner || permissions[item.permKey] === true)
     .map((item) => {
       if (item.permKey === "profesionales" && isProfessional) {
