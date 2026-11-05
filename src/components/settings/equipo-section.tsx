@@ -41,7 +41,6 @@ import {
   getPublicVisibility,
   type PriceRow,
 } from "@/components/settings/shared";
-import { JornadasHistorial } from "@/components/professionals/jornadas-historial";
 import { getJornadaRecepcionMap, jornadaEmailKey, setJornadaRecepcion } from "@/lib/jornada-recepcion";
 
 // ─────────── Equipo ───────────
@@ -1089,7 +1088,7 @@ export function EquipoSection() {
   const [editingEmp, setEditingEmp] = useState<EmployeeRow | null>(null);
   const [form, setForm] = useState<NewProForm>(EMPTY_FORM);
   const [dlgTab, setDlgTab] = useState<
-    "perfil" | "horarios" | "comisiones" | "jornadas" | "acceso"
+    "perfil" | "horarios" | "comisiones" | "acceso"
   >("perfil");
   // Sub-pestañas internas de "Comisiones" — Servicios y Catálogo se editan
   // por separado sin cerrar ni mover el modal. La pestaña principal sigue
@@ -3713,13 +3712,9 @@ export function EquipoSection() {
                     ["perfil", "Perfil", Pencil],
                     ["horarios", "Horarios", CalendarPlus],
                     ["comisiones", "Comisiones", DollarSign],
-                    ["jornadas", "Jornadas", CheckCircle2],
                     ["acceso", "Acceso", ShieldCheck],
                   ] as const
                 )
-                  // Un barbero nuevo todavía no tiene jornadas que mostrar: la pestaña solo
-                  // aparece al editar uno que ya existe.
-                  .filter(([id]) => id !== "jornadas" || editingEmp)
                   .map(([id, label, TabIcon]) => {
                     const active = dlgTab === id;
                     return (
@@ -4514,16 +4509,6 @@ export function EquipoSection() {
                     );
                   })}
                 </div>
-              )}
-
-              {dlgTab === "jornadas" && (
-                editingEmp ? (
-                  <JornadasHistorial employeeId={editingEmp.id} />
-                ) : (
-                  <div className="py-10 text-center text-sm text-muted-foreground">
-                    Guardá el profesional primero para ver su historial de jornadas.
-                  </div>
-                )
               )}
 
               {dlgTab === "acceso" && (
