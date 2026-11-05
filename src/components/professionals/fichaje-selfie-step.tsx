@@ -1,10 +1,10 @@
 import * as React from "react";
 import { Camera, Loader2 } from "lucide-react";
 
-const MAX_SIDE = 720;
+const MAX_SIDE = 480;
 
 // Selfie en el momento: cámara frontal, sin elegir de la galería. Devuelve un
-// JPEG liviano (lado mayor 720 px) para guardarlo como evidencia del fichaje.
+// JPEG liviano (lado mayor 480 px, ~25 KB) para guardarlo como evidencia del fichaje.
 export function FichajeSelfieStep({
   submitting,
   confirmLabel,
@@ -76,7 +76,7 @@ export function FichajeSelfieStep({
         setShot({ blob, url: URL.createObjectURL(blob) });
       },
       "image/jpeg",
-      0.72,
+      0.5,
     );
   }
 
