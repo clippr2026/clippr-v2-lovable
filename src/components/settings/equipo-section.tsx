@@ -3439,7 +3439,11 @@ export function EquipoSection() {
                   ["jornadas", "Jornadas"],
                   ["acceso", "Acceso"],
                 ] as const
-              ).map(([id, label]) => {
+              )
+                // Un barbero nuevo todavía no tiene jornadas que mostrar: la pestaña solo
+                // aparece al editar uno que ya existe.
+                .filter(([id]) => id !== "jornadas" || editingEmp)
+                .map(([id, label]) => {
                 const active = dlgTab === id;
                 return (
                   <button
