@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import React, { useMemo, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { AppShell } from "@/components/app-shell";
@@ -414,6 +414,40 @@ function ProfessionalsPage() {
   }, [dayPickerOpen]);
 
   const calendarDays = useMemo(() => buildMonthDays(visibleMonth), [visibleMonth]);
+
+  // Sin perfil de barbero vinculado (y sin ser un acceso Profesional): esta sección es solo para
+  // barberos. Se muestra un aviso en vez del panel.
+  if (!hasOwnPanel && profile?.role !== "profesional") {
+    const isOwnerLike = !profile?.role || profile.role === "owner" || profile.role === "admin_general";
+    const canGoSettings = isOwnerLike || permissions.configuracion === true;
+    return (
+      <AppShell>
+        <Topbar title="Profesionales" subtitle="Solo para barberos" />
+        <div className="mx-auto mt-6 max-w-md rounded-3xl bg-white/[0.04] p-8 text-center ring-1 ring-white/10">
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-violet-400/15 ring-1 ring-violet-300/25">
+            <ClipboardList className="h-7 w-7 text-violet-200" />
+          </div>
+          <h2 className="mt-4 font-display text-lg font-semibold">Esta sección es solo para barberos</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Acá cada barbero ve su agenda, ficha su jornada y consulta sus movimientos.
+          </p>
+          {canGoSettings && (
+            <>
+              <p className="mt-4 text-sm text-muted-foreground">
+                Si vos también atendés clientes, activá <b className="text-foreground">Atiendo clientes</b> en Configuración → Equipo.
+              </p>
+              <Link
+                to="/settings"
+                className="mt-5 inline-flex h-11 items-center justify-center rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 px-5 text-sm font-semibold text-white shadow-lg shadow-sky-500/20"
+              >
+                Ir a Configuración
+              </Link>
+            </>
+          )}
+        </div>
+      </AppShell>
+    );
+  }
 
   if (isLoading) return (
     <AppShell><Topbar title="Profesionales" subtitle="Equipo y rendimiento" />
