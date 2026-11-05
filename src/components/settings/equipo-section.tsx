@@ -885,7 +885,7 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
               ? "bg-[oklch(0.78_0.17_140/0.12)] ring-[oklch(0.78_0.17_140/0.3)] text-[oklch(0.85_0.17_140)]"
               : "bg-white/5 ring-white/10 text-muted-foreground",
           )}
-          title={online ? "Desactivar reservas en línea" : "Activar reservas en línea"}
+          title={online ? "Acepta reservas en línea: tocá para desactivar" : "No acepta reservas en línea: tocá para activar"}
         >
           <span
             className={cn(
@@ -893,7 +893,7 @@ const ProfessionalCard = React.memo(function ProfessionalCard({
               online ? "bg-[oklch(0.78_0.17_140)]" : "bg-muted-foreground",
             )}
           />
-          {online ? "ONLINE" : "OFFLINE"}
+          {online ? "EN LÍNEA" : "SIN RESERVAS"}
         </button>
       </div>
       {access ? (
@@ -2172,7 +2172,7 @@ export function EquipoSection() {
   const toggleOnline = useCallback(
     async (emp: EmployeeRow) => {
       if (!businessId) return;
-      const nextOnline = !(employeeOnlineMap[emp.id] !== false);
+      const nextOnline = !(emp.is_active !== false);
       setEmployeeOnlineMap((current) => ({ ...current, [emp.id]: nextOnline }));
       setRows((current) =>
         current.map((e) => (e.id === emp.id ? { ...e, is_active: nextOnline } : e)),
@@ -3193,7 +3193,7 @@ export function EquipoSection() {
                   emp={emp}
                   tintClass={tintForId(emp.id)}
                   deleting={deletingId === emp.id}
-                  online={employeeOnlineMap[emp.id] !== false}
+                  online={emp.is_active !== false}
                   onEdit={handleEditPro}
                   onToggleOnline={toggleOnline}
                   onRemove={remove}

@@ -316,7 +316,13 @@ async function resolveBusinessId(user: User): Promise<{ businessId: string | nul
     role: teamMember?.role || profile?.role || (meta.role as string | undefined) || "owner",
     email,
     business_id: bizId,
-    employee_id: teamMember?.professional_id ?? profile?.employee_id ?? null,
+    // Para un miembro del equipo, el vínculo con su perfil de barbero sale de su acceso
+    // (team_members.professional_id). El dato de la tabla de perfiles solo se usa como respaldo
+    // para accesos de barbero antiguos y para el dueño sin fila de equipo: en un administrador
+    // puede quedar un valor viejo después de apagar "Atiendo clientes".
+    employee_id: teamMember
+      ? (teamMember.professional_id ?? (teamMember.role === "profesional" ? (profile?.employee_id ?? null) : null))
+      : (profile?.employee_id ?? null),
   };
 
   // Permisos reales del usuario: si es team_member, salen de su fila.
