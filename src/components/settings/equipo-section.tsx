@@ -2361,7 +2361,7 @@ export function EquipoSection() {
       };
       const [futuras, pasados, ventas, comisiones, adelantos, liquidaciones, propinas, asistencia] = await Promise.all([
         count("appointments", "employee_id", (q) => q.gte("starts_at", nowIso).not("status", "in", "(cancelled,blocked)")),
-        count("appointments", "employee_id", (q) => q.lt("starts_at", nowIso)),
+        count("appointments", "employee_id", (q) => q.lt("starts_at", nowIso).not("status", "in", "(cancelled,blocked)")),
         count("payments", "employee_id"),
         count("commission_records", "professional_id"),
         count("professional_advances", "professional_id"),
@@ -2392,33 +2392,19 @@ export function EquipoSection() {
     setConfirmDel(null);
     setDeletingId(emp.id);
 
-    // La FK appointments.employee_id → employees.id impide borrar un profesional
-    // con turnos que lo referencian. Para poder eliminarlo cuando solo tiene
-    // historial, desvinculamos (employee_id = null) sus turnos PASADOS y los
-    // CANCELADOS (cualquier fecha). Los FUTUROS no cancelados NO se tocan: si
-    // existe alguno (p. ej. agendado entre el chequeo y el borrado), la FK
-    // bloquea el delete y el backstop de abajo muestra el mensaje correcto.
-    const nowIso = new Date().toISOString();
-    const detachPast = await supabase
+    // appointments.employee_id es NOT NULL y RESTRICT: no se pueden desvincular
+    // los turnos. Acá solo llegan perfiles sin turnos pasados ni futuros reales,
+    // así que lo único que puede quedar son turnos CANCELADOS y bloqueos de horas
+    // (sin cobros ni historial): se borran junto con el perfil.
+    const clearAppts = await supabase
       .from("appointments")
-      .update({ employee_id: null })
+      .delete()
       .eq("employee_id", emp.id)
-      .lt("starts_at", nowIso);
-    const detachCancelled = await supabase
-      .from("appointments")
-      .update({ employee_id: null })
-      .eq("employee_id", emp.id)
-      .eq("status", "cancelled");
-    const detachBlocked = await supabase
-      .from("appointments")
-      .update({ employee_id: null })
-      .eq("employee_id", emp.id)
-      .eq("status", "blocked");
-    if (detachPast.error || detachCancelled.error || detachBlocked.error) {
+      .in("status", ["cancelled", "blocked"]);
+    if (clearAppts.error) {
       setDeletingId(null);
-      const detail = (detachPast.error ?? detachCancelled.error ?? detachBlocked.error)?.message;
-      console.error("[eliminar perfil] desvincular turnos:", detachPast.error, detachCancelled.error, detachBlocked.error);
-      toast.error(`No se pudo eliminar el profesional. Probá de nuevo.${detail ? ` (${detail})` : ""}`);
+      console.error("[eliminar perfil] limpiar turnos cancelados:", clearAppts.error);
+      toast.error(`No se pudo eliminar el profesional. Probá de nuevo. (${clearAppts.error.message})`);
       return;
     }
 
@@ -4640,7 +4626,7 @@ export function EquipoSection() {
             if (i.adelantos) perdidas.push(`${i.adelantos} adelantos`);
             if (i.liquidaciones) perdidas.push(`${i.liquidaciones} liquidaciones`);
             if (i.propinas) perdidas.push(`${i.propinas} propinas`);
-            const conHistorial = i.ventas + i.comisiones + i.adelantos + i.liquidaciones + i.propinas + i.asistencia > 0;
+            const conHistorial = i.pasados + i.ventas + i.comisiones + i.adelantos + i.liquidaciones + i.propinas + i.asistencia > 0;
             const yaInactivo = i.emp.is_active === false;
             const close = () => setRemoveInfo(null);
             return (
@@ -4667,6 +4653,7 @@ export function EquipoSection() {
                         <b className="text-foreground">{nombre}</b> tiene historial:
                       </p>
                       <ul className="list-disc space-y-0.5 pl-5 text-sm text-muted-foreground">
+                        {i.pasados > 0 && <li>{i.pasados} turnos pasados</li>}
                         {i.ventas > 0 && <li>{i.ventas} ventas</li>}
                         {perdidas.map((t) => (
                           <li key={t}>{t}</li>
@@ -4675,7 +4662,7 @@ export function EquipoSection() {
                       </ul>
                       <p className="rounded-xl bg-rose-400/10 px-3 py-2.5 text-xs text-rose-100 ring-1 ring-rose-300/25">
                         Eliminarlo <b>borraría para siempre</b> sus comisiones, adelantos, liquidaciones y propinas, y sus ventas quedarían
-                        sin su nombre. Por eso no se permite.
+                        sin su nombre, y los turnos no pueden quedar sin barbero. Por eso no se permite.
                       </p>
                       <p className="rounded-xl bg-emerald-400/10 px-3 py-2.5 text-xs text-emerald-100 ring-1 ring-emerald-300/25">
                         <b>Desactivarlo</b> lo saca de la agenda y de las reservas y <b>conserva todo el historial</b>.
@@ -4688,11 +4675,6 @@ export function EquipoSection() {
                         ¿Deseás eliminar el perfil de <b className="text-foreground">{nombre}</b>? Solo se borra el perfil. El resto del
                         historial del negocio (cobros, turnos y caja) no se toca.
                       </p>
-                      {i.pasados > 0 && (
-                        <p className="text-xs text-muted-foreground">
-                          Sus {i.pasados} turnos pasados quedan en la Agenda sin profesional asignado.
-                        </p>
-                      )}
                     </>
                   )}
                   <div className="flex flex-wrap justify-end gap-2">
