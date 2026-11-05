@@ -4680,10 +4680,10 @@ export function EquipoSection() {
                     </>
                   ) : (
                     <>
-                      <div className="text-lg font-semibold">Eliminar profesional</div>
+                      <div className="text-lg font-semibold">Eliminar perfil</div>
                       <p className="text-sm text-muted-foreground">
-                        ¿Deseás eliminar a <b className="text-foreground">{nombre}</b>? No tiene ventas, comisiones ni asistencia: no se
-                        pierde ningún dato.
+                        ¿Deseás eliminar el perfil de <b className="text-foreground">{nombre}</b>? Solo se borra el perfil. El resto del
+                        historial del negocio (cobros, turnos y caja) no se toca.
                       </p>
                       {i.pasados > 0 && (
                         <p className="text-xs text-muted-foreground">
@@ -4733,7 +4733,7 @@ export function EquipoSection() {
         )}
       <ConfirmDialog
         open={!!confirmDel}
-        title="Eliminar profesional"
+        title="Eliminar perfil"
         message={`¿Deseás eliminar a "${confirmDel?.full_name ?? confirmDel?.name}"?`}
         onConfirm={doRemoveEmp}
         onCancel={() => setConfirmDel(null)}
