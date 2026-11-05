@@ -278,25 +278,76 @@ const EMPTY_FORM: NewProForm = {
  * aprobación, Puede agregar turnos, Puede cancelar turnos) para que los
  * cuatro bloques sean visualmente idénticos.
  */
+const TONE_CLS = {
+  violet: "bg-violet-400/15 text-violet-200 ring-violet-300/25",
+  sky: "bg-sky-400/15 text-sky-200 ring-sky-300/25",
+  emerald: "bg-emerald-400/15 text-emerald-200 ring-emerald-300/25",
+  amber: "bg-amber-400/15 text-amber-200 ring-amber-300/25",
+  rose: "bg-rose-400/15 text-rose-200 ring-rose-300/25",
+} as const;
+type Tone = keyof typeof TONE_CLS;
+
 function PermissionToggleRow({
   icon: Icon,
   title,
+  description,
+  tone = "violet",
   on,
   onChange,
 }: {
   icon: React.ComponentType<{ className?: string }>;
   title: string;
+  description?: string;
+  tone?: Tone;
   on: boolean;
   onChange: (v: boolean) => void;
 }) {
   return (
-    <div className="flex items-center gap-2.5 rounded-xl bg-white/[0.025] ring-1 ring-white/10 px-3 py-2">
-      <div className="h-8 w-8 rounded-lg bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
-        <Icon className="h-3.5 w-3.5 text-violet-200" />
+    <div
+      className={cn(
+        "flex items-center gap-3 rounded-xl px-3.5 py-3 ring-1 transition-colors",
+        on ? "bg-white/[0.07] ring-white/20" : "bg-white/[0.03] ring-white/10",
+      )}
+    >
+      <div className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-xl ring-1", TONE_CLS[tone])}>
+        <Icon className="h-4 w-4" />
       </div>
-      <div className="flex-1 min-w-0 text-sm font-medium leading-tight">{title}</div>
+      <div className="min-w-0 flex-1">
+        <div className="text-sm font-semibold leading-tight">{title}</div>
+        {description && <div className="mt-0.5 text-xs leading-snug text-muted-foreground">{description}</div>}
+      </div>
       <Toggle on={on} onChange={onChange} />
     </div>
+  );
+}
+
+// Sección con título e ícono para ordenar el contenido de las pestañas del profesional.
+function DlgSection({
+  title,
+  hint,
+  icon: Icon,
+  tone = "violet",
+  children,
+}: {
+  title: string;
+  hint?: string;
+  icon: React.ComponentType<{ className?: string }>;
+  tone?: Tone;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="space-y-3 rounded-2xl bg-white/[0.04] p-4 ring-1 ring-white/[0.14]">
+      <div className="flex items-center gap-2.5">
+        <div className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg ring-1", TONE_CLS[tone])}>
+          <Icon className="h-4 w-4" />
+        </div>
+        <div className="min-w-0">
+          <div className="text-sm font-semibold leading-tight">{title}</div>
+          {hint && <div className="text-xs text-muted-foreground">{hint}</div>}
+        </div>
+      </div>
+      {children}
+    </section>
   );
 }
 
@@ -326,23 +377,29 @@ function ApprovalModeCard({
   onToggleCanCancelTurno: (v: boolean) => void;
 }) {
   return (
-    <div className="space-y-1.5">
+    <div className="space-y-2">
       <PermissionToggleRow
         icon={CalendarPlus}
+        tone="sky"
         title="Puede agregar turnos desde su panel"
+        description="Puede cargar turnos nuevos en su agenda."
         on={canAddTurno}
         onChange={onToggleCanAddTurno}
       />
       <PermissionToggleRow
         icon={Trash2}
+        tone="rose"
         title="Puede cancelar turnos desde su panel"
+        description="Puede cancelar los turnos de su agenda."
         on={canCancelTurno}
         onChange={onToggleCanCancelTurno}
       />
 
       <PermissionToggleRow
         icon={DollarSign}
+        tone="emerald"
         title="Puede cobrar"
+        description="Puede registrar el cobro de sus servicios."
         on={enabled}
         onChange={onToggleEnabled}
       />
@@ -350,7 +407,9 @@ function ApprovalModeCard({
       {enabled && (
         <PermissionToggleRow
           icon={ShieldCheck}
+          tone="amber"
           title="Exigir aprobación de ventas"
+          description="Sus ventas quedan pendientes hasta que un administrador las apruebe."
           on={mode === "manual"}
           onChange={(v) => onChangeMode(v ? "manual" : "auto")}
         />
@@ -2867,15 +2926,15 @@ export function EquipoSection() {
                   Sin accesos habilitados
                 </div>
               ) : (
-                <div className="space-y-1.5">
+                <div className="flex flex-wrap gap-1.5">
                   {liveAccessLabels.map((item) => (
-                    <div
+                    <span
                       key={item}
-                      className="flex items-center gap-2 text-xs text-white/80"
+                      className="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/15 px-2.5 py-1 text-xs font-medium text-emerald-100 ring-1 ring-emerald-300/25"
                     >
                       <CheckCircle2 className="h-3.5 w-3.5 text-emerald-300" />
                       {item}
-                    </div>
+                    </span>
                   ))}
                 </div>
               )}
@@ -3430,45 +3489,58 @@ export function EquipoSection() {
           >
             {/* Tabs + cerrar — el modal no cambia de tamaño al cambiar de
                 pestaña; solo el contenido de abajo scrollea internamente. */}
-            <div className="flex shrink-0 items-center gap-6 px-5 pt-3 border-b border-white/5">
-              {(
-                [
-                  ["perfil", "Perfil"],
-                  ["horarios", "Horarios"],
-                  ["comisiones", "Comisiones"],
-                  ["jornadas", "Jornadas"],
-                  ["acceso", "Acceso"],
-                ] as const
-              )
-                // Un barbero nuevo todavía no tiene jornadas que mostrar: la pestaña solo
-                // aparece al editar uno que ya existe.
-                .filter(([id]) => id !== "jornadas" || editingEmp)
-                .map(([id, label]) => {
-                const active = dlgTab === id;
-                return (
-                  <button
-                    key={id}
-                    onClick={() => setDlgTab(id)}
-                    className={cn(
-                      "relative py-3 text-sm transition-colors",
-                      active
-                        ? "text-foreground"
-                        : "text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    {label}
-                    {active && (
-                      <span className="absolute inset-x-0 -bottom-px h-0.5 rounded-full bg-gradient-to-r from-sky-400 to-violet-500" />
-                    )}
-                  </button>
-                );
-              })}
-              <button
-                onClick={() => setOpen(false)}
-                className="ml-auto rounded-full p-1.5 ring-1 ring-white/10 hover:bg-white/5 text-muted-foreground"
-              >
-                ✕
-              </button>
+            <div className="shrink-0 space-y-3 border-b border-white/10 bg-gradient-to-b from-white/[0.06] to-transparent px-5 pb-3 pt-4">
+              <div className="flex items-center gap-3">
+                <div className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-gradient-to-br from-sky-400/35 to-violet-500/35 text-sm font-semibold ring-1 ring-white/20">
+                  {(form.fullName[0] || "A").toUpperCase()}
+                </div>
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-base font-semibold">
+                    {editingEmp ? form.fullName || "Editar profesional" : "Nuevo profesional"}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    {editingEmp ? "Perfil, horarios, comisiones y acceso" : "Completá los datos y guardá una sola vez"}
+                  </div>
+                </div>
+                <button
+                  onClick={() => setOpen(false)}
+                  className="rounded-full p-1.5 ring-1 ring-white/15 text-muted-foreground hover:bg-white/5"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="flex gap-1 overflow-x-auto rounded-xl bg-black/30 p-1 ring-1 ring-white/10">
+                {(
+                  [
+                    ["perfil", "Perfil", Pencil],
+                    ["horarios", "Horarios", CalendarPlus],
+                    ["comisiones", "Comisiones", DollarSign],
+                    ["jornadas", "Jornadas", CheckCircle2],
+                    ["acceso", "Acceso", ShieldCheck],
+                  ] as const
+                )
+                  // Un barbero nuevo todavía no tiene jornadas que mostrar: la pestaña solo
+                  // aparece al editar uno que ya existe.
+                  .filter(([id]) => id !== "jornadas" || editingEmp)
+                  .map(([id, label, TabIcon]) => {
+                    const active = dlgTab === id;
+                    return (
+                      <button
+                        key={id}
+                        onClick={() => setDlgTab(id)}
+                        className={cn(
+                          "inline-flex flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-lg px-3 py-2 text-xs font-semibold transition-all",
+                          active
+                            ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white shadow-lg shadow-sky-500/20"
+                            : "text-muted-foreground hover:bg-white/[0.06] hover:text-foreground",
+                        )}
+                      >
+                        <TabIcon className="h-3.5 w-3.5" />
+                        {label}
+                      </button>
+                    );
+                  })}
+              </div>
             </div>
 
             {/* min-h-0: sin esto, este div no se achica más allá de la
@@ -3480,7 +3552,8 @@ export function EquipoSection() {
                 promociones. */}
             <div ref={proModalScrollRef} className="min-h-0 flex-1 overflow-y-auto px-3.5 py-2.5 space-y-4">
               {dlgTab === "perfil" && (
-                <div className="space-y-1.5">
+                <div className="space-y-4">
+                  <DlgSection title="Datos del profesional" hint="Foto, nombre y contacto." icon={UserPlus} tone="sky">
                   <div className="flex items-center gap-3">
                     <label className="group relative h-14 w-14 shrink-0 cursor-pointer rounded-full">
                       <div className="h-14 w-14 rounded-full overflow-hidden grid place-items-center bg-gradient-to-br from-red-400 to-rose-500 text-white font-semibold text-lg ring-1 ring-white/10">
@@ -3578,9 +3651,14 @@ export function EquipoSection() {
                     </Field>
                   )}
 
+                  </DlgSection>
+
+                  <DlgSection title="Reservas y permisos" hint="Qué puede hacer desde su propio panel." icon={ShieldCheck} tone="violet">
                   <PermissionToggleRow
                     icon={Globe}
+                    tone="sky"
                     title="Acepta reservas en línea"
+                    description="Los clientes lo pueden elegir en tu página de reservas."
                     on={form.isActive}
                     onChange={(v) => setForm({ ...form, isActive: v })}
                   />
@@ -3601,23 +3679,35 @@ export function EquipoSection() {
                       setForm({ ...form, canCancelTurno: v })
                     }
                   />
+                  </DlgSection>
                 </div>
               )}
 
               {dlgTab === "horarios" && (
                 <div className="space-y-3">
-                  <p className="text-xs text-muted-foreground">
-                    Días desactivados no recibirán turnos.
-                  </p>
+                  <div className="flex items-start gap-2 rounded-xl bg-sky-400/10 px-3 py-2.5 text-xs text-sky-100 ring-1 ring-sky-300/20">
+                    <CalendarPlus className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" />
+                    <span>Los días desactivados no reciben turnos. Podés sumar un descanso en cada día.</span>
+                  </div>
                   {WEEKDAYS.map(([key, label]) => {
                     const d = form.schedule[key];
                     return (
                       <div
                         key={key}
-                        className="rounded-xl bg-white/5 ring-1 ring-white/10 p-3.5 space-y-3"
+                        className={cn(
+                          "space-y-3 rounded-2xl p-4 ring-1 transition-colors",
+                          d.enabled ? "bg-white/[0.06] ring-white/[0.18]" : "bg-white/[0.02] ring-white/10",
+                        )}
                       >
                         <div className="flex items-center justify-between">
-                          <div className="text-sm font-medium">{label}</div>
+                          <div>
+                            <div className="text-sm font-semibold">{label}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {d.enabled
+                                ? `${d.start} a ${d.end}${d.breakStart && d.breakEnd ? ` · descanso ${d.breakStart}–${d.breakEnd}` : ""}`
+                                : "No atiende este día"}
+                            </div>
+                          </div>
                           <button
                             type="button"
                             role="switch"
@@ -3734,7 +3824,9 @@ export function EquipoSection() {
                 <div className="space-y-4">
                   <PermissionToggleRow
                     icon={DollarSign}
+                    tone="emerald"
                     title="Genera comisiones"
+                    description="Gana un porcentaje de cada servicio que cobra."
                     on={form.commissionsEnabled}
                     onChange={(v) =>
                       setForm({ ...form, commissionsEnabled: v })
@@ -4222,11 +4314,13 @@ export function EquipoSection() {
                 !editingEmp ? (
                   newPersonAccess ? (
                     <div className="space-y-3">
-                      <p className="text-xs text-muted-foreground">
-                        Al guardar se crea el profesional y se envía la invitación por correo.
-                      </p>
+                      <div className="flex items-start gap-2 rounded-xl bg-sky-400/10 px-3 py-2.5 text-xs text-sky-100 ring-1 ring-sky-300/20">
+                        <Mail className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" />
+                        <span>Al guardar se crea el profesional y se envía la invitación por correo.</span>
+                      </div>
                       <Field label="Rol">
-                        <div className={cn(inputCls, "opacity-80")}>
+                        <div className="flex items-center gap-2 rounded-xl bg-violet-400/10 px-3 py-2.5 text-sm font-semibold ring-1 ring-violet-300/25">
+                          <ShieldCheck className="h-4 w-4 text-violet-200" />
                           {newPersonAccess === "profesional" ? "Barbero" : ROLE_LABEL_BY_ID[newPersonAccess]}
                         </div>
                       </Field>
