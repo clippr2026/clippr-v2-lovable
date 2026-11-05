@@ -3555,7 +3555,7 @@ export function EquipoSection() {
         document.body,
       )}
 
-      {pendingDeleteUser && (
+      {pendingDeleteUser && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-[10000] grid place-items-center bg-black/70 backdrop-blur-sm p-4">
           <div className="w-full max-w-md rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden">
             <div className="p-6">
@@ -3600,7 +3600,8 @@ export function EquipoSection() {
               </div>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
 
       {open && typeof document !== "undefined" && createPortal(
