@@ -918,12 +918,10 @@ function AccessPersonCard({
   title,
   access,
   onEdit,
-  onRemove,
 }: {
   title: string;
   access: PersonAccessInfo;
   onEdit?: () => void;
-  onRemove?: () => void;
 }) {
   return (
     <div className="glass rounded-2xl p-4 ring-1 ring-white/5">
@@ -942,16 +940,6 @@ function AccessPersonCard({
             className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg bg-white/5 hover:bg-white/10 ring-1 ring-white/10 px-3 py-1.5 text-xs"
           >
             Editar
-          </button>
-        )}
-        {onRemove && (
-          <button
-            type="button"
-            onClick={onRemove}
-            className="rounded-lg bg-red-500/10 px-2.5 py-1.5 text-red-300 ring-1 ring-red-500/30 hover:bg-red-500/20"
-            title="Quitar acceso"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
           </button>
         )}
       </div>
@@ -3309,7 +3297,6 @@ export function EquipoSection() {
                   // El Admin. General no se edita desde acá: si atiende clientes se edita como
                   // barbero (su tarjeta de barbero); si no, no hay nada que editar.
                   onEdit={user.role === "admin_general" ? undefined : () => editAccessUser(user)}
-                  onRemove={user.id === principalAdminId ? undefined : () => setPendingDeleteUser(user)}
                 />
               ))}
             {rows.filter((emp) => emp.id !== principalBarberRow?.id).map(renderBarberCard)}
@@ -3586,7 +3573,21 @@ export function EquipoSection() {
               </div>
             </div>
 
-            <div className="flex shrink-0 items-center gap-2 px-5 py-4 border-t border-white/5">
+            <div className="flex shrink-0 flex-wrap items-center gap-2 px-5 py-4 border-t border-white/5">
+              {editingAccessUserId && editingAccessUserId !== principalAdminId && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    const target = accessUsers.find((u) => u.id === editingAccessUserId);
+                    if (target) setPendingDeleteUser(target);
+                  }}
+                  disabled={saving}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-red-500/10 px-4 py-2.5 text-sm font-semibold text-red-300 ring-1 ring-red-500/30 hover:bg-red-500/20 disabled:opacity-60"
+                >
+                  <Trash2 className="h-4 w-4" />
+                  Eliminar
+                </button>
+              )}
               <button
                 type="button"
                 onClick={closeAccessModal}
