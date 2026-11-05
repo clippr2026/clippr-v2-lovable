@@ -2673,9 +2673,14 @@ export function EquipoSection() {
       error?.message ?? (data as { error?: string } | null)?.error ?? null;
     if (errMsg) return toast.error("Error eliminando acceso: " + errMsg);
 
+    const removed = accessUsers.find((u) => u.id === id);
     if (selectedAccessUserId === id) setSelectedAccessUserId("");
     if (editingAccessUserId === id) closeAccessModal();
-    toast.success("Acceso eliminado");
+    if (removed?.employee_id && editingEmp?.id === removed.employee_id) {
+      setOpen(false);
+      setEditingEmp(null);
+    }
+    toast.success(removed?.employee_id ? "Acceso quitado. El barbero y su historial se conservan." : "Acceso quitado");
     await loadTeamMembers();
   }
 
@@ -3529,29 +3534,29 @@ export function EquipoSection() {
       )}
 
       {pendingDeleteUser && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-[10000] grid place-items-center bg-black/70 backdrop-blur-sm p-4">
           <div className="w-full max-w-md rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden">
             <div className="p-6">
               <div className="flex items-center gap-3 mb-3">
                 <div className="h-10 w-10 rounded-xl grid place-items-center bg-red-500/15 ring-1 ring-red-500/30">
                   <Trash2 className="h-5 w-5 text-red-300" />
                 </div>
-                <h3 className="text-lg font-semibold">¿Eliminar acceso?</h3>
+                <h3 className="text-lg font-semibold">¿Quitar acceso?</h3>
               </div>
               <p className="text-sm text-muted-foreground mb-3">
-                Esta acción eliminará de{" "}
+                Se quita el acceso de{" "}
                 <span className="text-foreground font-medium">
                   {pendingDeleteUser.name || pendingDeleteUser.email}
                 </span>
-                :
+                : su usuario, sus permisos y su historial de acceso.
               </p>
-              <ul className="text-sm text-muted-foreground space-y-1 mb-4 list-disc pl-5">
-                <li>Usuario</li>
-                <li>Permisos</li>
-                <li>Historial de acceso</li>
-              </ul>
+              {pendingDeleteUser.employee_id && (
+                <p className="text-sm text-emerald-300/90 mb-3">
+                  El perfil de barbero y todo su historial (ventas, comisiones y jornadas) se conservan.
+                </p>
+              )}
               <p className="text-sm text-red-300/90 mb-5">
-                El usuario ya no podrá iniciar sesión.
+                {pendingDeleteUser.email} ya no podrá iniciar sesión.
               </p>
               <div className="flex justify-end gap-2">
                 <button
@@ -3568,7 +3573,7 @@ export function EquipoSection() {
                   disabled={deletingAccess}
                   className="rounded-xl bg-red-500/90 hover:bg-red-500 text-white font-semibold px-4 py-2 text-sm disabled:opacity-60"
                 >
-                  {deletingAccess ? "Eliminando…" : "Eliminar acceso"}
+                  {deletingAccess ? "Quitando…" : "Quitar acceso"}
                 </button>
               </div>
             </div>
@@ -4500,6 +4505,19 @@ export function EquipoSection() {
                               : "Reenviar invitación"}
                           </button>
                         )}
+                      {editingAccessUserId && editingAccessUserId !== principalAdminId && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const target = accessUsers.find((u) => u.id === editingAccessUserId);
+                            if (target) setPendingDeleteUser(target);
+                          }}
+                          className="inline-flex items-center gap-1.5 rounded-xl bg-red-500/10 px-3 py-2.5 text-sm font-semibold text-red-300 ring-1 ring-red-500/30 hover:bg-red-500/20"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Quitar acceso
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={saveProfessionalAccessForm}
