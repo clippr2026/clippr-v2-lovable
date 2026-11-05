@@ -126,7 +126,8 @@ function SetPasswordPage() {
       return;
     }
     // Marca la invitación como aceptada (status → active).
-    await supabase.rpc("accept_team_invitation");
+    const { error: acceptErr } = await supabase.rpc("accept_team_invitation");
+    if (acceptErr) console.warn("[set-password] accept_team_invitation:", acceptErr.message);
     setSaving(false);
     setDone(true);
     setTimeout(() => navigate({ to: "/", replace: true }), 1300);

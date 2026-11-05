@@ -196,6 +196,20 @@ async function resolveBusinessId(user: User): Promise<{ businessId: string | nul
       }
     }
 
+    // Quien inició sesión con este correo ya aceptó la invitación: si el acceso quedó en
+    // "invitado" (por ejemplo, entró por "olvidé mi contraseña" o falló el aviso al crear la
+    // contraseña), se marca "activo". La función solo cambia filas de este mismo correo y nunca
+    // toca un acceso suspendido.
+    if (teamMember && String(teamMember.status ?? "").toLowerCase() === "invited") {
+      try {
+        const { error: acceptErr } = await supabase.rpc("accept_team_invitation");
+        if (acceptErr) console.warn("[AUTH] accept_team_invitation:", acceptErr.message);
+        else teamMember = { ...teamMember, status: "active" };
+      } catch (e) {
+        console.warn("[AUTH] accept_team_invitation:", (e as Error).message);
+      }
+    }
+
     console.log(
       "[link] auth.uid:", uid,
       "| team_member:", teamMember

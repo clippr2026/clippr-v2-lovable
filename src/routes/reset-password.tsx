@@ -114,11 +114,15 @@ function ResetPasswordPage() {
     }
     setSaving(true);
     const { error: updErr } = await supabase.auth.updateUser({ password: pwd });
-    setSaving(false);
     if (updErr) {
+      setSaving(false);
       setError(updErr.message);
       return;
     }
+    // Si la persona tenía una invitación pendiente, restablecer la contraseña también la acepta.
+    const { error: acceptErr } = await supabase.rpc("accept_team_invitation");
+    if (acceptErr) console.warn("[reset-password] accept_team_invitation:", acceptErr.message);
+    setSaving(false);
     setDone(true);
   }
 
