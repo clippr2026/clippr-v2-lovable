@@ -2948,7 +2948,25 @@ export function EquipoSection() {
   // Profesional puestos alrededor) como Profesionales → Editar profesional →
   // Acceso (con rol y profesional ya resueltos, sin esos selectores): un
   // solo formulario, dos lugares que lo muestran.
-  function renderAccessFormCore() {
+  // "Quitar acceso" de un acceso existente: corta el usuario pero conserva el perfil de barbero.
+  function renderQuitarAccesoBtn() {
+    if (!editingAccessUserId || editingAccessUserId === principalAdminId) return null;
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          const target = accessUsers.find((u) => u.id === editingAccessUserId);
+          if (target) setPendingDeleteUser(target);
+        }}
+        className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-red-500/10 px-3 py-2.5 text-xs font-semibold text-red-300 ring-1 ring-red-500/30 hover:bg-red-500/20"
+      >
+        <Trash2 className="h-3.5 w-3.5" />
+        Quitar acceso
+      </button>
+    );
+  }
+
+  function renderAccessFormCore(opts?: { emailAction?: React.ReactNode }) {
     return (
       <>
         <div className="space-y-3 rounded-xl bg-sky-400/[0.06] p-3.5 ring-1 ring-sky-300/20">
@@ -2974,22 +2992,26 @@ export function EquipoSection() {
 
         <div>
           <Field label="Correo electrónico">
-            <input
-              type="email"
-              autoComplete="off"
-              name="clippr-access-email"
-              value={accessForm.email}
-              onChange={(e) =>
-                setAccessForm((f) => ({ ...f, email: e.target.value }))
-              }
-              className={cn(
-                inputCls,
-                accessTouched &&
-                  !accessForm.email.trim() &&
-                  "ring-red-500/70 focus:ring-red-500/70",
-              )}
-              placeholder="ejemplo@correo.com"
-            />
+            <div className="flex items-center gap-2">
+              <input
+                type="email"
+                autoComplete="off"
+                name="clippr-access-email"
+                value={accessForm.email}
+                onChange={(e) =>
+                  setAccessForm((f) => ({ ...f, email: e.target.value }))
+                }
+                className={cn(
+                  inputCls,
+                  "min-w-0 flex-1",
+                  accessTouched &&
+                    !accessForm.email.trim() &&
+                    "ring-red-500/70 focus:ring-red-500/70",
+                )}
+                placeholder="ejemplo@correo.com"
+              />
+              {opts?.emailAction}
+            </div>
           </Field>
           {accessTouched && !accessForm.email.trim() && (
             <div className="text-xs text-red-400 mt-1">Campo requerido</div>
@@ -4487,11 +4509,18 @@ export function EquipoSection() {
                         </Field>
                       </>
                     )}
-                    {renderAccessFormCore()}
-                    <div className="flex flex-wrap items-center gap-2 pt-1">
-                      {editingAccessUserId &&
-                        accessUsers.find((u) => u.id === editingAccessUserId)
-                          ?.status === "invited" && (
+                    {!editingAccessUserId && (
+                      <div className="flex items-start gap-2 rounded-xl bg-violet-400/10 px-3 py-2.5 text-xs leading-relaxed text-violet-100 ring-1 ring-violet-300/20">
+                        <Mail className="mt-0.5 h-4 w-4 shrink-0 text-violet-300" />
+                        <span>
+                          Este profesional todavía no tiene acceso. Cargá su correo y, al <b>guardar</b>, se envía la invitación.
+                        </span>
+                      </div>
+                    )}
+                    {renderAccessFormCore({ emailAction: renderQuitarAccesoBtn() })}
+                    {editingAccessUserId &&
+                      accessUsers.find((u) => u.id === editingAccessUserId)?.status === "invited" && (
+                        <div className="flex flex-wrap items-center gap-2 pt-1">
                           <button
                             type="button"
                             disabled={resendingAccessId === editingAccessUserId}
@@ -4504,40 +4533,15 @@ export function EquipoSection() {
                               ? "Enviando…"
                               : "Reenviar invitación"}
                           </button>
-                        )}
-                      {editingAccessUserId && editingAccessUserId !== principalAdminId && (
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const target = accessUsers.find((u) => u.id === editingAccessUserId);
-                            if (target) setPendingDeleteUser(target);
-                          }}
-                          className="inline-flex items-center gap-1.5 rounded-xl bg-red-500/10 px-3 py-2.5 text-sm font-semibold text-red-300 ring-1 ring-red-500/30 hover:bg-red-500/20"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          Quitar acceso
-                        </button>
+                        </div>
                       )}
-                      <button
-                        type="button"
-                        onClick={saveProfessionalAccessForm}
-                        disabled={saving}
-                        className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 py-2.5 text-sm shadow-lg shadow-sky-500/20 disabled:opacity-60"
-                      >
-                        {saving
-                          ? "Guardando…"
-                          : editingAccessUserId
-                            ? "Guardar cambios"
-                            : "Enviar invitación"}
-                      </button>
-                    </div>
                   </div>
                 )
               )}
             </div>
 
             <div
-              className="flex shrink-0 items-center gap-2 px-5 pt-3 border-t border-white/5"
+              className="flex shrink-0 flex-wrap items-center gap-2 px-5 pt-3 border-t border-white/5"
               style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}
             >
               {editingEmp ? (
@@ -4545,14 +4549,14 @@ export function EquipoSection() {
                   type="button"
                   onClick={() => setConfirmDel(editingEmp)}
                   disabled={saving || deletingId === editingEmp.id}
-                  className="inline-flex items-center justify-center gap-2 rounded-xl bg-transparent px-4 py-2.5 text-sm font-semibold text-red-300 ring-1 ring-red-500/40 transition hover:bg-red-500/10 disabled:opacity-50"
+                  className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-transparent px-4 py-2.5 text-sm font-semibold text-red-300 ring-1 ring-red-500/40 transition hover:bg-red-500/10 disabled:opacity-50 sm:w-auto"
                 >
                   {deletingId === editingEmp.id ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <Trash2 className="h-4 w-4" />
                   )}
-                  Eliminar
+                  Eliminar perfil
                 </button>
               ) : null}
               {/* Guardar usa flex-1 (llena el espacio que sobra) en vez del
