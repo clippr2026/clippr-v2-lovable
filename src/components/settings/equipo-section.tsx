@@ -377,7 +377,15 @@ function OverrideRow({
   );
 }
 
-// Sección con título e ícono para ordenar el contenido de las pestañas del profesional.
+const SECTION_CLS: Record<Tone, { wrap: string; title: string }> = {
+  violet: { wrap: "bg-violet-400/[0.07] ring-violet-300/20", title: "text-violet-200" },
+  sky: { wrap: "bg-sky-400/[0.06] ring-sky-300/20", title: "text-sky-200" },
+  emerald: { wrap: "bg-emerald-400/[0.07] ring-emerald-300/20", title: "text-emerald-200" },
+  amber: { wrap: "bg-amber-400/[0.06] ring-amber-300/20", title: "text-amber-200" },
+  rose: { wrap: "bg-rose-400/[0.06] ring-rose-300/20", title: "text-rose-200" },
+};
+
+// Bloque con fondo de color y título en mayúscula (mismo estilo que los bloques de Comisiones).
 function DlgSection({
   title,
   hint,
@@ -391,16 +399,15 @@ function DlgSection({
   tone?: Tone;
   children: React.ReactNode;
 }) {
+  const cls = SECTION_CLS[tone];
   return (
-    <section className="space-y-3 rounded-2xl bg-white/[0.04] p-4 ring-1 ring-white/[0.14]">
-      <div className="flex items-center gap-2.5">
-        <div className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-lg ring-1", TONE_CLS[tone])}>
-          <Icon className="h-4 w-4" />
+    <section className={cn("space-y-3 rounded-xl p-3.5 ring-1", cls.wrap)}>
+      <div>
+        <div className={cn("flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide", cls.title)}>
+          <Icon className="h-3.5 w-3.5" />
+          {title}
         </div>
-        <div className="min-w-0">
-          <div className="text-sm font-semibold leading-tight">{title}</div>
-          {hint && <div className="text-xs text-muted-foreground">{hint}</div>}
-        </div>
+        {hint && <div className="mt-0.5 text-xs text-muted-foreground">{hint}</div>}
       </div>
       {children}
     </section>
@@ -2906,6 +2913,11 @@ export function EquipoSection() {
   function renderAccessFormCore() {
     return (
       <>
+        <div className="space-y-3 rounded-xl bg-sky-400/[0.06] p-3.5 ring-1 ring-sky-300/20">
+        <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-sky-200">
+          <Mail className="h-3.5 w-3.5" />
+          Datos del acceso
+        </div>
         <Field label="Estado">
           <select
             value={accessForm.status}
@@ -2954,12 +2966,14 @@ export function EquipoSection() {
           </span>
         </div>
 
+        </div>
+
         {/* Vista previa de lo que va a poder ver esta persona con el
             rol/permisos elegidos arriba. */}
-        <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 overflow-hidden">
+        <div className="rounded-xl bg-emerald-400/[0.05] ring-1 ring-emerald-300/20 overflow-hidden">
           <div className="px-4 py-3 border-b border-white/5 flex items-center justify-between gap-3">
             <div>
-              <div className="font-semibold text-sm">Permisos incluidos</div>
+              <div className="text-xs font-bold uppercase tracking-wide text-emerald-200">Permisos incluidos</div>
               <div className="text-xs text-muted-foreground mt-0.5">
                 Según el rol seleccionado: {ROLE_LABEL_BY_ID[accessForm.role]}.
               </div>
@@ -3609,6 +3623,12 @@ export function EquipoSection() {
             <div ref={proModalScrollRef} className="min-h-0 flex-1 overflow-y-auto px-3.5 py-2.5 space-y-4">
               {dlgTab === "perfil" && (
                 <div className="space-y-4">
+                  <div className="flex items-start gap-2 rounded-xl bg-violet-400/10 px-3 py-2.5 text-xs leading-relaxed text-violet-100 ring-1 ring-violet-300/20">
+                    <Pencil className="mt-0.5 h-4 w-4 shrink-0 text-violet-300" />
+                    <span>
+                      Completá los <b>datos</b> del profesional y elegí qué puede hacer desde su propio panel.
+                    </span>
+                  </div>
                   <DlgSection title="Datos del profesional" hint="Foto, nombre y contacto." icon={UserPlus} tone="sky">
                   <div className="flex items-center gap-3">
                     <label className="group relative h-14 w-14 shrink-0 cursor-pointer rounded-full">
@@ -3709,7 +3729,7 @@ export function EquipoSection() {
 
                   </DlgSection>
 
-                  <DlgSection title="Reservas y permisos" hint="Qué puede hacer desde su propio panel." icon={ShieldCheck} tone="violet">
+                  <DlgSection title="Reservas y permisos" hint="Qué puede hacer desde su propio panel." icon={ShieldCheck} tone="emerald">
                   <PermissionToggleRow
                     icon={Globe}
                     tone="sky"
@@ -3740,10 +3760,17 @@ export function EquipoSection() {
               )}
 
               {dlgTab === "horarios" && (
-                <div className="space-y-3">
-                  <div className="flex items-start gap-2 rounded-xl bg-sky-400/10 px-3 py-2.5 text-xs text-sky-100 ring-1 ring-sky-300/20">
-                    <CalendarPlus className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" />
-                    <span>Los días desactivados no reciben turnos. Podés sumar un descanso en cada día.</span>
+                <div className="space-y-4">
+                  <div className="flex items-start gap-2 rounded-xl bg-violet-400/10 px-3 py-2.5 text-xs leading-relaxed text-violet-100 ring-1 ring-violet-300/20">
+                    <CalendarPlus className="mt-0.5 h-4 w-4 shrink-0 text-violet-300" />
+                    <span>
+                      Los días desactivados <b>no reciben turnos</b>. Podés sumar un <b>descanso</b> en cada día.
+                    </span>
+                  </div>
+                  <div className="space-y-3 rounded-2xl bg-white/[0.03] p-4 ring-1 ring-white/10">
+                  <div className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.16em] text-violet-200/85">
+                    <span className="h-3.5 w-1 rounded-full bg-gradient-to-b from-sky-400 to-violet-500" />
+                    Días de trabajo
                   </div>
                   {WEEKDAYS.map(([key, label]) => {
                     const d = form.schedule[key];
@@ -3752,7 +3779,9 @@ export function EquipoSection() {
                         key={key}
                         className={cn(
                           "space-y-3 rounded-2xl p-4 ring-1 transition-colors",
-                          d.enabled ? "bg-white/[0.06] ring-white/[0.18]" : "bg-white/[0.02] ring-white/10",
+                          d.enabled
+                            ? "bg-white/[0.08] ring-white/[0.14] shadow-[0_0_24px_-10px_rgba(139,92,246,0.45)]"
+                            : "bg-white/[0.02] opacity-70 ring-white/5",
                         )}
                       >
                         <div className="flex items-center justify-between">
@@ -3782,8 +3811,8 @@ export function EquipoSection() {
                             />
                           </button>
                         </div>
-                        <div className={cn("space-y-1.5", !d.enabled && "opacity-40")}>
-                          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+                        <div className={cn("space-y-2 rounded-xl bg-sky-400/[0.06] p-3 ring-1 ring-sky-300/20", !d.enabled && "opacity-40")}>
+                          <div className="text-xs font-bold uppercase tracking-wide text-sky-200">
                             Horario
                           </div>
                           <div className="flex items-center gap-2">
@@ -3811,9 +3840,9 @@ export function EquipoSection() {
                           </div>
                         </div>
                         {d.enabled && (
-                          <div className="space-y-1.5 border-t border-white/5 pt-3">
+                          <div className="space-y-2 rounded-xl bg-amber-400/[0.06] p-3 ring-1 ring-amber-300/20">
                             <div className="flex items-center justify-between">
-                              <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+                              <div className="text-xs font-bold uppercase tracking-wide text-amber-200">
                                 Descanso
                               </div>
                               <button
@@ -3873,6 +3902,7 @@ export function EquipoSection() {
                       </div>
                     );
                   })}
+                  </div>
                 </div>
               )}
 
@@ -4349,9 +4379,11 @@ export function EquipoSection() {
                 !editingEmp ? (
                   newPersonAccess ? (
                     <div className="space-y-3">
-                      <div className="flex items-start gap-2 rounded-xl bg-sky-400/10 px-3 py-2.5 text-xs text-sky-100 ring-1 ring-sky-300/20">
-                        <Mail className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" />
-                        <span>Al guardar se crea el profesional y se envía la invitación por correo.</span>
+                      <div className="flex items-start gap-2 rounded-xl bg-violet-400/10 px-3 py-2.5 text-xs leading-relaxed text-violet-100 ring-1 ring-violet-300/20">
+                        <Mail className="mt-0.5 h-4 w-4 shrink-0 text-violet-300" />
+                        <span>
+                          Al guardar se <b>crea el profesional</b> y se <b>envía la invitación</b> por correo.
+                        </span>
                       </div>
                       <Field label="Rol">
                         <div className="flex items-center gap-2 rounded-xl bg-violet-400/10 px-3 py-2.5 text-sm font-semibold ring-1 ring-violet-300/25">
