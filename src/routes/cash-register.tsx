@@ -4742,6 +4742,13 @@ function ProfesionalesTab({
     const id = setInterval(() => setNowClock(new Date()), 60_000);
     return () => clearInterval(id);
   }, []);
+  // El corte "hoy" es nowClock: un adelanto/venta recién registrado tiene
+  // fecha posterior a la última vuelta del reloj y quedaba afuera del
+  // período hasta el siguiente minuto (o hasta recargar). Cada recarga de
+  // datos adelanta el reloj para que lo nuevo entre en el acto.
+  React.useEffect(() => {
+    setNowClock(new Date());
+  }, [commissionsVersion]);
 
   // Corte elegido para "Pagar" — vacío (o == hoy) significa "ahora mismo"
   // (mismo comportamiento de siempre, se recalcula solo con nowClock). Si
