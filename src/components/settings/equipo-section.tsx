@@ -3706,9 +3706,9 @@ export function EquipoSection() {
                     </Field>
                   </div>
 
-                  {/* Solo con más de una sucursal — con una sola no hay
-                      nada que elegir. */}
-                  {branches.length > 1 && (
+                  {/* Un profesional nuevo arranca en la sucursal activa (ya se sabe cuál es);
+                      el selector solo aparece al editar uno existente, por si hay que moverlo. */}
+                  {branches.length > 1 && editingEmp && (
                     <Field label="Sucursal">
                       <select
                         value={form.branchId ?? ""}
