@@ -3926,6 +3926,15 @@ export function EquipoSection() {
                     </p>
                   )}
 
+                  {commTab === "catalogo" && (
+                    <div className="flex items-start gap-2 rounded-xl bg-violet-400/10 px-3 py-2.5 text-xs leading-relaxed text-violet-100 ring-1 ring-violet-300/20">
+                      <DollarSign className="mt-0.5 h-4 w-4 shrink-0 text-violet-300" />
+                      <span>
+                        Activá los <b>productos</b> por los que este profesional gana <b>comisión</b> y elegí cuánto. El precio lo
+                        define el local en Catálogo.
+                      </span>
+                    </div>
+                  )}
                   {commTab === "servicios" && (
                     <div className="flex items-start gap-2 rounded-xl bg-violet-400/10 px-3 py-2.5 text-xs leading-relaxed text-violet-100 ring-1 ring-violet-300/20">
                       <Pencil className="mt-0.5 h-4 w-4 shrink-0 text-violet-300" />
@@ -4272,8 +4281,11 @@ export function EquipoSection() {
                                           ) : (
                                             <>
                                               <div className="flex items-center justify-between gap-3">
-                                                <div className="text-sm font-medium truncate min-w-0">
-                                                  {item.name}
+                                                <div className="min-w-0">
+                                                  <div className="truncate text-sm font-semibold">{item.name}</div>
+                                                  <div className="text-xs text-muted-foreground">
+                                                    {cfg.enabled ? "Gana comisión por este producto" : "Sin comisión"}
+                                                  </div>
                                                 </div>
                                                 <button
                                                   type="button"
@@ -4303,46 +4315,57 @@ export function EquipoSection() {
                                               {cfg.enabled && (() => {
                                                 const standardPriceVal = Number(item.price ?? 0) || 0;
                                                 return (
-                                                  <div className="mt-2.5 space-y-2.5">
+                                                  <div className="mt-3 space-y-3">
                                                     {/* Precio: solo informativo, viene siempre
                                                         de Catálogo — no se edita desde acá. */}
-                                                    <div className="rounded-lg bg-white/[0.035] ring-1 ring-white/10 px-3">
-                                                      <div className="flex items-center justify-between gap-3 py-2.5">
-                                                        <span className="text-xs text-muted-foreground">Precio</span>
-                                                        <span className="text-sm text-muted-foreground">
+                                                    <div className="rounded-xl bg-sky-400/[0.06] px-3 py-2.5 ring-1 ring-sky-300/20">
+                                                      <div className="flex items-center justify-between gap-3">
+                                                        <span className="text-xs font-bold uppercase tracking-wide text-sky-200">
+                                                          Precio del local
+                                                        </span>
+                                                        <span className="text-base font-semibold">
                                                           ${standardPriceVal.toLocaleString("es-AR")}
                                                         </span>
+                                                      </div>
+                                                      <div className="mt-0.5 text-xs text-muted-foreground">
+                                                        Se define en Catálogo y no se cambia desde acá.
                                                       </div>
                                                     </div>
 
                                                     {/* Comisión */}
-                                                    <div className="flex items-center overflow-hidden rounded-lg ring-1 ring-white/10 bg-white/5">
-                                                      <select
-                                                        value={cfg.mode}
-                                                        onChange={(e) =>
-                                                          updateCfg({
-                                                            mode: e.target.value as CommissionMode,
-                                                          })
-                                                        }
-                                                        className="border-r border-white/10 bg-transparent px-2 py-1.5 text-xs focus:outline-none"
-                                                      >
-                                                        <option value="percent">% comisión</option>
-                                                        <option value="fixed">Monto fijo</option>
-                                                      </select>
-                                                      <div className="flex items-center gap-1 px-2 py-1.5">
-                                                        <input
-                                                          type="number"
-                                                          min={0}
-                                                          value={cfg.value}
+                                                    <div className="rounded-xl bg-emerald-400/[0.07] p-3 ring-1 ring-emerald-300/20">
+                                                      <div className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wide text-emerald-200">
+                                                        <DollarSign className="h-3.5 w-3.5" />
+                                                        Su comisión por este producto
+                                                      </div>
+                                                      <div className="mt-2 flex items-center overflow-hidden rounded-lg bg-black/25 ring-1 ring-white/15">
+                                                        <select
+                                                          value={cfg.mode}
                                                           onChange={(e) =>
-                                                            updateCfg({ value: e.target.value })
+                                                            updateCfg({
+                                                              mode: e.target.value as CommissionMode,
+                                                            })
                                                           }
-                                                          className="w-20 bg-transparent text-sm text-right focus:outline-none"
-                                                          placeholder="0"
-                                                        />
-                                                        <span className="text-xs text-muted-foreground">
-                                                          {cfg.mode === "percent" ? "%" : "$"}
-                                                        </span>
+                                                          className="border-r border-white/10 bg-transparent px-2.5 py-2 text-xs font-medium focus:outline-none"
+                                                        >
+                                                          <option value="percent">% comisión</option>
+                                                          <option value="fixed">Monto fijo</option>
+                                                        </select>
+                                                        <div className="flex flex-1 items-center justify-end gap-1 px-3 py-2">
+                                                          <input
+                                                            type="number"
+                                                            min={0}
+                                                            value={cfg.value}
+                                                            onChange={(e) =>
+                                                              updateCfg({ value: e.target.value })
+                                                            }
+                                                            className="w-24 bg-transparent text-right text-base font-semibold focus:outline-none"
+                                                            placeholder="0"
+                                                          />
+                                                          <span className="text-sm text-muted-foreground">
+                                                            {cfg.mode === "percent" ? "%" : "$"}
+                                                          </span>
+                                                        </div>
                                                       </div>
                                                     </div>
                                                   </div>
