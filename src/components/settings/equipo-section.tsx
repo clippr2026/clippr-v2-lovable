@@ -2628,7 +2628,7 @@ export function EquipoSection() {
     }
     // No atiende clientes: solo se completa el acceso.
     openNewAccessModal();
-    setAccessForm((f) => ({ ...f, role: chooserRole }));
+    setAccessForm((f) => ({ ...f, role: chooserRole, branch_id: activeBranchId ?? null }));
     setAccessPermissionsForm(DEFAULT_ROLE_PERMISSIONS[chooserRole]);
     setSelectedPermRole(chooserRole);
   }
@@ -3249,7 +3249,7 @@ export function EquipoSection() {
 
                 {/* Solo con más de una sucursal — con una sola no hay nada
                     que elegir, el campo quedaría ahí sin aportar nada. */}
-                {branches.length > 1 && (
+                {branches.length > 1 && editingAccessUserId && (
                   <Field label="Sucursal">
                     <select
                       value={accessForm.branch_id ?? ""}
@@ -4226,22 +4226,6 @@ export function EquipoSection() {
                           {newPersonAccess === "profesional" ? "Barbero" : ROLE_LABEL_BY_ID[newPersonAccess]}
                         </div>
                       </Field>
-                      {branches.length > 1 && (
-                        <Field label="Sucursal">
-                          <select
-                            value={accessForm.branch_id ?? ""}
-                            onChange={(e) => setAccessForm((f) => ({ ...f, branch_id: e.target.value || null }))}
-                            className={inputCls}
-                          >
-                            <option value="">Sin asignar</option>
-                            {branches.map((b) => (
-                              <option key={b.id} value={b.id}>
-                                {b.name}
-                              </option>
-                            ))}
-                          </select>
-                        </Field>
-                      )}
                       {renderAccessFormCore()}
                     </div>
                   ) : (
@@ -4263,24 +4247,6 @@ export function EquipoSection() {
                         <Field label="Rol">
                           <div className={cn(inputCls, "opacity-80")}>{ROLE_LABEL_BY_ID[accessForm.role]}</div>
                         </Field>
-                        {branches.length > 1 && (
-                          <Field label="Sucursal">
-                            <select
-                              value={accessForm.branch_id ?? ""}
-                              onChange={(e) =>
-                                setAccessForm((f) => ({ ...f, branch_id: e.target.value || null }))
-                              }
-                              className={inputCls}
-                            >
-                              <option value="">Sin asignar</option>
-                              {branches.map((b) => (
-                                <option key={b.id} value={b.id}>
-                                  {b.name}
-                                </option>
-                              ))}
-                            </select>
-                          </Field>
-                        )}
                       </>
                     )}
                     {renderAccessFormCore()}
