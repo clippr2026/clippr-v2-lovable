@@ -960,7 +960,7 @@ function AccessPersonCard({
 }
 
 export function EquipoSection() {
-  const { businessId, activeBranchId, branches } = useAuth();
+  const { businessId, activeBranchId, branches, user: authUser } = useAuth();
   // "Agregar persona": una sola puerta de entrada (barbero, acceso o las dos cosas).
   const [addChooserOpen, setAddChooserOpen] = useState(false);
   // Rol elegido (Barbero = "profesional"). Barbero siempre atiende clientes; en los demás roles
@@ -2386,9 +2386,9 @@ export function EquipoSection() {
     toast.success("Perfil desactivado. Su historial se conserva.");
   }
 
-  async function doRemoveEmp(target?: EmployeeRow) {
+  async function doRemoveEmp(target?: EmployeeRow): Promise<boolean> {
     const emp = target ?? confirmDel;
-    if (!emp) return;
+    if (!emp) return false;
     setConfirmDel(null);
     setDeletingId(emp.id);
 
@@ -2405,7 +2405,7 @@ export function EquipoSection() {
       setDeletingId(null);
       console.error("[eliminar perfil] limpiar turnos cancelados:", clearAppts.error);
       toast.error(`No se pudo eliminar el profesional. Probá de nuevo. (${clearAppts.error.message})`);
-      return;
+      return false;
     }
 
     const { error } = await supabase
@@ -2423,11 +2423,11 @@ export function EquipoSection() {
         toast.error(
           "No se puede eliminar este profesional porque tiene turnos futuros agendados. Podés marcarlo como inactivo.",
         );
-        return;
+        return false;
       }
       console.error("[eliminar perfil] delete employees:", error);
       toast.error(`No se pudo eliminar el profesional. Probá de nuevo. (${error.message})`);
-      return;
+      return false;
     }
     // Borrado quirúrgico por id en el estado local (sin recargar la página ni
     // re-fetchear toda la lista). Solo desaparece exactamente este profesional.
@@ -2438,6 +2438,7 @@ export function EquipoSection() {
     }
     setDeletingId(null);
     toast.success("Profesional eliminado.");
+    return true;
   }
 
   function setDay(key: DayKey, patch: Partial<DaySchedule>) {
@@ -2691,7 +2692,7 @@ export function EquipoSection() {
     cancelEditAccessUser();
   }
 
-  async function removeAccessUser(id: string) {
+  async function removeAccessUser(id: string, profileDeleted = false) {
     if (!businessId) return;
     if (id === principalAdminId) {
       setPendingDeleteUser(null);
@@ -2723,7 +2724,13 @@ export function EquipoSection() {
       setOpen(false);
       setEditingEmp(null);
     }
-    toast.success(removed?.employee_id ? "Acceso quitado. El barbero y su historial se conservan." : "Acceso quitado");
+    toast.success(
+      profileDeleted
+        ? "Perfil y acceso eliminados."
+        : removed?.employee_id
+          ? "Acceso quitado. El barbero y su historial se conservan."
+          : "Acceso quitado",
+    );
     await loadTeamMembers();
   }
 
@@ -4628,6 +4635,11 @@ export function EquipoSection() {
             if (i.propinas) perdidas.push(`${i.propinas} propinas`);
             const conHistorial = i.pasados + i.ventas + i.comisiones + i.adelantos + i.liquidaciones + i.propinas + i.asistencia > 0;
             const yaInactivo = i.emp.is_active === false;
+            const linkedAcc = accessByEmployeeId.get(i.emp.id);
+            // El acceso se va junto con el perfil, salvo el del administrador
+            // principal o el de quien está usando la sesión (no se puede borrar).
+            const borraAcceso =
+              !!linkedAcc && linkedAcc.id !== principalAdminId && (!linkedAcc.auth_user_id || linkedAcc.auth_user_id !== authUser?.id);
             const close = () => setRemoveInfo(null);
             return (
               <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={close}>
@@ -4675,6 +4687,19 @@ export function EquipoSection() {
                         ¿Deseás eliminar el perfil de <b className="text-foreground">{nombre}</b>? Solo se borra el perfil. El resto del
                         historial del negocio (cobros, turnos y caja) no se toca.
                       </p>
+                      {linkedAcc && (
+                        <p className="rounded-xl bg-sky-400/10 px-3 py-2.5 text-xs text-sky-100 ring-1 ring-sky-300/20">
+                          {borraAcceso ? (
+                            <>
+                              También se elimina su cuenta de acceso (<b>{linkedAcc.email}</b>): ya no podrá iniciar sesión.
+                            </>
+                          ) : (
+                            <>
+                              Su acceso a Clippr ({linkedAcc.email}) <b>se conserva</b>: es el administrador principal o tu propia cuenta.
+                            </>
+                          )}
+                        </p>
+                      )}
                     </>
                   )}
                   <div className="flex flex-wrap justify-end gap-2">
@@ -4699,7 +4724,10 @@ export function EquipoSection() {
                         type="button"
                         onClick={() => {
                           setRemoveInfo(null);
-                          void doRemoveEmp(i.emp);
+                          void (async () => {
+                            if (!(await doRemoveEmp(i.emp))) return;
+                            if (borraAcceso && linkedAcc) await removeAccessUser(linkedAcc.id, true);
+                          })();
                         }}
                         className="rounded-xl bg-red-500/90 px-4 py-2 text-sm font-semibold text-white hover:bg-red-500"
                       >
