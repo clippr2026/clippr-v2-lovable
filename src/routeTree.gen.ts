@@ -30,6 +30,7 @@ import { Route as ResetPasswordRouteImport } from './routes/reset-password'
 import { Route as ServicesRouteImport } from './routes/services'
 import { Route as SetPasswordRouteImport } from './routes/set-password'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as ApiCleanupFichajeSelfiesRouteImport } from './routes/api/cleanup-fichaje-selfies'
 import { Route as ApiCleanupReceiptsRouteImport } from './routes/api/cleanup-receipts'
 import { Route as ApiVersionRouteImport } from './routes/api/version'
 import { Route as FichajeKioscoBranchIdRouteImport } from './routes/fichaje-kiosco/$branchId'
@@ -143,6 +144,12 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiCleanupFichajeSelfiesRoute =
+  ApiCleanupFichajeSelfiesRouteImport.update({
+    id: '/api/cleanup-fichaje-selfies',
+    path: '/api/cleanup-fichaje-selfies',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const ApiCleanupReceiptsRoute = ApiCleanupReceiptsRouteImport.update({
   id: '/api/cleanup-receipts',
   path: '/api/cleanup-receipts',
@@ -196,6 +203,7 @@ export interface FileRoutesByFullPath {
   '/services': typeof ServicesRoute
   '/set-password': typeof SetPasswordRoute
   '/settings': typeof SettingsRoute
+  '/api/cleanup-fichaje-selfies': typeof ApiCleanupFichajeSelfiesRoute
   '/api/cleanup-receipts': typeof ApiCleanupReceiptsRoute
   '/api/version': typeof ApiVersionRoute
   '/fichaje-kiosco/$branchId': typeof FichajeKioscoBranchIdRoute
@@ -225,6 +233,7 @@ export interface FileRoutesByTo {
   '/services': typeof ServicesRoute
   '/set-password': typeof SetPasswordRoute
   '/settings': typeof SettingsRoute
+  '/api/cleanup-fichaje-selfies': typeof ApiCleanupFichajeSelfiesRoute
   '/api/cleanup-receipts': typeof ApiCleanupReceiptsRoute
   '/api/version': typeof ApiVersionRoute
   '/fichaje-kiosco/$branchId': typeof FichajeKioscoBranchIdRoute
@@ -255,6 +264,7 @@ export interface FileRoutesById {
   '/services': typeof ServicesRoute
   '/set-password': typeof SetPasswordRoute
   '/settings': typeof SettingsRoute
+  '/api/cleanup-fichaje-selfies': typeof ApiCleanupFichajeSelfiesRoute
   '/api/cleanup-receipts': typeof ApiCleanupReceiptsRoute
   '/api/version': typeof ApiVersionRoute
   '/fichaje-kiosco/$branchId': typeof FichajeKioscoBranchIdRoute
@@ -286,6 +296,7 @@ export interface FileRouteTypes {
     | '/services'
     | '/set-password'
     | '/settings'
+    | '/api/cleanup-fichaje-selfies'
     | '/api/cleanup-receipts'
     | '/api/version'
     | '/fichaje-kiosco/$branchId'
@@ -315,6 +326,7 @@ export interface FileRouteTypes {
     | '/services'
     | '/set-password'
     | '/settings'
+    | '/api/cleanup-fichaje-selfies'
     | '/api/cleanup-receipts'
     | '/api/version'
     | '/fichaje-kiosco/$branchId'
@@ -344,6 +356,7 @@ export interface FileRouteTypes {
     | '/services'
     | '/set-password'
     | '/settings'
+    | '/api/cleanup-fichaje-selfies'
     | '/api/cleanup-receipts'
     | '/api/version'
     | '/fichaje-kiosco/$branchId'
@@ -374,6 +387,7 @@ export interface RootRouteChildren {
   ServicesRoute: typeof ServicesRoute
   SetPasswordRoute: typeof SetPasswordRoute
   SettingsRoute: typeof SettingsRoute
+  ApiCleanupFichajeSelfiesRoute: typeof ApiCleanupFichajeSelfiesRoute
   ApiCleanupReceiptsRoute: typeof ApiCleanupReceiptsRoute
   ApiVersionRoute: typeof ApiVersionRoute
   FichajeKioscoBranchIdRoute: typeof FichajeKioscoBranchIdRoute
@@ -531,6 +545,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/cleanup-fichaje-selfies': {
+      id: '/api/cleanup-fichaje-selfies'
+      path: '/api/cleanup-fichaje-selfies'
+      fullPath: '/api/cleanup-fichaje-selfies'
+      preLoaderRoute: typeof ApiCleanupFichajeSelfiesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/cleanup-receipts': {
       id: '/api/cleanup-receipts'
       path: '/api/cleanup-receipts'
@@ -599,6 +620,7 @@ const rootRouteChildren: RootRouteChildren = {
   ServicesRoute: ServicesRoute,
   SetPasswordRoute: SetPasswordRoute,
   SettingsRoute: SettingsRoute,
+  ApiCleanupFichajeSelfiesRoute: ApiCleanupFichajeSelfiesRoute,
   ApiCleanupReceiptsRoute: ApiCleanupReceiptsRoute,
   ApiVersionRoute: ApiVersionRoute,
   FichajeKioscoBranchIdRoute: FichajeKioscoBranchIdRoute,

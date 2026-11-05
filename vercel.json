@@ -1,5 +1,6 @@
 {
   "crons": [
-    { "path": "/api/cleanup-receipts", "schedule": "0 4 * * *" }
+    { "path": "/api/cleanup-receipts", "schedule": "0 4 * * *" },
+    { "path": "/api/cleanup-fichaje-selfies", "schedule": "30 4 * * *" }
   ]
 }
