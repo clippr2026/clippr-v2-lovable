@@ -2416,7 +2416,9 @@ export function EquipoSection() {
       .eq("status", "blocked");
     if (detachPast.error || detachCancelled.error || detachBlocked.error) {
       setDeletingId(null);
-      toast.error("No se pudo eliminar el profesional. Probá de nuevo.");
+      const detail = (detachPast.error ?? detachCancelled.error ?? detachBlocked.error)?.message;
+      console.error("[eliminar perfil] desvincular turnos:", detachPast.error, detachCancelled.error, detachBlocked.error);
+      toast.error(`No se pudo eliminar el profesional. Probá de nuevo.${detail ? ` (${detail})` : ""}`);
       return;
     }
 
@@ -2437,7 +2439,8 @@ export function EquipoSection() {
         );
         return;
       }
-      toast.error("No se pudo eliminar el profesional. Probá de nuevo.");
+      console.error("[eliminar perfil] delete employees:", error);
+      toast.error(`No se pudo eliminar el profesional. Probá de nuevo. (${error.message})`);
       return;
     }
     // Borrado quirúrgico por id en el estado local (sin recargar la página ni
