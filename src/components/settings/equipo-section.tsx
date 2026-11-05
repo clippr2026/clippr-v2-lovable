@@ -2450,7 +2450,7 @@ export function EquipoSection() {
     const fallbackName =
       accessForm.role === "profesional" || selectedEmployee
         ? selectedEmployee?.full_name || selectedEmployee?.name || ""
-        : ROLE_LABEL_BY_ID[accessForm.role];
+        : accessForm.name.trim() || ROLE_LABEL_BY_ID[accessForm.role];
     const name = fallbackName.trim();
     const email = accessForm.email.trim();
 
@@ -2582,7 +2582,7 @@ export function EquipoSection() {
     setEditingAccessUserId(user.id);
     setJornadaRecepcionForm(jornadaMap[jornadaEmailKey(user.email)] === true);
     setAccessForm({
-      name: user.name,
+      name: user.name === ROLE_LABEL_BY_ID[user.role] ? "" : user.name,
       email: user.email,
       role: user.role,
       status: user.status === "suspended" ? "inactive" : "active",
@@ -3177,7 +3177,7 @@ export function EquipoSection() {
               .map((user) => (
                 <AccessPersonCard
                   key={user.id}
-                  title={user.role === "profesional" ? user.name || ROLE_LABEL_BY_ID[user.role] : ROLE_LABEL_BY_ID[user.role]}
+                  title={user.name && user.name !== ROLE_LABEL_BY_ID[user.role] ? user.name : ROLE_LABEL_BY_ID[user.role]}
                   access={accessInfoFor(user, false)}
                   // El Admin. General no se edita desde acá: si atiende clientes se edita como
                   // barbero (su tarjeta de barbero); si no, no hay nada que editar.
@@ -3381,6 +3381,18 @@ export function EquipoSection() {
                     ))}
                   </select>
                 </Field>
+
+                {accessForm.role !== "profesional" && (
+                  <Field label="Nombre">
+                    <input
+                      value={accessForm.name}
+                      onChange={(e) => setAccessForm((f) => ({ ...f, name: e.target.value }))}
+                      className={inputCls}
+                      placeholder="Ej: María Pérez"
+                      autoComplete="off"
+                    />
+                  </Field>
+                )}
 
                 {/* Solo con más de una sucursal — con una sola no hay nada
                     que elegir, el campo quedaría ahí sin aportar nada. */}
