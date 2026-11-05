@@ -637,7 +637,7 @@ function MobileBottomNavSkeleton() {
 export function useMobileNavItems() {
   const { permissions, profile, loading } = useAuth();
   const isOwner = !profile?.role || profile.role === "owner" || profile.role === "admin_general";
-  const isProfessional = profile?.role === "profesional";
+  const isProfessional = profile?.role === "profesional" || !!profile?.employee_id;
 
   const order =
     profile?.role === "profesional"
@@ -759,7 +759,7 @@ function MobileSectionBanner() {
   if (loading || !hasBottomNav) return null;
 
   const isOwner = !profile?.role || profile.role === "owner" || profile.role === "admin_general";
-  const isProfessional = profile?.role === "profesional";
+  const isProfessional = profile?.role === "profesional" || !!profile?.employee_id;
   const current = ALL_NAV.find((item) => item.to === pathname);
   if (!current || (!isOwner && current.permKey && permissions[current.permKey] !== true)) return null;
 

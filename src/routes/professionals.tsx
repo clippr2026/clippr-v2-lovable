@@ -232,8 +232,11 @@ function ProfessionalsPage() {
 
 
   const profileEmployeeId = (profile as { employee_id?: string | null } | null)?.employee_id ?? null;
-  const isProfessional = profile?.role === "profesional";
-  const isProfessionalAccess = isProfessional && !!profileEmployeeId;
+  // Quien tiene un perfil de barbero vinculado (barbero, o un administrador que atiende clientes)
+  // ve SOLO su propio panel, nunca la lista completa.
+  const hasOwnPanel = !!profileEmployeeId;
+  const isProfessional = profile?.role === "profesional" || hasOwnPanel;
+  const isProfessionalAccess = isProfessional && hasOwnPanel;
 
   const ownProfessional = useMemo(() => {
     if (!isProfessionalAccess || !profileEmployeeId) return null;
@@ -293,8 +296,10 @@ function ProfessionalsPage() {
   // Un admin/recepción viendo esta pantalla siempre puede agregar/cancelar
   // turnos; un profesional viendo la suya solo si tiene el switch activado
   // en Equipo (por profesional, no por rol de login).
-  const canAddTurno = canOperateSelectedPanel && (!isProfessionalAccess || (!!empId && employeeCanAddTurnoMap[empId] === true));
-  const canDeleteTurno = canOperateSelectedPanel && (!isProfessionalAccess || (!!empId && employeeCanCancelTurnoMap[empId] === true));
+  // Un administrador con perfil de barbero conserva sus permisos de administrador.
+  const isRoleProfessional = profile?.role === "profesional";
+  const canAddTurno = canOperateSelectedPanel && (!isProfessionalAccess || !isRoleProfessional || (!!empId && employeeCanAddTurnoMap[empId] === true));
+  const canDeleteTurno = canOperateSelectedPanel && (!isProfessionalAccess || !isRoleProfessional || (!!empId && employeeCanCancelTurnoMap[empId] === true));
   useEffect(() => {
     if (isProfessionalAccess && ownProfessional?.id && activeId !== ownProfessional.id) {
       setActiveId(ownProfessional.id);

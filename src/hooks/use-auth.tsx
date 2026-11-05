@@ -445,6 +445,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     };
   }, [isProfessionalRole, professionalEmployeeId, branches]);
 
+  // Cuando se vincula o desvincula el usuario actual de un perfil de barbero (Equipo →
+  // "Atiendo clientes"), se vuelve a leer su perfil para que el menú y el panel se actualicen al
+  // instante, sin recargar la página.
+  React.useEffect(() => {
+    const handler = async () => {
+      const s = sessionRef.current;
+      if (!s?.user) return;
+      try {
+        const { profile: prof, teamPermissions: tp } = await resolveBusinessId(s.user);
+        setProfile(prof);
+        setTeamPermissions(tp);
+      } catch (e) {
+        console.warn("[AUTH] refresh de vínculo:", (e as Error).message);
+      }
+    };
+    window.addEventListener("clippr:profile-link-updated", handler);
+    return () => window.removeEventListener("clippr:profile-link-updated", handler);
+  }, []);
+
   const hydrate = React.useCallback(async (s: Session | null) => {
     setSession(s);
     if (s?.user) {

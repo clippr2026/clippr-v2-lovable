@@ -2718,6 +2718,8 @@ export function EquipoSection() {
       return false;
     }
     await loadTeamMembers();
+    // Si es el usuario actual, se refresca su perfil para que aparezca/desaparezca "Profesionales".
+    window.dispatchEvent(new Event("clippr:profile-link-updated"));
     toast.success(employeeId ? "Listo: ahora atendés clientes." : "Dejaste de atender clientes. Tu perfil de barbero se conserva.");
     return true;
   }
