@@ -16,6 +16,7 @@ import { Link } from "@tanstack/react-router";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth, type Branch } from "@/hooks/use-auth";
 import { SectionCard, Field, inputCls, reportSaveStatus, ConfirmDialog, Toggle } from "@/components/settings/shared";
+import { SucursalUbicacionCard } from "@/components/settings/sucursal-ubicacion-card";
 import { getHiddenPublicBranchIds, setBranchPublicVisible } from "@/lib/public-branches";
 import { toast } from "sonner";
 
@@ -406,6 +407,8 @@ export function SucursalesSection() {
           <div className="space-y-2">{activeBranches.map(renderBranch)}</div>
         )}
       </SectionCard>
+
+      <SucursalUbicacionCard businessId={businessId} branches={activeBranches} />
 
       {archivedBranches.length > 0 && (
         <SectionCard label="Archivadas">

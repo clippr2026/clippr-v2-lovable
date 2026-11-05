@@ -8,10 +8,27 @@ import {
   validateDailyCode,
   clockIn,
   clockOut,
+  distanceMeters,
+  getCurrentCoords,
+  uploadFichajeSelfie,
+  ficharConEvidencia,
+  type FichajeCoords,
+  type FichajeMethod,
 } from "@/lib/fichaje";
-import { Camera, Keyboard, X, CheckCircle2, Loader2 } from "lucide-react";
+import { supabase } from "@/integrations/supabase/client";
+import { FichajeSelfieStep } from "@/components/professionals/fichaje-selfie-step";
+import { Camera, Keyboard, MapPin, X, CheckCircle2, Loader2 } from "lucide-react";
 
-type FlowStep = "choose" | "scan" | "code" | "done";
+type FlowStep = "choose" | "scan" | "code" | "selfie" | "done";
+
+// Presencia ya comprobada (QR/código del día o ubicación dentro del radio) a la
+// espera de la selfie, que es lo último antes de guardar el fichaje.
+type PendingFichaje = {
+  method: FichajeMethod;
+  branchId: string;
+  code: string | null;
+  coords: FichajeCoords | null;
+};
 
 function horaCorta(iso: string) {
   return new Date(iso).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
@@ -39,11 +56,15 @@ function parseFichajeUrl(raw: string): { branchId: string; code: string } | null
 // corresponda a la sucursal activa antes de registrar nada (si
 // activeBranchId es null — negocio sin sucursales configuradas — no
 // bloquea, mismo criterio "filtro aditivo" que el resto de la app).
+// Fichando uno mismo (onBehalf = false) se exige selfie + (QR o ubicación);
+// fichando en nombre de un barbero desde la vista admin (onBehalf = true)
+// queda como siempre, solo QR/código.
 export function FichajeFlowModal({
   businessId,
   employeeId,
   activeBranchId,
   hasOpenSession,
+  onBehalf = false,
   onClose,
   onDone,
 }: {
@@ -51,11 +72,14 @@ export function FichajeFlowModal({
   employeeId: string;
   activeBranchId: string | null;
   hasOpenSession: boolean;
+  onBehalf?: boolean;
   onClose: () => void;
   onDone: () => void;
 }) {
   const [step, setStep] = React.useState<FlowStep>("choose");
   const [submitting, setSubmitting] = React.useState(false);
+  const [pending, setPending] = React.useState<PendingFichaje | null>(null);
+  const [locating, setLocating] = React.useState(false);
   const [result, setResult] = React.useState<{ kind: "in" | "out"; time: string } | null>(null);
 
   // Bloqueo de scroll de fondo mientras el modal está abierto — antes no
@@ -84,6 +108,13 @@ export function FichajeFlowModal({
         setSubmitting(false);
         return;
       }
+      if (!onBehalf) {
+        // Código válido: falta la selfie, que es lo último antes de guardar.
+        setPending({ method: "qr", branchId, code, coords: null });
+        setStep("selfie");
+        setSubmitting(false);
+        return;
+      }
       if (hasOpenSession) {
         const session = await getOpenWorkSession(employeeId);
         if (!session) throw new Error("No se encontró la jornada abierta.");
@@ -93,6 +124,70 @@ export function FichajeFlowModal({
         await clockIn({ businessId, branchId, employeeId });
         setResult({ kind: "in", time: horaCorta(new Date().toISOString()) });
       }
+      setStep("done");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function startLocation() {
+    if (!businessId || locating) return;
+    if (!activeBranchId) {
+      toast.error("No hay una sucursal activa para fichar.");
+      return;
+    }
+    setLocating(true);
+    try {
+      const { data: branch, error } = await supabase
+        .from("branches" as any)
+        .select("latitude,longitude,checkin_radius_m")
+        .eq("id", activeBranchId)
+        .maybeSingle();
+      if (error) throw new Error("No se pudo leer la ubicación de la sucursal.");
+      const b = branch as { latitude: number | null; longitude: number | null; checkin_radius_m: number | null } | null;
+      if (b?.latitude == null || b?.longitude == null) {
+        toast.error("Esta sucursal todavía no tiene su ubicación cargada. Usá el QR o pedile al administrador que la configure.");
+        return;
+      }
+      const coords = await getCurrentCoords();
+      if (coords.accuracyM > 150) {
+        toast.error("Tu ubicación es muy imprecisa. Probá afuera o usá el QR.");
+        return;
+      }
+      const radius = b.checkin_radius_m ?? 150;
+      const dist = distanceMeters(coords, { lat: b.latitude, lng: b.longitude });
+      if (dist > radius) {
+        toast.error(`Tenés que estar en el local para fichar. Estás a ${Math.round(dist)} m.`);
+        return;
+      }
+      setPending({ method: "location", branchId: activeBranchId, code: null, coords });
+      setStep("selfie");
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      setLocating(false);
+    }
+  }
+
+  async function submitSelfie(blob: Blob) {
+    if (!businessId || !pending || submitting) return;
+    setSubmitting(true);
+    try {
+      const action = hasOpenSession ? "out" : "in";
+      const selfiePath = await uploadFichajeSelfie({ businessId, employeeId, kind: action, blob });
+      await ficharConEvidencia({
+        action,
+        businessId,
+        branchId: pending.branchId,
+        employeeId,
+        method: pending.method,
+        code: pending.code,
+        coords: pending.coords,
+        selfiePath,
+      });
+      setResult({ kind: action, time: horaCorta(new Date().toISOString()) });
       setStep("done");
     } catch (e) {
       toast.error((e as Error).message);
@@ -146,7 +241,42 @@ export function FichajeFlowModal({
                 <div className="text-xs text-muted-foreground">Escribí el código de 6 caracteres de Inicio</div>
               </div>
             </button>
+            {!onBehalf && (
+              <button
+                type="button"
+                disabled={locating}
+                onClick={() => void startLocation()}
+                className="flex w-full items-center gap-3 rounded-xl bg-white/5 px-4 py-3.5 text-left ring-1 ring-white/10 transition hover:bg-white/10 disabled:opacity-60"
+              >
+                {locating ? (
+                  <Loader2 className="h-5 w-5 shrink-0 animate-spin text-emerald-300" />
+                ) : (
+                  <MapPin className="h-5 w-5 shrink-0 text-emerald-300" />
+                )}
+                <div>
+                  <div className="text-sm font-semibold text-foreground">Usar mi ubicación</div>
+                  <div className="text-xs text-muted-foreground">Tenés que estar en el local</div>
+                </div>
+              </button>
+            )}
+            {!onBehalf && (
+              <p className="px-1 pt-1 text-center text-xs text-muted-foreground">
+                En los dos casos se pide una selfie para confirmar.
+              </p>
+            )}
           </div>
+        )}
+
+        {step === "selfie" && pending && (
+          <FichajeSelfieStep
+            submitting={submitting}
+            confirmLabel={hasOpenSession ? "Fichar salida" : "Fichar entrada"}
+            onConfirm={(blob) => void submitSelfie(blob)}
+            onBack={() => {
+              setPending(null);
+              setStep("choose");
+            }}
+          />
         )}
 
         {step === "scan" && (

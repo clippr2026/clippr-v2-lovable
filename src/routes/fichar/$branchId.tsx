@@ -7,10 +7,11 @@ import { supabase } from "@/integrations/supabase/client";
 import {
   validateDailyCode,
   getOpenWorkSession,
-  clockIn,
-  clockOut,
+  uploadFichajeSelfie,
+  ficharConEvidencia,
   type WorkSession,
 } from "@/lib/fichaje";
+import { FichajeSelfieStep } from "@/components/professionals/fichaje-selfie-step";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 import { CheckCircle2, LogIn, LogOut, Building2 } from "lucide-react";
 
@@ -46,6 +47,8 @@ function FicharPage() {
   const [loading, setLoading] = React.useState(true);
   const [submitting, setSubmitting] = React.useState(false);
   const [done, setDone] = React.useState<"in" | "out" | null>(null);
+  // Acción a confirmar con selfie (entrada o salida).
+  const [selfieFor, setSelfieFor] = React.useState<"in" | "out" | null>(null);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -71,27 +74,23 @@ function FicharPage() {
     };
   }, [businessId, employeeId, branchId, code]);
 
-  async function handleClockIn() {
-    if (!businessId || !employeeId) return;
+  async function handleSelfie(blob: Blob) {
+    if (!businessId || !employeeId || !selfieFor || !code) return;
     setSubmitting(true);
     try {
-      await clockIn({ businessId, branchId, employeeId });
-      setDone("in");
-      toast.success("Entrada registrada");
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setSubmitting(false);
-    }
-  }
-
-  async function handleClockOut() {
-    if (!openSession) return;
-    setSubmitting(true);
-    try {
-      await clockOut(openSession.id);
-      setDone("out");
-      toast.success("Salida registrada");
+      const selfiePath = await uploadFichajeSelfie({ businessId, employeeId, kind: selfieFor, blob });
+      await ficharConEvidencia({
+        action: selfieFor,
+        businessId,
+        branchId,
+        employeeId,
+        method: "qr",
+        code,
+        selfiePath,
+      });
+      setDone(selfieFor);
+      setSelfieFor(null);
+      toast.success(selfieFor === "in" ? "Entrada registrada" : "Salida registrada");
     } catch (e) {
       toast.error((e as Error).message);
     } finally {
@@ -123,6 +122,13 @@ function FicharPage() {
               </div>
               <p className="text-sm text-muted-foreground">Ya podés cerrar esta pantalla.</p>
             </div>
+          ) : selfieFor ? (
+            <FichajeSelfieStep
+              submitting={submitting}
+              confirmLabel={selfieFor === "in" ? "Fichar entrada" : "Fichar salida"}
+              onConfirm={(blob) => void handleSelfie(blob)}
+              onBack={() => setSelfieFor(null)}
+            />
           ) : (
             <div className="flex flex-col items-center gap-4">
               <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
@@ -136,19 +142,19 @@ function FicharPage() {
                 <button
                   type="button"
                   disabled={submitting}
-                  onClick={handleClockOut}
+                  onClick={() => setSelfieFor("out")}
                   className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-rose-500 to-rose-600 py-3.5 text-sm font-semibold text-white disabled:opacity-50"
                 >
-                  <LogOut className="h-4 w-4" /> {submitting ? "Guardando…" : "Fichar salida"}
+                  <LogOut className="h-4 w-4" /> Fichar salida
                 </button>
               ) : (
                 <button
                   type="button"
                   disabled={submitting}
-                  onClick={handleClockIn}
+                  onClick={() => setSelfieFor("in")}
                   className="flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-emerald-500 to-emerald-600 py-3.5 text-sm font-semibold text-white disabled:opacity-50"
                 >
-                  <LogIn className="h-4 w-4" /> {submitting ? "Guardando…" : "Fichar entrada"}
+                  <LogIn className="h-4 w-4" /> Fichar entrada
                 </button>
               )}
             </div>

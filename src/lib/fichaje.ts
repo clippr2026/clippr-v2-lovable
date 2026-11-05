@@ -30,6 +30,16 @@ export type WorkSession = {
   edit_reason: string | null;
   original_clock_in_at: string | null;
   original_clock_out_at: string | null;
+  // Evidencia del fichaje (selfie + QR/ubicación) — null en jornadas anteriores
+  // a esa función o cargadas por un administrador.
+  clock_in_method?: "qr" | "location" | "admin" | null;
+  clock_out_method?: "qr" | "location" | "admin" | null;
+  clock_in_selfie_path?: string | null;
+  clock_out_selfie_path?: string | null;
+  clock_in_lat?: number | null;
+  clock_in_lng?: number | null;
+  clock_out_lat?: number | null;
+  clock_out_lng?: number | null;
 };
 
 function todayKey(date = new Date()) {
@@ -123,6 +133,12 @@ export type FichajeHoyPersona = {
   clockInAt: string;
   clockOutAt: string | null;
   expectedStartAt: string | null;
+  // Evidencia del fichaje (selfie + método) — null si lo cargó un administrador
+  // o es anterior a esa función.
+  inMethod?: "qr" | "location" | "admin" | null;
+  outMethod?: "qr" | "location" | "admin" | null;
+  inSelfiePath?: string | null;
+  outSelfiePath?: string | null;
 };
 
 export type FichajeHoySummary = {
@@ -148,7 +164,7 @@ export async function getTodayFichajeSummary(
   const [{ data: sessions }, { data: employees }, jornadaMap, { data: members }] = await Promise.all([
     supabase
       .from("work_sessions" as any)
-      .select("employee_id,clock_in_at,clock_out_at,expected_start_at")
+      .select("*")
       .eq("business_id", businessId)
       .eq("branch_id", branchId)
       .gte("clock_in_at", dayStart)
@@ -172,7 +188,16 @@ export async function getTodayFichajeSummary(
   // una vez en el día, la que importa mostrar es la más reciente (el array
   // ya viene ordenado por clock_in_at ascendente, así que el último .set
   // para cada employee_id es siempre el más nuevo).
-  type SessionRow = { employee_id: string; clock_in_at: string; clock_out_at: string | null; expected_start_at: string | null };
+  type SessionRow = {
+    employee_id: string;
+    clock_in_at: string;
+    clock_out_at: string | null;
+    expected_start_at: string | null;
+    clock_in_method?: "qr" | "location" | "admin" | null;
+    clock_out_method?: "qr" | "location" | "admin" | null;
+    clock_in_selfie_path?: string | null;
+    clock_out_selfie_path?: string | null;
+  };
   const latestByEmployee = new Map<string, SessionRow>();
   for (const s of (sessions ?? []) as SessionRow[]) {
     latestByEmployee.set(s.employee_id, s);
@@ -205,6 +230,10 @@ export async function getTodayFichajeSummary(
         clockInAt: s.clock_in_at,
         clockOutAt: s.clock_out_at,
         expectedStartAt: s.expected_start_at,
+        inMethod: s.clock_in_method ?? null,
+        outMethod: s.clock_out_method ?? null,
+        inSelfiePath: s.clock_in_selfie_path ?? null,
+        outSelfiePath: s.clock_out_selfie_path ?? null,
       });
     } else {
       pendientesNames.push(e.full_name ?? "Profesional");
@@ -350,4 +379,102 @@ export function findMatchingRule(rules: LatenessRule[], lateMinutes: number): La
   const applicable = rules.filter((r) => lateMinutes >= r.min_minutes);
   if (applicable.length === 0) return null;
   return applicable.reduce((best, r) => (r.min_minutes > best.min_minutes ? r : best));
+}
+
+// ── Fichaje con selfie + (QR o ubicación) ────────────────────────────────────
+
+export type FichajeMethod = "qr" | "location";
+
+export type FichajeCoords = { lat: number; lng: number; accuracyM: number };
+
+// Distancia en metros entre dos puntos (haversine) — misma fórmula que valida
+// el servidor en fichar_con_evidencia; acá solo sirve para avisar al instante.
+export function distanceMeters(a: { lat: number; lng: number }, b: { lat: number; lng: number }): number {
+  const toRad = (v: number) => (v * Math.PI) / 180;
+  const h =
+    Math.sin(toRad(b.lat - a.lat) / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(toRad(b.lng - a.lng) / 2) ** 2;
+  return 2 * 6371000 * Math.asin(Math.sqrt(h));
+}
+
+// Ubicación actual del celular, alta precisión. Rechaza con un mensaje claro
+// (permiso negado, sin señal, tiempo agotado).
+export function getCurrentCoords(): Promise<FichajeCoords> {
+  return new Promise((resolve, reject) => {
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      reject(new Error("Tu navegador no permite leer la ubicación."));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) =>
+        resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracyM: pos.coords.accuracy }),
+      (err) => {
+        reject(
+          new Error(
+            err.code === err.PERMISSION_DENIED
+              ? "Permití el acceso a tu ubicación para fichar con ubicación."
+              : "No se pudo leer tu ubicación. Probá de nuevo o usá el QR.",
+          ),
+        );
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+    );
+  });
+}
+
+// Sube la selfie al bucket privado y devuelve la ruta que guarda el fichaje.
+export async function uploadFichajeSelfie(args: {
+  businessId: string;
+  employeeId: string;
+  kind: "in" | "out";
+  blob: Blob;
+}): Promise<string> {
+  const path = `${args.businessId}/${args.employeeId}/${Date.now()}-${args.kind}.jpg`;
+  const { error } = await supabase.storage
+    .from("fichaje-selfies")
+    .upload(path, args.blob, { contentType: "image/jpeg", upsert: false });
+  if (error) throw new Error("No se pudo subir la selfie. Probá de nuevo.");
+  return path;
+}
+
+// URL temporal para ver una selfie (solo la pueden pedir los no-profesionales).
+export async function getFichajeSelfieUrl(path: string): Promise<string | null> {
+  const { data, error } = await supabase.storage.from("fichaje-selfies").createSignedUrl(path, 60 * 10);
+  if (error) return null;
+  return data?.signedUrl ?? null;
+}
+
+// Entrada o salida con evidencia: el servidor valida el QR del día o la
+// distancia a la sucursal y recién ahí guarda la jornada con la selfie.
+export async function ficharConEvidencia(args: {
+  action: "in" | "out";
+  businessId: string;
+  branchId: string;
+  employeeId: string;
+  method: FichajeMethod;
+  code?: string | null;
+  coords?: FichajeCoords | null;
+  selfiePath: string;
+}): Promise<string> {
+  let expected: Date | null = null;
+  let lateMinutes = 0;
+  if (args.action === "in") {
+    expected = await resolveExpectedStartToday(args.businessId, args.employeeId);
+    lateMinutes = expected ? Math.max(0, Math.round((Date.now() - expected.getTime()) / 60000)) : 0;
+  }
+  const { data, error } = await supabase.rpc("fichar_con_evidencia" as any, {
+    p_action: args.action,
+    p_branch_id: args.branchId,
+    p_employee_id: args.employeeId,
+    p_method: args.method,
+    p_code: args.code ?? null,
+    p_lat: args.coords?.lat ?? null,
+    p_lng: args.coords?.lng ?? null,
+    p_accuracy_m: args.coords?.accuracyM ?? null,
+    p_selfie_path: args.selfiePath,
+    p_expected_start_at: expected ? expected.toISOString() : null,
+    p_late_minutes: lateMinutes,
+  });
+  if (error) throw new Error(error.message);
+  return data as string;
 }

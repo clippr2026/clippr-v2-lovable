@@ -85,6 +85,7 @@ export function FichajeAdminSummaryCard({
           employeeId={employeeId}
           activeBranchId={activeBranchId}
           hasOpenSession={Boolean(session && !session.clock_out_at)}
+          onBehalf
           onClose={() => setFichajeOpen(false)}
           onDone={() => {
             setFichajeOpen(false);
