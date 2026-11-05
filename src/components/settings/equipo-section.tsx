@@ -1745,6 +1745,23 @@ export function EquipoSection() {
       return toast.error("Cargá el correo de la persona en la pestaña Acceso");
     }
 
+    // Un solo "Guardar": si en la pestaña Acceso se cambió algo (correo, estado o permisos), se
+    // guarda junto con el perfil. Un acceso existente no puede quedar sin correo.
+    const linkedAccess = editingEmp ? accessByEmployeeId.get(editingEmp.id) : undefined;
+    if (editingEmp && linkedAccess && !accessForm.email.trim()) {
+      setAccessTouched(true);
+      setDlgTab("acceso");
+      return toast.error("El correo del acceso no puede quedar vacío");
+    }
+    const accessDirty = (() => {
+      if (!editingEmp) return false;
+      if (!linkedAccess) return accessForm.email.trim() !== "";
+      if (accessForm.email.trim().toLowerCase() !== linkedAccess.email.trim().toLowerCase()) return true;
+      if (linkedAccess.status !== "invited" && (accessForm.status === "inactive") !== (linkedAccess.status === "suspended")) return true;
+      const base = userPermissions[linkedAccess.id] ?? DEFAULT_ROLE_PERMISSIONS[linkedAccess.role];
+      return ALL_PERMISSION_KEYS.some((key) => Boolean(base[key]) !== Boolean(accessPermissionsForm[key]));
+    })();
+
     if (editingEmp) {
       // Guardado INMEDIATO y completo: antes esta rama solo persistía el
       // horario al toque y dejaba el resto (comisiones, overrides de
@@ -1927,7 +1944,17 @@ export function EquipoSection() {
           [editingEmp.id]: form.specialDates,
         }));
 
-        toast.success("Profesional actualizado.");
+        if (accessDirty) {
+          // El perfil ya quedó guardado; ahora se guarda el acceso (si falla, avisa y se queda en la pestaña).
+          const accessOk = await submitAccessForm();
+          if (!accessOk) {
+            setDlgTab("acceso");
+            return;
+          }
+          await loadTeamMembers();
+        }
+
+        toast.success(accessDirty ? "Profesional y acceso actualizados." : "Profesional actualizado.");
         setOpen(false);
         setEditingEmp(null);
       } catch {
