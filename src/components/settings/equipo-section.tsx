@@ -1072,6 +1072,19 @@ export function EquipoSection() {
   }, [open]);
   const [saving, setSaving] = useState(false);
   const [confirmDel, setConfirmDel] = useState<EmployeeRow | null>(null);
+  // Revisión previa a eliminar un profesional: turnos futuros e historial que se perdería.
+  const [removeInfo, setRemoveInfo] = useState<{
+    emp: EmployeeRow;
+    futuras: number;
+    pasados: number;
+    ventas: number;
+    comisiones: number;
+    adelantos: number;
+    liquidaciones: number;
+    propinas: number;
+    asistencia: number;
+  } | null>(null);
+  const [checkingRemove, setCheckingRemove] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [editingEmp, setEditingEmp] = useState<EmployeeRow | null>(null);
   const [form, setForm] = useState<NewProForm>(EMPTY_FORM);
@@ -2331,6 +2344,48 @@ export function EquipoSection() {
       userPermissions,
     ],
   );
+
+  // Antes de eliminar un profesional se revisa qué tiene asociado. Eliminarlo borra para siempre
+  // sus comisiones, adelantos, liquidaciones y propinas (y las ventas quedan sin su nombre), y la
+  // base directamente impide borrar a quien tiene asistencia registrada o turnos futuros. Por eso
+  // solo se deja eliminar a quien no tiene nada; en los demás casos se ofrece desactivarlo.
+  async function startRemoveEmp(emp: EmployeeRow) {
+    setCheckingRemove(true);
+    try {
+      const nowIso = new Date().toISOString();
+      const count = async (table: string, col: string, extra?: (q: any) => any) => {
+        let q: any = supabase.from(table as any).select("id", { count: "exact", head: true }).eq(col, emp.id);
+        if (extra) q = extra(q);
+        const { count: c, error } = await q;
+        if (error) throw new Error(error.message);
+        return (c ?? 0) as number;
+      };
+      const [futuras, pasados, ventas, comisiones, adelantos, liquidaciones, propinas, asistencia] = await Promise.all([
+        count("appointments", "employee_id", (q) => q.gte("starts_at", nowIso).not("status", "in", "(cancelled,blocked)")),
+        count("appointments", "employee_id", (q) => q.lt("starts_at", nowIso)),
+        count("payments", "employee_id"),
+        count("commission_records", "professional_id"),
+        count("professional_advances", "professional_id"),
+        count("settlement_runs", "professional_id"),
+        count("tip_records", "professional_id"),
+        count("attendance_confirmations", "employee_id"),
+      ]);
+      setRemoveInfo({ emp, futuras, pasados, ventas, comisiones, adelantos, liquidaciones, propinas, asistencia });
+    } catch {
+      toast.error("No se pudo revisar el historial de este profesional. Probá de nuevo.");
+    } finally {
+      setCheckingRemove(false);
+    }
+  }
+
+  async function deactivateFromRemove() {
+    const info = removeInfo;
+    if (!info) return;
+    setRemoveInfo(null);
+    if (info.emp.is_active !== false) await toggleOnline(info.emp);
+    if (editingEmp?.id === info.emp.id) setForm((f) => ({ ...f, isActive: false }));
+    toast.success("Perfil desactivado. Su historial se conserva.");
+  }
 
   async function doRemoveEmp() {
     if (!confirmDel) return;
@@ -4548,11 +4603,11 @@ export function EquipoSection() {
               {editingEmp ? (
                 <button
                   type="button"
-                  onClick={() => setConfirmDel(editingEmp)}
-                  disabled={saving || deletingId === editingEmp.id}
+                  onClick={() => void startRemoveEmp(editingEmp)}
+                  disabled={saving || checkingRemove || deletingId === editingEmp.id}
                   className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-transparent px-4 py-2.5 text-sm font-semibold text-red-300 ring-1 ring-red-500/40 transition hover:bg-red-500/10 disabled:opacity-50 sm:w-auto"
                 >
-                  {deletingId === editingEmp.id ? (
+                  {deletingId === editingEmp.id || checkingRemove ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
                   ) : (
                     <Trash2 className="h-4 w-4" />
@@ -4586,6 +4641,111 @@ export function EquipoSection() {
         </div>,
         document.body,
       )}
+      {removeInfo &&
+        typeof document !== "undefined" &&
+        createPortal(
+          (() => {
+            const i = removeInfo;
+            const nombre = i.emp.full_name ?? i.emp.name ?? "Este profesional";
+            const perdidas: string[] = [];
+            if (i.comisiones) perdidas.push(`${i.comisiones} comisiones`);
+            if (i.adelantos) perdidas.push(`${i.adelantos} adelantos`);
+            if (i.liquidaciones) perdidas.push(`${i.liquidaciones} liquidaciones`);
+            if (i.propinas) perdidas.push(`${i.propinas} propinas`);
+            const conHistorial = i.ventas + i.comisiones + i.adelantos + i.liquidaciones + i.propinas + i.asistencia > 0;
+            const yaInactivo = i.emp.is_active === false;
+            const close = () => setRemoveInfo(null);
+            return (
+              <div className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm" onClick={close}>
+                <div
+                  className="w-full max-w-md space-y-4 rounded-2xl bg-[#15161c] p-5 shadow-2xl ring-1 ring-white/10"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  {i.futuras > 0 ? (
+                    <>
+                      <div className="text-lg font-semibold">No se puede eliminar</div>
+                      <p className="text-sm text-muted-foreground">
+                        <b className="text-foreground">{nombre}</b> tiene <b className="text-foreground">{i.futuras}</b>{" "}
+                        {i.futuras === 1 ? "turno futuro agendado" : "turnos futuros agendados"}. Cancelalos o reasignalos antes de eliminarlo.
+                      </p>
+                      <p className="rounded-xl bg-sky-400/10 px-3 py-2.5 text-xs text-sky-100 ring-1 ring-sky-300/20">
+                        Mientras tanto podés <b>desactivarlo</b>: deja de aparecer en la agenda y en las reservas, y no se pierde nada.
+                      </p>
+                    </>
+                  ) : conHistorial ? (
+                    <>
+                      <div className="text-lg font-semibold">Mejor desactivarlo</div>
+                      <p className="text-sm text-muted-foreground">
+                        <b className="text-foreground">{nombre}</b> tiene historial:
+                      </p>
+                      <ul className="list-disc space-y-0.5 pl-5 text-sm text-muted-foreground">
+                        {i.ventas > 0 && <li>{i.ventas} ventas</li>}
+                        {perdidas.map((t) => (
+                          <li key={t}>{t}</li>
+                        ))}
+                        {i.asistencia > 0 && <li>{i.asistencia} registros de asistencia</li>}
+                      </ul>
+                      <p className="rounded-xl bg-rose-400/10 px-3 py-2.5 text-xs text-rose-100 ring-1 ring-rose-300/25">
+                        Eliminarlo <b>borraría para siempre</b> sus comisiones, adelantos, liquidaciones y propinas, y sus ventas quedarían
+                        sin su nombre. Por eso no se permite.
+                      </p>
+                      <p className="rounded-xl bg-emerald-400/10 px-3 py-2.5 text-xs text-emerald-100 ring-1 ring-emerald-300/25">
+                        <b>Desactivarlo</b> lo saca de la agenda y de las reservas y <b>conserva todo el historial</b>.
+                      </p>
+                    </>
+                  ) : (
+                    <>
+                      <div className="text-lg font-semibold">Eliminar profesional</div>
+                      <p className="text-sm text-muted-foreground">
+                        ¿Deseás eliminar a <b className="text-foreground">{nombre}</b>? No tiene ventas, comisiones ni asistencia: no se
+                        pierde ningún dato.
+                      </p>
+                      {i.pasados > 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          Sus {i.pasados} turnos pasados quedan en la Agenda sin profesional asignado.
+                        </p>
+                      )}
+                    </>
+                  )}
+                  <div className="flex flex-wrap justify-end gap-2">
+                    <button
+                      type="button"
+                      onClick={close}
+                      className="rounded-xl bg-white/5 px-4 py-2 text-sm ring-1 ring-white/10 hover:bg-white/10"
+                    >
+                      {i.futuras > 0 || conHistorial ? "Cerrar" : "Cancelar"}
+                    </button>
+                    {(i.futuras > 0 || conHistorial) && !yaInactivo && (
+                      <button
+                        type="button"
+                        onClick={() => void deactivateFromRemove()}
+                        className="rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-2 text-sm font-semibold text-white"
+                      >
+                        Desactivar perfil
+                      </button>
+                    )}
+                    {i.futuras === 0 && !conHistorial && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRemoveInfo(null);
+                          setConfirmDel(i.emp);
+                        }}
+                        className="rounded-xl bg-red-500/90 px-4 py-2 text-sm font-semibold text-white hover:bg-red-500"
+                      >
+                        Eliminar
+                      </button>
+                    )}
+                  </div>
+                  {(i.futuras > 0 || conHistorial) && yaInactivo && (
+                    <p className="text-xs text-muted-foreground">Este perfil ya está desactivado.</p>
+                  )}
+                </div>
+              </div>
+            );
+          })(),
+          document.body,
+        )}
       <ConfirmDialog
         open={!!confirmDel}
         title="Eliminar profesional"
