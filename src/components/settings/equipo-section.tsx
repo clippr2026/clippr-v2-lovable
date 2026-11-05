@@ -2776,6 +2776,26 @@ export function EquipoSection() {
     return 0;
   });
 
+  const principalEmployeeId = accessUsers.find((u) => u.id === principalAdminId)?.employee_id ?? null;
+  const principalBarberRow = principalEmployeeId ? (rows.find((e) => e.id === principalEmployeeId) ?? null) : null;
+
+  function renderBarberCard(emp: EmployeeRow) {
+    const user = accessByEmployeeId.get(emp.id);
+    return (
+      <ProfessionalCard
+        key={emp.id}
+        emp={emp}
+        tintClass={tintForId(emp.id)}
+        deleting={deletingId === emp.id}
+        online={emp.is_active !== false}
+        onEdit={handleEditPro}
+        onToggleOnline={toggleOnline}
+        onRemove={remove}
+        access={user ? accessInfoFor(user, true) : null}
+      />
+    );
+  }
+
   // Vincula (o con employeeId = null, desvincula) el acceso de un administrador/recepcionista
   // con un barbero. Usa la misma Edge Function de siempre: solo cambia professional_id y
   // reenvía el resto del acceso tal cual está.
@@ -3276,6 +3296,9 @@ export function EquipoSection() {
           </div>
         ) : (
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {/* El Admin. General siempre va primero: si atiende clientes es su tarjeta de barbero,
+                que si no iría después de las tarjetas de solo acceso. */}
+            {principalBarberRow && renderBarberCard(principalBarberRow)}
             {sortedAccessUsers
               .filter((user) => !user.employee_id || !rows.some((emp) => emp.id === user.employee_id))
               .map((user) => (
@@ -3289,22 +3312,7 @@ export function EquipoSection() {
                   onRemove={user.id === principalAdminId ? undefined : () => setPendingDeleteUser(user)}
                 />
               ))}
-            {rows.map((emp) => {
-              const user = accessByEmployeeId.get(emp.id);
-              return (
-                <ProfessionalCard
-                  key={emp.id}
-                  emp={emp}
-                  tintClass={tintForId(emp.id)}
-                  deleting={deletingId === emp.id}
-                  online={emp.is_active !== false}
-                  onEdit={handleEditPro}
-                  onToggleOnline={toggleOnline}
-                  onRemove={remove}
-                  access={user ? accessInfoFor(user, true) : null}
-                />
-              );
-            })}
+            {rows.filter((emp) => emp.id !== principalBarberRow?.id).map(renderBarberCard)}
           </div>
         )}
       </div>
