@@ -1558,7 +1558,13 @@ function PublicBookingPage() {
                       </div>
                     </div>
                   )}
-                  <p className="text-sm text-white/60">Elegí el servicio que querés reservar.</p>
+                  <p className="text-sm text-white/60">
+                    {offeredServices.length === 0
+                      ? lockedEmployeeId
+                        ? "Este profesional no tiene servicios disponibles para reservar en línea por ahora. Probá con otro profesional o contactá al local."
+                        : "Por ahora no hay servicios disponibles para reservar en línea. Contactá al local."
+                      : "Elegí el servicio que querés reservar."}
+                  </p>
                   {serviceCategories.length > 1 && (
                     <div className="flex gap-2 overflow-x-auto pb-1 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
                       <button
@@ -1610,9 +1616,11 @@ function PublicBookingPage() {
                       );
                     })}
                   </div>
-                  <Button onClick={nextFromServices} className="w-full rounded-2xl py-6 font-bold hover:brightness-110" style={{ background: accent, color: accentButtonText }}>
-                    Continuar
-                  </Button>
+                  {offeredServices.length > 0 && (
+                    <Button onClick={nextFromServices} className="w-full rounded-2xl py-6 font-bold hover:brightness-110" style={{ background: accent, color: accentButtonText }}>
+                      Continuar
+                    </Button>
+                  )}
                 </div>
               ) : null}
 
