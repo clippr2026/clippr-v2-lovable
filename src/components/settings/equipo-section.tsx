@@ -964,6 +964,8 @@ export function EquipoSection() {
   const [linkBarberFor, setLinkBarberFor] = useState<AccessUser | null>(null);
   const [linkChoice, setLinkChoice] = useState<string>("new");
   const [linkSaving, setLinkSaving] = useState(false);
+  // El interruptor "Atiendo clientes" se mueve en el acto; el guardado y la recarga tardan.
+  const [atiendeOverride, setAtiendeOverride] = useState<Record<string, boolean>>({});
   const linkAfterCreateRef = useRef<string | null>(null);
   const [selectedPermRole, setSelectedPermRole] =
     useState<RolePermissionId>("admin_general");
@@ -2790,6 +2792,12 @@ export function EquipoSection() {
   async function linkAccessToBarber(user: AccessUser, employeeId: string | null): Promise<boolean> {
     if (!businessId) return false;
     setLinkSaving(true);
+    setAtiendeOverride((m) => ({ ...m, [user.id]: employeeId !== null }));
+    const clearOverride = () =>
+      setAtiendeOverride((m) => {
+        const { [user.id]: _drop, ...rest } = m;
+        return rest;
+      });
     const result = await inviteTeamMember({
       action: "update",
       member_id: user.id,
@@ -2804,10 +2812,12 @@ export function EquipoSection() {
     });
     setLinkSaving(false);
     if (!result.ok) {
+      clearOverride();
       toast.error(result.error);
       return false;
     }
     await loadTeamMembers();
+    clearOverride();
     // Si es el usuario actual, se refresca su perfil para que aparezca/desaparezca "Profesionales".
     window.dispatchEvent(new Event("clippr:profile-link-updated"));
     toast.success(employeeId ? "Listo: ahora atendés clientes." : "Dejaste de atender clientes. Tu perfil de barbero se conserva.");
@@ -2878,8 +2888,9 @@ export function EquipoSection() {
       onResend: () => resendAccessInvite(user.id),
       atiende: canAtender
         ? {
-            on: linkedEmployee,
+            on: atiendeOverride[user.id] ?? linkedEmployee,
             onToggle: () => {
+              if (linkSaving) return;
               if (linkedEmployee) void linkAccessToBarber(user, null);
               else {
                 const libres = rows.filter((emp) => !accessByEmployeeId.has(emp.id));
