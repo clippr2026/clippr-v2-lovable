@@ -1157,6 +1157,14 @@ export function BrandingSection() {
   // Editor a pantalla completa: la vista previa ocupa casi todo y la configuración queda en una columna angosta (que se puede ocultar).
   const [editorMode, setEditorMode] = useState(false);
   const [editorPanelOpen, setEditorPanelOpen] = useState(true);
+  React.useEffect(() => {
+    if (!editorMode) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [editorMode]);
   const [isXl, setIsXl] = useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 1280px)").matches);
   React.useEffect(() => {
     const mq = window.matchMedia("(min-width: 1280px)");
@@ -2368,9 +2376,9 @@ export function BrandingSection() {
         </header>
         <div className="flex min-h-0 flex-1">
           {editorPanelOpen ? (
-            <aside className="w-[390px] shrink-0 space-y-6 overflow-y-auto border-r border-white/10 p-4">{formContent}</aside>
+            <aside className="w-[390px] shrink-0 space-y-6 overflow-y-auto border-r border-white/10 p-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{formContent}</aside>
           ) : null}
-          <main className="min-w-0 flex-1 overflow-y-auto p-4">{editorPreview}</main>
+          <main className="min-w-0 flex-1 overflow-hidden p-4">{editorPreview}</main>
         </div>
       </div>
     );
