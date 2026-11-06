@@ -78,7 +78,12 @@ export function NegocioHero({ businessId }: { businessId: string | null }) {
               decoding="async"
             />
           ) : null}
-          <div className="pointer-events-none absolute inset-0 rounded-[2rem] bg-[linear-gradient(180deg,rgb(255_255_255/0.10),transparent_28%,transparent_65%,rgb(0_0_0/0.28))]" />
+          <div className="pointer-events-none absolute inset-0 rounded-[2rem] bg-[linear-gradient(180deg,rgb(255_255_255/0.08),transparent_28%,transparent_55%,rgb(0_0_0/0.35))]" />
+          {/* Sombra interior: oscurece los bordes de la imagen */}
+          <div
+            className="pointer-events-none absolute inset-0 rounded-[2rem]"
+            style={{ boxShadow: "inset 0 0 70px 8px rgb(0 0 0 / 0.6), inset 0 -40px 60px rgb(0 0 0 / 0.35)" }}
+          />
         </div>
       </div>
       <div className="relative z-10 -mt-12 flex flex-col items-center px-4 text-center sm:-mt-14 sm:px-8">
