@@ -53,8 +53,6 @@ function osmEmbedUrl(c: { lat: number; lng: number }) {
 function mapsUrl(c: { lat: number; lng: number }) {
   return `https://www.google.com/maps?q=${c.lat},${c.lng}`;
 }
-const DEFAULT_RADIUS = 150;
-
 // Ubicación de UNA sucursal para fichar, dentro de su propia tarjeta en
 // Sucursales. Si todavía no existen las columnas, no se muestra nada.
 export function SucursalUbicacion({
@@ -67,7 +65,6 @@ export function SucursalUbicacion({
   address?: string | null;
 }) {
   const [loc, setLoc] = React.useState<BranchLoc | null>(null);
-  const [radius, setRadius] = React.useState(String(DEFAULT_RADIUS));
   const [saving, setSaving] = React.useState(false);
   const [candidate, setCandidate] = React.useState<Candidate | null>(null);
   const [pasted, setPasted] = React.useState("");
@@ -85,7 +82,6 @@ export function SucursalUbicacion({
     }
     const row = data as unknown as BranchLoc;
     setLoc(row);
-    setRadius(String(row.checkin_radius_m ?? DEFAULT_RADIUS));
   }, [branchId]);
 
   React.useEffect(() => {
@@ -145,15 +141,6 @@ export function SucursalUbicacion({
     }
   }
 
-  async function saveRadius() {
-    const value = Math.round(Number(radius));
-    if (!Number.isFinite(value) || value < 30 || value > 1000) {
-      toast.error("El radio tiene que estar entre 30 y 1000 metros.");
-      return;
-    }
-    if (await save({ checkin_radius_m: value })) toast.success("Radio guardado.");
-  }
-
   if (!loc) return null;
   const hasLoc = loc.latitude != null && loc.longitude != null;
 
@@ -161,14 +148,18 @@ export function SucursalUbicacion({
     <div className="mt-2.5 border-t border-white/5 pt-2.5">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
-          <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground/70">
-            Ubicación para fichar
-          </div>
-          <div className={hasLoc ? "text-xs text-emerald-300" : "text-xs text-amber-300"}>
-            {hasLoc
-              ? "Ubicación guardada"
-              : "Sin ubicación: no se puede fichar con ubicación, solo con QR"}
-          </div>
+          {hasLoc ? (
+            <a
+              href={mapsUrl({ lat: loc.latitude as number, lng: loc.longitude as number })}
+              target="_blank"
+              rel="noreferrer"
+              className="text-xs text-sky-300 underline"
+            >
+              Ver la ubicación en el mapa
+            </a>
+          ) : (
+            <div className="text-xs text-amber-300">Sin ubicación: solo se puede fichar con QR</div>
+          )}
         </div>
         <button
           type="button"
@@ -184,16 +175,6 @@ export function SucursalUbicacion({
           {hasLoc ? "Cambiar ubicación" : "Fijar ubicación"}
         </button>
       </div>
-      {hasLoc && (
-        <a
-          href={mapsUrl({ lat: loc.latitude as number, lng: loc.longitude as number })}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-2 inline-block text-xs text-sky-300 underline"
-        >
-          Ver la ubicación guardada en el mapa
-        </a>
-      )}
       {open && (
         <div className="mt-3 space-y-2 rounded-xl bg-black/20 p-3 ring-1 ring-white/10">
           <button
@@ -247,31 +228,6 @@ export function SucursalUbicacion({
               </div>
             </div>
           )}
-        </div>
-      )}
-      {hasLoc && (
-        <div className="mt-2.5 flex items-center gap-2">
-          <label className="text-xs text-muted-foreground" htmlFor={`radio-${branchId}`}>
-            Radio (metros)
-          </label>
-          <input
-            id={`radio-${branchId}`}
-            type="number"
-            inputMode="numeric"
-            min={30}
-            max={1000}
-            className={`${inputCls} !h-9 w-24`}
-            value={radius}
-            onChange={(e) => setRadius(e.target.value)}
-          />
-          <button
-            type="button"
-            disabled={saving}
-            onClick={() => void saveRadius()}
-            className="rounded-lg bg-white/5 px-3 py-1.5 text-xs ring-1 ring-white/10 hover:bg-white/10 disabled:opacity-60"
-          >
-            Guardar
-          </button>
         </div>
       )}
     </div>
