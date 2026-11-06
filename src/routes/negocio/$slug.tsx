@@ -1,6 +1,7 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { COVER_ASPECT_CLASS } from "@/lib/cover-frame";
 import { NeonFrame, neonPalette } from "@/components/neon-frame";
+import { getPublicFont, publicFontsStylesheet } from "@/lib/public-fonts";
 import { hiddenPublicBranchIds } from "@/lib/public-branches";
 import * as React from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -109,6 +110,7 @@ type FeaturedClient = {
 };
 
 type PublicBranding = {
+  font?: string | null;
   address?: string | null;
   phone?: string | null;
   email?: string | null;
@@ -540,6 +542,7 @@ function PublicProfilePage() {
   const [profileNote, setProfileNote] = React.useState<string>("");
   const [additionalInfo, setAdditionalInfo] = React.useState<string[]>([]);
   const [colors, setColors] = React.useState<LandingColors>({});
+  const [fontKey, setFontKey] = React.useState<string | null>(null);
   const [theme, setTheme] = React.useState<LandingTheme>("dark");
   // Tema real del negocio, conocido ANTES de renderizar el loader. Nunca arranca en
   // "dark" ni "light" por defecto: hasta que no se resuelve desde business_settings, el
@@ -840,6 +843,7 @@ function PublicProfilePage() {
           );
           setAdditionalInfo(normalizeAdditionalInfo(branding.additional_info));
           setColors((branding.colors && typeof branding.colors === "object" ? branding.colors : {}) as LandingColors);
+          setFontKey(typeof branding.font === "string" ? branding.font : null);
           setTheme(branding.theme === "light" ? "light" : "dark");
         }
       } catch {
@@ -859,6 +863,7 @@ function PublicProfilePage() {
   const cAccent = colors.accent || business?.accent_color || "#d6b66a";
   const accent = cAccent; // acciones principales: botones, estados e indicadores
   const isLight = theme === "light";
+  const pubFont = getPublicFont(fontKey);
   const accentButtonText = colors.buttonText || "#ffffff";
 
   // Métrica real de cabecera. Si no hay datos cae a "—": nunca rompe el render.
@@ -980,8 +985,9 @@ function PublicProfilePage() {
   return (
     <main
       data-theme={theme}
-      className="public-landing min-h-dvh pb-24 sm:pb-10"
+      className={`public-landing min-h-dvh pb-24 sm:pb-10${pubFont ? " pub-font" : ""}`}
       style={{
+        ...(pubFont ? { ["--pub-font" as any]: pubFont.family } : {}),
         ["--accent" as any]: accent,
         ["--c-primary" as any]: cPrimary,
         ["--c-secondary" as any]: cSecondary,
@@ -994,7 +1000,9 @@ function PublicProfilePage() {
         ["--border" as any]: isLight ? "rgba(15,23,42,0.10)" : "rgba(255,255,255,0.10)",
       }}
     >
+      {pubFont ? <link rel="stylesheet" href={publicFontsStylesheet([pubFont])} /> : null}
       <style>{`
+        .public-landing.pub-font :is(h1, h2, h3) { font-family: var(--pub-font), sans-serif; }
         .public-landing { background: var(--page-bg); color: var(--text); }
         .public-landing .public-card { background: var(--card-bg) !important; border-color: var(--border) !important; color: var(--text); }
         .public-landing[data-theme="light"] [class*="text-white"] { color: var(--text) !important; }

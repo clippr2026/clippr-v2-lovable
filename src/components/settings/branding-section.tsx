@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { COVER_ASPECT_CLASS } from "@/lib/cover-frame";
+import { PUBLIC_FONTS, publicFontsStylesheet } from "@/lib/public-fonts";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -271,7 +272,49 @@ function normalizeHex(value: string, fallback: string): string {
   return HEX_RE.test(v) ? v.toLowerCase() : fallback;
 }
 
+// Paletas listas: cada una arma el degradé, la luz de la portada y el neón del logo.
+const COLOR_PALETTES: { key: string; label: string; primary: string; secondary: string; accent: string; buttonText: string }[] = [
+  { key: "violeta", label: "Violeta", primary: "#7c3aed", secondary: "#d946ef", accent: "#a78bfa", buttonText: "#ffffff" },
+  { key: "rosa", label: "Rosa", primary: "#db2777", secondary: "#f472b6", accent: "#f9a8d4", buttonText: "#ffffff" },
+  { key: "azul", label: "Azul", primary: "#2563eb", secondary: "#06b6d4", accent: "#60a5fa", buttonText: "#ffffff" },
+  { key: "turquesa", label: "Turquesa", primary: "#0d9488", secondary: "#22d3ee", accent: "#2dd4bf", buttonText: "#00110f" },
+  { key: "verde", label: "Verde", primary: "#059669", secondary: "#84cc16", accent: "#34d399", buttonText: "#00110a" },
+  { key: "dorado", label: "Dorado", primary: "#b45309", secondary: "#f59e0b", accent: "#d6b66a", buttonText: "#1a1100" },
+  { key: "rojo", label: "Rojo", primary: "#dc2626", secondary: "#f97316", accent: "#f87171", buttonText: "#ffffff" },
+  { key: "grafito", label: "Grafito", primary: "#334155", secondary: "#94a3b8", accent: "#e2e8f0", buttonText: "#0b1220" },
+];
+
+function hexLuma(hex: string): number {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+}
+
+// A partir de UN color propio se arman el resto de los colores.
+function paletteFromColor(hex: string) {
+  const primary = normalizeHex(hex, LANDING_DEFAULTS.primary);
+  const h = primary.replace("#", "");
+  const mix = (toward: number, amt: number) =>
+    "#" +
+    [0, 2, 4]
+      .map((i) => {
+        const c = parseInt(h.slice(i, i + 2), 16);
+        return Math.round(c + (toward - c) * amt).toString(16).padStart(2, "0");
+      })
+      .join("");
+  const accent = mix(255, 0.35);
+  return {
+    primary,
+    secondary: mix(255, 0.55),
+    accent,
+    buttonText: hexLuma(accent) > 0.62 ? "#0b0b10" : "#ffffff",
+  };
+}
+
 const ADDITIONAL_INFO_OPTIONS = [
+
   "⚡ Confirmación instantánea",
   "📅 Reserva online 24/7",
   "💳 Acepta tarjetas",
@@ -388,6 +431,8 @@ export function BrandingSection() {
   );
   const [colors, setColors] = useState(LANDING_DEFAULTS);
   const [theme, setTheme] = useState<LandingTheme>(LANDING_THEME_DEFAULT);
+  const [fontKey, setFontKey] = useState<string>("");
+  const [showAdvancedColors, setShowAdvancedColors] = useState(false);
   const [benefits, setBenefits] = useState<Benefit[]>([]);
   const [customBenefit, setCustomBenefit] = useState("");
 
@@ -473,6 +518,7 @@ export function BrandingSection() {
         buttonText: normalizeHex(cc.buttonText, LANDING_DEFAULTS.buttonText),
       });
       setTheme((cfg.theme as string) === "light" ? "light" : "dark");
+      setFontKey(typeof cfg.font === "string" ? cfg.font : "");
       const rawBenefits = normalizeBenefits(cfg.benefits);
       if (rawBenefits.length > 0) {
         setBenefits(rawBenefits);
@@ -1001,6 +1047,7 @@ export function BrandingSection() {
           ),
         },
         theme,
+        font: fontKey || null,
         benefits: benefits
           .map((b) => ({ id: b.id, label: b.label.trim(), active: b.active }))
           .filter((b) => b.label.length > 0)
@@ -1064,7 +1111,7 @@ export function BrandingSection() {
   const saveRef = React.useRef(save);
   React.useEffect(() => {
     saveRef.current = save;
-  }, [businessId, data, logoFile, colors, theme, benefits]);
+  }, [businessId, data, logoFile, colors, theme, fontKey, benefits]);
 
   const brandingHydratedRef = React.useRef(false);
 
@@ -1093,7 +1140,7 @@ export function BrandingSection() {
     }, 650);
 
     return () => window.clearTimeout(timer);
-  }, [data, logoFile, colors, theme, benefits, loading, businessId]);
+  }, [data, logoFile, colors, theme, fontKey, benefits, loading, businessId]);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -1971,11 +2018,100 @@ export function BrandingSection() {
       {activeTab === "colores" && (
         <>
           <SectionCard label="Colores">
-            <p className="text-sm text-white/55">
-              Personalizá modo claro/oscuro, gradientes, glows, color de
-              resaltado y texto de botones.
+            <h3 className="text-sm font-semibold">Elegí tu color</h3>
+            <p className="mt-1 text-xs text-white/50">
+              Al elegir un color se arman solos el fondo con degradé, la luz de la portada, el neón del logo y los botones.
             </p>
-            <div className="mt-5 space-y-4">
+            <div className="mt-4 grid grid-cols-4 gap-3 sm:grid-cols-5 lg:grid-cols-9">
+              {COLOR_PALETTES.map((pal) => {
+                const active =
+                  normalizeHex(colors.primary, "") === pal.primary && normalizeHex(colors.accent, "") === pal.accent;
+                return (
+                  <button
+                    key={pal.key}
+                    type="button"
+                    onClick={() =>
+                      setColors({ primary: pal.primary, secondary: pal.secondary, accent: pal.accent, buttonText: pal.buttonText })
+                    }
+                    className={cn(
+                      "group flex flex-col items-center gap-1.5 rounded-2xl p-2 transition",
+                      active ? "bg-white/10 ring-2 ring-white/60" : "hover:bg-white/5",
+                    )}
+                  >
+                    <span
+                      className="h-12 w-12 rounded-full ring-1 ring-white/20"
+                      style={{
+                        background: `linear-gradient(135deg, ${pal.primary}, ${pal.secondary})`,
+                        boxShadow: active ? `0 0 18px ${pal.secondary}aa` : "none",
+                      }}
+                    />
+                    <span className="text-xs text-white/80">{pal.label}</span>
+                  </button>
+                );
+              })}
+              <label className="group flex cursor-pointer flex-col items-center gap-1.5 rounded-2xl p-2 transition hover:bg-white/5">
+                <span
+                  className="relative h-12 w-12 overflow-hidden rounded-full ring-1 ring-white/20"
+                  style={{ background: "conic-gradient(#ef4444, #f59e0b, #22c55e, #06b6d4, #6366f1, #d946ef, #ef4444)" }}
+                >
+                  <input
+                    type="color"
+                    value={normalizeHex(colors.primary, LANDING_DEFAULTS.primary)}
+                    onChange={(e) => setColors(paletteFromColor(e.target.value))}
+                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                  />
+                </span>
+                <span className="text-xs text-white/80">Propio</span>
+              </label>
+            </div>
+
+            <div className="mt-6 border-t border-white/10 pt-5">
+              <h3 className="text-sm font-semibold">Tipografía</h3>
+              <p className="mt-1 text-xs text-white/50">
+                Se usa en títulos, el nombre del negocio y los nombres de los profesionales.
+              </p>
+              <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                <button
+                  type="button"
+                  onClick={() => setFontKey("")}
+                  className={cn(
+                    "rounded-xl border px-3 py-3 text-left transition",
+                    fontKey === "" ? "border-white/60 bg-white/10" : "border-white/10 bg-white/5 hover:bg-white/10",
+                  )}
+                >
+                  <div className="text-lg leading-tight">Auro Stylo</div>
+                  <div className="mt-0.5 text-[11px] text-white/50">Predeterminada</div>
+                </button>
+                {PUBLIC_FONTS.map((f) => (
+                  <button
+                    key={f.key}
+                    type="button"
+                    onClick={() => setFontKey(f.key)}
+                    className={cn(
+                      "rounded-xl border px-3 py-3 text-left transition",
+                      fontKey === f.key ? "border-white/60 bg-white/10" : "border-white/10 bg-white/5 hover:bg-white/10",
+                    )}
+                  >
+                    <div className="truncate text-lg leading-tight" style={{ fontFamily: f.family }}>
+                      Auro Stylo
+                    </div>
+                    <div className="mt-0.5 text-[11px] text-white/50">{f.label}</div>
+                  </button>
+                ))}
+              </div>
+              <link rel="stylesheet" href={publicFontsStylesheet(PUBLIC_FONTS)} />
+            </div>
+
+            <div className="mt-6 border-t border-white/10 pt-4">
+              <button
+                type="button"
+                onClick={() => setShowAdvancedColors((v) => !v)}
+                className="text-xs text-white/60 underline hover:text-white"
+              >
+                {showAdvancedColors ? "Ocultar ajustes avanzados" : "Ajustar colores uno por uno"}
+              </button>
+              {showAdvancedColors ? (
+            <div className="mt-4 space-y-4">
               {(
                 [
                   {
@@ -2031,6 +2167,9 @@ export function BrandingSection() {
                 </div>
               ))}
             </div>
+              ) : null}
+            </div>
+
             <div className="mt-6 border-t border-white/10 pt-5">
               <h3 className="text-sm font-semibold">
                 Modo de la página pública
