@@ -579,6 +579,10 @@ function PublicProfilePage() {
   // por postMessage y lo aplica sin esperar al guardado.
   React.useEffect(() => {
     if (new URLSearchParams(window.location.search).get("preview") !== "1") return;
+    // En la vista previa no se muestra la barra de scroll (se puede seguir desplazando).
+    const hideScroll = document.createElement("style");
+    hideScroll.textContent = "html,body,*{scrollbar-width:none !important}html::-webkit-scrollbar,body::-webkit-scrollbar,*::-webkit-scrollbar{display:none !important;width:0 !important;height:0 !important}";
+    document.head.appendChild(hideScroll);
     function onMessage(e: MessageEvent) {
       if (e.origin !== window.location.origin) return;
       const d = e.data as { type?: string; draft?: Record<string, any> } | null;
@@ -601,7 +605,10 @@ function PublicProfilePage() {
       );
     }
     window.addEventListener("message", onMessage);
-    return () => window.removeEventListener("message", onMessage);
+    return () => {
+      window.removeEventListener("message", onMessage);
+      hideScroll.remove();
+    };
   }, []);
 
   // Logo del local para la pantalla de carga (se pide aparte y antes que el resto).

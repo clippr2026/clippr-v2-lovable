@@ -1274,6 +1274,7 @@ export function BrandingSection() {
       draft={previewDraft}
       refreshKey={previewKey}
       large
+      reserve={330}
       onEditor={() => setEditorMode(true)}
     />
   ) : null;
@@ -1283,6 +1284,7 @@ export function BrandingSection() {
       draft={previewDraft}
       refreshKey={previewKey}
       large
+      reserve={140}
       onClose={() => setEditorMode(false)}
     />
   ) : null;

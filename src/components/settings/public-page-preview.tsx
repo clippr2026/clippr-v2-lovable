@@ -24,6 +24,7 @@ export function PublicPagePreview({
   onClose,
   onEditor,
   large = false,
+  reserve = 170,
 }: {
   slug: string;
   draft: PreviewDraft;
@@ -31,6 +32,7 @@ export function PublicPagePreview({
   onClose?: () => void;
   onEditor?: () => void;
   large?: boolean;
+  reserve?: number;
 }) {
   const [mode, setMode] = React.useState<"mobile" | "web">("mobile");
   const [expanded, setExpanded] = React.useState(false);
@@ -66,7 +68,7 @@ export function PublicPagePreview({
   // Web: ventana de navegador (1100 px de ancho real) achicada para entrar.
   const frameW = Math.max(200, boxW - 8);
   // Alto disponible: casi todo el alto de la pantalla (menos el encabezado del panel).
-  const maxH = Math.max(420, large ? vh - 150 : vh - 170);
+  const maxH = Math.max(360, vh - reserve);
   const deviceW = mode === "mobile" ? 390 : 1100;
   const mobileInnerW = Math.min(frameW - 20, Math.floor(maxH / 2.05), large ? 560 : 520);
   const innerW = mode === "mobile" ? mobileInnerW : frameW - 2;
@@ -196,6 +198,7 @@ export function PublicPagePreview({
               draft={draft}
               refreshKey={refreshKey}
               large
+              reserve={150}
               onClose={() => setExpanded(false)}
             />
           </div>
