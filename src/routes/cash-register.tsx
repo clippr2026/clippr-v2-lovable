@@ -1559,29 +1559,6 @@ function ResumenTab({
 
   return (
     <>
-      {/* Nueva venta / Nuevo gasto — antes era un solo botón que cambiaba de
-          acción según la pestaña Facturación/Gastos activa; sin esa
-          pestaña (vista unificada), los dos accesos quedan siempre visibles
-          lado a lado. */}
-      <div className={`mb-4 grid grid-cols-2 gap-2.5 sm:flex sm:flex-wrap sm:items-center sm:justify-center sm:gap-3 ${cajaCerrada ? "hidden" : ""}`}>
-        <button
-          type="button"
-          onClick={onNuevaVenta}
-          className="group inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-300/36 bg-[linear-gradient(135deg,rgba(16,185,129,0.26),rgba(6,95,70,0.56))] px-3 py-3.5 text-sm font-bold sm:gap-3 sm:px-9 sm:text-base text-emerald-50 shadow-[0_0_40px_rgba(16,185,129,0.36),0_0_85px_rgba(16,185,129,0.14),0_1px_0_rgba(255,255,255,0.16)_inset] transition-all duration-200 hover:-translate-y-0.5 hover:bg-emerald-400/24 hover:text-white hover:shadow-[0_0_58px_rgba(16,185,129,0.50),0_0_100px_rgba(16,185,129,0.20)]"
-        >
-          <Plus className="size-5 transition-transform group-hover:rotate-90" />
-          Nueva venta
-        </button>
-        <button
-          type="button"
-          onClick={onNuevoGasto}
-          className="group inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-300/38 bg-[linear-gradient(135deg,rgba(244,63,94,0.28),rgba(127,29,29,0.58))] px-3 py-3.5 text-sm font-extrabold sm:gap-2.5 sm:px-6 sm:py-3 text-rose-50 shadow-[0_0_34px_rgba(244,63,94,0.34),0_0_70px_rgba(244,63,94,0.12),0_1px_0_rgba(255,255,255,0.18)_inset] transition-all duration-200 hover:-translate-y-0.5 hover:bg-rose-500/22 hover:text-white hover:shadow-[0_0_52px_rgba(244,63,94,0.46),0_0_90px_rgba(244,63,94,0.18)]"
-        >
-          <Wallet className="size-4 transition-transform group-hover:scale-110" />
-          Nuevo gasto
-        </button>
-      </div>
-
       <div className="relative space-y-6 pt-0 pb-2 sm:py-2">
         <div className="pointer-events-none absolute inset-x-0 sm:inset-x-[-56px] top-[-54px] bottom-[-72px] z-0 rounded-[56px] bg-[radial-gradient(ellipse_at_center,rgba(0,0,0,0.68)_0%,rgba(0,0,0,0.46)_34%,rgba(0,0,0,0.22)_58%,transparent_82%)] blur-3xl" />
         <div className="pointer-events-none absolute inset-x-0 sm:inset-x-[-30px] top-[-28px] bottom-[-40px] z-0 rounded-[46px] bg-[linear-gradient(180deg,transparent_0%,rgba(0,0,0,0.18)_14%,rgba(0,0,0,0.38)_46%,rgba(0,0,0,0.28)_72%,transparent_100%)]" />
@@ -1603,6 +1580,8 @@ function ResumenTab({
             onCobrarPendiente={onCobrarPendiente}
             onRevisarCierre={onRevisarCierre}
             pendientesTheme={pendientesTheme}
+            onNuevaVenta={onNuevaVenta}
+            onNuevoGasto={onNuevoGasto}
           />
           <MovimientosUnificados
             data={data}
@@ -12826,6 +12805,8 @@ function FacturacionPanel({
   onCobrarPendiente,
   onRevisarCierre,
   pendientesTheme,
+  onNuevaVenta,
+  onNuevoGasto,
 }: {
   data: ReturnType<typeof useCajaData>;
   equipoEnabled: boolean;
@@ -12835,6 +12816,8 @@ function FacturacionPanel({
   userEmail: string | null;
   cajaAbiertaDesde: string;
   cajaRangeStartDate: string;
+  onNuevaVenta: () => void;
+  onNuevoGasto: () => void;
   onCajaCerrada: () => void;
   onCobrarPendiente: (
     appt: ReturnType<typeof useCajaData>["pendingCharges"][number],
@@ -12890,6 +12873,40 @@ function FacturacionPanel({
 
   return (
     <>
+      {/* Acciones de caja — las cuatro juntas, mismo tamaño: lo que entra
+          (Nueva venta, Ingresar dinero) en verde y lo que sale (Nuevo gasto,
+          Retirar dinero) en rojo. Cerrar caja queda aparte, más abajo. */}
+      <div className={`grid grid-cols-2 gap-2.5 sm:grid-cols-4 ${cajaCerrada ? "hidden" : ""}`}>
+        <button
+          type="button"
+          onClick={onNuevaVenta}
+          className="inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-300/36 bg-[linear-gradient(135deg,rgba(16,185,129,0.26),rgba(6,95,70,0.56))] px-3 py-3.5 text-sm font-bold text-emerald-50 shadow-[0_0_28px_rgba(16,185,129,0.28)] transition hover:bg-emerald-400/24 hover:text-white"
+        >
+          <Plus className="size-4" /> Nueva venta
+        </button>
+        <button
+          type="button"
+          onClick={onNuevoGasto}
+          className="inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-300/38 bg-[linear-gradient(135deg,rgba(244,63,94,0.28),rgba(127,29,29,0.58))] px-3 py-3.5 text-sm font-bold text-rose-50 shadow-[0_0_28px_rgba(244,63,94,0.26)] transition hover:bg-rose-500/22 hover:text-white"
+        >
+          <Wallet className="size-4" /> Nuevo gasto
+        </button>
+        <button
+          type="button"
+          onClick={() => setShowIngresoChoice(true)}
+          className="inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] px-3 py-3.5 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-400/[0.12]"
+        >
+          <Plus className="size-4" /> Ingresar dinero
+        </button>
+        <button
+          type="button"
+          onClick={() => setMovType("retiro")}
+          className="inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-400/[0.06] px-3 py-3.5 text-sm font-semibold text-rose-200 transition hover:bg-rose-400/[0.12]"
+        >
+          <Minus className="size-4" /> Retirar dinero
+        </button>
+      </div>
+
       {/* Aviso de cajas pendientes de revisión — misma fuente
           (summary.pendingCierres) y mismo botón "Revisar cierre" que ya
           usan Inicio y Caja > Cierres, para que las tres pantallas
@@ -13018,23 +13035,6 @@ function FacturacionPanel({
           onClose={() => setSaldoDetalle(null)}
         />
       )}
-
-      <div className={`grid grid-cols-2 gap-2 ${cajaCerrada ? "hidden" : ""}`}>
-        <button
-          type="button"
-          onClick={() => setShowIngresoChoice(true)}
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.06] px-3 py-3 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-400/[0.12]"
-        >
-          <Plus className="size-4" /> Ingresar dinero
-        </button>
-        <button
-          type="button"
-          onClick={() => setMovType("retiro")}
-          className="inline-flex items-center justify-center gap-2 rounded-xl border border-rose-400/20 bg-rose-400/[0.06] px-3 py-3 text-sm font-semibold text-rose-200 transition hover:bg-rose-400/[0.12]"
-        >
-          <Minus className="size-4" /> Retirar dinero
-        </button>
-      </div>
 
       <div className={`flex justify-center ${cajaCerrada ? "hidden" : ""}`}>
         <CierreCajaBtn
