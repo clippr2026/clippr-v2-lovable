@@ -90,18 +90,28 @@ export function NegocioHero({ businessId }: { businessId: string | null }) {
         </div>
       </div>
       <div className="relative z-10 -mt-12 flex flex-col items-center px-4 text-center sm:-mt-14 sm:px-8">
-        <div className="grid h-28 w-28 shrink-0 place-items-center overflow-hidden rounded-3xl border-4 border-background bg-white text-3xl font-bold text-zinc-950 shadow-2xl sm:h-32 sm:w-32">
-          {data?.avatarUrl ? (
-            <img
-              src={data.avatarUrl}
-              alt={data.name}
-              className="h-full w-full object-cover"
-              style={{ objectPosition: data.avatarPosition }}
-              decoding="async"
-            />
-          ) : (
-            (data?.name ?? "").slice(0, 1)
-          )}
+        {/* Aro de neón alrededor de la foto: sirve para cualquier logo, también los de fondo oscuro */}
+        <div
+          className="rounded-[1.7rem] p-[3px] sm:rounded-[1.9rem]"
+          style={{
+            background: "linear-gradient(135deg, #38bdf8, #8b5cf6 50%, #ec4899)",
+            boxShadow:
+              "0 0 10px rgb(139 92 246 / 0.9), 0 0 26px rgb(139 92 246 / 0.65), 0 0 56px rgb(236 72 153 / 0.4), 0 0 80px rgb(56 189 248 / 0.25)",
+          }}
+        >
+          <div className="grid h-28 w-28 shrink-0 place-items-center overflow-hidden rounded-[1.45rem] bg-white text-3xl font-bold text-zinc-950 sm:h-32 sm:w-32 sm:rounded-[1.65rem]">
+            {data?.avatarUrl ? (
+              <img
+                src={data.avatarUrl}
+                alt={data.name}
+                className="h-full w-full object-cover"
+                style={{ objectPosition: data.avatarPosition }}
+                decoding="async"
+              />
+            ) : (
+              (data?.name ?? "").slice(0, 1)
+            )}
+          </div>
         </div>
         <h1 className="mt-3 font-display text-3xl font-semibold tracking-tight sm:text-5xl">{data?.name ?? " "}</h1>
         {activeBranches.length > 1 && (
