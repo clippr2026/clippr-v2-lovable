@@ -89,6 +89,8 @@ export function SucursalesSection() {
   const [editingId, setEditingId] = React.useState<string | null>(null);
   const [editName, setEditName] = React.useState("");
   const [editAddress, setEditAddress] = React.useState("");
+  // Punto encontrado por la dirección (o pegado), se guarda junto con Guardar.
+  const [pendingLoc, setPendingLoc] = React.useState<{ lat: number; lng: number } | null>(null);
   const [savingEdit, setSavingEdit] = React.useState(false);
 
   // Loading por-fila de Hacer principal/Archivar/Eliminar — nunca más de
@@ -131,6 +133,7 @@ export function SucursalesSection() {
   }
 
   function startEdit(b: Branch) {
+    setPendingLoc(null);
     setEditingId(b.id);
     setEditName(b.name);
     setEditAddress(b.address ?? "");
@@ -145,7 +148,11 @@ export function SucursalesSection() {
     setSavingEdit(true);
     const { error } = await supabase
       .from("branches" as any)
-      .update({ name: trimmed, address: editAddress.trim() || null } as any)
+      .update({
+        name: trimmed,
+        address: editAddress.trim() || null,
+        ...(pendingLoc ? { latitude: pendingLoc.lat, longitude: pendingLoc.lng } : {}),
+      } as any)
       .eq("id", id);
     setSavingEdit(false);
     if (error) {
@@ -153,6 +160,7 @@ export function SucursalesSection() {
       return;
     }
     setEditingId(null);
+    setPendingLoc(null);
     reportSaveStatus("saved");
     await reloadBranches();
   }
@@ -270,7 +278,13 @@ export function SucursalesSection() {
 
             {b.is_active && (
               <div className="border-t border-white/[0.07] pt-3">
-                <SucursalUbicacion branchId={b.id} branchName={b.name} address={editAddress} />
+                <SucursalUbicacion
+                  branchId={b.id}
+                  branchName={b.name}
+                  address={editAddress}
+                  savedAddress={b.address}
+                  onPendingChange={setPendingLoc}
+                />
               </div>
             )}
 

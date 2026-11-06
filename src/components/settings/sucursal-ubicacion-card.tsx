@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Loader2, MapPin } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { inputCls } from "@/components/settings/shared";
@@ -53,75 +53,93 @@ function osmEmbedUrl(c: { lat: number; lng: number }) {
 function mapsUrl(c: { lat: number; lng: number }) {
   return `https://www.google.com/maps?q=${c.lat},${c.lng}`;
 }
-// Ubicación de UNA sucursal para fichar, dentro de su propia tarjeta en
-// Sucursales. Si todavía no existen las columnas, no se muestra nada.
+// Ubicación de UNA sucursal para fichar, dentro de Editar. Al escribir la
+// dirección, el mapa se actualiza solo con el punto encontrado; la ubicación
+// se guarda junto con el resto al tocar "Guardar" (onPendingChange le avisa al
+// padre qué punto guardar). Si hace falta, se puede pegar un link o
+// coordenadas de Google Maps. Si todavía no existen las columnas, no se muestra.
 export function SucursalUbicacion({
   branchId,
   branchName,
   address,
+  savedAddress,
+  onPendingChange,
 }: {
   branchId: string;
   branchName: string;
-  address?: string | null;
+  address: string;
+  savedAddress?: string | null;
+  onPendingChange: (coords: { lat: number; lng: number } | null) => void;
 }) {
+  const [loaded, setLoaded] = React.useState(false);
   const [loc, setLoc] = React.useState<BranchLoc | null>(null);
-  const [saving, setSaving] = React.useState(false);
   const [candidate, setCandidate] = React.useState<Candidate | null>(null);
+  const [searching, setSearching] = React.useState(false);
+  const [notFound, setNotFound] = React.useState(false);
+  const [showPaste, setShowPaste] = React.useState(false);
   const [pasted, setPasted] = React.useState("");
-  const [open, setOpen] = React.useState(false);
 
-  const load = React.useCallback(async () => {
-    const { data, error } = await supabase
+  React.useEffect(() => {
+    let cancelled = false;
+    void supabase
       .from("branches" as any)
       .select("id,latitude,longitude,checkin_radius_m")
       .eq("id", branchId)
-      .maybeSingle();
-    if (error || !data) {
-      setLoc(null);
-      return;
-    }
-    const row = data as unknown as BranchLoc;
-    setLoc(row);
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        setLoc(error || !data ? null : (data as unknown as BranchLoc));
+        setLoaded(true);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [branchId]);
 
+  const hasLoc = loc?.latitude != null && loc?.longitude != null;
+
+  // Cambió la dirección escrita: se vuelve a buscar sola (con una pausa corta).
+  // Un punto pegado a mano rige hasta que se vuelva a tocar la dirección.
   React.useEffect(() => {
-    void load();
-  }, [load]);
-
-  async function save(patch: Partial<BranchLoc>) {
-    setSaving(true);
-    const { error } = await supabase
-      .from("branches" as any)
-      .update(patch)
-      .eq("id", branchId);
-    setSaving(false);
-    if (error) {
-      toast.error("No se pudo guardar la ubicación. Probá de nuevo.");
-      return false;
-    }
-    await load();
-    return true;
-  }
-
-  async function searchAddress() {
-    if (!address?.trim()) {
-      toast.error("Esta sucursal no tiene dirección cargada. Pegá un link de Google Maps o las coordenadas.");
+    if (!loaded || !loc) return;
+    const trimmed = address.trim();
+    setNotFound(false);
+    if (hasLoc && trimmed === (savedAddress ?? "").trim()) {
+      setCandidate(null);
       return;
     }
-    setSaving(true);
-    try {
-      const found = await geocodeAddress(address);
-      if (!found) {
-        toast.error("No encontré esa dirección. Pegá un link de Google Maps o las coordenadas.");
-        return;
-      }
-      setCandidate(found);
-    } catch (e) {
-      toast.error((e as Error).message);
-    } finally {
-      setSaving(false);
+    if (trimmed.length < 5) {
+      setCandidate(null);
+      return;
     }
-  }
+    let cancelled = false;
+    const timer = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const found = await geocodeAddress(trimmed);
+        if (cancelled) return;
+        setCandidate(found);
+        setNotFound(!found);
+      } catch {
+        if (!cancelled) {
+          setCandidate(null);
+          setNotFound(true);
+        }
+      } finally {
+        if (!cancelled) setSearching(false);
+      }
+    }, 700);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [address, loaded, hasLoc]);
+
+  React.useEffect(() => {
+    onPendingChange(candidate ? { lat: candidate.lat, lng: candidate.lng } : null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [candidate]);
 
   function usePasted() {
     const parsed = parseCoords(pasted);
@@ -129,65 +147,66 @@ export function SucursalUbicacion({
       toast.error("No pude leer coordenadas. Pegá un link largo de Google Maps o 'latitud, longitud'.");
       return;
     }
+    setNotFound(false);
     setCandidate({ ...parsed, label: "Coordenadas ingresadas" });
-  }
-
-  async function confirmCandidate() {
-    if (!candidate) return;
-    if (await save({ latitude: candidate.lat, longitude: candidate.lng })) {
-      toast.success("Ubicación de la sucursal guardada.");
-      setCandidate(null);
-      setOpen(false);
-    }
+    setShowPaste(false);
+    setPasted("");
   }
 
   if (!loc) return null;
-  const hasLoc = loc.latitude != null && loc.longitude != null;
+
+  const point = candidate ?? (hasLoc ? { lat: loc.latitude as number, lng: loc.longitude as number } : null);
 
   return (
-    <div>
-      <div className="flex flex-wrap items-center gap-3">
+    <div className="space-y-2">
+      <div className="text-xs text-muted-foreground">
+        La ubicación sale de la dirección: escribila arriba y el mapa se actualiza solo.
+      </div>
+      {searching && (
+        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+          <Loader2 className="size-3.5 animate-spin" /> Buscando la dirección…
+        </div>
+      )}
+      {!searching && notFound && (
+        <div className="text-xs text-amber-300">
+          No encontré esa dirección. Probá agregando la ciudad o pegá un link de Google Maps.
+        </div>
+      )}
+      {!searching && !point && !notFound && (
+        <div className="text-xs text-amber-300">Sin ubicación: solo se puede fichar con QR</div>
+      )}
+      {point && (
+        <div className="rounded-xl bg-black/20 p-2.5 ring-1 ring-white/10">
+          {candidate && candidate.label && (
+            <div className="mb-2 text-xs text-foreground">{candidate.label}</div>
+          )}
+          <iframe
+            title={`Mapa de ${branchName}`}
+            src={osmEmbedUrl(point)}
+            loading="lazy"
+            className="h-48 w-full rounded-lg border-0"
+          />
+          <div className="mt-2 flex flex-wrap items-center gap-3 text-xs">
+            <a href={mapsUrl(point)} target="_blank" rel="noreferrer" className="text-sky-300 underline">
+              Abrir en Google Maps
+            </a>
+            {candidate && <span className="text-muted-foreground">Se guarda al tocar Guardar.</span>}
+          </div>
+        </div>
+      )}
+      <div>
         <button
           type="button"
-          disabled={saving}
-          onClick={() => {
-            const opening = !open;
-            setOpen(opening);
-            if (opening && address?.trim() && !candidate) void searchAddress();
-          }}
-          className="inline-flex items-center gap-1.5 rounded-xl bg-white/5 px-3 py-2 text-xs font-semibold text-foreground ring-1 ring-white/10 hover:bg-white/10 disabled:opacity-60"
+          onClick={() => setShowPaste((v) => !v)}
+          className="text-xs text-muted-foreground underline hover:text-foreground"
         >
-          <MapPin className="size-3.5" />
-          {hasLoc ? "Cambiar ubicación" : "Fijar ubicación"}
+          ¿No es el lugar? Pegá un link de Google Maps
         </button>
-        {hasLoc ? (
-          <a
-            href={mapsUrl({ lat: loc.latitude as number, lng: loc.longitude as number })}
-            target="_blank"
-            rel="noreferrer"
-            className="text-xs text-sky-300 underline"
-          >
-            Ver la ubicación en el mapa
-          </a>
-        ) : (
-          <div className="text-xs text-amber-300">Sin ubicación: solo se puede fichar con QR</div>
-        )}
-      </div>
-      {open && (
-        <div className="mt-3 space-y-2 rounded-xl bg-black/20 p-3 ring-1 ring-white/10">
-          <button
-            type="button"
-            disabled={saving}
-            onClick={() => void searchAddress()}
-            className="inline-flex items-center gap-1.5 rounded-lg bg-white/5 px-3 py-1.5 text-xs font-semibold ring-1 ring-white/10 hover:bg-white/10 disabled:opacity-60"
-          >
-            {saving && <Loader2 className="size-3.5 animate-spin" />}
-            Buscar por la dirección{address ? `: ${address}` : ""}
-          </button>
-          <div className="flex items-center gap-2">
+        {showPaste && (
+          <div className="mt-2 flex items-center gap-2">
             <input
               className={`${inputCls} !h-9 flex-1`}
-              placeholder="O pegá un link de Google Maps o 'lat, lng'"
+              placeholder="Link de Google Maps o 'lat, lng'"
               value={pasted}
               onChange={(e) => setPasted(e.target.value)}
             />
@@ -199,35 +218,8 @@ export function SucursalUbicacion({
               Usar
             </button>
           </div>
-          <p className="text-[11px] text-muted-foreground">
-            En Google Maps, mantené apretado el punto exacto del local: arriba aparecen las coordenadas para copiar.
-          </p>
-          {candidate && (
-            <div className="rounded-lg bg-white/5 p-2.5 text-xs ring-1 ring-white/10">
-              <div className="text-foreground">{candidate.label}</div>
-              <iframe
-                title={`Mapa de ${branchName}`}
-                src={osmEmbedUrl(candidate)}
-                loading="lazy"
-                className="my-2 h-48 w-full rounded-lg border-0"
-              />
-              <a href={mapsUrl(candidate)} target="_blank" rel="noreferrer" className="text-sky-300 underline">
-                Abrir en Google Maps
-              </a>
-              <div className="mt-2">
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={() => void confirmCandidate()}
-                  className="rounded-lg bg-gradient-to-r from-sky-400 to-violet-500 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-60"
-                >
-                  Es el lugar correcto, guardar
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
