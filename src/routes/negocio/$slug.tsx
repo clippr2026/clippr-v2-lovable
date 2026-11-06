@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { COVER_ASPECT_CLASS } from "@/lib/cover-frame";
+import { NeonFrame, neonPalette } from "@/components/neon-frame";
 import { hiddenPublicBranchIds } from "@/lib/public-branches";
 import * as React from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -571,6 +572,22 @@ function PublicProfilePage() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [showAllFeaturedClients, zoomedFeaturedClient]);
 
+  // Logo del local para la pantalla de carga (se pide aparte y antes que el resto).
+  const [splashLogo, setSplashLogo] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const q = supabase.from("public_booking_businesses").select("avatar_url,logo_url");
+      const { data } = await (isUuid(slug) ? q.eq("id", slug) : q.eq("slug", slug)).maybeSingle();
+      if (cancelled) return;
+      const row = data as { avatar_url?: string | null; logo_url?: string | null } | null;
+      setSplashLogo(row?.avatar_url || row?.logo_url || null);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [slug]);
+
   React.useEffect(() => {
     let cancelled = false;
     async function load() {
@@ -876,6 +893,21 @@ function PublicProfilePage() {
   };
 
   if (loading) {
+    // Mientras carga se muestra el logo del local (no el de Clippr) con el neón girando.
+    if (splashLogo) {
+      return (
+        <main
+          className="grid min-h-dvh place-items-center"
+          style={{ background: resolvedTheme === "light" ? "#f6f7fb" : "#08070c" }}
+        >
+          <NeonFrame colors={neonPalette(null)} mode="loop">
+            <div className="grid h-28 w-28 place-items-center sm:h-32 sm:w-32">
+              <img src={splashLogo} alt="" className="h-full w-full object-cover" decoding="async" />
+            </div>
+          </NeonFrame>
+        </main>
+      );
+    }
     if (resolvedTheme === null) return null;
     return <ClipprLoader fullScreen size="lg" background={resolvedTheme} />;
   }
@@ -980,10 +1012,26 @@ function PublicProfilePage() {
           }}
         />
         <div className="relative mx-auto max-w-6xl px-4 py-5 sm:py-10">
-          <div className={`${COVER_ASPECT_CLASS} overflow-hidden rounded-[2rem] border border-white/10 shadow-2xl`} style={{ background: "linear-gradient(90deg, var(--c-primary), var(--c-secondary))" }}>
+          <div className="relative">
+            <div
+              className="pointer-events-none absolute -inset-3 -z-10 rounded-[2.5rem] opacity-70 blur-2xl sm:-inset-5"
+              style={{
+                background:
+                  "radial-gradient(60% 90% at 25% 40%, color-mix(in oklch, var(--c-primary) 55%, transparent), transparent 70%), radial-gradient(60% 90% at 78% 55%, color-mix(in oklch, var(--c-secondary) 45%, transparent), transparent 70%)",
+              }}
+            />
+          <div
+            className={`relative ${COVER_ASPECT_CLASS} overflow-hidden rounded-[2rem] border border-white/20`}
+            style={{
+              background: "linear-gradient(90deg, var(--c-primary), var(--c-secondary))",
+              boxShadow:
+                "0 0 0 1px rgb(255 255 255 / 0.06), 0 0 34px color-mix(in oklch, var(--c-primary) 55%, transparent), 0 0 80px color-mix(in oklch, var(--c-secondary) 30%, transparent), 0 18px 50px rgb(0 0 0 / 0.35)",
+            }}
+          >
             {business.cover_url ? (
               <img loading="lazy" src={business.cover_url} alt="Portada del negocio" className="h-full w-full object-cover" style={{ objectPosition: coverPosition }} decoding="async" />
             ) : null}
+          </div>
           </div>
           <div className="relative z-10 -mt-12 flex flex-col px-4 sm:-mt-14 sm:px-8">
             <div className="relative w-max">
@@ -1002,13 +1050,15 @@ function PublicProfilePage() {
                   <span className="absolute left-1/2 top-full h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-white" />
                 </div>
               ) : null}
-              <div className="grid h-28 w-28 shrink-0 place-items-center overflow-hidden rounded-3xl border-4 bg-white text-3xl font-bold text-zinc-950 shadow-2xl sm:h-32 sm:w-32" style={{ borderColor: isLight ? "#f6f7fb" : "#08070c" }}>
-                {business.avatar_url || business.logo_url ? (
-                  <img loading="lazy" src={business.avatar_url || business.logo_url || ""} alt={business.name} className="h-full w-full object-cover" style={{ objectPosition: avatarPosition }} decoding="async" />
-                ) : (
-                  business.name.slice(0, 1)
-                )}
-              </div>
+              <NeonFrame colors={neonPalette(cPrimary)} mode="intro">
+                <div className="grid h-28 w-28 shrink-0 place-items-center text-3xl font-bold text-zinc-950 sm:h-32 sm:w-32">
+                  {business.avatar_url || business.logo_url ? (
+                    <img loading="lazy" src={business.avatar_url || business.logo_url || ""} alt={business.name} className="h-full w-full object-cover" style={{ objectPosition: avatarPosition }} decoding="async" />
+                  ) : (
+                    business.name.slice(0, 1)
+                  )}
+                </div>
+              </NeonFrame>
             </div>
             <div className="mt-4">
               <div className="min-w-0">
