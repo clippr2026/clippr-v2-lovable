@@ -1300,13 +1300,40 @@ export function BrandingSection() {
       draft={previewDraft}
       refreshKey={previewKey}
       large
-      reserve={140}
+      reserve={200}
       onClose={() => setEditorMode(false)}
     />
   ) : null;
 
   const formContent = (
     <>
+      <div className="flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-white/[0.035] p-2">
+        {(
+          [
+            ["info", "Información"],
+            ["imagenes", "Imágenes"],
+            ["colores", "Colores"],
+            ["efectos", "Efectos"],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setActiveTab(id)}
+            className={
+              "rounded-xl px-4 py-2 text-sm font-semibold transition " +
+              (activeTab === id
+                ? "bg-white/[0.08] text-foreground ring-1 ring-white/10"
+                : "text-muted-foreground hover:bg-white/[0.06] hover:text-foreground")
+            }
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === "info" && (
+        <>
       <SectionCard label="Estado">
         <div
           className={cn(
@@ -1457,33 +1484,6 @@ export function BrandingSection() {
         </div>
       </SectionCard>
 
-      <div className="flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-white/[0.035] p-2">
-        {(
-          [
-            ["info", "Información"],
-            ["imagenes", "Imágenes"],
-            ["colores", "Colores"],
-            ["efectos", "Efectos"],
-          ] as const
-        ).map(([id, label]) => (
-          <button
-            key={id}
-            type="button"
-            onClick={() => setActiveTab(id)}
-            className={
-              "rounded-xl px-4 py-2 text-sm font-semibold transition " +
-              (activeTab === id
-                ? "bg-white/[0.08] text-foreground ring-1 ring-white/10"
-                : "text-muted-foreground hover:bg-white/[0.06] hover:text-foreground")
-            }
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      {activeTab === "info" && (
-        <>
           <SectionCard label="Información del negocio">
             <div className="divide-y divide-white/5">
               {infoRows.map((f) => {
