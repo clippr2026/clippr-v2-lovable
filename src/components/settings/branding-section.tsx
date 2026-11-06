@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { COVER_ASPECT_CLASS } from "@/lib/cover-frame";
 import { PUBLIC_FONTS, publicFontsStylesheet } from "@/lib/public-fonts";
+import { createPortal } from "react-dom";
 import { PublicPagePreview } from "@/components/settings/public-page-preview";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -2353,8 +2354,8 @@ export function BrandingSection() {
   );
 
   if (editorMode && editorPreview) {
-    return (
-      <div className="fixed inset-0 z-[200] flex flex-col bg-background">
+    return createPortal(
+      (<div className="fixed inset-0 z-[200] flex flex-col bg-background">
         <header className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-2.5">
           <div className="text-sm font-semibold">Editor de la página pública</div>
           <div className="flex items-center gap-2">
@@ -2380,7 +2381,8 @@ export function BrandingSection() {
           ) : null}
           <main className="min-w-0 flex-1 overflow-hidden p-4">{editorPreview}</main>
         </div>
-      </div>
+      </div>),
+      document.body,
     );
   }
 
