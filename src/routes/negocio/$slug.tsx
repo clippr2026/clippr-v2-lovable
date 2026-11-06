@@ -1,6 +1,15 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { COVER_ASPECT_CLASS } from "@/lib/cover-frame";
 import { NeonFrame, neonPalette } from "@/components/neon-frame";
+import {
+  CoverSweep,
+  EntryEffectStyles,
+  EntrySplash,
+  avatarFxStyle,
+  coverFxStyle,
+  normalizeEntryEffect,
+  type EntryEffectKey,
+} from "@/components/entry-effects";
 import { getPublicFont, publicFontsStylesheet } from "@/lib/public-fonts";
 import { hiddenPublicBranchIds } from "@/lib/public-branches";
 import * as React from "react";
@@ -111,6 +120,7 @@ type FeaturedClient = {
 
 type PublicBranding = {
   font?: string | null;
+  entry_effect?: string | null;
   address?: string | null;
   phone?: string | null;
   email?: string | null;
@@ -543,6 +553,15 @@ function PublicProfilePage() {
   const [additionalInfo, setAdditionalInfo] = React.useState<string[]>([]);
   const [colors, setColors] = React.useState<LandingColors>({});
   const [fontKey, setFontKey] = React.useState<string | null>(null);
+  // Efecto de entrada (Configuración → Efectos). En la vista previa de Configuración no corre
+  // solo: se reproduce únicamente cuando se prueba un efecto.
+  const [entryEffect, setEntryEffect] = React.useState<EntryEffectKey>("neon");
+  const [isPreview] = React.useState(
+    () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "1",
+  );
+  const [effectRun, setEffectRun] = React.useState(0);
+  const [previewSplash, setPreviewSplash] = React.useState(false);
+  const lastEffectNonce = React.useRef(0);
   const [theme, setTheme] = React.useState<LandingTheme>("dark");
   // Tema real del negocio, conocido ANTES de renderizar el loader. Nunca arranca en
   // "dark" ni "light" por defecto: hasta que no se resuelve desde business_settings, el
@@ -591,6 +610,16 @@ function PublicProfilePage() {
       if (dr.colors && typeof dr.colors === "object") setColors(dr.colors as LandingColors);
       if (dr.theme) setTheme(dr.theme === "light" ? "light" : "dark");
       if ("font" in dr) setFontKey(typeof dr.font === "string" ? dr.font : null);
+      if (typeof dr.effect === "string") setEntryEffect(normalizeEntryEffect(dr.effect));
+      if (typeof dr.effectNonce === "number" && dr.effectNonce > lastEffectNonce.current) {
+        lastEffectNonce.current = dr.effectNonce;
+        // Simula la carga (pantalla con el logo) y después corre la animación de entrada.
+        setPreviewSplash(true);
+        window.setTimeout(() => {
+          setPreviewSplash(false);
+          setEffectRun((r) => r + 1);
+        }, 1700);
+      }
       if (typeof dr.coverPosition === "string") setCoverPosition(dr.coverPosition);
       if (typeof dr.avatarPosition === "string") setAvatarPosition(dr.avatarPosition);
       setBusiness((b) =>
@@ -616,11 +645,18 @@ function PublicProfilePage() {
   React.useEffect(() => {
     let cancelled = false;
     void (async () => {
-      const q = supabase.from("public_booking_businesses").select("avatar_url,logo_url");
+      const q = supabase.from("public_booking_businesses").select("id,avatar_url,logo_url");
       const { data } = await (isUuid(slug) ? q.eq("id", slug) : q.eq("slug", slug)).maybeSingle();
       if (cancelled) return;
-      const row = data as { avatar_url?: string | null; logo_url?: string | null } | null;
+      const row = data as { id?: string; avatar_url?: string | null; logo_url?: string | null } | null;
       setSplashLogo(row?.avatar_url || row?.logo_url || null);
+      // Efecto elegido: se conoce antes de que termine de cargar la página, para que la pantalla de carga ya lo use.
+      if (row?.id) {
+        const { data: st } = await supabase.from("public_booking_settings").select("schedule").eq("business_id", row.id).maybeSingle();
+        if (cancelled) return;
+        const b = (st as any)?.schedule?._branding;
+        if (b && typeof b === "object") setEntryEffect(normalizeEntryEffect(b.entry_effect));
+      }
     })();
     return () => {
       cancelled = true;
@@ -880,6 +916,7 @@ function PublicProfilePage() {
           setAdditionalInfo(normalizeAdditionalInfo(branding.additional_info));
           setColors((branding.colors && typeof branding.colors === "object" ? branding.colors : {}) as LandingColors);
           setFontKey(typeof branding.font === "string" ? branding.font : null);
+          setEntryEffect(normalizeEntryEffect(branding.entry_effect));
           setTheme(branding.theme === "light" ? "light" : "dark");
         }
       } catch {
@@ -900,6 +937,7 @@ function PublicProfilePage() {
   const accent = cAccent; // acciones principales: botones, estados e indicadores
   const isLight = theme === "light";
   const pubFont = getPublicFont(fontKey);
+  const playFx = !isPreview || effectRun > 0;
   const accentButtonText = colors.buttonText || "#ffffff";
 
   // Métrica real de cabecera. Si no hay datos cae a "—": nunca rompe el render.
@@ -934,19 +972,19 @@ function PublicProfilePage() {
   };
 
   if (loading) {
-    // Mientras carga se muestra el logo del local (no el de Clippr) con el neón girando.
-    if (splashLogo) {
+    // En la vista previa de Configuración la carga es silenciosa (el efecto se prueba aparte).
+    if (isPreview) {
+      return <main className="min-h-dvh" style={{ background: resolvedTheme === "light" ? "#f6f7fb" : "#08070c" }} />;
+    }
+    // Mientras carga se muestra el logo del local (no el de Clippr) con el efecto elegido.
+    if (splashLogo && entryEffect !== "none") {
       return (
-        <main
-          className="grid min-h-dvh place-items-center"
-          style={{ background: resolvedTheme === "light" ? "#f6f7fb" : "#08070c" }}
-        >
-          <NeonFrame colors={neonPalette(null)} mode="loop">
-            <div className="grid h-28 w-28 place-items-center sm:h-32 sm:w-32">
-              <img src={splashLogo} alt="" className="h-full w-full object-cover" decoding="async" />
-            </div>
-          </NeonFrame>
-        </main>
+        <EntrySplash
+          logo={splashLogo}
+          effect={entryEffect}
+          colors={neonPalette(null)}
+          light={resolvedTheme === "light"}
+        />
       );
     }
     if (resolvedTheme === null) return null;
@@ -1037,6 +1075,16 @@ function PublicProfilePage() {
       }}
     >
       {pubFont ? <link rel="stylesheet" href={publicFontsStylesheet([pubFont])} /> : null}
+      <EntryEffectStyles />
+      {previewSplash && (splashLogo || business.avatar_url || business.logo_url) ? (
+        <EntrySplash
+          overlay
+          logo={(splashLogo || business.avatar_url || business.logo_url) as string}
+          effect={entryEffect === "none" ? "neon" : entryEffect}
+          colors={neonPalette(null)}
+          light={isLight}
+        />
+      ) : null}
       <style>{`
         .public-landing.pub-font :is(h1, h2, h3) { font-family: var(--pub-font), sans-serif; }
         .public-landing.pub-font h1 { line-height: 1.3; padding-bottom: 0.22em; }
@@ -1058,7 +1106,7 @@ function PublicProfilePage() {
           }}
         />
         <div className="relative mx-auto max-w-6xl px-4 py-5 sm:py-10">
-          <div className="relative">
+          <div className="relative" key={`cover-${effectRun}`}>
             <div
               className="pointer-events-none absolute -inset-3 -z-10 rounded-[2.5rem] opacity-70 blur-2xl sm:-inset-5"
               style={{
@@ -1069,14 +1117,16 @@ function PublicProfilePage() {
           <div
             className={`relative ${COVER_ASPECT_CLASS} overflow-hidden rounded-[2rem] border border-white/20`}
             style={{
+              ...(entryEffect === "fade" ? coverFxStyle("fade", playFx) : {}),
               background: "linear-gradient(90deg, var(--c-primary), var(--c-secondary))",
               boxShadow:
                 "0 0 0 1px rgb(255 255 255 / 0.06), 0 0 34px color-mix(in oklch, var(--c-primary) 55%, transparent), 0 0 80px color-mix(in oklch, var(--c-secondary) 30%, transparent), 0 18px 50px rgb(0 0 0 / 0.35)",
             }}
           >
             {business.cover_url ? (
-              <img loading="lazy" src={business.cover_url} alt="Portada del negocio" className="h-full w-full object-cover" style={{ objectPosition: coverPosition }} decoding="async" />
+              <img loading="lazy" src={business.cover_url} alt="Portada del negocio" className="h-full w-full object-cover" style={{ objectPosition: coverPosition, ...(entryEffect === "zoom" ? coverFxStyle("zoom", playFx) : {}) }} decoding="async" />
             ) : null}
+            <CoverSweep effect={entryEffect} play={playFx} />
           </div>
           </div>
           <div className="relative z-10 -mt-12 flex flex-col px-4 sm:-mt-14 sm:px-8">
@@ -1096,7 +1146,8 @@ function PublicProfilePage() {
                   <span className="absolute left-1/2 top-full h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-white" />
                 </div>
               ) : null}
-              <NeonFrame colors={neonPalette(cPrimary)} mode="intro">
+              <div key={`avatar-${effectRun}`} className="fx-anim" style={avatarFxStyle(entryEffect, playFx)}>
+              <NeonFrame colors={neonPalette(cPrimary)} mode={entryEffect === "neon" && playFx ? "intro" : "static"}>
                 <div className="grid h-28 w-28 shrink-0 place-items-center text-3xl font-bold text-zinc-950 sm:h-32 sm:w-32">
                   {business.avatar_url || business.logo_url ? (
                     <img loading="lazy" src={business.avatar_url || business.logo_url || ""} alt={business.name} className="h-full w-full object-cover" style={{ objectPosition: avatarPosition }} decoding="async" />
@@ -1105,6 +1156,7 @@ function PublicProfilePage() {
                   )}
                 </div>
               </NeonFrame>
+              </div>
             </div>
             <div className="mt-4">
               <div className="min-w-0">

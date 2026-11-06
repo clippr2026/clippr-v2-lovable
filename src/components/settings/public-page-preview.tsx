@@ -11,6 +11,9 @@ export type PreviewDraft = {
   coverUrl: string;
   avatarUrl: string;
   name: string;
+  effect: string;
+  // Cada vez que sube, la vista previa reproduce el efecto (carga con el logo + animación de entrada).
+  effectNonce: number;
 };
 
 // Vista previa de la página pública, en vivo: el iframe carga la página real

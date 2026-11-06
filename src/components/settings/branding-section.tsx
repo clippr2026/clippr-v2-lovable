@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { COVER_ASPECT_CLASS } from "@/lib/cover-frame";
 import { PUBLIC_FONTS, publicFontsStylesheet } from "@/lib/public-fonts";
 import { createPortal } from "react-dom";
+import { ENTRY_EFFECTS, normalizeEntryEffect, type EntryEffectKey } from "@/components/entry-effects";
 import { PublicPagePreview } from "@/components/settings/public-page-preview";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -428,12 +429,14 @@ export function BrandingSection() {
   );
   const [uploadingFeaturedClubLogoId, setUploadingFeaturedClubLogoId] =
     useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<"info" | "imagenes" | "colores">(
+  const [activeTab, setActiveTab] = useState<"info" | "imagenes" | "colores" | "efectos">(
     "info",
   );
   const [colors, setColors] = useState(LANDING_DEFAULTS);
   const [theme, setTheme] = useState<LandingTheme>(LANDING_THEME_DEFAULT);
   const [fontKey, setFontKey] = useState<string>("");
+  const [entryEffect, setEntryEffect] = useState<EntryEffectKey>("neon");
+  const [effectNonce, setEffectNonce] = useState(0);
   const [showAdvancedColors, setShowAdvancedColors] = useState(false);
   const [benefits, setBenefits] = useState<Benefit[]>([]);
   const [customBenefit, setCustomBenefit] = useState("");
@@ -521,6 +524,7 @@ export function BrandingSection() {
       });
       setTheme((cfg.theme as string) === "light" ? "light" : "dark");
       setFontKey(typeof cfg.font === "string" ? cfg.font : "");
+      setEntryEffect(normalizeEntryEffect(cfg.entry_effect));
       const rawBenefits = normalizeBenefits(cfg.benefits);
       if (rawBenefits.length > 0) {
         setBenefits(rawBenefits);
@@ -1050,6 +1054,7 @@ export function BrandingSection() {
         },
         theme,
         font: fontKey || null,
+        entry_effect: entryEffect,
         benefits: benefits
           .map((b) => ({ id: b.id, label: b.label.trim(), active: b.active }))
           .filter((b) => b.label.length > 0)
@@ -1113,7 +1118,7 @@ export function BrandingSection() {
   const saveRef = React.useRef(save);
   React.useEffect(() => {
     saveRef.current = save;
-  }, [businessId, data, logoFile, colors, theme, fontKey, benefits]);
+  }, [businessId, data, logoFile, colors, theme, fontKey, entryEffect, benefits]);
 
   const brandingHydratedRef = React.useRef(false);
 
@@ -1142,7 +1147,7 @@ export function BrandingSection() {
     }, 650);
 
     return () => window.clearTimeout(timer);
-  }, [data, logoFile, colors, theme, fontKey, benefits, loading, businessId]);
+  }, [data, logoFile, colors, theme, fontKey, entryEffect, benefits, loading, businessId]);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -1189,8 +1194,10 @@ export function BrandingSection() {
       coverUrl: data.cover_url,
       avatarUrl: data.avatar_url,
       name: data.name,
+      effect: entryEffect,
+      effectNonce,
     }),
-    [colors, theme, fontKey, data.cover_position, data.avatar_position, data.cover_url, data.avatar_url, data.name],
+    [colors, theme, fontKey, entryEffect, effectNonce, data.cover_position, data.avatar_position, data.cover_url, data.avatar_url, data.name],
   );
   // Lo que no viaja en vivo (textos, beneficios, portafolio...) se ve al recargar la
   // vista, un poco después de que el autoguardado lo escriba.
@@ -1456,6 +1463,7 @@ export function BrandingSection() {
             ["info", "Información"],
             ["imagenes", "Imágenes"],
             ["colores", "Colores"],
+            ["efectos", "Efectos"],
           ] as const
         ).map(([id, label]) => (
           <button
@@ -2103,6 +2111,64 @@ export function BrandingSection() {
             </div>
           </SectionCard>
         </>
+      )}
+
+      {activeTab === "efectos" && (
+        <SectionCard label="Efectos de entrada">
+          <p className="text-sm text-white/55">
+            Elegí cómo aparece tu página cuando alguien entra: el logo y la portada hacen el efecto. Tocá un efecto o
+            "Probar" para verlo en la vista previa.
+          </p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            {ENTRY_EFFECTS.map((fx) => {
+              const active = entryEffect === fx.key;
+              return (
+                <div
+                  key={fx.key}
+                  className={cn(
+                    "rounded-2xl border p-3 transition",
+                    active ? "border-white/60 bg-white/10" : "border-white/10 bg-white/[0.04] hover:bg-white/[0.07]",
+                  )}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEntryEffect(fx.key);
+                      setEffectNonce((n) => n + 1);
+                    }}
+                    className="w-full text-left"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-semibold">{fx.label}</span>
+                      {active ? <span className="rounded-full bg-emerald-400/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">Elegido</span> : null}
+                    </div>
+                    <p className="mt-1 text-xs text-white/55">{fx.desc}</p>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEntryEffect(fx.key);
+                      setEffectNonce((n) => n + 1);
+                    }}
+                    className="mt-2 rounded-lg bg-white/5 px-3 py-1 text-xs font-semibold ring-1 ring-white/10 hover:bg-white/10"
+                  >
+                    Probar
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+          <button
+            type="button"
+            onClick={() => setEntryEffect("none")}
+            className={cn(
+              "mt-3 rounded-xl border px-3 py-2 text-xs font-semibold transition",
+              entryEffect === "none" ? "border-white/60 bg-white/10" : "border-white/10 bg-white/5 hover:bg-white/10",
+            )}
+          >
+            Sin efecto {entryEffect === "none" ? "· elegido" : ""}
+          </button>
+        </SectionCard>
       )}
 
       {activeTab === "colores" && (
