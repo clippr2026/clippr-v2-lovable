@@ -1154,6 +1154,9 @@ export function BrandingSection() {
 
   // Vista previa en vivo (panel al costado en pantallas grandes, cajón en las chicas).
   const [previewOpen, setPreviewOpen] = useState(false);
+  // Editor a pantalla completa: la vista previa ocupa casi todo y la configuración queda en una columna angosta (que se puede ocultar).
+  const [editorMode, setEditorMode] = useState(false);
+  const [editorPanelOpen, setEditorPanelOpen] = useState(true);
   const [isXl, setIsXl] = useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 1280px)").matches);
   React.useEffect(() => {
     const mq = window.matchMedia("(min-width: 1280px)");
@@ -1261,12 +1264,20 @@ export function BrandingSection() {
       draft={previewDraft}
       refreshKey={previewKey}
       onClose={previewOpen ? () => setPreviewOpen(false) : undefined}
+      onEditor={isXl ? () => setEditorMode(true) : undefined}
+    />
+  ) : null;
+  const editorPreview = previewSlug ? (
+    <PublicPagePreview
+      slug={previewSlug}
+      draft={previewDraft}
+      refreshKey={previewKey}
+      large
+      onClose={() => setEditorMode(false)}
     />
   ) : null;
 
-  return (
-    <div className="xl:grid xl:grid-cols-2 xl:items-start xl:gap-6">
-    <div className="min-w-0 space-y-6">
+  const formContent = (
     <>
       <SectionCard label="Estado">
         <div
@@ -2319,7 +2330,43 @@ export function BrandingSection() {
         </>
       )}
     </>
-    </div>
+  );
+
+  if (editorMode && editorPreview) {
+    return (
+      <div className="fixed inset-0 z-[200] flex flex-col bg-background">
+        <header className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-2.5">
+          <div className="text-sm font-semibold">Editor de la página pública</div>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setEditorPanelOpen((v) => !v)}
+              className="rounded-lg bg-white/5 px-3 py-1.5 text-xs font-semibold ring-1 ring-white/10 transition hover:bg-white/10"
+            >
+              {editorPanelOpen ? "Ocultar configuración" : "Mostrar configuración"}
+            </button>
+            <button
+              type="button"
+              onClick={() => setEditorMode(false)}
+              className="rounded-lg bg-gradient-to-r from-sky-400 to-violet-500 px-3 py-1.5 text-xs font-semibold text-white"
+            >
+              Salir del editor
+            </button>
+          </div>
+        </header>
+        <div className="flex min-h-0 flex-1">
+          {editorPanelOpen ? (
+            <aside className="w-[390px] shrink-0 space-y-6 overflow-y-auto border-r border-white/10 p-4">{formContent}</aside>
+          ) : null}
+          <main className="min-w-0 flex-1 overflow-y-auto p-4">{editorPreview}</main>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="xl:grid xl:grid-cols-2 xl:items-start xl:gap-6">
+    <div className="min-w-0 space-y-6">{formContent}</div>
     {previewPanel && isXl ? <aside className="sticky top-4">{previewPanel}</aside> : null}
     {previewPanel && !isXl ? (
       <>

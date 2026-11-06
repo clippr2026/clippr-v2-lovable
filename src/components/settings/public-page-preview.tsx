@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Maximize2, Monitor, Smartphone, X } from "lucide-react";
+import { Maximize2, Monitor, PanelLeftClose, Smartphone, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type PreviewDraft = {
@@ -22,12 +22,14 @@ export function PublicPagePreview({
   draft,
   refreshKey,
   onClose,
+  onEditor,
   large = false,
 }: {
   slug: string;
   draft: PreviewDraft;
   refreshKey: number;
   onClose?: () => void;
+  onEditor?: () => void;
   large?: boolean;
 }) {
   const [mode, setMode] = React.useState<"mobile" | "web">("mobile");
@@ -64,9 +66,9 @@ export function PublicPagePreview({
   // Web: ventana de navegador (1100 px de ancho real) achicada para entrar.
   const frameW = Math.max(200, boxW - 8);
   // Alto disponible: casi todo el alto de la pantalla (menos el encabezado del panel).
-  const maxH = Math.max(420, large ? Math.round(vh * 0.8) : vh - 170);
+  const maxH = Math.max(420, large ? vh - 150 : vh - 170);
   const deviceW = mode === "mobile" ? 390 : 1100;
-  const mobileInnerW = Math.min(frameW - 20, Math.floor(maxH / 2.05), large ? 460 : 520);
+  const mobileInnerW = Math.min(frameW - 20, Math.floor(maxH / 2.05), large ? 560 : 520);
   const innerW = mode === "mobile" ? mobileInnerW : frameW - 2;
   const scale = innerW / deviceW;
   const innerH = mode === "mobile" ? Math.round(innerW * 2.05) : Math.min(Math.round(innerW * 0.66), maxH);
@@ -122,6 +124,17 @@ export function PublicPagePreview({
               </button>
             ))}
           </div>
+          {onEditor ? (
+            <button
+              type="button"
+              onClick={onEditor}
+              className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-white/5 px-2.5 text-xs font-semibold text-white/80 ring-1 ring-white/10 hover:bg-white/10"
+              title="Editar con la vista previa a pantalla completa"
+            >
+              <PanelLeftClose className="h-3.5 w-3.5" />
+              Editor
+            </button>
+          ) : null}
           {!large ? (
             <button
               type="button"
