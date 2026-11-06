@@ -62,7 +62,7 @@ export function NegocioHero({ businessId }: { businessId: string | null }) {
           }}
         />
         <div
-          className="h-44 overflow-hidden rounded-[2rem] border border-white/20 sm:h-60"
+          className="relative h-44 overflow-hidden rounded-[2rem] border border-white/20 sm:h-60"
           style={{
             background: "linear-gradient(90deg, rgb(139 92 246 / 0.6), rgb(79 125 255 / 0.5))",
             boxShadow:
