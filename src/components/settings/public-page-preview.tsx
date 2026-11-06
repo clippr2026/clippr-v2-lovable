@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Monitor, Smartphone, X } from "lucide-react";
+import { Maximize2, Monitor, Smartphone, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type PreviewDraft = {
@@ -22,13 +22,17 @@ export function PublicPagePreview({
   draft,
   refreshKey,
   onClose,
+  large = false,
 }: {
   slug: string;
   draft: PreviewDraft;
   refreshKey: number;
   onClose?: () => void;
+  large?: boolean;
 }) {
   const [mode, setMode] = React.useState<"mobile" | "web">("mobile");
+  const [expanded, setExpanded] = React.useState(false);
+  const [boxHpx, setBoxHpx] = React.useState(0);
   const boxRef = React.useRef<HTMLDivElement | null>(null);
   const iframeRef = React.useRef<HTMLIFrameElement | null>(null);
   const [boxW, setBoxW] = React.useState(360);
@@ -36,16 +40,23 @@ export function PublicPagePreview({
   React.useEffect(() => {
     const el = boxRef.current;
     if (!el) return;
-    const ro = new ResizeObserver(() => setBoxW(el.clientWidth));
+    const ro = new ResizeObserver(() => {
+      setBoxW(el.clientWidth);
+      setBoxHpx(el.clientHeight);
+    });
     ro.observe(el);
     setBoxW(el.clientWidth);
+    setBoxHpx(el.clientHeight);
     return () => ro.disconnect();
   }, []);
 
-  const deviceW = mode === "mobile" ? 390 : 1280;
-  const scale = Math.min(1, boxW / deviceW);
-  const boxH = mode === "mobile" ? 640 : Math.round(boxW * 0.66);
+  // Móvil: la página a 390 px de ancho llenando el panel. Web: a 1100 px de ancho,
+  // achicada para entrar (con "Ampliar" se ve grande).
+  const deviceW = mode === "mobile" ? 390 : 1100;
+  const scale = mode === "mobile" ? Math.min(boxW / 390, large ? 1.15 : 1.4) : boxW / deviceW;
+  const boxH = large ? Math.round(window.innerHeight * 0.78) : mode === "mobile" ? 700 : Math.round(boxW * 0.7);
   const deviceH = Math.round(boxH / scale);
+  void boxHpx;
 
   const post = React.useCallback(() => {
     iframeRef.current?.contentWindow?.postMessage({ type: "clippr:preview-draft", draft }, window.location.origin);
@@ -81,6 +92,17 @@ export function PublicPagePreview({
               </button>
             ))}
           </div>
+          {!large ? (
+            <button
+              type="button"
+              onClick={() => setExpanded(true)}
+              className="grid h-8 w-8 place-items-center rounded-lg bg-white/5 text-white/70 ring-1 ring-white/10 hover:bg-white/10"
+              aria-label="Ampliar vista previa"
+              title="Ampliar"
+            >
+              <Maximize2 className="h-4 w-4" />
+            </button>
+          ) : null}
           {onClose ? (
             <button
               type="button"
@@ -98,6 +120,7 @@ export function PublicPagePreview({
         className="relative w-full overflow-hidden rounded-xl border border-white/10 bg-black/30"
         style={{ height: boxH }}
       >
+        <div className="relative mx-auto h-full overflow-hidden" style={{ width: Math.round(deviceW * scale) }}>
         <iframe
           key={`${mode}-${refreshKey}`}
           ref={iframeRef}
@@ -113,7 +136,21 @@ export function PublicPagePreview({
             background: "#fff",
           }}
         />
+        </div>
       </div>
+      {expanded ? (
+        <div className="fixed inset-0 z-[90] overflow-y-auto bg-black/80 p-4 backdrop-blur-sm">
+          <div className="mx-auto max-w-6xl">
+            <PublicPagePreview
+              slug={slug}
+              draft={draft}
+              refreshKey={refreshKey}
+              large
+              onClose={() => setExpanded(false)}
+            />
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

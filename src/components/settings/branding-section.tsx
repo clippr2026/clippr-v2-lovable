@@ -482,7 +482,7 @@ export function BrandingSection() {
           (cfg.instagram as string) ?? (biz?.instagram as string) ?? "",
         website: (cfg.website as string) ?? "",
         description: (cfg.description as string) ?? "",
-        profile_note: savedProfileNote || DEFAULT_PROFILE_NOTE,
+        profile_note: savedProfileNote || "",
         profile_note_active: cfg.profile_note_active === true,
         logo_url: (cfg.logo_url as string) ?? "",
         avatar_url: (biz?.avatar_url as string) ?? "",
@@ -1271,7 +1271,7 @@ export function BrandingSection() {
       <SectionCard label="Estado">
         <div
           className={cn(
-            "relative flex flex-col gap-4 pr-0 transition lg:flex-row lg:items-center lg:pr-24",
+            "relative flex flex-col gap-4 pr-20 transition sm:pr-24",
             data.profile_note_active && "rounded-2xl",
           )}
         >
@@ -1285,13 +1285,19 @@ export function BrandingSection() {
                 // momento (aunque todavía sea el mensaje de ejemplo sin
                 // tocar) — es una decisión explícita del usuario, así que a
                 // partir de acá el guardado ya no debe pisarlo con "".
+                // Sin texto no hay nada para publicar: se pide escribirlo primero.
+                if (!data.profile_note_active && !data.profile_note.trim()) {
+                  toast.error("Escribí el anuncio antes de activarlo.");
+                  setEditingAnnouncement(true);
+                  return;
+                }
                 setProfileNoteTouched(true);
                 setData((d) => {
                   const nextActive = !d.profile_note_active;
                   return {
                     ...d,
                     profile_note_active: nextActive,
-                    profile_note: d.profile_note.trim() || DEFAULT_PROFILE_NOTE,
+                    profile_note: d.profile_note,
                   };
                 });
               }}
@@ -1355,7 +1361,7 @@ export function BrandingSection() {
             </div>
           </div>
 
-          <div className="w-full lg:w-[420px]">
+          <div className="w-full">
             {/* Vista previa y edición son dos elementos distintos que nunca
                 coexisten: en reposo es un <button> real (nunca tuvo el bug
                 de WebKit, porque no es un control de formulario cuyo value
