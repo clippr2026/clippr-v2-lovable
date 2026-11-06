@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Maximize2, Monitor, Pencil, Smartphone, X } from "lucide-react";
+import { Loader2, Maximize2, Monitor, Pencil, Smartphone, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type PreviewDraft = {
@@ -12,6 +12,7 @@ export type PreviewDraft = {
   avatarUrl: string;
   name: string;
   effect: string;
+  bg: string;
   // Cada vez que sube, la vista previa reproduce el efecto (carga con el logo + animación de entrada).
   effectNonce: number;
 };
@@ -42,6 +43,28 @@ export function PublicPagePreview({
   const [boxHpx, setBoxHpx] = React.useState(0);
   const boxRef = React.useRef<HTMLDivElement | null>(null);
   const iframeRef = React.useRef<HTMLIFrameElement | null>(null);
+  const [ready, setReady] = React.useState(false);
+  React.useEffect(() => {
+    function onMessage(e: MessageEvent) {
+      if (e.origin !== window.location.origin) return;
+      if (e.source === iframeRef.current?.contentWindow && (e.data as { type?: string } | null)?.type === "clippr:preview-ready") {
+        setReady(true);
+      }
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
+  // Cada vez que el iframe se monta de nuevo (cambio Móvil/Web, abrir el editor) vuelve a cargar:
+  // se muestra el indicador, y si el aviso no llega se saca igual a los 40 s.
+  const readyTimer = React.useRef<number | undefined>(undefined);
+  const setIframe = React.useCallback((node: HTMLIFrameElement | null) => {
+    iframeRef.current = node;
+    window.clearTimeout(readyTimer.current);
+    if (node) {
+      setReady(false);
+      readyTimer.current = window.setTimeout(() => setReady(true), 40000);
+    }
+  }, []);
   const [boxW, setBoxW] = React.useState(360);
   const [vh, setVh] = React.useState(() => (typeof window === "undefined" ? 800 : window.innerHeight));
   React.useEffect(() => {
@@ -81,9 +104,10 @@ export function PublicPagePreview({
   void boxHpx;
   const previewUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/negocio/${slug}?preview=1`;
   const frame = (
+    <div className="relative" style={{ width: innerW, height: innerH }}>
     <iframe
       key={mode}
-      ref={iframeRef}
+      ref={setIframe}
       title="Vista previa de la página pública"
       src={previewUrl}
       onLoad={post}
@@ -97,6 +121,15 @@ export function PublicPagePreview({
         display: "block",
       }}
     />
+      {!ready && (
+        <div className="absolute inset-0 grid place-items-center bg-[#0a0a0f]">
+          <div className="flex flex-col items-center gap-3 text-white/70">
+            <Loader2 className="h-7 w-7 animate-spin" />
+            <span className="text-xs">Cargando vista previa…</span>
+          </div>
+        </div>
+      )}
+    </div>
   );
 
   React.useEffect(() => {

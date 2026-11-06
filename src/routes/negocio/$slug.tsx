@@ -11,6 +11,7 @@ import {
   type EntryEffectKey,
 } from "@/components/entry-effects";
 import { getPublicFont, publicFontsStylesheet } from "@/lib/public-fonts";
+import { normalizePublicBg, pageBackground, type PublicBgKey } from "@/lib/public-theme";
 import { hiddenPublicBranchIds } from "@/lib/public-branches";
 import * as React from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -121,6 +122,7 @@ type FeaturedClient = {
 type PublicBranding = {
   font?: string | null;
   entry_effect?: string | null;
+  bg_style?: string | null;
   address?: string | null;
   phone?: string | null;
   email?: string | null;
@@ -531,6 +533,7 @@ function PublicProfilePage() {
   const { slug } = Route.useParams();
 
   const [loading, setLoading] = React.useState(true);
+  const hasLoadedOnce = React.useRef(false);
   const [business, setBusiness] = React.useState<Business | null>(null);
   const [branches, setBranches] = React.useState<PublicBranch[]>([]);
   const [selectedBranchId, setSelectedBranchId] = React.useState<string | null>(null);
@@ -556,6 +559,7 @@ function PublicProfilePage() {
   // Efecto de entrada (Configuración → Efectos). En la vista previa de Configuración no corre
   // solo: se reproduce únicamente cuando se prueba un efecto.
   const [entryEffect, setEntryEffect] = React.useState<EntryEffectKey>("neon");
+  const [bgStyle, setBgStyle] = React.useState<PublicBgKey>("degrade");
   // Se detecta después de montar (no al inicializar) para que el HTML del servidor y el del cliente coincidan.
   const [isPreview, setIsPreview] = React.useState(false);
   React.useEffect(() => {
@@ -597,6 +601,13 @@ function PublicProfilePage() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [showAllFeaturedClients, zoomedFeaturedClient]);
 
+  // Avisa a la vista previa que ya hay contenido, para que saque su indicador de carga.
+  React.useEffect(() => {
+    if (loading || window.parent === window) return;
+    if (new URLSearchParams(window.location.search).get("preview") !== "1") return;
+    window.parent.postMessage({ type: "clippr:preview-ready" }, window.location.origin);
+  }, [loading]);
+
   // Vista previa en vivo desde Configuración (iframe con ?preview=1): recibe el borrador
   // por postMessage y lo aplica sin esperar al guardado.
   React.useEffect(() => {
@@ -618,6 +629,7 @@ function PublicProfilePage() {
       if (dr.theme) setTheme(dr.theme === "light" ? "light" : "dark");
       if ("font" in dr) setFontKey(typeof dr.font === "string" ? dr.font : null);
       if (typeof dr.effect === "string") setEntryEffect(normalizeEntryEffect(dr.effect));
+      if (typeof dr.bg === "string") setBgStyle(normalizePublicBg(dr.bg));
       if (typeof dr.effectNonce === "number" && dr.effectNonce > lastEffectNonce.current) {
         lastEffectNonce.current = dr.effectNonce;
         // Simula la carga (pantalla con el logo) y después corre la animación de entrada.
@@ -662,7 +674,10 @@ function PublicProfilePage() {
         const { data: st } = await supabase.from("public_booking_settings").select("schedule").eq("business_id", row.id).maybeSingle();
         if (cancelled) return;
         const b = (st as any)?.schedule?._branding;
-        if (b && typeof b === "object") setEntryEffect(normalizeEntryEffect(b.entry_effect));
+        if (b && typeof b === "object") {
+          setEntryEffect(normalizeEntryEffect(b.entry_effect));
+          setBgStyle(normalizePublicBg(b.bg_style));
+        }
       }
     })();
     return () => {
@@ -673,8 +688,9 @@ function PublicProfilePage() {
   React.useEffect(() => {
     let cancelled = false;
     async function load() {
-      // Las recargas silenciosas de la vista previa (reloadTick > 0) no vuelven a mostrar la pantalla de carga.
-      if (reloadTick === 0) setLoading(true);
+      // La pantalla de carga solo va en la primera carga: al elegirse la sucursal o recargar en silencio
+      // (vista previa) el contenido sigue a la vista y se actualiza por adentro.
+      if (reloadTick === 0 && !hasLoadedOnce.current) setLoading(true);
       try {
         const businessQuery = supabase
           .from("public_booking_businesses")
@@ -925,12 +941,16 @@ function PublicProfilePage() {
           setColors((branding.colors && typeof branding.colors === "object" ? branding.colors : {}) as LandingColors);
           setFontKey(typeof branding.font === "string" ? branding.font : null);
           setEntryEffect(normalizeEntryEffect(branding.entry_effect));
+          setBgStyle(normalizePublicBg(branding.bg_style));
           setTheme(branding.theme === "light" ? "light" : "dark");
         }
       } catch {
         if (!cancelled) setBusiness(null);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          hasLoadedOnce.current = true;
+          setLoading(false);
+        }
       }
     }
     load();
@@ -982,7 +1002,7 @@ function PublicProfilePage() {
   if (loading) {
     // En la vista previa de Configuración la carga es silenciosa (el efecto se prueba aparte).
     if (isPreview) {
-      return <main className="min-h-dvh" style={{ background: resolvedTheme === "light" ? "#f6f7fb" : "#08070c" }} />;
+      return <main className="min-h-dvh" style={{ background: resolvedTheme === "light" ? "#ffffff" : "#08070c" }} />;
     }
     // Mientras carga se muestra el logo del local (no el de Clippr) con el efecto elegido.
     if (splashLogo && entryEffect !== "none") {
@@ -1075,7 +1095,7 @@ function PublicProfilePage() {
         ["--c-secondary" as any]: cSecondary,
         ["--c-accent" as any]: cAccent,
         ["--c-button-text" as any]: accentButtonText,
-        ["--page-bg" as any]: isLight ? "#f6f7fb" : "#08070c",
+        ["--page-bg" as any]: pageBackground(bgStyle, isLight, cPrimary, cSecondary),
         ["--card-bg" as any]: isLight ? "rgba(255,255,255,0.86)" : "rgba(255,255,255,0.04)",
         ["--text" as any]: isLight ? "#111827" : "#ffffff",
         ["--muted" as any]: isLight ? "rgba(17,24,39,0.62)" : "rgba(255,255,255,0.60)",
@@ -1108,9 +1128,8 @@ function PublicProfilePage() {
         <div
           className="absolute inset-0"
           style={{
-            background: isLight
-              ? "linear-gradient(90deg, color-mix(in oklch, var(--c-primary) 32%, #ffffff) 0%, #ffffff 48%, color-mix(in oklch, var(--c-secondary) 32%, #ffffff) 100%)"
-              : "linear-gradient(90deg, color-mix(in oklch, var(--c-primary) 28%, #08070c) 0%, #08070c 48%, color-mix(in oklch, var(--c-secondary) 28%, #08070c) 100%)",
+            background:
+              "linear-gradient(90deg, color-mix(in oklch, var(--c-primary) 26%, transparent) 0%, transparent 48%, color-mix(in oklch, var(--c-secondary) 26%, transparent) 100%)",
           }}
         />
         <div className="relative mx-auto max-w-6xl px-4 py-5 sm:py-10">
@@ -1125,7 +1144,7 @@ function PublicProfilePage() {
           <div
             className={`relative ${COVER_ASPECT_CLASS} overflow-hidden rounded-[2rem] border border-white/20`}
             style={{
-              ...(entryEffect === "fade" ? coverFxStyle("fade", playFx) : {}),
+              ...(entryEffect !== "zoom" ? coverFxStyle(entryEffect, playFx) : {}),
               background: "linear-gradient(90deg, var(--c-primary), var(--c-secondary))",
               boxShadow:
                 "0 0 0 1px rgb(255 255 255 / 0.06), 0 0 34px color-mix(in oklch, var(--c-primary) 55%, transparent), 0 0 80px color-mix(in oklch, var(--c-secondary) 30%, transparent), 0 18px 50px rgb(0 0 0 / 0.35)",
@@ -1799,7 +1818,7 @@ function PublicProfilePage() {
         </div>
       ) : null}
 
-      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.06] bg-[#08070c]/95 p-3 backdrop-blur sm:hidden">
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-white/[0.06] p-3 backdrop-blur sm:hidden" style={{ background: isLight ? "rgba(255,255,255,0.92)" : "rgba(8,7,12,0.95)" }}>
         <Link
           {...reservarTo}
           className="flex w-full items-center justify-center rounded-2xl px-5 py-3 text-base font-bold text-white"

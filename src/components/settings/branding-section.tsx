@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { COVER_ASPECT_CLASS } from "@/lib/cover-frame";
 import { PUBLIC_FONTS, publicFontsStylesheet } from "@/lib/public-fonts";
 import { createPortal } from "react-dom";
+import { PUBLIC_BACKGROUNDS, PUBLIC_THEMES, normalizePublicBg, pageBackground, type PublicBgKey } from "@/lib/public-theme";
 import { ENTRY_EFFECTS, normalizeEntryEffect, type EntryEffectKey } from "@/components/entry-effects";
 import { PublicPagePreview } from "@/components/settings/public-page-preview";
 import { toast } from "sonner";
@@ -436,6 +437,7 @@ export function BrandingSection() {
   const [theme, setTheme] = useState<LandingTheme>(LANDING_THEME_DEFAULT);
   const [fontKey, setFontKey] = useState<string>("");
   const [entryEffect, setEntryEffect] = useState<EntryEffectKey>("neon");
+  const [bgStyle, setBgStyle] = useState<PublicBgKey>("degrade");
   const [effectNonce, setEffectNonce] = useState(0);
   const [showAdvancedColors, setShowAdvancedColors] = useState(false);
   const [benefits, setBenefits] = useState<Benefit[]>([]);
@@ -525,6 +527,7 @@ export function BrandingSection() {
       setTheme((cfg.theme as string) === "light" ? "light" : "dark");
       setFontKey(typeof cfg.font === "string" ? cfg.font : "");
       setEntryEffect(normalizeEntryEffect(cfg.entry_effect));
+      setBgStyle(normalizePublicBg(cfg.bg_style));
       const rawBenefits = normalizeBenefits(cfg.benefits);
       if (rawBenefits.length > 0) {
         setBenefits(rawBenefits);
@@ -1055,6 +1058,7 @@ export function BrandingSection() {
         theme,
         font: fontKey || null,
         entry_effect: entryEffect,
+        bg_style: bgStyle,
         benefits: benefits
           .map((b) => ({ id: b.id, label: b.label.trim(), active: b.active }))
           .filter((b) => b.label.length > 0)
@@ -1118,7 +1122,7 @@ export function BrandingSection() {
   const saveRef = React.useRef(save);
   React.useEffect(() => {
     saveRef.current = save;
-  }, [businessId, data, logoFile, colors, theme, fontKey, entryEffect, benefits]);
+  }, [businessId, data, logoFile, colors, theme, fontKey, entryEffect, bgStyle, benefits]);
 
   const brandingHydratedRef = React.useRef(false);
 
@@ -1147,7 +1151,7 @@ export function BrandingSection() {
     }, 650);
 
     return () => window.clearTimeout(timer);
-  }, [data, logoFile, colors, theme, fontKey, entryEffect, benefits, loading, businessId]);
+  }, [data, logoFile, colors, theme, fontKey, entryEffect, bgStyle, benefits, loading, businessId]);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -1195,9 +1199,10 @@ export function BrandingSection() {
       avatarUrl: data.avatar_url,
       name: data.name,
       effect: entryEffect,
+      bg: bgStyle,
       effectNonce,
     }),
-    [colors, theme, fontKey, entryEffect, effectNonce, data.cover_position, data.avatar_position, data.cover_url, data.avatar_url, data.name],
+    [colors, theme, fontKey, entryEffect, bgStyle, effectNonce, data.cover_position, data.avatar_position, data.cover_url, data.avatar_url, data.name],
   );
   // Lo que no viaja en vivo (textos, beneficios, portafolio...) se ve al recargar la
   // vista, un poco después de que el autoguardado lo escriba.
@@ -1307,7 +1312,10 @@ export function BrandingSection() {
 
   const formContent = (
     <>
-      <div className="flex flex-wrap gap-2 rounded-2xl border border-white/10 bg-white/[0.035] p-2">
+      <div
+        className="grid grid-cols-4 gap-1 rounded-2xl border border-white/10 p-1.5"
+        style={{ background: "linear-gradient(90deg, rgba(56,189,248,0.10), rgba(139,92,246,0.14))" }}
+      >
         {(
           [
             ["info", "Información"],
@@ -1321,10 +1329,10 @@ export function BrandingSection() {
             type="button"
             onClick={() => setActiveTab(id)}
             className={
-              "rounded-xl px-4 py-2 text-sm font-semibold transition " +
+              "whitespace-nowrap rounded-xl px-1 py-2 text-xs font-semibold transition sm:text-sm " +
               (activeTab === id
-                ? "bg-white/[0.08] text-foreground ring-1 ring-white/10"
-                : "text-muted-foreground hover:bg-white/[0.06] hover:text-foreground")
+                ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white shadow-[0_6px_18px_-6px_rgba(139,92,246,0.8)]"
+                : "text-muted-foreground hover:bg-white/[0.08] hover:text-foreground")
             }
           >
             {label}
@@ -2095,110 +2103,160 @@ export function BrandingSection() {
 
       {activeTab === "efectos" && (
         <SectionCard label="Efectos de entrada">
-          <p className="text-sm text-white/55">
-            Elegí cómo aparece tu página cuando alguien entra: el logo y la portada hacen el efecto. Tocá un efecto o
-            "Probar" para verlo en la vista previa.
-          </p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+          <p className="text-xs text-white/55">Tocá uno para elegirlo y verlo en la vista previa.</p>
+          <div className="mt-3 grid grid-cols-2 gap-2">
             {ENTRY_EFFECTS.map((fx) => {
               const active = entryEffect === fx.key;
               return (
-                <div
+                <button
                   key={fx.key}
+                  type="button"
+                  onClick={() => {
+                    setEntryEffect(fx.key);
+                    setEffectNonce((n) => n + 1);
+                  }}
                   className={cn(
-                    "rounded-2xl border p-3 transition",
-                    active ? "border-white/60 bg-white/10" : "border-white/10 bg-white/[0.04] hover:bg-white/[0.07]",
+                    "rounded-xl border px-3 py-3 text-sm font-semibold transition",
+                    active
+                      ? "border-transparent bg-gradient-to-r from-sky-400/90 to-violet-500/90 text-white shadow-[0_8px_20px_-8px_rgba(139,92,246,0.9)]"
+                      : "border-white/10 bg-white/[0.04] hover:bg-white/[0.09]",
                   )}
                 >
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEntryEffect(fx.key);
-                      setEffectNonce((n) => n + 1);
-                    }}
-                    className="w-full text-left"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-semibold">{fx.label}</span>
-                      {active ? <span className="rounded-full bg-emerald-400/15 px-2 py-0.5 text-[10px] font-semibold text-emerald-300">Elegido</span> : null}
-                    </div>
-                    <p className="mt-1 text-xs text-white/55">{fx.desc}</p>
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEntryEffect(fx.key);
-                      setEffectNonce((n) => n + 1);
-                    }}
-                    className="mt-2 rounded-lg bg-white/5 px-3 py-1 text-xs font-semibold ring-1 ring-white/10 hover:bg-white/10"
-                  >
-                    Probar
-                  </button>
-                </div>
+                  {fx.label}
+                </button>
               );
             })}
+            <button
+              type="button"
+              onClick={() => setEntryEffect("none")}
+              className={cn(
+                "rounded-xl border px-3 py-3 text-sm font-semibold transition",
+                entryEffect === "none"
+                  ? "border-transparent bg-gradient-to-r from-sky-400/90 to-violet-500/90 text-white"
+                  : "border-white/10 bg-white/[0.04] hover:bg-white/[0.09]",
+              )}
+            >
+              Sin efecto
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={() => setEntryEffect("none")}
-            className={cn(
-              "mt-3 rounded-xl border px-3 py-2 text-xs font-semibold transition",
-              entryEffect === "none" ? "border-white/60 bg-white/10" : "border-white/10 bg-white/5 hover:bg-white/10",
-            )}
-          >
-            Sin efecto {entryEffect === "none" ? "· elegido" : ""}
-          </button>
         </SectionCard>
       )}
 
       {activeTab === "colores" && (
         <>
           <SectionCard label="Colores">
-            <h3 className="text-sm font-semibold">Elegí tu color</h3>
-            <p className="mt-1 text-xs text-white/50">
-              Al elegir un color se arman solos el fondo con degradé, la luz de la portada, el neón del logo y los botones.
-            </p>
-            <div className="mt-4 grid grid-cols-4 gap-3 sm:grid-cols-5 lg:grid-cols-9">
-              {COLOR_PALETTES.map((pal) => {
+            <h3 className="text-sm font-semibold">Temas</h3>
+            <p className="mt-1 text-xs text-white/50">Un toque y cambia todo: colores, fondo, modo y letra.</p>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {PUBLIC_THEMES.map((t) => {
                 const active =
-                  normalizeHex(colors.primary, "") === pal.primary && normalizeHex(colors.accent, "") === pal.accent;
+                  normalizeHex(colors.primary, "") === t.colors.primary &&
+                  normalizeHex(colors.secondary, "") === t.colors.secondary &&
+                  theme === t.mode &&
+                  bgStyle === t.bg;
                 return (
                   <button
-                    key={pal.key}
+                    key={t.key}
                     type="button"
-                    onClick={() =>
-                      setColors({ primary: pal.primary, secondary: pal.secondary, accent: pal.accent, buttonText: pal.buttonText })
-                    }
+                    onClick={() => {
+                      setColors({ ...t.colors });
+                      setTheme(t.mode);
+                      setBgStyle(t.bg);
+                      setFontKey(t.font ?? "");
+                    }}
                     className={cn(
-                      "group flex flex-col items-center gap-1.5 rounded-2xl p-2 transition",
-                      active ? "bg-white/10 ring-2 ring-white/60" : "hover:bg-white/5",
+                      "overflow-hidden rounded-xl text-left ring-1 transition",
+                      active ? "ring-2 ring-white/70" : "ring-white/10 hover:ring-white/30",
                     )}
                   >
-                    <span
-                      className="h-12 w-12 rounded-full ring-1 ring-white/20"
-                      style={{
-                        background: `linear-gradient(135deg, ${pal.primary}, ${pal.secondary})`,
-                        boxShadow: active ? `0 0 18px ${pal.secondary}aa` : "none",
-                      }}
-                    />
-                    <span className="text-xs text-white/80">{pal.label}</span>
+                    <div
+                      className="h-14"
+                      style={{ background: pageBackground(t.bg, t.mode === "light", t.colors.primary, t.colors.secondary) }}
+                    >
+                      <div className="flex h-full items-end gap-1 p-2">
+                        <span className="h-3 w-3 rounded-full" style={{ background: t.colors.primary }} />
+                        <span className="h-3 w-3 rounded-full" style={{ background: t.colors.secondary }} />
+                        <span className="h-3 w-8 rounded-full" style={{ background: t.colors.accent }} />
+                      </div>
+                    </div>
+                    <div className="bg-white/[0.05] px-2.5 py-1.5 text-xs font-semibold">{t.label}</div>
                   </button>
                 );
               })}
-              <label className="group flex cursor-pointer flex-col items-center gap-1.5 rounded-2xl p-2 transition hover:bg-white/5">
-                <span
-                  className="relative h-12 w-12 overflow-hidden rounded-full ring-1 ring-white/20"
-                  style={{ background: "conic-gradient(#ef4444, #f59e0b, #22c55e, #06b6d4, #6366f1, #d946ef, #ef4444)" }}
-                >
-                  <input
-                    type="color"
-                    value={normalizeHex(colors.primary, LANDING_DEFAULTS.primary)}
-                    onChange={(e) => setColors(paletteFromColor(e.target.value))}
-                    className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                  />
-                </span>
-                <span className="text-xs text-white/80">Propio</span>
-              </label>
+            </div>
+
+            <div className="mt-6 border-t border-white/10 pt-5">
+              <h3 className="text-sm font-semibold">Tus colores</h3>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                {(
+                  [
+                    { key: "primary", label: "Color 1" },
+                    { key: "secondary", label: "Color 2" },
+                  ] as const
+                ).map(({ key, label }) => (
+                  <label
+                    key={key}
+                    className="relative flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-2.5 hover:bg-white/[0.08]"
+                  >
+                    <span className="h-10 w-10 shrink-0 rounded-lg ring-1 ring-white/20" style={{ background: colors[key] }} />
+                    <span>
+                      <span className="block text-sm font-semibold">{label}</span>
+                      <span className="block font-mono text-[11px] uppercase text-white/50">{colors[key]}</span>
+                    </span>
+                    <input
+                      type="color"
+                      value={normalizeHex(colors[key], LANDING_DEFAULTS[key])}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        setColors((c) => (key === "primary" ? { ...paletteFromColor(v), secondary: c.secondary } : { ...c, secondary: v }));
+                      }}
+                      className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+                    />
+                  </label>
+                ))}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {COLOR_PALETTES.map((pal) => {
+                  const active =
+                    normalizeHex(colors.primary, "") === pal.primary && normalizeHex(colors.secondary, "") === pal.secondary;
+                  return (
+                    <button
+                      key={pal.key}
+                      type="button"
+                      title={pal.label}
+                      onClick={() =>
+                        setColors({ primary: pal.primary, secondary: pal.secondary, accent: pal.accent, buttonText: pal.buttonText })
+                      }
+                      className={cn("h-9 w-9 rounded-full ring-1 ring-white/20 transition", active && "ring-2 ring-white")}
+                      style={{ background: `linear-gradient(135deg, ${pal.primary}, ${pal.secondary})` }}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="mt-6 border-t border-white/10 pt-5">
+              <h3 className="text-sm font-semibold">Fondo</h3>
+              <p className="mt-1 text-xs text-white/50">Cubre toda la página, de arriba a abajo.</p>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                {PUBLIC_BACKGROUNDS.map((b) => (
+                  <button
+                    key={b.key}
+                    type="button"
+                    onClick={() => setBgStyle(b.key)}
+                    className={cn(
+                      "overflow-hidden rounded-xl text-left ring-1 transition",
+                      bgStyle === b.key ? "ring-2 ring-white/70" : "ring-white/10 hover:ring-white/30",
+                    )}
+                  >
+                    <div
+                      className="h-14"
+                      style={{ background: pageBackground(b.key, theme === "light", colors.primary, colors.secondary) }}
+                    />
+                    <div className="bg-white/[0.05] px-2 py-1.5 text-xs font-semibold">{b.label}</div>
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div className="mt-6 border-t border-white/10 pt-5">
@@ -2423,7 +2481,15 @@ export function BrandingSection() {
         </header>
         <div className="flex min-h-0 flex-1">
           {editorPanelOpen ? (
-            <aside className="w-[390px] shrink-0 space-y-6 overflow-y-auto border-r border-white/10 p-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">{formContent}</aside>
+            <aside
+              className="w-[390px] shrink-0 space-y-6 overflow-y-auto border-r border-violet-400/20 p-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden [&_.glass]:bg-gradient-to-br [&_.glass]:from-sky-400/[0.07] [&_.glass]:to-violet-500/[0.10] [&_.glass]:ring-violet-300/15"
+              style={{
+                background:
+                  "radial-gradient(120% 40% at 0% 0%, rgba(56,189,248,0.14), transparent 60%), radial-gradient(120% 40% at 100% 100%, rgba(139,92,246,0.18), transparent 60%)",
+              }}
+            >
+              {formContent}
+            </aside>
           ) : null}
           <main className="min-w-0 flex-1 overflow-hidden p-4">{editorPreview}</main>
         </div>
