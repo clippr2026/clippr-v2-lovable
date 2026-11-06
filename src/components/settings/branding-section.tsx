@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { COVER_ASPECT_CLASS } from "@/lib/cover-frame";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -653,7 +654,7 @@ export function BrandingSection() {
     if (!file || !businessId) return;
     setUploadingCover(true);
     try {
-      const { blob, ext, type } = await processImage(file, 1600, 600, 0.8);
+      const { blob, ext, type } = await processImage(file, 2000, 1400, 0.8);
       const url = await uploadBlob(blob, `${businessId}/cover.${ext}`, type);
       if (!url) return;
       setData((d) => ({ ...d, cover_url: url }));
@@ -1590,58 +1591,60 @@ export function BrandingSection() {
                 </div>
               </div>
 
-              {/* Portada */}
+              {/* Portada — misma proporción que en la página pública e Inicio;
+                  se ajusta arrastrando la imagen y el encuadre queda igual en los tres. */}
               <div className="flex flex-col items-center border-b border-white/5 pb-5 last:border-b-0 last:pb-0">
-                <div className="mb-3 text-sm font-medium">Portada</div>
-                <div className="relative">
-                  <label
-                    className={cn(
-                      "group relative grid h-20 w-36 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07] sm:w-44",
-                      uploadingCover && "cursor-not-allowed opacity-50",
-                    )}
-                  >
-                    {coverPreview ? (
-                      <img
-                        src={coverPreview}
-                        alt="Portada"
-                        className="h-full w-full object-cover"
-                        style={{ objectPosition: data.cover_position }}
-                      />
-                    ) : (
-                      <ImageIcon className="h-5 w-5 text-white/45" />
-                    )}
-                    <div className="absolute inset-0 grid place-items-center bg-black/35 opacity-0 transition group-hover:opacity-100">
-                      <span className="rounded-full bg-white/90 px-2 py-1 text-[10px] font-bold text-black">
-                        {uploadingCover ? "Subiendo" : "Cargar"}
-                      </span>
-                    </div>
-                    {!coverPreview ? (
-                      <span className="absolute bottom-1 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/70 ring-1 ring-white/10">
-                        Cargar
-                      </span>
-                    ) : null}
-                    <input
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      disabled={uploadingCover}
-                      onChange={(e) => {
-                        const f = e.target.files?.[0] ?? null;
-                        e.target.value = "";
-                        handleCoverSelect(f);
-                      }}
-                    />
-                  </label>
-                  {coverPreview ? (
-                    <button
-                      type="button"
-                      onClick={removeCover}
-                      className="absolute -right-1 -top-1 grid h-6 w-6 place-items-center rounded-full bg-zinc-900 text-red-300 ring-1 ring-white/15 transition hover:bg-red-500/20 hover:text-red-200"
-                      aria-label="Eliminar portada"
+                <div className="mb-1 text-sm font-medium">Portada</div>
+                <p className="mb-3 text-xs text-muted-foreground">
+                  {coverPreview ? "Arrastrá la imagen para ajustarla." : "Cargá una imagen para la portada."}
+                </p>
+                <div className="w-full max-w-2xl">
+                  <CoverAdjuster
+                    src={coverPreview}
+                    position={data.cover_position}
+                    onChange={(next) => setData((d) => ({ ...d, cover_position: next }))}
+                    uploading={uploadingCover}
+                  />
+                  <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
+                    <label
+                      className={cn(
+                        "inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-white/5 px-3 py-1.5 text-xs font-semibold ring-1 ring-white/10 transition hover:bg-white/10",
+                        uploadingCover && "pointer-events-none opacity-50",
+                      )}
                     >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
-                  ) : null}
+                      <ImageIcon className="h-3.5 w-3.5" />
+                      {uploadingCover ? "Subiendo…" : coverPreview ? "Cambiar imagen" : "Cargar imagen"}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        disabled={uploadingCover}
+                        onChange={(e) => {
+                          const f = e.target.files?.[0] ?? null;
+                          e.target.value = "";
+                          handleCoverSelect(f);
+                        }}
+                      />
+                    </label>
+                    {coverPreview ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => setData((d) => ({ ...d, cover_position: "50% 50%" }))}
+                          className="rounded-lg bg-white/5 px-3 py-1.5 text-xs text-muted-foreground ring-1 ring-white/10 transition hover:bg-white/10 hover:text-foreground"
+                        >
+                          Centrar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={removeCover}
+                          className="inline-flex items-center gap-1.5 rounded-lg bg-rose-500/10 px-3 py-1.5 text-xs text-rose-300 ring-1 ring-rose-500/25 transition hover:bg-rose-500/20"
+                        >
+                          <X className="h-3.5 w-3.5" /> Quitar
+                        </button>
+                      </>
+                    ) : null}
+                  </div>
                 </div>
               </div>
 
@@ -2119,5 +2122,93 @@ export function BrandingSection() {
         </>
       )}
     </>
+  );
+}
+
+// Marco de la portada con la proporción real; se arrastra la imagen para
+// elegir qué parte se ve (guarda objectPosition en porcentaje).
+function CoverAdjuster({
+  src,
+  position,
+  onChange,
+  uploading,
+}: {
+  src: string;
+  position: string;
+  onChange: (next: string) => void;
+  uploading: boolean;
+}) {
+  const frameRef = React.useRef<HTMLDivElement | null>(null);
+  const imgRef = React.useRef<HTMLImageElement | null>(null);
+  const drag = React.useRef<{ x: number; y: number; px: number; py: number } | null>(null);
+
+  function parse(pos: string): [number, number] {
+    const [xRaw, yRaw] = String(pos || "50% 50%").split(" ");
+    const x = Math.min(100, Math.max(0, parseFloat(xRaw)));
+    const y = Math.min(100, Math.max(0, parseFloat(yRaw)));
+    return [Number.isFinite(x) ? x : 50, Number.isFinite(y) ? y : 50];
+  }
+
+  function onPointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    if (!src) return;
+    const [px, py] = parse(position);
+    drag.current = { x: e.clientX, y: e.clientY, px, py };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  }
+
+  function onPointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    const d = drag.current;
+    const frame = frameRef.current;
+    const img = imgRef.current;
+    if (!d || !frame || !img || !img.naturalWidth || !img.naturalHeight) return;
+    const fw = frame.clientWidth;
+    const fh = frame.clientHeight;
+    const scale = Math.max(fw / img.naturalWidth, fh / img.naturalHeight);
+    const overflowX = img.naturalWidth * scale - fw;
+    const overflowY = img.naturalHeight * scale - fh;
+    const nx = overflowX > 1 ? d.px - ((e.clientX - d.x) / overflowX) * 100 : d.px;
+    const ny = overflowY > 1 ? d.py - ((e.clientY - d.y) / overflowY) * 100 : d.py;
+    const clamp = (v: number) => Math.min(100, Math.max(0, Math.round(v * 10) / 10));
+    onChange(`${clamp(nx)}% ${clamp(ny)}%`);
+  }
+
+  function endDrag() {
+    drag.current = null;
+  }
+
+  return (
+    <div
+      ref={frameRef}
+      onPointerDown={onPointerDown}
+      onPointerMove={onPointerMove}
+      onPointerUp={endDrag}
+      onPointerCancel={endDrag}
+      className={cn(
+        COVER_ASPECT_CLASS,
+        "relative w-full select-none overflow-hidden rounded-[2rem] border border-white/10 shadow-2xl touch-none",
+        src ? "cursor-grab active:cursor-grabbing" : "",
+      )}
+      style={{ background: "linear-gradient(90deg, rgb(139 92 246 / 0.6), rgb(79 125 255 / 0.5))" }}
+    >
+      {src ? (
+        <img
+          ref={imgRef}
+          src={src}
+          alt="Portada"
+          draggable={false}
+          className="pointer-events-none h-full w-full object-cover"
+          style={{ objectPosition: position }}
+        />
+      ) : (
+        <div className="grid h-full w-full place-items-center">
+          <ImageIcon className="h-6 w-6 text-white/60" />
+        </div>
+      )}
+      {uploading ? (
+        <div className="absolute inset-0 grid place-items-center bg-black/50 text-xs font-semibold text-white">
+          Subiendo…
+        </div>
+      ) : null}
+    </div>
   );
 }

@@ -3,6 +3,7 @@ import { MapPin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
+import { COVER_ASPECT_CLASS } from "@/lib/cover-frame";
 
 type HeroData = {
   name: string;
@@ -62,7 +63,7 @@ export function NegocioHero({ businessId }: { businessId: string | null }) {
           }}
         />
         <div
-          className="relative h-44 overflow-hidden rounded-[2rem] border border-white/20 sm:h-60"
+          className={`relative ${COVER_ASPECT_CLASS} overflow-hidden rounded-[2rem] border border-white/20`}
           style={{
             background: "linear-gradient(90deg, rgb(139 92 246 / 0.6), rgb(79 125 255 / 0.5))",
             boxShadow:

@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { COVER_ASPECT_CLASS } from "@/lib/cover-frame";
 import { hiddenPublicBranchIds } from "@/lib/public-branches";
 import * as React from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -979,7 +980,7 @@ function PublicProfilePage() {
           }}
         />
         <div className="relative mx-auto max-w-6xl px-4 py-5 sm:py-10">
-          <div className="h-44 overflow-hidden rounded-[2rem] border border-white/10 shadow-2xl sm:h-60" style={{ background: "linear-gradient(90deg, var(--c-primary), var(--c-secondary))" }}>
+          <div className={`${COVER_ASPECT_CLASS} overflow-hidden rounded-[2rem] border border-white/10 shadow-2xl`} style={{ background: "linear-gradient(90deg, var(--c-primary), var(--c-secondary))" }}>
             {business.cover_url ? (
               <img loading="lazy" src={business.cover_url} alt="Portada del negocio" className="h-full w-full object-cover" style={{ objectPosition: coverPosition }} decoding="async" />
             ) : null}
