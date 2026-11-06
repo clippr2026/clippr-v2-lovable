@@ -1413,17 +1413,6 @@ export function BrandingSection() {
             </div>
             <div className="min-w-0">
               <div className="font-semibold text-sm">Anuncio público</div>
-              <p
-                className={cn(
-                  "mt-1 text-xs transition",
-                  data.profile_note_active
-                    ? "text-muted-foreground"
-                    : "text-muted-foreground/70",
-                )}
-              >
-                Se muestra arriba de la foto de perfil en tu página de
-                reservas. Ideal para promociones, avisos o novedades.
-              </p>
             </div>
           </div>
 
@@ -1470,15 +1459,6 @@ export function BrandingSection() {
                 )}
                 <span className="pointer-events-none absolute left-1/2 top-full h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-white" />
               </div>
-            </div>
-            <div className="mt-2 flex items-center justify-center gap-2 text-[10px]">
-              <span className="text-muted-foreground/70">
-                {data.profile_note_active
-                  ? "Publicado en tu página pública"
-                  : "Guardado como borrador. Activá el switch para publicarlo."}
-              </span>
-              <span className="text-muted-foreground/50">·</span>
-              <span className="text-muted-foreground/50">{data.profile_note.length}/50</span>
             </div>
           </div>
         </div>
