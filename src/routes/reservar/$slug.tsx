@@ -1889,6 +1889,16 @@ function PublicBookingPage() {
                   const standardCards = cards.filter((c) => !c.priceChanged && !c.durationChanged);
                   const durationOnlyCards = cards.filter((c) => !c.priceChanged && c.durationChanged);
                   const customCards = cards.filter((c) => c.priceChanged);
+                  // Ondulaciones: Alan va primero en la lista (el resto conserva su orden).
+                  const wantsOndulaciones = selectedServices.some((s) => /ondulaci/i.test(s.name ?? ""));
+                  const alanFirst = <T extends { employee: { full_name?: string | null } }>(list: T[]): T[] =>
+                    wantsOndulaciones
+                      ? [...list].sort(
+                          (a, b) =>
+                            Number(/^alan\b/i.test(b.employee.full_name?.trim() ?? "")) -
+                            Number(/^alan\b/i.test(a.employee.full_name?.trim() ?? "")),
+                        )
+                      : list;
 
                   const renderCard = ({ employee, totals, priceChanged, promoPrice, promoPercent }: (typeof cards)[number]) => {
                     const hasEffectivePrice = totals.effectivePrice != null;
@@ -2015,14 +2025,13 @@ function PublicBookingPage() {
                             <span className="block overflow-visible whitespace-nowrap text-[10px] leading-tight text-white/55">Disponible</span>
                           </span>
                         </button>
-                        {standardCards.map(renderCard)}
-                        {durationOnlyCards.map(renderCard)}
+                        {alanFirst([...standardCards, ...durationOnlyCards]).map(renderCard)}
                       </div>
 
                       {customCards.length > 0 && (
                         <>
                           <p className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wide text-white/40">Opciones diferentes</p>
-                          <div className={gridColsCls}>{customCards.map(renderCard)}</div>
+                          <div className={gridColsCls}>{alanFirst(customCards).map(renderCard)}</div>
                         </>
                       )}
                     </div>
