@@ -1,8 +1,5 @@
 import * as React from "react";
-import { MapPin } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useAuth } from "@/hooks/use-auth";
-import { cn } from "@/lib/utils";
 import { COVER_ASPECT_CLASS } from "@/lib/cover-frame";
 
 type HeroData = {
@@ -16,7 +13,6 @@ type HeroData = {
 // Encabezado de Inicio: portada con luz, foto de perfil y nombre del negocio
 // centrados, con las mismas imágenes y encuadres que la página pública.
 export function NegocioHero({ businessId }: { businessId: string | null }) {
-  const { branches, activeBranchId, setActiveBranchId } = useAuth();
   const [data, setData] = React.useState<HeroData | null>(null);
 
   React.useEffect(() => {
@@ -48,8 +44,6 @@ export function NegocioHero({ businessId }: { businessId: string | null }) {
       cancelled = true;
     };
   }, [businessId]);
-
-  const activeBranches = branches.filter((b) => b.is_active);
 
   return (
     <div className="mb-5">
@@ -115,26 +109,6 @@ export function NegocioHero({ businessId }: { businessId: string | null }) {
           </div>
         </div>
         <h1 className="mt-3 font-display text-3xl font-semibold tracking-tight sm:text-5xl">{data?.name ?? " "}</h1>
-        {activeBranches.length > 1 && (
-          <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-            <MapPin className="h-3.5 w-3.5 text-white/50" />
-            {activeBranches.map((b) => (
-              <button
-                key={b.id}
-                type="button"
-                onClick={() => setActiveBranchId(b.id)}
-                className={cn(
-                  "rounded-full px-3 py-1 text-xs font-semibold transition",
-                  b.id === activeBranchId
-                    ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white"
-                    : "bg-white/5 text-white/60 hover:bg-white/10",
-                )}
-              >
-                {b.name}
-              </button>
-            ))}
-          </div>
-        )}
       </div>
     </div>
   );
