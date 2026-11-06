@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { COVER_ASPECT_CLASS } from "@/lib/cover-frame";
 import { PUBLIC_FONTS, publicFontsStylesheet } from "@/lib/public-fonts";
+import { PublicPagePreview } from "@/components/settings/public-page-preview";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -1151,6 +1152,45 @@ export function BrandingSection() {
     return () => window.removeEventListener("clippr:save-settings", handler);
   }, []);
 
+  // Vista previa en vivo (panel al costado en pantallas grandes, cajón en las chicas).
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [isXl, setIsXl] = useState(() => typeof window !== "undefined" && window.matchMedia("(min-width: 1280px)").matches);
+  React.useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1280px)");
+    const onChange = () => setIsXl(mq.matches);
+    mq.addEventListener("change", onChange);
+    return () => mq.removeEventListener("change", onChange);
+  }, []);
+  const [previewKey, setPreviewKey] = useState(0);
+  const previewDraft = React.useMemo(
+    () => ({
+      colors: {
+        primary: normalizeHex(colors.primary, LANDING_DEFAULTS.primary),
+        secondary: normalizeHex(colors.secondary, LANDING_DEFAULTS.secondary),
+        accent: normalizeHex(colors.accent, LANDING_DEFAULTS.accent),
+        buttonText: normalizeHex(colors.buttonText, LANDING_DEFAULTS.buttonText),
+      },
+      theme,
+      font: fontKey || null,
+      coverPosition: data.cover_position,
+      avatarPosition: data.avatar_position,
+      coverUrl: data.cover_url,
+      avatarUrl: data.avatar_url,
+      name: data.name,
+    }),
+    [colors, theme, fontKey, data.cover_position, data.avatar_position, data.cover_url, data.avatar_url, data.name],
+  );
+  // Lo que no viaja en vivo (textos, beneficios, portafolio...) se ve al recargar la
+  // vista, un poco después de que el autoguardado lo escriba.
+  const previewSig = JSON.stringify([
+    { ...data, cover_url: "", avatar_url: "", cover_position: "", avatar_position: "", name: "" },
+    benefits,
+  ]);
+  React.useEffect(() => {
+    const t = window.setTimeout(() => setPreviewKey((k) => k + 1), 2400);
+    return () => window.clearTimeout(t);
+  }, [previewSig]);
+
   if (loading)
     return (
       <div className="grid place-items-center py-24">
@@ -1214,7 +1254,19 @@ export function BrandingSection() {
     { icon: Instagram, label: "Instagram", key: "instagram" },
   ];
 
+  const previewSlug = slugify(data.slug) || slugify(data.name);
+  const previewPanel = previewSlug ? (
+    <PublicPagePreview
+      slug={previewSlug}
+      draft={previewDraft}
+      refreshKey={previewKey}
+      onClose={previewOpen ? () => setPreviewOpen(false) : undefined}
+    />
+  ) : null;
+
   return (
+    <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_420px] xl:items-start xl:gap-6">
+    <div className="min-w-0 space-y-6">
     <>
       <SectionCard label="Estado">
         <div
@@ -2261,6 +2313,25 @@ export function BrandingSection() {
         </>
       )}
     </>
+    </div>
+    {previewPanel && isXl ? <aside className="sticky top-4">{previewPanel}</aside> : null}
+    {previewPanel && !isXl ? (
+      <>
+        <button
+          type="button"
+          onClick={() => setPreviewOpen(true)}
+          className="fixed bottom-24 right-4 z-40 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-2.5 text-sm font-semibold text-white shadow-xl"
+        >
+          Vista previa
+        </button>
+        {previewOpen ? (
+          <div className="fixed inset-0 z-[80] overflow-y-auto bg-black/70 p-3 backdrop-blur-sm">
+            <div className="mx-auto max-w-md">{previewPanel}</div>
+          </div>
+        ) : null}
+      </>
+    ) : null}
+    </div>
   );
 }
 

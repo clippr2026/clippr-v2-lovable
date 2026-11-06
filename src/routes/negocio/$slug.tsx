@@ -575,6 +575,35 @@ function PublicProfilePage() {
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [showAllFeaturedClients, zoomedFeaturedClient]);
 
+  // Vista previa en vivo desde Configuración (iframe con ?preview=1): recibe el borrador
+  // por postMessage y lo aplica sin esperar al guardado.
+  React.useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("preview") !== "1") return;
+    function onMessage(e: MessageEvent) {
+      if (e.origin !== window.location.origin) return;
+      const d = e.data as { type?: string; draft?: Record<string, any> } | null;
+      if (!d || d.type !== "clippr:preview-draft" || !d.draft) return;
+      const dr = d.draft;
+      if (dr.colors && typeof dr.colors === "object") setColors(dr.colors as LandingColors);
+      if (dr.theme) setTheme(dr.theme === "light" ? "light" : "dark");
+      if ("font" in dr) setFontKey(typeof dr.font === "string" ? dr.font : null);
+      if (typeof dr.coverPosition === "string") setCoverPosition(dr.coverPosition);
+      if (typeof dr.avatarPosition === "string") setAvatarPosition(dr.avatarPosition);
+      setBusiness((b) =>
+        b
+          ? {
+              ...b,
+              name: typeof dr.name === "string" && dr.name.trim() ? dr.name : b.name,
+              cover_url: "coverUrl" in dr ? (dr.coverUrl || null) : b.cover_url,
+              avatar_url: "avatarUrl" in dr ? (dr.avatarUrl || null) : b.avatar_url,
+            }
+          : b,
+      );
+    }
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, []);
+
   // Logo del local para la pantalla de carga (se pide aparte y antes que el resto).
   const [splashLogo, setSplashLogo] = React.useState<string | null>(null);
   React.useEffect(() => {
