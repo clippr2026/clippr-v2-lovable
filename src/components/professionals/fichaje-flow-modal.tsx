@@ -77,7 +77,28 @@ export function FichajeFlowModal({
   onDone: () => void;
 }) {
   const [step, setStep] = React.useState<FlowStep>("choose");
+  // null = todavía no se sabe. Sin ubicación cargada en la sucursal, el método
+  // "Usar mi ubicación" no se puede usar (queda solo el QR).
+  const [branchHasLocation, setBranchHasLocation] = React.useState<boolean | null>(null);
   const [submitting, setSubmitting] = React.useState(false);
+
+  React.useEffect(() => {
+    if (onBehalf || !activeBranchId) return;
+    let cancelled = false;
+    void supabase
+      .from("branches" as any)
+      .select("latitude,longitude")
+      .eq("id", activeBranchId)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        const b = data as { latitude: number | null; longitude: number | null } | null;
+        setBranchHasLocation(error ? null : b?.latitude != null && b?.longitude != null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [onBehalf, activeBranchId]);
   const [pending, setPending] = React.useState<PendingFichaje | null>(null);
   const [locating, setLocating] = React.useState(false);
   const [result, setResult] = React.useState<{ kind: "in" | "out"; time: string } | null>(null);
@@ -244,7 +265,7 @@ export function FichajeFlowModal({
             {!onBehalf && (
               <button
                 type="button"
-                disabled={locating}
+                disabled={locating || branchHasLocation === false}
                 onClick={() => void startLocation()}
                 className="flex w-full items-center gap-3 rounded-xl bg-white/5 px-4 py-3.5 text-left ring-1 ring-white/10 transition hover:bg-white/10 disabled:opacity-60"
               >
@@ -255,7 +276,11 @@ export function FichajeFlowModal({
                 )}
                 <div>
                   <div className="text-sm font-semibold text-foreground">Usar mi ubicación</div>
-                  <div className="text-xs text-muted-foreground">Tenés que estar en el local</div>
+                  <div className="text-xs text-muted-foreground">
+                    {branchHasLocation === false
+                      ? "Esta sucursal no tiene ubicación cargada: usá el QR"
+                      : "Tenés que estar en el local"}
+                  </div>
                 </div>
               </button>
             )}
