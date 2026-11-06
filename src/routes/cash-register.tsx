@@ -12876,34 +12876,34 @@ function FacturacionPanel({
       {/* Acciones de caja — las cuatro juntas, mismo tamaño: lo que entra
           (Nueva venta, Ingresar dinero) en verde y lo que sale (Nuevo gasto,
           Retirar dinero) en rojo. Cerrar caja queda aparte, más abajo. */}
-      <div className={`grid grid-cols-2 gap-2.5 sm:grid-cols-4 ${cajaCerrada ? "hidden" : ""}`}>
+      <div className={`grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-center sm:gap-2.5 ${cajaCerrada ? "hidden" : ""}`}>
         <button
           type="button"
           onClick={onNuevaVenta}
-          className="inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-300/36 bg-[linear-gradient(135deg,rgba(16,185,129,0.26),rgba(6,95,70,0.56))] px-3 py-3.5 text-sm font-bold text-emerald-50 shadow-[0_0_28px_rgba(16,185,129,0.28)] transition hover:bg-emerald-400/24 hover:text-white"
+          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-emerald-400/30 bg-emerald-400/[0.12] px-4 py-2 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-400/[0.2] sm:text-sm"
         >
-          <Plus className="size-4" /> Nueva venta
+          <Plus className="size-3.5" /> Nueva venta
         </button>
         <button
           type="button"
           onClick={onNuevoGasto}
-          className="inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-300/38 bg-[linear-gradient(135deg,rgba(244,63,94,0.28),rgba(127,29,29,0.58))] px-3 py-3.5 text-sm font-bold text-rose-50 shadow-[0_0_28px_rgba(244,63,94,0.26)] transition hover:bg-rose-500/22 hover:text-white"
+          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-rose-400/30 bg-rose-400/[0.12] px-4 py-2 text-xs font-semibold text-rose-100 transition hover:bg-rose-400/[0.2] sm:text-sm"
         >
-          <Wallet className="size-4" /> Nuevo gasto
+          <Wallet className="size-3.5" /> Nuevo gasto
         </button>
         <button
           type="button"
           onClick={() => setShowIngresoChoice(true)}
-          className="inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-400/20 bg-emerald-400/[0.06] px-3 py-3.5 text-sm font-semibold text-emerald-200 transition hover:bg-emerald-400/[0.12]"
+          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.05] px-4 py-2 text-xs font-medium text-emerald-200 transition hover:bg-emerald-400/[0.12] sm:text-sm"
         >
-          <Plus className="size-4" /> Ingresar dinero
+          <Plus className="size-3.5" /> Ingresar dinero
         </button>
         <button
           type="button"
           onClick={() => setMovType("retiro")}
-          className="inline-flex items-center justify-center gap-2 rounded-2xl border border-rose-400/20 bg-rose-400/[0.06] px-3 py-3.5 text-sm font-semibold text-rose-200 transition hover:bg-rose-400/[0.12]"
+          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-rose-400/20 bg-rose-400/[0.05] px-4 py-2 text-xs font-medium text-rose-200 transition hover:bg-rose-400/[0.12] sm:text-sm"
         >
-          <Minus className="size-4" /> Retirar dinero
+          <Minus className="size-3.5" /> Retirar dinero
         </button>
       </div>
 
