@@ -47,6 +47,11 @@ async function geocodeAddress(address: string): Promise<Candidate | null> {
   return { lat: Number(data[0].lat), lng: Number(data[0].lon), label: data[0].display_name };
 }
 
+function osmEmbedUrl(c: { lat: number; lng: number }) {
+  const d = 0.003;
+  return `https://www.openstreetmap.org/export/embed.html?bbox=${c.lng - d},${c.lat - d},${c.lng + d},${c.lat + d}&layer=mapnik&marker=${c.lat},${c.lng}`;
+}
+
 function mapsUrl(c: { lat: number; lng: number }) {
   return `https://www.google.com/maps?q=${c.lat},${c.lng}`;
 }
@@ -180,7 +185,11 @@ export function SucursalUbicacionCard({
                 <button
                   type="button"
                   disabled={busy}
-                  onClick={() => setOpenId(openId === b.id ? null : b.id)}
+                  onClick={() => {
+                    const opening = openId !== b.id;
+                    setOpenId(opening ? b.id : null);
+                    if (opening && b.address?.trim() && !candidates[b.id]) void searchAddress(b.id, b.address);
+                  }}
                   className="inline-flex items-center gap-1.5 rounded-xl bg-white/5 px-3 py-2 text-xs font-semibold text-foreground ring-1 ring-white/10 hover:bg-white/10 disabled:opacity-60"
                 >
                   <MapPin className="size-3.5" />
@@ -229,13 +238,19 @@ export function SucursalUbicacionCard({
                   {candidates[b.id] && (
                     <div className="rounded-lg bg-white/5 p-2.5 text-xs ring-1 ring-white/10">
                       <div className="text-foreground">{candidates[b.id].label}</div>
+                      <iframe
+                        title={`Mapa de ${b.name}`}
+                        src={osmEmbedUrl(candidates[b.id])}
+                        loading="lazy"
+                        className="my-2 h-48 w-full rounded-lg border-0"
+                      />
                       <a
                         href={mapsUrl(candidates[b.id])}
                         target="_blank"
                         rel="noreferrer"
                         className="text-sky-300 underline"
                       >
-                        Revisar en el mapa antes de guardar
+                        Abrir en Google Maps
                       </a>
                       <div className="mt-2">
                         <button
