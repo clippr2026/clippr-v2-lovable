@@ -15,6 +15,7 @@ import { useFichajeHoy } from "@/components/dashboard/use-fichaje-hoy";
 import { FichajeQrModal } from "@/components/dashboard/fichaje-qr-modal";
 import { FichajeEvidenciaModal } from "@/components/dashboard/fichaje-evidencia-modal";
 import { JornadaRecepcionCard } from "@/components/dashboard/jornada-recepcion-card";
+import { NegocioHero } from "@/components/dashboard/negocio-hero";
 import { type FichajeHoyPersona } from "@/lib/fichaje";
 import { cajaDateKeyBA, dayBoundsBA } from "@/lib/caja-cierre";
 import { SaldoComposicionModal } from "@/components/caja/saldo-composicion";
@@ -70,13 +71,7 @@ function DashboardRoute() {
 
   return (
     <AppShell containedScroll>
-      {/* Oculto en mobile: el banner de sección debajo del header ya dice
-          "Inicio" (ver MobileSectionBanner) — repetirlo acá era
-          redundante y le sacaba alto útil a la pantalla. En desktop no hay
-          banner, así que el título sigue siendo la única referencia. */}
-      <h1 className="mb-2 hidden font-display text-[1.65rem] leading-tight sm:text-3xl font-semibold tracking-tight lg:block">
-        Resumen del negocio
-      </h1>
+      <NegocioHero businessId={businessId} />
       <DashboardContent businessId={businessId} />
     </AppShell>
   );
