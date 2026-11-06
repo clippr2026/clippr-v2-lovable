@@ -1003,6 +1003,8 @@ function PublicProfilePage() {
       {pubFont ? <link rel="stylesheet" href={publicFontsStylesheet([pubFont])} /> : null}
       <style>{`
         .public-landing.pub-font :is(h1, h2, h3) { font-family: var(--pub-font), sans-serif; }
+        .public-landing.pub-font h1 { line-height: 1.3; padding-bottom: 0.22em; }
+        .public-landing.pub-font :is(h2, h3) { line-height: 1.3; }
         .public-landing { background: var(--page-bg); color: var(--text); }
         .public-landing .public-card { background: var(--card-bg) !important; border-color: var(--border) !important; color: var(--text); }
         .public-landing[data-theme="light"] [class*="text-white"] { color: var(--text) !important; }
