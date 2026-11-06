@@ -1466,7 +1466,7 @@ function AgendaPage() {
             backdrop-filter en este wrapper (a diferencia de la barra de
             arriba, que es ".glass") para no necesitar portal: el dropdown
             no queda atrapado en ningún stacking context raro. */}
-        <div className="relative z-30 mb-2 sm:hidden">
+        <div className="relative z-[90] mb-2 sm:hidden">
           <button
             type="button"
             onClick={() => setProfFilterOpen((v) => !v)}
@@ -1518,9 +1518,8 @@ function AgendaPage() {
           )}
         </div>
 
-        {/* Estados — mobile: grilla fija de 3 columnas, 2 filas parejas (5 estados),
-            sin scroll horizontal. */}
-        <div className="grid grid-cols-3 gap-1.5 mb-2 sm:hidden">
+        {/* Estados — mobile: 3 arriba y 2 abajo, cada fila centrada, sin scroll horizontal. */}
+        <div className="flex flex-wrap justify-center gap-1.5 mb-2 sm:hidden">
           {STATUS_FILTERS.map(([k, label, color, bg, ring]) => (
             <button
               key={k}
@@ -1528,7 +1527,7 @@ function AgendaPage() {
                 setFilterModal(k);
                 setActiveDrawer("filter");
               }}
-              className="flex flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 text-center transition-all active:brightness-110"
+              className="flex w-[calc((100%-0.75rem)/3)] flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 text-center transition-all active:brightness-110"
               style={{ background: bg, boxShadow: `0 0 0 1px ${ring}`, color }}
             >
               <span className="font-semibold tabular-nums text-sm leading-none">
