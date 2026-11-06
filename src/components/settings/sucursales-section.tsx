@@ -255,24 +255,6 @@ export function SucursalesSection() {
               onChange={(e) => setEditAddress(e.target.value)}
               placeholder="Dirección (opcional)"
             />
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => saveEdit(b.id)}
-                disabled={savingEdit}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-sky-400 to-violet-500 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-              >
-                {savingEdit ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
-                Guardar
-              </button>
-              <button
-                type="button"
-                onClick={() => setEditingId(null)}
-                className="inline-flex items-center gap-1.5 rounded-lg bg-white/5 px-3 py-1.5 text-xs font-medium text-muted-foreground ring-1 ring-white/10"
-              >
-                <X className="size-3.5" /> Cancelar
-              </button>
-            </div>
 
             {b.is_active && (
               <div className="flex items-center justify-between gap-3 border-t border-white/[0.07] pt-3">
@@ -355,6 +337,24 @@ export function SucursalesSection() {
                   </p>
                 )}
               </div>
+            </div>
+            <div className="flex items-center gap-2 border-t border-white/[0.07] pt-3">
+              <button
+                type="button"
+                onClick={() => saveEdit(b.id)}
+                disabled={savingEdit}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-gradient-to-r from-sky-400 to-violet-500 px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
+              >
+                {savingEdit ? <Loader2 className="size-3.5 animate-spin" /> : <Check className="size-3.5" />}
+                Guardar
+              </button>
+              <button
+                type="button"
+                onClick={() => setEditingId(null)}
+                className="inline-flex items-center gap-1.5 rounded-lg bg-white/5 px-3 py-1.5 text-xs font-medium text-muted-foreground ring-1 ring-white/10"
+              >
+                <X className="size-3.5" /> Cancelar
+              </button>
             </div>
           </div>
         ) : (

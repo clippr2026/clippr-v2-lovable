@@ -146,21 +146,7 @@ export function SucursalUbicacion({
 
   return (
     <div>
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div className="min-w-0">
-          {hasLoc ? (
-            <a
-              href={mapsUrl({ lat: loc.latitude as number, lng: loc.longitude as number })}
-              target="_blank"
-              rel="noreferrer"
-              className="text-xs text-sky-300 underline"
-            >
-              Ver la ubicación en el mapa
-            </a>
-          ) : (
-            <div className="text-xs text-amber-300">Sin ubicación: solo se puede fichar con QR</div>
-          )}
-        </div>
+      <div className="flex flex-wrap items-center gap-3">
         <button
           type="button"
           disabled={saving}
@@ -174,6 +160,18 @@ export function SucursalUbicacion({
           <MapPin className="size-3.5" />
           {hasLoc ? "Cambiar ubicación" : "Fijar ubicación"}
         </button>
+        {hasLoc ? (
+          <a
+            href={mapsUrl({ lat: loc.latitude as number, lng: loc.longitude as number })}
+            target="_blank"
+            rel="noreferrer"
+            className="text-xs text-sky-300 underline"
+          >
+            Ver la ubicación en el mapa
+          </a>
+        ) : (
+          <div className="text-xs text-amber-300">Sin ubicación: solo se puede fichar con QR</div>
+        )}
       </div>
       {open && (
         <div className="mt-3 space-y-2 rounded-xl bg-black/20 p-3 ring-1 ring-white/10">
