@@ -145,7 +145,7 @@ export function SucursalUbicacion({
   const hasLoc = loc.latitude != null && loc.longitude != null;
 
   return (
-    <div className="mt-2.5 border-t border-white/5 pt-2.5">
+    <div>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div className="min-w-0">
           {hasLoc ? (

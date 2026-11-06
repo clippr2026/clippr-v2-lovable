@@ -286,6 +286,12 @@ export function SucursalesSection() {
               </div>
             )}
 
+            {b.is_active && (
+              <div className="border-t border-white/[0.07] pt-3">
+                <SucursalUbicacion branchId={b.id} branchName={b.name} address={editAddress} />
+              </div>
+            )}
+
             <div className="space-y-2 border-t border-white/[0.07] pt-3">
               <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">
                 Otras acciones
@@ -389,9 +395,6 @@ export function SucursalesSection() {
               </button>
             </div>
           </div>
-        )}
-        {editingId !== b.id && b.is_active && (
-          <SucursalUbicacion branchId={b.id} branchName={b.name} address={b.address} />
         )}
       </div>
     );
