@@ -82,7 +82,7 @@ export function PublicPagePreview({
   const previewUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/negocio/${slug}?preview=1`;
   const frame = (
     <iframe
-      key={`${mode}-${refreshKey}`}
+      key={mode}
       ref={iframeRef}
       title="Vista previa de la página pública"
       src={previewUrl}
@@ -102,6 +102,17 @@ export function PublicPagePreview({
   React.useEffect(() => {
     post();
   }, [post]);
+
+  // Cuando se guardan datos que no viajan en vivo (textos, beneficios...), la página
+  // se actualiza sola por adentro, sin recargar ni mostrar la pantalla de carga.
+  const firstRefresh = React.useRef(true);
+  React.useEffect(() => {
+    if (firstRefresh.current) {
+      firstRefresh.current = false;
+      return;
+    }
+    iframeRef.current?.contentWindow?.postMessage({ type: "clippr:preview-refresh" }, window.location.origin);
+  }, [refreshKey]);
 
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">

@@ -556,10 +556,13 @@ function PublicProfilePage() {
   // Efecto de entrada (Configuración → Efectos). En la vista previa de Configuración no corre
   // solo: se reproduce únicamente cuando se prueba un efecto.
   const [entryEffect, setEntryEffect] = React.useState<EntryEffectKey>("neon");
-  const [isPreview] = React.useState(
-    () => typeof window !== "undefined" && new URLSearchParams(window.location.search).get("preview") === "1",
-  );
+  // Se detecta después de montar (no al inicializar) para que el HTML del servidor y el del cliente coincidan.
+  const [isPreview, setIsPreview] = React.useState(false);
+  React.useEffect(() => {
+    setIsPreview(new URLSearchParams(window.location.search).get("preview") === "1");
+  }, []);
   const [effectRun, setEffectRun] = React.useState(0);
+  const [reloadTick, setReloadTick] = React.useState(0);
   const [previewSplash, setPreviewSplash] = React.useState(false);
   const lastEffectNonce = React.useRef(0);
   const [theme, setTheme] = React.useState<LandingTheme>("dark");
@@ -605,6 +608,10 @@ function PublicProfilePage() {
     function onMessage(e: MessageEvent) {
       if (e.origin !== window.location.origin) return;
       const d = e.data as { type?: string; draft?: Record<string, any> } | null;
+      if (d && d.type === "clippr:preview-refresh") {
+        setReloadTick((t) => t + 1);
+        return;
+      }
       if (!d || d.type !== "clippr:preview-draft" || !d.draft) return;
       const dr = d.draft;
       if (dr.colors && typeof dr.colors === "object") setColors(dr.colors as LandingColors);
@@ -666,7 +673,8 @@ function PublicProfilePage() {
   React.useEffect(() => {
     let cancelled = false;
     async function load() {
-      setLoading(true);
+      // Las recargas silenciosas de la vista previa (reloadTick > 0) no vuelven a mostrar la pantalla de carga.
+      if (reloadTick === 0) setLoading(true);
       try {
         const businessQuery = supabase
           .from("public_booking_businesses")
@@ -929,7 +937,7 @@ function PublicProfilePage() {
     return () => {
       cancelled = true;
     };
-  }, [slug, selectedBranchId]);
+  }, [slug, selectedBranchId, reloadTick]);
 
   const cPrimary = colors.primary || colors.secondary || business?.accent_color || "#7c3aed";
   const cSecondary = colors.secondary || cPrimary;
