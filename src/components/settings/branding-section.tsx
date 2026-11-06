@@ -1265,7 +1265,7 @@ export function BrandingSection() {
   ) : null;
 
   return (
-    <div className="xl:grid xl:grid-cols-[minmax(0,1fr)_420px] xl:items-start xl:gap-6">
+    <div className="xl:grid xl:grid-cols-2 xl:items-start xl:gap-6">
     <div className="min-w-0 space-y-6">
     <>
       <SectionCard label="Estado">

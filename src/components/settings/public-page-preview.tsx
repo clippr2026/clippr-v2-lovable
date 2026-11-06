@@ -36,6 +36,12 @@ export function PublicPagePreview({
   const boxRef = React.useRef<HTMLDivElement | null>(null);
   const iframeRef = React.useRef<HTMLIFrameElement | null>(null);
   const [boxW, setBoxW] = React.useState(360);
+  const [vh, setVh] = React.useState(() => (typeof window === "undefined" ? 800 : window.innerHeight));
+  React.useEffect(() => {
+    const onResize = () => setVh(window.innerHeight);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
 
   React.useEffect(() => {
     const el = boxRef.current;
@@ -57,13 +63,13 @@ export function PublicPagePreview({
   // Móvil: celular (390 px de ancho real) dentro de un marco con notch, centrado.
   // Web: ventana de navegador (1100 px de ancho real) achicada para entrar.
   const frameW = Math.max(200, boxW - 8);
-  const mobileInnerW = Math.min(frameW - 20, large ? 400 : 340);
+  // Alto disponible: casi todo el alto de la pantalla (menos el encabezado del panel).
+  const maxH = Math.max(420, large ? Math.round(vh * 0.8) : vh - 170);
   const deviceW = mode === "mobile" ? 390 : 1100;
+  const mobileInnerW = Math.min(frameW - 20, Math.floor(maxH / 2.05), large ? 460 : 520);
   const innerW = mode === "mobile" ? mobileInnerW : frameW - 2;
   const scale = innerW / deviceW;
-  const maxH = large ? Math.round(window.innerHeight * 0.74) : 760;
-  const innerH =
-    mode === "mobile" ? Math.min(Math.round(innerW * 2.05), maxH) : Math.min(Math.round(innerW * 0.66), maxH);
+  const innerH = mode === "mobile" ? Math.round(innerW * 2.05) : Math.min(Math.round(innerW * 0.66), maxH);
   const deviceH = Math.round(innerH / scale);
   void boxHpx;
   const previewUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/negocio/${slug}?preview=1`;
