@@ -399,6 +399,13 @@ export function distanceMeters(a: { lat: number; lng: number }, b: { lat: number
 
 // Ubicación actual del celular, alta precisión. Rechaza con un mensaje claro
 // (permiso negado, sin señal, tiempo agotado).
+export class LocationDeniedError extends Error {
+  constructor() {
+    super("Permití el acceso a tu ubicación para fichar con ubicación.");
+    this.name = "LocationDeniedError";
+  }
+}
+
 export function getCurrentCoords(): Promise<FichajeCoords> {
   return new Promise((resolve, reject) => {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
@@ -410,11 +417,9 @@ export function getCurrentCoords(): Promise<FichajeCoords> {
         resolve({ lat: pos.coords.latitude, lng: pos.coords.longitude, accuracyM: pos.coords.accuracy }),
       (err) => {
         reject(
-          new Error(
-            err.code === err.PERMISSION_DENIED
-              ? "Permití el acceso a tu ubicación para fichar con ubicación."
-              : "No se pudo leer tu ubicación. Probá de nuevo o usá el QR.",
-          ),
+          err.code === err.PERMISSION_DENIED
+            ? new LocationDeniedError()
+            : new Error("No se pudo leer tu ubicación. Probá de nuevo o usá el QR."),
         );
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },

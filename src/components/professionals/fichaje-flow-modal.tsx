@@ -12,6 +12,7 @@ import {
   getCurrentCoords,
   uploadFichajeSelfie,
   ficharConEvidencia,
+  LocationDeniedError,
   type FichajeCoords,
   type FichajeMethod,
 } from "@/lib/fichaje";
@@ -80,6 +81,25 @@ export function FichajeFlowModal({
   // null = todavía no se sabe. Sin ubicación cargada en la sucursal, el método
   // "Usar mi ubicación" no se puede usar (queda solo el QR).
   const [branchHasLocation, setBranchHasLocation] = React.useState<boolean | null>(null);
+  // El navegador recuerda el "No permitir": no vuelve a preguntar hasta que se
+  // habilita a mano en los ajustes del sitio.
+  const [locationDenied, setLocationDenied] = React.useState(false);
+
+  React.useEffect(() => {
+    if (onBehalf || typeof navigator === "undefined" || !navigator.permissions?.query) return;
+    let cancelled = false;
+    void navigator.permissions
+      .query({ name: "geolocation" as PermissionName })
+      .then((status) => {
+        if (cancelled) return;
+        setLocationDenied(status.state === "denied");
+        status.onchange = () => setLocationDenied(status.state === "denied");
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [onBehalf]);
   const [submitting, setSubmitting] = React.useState(false);
 
   React.useEffect(() => {
@@ -186,7 +206,8 @@ export function FichajeFlowModal({
       setPending({ method: "location", branchId: activeBranchId, code: null, coords });
       setStep("selfie");
     } catch (e) {
-      toast.error((e as Error).message);
+      if (e instanceof LocationDeniedError) setLocationDenied(true);
+      else toast.error((e as Error).message);
     } finally {
       setLocating(false);
     }
@@ -283,6 +304,17 @@ export function FichajeFlowModal({
                   </div>
                 </div>
               </button>
+            )}
+            {!onBehalf && locationDenied && (
+              <div className="rounded-xl bg-amber-500/10 px-3 py-2.5 text-xs text-amber-200 ring-1 ring-amber-500/25">
+                <div className="font-semibold">La ubicación está bloqueada para este sitio.</div>
+                <div className="mt-1">
+                  {/iPhone|iPad|iPod/i.test(typeof navigator === "undefined" ? "" : navigator.userAgent)
+                    ? "En el iPhone: tocá “aA” en la barra de direcciones → Configuración del sitio web → Ubicación → Permitir. Después volvé a tocar “Usar mi ubicación”."
+                    : "Tocá el candado junto a la dirección → Permisos → Ubicación → Permitir. Después volvé a tocar “Usar mi ubicación”."}
+                </div>
+                <div className="mt-1">Mientras tanto podés fichar con el QR.</div>
+              </div>
             )}
             {!onBehalf && (
               <p className="px-1 pt-1 text-center text-xs text-muted-foreground">
