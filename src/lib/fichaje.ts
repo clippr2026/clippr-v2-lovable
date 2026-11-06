@@ -401,7 +401,7 @@ export function distanceMeters(a: { lat: number; lng: number }, b: { lat: number
 // (permiso negado, sin señal, tiempo agotado).
 export class LocationDeniedError extends Error {
   constructor() {
-    super("Permití el acceso a tu ubicación para fichar con ubicación.");
+    super("La ubicación está bloqueada en tu celular. Habilitala en los ajustes del navegador o fichá con el QR.");
     this.name = "LocationDeniedError";
   }
 }
