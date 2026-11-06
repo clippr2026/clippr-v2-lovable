@@ -1267,6 +1267,16 @@ export function BrandingSection() {
       onEditor={isXl ? () => setEditorMode(true) : undefined}
     />
   ) : null;
+  // Pantalla grande: la página muestra solo la vista previa (Móvil / Web) y el botón "Editar".
+  const pagePreview = previewSlug ? (
+    <PublicPagePreview
+      slug={previewSlug}
+      draft={previewDraft}
+      refreshKey={previewKey}
+      large
+      onEditor={() => setEditorMode(true)}
+    />
+  ) : null;
   const editorPreview = previewSlug ? (
     <PublicPagePreview
       slug={previewSlug}
@@ -2364,10 +2374,13 @@ export function BrandingSection() {
     );
   }
 
+  if (isXl && pagePreview) {
+    return <div className="mx-auto w-full max-w-5xl">{pagePreview}</div>;
+  }
+
   return (
-    <div className="xl:grid xl:grid-cols-2 xl:items-start xl:gap-6">
+    <div>
     <div className="min-w-0 space-y-6">{formContent}</div>
-    {previewPanel && isXl ? <aside className="sticky top-4">{previewPanel}</aside> : null}
     {previewPanel && !isXl ? (
       <>
         <button
