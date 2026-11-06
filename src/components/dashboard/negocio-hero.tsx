@@ -79,10 +79,13 @@ export function NegocioHero({ businessId }: { businessId: string | null }) {
             />
           ) : null}
           <div className="pointer-events-none absolute inset-0 rounded-[2rem] bg-[linear-gradient(180deg,rgb(255_255_255/0.08),transparent_28%,transparent_55%,rgb(0_0_0/0.35))]" />
-          {/* Sombra interior: oscurece los bordes de la imagen */}
+          {/* Sombra interior de color (violeta, azul y rosa de la app) */}
           <div
             className="pointer-events-none absolute inset-0 rounded-[2rem]"
-            style={{ boxShadow: "inset 0 0 70px 8px rgb(0 0 0 / 0.6), inset 0 -40px 60px rgb(0 0 0 / 0.35)" }}
+            style={{
+              boxShadow:
+                "inset 0 0 60px 6px rgb(139 92 246 / 0.55), inset 0 0 120px rgb(79 125 255 / 0.35), inset 0 -50px 70px rgb(236 72 153 / 0.30)",
+            }}
           />
         </div>
       </div>
