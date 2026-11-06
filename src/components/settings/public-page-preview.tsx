@@ -50,17 +50,41 @@ export function PublicPagePreview({
     return () => ro.disconnect();
   }, []);
 
-  // Móvil: la página a 390 px de ancho llenando el panel. Web: a 1100 px de ancho,
-  // achicada para entrar (con "Ampliar" se ve grande).
-  const deviceW = mode === "mobile" ? 390 : 1100;
-  const scale = mode === "mobile" ? Math.min(boxW / 390, large ? 1.15 : 1.4) : boxW / deviceW;
-  const boxH = large ? Math.round(window.innerHeight * 0.78) : mode === "mobile" ? 700 : Math.round(boxW * 0.7);
-  const deviceH = Math.round(boxH / scale);
-  void boxHpx;
-
   const post = React.useCallback(() => {
     iframeRef.current?.contentWindow?.postMessage({ type: "clippr:preview-draft", draft }, window.location.origin);
   }, [draft]);
+
+  // Móvil: celular (390 px de ancho real) dentro de un marco con notch, centrado.
+  // Web: ventana de navegador (1100 px de ancho real) achicada para entrar.
+  const frameW = Math.max(200, boxW - 8);
+  const mobileInnerW = Math.min(frameW - 20, large ? 400 : 340);
+  const deviceW = mode === "mobile" ? 390 : 1100;
+  const innerW = mode === "mobile" ? mobileInnerW : frameW - 2;
+  const scale = innerW / deviceW;
+  const maxH = large ? Math.round(window.innerHeight * 0.74) : 760;
+  const innerH =
+    mode === "mobile" ? Math.min(Math.round(innerW * 2.05), maxH) : Math.min(Math.round(innerW * 0.66), maxH);
+  const deviceH = Math.round(innerH / scale);
+  void boxHpx;
+  const previewUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/negocio/${slug}?preview=1`;
+  const frame = (
+    <iframe
+      key={`${mode}-${refreshKey}`}
+      ref={iframeRef}
+      title="Vista previa de la página pública"
+      src={previewUrl}
+      onLoad={post}
+      style={{
+        width: deviceW,
+        height: deviceH,
+        transform: `scale(${scale})`,
+        transformOrigin: "top left",
+        border: 0,
+        background: "#fff",
+        display: "block",
+      }}
+    />
+  );
 
   React.useEffect(() => {
     post();
@@ -115,28 +139,35 @@ export function PublicPagePreview({
           ) : null}
         </div>
       </div>
-      <div
-        ref={boxRef}
-        className="relative w-full overflow-hidden rounded-xl border border-white/10 bg-black/30"
-        style={{ height: boxH }}
-      >
-        <div className="relative mx-auto h-full overflow-hidden" style={{ width: Math.round(deviceW * scale) }}>
-        <iframe
-          key={`${mode}-${refreshKey}`}
-          ref={iframeRef}
-          title="Vista previa de la página pública"
-          src={`${window.location.origin}/negocio/${slug}?preview=1`}
-          onLoad={post}
-          style={{
-            width: deviceW,
-            height: deviceH,
-            transform: `scale(${scale})`,
-            transformOrigin: "top left",
-            border: 0,
-            background: "#fff",
-          }}
-        />
-        </div>
+      <div ref={boxRef} className="flex w-full justify-center py-2">
+        {mode === "mobile" ? (
+          <div
+            className="relative rounded-[2.6rem] bg-zinc-900 p-[9px] shadow-[0_20px_60px_rgba(0,0,0,0.6)] ring-1 ring-white/20"
+            style={{ width: innerW + 18 }}
+          >
+            <div className="pointer-events-none absolute left-1/2 top-[14px] z-10 h-[18px] w-[72px] -translate-x-1/2 rounded-full bg-black/90" />
+            <div className="overflow-hidden rounded-[2.1rem] bg-white" style={{ width: innerW, height: innerH }}>
+              {frame}
+            </div>
+          </div>
+        ) : (
+          <div
+            className="overflow-hidden rounded-xl bg-zinc-900 shadow-[0_20px_60px_rgba(0,0,0,0.5)] ring-1 ring-white/20"
+            style={{ width: innerW + 2 }}
+          >
+            <div className="flex items-center gap-2 bg-zinc-800 px-3 py-2">
+              <span className="h-2.5 w-2.5 rounded-full bg-rose-400/80" />
+              <span className="h-2.5 w-2.5 rounded-full bg-amber-300/80" />
+              <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/80" />
+              <span className="ml-2 min-w-0 flex-1 truncate rounded-md bg-black/40 px-2 py-0.5 text-[10px] text-white/55">
+                myclippr.com/negocio/{slug}
+              </span>
+            </div>
+            <div className="overflow-hidden bg-white" style={{ width: innerW, height: innerH, margin: "0 auto" }}>
+              {frame}
+            </div>
+          </div>
+        )}
       </div>
       {expanded ? (
         <div className="fixed inset-0 z-[90] overflow-y-auto bg-black/80 p-4 backdrop-blur-sm">
