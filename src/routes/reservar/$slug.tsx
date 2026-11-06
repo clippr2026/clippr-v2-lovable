@@ -311,7 +311,8 @@ function PublicBookingPage() {
   // es solo el fallback antes de que responda la primera consulta.
   const [reservationSettings, setReservationSettings] = React.useState<{
     maxAdvance: number;
-  }>({ maxAdvance: 10 });
+    minAdvance: number;
+  }>({ maxAdvance: 10, minAdvance: 60 });
   const [recommendedProducts, setRecommendedProducts] = React.useState<RecommendedProduct[]>([]);
   const [selectedProductIds, setSelectedProductIds] = React.useState<string[]>([]);
 
@@ -582,6 +583,7 @@ function PublicBookingPage() {
         businessSpecial,
         employeeSpecial,
         businessTimeZone,
+        reservationSettings.minAdvance,
       ),
     [
       schedule,
@@ -594,6 +596,7 @@ function PublicBookingPage() {
       businessSpecial,
       employeeSpecial,
       reservationSettings.maxAdvance,
+      reservationSettings.minAdvance,
       businessTimeZone,
     ],
   );
@@ -861,6 +864,11 @@ function PublicBookingPage() {
           setSchedule(normalizeSchedule(branchScheduleForRange));
           setReservationSettings({
             maxAdvance: Math.max(1, Number(rawSettingsForRange.maxAdvance) || 10),
+            // Minutos de anticipación mínima; sin configurar = 60 (como siempre).
+            minAdvance:
+              rawSettingsForRange.minAdvance === undefined || rawSettingsForRange.minAdvance === null
+                ? 60
+                : Math.max(0, Number(rawSettingsForRange.minAdvance) || 0),
           });
 
           // Horarios individuales de profesionales y horarios especiales (negocio

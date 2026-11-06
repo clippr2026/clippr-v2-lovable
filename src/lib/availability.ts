@@ -521,6 +521,9 @@ export function buildSlots<T extends { id: string }>(
   businessSpecial: SpecialDateMap = {},
   employeeSpecial: EmployeeSpecialDateMap = {},
   timeZone: string = DEFAULT_TIMEZONE,
+  // Anticipación mínima para reservar online (Configuración → Horarios). 60 = el
+  // comportamiento de siempre (no se ofrecen horarios de la próxima hora).
+  minAdvanceMinutes = 60,
 ) {
   const now = new Date();
   const result: Array<{ date: Date; slots: Array<{ time: Date; employeeId: string }> }> = [];
@@ -582,7 +585,7 @@ export function buildSlots<T extends { id: string }>(
       for (const block of freeBlocks) {
         for (const minute of blockCandidates(block, duration, !isCleanDay)) {
           const slotStart = zonedTimeToInstant(date, minute, timeZone);
-          if (slotStart < addMinutes(now, 60)) continue;
+          if (slotStart < addMinutes(now, Math.max(0, minAdvanceMinutes))) continue;
           const key = slotStart.getTime();
           if (slotMap.has(key)) continue; // ya hay un profesional para ese horario
           slotMap.set(key, employee.id);

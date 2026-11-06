@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { CalendarDays, AlarmClock, CalendarOff } from "lucide-react";
+import { CalendarDays, AlarmClock, CalendarOff, Clock3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 import { SectionCard, reportSaveStatus, Toggle } from "@/components/settings/shared";
@@ -21,13 +21,44 @@ const DAYS = [
 
 type ReservationSettings = {
   maxAdvance: string;
+  minAdvance: string;
   minCancel: string;
 };
 
 const DEFAULT_RESERVATION_SETTINGS: ReservationSettings = {
   maxAdvance: "30",
+  minAdvance: "60",
   minCancel: "2",
 };
+
+// Opciones de los selectores. maxAdvance en días, minAdvance en minutos, minCancel en horas.
+const MAX_ADVANCE_OPTIONS: { value: number; label: string }[] = [
+  { value: 1, label: "1 día" },
+  { value: 7, label: "1 semana" },
+  { value: 14, label: "2 semanas" },
+  { value: 21, label: "3 semanas" },
+  { value: 30, label: "1 mes" },
+  { value: 60, label: "2 meses" },
+];
+const MIN_ADVANCE_OPTIONS: { value: number; label: string }[] = [
+  { value: 0, label: "Sin anticipación" },
+  { value: 30, label: "30 minutos" },
+  { value: 60, label: "1 hora" },
+  { value: 120, label: "2 horas" },
+  { value: 240, label: "4 horas" },
+  { value: 720, label: "12 horas" },
+  { value: 1440, label: "1 día" },
+  { value: 2880, label: "2 días" },
+];
+const MIN_CANCEL_OPTIONS: { value: number; label: string }[] = [
+  { value: 0, label: "Sin límite" },
+  { value: 1, label: "1 hora" },
+  { value: 2, label: "2 horas" },
+  { value: 4, label: "4 horas" },
+  { value: 12, label: "12 horas" },
+  { value: 24, label: "1 día" },
+  { value: 48, label: "2 días" },
+];
 
 const DEFAULT_DAYS = DAYS.map((d, i) => ({
   name: d,
@@ -109,6 +140,9 @@ export function HorariosSection() {
                   maxAdvance: String(
                     settings.maxAdvance ?? DEFAULT_RESERVATION_SETTINGS.maxAdvance,
                   ),
+                  minAdvance: String(
+                    settings.minAdvance ?? DEFAULT_RESERVATION_SETTINGS.minAdvance,
+                  ),
                   minCancel: String(
                     settings.minCancel ?? DEFAULT_RESERVATION_SETTINGS.minCancel,
                   ),
@@ -180,9 +214,14 @@ export function HorariosSection() {
       };
     });
 
+    const asNumber = (v: string, fallback: number) => {
+      const n = Number(v);
+      return v.trim() !== "" && Number.isFinite(n) && n >= 0 ? n : fallback;
+    };
     schedule._settings = {
-      maxAdvance: Number(reservationSettings.maxAdvance) || 30,
-      minCancel: Number(reservationSettings.minCancel) || 2,
+      maxAdvance: Math.max(1, asNumber(reservationSettings.maxAdvance, 30)),
+      minAdvance: asNumber(reservationSettings.minAdvance, 60),
+      minCancel: asNumber(reservationSettings.minCancel, 2),
     };
     const { error } = await supabase
       .from("branch_settings" as any)
@@ -226,20 +265,37 @@ export function HorariosSection() {
     return () => window.removeEventListener("clippr:save-settings", handler);
   }, []);
 
-  const reservationRows = [
+  const reservationRows: {
+    key: keyof ReservationSettings;
+    icon: typeof CalendarDays;
+    title: string;
+    hint: string;
+    options: { value: number; label: string }[];
+    unit: string;
+  }[] = [
     {
-      key: "maxAdvance" as const,
-      icon: CalendarDays,
-      title: "Anticipación máxima",
-      hint: "Con cuántos días de anticipación se puede reservar",
-      suffix: "días",
+      key: "minAdvance",
+      icon: Clock3,
+      title: "Anticipación mínima",
+      hint: "Cuánto antes de la hora del turno se puede reservar",
+      options: MIN_ADVANCE_OPTIONS,
+      unit: "min",
     },
     {
-      key: "minCancel" as const,
+      key: "maxAdvance",
+      icon: CalendarDays,
+      title: "Anticipación máxima",
+      hint: "Con cuánta anticipación se puede reservar como máximo",
+      options: MAX_ADVANCE_OPTIONS,
+      unit: "días",
+    },
+    {
+      key: "minCancel",
       icon: AlarmClock,
-      title: "Cancelación mínima",
-      hint: "Con cuántas horas de anticipación se puede cancelar",
-      suffix: "horas",
+      title: "Cancelación",
+      hint: "Hasta cuánto antes del turno se puede cancelar",
+      options: MIN_CANCEL_OPTIONS,
+      unit: "horas",
     },
   ];
 
@@ -379,23 +435,28 @@ export function HorariosSection() {
                     {r.hint}
                   </div>
                 </div>
-                <div className="flex items-center gap-2 rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2">
-                  <input
-                    type="number"
-                    min={1}
-                    value={reservationSettings[r.key]}
-                    onChange={(e) =>
-                      setReservationSettings((state) => ({
-                        ...state,
-                        [r.key]: e.target.value,
-                      }))
-                    }
-                    className="w-16 bg-transparent text-sm focus:outline-none text-right"
-                  />
-                  <span className="text-xs text-muted-foreground">
-                    {r.suffix}
-                  </span>
-                </div>
+                <select
+                  value={reservationSettings[r.key]}
+                  onChange={(e) =>
+                    setReservationSettings((state) => ({
+                      ...state,
+                      [r.key]: e.target.value,
+                    }))
+                  }
+                  className="min-w-[10rem] rounded-lg bg-white/5 px-3 py-2 text-sm ring-1 ring-white/10 focus:outline-none focus:ring-primary/40 [color-scheme:dark]"
+                >
+                  {/* Si había un valor guardado que no está en la lista (de antes), se conserva. */}
+                  {!r.options.some((o) => String(o.value) === reservationSettings[r.key]) ? (
+                    <option value={reservationSettings[r.key]}>
+                      {reservationSettings[r.key]} {r.unit}
+                    </option>
+                  ) : null}
+                  {r.options.map((o) => (
+                    <option key={o.value} value={String(o.value)}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
               </div>
             );
           })}
