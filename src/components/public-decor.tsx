@@ -194,6 +194,7 @@ function splatterConfig(primary: string, secondary: string, light: boolean) {
 
 function SplatterArt({ primary, secondary, light }: { primary: string; secondary: string; light: boolean }) {
   const cfg = React.useMemo(() => splatterConfig(primary, secondary, light), [primary, secondary, light]);
+  // La pintura cubre todo el encabezado (la legibilidad la dan las sombras de cada texto); solo se disuelve el último borde.
   const art = React.useMemo(() => {
     const r = rng(37);
     const W = 400;
@@ -222,6 +223,7 @@ function SplatterArt({ primary, secondary, light }: { primary: string; secondary
     const strokes = Array.from({ length: 10 }, () => ({ x: r() * W, y: r() * H, w: 70 + r() * 140, h: 18 + r() * 34, a: -40 + r() * 80, o: 0.18 + r() * 0.3, white: r() < 0.5 }));
     return { dots, blobs, arcs, strokes };
   }, [cfg]);
+  const fade = "linear-gradient(to bottom, #000 0%, #000 94%, transparent 100%)";
 
   return (
     <svg
@@ -229,11 +231,7 @@ function SplatterArt({ primary, secondary, light }: { primary: string; secondary
       viewBox="0 0 400 520"
       preserveAspectRatio="xMidYMid slice"
       aria-hidden
-      // Más suave (no vacío) alrededor del nombre, las estrellas y los años de experiencia.
-      style={{
-        WebkitMaskImage: "radial-gradient(ellipse 68% 15% at 38% 85%, rgba(0,0,0,.42) 0%, rgba(0,0,0,.42) 62%, #000 100%)",
-        maskImage: "radial-gradient(ellipse 68% 15% at 38% 85%, rgba(0,0,0,.42) 0%, rgba(0,0,0,.42) 62%, #000 100%)",
-      }}
+      style={{ WebkitMaskImage: fade, maskImage: fade }}
     >
       {art.strokes.map((s, i) => (
         <rect key={i} x={s.x - s.w / 2} y={s.y - s.h / 2} width={s.w} height={s.h} rx={s.h / 2} fill={s.white ? "#ffffff" : cfg.strokeColor} opacity={s.o} transform={`rotate(${s.a} ${s.x} ${s.y})`} />

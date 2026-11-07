@@ -1102,6 +1102,7 @@ function PublicProfilePage() {
     <main
       data-theme={theme}
       data-neon={neonKey}
+      data-decor={decor}
       className={`public-landing min-h-dvh pb-24 sm:pb-10${pubFont ? " pub-font" : ""}`}
       style={{
         ...(pubFont ? { ["--pub-font" as any]: pubFont.family } : {}),
@@ -1136,13 +1137,17 @@ function PublicProfilePage() {
         .public-landing { background: var(--page-bg); color: var(--text); }
         .public-landing[data-neon="todo"] .public-card { border-color: var(--c-secondary) !important; box-shadow: 0 0 0 1px var(--c-secondary), 0 0 14px color-mix(in oklch, var(--c-secondary) 75%, transparent), 0 0 34px color-mix(in oklch, var(--c-primary) 45%, transparent), inset 0 0 14px color-mix(in oklch, var(--c-secondary) 22%, transparent) !important; }
         .public-landing[data-neon="todo"] .public-card :is([class*="border-white"], [class*="rounded-2xl"][class*="border"]) { border-color: color-mix(in oklch, var(--c-primary) 80%, white) !important; box-shadow: 0 0 8px color-mix(in oklch, var(--c-primary) 65%, transparent), inset 0 0 8px color-mix(in oklch, var(--c-primary) 18%, transparent); }
+        .public-landing[data-theme="dark"]:not([data-decor="none"]) .hero-glow { color: #ffffff !important; font-weight: 700; text-shadow: 0 0 3px rgba(0,0,0,1), 0 0 5px rgba(0,0,0,1), 0 0 7px rgba(0,0,0,1), 0 0 9px rgba(0,0,0,1), 0 0 11px rgba(0,0,0,1), 0 0 12px rgba(0,0,0,1), 0 0 12px rgba(0,0,0,0.9), 0 0 14px rgba(0,0,0,0.8); }
+        .public-landing[data-theme="light"]:not([data-decor="none"]) .hero-glow { color: #000000 !important; font-weight: 700; text-shadow: 0 0 3px rgba(255,255,255,1), 0 0 5px rgba(255,255,255,1), 0 0 7px rgba(255,255,255,1), 0 0 9px rgba(255,255,255,1), 0 0 11px rgba(255,255,255,1), 0 0 12px rgba(255,255,255,1), 0 0 12px rgba(255,255,255,0.9), 0 0 14px rgba(255,255,255,0.8); }
+        .public-landing[data-theme="dark"]:not([data-decor="none"]) .hero-glow-icon { filter: drop-shadow(0 0 2px rgba(0,0,0,1)) drop-shadow(0 0 4px rgba(0,0,0,1)) drop-shadow(0 0 6px rgba(0,0,0,1)) drop-shadow(0 0 8px rgba(0,0,0,1)) drop-shadow(0 0 10px rgba(0,0,0,1)); }
+        .public-landing[data-theme="light"]:not([data-decor="none"]) .hero-glow-icon { filter: drop-shadow(0 0 2px rgba(255,255,255,1)) drop-shadow(0 0 4px rgba(255,255,255,1)) drop-shadow(0 0 6px rgba(255,255,255,1)) drop-shadow(0 0 8px rgba(255,255,255,1)) drop-shadow(0 0 10px rgba(255,255,255,1)); }
         .public-landing .public-card { background: var(--card-bg) !important; border-color: var(--border) !important; color: var(--text); }
         .public-landing[data-theme="light"] [class*="text-white"] { color: var(--text) !important; }
         .public-landing[data-theme="light"] [class*="text-white/"] { color: var(--muted) !important; }
         .public-landing[data-theme="light"] [class*="border-white"] { border-color: var(--border) !important; }
         .public-landing[data-theme="light"] [class*="bg-white/"] { background-color: rgba(255,255,255,0.72) !important; }
       `}</style>
-      <section className="relative overflow-hidden border-b border-white/[0.06]">
+      <section className={"relative overflow-hidden " + (decor === "none" ? "border-b border-white/[0.06]" : "")}>
         <div
           className="absolute inset-0"
           style={{
@@ -1214,7 +1219,7 @@ function PublicProfilePage() {
             <div className="mt-4">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                  <h1 className="text-3xl font-semibold tracking-tight sm:text-5xl">{business.name}</h1>
+                  <h1 className="hero-glow text-3xl font-semibold tracking-tight sm:text-5xl">{business.name}</h1>
                   <span className="inline-grid h-8 w-8 place-items-center text-white sm:h-9 sm:w-9" aria-label="Negocio verificado" title="Negocio verificado">
                     <svg viewBox="0 0 24 24" className="h-8 w-8 sm:h-9 sm:w-9 drop-shadow-sm" aria-hidden="true">
                       <path
@@ -1227,12 +1232,14 @@ function PublicProfilePage() {
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-4 sm:gap-5">
                   <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: cAccent }}>
-                    <FiveStars />
-                    <span className={isLight ? "text-zinc-700" : "text-white/90"}>5,0</span>
+                    <span className="hero-glow-icon inline-flex">
+                      <FiveStars />
+                    </span>
+                    <span className={"hero-glow " + (isLight ? "text-zinc-700" : "text-white/90")}>5,0</span>
                   </div>
                   <div className="flex items-center gap-2 pl-4 sm:pl-5">
-                    <div className="whitespace-nowrap text-2xl font-bold leading-none tracking-tight sm:text-3xl">{statYearsExperience}</div>
-                    <div className="text-xs font-medium leading-4 text-white sm:text-sm">Años de<br />experiencia</div>
+                    <div className="hero-glow whitespace-nowrap text-2xl font-bold leading-none tracking-tight sm:text-3xl">{statYearsExperience}</div>
+                    <div className="hero-glow text-xs font-medium leading-4 text-white sm:text-sm">Años de<br />experiencia</div>
                   </div>
                 </div>
                 {branches.length > 1 && (
