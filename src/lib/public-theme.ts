@@ -1,6 +1,8 @@
 // Fondos y temas de la página pública. El fondo cubre toda la página (arriba y abajo):
 // en modo oscuro la base es casi negra, en modo claro es blanca.
-export type PublicBgKey = "degrade" | "aurora" | "luces" | "malla" | "puntos" | "liso";
+export type PublicBgKey =
+  | "degrade" | "aurora" | "luces" | "malla" | "puntos" | "liso"
+  | "atardecer" | "foco" | "haz" | "cuadricula" | "rayas" | "ondas";
 
 export const PUBLIC_BACKGROUNDS: { key: PublicBgKey; label: string }[] = [
   { key: "degrade", label: "Degradé" },
@@ -8,6 +10,12 @@ export const PUBLIC_BACKGROUNDS: { key: PublicBgKey; label: string }[] = [
   { key: "luces", label: "Luces" },
   { key: "malla", label: "Malla" },
   { key: "puntos", label: "Puntos" },
+  { key: "atardecer", label: "Atardecer" },
+  { key: "foco", label: "Foco" },
+  { key: "haz", label: "Haz de luz" },
+  { key: "cuadricula", label: "Cuadrícula" },
+  { key: "rayas", label: "Rayas" },
+  { key: "ondas", label: "Ondas" },
   { key: "liso", label: "Liso" },
 ];
 
@@ -51,6 +59,38 @@ export function pageBackground(key: PublicBgKey, light: boolean, primary: string
       return [
         `radial-gradient(${mix(primary, light ? 40 : 55, "transparent")} 1.2px, transparent 1.6px) 0 0 / 22px 22px`,
         `linear-gradient(180deg, ${mix(primary, p(26), base)} 0%, ${base} 45%, ${mix(secondary, p(24), base)} 100%)`,
+      ].join(", ");
+    case "atardecer":
+      return `linear-gradient(180deg, ${mix(primary, p(55), base)} 0%, ${mix(secondary, p(40), base)} 45%, ${base} 100%)`;
+    case "foco":
+      return [
+        `radial-gradient(70% 38% at 50% 0%, ${mix(primary, p(58), "transparent")}, transparent 72%)`,
+        `radial-gradient(60% 30% at 50% 100%, ${mix(secondary, p(30), "transparent")}, transparent 72%)`,
+        base,
+      ].join(", ");
+    case "haz":
+      return [
+        `conic-gradient(from 200deg at 50% -10%, transparent 0deg, ${mix(primary, p(40), "transparent")} 30deg, transparent 60deg, ${mix(secondary, p(34), "transparent")} 95deg, transparent 130deg)`,
+        base,
+      ].join(", ");
+    case "cuadricula":
+      return [
+        `linear-gradient(${mix(primary, light ? 14 : 22, "transparent")} 1px, transparent 1px) 0 0 / 32px 32px`,
+        `linear-gradient(90deg, ${mix(primary, light ? 14 : 22, "transparent")} 1px, transparent 1px) 0 0 / 32px 32px`,
+        `radial-gradient(80% 40% at 50% 0%, ${mix(secondary, p(30), "transparent")}, transparent 70%)`,
+        base,
+      ].join(", ");
+    case "rayas":
+      return [
+        `repeating-linear-gradient(135deg, ${mix(primary, light ? 10 : 16, "transparent")} 0 14px, transparent 14px 28px)`,
+        `linear-gradient(180deg, ${mix(secondary, p(22), base)} 0%, ${base} 50%, ${mix(primary, p(24), base)} 100%)`,
+      ].join(", ");
+    case "ondas":
+      return [
+        `radial-gradient(120% 22% at 50% 12%, ${mix(primary, p(34), "transparent")}, transparent 70%)`,
+        `radial-gradient(120% 22% at 50% 45%, ${mix(secondary, p(28), "transparent")}, transparent 70%)`,
+        `radial-gradient(120% 22% at 50% 80%, ${mix(primary, p(30), "transparent")}, transparent 70%)`,
+        base,
       ].join(", ");
     default:
       return `linear-gradient(180deg, ${mix(primary, p(32), base)} 0%, ${base} 42%, ${mix(secondary, p(30), base)} 100%)`;

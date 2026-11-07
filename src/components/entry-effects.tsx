@@ -4,7 +4,8 @@ import { NeonFrame } from "@/components/neon-frame";
 // Efectos de entrada de la página pública: cómo aparecen el logo y la portada
 // cuando alguien entra. La clave se guarda en _branding.entry_effect.
 export type EntryEffectKey =
-  | "neon" | "fade" | "zoom" | "pulso" | "deslizar" | "rebote" | "giro" | "enfoque" | "destello" | "flotar" | "none";
+  | "neon" | "fade" | "zoom" | "pulso" | "deslizar" | "rebote" | "giro" | "enfoque" | "destello" | "flotar"
+  | "elastico" | "cortina" | "revelar" | "brillo" | "vibrar" | "oscilar" | "none";
 
 export const ENTRY_EFFECTS: { key: Exclude<EntryEffectKey, "none">; label: string }[] = [
   { key: "neon", label: "Neón" },
@@ -17,6 +18,12 @@ export const ENTRY_EFFECTS: { key: Exclude<EntryEffectKey, "none">; label: strin
   { key: "enfoque", label: "Enfoque" },
   { key: "destello", label: "Destello" },
   { key: "flotar", label: "Flotar" },
+  { key: "elastico", label: "Elástico" },
+  { key: "cortina", label: "Cortina" },
+  { key: "revelar", label: "Revelar" },
+  { key: "brillo", label: "Brillo" },
+  { key: "vibrar", label: "Vibrar" },
+  { key: "oscilar", label: "Oscilar" },
 ];
 
 const EFFECT_KEYS = new Set<string>(["none", ...ENTRY_EFFECTS.map((e) => e.key)]);
@@ -42,6 +49,12 @@ export function EntryEffectStyles() {
       @keyframes fxBlur { from { filter: blur(16px); opacity: .2; } to { filter: blur(0); opacity: 1; } }
       @keyframes fxFlash { 0% { filter: brightness(4) saturate(.3); opacity: .3; } 40% { filter: brightness(2.2); opacity: 1; } 100% { filter: none; } }
       @keyframes fxFloat { 0%,100% { transform: translateY(0); } 50% { transform: translateY(-10px); } }
+      @keyframes fxElastic { 0% { transform: scale(0); } 40% { transform: scale(1.25); } 60% { transform: scale(.9); } 80% { transform: scale(1.06); } 100% { transform: scale(1); } }
+      @keyframes fxCurtain { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
+      @keyframes fxReveal { from { clip-path: circle(0% at 50% 50%); } to { clip-path: circle(75% at 50% 50%); } }
+      @keyframes fxShake { 0%,100% { transform: translateX(0); } 15% { transform: translateX(-9px) rotate(-3deg); } 30% { transform: translateX(8px) rotate(3deg); } 45% { transform: translateX(-6px); } 60% { transform: translateX(5px); } 80% { transform: translateX(-2px); } }
+      @keyframes fxSwing { 0% { transform: rotate(-18deg); opacity: 0; } 30% { transform: rotate(12deg); opacity: 1; } 55% { transform: rotate(-8deg); } 80% { transform: rotate(4deg); } 100% { transform: rotate(0); } }
+      @keyframes fxShine { 0%,100% { filter: brightness(1) drop-shadow(0 0 0 transparent); } 50% { filter: brightness(1.35) drop-shadow(0 0 18px rgba(255,255,255,.65)); } }
       @keyframes fxSplashSlide { 0%,100% { transform: translateY(10px); opacity: .5; } 50% { transform: translateY(-6px); opacity: 1; } }
       @keyframes fxSplashSpin { from { transform: rotate(0); } to { transform: rotate(360deg); } }
       @keyframes fxSplashBlur { 0%,100% { filter: blur(8px); } 50% { filter: blur(0); } }
@@ -75,6 +88,18 @@ export function avatarFxStyle(effect: EntryEffectKey, play: boolean): React.CSSP
       return { animation: "fxFlash 1.3s ease-out both" };
     case "flotar":
       return { animation: "fxFloat 2s ease-in-out 2" };
+    case "elastico":
+      return { animation: "fxElastic 1.2s ease-out both" };
+    case "cortina":
+      return { animation: "fxFade 1.2s ease-out .3s both" };
+    case "revelar":
+      return { animation: "fxReveal 1.1s ease-out both" };
+    case "brillo":
+      return { animation: "fxShine 1.1s ease-in-out 3" };
+    case "vibrar":
+      return { animation: "fxShake .9s ease-in-out both" };
+    case "oscilar":
+      return { animation: "fxSwing 1.3s ease-out both" };
     default:
       return {};
   }
@@ -86,10 +111,12 @@ export function coverFxStyle(effect: EntryEffectKey, play: boolean): React.CSSPr
   if (effect === "deslizar") return { animation: "fxSlideDown .9s cubic-bezier(.2,.8,.2,1) both" };
   if (effect === "enfoque") return { animation: "fxBlur 1.3s ease-out both" };
   if (effect === "destello") return { animation: "fxFlash 1.3s ease-out both" };
+  if (effect === "cortina") return { animation: "fxCurtain 1.2s cubic-bezier(.7,0,.2,1) both" };
+  if (effect === "revelar") return { animation: "fxReveal 1.4s ease-out both" };
   return {};
 }
 export function CoverSweep({ effect, play }: { effect: EntryEffectKey; play: boolean }) {
-  if (!play || effect !== "pulso") return null;
+  if (!play || (effect !== "pulso" && effect !== "brillo")) return null;
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
       <div
@@ -111,6 +138,12 @@ const SPLASH_ANIM: Partial<Record<EntryEffectKey, string>> = {
   enfoque: "fxSplashBlur 1.6s ease-in-out infinite",
   destello: "fxSplashFlash 1.3s ease-in-out infinite",
   flotar: "fxFloat 1.6s ease-in-out infinite",
+  elastico: "fxElastic 1.3s ease-out infinite",
+  cortina: "fxCurtain 1.4s cubic-bezier(.7,0,.2,1) infinite alternate",
+  revelar: "fxReveal 1.4s ease-out infinite alternate",
+  brillo: "fxShine 1.4s ease-in-out infinite",
+  vibrar: "fxShake 1s ease-in-out infinite",
+  oscilar: "fxSwing 1.5s ease-in-out infinite",
 };
 
 // Pantalla de carga con el logo del local (distinta según el efecto elegido).
@@ -128,7 +161,7 @@ export function EntrySplash({
   overlay?: boolean;
 }) {
   const img = <img src={logo} alt="" className="h-full w-full object-cover" decoding="async" />;
-  const box = "grid h-28 w-28 place-items-center overflow-hidden sm:h-32 sm:w-32";
+  const box = "grid h-44 w-44 place-items-center overflow-hidden sm:h-56 sm:w-56";
   return (
     <div
       className={overlay ? "fixed inset-0 z-[100] grid place-items-center" : "grid min-h-dvh place-items-center"}
