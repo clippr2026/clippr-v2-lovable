@@ -65,9 +65,10 @@ function PriceChips({
         ) : null}
         {effective != null && effective < price ? (
           <span
-            className="rounded-xl border px-2.5 py-1 text-center leading-tight"
+            className="rounded-xl border-2 px-2.5 py-1 text-center leading-tight"
             style={{
-              borderColor: hot,
+              borderColor: "var(--c-accent)",
+              boxShadow: "0 0 7px var(--c-accent), inset 0 0 6px -2px var(--c-accent)",
               background: "color-mix(in oklch, var(--c-accent) 32%, transparent)",
             }}
           >
