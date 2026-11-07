@@ -237,7 +237,17 @@ function SplatterArt({ variant, primary, secondary, accent, light }: { variant: 
   }, [variant, cfg]);
 
   return (
-    <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 400 520" preserveAspectRatio="xMidYMid slice" aria-hidden>
+    <svg
+      className="pointer-events-none absolute inset-0 h-full w-full"
+      viewBox="0 0 400 520"
+      preserveAspectRatio="xMidYMid slice"
+      aria-hidden
+      // Se apaga hacia abajo para no tapar el nombre, las estrellas ni los años de experiencia.
+      style={{
+        WebkitMaskImage: "linear-gradient(to bottom, #000 0%, #000 38%, rgba(0,0,0,.14) 62%, rgba(0,0,0,.08) 100%)",
+        maskImage: "linear-gradient(to bottom, #000 0%, #000 38%, rgba(0,0,0,.14) 62%, rgba(0,0,0,.08) 100%)",
+      }}
+    >
       {cfg.strokes
         ? art.strokes.map((s, i) => (
             <rect key={i} x={s.x - s.w / 2} y={s.y - s.h / 2} width={s.w} height={s.h} rx={s.h / 2} fill={s.white ? "#ffffff" : cfg.strokeColor} opacity={s.o} transform={`rotate(${s.a} ${s.x} ${s.y})`} />
