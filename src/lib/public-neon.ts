@@ -1,5 +1,5 @@
 // Neón del encabezado de la página pública: dónde se ve la luz de neón.
-export type PublicNeonKey = "ninguno" | "logo" | "banner" | "ambos" | "marco";
+export type PublicNeonKey = "ninguno" | "logo" | "banner" | "ambos" | "marco" | "todo";
 
 export const PUBLIC_NEONS: { key: PublicNeonKey; label: string }[] = [
   { key: "ninguno", label: "Sin neón" },
@@ -7,6 +7,7 @@ export const PUBLIC_NEONS: { key: PublicNeonKey; label: string }[] = [
   { key: "banner", label: "Detrás del banner" },
   { key: "ambos", label: "Logo y banner" },
   { key: "marco", label: "Marco neón" },
+  { key: "todo", label: "Neón en todo" },
 ];
 
 export function normalizePublicNeon(value: unknown): PublicNeonKey {

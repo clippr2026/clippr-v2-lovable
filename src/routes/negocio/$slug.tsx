@@ -979,7 +979,7 @@ function PublicProfilePage() {
   const pubFont = getPublicFont(fontKey);
   const playFx = !isPreview || effectRun > 0;
   const accentButtonText = colors.buttonText || "#ffffff";
-  const logoNeon = neonKey === "logo" || neonKey === "ambos" || neonKey === "marco";
+  const logoNeon = neonKey === "logo" || neonKey === "ambos" || neonKey === "marco" || neonKey === "todo";
   const bannerGlow = neonKey === "banner" || neonKey === "ambos";
 
   // Métrica real de cabecera. Si no hay datos cae a "—": nunca rompe el render.
@@ -1101,6 +1101,7 @@ function PublicProfilePage() {
   return (
     <main
       data-theme={theme}
+      data-neon={neonKey}
       className={`public-landing min-h-dvh pb-24 sm:pb-10${pubFont ? " pub-font" : ""}`}
       style={{
         ...(pubFont ? { ["--pub-font" as any]: pubFont.family } : {}),
@@ -1133,6 +1134,8 @@ function PublicProfilePage() {
         .public-landing.pub-font h1 { line-height: 1.3; padding-bottom: 0.22em; }
         .public-landing.pub-font :is(h2, h3) { line-height: 1.3; }
         .public-landing { background: var(--page-bg); color: var(--text); }
+        .public-landing[data-neon="todo"] .public-card { border-color: var(--c-secondary) !important; box-shadow: 0 0 0 1px var(--c-secondary), 0 0 14px color-mix(in oklch, var(--c-secondary) 75%, transparent), 0 0 34px color-mix(in oklch, var(--c-primary) 45%, transparent), inset 0 0 14px color-mix(in oklch, var(--c-secondary) 22%, transparent) !important; }
+        .public-landing[data-neon="todo"] .public-card :is([class*="border-white"], [class*="rounded-2xl"][class*="border"]) { border-color: color-mix(in oklch, var(--c-primary) 80%, white) !important; box-shadow: 0 0 8px color-mix(in oklch, var(--c-primary) 65%, transparent), inset 0 0 8px color-mix(in oklch, var(--c-primary) 18%, transparent); }
         .public-landing .public-card { background: var(--card-bg) !important; border-color: var(--border) !important; color: var(--text); }
         .public-landing[data-theme="light"] [class*="text-white"] { color: var(--text) !important; }
         .public-landing[data-theme="light"] [class*="text-white/"] { color: var(--muted) !important; }
@@ -1168,7 +1171,7 @@ function PublicProfilePage() {
               background: "linear-gradient(90deg, var(--c-primary), var(--c-secondary))",
               boxShadow: bannerGlow
                 ? "0 0 0 1px rgb(255 255 255 / 0.06), 0 0 34px color-mix(in oklch, var(--c-primary) 55%, transparent), 0 0 80px color-mix(in oklch, var(--c-secondary) 30%, transparent), 0 18px 50px rgb(0 0 0 / 0.35)"
-                : neonKey === "marco"
+                : neonKey === "marco" || neonKey === "todo"
                   ? "0 0 0 2px var(--c-secondary), 0 0 12px var(--c-secondary), 0 0 30px color-mix(in oklch, var(--c-primary) 70%, transparent), inset 0 0 14px color-mix(in oklch, var(--c-secondary) 45%, transparent)"
                   : "0 0 0 1px rgb(255 255 255 / 0.06), 0 14px 40px rgb(0 0 0 / 0.30)",
             }}
