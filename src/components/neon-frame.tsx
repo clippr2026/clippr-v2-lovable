@@ -101,7 +101,9 @@ function hslToHex(h: number, s: number, l: number): string {
 export function neonPalette(primary: string | null | undefined): [string, string, string] {
   const hsl = primary ? hexToHsl(primary) : null;
   if (!hsl) return ["#38bdf8", "#8b5cf6", "#ec4899"];
-  const [h, s] = hsl;
+  const [h, s, l] = hsl;
+  // Colores sin tono: blanco da neón blanco y negro da neón negro.
+  if (s < 0.1) return l > 0.5 ? ["#ffffff", "#ffffff", "#f4f4f5"] : ["#000000", "#000000", "#18181b"];
   const sat = Math.max(0.75, s);
   return [hslToHex((h - 25 + 360) % 360, sat, 0.62), hslToHex(h, sat, 0.58), hslToHex((h + 35) % 360, sat, 0.62)];
 }

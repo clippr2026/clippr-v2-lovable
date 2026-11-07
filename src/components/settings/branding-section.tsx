@@ -292,8 +292,8 @@ const COLOR_PALETTES: { key: string; label: string; primary: string; secondary: 
   { key: "fucsia", label: "Fucsia", primary: "#c026d3", secondary: "#f0abfc", accent: "#e879f9", buttonText: "#ffffff" },
   { key: "bordo", label: "Bordó", primary: "#9f1239", secondary: "#fb7185", accent: "#fda4af", buttonText: "#ffffff" },
   { key: "cielo", label: "Cielo", primary: "#0284c7", secondary: "#7dd3fc", accent: "#38bdf8", buttonText: "#00121c" },
-  { key: "negro", label: "Negro", primary: "#18181b", secondary: "#52525b", accent: "#e4e4e7", buttonText: "#09090b" },
-  { key: "blanco", label: "Blanco", primary: "#f4f4f5", secondary: "#d4d4d8", accent: "#ffffff", buttonText: "#09090b" },
+  { key: "negro", label: "Negro", primary: "#000000", secondary: "#000000", accent: "#e4e4e7", buttonText: "#09090b" },
+  { key: "blanco", label: "Blanco", primary: "#ffffff", secondary: "#ffffff", accent: "#ffffff", buttonText: "#09090b" },
 ];
 
 function hexLuma(hex: string): number {
