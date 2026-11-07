@@ -1,3 +1,4 @@
+import { FeaturedServiceCard } from "@/components/settings/featured-service-card";
 import React, { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
@@ -3041,7 +3042,12 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
 }
 
 export function ServiciosSection() {
-  return <PriceCatalogSection kind="servicios" />;
+  return (
+    <>
+      <FeaturedServiceCard />
+      <PriceCatalogSection kind="servicios" />
+    </>
+  );
 }
 
 export function CatalogoSection() {

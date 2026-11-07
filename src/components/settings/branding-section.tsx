@@ -413,24 +413,6 @@ export function BrandingSection() {
   const [bgStyle, setBgStyle] = useState<PublicBgKey>("degrade");
   const [decor, setDecor] = useState<PublicDecorKey>("none");
   const [neonKey, setNeonKey] = useState<PublicNeonKey>("ambos");
-  // Servicio destacado de la página pública (uno solo) y su descripción.
-  const [featuredServiceId, setFeaturedServiceId] = useState("");
-  const [featuredDesc, setFeaturedDesc] = useState("");
-  const [serviceOptions, setServiceOptions] = useState<{ id: string; name: string }[]>([]);
-  useEffect(() => {
-    if (!businessId) return;
-    let cancelled = false;
-    void (async () => {
-      let q = supabase.from("price_catalog").select("id,name,active").eq("business_id", businessId).is("deleted_at", null);
-      if (activeBranchId) q = q.eq("branch_id", activeBranchId);
-      const { data: rows } = await q.order("name");
-      if (cancelled) return;
-      setServiceOptions(((rows ?? []) as { id: string; name: string; active: boolean | null }[]).filter((r) => r.active !== false).map((r) => ({ id: r.id, name: r.name })));
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [businessId, activeBranchId]);
   const [effectNonce, setEffectNonce] = useState(0);
   const [showAdvancedColors, setShowAdvancedColors] = useState(false);
   const [benefits, setBenefits] = useState<Benefit[]>([]);
@@ -517,8 +499,6 @@ export function BrandingSection() {
       setBgStyle(normalizePublicBg(cfg.bg_style));
       setDecor(normalizePublicDecor(cfg.decor));
       setNeonKey(normalizePublicNeon(cfg.neon));
-      setFeaturedServiceId(typeof cfg.featured_service_id === "string" ? cfg.featured_service_id : "");
-      setFeaturedDesc(typeof cfg.featured_service_desc === "string" ? cfg.featured_service_desc : "");
       const rawBenefits = normalizeBenefits(cfg.benefits);
       if (rawBenefits.length > 0) {
         setBenefits(rawBenefits);
@@ -1046,8 +1026,6 @@ export function BrandingSection() {
         bg_style: bgStyle,
         decor,
         neon: neonKey,
-        featured_service_id: featuredServiceId || null,
-        featured_service_desc: featuredDesc.trim().slice(0, 140),
         benefits: benefits
           .map((b) => ({ id: b.id, label: b.label.trim(), active: b.active }))
           .filter((b) => b.label.length > 0)
@@ -1111,7 +1089,7 @@ export function BrandingSection() {
   const saveRef = React.useRef(save);
   React.useEffect(() => {
     saveRef.current = save;
-  }, [businessId, data, logoFile, colors, theme, fontKey, entryEffect, bgStyle, decor, neonKey, featuredServiceId, featuredDesc, benefits]);
+  }, [businessId, data, logoFile, colors, theme, fontKey, entryEffect, bgStyle, decor, neonKey, benefits]);
 
   const brandingHydratedRef = React.useRef(false);
 
@@ -1140,7 +1118,7 @@ export function BrandingSection() {
     }, 650);
 
     return () => window.clearTimeout(timer);
-  }, [data, logoFile, colors, theme, fontKey, entryEffect, bgStyle, decor, neonKey, featuredServiceId, featuredDesc, benefits, loading, businessId]);
+  }, [data, logoFile, colors, theme, fontKey, entryEffect, bgStyle, decor, neonKey, benefits, loading, businessId]);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -1333,36 +1311,6 @@ export function BrandingSection() {
 
       {activeTab === "info" && (
         <>
-
-          <SectionCard label="Servicio destacado">
-            <p className="text-xs text-white/55">
-              Elegí un servicio para mostrarlo arriba de la lista en tu página pública, con borde dorado, corona y una descripción.
-            </p>
-            <select
-              value={featuredServiceId}
-              onChange={(e) => setFeaturedServiceId(e.target.value)}
-              className="mt-3 w-full rounded-lg bg-white/5 px-3 py-2.5 text-sm ring-1 ring-white/10 focus:outline-none focus:ring-primary/40"
-            >
-              <option value="">Sin servicio destacado</option>
-              {serviceOptions.map((o) => (
-                <option key={o.id} value={o.id}>
-                  {o.name}
-                </option>
-              ))}
-            </select>
-            {featuredServiceId ? (
-              <>
-                <textarea
-                  value={featuredDesc}
-                  maxLength={140}
-                  onChange={(e) => setFeaturedDesc(e.target.value)}
-                  placeholder="Ej: Nuestro servicio más elegido. Estilo, definición y prolijidad según el profesional."
-                  className="mt-3 min-h-[84px] w-full resize-none rounded-lg bg-white/5 px-3 py-2.5 text-sm ring-1 ring-white/10 focus:outline-none focus:ring-primary/40"
-                />
-                <div className="mt-1 text-right text-[11px] text-white/45">{featuredDesc.length}/140</div>
-              </>
-            ) : null}
-          </SectionCard>
 
           <SectionCard label="Información del negocio">
             <div className="divide-y divide-white/5">
