@@ -1,5 +1,5 @@
 import * as React from "react";
-import { AlertCircle, Check, Loader2, MessageSquarePlus, Star, X } from "lucide-react";
+import { AlertCircle, Check, ChevronLeft, ChevronRight, Loader2, MessageSquarePlus, Star, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 export type PublicReview = {
@@ -10,6 +10,7 @@ export type PublicReview = {
   rating: number;
   comment: string | null;
   review_date: string;
+  featured?: boolean;
 };
 
 type BarberRow = { professional_id: string; professional_name: string | null; last_visit: string; already_reviewed: boolean };
@@ -41,30 +42,23 @@ export function StarRow({ value, size = 16, onChange }: { value: number; size?: 
   );
 }
 
-const INITIAL_VISIBLE = 6;
-
-// "Opiniones de clientes": lista de reseñas publicadas + flujo para dejar una.
-// El cliente pone su WhatsApp; si se atendió, ve con qué barberos y le puede dejar
-// una reseña a cada uno (la reseña queda pendiente hasta que el negocio la aprueba).
-export function PublicReviews({
+// Flujo para dejar una reseña (WhatsApp → barberos que lo atendieron → estrellas y comentario).
+// La reseña queda pendiente hasta que el negocio la aprueba.
+export function LeaveReviewModal({
   businessId,
-  reviews,
-  average,
-  count,
+  open,
+  onClose,
   accent,
   buttonText,
   light = false,
 }: {
   businessId: string;
-  reviews: PublicReview[];
-  average: number | null;
-  count: number;
+  open: boolean;
+  onClose: () => void;
   accent: string;
   buttonText: string;
   light?: boolean;
 }) {
-  const [showAll, setShowAll] = React.useState(false);
-  const [open, setOpen] = React.useState(false);
   const [phone, setPhone] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [notFound, setNotFound] = React.useState(false);
@@ -75,10 +69,8 @@ export function PublicReviews({
   const [error, setError] = React.useState<string | null>(null);
   const [done, setDone] = React.useState(false);
 
-  const visible = showAll ? reviews : reviews.slice(0, INITIAL_VISIBLE);
-
   function reset() {
-    setOpen(false);
+    onClose();
     setPhone("");
     setBarbers(null);
     setTarget(null);
@@ -129,63 +121,7 @@ export function PublicReviews({
   const panel = `w-full max-w-md rounded-3xl border border-white/10 ${light ? "bg-white" : "bg-[#0d0b14]"} p-5 text-white shadow-2xl`;
 
   return (
-    <div className="p-5 sm:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-semibold">Opiniones de clientes</h2>
-          {count > 0 && average != null ? (
-            <div className="mt-1 flex items-center gap-2 text-sm">
-              <StarRow value={Math.round(average)} />
-              <span className="font-bold">{average.toFixed(1).replace(".", ",")}</span>
-              <span className="text-white/55">· {count} {count === 1 ? "reseña" : "reseñas"}</span>
-            </div>
-          ) : (
-            <p className="mt-1 text-sm text-white/55">Todavía no hay reseñas. ¡Sé el primero en opinar!</p>
-          )}
-        </div>
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="inline-flex items-center gap-2 rounded-2xl px-4 py-2.5 text-sm font-bold"
-          style={{ background: accent, color: buttonText }}
-        >
-          <MessageSquarePlus className="h-4 w-4" /> Dejar mi reseña
-        </button>
-      </div>
-
-      {visible.length > 0 ? (
-        <div className="mt-5 grid gap-3 sm:grid-cols-2">
-          {visible.map((r) => (
-            <div key={r.id} className="min-w-0 rounded-3xl border border-white/10 bg-white/[0.03] p-4">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-semibold">{r.client_name}</span>
-                {r.professional_name ? (
-                  <span className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[11px] text-white/70">
-                    Para {r.professional_name}
-                  </span>
-                ) : null}
-              </div>
-              <div className="mt-1.5 flex items-center gap-2">
-                <StarRow value={r.rating} size={15} />
-                <span className="text-xs text-white/50">{formatReviewDate(r.review_date)}</span>
-              </div>
-              {r.comment ? <p className="mt-2 break-words text-sm text-white/80">"{r.comment}"</p> : null}
-            </div>
-          ))}
-        </div>
-      ) : null}
-
-      {reviews.length > INITIAL_VISIBLE ? (
-        <button
-          type="button"
-          onClick={() => setShowAll((v) => !v)}
-          className="mt-4 text-sm font-semibold underline underline-offset-4"
-          style={{ color: accent }}
-        >
-          {showAll ? "Ver menos" : `Ver todas (${reviews.length})`}
-        </button>
-      ) : null}
-
+    <>
       {open && !notFound ? (
         <div className="fixed inset-0 z-[250] grid place-items-center overflow-y-auto bg-black/75 p-4 backdrop-blur-sm" onClick={reset}>
           <div className={panel} onClick={(e) => e.stopPropagation()}>
@@ -308,30 +244,65 @@ export function PublicReviews({
           </div>
         </div>
       ) : null}
+    </>
+  );
+}
+
+export const FEATURED_MAX = 10;
+
+function ReviewCard({ r, className = "" }: { r: PublicReview; className?: string }) {
+  return (
+    <div className={"min-w-0 rounded-3xl border border-white/10 bg-white/[0.04] p-4 " + className}>
+      <div className="flex items-center justify-between gap-2">
+        <StarRow value={r.rating} size={15} />
+        <span className="text-[11px] text-white/50">{formatReviewDate(r.review_date)}</span>
+      </div>
+      {r.comment ? <p className="mt-2 line-clamp-4 break-words text-sm text-white/85">"{r.comment}"</p> : null}
+      <div className="mt-2.5 flex flex-wrap items-center gap-2 text-sm">
+        <span className="font-semibold">{r.client_name}</span>
+        {r.professional_name ? <span className="text-xs text-white/55">· para {r.professional_name}</span> : null}
+      </div>
     </div>
   );
 }
 
-// Tira corta de reseñas destacadas, justo debajo del encabezado: prueba social antes de reservar.
-// Muestra las 3 más nuevas de 4 y 5 estrellas (con comentario cuando hay).
+// Carrusel de reseñas destacadas (hasta 10, las que elige el negocio; si no eligió ninguna, las más
+// nuevas de 4 y 5 estrellas), con "Ver todas" al final y "Dejar mi reseña" arriba a la derecha.
 export function ReviewsStrip({
+  businessId,
   reviews,
   accent,
+  buttonText,
+  light = false,
   average,
   count,
 }: {
+  businessId: string;
   reviews: PublicReview[];
   accent: string;
+  buttonText: string;
+  light?: boolean;
   average: number | null;
   count: number;
 }) {
+  const [allOpen, setAllOpen] = React.useState(false);
+  const [leaveOpen, setLeaveOpen] = React.useState(false);
+  const scroller = React.useRef<HTMLDivElement | null>(null);
+
   const picks = React.useMemo(() => {
+    const featured = reviews.filter((r) => r.featured).slice(0, FEATURED_MAX);
+    if (featured.length > 0) return featured;
     const good = reviews.filter((r) => r.rating >= 4);
     const withText = good.filter((r) => r.comment && r.comment.trim());
     const rest = good.filter((r) => !(r.comment && r.comment.trim()));
-    return [...withText, ...rest].slice(0, 3);
+    return [...withText, ...rest].slice(0, FEATURED_MAX);
   }, [reviews]);
-  if (picks.length === 0) return null;
+
+  function scrollBy(dir: 1 | -1) {
+    const el = scroller.current;
+    if (el) el.scrollBy({ left: dir * Math.max(240, el.clientWidth * 0.8), behavior: "smooth" });
+  }
+
   return (
     <section className="mx-auto max-w-6xl px-4 pt-5">
       <div className="mb-2.5 flex items-center justify-between gap-3">
@@ -344,28 +315,108 @@ export function ReviewsStrip({
             </div>
           ) : null}
         </div>
-        <a href="#opiniones" className="shrink-0 text-xs font-semibold underline underline-offset-4" style={{ color: accent }}>
-          Ver todas
-        </a>
+        <button
+          type="button"
+          onClick={() => setLeaveOpen(true)}
+          className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-bold sm:text-sm"
+          style={{ background: accent, color: buttonText }}
+        >
+          <MessageSquarePlus className="h-3.5 w-3.5" /> Dejar mi reseña
+        </button>
       </div>
-      <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        {picks.map((r) => (
+
+      {picks.length > 0 ? (
+        <div className="group relative">
           <div
-            key={r.id}
-            className="w-[78%] shrink-0 snap-start rounded-3xl border border-white/10 bg-white/[0.04] p-4 sm:w-auto sm:min-w-0"
+            ref={scroller}
+            className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth px-4 pb-1 sm:mx-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
-            <div className="flex items-center justify-between gap-2">
-              <StarRow value={r.rating} size={15} />
-              <span className="text-[11px] text-white/50">{formatReviewDate(r.review_date)}</span>
+            {picks.map((r) => (
+              <ReviewCard key={r.id} r={r} className="w-[80%] shrink-0 snap-start sm:w-[calc((100%-1.5rem)/3)]" />
+            ))}
+            {count > 0 ? (
+              <button
+                type="button"
+                onClick={() => setAllOpen(true)}
+                className="grid w-[56%] shrink-0 snap-start place-items-center rounded-3xl border border-dashed border-white/25 bg-white/[0.03] p-4 text-center sm:w-[calc((100%-1.5rem)/3)]"
+              >
+                <span>
+                  <span className="block text-sm font-bold" style={{ color: accent }}>
+                    Ver todas
+                  </span>
+                  <span className="mt-0.5 block text-xs text-white/55">{count} {count === 1 ? "reseña" : "reseñas"}</span>
+                </span>
+              </button>
+            ) : null}
+          </div>
+          {picks.length > 1 ? (
+            <>
+              <button
+                type="button"
+                onClick={() => scrollBy(-1)}
+                aria-label="Anteriores"
+                className="absolute -left-3 top-1/2 hidden h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-black/60 text-white shadow-lg ring-1 ring-white/20 backdrop-blur hover:bg-black/80 sm:grid"
+              >
+                <ChevronLeft className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => scrollBy(1)}
+                aria-label="Siguientes"
+                className="absolute -right-3 top-1/2 hidden h-9 w-9 -translate-y-1/2 place-items-center rounded-full bg-black/60 text-white shadow-lg ring-1 ring-white/20 backdrop-blur hover:bg-black/80 sm:grid"
+              >
+                <ChevronRight className="h-5 w-5" />
+              </button>
+            </>
+          ) : null}
+        </div>
+      ) : (
+        <p className="rounded-3xl border border-dashed border-white/15 p-4 text-sm text-white/55">
+          Todavía no hay reseñas. ¡Sé el primero en opinar!
+        </p>
+      )}
+
+      {allOpen ? (
+        <div className="fixed inset-0 z-[240] grid place-items-center bg-black/75 p-3 backdrop-blur-sm" onClick={() => setAllOpen(false)}>
+          <div
+            className={`flex max-h-[90vh] w-full max-w-2xl flex-col rounded-3xl border border-white/10 ${light ? "bg-white" : "bg-[#0d0b14]"} text-white shadow-2xl`}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between gap-3 border-b border-white/10 p-5">
+              <div>
+                <h3 className="text-lg font-semibold">Opiniones de clientes</h3>
+                {count > 0 && average != null ? (
+                  <div className="mt-1 flex items-center gap-2 text-sm">
+                    <StarRow value={Math.round(average)} />
+                    <span className="font-bold">{average.toFixed(1).replace(".", ",")}</span>
+                    <span className="text-white/55">· {count} {count === 1 ? "reseña" : "reseñas"}</span>
+                  </div>
+                ) : null}
+              </div>
+              <button type="button" onClick={() => setAllOpen(false)} className="rounded-full p-1.5 hover:bg-white/10" aria-label="Cerrar">
+                <X className="h-5 w-5" />
+              </button>
             </div>
-            {r.comment ? <p className="mt-2 line-clamp-3 break-words text-sm text-white/85">"{r.comment}"</p> : null}
-            <div className="mt-2.5 flex flex-wrap items-center gap-2 text-sm">
-              <span className="font-semibold">{r.client_name}</span>
-              {r.professional_name ? <span className="text-xs text-white/55">· para {r.professional_name}</span> : null}
+            <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-5">
+              {reviews.map((r) => (
+                <ReviewCard key={r.id} r={r} />
+              ))}
+            </div>
+            <div className="border-t border-white/10 p-4">
+              <button
+                type="button"
+                onClick={() => setLeaveOpen(true)}
+                className="flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-bold"
+                style={{ background: accent, color: buttonText }}
+              >
+                <MessageSquarePlus className="h-4 w-4" /> Dejar mi reseña
+              </button>
             </div>
           </div>
-        ))}
-      </div>
+        </div>
+      ) : null}
+
+      <LeaveReviewModal businessId={businessId} open={leaveOpen} onClose={() => setLeaveOpen(false)} accent={accent} buttonText={buttonText} light={light} />
     </section>
   );
 }

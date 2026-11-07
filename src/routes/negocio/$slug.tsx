@@ -12,7 +12,7 @@ import {
 } from "@/components/entry-effects";
 import { getPublicFont, publicFontsStylesheet } from "@/lib/public-fonts";
 import { PublicDecor, normalizePublicDecor, type PublicDecorKey } from "@/components/public-decor";
-import { PublicReviews, ReviewsStrip, type PublicReview } from "@/components/public-reviews";
+import { ReviewsStrip, type PublicReview } from "@/components/public-reviews";
 import { AnnouncementBubble, PublicHero } from "@/components/public-hero";
 import { activeAnnouncement } from "@/lib/announcement";
 import { normalizePublicNeon, type PublicNeonKey } from "@/lib/public-neon";
@@ -673,7 +673,7 @@ function PublicProfilePage() {
     void (async () => {
       const [rv, st] = await Promise.all([
         (supabase.from("public_reviews" as any) as any)
-          .select("id,professional_id,professional_name,client_name,rating,comment,review_date")
+          .select("id,professional_id,professional_name,client_name,rating,comment,review_date,featured")
           .eq("business_id", bid)
           .order("review_date", { ascending: false })
           .limit(200),
@@ -1219,7 +1219,17 @@ function PublicProfilePage() {
         )}
       </PublicHero>
 
-      <ReviewsStrip reviews={reviews} accent={accent} average={reviewStats.avg} count={reviewStats.count} />
+      {business ? (
+        <ReviewsStrip
+          businessId={business.id}
+          reviews={reviews}
+          accent={accent}
+          buttonText={accentButtonText}
+          light={isLight}
+          average={reviewStats.avg}
+          count={reviewStats.count}
+        />
+      ) : null}
 
       <section className="mx-auto grid max-w-6xl gap-6 px-4 py-5 lg:grid-cols-[1fr_360px] lg:items-start">
         {/* min-w-0: sin esto, este ítem del grid usa su ancho mínimo de
@@ -1531,21 +1541,6 @@ function PublicProfilePage() {
         </section>
       ) : null}
 
-      {business ? (
-        <section id="opiniones" className="mx-auto max-w-6xl scroll-mt-4 px-4 pb-6">
-          <GlowCard className="overflow-hidden">
-            <PublicReviews
-              businessId={business.id}
-              reviews={reviews}
-              average={reviewStats.avg}
-              count={reviewStats.count}
-              accent={accent}
-              buttonText={accentButtonText}
-              light={isLight}
-            />
-          </GlowCard>
-        </section>
-      ) : null}
 
       {additionalInfo.length > 0 ? (
         <section className="mx-auto max-w-6xl px-4 pb-6">

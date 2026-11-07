@@ -17,11 +17,13 @@ type ReviewRow = {
   status: ReviewStatus;
   source: "manual" | "page";
   origin_note: string | null;
+  featured: boolean;
   created_at: string;
 };
 type Barber = { id: string; full_name: string };
 
 const MAX_MANUAL = 50;
+const MAX_FEATURED = 10;
 const TABS: { key: ReviewStatus; label: string }[] = [
   { key: "pending", label: "Pendientes" },
   { key: "published", label: "Publicadas" },
@@ -88,7 +90,7 @@ export function ResenasSection() {
     if (!businessId) return;
     const [rv, em] = await Promise.all([
       (supabase.from("reviews" as any) as any)
-        .select("id,professional_id,client_name,rating,comment,review_date,status,source,origin_note,created_at")
+        .select("id,professional_id,client_name,rating,comment,review_date,status,source,origin_note,featured,created_at")
         .eq("business_id", businessId)
         .order("review_date", { ascending: false })
         .order("created_at", { ascending: false }),
@@ -114,17 +116,28 @@ export function ResenasSection() {
     [rows],
   );
   const manualCount = rows.filter((r) => r.source === "manual").length;
+  const featuredCount = rows.filter((r) => r.featured && r.status === "published").length;
   const published = rows.filter((r) => r.status === "published");
   const avg = published.length ? published.reduce((s, r) => s + r.rating, 0) / published.length : null;
   const visible = rows.filter((r) => r.status === tab);
 
   async function setStatus(r: ReviewRow, status: ReviewStatus) {
+    const patch = status === "published" ? { status } : { status, featured: false };
     const { error } = await (supabase.from("reviews" as any) as any)
-      .update({ status, updated_at: new Date().toISOString() })
+      .update({ ...patch, updated_at: new Date().toISOString() })
       .eq("id", r.id);
     if (error) return toast.error("No se pudo actualizar la reseña");
-    setRows((prev) => prev.map((x) => (x.id === r.id ? { ...x, status } : x)));
+    setRows((prev) => prev.map((x) => (x.id === r.id ? { ...x, ...patch } : x)));
     toast.success(status === "published" ? "Reseña publicada" : status === "hidden" ? "Reseña oculta" : "Reseña pendiente");
+  }
+
+  async function toggleFeatured(r: ReviewRow) {
+    const next = !r.featured;
+    if (next && featuredCount >= MAX_FEATURED) return toast.error(`Ya tenés ${MAX_FEATURED} destacadas. Quitá una para destacar otra.`);
+    const { error } = await (supabase.from("reviews" as any) as any).update({ featured: next, updated_at: new Date().toISOString() }).eq("id", r.id);
+    if (error) return toast.error(error.message || "No se pudo actualizar la reseña");
+    setRows((prev) => prev.map((x) => (x.id === r.id ? { ...x, featured: next } : x)));
+    toast.success(next ? "Reseña destacada" : "Reseña quitada de las destacadas");
   }
 
   async function remove(r: ReviewRow) {
@@ -217,6 +230,7 @@ export function ResenasSection() {
             {[
               { label: `${published.length} publicadas`, dot: "bg-emerald-400" },
               { label: `${counts.pending} pendientes`, dot: "bg-amber-400" },
+              { label: `Destacadas ${featuredCount}/${MAX_FEATURED}`, dot: "bg-fuchsia-400" },
               { label: `Cargadas por vos ${manualCount}/${MAX_MANUAL}`, dot: "bg-sky-400" },
             ].map((c) => (
               <span key={c.label} className="inline-flex items-center gap-2 rounded-full bg-white/[0.06] px-3 py-1 text-xs text-white/80 ring-1 ring-white/10">
@@ -228,6 +242,10 @@ export function ResenasSection() {
           <p className="mt-4 text-xs text-white/50">
             Las reseñas que dejan los clientes desde tu página quedan pendientes hasta que las apruebes. Cada cliente puede dejar una reseña por
             barbero con el que se atendió.
+          </p>
+          <p className="mt-2 text-xs text-white/60">
+            Podés <b className="text-white/85">destacar hasta {MAX_FEATURED} reseñas publicadas</b>: son las que aparecen primero en el carrusel de tu página pública. Si no destacás
+            ninguna, se muestran las más nuevas de 4 y 5 estrellas.
           </p>
           <p className="mt-2 text-xs text-white/70">
             <b className="font-semibold text-white">
@@ -309,6 +327,22 @@ export function ResenasSection() {
                   >
                     {r.status === "pending" ? <Check className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                     {r.status === "pending" ? "Aprobar" : "Publicar"}
+                  </button>
+                )}
+                {r.status === "published" && (
+                  <button
+                    type="button"
+                    onClick={() => void toggleFeatured(r)}
+                    disabled={!r.featured && featuredCount >= MAX_FEATURED}
+                    className={cn(
+                      "inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 transition disabled:opacity-40",
+                      r.featured
+                        ? "bg-fuchsia-500/20 text-fuchsia-200 ring-fuchsia-400/40 shadow-[0_0_18px_-6px_rgba(217,70,239,0.9)]"
+                        : "bg-white/5 ring-white/10 hover:bg-white/10",
+                    )}
+                  >
+                    <Star className={cn("h-3.5 w-3.5", r.featured && "fill-current")} />
+                    {r.featured ? "Destacada" : "Destacar"}
                   </button>
                 )}
                 {r.status !== "hidden" && (
