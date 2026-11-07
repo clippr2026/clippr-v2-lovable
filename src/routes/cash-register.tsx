@@ -1102,8 +1102,9 @@ function CashRegisterPage() {
             data={data}
             cajaCerrada={cajaCerrada}
             userEmail={session.user.email ?? null}
-            onCajaCerrada={() => {
-              setCajaCerrada(true);
+            onCajaCerrada={(closedDate) => {
+              // Cerrar un día pasado (jornada pendiente) no debe bloquear la caja de hoy.
+              if (!closedDate || closedDate === cajaDateKey()) setCajaCerrada(true);
               setShowClosedHistory(false);
               setPendingToCharge(null);
               clearChargeSearchParams();
@@ -1137,8 +1138,8 @@ function CashRegisterPage() {
               movementsData={movementsData}
               cajaAbiertaDesde={cajaAbiertaDesdeLabel}
               cajaRangeStartDate={cajaAbiertaDesdeFecha}
-              onCajaCerrada={() => {
-                setCajaCerrada(true);
+              onCajaCerrada={(closedDate) => {
+                if (!closedDate || closedDate === cajaDateKey()) setCajaCerrada(true);
                 setShowClosedHistory(false);
                 setPendingToCharge(null);
                 clearChargeSearchParams();
@@ -1232,8 +1233,8 @@ function CashRegisterPage() {
               onPendingDateConsumed={clearChargeSearchParams}
               reopenRequest={reopenRequest}
               onReopenRequestConsumed={() => setReopenRequest(0)}
-              onCajaCerrada={() => {
-                setCajaCerrada(true);
+              onCajaCerrada={(closedDate) => {
+                if (!closedDate || closedDate === cajaDateKey()) setCajaCerrada(true);
                 setShowClosedHistory(false);
                 setPendingToCharge(null);
                 setTab("resumen");
@@ -1341,7 +1342,7 @@ function Tabs({
   data: ReturnType<typeof useCajaData>;
   cajaCerrada: boolean;
   userEmail: string | null;
-  onCajaCerrada: () => void;
+  onCajaCerrada: (closedDate?: string) => void;
 }) {
   const tabs = TABS;
   const [firstTab, ...restTabs] = tabs;
@@ -1495,7 +1496,7 @@ function ResumenTab({
   movementsData: ReturnType<typeof useCashMovements>;
   cajaAbiertaDesde: string;
   cajaRangeStartDate: string;
-  onCajaCerrada: () => void;
+  onCajaCerrada: (closedDate?: string) => void;
   onRevisarCierre: (date: string) => void;
 }) {
   // Historial de cobros: lo leemos desde appointments.cobro_events (Supabase)
@@ -8590,7 +8591,7 @@ function CierreCajaBtn({
   branchId: string | null;
   userEmail: string | null;
   employees: ReturnType<typeof useCajaData>["employees"];
-  onCajaCerrada: () => void;
+  onCajaCerrada: (closedDate?: string) => void;
   cajaAbiertaDesde: string;
   // Fecha (YYYY-MM-DD) que identifica la fila de caja_cierres a cerrar —
   // la de apertura real, NO necesariamente "hoy" (una caja vencida sigue
@@ -8715,7 +8716,7 @@ function CierreCajaBtn({
       if (result.alreadyClosed) {
         toast.info("La caja ya está cerrada");
         cerrarModal();
-        onCajaCerrada();
+        onCajaCerrada(cajaRangeStartDate);
         return;
       }
       if (!result.closed) {
@@ -8728,7 +8729,7 @@ function CierreCajaBtn({
       setEfectivoContado("");
       setSaldoReal("");
       setPreview(null);
-      onCajaCerrada(); // ← bloquea la pantalla inmediatamente
+      onCajaCerrada(cajaRangeStartDate); // ← bloquea la pantalla solo si el cierre es de hoy
     } catch (e) {
       toast.error(puntualidadMessage((e as Error).message));
     } finally {
@@ -8863,7 +8864,7 @@ function CerrarDiaAnteriorCard({
   // usuario elige la fecha a mano con el selector de abajo.
   jumpToDate?: string | null;
   onJumped?: () => void;
-  onCierreGuardado: () => void;
+  onCierreGuardado: (closedDate: string) => void;
 }) {
   const [selectedDate, setSelectedDate] = useState("");
   const [preview, setPreview] = useState<Awaited<ReturnType<typeof buildSingleDayCierrePreview>> | null>(null);
@@ -9005,9 +9006,10 @@ function CerrarDiaAnteriorCard({
         toast.error("Ese día ya tiene un cierre guardado.");
       } else if (result.closed) {
         toast.success(`Caja del ${fechaDDMMYYYY(selectedDate)} cerrada correctamente.`);
+        const closedDate = selectedDate;
         resetReview();
         setSelectedDate("");
-        onCierreGuardado();
+        onCierreGuardado(closedDate);
       } else {
         toast.error("No se pudo guardar el cierre.");
       }
@@ -9501,7 +9503,7 @@ function CierresTab({
   // disparar el salto.
   initialPendingDate?: string;
   onPendingDateConsumed?: () => void;
-  onCajaCerrada: () => void;
+  onCajaCerrada: (closedDate?: string) => void;
   onCajaReopened: () => void;
 }) {
   const { activeBranchId } = useAuth();
@@ -9888,8 +9890,8 @@ function CierresTab({
               jumpToDate={jumpToDate}
               onJumped={() => setJumpToDate(null)}
               compact
-              onCierreGuardado={() => {
-                onCajaCerrada();
+              onCierreGuardado={(closedDate) => {
+                onCajaCerrada(closedDate);
                 loadCierres();
                 loadPendingCierres();
                 setSubtab("historial");
@@ -12818,7 +12820,7 @@ function FacturacionPanel({
   cajaRangeStartDate: string;
   onNuevaVenta: () => void;
   onNuevoGasto: () => void;
-  onCajaCerrada: () => void;
+  onCajaCerrada: (closedDate?: string) => void;
   onCobrarPendiente: (
     appt: ReturnType<typeof useCajaData>["pendingCharges"][number],
   ) => void;
