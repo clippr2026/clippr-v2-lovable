@@ -1,4 +1,3 @@
-import { FeaturedServiceCard } from "@/components/settings/featured-service-card";
 import React, { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
@@ -12,6 +11,7 @@ import {
   Trash2,
   Instagram,
   Star,
+  Crown,
   Loader2,
   Pencil,
   FolderPlus,
@@ -1029,6 +1029,43 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   // nunca vuelve a false: un refresh en segundo plano (realtime, evento de
   // guardado, etc.) actualiza los datos in-place sin volver a tapar el panel
   // con el loader, que es lo que producía el "doble render" visible.
+  // Servicio destacado de la página pública (uno solo): se marca desde la lista.
+  const [featuredId, setFeaturedId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!isService || !businessId) return;
+    let cancelled = false;
+    void supabase
+      .from("business_settings")
+      .select("schedule")
+      .eq("business_id", businessId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return;
+        const sch = (data?.schedule ?? {}) as Record<string, any>;
+        const id = sch._branding?.featured_service_id;
+        setFeaturedId(typeof id === "string" ? id : null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isService, businessId]);
+  async function toggleFeatured(row: PriceRow) {
+    if (!businessId) return;
+    const next = featuredId === row.id ? null : row.id;
+    // Se relee antes de guardar para no pisar colores, anuncio ni el resto del branding.
+    const { data } = await supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle();
+    const schedule = ((data?.schedule ?? {}) as Record<string, any>) || {};
+    const branding = (schedule._branding && typeof schedule._branding === "object" ? schedule._branding : {}) as Record<string, unknown>;
+    const { error } = await supabase
+      .from("business_settings")
+      .upsert(
+        { business_id: businessId, schedule: { ...schedule, _branding: { ...branding, featured_service_id: next, featured_service_desc: next ? (branding.featured_service_desc ?? "") : "" } } },
+        { onConflict: "business_id" },
+      );
+    if (error) return toast.error("No se pudo marcar el servicio destacado");
+    setFeaturedId(next);
+    toast.success(next ? `"${row.name}" es ahora el servicio destacado` : "Servicio destacado quitado");
+  }
   const [ready, setReady] = useState(false);
   const activeCatStorageKey = React.useMemo(
     () => `clippr:${businessId ?? "local"}:${isService ? "servicios" : "catalogo"}:active-category`,
@@ -2703,6 +2740,22 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                   >
                     Editar
                   </button>
+                  {isService ? (
+                    <button
+                      type="button"
+                      onClick={() => void toggleFeatured(row)}
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider ring-1 transition hover:brightness-110",
+                        featuredId === row.id
+                          ? "bg-amber-400/15 text-amber-300 ring-amber-400/50"
+                          : "bg-white/5 text-muted-foreground ring-white/10 hover:bg-white/10",
+                      )}
+                      title={featuredId === row.id ? "Quitar de destacado" : "Marcar como destacado en la página pública"}
+                    >
+                      <Crown className="h-3 w-3" />
+                      {featuredId === row.id ? "Destacado" : "Destacar"}
+                    </button>
+                  ) : null}
                 </div>
               </div>
             ))}
@@ -3042,12 +3095,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
 }
 
 export function ServiciosSection() {
-  return (
-    <>
-      <FeaturedServiceCard />
-      <PriceCatalogSection kind="servicios" />
-    </>
-  );
+  return <PriceCatalogSection kind="servicios" />;
 }
 
 export function CatalogoSection() {
