@@ -53,9 +53,8 @@ function PriceChips({
   onInfo: () => void;
 }) {
   // Tono del color elegido apenas más vivo que el acento, sin llegar a blanquearse.
-  // Letras del precio de lista: el mismo tono del neón que recubre el recuadro.
-  const listColor = `color-mix(in oklch, var(--c-primary) 80%, ${light ? "#000" : "#fff"})`;
-  const hot = `color-mix(in oklch, var(--c-accent) 82%, ${light ? "#000" : "#fff"})`;
+  // Letras de los dos precios: blancas (negras en fondo claro); el color queda en el borde neón.
+  const listColor = light ? "#111827" : "#ffffff";
   return (
     <>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
@@ -81,10 +80,10 @@ function PriceChips({
               background: "color-mix(in oklch, var(--c-accent) 32%, transparent)",
             }}
           >
-            <span className="block text-[10px] font-bold" style={{ color: hot }}>
+            <span className="block text-[10px] font-bold" style={{ color: listColor, WebkitTextFillColor: listColor }}>
               Efectivo
             </span>
-            <span className="block text-base font-extrabold" style={{ color: hot }}>
+            <span className="block text-base font-extrabold" style={{ color: listColor, WebkitTextFillColor: listColor }}>
               {money(effective)}
             </span>
           </span>
