@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Crown, Info, Sparkles, Star, UserRound } from "lucide-react";
+import { Crown, Info, Sparkles, Star, Tag, UserRound } from "lucide-react";
 import { ServiceImage } from "@/components/ui/service-image";
 import {
   computeStandardEffectivePrice,
@@ -101,6 +101,7 @@ export function PublicServicesList({
   services,
   featuredId,
   featuredDescription,
+  promoIds,
   employeeIds,
   overrides,
   accent,
@@ -111,6 +112,7 @@ export function PublicServicesList({
   services: PublicServiceItem[];
   featuredId: string | null;
   featuredDescription: string;
+  promoIds: string[];
   employeeIds: string[];
   overrides: EmployeeServiceOverrideMap;
   accent: string;
@@ -121,6 +123,16 @@ export function PublicServicesList({
   const [infoFor, setInfoFor] = React.useState<string | null>(null);
   const featured = featuredId ? services.find((s) => s.id === featuredId) ?? null : null;
   const rest = services.filter((s) => s.id !== featured?.id);
+
+  const promoBadge = (id: string) =>
+    promoIds.includes(id) ? (
+      <span
+        className="mb-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider"
+        style={{ background: accent, color: buttonText, WebkitTextFillColor: buttonText }}
+      >
+        <Tag className="h-3 w-3" /> Promo
+      </span>
+    ) : null;
 
   const reserve = (id: string, className: string) => (
     <a
@@ -180,6 +192,7 @@ export function PublicServicesList({
                     fallback={fallback}
                   />
                   <div className="min-w-0 flex-1 pr-7">
+                    {promoBadge(featured.id)}
                     <p className="line-clamp-3 text-xl font-bold uppercase leading-tight sm:text-2xl">{featured.name}</p>
                     {featuredDescription ? <p className="mt-1.5 text-sm leading-snug text-white/75">{featuredDescription}</p> : null}
                   </div>
@@ -205,6 +218,7 @@ export function PublicServicesList({
               fallback={fallback}
             />
             <div className="min-w-0 flex-1">
+              {promoBadge(service.id)}
               <p className="line-clamp-2 text-base font-bold uppercase leading-snug sm:text-lg">{service.name}</p>
               <div className="mt-1.5 sm:flex sm:items-end sm:justify-between sm:gap-3">
                 <div className="min-w-0">

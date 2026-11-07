@@ -133,6 +133,7 @@ type PublicBranding = {
   neon?: string | null;
   featured_service_id?: string | null;
   featured_service_desc?: string | null;
+  promo_service_ids?: string[] | null;
   address?: string | null;
   phone?: string | null;
   email?: string | null;
@@ -562,6 +563,7 @@ function PublicProfilePage() {
   const [bgStyle, setBgStyle] = React.useState<PublicBgKey>("degrade");
   const [decor, setDecor] = React.useState<PublicDecorKey>("none");
   const [neonKey, setNeonKey] = React.useState<PublicNeonKey>("ambos");
+  const [promoIds, setPromoIds] = React.useState<string[]>([]);
   const [featuredService, setFeaturedService] = React.useState<{ id: string | null; description: string }>({ id: null, description: "" });
   const [employeeOverrides, setEmployeeOverrides] = React.useState<EmployeeServiceOverrideMap>({});
   // Se detecta después de montar (no al inicializar) para que el HTML del servidor y el del cliente coincidan.
@@ -976,6 +978,7 @@ function PublicProfilePage() {
           // queda guardado como borrador pero no debe mostrarse acá, aunque
           // profile_note tenga contenido cargado.
           setProfileNote(activeAnnouncement(branding));
+          setPromoIds(Array.isArray(branding.promo_service_ids) ? branding.promo_service_ids.filter((x: unknown): x is string => typeof x === "string") : []);
           setFeaturedService({
             id: typeof branding.featured_service_id === "string" && branding.featured_service_id ? branding.featured_service_id : null,
             description: typeof branding.featured_service_desc === "string" ? branding.featured_service_desc.slice(0, 140) : "",
@@ -1260,6 +1263,7 @@ function PublicProfilePage() {
                   services={services}
                   featuredId={featuredService.id}
                   featuredDescription={featuredService.description}
+                  promoIds={promoIds}
                   employeeIds={employees.map((e) => e.id)}
                   overrides={employeeOverrides}
                   accent={cAccent}

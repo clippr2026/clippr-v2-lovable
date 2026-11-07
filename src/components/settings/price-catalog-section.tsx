@@ -12,6 +12,7 @@ import {
   Instagram,
   Star,
   Crown,
+  Tag,
   Loader2,
   Pencil,
   FolderPlus,
@@ -1031,6 +1032,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   // con el loader, que es lo que producía el "doble render" visible.
   // Servicio destacado de la página pública (uno solo): se marca desde la lista.
   const [featuredId, setFeaturedId] = useState<string | null>(null);
+  const [promoIds, setPromoIds] = useState<string[]>([]);
   useEffect(() => {
     if (!isService || !businessId) return;
     let cancelled = false;
@@ -1044,6 +1046,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         const sch = (data?.schedule ?? {}) as Record<string, any>;
         const id = sch._branding?.featured_service_id;
         setFeaturedId(typeof id === "string" ? id : null);
+        const promos = sch._branding?.promo_service_ids;
+        setPromoIds(Array.isArray(promos) ? promos.filter((x: unknown): x is string => typeof x === "string") : []);
       });
     return () => {
       cancelled = true;
@@ -1065,6 +1069,22 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     if (error) return toast.error("No se pudo marcar el servicio destacado");
     setFeaturedId(next);
     toast.success(next ? `"${row.name}" es ahora el servicio destacado` : "Servicio destacado quitado");
+  }
+  // Distintivo "Promo" en la página pública: se puede marcar en varios servicios.
+  async function togglePromo(row: PriceRow) {
+    if (!businessId) return;
+    const { data } = await supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle();
+    const schedule = ((data?.schedule ?? {}) as Record<string, any>) || {};
+    const branding = (schedule._branding && typeof schedule._branding === "object" ? schedule._branding : {}) as Record<string, any>;
+    const current: string[] = Array.isArray(branding.promo_service_ids) ? branding.promo_service_ids.filter((x: unknown): x is string => typeof x === "string") : [];
+    const on = current.includes(row.id);
+    const next = on ? current.filter((x) => x !== row.id) : [...current, row.id];
+    const { error } = await supabase
+      .from("business_settings")
+      .upsert({ business_id: businessId, schedule: { ...schedule, _branding: { ...branding, promo_service_ids: next } } }, { onConflict: "business_id" });
+    if (error) return toast.error("No se pudo marcar la promo");
+    setPromoIds(next);
+    toast.success(on ? "Promo quitada" : `"${row.name}" ahora tiene el distintivo Promo`);
   }
   const [ready, setReady] = useState(false);
   const activeCatStorageKey = React.useMemo(
@@ -2754,6 +2774,22 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                     >
                       <Crown className="h-3 w-3" />
                       {featuredId === row.id ? "Destacado" : "Destacar"}
+                    </button>
+                  ) : null}
+                  {isService ? (
+                    <button
+                      type="button"
+                      onClick={() => void togglePromo(row)}
+                      className={cn(
+                        "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] uppercase tracking-wider ring-1 transition hover:brightness-110",
+                        promoIds.includes(row.id)
+                          ? "bg-fuchsia-400/15 text-fuchsia-300 ring-fuchsia-400/50"
+                          : "bg-white/5 text-muted-foreground ring-white/10 hover:bg-white/10",
+                      )}
+                      title={promoIds.includes(row.id) ? "Quitar el distintivo Promo" : "Mostrar el distintivo Promo en la página pública"}
+                    >
+                      <Tag className="h-3 w-3" />
+                      {promoIds.includes(row.id) ? "En promo" : "Promo"}
                     </button>
                   ) : null}
                 </div>
