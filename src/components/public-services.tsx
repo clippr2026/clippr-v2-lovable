@@ -53,14 +53,23 @@ function PriceChips({
   onInfo: () => void;
 }) {
   // Tono del color elegido apenas más vivo que el acento, sin llegar a blanquearse.
+  // Letras del precio de lista: el mismo tono del neón que recubre el recuadro.
+  const listColor = `color-mix(in oklch, var(--c-primary) 80%, ${light ? "#000" : "#fff"})`;
   const hot = `color-mix(in oklch, var(--c-accent) 82%, ${light ? "#000" : "#fff"})`;
   return (
     <>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
         {price > 0 ? (
-          <span className="rounded-xl border border-white/20 bg-white/[0.05] px-2.5 py-1 text-center leading-tight">
-            <span className="block text-[10px] font-medium text-white/60">Precio de lista</span>
-            <span className="block text-sm font-bold">{money(price)}</span>
+          <span
+            className="rounded-xl border-2 border-white/20 bg-white/[0.05] px-2.5 py-1 text-center leading-tight"
+            style={{ boxShadow: "0 0 7px color-mix(in oklch, var(--c-primary) 85%, transparent), inset 0 0 6px -2px var(--c-primary)" }}
+          >
+            <span className="block text-[10px] font-bold" style={{ color: listColor, WebkitTextFillColor: listColor }}>
+              Precio de lista
+            </span>
+            <span className="block text-base font-extrabold" style={{ color: listColor, WebkitTextFillColor: listColor }}>
+              {money(price)}
+            </span>
           </span>
         ) : null}
         {effective != null && effective < price ? (
