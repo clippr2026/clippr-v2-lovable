@@ -1219,17 +1219,6 @@ function PublicProfilePage() {
         )}
       </PublicHero>
 
-      {business ? (
-        <ReviewsStrip
-          businessId={business.id}
-          reviews={reviews}
-          accent={accent}
-          buttonText={accentButtonText}
-          light={isLight}
-          average={reviewStats.avg}
-          count={reviewStats.count}
-        />
-      ) : null}
 
       <section className="mx-auto grid max-w-6xl gap-6 px-4 py-5 lg:grid-cols-[1fr_360px] lg:items-start">
         {/* min-w-0: sin esto, este ítem del grid usa su ancho mínimo de
@@ -1353,6 +1342,20 @@ function PublicProfilePage() {
                   ))}
                 </div>
               </div>
+            </GlowCard>
+          ) : null}
+
+          {business ? (
+            <GlowCard className="overflow-hidden">
+              <ReviewsStrip
+                businessId={business.id}
+                reviews={reviews}
+                accent={accent}
+                buttonText={accentButtonText}
+                light={isLight}
+                average={reviewStats.avg}
+                count={reviewStats.count}
+              />
             </GlowCard>
           ) : null}
 

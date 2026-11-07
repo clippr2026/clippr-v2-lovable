@@ -304,32 +304,22 @@ export function ReviewsStrip({
   }
 
   return (
-    <section className="mx-auto max-w-6xl px-4 pt-5">
-      <div className="mb-2.5 flex items-center justify-between gap-3">
-        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
-          <h2 className="text-base font-semibold sm:text-lg">Lo que dicen nuestros clientes</h2>
-          {count > 0 && average != null ? (
-            <div className="flex items-center gap-1.5">
-              <StarRow value={Math.round(average)} size={16} />
-              <span className="text-sm font-bold">{average.toFixed(1).replace(".", ",")}</span>
-            </div>
-          ) : null}
-        </div>
-        <button
-          type="button"
-          onClick={() => setLeaveOpen(true)}
-          className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-3.5 py-2 text-xs font-bold sm:text-sm"
-          style={{ background: accent, color: buttonText }}
-        >
-          <MessageSquarePlus className="h-3.5 w-3.5" /> Dejar mi reseña
-        </button>
+    <div className="p-5 sm:p-6">
+      <div className="mb-4 flex flex-wrap items-center gap-x-4 gap-y-1.5">
+        <h2 className="shrink-0 whitespace-nowrap text-[clamp(1.05rem,5.2vw,1.5rem)] font-semibold leading-tight">Lo que dicen nuestros clientes</h2>
+        {count > 0 && average != null ? (
+          <div className="flex items-center gap-1.5">
+            <StarRow value={Math.round(average)} size={16} />
+            <span className="text-sm font-bold">{average.toFixed(1).replace(".", ",")}</span>
+          </div>
+        ) : null}
       </div>
 
       {picks.length > 0 ? (
         <div className="group relative">
           <div
             ref={scroller}
-            className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth px-4 pb-1 sm:mx-0 sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+            className="flex snap-x snap-mandatory gap-3 overflow-x-auto scroll-smooth pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
             {picks.map((r) => (
               <ReviewCard key={r.id} r={r} className="w-[80%] shrink-0 snap-start sm:w-[calc((100%-1.5rem)/3)]" />
@@ -376,6 +366,15 @@ export function ReviewsStrip({
         </p>
       )}
 
+      <button
+        type="button"
+        onClick={() => setLeaveOpen(true)}
+        className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-bold"
+        style={{ background: accent, color: buttonText }}
+      >
+        <MessageSquarePlus className="h-4 w-4" /> Dejar mi reseña
+      </button>
+
       {allOpen ? (
         <div className="fixed inset-0 z-[240] grid place-items-center bg-black/75 p-3 backdrop-blur-sm" onClick={() => setAllOpen(false)}>
           <div
@@ -417,6 +416,6 @@ export function ReviewsStrip({
       ) : null}
 
       <LeaveReviewModal businessId={businessId} open={leaveOpen} onClose={() => setLeaveOpen(false)} accent={accent} buttonText={buttonText} light={light} />
-    </section>
+    </div>
   );
 }
