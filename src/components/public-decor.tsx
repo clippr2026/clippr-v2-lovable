@@ -2,13 +2,11 @@ import * as React from "react";
 
 // Dibujos del encabezado de la página pública: van pegados al borde inferior (donde el
 // encabezado con portada y logo se separa del resto) y algunos también arriba.
-export type PublicDecorKey = "none" | "pintura-oscura" | "pintura-rosa" | "pintura-gris" | "navidad" | "estrellas" | "ondas" | "barberia";
+export type PublicDecorKey = "none" | "pintura-gris" | "navidad" | "estrellas" | "ondas" | "barberia";
 
 export const PUBLIC_DECORS: { key: PublicDecorKey; label: string }[] = [
   { key: "none", label: "Sin dibujos" },
-  { key: "pintura-oscura", label: "Pintura oscura" },
-  { key: "pintura-rosa", label: "Pintura rosa" },
-  { key: "pintura-gris", label: "Pintura blanco y negro" },
+  { key: "pintura-gris", label: "Pintura" },
   { key: "navidad", label: "Navidad" },
   { key: "estrellas", label: "Estrellas" },
   { key: "ondas", label: "Ondas" },
@@ -16,6 +14,8 @@ export const PUBLIC_DECORS: { key: PublicDecorKey; label: string }[] = [
 ];
 
 export function normalizePublicDecor(value: unknown): PublicDecorKey {
+  // Las pinturas oscura y rosa se unificaron en "Pintura".
+  if (value === "pintura-oscura" || value === "pintura-rosa") return "pintura-gris";
   return PUBLIC_DECORS.some((d) => d.key === value) ? (value as PublicDecorKey) : "none";
 }
 
@@ -56,7 +56,7 @@ export function PublicDecor({
 
   if (decor.startsWith("pintura-")) {
     // Solo salpicaduras encima del encabezado: no cambian el fondo.
-    return <SplatterArt variant={decor as "pintura-oscura" | "pintura-rosa" | "pintura-gris"} primary={primary} secondary={secondary} accent={accent} light={light} />;
+    return <SplatterArt primary={primary} secondary={secondary} light={light} />;
   }
 
   if (decor === "navidad") {
@@ -187,36 +187,23 @@ function rng(seed: number) {
 }
 
 // Los colores de la pintura salen de los que elige el negocio (Color 1, Color 2 y resaltado).
-function splatterConfig(variant: keyof typeof SPLATTER_BASE, primary: string, secondary: string, accent: string, light: boolean) {
-  const base = SPLATTER_BASE[variant];
+function splatterConfig(primary: string, secondary: string, light: boolean) {
   const ink = light ? "#111111" : "#ffffff";
-  const colors =
-    variant === "pintura-oscura"
-      ? [ink, ink, accent, secondary, primary]
-      : variant === "pintura-rosa"
-        ? [primary, primary, primary, secondary, secondary]
-        : [ink, ink, ink, primary, secondary];
-  return { colors, strokes: base.strokes, strokeColor: variant === "pintura-gris" ? secondary : "#8a8a90" };
+  return { colors: [ink, ink, ink, primary, secondary], strokeColor: secondary };
 }
 
-const SPLATTER_BASE = {
-  "pintura-oscura": { strokes: false },
-  "pintura-rosa": { strokes: false },
-  "pintura-gris": { strokes: true },
-} as const;
-
-function SplatterArt({ variant, primary, secondary, accent, light }: { variant: keyof typeof SPLATTER_BASE; primary: string; secondary: string; accent: string; light: boolean }) {
-  const cfg = React.useMemo(() => splatterConfig(variant, primary, secondary, accent, light), [variant, primary, secondary, accent, light]);
+function SplatterArt({ primary, secondary, light }: { primary: string; secondary: string; light: boolean }) {
+  const cfg = React.useMemo(() => splatterConfig(primary, secondary, light), [primary, secondary, light]);
   const art = React.useMemo(() => {
-    const r = rng(variant === "pintura-oscura" ? 11 : variant === "pintura-rosa" ? 23 : 37);
+    const r = rng(37);
     const W = 400;
     const H = 520;
     const pick = () => cfg.colors[Math.floor(r() * cfg.colors.length)];
-    const dots = Array.from({ length: 520 }, () => ({ x: r() * W, y: r() * H, rad: Math.pow(r(), 3.5) * 4.2 + 0.5, c: pick() }));
-    const blobs = Array.from({ length: 26 }, () => {
+    const dots = Array.from({ length: 760 }, () => ({ x: r() * W, y: r() * H, rad: Math.pow(r(), 3.5) * 4.2 + 0.5, c: pick() }));
+    const blobs = Array.from({ length: 42 }, () => {
       const x = r() * W;
       const y = r() * H;
-      const rad = 2.5 + r() * 6.5;
+      const rad = 3 + r() * 8;
       const ang = (Math.PI / 2) * (0.6 + r() * 0.8) + (r() < 0.3 ? Math.PI : 0);
       const len = 14 + r() * 46;
       const c = pick();
@@ -227,14 +214,14 @@ function SplatterArt({ variant, primary, secondary, accent, light }: { variant: 
       });
       return { x, y, rad, c, x2: x + Math.cos(ang) * len, y2: y + Math.sin(ang) * len, spray };
     });
-    const arcs = Array.from({ length: 16 }, () => {
+    const arcs = Array.from({ length: 22 }, () => {
       const x = r() * W;
       const y = r() * H;
       return { d: `M${x} ${y} Q${x + (r() - 0.3) * 160} ${y + (r() - 0.5) * 120} ${x + (r() - 0.2) * 260} ${y + (r() - 0.5) * 200}`, w: 0.5 + r() * 1.6, c: pick() };
     });
     const strokes = Array.from({ length: 10 }, () => ({ x: r() * W, y: r() * H, w: 70 + r() * 140, h: 18 + r() * 34, a: -40 + r() * 80, o: 0.18 + r() * 0.3, white: r() < 0.5 }));
     return { dots, blobs, arcs, strokes };
-  }, [variant, cfg]);
+  }, [cfg]);
 
   return (
     <svg
@@ -242,17 +229,15 @@ function SplatterArt({ variant, primary, secondary, accent, light }: { variant: 
       viewBox="0 0 400 520"
       preserveAspectRatio="xMidYMid slice"
       aria-hidden
-      // Se apaga hacia abajo para no tapar el nombre, las estrellas ni los años de experiencia.
+      // Más suave (no vacío) alrededor del nombre, las estrellas y los años de experiencia.
       style={{
-        WebkitMaskImage: "linear-gradient(to bottom, #000 0%, #000 38%, rgba(0,0,0,.14) 62%, rgba(0,0,0,.08) 100%)",
-        maskImage: "linear-gradient(to bottom, #000 0%, #000 38%, rgba(0,0,0,.14) 62%, rgba(0,0,0,.08) 100%)",
+        WebkitMaskImage: "radial-gradient(ellipse 68% 15% at 38% 85%, rgba(0,0,0,.42) 0%, rgba(0,0,0,.42) 62%, #000 100%)",
+        maskImage: "radial-gradient(ellipse 68% 15% at 38% 85%, rgba(0,0,0,.42) 0%, rgba(0,0,0,.42) 62%, #000 100%)",
       }}
     >
-      {cfg.strokes
-        ? art.strokes.map((s, i) => (
-            <rect key={i} x={s.x - s.w / 2} y={s.y - s.h / 2} width={s.w} height={s.h} rx={s.h / 2} fill={s.white ? "#ffffff" : cfg.strokeColor} opacity={s.o} transform={`rotate(${s.a} ${s.x} ${s.y})`} />
-          ))
-        : null}
+      {art.strokes.map((s, i) => (
+        <rect key={i} x={s.x - s.w / 2} y={s.y - s.h / 2} width={s.w} height={s.h} rx={s.h / 2} fill={s.white ? "#ffffff" : cfg.strokeColor} opacity={s.o} transform={`rotate(${s.a} ${s.x} ${s.y})`} />
+      ))}
       {art.arcs.map((a, i) => (
         <path key={i} d={a.d} fill="none" stroke={a.c} strokeWidth={a.w} strokeLinecap="round" opacity=".9" />
       ))}

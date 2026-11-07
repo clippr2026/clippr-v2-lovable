@@ -1230,12 +1230,9 @@ function PublicProfilePage() {
                     <FiveStars />
                     <span className={isLight ? "text-zinc-700" : "text-white/90"}>5,0</span>
                   </div>
-                  <div
-                    className="flex items-center gap-2 border-l pl-4 sm:pl-5"
-                    style={{ borderColor: isLight ? "rgba(15,23,42,0.12)" : "rgba(255,255,255,0.14)" }}
-                  >
+                  <div className="flex items-center gap-2 pl-4 sm:pl-5">
                     <div className="whitespace-nowrap text-2xl font-bold leading-none tracking-tight sm:text-3xl">{statYearsExperience}</div>
-                    <div className="text-xs leading-4 text-white/55 sm:text-sm">Años de<br />experiencia</div>
+                    <div className="text-xs font-medium leading-4 text-white sm:text-sm">Años de<br />experiencia</div>
                   </div>
                 </div>
                 {branches.length > 1 && (
