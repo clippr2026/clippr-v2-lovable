@@ -58,6 +58,7 @@ import type {
 } from "@/components/agenda/use-agenda-data";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 import { BrandingSection } from "@/components/settings/branding-section";
+import { ResenasSection } from "@/components/settings/resenas-section";
 import { HorariosSection } from "@/components/settings/horarios-section";
 import { EquipoSection } from "@/components/settings/equipo-section";
 import { SucursalesSection } from "@/components/settings/sucursales-section";
@@ -84,6 +85,7 @@ import {
 
 type SectionId =
   | "branding"
+  | "resenas"
   | "landing"
   | "horarios"
   | "equipo"
@@ -114,6 +116,13 @@ const groups: { label: string; items: NavItem[] }[] = [
         icon: Globe,
         tint: "text-white",
         glow: "from-[oklch(0.7_0.25_300/0.25)] to-[oklch(0.55_0.27_285/0.05)]",
+      },
+      {
+        id: "resenas",
+        label: "Reseñas",
+        icon: Star,
+        tint: "text-[oklch(0.85_0.17_85)]",
+        glow: "from-[oklch(0.85_0.17_85/0.25)] to-[oklch(0.75_0.18_70/0.05)]",
       },
       {
         id: "horarios",
@@ -412,6 +421,7 @@ function SettingsPage() {
                 </div>
 
                 {active === "branding" && <BrandingSection />}
+                {active === "resenas" && <ResenasSection />}
 
                 {active === "horarios" && <HorariosSection />}
                 {active === "equipo" && <EquipoSection />}

@@ -12,6 +12,7 @@ import {
 } from "@/components/entry-effects";
 import { getPublicFont, publicFontsStylesheet } from "@/lib/public-fonts";
 import { PublicDecor, normalizePublicDecor, type PublicDecorKey } from "@/components/public-decor";
+import { PublicReviews, StarRow, type PublicReview } from "@/components/public-reviews";
 import { normalizePublicNeon, type PublicNeonKey } from "@/lib/public-neon";
 import { normalizePublicBg, pageBackground, type PublicBgKey } from "@/lib/public-theme";
 import { hiddenPublicBranchIds } from "@/lib/public-branches";
@@ -317,16 +318,6 @@ function mapsUrl(address?: string | null) {
 
 function cleanInstagram(value?: string | null) {
   return value?.replace(/^@/, "").trim() ?? "";
-}
-
-function FiveStars({ compact = false }: { compact?: boolean }) {
-  return (
-    <div className="flex items-center gap-1" aria-label="5 estrellas" style={{ color: "#F5B301" }}>
-      {Array.from({ length: 5 }).map((_, index) => (
-        <Star key={index} className={compact ? "h-3.5 w-3.5 fill-current" : "h-4 w-4 fill-current"} />
-      ))}
-    </div>
-  );
 }
 
 function getHueFromHex(hex?: string | null) {
@@ -665,6 +656,41 @@ function PublicProfilePage() {
       hideScroll.remove();
     };
   }, []);
+
+  // Reseñas publicadas y promedios reales (negocio y por profesional).
+  const [reviews, setReviews] = React.useState<PublicReview[]>([]);
+  const [reviewStats, setReviewStats] = React.useState<{ avg: number | null; count: number; byPro: Record<string, { avg: number; count: number }> }>({
+    avg: null,
+    count: 0,
+    byPro: {},
+  });
+  React.useEffect(() => {
+    const bid = business?.id;
+    if (!bid) return;
+    let cancelled = false;
+    void (async () => {
+      const [rv, st] = await Promise.all([
+        (supabase.from("public_reviews" as any) as any)
+          .select("id,professional_id,professional_name,client_name,rating,comment,review_date")
+          .eq("business_id", bid)
+          .order("review_date", { ascending: false })
+          .limit(200),
+        (supabase.from("public_review_stats" as any) as any).select("professional_id,avg_rating,review_count").eq("business_id", bid),
+      ]);
+      if (cancelled) return;
+      setReviews((rv.data ?? []) as PublicReview[]);
+      const rows = (st.data ?? []) as { professional_id: string | null; avg_rating: number | string; review_count: number }[];
+      const total = rows.find((r) => r.professional_id == null);
+      const byPro: Record<string, { avg: number; count: number }> = {};
+      rows.forEach((r) => {
+        if (r.professional_id) byPro[r.professional_id] = { avg: Number(r.avg_rating), count: r.review_count };
+      });
+      setReviewStats({ avg: total ? Number(total.avg_rating) : null, count: total?.review_count ?? 0, byPro });
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [business?.id, reloadTick]);
 
   // Logo del local para la pantalla de carga (se pide aparte y antes que el resto).
   const [splashLogo, setSplashLogo] = React.useState<string | null>(null);
@@ -1231,12 +1257,14 @@ function PublicProfilePage() {
                   </span>
                 </div>
                 <div className="mt-2 flex flex-wrap items-center gap-4 sm:gap-5">
-                  <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: cAccent }}>
-                    <span className="hero-glow-icon inline-flex">
-                      <FiveStars />
-                    </span>
-                    <span className={"hero-glow " + (isLight ? "text-zinc-700" : "text-white/90")}>5,0</span>
-                  </div>
+                  {reviewStats.count > 0 && reviewStats.avg != null ? (
+                    <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: cAccent }}>
+                      <span className="hero-glow-icon inline-flex">
+                        <StarRow value={Math.round(reviewStats.avg)} size={16} />
+                      </span>
+                      <span className={"hero-glow " + (isLight ? "text-zinc-700" : "text-white/90")}>{reviewStats.avg.toFixed(1).replace(".", ",")}</span>
+                    </div>
+                  ) : null}
                   <div className="flex items-center gap-2 pl-4 sm:pl-5">
                     <div className="hero-glow whitespace-nowrap text-2xl font-bold leading-none tracking-tight sm:text-3xl">{statYearsExperience}</div>
                     <div className="hero-glow text-xs font-medium leading-4 text-white sm:text-sm">Años de<br />experiencia</div>
@@ -1390,10 +1418,12 @@ function PublicProfilePage() {
                       {/* Valoración a la derecha, aprovechando el espacio
                           vacío que quedaba — antes iba debajo de "Barbero"
                           apilada con el nombre/rol. */}
-                      <div className="inline-flex shrink-0 items-center gap-1.5 rounded-full border bg-white px-2.5 py-1 text-sm font-bold text-zinc-950 shadow-sm" style={{ borderColor: "color-mix(in oklch, var(--c-accent) 28%, transparent)" }}>
-                        <Star className="h-4 w-4 fill-current" style={{ color: "#F5B301" }} />
-                        <span>5,0</span>
-                      </div>
+                      {reviewStats.byPro[employee.id] ? (
+                        <div className="inline-flex shrink-0 items-center gap-1.5 rounded-full border bg-white px-2.5 py-1 text-sm font-bold text-zinc-950 shadow-sm" style={{ borderColor: "color-mix(in oklch, var(--c-accent) 28%, transparent)" }}>
+                          <Star className="h-4 w-4 fill-current" style={{ color: "#F5B301" }} />
+                          <span>{reviewStats.byPro[employee.id].avg.toFixed(1).replace(".", ",")}</span>
+                        </div>
+                      ) : null}
                     </a>
                   ))}
                 </div>
@@ -1582,6 +1612,22 @@ function PublicProfilePage() {
                 ))}
               </div>
             </div>
+          </GlowCard>
+        </section>
+      ) : null}
+
+      {business ? (
+        <section className="mx-auto max-w-6xl px-4 pb-6">
+          <GlowCard className="overflow-hidden">
+            <PublicReviews
+              businessId={business.id}
+              reviews={reviews}
+              average={reviewStats.avg}
+              count={reviewStats.count}
+              accent={accent}
+              buttonText={accentButtonText}
+              light={isLight}
+            />
           </GlowCard>
         </section>
       ) : null}
