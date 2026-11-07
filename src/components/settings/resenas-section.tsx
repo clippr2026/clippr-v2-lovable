@@ -201,8 +201,14 @@ export function ResenasSection() {
           </div>
         </div>
         <p className="mt-3 text-xs text-white/50">
-          Las reseñas que dejan los clientes desde tu página llegan como pendientes: se publican cuando las aprobás. Las que cargás vos se
-          publican al guardarlas. Cada cliente puede dejar una reseña por barbero con el que se atendió.
+          Las reseñas que dejan los clientes desde tu página quedan pendientes hasta que las apruebes. Cada cliente puede dejar una reseña por
+          barbero con el que se atendió.
+        </p>
+        <p className="mt-2 text-xs text-white/70">
+          <b className="font-semibold text-white">
+            Como beneficio de bienvenida, podés cargar manualmente hasta 50 reseñas que ya recibiste en Google.
+          </b>{" "}
+          Estas se publican directamente al guardarlas.
         </p>
       </SectionCard>
 
