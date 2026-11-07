@@ -553,3 +553,69 @@
   }
 
 }
+
+/* ─────────────────────────────────────────────────────────────────────────
+   Piel neón premium — toda la app de gestión (clase "neon-skin" en <html>,
+   que NeonSkinFlag quita en las páginas públicas). Va fuera de @layer a
+   propósito: así pisa a las utilidades de Tailwind sin tocar cada pantalla.
+   Para sacarla alcanza con borrar este bloque.
+   ───────────────────────────────────────────────────────────────────────── */
+html.neon-skin {
+  --neon-line: oklch(0.78 0.17 285 / 0.34);
+  --neon-line-hi: oklch(0.82 0.18 285 / 0.62);
+  --neon-glow: oklch(0.68 0.26 290);
+}
+
+/* Tarjetas de vidrio: borde de luz + halo violeta + resplandor de color en las esquinas. */
+html.neon-skin :is(.glass, .glass-strong):not(:hover) {
+  border-color: var(--neon-line);
+  background-image:
+    radial-gradient(120% 95% at 0% 0%, oklch(0.72 0.2 235 / 0.10), transparent 55%),
+    radial-gradient(120% 95% at 100% 100%, oklch(0.68 0.26 310 / 0.13), transparent 55%);
+  box-shadow:
+    inset 0 1px 0 oklch(1 0 0 / 0.1),
+    0 0 0 1px oklch(0.7 0.22 285 / 0.07),
+    0 0 36px -12px oklch(0.68 0.26 290 / 0.55),
+    0 18px 46px -28px oklch(0 0 0 / 0.9);
+}
+
+/* Cualquier tarjeta, chip o divisor con borde blanco tenue: borde violeta luminoso. */
+html.neon-skin :is(
+  [class*="border-white/5"],
+  [class*="border-white/10"],
+  [class*="border-white/15"],
+  [class*="border-white/[0.0"],
+  [class*="border-white/[0.1"]
+):not(:hover) {
+  border-color: oklch(0.78 0.15 285 / 0.26);
+}
+
+/* Botones principales (degradé celeste → violeta): brillo de neón. */
+html.neon-skin :is(button, a)[class*="from-sky-400"][class*="to-violet-500"],
+html.neon-skin :is(button, a)[class*="from-sky-400"][class*="to-fuchsia"] {
+  box-shadow: 0 0 0 1px oklch(0.85 0.12 280 / 0.35), 0 0 26px -6px oklch(0.68 0.26 290 / 0.85);
+}
+html.neon-skin :is(button, a)[class*="from-sky-400"][class*="to-violet-500"]:not(:disabled):hover {
+  filter: brightness(1.1);
+}
+
+/* Barra superior: ítem activo con luz. */
+html.neon-skin a[class*="from-primary/20"] {
+  box-shadow:
+    0 0 0 1px var(--neon-line-hi),
+    0 0 26px -4px oklch(0.7 0.25 290 / 0.8),
+    inset 0 0 16px -8px oklch(0.8 0.2 290 / 0.6);
+}
+
+/* Pestañas activas de Caja (Resumen, Precios, Inventario…) y otras con el mismo patrón. */
+html.neon-skin [class*="ring-violet-200/28"] {
+  box-shadow:
+    0 0 0 1px var(--neon-line-hi),
+    0 0 30px -4px oklch(0.68 0.26 290 / 0.75),
+    inset 0 1px 0 oklch(1 0 0 / 0.14);
+}
+
+/* Títulos de pantalla con un resplandor suave. */
+html.neon-skin h1 {
+  text-shadow: 0 0 32px oklch(0.7 0.25 290 / 0.45);
+}
