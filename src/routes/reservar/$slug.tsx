@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { hiddenPublicBranchIds } from "@/lib/public-branches";
+import { normalizePublicNeon, type PublicNeonKey } from "@/lib/public-neon";
 import * as React from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -353,6 +354,7 @@ function PublicBookingPage() {
   const [sourceAlreadyKnown, setSourceAlreadyKnown] = React.useState(false);
   const [landingColors, setLandingColors] = React.useState<LandingColors>({});
   const [landingTheme, setLandingTheme] = React.useState<LandingTheme>("dark");
+  const [neonKey, setNeonKey] = React.useState<PublicNeonKey>("ambos");
   // Tema real del negocio, resuelto únicamente desde business_settings.schedule._branding.theme.
   // Se usa solo para el fondo del loader inicial y evita un flash de color incorrecto.
   const [resolvedTheme, setResolvedTheme] = React.useState<"light" | "dark" | null>(null);
@@ -938,6 +940,7 @@ function PublicBookingPage() {
           setLandingColors((branding.colors && typeof branding.colors === "object" ? branding.colors : {}) as LandingColors);
           const resolvedLandingTheme: LandingTheme = branding.theme === "light" ? "light" : "dark";
           setLandingTheme(resolvedLandingTheme);
+          setNeonKey(normalizePublicNeon(branding.neon));
           setResolvedTheme(resolvedLandingTheme);
 
           const params = new URLSearchParams(window.location.search);
@@ -1362,6 +1365,7 @@ function PublicBookingPage() {
   return (
     <main
       data-theme={landingTheme}
+      data-neon={neonKey}
       className="public-booking min-h-dvh"
       style={{
         ["--accent" as any]: accent,
@@ -1377,6 +1381,8 @@ function PublicBookingPage() {
       <style>{`
         .public-booking { background: var(--page-bg); color: var(--text); }
         .public-booking .booking-card { background: var(--card-bg) !important; border-color: var(--border) !important; color: var(--text) !important; }
+        .public-booking[data-neon="todo"] :is(.booking-card, .booking-shell) { border-color: var(--c-secondary) !important; box-shadow: 0 0 0 1px var(--c-secondary), 0 0 14px color-mix(in oklch, var(--c-secondary) 75%, transparent), 0 0 34px color-mix(in oklch, var(--c-primary) 45%, transparent), inset 0 0 14px color-mix(in oklch, var(--c-secondary) 22%, transparent) !important; }
+        .public-booking[data-neon="todo"] :is(.booking-card, .booking-shell) :is([class*="border-white"], [class*="rounded-2xl"][class*="border"], [class*="rounded-[1.5rem]"][class*="border"], input, select, textarea) { border-color: color-mix(in oklch, var(--c-primary) 80%, white) !important; box-shadow: 0 0 8px color-mix(in oklch, var(--c-primary) 65%, transparent), inset 0 0 8px color-mix(in oklch, var(--c-primary) 18%, transparent); }
         .public-booking .booking-shell { border-radius: 2rem; box-shadow: 0 24px 80px rgba(0,0,0,.22); }
         .public-booking .slot-button { position: relative; overflow: hidden; }
         .public-booking .slot-button:before { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--accent); opacity: .85; }
