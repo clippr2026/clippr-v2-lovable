@@ -1056,6 +1056,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   async function toggleFeatured(row: PriceRow) {
     if (!businessId) return;
     const next = featuredId === row.id ? null : row.id;
+    const before = featuredId;
+    setFeaturedId(next);
     // Se relee antes de guardar para no pisar colores, anuncio ni el resto del branding.
     const { data } = await supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle();
     const schedule = ((data?.schedule ?? {}) as Record<string, any>) || {};
@@ -1066,23 +1068,31 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         { business_id: businessId, schedule: { ...schedule, _branding: { ...branding, featured_service_id: next, featured_service_desc: next ? (branding.featured_service_desc ?? "") : "" } } },
         { onConflict: "business_id" },
       );
-    if (error) return toast.error("No se pudo marcar el servicio destacado");
-    setFeaturedId(next);
+    if (error) {
+      setFeaturedId(before);
+      return toast.error("No se pudo marcar el servicio destacado");
+    }
     toast.success(next ? `"${row.name}" es ahora el servicio destacado` : "Servicio destacado quitado");
   }
   // Distintivo "Promo" en la página pública: se puede marcar en varios servicios.
   async function togglePromo(row: PriceRow) {
     if (!businessId) return;
+    // Se marca al instante en pantalla; si el guardado falla, se vuelve al estado anterior.
+    const before = promoIds;
+    const on = before.includes(row.id);
+    setPromoIds(on ? before.filter((x) => x !== row.id) : [...before, row.id]);
     const { data } = await supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle();
     const schedule = ((data?.schedule ?? {}) as Record<string, any>) || {};
     const branding = (schedule._branding && typeof schedule._branding === "object" ? schedule._branding : {}) as Record<string, any>;
     const current: string[] = Array.isArray(branding.promo_service_ids) ? branding.promo_service_ids.filter((x: unknown): x is string => typeof x === "string") : [];
-    const on = current.includes(row.id);
-    const next = on ? current.filter((x) => x !== row.id) : [...current, row.id];
+    const next = on ? current.filter((x) => x !== row.id) : current.includes(row.id) ? current : [...current, row.id];
     const { error } = await supabase
       .from("business_settings")
       .upsert({ business_id: businessId, schedule: { ...schedule, _branding: { ...branding, promo_service_ids: next } } }, { onConflict: "business_id" });
-    if (error) return toast.error("No se pudo marcar la promo");
+    if (error) {
+      setPromoIds(before);
+      return toast.error("No se pudo marcar la promo");
+    }
     setPromoIds(next);
     toast.success(on ? "Promo quitada" : `"${row.name}" ahora tiene el distintivo Promo`);
   }
