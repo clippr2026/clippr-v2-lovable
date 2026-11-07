@@ -43,13 +43,17 @@ function PriceChips({
   varies,
   infoOpen,
   onInfo,
+  light,
 }: {
+  light: boolean;
   price: number;
   effective: number | null;
   varies: boolean;
   infoOpen: boolean;
   onInfo: () => void;
 }) {
+  // Versión luminosa del color elegido (más clara en fondo oscuro, más oscura en fondo claro) para que resalte.
+  const hot = `color-mix(in oklch, var(--c-accent) 35%, ${light ? "#000" : "#fff"})`;
   return (
     <>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
@@ -63,15 +67,15 @@ function PriceChips({
           <span
             className="rounded-xl border px-2.5 py-1 text-center leading-tight"
             style={{
-              borderColor: "color-mix(in oklch, var(--c-accent) 70%, transparent)",
-              background: "color-mix(in oklch, var(--c-accent) 14%, transparent)",
-              boxShadow: "0 0 14px -6px var(--c-accent)",
+              borderColor: hot,
+              background: "color-mix(in oklch, var(--c-accent) 32%, transparent)",
+              boxShadow: `0 0 0 1px ${hot}, 0 0 18px -2px var(--c-accent)`,
             }}
           >
-            <span className="block text-[10px] font-medium" style={{ color: "var(--c-accent)" }}>
+            <span className="block text-[10px] font-bold" style={{ color: hot }}>
               Efectivo
             </span>
-            <span className="block text-sm font-bold" style={{ color: "var(--c-accent)" }}>
+            <span className="block text-base font-extrabold" style={{ color: hot }}>
               {money(effective)}
             </span>
           </span>
@@ -181,7 +185,7 @@ export function PublicServicesList({
                   </div>
                 </div>
                 <div className="mt-3">
-                  <PriceChips {...pr} infoOpen={infoFor === featured.id} onInfo={() => setInfoFor((v) => (v === featured.id ? null : featured.id))} />
+                  <PriceChips {...pr} light={light} infoOpen={infoFor === featured.id} onInfo={() => setInfoFor((v) => (v === featured.id ? null : featured.id))} />
                 </div>
                 {reserve(featured.id, "mt-3.5 block w-full py-3 text-sm")}
               </div>
@@ -204,7 +208,7 @@ export function PublicServicesList({
               <p className="line-clamp-2 text-base font-bold uppercase leading-snug sm:text-lg">{service.name}</p>
               <div className="mt-1.5 sm:flex sm:items-end sm:justify-between sm:gap-3">
                 <div className="min-w-0">
-                  <PriceChips {...pr} infoOpen={infoFor === service.id} onInfo={() => setInfoFor((v) => (v === service.id ? null : service.id))} />
+                  <PriceChips {...pr} light={light} infoOpen={infoFor === service.id} onInfo={() => setInfoFor((v) => (v === service.id ? null : service.id))} />
                 </div>
                 {reserve(service.id, "mt-2 block w-full py-1.5 text-xs sm:mt-0 sm:w-auto sm:shrink-0 sm:px-5")}
               </div>
