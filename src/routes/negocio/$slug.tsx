@@ -11,6 +11,8 @@ import {
   type EntryEffectKey,
 } from "@/components/entry-effects";
 import { getPublicFont, publicFontsStylesheet } from "@/lib/public-fonts";
+import { PublicDecor, normalizePublicDecor, type PublicDecorKey } from "@/components/public-decor";
+import { normalizePublicNeon, type PublicNeonKey } from "@/lib/public-neon";
 import { normalizePublicBg, pageBackground, type PublicBgKey } from "@/lib/public-theme";
 import { hiddenPublicBranchIds } from "@/lib/public-branches";
 import * as React from "react";
@@ -123,6 +125,8 @@ type PublicBranding = {
   font?: string | null;
   entry_effect?: string | null;
   bg_style?: string | null;
+  decor?: string | null;
+  neon?: string | null;
   address?: string | null;
   phone?: string | null;
   email?: string | null;
@@ -560,6 +564,8 @@ function PublicProfilePage() {
   // solo: se reproduce únicamente cuando se prueba un efecto.
   const [entryEffect, setEntryEffect] = React.useState<EntryEffectKey>("neon");
   const [bgStyle, setBgStyle] = React.useState<PublicBgKey>("degrade");
+  const [decor, setDecor] = React.useState<PublicDecorKey>("none");
+  const [neonKey, setNeonKey] = React.useState<PublicNeonKey>("ambos");
   // Se detecta después de montar (no al inicializar) para que el HTML del servidor y el del cliente coincidan.
   const [isPreview, setIsPreview] = React.useState(false);
   React.useEffect(() => {
@@ -630,6 +636,8 @@ function PublicProfilePage() {
       if ("font" in dr) setFontKey(typeof dr.font === "string" ? dr.font : null);
       if (typeof dr.effect === "string") setEntryEffect(normalizeEntryEffect(dr.effect));
       if (typeof dr.bg === "string") setBgStyle(normalizePublicBg(dr.bg));
+      if (typeof dr.decor === "string") setDecor(normalizePublicDecor(dr.decor));
+      if (typeof dr.neon === "string") setNeonKey(normalizePublicNeon(dr.neon));
       if (typeof dr.effectNonce === "number" && dr.effectNonce > lastEffectNonce.current) {
         lastEffectNonce.current = dr.effectNonce;
         // Simula la carga (pantalla con el logo) y después corre la animación de entrada.
@@ -677,6 +685,8 @@ function PublicProfilePage() {
         if (b && typeof b === "object") {
           setEntryEffect(normalizeEntryEffect(b.entry_effect));
           setBgStyle(normalizePublicBg(b.bg_style));
+          setDecor(normalizePublicDecor(b.decor));
+          setNeonKey(normalizePublicNeon(b.neon));
         }
       }
     })();
@@ -942,6 +952,8 @@ function PublicProfilePage() {
           setFontKey(typeof branding.font === "string" ? branding.font : null);
           setEntryEffect(normalizeEntryEffect(branding.entry_effect));
           setBgStyle(normalizePublicBg(branding.bg_style));
+          setDecor(normalizePublicDecor(branding.decor));
+          setNeonKey(normalizePublicNeon(branding.neon));
           setTheme(branding.theme === "light" ? "light" : "dark");
         }
       } catch {
@@ -967,6 +979,8 @@ function PublicProfilePage() {
   const pubFont = getPublicFont(fontKey);
   const playFx = !isPreview || effectRun > 0;
   const accentButtonText = colors.buttonText || "#ffffff";
+  const logoNeon = neonKey === "logo" || neonKey === "ambos" || neonKey === "marco";
+  const bannerGlow = neonKey === "banner" || neonKey === "ambos";
 
   // Métrica real de cabecera. Si no hay datos cae a "—": nunca rompe el render.
   const statYearsExperience = (() => {
@@ -1114,6 +1128,7 @@ function PublicProfilePage() {
         />
       ) : null}
       <style>{`
+        .public-landing.pub-font, .public-landing.pub-font :is(button, input, select, textarea) { font-family: var(--pub-font), sans-serif; }
         .public-landing.pub-font :is(h1, h2, h3) { font-family: var(--pub-font), sans-serif; }
         .public-landing.pub-font h1 { line-height: 1.3; padding-bottom: 0.22em; }
         .public-landing.pub-font :is(h2, h3) { line-height: 1.3; }
@@ -1129,25 +1144,33 @@ function PublicProfilePage() {
           className="absolute inset-0"
           style={{
             background:
-              "linear-gradient(90deg, color-mix(in oklch, var(--c-primary) 26%, transparent) 0%, transparent 48%, color-mix(in oklch, var(--c-secondary) 26%, transparent) 100%)",
+              bgStyle === "liso"
+                ? "none"
+                : "linear-gradient(90deg, color-mix(in oklch, var(--c-primary) 26%, transparent) 0%, transparent 48%, color-mix(in oklch, var(--c-secondary) 26%, transparent) 100%)",
           }}
         />
+        <PublicDecor decor={decor} primary={cPrimary} secondary={cSecondary} accent={cAccent} light={isLight} />
         <div className="relative mx-auto max-w-6xl px-4 py-5 sm:py-10">
           <div className="relative" key={`cover-${effectRun}`}>
-            <div
-              className="pointer-events-none absolute -inset-3 -z-10 rounded-[2.5rem] opacity-70 blur-2xl sm:-inset-5"
-              style={{
-                background:
-                  "radial-gradient(60% 90% at 25% 40%, color-mix(in oklch, var(--c-primary) 55%, transparent), transparent 70%), radial-gradient(60% 90% at 78% 55%, color-mix(in oklch, var(--c-secondary) 45%, transparent), transparent 70%)",
-              }}
-            />
+            {bannerGlow ? (
+              <div
+                className="pointer-events-none absolute -inset-3 -z-10 rounded-[2.5rem] opacity-70 blur-2xl sm:-inset-5"
+                style={{
+                  background:
+                    "radial-gradient(60% 90% at 25% 40%, color-mix(in oklch, var(--c-primary) 55%, transparent), transparent 70%), radial-gradient(60% 90% at 78% 55%, color-mix(in oklch, var(--c-secondary) 45%, transparent), transparent 70%)",
+                }}
+              />
+            ) : null}
           <div
             className={`relative ${COVER_ASPECT_CLASS} overflow-hidden rounded-[2rem] border border-white/20`}
             style={{
               ...(entryEffect !== "zoom" ? coverFxStyle(entryEffect, playFx) : {}),
               background: "linear-gradient(90deg, var(--c-primary), var(--c-secondary))",
-              boxShadow:
-                "0 0 0 1px rgb(255 255 255 / 0.06), 0 0 34px color-mix(in oklch, var(--c-primary) 55%, transparent), 0 0 80px color-mix(in oklch, var(--c-secondary) 30%, transparent), 0 18px 50px rgb(0 0 0 / 0.35)",
+              boxShadow: bannerGlow
+                ? "0 0 0 1px rgb(255 255 255 / 0.06), 0 0 34px color-mix(in oklch, var(--c-primary) 55%, transparent), 0 0 80px color-mix(in oklch, var(--c-secondary) 30%, transparent), 0 18px 50px rgb(0 0 0 / 0.35)"
+                : neonKey === "marco"
+                  ? "0 0 0 2px var(--c-secondary), 0 0 12px var(--c-secondary), 0 0 30px color-mix(in oklch, var(--c-primary) 70%, transparent), inset 0 0 14px color-mix(in oklch, var(--c-secondary) 45%, transparent)"
+                  : "0 0 0 1px rgb(255 255 255 / 0.06), 0 14px 40px rgb(0 0 0 / 0.30)",
             }}
           >
             {business.cover_url ? (
@@ -1174,7 +1197,7 @@ function PublicProfilePage() {
                 </div>
               ) : null}
               <div key={`avatar-${effectRun}`} className="fx-anim" style={avatarFxStyle(entryEffect, playFx)}>
-              <NeonFrame colors={neonPalette(cPrimary)} mode={entryEffect === "neon" && playFx ? "intro" : "static"}>
+              <NeonFrame plain={!logoNeon} colors={neonPalette(cPrimary)} mode={entryEffect === "neon" && playFx ? "intro" : "static"}>
                 <div className="grid h-28 w-28 shrink-0 place-items-center text-3xl font-bold text-zinc-950 sm:h-32 sm:w-32">
                   {business.avatar_url || business.logo_url ? (
                     <img loading="lazy" src={business.avatar_url || business.logo_url || ""} alt={business.name} className="h-full w-full object-cover" style={{ objectPosition: avatarPosition }} decoding="async" />

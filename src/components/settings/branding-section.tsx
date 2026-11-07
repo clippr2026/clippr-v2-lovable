@@ -2,7 +2,9 @@ import React, { useState, useEffect, useRef } from "react";
 import { COVER_ASPECT_CLASS } from "@/lib/cover-frame";
 import { PUBLIC_FONTS, publicFontsStylesheet } from "@/lib/public-fonts";
 import { createPortal } from "react-dom";
-import { PUBLIC_BACKGROUNDS, PUBLIC_THEMES, normalizePublicBg, pageBackground, type PublicBgKey } from "@/lib/public-theme";
+import { PUBLIC_NEONS, normalizePublicNeon, type PublicNeonKey } from "@/lib/public-neon";
+import { PUBLIC_DECORS, normalizePublicDecor, type PublicDecorKey } from "@/components/public-decor";
+import { PUBLIC_BACKGROUNDS, normalizePublicBg, pageBackground, type PublicBgKey } from "@/lib/public-theme";
 import { ENTRY_EFFECTS, normalizeEntryEffect, type EntryEffectKey } from "@/components/entry-effects";
 import { PublicPagePreview } from "@/components/settings/public-page-preview";
 import { toast } from "sonner";
@@ -285,7 +287,13 @@ const COLOR_PALETTES: { key: string; label: string; primary: string; secondary: 
   { key: "verde", label: "Verde", primary: "#059669", secondary: "#84cc16", accent: "#34d399", buttonText: "#00110a" },
   { key: "dorado", label: "Dorado", primary: "#b45309", secondary: "#f59e0b", accent: "#d6b66a", buttonText: "#1a1100" },
   { key: "rojo", label: "Rojo", primary: "#dc2626", secondary: "#f97316", accent: "#f87171", buttonText: "#ffffff" },
-  { key: "grafito", label: "Grafito", primary: "#334155", secondary: "#94a3b8", accent: "#e2e8f0", buttonText: "#0b1220" },
+  { key: "naranja", label: "Naranja", primary: "#ea580c", secondary: "#fbbf24", accent: "#fb923c", buttonText: "#1a0c00" },
+  { key: "indigo", label: "Índigo", primary: "#4338ca", secondary: "#818cf8", accent: "#a5b4fc", buttonText: "#ffffff" },
+  { key: "fucsia", label: "Fucsia", primary: "#c026d3", secondary: "#f0abfc", accent: "#e879f9", buttonText: "#ffffff" },
+  { key: "bordo", label: "Bordó", primary: "#9f1239", secondary: "#fb7185", accent: "#fda4af", buttonText: "#ffffff" },
+  { key: "cielo", label: "Cielo", primary: "#0284c7", secondary: "#7dd3fc", accent: "#38bdf8", buttonText: "#00121c" },
+  { key: "negro", label: "Negro", primary: "#18181b", secondary: "#52525b", accent: "#e4e4e7", buttonText: "#09090b" },
+  { key: "blanco", label: "Blanco", primary: "#f4f4f5", secondary: "#d4d4d8", accent: "#ffffff", buttonText: "#09090b" },
 ];
 
 function hexLuma(hex: string): number {
@@ -438,6 +446,8 @@ export function BrandingSection() {
   const [fontKey, setFontKey] = useState<string>("");
   const [entryEffect, setEntryEffect] = useState<EntryEffectKey>("neon");
   const [bgStyle, setBgStyle] = useState<PublicBgKey>("degrade");
+  const [decor, setDecor] = useState<PublicDecorKey>("none");
+  const [neonKey, setNeonKey] = useState<PublicNeonKey>("ambos");
   const [effectNonce, setEffectNonce] = useState(0);
   const [showAdvancedColors, setShowAdvancedColors] = useState(false);
   const [benefits, setBenefits] = useState<Benefit[]>([]);
@@ -528,6 +538,8 @@ export function BrandingSection() {
       setFontKey(typeof cfg.font === "string" ? cfg.font : "");
       setEntryEffect(normalizeEntryEffect(cfg.entry_effect));
       setBgStyle(normalizePublicBg(cfg.bg_style));
+      setDecor(normalizePublicDecor(cfg.decor));
+      setNeonKey(normalizePublicNeon(cfg.neon));
       const rawBenefits = normalizeBenefits(cfg.benefits);
       if (rawBenefits.length > 0) {
         setBenefits(rawBenefits);
@@ -1059,6 +1071,8 @@ export function BrandingSection() {
         font: fontKey || null,
         entry_effect: entryEffect,
         bg_style: bgStyle,
+        decor,
+        neon: neonKey,
         benefits: benefits
           .map((b) => ({ id: b.id, label: b.label.trim(), active: b.active }))
           .filter((b) => b.label.length > 0)
@@ -1122,7 +1136,7 @@ export function BrandingSection() {
   const saveRef = React.useRef(save);
   React.useEffect(() => {
     saveRef.current = save;
-  }, [businessId, data, logoFile, colors, theme, fontKey, entryEffect, bgStyle, benefits]);
+  }, [businessId, data, logoFile, colors, theme, fontKey, entryEffect, bgStyle, decor, neonKey, benefits]);
 
   const brandingHydratedRef = React.useRef(false);
 
@@ -1151,7 +1165,7 @@ export function BrandingSection() {
     }, 650);
 
     return () => window.clearTimeout(timer);
-  }, [data, logoFile, colors, theme, fontKey, entryEffect, bgStyle, benefits, loading, businessId]);
+  }, [data, logoFile, colors, theme, fontKey, entryEffect, bgStyle, decor, neonKey, benefits, loading, businessId]);
 
   useEffect(() => {
     const handler = (e: Event) => {
@@ -1200,9 +1214,11 @@ export function BrandingSection() {
       name: data.name,
       effect: entryEffect,
       bg: bgStyle,
+      decor,
+      neon: neonKey,
       effectNonce,
     }),
-    [colors, theme, fontKey, entryEffect, bgStyle, effectNonce, data.cover_position, data.avatar_position, data.cover_url, data.avatar_url, data.name],
+    [colors, theme, fontKey, entryEffect, bgStyle, decor, neonKey, effectNonce, data.cover_position, data.avatar_position, data.cover_url, data.avatar_url, data.name],
   );
   // Lo que no viaja en vivo (textos, beneficios, portafolio...) se ve al recargar la
   // vista, un poco después de que el autoguardado lo escriba.
@@ -1984,6 +2000,41 @@ export function BrandingSection() {
                             className="w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-1.5 text-sm focus:outline-none focus:ring-primary/40"
                           />
 
+                          {item.category === "Futbolista" ? (
+                          <div className="flex items-center gap-1.5">
+                            <label
+                              className={cn(
+                                "group relative grid h-8 w-8 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-lg border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07]",
+                                uploadingFeaturedClubLogoId === item.id && "cursor-not-allowed opacity-50",
+                              )}
+                              title="Escudo del club"
+                            >
+                              {item.club_logo_url ? (
+                                <img src={item.club_logo_url} alt={item.club_name || "Escudo del club"} className="h-full w-full object-contain" />
+                              ) : (
+                                <ImageIcon className="h-3.5 w-3.5 text-white/45" />
+                              )}
+                              <input
+                                type="file"
+                                accept="image/*"
+                                className="hidden"
+                                disabled={uploadingFeaturedClubLogoId === item.id}
+                                onChange={(e) => {
+                                  const f = e.target.files?.[0] ?? null;
+                                  e.target.value = "";
+                                  handleFeaturedClubLogoSelect(item.id, f);
+                                }}
+                              />
+                            </label>
+                            <input
+                              value={item.club_name}
+                              onChange={(e) => updateFeaturedClient(item.id, { club_name: e.target.value })}
+                              placeholder="Club (ej: Manchester United)"
+                              maxLength={MAX_FEATURED_CLUB_NAME_LENGTH}
+                              className="min-w-0 flex-1 rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-1.5 text-sm focus:outline-none focus:ring-primary/40"
+                            />
+                          </div>
+                          ) : (
                           <select
                             value={item.category}
                             onChange={(e) =>
@@ -1999,6 +2050,7 @@ export function BrandingSection() {
                               </option>
                             ))}
                           </select>
+                          )}
                         </div>
 
                         <div className="flex shrink-0 flex-col items-end gap-1.5">
@@ -2044,54 +2096,6 @@ export function BrandingSection() {
                           </button>
                         </div>
                       </div>
-
-                      {/* Solo para "Futbolista": club + escudo, debajo de la
-                          primera fila. Se muestra en la página pública junto
-                          al nombre del club. */}
-                      {item.category === "Futbolista" ? (
-                        <div className="flex flex-wrap items-center gap-2 rounded-xl bg-white/[0.02] p-2 ring-1 ring-white/5">
-                          <label
-                            className={cn(
-                              "group relative grid h-10 w-10 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-xl border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07]",
-                              uploadingFeaturedClubLogoId === item.id &&
-                                "cursor-not-allowed opacity-50",
-                            )}
-                            title="Escudo del club"
-                          >
-                            {item.club_logo_url ? (
-                              <img
-                                src={item.club_logo_url}
-                                alt={item.club_name || "Escudo del club"}
-                                className="h-full w-full object-contain"
-                              />
-                            ) : (
-                              <ImageIcon className="h-3.5 w-3.5 text-white/45" />
-                            )}
-                            <input
-                              type="file"
-                              accept="image/*"
-                              className="hidden"
-                              disabled={uploadingFeaturedClubLogoId === item.id}
-                              onChange={(e) => {
-                                const f = e.target.files?.[0] ?? null;
-                                e.target.value = "";
-                                handleFeaturedClubLogoSelect(item.id, f);
-                              }}
-                            />
-                          </label>
-                          <input
-                            value={item.club_name}
-                            onChange={(e) =>
-                              updateFeaturedClient(item.id, {
-                                club_name: e.target.value,
-                              })
-                            }
-                            placeholder="Nombre del club (ej: Boca Juniors)"
-                            maxLength={MAX_FEATURED_CLUB_NAME_LENGTH}
-                            className="min-w-0 flex-1 rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
-                          />
-                        </div>
-                      ) : null}
                     </div>
                   );
                 })}
@@ -2145,77 +2149,41 @@ export function BrandingSection() {
       {activeTab === "colores" && (
         <>
           <SectionCard label="Colores">
-            <h3 className="text-sm font-semibold">Temas</h3>
-            <p className="mt-1 text-xs text-white/50">Un toque y cambia todo: colores, fondo, modo y letra.</p>
-            <div className="mt-3 grid grid-cols-2 gap-2">
-              {PUBLIC_THEMES.map((t) => {
-                const active =
-                  normalizeHex(colors.primary, "") === t.colors.primary &&
-                  normalizeHex(colors.secondary, "") === t.colors.secondary &&
-                  theme === t.mode &&
-                  bgStyle === t.bg;
-                return (
+            <div>
+              <h3 className="text-sm font-semibold">Fondo blanco o negro</h3>
+              <div className="mt-3 grid max-w-sm grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-white/5 p-1">
+                {(["dark", "light"] as LandingTheme[]).map((mode) => (
                   <button
-                    key={t.key}
+                    key={mode}
                     type="button"
-                    onClick={() => {
-                      setColors({ ...t.colors });
-                      setTheme(t.mode);
-                      setBgStyle(t.bg);
-                      setFontKey(t.font ?? "");
-                    }}
+                    onClick={() => setTheme(mode)}
                     className={cn(
-                      "overflow-hidden rounded-xl text-left ring-1 transition",
-                      active ? "ring-2 ring-white/70" : "ring-white/10 hover:ring-white/30",
+                      "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition",
+                      theme === mode
+                        ? "bg-white text-slate-950 shadow-sm"
+                        : "bg-transparent text-white/65 hover:bg-white/10 hover:text-white",
                     )}
                   >
-                    <div
-                      className="h-14"
-                      style={{ background: pageBackground(t.bg, t.mode === "light", t.colors.primary, t.colors.secondary) }}
-                    >
-                      <div className="flex h-full items-end gap-1 p-2">
-                        <span className="h-3 w-3 rounded-full" style={{ background: t.colors.primary }} />
-                        <span className="h-3 w-3 rounded-full" style={{ background: t.colors.secondary }} />
-                        <span className="h-3 w-8 rounded-full" style={{ background: t.colors.accent }} />
-                      </div>
-                    </div>
-                    <div className="bg-white/[0.05] px-2.5 py-1.5 text-xs font-semibold">{t.label}</div>
+                    {mode === "dark" ? (
+                    <>
+                      <Moon className="h-3.5 w-3.5" />
+                      Negro
+                    </>
+                  ) : (
+                    <>
+                      <Sun className="h-3.5 w-3.5" />
+                      Blanco
+                    </>
+                  )}
                   </button>
-                );
-              })}
+                ))}
+              </div>
             </div>
+
 
             <div className="mt-6 border-t border-white/10 pt-5">
               <h3 className="text-sm font-semibold">Tus colores</h3>
-              <div className="mt-3 grid grid-cols-2 gap-3">
-                {(
-                  [
-                    { key: "primary", label: "Color 1" },
-                    { key: "secondary", label: "Color 2" },
-                  ] as const
-                ).map(({ key, label }) => (
-                  <label
-                    key={key}
-                    className="relative flex cursor-pointer items-center gap-3 rounded-xl border border-white/10 bg-white/[0.04] p-2.5 hover:bg-white/[0.08]"
-                  >
-                    <span className="h-10 w-10 shrink-0 rounded-lg ring-1 ring-white/20" style={{ background: colors[key] }} />
-                    <span>
-                      <span className="block text-sm font-semibold">{label}</span>
-                      <span className="block font-mono text-[11px] uppercase text-white/50">{colors[key]}</span>
-                    </span>
-                    <input
-                      type="color"
-                      value={normalizeHex(colors[key], LANDING_DEFAULTS[key])}
-                      onChange={(e) => {
-                        const v = e.target.value;
-                        setColors((c) => (key === "primary" ? { ...paletteFromColor(v), secondary: c.secondary } : { ...c, secondary: v }));
-                      }}
-                      className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                    />
-                  </label>
-                ))}
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">
+              <div className="mt-3 grid grid-cols-7 gap-2">
                 {COLOR_PALETTES.map((pal) => {
                   const active =
                     normalizeHex(colors.primary, "") === pal.primary && normalizeHex(colors.secondary, "") === pal.secondary;
@@ -2227,7 +2195,7 @@ export function BrandingSection() {
                       onClick={() =>
                         setColors({ primary: pal.primary, secondary: pal.secondary, accent: pal.accent, buttonText: pal.buttonText })
                       }
-                      className={cn("h-9 w-9 rounded-full ring-1 ring-white/20 transition", active && "ring-2 ring-white")}
+                      className={cn("aspect-square w-full rounded-full ring-1 ring-white/25 transition", active && "ring-2 ring-white")}
                       style={{ background: `linear-gradient(135deg, ${pal.primary}, ${pal.secondary})` }}
                     />
                   );
@@ -2236,9 +2204,50 @@ export function BrandingSection() {
             </div>
 
             <div className="mt-6 border-t border-white/10 pt-5">
-              <h3 className="text-sm font-semibold">Fondo</h3>
-              <p className="mt-1 text-xs text-white/50">Cubre toda la página, de arriba a abajo.</p>
+              <h3 className="text-sm font-semibold">Neón del encabezado</h3>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {PUBLIC_NEONS.map((n) => (
+                  <button
+                    key={n.key}
+                    type="button"
+                    onClick={() => setNeonKey(n.key)}
+                    className={cn(
+                      "rounded-xl border px-2 py-2.5 text-xs font-semibold transition",
+                      neonKey === n.key
+                        ? "border-transparent bg-gradient-to-r from-sky-400/90 to-violet-500/90 text-white"
+                        : "border-white/10 bg-white/[0.04] hover:bg-white/[0.09]",
+                    )}
+                  >
+                    {n.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-6 border-t border-white/10 pt-5">
+              <h3 className="text-sm font-semibold">Dibujos del encabezado</h3>
               <div className="mt-3 grid grid-cols-3 gap-2">
+                {PUBLIC_DECORS.map((d) => (
+                  <button
+                    key={d.key}
+                    type="button"
+                    onClick={() => setDecor(d.key)}
+                    className={cn(
+                      "rounded-xl border px-2 py-2.5 text-xs font-semibold transition",
+                      decor === d.key
+                        ? "border-transparent bg-gradient-to-r from-sky-400/90 to-violet-500/90 text-white"
+                        : "border-white/10 bg-white/[0.04] hover:bg-white/[0.09]",
+                    )}
+                  >
+                    {d.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="mt-6 border-t border-white/10 pt-5">
+              <h3 className="text-sm font-semibold">Fondo</h3>
+              <div className="mt-3 grid grid-cols-4 gap-2">
                 {PUBLIC_BACKGROUNDS.map((b) => (
                   <button
                     key={b.key}
@@ -2261,9 +2270,6 @@ export function BrandingSection() {
 
             <div className="mt-6 border-t border-white/10 pt-5">
               <h3 className="text-sm font-semibold">Tipografía</h3>
-              <p className="mt-1 text-xs text-white/50">
-                Se usa en títulos, el nombre del negocio y los nombres de los profesionales.
-              </p>
               <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
                 <button
                   type="button"
@@ -2274,7 +2280,6 @@ export function BrandingSection() {
                   )}
                 >
                   <div className="text-lg leading-tight">Auro Stylo</div>
-                  <div className="mt-0.5 text-[11px] text-white/50">Predeterminada</div>
                 </button>
                 {PUBLIC_FONTS.map((f) => (
                   <button
@@ -2289,7 +2294,6 @@ export function BrandingSection() {
                     <div className="truncate text-lg leading-tight" style={{ fontFamily: f.family }}>
                       Auro Stylo
                     </div>
-                    <div className="mt-0.5 text-[11px] text-white/50">{f.label}</div>
                   </button>
                 ))}
               </div>
@@ -2362,94 +2366,6 @@ export function BrandingSection() {
               ))}
             </div>
               ) : null}
-            </div>
-
-            <div className="mt-6 border-t border-white/10 pt-5">
-              <h3 className="text-sm font-semibold">
-                Modo de la página pública
-              </h3>
-              <p className="mt-1 text-xs text-white/50">
-                Elegí si el perfil público y la reserva online se ven en modo
-                oscuro o claro.
-              </p>
-              <div className="mt-3 grid max-w-sm grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-white/5 p-1">
-                {(["dark", "light"] as LandingTheme[]).map((mode) => (
-                  <button
-                    key={mode}
-                    type="button"
-                    onClick={() => setTheme(mode)}
-                    className={cn(
-                      "inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition",
-                      theme === mode
-                        ? "bg-white text-slate-950 shadow-sm"
-                        : "bg-transparent text-white/65 hover:bg-white/10 hover:text-white",
-                    )}
-                  >
-                    {mode === "dark" ? (
-                    <>
-                      <Moon className="h-3.5 w-3.5" />
-                      Modo oscuro
-                    </>
-                  ) : (
-                    <>
-                      <Sun className="h-3.5 w-3.5" />
-                      Modo claro
-                    </>
-                  )}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div className="mt-6 rounded-2xl border border-white/10 bg-white/[0.04] p-4 sm:p-6">
-              <p className="text-sm font-medium text-white/70">Vista previa</p>
-              <div
-                className="mt-3 overflow-hidden rounded-2xl border p-6"
-                style={{
-                  borderColor:
-                    theme === "light"
-                      ? "rgba(15,23,42,0.10)"
-                      : "rgba(255,255,255,0.10)",
-                  color: theme === "light" ? "#0f172a" : "#fff",
-                  background: `linear-gradient(90deg, color-mix(in oklch, ${colors.primary} 42%, transparent), color-mix(in oklch, ${colors.secondary} 42%, transparent)), ${theme === "light" ? "#f8fafc" : "#080512"}`,
-                }}
-              >
-                <div
-                  className="relative rounded-3xl border p-4 shadow-xl"
-                  style={{
-                    borderColor:
-                      theme === "light"
-                        ? "rgba(15,23,42,0.10)"
-                        : "rgba(255,255,255,0.10)",
-                    background:
-                      theme === "light"
-                        ? "rgba(255,255,255,0.88)"
-                        : "rgba(255,255,255,0.04)",
-                  }}
-                >
-                  <h3 className="text-base font-semibold">Reservá tu turno</h3>
-                  <button
-                    type="button"
-                    className="mt-3 inline-flex w-full items-center justify-center rounded-2xl px-5 py-3 text-sm font-bold"
-                    style={{
-                      background: colors.accent,
-                      color: colors.buttonText,
-                      boxShadow: `0 12px 32px -10px color-mix(in oklch, ${colors.accent} 70%, transparent)`,
-                    }}
-                  >
-                    Reservar turno
-                  </button>
-                  <div className="mt-3 flex items-center gap-2 text-sm">
-                    <span
-                      className="h-2 w-2 rounded-full"
-                      style={{ background: colors.accent }}
-                    />
-                    <span style={{ color: colors.accent, fontWeight: 600 }}>
-                      Abierto ahora
-                    </span>
-                  </div>
-                </div>
-              </div>
             </div>
           </SectionCard>
         </>

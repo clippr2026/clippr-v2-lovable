@@ -9,12 +9,15 @@ export function NeonFrame({
   mode = "static",
   className,
   innerClassName,
+  plain = false,
   children,
 }: {
   colors: [string, string, string];
   mode?: "static" | "intro" | "loop";
   className?: string;
   innerClassName?: string;
+  // Sin neón: el mismo marco redondeado, sin aro ni luz.
+  plain?: boolean;
   children: React.ReactNode;
 }) {
   const [c1, c2, c3] = colors;
@@ -25,11 +28,15 @@ export function NeonFrame({
   return (
     <div
       className={cn("relative rounded-[1.7rem] p-[3px] sm:rounded-[1.9rem]", className)}
-      style={{
-        background: `linear-gradient(135deg, ${c1}, ${c2} 50%, ${c3})`,
-        boxShadow: `0 0 10px ${c2}, 0 0 26px ${c2}aa, 0 0 56px ${c3}66, 0 0 80px ${c1}40`,
-        animation: glow,
-      }}
+      style={
+        plain
+          ? { background: "rgba(255,255,255,0.18)" }
+          : {
+              background: `linear-gradient(135deg, ${c1}, ${c2} 50%, ${c3})`,
+              boxShadow: `0 0 10px ${c2}, 0 0 26px ${c2}aa, 0 0 56px ${c3}66, 0 0 80px ${c1}40`,
+              animation: glow,
+            }
+      }
     >
       <style>{`
         @keyframes neonSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
@@ -38,7 +45,7 @@ export function NeonFrame({
         @keyframes neonGlowIntro { 0% { filter: brightness(1.6); } 100% { filter: brightness(1); } }
         @media (prefers-reduced-motion: reduce) { .neon-spin { animation: none !important; } }
       `}</style>
-      {mode !== "static" && (
+      {!plain && mode !== "static" && (
         <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-[inherit]">
           <div
             className="neon-spin absolute left-1/2 top-1/2 aspect-square w-[180%] -translate-x-1/2 -translate-y-1/2"

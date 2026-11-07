@@ -13,6 +13,7 @@ export type PreviewDraft = {
   name: string;
   effect: string;
   bg: string;
+  decor: string;
   // Cada vez que sube, la vista previa reproduce el efecto (carga con el logo + animación de entrada).
   effectNonce: number;
 };
