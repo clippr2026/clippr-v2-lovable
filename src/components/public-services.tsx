@@ -62,12 +62,16 @@ function PriceChips({
         {effective != null && effective < price ? (
           <span
             className="rounded-xl border px-2.5 py-1 text-center leading-tight"
-            style={{ borderColor: `${GOLD}99`, boxShadow: `0 0 14px -6px ${GOLD}` }}
+            style={{
+              borderColor: "color-mix(in oklch, var(--c-accent) 70%, transparent)",
+              background: "color-mix(in oklch, var(--c-accent) 14%, transparent)",
+              boxShadow: "0 0 14px -6px var(--c-accent)",
+            }}
           >
-            <span className="block text-[10px] font-medium" style={{ color: GOLD }}>
+            <span className="block text-[10px] font-medium" style={{ color: "var(--c-accent)" }}>
               Efectivo
             </span>
-            <span className="block text-sm font-bold" style={{ color: GOLD }}>
+            <span className="block text-sm font-bold" style={{ color: "var(--c-accent)" }}>
               {money(effective)}
             </span>
           </span>
