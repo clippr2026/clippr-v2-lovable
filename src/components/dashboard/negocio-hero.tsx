@@ -173,14 +173,15 @@ export function NegocioHero({ businessId }: { businessId: string | null }) {
       )}
     </AnnouncementBubble>
   ) : canEdit ? (
-    <button
-      type="button"
-      onClick={openEditor}
-      className="absolute bottom-full left-1/2 mb-2 flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full border border-dashed border-white/40 bg-black/45 px-3 py-1.5 text-[11px] font-semibold text-white shadow-lg backdrop-blur-sm transition hover:bg-black/60"
-      style={{ fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif" }}
-    >
-      <Megaphone className="h-3.5 w-3.5" /> Escribí un anuncio · dura 12 hs
-    </button>
+    <AnnouncementBubble>
+      <button type="button" onClick={openEditor} className="flex cursor-pointer items-center justify-center gap-1.5 text-center" title="Escribir anuncio">
+        <Megaphone className="h-3.5 w-3.5 shrink-0 text-violet-600" />
+        <span>
+          Escribí un anuncio
+          <span className="block text-[10px] font-medium text-zinc-500">se muestra 12 hs</span>
+        </span>
+      </button>
+    </AnnouncementBubble>
   ) : undefined;
 
   return (
