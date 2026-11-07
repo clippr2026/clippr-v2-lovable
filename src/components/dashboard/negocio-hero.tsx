@@ -46,7 +46,7 @@ function yearsSince(raw: string | null | undefined): string {
 
 // Encabezado de Inicio: es el mismo encabezado de la página pública (portada, logo con neón,
 // nombre, estrellas, años, dibujos y colores del negocio). Además es el único lugar donde se
-// escribe el anuncio público: aparece en la página pública arriba del logo y dura 24 horas.
+// escribe el anuncio público: aparece en la página pública arriba del logo y dura 12 horas.
 export function NegocioHero({ businessId }: { businessId: string | null }) {
   const { profile } = useAuth();
   const canEdit = profile?.role !== "profesional";
@@ -105,7 +105,7 @@ export function NegocioHero({ businessId }: { businessId: string | null }) {
     void load();
   }, [load]);
 
-  // Reloj para el tiempo restante y para que el anuncio desaparezca solo a las 24 hs.
+  // Reloj para el tiempo restante y para que el anuncio desaparezca solo a las 12 hs.
   React.useEffect(() => {
     const t = window.setInterval(() => setNow(Date.now()), 30000);
     return () => window.clearInterval(t);
@@ -140,7 +140,7 @@ export function NegocioHero({ businessId }: { businessId: string | null }) {
     if (!value) return toast.error("Escribí el anuncio antes de publicarlo");
     const ok = await persist({ profile_note: value, profile_note_active: true, profile_note_at: new Date().toISOString() });
     if (ok) {
-      toast.success("Anuncio publicado por 24 horas");
+      toast.success("Anuncio publicado por 12 horas");
       setEditing(false);
     }
   }
@@ -179,7 +179,7 @@ export function NegocioHero({ businessId }: { businessId: string | null }) {
       className="absolute bottom-full left-1/2 mb-2 flex -translate-x-1/2 items-center gap-1.5 whitespace-nowrap rounded-full border border-dashed border-white/40 bg-black/45 px-3 py-1.5 text-[11px] font-semibold text-white shadow-lg backdrop-blur-sm transition hover:bg-black/60"
       style={{ fontFamily: "Inter, ui-sans-serif, system-ui, sans-serif" }}
     >
-      <Megaphone className="h-3.5 w-3.5" /> Escribí un anuncio · dura 24 hs
+      <Megaphone className="h-3.5 w-3.5" /> Escribí un anuncio · dura 12 hs
     </button>
   ) : undefined;
 
@@ -231,7 +231,7 @@ export function NegocioHero({ businessId }: { businessId: string | null }) {
               </button>
             </div>
             <p className="text-xs text-white/55">
-              Lo que escribas se muestra en tu página pública, arriba del logo, durante 24 horas. Después se borra solo.
+              Lo que escribas se muestra en tu página pública, arriba del logo, durante 12 horas. Después se borra solo.
             </p>
             <textarea
               autoFocus
@@ -251,7 +251,7 @@ export function NegocioHero({ businessId }: { businessId: string | null }) {
                 onClick={() => void publish()}
                 className="flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 py-2.5 text-sm font-semibold text-white disabled:opacity-60"
               >
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Publicar por 24 hs
+                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Publicar por 12 hs
               </button>
               {text ? (
                 <button

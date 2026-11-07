@@ -1,7 +1,7 @@
-// Anuncio público (globo sobre el logo): se escribe desde Inicio y dura 24 horas.
+// Anuncio público (globo sobre el logo): se escribe desde Inicio y dura 12 horas.
 // Se guarda en business_settings.schedule._branding: profile_note (texto),
 // profile_note_active (publicado) y profile_note_at (cuándo se publicó).
-export const ANNOUNCEMENT_TTL_MS = 24 * 60 * 60 * 1000;
+export const ANNOUNCEMENT_TTL_MS = 12 * 60 * 60 * 1000;
 export const ANNOUNCEMENT_MAX_CHARS = 60;
 
 type BrandingLike = {
