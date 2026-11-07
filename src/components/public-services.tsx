@@ -69,7 +69,6 @@ function PriceChips({
             style={{
               borderColor: hot,
               background: "color-mix(in oklch, var(--c-accent) 32%, transparent)",
-              boxShadow: `0 0 10px -1px var(--c-accent), inset 0 0 8px -4px var(--c-accent)`,
             }}
           >
             <span className="block text-[10px] font-bold" style={{ color: hot }}>
