@@ -52,8 +52,8 @@ function PriceChips({
   infoOpen: boolean;
   onInfo: () => void;
 }) {
-  // Versión luminosa del color elegido (más clara en fondo oscuro, más oscura en fondo claro) para que resalte.
-  const hot = `color-mix(in oklch, var(--c-accent) 35%, ${light ? "#000" : "#fff"})`;
+  // Tono del color elegido apenas más vivo que el acento, sin llegar a blanquearse.
+  const hot = `color-mix(in oklch, var(--c-accent) 82%, ${light ? "#000" : "#fff"})`;
   return (
     <>
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1.5">
@@ -69,7 +69,7 @@ function PriceChips({
             style={{
               borderColor: hot,
               background: "color-mix(in oklch, var(--c-accent) 32%, transparent)",
-              boxShadow: `0 0 0 1px ${hot}, 0 0 18px -2px var(--c-accent)`,
+              boxShadow: `0 0 10px -1px var(--c-accent), inset 0 0 8px -4px var(--c-accent)`,
             }}
           >
             <span className="block text-[10px] font-bold" style={{ color: hot }}>
