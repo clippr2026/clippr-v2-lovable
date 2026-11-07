@@ -35,7 +35,6 @@ import {
   X,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { ClipprLoader } from "@/components/ui/clippr-loader";
 import { ServiceImage } from "@/components/ui/service-image";
 import { applyCatalogOrder, extractCatalogOrderMap } from "@/lib/catalog-order";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
@@ -1029,8 +1028,9 @@ function PublicProfilePage() {
         />
       );
     }
+    // Sin logo del local todavía (o sin logo cargado): pantalla lisa, nunca el logo de Clippr.
     if (resolvedTheme === null) return null;
-    return <ClipprLoader fullScreen size="lg" background={resolvedTheme} />;
+    return <main className="min-h-dvh" style={{ background: resolvedTheme === "light" ? "#ffffff" : "#08070c" }} />;
   }
 
   if (!business) {

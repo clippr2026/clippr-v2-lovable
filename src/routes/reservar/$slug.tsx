@@ -1,6 +1,8 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { hiddenPublicBranchIds } from "@/lib/public-branches";
 import { normalizePublicNeon, type PublicNeonKey } from "@/lib/public-neon";
+import { EntrySplash, normalizeEntryEffect, type EntryEffectKey } from "@/components/entry-effects";
+import { neonPalette } from "@/components/neon-frame";
 import * as React from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -51,7 +53,6 @@ import {
   buildSlots,
 } from "@/lib/availability";
 import clipprMark from "@/assets/clippr-mark.png";
-import { ClipprLoader } from "@/components/ui/clippr-loader";
 import { ServiceImage } from "@/components/ui/service-image";
 import {
   resolveServicePricing,
@@ -283,6 +284,9 @@ function extractClientFields(schedule: unknown): ClientFields {
 function PublicBookingPage() {
   const { slug } = Route.useParams();
   const [loading, setLoading] = React.useState(true);
+  const hasLoadedOnce = React.useRef(false);
+  const [splashLogo, setSplashLogo] = React.useState<string | null>(null);
+  const [splashEffect, setSplashEffect] = React.useState<EntryEffectKey>("neon");
   const [submitting, setSubmitting] = React.useState(false);
   const [business, setBusiness] = React.useState<Business | null>(null);
   const businessTimeZone = business?.timezone || DEFAULT_TIMEZONE;
@@ -620,10 +624,32 @@ function PublicBookingPage() {
     if (selectedDayIndex > 0 && selectedDayIndex >= availableDays.length) setSelectedDayIndex(0);
   }, [availableDays.length, selectedDayIndex]);
 
+  // Logo del local y efecto elegido para la pantalla de carga (se piden aparte y antes que el resto).
+  React.useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const q = supabase.from("public_booking_businesses").select("id,avatar_url,logo_url");
+      const { data } = await (isUuid(slug) ? q.eq("id", slug) : q.eq("slug", slug)).maybeSingle();
+      if (cancelled) return;
+      const row = data as { id?: string; avatar_url?: string | null; logo_url?: string | null } | null;
+      setSplashLogo(row?.avatar_url || row?.logo_url || null);
+      if (row?.id) {
+        const { data: st } = await supabase.from("public_booking_settings").select("schedule").eq("business_id", row.id).maybeSingle();
+        if (cancelled) return;
+        const b = (st as any)?.schedule?._branding;
+        if (b && typeof b === "object") setSplashEffect(normalizeEntryEffect(b.entry_effect));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [slug]);
+
   React.useEffect(() => {
     let cancelled = false;
     async function load() {
-      setLoading(true);
+      // La pantalla de carga va solo la primera vez: al elegirse la sucursal el contenido sigue a la vista.
+      if (!hasLoadedOnce.current) setLoading(true);
       try {
         const fetchBusiness = () => {
           const businessQuery = supabase
@@ -972,7 +998,10 @@ function PublicBookingPage() {
       } catch (error) {
         toast.error((error as Error).message);
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) {
+          hasLoadedOnce.current = true;
+          setLoading(false);
+        }
       }
     }
     load();
@@ -1332,7 +1361,11 @@ function PublicBookingPage() {
 
   if (loading) {
     if (resolvedTheme === null) return null;
-    return <ClipprLoader fullScreen size="lg" background={resolvedTheme} />;
+    // Mientras carga se muestra el logo del local con el efecto elegido (nunca el de Clippr).
+    if (splashLogo && splashEffect !== "none") {
+      return <EntrySplash logo={splashLogo} effect={splashEffect} colors={neonPalette(null)} light={resolvedTheme === "light"} />;
+    }
+    return <main className="min-h-dvh" style={{ background: resolvedTheme === "light" ? "#ffffff" : "#08070c" }} />;
   }
 
   if (!business) {
