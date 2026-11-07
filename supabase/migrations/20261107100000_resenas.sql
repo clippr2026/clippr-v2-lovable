@@ -78,10 +78,17 @@ create trigger trg_reviews_limit_manual
 
 alter table public.reviews enable row level security;
 
--- Dueño/encargados del negocio (todos menos 'profesional') gestionan las reseñas.
+-- Dueño/encargados del negocio (todos menos 'profesional') gestionan y leen las reseñas.
+-- Permiso base para los usuarios logueados (las políticas de abajo limitan el acceso).
+grant select, insert, update, delete on public.reviews to authenticated;
+
+-- Lectura solo para dueño/encargados: la tabla guarda las últimas 8 cifras del WhatsApp.
 create policy reviews_select on public.reviews
   for select using (
-    business_id in (select p.business_id from public.profiles p where p.id = auth.uid())
+    business_id in (
+      select p.business_id from public.profiles p
+       where p.id = auth.uid() and p.role is distinct from 'profesional'
+    )
   );
 create policy reviews_insert on public.reviews
   for insert with check (
