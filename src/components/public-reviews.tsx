@@ -311,3 +311,43 @@ export function PublicReviews({
     </div>
   );
 }
+
+// Tira corta de reseñas destacadas, justo debajo del encabezado: prueba social antes de reservar.
+// Muestra las 3 más nuevas de 4 y 5 estrellas (con comentario cuando hay).
+export function ReviewsStrip({ reviews, accent }: { reviews: PublicReview[]; accent: string }) {
+  const picks = React.useMemo(() => {
+    const good = reviews.filter((r) => r.rating >= 4);
+    const withText = good.filter((r) => r.comment && r.comment.trim());
+    const rest = good.filter((r) => !(r.comment && r.comment.trim()));
+    return [...withText, ...rest].slice(0, 3);
+  }, [reviews]);
+  if (picks.length === 0) return null;
+  return (
+    <section className="mx-auto max-w-6xl px-4 pt-5">
+      <div className="mb-2.5 flex items-center justify-between gap-3">
+        <h2 className="text-base font-semibold sm:text-lg">Lo que dicen nuestros clientes</h2>
+        <a href="#opiniones" className="text-xs font-semibold underline underline-offset-4" style={{ color: accent }}>
+          Ver todas
+        </a>
+      </div>
+      <div className="-mx-4 flex snap-x snap-mandatory gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {picks.map((r) => (
+          <div
+            key={r.id}
+            className="w-[78%] shrink-0 snap-start rounded-3xl border border-white/10 bg-white/[0.04] p-4 sm:w-auto sm:min-w-0"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <StarRow value={r.rating} size={15} />
+              <span className="text-[11px] text-white/50">{formatReviewDate(r.review_date)}</span>
+            </div>
+            {r.comment ? <p className="mt-2 line-clamp-3 break-words text-sm text-white/85">"{r.comment}"</p> : null}
+            <div className="mt-2.5 flex flex-wrap items-center gap-2 text-sm">
+              <span className="font-semibold">{r.client_name}</span>
+              {r.professional_name ? <span className="text-xs text-white/55">· para {r.professional_name}</span> : null}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}

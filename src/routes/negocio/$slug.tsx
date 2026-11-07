@@ -12,7 +12,7 @@ import {
 } from "@/components/entry-effects";
 import { getPublicFont, publicFontsStylesheet } from "@/lib/public-fonts";
 import { PublicDecor, normalizePublicDecor, type PublicDecorKey } from "@/components/public-decor";
-import { PublicReviews, type PublicReview } from "@/components/public-reviews";
+import { PublicReviews, ReviewsStrip, type PublicReview } from "@/components/public-reviews";
 import { AnnouncementBubble, PublicHero } from "@/components/public-hero";
 import { activeAnnouncement } from "@/lib/announcement";
 import { normalizePublicNeon, type PublicNeonKey } from "@/lib/public-neon";
@@ -1221,6 +1221,8 @@ function PublicProfilePage() {
         )}
       </PublicHero>
 
+      <ReviewsStrip reviews={reviews} accent={accent} />
+
       <section className="mx-auto grid max-w-6xl gap-6 px-4 py-5 lg:grid-cols-[1fr_360px] lg:items-start">
         {/* min-w-0: sin esto, este ítem del grid usa su ancho mínimo de
             contenido como piso, lo que puede empujar la página a desbordar
@@ -1532,7 +1534,7 @@ function PublicProfilePage() {
       ) : null}
 
       {business ? (
-        <section className="mx-auto max-w-6xl px-4 pb-6">
+        <section id="opiniones" className="mx-auto max-w-6xl scroll-mt-4 px-4 pb-6">
           <GlowCard className="overflow-hidden">
             <PublicReviews
               businessId={business.id}
