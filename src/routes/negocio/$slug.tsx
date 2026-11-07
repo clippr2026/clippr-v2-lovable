@@ -13,6 +13,8 @@ import {
 import { getPublicFont, publicFontsStylesheet } from "@/lib/public-fonts";
 import { PublicDecor, normalizePublicDecor, type PublicDecorKey } from "@/components/public-decor";
 import { ReviewsStrip, type PublicReview } from "@/components/public-reviews";
+import { PublicServicesList } from "@/components/public-services";
+import type { EmployeeServiceOverrideMap } from "@/lib/service-pricing";
 import { AnnouncementBubble, PublicHero } from "@/components/public-hero";
 import { activeAnnouncement } from "@/lib/announcement";
 import { normalizePublicNeon, type PublicNeonKey } from "@/lib/public-neon";
@@ -129,6 +131,8 @@ type PublicBranding = {
   bg_style?: string | null;
   decor?: string | null;
   neon?: string | null;
+  featured_service_id?: string | null;
+  featured_service_desc?: string | null;
   address?: string | null;
   phone?: string | null;
   email?: string | null;
@@ -558,6 +562,8 @@ function PublicProfilePage() {
   const [bgStyle, setBgStyle] = React.useState<PublicBgKey>("degrade");
   const [decor, setDecor] = React.useState<PublicDecorKey>("none");
   const [neonKey, setNeonKey] = React.useState<PublicNeonKey>("ambos");
+  const [featuredService, setFeaturedService] = React.useState<{ id: string | null; description: string }>({ id: null, description: "" });
+  const [employeeOverrides, setEmployeeOverrides] = React.useState<EmployeeServiceOverrideMap>({});
   // Se detecta después de montar (no al inicializar) para que el HTML del servidor y el del cliente coincidan.
   const [isPreview, setIsPreview] = React.useState(false);
   React.useEffect(() => {
@@ -970,6 +976,18 @@ function PublicProfilePage() {
           // queda guardado como borrador pero no debe mostrarse acá, aunque
           // profile_note tenga contenido cargado.
           setProfileNote(activeAnnouncement(branding));
+          setFeaturedService({
+            id: typeof branding.featured_service_id === "string" && branding.featured_service_id ? branding.featured_service_id : null,
+            description: typeof branding.featured_service_desc === "string" ? branding.featured_service_desc.slice(0, 140) : "",
+          });
+          setEmployeeOverrides(
+            settingsSchedule &&
+              typeof settingsSchedule === "object" &&
+              typeof (settingsSchedule as Record<string, unknown>)._employeeServiceOverrides === "object" &&
+              (settingsSchedule as Record<string, unknown>)._employeeServiceOverrides
+              ? ((settingsSchedule as Record<string, unknown>)._employeeServiceOverrides as EmployeeServiceOverrideMap)
+              : {},
+          );
           setAdditionalInfo(normalizeAdditionalInfo(branding.additional_info));
           setColors((branding.colors && typeof branding.colors === "object" ? branding.colors : {}) as LandingColors);
           setFontKey(typeof branding.font === "string" ? branding.font : null);
@@ -1238,62 +1256,17 @@ function PublicProfilePage() {
               {services.length === 0 ? (
                 <p className="mt-4 text-sm text-white/55">Todavía no hay servicios habilitados para reserva online.</p>
               ) : (
-                // Cada servicio es su propia tarjeta (borde + fondo propio)
-                // simplificada a lo esencial: imagen a la izquierda y, a la
-                // derecha, nombre arriba + botón "Reservar" abajo (en vez de
-                // los tres en una sola fila) — así el botón no le compite
-                // ancho al nombre y textos largos ("Corte en cabello
-                // corto/largo") entran en hasta 2 líneas sin cortarse. Sin
-                // precio ni duración (esos datos siguen intactos en el
-                // sistema, se resuelven recién al elegir profesional en el
-                // flujo de reserva).
-                <div className="mt-5 grid gap-3 sm:gap-4">
-                  {services.map((service: Service) => (
-                    <div
-                      key={service.id}
-                      className={
-                        (isLight
-                          ? "border-zinc-200/80 bg-zinc-50/60 shadow-[0_16px_40px_-24px_rgba(24,24,27,0.35)] hover:bg-zinc-50"
-                          : "border-white/[0.08] bg-white/[0.03] shadow-[0_16px_40px_-20px_rgba(0,0,0,0.6)] hover:bg-white/[0.05]") +
-                        // min-w-0: es un ítem de un grid — sin esto, el
-                        // line-clamp del nombre reporta su ancho sin
-                        // envolver como mínimo y desborda la página.
-                        " flex min-w-0 items-center gap-4 rounded-2xl border p-3 transition sm:p-4"
-                      }
-                    >
-                      <ServiceImage
-                        src={service.image_url}
-                        alt={service.name}
-                        position={service.image_position}
-                        className={(isLight ? "ring-zinc-200" : "ring-white/10") + " h-14 w-14 shrink-0 rounded-xl ring-1 sm:h-16 sm:w-16"}
-                        fallback={
-                          // Placeholder con un degradado muy suave del
-                          // color del negocio en vez del ícono suelto de
-                          // antes — se siente a marca, no a "falta imagen".
-                          <div
-                            className="grid h-full w-full place-items-center"
-                            style={{
-                              background:
-                                "linear-gradient(135deg, color-mix(in oklch, var(--c-accent) 20%, transparent), color-mix(in oklch, var(--c-primary) 12%, transparent))",
-                            }}
-                          >
-                            <Sparkles className="h-6 w-6" style={{ color: cAccent }} />
-                          </div>
-                        }
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="line-clamp-2 text-base font-semibold leading-snug sm:text-lg">{service.name}</p>
-                        <a
-                          href={bookingHref({ service: service.id })}
-                          className="mt-1.5 block w-full rounded-full py-1.5 text-center text-xs font-bold transition hover:-translate-y-0.5 hover:brightness-110"
-                          style={{ background: cAccent, color: accentButtonText, WebkitTextFillColor: accentButtonText, boxShadow: "0 14px 30px -12px color-mix(in oklch, var(--c-accent) 75%, transparent)" }}
-                        >
-                          Reservar
-                        </a>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                <PublicServicesList
+                  services={services}
+                  featuredId={featuredService.id}
+                  featuredDescription={featuredService.description}
+                  employeeIds={employees.map((e) => e.id)}
+                  overrides={employeeOverrides}
+                  accent={cAccent}
+                  buttonText={accentButtonText}
+                  light={isLight}
+                  bookingHref={bookingHref}
+                />
               )}
             </div>
           </GlowCard>
