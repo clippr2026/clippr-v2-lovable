@@ -4,7 +4,7 @@ import { Check, EyeOff, Eye, Loader2, Pencil, Plus, Star, Trash2, X } from "luci
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
-import { SectionCard, ConfirmDialog, Field, inputCls } from "@/components/settings/shared";
+import { ConfirmDialog, Field, inputCls } from "@/components/settings/shared";
 
 type ReviewStatus = "pending" | "published" | "hidden";
 type ReviewRow = {
@@ -178,41 +178,67 @@ export function ResenasSection() {
 
   return (
     <div className="space-y-6">
-      <SectionCard
-        label="Reseñas"
-        headerRight={
-          <button
-            type="button"
-            disabled={manualCount >= MAX_MANUAL}
-            onClick={() => setDraft(emptyDraft())}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 px-3 py-2 text-xs font-semibold text-white disabled:opacity-40"
-          >
-            <Plus className="h-3.5 w-3.5" /> Cargar reseña
-          </button>
-        }
+      <div
+        className="relative rounded-3xl p-[1.5px] shadow-[0_0_44px_-12px_rgba(139,92,246,0.75)]"
+        style={{ background: "linear-gradient(120deg, rgba(56,189,248,0.85), rgba(139,92,246,0.85) 50%, rgba(217,70,239,0.85))" }}
       >
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-          <div className="flex items-center gap-2">
-            <span className="text-3xl font-bold">{avg ? avg.toFixed(1).replace(".", ",") : "—"}</span>
-            <Stars value={Math.round(avg ?? 0)} size={16} />
+        <div
+          className="relative overflow-hidden rounded-[1.4rem] p-5 sm:p-6"
+          style={{
+            background:
+              "radial-gradient(90% 120% at 0% 0%, rgba(56,189,248,0.16), transparent 55%), radial-gradient(90% 120% at 100% 100%, rgba(217,70,239,0.18), transparent 55%), #0b0914",
+          }}
+        >
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.22em] text-white/50">Reseñas</div>
+              <div className="mt-2 flex items-center gap-3">
+                <span
+                  className="bg-gradient-to-r from-sky-300 via-violet-300 to-fuchsia-300 bg-clip-text text-5xl font-extrabold leading-none text-transparent"
+                  style={{ filter: "drop-shadow(0 0 14px rgba(167,139,250,0.55))" }}
+                >
+                  {avg ? avg.toFixed(1).replace(".", ",") : "—"}
+                </span>
+                <div style={{ filter: "drop-shadow(0 0 8px rgba(251,191,36,0.55))" }}>
+                  <Stars value={Math.round(avg ?? 0)} size={20} />
+                </div>
+              </div>
+            </div>
+            <button
+              type="button"
+              disabled={manualCount >= MAX_MANUAL}
+              onClick={() => setDraft(emptyDraft())}
+              className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-sky-400 to-violet-500 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_0_26px_-4px_rgba(139,92,246,0.9)] transition hover:brightness-110 disabled:opacity-40"
+            >
+              <Plus className="h-4 w-4" /> Cargar reseña
+            </button>
           </div>
-          <div className="text-xs text-white/55">
-            {published.length} publicadas · {counts.pending} pendientes · cargadas por vos {manualCount}/{MAX_MANUAL}
+          <div className="mt-4 flex flex-wrap gap-2">
+            {[
+              { label: `${published.length} publicadas`, dot: "bg-emerald-400" },
+              { label: `${counts.pending} pendientes`, dot: "bg-amber-400" },
+              { label: `Cargadas por vos ${manualCount}/${MAX_MANUAL}`, dot: "bg-sky-400" },
+            ].map((c) => (
+              <span key={c.label} className="inline-flex items-center gap-2 rounded-full bg-white/[0.06] px-3 py-1 text-xs text-white/80 ring-1 ring-white/10">
+                <span className={cn("h-1.5 w-1.5 rounded-full shadow-[0_0_8px_currentColor]", c.dot)} />
+                {c.label}
+              </span>
+            ))}
           </div>
+          <p className="mt-4 text-xs text-white/50">
+            Las reseñas que dejan los clientes desde tu página quedan pendientes hasta que las apruebes. Cada cliente puede dejar una reseña por
+            barbero con el que se atendió.
+          </p>
+          <p className="mt-2 text-xs text-white/70">
+            <b className="font-semibold text-white">
+              Como beneficio de bienvenida, podés cargar manualmente hasta 50 reseñas que ya recibiste en Google.
+            </b>{" "}
+            Estas se publican directamente al guardarlas.
+          </p>
         </div>
-        <p className="mt-3 text-xs text-white/50">
-          Las reseñas que dejan los clientes desde tu página quedan pendientes hasta que las apruebes. Cada cliente puede dejar una reseña por
-          barbero con el que se atendió.
-        </p>
-        <p className="mt-2 text-xs text-white/70">
-          <b className="font-semibold text-white">
-            Como beneficio de bienvenida, podés cargar manualmente hasta 50 reseñas que ya recibiste en Google.
-          </b>{" "}
-          Estas se publican directamente al guardarlas.
-        </p>
-      </SectionCard>
+      </div>
 
-      <div className="grid grid-cols-3 gap-1 rounded-2xl border border-white/10 bg-white/[0.035] p-1.5">
+      <div className="grid grid-cols-3 gap-1 rounded-2xl border border-violet-400/20 bg-white/[0.04] p-1.5 shadow-[0_0_30px_-14px_rgba(139,92,246,0.7)]">
         {TABS.map((t) => (
           <button
             key={t.key}
@@ -221,7 +247,7 @@ export function ResenasSection() {
             className={cn(
               "rounded-xl px-2 py-2 text-xs font-semibold transition sm:text-sm",
               tab === t.key
-                ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white"
+                ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white shadow-[0_0_22px_-4px_rgba(139,92,246,0.9)]"
                 : "text-muted-foreground hover:bg-white/[0.08] hover:text-foreground",
             )}
           >
@@ -231,13 +257,29 @@ export function ResenasSection() {
       </div>
 
       {visible.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-white/10 p-8 text-center text-sm text-white/50">
-          {tab === "pending" ? "No hay reseñas pendientes." : tab === "published" ? "Todavía no hay reseñas publicadas." : "No hay reseñas ocultas."}
+        <div className="rounded-3xl border border-dashed border-violet-400/25 bg-white/[0.02] p-10 text-center">
+          <div className="mx-auto grid h-14 w-14 place-items-center rounded-full bg-gradient-to-br from-sky-400/25 to-fuchsia-500/25 text-amber-300 ring-1 ring-violet-300/30 shadow-[0_0_30px_-4px_rgba(167,139,250,0.7)]">
+            <Star className="h-6 w-6 fill-current" />
+          </div>
+          <p className="mt-4 text-sm font-medium text-white/80">
+            {tab === "pending" ? "No hay reseñas pendientes." : tab === "published" ? "Todavía no hay reseñas publicadas." : "No hay reseñas ocultas."}
+          </p>
+          {tab === "published" ? (
+            <p className="mt-1 text-xs text-white/50">Cargá las que ya recibiste en Google y se publican al instante.</p>
+          ) : null}
         </div>
       ) : (
         <div className="space-y-3">
           {visible.map((r) => (
-            <div key={r.id} className="glass rounded-2xl p-4 ring-1 ring-white/5">
+            <div
+              key={r.id}
+              className={cn(
+                "glass rounded-2xl border-l-[3px] p-4 ring-1 ring-white/5 transition hover:ring-violet-300/25",
+                r.status === "pending" && "border-l-amber-400 shadow-[0_0_28px_-14px_rgba(251,191,36,0.7)]",
+                r.status === "published" && "border-l-emerald-400 shadow-[0_0_28px_-14px_rgba(52,211,153,0.7)]",
+                r.status === "hidden" && "border-l-white/25",
+              )}
+            >
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
@@ -263,7 +305,7 @@ export function ResenasSection() {
                   <button
                     type="button"
                     onClick={() => setStatus(r, "published")}
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/90 px-3 py-1.5 text-xs font-semibold text-white"
+                    className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/90 px-3 py-1.5 text-xs font-semibold text-white shadow-[0_0_18px_-4px_rgba(16,185,129,0.9)]"
                   >
                     {r.status === "pending" ? <Check className="h-3.5 w-3.5" /> : <Eye className="h-3.5 w-3.5" />}
                     {r.status === "pending" ? "Aprobar" : "Publicar"}

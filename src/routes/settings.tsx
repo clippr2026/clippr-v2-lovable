@@ -350,19 +350,32 @@ function SettingsPage() {
                             key={it.id}
                             onClick={() => requestSectionChange(it.id)}
                             className={cn(
-                              "w-full flex items-center gap-3 rounded-xl px-2.5 py-2 text-sm transition-all group",
+                              "relative w-full flex items-center gap-3 rounded-xl px-2.5 py-2 text-sm transition-all group",
                               isActive
-                                ? "lg:bg-white/[0.06] lg:ring-1 lg:ring-white/10 text-foreground"
-                                : "text-muted-foreground hover:text-foreground hover:bg-white/[0.04]",
+                                ? "lg:bg-white/[0.07] lg:ring-1 lg:ring-white/15 text-foreground"
+                                : "text-muted-foreground hover:text-foreground hover:bg-white/[0.05]",
                             )}
                           >
+                            {/* Neón del ítem activo (desktop): halo del color de la sección + barra lateral. */}
+                            {isActive ? (
+                              <>
+                                <span
+                                  aria-hidden
+                                  className={cn("pointer-events-none absolute inset-0 hidden rounded-xl bg-gradient-to-r opacity-60 blur-md lg:block", it.glow)}
+                                />
+                                <span
+                                  aria-hidden
+                                  className={cn("pointer-events-none absolute -left-1 bottom-2 top-2 hidden w-[3px] rounded-full bg-current shadow-[0_0_12px_currentColor] lg:block", it.tint)}
+                                />
+                              </>
+                            ) : null}
                             <span
                               className={cn(
                                 "h-8 w-8 rounded-lg grid place-items-center bg-gradient-to-br ring-1 transition-all shrink-0",
                                 it.glow,
                                 isActive
-                                  ? "ring-white/15 shadow-[0_0_18px_-6px_currentColor]"
-                                  : "ring-white/5 group-hover:ring-white/15",
+                                  ? "relative ring-current/40 shadow-[0_0_22px_-2px_currentColor]"
+                                  : "relative ring-white/10 shadow-[0_0_12px_-6px_currentColor] group-hover:ring-white/20 group-hover:shadow-[0_0_16px_-4px_currentColor]",
                                 it.tint,
                               )}
                             >
@@ -371,7 +384,7 @@ function SettingsPage() {
                                 strokeWidth={2}
                               />
                             </span>
-                            <span className="flex-1 text-left">
+                            <span className={cn("relative flex-1 text-left", isActive && "font-semibold")}>
                               {it.label}
                             </span>
                             {/* Flecha ">" — solo mobile, patrón de lista tipo
