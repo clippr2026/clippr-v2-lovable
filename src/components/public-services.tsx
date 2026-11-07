@@ -127,8 +127,15 @@ export function PublicServicesList({
   const promoBadge = (id: string) =>
     promoIds.includes(id) ? (
       <span
-        className="mb-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider"
-        style={{ background: accent, color: buttonText, WebkitTextFillColor: buttonText }}
+        className="mb-1 inline-flex items-center gap-1 rounded-full border-2 px-2 py-0.5 text-[10px] font-extrabold uppercase tracking-wider"
+        style={{
+          // Mismo neón que el borde de las tarjetas (color secundario del negocio).
+          borderColor: "var(--c-secondary)",
+          color: "var(--c-secondary)",
+          WebkitTextFillColor: "var(--c-secondary)",
+          background: "color-mix(in oklch, var(--c-secondary) 16%, transparent)",
+          boxShadow: "0 0 8px color-mix(in oklch, var(--c-secondary) 75%, transparent), inset 0 0 6px -2px var(--c-secondary)",
+        }}
       >
         <Tag className="h-3 w-3" /> Promo
       </span>
