@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import { COVER_ASPECT_CLASS } from "@/lib/cover-frame";
 import { PUBLIC_FONTS, publicFontsStylesheet } from "@/lib/public-fonts";
 import { createPortal } from "react-dom";
@@ -25,7 +25,6 @@ import {
   Instagram,
   ChevronUp,
   ChevronDown,
-  Sparkles,
   User as UserIcon,
   Moon,
   Sun,
@@ -204,8 +203,6 @@ type BrandingData = {
   instagram: string;
   website: string;
   description: string;
-  profile_note: string;
-  profile_note_active: boolean;
   logo_url: string;
   avatar_url: string;
   cover_url: string;
@@ -229,8 +226,6 @@ const EMPTY_BRANDING: BrandingData = {
   instagram: "",
   website: "",
   description: "",
-  profile_note: "",
-  profile_note_active: false,
   logo_url: "",
   avatar_url: "",
   cover_url: "",
@@ -391,36 +386,6 @@ function denormalizeStoredPhoneForInput(phone: string): string {
 export function BrandingSection() {
   const { businessId } = useAuth();
   const [data, setData] = useState<BrandingData>(EMPTY_BRANDING);
-  // El globo tiene dos estados que nunca se superponen: vista previa (un
-  // <button> real con el texto, siempre pintado normalmente porque no es
-  // un control de formulario) y edición (un <textarea> real que recién se
-  // monta cuando el usuario toca). El bug de WebKit en iOS (confirmado con
-  // diagnóstico real en producción: DOM y computed styles perfectos, pero
-  // sin pintar) aparecía porque el <textarea> ya estaba montado en pantalla
-  // cuando su value cambiaba por código (fetch de datos). Acá el <textarea>
-  // nunca existe hasta el toque del usuario — un elemento recién creado
-  // dentro del mismo gesto de foco no tiene raster viejo que quedar sin
-  // actualizar.
-  const [editingAnnouncement, setEditingAnnouncement] = useState(false);
-  const announcementRef = useRef<HTMLTextAreaElement>(null);
-  useEffect(() => {
-    if (!editingAnnouncement) return;
-    requestAnimationFrame(() => {
-      const el = announcementRef.current;
-      if (!el) return;
-      el.focus();
-      const length = el.value.length;
-      el.setSelectionRange(length, length);
-    });
-  }, [editingAnnouncement]);
-  // Si no hay anuncio guardado, el globo arranca con un mensaje de ejemplo
-  // como VALOR real (no un placeholder — el usuario pidió explícitamente
-  // que no sea un placeholder, porque quiere ver contenido real desde que
-  // entra). "Sin tocar" se refiere a que todavía no lo editó ni lo activó:
-  // en ese estado, al guardar se persiste "" en vez del texto de ejemplo,
-  // para no publicar una promo que nadie eligió solo por haber abierto la
-  // pantalla. Se marca "tocado" apenas escribe o apenas activa el switch.
-  const [profileNoteTouched, setProfileNoteTouched] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   // Se marca true solo dentro del .then() del fetch real (businessId
@@ -482,10 +447,6 @@ export function BrandingSection() {
       const normalizedFeaturedClients = normalizeFeaturedClients(
         cfg.featured_clients,
       );
-      const savedProfileNote = ((cfg.profile_note as string) ?? "")
-        .trim()
-        .slice(0, 50);
-      setProfileNoteTouched(Boolean(savedProfileNote));
       setData({
         name: (biz?.name as string) ?? "",
         slug: (biz?.slug as string) ?? "",
@@ -498,8 +459,6 @@ export function BrandingSection() {
           (cfg.instagram as string) ?? (biz?.instagram as string) ?? "",
         website: (cfg.website as string) ?? "",
         description: (cfg.description as string) ?? "",
-        profile_note: savedProfileNote || "",
-        profile_note_active: cfg.profile_note_active === true,
         logo_url: (cfg.logo_url as string) ?? "",
         avatar_url: (biz?.avatar_url as string) ?? "",
         cover_url: (biz?.cover_url as string) ?? "",
@@ -626,7 +585,6 @@ export function BrandingSection() {
         | "instagram"
         | "website"
         | "description"
-        | "profile_note"
         | "logo_url"
         | "portfolio_urls"
         | "featured_clients"
@@ -1043,11 +1001,6 @@ export function BrandingSection() {
         instagram: data.instagram,
         website: data.website,
         description: data.description,
-        // Si todavía muestra el mensaje de ejemplo sin que el usuario lo
-        // haya tocado ni activado, no se persiste — evita publicar una
-        // promo que nadie eligió solo por haber abierto la pantalla.
-        profile_note: profileNoteTouched ? data.profile_note : "",
-        profile_note_active: data.profile_note_active,
         logo_url:
           logo_url || (existingBranding.logo_url as string | undefined) || "",
         portfolio_urls:
@@ -1358,135 +1311,6 @@ export function BrandingSection() {
 
       {activeTab === "info" && (
         <>
-      <SectionCard label="Estado">
-        <div
-          className={cn(
-            "relative flex flex-col gap-4 pr-20 transition sm:pr-24",
-            data.profile_note_active && "rounded-2xl",
-          )}
-        >
-          <div className="absolute right-0 top-0 flex items-center">
-            <button
-              type="button"
-              role="switch"
-              aria-checked={data.profile_note_active}
-              onClick={() => {
-                // Activar publica lo que sea que esté en el globo en ese
-                // momento (aunque todavía sea el mensaje de ejemplo sin
-                // tocar) — es una decisión explícita del usuario, así que a
-                // partir de acá el guardado ya no debe pisarlo con "".
-                // Sin texto no hay nada para publicar: se pide escribirlo primero.
-                if (!data.profile_note_active && !data.profile_note.trim()) {
-                  toast.error("Escribí el anuncio antes de activarlo.");
-                  setEditingAnnouncement(true);
-                  return;
-                }
-                setProfileNoteTouched(true);
-                setData((d) => {
-                  const nextActive = !d.profile_note_active;
-                  return {
-                    ...d,
-                    profile_note_active: nextActive,
-                    profile_note: d.profile_note,
-                  };
-                });
-              }}
-              className={cn(
-                "relative h-8 w-16 shrink-0 overflow-hidden rounded-full border transition focus:outline-none focus:ring-2 focus:ring-primary/40",
-                data.profile_note_active
-                  ? "border-violet-400/35 bg-violet-500/25 shadow-[0_0_14px_rgba(139,92,246,0.14)]"
-                  : "border-white/8 bg-white/[0.035]",
-              )}
-            >
-              <span
-                className={cn(
-                  "absolute top-1 h-6 w-6 rounded-full transition-all duration-200",
-                  data.profile_note_active
-                    ? "left-9 bg-white shadow-[0_0_14px_rgba(255,255,255,0.35)]"
-                    : "left-1 bg-white/60",
-                )}
-              />
-            </button>
-          </div>
-
-          <div className="flex flex-1 items-start gap-4 min-w-0 pt-2 lg:pt-0">
-            <div
-              className={cn(
-                "relative h-11 w-11 rounded-2xl ring-1 grid place-items-center shrink-0 transition",
-                data.profile_note_active
-                  ? "bg-violet-500/10 ring-violet-400/25"
-                  : "bg-white/5 ring-white/10",
-              )}
-            >
-              <span
-                className={cn(
-                  "absolute right-2 top-2 h-2.5 w-2.5 rounded-full transition",
-                  data.profile_note_active
-                    ? "bg-emerald-400 shadow-[0_0_14px_rgba(52,211,153,0.9)]"
-                    : "bg-white/25",
-                )}
-              />
-              <Sparkles
-                className={cn(
-                  "h-5 w-5 transition",
-                  data.profile_note_active
-                    ? "text-violet-200"
-                    : "text-white/45",
-                )}
-              />
-            </div>
-            <div className="min-w-0">
-              <div className="font-semibold text-sm">Anuncio público</div>
-            </div>
-          </div>
-
-          <div className="w-full">
-            {/* Vista previa y edición son dos elementos distintos que nunca
-                coexisten: en reposo es un <button> real (nunca tuvo el bug
-                de WebKit, porque no es un control de formulario cuyo value
-                se asigna por código). Recién se monta un <textarea> cuando
-                el usuario toca — nace ya dentro del gesto de foco, sin
-                raster viejo que pueda quedar sin repintar. */}
-            <div className="flex justify-center py-3">
-              <div
-                onClick={() => setEditingAnnouncement(true)}
-                className="relative flex min-w-[220px] max-w-[260px] flex-col items-center justify-center rounded-2xl bg-white px-2.5 py-2 shadow-xl ring-1 ring-black/5 transition focus-within:ring-2 focus-within:ring-violet-400/50 sm:min-w-[240px] sm:max-w-[300px]"
-              >
-                {editingAnnouncement ? (
-                  <textarea
-                    ref={announcementRef}
-                    value={data.profile_note}
-                    onChange={(e) => {
-                      setProfileNoteTouched(true);
-                      setData((d) => ({
-                        ...d,
-                        profile_note: e.target.value.slice(0, 50),
-                      }));
-                    }}
-                    onBlur={() => setEditingAnnouncement(false)}
-                    maxLength={50}
-                    style={{
-                      color: "#111111",
-                      WebkitTextFillColor: "#111111",
-                      caretColor: "#111111",
-                    }}
-                    className="block h-11 w-full resize-none overflow-hidden border-0 bg-transparent p-0 text-center text-base font-semibold leading-snug outline-none [-webkit-appearance:none]"
-                  />
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setEditingAnnouncement(true)}
-                    className="line-clamp-2 block w-full cursor-text text-center text-base font-semibold leading-snug text-[#111111]"
-                  >
-                    {data.profile_note.trim() || "Escribí un anuncio"}
-                  </button>
-                )}
-                <span className="pointer-events-none absolute left-1/2 top-full h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-white" />
-              </div>
-            </div>
-          </div>
-        </div>
-      </SectionCard>
 
           <SectionCard label="Información del negocio">
             <div className="divide-y divide-white/5">

@@ -12,7 +12,9 @@ import {
 } from "@/components/entry-effects";
 import { getPublicFont, publicFontsStylesheet } from "@/lib/public-fonts";
 import { PublicDecor, normalizePublicDecor, type PublicDecorKey } from "@/components/public-decor";
-import { PublicReviews, StarRow, type PublicReview } from "@/components/public-reviews";
+import { PublicReviews, type PublicReview } from "@/components/public-reviews";
+import { AnnouncementBubble, PublicHero } from "@/components/public-hero";
+import { activeAnnouncement } from "@/lib/announcement";
 import { normalizePublicNeon, type PublicNeonKey } from "@/lib/public-neon";
 import { normalizePublicBg, pageBackground, type PublicBgKey } from "@/lib/public-theme";
 import { hiddenPublicBranchIds } from "@/lib/public-branches";
@@ -967,11 +969,7 @@ function PublicProfilePage() {
           // manda por sobre el texto: con el switch apagado el anuncio
           // queda guardado como borrador pero no debe mostrarse acá, aunque
           // profile_note tenga contenido cargado.
-          setProfileNote(
-            branding.profile_note_active === true && typeof branding.profile_note === "string"
-              ? branding.profile_note.trim().slice(0, 50)
-              : "",
-          );
+          setProfileNote(activeAnnouncement(branding));
           setAdditionalInfo(normalizeAdditionalInfo(branding.additional_info));
           setColors((branding.colors && typeof branding.colors === "object" ? branding.colors : {}) as LandingColors);
           setFontKey(typeof branding.font === "string" ? branding.font : null);
@@ -1163,148 +1161,65 @@ function PublicProfilePage() {
         .public-landing { background: var(--page-bg); color: var(--text); }
         .public-landing[data-neon="todo"] .public-card { border-color: var(--c-secondary) !important; box-shadow: 0 0 0 1px var(--c-secondary), 0 0 14px color-mix(in oklch, var(--c-secondary) 75%, transparent), 0 0 34px color-mix(in oklch, var(--c-primary) 45%, transparent), inset 0 0 14px color-mix(in oklch, var(--c-secondary) 22%, transparent) !important; }
         .public-landing[data-neon="todo"] .public-card :is([class*="border-white"], [class*="rounded-2xl"][class*="border"]) { border-color: color-mix(in oklch, var(--c-primary) 80%, white) !important; box-shadow: 0 0 8px color-mix(in oklch, var(--c-primary) 65%, transparent), inset 0 0 8px color-mix(in oklch, var(--c-primary) 18%, transparent); }
-        .public-landing[data-theme="dark"]:not([data-decor="none"]) .hero-glow { color: #ffffff !important; font-weight: 700; text-shadow: 0 0 3px rgba(0,0,0,1), 0 0 5px rgba(0,0,0,1), 0 0 7px rgba(0,0,0,1), 0 0 9px rgba(0,0,0,1), 0 0 11px rgba(0,0,0,1), 0 0 12px rgba(0,0,0,1), 0 0 12px rgba(0,0,0,0.9), 0 0 14px rgba(0,0,0,0.8); }
-        .public-landing[data-theme="light"]:not([data-decor="none"]) .hero-glow { color: #000000 !important; font-weight: 700; text-shadow: 0 0 3px rgba(255,255,255,1), 0 0 5px rgba(255,255,255,1), 0 0 7px rgba(255,255,255,1), 0 0 9px rgba(255,255,255,1), 0 0 11px rgba(255,255,255,1), 0 0 12px rgba(255,255,255,1), 0 0 12px rgba(255,255,255,0.9), 0 0 14px rgba(255,255,255,0.8); }
-        .public-landing[data-theme="dark"]:not([data-decor="none"]) .hero-glow-icon { filter: drop-shadow(0 0 2px rgba(0,0,0,1)) drop-shadow(0 0 4px rgba(0,0,0,1)) drop-shadow(0 0 6px rgba(0,0,0,1)) drop-shadow(0 0 8px rgba(0,0,0,1)) drop-shadow(0 0 10px rgba(0,0,0,1)); }
-        .public-landing[data-theme="light"]:not([data-decor="none"]) .hero-glow-icon { filter: drop-shadow(0 0 2px rgba(255,255,255,1)) drop-shadow(0 0 4px rgba(255,255,255,1)) drop-shadow(0 0 6px rgba(255,255,255,1)) drop-shadow(0 0 8px rgba(255,255,255,1)) drop-shadow(0 0 10px rgba(255,255,255,1)); }
         .public-landing .public-card { background: var(--card-bg) !important; border-color: var(--border) !important; color: var(--text); }
         .public-landing[data-theme="light"] [class*="text-white"] { color: var(--text) !important; }
         .public-landing[data-theme="light"] [class*="text-white/"] { color: var(--muted) !important; }
         .public-landing[data-theme="light"] [class*="border-white"] { border-color: var(--border) !important; }
         .public-landing[data-theme="light"] [class*="bg-white/"] { background-color: rgba(255,255,255,0.72) !important; }
       `}</style>
-      <section className={"relative overflow-hidden " + (decor === "none" ? "border-b border-white/[0.06]" : "")}>
-        <div
-          className="absolute inset-0"
-          style={{
-            background:
-              bgStyle === "liso"
-                ? "none"
-                : "linear-gradient(90deg, color-mix(in oklch, var(--c-primary) 26%, transparent) 0%, transparent 48%, color-mix(in oklch, var(--c-secondary) 26%, transparent) 100%)",
-          }}
-        />
-        <PublicDecor decor={decor} primary={cPrimary} secondary={cSecondary} accent={cAccent} light={isLight} />
-        <div className="relative mx-auto max-w-6xl px-4 py-5 sm:py-10">
-          <div className="relative" key={`cover-${effectRun}`}>
-            {bannerGlow ? (
-              <div
-                className="pointer-events-none absolute -inset-3 -z-10 rounded-[2.5rem] opacity-70 blur-2xl sm:-inset-5"
-                style={{
-                  background:
-                    "radial-gradient(60% 90% at 25% 40%, color-mix(in oklch, var(--c-primary) 55%, transparent), transparent 70%), radial-gradient(60% 90% at 78% 55%, color-mix(in oklch, var(--c-secondary) 45%, transparent), transparent 70%)",
+      <PublicHero
+        name={business.name}
+        coverUrl={business.cover_url ?? null}
+        avatarUrl={business.avatar_url || business.logo_url || null}
+        avatarPosition={avatarPosition}
+        coverPosition={coverPosition}
+        primary={cPrimary}
+        secondary={cSecondary}
+        accent={cAccent}
+        light={isLight}
+        decor={decor}
+        neon={neonKey}
+        flat={bgStyle === "liso"}
+        entryEffect={entryEffect}
+        playFx={playFx}
+        effectRun={effectRun}
+        fontFamily={pubFont?.family ?? null}
+        ratingAvg={reviewStats.avg}
+        ratingCount={reviewStats.count}
+        years={statYearsExperience}
+        bubble={profileNote ? <AnnouncementBubble>{profileNote}</AnnouncementBubble> : undefined}
+      >
+        {branches.length > 1 && (
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <MapPin className="h-3.5 w-3.5 text-white/50" />
+            {branches.map((b) => (
+              <button
+                key={b.id}
+                type="button"
+                onClick={() => {
+                  setSelectedBranchId(b.id);
+                  try {
+                    window.localStorage.setItem(`${PUBLIC_BRANCH_STORAGE_PREFIX}${slug}`, b.id);
+                  } catch {
+                    /* ignore */
+                  }
                 }}
-              />
-            ) : null}
-          <div
-            className={`relative ${COVER_ASPECT_CLASS} overflow-hidden rounded-[2rem] border border-white/20`}
-            style={{
-              ...(entryEffect !== "zoom" ? coverFxStyle(entryEffect, playFx) : {}),
-              background: "linear-gradient(90deg, var(--c-primary), var(--c-secondary))",
-              boxShadow: bannerGlow
-                ? "0 0 0 1px rgb(255 255 255 / 0.06), 0 0 34px color-mix(in oklch, var(--c-primary) 55%, transparent), 0 0 80px color-mix(in oklch, var(--c-secondary) 30%, transparent), 0 18px 50px rgb(0 0 0 / 0.35)"
-                : neonKey === "marco" || neonKey === "todo"
-                  ? "0 0 0 2px var(--c-secondary), 0 0 12px var(--c-secondary), 0 0 30px color-mix(in oklch, var(--c-primary) 70%, transparent), inset 0 0 14px color-mix(in oklch, var(--c-secondary) 45%, transparent)"
-                  : "0 0 0 1px rgb(255 255 255 / 0.06), 0 14px 40px rgb(0 0 0 / 0.30)",
-            }}
-          >
-            {business.cover_url ? (
-              <img loading="lazy" src={business.cover_url} alt="Portada del negocio" className="h-full w-full object-cover" style={{ objectPosition: coverPosition, ...(entryEffect === "zoom" ? coverFxStyle("zoom", playFx) : {}) }} decoding="async" />
-            ) : null}
-            <CoverSweep effect={entryEffect} play={playFx} />
-          </div>
-          </div>
-          <div className="relative z-10 -mt-12 flex flex-col px-4 sm:-mt-14 sm:px-8">
-            <div className="relative w-max">
-              {/* Centrado sobre el avatar (flecha centrada bajo el globo,
-                  apuntando al logo). El max-w es el límite matemático real
-                  para que, perfectamente centrado, nunca toque el borde de
-                  pantalla (avatar a ~88px del borde en mobile, ~112px en
-                  sm+): no se puede agrandar más sin perder el centrado o
-                  desbordar. Para que igual entren ~50 caracteres en 2 líneas
-                  dentro de ese ancho, se compensa con letra y padding más
-                  chicos en vez de más ancho. min-w evita que un texto corto
-                  quede angosto y vertical. */}
-              {profileNote ? (
-                <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 flex w-fit min-w-[150px] max-w-[176px] flex-col items-center justify-center rounded-2xl bg-white px-2.5 py-2 text-[11px] font-semibold leading-snug text-zinc-950 shadow-xl ring-1 ring-black/5 sm:min-w-[190px] sm:max-w-[224px]">
-                  <span className="block text-center whitespace-pre-line break-words [word-break:normal]">{profileNote}</span>
-                  <span className="absolute left-1/2 top-full h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 bg-white" />
-                </div>
-              ) : null}
-              <div key={`avatar-${effectRun}`} className="fx-anim" style={avatarFxStyle(entryEffect, playFx)}>
-              <NeonFrame plain={!logoNeon} colors={neonPalette(cPrimary)} mode={entryEffect === "neon" && playFx ? "intro" : "static"}>
-                <div className="grid h-28 w-28 shrink-0 place-items-center text-3xl font-bold text-zinc-950 sm:h-32 sm:w-32">
-                  {business.avatar_url || business.logo_url ? (
-                    <img loading="lazy" src={business.avatar_url || business.logo_url || ""} alt={business.name} className="h-full w-full object-cover" style={{ objectPosition: avatarPosition }} decoding="async" />
-                  ) : (
-                    business.name.slice(0, 1)
-                  )}
-                </div>
-              </NeonFrame>
-              </div>
-            </div>
-            <div className="mt-4">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                  <h1 className="hero-glow text-3xl font-semibold tracking-tight sm:text-5xl">{business.name}</h1>
-                  <span className="inline-grid h-8 w-8 place-items-center text-white sm:h-9 sm:w-9" aria-label="Negocio verificado" title="Negocio verificado">
-                    <svg viewBox="0 0 24 24" className="h-8 w-8 sm:h-9 sm:w-9 drop-shadow-sm" aria-hidden="true">
-                      <path
-                        d="M12 1.6l1.75 1.52 2.3-.29.99 2.1 2.2.72.07 2.32 1.64 1.63-1.1 2.04.46 2.27-1.94 1.27-.58 2.24-2.29.2-1.5 1.77L12 18.22l-2 1.17-1.5-1.77-2.29-.2-.58-2.24-1.94-1.27.46-2.27-1.1-2.04 1.64-1.63.07-2.32 2.2-.72.99-2.1 2.3.29L12 1.6z"
-                        fill="#1DA1F2"
-                      />
-                      <path d="M10.45 14.7 6.9 11.15l1.45-1.45 2.1 2.1 5.2-5.2 1.45 1.45-6.65 6.65z" fill="white" />
-                    </svg>
-                  </span>
-                </div>
-                <div className="mt-2 flex flex-wrap items-center gap-4 sm:gap-5">
-                  {reviewStats.count > 0 && reviewStats.avg != null ? (
-                    <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: cAccent }}>
-                      <span className="hero-glow-icon inline-flex">
-                        <StarRow value={Math.round(reviewStats.avg)} size={16} />
-                      </span>
-                      <span className={"hero-glow " + (isLight ? "text-zinc-700" : "text-white/90")}>{reviewStats.avg.toFixed(1).replace(".", ",")}</span>
-                    </div>
-                  ) : null}
-                  <div className="flex items-center gap-2 pl-4 sm:pl-5">
-                    <div className="hero-glow whitespace-nowrap text-2xl font-bold leading-none tracking-tight sm:text-3xl">{statYearsExperience}</div>
-                    <div className="hero-glow text-xs font-medium leading-4 text-white sm:text-sm">Años de<br />experiencia</div>
-                  </div>
-                </div>
-                {branches.length > 1 && (
-                  <div className="mt-3 flex flex-wrap items-center gap-2">
-                    <MapPin className="h-3.5 w-3.5 text-white/50" />
-                    {branches.map((b) => (
-                      <button
-                        key={b.id}
-                        type="button"
-                        onClick={() => {
-                          setSelectedBranchId(b.id);
-                          try {
-                            window.localStorage.setItem(`${PUBLIC_BRANCH_STORAGE_PREFIX}${slug}`, b.id);
-                          } catch {
-                            /* ignore */
-                          }
-                        }}
-                        className={cn(
-                          "rounded-full px-3 py-1 text-xs font-semibold transition",
-                          b.id === selectedBranchId
-                            ? "text-white"
-                            : isLight
-                              ? "bg-black/5 text-zinc-600 hover:bg-black/10"
-                              : "bg-white/5 text-white/60 hover:bg-white/10",
-                        )}
-                        style={b.id === selectedBranchId ? { background: cAccent } : undefined}
-                      >
-                        {b.name}
-                      </button>
-                    ))}
-                  </div>
+                className={cn(
+                  "rounded-full px-3 py-1 text-xs font-semibold transition",
+                  b.id === selectedBranchId
+                    ? "text-white"
+                    : isLight
+                      ? "bg-black/5 text-zinc-600 hover:bg-black/10"
+                      : "bg-white/5 text-white/60 hover:bg-white/10",
                 )}
-              </div>
-            </div>
+                style={b.id === selectedBranchId ? { background: cAccent } : undefined}
+              >
+                {b.name}
+              </button>
+            ))}
           </div>
-        </div>
-      </section>
+        )}
+      </PublicHero>
 
       <section className="mx-auto grid max-w-6xl gap-6 px-4 py-5 lg:grid-cols-[1fr_360px] lg:items-start">
         {/* min-w-0: sin esto, este ítem del grid usa su ancho mínimo de
