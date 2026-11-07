@@ -35,6 +35,8 @@ export type PublicHeroProps = {
   // Fondo propio del bloque (en Inicio; en la página pública lo pone la página).
   background?: string;
   className?: string;
+  // Versión fina (Inicio): solo portada y logo, sin nombre ni estadísticas.
+  compact?: boolean;
   // Contenido extra debajo de las estadísticas (selector de sucursal).
   children?: React.ReactNode;
 };
@@ -96,7 +98,7 @@ export function PublicHero(p: PublicHeroProps) {
           }}
         />
         <PublicDecor decor={p.decor} primary={p.primary} secondary={p.secondary} accent={p.accent} light={p.light} />
-        <div className="relative mx-auto max-w-6xl px-4 py-5 sm:py-10">
+        <div className={"relative mx-auto max-w-6xl px-4 " + (p.compact ? "py-3 sm:py-4" : "py-5 sm:py-10")}>
           <div className="relative" key={`cover-${p.effectRun}`}>
             {bannerGlow ? (
               <div
@@ -108,7 +110,7 @@ export function PublicHero(p: PublicHeroProps) {
               />
             ) : null}
             <div
-              className={`relative ${COVER_ASPECT_CLASS} overflow-hidden rounded-[2rem] border border-white/20`}
+              className={`relative ${p.compact ? "aspect-[3.2/1] sm:aspect-[5/1]" : COVER_ASPECT_CLASS} overflow-hidden rounded-[2rem] border border-white/20`}
               style={{
                 ...(p.entryEffect !== "zoom" ? coverFxStyle(p.entryEffect, p.playFx) : {}),
                 background: "linear-gradient(90deg, var(--c-primary), var(--c-secondary))",
@@ -132,12 +134,12 @@ export function PublicHero(p: PublicHeroProps) {
               <CoverSweep effect={p.entryEffect} play={p.playFx} />
             </div>
           </div>
-          <div className="relative z-10 -mt-12 flex flex-col px-4 sm:-mt-14 sm:px-8">
+          <div className={"relative z-10 flex flex-col px-4 sm:px-8 " + (p.compact ? "-mt-9 sm:-mt-10" : "-mt-12 sm:-mt-14")}>
             <div className="relative w-max">
               {p.bubble}
               <div key={`avatar-${p.effectRun}`} className="fx-anim" style={avatarFxStyle(p.entryEffect, p.playFx)}>
                 <NeonFrame plain={!logoNeon} colors={neonPalette(p.primary)} mode={p.entryEffect === "neon" && p.playFx ? "intro" : "static"}>
-                  <div className="grid h-28 w-28 shrink-0 place-items-center text-3xl font-bold text-zinc-950 sm:h-32 sm:w-32">
+                  <div className={"grid shrink-0 place-items-center text-3xl font-bold text-zinc-950 " + (p.compact ? "h-20 w-20 sm:h-24 sm:w-24" : "h-28 w-28 sm:h-32 sm:w-32")}>
                     {p.avatarUrl ? (
                       <img
                         loading="lazy"
@@ -154,6 +156,7 @@ export function PublicHero(p: PublicHeroProps) {
                 </NeonFrame>
               </div>
             </div>
+            {p.compact ? null : (
             <div className="mt-4">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2 sm:gap-3">
@@ -189,6 +192,7 @@ export function PublicHero(p: PublicHeroProps) {
                 {p.children}
               </div>
             </div>
+            )}
           </div>
         </div>
       </section>

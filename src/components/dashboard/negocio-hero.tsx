@@ -188,6 +188,7 @@ export function NegocioHero({ businessId }: { businessId: string | null }) {
     <div className="mb-5">
       {font ? <link rel="stylesheet" href={publicFontsStylesheet([font])} /> : null}
       <PublicHero
+        compact
         className="overflow-hidden rounded-3xl border border-white/10"
         background={pageBackground(data.bg, data.light, data.primary, data.secondary)}
         name={data.name}
