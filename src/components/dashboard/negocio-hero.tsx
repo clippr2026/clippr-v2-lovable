@@ -51,7 +51,6 @@ export function NegocioHero({ businessId }: { businessId: string | null }) {
   const { profile } = useAuth();
   const canEdit = profile?.role !== "profesional";
   const [data, setData] = React.useState<HeroData | null>(null);
-  const [rating, setRating] = React.useState<{ avg: number | null; count: number }>({ avg: null, count: 0 });
   const [now, setNow] = React.useState(() => Date.now());
   const [editing, setEditing] = React.useState(false);
   const [draft, setDraft] = React.useState("");
@@ -59,12 +58,9 @@ export function NegocioHero({ businessId }: { businessId: string | null }) {
 
   const load = React.useCallback(async () => {
     if (!businessId) return;
-    const [bizRes, settingsRes, statsRes] = await Promise.all([
+    const [bizRes, settingsRes] = await Promise.all([
       supabase.from("businesses").select("name,logo_url,avatar_url,cover_url,business_start_date").eq("id", businessId).maybeSingle(),
       supabase.from("business_settings").select("schedule").eq("business_id", businessId).maybeSingle(),
-      (supabase.from("public_review_stats" as any) as any)
-        .select("professional_id,avg_rating,review_count")
-        .eq("business_id", businessId),
     ]);
     if (!bizRes.data) return;
     const biz = bizRes.data as {
@@ -79,9 +75,6 @@ export function NegocioHero({ businessId }: { businessId: string | null }) {
       schedule && typeof schedule === "object" && typeof schedule._branding === "object" && schedule._branding ? schedule._branding : {};
     const colors = (branding.colors && typeof branding.colors === "object" ? branding.colors : {}) as Record<string, string>;
     const primary = colors.primary || colors.secondary || "#7c3aed";
-    const rows = (statsRes.data ?? []) as { professional_id: string | null; avg_rating: number | string; review_count: number }[];
-    const total = rows.find((r) => r.professional_id == null);
-    setRating({ avg: total ? Number(total.avg_rating) : null, count: total?.review_count ?? 0 });
     setData({
       name: biz.name ?? "Mi negocio",
       avatarUrl: biz.avatar_url || biz.logo_url || null,
@@ -207,8 +200,6 @@ export function NegocioHero({ businessId }: { businessId: string | null }) {
         playFx={false}
         effectRun={0}
         fontFamily={font?.family ?? null}
-        ratingAvg={rating.avg}
-        ratingCount={rating.count}
         years={data.years}
         bubble={bubble}
       />

@@ -314,7 +314,17 @@ export function PublicReviews({
 
 // Tira corta de reseñas destacadas, justo debajo del encabezado: prueba social antes de reservar.
 // Muestra las 3 más nuevas de 4 y 5 estrellas (con comentario cuando hay).
-export function ReviewsStrip({ reviews, accent }: { reviews: PublicReview[]; accent: string }) {
+export function ReviewsStrip({
+  reviews,
+  accent,
+  average,
+  count,
+}: {
+  reviews: PublicReview[];
+  accent: string;
+  average: number | null;
+  count: number;
+}) {
   const picks = React.useMemo(() => {
     const good = reviews.filter((r) => r.rating >= 4);
     const withText = good.filter((r) => r.comment && r.comment.trim());
@@ -325,8 +335,16 @@ export function ReviewsStrip({ reviews, accent }: { reviews: PublicReview[]; acc
   return (
     <section className="mx-auto max-w-6xl px-4 pt-5">
       <div className="mb-2.5 flex items-center justify-between gap-3">
-        <h2 className="text-base font-semibold sm:text-lg">Lo que dicen nuestros clientes</h2>
-        <a href="#opiniones" className="text-xs font-semibold underline underline-offset-4" style={{ color: accent }}>
+        <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1">
+          <h2 className="text-base font-semibold sm:text-lg">Lo que dicen nuestros clientes</h2>
+          {count > 0 && average != null ? (
+            <div className="flex items-center gap-1.5">
+              <StarRow value={Math.round(average)} size={16} />
+              <span className="text-sm font-bold">{average.toFixed(1).replace(".", ",")}</span>
+            </div>
+          ) : null}
+        </div>
+        <a href="#opiniones" className="shrink-0 text-xs font-semibold underline underline-offset-4" style={{ color: accent }}>
           Ver todas
         </a>
       </div>

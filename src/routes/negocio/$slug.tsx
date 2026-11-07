@@ -1184,8 +1184,6 @@ function PublicProfilePage() {
         playFx={playFx}
         effectRun={effectRun}
         fontFamily={pubFont?.family ?? null}
-        ratingAvg={reviewStats.avg}
-        ratingCount={reviewStats.count}
         years={statYearsExperience}
         bubble={profileNote ? <AnnouncementBubble>{profileNote}</AnnouncementBubble> : undefined}
       >
@@ -1221,7 +1219,7 @@ function PublicProfilePage() {
         )}
       </PublicHero>
 
-      <ReviewsStrip reviews={reviews} accent={accent} />
+      <ReviewsStrip reviews={reviews} accent={accent} average={reviewStats.avg} count={reviewStats.count} />
 
       <section className="mx-auto grid max-w-6xl gap-6 px-4 py-5 lg:grid-cols-[1fr_360px] lg:items-start">
         {/* min-w-0: sin esto, este ítem del grid usa su ancho mínimo de

@@ -3,7 +3,6 @@ import { COVER_ASPECT_CLASS } from "@/lib/cover-frame";
 import { NeonFrame, neonPalette } from "@/components/neon-frame";
 import { CoverSweep, avatarFxStyle, coverFxStyle, type EntryEffectKey } from "@/components/entry-effects";
 import { PublicDecor, type PublicDecorKey } from "@/components/public-decor";
-import { StarRow } from "@/components/public-reviews";
 import type { PublicNeonKey } from "@/lib/public-neon";
 
 // Encabezado de la página pública (portada, logo con neón, nombre, estrellas y años de
@@ -27,8 +26,6 @@ export type PublicHeroProps = {
   playFx: boolean;
   effectRun: number;
   fontFamily?: string | null;
-  ratingAvg: number | null;
-  ratingCount: number;
   years: string;
   // Globo del anuncio (arriba del logo).
   bubble?: React.ReactNode;
@@ -159,28 +156,21 @@ export function PublicHero(p: PublicHeroProps) {
             {p.compact ? null : (
             <div className="mt-4">
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                  <h1 className="hero-glow text-3xl font-semibold tracking-tight sm:text-5xl">{p.name}</h1>
-                  <span className="inline-grid h-8 w-8 place-items-center text-white sm:h-9 sm:w-9" aria-label="Negocio verificado" title="Negocio verificado">
-                    <svg viewBox="0 0 24 24" className="h-8 w-8 drop-shadow-sm sm:h-9 sm:w-9" aria-hidden="true">
-                      <path
-                        d="M12 1.6l1.75 1.52 2.3-.29.99 2.1 2.2.72.07 2.32 1.64 1.63-1.1 2.04.46 2.27-1.94 1.27-.58 2.24-2.29.2-1.5 1.77L12 18.22l-2 1.17-1.5-1.77-2.29-.2-.58-2.24-1.94-1.27.46-2.27-1.1-2.04 1.64-1.63.07-2.32 2.2-.72.99-2.1 2.3.29L12 1.6z"
-                        fill="#1DA1F2"
-                      />
-                      <path d="M10.45 14.7 6.9 11.15l1.45-1.45 2.1 2.1 5.2-5.2 1.45 1.45-6.65 6.65z" fill="white" />
-                    </svg>
-                  </span>
-                </div>
-                <div className="mt-2 flex flex-wrap items-center gap-4 sm:gap-5">
-                  {p.ratingCount > 0 && p.ratingAvg != null ? (
-                    <div className="flex items-center gap-2 text-sm font-semibold" style={{ color: p.accent }}>
-                      <span className="hero-glow-icon inline-flex">
-                        <StarRow value={Math.round(p.ratingAvg)} size={16} />
-                      </span>
-                      <span className={"hero-glow " + (p.light ? "text-zinc-700" : "text-white/90")}>{p.ratingAvg.toFixed(1).replace(".", ",")}</span>
-                    </div>
-                  ) : null}
-                  <div className="flex items-center gap-2 pl-4 sm:pl-5">
+                {/* Nombre a la izquierda; los años de experiencia a la derecha, a la altura del nombre. */}
+                <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-3">
+                  <div className="flex items-center gap-2 sm:gap-3">
+                    <h1 className="hero-glow text-3xl font-semibold tracking-tight sm:text-5xl">{p.name}</h1>
+                    <span className="inline-grid h-8 w-8 place-items-center text-white sm:h-9 sm:w-9" aria-label="Negocio verificado" title="Negocio verificado">
+                      <svg viewBox="0 0 24 24" className="h-8 w-8 drop-shadow-sm sm:h-9 sm:w-9" aria-hidden="true">
+                        <path
+                          d="M12 1.6l1.75 1.52 2.3-.29.99 2.1 2.2.72.07 2.32 1.64 1.63-1.1 2.04.46 2.27-1.94 1.27-.58 2.24-2.29.2-1.5 1.77L12 18.22l-2 1.17-1.5-1.77-2.29-.2-.58-2.24-1.94-1.27.46-2.27-1.1-2.04 1.64-1.63.07-2.32 2.2-.72.99-2.1 2.3.29L12 1.6z"
+                          fill="#1DA1F2"
+                        />
+                        <path d="M10.45 14.7 6.9 11.15l1.45-1.45 2.1 2.1 5.2-5.2 1.45 1.45-6.65 6.65z" fill="white" />
+                      </svg>
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
                     <div className="hero-glow whitespace-nowrap text-2xl font-bold leading-none tracking-tight sm:text-3xl">{p.years}</div>
                     <div className="hero-glow text-xs font-medium leading-4 text-white sm:text-sm">
                       Años de
