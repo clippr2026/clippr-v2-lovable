@@ -1276,53 +1276,6 @@ function PublicProfilePage() {
             </div>
           </GlowCard>
 
-          {employees.length > 0 ? (
-            <GlowCard>
-              <div className="p-5 sm:p-6">
-                <div className="flex items-center gap-3">
-                  <span className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/5" style={{ color: cAccent }}>
-                    <CalendarDays className="h-5 w-5" />
-                  </span>
-                  <h2 className="text-2xl font-semibold">Profesionales disponibles</h2>
-                </div>
-                <div className="mt-5 grid gap-3 sm:grid-cols-2">
-                  {employees.map((employee) => (
-                    <a
-                      key={employee.id}
-                      href={bookingHref({ professional: employee.id })}
-                      // min-w-0: ítem de un grid — sin esto, el truncate
-                      // del nombre de abajo puede empujar la página a
-                      // desbordar horizontalmente en mobile (mismo bug que
-                      // en Servicios/Confían en nosotros).
-                      className="flex min-w-0 items-center gap-3 rounded-3xl border border-white/10 bg-white/[0.03] p-3.5 transition hover:bg-white/[0.06]"
-                    >
-                      <div className="grid h-12 w-12 shrink-0 place-items-center overflow-hidden rounded-full bg-white/10 text-lg font-semibold">
-                        {employee.avatar_url ? (
-                          <img src={employee.avatar_url} alt={employee.full_name} className="h-full w-full object-cover" loading="lazy" decoding="async" />
-                        ) : (
-                          employee.full_name.slice(0, 1)
-                        )}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <h3 className="truncate font-semibold">{employee.full_name}</h3>
-                        <p className="text-sm text-white/50">{employee.role?.trim() || "Profesional"}</p>
-                      </div>
-                      {/* Valoración a la derecha, aprovechando el espacio
-                          vacío que quedaba — antes iba debajo de "Barbero"
-                          apilada con el nombre/rol. */}
-                      {reviewStats.byPro[employee.id] ? (
-                        <div className="inline-flex shrink-0 items-center gap-1.5 rounded-full border bg-white px-2.5 py-1 text-sm font-bold text-zinc-950 shadow-sm" style={{ borderColor: "color-mix(in oklch, var(--c-accent) 28%, transparent)" }}>
-                          <Star className="h-4 w-4 fill-current" style={{ color: "#F5B301" }} />
-                          <span>{reviewStats.byPro[employee.id].avg.toFixed(1).replace(".", ",")}</span>
-                        </div>
-                      ) : null}
-                    </a>
-                  ))}
-                </div>
-              </div>
-            </GlowCard>
-          ) : null}
-
           {business ? (
             <GlowCard className="overflow-hidden">
               <ReviewsStrip
