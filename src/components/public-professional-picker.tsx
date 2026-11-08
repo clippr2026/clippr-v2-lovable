@@ -229,8 +229,7 @@ export function PublicProfessionalPicker({
                   key={item.id}
                   type="button"
                   onClick={() => setOpenId(item.id)}
-                  className="relative flex min-w-0 flex-col gap-3 rounded-3xl border bg-white/[0.04] px-2.5 py-3.5 text-left transition active:scale-[0.98]"
-                  style={{ borderColor: "rgba(255,255,255,0.14)" }}
+                  className="relative flex min-w-0 flex-col gap-3 rounded-3xl border border-white/10 bg-white/[0.04] px-2.5 py-3.5 text-left transition hover:bg-white/[0.055] active:scale-[0.98]"
                 >
                   {item.priceChanged ? (
                     <span
@@ -260,9 +259,9 @@ export function PublicProfessionalPicker({
                   </span>
                   {hasServices ? (
                     <span className="block space-y-1">
-                      <span className="flex items-baseline justify-between gap-1 text-white/60">
-                        <span className="text-[11px]">Lista</span>
-                        <span className={cn("text-xs font-semibold", item.promoPrice != null && "line-through")}>{formatMoney(item.listPrice)}</span>
+                      <span className="flex items-baseline justify-between gap-1">
+                        <span className="text-[11px] font-bold text-white/60">Lista</span>
+                        <span className={cn("text-xl font-extrabold text-white/70", item.promoPrice != null && "line-through")}>{formatMoney(item.listPrice)}</span>
                       </span>
                       {second ? (
                         <span className="flex items-baseline justify-between gap-1">
@@ -282,8 +281,7 @@ export function PublicProfessionalPicker({
           <button
             type="button"
             onClick={onAny}
-            className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-3xl border bg-white/[0.04] p-2.5 text-sm font-semibold transition"
-            style={{ borderColor: "rgba(255,255,255,0.14)" }}
+            className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-3xl border border-white/10 bg-white/[0.04] p-2.5 text-sm font-semibold transition hover:bg-white/[0.055]"
           >
             <UsersRound className="h-4 w-4" style={{ color: accent }} /> Sin preferencia
             <span className="text-xs font-normal text-white/55">· Disponible</span>
