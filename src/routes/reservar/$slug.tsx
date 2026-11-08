@@ -546,8 +546,21 @@ function PublicBookingPage() {
     () => promotions.filter((p) => isPromotionCurrentlyValid(p, new Date())),
     [promotions],
   );
-  const namedPromotions = validPromotions.filter((p) => !p.requiresCode);
-  const hasCodePromotions = validPromotions.some((p) => p.requiresCode);
+  // Beneficios que aplican al servicio elegido (antes de elegir profesional no se mira el profesional).
+  // El paso "¿Tenés algún beneficio?" solo aparece si el servicio tiene alguno.
+  const servicePromotions = React.useMemo(
+    () =>
+      selectedServices.length === 0
+        ? []
+        : validPromotions.filter((p) =>
+            selectedServices.every((service) =>
+              isPromotionApplicable(p, { serviceId: service.id, category: service.category ?? null }),
+            ),
+          ),
+    [validPromotions, selectedServices],
+  );
+  const namedPromotions = servicePromotions.filter((p) => !p.requiresCode);
+  const hasCodePromotions = servicePromotions.some((p) => p.requiresCode);
   const totalDuration =
     selectedServices.reduce((sum, service) => {
       const resolved = resolveServicePricing(
@@ -1094,9 +1107,16 @@ function PublicBookingPage() {
             // todavía no existe el estado `promotions` (el setPromotions de
             // arriba no se refleja hasta el próximo render), así que se
             // recalcula localmente con el mismo criterio que validPromotions.
-            const hasPromoStepNow = rawPromotions
-              .map(backfillPromotionVigencia)
-              .some((p) => isPromotionCurrentlyValid(p, new Date()));
+            const deepService = visibleServices.find((service) => service.id === serviceId);
+            const hasPromoStepNow =
+              !!deepService &&
+              rawPromotions
+                .map(backfillPromotionVigencia)
+                .some(
+                  (p) =>
+                    isPromotionCurrentlyValid(p, new Date()) &&
+                    isPromotionApplicable(p, { serviceId: deepService.id, category: deepService.category ?? null }),
+                );
             if (serviceValid && professionalValid) {
               setStep(hasPromoStepNow ? "promo" : "datetime");
             } else if (serviceValid) {
@@ -1154,11 +1174,16 @@ function PublicBookingPage() {
     if (selectedServiceIds.length === 0) return toast.error("Elegí al menos un servicio.");
     // Profesional ya fijo por deep link (?professional=): no volver a
     // preguntar quién atiende, con o sin paso de Promo en el medio.
+    // Sin beneficios para este servicio: se saltea el paso y se limpia cualquier beneficio de un servicio anterior.
+    if (servicePromotions.length === 0) {
+      setAppliedPromotion(null);
+      setPromoChoice("none");
+    }
     if (professionalPreselectedRef.current) {
-      setStep(validPromotions.length > 0 ? "promo" : "datetime");
+      setStep(servicePromotions.length > 0 ? "promo" : "datetime");
       return;
     }
-    setStep(validPromotions.length > 0 ? "promo" : "professional");
+    setStep(servicePromotions.length > 0 ? "promo" : "professional");
   }
 
   // Confirma la elección del paso "¿Tenés algún beneficio?": valida el
@@ -1182,7 +1207,7 @@ function PublicBookingPage() {
         setPromoCodeError("Ingresá un código.");
         return;
       }
-      const match = validPromotions.find(
+      const match = servicePromotions.find(
         (p) => p.requiresCode && p.code === entered,
       );
       if (!match) {
@@ -1193,7 +1218,7 @@ function PublicBookingPage() {
       setStep(stepAfterPromo);
       return;
     }
-    const promo = validPromotions.find((p) => p.id === promoChoice) ?? null;
+    const promo = servicePromotions.find((p) => p.id === promoChoice) ?? null;
     setAppliedPromotion(promo);
     setStep(stepAfterPromo);
   }
@@ -1512,7 +1537,7 @@ function PublicBookingPage() {
   }
 
   const hasProducts = recommendedProducts.length > 0;
-  const hasPromoStep = validPromotions.length > 0;
+  const hasPromoStep = servicePromotions.length > 0;
   const promoOffset = hasPromoStep ? 1 : 0;
   const totalSteps = 4 + (hasProducts ? 1 : 0) + promoOffset;
   const stepIndex =
@@ -1616,7 +1641,7 @@ function PublicBookingPage() {
             servicio/profesional/horario/total/duración mientras avanza,
             sin que ocupe una tarjeta alta. Se actualiza solo, mismos
             valores que ya se calculan para el resto de la página. */}
-        {step !== "done" && step !== "professional" ? (
+        {step !== "done" && step !== "services" && step !== "promo" && step !== "professional" ? (
           <div className="booking-card mb-4 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] p-3 text-white">
             <CalendarDays className="h-4 w-4 shrink-0" style={{ color: accent }} />
             <div className="min-w-0 flex-1 leading-tight">
