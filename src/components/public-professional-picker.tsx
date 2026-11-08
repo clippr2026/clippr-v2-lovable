@@ -20,6 +20,15 @@ export type ProfessionalPickerItem = {
 
 export type ProfessionalRating = { avg: number; count: number };
 
+export type ProfessionalReview = {
+  id: string;
+  client_name: string;
+  rating: number;
+  comment: string | null;
+  review_date: string;
+  featured?: boolean;
+};
+
 const CSS = `
   @keyframes pp-card-in { from { opacity: 0; transform: translateY(14px) scale(.96); } to { opacity: 1; transform: none; } }
   @keyframes pp-strip-in { from { opacity: 0; transform: translateY(-12px); } to { opacity: 1; transform: none; } }
@@ -50,6 +59,11 @@ const FLAGS: [RegExp, string][] = [
 ];
 const flagFor = (nat: string) => FLAGS.find(([re]) => re.test(nat))?.[1] ?? "🌎";
 
+const reviewDate = (iso: string) => {
+  const [y, m, d] = iso.split("-");
+  return y && m && d ? `${d}/${m}/${y}` : iso;
+};
+
 const avg1 = (n: number) => n.toLocaleString("es-AR", { minimumFractionDigits: 1, maximumFractionDigits: 1 });
 
 // Paso "Profesional" de la página de reservas: grilla con todos los profesionales; al tocar uno
@@ -57,6 +71,7 @@ const avg1 = (n: number) => n.toLocaleString("es-AR", { minimumFractionDigits: 1
 export function PublicProfessionalPicker({
   items,
   ratings,
+  reviews = {},
   accent,
   buttonText,
   hasServices,
@@ -66,6 +81,8 @@ export function PublicProfessionalPicker({
 }: {
   items: ProfessionalPickerItem[];
   ratings: Record<string, ProfessionalRating>;
+  // Reseñas publicadas de cada profesional (se ven abajo al abrirlo).
+  reviews?: Record<string, ProfessionalReview[]>;
   accent: string;
   buttonText: string;
   hasServices: boolean;
@@ -74,7 +91,11 @@ export function PublicProfessionalPicker({
   onAny: () => void;
 }) {
   const [openId, setOpenId] = React.useState<string | null>(null);
+  const [showAllReviews, setShowAllReviews] = React.useState(false);
   const open = items.find((i) => i.id === openId) ?? null;
+  React.useEffect(() => {
+    setShowAllReviews(false);
+  }, [openId]);
 
   // Mismos recuadros de precio que la lista de servicios: título chico arriba, monto abajo, letras
   // blancas y borde neón (lista con el color principal, efectivo/promo con el de acento).
@@ -168,6 +189,14 @@ export function PublicProfessionalPicker({
           </div>
 
           <div key={open.id} className="pp-card-in mt-3 rounded-[2rem] border border-white/10 bg-white/[0.03] p-5 text-center">
+            {open.priceChanged ? (
+              <span
+                className="mb-3 inline-block rounded-full border px-3 py-1 text-xs font-bold text-white"
+                style={{ borderColor: accent, background: `color-mix(in oklch, ${accent} 30%, #0b0818)` }}
+              >
+                Precio diferencial
+              </span>
+            ) : null}
             <Avatar item={open} icon="h-14 w-14" className="mx-auto h-36 w-36 border-2 border-white/40 sm:h-40 sm:w-40" />
             <h3 className="mt-4 text-2xl font-extrabold uppercase leading-tight">{open.name}</h3>
             <div className="mt-2 flex justify-center">{ratingPill(open.id, true)}</div>
@@ -198,7 +227,7 @@ export function PublicProfessionalPicker({
               </div>
             ) : null}
             {hasServices ? (
-              <p className="mt-3 text-xs text-white/60">🕒 {open.duration} min{open.priceChanged ? " · precio diferencial" : ""}</p>
+              <p className="mt-3 text-xs text-white/60">🕒 {open.duration} min</p>
             ) : null}
             <button
               type="button"
@@ -212,6 +241,45 @@ export function PublicProfessionalPicker({
               <ChevronLeft className="h-3.5 w-3.5" /> Ver todos los profesionales
             </button>
           </div>
+
+          {(() => {
+            const all = [...(reviews[open.id] ?? [])].sort(
+              (a, b) => Number(!!b.featured) - Number(!!a.featured) || b.review_date.localeCompare(a.review_date),
+            );
+            if (all.length === 0) return null;
+            const shown = showAllReviews ? all : all.slice(0, 3);
+            return (
+              <div key={`rev-${open.id}`} className="pp-card-in mt-5">
+                <h4 className="mb-2 text-sm font-bold">Reseñas de {open.name.split(" ")[0]}</h4>
+                <div className="space-y-2.5">
+                  {shown.map((r) => (
+                    <div key={r.id} className="rounded-2xl border border-white/10 bg-white/[0.04] p-3.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="inline-flex items-center gap-0.5" aria-label={`${r.rating} de 5 estrellas`}>
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <Star key={n} className={cn("h-3.5 w-3.5", n <= r.rating ? "fill-current text-amber-400" : "text-white/25")} />
+                          ))}
+                        </span>
+                        <span className="text-[11px] text-white/50">{reviewDate(r.review_date)}</span>
+                      </div>
+                      {r.comment ? <p className="mt-2 break-words text-sm text-white/85">"{r.comment}"</p> : null}
+                      <p className="mt-2 text-xs font-semibold">{r.client_name}</p>
+                    </div>
+                  ))}
+                </div>
+                {all.length > 3 ? (
+                  <button
+                    type="button"
+                    onClick={() => setShowAllReviews((v) => !v)}
+                    className="mt-3 w-full text-center text-xs font-semibold"
+                    style={{ color: accent }}
+                  >
+                    {showAllReviews ? "Ver menos" : `Ver todas (${all.length})`}
+                  </button>
+                ) : null}
+              </div>
+            );
+          })()}
         </div>
       ) : (
         <div className="pp-grid-in">

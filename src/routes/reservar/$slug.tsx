@@ -55,7 +55,7 @@ import {
 } from "@/lib/availability";
 import clipprMark from "@/assets/clippr-mark.png";
 import { ServiceImage } from "@/components/ui/service-image";
-import { PublicProfessionalPicker, type ProfessionalRating } from "@/components/public-professional-picker";
+import { PublicProfessionalPicker, type ProfessionalRating, type ProfessionalReview } from "@/components/public-professional-picker";
 import {
   resolveServicePricing,
   isServiceOfferedByEmployee,
@@ -297,6 +297,8 @@ function PublicBookingPage() {
   const [employees, setEmployees] = React.useState<Employee[]>([]);
   // Promedio de estrellas por profesional (vista pública public_review_stats).
   const [proRatings, setProRatings] = React.useState<Record<string, ProfessionalRating>>({});
+  // Reseñas publicadas, agrupadas por profesional (se ven al abrir un profesional).
+  const [proReviews, setProReviews] = React.useState<Record<string, ProfessionalReview[]>>({});
   // Edad / nacionalidad / experiencia de cada profesional (vista pública; la fecha de nacimiento
   // nunca sale, solo la edad). Consulta aparte y opcional: si falla, se muestra sin esos datos.
   const [proProfiles, setProProfiles] = React.useState<Record<string, { age: number | null; nationality: string | null; experience: number | null }>>({});
@@ -657,6 +659,27 @@ function PublicBookingPage() {
     ],
   );
   // Días cerrados del negocio (Agenda → Día cerrado): no se ofrecen horarios esos días.
+  React.useEffect(() => {
+    const bid = business?.id;
+    if (!bid) return;
+    let cancelled = false;
+    void (async () => {
+      const { data, error } = await (supabase.from("public_reviews" as any) as any)
+        .select("id,professional_id,client_name,rating,comment,review_date,featured")
+        .eq("business_id", bid)
+        .order("review_date", { ascending: false });
+      if (cancelled || error || !Array.isArray(data)) return;
+      const next: Record<string, ProfessionalReview[]> = {};
+      for (const row of data as (ProfessionalReview & { professional_id: string | null })[]) {
+        if (!row.professional_id) continue;
+        (next[row.professional_id] ??= []).push(row);
+      }
+      setProReviews(next);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [business?.id]);
   const [closures, setClosures] = React.useState<{ branch_id: string | null; start_date: string; end_date: string }[]>([]);
   React.useEffect(() => {
     const bid = business?.id;
@@ -2042,6 +2065,7 @@ function PublicBookingPage() {
                         experienceYears: proProfiles[employee.id]?.experience ?? null,
                       }))}
                       ratings={proRatings}
+                      reviews={proReviews}
                       accent={accent}
                       buttonText={accentButtonText}
                       hasServices={selectedServices.length > 0}
