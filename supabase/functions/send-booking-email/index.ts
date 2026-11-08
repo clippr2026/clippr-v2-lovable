@@ -3,8 +3,8 @@
 //
 // Envía correos transaccionales de Clippr vía Resend, heredando el BRANDING
 // del negocio (modo claro/oscuro + colores + logo + nombre) configurado en su
-// página pública. Enrutada por `type` (confirmation | reminder | reschedule |
-// cancellation) para soportar todos los correos con una sola función.
+// página pública. Enrutada por `type` (confirmation | reminder_1d | reminder_2h |
+// reschedule | cancellation) para soportar todos los correos con una sola función.
 //
 // Env requeridas (Supabase → Edge Functions → Secrets):
 //   - RESEND_API_KEY
@@ -22,6 +22,8 @@ import {
 } from "../_shared/email-templates.ts";
 
 const APP_ORIGIN = "https://myclippr.com";
+const APPT_COLUMNS =
+  "id, business_id, manage_token, employee_id, client_id, status, starts_at, duration_min, service_name, service_price, client_name, created_at";
 
 type Payload = {
   type?: string;
@@ -133,7 +135,7 @@ Deno.serve(async (req: Request) => {
     const type = payload.type ?? "confirmation";
     const businessId = payload.businessId;
     let to = payload.to?.trim();
-    const booking = payload.booking ?? {};
+    const booking: NonNullable<Payload["booking"]> = payload.booking ?? {};
 
     if (!businessId) return json({ error: "businessId requerido" }, 400);
 
@@ -145,17 +147,52 @@ Deno.serve(async (req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
-    // Si no llegó el email pero sí un token de gestión, lo resolvemos del turno.
-    if (!to && payload.token) {
-      const { data: appt } = await supabase
-        .from("appointments")
-        .select("client_email")
-        .eq("manage_token", payload.token)
-        .maybeSingle();
-      to = (appt?.client_email as string)?.trim() || undefined;
+    // El turno real (por id o por token de gestión) es la fuente de verdad:
+    // el correo solo sale hacia el cliente de ESE turno. Un `to` distinto al
+    // guardado se acepta únicamente en los primeros minutos del turno (el
+    // cliente puede haber escrito un correo nuevo al reservar); así la función
+    // no sirve para mandar correos a direcciones arbitrarias.
+    const lookupToken = payload.token ?? booking.manageToken ?? null;
+    let appt: Record<string, any> | null = null;
+    if (booking.appointmentId) {
+      const { data } = await supabase.from("appointments").select(APPT_COLUMNS).eq("id", booking.appointmentId).maybeSingle();
+      appt = data;
+    } else if (lookupToken) {
+      const { data } = await supabase.from("appointments").select(APPT_COLUMNS).eq("manage_token", lookupToken).maybeSingle();
+      appt = data;
+    }
+    if (!appt || appt.business_id !== businessId) return json({ ok: true, skipped: "turno no encontrado" });
+
+    let clientRow: Record<string, any> | null = null;
+    if (appt.client_id) {
+      const { data } = await supabase.from("clients").select("email, phone, full_name").eq("id", appt.client_id).maybeSingle();
+      clientRow = data;
+    }
+    const storedEmail = ((clientRow?.email as string | null) ?? "").trim();
+    const fresh = Date.now() - new Date(appt.created_at as string).getTime() < 15 * 60_000;
+    if (!(to && fresh) && !(to && storedEmail && to.toLowerCase() === storedEmail.toLowerCase())) {
+      to = storedEmail || undefined;
     }
 
     if (!to) return json({ ok: true, skipped: "sin email del cliente" });
+
+    // Completa lo que no llegó en el pedido (recordatorios del programador).
+    const tzRow = await supabase.from("businesses").select("timezone").eq("id", businessId).maybeSingle();
+    const timeZone = ((tzRow.data?.timezone as string | null) ?? "") || "America/Argentina/Buenos_Aires";
+    if (!booking.professional && appt.employee_id) {
+      const { data: emp } = await supabase.from("employees").select("full_name").eq("id", appt.employee_id).maybeSingle();
+      booking.professional = ((emp?.full_name as string | null) ?? "").trim() || undefined;
+    }
+    const apptStart = new Date(appt.starts_at as string);
+    // El horario guardado manda: así un reprogramado o un pedido viejo nunca muestran otra hora.
+    booking.startIso = apptStart.toISOString();
+    booking.date = apptStart.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", timeZone });
+    booking.time = apptStart.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone });
+    booking.services = booking.services || (appt.service_name as string);
+    booking.clientName = booking.clientName || (appt.client_name as string);
+    booking.durationMin = booking.durationMin ?? (appt.duration_min as number);
+    if (booking.total === undefined) booking.total = Number(appt.service_price) || 0;
+    booking.clientPhone = booking.clientPhone ?? (clientRow?.phone as string | null) ?? null;
 
     // Datos del negocio (nombre, dirección, logo, color de acento).
     const { data: biz } = await supabase
@@ -189,55 +226,8 @@ Deno.serve(async (req: Request) => {
       logoUrl: (biz?.avatar_url as string) || (biz?.logo_url as string) || null,
     };
 
-    // Token de gestión del turno recién creado (para self-service en /gestion).
-    // Primero usamos valores que pueda devolver/pasar el frontend; si no existen,
-    // hacemos una búsqueda robusta en la tabla real.
-    let manageToken: string | null = booking.manageToken ?? null;
-    let employeeId: string | null = null;
-
-    if (booking.appointmentId) {
-      const { data: apptById } = await supabase
-        .from("appointments")
-        .select("manage_token, employee_id")
-        .eq("id", booking.appointmentId)
-        .maybeSingle();
-      manageToken = (apptById?.manage_token as string) ?? manageToken;
-      employeeId = (apptById?.employee_id as string) ?? employeeId;
-    }
-
-    if (!manageToken && booking.startIso) {
-      let query = supabase
-        .from("appointments")
-        .select("manage_token, employee_id, created_at")
-        .eq("business_id", businessId)
-        .eq("starts_at", booking.startIso)
-        .order("created_at", { ascending: false })
-        .limit(1);
-
-      if (booking.clientEmail) {
-        query = query.eq("client_email", booking.clientEmail);
-      } else if (booking.clientPhone) {
-        query = query.eq("client_phone", booking.clientPhone);
-      }
-
-      const { data: appt } = await query.maybeSingle();
-      manageToken = (appt?.manage_token as string) ?? null;
-      employeeId = (appt?.employee_id as string) ?? null;
-    }
-
-    if (!manageToken && booking.startIso && booking.clientPhone && booking.clientEmail) {
-      const { data: apptFallback } = await supabase
-        .from("appointments")
-        .select("manage_token, employee_id, created_at")
-        .eq("business_id", businessId)
-        .eq("starts_at", booking.startIso)
-        .eq("client_phone", booking.clientPhone)
-        .order("created_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      manageToken = (apptFallback?.manage_token as string) ?? null;
-      employeeId = (apptFallback?.employee_id as string) ?? employeeId;
-    }
+    const manageToken: string | null = (appt.manage_token as string) ?? null;
+    const employeeId: string | null = (appt.employee_id as string) ?? null;
 
     const baseUrlArgs = [
       brand,
@@ -249,7 +239,14 @@ Deno.serve(async (req: Request) => {
     ] as const;
 
     const calendarUrl = buildManageUrl(...baseUrlArgs, "calendar");
-    const manageUrl = buildManageUrl(...baseUrlArgs, "manage");
+    // Página de gestión por token (ver, confirmar, reprogramar, cancelar).
+    const manageUrl = manageToken
+      ? `${APP_ORIGIN}/gestion?k=${manageToken}`
+      : buildManageUrl(...baseUrlArgs, "manage");
+    // "Confirmar asistencia" solo mientras el turno está por confirmar.
+    const confirmUrl = manageToken && appt.status === "pending" && type !== "cancellation" && type !== "reminder_2h"
+      ? `${APP_ORIGIN}/gestion?k=${manageToken}&a=confirmar`
+      : null;
 
     const data: BookingEmailData = {
       brand,
@@ -261,6 +258,7 @@ Deno.serve(async (req: Request) => {
       time: booking.time || "-",
       total: Number(booking.total ?? 0),
       manageUrl,
+      confirmUrl,
       calendarUrl,
       mapsUrl: (biz?.address as string)?.trim()
         ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((biz?.address as string).trim())}`
@@ -292,6 +290,15 @@ Deno.serve(async (req: Request) => {
     }
 
     const result = await resendRes.json();
+
+    // Registro de lo enviado (los recordatorios lo reclaman el programador antes de mandar).
+    if (type === "confirmation" || type === "reschedule" || type === "cancellation") {
+      await supabase.rpc("claim_booking_notification", {
+        p_appointment_id: appt.id,
+        p_kind: type,
+        p_starts_at: appt.starts_at,
+      });
+    }
     return json({ ok: true, id: result?.id ?? null });
   } catch (err) {
     console.error("send-booking-email error", err);

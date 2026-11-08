@@ -42,6 +42,8 @@ export type BookingEmailData = {
   total: number;
   /** Link a la página de gestión del turno (/gestion?...). */
   manageUrl?: string | null;
+  /** Link que abre la gestión del turno con "Confirmar asistencia" destacado (solo si está por confirmar). */
+  confirmUrl?: string | null;
   /** Link directo a calendario; no debe abrir /gestion. */
   calendarUrl?: string | null;
   /** Google Maps con la dirección del local (si el negocio tiene dirección). */
@@ -304,7 +306,8 @@ function detailRows(d: BookingEmailData): Row[] {
 
 function bookingButtons(d: BookingEmailData): Btn[] {
   const btns: Btn[] = [];
-  if (d.calendarUrl) btns.push({ label: "Agregar al calendario", url: d.calendarUrl, variant: "primary", icon: "agregar" });
+  if (d.confirmUrl) btns.push({ label: "Confirmar asistencia", url: d.confirmUrl, variant: "primary", icon: "confirmar" });
+  if (d.calendarUrl) btns.push({ label: "Agregar al calendario", url: d.calendarUrl, variant: d.confirmUrl ? "secondary" : "primary", icon: "agregar" });
   if (d.mapsUrl) btns.push({ label: "Cómo llegar", url: d.mapsUrl, variant: "secondary", icon: "llegar" });
   if (d.whatsappUrl) btns.push({ label: "WhatsApp", url: d.whatsappUrl, variant: "secondary", icon: "whatsapp" });
   if (d.manageUrl) btns.push({ label: "Gestionar turno", url: d.manageUrl, variant: "secondary", icon: "gestionar" });
@@ -329,16 +332,46 @@ export function buildBookingEmail(
   switch (type) {
     case "confirmation":
       return {
-        subject: `Turno confirmado en ${biz} · ${d.date}`,
+        subject: d.confirmUrl ? `Turno agendado en ${biz} · ${d.date}` : `Turno confirmado en ${biz} · ${d.date}`,
         html: baseLayout({
           ...base,
-          preheader: `Tu turno en ${biz} quedó confirmado para el ${d.date} a las ${d.time}.`,
-          eyebrow: "✓ Reserva confirmada",
+          preheader: `Tu turno en ${biz} es el ${d.date} a las ${d.time}.`,
+          eyebrow: d.confirmUrl ? "✓ Turno agendado" : "✓ Reserva confirmada",
           eyebrowColor: "#047857",
           eyebrowBg: "#ecfdf5",
-          title: "¡Turno confirmado!",
-          intro: first && first !== "-" ? `Te esperamos, ${first}.` : "Te esperamos.",
+          title: d.confirmUrl ? "¡Turno agendado!" : "¡Turno confirmado!",
+          intro: `${first && first !== "-" ? `Te esperamos, ${first}.` : "Te esperamos."}${d.confirmUrl ? " Confirmá tu asistencia con un toque." : ""}`,
           footerNote: `Recibiste este correo porque reservaste un turno en ${biz}.`,
+        }),
+      };
+
+    case "reminder_1d":
+      return {
+        subject: `Mañana tenés turno en ${biz} · ${d.time}`,
+        html: baseLayout({
+          ...base,
+          preheader: `Te esperamos mañana, ${d.date} a las ${d.time}, en ${biz}.`,
+          eyebrow: "⏰ Mañana",
+          eyebrowColor: "#9a3412",
+          eyebrowBg: "#fff7ed",
+          title: "Tu turno es mañana",
+          intro: `${first && first !== "-" ? `${first}, ` : ""}te recordamos tu turno de mañana.${d.confirmUrl ? " Confirmá tu asistencia con un toque." : ""}`,
+          footerNote: `Recibiste este recordatorio por tu turno en ${biz}.`,
+        }),
+      };
+
+    case "reminder_2h":
+      return {
+        subject: `Tu turno en ${biz} es en 2 horas · ${d.time}`,
+        html: baseLayout({
+          ...base,
+          preheader: `Te esperamos hoy a las ${d.time} en ${biz}.`,
+          eyebrow: "⏰ En 2 horas",
+          eyebrowColor: "#9a3412",
+          eyebrowBg: "#fff7ed",
+          title: "Tu turno es en 2 horas",
+          intro: "Te esperamos. ¡Nos vemos pronto!",
+          footerNote: `Recibiste este recordatorio por tu turno en ${biz}.`,
         }),
       };
 
@@ -367,7 +400,7 @@ export function buildBookingEmail(
           eyebrowColor: "#1d4ed8",
           eyebrowBg: "#eff6ff",
           title: "Tu turno cambió de horario",
-          intro: "Estos son los nuevos datos de tu turno.",
+          intro: d.confirmUrl ? "Estos son los nuevos datos. Confirmá tu asistencia con un toque." : "Estos son los nuevos datos de tu turno.",
           footerNote: `Recibiste este correo por tu turno en ${biz}.`,
         }),
       };

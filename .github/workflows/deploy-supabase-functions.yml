@@ -35,6 +35,14 @@ jobs:
             --project-ref "$PROJECT_ID" \
             --no-verify-jwt
 
+      - name: Deploy send-reminders
+        # --no-verify-jwt: la invoca el programador (pg_cron) cada ~10 minutos;
+        # es idempotente (cada aviso se reclama una sola vez en la base).
+        run: |
+          supabase functions deploy send-reminders \
+            --project-ref "$PROJECT_ID" \
+            --no-verify-jwt
+
       - name: Deploy invite-team-member
         # Verificación de JWT normal (SIN --no-verify-jwt): la función es
         # administrativa, valida el Authorization por su cuenta (JWT +

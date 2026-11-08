@@ -861,6 +861,35 @@ async function sendAgendaConfirmationEmail(input: SaveAppointmentInput, saved: R
   }
 }
 
+/**
+ * Avisa por correo al cliente que su turno cambió de horario (desde la Agenda).
+ * Solo si el horario realmente cambió y el nuevo es a futuro; la función de
+ * correo manda al email que el cliente tiene guardado y no hace nada si no tiene.
+ */
+export async function notifyRescheduleEmail(
+  appointmentId: string,
+  businessId: string,
+  previousStartsAt: string | null | undefined,
+  newStartsAt: string,
+) {
+  try {
+    if (!previousStartsAt) return;
+    const before = new Date(previousStartsAt).getTime();
+    const after = new Date(newStartsAt).getTime();
+    if (Number.isNaN(before) || Number.isNaN(after) || before === after || after <= Date.now()) return;
+    const { data, error } = await supabase.functions.invoke("send-booking-email", {
+      body: { type: "reschedule", businessId, booking: { appointmentId } },
+    });
+    if (error) throw error;
+    if (data && typeof data === "object" && !(data as Record<string, unknown>).skipped) {
+      toast.success("Le avisamos al cliente del nuevo horario");
+    }
+  } catch (e) {
+    console.error("send-booking-email (reprogramación)", e);
+    toast.error("El turno se movió, pero no se pudo enviar el aviso al cliente.");
+  }
+}
+
 export async function saveAppointment(input: SaveAppointmentInput) {
   // Único punto real de creación de turnos (Agenda, Mi Agenda, cualquier
   // otro punto de entrada pasan todos por acá) — validar acá, no solo en el
@@ -920,6 +949,12 @@ export async function saveAppointment(input: SaveAppointmentInput) {
     payload.branch_id = input.branch_id ?? null;
   }
 
+  let previousStartsAt: string | null = null;
+  if (input.id) {
+    const { data: prev } = await supabase.from("appointments").select("starts_at").eq("id", input.id).maybeSingle();
+    previousStartsAt = (prev?.starts_at as string | undefined) ?? null;
+  }
+
   const q = input.id
     ? supabase.from("appointments").update(payload).eq("id", input.id).select()
     : supabase.from("appointments").insert(payload).select();
@@ -935,6 +970,9 @@ export async function saveAppointment(input: SaveAppointmentInput) {
   }
   const created = data?.[0];
   if (!input.id && input.notifyClient && created) void sendAgendaConfirmationEmail(input, created as Record<string, any>);
+  if (input.id && created && input.status !== "blocked" && input.status !== "cancelled") {
+    void notifyRescheduleEmail(input.id, input.business_id, previousStartsAt, input.starts_at);
+  }
   return created;
 }
 

@@ -110,3 +110,35 @@ describe("Agenda: correo de confirmación al agendar", () => {
     expect(saved).toBeTruthy();
   });
 });
+
+describe("Agenda: correo al reprogramar un turno", () => {
+  // El mock devuelve la misma fila para leer el horario anterior y para el update.
+  const withPrevious = (iso: string) =>
+    (h.tables.appointments = { data: Object.assign([{ id: "appt1", manage_token: "tok1" }], { starts_at: iso }), error: null });
+
+  it("al cambiar el horario manda UN correo de reprogramación", async () => {
+    withPrevious(new Date(Date.now() + 86_400_000).toISOString());
+    await saveAppointment({ ...base(), id: "appt1" });
+    await flush();
+    expect(h.invoke).toHaveBeenCalledTimes(1);
+    const [fn, opts] = h.invoke.mock.calls[0];
+    expect(fn).toBe("send-booking-email");
+    expect(opts.body.type).toBe("reschedule");
+    expect(opts.body.booking.appointmentId).toBe("appt1");
+  });
+
+  it("si el horario no cambió (solo cobro, nota, estado) no manda nada", async () => {
+    const input = { ...base(), id: "appt1" };
+    withPrevious(input.starts_at);
+    await saveAppointment(input);
+    await flush();
+    expect(h.invoke).not.toHaveBeenCalled();
+  });
+
+  it("un bloqueo no avisa a nadie", async () => {
+    withPrevious(new Date(Date.now() + 86_400_000).toISOString());
+    await saveAppointment({ ...base(), id: "appt1", status: "blocked" as any });
+    await flush();
+    expect(h.invoke).not.toHaveBeenCalled();
+  });
+});

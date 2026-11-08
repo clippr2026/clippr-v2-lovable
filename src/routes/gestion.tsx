@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import * as React from "react";
 import { CalendarDays, RefreshCw, X } from "lucide-react";
+import { ManageBooking } from "@/components/gestion/manage-booking";
 
 type Search = {
   b?: string; bid?: string; tk?: string; emp?: string; slug?: string; svc?: string; prof?: string;
@@ -8,6 +9,8 @@ type Search = {
   addr?: string; ph?: string; n?: string;
   pc?: string; ac?: string; bt?: string; m?: string; logo?: string;
   mode?: "calendar" | "manage" | string;
+  /** Token de gestión del turno (links nuevos) y acción sugerida (confirmar). */
+  k?: string; a?: string;
 };
 
 const str = (v: unknown) => (typeof v === "string" ? v : undefined);
@@ -20,6 +23,7 @@ export const Route = createFileRoute("/gestion")({
     addr: str(search.addr), ph: str(search.ph), n: str(search.n),
     pc: str(search.pc), ac: str(search.ac), bt: str(search.bt), m: str(search.m), logo: str(search.logo),
     mode: str(search.mode),
+    k: str(search.k), a: str(search.a),
   }),
   component: GestionPage,
 });
@@ -30,6 +34,12 @@ const fmtDay = (dt: Date) => dt.toLocaleDateString("es-AR", { weekday: "long", d
 const fmtTime = (dt: Date) => dt.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }) + " hs";
 
 function GestionPage() {
+  const p = Route.useSearch();
+  if (p.k && /^[0-9a-f-]{36}$/i.test(p.k)) return <ManageBooking token={p.k} action={p.a} />;
+  return <LegacyGestionPage />;
+}
+
+function LegacyGestionPage() {
   const p = Route.useSearch();
   const dark = p.m !== "light";
   const primary = isHex(p.pc) ? (p.pc as string) : "#7c3aed";

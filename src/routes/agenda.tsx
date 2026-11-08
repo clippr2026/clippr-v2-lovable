@@ -37,6 +37,7 @@ import {
   getScheduleForDate,
   getVisibleRange,
   parseScheduleTime,
+  notifyRescheduleEmail,
 } from "@/components/agenda/use-agenda-data";
 import { AppointmentDialog } from "@/components/agenda/appointment-dialog";
 import { SpecialDayEditor } from "@/components/settings/special-hours-editor";
@@ -2545,6 +2546,10 @@ const DayView = React.memo(function DayView({
       if (error) throw new Error(error.message);
       data.refresh();
       toast.success("Turno movido");
+      const moved = data.appointments.find((x) => x.id === apptId);
+      if (moved && moved.status !== "blocked") {
+        void notifyRescheduleEmail(apptId, moved.business_id, moved.starts_at, newStart.toISOString());
+      }
     } catch (ex) {
       toast.error(`Error al guardar: ${(ex as Error).message}`);
     }
