@@ -380,9 +380,10 @@ export function PublicProfessionalPicker({
                     <span className="min-w-0 flex-1 leading-tight">
                       <span className="block break-words text-xs font-extrabold uppercase tracking-tight">{item.name.split(" ")[0]}</span>
                       {r && r.count > 0 ? (
-                        <span className="mt-0.5 flex items-center gap-1 text-[11px] font-semibold text-white/75">
-                          <Star className="h-3 w-3 fill-current text-amber-400" />
-                          {avg1(r.avg)}
+                        <span className="mt-0.5 flex items-center gap-0.5" aria-label={`${avg1(r.avg)} de 5 estrellas`}>
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <Star key={n} className={cn("h-3 w-3", n <= Math.round(r.avg) ? "fill-current text-amber-400" : "text-white/25")} />
+                          ))}
                         </span>
                       ) : null}
                     </span>
