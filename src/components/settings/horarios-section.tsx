@@ -283,7 +283,7 @@ export function HorariosSection() {
       key: "minAdvance",
       icon: Clock3,
       title: "Anticipación mínima",
-      hint: "Cuánto antes de la hora del turno se puede reservar",
+      hint: "Cuánto antes del turno puede reservar el cliente",
       options: MIN_ADVANCE_OPTIONS,
       unit: "min",
     },
@@ -291,7 +291,7 @@ export function HorariosSection() {
       key: "maxAdvance",
       icon: CalendarDays,
       title: "Anticipación máxima",
-      hint: "Con cuánta anticipación se puede reservar como máximo",
+      hint: "Con cuánta anticipación puede reservar el cliente como máximo",
       options: MAX_ADVANCE_OPTIONS,
       unit: "días",
     },
@@ -299,7 +299,7 @@ export function HorariosSection() {
       key: "minCancel",
       icon: AlarmClock,
       title: "Cancelación",
-      hint: "Hasta cuánto antes del turno se puede cancelar",
+      hint: "Hasta cuánto antes del turno el cliente puede cancelar",
       options: MIN_CANCEL_OPTIONS,
       unit: "horas",
     },
@@ -307,7 +307,7 @@ export function HorariosSection() {
       key: "minReschedule",
       icon: CalendarSync,
       title: "Reprogramación",
-      hint: "Hasta cuánto antes del turno se puede reprogramar",
+      hint: "Hasta cuánto antes del turno el cliente puede reprogramar",
       options: MIN_CANCEL_OPTIONS,
       unit: "horas",
     },
@@ -431,7 +431,10 @@ export function HorariosSection() {
         />
       )}
 
-      <SectionCard label="Turnos y reservas">
+      <SectionCard label="Turnos y reservas de clientes">
+        <p className="mb-3 text-xs text-muted-foreground">
+          Aplica a lo que hacen los clientes desde la página pública. No afecta lo que agendás vos desde la Agenda.
+        </p>
         <div className="divide-y divide-white/5">
           {reservationRows.map((r) => {
             const Icon = r.icon;
