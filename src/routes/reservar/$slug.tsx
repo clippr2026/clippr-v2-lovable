@@ -725,6 +725,14 @@ function PublicBookingPage() {
   );
   const [selectedDayIndex, setSelectedDayIndex] = React.useState(0);
   const selectedDay = availableDays[selectedDayIndex] ?? availableDays[0] ?? null;
+  // Mes que muestra el calendario del paso "día y horario" (se sincroniza con el día elegido).
+  const [calMonth, setCalMonth] = React.useState<Date | null>(null);
+  const selectedDayTime = selectedDay?.date.getTime() ?? null;
+  React.useEffect(() => {
+    if (selectedDayTime == null) return;
+    const d = new Date(selectedDayTime);
+    setCalMonth(new Date(d.getFullYear(), d.getMonth(), 1));
+  }, [selectedDayTime]);
 
   const selectedSlotRef = React.useRef<typeof selectedSlot>(null);
   React.useEffect(() => {
@@ -2133,56 +2141,92 @@ function PublicBookingPage() {
                       y elegir fecha por calendario era redundante con la
                       lista de días de abajo — "Volver" (header compartido
                       del paso) sigue permitiendo cambiar de profesional. */}
-                  <div>
-                    <div className="mb-4 flex items-center justify-between gap-3">
-                      <h3 className="text-xl font-semibold tracking-tight sm:text-2xl">Seleccioná una fecha</h3>
-                      <div className="hidden items-center gap-2 sm:flex">
-                        <button type="button" onClick={() => setSelectedDayIndex((index) => Math.max(0, index - 1))} className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/[0.04] hover:bg-white/[0.08]" aria-label="Fecha anterior"><ChevronLeft className="h-5 w-5" /></button>
-                        <button type="button" onClick={() => setSelectedDayIndex((index) => Math.min(Math.max(availableDays.length - 1, 0), index + 1))} className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/[0.04] hover:bg-white/[0.08]" aria-label="Fecha siguiente"><ChevronRight className="h-5 w-5" /></button>
-                      </div>
-                    </div>
-
-                    {availableDays.length === 0 ? (
-                      <p className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 text-sm text-white/60">No hay horarios disponibles en los próximos días.</p>
-                    ) : (
-                      <div className="-mx-1 flex gap-3 overflow-x-auto px-1 pb-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                        {availableDays.map((day, index) => {
-                          const active = index === selectedDayIndex;
-                          const weekday = day.date.toLocaleDateString("es-AR", { weekday: "short" }).replace(".", "");
-                          const month = day.date.toLocaleDateString("es-AR", { month: "short" }).replace(".", "");
-                          return (
+                  {availableDays.length === 0 ? (
+                    <p className="rounded-3xl border border-white/10 bg-white/[0.03] p-5 text-sm text-white/60">No hay horarios disponibles en los próximos días.</p>
+                  ) : (
+                    (() => {
+                      const month = calMonth ?? new Date(availableDays[0].date.getFullYear(), availableDays[0].date.getMonth(), 1);
+                      const year = month.getFullYear();
+                      const monthIdx = month.getMonth();
+                      const daysInMonth = new Date(year, monthIdx + 1, 0).getDate();
+                      const offset = new Date(year, monthIdx, 1).getDay();
+                      const indexByKey = new Map(availableDays.map((d, i) => [toDateKey(d.date), i] as const));
+                      const todayKey = toDateKey(new Date());
+                      const firstWin = slots[0]?.date ?? availableDays[0].date;
+                      const lastWin = slots[slots.length - 1]?.date ?? availableDays[availableDays.length - 1].date;
+                      const canPrev = year * 12 + monthIdx > firstWin.getFullYear() * 12 + firstWin.getMonth();
+                      const canNext = year * 12 + monthIdx < lastWin.getFullYear() * 12 + lastWin.getMonth();
+                      const monthLabel = month.toLocaleDateString("es-AR", { month: "long", year: "numeric" });
+                      const cells: (number | null)[] = [...Array(offset).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
+                      return (
+                        <div className="rounded-[1.6rem] border border-white/10 bg-white/[0.03] p-3 sm:p-4">
+                          <div className="mb-3 flex items-center justify-between gap-2">
                             <button
-                              key={day.date.toISOString()}
                               type="button"
-                              onClick={() => setSelectedDayIndex(index)}
-                              className={cn(
-                                "flex min-w-[72px] flex-col items-center rounded-2xl border px-4 py-3 text-center transition",
-                                active ? "border-transparent shadow-lg" : "border-white/10 bg-white/[0.04] text-white/60 hover:bg-white/[0.08]",
-                              )}
-                              style={active ? { background: accent, color: accentButtonText } : undefined}
+                              disabled={!canPrev}
+                              onClick={() => setCalMonth(new Date(year, monthIdx - 1, 1))}
+                              className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] disabled:opacity-30"
+                              aria-label="Mes anterior"
                             >
-                              <span className="text-sm capitalize leading-none">{weekday}</span>
-                              <span className="mt-1.5 text-2xl font-bold leading-none">{day.date.getDate()}</span>
-                              <span className="mt-1.5 text-sm lowercase leading-none">{month}</span>
+                              <ChevronLeft className="h-5 w-5" />
                             </button>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </div>
+                            <h3 className="text-center text-base font-extrabold uppercase tracking-wider sm:text-lg" style={{ color: accent }}>{monthLabel}</h3>
+                            <button
+                              type="button"
+                              disabled={!canNext}
+                              onClick={() => setCalMonth(new Date(year, monthIdx + 1, 1))}
+                              className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-white/[0.04] hover:bg-white/[0.08] disabled:opacity-30"
+                              aria-label="Mes siguiente"
+                            >
+                              <ChevronRight className="h-5 w-5" />
+                            </button>
+                          </div>
+                          <div className="grid grid-cols-7 gap-y-1.5 text-center">
+                            {["DOM", "LUN", "MAR", "MIE", "JUE", "VIE", "SAB"].map((d) => (
+                              <span key={d} className="pb-1 text-[11px] font-bold tracking-wider text-white/45">{d}</span>
+                            ))}
+                            {cells.map((day, i) => {
+                              if (day == null) return <span key={`e${i}`} />;
+                              const key = toDateKey(new Date(year, monthIdx, day));
+                              const idx = indexByKey.get(key);
+                              const available = idx != null;
+                              const active = available && idx === selectedDayIndex;
+                              return (
+                                <button
+                                  key={key}
+                                  type="button"
+                                  disabled={!available}
+                                  onClick={() => idx != null && setSelectedDayIndex(idx)}
+                                  className={cn(
+                                    "mx-auto grid h-10 w-10 place-items-center rounded-full text-base transition",
+                                    available ? (active ? "font-extrabold" : "bg-white/[0.08] font-bold text-white hover:bg-white/[0.14]") : "text-white/25",
+                                    !available && key === todayKey && "ring-1 ring-white/20",
+                                  )}
+                                  style={active ? publicButtonStyle(accent, accentButtonText) : undefined}
+                                  aria-label={`${day} de ${monthLabel}`}
+                                >
+                                  {day}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()
+                  )}
 
                   {selectedDay ? (
                     <div>
-                      <h3 className="mb-3 text-xl font-semibold tracking-tight sm:text-2xl">Elegí una hora</h3>
-                      <div className="space-y-3">
+                      <h3 className="mb-3 text-sm font-extrabold uppercase tracking-[0.18em]" style={{ color: accent }}>Horarios disponibles</h3>
+                      <div className="grid grid-cols-3 gap-2.5">
                         {selectedDay.slots.map((slot) => (
                           <button
                             key={`${slot.employeeId}-${slot.time.toISOString()}`}
                             type="button"
                             onClick={() => { selectSlot(slot); }}
-                            className="slot-button flex w-full items-center rounded-2xl border border-white/10 bg-white/[0.04] px-5 py-4 pl-7 text-left text-base font-semibold transition hover:border-white/25 hover:bg-white/[0.08] sm:px-6 sm:py-4 sm:pl-8"
+                            className="whitespace-nowrap rounded-2xl border border-white/10 bg-white/[0.04] px-2 py-3.5 text-center text-base font-bold transition hover:border-white/25 hover:bg-white/[0.08]"
                           >
-                            {formatTime(slot.time, businessTimeZone)}
+                            {slot.time.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: businessTimeZone })}
                           </button>
                         ))}
                       </div>
