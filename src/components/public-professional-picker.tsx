@@ -240,7 +240,10 @@ export function PublicProfessionalPicker({
                     </span>
                   ) : null}
                   <span className="flex items-center gap-2">
-                    <span className="grid h-[52px] w-[52px] shrink-0 place-items-center overflow-hidden rounded-full bg-white/10">
+                    <span
+                      className="grid h-[52px] w-[52px] shrink-0 place-items-center overflow-hidden rounded-full bg-white/10"
+                      style={{ boxShadow: `0 0 16px 3px color-mix(in oklch, ${accent} 65%, transparent)` }}
+                    >
                       {item.avatarUrl ? (
                         <img loading="lazy" decoding="async" src={item.avatarUrl} alt={item.name} className="h-full w-full object-cover" />
                       ) : (
@@ -269,7 +272,7 @@ export function PublicProfessionalPicker({
                             {second.label}
                             {second.label === "Promo" && item.promoPercent != null ? ` -${item.promoPercent}%` : ""}
                           </span>
-                          <span className="text-xl font-extrabold text-white">{formatMoney(second.value)}</span>
+                          <span className="text-xl font-extrabold" style={{ color: accent }}>{formatMoney(second.value)}</span>
                         </span>
                       ) : null}
                     </span>
