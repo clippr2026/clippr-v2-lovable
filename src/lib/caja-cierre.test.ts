@@ -311,11 +311,15 @@ describe("Condición de carrera — dos confirmaciones simultáneas de la misma 
     expect(fnMatch![1]).toMatch(/alreadyClosed: true/);
   });
 
-  it("closeSingleDayCierre guarda el UPDATE con .neq(\"estado\",\"cerrada\") — si la otra confirmación ya cerró la fila, esta no la pisa", () => {
+  it("closeSingleDayCierre guarda el UPDATE comparando updated_at (no estado) — si la otra confirmación ya escribió la fila, esta no la pisa, y una caja reabierta sí se puede volver a cerrar", () => {
     const src = readSrc("src/lib/caja-cierre.ts");
     const fnMatch = src.match(/export async function closeSingleDayCierre\(([\s\S]*?)\n\}\n/);
     expect(fnMatch).not.toBeNull();
-    expect(fnMatch![1]).toMatch(/\.neq\("estado",\s*"cerrada"\)/);
+    expect(fnMatch![1]).toMatch(/\.filter\("updated_at"/);
+    // `estado` queda en 'cerrada' aunque se reabra el día: usarlo como guarda
+    // dejaba la caja reabierta imposible de cerrar otra vez (la UPDATE no
+    // afectaba ninguna fila y se informaba "ya está cerrada").
+    expect(fnMatch![1]).not.toMatch(/\.neq\("estado",\s*"cerrada"\)/);
   });
 });
 

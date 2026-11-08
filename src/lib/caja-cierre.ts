@@ -1619,7 +1619,7 @@ export async function closeSingleDayCierre({
 }) {
   let existingQuery = supabase
     .from("caja_cierres" as any)
-    .select("id,eventos,estado")
+    .select("id,eventos,estado,updated_at")
     .eq("business_id", businessId)
     .eq("fecha", dateStr);
   if (branchId) existingQuery = existingQuery.eq("branch_id", branchId);
@@ -1709,9 +1709,12 @@ export async function closeSingleDayCierre({
   // datos es quien decide cuál gana:
   //   - INSERT: si la otra ya insertó, la unique constraint (business_id,
   //     branch_id, fecha) — NULLS NOT DISTINCT — rechaza esta con 23505.
-  //   - UPDATE: .neq("estado", "cerrada") hace que, si la otra ya cerró
-  //     esa fila un instante antes, esta UPDATE no afecte ninguna fila
-  //     (en vez de pisar silenciosamente un cierre que ya quedó guardado).
+  //   - UPDATE: se compara `updated_at` con el que leímos arriba. Si la otra
+  //     confirmación ya escribió esa fila un instante antes (cambió
+  //     updated_at), esta UPDATE no afecta ninguna fila en vez de pisar un
+  //     cierre ya guardado. (No se puede comparar `estado`: queda en
+  //     'cerrada' aunque el día se haya reabierto, y entonces volver a
+  //     cerrar una caja reabierta nunca guardaba nada.)
   // Cualquiera de los dos casos es "alreadyClosed" para el que perdió la
   // carrera, nunca un error ni un segundo cierre.
   const query = (existingCierre as any)?.id
@@ -1720,7 +1723,7 @@ export async function closeSingleDayCierre({
         .update(payload)
         .eq("id", (existingCierre as any).id)
         .eq("business_id", businessId)
-        .neq("estado", "cerrada")
+        .filter("updated_at", (existingCierre as any).updated_at == null ? "is" : "eq", (existingCierre as any).updated_at ?? "null")
         .select("id")
         .maybeSingle()
     : supabase.from("caja_cierres" as any).insert(payload).select("id").maybeSingle();
