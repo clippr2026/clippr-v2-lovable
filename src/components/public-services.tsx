@@ -1,5 +1,6 @@
 import * as React from "react";
 import { Crown, Info, Sparkles, Star, Tag, UserRound } from "lucide-react";
+import { publicButtonStyle } from "@/lib/public-button";
 import { ServiceImage } from "@/components/ui/service-image";
 import {
   computeStandardEffectivePrice,
@@ -153,12 +154,7 @@ export function PublicServicesList({
     <a
       href={bookingHref({ service: id })}
       className={className + " rounded-full text-center font-bold transition hover:-translate-y-0.5 hover:brightness-110"}
-      style={{
-        background: accent,
-        color: buttonText,
-        WebkitTextFillColor: buttonText,
-        boxShadow: "0 14px 30px -12px color-mix(in oklch, var(--c-accent) 75%, transparent)",
-      }}
+      style={publicButtonStyle(accent, buttonText)}
     >
       Reservar
     </a>

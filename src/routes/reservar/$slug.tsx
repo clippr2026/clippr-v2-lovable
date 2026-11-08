@@ -55,6 +55,7 @@ import {
 } from "@/lib/availability";
 import clipprMark from "@/assets/clippr-mark.png";
 import { ServiceImage } from "@/components/ui/service-image";
+import { publicButtonStyle } from "@/lib/public-button";
 import { PublicProfessionalPicker, type ProfessionalRating, type ProfessionalReview } from "@/components/public-professional-picker";
 import {
   resolveServicePricing,
@@ -1788,7 +1789,7 @@ function PublicBookingPage() {
                     })}
                   </div>
                   {offeredServices.length > 0 && (
-                    <Button onClick={nextFromServices} className="w-full rounded-2xl py-6 font-bold hover:brightness-110" style={{ background: accent, color: accentButtonText }}>
+                    <Button onClick={nextFromServices} className="w-full rounded-2xl py-6 font-bold hover:brightness-110" style={publicButtonStyle(accent, accentButtonText)}>
                       Continuar
                     </Button>
                   )}
@@ -1900,7 +1901,7 @@ function PublicBookingPage() {
                   <Button
                     onClick={confirmPromoChoice}
                     className="w-full rounded-2xl py-6 font-bold hover:brightness-110"
-                    style={{ background: accent, color: accentButtonText }}
+                    style={publicButtonStyle(accent, accentButtonText)}
                   >
                     Continuar
                   </Button>
@@ -1959,7 +1960,7 @@ function PublicBookingPage() {
                         type="button"
                         onClick={() => setStep("promo")}
                         className="mt-4 inline-flex items-center gap-1 rounded-full px-4 py-2 text-sm font-semibold"
-                        style={{ background: accent, color: accentButtonText }}
+                        style={publicButtonStyle(accent, accentButtonText)}
                       >
                         Cambiar beneficio
                       </button>
@@ -2321,7 +2322,7 @@ function PublicBookingPage() {
                     <Button
                       onClick={() => setStep("details")}
                       className="flex-1 rounded-2xl py-4 font-bold hover:brightness-110"
-                      style={{ background: accent, color: accentButtonText }}
+                      style={publicButtonStyle(accent, accentButtonText)}
                     >
                       Continuar
                     </Button>
@@ -2351,7 +2352,7 @@ function PublicBookingPage() {
                       inputClassName="border-white/10 bg-white/[0.04] text-white"
                     />
                   ) : null}
-                  <Button disabled={submitting} onClick={submitBooking} className="w-full rounded-2xl py-6 font-bold hover:brightness-110" style={{ background: accent, color: accentButtonText }}>
+                  <Button disabled={submitting} onClick={submitBooking} className="w-full rounded-2xl py-6 font-bold hover:brightness-110" style={publicButtonStyle(accent, accentButtonText)}>
                     {submitting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
                     Confirmar reserva
                   </Button>

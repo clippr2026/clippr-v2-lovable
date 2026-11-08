@@ -1,4 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { publicButtonStyle } from "@/lib/public-button";
 import { COVER_ASPECT_CLASS } from "@/lib/cover-frame";
 import { NeonFrame, neonPalette } from "@/components/neon-frame";
 import {
@@ -1413,7 +1414,7 @@ function PublicProfilePage() {
               <Link
                 {...reservarTo}
                 className="inline-flex w-full items-center justify-center rounded-2xl px-5 py-3 text-base font-bold transition hover:brightness-110"
-                style={{ background: cAccent, color: accentButtonText, WebkitTextFillColor: accentButtonText, boxShadow: "0 12px 32px -10px color-mix(in oklch, var(--c-accent) 70%, transparent)" }}
+                style={publicButtonStyle(cAccent, accentButtonText)}
               >
                 Reservar turno
               </Link>
@@ -1788,7 +1789,7 @@ function PublicProfilePage() {
         <Link
           {...reservarTo}
           className="flex w-full items-center justify-center rounded-2xl px-5 py-3 text-base font-bold text-white"
-          style={{ background: cAccent, color: accentButtonText, WebkitTextFillColor: accentButtonText, boxShadow: "0 12px 32px -10px color-mix(in oklch, var(--c-accent) 70%, transparent)" }}
+          style={publicButtonStyle(cAccent, accentButtonText)}
         >
           Reservar turno
         </Link>

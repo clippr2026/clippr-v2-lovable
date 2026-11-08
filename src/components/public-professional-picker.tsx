@@ -1,6 +1,7 @@
 import * as React from "react";
 import { ArrowRight, Briefcase, Star, UserRound, UsersRound } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { publicButtonStyle } from "@/lib/public-button";
 
 export type ProfessionalPickerItem = {
   id: string;
@@ -39,9 +40,9 @@ const CSS = `
   @media (prefers-reduced-motion: reduce) { .pp-card-in, .pp-strip-in, .pp-grid-in { animation: none; } }
 `;
 
-function Avatar({ item, className, icon }: { item: ProfessionalPickerItem; className: string; icon: string }) {
+function Avatar({ item, className, icon, style }: { item: ProfessionalPickerItem; className: string; icon: string; style?: React.CSSProperties }) {
   return (
-    <span className={cn("grid shrink-0 place-items-center overflow-hidden rounded-full bg-white/10", className)}>
+    <span className={cn("grid shrink-0 place-items-center overflow-hidden rounded-full bg-white/10", className)} style={style}>
       {item.avatarUrl ? (
         <img loading="lazy" decoding="async" src={item.avatarUrl} alt={item.name} className="h-full w-full object-cover" />
       ) : (
@@ -109,22 +110,32 @@ export function PublicProfessionalPicker({
       <span
         key={label}
         className={cn(
-          "block min-w-0 flex-1 rounded-xl border-2 px-2 py-0.5 text-center leading-tight text-white",
+          "block min-w-0 flex-1 border-2 px-2 text-center leading-tight text-white",
+          big ? "rounded-[1.4rem] py-2" : "rounded-xl py-0.5",
           kind === "list" ? "border-white/20 bg-white/[0.05]" : "",
         )}
         style={
           kind === "list"
-            ? { boxShadow: "0 0 7px color-mix(in oklch, var(--c-primary) 85%, transparent), inset 0 0 6px -2px var(--c-primary)" }
+            ? big
+              ? undefined
+              : { boxShadow: "0 0 7px color-mix(in oklch, var(--c-primary) 85%, transparent), inset 0 0 6px -2px var(--c-primary)" }
             : {
                 borderColor: accent,
-                background: `color-mix(in oklch, ${accent} 32%, transparent)`,
-                boxShadow: `0 0 7px ${accent}, inset 0 0 6px -2px ${accent}`,
+                background: big
+                  ? `linear-gradient(180deg, color-mix(in oklch, ${accent} 38%, transparent), color-mix(in oklch, ${accent} 22%, transparent))`
+                  : `color-mix(in oklch, ${accent} 32%, transparent)`,
+                boxShadow: big ? `0 0 16px -2px ${accent}, inset 0 0 8px -2px ${accent}` : `0 0 7px ${accent}, inset 0 0 6px -2px ${accent}`,
               }
         }
       >
         {big ? (
           <>
-            <span className="block text-[10px] font-bold">{label}</span>
+            <span
+              className={cn("block text-[11px] font-bold uppercase tracking-wide", kind === "list" && "text-white/60")}
+              style={kind === "accent" ? { color: `color-mix(in oklch, ${accent} 55%, white)` } : undefined}
+            >
+              {label}
+            </span>
             <span className="block text-xl font-extrabold">{value}</span>
           </>
         ) : (
@@ -201,28 +212,34 @@ export function PublicProfessionalPicker({
                 Precio diferencial
               </span>
             ) : null}
-            <Avatar item={open} icon="h-10 w-10" className="mx-auto h-24 w-24 border-2 border-white/40" />
+            <Avatar
+              item={open}
+              icon="h-10 w-10"
+              className="mx-auto h-24 w-24 border-2 border-white/40"
+              style={{ boxShadow: `0 0 24px 5px color-mix(in oklch, ${accent} 65%, transparent)` }}
+            />
             <h3 className="mt-2 text-xl font-extrabold uppercase leading-tight">{open.name}</h3>
             <div className="mt-3">{priceBlock(open, true)}</div>
             {open.ageYears != null || open.nationality || open.experienceYears != null ? (
-              <div className="mt-3 grid grid-flow-col auto-cols-fr divide-x divide-white/10 rounded-2xl border border-white/10 py-2">
+              <div className="mt-3 grid grid-flow-col auto-cols-fr rounded-[1.4rem] border py-2.5"
+                style={{ borderColor: `color-mix(in oklch, ${accent} 60%, transparent)`, boxShadow: `0 0 14px -4px ${accent}, inset 0 0 10px -6px ${accent}` }}>
                 {open.ageYears != null ? (
-                  <div className="px-2 text-center leading-tight">
-                    <UserRound className="mx-auto mb-0.5 h-4 w-4 text-white/70" />
+                  <div className="border-l px-2 text-center leading-tight first:border-l-0" style={{ borderColor: `color-mix(in oklch, ${accent} 35%, transparent)` }}>
+                    <UserRound className="mx-auto mb-0.5 h-5 w-5" style={{ color: `color-mix(in oklch, ${accent} 70%, white)` }} />
                     <span className="block text-[10px] font-bold uppercase tracking-wide text-white/55">Edad</span>
                     <span className="block text-sm font-bold">{open.ageYears} años</span>
                   </div>
                 ) : null}
                 {open.nationality ? (
-                  <div className="px-2 text-center leading-tight">
-                    <span className="mx-auto mb-0.5 block text-lg leading-none">{flagFor(open.nationality)}</span>
+                  <div className="border-l px-2 text-center leading-tight first:border-l-0" style={{ borderColor: `color-mix(in oklch, ${accent} 35%, transparent)` }}>
+                    <span className="mx-auto mb-0.5 grid h-6 w-6 place-items-center overflow-hidden rounded-full bg-white/15 text-sm leading-none">{flagFor(open.nationality)}</span>
                     <span className="block text-[10px] font-bold uppercase tracking-wide text-white/55">Nacionalidad</span>
                     <span className="block text-sm font-bold">{open.nationality}</span>
                   </div>
                 ) : null}
                 {open.experienceYears != null ? (
-                  <div className="px-2 text-center leading-tight">
-                    <Briefcase className="mx-auto mb-0.5 h-4 w-4 text-white/70" />
+                  <div className="border-l px-2 text-center leading-tight first:border-l-0" style={{ borderColor: `color-mix(in oklch, ${accent} 35%, transparent)` }}>
+                    <Briefcase className="mx-auto mb-0.5 h-5 w-5" style={{ color: `color-mix(in oklch, ${accent} 70%, white)` }} />
                     <span className="block text-[10px] font-bold uppercase tracking-wide text-white/55">Experiencia</span>
                     <span className="block text-sm font-bold">{open.experienceYears === 1 ? "1 año" : `${open.experienceYears} años`}</span>
                   </div>
@@ -236,7 +253,7 @@ export function PublicProfessionalPicker({
               type="button"
               onClick={() => onChoose(open.id)}
               className="mt-3 flex w-full items-center justify-center gap-2 rounded-full py-3 text-sm font-bold uppercase tracking-wide transition hover:brightness-110"
-              style={{ background: accent, color: buttonText, WebkitTextFillColor: buttonText }}
+              style={publicButtonStyle(accent, buttonText)}
             >
               Elegir profesional <ArrowRight className="h-4 w-4" />
             </button>

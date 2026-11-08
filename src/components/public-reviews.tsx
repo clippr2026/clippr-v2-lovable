@@ -1,4 +1,5 @@
 import * as React from "react";
+import { publicButtonStyle } from "@/lib/public-button";
 import { AlertCircle, Check, ChevronLeft, ChevronRight, Loader2, MessageSquarePlus, Star, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -149,7 +150,7 @@ export function LeaveReviewModal({
                   disabled={busy}
                   onClick={() => void lookup()}
                   className="flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-bold disabled:opacity-60"
-                  style={{ background: accent, color: buttonText }}
+                  style={publicButtonStyle(accent, buttonText)}
                 >
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Verificar
                 </button>
@@ -173,7 +174,7 @@ export function LeaveReviewModal({
                   disabled={busy}
                   onClick={() => void submit()}
                   className="flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-bold disabled:opacity-60"
-                  style={{ background: accent, color: buttonText }}
+                  style={publicButtonStyle(accent, buttonText)}
                 >
                   {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null} Enviar reseña
                 </button>
@@ -208,7 +209,7 @@ export function LeaveReviewModal({
                           setTarget(b);
                         }}
                         className="shrink-0 rounded-xl px-3 py-2 text-xs font-bold"
-                        style={{ background: accent, color: buttonText }}
+                        style={publicButtonStyle(accent, buttonText)}
                       >
                         Dejar reseña
                       </button>
@@ -237,7 +238,7 @@ export function LeaveReviewModal({
               type="button"
               onClick={() => setNotFound(false)}
               className="mt-5 w-full rounded-full py-3 text-sm font-bold uppercase tracking-wide"
-              style={{ background: accent, color: buttonText }}
+              style={publicButtonStyle(accent, buttonText)}
             >
               Aceptar
             </button>
@@ -370,7 +371,7 @@ export function ReviewsStrip({
         type="button"
         onClick={() => setLeaveOpen(true)}
         className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-bold"
-        style={{ background: accent, color: buttonText }}
+        style={publicButtonStyle(accent, buttonText)}
       >
         <MessageSquarePlus className="h-4 w-4" /> Dejar mi reseña
       </button>
@@ -406,7 +407,7 @@ export function ReviewsStrip({
                 type="button"
                 onClick={() => setLeaveOpen(true)}
                 className="flex w-full items-center justify-center gap-2 rounded-2xl py-3 text-sm font-bold"
-                style={{ background: accent, color: buttonText }}
+                style={publicButtonStyle(accent, buttonText)}
               >
                 <MessageSquarePlus className="h-4 w-4" /> Dejar mi reseña
               </button>
