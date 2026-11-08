@@ -233,7 +233,7 @@ export function PublicProfessionalPicker({
                 >
                   {item.priceChanged ? (
                     <span
-                      className="absolute -top-2 right-3 rounded-full border px-1.5 py-[1px] text-[8px] font-bold leading-tight text-white"
+                      className="absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border px-1.5 py-[1px] text-[8px] font-bold leading-tight text-white"
                       style={{ borderColor: accent, background: `color-mix(in oklch, ${accent} 30%, #0b0818)` }}
                     >
                       Precio diferencial
