@@ -16,6 +16,8 @@ type DepositRow = {
   retained_prof_amount: number;
   retained_local_amount: number;
   decision_note: string | null;
+  prof_share_paid_at: string | null;
+  prof_share_method: string | null;
 };
 
 const STATUS_LABEL: Record<DepositRow["status"], { text: string; cls: string }> = {
@@ -38,7 +40,7 @@ type Dist = "local" | "professional" | "split" | "custom";
  * Seña de un turno dentro de la ficha de la Agenda: ver el comprobante, aprobar o
  * rechazar, registrar una seña recibida en el local y decidir qué pasa con una seña
  * de un turno cancelado / que no asistió. Todo pasa por las funciones de la base
- * (permisos y reglas se validan allá). Todavía NO escribe en caja.
+ * (permisos y reglas se validan allá).
  */
 export function DepositPanel({
   appointmentId,
@@ -65,11 +67,12 @@ export function DepositPanel({
   const [recording, setRecording] = React.useState(false);
   const [dist, setDist] = React.useState<Dist>("local");
   const [customProf, setCustomProf] = React.useState(50);
+  const [shareMethod, setShareMethod] = React.useState<"cash" | "transfer">("cash");
 
   const load = React.useCallback(async () => {
     const [{ data: row }, { data: appt }] = await Promise.all([
       (supabase.from("appointment_deposits" as any) as any)
-        .select("id,status,amount,paid_amount,method,proof_path,suggested_action,refund_amount,retained_prof_amount,retained_local_amount,decision_note")
+        .select("id,status,amount,paid_amount,method,proof_path,suggested_action,refund_amount,retained_prof_amount,retained_local_amount,decision_note,prof_share_paid_at,prof_share_method")
         .eq("appointment_id", appointmentId)
         .maybeSingle(),
       supabase.from("appointments").select("business_id").eq("id", appointmentId).maybeSingle(),
@@ -276,14 +279,38 @@ export function DepositPanel({
               Retener seña
             </Button>
           </div>
-          <div className="text-[11px] text-muted-foreground">Por ahora esto queda registrado en el turno; todavía no se refleja en Caja.</div>
+          <div className="text-[11px] text-muted-foreground">Recibir la seña la suma a Caja; devolverla la resta. Retenerla no mueve plata.</div>
         </div>
       )}
 
       {dep.status === "returned" && <div className="text-xs text-muted-foreground">Devuelta: {money(dep.refund_amount)}</div>}
       {dep.status === "retained" && (
-        <div className="text-xs text-muted-foreground">
-          Retenida: barbero {money(dep.retained_prof_amount)} · local {money(dep.retained_local_amount)}
+        <div className="space-y-2">
+          <div className="text-xs text-muted-foreground">
+            Retenida: barbero {money(dep.retained_prof_amount)} · local {money(dep.retained_local_amount)}
+          </div>
+          {dep.retained_prof_amount > 0 && !dep.prof_share_paid_at && (
+            <div className="space-y-2 rounded-xl bg-white/[0.04] p-3 ring-1 ring-white/10">
+              <div className="text-xs">
+                La parte del barbero ({money(dep.retained_prof_amount)}) se paga acá, aparte de su liquidación. Sale de Caja.
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <select value={shareMethod} onChange={(e) => setShareMethod(e.target.value as "cash" | "transfer")} className="rounded-lg bg-white/5 px-2.5 py-2 text-sm ring-1 ring-white/10 outline-none">
+                  <option value="cash">En efectivo</option>
+                  <option value="transfer">Por transferencia</option>
+                </select>
+                <Button className="h-9" disabled={busy} onClick={() => run("pay_deposit_prof_share_v1", { p_deposit_id: dep.id, p_method: shareMethod }, "Parte del barbero pagada")}>
+                  Pagar parte
+                </Button>
+              </div>
+            </div>
+          )}
+          {dep.prof_share_paid_at && (
+            <div className="text-xs text-emerald-300">
+              ✓ Parte del barbero pagada ({dep.prof_share_method === "cash" ? "efectivo" : "transferencia"}) el{" "}
+              {new Date(dep.prof_share_paid_at).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}
+            </div>
+          )}
         </div>
       )}
       {dep.status === "rejected" && dep.decision_note && <div className="text-xs text-muted-foreground">Motivo: {dep.decision_note}</div>}
