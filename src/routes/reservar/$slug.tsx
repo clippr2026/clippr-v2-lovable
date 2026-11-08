@@ -2497,6 +2497,7 @@ function PublicBookingPage() {
                           .replace(/^./, (c) => c.toUpperCase())
                       : (cb?.date ?? "-");
                     const timeLabel = cb?.time || (when ? formatTime(when, businessTimeZone) : "-");
+                    const firstName = (cb?.clientName || clientName).trim().split(/\s+/)[0] || "";
                     const address = branches.find((b) => b.id === selectedBranchId)?.address || business?.address || null;
                     const phoneDigits = (business?.phone ?? "").replace(/\D/g, "");
                     const email = cb?.clientEmail || clientEmail;
@@ -2526,7 +2527,7 @@ function PublicBookingPage() {
                             <CheckCircle2 className="h-8 w-8" />
                           </div>
                           <h3 className="mt-4 text-3xl font-extrabold tracking-tight">¡Turno confirmado!</h3>
-                          <p className="mt-1.5 text-sm text-white/60">Te esperamos.</p>
+                          <p className="mt-1.5 text-sm text-white/60">{firstName ? `Te esperamos, ${firstName}.` : "Te esperamos."}</p>
                         </div>
 
                         <div
