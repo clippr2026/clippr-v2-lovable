@@ -79,7 +79,22 @@ export function HistorialPanelView({
   // "pagada" o prácticamente saldada (resto < $1, ver isRunEffectivelySettled)
   // — una liquidación con 17 centavos sin cobrar por redondeo no debe
   // quedar atascada en Movimientos ni mostrarse como pendiente.
-  const closedRuns = React.useMemo(() => runs.filter((r) => isRunEffectivelySettled(r)), [runs]);
+  // Además, un pago parcial que ya tiene una liquidación sucesora (el saldo
+  // pendiente se arrastró a la siguiente) también va al Historial: su pago
+  // existe y si no se mostraba, desaparecía de la vista (quedaba solo la
+  // liquidación del saldo).
+  const supersededPartialIds = React.useMemo(() => {
+    const ids = new Set<string>();
+    for (const parent of runs) {
+      if (isRunEffectivelySettled(parent) || !(Number(parent.amount_paid ?? 0) > 0)) continue;
+      if (runs.some((n) => n.previous_settlement_run_id === parent.id)) ids.add(parent.id);
+    }
+    return ids;
+  }, [runs]);
+  const closedRuns = React.useMemo(
+    () => runs.filter((r) => isRunEffectivelySettled(r) || supersededPartialIds.has(r.id)),
+    [runs, supersededPartialIds],
+  );
 
   const [openRun, setOpenRun] = React.useState<SettlementRun | null>(null);
   const [sales, setSales] = React.useState<any[] | null>(null);
@@ -142,9 +157,15 @@ export function HistorialPanelView({
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="text-sm font-semibold text-foreground">Liquidación #{run.run_number}</div>
-            <span className="text-xs font-medium px-2.5 py-1 rounded-full ring-1 bg-emerald-500/10 ring-emerald-400/20 text-emerald-300">
-              Pagada
-            </span>
+            {supersededPartialIds.has(run.id) ? (
+              <span className="text-xs font-medium px-2.5 py-1 rounded-full ring-1 bg-amber-500/10 ring-amber-400/25 text-amber-300">
+                Pago parcial
+              </span>
+            ) : (
+              <span className="text-xs font-medium px-2.5 py-1 rounded-full ring-1 bg-emerald-500/10 ring-emerald-400/20 text-emerald-300">
+                Pagada
+              </span>
+            )}
           </div>
           <div className="text-xs text-muted-foreground">
             {run.period_start
