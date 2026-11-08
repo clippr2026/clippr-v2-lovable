@@ -111,28 +111,33 @@ export function PublicProfessionalPicker({
         key={label}
         className={cn(
           "block min-w-0 flex-1 border-2 px-2 text-center leading-tight text-white",
-          big ? "rounded-[1.4rem] py-2" : "rounded-xl py-0.5",
-          kind === "list" ? "border-white/20 bg-white/[0.05]" : "",
+          big ? "rounded-[1.6rem] py-2.5" : "rounded-xl py-0.5",
+          kind === "list" && !big ? "border-white/20 bg-white/[0.05]" : "",
         )}
         style={
           kind === "list"
             ? big
-              ? undefined
+              ? {
+                  borderColor: `color-mix(in oklch, ${accent} 50%, white)`,
+                  borderWidth: 1.5,
+                  background: "rgba(255,255,255,0.04)",
+                }
               : { boxShadow: "0 0 7px color-mix(in oklch, var(--c-primary) 85%, transparent), inset 0 0 6px -2px var(--c-primary)" }
             : {
                 borderColor: accent,
+                borderWidth: big ? 1.5 : undefined,
                 background: big
-                  ? `linear-gradient(180deg, color-mix(in oklch, ${accent} 38%, transparent), color-mix(in oklch, ${accent} 22%, transparent))`
+                  ? `linear-gradient(180deg, color-mix(in oklch, ${accent} 48%, #170a33), color-mix(in oklch, ${accent} 30%, #170a33))`
                   : `color-mix(in oklch, ${accent} 32%, transparent)`,
-                boxShadow: big ? `0 0 16px -2px ${accent}, inset 0 0 8px -2px ${accent}` : `0 0 7px ${accent}, inset 0 0 6px -2px ${accent}`,
+                boxShadow: big ? `0 0 20px -2px ${accent}, inset 0 0 10px -3px ${accent}` : `0 0 7px ${accent}, inset 0 0 6px -2px ${accent}`,
               }
         }
       >
         {big ? (
           <>
             <span
-              className={cn("block text-[11px] font-bold uppercase tracking-wide", kind === "list" && "text-white/60")}
-              style={kind === "accent" ? { color: `color-mix(in oklch, ${accent} 55%, white)` } : undefined}
+              className={cn("block text-[11px] font-bold uppercase tracking-wider", kind === "list" && "text-white/55")}
+              style={kind === "accent" ? { color: `color-mix(in oklch, ${accent} 50%, white)` } : undefined}
             >
               {label}
             </span>
@@ -221,29 +226,52 @@ export function PublicProfessionalPicker({
             <h3 className="mt-2 text-xl font-extrabold uppercase leading-tight">{open.name}</h3>
             <div className="mt-3">{priceBlock(open, true)}</div>
             {open.ageYears != null || open.nationality || open.experienceYears != null ? (
-              <div className="mt-3 grid grid-flow-col auto-cols-fr rounded-[1.4rem] border py-2.5"
-                style={{ borderColor: `color-mix(in oklch, ${accent} 60%, transparent)`, boxShadow: `0 0 14px -4px ${accent}, inset 0 0 10px -6px ${accent}` }}>
-                {open.ageYears != null ? (
-                  <div className="border-l px-2 text-center leading-tight first:border-l-0" style={{ borderColor: `color-mix(in oklch, ${accent} 35%, transparent)` }}>
-                    <UserRound className="mx-auto mb-0.5 h-5 w-5" style={{ color: `color-mix(in oklch, ${accent} 70%, white)` }} />
-                    <span className="block text-[10px] font-bold uppercase tracking-wide text-white/55">Edad</span>
-                    <span className="block text-sm font-bold">{open.ageYears} años</span>
-                  </div>
-                ) : null}
-                {open.nationality ? (
-                  <div className="border-l px-2 text-center leading-tight first:border-l-0" style={{ borderColor: `color-mix(in oklch, ${accent} 35%, transparent)` }}>
-                    <span className="mx-auto mb-0.5 grid h-6 w-6 place-items-center overflow-hidden rounded-full bg-white/15 text-sm leading-none">{flagFor(open.nationality)}</span>
-                    <span className="block text-[10px] font-bold uppercase tracking-wide text-white/55">Nacionalidad</span>
-                    <span className="block text-sm font-bold">{open.nationality}</span>
-                  </div>
-                ) : null}
-                {open.experienceYears != null ? (
-                  <div className="border-l px-2 text-center leading-tight first:border-l-0" style={{ borderColor: `color-mix(in oklch, ${accent} 35%, transparent)` }}>
-                    <Briefcase className="mx-auto mb-0.5 h-5 w-5" style={{ color: `color-mix(in oklch, ${accent} 70%, white)` }} />
-                    <span className="block text-[10px] font-bold uppercase tracking-wide text-white/55">Experiencia</span>
-                    <span className="block text-sm font-bold">{open.experienceYears === 1 ? "1 año" : `${open.experienceYears} años`}</span>
-                  </div>
-                ) : null}
+              <div
+                className="mt-3 grid grid-flow-col auto-cols-fr rounded-3xl border py-3"
+                style={{
+                  borderColor: `color-mix(in oklch, ${accent} 65%, transparent)`,
+                  background: "rgba(0,0,0,0.28)",
+                  boxShadow: `0 0 14px -5px ${accent}`,
+                  ["--pp-line" as string]: `color-mix(in oklch, ${accent} 55%, transparent)`,
+                }}
+              >
+                {[
+                  open.ageYears != null
+                    ? {
+                        key: "edad",
+                        icon: <UserRound className="mx-auto mb-1 h-6 w-6" strokeWidth={1.6} style={{ color: `color-mix(in oklch, ${accent} 70%, white)` }} />,
+                        label: "Edad",
+                        value: `${open.ageYears} años`,
+                      }
+                    : null,
+                  open.nationality
+                    ? {
+                        key: "nac",
+                        icon: <span className="mx-auto mb-1 grid h-6 w-6 place-items-center overflow-hidden rounded-full bg-white/15 text-sm leading-none">{flagFor(open.nationality)}</span>,
+                        label: "Nacionalidad",
+                        value: open.nationality,
+                      }
+                    : null,
+                  open.experienceYears != null
+                    ? {
+                        key: "exp",
+                        icon: <Briefcase className="mx-auto mb-1 h-6 w-6" strokeWidth={1.6} style={{ color: `color-mix(in oklch, ${accent} 70%, white)` }} />,
+                        label: "Experiencia",
+                        value: open.experienceYears === 1 ? "1 año" : `${open.experienceYears} años`,
+                      }
+                    : null,
+                ]
+                  .filter((c): c is NonNullable<typeof c> => c != null)
+                  .map((c) => (
+                    <div
+                      key={c.key}
+                      className="relative px-2 text-center leading-tight after:absolute after:right-0 after:top-1/2 after:h-11 after:w-px after:-translate-y-1/2 after:bg-[var(--pp-line)] last:after:hidden"
+                    >
+                      {c.icon}
+                      <span className="block text-[10px] font-bold uppercase tracking-wider text-white/65">{c.label}</span>
+                      <span className="block text-sm font-bold">{c.value}</span>
+                    </div>
+                  ))}
               </div>
             ) : null}
             {hasServices ? (
