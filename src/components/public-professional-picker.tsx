@@ -167,7 +167,7 @@ export function PublicProfessionalPicker({
       {open ? (
         <div>
           {/* Los demás profesionales, arriba, en una tira; tocar otro cambia el abierto. */}
-          <div className="pp-strip-in -mx-1 flex gap-3 overflow-x-auto px-1 pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          <div className="pp-strip-in -mx-1 flex gap-2.5 overflow-x-auto px-1 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {items.map((item) => {
               const active = item.id === open.id;
               return (
@@ -175,24 +175,24 @@ export function PublicProfessionalPicker({
                   key={item.id}
                   type="button"
                   onClick={() => onOpenChange(item.id)}
-                  className="flex w-[68px] shrink-0 flex-col items-center gap-1 text-center"
+                  className="flex w-[60px] shrink-0 flex-col items-center gap-0.5 text-center"
                   aria-pressed={active}
                 >
                   <Avatar
                     item={item}
                     icon="h-6 w-6"
                     className={cn(
-                      "h-14 w-14 border-2 transition",
+                      "h-12 w-12 border-2 transition",
                       active ? "scale-110 border-white/80" : "border-white/20 opacity-75",
                     )}
                   />
-                  <span className={cn("w-full truncate text-[11px] font-semibold", active ? "" : "text-white/65")}>{item.name.split(" ")[0]}</span>
+                  <span className={cn("w-full truncate text-[10px] font-semibold", active ? "" : "text-white/65")}>{item.name.split(" ")[0]}</span>
                 </button>
               );
             })}
           </div>
 
-          <div key={open.id} className="pp-card-in relative mt-4 rounded-[2rem] border border-white/10 bg-white/[0.03] p-5 text-center">
+          <div key={open.id} className="pp-card-in relative mt-3.5 rounded-[2rem] border border-white/10 bg-white/[0.03] px-4 pb-4 pt-5 text-center">
             {open.priceChanged ? (
               <span
                 className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border px-4 py-1 text-xs font-bold text-white"
@@ -201,28 +201,28 @@ export function PublicProfessionalPicker({
                 Precio diferencial
               </span>
             ) : null}
-            <Avatar item={open} icon="h-14 w-14" className="mx-auto h-36 w-36 border-2 border-white/40 sm:h-40 sm:w-40" />
-            <h3 className="mt-4 text-2xl font-extrabold uppercase leading-tight">{open.name}</h3>
-            <div className="mt-4">{priceBlock(open, true)}</div>
+            <Avatar item={open} icon="h-10 w-10" className="mx-auto h-24 w-24 border-2 border-white/40" />
+            <h3 className="mt-2 text-xl font-extrabold uppercase leading-tight">{open.name}</h3>
+            <div className="mt-3">{priceBlock(open, true)}</div>
             {open.ageYears != null || open.nationality || open.experienceYears != null ? (
-              <div className="mt-4 grid grid-flow-col auto-cols-fr divide-x divide-white/10 rounded-2xl border border-white/10 py-3">
+              <div className="mt-3 grid grid-flow-col auto-cols-fr divide-x divide-white/10 rounded-2xl border border-white/10 py-2">
                 {open.ageYears != null ? (
                   <div className="px-2 text-center leading-tight">
-                    <UserRound className="mx-auto mb-1 h-5 w-5 text-white/70" />
+                    <UserRound className="mx-auto mb-0.5 h-4 w-4 text-white/70" />
                     <span className="block text-[10px] font-bold uppercase tracking-wide text-white/55">Edad</span>
                     <span className="block text-sm font-bold">{open.ageYears} años</span>
                   </div>
                 ) : null}
                 {open.nationality ? (
                   <div className="px-2 text-center leading-tight">
-                    <span className="mx-auto mb-1 block text-xl leading-none">{flagFor(open.nationality)}</span>
+                    <span className="mx-auto mb-0.5 block text-lg leading-none">{flagFor(open.nationality)}</span>
                     <span className="block text-[10px] font-bold uppercase tracking-wide text-white/55">Nacionalidad</span>
                     <span className="block text-sm font-bold">{open.nationality}</span>
                   </div>
                 ) : null}
                 {open.experienceYears != null ? (
                   <div className="px-2 text-center leading-tight">
-                    <Briefcase className="mx-auto mb-1 h-5 w-5 text-white/70" />
+                    <Briefcase className="mx-auto mb-0.5 h-4 w-4 text-white/70" />
                     <span className="block text-[10px] font-bold uppercase tracking-wide text-white/55">Experiencia</span>
                     <span className="block text-sm font-bold">{open.experienceYears === 1 ? "1 año" : `${open.experienceYears} años`}</span>
                   </div>
@@ -230,12 +230,12 @@ export function PublicProfessionalPicker({
               </div>
             ) : null}
             {hasServices ? (
-              <p className="mt-3 text-xs text-white/60">🕒 {open.duration} min</p>
+              <p className="mt-2 text-xs text-white/60">🕒 {open.duration} min</p>
             ) : null}
             <button
               type="button"
               onClick={() => onChoose(open.id)}
-              className="mt-5 flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-sm font-bold uppercase tracking-wide transition hover:brightness-110"
+              className="mt-3 flex w-full items-center justify-center gap-2 rounded-full py-3 text-sm font-bold uppercase tracking-wide transition hover:brightness-110"
               style={{ background: accent, color: buttonText, WebkitTextFillColor: buttonText }}
             >
               Elegir profesional <ArrowRight className="h-4 w-4" />
@@ -248,9 +248,9 @@ export function PublicProfessionalPicker({
             );
             const rating = ratings[open.id];
             if (all.length === 0 && !(rating && rating.count > 0)) return null;
-            const shown = showAllReviews ? all : all.slice(0, 3);
+            const shown = showAllReviews ? all : all.slice(0, 5);
             return (
-              <div key={`rev-${open.id}`} className="pp-card-in mt-5">
+              <div key={`rev-${open.id}`} className="pp-card-in mt-4">
                 <div className="mb-2 flex items-center justify-between gap-2">
                   <h4 className="text-sm font-bold">Reseñas de {open.name.split(" ")[0]}</h4>
                   {rating && rating.count > 0 ? (
@@ -281,7 +281,7 @@ export function PublicProfessionalPicker({
                     </div>
                   ))}
                 </div>
-                {all.length > 3 ? (
+                {all.length > 5 ? (
                   <button
                     type="button"
                     onClick={() => setShowAllReviews((v) => !v)}
