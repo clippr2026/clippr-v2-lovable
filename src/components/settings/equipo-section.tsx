@@ -141,6 +141,9 @@ type EmployeeRow = {
   commission_enabled?: boolean | null;
   role?: string | null;
   branch_id?: string | null;
+  birth_date?: string | null;
+  nationality?: string | null;
+  experience_since?: string | null;
 };
 
 type PendingProfessional = {
@@ -233,6 +236,10 @@ type NewProForm = {
   // asignarse ventas como cualquier profesional). Default true.
   commissionsEnabled: boolean;
   avatarUrl: string;
+  // Perfil público (página de reservas): fecha de nacimiento, nacionalidad y desde cuándo trabaja en el rubro.
+  birthDate: string;
+  nationality: string;
+  experienceSince: string;
   commissions: Record<string, CommissionConfig>;
   serviceOverrides: Record<string, ServiceOverrideConfig>;
   specialDates: SpecialDateMap;
@@ -261,6 +268,9 @@ const EMPTY_FORM: NewProForm = {
   commissionPct: "",
   commissionsEnabled: true,
   avatarUrl: "",
+  birthDate: "",
+  nationality: "",
+  experienceSince: "",
   commissions: {},
   serviceOverrides: {},
   specialDates: {},
@@ -1096,7 +1106,7 @@ export function EquipoSection() {
     // ...) de siempre. Con activeBranchId en null el filtro no se aplica.
     let employeesQuery = supabase
       .from("employees")
-      .select("id,full_name,avatar_url,is_active,commission_pct,commission_enabled,branch_id")
+      .select("id,full_name,avatar_url,is_active,commission_pct,commission_enabled,branch_id,birth_date,nationality,experience_since")
       .eq("business_id", businessId);
     if (activeBranchId) employeesQuery = employeesQuery.eq("branch_id", activeBranchId);
     employeesQuery = employeesQuery.order("full_name", { ascending: true });
@@ -1786,6 +1796,9 @@ export function EquipoSection() {
             commission_pct: commission,
             commission_enabled: form.commissionsEnabled,
             avatar_url: form.avatarUrl || null,
+            birth_date: form.birthDate || null,
+            nationality: form.nationality.trim() || null,
+            experience_since: form.experienceSince || null,
             branch_id: form.branchId ?? null,
           })
           .eq("id", editingEmp.id);
@@ -1903,6 +1916,9 @@ export function EquipoSection() {
                   commission_pct: commission,
                   commission_enabled: form.commissionsEnabled,
                   avatar_url: form.avatarUrl || null,
+                  birth_date: form.birthDate || null,
+                  nationality: form.nationality.trim() || null,
+                  experience_since: form.experienceSince || null,
                   role: form.role.trim() || "Profesional",
                   branch_id: form.branchId ?? null,
                 }
@@ -1981,6 +1997,9 @@ export function EquipoSection() {
           commission_pct: commission,
           commission_enabled: form.commissionsEnabled,
           avatar_url: form.avatarUrl || null,
+          birth_date: form.birthDate || null,
+          nationality: form.nationality.trim() || null,
+          experience_since: form.experienceSince || null,
           branch_id: form.branchId ?? activeBranchId ?? null,
         })
         .select("id")
@@ -2283,6 +2302,9 @@ export function EquipoSection() {
         ...EMPTY_FORM,
         fullName: emp.full_name ?? emp.name ?? "",
         avatarUrl: emp.avatar_url ?? "",
+        birthDate: emp.birth_date ?? "",
+        nationality: emp.nationality ?? "",
+        experienceSince: emp.experience_since ?? "",
         commissionPct: String(emp.commission_pct ?? ""),
         commissionsEnabled: emp.commission_enabled !== false,
         role: emp.role ?? "Barbero",
@@ -3841,6 +3863,37 @@ export function EquipoSection() {
                         }
                         className={inputCls}
                         placeholder="Barbero"
+                      />
+                    </Field>
+                  </div>
+
+                  {/* Perfil público: lo ve el cliente al elegir profesional en la página de reservas. */}
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                    <Field label="Fecha de nacimiento (se muestra la edad)">
+                      <input
+                        type="date"
+                        value={form.birthDate}
+                        max={new Date().toISOString().slice(0, 10)}
+                        onChange={(e) => setForm({ ...form, birthDate: e.target.value })}
+                        className={inputCls}
+                      />
+                    </Field>
+                    <Field label="Nacionalidad">
+                      <input
+                        value={form.nationality}
+                        onChange={(e) => setForm({ ...form, nationality: e.target.value })}
+                        className={inputCls}
+                        placeholder="Ej: Argentina"
+                        maxLength={40}
+                      />
+                    </Field>
+                    <Field label="Trabaja en el rubro desde (se muestran los años)">
+                      <input
+                        type="date"
+                        value={form.experienceSince}
+                        max={new Date().toISOString().slice(0, 10)}
+                        onChange={(e) => setForm({ ...form, experienceSince: e.target.value })}
+                        className={inputCls}
                       />
                     </Field>
                   </div>

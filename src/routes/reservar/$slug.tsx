@@ -54,6 +54,7 @@ import {
 } from "@/lib/availability";
 import clipprMark from "@/assets/clippr-mark.png";
 import { ServiceImage } from "@/components/ui/service-image";
+import { PublicProfessionalPicker, type ProfessionalRating } from "@/components/public-professional-picker";
 import {
   resolveServicePricing,
   isServiceOfferedByEmployee,
@@ -293,6 +294,53 @@ function PublicBookingPage() {
   const [branches, setBranches] = React.useState<PublicBranch[]>([]);
   const [selectedBranchId, setSelectedBranchId] = React.useState<string | null>(null);
   const [employees, setEmployees] = React.useState<Employee[]>([]);
+  // Promedio de estrellas por profesional (vista pública public_review_stats).
+  const [proRatings, setProRatings] = React.useState<Record<string, ProfessionalRating>>({});
+  // Edad / nacionalidad / experiencia de cada profesional (vista pública; la fecha de nacimiento
+  // nunca sale, solo la edad). Consulta aparte y opcional: si falla, se muestra sin esos datos.
+  const [proProfiles, setProProfiles] = React.useState<Record<string, { age: number | null; nationality: string | null; experience: number | null }>>({});
+  React.useEffect(() => {
+    const bid = business?.id;
+    if (!bid) return;
+    let cancelled = false;
+    void (async () => {
+      const { data } = await (supabase.from("public_review_stats" as any) as any)
+        .select("professional_id,avg_rating,review_count")
+        .eq("business_id", bid);
+      if (cancelled || !Array.isArray(data)) return;
+      const next: Record<string, ProfessionalRating> = {};
+      for (const row of data as { professional_id: string | null; avg_rating: number | string | null; review_count: number | string | null }[]) {
+        if (!row.professional_id) continue;
+        const count = Number(row.review_count ?? 0);
+        const avg = Number(row.avg_rating ?? 0);
+        if (count > 0 && avg > 0) next[row.professional_id] = { avg, count };
+      }
+      setProRatings(next);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [business?.id]);
+
+  React.useEffect(() => {
+    const bid = business?.id;
+    if (!bid) return;
+    let cancelled = false;
+    void (async () => {
+      const { data, error } = await (supabase.from("public_booking_employees" as any) as any)
+        .select("id,age_years,nationality,experience_years")
+        .eq("business_id", bid);
+      if (cancelled || error || !Array.isArray(data)) return;
+      const next: Record<string, { age: number | null; nationality: string | null; experience: number | null }> = {};
+      for (const row of data as { id: string; age_years: number | null; nationality: string | null; experience_years: number | null }[]) {
+        next[row.id] = { age: row.age_years ?? null, nationality: row.nationality?.trim() || null, experience: row.experience_years ?? null };
+      }
+      setProProfiles(next);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [business?.id]);
   const [services, setServices] = React.useState<Service[]>([]);
   const [appointments, setAppointments] = React.useState<Appointment[]>([]);
   const [schedule, setSchedule] = React.useState<ScheduleMap>(DEFAULT_SCHEDULE);
@@ -1860,13 +1908,6 @@ function PublicBookingPage() {
 
               {step === "professional" && employeesForSelectedServices.length > 0 ? (
                 (() => {
-                  const gridColsCls = cn(
-                    "grid gap-3",
-                    professionalOptionCount <= 3 && "grid-cols-1",
-                    professionalOptionCount >= 4 && professionalOptionCount <= 6 && "grid-cols-2 sm:grid-cols-3",
-                    professionalOptionCount >= 7 && professionalOptionCount <= 12 && "grid-cols-3 sm:grid-cols-4",
-                    professionalOptionCount >= 13 && "grid-cols-3 sm:grid-cols-6",
-                  );
                   // Precio y duración reales para CADA profesional (mismo
                   // resolver que el resto de la app) — la diferencia ("qué
                   // cambió" respecto del estándar) sale de employeeDiffs,
@@ -1947,141 +1988,33 @@ function PublicBookingPage() {
                         )
                       : list;
 
-                  const renderCard = ({ employee, totals, priceChanged, promoPrice, promoPercent }: (typeof cards)[number]) => {
-                    const hasEffectivePrice = totals.effectivePrice != null;
-                    return (
-                      <button
-                        key={employee.id}
-                        type="button"
-                        onClick={() => { setSelectedEmployeeId(employee.id); setSelectedSlot(null); setStep("datetime"); }}
-                        className={cn(
-                          "flex min-w-0 flex-col items-center justify-center gap-0.5 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] text-center transition hover:border-white/30 hover:bg-white/[0.055]",
-                          professionalOptionCount >= 7 ? "min-h-[104px] p-2" : "min-h-[114px] p-2.5",
-                        )}
-                      >
-                        <span
-                          className={cn(
-                            "grid shrink-0 place-items-center overflow-hidden rounded-2xl bg-white/10",
-                            professionalOptionCount >= 7 ? "h-11 w-11" : "h-12 w-12",
-                          )}
-                        >
-                          {employee.avatar_url ? (
-                            <img loading="lazy" decoding="async" src={employee.avatar_url} alt={employee.full_name} className="h-full w-full object-cover" />
-                          ) : (
-                            <UserRound className={cn(professionalOptionCount >= 7 ? "h-5 w-5" : "h-6 w-6")} />
-                          )}
-                        </span>
-                        <span className="w-full min-w-0 leading-tight">
-                          <span className="block break-words text-xs font-semibold leading-tight">{employee.full_name}</span>
-                          {/* Línea muy sutil que separa la identidad del
-                              profesional (foto + nombre) de las condiciones
-                              del servicio (etiqueta si difiere del estándar,
-                              precio y duración) — dos bloques bien
-                              diferenciados sin agregar fondo ni agrandar la
-                              tarjeta. border-t (no bg-white/*) porque el
-                              override de tema claro convierte cualquier
-                              bg-white/NN en un blanco casi opaco, invisible
-                              sobre la tarjeta blanca; border-white/10 sí
-                              mapea a un gris sutil en los dos temas. */}
-                          {(priceChanged || selectedServices.length > 0) && (
-                            <span className="mb-0.5 mt-0.5 block border-t border-white/10" aria-hidden="true" />
-                          )}
-                          {priceChanged && (
-                            <span
-                              className="mb-1 inline-flex max-w-full flex-col items-center rounded-full bg-violet-900 px-1.5 py-[3px] text-center text-[8px] font-semibold leading-[1.15] tracking-tight"
-                              style={{ color: "#ffffff" }}
-                            >
-                              <span>Precio</span>
-                              <span>diferente</span>
-                            </span>
-                          )}
-                          {/* Orden: lista (gris, peso normal, tachado si hay
-                              promo aplicable) -> promo (color de acento,
-                              negrita, con % si corresponde) -> efectivo
-                              (verde oscuro y negrita) -> duración (pastilla
-                              gris clara, nunca verde — el verde es exclusivo
-                              del precio efectivo). */}
-                          {selectedServices.length > 0 && (
-                            <>
-                              <span
-                                className={cn(
-                                  "block overflow-visible whitespace-nowrap text-[10px] leading-tight tracking-tight text-white/70",
-                                  promoPrice != null && "line-through",
-                                )}
-                              >
-                                Lista {formatMoney(totals.listPrice)}
-                              </span>
-                              {promoPrice != null && (
-                                <span
-                                  className="mt-0.5 block overflow-visible whitespace-nowrap text-[10px] font-bold leading-tight tracking-tight"
-                                  style={{ color: accent }}
-                                >
-                                  Promo {formatMoney(promoPrice)}
-                                  {promoPercent != null ? ` (-${promoPercent}%)` : ""}
-                                </span>
-                              )}
-                              {/* "Efectivo" se oculta con promo aplicable —
-                                  mostrar los tres precios juntos (lista,
-                                  promo, efectivo) confundía más de lo que
-                                  ayudaba cuando ya se está reservando por
-                                  una promoción. */}
-                              {hasEffectivePrice && promoPrice == null && (
-                                <span
-                                  className="mt-0.5 block overflow-visible whitespace-nowrap text-[10px] font-bold leading-tight tracking-tight"
-                                  style={{ color: "#15803d" }}
-                                >
-                                  Efectivo {formatMoney(totals.effectivePrice)}
-                                </span>
-                              )}
-                              <span
-                                className="mt-1 inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2 py-0.5 text-[9px] leading-none text-white/70"
-                                style={{ backgroundColor: "rgba(148,163,184,0.16)" }}
-                              >
-                                🕒 {totals.duration} min
-                              </span>
-                            </>
-                          )}
-                        </span>
-                      </button>
-                    );
-                  };
-
+                  // Un solo listado: primero los de precio estándar, después los de precio
+                  // distinto (la tarjeta lleva la etiqueta "Precio diferente").
+                  const ordered = [...alanFirst([...standardCards, ...durationOnlyCards]), ...alanFirst(customCards)];
                   return (
-                    <div className={cn("mt-5", professionalOptionCount >= 19 && "max-h-[58vh] overflow-y-auto pr-1")}>
-                      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/40">Profesionales</p>
-                      <div className={gridColsCls}>
-                        <button
-                          type="button"
-                          onClick={() => { setSelectedEmployeeId("any"); setSelectedSlot(null); setStep("datetime"); }}
-                          className={cn(
-                            "flex min-w-0 flex-col items-center justify-center gap-2 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] text-center transition hover:border-white/30 hover:bg-white/[0.055]",
-                            professionalOptionCount >= 7 ? "min-h-[116px] p-2" : "min-h-[128px] p-3",
-                          )}
-                        >
-                          <span
-                            className={cn(
-                              "grid shrink-0 place-items-center rounded-2xl",
-                              professionalOptionCount >= 7 ? "h-10 w-10" : "h-12 w-12",
-                            )}
-                            style={{ background: `${accent}22`, color: accent }}
-                          >
-                            <UsersRound className={cn(professionalOptionCount >= 7 ? "h-5 w-5" : "h-6 w-6")} />
-                          </span>
-                          <span className="w-full min-w-0">
-                            <span className="block overflow-visible whitespace-nowrap text-[11px] font-semibold leading-tight tracking-tight">Sin preferencia</span>
-                            <span className="block overflow-visible whitespace-nowrap text-[10px] leading-tight text-white/55">Disponible</span>
-                          </span>
-                        </button>
-                        {alanFirst([...standardCards, ...durationOnlyCards]).map(renderCard)}
-                      </div>
-
-                      {customCards.length > 0 && (
-                        <>
-                          <p className="mb-2 mt-6 text-xs font-semibold uppercase tracking-wide text-white/40">Opciones diferentes</p>
-                          <div className={gridColsCls}>{alanFirst(customCards).map(renderCard)}</div>
-                        </>
-                      )}
-                    </div>
+                    <PublicProfessionalPicker
+                      items={ordered.map(({ employee, totals, priceChanged, promoPrice, promoPercent }) => ({
+                        id: employee.id,
+                        name: employee.full_name,
+                        avatarUrl: employee.avatar_url ?? null,
+                        listPrice: totals.listPrice,
+                        effectivePrice: totals.effectivePrice,
+                        promoPrice,
+                        promoPercent,
+                        priceChanged,
+                        duration: totals.duration,
+                        ageYears: proProfiles[employee.id]?.age ?? null,
+                        nationality: proProfiles[employee.id]?.nationality ?? null,
+                        experienceYears: proProfiles[employee.id]?.experience ?? null,
+                      }))}
+                      ratings={proRatings}
+                      accent={accent}
+                      buttonText={accentButtonText}
+                      hasServices={selectedServices.length > 0}
+                      formatMoney={formatMoney}
+                      onChoose={(id) => { setSelectedEmployeeId(id); setSelectedSlot(null); setStep("datetime"); }}
+                      onAny={() => { setSelectedEmployeeId("any"); setSelectedSlot(null); setStep("datetime"); }}
+                    />
                   );
                 })()
               ) : null}
