@@ -17,6 +17,8 @@ export const CLIPPR_FROM_EMAIL = "hola@myclippr.com";
 const CLIPPR_PURPLE = "#7c3aed";
 /** Logo de Clippr (PNG: lo leen todos los clientes de correo, el webp no). */
 const CLIPPR_LOGO_URL = "https://myclippr.com/clippr-powered-logo.png";
+/** Íconos de los botones (PNG: los leen todos los clientes de correo). */
+const CLIPPR_ICONS = "https://myclippr.com/email-icons";
 
 /** Identidad visual del negocio, heredada del branding de su página pública. */
 export type BrandTheme = {
@@ -49,7 +51,7 @@ export type BookingEmailData = {
 };
 
 type Row = { label: string; value: string };
-type Btn = { label: string; url: string; variant: "primary" | "secondary" };
+type Btn = { label: string; url: string; variant: "primary" | "secondary"; icon?: "agregar" | "llegar" | "whatsapp" | "gestionar" | "confirmar" };
 
 export function clipprSender(businessName?: string | null): string {
   const name = (businessName ?? "").trim() || "Clippr";
@@ -75,15 +77,49 @@ function formatARS(value: number): string {
   }
 }
 
-// Paleta clara/oscura (colores sólidos para máxima compatibilidad en Outlook).
-function palette(mode: "light" | "dark") {
+function toRgb(c: string): [number, number, number] {
+  const m = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec((c ?? "").trim());
+  if (!m) return [124, 58, 237];
+  const h = m[1].length === 3 ? m[1].split("").map((x) => x + x).join("") : m[1];
+  return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16)) as [number, number, number];
+}
+/** Mezcla `base` con `tint` (t = 0..1). Colores sólidos: los clientes de correo no entienden color-mix. */
+function mixHex(base: string, tint: string, t: number): string {
+  const a = toRgb(base);
+  const b = toRgb(tint);
+  return `#${a.map((v, i) => Math.round(v + (b[i] - v) * t).toString(16).padStart(2, "0")).join("")}`;
+}
+function relLum(c: string): number {
+  const f = (v: number) => {
+    const s = v / 255;
+    return s <= 0.03928 ? s / 12.92 : Math.pow((s + 0.055) / 1.055, 2.4);
+  };
+  const [r, g, b] = toRgb(c);
+  return 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
+}
+function contrast(a: string, b: string): number {
+  const la = relLum(a);
+  const lb = relLum(b);
+  return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05);
+}
+/** Letra del botón: la que eligió el negocio, salvo que sobre su color no se lea (nunca oscuro sobre oscuro). */
+function readableOn(bg: string, wanted: string): string {
+  if (contrast(wanted, bg) >= 2) return wanted;
+  return contrast("#ffffff", bg) >= contrast("#0b0818", bg) ? "#ffffff" : "#0b0818";
+}
+/** ¿El color pide íconos blancos u oscuros? */
+const iconVariant = (bg: string) => (contrast("#ffffff", bg) >= contrast("#111827", bg) ? "white" : "dark");
+
+// Paleta clara/oscura (colores sólidos para máxima compatibilidad en Outlook), teñida con el color
+// principal que el negocio eligió para su página pública.
+function palette(mode: "light" | "dark", primary: string = CLIPPR_PURPLE) {
   const dark = mode === "dark";
   return {
     dark,
-    pageBg: dark ? "#0a0911" : "#f1f3f7",
-    cardBg: dark ? "#15131e" : "#ffffff",
-    innerBg: dark ? "#1d1b27" : "#f8fafc",
-    border: dark ? "#2c2937" : "#eef0f4",
+    pageBg: dark ? mixHex("#0a0911", primary, 0.16) : mixHex("#f1f3f7", primary, 0.07),
+    cardBg: dark ? mixHex("#15131e", primary, 0.1) : "#ffffff",
+    innerBg: dark ? mixHex("#1d1b27", primary, 0.14) : mixHex("#f8fafc", primary, 0.05),
+    border: dark ? mixHex("#2c2937", primary, 0.35) : mixHex("#eef0f4", primary, 0.18),
     rowBorder: dark ? "#26232f" : "#eef0f4",
     text: dark ? "#f4f4f6" : "#0f172a",
     muted: dark ? "#a8a8b3" : "#64748b",
@@ -92,11 +128,13 @@ function palette(mode: "light" | "dark") {
   };
 }
 
+// Logo con la misma forma que la página pública: redondo, con aro del color principal.
 function header(brand: BrandTheme, p: ReturnType<typeof palette>): string {
+  const ring = hex(brand.primary);
   if (brand.logoUrl) {
-    return `<img src="${esc(brand.logoUrl)}" alt="${esc(brand.name)}" height="40" style="height:40px;max-height:40px;width:auto;display:block;border:0;outline:none;" />`;
+    return `<img src="${esc(brand.logoUrl)}" alt="${esc(brand.name)}" width="64" height="64" style="display:block;width:64px;height:64px;border-radius:50%;border:3px solid ${ring};object-fit:cover;outline:none;" />`;
   }
-  return `<span style="font-size:19px;font-weight:800;color:${p.text};letter-spacing:-.01em;">${esc(brand.name)}</span>`;
+  return `<table role="presentation" cellpadding="0" cellspacing="0"><tr><td align="center" valign="middle" width="64" height="64" style="width:64px;height:64px;border-radius:50%;border:3px solid ${ring};background:${p.innerBg};font-size:26px;font-weight:800;color:${p.text};">${esc((brand.name || "C").trim().slice(0, 1).toUpperCase())}</td></tr></table>`;
 }
 
 function buttonsHtml(buttons: Btn[], brand: BrandTheme, p: ReturnType<typeof palette>): string {
@@ -107,11 +145,14 @@ function buttonsHtml(buttons: Btn[], brand: BrandTheme, p: ReturnType<typeof pal
   const link = (b: Btn) => {
     const isPrimary = b.variant === "primary";
     const bg = isPrimary ? accent : p.cardBg;
-    const color = isPrimary ? brand.buttonText : p.text;
+    const color = isPrimary ? readableOn(accent, brand.buttonText) : p.text;
     const borderStyle = isPrimary ? "" : `border:1px solid ${p.border};`;
+    const icon = b.icon
+      ? `<img src="${CLIPPR_ICONS}/${b.icon}-${iconVariant(bg)}.png" width="18" height="18" alt="" style="display:inline-block;width:18px;height:18px;border:0;vertical-align:-4px;margin-right:8px;" />`
+      : "";
     return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-radius:12px;background:${bg};${borderStyle}" bgcolor="${bg}">
             <tr><td align="center" style="border-radius:12px;">
-              <a href="${esc(b.url)}" target="_blank" style="display:block;padding:13px 10px;font-size:14px;font-weight:700;color:${color};text-decoration:none;border-radius:12px;${nowrap}">${esc(b.label)}</a>
+              <a href="${esc(b.url)}" target="_blank" style="display:block;padding:13px 10px;font-size:14px;font-weight:700;color:${color};text-decoration:none;border-radius:12px;${nowrap}">${icon}${esc(b.label)}</a>
             </td></tr>
           </table>`;
   };
@@ -151,8 +192,8 @@ function baseLayout(opts: {
   footerNote: string;
 }): string {
   const { brand } = opts;
-  const p = palette(brand.mode);
   const primary = hex(brand.primary);
+  const p = palette(brand.mode, primary);
   const secondary = hex(brand.secondary, primary);
 
   // Detalle compacto: las filas de a dos por renglón (Servicio ocupa todo el ancho).
@@ -214,9 +255,9 @@ function baseLayout(opts: {
           <!-- barra de marca (gradiente con fallback sólido) -->
           <tr><td style="height:4px;background:${primary};background:linear-gradient(90deg, ${primary}, ${secondary});" bgcolor="${primary}"></td></tr>
           <!-- logo / nombre -->
-          <tr><td style="padding:22px 32px 0;">${header(brand, p)}</td></tr>
+          <tr><td align="center" style="padding:24px 32px 0;">${header(brand, p)}</td></tr>
           <!-- eyebrow + título -->
-          <tr><td style="padding:16px 32px 0;">
+          <tr><td align="center" style="padding:14px 32px 0;">
             <span style="display:inline-block;padding:5px 11px;border-radius:999px;background:${opts.eyebrowBg};color:${opts.eyebrowColor};font-size:12px;font-weight:700;">${esc(opts.eyebrow)}</span>
             <h1 style="margin:12px 0 0;font-size:26px;line-height:1.15;color:${p.text};font-weight:800;letter-spacing:-.02em;">${esc(opts.title)}</h1>
             <p style="margin:6px 0 0;font-size:15px;line-height:1.45;color:${p.muted};">${esc(opts.intro)}</p>
@@ -263,10 +304,10 @@ function detailRows(d: BookingEmailData): Row[] {
 
 function bookingButtons(d: BookingEmailData): Btn[] {
   const btns: Btn[] = [];
-  if (d.calendarUrl) btns.push({ label: "Agregar al calendario", url: d.calendarUrl, variant: "primary" });
-  if (d.mapsUrl) btns.push({ label: "Cómo llegar", url: d.mapsUrl, variant: "secondary" });
-  if (d.whatsappUrl) btns.push({ label: "WhatsApp", url: d.whatsappUrl, variant: "secondary" });
-  if (d.manageUrl) btns.push({ label: "Gestionar turno", url: d.manageUrl, variant: "secondary" });
+  if (d.calendarUrl) btns.push({ label: "Agregar al calendario", url: d.calendarUrl, variant: "primary", icon: "agregar" });
+  if (d.mapsUrl) btns.push({ label: "Cómo llegar", url: d.mapsUrl, variant: "secondary", icon: "llegar" });
+  if (d.whatsappUrl) btns.push({ label: "WhatsApp", url: d.whatsappUrl, variant: "secondary", icon: "whatsapp" });
+  if (d.manageUrl) btns.push({ label: "Gestionar turno", url: d.manageUrl, variant: "secondary", icon: "gestionar" });
   return btns;
 }
 
