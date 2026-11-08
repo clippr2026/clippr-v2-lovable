@@ -91,9 +91,9 @@ export function PublicProfessionalPicker({
           kind === "list"
             ? { boxShadow: "0 0 7px color-mix(in oklch, var(--c-primary) 85%, transparent), inset 0 0 6px -2px var(--c-primary)" }
             : {
-                borderColor: "var(--c-accent)",
-                background: "color-mix(in oklch, var(--c-accent) 32%, transparent)",
-                boxShadow: "0 0 7px var(--c-accent), inset 0 0 6px -2px var(--c-accent)",
+                borderColor: accent,
+                background: `color-mix(in oklch, ${accent} 32%, transparent)`,
+                boxShadow: `0 0 7px ${accent}, inset 0 0 6px -2px ${accent}`,
               }
         }
       >
@@ -223,7 +223,7 @@ export function PublicProfessionalPicker({
                 {item.priceChanged ? (
                   <span
                     className="self-center rounded-full border px-2 py-[2px] text-[10px] font-bold text-white"
-                    style={{ borderColor: "var(--c-accent)", background: "color-mix(in oklch, var(--c-accent) 18%, transparent)" }}
+                    style={{ borderColor: accent, background: `color-mix(in oklch, ${accent} 18%, transparent)` }}
                   >
                     Precio diferencial
                   </span>
