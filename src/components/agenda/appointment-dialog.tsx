@@ -123,6 +123,8 @@ type SenasConfig = {
   amount_type: "fixed" | "percent";
   amount_value: number;
   message?: string;
+  scope?: "all" | "selected";
+  trigger?: "always" | "conditional";
 };
 
 type RepeatConfig = {
@@ -638,8 +640,11 @@ export function AppointmentDialog({
   const requiresDeposit = !!(
     senasConfig?.enabled
     && selectedService?.id
-    && Array.isArray(senasConfig.services)
-    && senasConfig.services.includes(selectedService.id)
+    // Las reglas "solo primera vez / solo si faltó" las resuelve el servidor (etapa siguiente):
+    // acá no se pide seña a ciegas a todos.
+    && senasConfig.trigger !== "conditional"
+    && (senasConfig.scope === "all"
+      || (Array.isArray(senasConfig.services) && senasConfig.services.includes(selectedService.id)))
   );
 
   const depositAmount = React.useMemo(() => {

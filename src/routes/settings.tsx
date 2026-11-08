@@ -48,6 +48,7 @@ import {
   Sun,
   Loader2,
   Percent,
+  Banknote,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ServiceImage } from "@/components/ui/service-image";
@@ -65,6 +66,7 @@ import { SucursalesSection } from "@/components/settings/sucursales-section";
 import { ReglasTardanzaSection } from "@/components/settings/reglas-tardanza-section";
 import { ServiciosSection, CatalogoSection } from "@/components/settings/price-catalog-section";
 import { PromotionsSection } from "@/components/settings/promotions-section";
+import { SenasSection } from "@/components/settings/senas-section";
 import { CuentaSection } from "@/components/settings/cuenta-section";
 import { SeguridadSection } from "@/components/settings/seguridad-section";
 import { PlanSection } from "@/components/settings/plan-section";
@@ -92,6 +94,7 @@ type SectionId =
   | "servicios"
   | "catalogo"
   | "promociones"
+  | "senas"
   | "sucursales"
   | "tardanza"
   | "cuenta"
@@ -163,6 +166,13 @@ const groups: { label: string; items: NavItem[] }[] = [
         icon: Percent,
         tint: "text-[oklch(0.75_0.2_320)]",
         glow: "from-[oklch(0.75_0.2_320/0.25)] to-[oklch(0.65_0.22_300/0.05)]",
+      },
+      {
+        id: "senas",
+        label: "Señas",
+        icon: Banknote,
+        tint: "text-[oklch(0.85_0.17_140)]",
+        glow: "from-[oklch(0.85_0.17_140/0.25)] to-[oklch(0.72_0.19_150/0.05)]",
       },
     ],
   },
@@ -442,6 +452,7 @@ function SettingsPage() {
 
                 {active === "catalogo" && <CatalogoSection />}
                 {active === "promociones" && <PromotionsSection />}
+                {active === "senas" && <SenasSection />}
                 {active === "sucursales" && <SucursalesSection />}
                 {active === "tardanza" && <ReglasTardanzaSection />}
                 {active === "cuenta" && <CuentaSection />}
