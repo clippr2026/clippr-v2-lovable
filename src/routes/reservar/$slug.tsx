@@ -1519,6 +1519,27 @@ function PublicBookingPage() {
           status: "pending",
         },
       ]);
+      // Seña: si las reglas del negocio la piden para este turno, se lleva al cliente a la
+      // página del turno (misma identidad visual) para pagar y subir el comprobante.
+      if (confirmationSnapshot.appointmentId) {
+        try {
+          const { data: manageTok } = await (supabase.rpc as any)("public_booking_manage_token_v1", {
+            p_appointment_id: confirmationSnapshot.appointmentId,
+            p_phone: confirmationSnapshot.clientPhone,
+          });
+          if (manageTok) {
+            confirmationSnapshot.manageToken = manageTok as string;
+            const { data: dep } = await (supabase.rpc as any)("ensure_public_deposit_v1", { p_token: manageTok });
+            if (dep?.ok && dep?.required) {
+              toast.success("Turno reservado. Falta pagar la seña.");
+              window.location.assign(`/gestion?k=${manageTok}&a=pagar`);
+              return;
+            }
+          }
+        } catch (depError) {
+          console.error("senia", depError);
+        }
+      }
       setConfirmedBooking(confirmationSnapshot);
       setStep("done");
       toast.success("Turno reservado correctamente");

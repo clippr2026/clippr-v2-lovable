@@ -1,5 +1,5 @@
 import * as React from "react";
-import { CalendarPlus, Check, ChevronLeft, ChevronRight, MapPin, MessageCircle, RefreshCw, X } from "lucide-react";
+import { CalendarPlus, Check, ChevronLeft, ChevronRight, Copy, MapPin, MessageCircle, RefreshCw, Upload, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { loadRescheduleDays, type RescheduleDay } from "@/lib/gestion-availability";
 import { contrastText, publicButtonStyle } from "@/lib/public-button";
@@ -18,8 +18,47 @@ type Booking = {
     logo_url: string | null; accent_color: string | null; timezone: string | null; branding: Record<string, any> | null;
   };
   limits: { minCancel: number; minReschedule: number; minAdvance: number; maxAdvance: number };
+  deposit?: Deposit | null;
   can_confirm: boolean; can_cancel: boolean; can_reschedule: boolean;
 };
+
+type Deposit = {
+  id: string;
+  status: "pending" | "review" | "paid" | "applied" | "to_decide" | "returned" | "retained" | "rejected" | "expired";
+  amount: number;
+  paid_amount: number;
+  expires_at: string | null;
+  rejected_note: string | null;
+  instructions: {
+    message: string | null;
+    proof_mode: "review" | "auto";
+    payment: { transfer?: { enabled?: boolean; alias?: string; cbu?: string; holder?: string; bank?: string } };
+  } | null;
+};
+
+// Reduce la foto del comprobante (máx. 1400 px, JPEG) para que pese poco; los PDF van tal cual.
+async function prepareProof(file: File): Promise<{ mime: string; data: string }> {
+  const toB64 = (buf: ArrayBuffer) => {
+    let bin = "";
+    const bytes = new Uint8Array(buf);
+    for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+    return btoa(bin);
+  };
+  if (file.type === "application/pdf") return { mime: file.type, data: toB64(await file.arrayBuffer()) };
+  if (!file.type.startsWith("image/")) throw new Error("Subí una foto, una captura o un PDF.");
+  const bmp = await createImageBitmap(file);
+  const scale = Math.min(1, 1400 / Math.max(bmp.width, bmp.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.round(bmp.width * scale);
+  canvas.height = Math.round(bmp.height * scale);
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("No se pudo preparar la imagen.");
+  ctx.fillStyle = "#ffffff";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.drawImage(bmp, 0, 0, canvas.width, canvas.height);
+  const blob: Blob = await new Promise((res, rej) => canvas.toBlob((b) => (b ? res(b) : rej(new Error("No se pudo preparar la imagen."))), "image/jpeg", 0.72));
+  return { mime: "image/jpeg", data: toB64(await blob.arrayBuffer()) };
+}
 
 const isHex = (s: unknown): s is string => typeof s === "string" && /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(s);
 const icsStamp = (dt: Date) => dt.toISOString().replace(/[-:]/g, "").split(".")[0] + "Z";
@@ -137,8 +176,11 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
   const mapsUrl = b.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(b.address)}` : null;
   const gcal = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(`${a.service_name} · ${b.name}`)}&dates=${icsStamp(start)}/${icsStamp(end)}${b.address ? `&location=${encodeURIComponent(b.address)}` : ""}`;
 
+  const depositPending = !!data.deposit && ["pending", "rejected", "review"].includes(data.deposit.status);
   const statusChip = cancelled
     ? { text: "Cancelado", bg: "#fef2f2", fg: "#b91c1c" }
+    : depositPending && active
+      ? { text: data.deposit!.status === "review" ? "Seña en revisión" : "Seña pendiente", bg: "#fff7ed", fg: "#9a3412" }
     : a.status === "confirmed"
       ? { text: "Confirmado", bg: "#ede9fe", fg: "#6d28d9" }
       : active
@@ -211,6 +253,10 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
               </div>
             ))}
           </div>
+
+          {data.deposit && active && !past && (
+            <DepositCard deposit={data.deposit} token={token} colors={c} primaryBtn={primaryBtn} onChanged={refresh} />
+          )}
 
           {notice && (
             <div style={{ marginTop: 14, padding: "12px 14px", borderRadius: 14, fontSize: 14, fontWeight: 600, background: notice.kind === "ok" ? "#ecfdf5" : "#fef2f2", color: notice.kind === "ok" ? "#047857" : "#b91c1c" }}>{notice.text}</div>
@@ -290,6 +336,124 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
         </>,
       )}
     </>,
+  );
+}
+
+function DepositCard({
+  deposit, token, colors, primaryBtn, onChanged,
+}: {
+  deposit: Deposit;
+  token: string;
+  colors: { innerBg: string; border: string; text: string; muted: string };
+  primaryBtn: React.CSSProperties;
+  onChanged: () => Promise<void> | void;
+}) {
+  const [file, setFile] = React.useState<File | null>(null);
+  const [busy, setBusy] = React.useState(false);
+  const [err, setErr] = React.useState<string | null>(null);
+  const [copied, setCopied] = React.useState<string | null>(null);
+  const box: React.CSSProperties = { marginTop: 16, padding: "14px 14px", borderRadius: 16, border: `1px solid ${colors.border}`, background: colors.innerBg, fontSize: 14 };
+  const money = (n: number) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n);
+
+  if (deposit.status === "paid" || deposit.status === "applied") {
+    return <div style={{ ...box, background: "#ecfdf5", color: "#047857", borderColor: "#a7f3d0", fontWeight: 700 }}>✓ Seña recibida: {money(deposit.paid_amount)}</div>;
+  }
+  if (deposit.status === "review") {
+    return <div style={{ ...box, color: colors.text }}><strong>Recibimos tu comprobante.</strong> Lo estamos revisando y te confirmamos tu turno en breve.</div>;
+  }
+  if (deposit.status === "expired") {
+    return <div style={{ ...box, color: colors.muted }}>La seña no se pagó a tiempo, así que el turno puede liberarse. Contactá al local si todavía querés reservarlo.</div>;
+  }
+  if (deposit.status === "to_decide") {
+    return <div style={{ ...box, color: colors.muted }}>El local está revisando qué pasa con tu seña. Te van a contactar.</div>;
+  }
+  if (deposit.status === "returned") {
+    return <div style={{ ...box, color: colors.text }}>Te devolvimos la seña de {money(deposit.paid_amount)}.</div>;
+  }
+  if (deposit.status === "retained") {
+    return <div style={{ ...box, color: colors.muted }}>La seña no se reintegra según las políticas del local.</div>;
+  }
+
+  const t = deposit.instructions?.payment?.transfer;
+  const copy = async (label: string, value?: string) => {
+    if (!value) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(label);
+      window.setTimeout(() => setCopied(null), 1500);
+    } catch {
+      /* sin portapapeles: el valor igual está visible */
+    }
+  };
+  const deadline = (() => {
+    if (!deposit.expires_at) return null;
+    const d = new Date(deposit.expires_at);
+    const hm = d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false });
+    if (d.toDateString() === new Date().toDateString()) return `hoy a las ${hm}`;
+    return `${d.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })} a las ${hm}`;
+  })();
+
+  const send = async () => {
+    if (!file) return;
+    setBusy(true);
+    setErr(null);
+    try {
+      const proof = await prepareProof(file);
+      const { data, error } = await (supabase.rpc as any)("submit_deposit_proof_v2", {
+        p_token: token, p_mime: proof.mime, p_data: proof.data, p_method: "transfer", p_reference: null,
+      });
+      if (error) throw error;
+      if (!data?.ok) throw new Error(data?.error ?? "No se pudo enviar el comprobante.");
+      setFile(null);
+      await onChanged();
+    } catch (e) {
+      setErr((e as Error).message || "No se pudo enviar el comprobante.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const row = (label: string, value?: string, copyable = true) =>
+    value ? (
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10, padding: "9px 0", borderTop: `1px solid ${colors.border}` }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ color: colors.muted, fontSize: 12 }}>{label}</div>
+          <div style={{ fontWeight: 700, wordBreak: "break-all" }}>{value}</div>
+        </div>
+        {copyable && (
+          <button type="button" onClick={() => void copy(label, value)} style={{ border: `1px solid ${colors.border}`, background: "transparent", color: colors.text, borderRadius: 10, padding: "6px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer", display: "flex", gap: 6, alignItems: "center" }}>
+            <Copy size={14} /> {copied === label ? "Copiado" : "Copiar"}
+          </button>
+        )}
+      </div>
+    ) : null;
+
+  return (
+    <div style={box}>
+      <div style={{ fontWeight: 800, fontSize: 15 }}>Pagá la seña para asegurar tu turno</div>
+      <div style={{ fontSize: 28, fontWeight: 800, margin: "4px 0 2px" }}>{money(deposit.amount)}</div>
+      {deadline && <div style={{ color: colors.muted, fontSize: 13 }}>Tenés hasta {deadline} para pagarla.</div>}
+      {deposit.status === "rejected" && (
+        <div style={{ marginTop: 10, padding: "10px 12px", borderRadius: 12, background: "#fef2f2", color: "#b91c1c", fontSize: 13.5, fontWeight: 600 }}>
+          No pudimos validar tu comprobante{deposit.rejected_note ? `: ${deposit.rejected_note}` : "."} Subí uno nuevo.
+        </div>
+      )}
+      {deposit.instructions?.message && <p style={{ margin: "10px 0 0", color: colors.muted, fontSize: 13.5, whiteSpace: "pre-line" }}>{deposit.instructions.message}</p>}
+      <div style={{ marginTop: 10 }}>
+        {row("Alias", t?.alias)}
+        {row("CBU / CVU", t?.cbu)}
+        {row("Titular", t?.holder, false)}
+        {row("Banco", t?.bank, false)}
+      </div>
+      <label style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 8, marginTop: 12, padding: "13px 16px", borderRadius: 14, border: `1px dashed ${colors.border}`, color: colors.text, fontWeight: 700, cursor: "pointer", fontSize: 14 }}>
+        <Upload size={17} /> {file ? file.name : "Subir comprobante"}
+        <input type="file" accept="image/*,application/pdf" style={{ display: "none" }} onChange={(e) => { setErr(null); setFile(e.target.files?.[0] ?? null); }} />
+      </label>
+      {err && <div style={{ marginTop: 8, color: "#dc2626", fontSize: 13, fontWeight: 600 }}>{err}</div>}
+      <button type="button" disabled={!file || busy} onClick={() => void send()} style={{ ...primaryBtn, marginTop: 10, opacity: !file || busy ? 0.5 : 1 }}>
+        {busy ? "Enviando…" : "Enviar comprobante"}
+      </button>
+    </div>
   );
 }
 
