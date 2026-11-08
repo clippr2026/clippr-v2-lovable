@@ -84,7 +84,7 @@ export function PublicProfessionalPicker({
       <span
         key={label}
         className={cn(
-          "block min-w-0 flex-1 rounded-xl border-2 px-2 py-1 text-center leading-tight text-white",
+          "block min-w-0 flex-1 rounded-xl border-2 px-2 py-0.5 text-center leading-tight text-white",
           kind === "list" ? "border-white/20 bg-white/[0.05]" : "",
         )}
         style={
@@ -97,19 +97,28 @@ export function PublicProfessionalPicker({
               }
         }
       >
-        <span className="block text-[10px] font-bold">{label}</span>
-        <span className={cn("block font-extrabold", big ? "text-xl" : "text-base")}>{value}</span>
+        {big ? (
+          <>
+            <span className="block text-[10px] font-bold">{label}</span>
+            <span className="block text-xl font-extrabold">{value}</span>
+          </>
+        ) : (
+          <span className="flex items-baseline justify-between gap-1">
+            <span className="text-[10px] font-bold">{label}</span>
+            <span className="text-sm font-extrabold">{value}</span>
+          </span>
+        )}
       </span>
     );
     const second =
       item.promoPrice != null
-        ? chip(`Promo${item.promoPercent != null ? ` (-${item.promoPercent}%)` : ""}`, formatMoney(item.promoPrice), "accent")
+        ? chip(big ? `Promo${item.promoPercent != null ? ` (-${item.promoPercent}%)` : ""}` : "Promo", formatMoney(item.promoPrice), "accent")
         : item.effectivePrice != null
-          ? chip("Precio efectivo", formatMoney(item.effectivePrice), "accent")
+          ? chip(big ? "Precio efectivo" : "Efectivo", formatMoney(item.effectivePrice), "accent")
           : null;
     return (
-      <div className={cn("flex gap-2", big ? "flex-row" : "flex-col")}>
-        {chip("Precio de lista", formatMoney(item.listPrice), "list")}
+      <div className={cn("flex", big ? "flex-row gap-2" : "flex-col gap-1")}>
+        {chip(big ? "Precio de lista" : "Lista", formatMoney(item.listPrice), "list")}
         {second}
       </div>
     );
@@ -206,28 +215,29 @@ export function PublicProfessionalPicker({
         </div>
       ) : (
         <div className="pp-grid-in">
-          <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-white/40">Profesionales</p>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2.5">
             {items.map((item) => (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => setOpenId(item.id)}
-                className="flex min-w-0 flex-col gap-2 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-3 text-left transition hover:border-white/30 hover:bg-white/[0.055] active:scale-[0.98]"
+                className="relative flex min-w-0 flex-col gap-1.5 rounded-3xl border border-white/10 bg-white/[0.03] p-2 text-left transition hover:border-white/30 hover:bg-white/[0.055] active:scale-[0.98]"
               >
-                <span className="flex flex-col items-center gap-1.5 text-center">
-                  <Avatar item={item} icon="h-7 w-7" className="h-[72px] w-[72px] border-2 border-white/30" />
-                  <span className="w-full break-words text-sm font-extrabold uppercase leading-tight">{item.name.split(" ")[0]}</span>
-                  {ratingPill(item.id, false)}
-                </span>
                 {item.priceChanged ? (
                   <span
-                    className="self-center rounded-full border px-2 py-[2px] text-[10px] font-bold text-white"
-                    style={{ borderColor: accent, background: `color-mix(in oklch, ${accent} 18%, transparent)` }}
+                    className="absolute -top-2 right-3 rounded-full border px-1.5 py-[1px] text-[8px] font-bold leading-tight text-white"
+                    style={{ borderColor: accent, background: `color-mix(in oklch, ${accent} 30%, #0b0818)` }}
                   >
                     Precio diferencial
                   </span>
                 ) : null}
+                <span className="flex items-center gap-2">
+                  <Avatar item={item} icon="h-5 w-5" className="h-11 w-11 border-2 border-white/30" />
+                  <span className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
+                    <span className="w-full break-words text-xs font-extrabold uppercase leading-tight">{item.name.split(" ")[0]}</span>
+                    {ratingPill(item.id, false)}
+                  </span>
+                </span>
                 {priceBlock(item, false)}
               </button>
             ))}
@@ -235,7 +245,7 @@ export function PublicProfessionalPicker({
           <button
             type="button"
             onClick={onAny}
-            className="mt-3 flex w-full items-center justify-center gap-2 rounded-3xl border border-white/10 bg-white/[0.03] p-3 text-sm font-semibold transition hover:border-white/30 hover:bg-white/[0.055]"
+            className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-3xl border border-white/10 bg-white/[0.03] p-2.5 text-sm font-semibold transition hover:border-white/30 hover:bg-white/[0.055]"
           >
             <UsersRound className="h-4 w-4" style={{ color: accent }} /> Sin preferencia
             <span className="text-xs font-normal text-white/55">· Disponible</span>
