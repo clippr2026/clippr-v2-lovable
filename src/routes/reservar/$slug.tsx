@@ -392,6 +392,7 @@ function PublicBookingPage() {
   // el paso "Elegí profesional" debe seguir salteándose después de Promo,
   // no solo en el salto inicial.
   const professionalPreselectedRef = React.useRef(false);
+  const deepLinkAppliedRef = React.useRef(false);
   const [selectedSlot, setSelectedSlot] = React.useState<{ time: Date; employeeId: string } | null>(null);
   const [clientFirstName, setClientFirstName] = React.useState("");
   const [clientLastName, setClientLastName] = React.useState("");
@@ -1045,30 +1046,36 @@ function PublicBookingPage() {
           setNeonKey(normalizePublicNeon(branding.neon));
           setResolvedTheme(resolvedLandingTheme);
 
-          const params = new URLSearchParams(window.location.search);
-          const serviceId = params.get("service");
-          const professionalId = params.get("professional");
-          const serviceValid = Boolean(serviceId) && visibleServices.some((service) => service.id === serviceId);
-          const professionalValid = Boolean(professionalId) && visibleEmployees.some((employee) => employee.id === professionalId);
-          if (serviceValid) setSelectedServiceIds([serviceId as string]);
-          if (professionalValid) {
-            setSelectedEmployeeId(professionalId as string);
-            setProfessionalLocked(true);
-            professionalPreselectedRef.current = true;
-          }
-          // "Reservar" de un servicio puntual o "Elegir" un profesional
-          // puntual (Servicios/Profesionales disponibles del perfil
-          // público) no debe saltear el paso Promo si está habilitado — acá
-          // todavía no existe el estado `promotions` (el setPromotions de
-          // arriba no se refleja hasta el próximo render), así que se
-          // recalcula localmente con el mismo criterio que validPromotions.
-          const hasPromoStepNow = rawPromotions
-            .map(backfillPromotionVigencia)
-            .some((p) => isPromotionCurrentlyValid(p, new Date()));
-          if (serviceValid && professionalValid) {
-            setStep(hasPromoStepNow ? "promo" : "datetime");
-          } else if (serviceValid) {
-            setStep(hasPromoStepNow ? "promo" : "professional");
+          // El salto de paso por link directo (?service= / ?professional=) se aplica UNA sola vez.
+          // La carga se repite cuando se resuelve la sucursal; si el salto se repitiera, al terminar
+          // esa segunda carga mandaría de nuevo al cliente al paso de beneficios aunque ya hubiera avanzado.
+          if (!deepLinkAppliedRef.current) {
+            deepLinkAppliedRef.current = true;
+            const params = new URLSearchParams(window.location.search);
+            const serviceId = params.get("service");
+            const professionalId = params.get("professional");
+            const serviceValid = Boolean(serviceId) && visibleServices.some((service) => service.id === serviceId);
+            const professionalValid = Boolean(professionalId) && visibleEmployees.some((employee) => employee.id === professionalId);
+            if (serviceValid) setSelectedServiceIds([serviceId as string]);
+            if (professionalValid) {
+              setSelectedEmployeeId(professionalId as string);
+              setProfessionalLocked(true);
+              professionalPreselectedRef.current = true;
+            }
+            // "Reservar" de un servicio puntual o "Elegir" un profesional
+            // puntual (Servicios/Profesionales disponibles del perfil
+            // público) no debe saltear el paso Promo si está habilitado — acá
+            // todavía no existe el estado `promotions` (el setPromotions de
+            // arriba no se refleja hasta el próximo render), así que se
+            // recalcula localmente con el mismo criterio que validPromotions.
+            const hasPromoStepNow = rawPromotions
+              .map(backfillPromotionVigencia)
+              .some((p) => isPromotionCurrentlyValid(p, new Date()));
+            if (serviceValid && professionalValid) {
+              setStep(hasPromoStepNow ? "promo" : "datetime");
+            } else if (serviceValid) {
+              setStep(hasPromoStepNow ? "promo" : "professional");
+            }
           }
         }
       } catch (error) {
