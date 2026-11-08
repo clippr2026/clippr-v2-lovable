@@ -1615,11 +1615,10 @@ function PublicBookingPage() {
             llegue a activarse — mismo bug/fix que en negocio/$slug.tsx. */}
         <div className="min-w-0 space-y-6">
           <Card className="booking-card booking-shell border-white/10 bg-white/[0.04] text-white shadow-xl">
-            <CardContent className="p-5 sm:p-6">
+            <CardContent className={cn("p-5 sm:p-6", step === "professional" && "px-4 pb-4 pt-4")}>
               {step !== "done" ? (
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm text-white/50">Paso {stepIndex} de {totalSteps}</p>
                     <h2 className="text-2xl font-semibold">
                       {step === "services" && "Elegí tus servicios"}
                       {step === "promo" && "¿Tenés algún beneficio?"}
@@ -1651,7 +1650,7 @@ function PublicBookingPage() {
                     if (step === "products") setStep("datetime");
                     if (step === "details") setStep(recommendedProducts.length > 0 ? "products" : "datetime");
                   }}
-                  className="mt-5 inline-flex items-center gap-1 text-sm text-white/55 hover:text-white"
+                  className={cn("inline-flex items-center gap-1 text-sm text-white/55 hover:text-white", step === "professional" ? "mt-2" : "mt-5")}
                 >
                   <ChevronLeft className="h-4 w-4" /> Volver
                 </button>

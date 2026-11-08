@@ -137,7 +137,7 @@ export function PublicProfessionalPicker({
   };
 
   return (
-    <div className="mt-5">
+    <div className="mt-3">
       <style>{CSS}</style>
       {open ? (
         <div>
@@ -216,36 +216,74 @@ export function PublicProfessionalPicker({
       ) : (
         <div className="pp-grid-in">
           <div className="grid grid-cols-2 gap-2.5">
-            {items.map((item) => (
-              <button
-                key={item.id}
-                type="button"
-                onClick={() => setOpenId(item.id)}
-                className="relative flex min-w-0 flex-col gap-1.5 rounded-3xl border border-white/10 bg-white/[0.03] p-2 text-left transition hover:border-white/30 hover:bg-white/[0.055] active:scale-[0.98]"
-              >
-                {item.priceChanged ? (
-                  <span
-                    className="absolute -top-2 right-3 rounded-full border px-1.5 py-[1px] text-[8px] font-bold leading-tight text-white"
-                    style={{ borderColor: accent, background: `color-mix(in oklch, ${accent} 30%, #0b0818)` }}
-                  >
-                    Precio diferencial
+            {items.map((item) => {
+              const r = ratings[item.id];
+              const second =
+                item.promoPrice != null
+                  ? { label: "Promo", value: item.promoPrice }
+                  : item.effectivePrice != null
+                    ? { label: "Efectivo", value: item.effectivePrice }
+                    : null;
+              return (
+                <button
+                  key={item.id}
+                  type="button"
+                  onClick={() => setOpenId(item.id)}
+                  className="relative flex min-w-0 flex-col gap-3 rounded-3xl border bg-white/[0.04] px-2.5 py-3.5 text-left transition active:scale-[0.98]"
+                  style={{ borderColor: "rgba(255,255,255,0.14)" }}
+                >
+                  {item.priceChanged ? (
+                    <span
+                      className="absolute -top-2 right-3 rounded-full border px-1.5 py-[1px] text-[8px] font-bold leading-tight text-white"
+                      style={{ borderColor: accent, background: `color-mix(in oklch, ${accent} 30%, #0b0818)` }}
+                    >
+                      Precio diferencial
+                    </span>
+                  ) : null}
+                  <span className="flex items-center gap-2">
+                    <span className="grid h-[52px] w-[52px] shrink-0 place-items-center overflow-hidden rounded-full bg-white/10">
+                      {item.avatarUrl ? (
+                        <img loading="lazy" decoding="async" src={item.avatarUrl} alt={item.name} className="h-full w-full object-cover" />
+                      ) : (
+                        <UserRound className="h-6 w-6" />
+                      )}
+                    </span>
+                    <span className="min-w-0 flex-1 leading-tight">
+                      <span className="block break-words text-xs font-extrabold uppercase tracking-tight">{item.name.split(" ")[0]}</span>
+                      {r && r.count > 0 ? (
+                        <span className="mt-0.5 flex items-center gap-1 text-[11px] font-semibold text-white/75">
+                          <Star className="h-3 w-3 fill-current text-amber-400" />
+                          {avg1(r.avg)}
+                        </span>
+                      ) : null}
+                    </span>
                   </span>
-                ) : null}
-                <span className="flex items-center gap-2">
-                  <Avatar item={item} icon="h-5 w-5" className="h-11 w-11 border-2 border-white/30" />
-                  <span className="flex min-w-0 flex-1 flex-col items-start gap-0.5">
-                    <span className="w-full break-words text-xs font-extrabold uppercase leading-tight">{item.name.split(" ")[0]}</span>
-                    {ratingPill(item.id, false)}
-                  </span>
-                </span>
-                {priceBlock(item, false)}
-              </button>
-            ))}
+                  {hasServices ? (
+                    <span className="block space-y-1">
+                      <span className="flex items-baseline justify-between gap-1 text-white/60">
+                        <span className="text-[11px]">Lista</span>
+                        <span className={cn("text-xs font-semibold", item.promoPrice != null && "line-through")}>{formatMoney(item.listPrice)}</span>
+                      </span>
+                      {second ? (
+                        <span className="flex items-baseline justify-between gap-1">
+                          <span className="text-[11px] font-bold" style={{ color: accent }}>
+                            {second.label}
+                            {second.label === "Promo" && item.promoPercent != null ? ` -${item.promoPercent}%` : ""}
+                          </span>
+                          <span className="text-xl font-extrabold text-white">{formatMoney(second.value)}</span>
+                        </span>
+                      ) : null}
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
           </div>
           <button
             type="button"
             onClick={onAny}
-            className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-3xl border border-white/10 bg-white/[0.03] p-2.5 text-sm font-semibold transition hover:border-white/30 hover:bg-white/[0.055]"
+            className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-3xl border bg-white/[0.04] p-2.5 text-sm font-semibold transition"
+            style={{ borderColor: "rgba(255,255,255,0.14)" }}
           >
             <UsersRound className="h-4 w-4" style={{ color: accent }} /> Sin preferencia
             <span className="text-xs font-normal text-white/55">· Disponible</span>
