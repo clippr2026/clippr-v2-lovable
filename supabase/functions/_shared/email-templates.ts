@@ -15,6 +15,8 @@
 
 export const CLIPPR_FROM_EMAIL = "hola@myclippr.com";
 const CLIPPR_PURPLE = "#7c3aed";
+/** Logo de Clippr (PNG: lo leen todos los clientes de correo, el webp no). */
+const CLIPPR_LOGO_URL = "https://myclippr.com/clippr-powered-logo.png";
 
 /** Identidad visual del negocio, heredada del branding de su página pública. */
 export type BrandTheme = {
@@ -40,6 +42,10 @@ export type BookingEmailData = {
   manageUrl?: string | null;
   /** Link directo a calendario; no debe abrir /gestion. */
   calendarUrl?: string | null;
+  /** Google Maps con la dirección del local (si el negocio tiene dirección). */
+  mapsUrl?: string | null;
+  /** Chat de WhatsApp del negocio (si tiene teléfono). */
+  whatsappUrl?: string | null;
 };
 
 type Row = { label: string; value: string };
@@ -98,25 +104,34 @@ function buttonsHtml(buttons: Btn[], brand: BrandTheme, p: ReturnType<typeof pal
   if (!visible.length) return "";
   const accent = hex(brand.accent, brand.primary);
   const nowrap = "white-space:nowrap;word-break:keep-all;overflow-wrap:normal;";
-  const rows = visible
-    .map((b) => {
-      const isPrimary = b.variant === "primary";
-      const bg = isPrimary ? accent : p.cardBg;
-      const color = isPrimary ? brand.buttonText : p.text;
-      const borderStyle = isPrimary ? "" : `border:1px solid ${p.border};`;
-      return `
-        <tr><td align="center" style="padding:5px 0;">
-          <table role="presentation" cellpadding="0" cellspacing="0" style="border-radius:12px;background:${bg};${borderStyle}" bgcolor="${bg}">
+  const link = (b: Btn) => {
+    const isPrimary = b.variant === "primary";
+    const bg = isPrimary ? accent : p.cardBg;
+    const color = isPrimary ? brand.buttonText : p.text;
+    const borderStyle = isPrimary ? "" : `border:1px solid ${p.border};`;
+    return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-radius:12px;background:${bg};${borderStyle}" bgcolor="${bg}">
             <tr><td align="center" style="border-radius:12px;">
-              <a href="${esc(b.url)}" target="_blank" style="display:inline-block;padding:13px 30px;font-size:14px;font-weight:700;color:${color};text-decoration:none;border-radius:12px;${nowrap}">${esc(b.label)}</a>
+              <a href="${esc(b.url)}" target="_blank" style="display:block;padding:13px 10px;font-size:14px;font-weight:700;color:${color};text-decoration:none;border-radius:12px;${nowrap}">${esc(b.label)}</a>
             </td></tr>
-          </table>
-        </td></tr>`;
-    })
-    .join("");
+          </table>`;
+  };
+  const primary = visible.filter((b) => b.variant === "primary");
+  const secondary = visible.filter((b) => b.variant !== "primary");
+  const rows: string[] = [];
+  for (const b of primary) rows.push(`<tr><td colspan="2" style="padding:4px 0;">${link(b)}</td></tr>`);
+  // Los secundarios van de a dos por renglón; si queda uno suelto, ocupa todo el ancho.
+  for (let i = 0; i < secondary.length; i += 2) {
+    const a = secondary[i];
+    const c = secondary[i + 1];
+    rows.push(
+      c
+        ? `<tr><td width="50%" style="padding:4px 4px 4px 0;">${link(a)}</td><td width="50%" style="padding:4px 0 4px 4px;">${link(c)}</td></tr>`
+        : `<tr><td colspan="2" style="padding:4px 0;">${link(a)}</td></tr>`,
+    );
+  }
   return `
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:22px;">
-        ${rows}
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;">
+        ${rows.join("")}
       </table>`;
 }
 
@@ -129,6 +144,8 @@ function baseLayout(opts: {
   title: string;
   intro: string;
   rows: Row[];
+  /** Día y hora grandes arriba del detalle (correos de turno). */
+  when?: { date: string; time: string };
   total?: number;
   buttons?: Btn[];
   footerNote: string;
@@ -138,23 +155,37 @@ function baseLayout(opts: {
   const primary = hex(brand.primary);
   const secondary = hex(brand.secondary, primary);
 
-  const rowsHtml = opts.rows
-    .map(
-      (r) => `
-      <tr>
-        <td style="padding:14px 0;border-bottom:1px solid ${p.rowBorder};">
-          <span style="display:block;font-size:11px;letter-spacing:.04em;text-transform:uppercase;color:${p.subtle};font-weight:600;">${esc(r.label)}</span>
+  // Detalle compacto: las filas de a dos por renglón (Servicio ocupa todo el ancho).
+  const cell = (r: Row, span = 1) => `
+        <td colspan="${span}" valign="top" style="padding:8px 0;${span === 1 ? "width:50%;" : ""}">
+          <span style="display:block;font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:${p.subtle};font-weight:700;">${esc(r.label)}</span>
           <span style="display:block;margin-top:3px;font-size:15px;color:${p.text};font-weight:600;">${esc(r.value)}</span>
-        </td>
-      </tr>`,
-    )
-    .join("");
+        </td>`;
+  const rowsHtml = (() => {
+    const out: string[] = [];
+    const rest = [...opts.rows];
+    const first = rest.shift();
+    if (first) out.push(`<tr>${cell(first, 2)}</tr>`);
+    for (let i = 0; i < rest.length; i += 2) {
+      out.push(`<tr>${cell(rest[i])}${rest[i + 1] ? cell(rest[i + 1]) : "<td></td>"}</tr>`);
+    }
+    return out.join("");
+  })();
+
+  const whenHtml = opts.when
+    ? `
+          <tr><td align="center" style="padding:22px 24px 18px;border-bottom:1px dashed ${p.border};">
+            <span style="display:block;font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:${primary};font-weight:800;">${esc(brand.name)}</span>
+            <span style="display:block;margin-top:8px;font-size:16px;color:${p.text};font-weight:700;">${esc(opts.when.date)}</span>
+            <span style="display:block;margin-top:2px;font-size:40px;line-height:1.1;color:${p.text};font-weight:800;letter-spacing:-.02em;">${esc(opts.when.time)}</span>
+          </td></tr>`
+    : "";
 
   const totalHtml =
     typeof opts.total === "number"
       ? `
-      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:16px;border-radius:14px;background:${p.innerBg};border:1px solid ${p.border};" bgcolor="${p.innerBg}">
-        <tr><td style="padding:16px 18px;">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="margin-top:12px;border-radius:14px;background:${p.innerBg};border:1px solid ${p.border};" bgcolor="${p.innerBg}">
+        <tr><td style="padding:14px 18px;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
             <tr>
               <td style="font-size:14px;color:${p.muted};font-weight:500;">Total</td>
@@ -183,29 +214,35 @@ function baseLayout(opts: {
           <!-- barra de marca (gradiente con fallback sólido) -->
           <tr><td style="height:4px;background:${primary};background:linear-gradient(90deg, ${primary}, ${secondary});" bgcolor="${primary}"></td></tr>
           <!-- logo / nombre -->
-          <tr><td style="padding:28px 36px 0;">${header(brand, p)}</td></tr>
+          <tr><td style="padding:22px 32px 0;">${header(brand, p)}</td></tr>
           <!-- eyebrow + título -->
-          <tr><td style="padding:20px 36px 0;">
-            <span style="display:inline-block;padding:6px 12px;border-radius:999px;background:${opts.eyebrowBg};color:${opts.eyebrowColor};font-size:12px;font-weight:700;">${esc(opts.eyebrow)}</span>
-            <h1 style="margin:16px 0 0;font-size:28px;line-height:1.15;color:${p.text};font-weight:800;letter-spacing:-.02em;">${esc(opts.title)}</h1>
-            <p style="margin:10px 0 0;font-size:15px;line-height:1.55;color:${p.muted};">${esc(opts.intro)}</p>
+          <tr><td style="padding:16px 32px 0;">
+            <span style="display:inline-block;padding:5px 11px;border-radius:999px;background:${opts.eyebrowBg};color:${opts.eyebrowColor};font-size:12px;font-weight:700;">${esc(opts.eyebrow)}</span>
+            <h1 style="margin:12px 0 0;font-size:26px;line-height:1.15;color:${p.text};font-weight:800;letter-spacing:-.02em;">${esc(opts.title)}</h1>
+            <p style="margin:6px 0 0;font-size:15px;line-height:1.45;color:${p.muted};">${esc(opts.intro)}</p>
           </td></tr>
           <!-- detalle -->
-          <tr><td style="padding:24px 36px 0;">
-            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid ${p.border};border-radius:16px;background:${p.innerBg};" bgcolor="${p.innerBg}">
-              <tr><td style="padding:4px 18px;">
+          <tr><td style="padding:18px 32px 0;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid ${p.border};border-radius:16px;background:${p.innerBg};" bgcolor="${p.innerBg}">${whenHtml}
+              <tr><td style="padding:6px 20px;">
                 <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rowsHtml}</table>
               </td></tr>
             </table>
             ${totalHtml}
           </td></tr>
           <!-- botones -->
-          <tr><td style="padding:0 36px;">${buttonsHtml(opts.buttons ?? [], brand, p)}</td></tr>
+          <tr><td style="padding:0 32px;">${buttonsHtml(opts.buttons ?? [], brand, p)}</td></tr>
           <!-- footer -->
-          <tr><td style="padding:30px 36px 32px;">
-            <hr style="border:none;border-top:1px solid ${p.border};margin:24px 0 18px;" />
-            <p style="margin:0;font-size:12px;line-height:1.5;color:${p.subtle};">${esc(opts.footerNote)}</p>
-            <p style="margin:12px 0 0;font-size:12px;color:${p.subtle};">Reservá fácil con <span style="font-weight:700;color:${primary};">Clippr</span></p>
+          <tr><td style="padding:22px 32px 24px;">
+            <hr style="border:none;border-top:1px solid ${p.border};margin:0 0 14px;" />
+            <p style="margin:0;font-size:12px;line-height:1.5;color:${p.subtle};text-align:center;">${esc(opts.footerNote)}</p>
+            <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:14px auto 0;">
+              <tr>
+                <td style="font-size:11px;color:${p.subtle};padding-right:8px;">Impulsado por</td>
+                <td style="padding-right:6px;"><img src="${CLIPPR_LOGO_URL}" alt="" width="22" height="22" style="display:block;width:22px;height:22px;border:0;border-radius:6px;" /></td>
+                <td style="font-size:15px;font-weight:800;color:${p.text};letter-spacing:-.01em;">Clippr</td>
+              </tr>
+            </table>
           </td></tr>
         </table>
       </td>
@@ -215,21 +252,20 @@ function baseLayout(opts: {
 </html>`;
 }
 
+// Solo lo que aporta: servicio y profesional (día y hora van grandes arriba; el cliente ya
+// conoce su nombre y su teléfono).
 function detailRows(d: BookingEmailData): Row[] {
-  const rows: Row[] = [
+  return [
     { label: "Servicio", value: d.services },
     { label: "Profesional", value: d.professional },
-    { label: "Fecha", value: d.date },
-    { label: "Horario", value: d.time },
-    { label: "Cliente", value: d.clientName },
   ];
-  if (d.clientPhone) rows.push({ label: "Teléfono", value: d.clientPhone });
-  return rows;
 }
 
 function bookingButtons(d: BookingEmailData): Btn[] {
   const btns: Btn[] = [];
   if (d.calendarUrl) btns.push({ label: "Agregar al calendario", url: d.calendarUrl, variant: "primary" });
+  if (d.mapsUrl) btns.push({ label: "Cómo llegar", url: d.mapsUrl, variant: "secondary" });
+  if (d.whatsappUrl) btns.push({ label: "WhatsApp", url: d.whatsappUrl, variant: "secondary" });
   if (d.manageUrl) btns.push({ label: "Gestionar turno", url: d.manageUrl, variant: "secondary" });
   return btns;
 }
@@ -239,8 +275,10 @@ export function buildBookingEmail(
   type: string,
   d: BookingEmailData,
 ): { subject: string; html: string } | null {
+  const first = (d.clientName ?? "").trim().split(/\s+/)[0];
   const base = {
     brand: d.brand,
+    when: { date: d.date, time: d.time },
     rows: detailRows(d),
     total: d.total,
     buttons: bookingButtons(d),
@@ -258,7 +296,7 @@ export function buildBookingEmail(
           eyebrowColor: "#047857",
           eyebrowBg: "#ecfdf5",
           title: "¡Turno confirmado!",
-          intro: "Tu reserva fue registrada correctamente. Acá tenés todos los detalles de tu turno.",
+          intro: first && first !== "-" ? `Te esperamos, ${first}.` : "Te esperamos.",
           footerNote: `Recibiste este correo porque reservaste un turno en ${biz}.`,
         }),
       };
@@ -273,7 +311,7 @@ export function buildBookingEmail(
           eyebrowColor: "#9a3412",
           eyebrowBg: "#fff7ed",
           title: "Tu turno se acerca",
-          intro: `Te recordamos que tenés un turno reservado en ${biz}. ¡Te esperamos!`,
+          intro: "Te recordamos tu turno. ¡Te esperamos!",
           footerNote: `Recibiste este recordatorio por tu turno en ${biz}.`,
         }),
       };
@@ -288,7 +326,7 @@ export function buildBookingEmail(
           eyebrowColor: "#1d4ed8",
           eyebrowBg: "#eff6ff",
           title: "Tu turno cambió de horario",
-          intro: "Actualizamos tu reserva. Estos son los nuevos datos de tu turno.",
+          intro: "Estos son los nuevos datos de tu turno.",
           footerNote: `Recibiste este correo por tu turno en ${biz}.`,
         }),
       };
@@ -305,7 +343,7 @@ export function buildBookingEmail(
           eyebrowBg: "#fef2f2",
           preheader: `Tu turno del ${d.date} en ${biz} fue cancelado.`,
           title: "Tu turno fue cancelado",
-          intro: "Tu reserva fue cancelada. Si querés, podés reservar un nuevo turno cuando quieras.",
+          intro: "Podés reservar un nuevo turno cuando quieras.",
           footerNote: `Recibiste este correo por una reserva en ${biz}.`,
         }),
       };

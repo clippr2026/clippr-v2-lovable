@@ -262,6 +262,12 @@ Deno.serve(async (req: Request) => {
       total: Number(booking.total ?? 0),
       manageUrl,
       calendarUrl,
+      mapsUrl: (biz?.address as string)?.trim()
+        ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent((biz?.address as string).trim())}`
+        : null,
+      whatsappUrl: businessWhatsApp && businessWhatsApp.replace(/\D/g, "").length >= 8
+        ? `https://wa.me/${businessWhatsApp.replace(/\D/g, "")}`
+        : null,
     };
 
     const email = buildBookingEmail(type, data);
