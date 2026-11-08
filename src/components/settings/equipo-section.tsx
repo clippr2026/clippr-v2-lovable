@@ -254,6 +254,25 @@ type NewProForm = {
   branchId: string | null;
 };
 
+// Nacionalidades que se pueden elegir para el perfil público del profesional.
+const NATIONALITY_OPTIONS = [
+  "Argentina",
+  "Bolivia",
+  "Brasil",
+  "Chile",
+  "Colombia",
+  "Cuba",
+  "Ecuador",
+  "España",
+  "Italia",
+  "México",
+  "Paraguay",
+  "Perú",
+  "República Dominicana",
+  "Uruguay",
+  "Venezuela",
+];
+
 const EMPTY_FORM: NewProForm = {
   fullName: "",
   email: "",
@@ -3875,17 +3894,25 @@ export function EquipoSection() {
                         value={form.birthDate}
                         max={new Date().toISOString().slice(0, 10)}
                         onChange={(e) => setForm({ ...form, birthDate: e.target.value })}
-                        className={inputCls}
+                        className={inputCls + " w-full min-w-0 appearance-none"}
                       />
                     </Field>
                     <Field label="Nacionalidad">
-                      <input
+                      <select
                         value={form.nationality}
                         onChange={(e) => setForm({ ...form, nationality: e.target.value })}
                         className={inputCls}
-                        placeholder="Ej: Argentina"
-                        maxLength={40}
-                      />
+                      >
+                        <option value="">Sin indicar</option>
+                        {(form.nationality && !NATIONALITY_OPTIONS.includes(form.nationality)
+                          ? [form.nationality, ...NATIONALITY_OPTIONS]
+                          : NATIONALITY_OPTIONS
+                        ).map((n) => (
+                          <option key={n} value={n}>
+                            {n}
+                          </option>
+                        ))}
+                      </select>
                     </Field>
                     <Field label="Trabaja en el rubro desde (se muestran los años)">
                       <input
@@ -3893,7 +3920,7 @@ export function EquipoSection() {
                         value={form.experienceSince}
                         max={new Date().toISOString().slice(0, 10)}
                         onChange={(e) => setForm({ ...form, experienceSince: e.target.value })}
-                        className={inputCls}
+                        className={inputCls + " w-full min-w-0 appearance-none"}
                       />
                     </Field>
                   </div>
