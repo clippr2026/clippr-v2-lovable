@@ -388,19 +388,19 @@ export function PublicProfessionalPicker({
                     </span>
                   </span>
                   {hasServices ? (
-                    <span className="block space-y-1">
-                      <span className="flex items-baseline justify-between gap-1">
-                        <span className="text-[11px] font-bold text-white/60">Lista</span>
-                        <span className={cn("whitespace-nowrap text-xl font-extrabold tracking-tight text-white/70", item.promoPrice != null && "line-through")}>{formatMoney(item.listPrice)}</span>
-                      </span>
+                    // Dos columnas compartidas: los títulos quedan centrados en el ancho de "Efectivo"
+                    // (así "Lista" no queda pegado a la izquierda con un hueco) y los montos a la derecha.
+                    <span className="grid grid-cols-[auto_1fr] items-baseline gap-x-2 gap-y-1">
+                      <span className="text-center text-[11px] font-bold text-white/60">Lista</span>
+                      <span className={cn("whitespace-nowrap text-right text-lg font-extrabold tracking-tight text-white/70", item.promoPrice != null && "line-through")}>{formatMoney(item.listPrice)}</span>
                       {second ? (
-                        <span className="flex items-baseline justify-between gap-1">
-                          <span className="text-[11px] font-bold" style={{ color: accent }}>
+                        <>
+                          <span className="text-center text-[11px] font-bold" style={{ color: accent }}>
                             {second.label}
                             {second.label === "Promo" && item.promoPercent != null ? ` -${item.promoPercent}%` : ""}
                           </span>
-                          <span className="whitespace-nowrap text-xl font-extrabold tracking-tight" style={{ color: accent }}>{formatMoney(second.value)}</span>
-                        </span>
+                          <span className="whitespace-nowrap text-right text-lg font-extrabold tracking-tight" style={{ color: accent }}>{formatMoney(second.value)}</span>
+                        </>
                       ) : null}
                     </span>
                   ) : null}
