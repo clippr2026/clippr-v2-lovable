@@ -297,6 +297,8 @@ function PublicBookingPage() {
   const [employees, setEmployees] = React.useState<Employee[]>([]);
   // Promedio de estrellas por profesional (vista pública public_review_stats).
   const [proRatings, setProRatings] = React.useState<Record<string, ProfessionalRating>>({});
+  // Profesional abierto en el paso "Profesional" ("Volver" lo cierra antes de volver al paso anterior).
+  const [proOpenId, setProOpenId] = React.useState<string | null>(null);
   // Reseñas publicadas, agrupadas por profesional (se ven al abrir un profesional).
   const [proReviews, setProReviews] = React.useState<Record<string, ProfessionalReview[]>>({});
   // Edad / nacionalidad / experiencia de cada profesional (vista pública; la fecha de nacimiento
@@ -1126,6 +1128,27 @@ function PublicBookingPage() {
     setSelectedServiceIds([serviceId]);
   }
 
+  // "Volver": en el paso Profesional, si hay uno abierto lo cierra (vuelve a la grilla); si no, al paso anterior.
+  function goBack() {
+    if (step === "professional" && proOpenId) {
+      setProOpenId(null);
+      return;
+    }
+    if (step === "promo") setStep("services");
+    if (step === "professional") setStep(hasPromoStep ? "promo" : "services");
+    // Si el profesional vino fijo por deep link, ese paso
+    // nunca se mostró — volver ahí sería confuso.
+    if (step === "datetime") {
+      setStep(
+        professionalPreselectedRef.current
+          ? (hasPromoStep ? "promo" : "services")
+          : "professional",
+      );
+    }
+    if (step === "products") setStep("datetime");
+    if (step === "details") setStep(recommendedProducts.length > 0 ? "products" : "datetime");
+  }
+
   function nextFromServices() {
     if (selectedServiceIds.length === 0) return toast.error("Elegí al menos un servicio.");
     // Profesional ya fijo por deep link (?professional=): no volver a
@@ -1641,7 +1664,17 @@ function PublicBookingPage() {
             <CardContent className={cn("p-5 sm:p-6", step === "professional" && "px-4 pb-4 pt-4")}>
               {step !== "done" ? (
                 <div className="flex items-center justify-between gap-3">
-                  <div>
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    {step === "professional" ? (
+                      <button
+                        type="button"
+                        onClick={goBack}
+                        aria-label="Volver"
+                        className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-white/70 hover:text-white"
+                      >
+                        <ChevronLeft className="h-5 w-5" />
+                      </button>
+                    ) : null}
                     <h2 className="text-2xl font-semibold">
                       {step === "services" && "Elegí tus servicios"}
                       {step === "promo" && "¿Tenés algún beneficio?"}
@@ -1655,25 +1688,11 @@ function PublicBookingPage() {
                 </div>
               ) : null}
 
-              {step !== "services" && step !== "done" ? (
+              {step !== "services" && step !== "done" && step !== "professional" ? (
                 <button
                   type="button"
-                  onClick={() => {
-                    if (step === "promo") setStep("services");
-                    if (step === "professional") setStep(hasPromoStep ? "promo" : "services");
-                    // Si el profesional vino fijo por deep link, ese paso
-                    // nunca se mostró — volver ahí sería confuso.
-                    if (step === "datetime") {
-                      setStep(
-                        professionalPreselectedRef.current
-                          ? (hasPromoStep ? "promo" : "services")
-                          : "professional",
-                      );
-                    }
-                    if (step === "products") setStep("datetime");
-                    if (step === "details") setStep(recommendedProducts.length > 0 ? "products" : "datetime");
-                  }}
-                  className={cn("inline-flex items-center gap-1 text-sm text-white/55 hover:text-white", step === "professional" ? "mt-2" : "mt-5")}
+                  onClick={goBack}
+                  className="mt-5 inline-flex items-center gap-1 text-sm text-white/55 hover:text-white"
                 >
                   <ChevronLeft className="h-4 w-4" /> Volver
                 </button>
@@ -2066,11 +2085,13 @@ function PublicBookingPage() {
                       }))}
                       ratings={proRatings}
                       reviews={proReviews}
+                      openId={proOpenId}
+                      onOpenChange={setProOpenId}
                       accent={accent}
                       buttonText={accentButtonText}
                       hasServices={selectedServices.length > 0}
                       formatMoney={formatMoney}
-                      onChoose={(id) => { setSelectedEmployeeId(id); setSelectedSlot(null); setStep("datetime"); }}
+                      onChoose={(id) => { setProOpenId(null); setSelectedEmployeeId(id); setSelectedSlot(null); setStep("datetime"); }}
                       onAny={() => { setSelectedEmployeeId("any"); setSelectedSlot(null); setStep("datetime"); }}
                     />
                   );

@@ -1,5 +1,5 @@
 import * as React from "react";
-import { ArrowRight, Briefcase, ChevronLeft, Star, UserRound, UsersRound } from "lucide-react";
+import { ArrowRight, Briefcase, Star, UserRound, UsersRound } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type ProfessionalPickerItem = {
@@ -72,6 +72,8 @@ export function PublicProfessionalPicker({
   items,
   ratings,
   reviews = {},
+  openId,
+  onOpenChange,
   accent,
   buttonText,
   hasServices,
@@ -83,6 +85,9 @@ export function PublicProfessionalPicker({
   ratings: Record<string, ProfessionalRating>;
   // Reseñas publicadas de cada profesional (se ven abajo al abrirlo).
   reviews?: Record<string, ProfessionalReview[]>;
+  // Profesional abierto (lo maneja la página, para que "Volver" lo cierre).
+  openId: string | null;
+  onOpenChange: (id: string | null) => void;
   accent: string;
   buttonText: string;
   hasServices: boolean;
@@ -90,7 +95,6 @@ export function PublicProfessionalPicker({
   onChoose: (id: string) => void;
   onAny: () => void;
 }) {
-  const [openId, setOpenId] = React.useState<string | null>(null);
   const [showAllReviews, setShowAllReviews] = React.useState(false);
   const open = items.find((i) => i.id === openId) ?? null;
   React.useEffect(() => {
@@ -170,7 +174,7 @@ export function PublicProfessionalPicker({
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => setOpenId(item.id)}
+                  onClick={() => onOpenChange(item.id)}
                   className="flex w-[68px] shrink-0 flex-col items-center gap-1 text-center"
                   aria-pressed={active}
                 >
@@ -199,7 +203,6 @@ export function PublicProfessionalPicker({
             ) : null}
             <Avatar item={open} icon="h-14 w-14" className="mx-auto h-36 w-36 border-2 border-white/40 sm:h-40 sm:w-40" />
             <h3 className="mt-4 text-2xl font-extrabold uppercase leading-tight">{open.name}</h3>
-            <div className="mt-2 flex justify-center">{ratingPill(open.id, true)}</div>
             <div className="mt-4">{priceBlock(open, true)}</div>
             {open.ageYears != null || open.nationality || open.experienceYears != null ? (
               <div className="mt-4 grid grid-flow-col auto-cols-fr divide-x divide-white/10 rounded-2xl border border-white/10 py-3">
@@ -237,20 +240,31 @@ export function PublicProfessionalPicker({
             >
               Elegir profesional <ArrowRight className="h-4 w-4" />
             </button>
-            <button type="button" onClick={() => setOpenId(null)} className="mt-3 inline-flex items-center gap-1 text-xs font-semibold text-white/65 hover:text-white">
-              <ChevronLeft className="h-3.5 w-3.5" /> Ver todos los profesionales
-            </button>
           </div>
 
           {(() => {
             const all = [...(reviews[open.id] ?? [])].sort(
               (a, b) => Number(!!b.featured) - Number(!!a.featured) || b.review_date.localeCompare(a.review_date),
             );
-            if (all.length === 0) return null;
+            const rating = ratings[open.id];
+            if (all.length === 0 && !(rating && rating.count > 0)) return null;
             const shown = showAllReviews ? all : all.slice(0, 3);
             return (
               <div key={`rev-${open.id}`} className="pp-card-in mt-5">
-                <h4 className="mb-2 text-sm font-bold">Reseñas de {open.name.split(" ")[0]}</h4>
+                <div className="mb-2 flex items-center justify-between gap-2">
+                  <h4 className="text-sm font-bold">Reseñas de {open.name.split(" ")[0]}</h4>
+                  {rating && rating.count > 0 ? (
+                    <span className="inline-flex items-center gap-1.5 text-sm font-bold">
+                      <span className="inline-flex items-center gap-0.5" aria-label={`${avg1(rating.avg)} de 5 estrellas`}>
+                        {[1, 2, 3, 4, 5].map((n) => (
+                          <Star key={n} className={cn("h-4 w-4", n <= Math.round(rating.avg) ? "fill-current text-amber-400" : "text-white/25")} />
+                        ))}
+                      </span>
+                      {avg1(rating.avg)}
+                      <span className="font-medium text-white/60">({rating.count})</span>
+                    </span>
+                  ) : null}
+                </div>
                 <div className="space-y-2.5">
                   {shown.map((r) => (
                     <div key={r.id} className="rounded-2xl border border-white/10 bg-white/[0.04] p-3.5">
@@ -296,7 +310,7 @@ export function PublicProfessionalPicker({
                 <button
                   key={item.id}
                   type="button"
-                  onClick={() => setOpenId(item.id)}
+                  onClick={() => onOpenChange(item.id)}
                   className="relative flex min-w-0 flex-col gap-3 rounded-3xl border border-white/10 bg-white/[0.04] px-2.5 py-3.5 text-left transition hover:bg-white/[0.055] active:scale-[0.98]"
                 >
                   {item.priceChanged ? (
