@@ -41,6 +41,8 @@ type AcquisitionSourceFieldProps = {
    * en una opción se vería como un click "afuera" del modal y lo cerraría
    * antes de poder elegir nada. */
   usePortalDropdown?: boolean;
+  /** Color de acento: con `usePortalDropdown`, el menú se dibuja en versión "premium" (neón y brillo de ese color). */
+  accent?: string;
 };
 
 /**
@@ -63,6 +65,7 @@ export function AcquisitionSourceField({
   otroBelow = false,
   questionLabel = "¿Cómo nos conociste?",
   usePortalDropdown = false,
+  accent,
 }: AcquisitionSourceFieldProps) {
   const selected = ACQUISITION_CHANNELS.find((c) => c.id === value);
   const selectSpansFull = !selected?.requiresText || otroBelow;
@@ -148,33 +151,71 @@ export function AcquisitionSourceField({
                     <div className="fixed inset-0 z-[9998]" onClick={() => setOpen(false)} />
                     <div
                       role="listbox"
-                      style={menuStyle ?? undefined}
-                      className="z-[9999] overflow-y-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-md"
+                      style={
+                        accent
+                          ? {
+                              ...menuStyle,
+                              background: "linear-gradient(180deg, #120d26, #0a0716)",
+                              borderColor: `color-mix(in oklch, ${accent} 70%, transparent)`,
+                              boxShadow: `0 0 0 1px color-mix(in oklch, ${accent} 35%, transparent), 0 0 28px -6px ${accent}, 0 24px 48px -16px rgba(0,0,0,0.85)`,
+                            }
+                          : (menuStyle ?? undefined)
+                      }
+                      className={cn(
+                        "z-[9999] overflow-y-auto border text-popover-foreground",
+                        accent ? "rounded-3xl p-2 text-white [scrollbar-width:none] [&::-webkit-scrollbar]:hidden" : "rounded-md bg-popover p-1 shadow-md",
+                      )}
                     >
-                      {ACQUISITION_CHANNELS.map((channel) => (
-                        <button
-                          key={channel.id}
-                          type="button"
-                          role="option"
-                          aria-selected={channel.id === value}
-                          onClick={() => {
-                            onChange(channel.id);
-                            if (!channel.requiresText) onCustomChange("");
-                            setOpen(false);
-                          }}
-                          className="relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-left text-sm outline-none hover:bg-accent hover:text-accent-foreground"
-                        >
-                          <span className="flex items-center gap-2">
-                            <AcquisitionChannelIcon channel={channel} className="h-4 w-4 shrink-0" />
-                            {channel.label}
-                          </span>
-                          {channel.id === value ? (
-                            <span className="absolute right-2 flex h-3.5 w-3.5 items-center justify-center">
-                              <Check className="h-4 w-4" />
-                            </span>
-                          ) : null}
-                        </button>
-                      ))}
+                      {ACQUISITION_CHANNELS.map((channel) => {
+                        const isSel = channel.id === value;
+                        return (
+                          <button
+                            key={channel.id}
+                            type="button"
+                            role="option"
+                            aria-selected={isSel}
+                            onClick={() => {
+                              onChange(channel.id);
+                              if (!channel.requiresText) onCustomChange("");
+                              setOpen(false);
+                            }}
+                            className={
+                              accent
+                                ? "relative flex w-full select-none items-center gap-3 rounded-2xl border border-transparent px-2.5 py-2.5 text-left text-[15px] font-semibold outline-none transition hover:bg-white/[0.06]"
+                                : "relative flex w-full cursor-default select-none items-center rounded-sm py-1.5 pl-2 pr-8 text-left text-sm outline-none hover:bg-accent hover:text-accent-foreground"
+                            }
+                            style={
+                              accent && isSel
+                                ? {
+                                    background: `color-mix(in oklch, ${accent} 18%, transparent)`,
+                                    borderColor: `color-mix(in oklch, ${accent} 55%, transparent)`,
+                                    boxShadow: `0 0 14px -6px ${accent}`,
+                                  }
+                                : undefined
+                            }
+                          >
+                            {accent ? (
+                              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/[0.07]">
+                                <AcquisitionChannelIcon channel={channel} className="h-[18px] w-[18px] shrink-0" />
+                              </span>
+                            ) : (
+                              <span className="flex items-center gap-2">
+                                <AcquisitionChannelIcon channel={channel} className="h-4 w-4 shrink-0" />
+                                {channel.label}
+                              </span>
+                            )}
+                            {accent ? <span className="flex-1">{channel.label}</span> : null}
+                            {isSel ? (
+                              <span
+                                className={accent ? "grid h-6 w-6 place-items-center rounded-full" : "absolute right-2 flex h-3.5 w-3.5 items-center justify-center"}
+                                style={accent ? { background: accent, color: "#fff" } : undefined}
+                              >
+                                <Check className={accent ? "h-3.5 w-3.5" : "h-4 w-4"} />
+                              </span>
+                            ) : null}
+                          </button>
+                        );
+                      })}
                     </div>
                   </>,
                   document.body,

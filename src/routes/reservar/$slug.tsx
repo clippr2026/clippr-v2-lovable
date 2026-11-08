@@ -2417,6 +2417,7 @@ function PublicBookingPage() {
                       showLabel
                       otroBelow
                       usePortalDropdown
+                      accent={accent}
                       triggerClassName="border-white/10 bg-white/[0.04] text-white"
                       inputClassName="border-white/10 bg-white/[0.04] text-white"
                     />
