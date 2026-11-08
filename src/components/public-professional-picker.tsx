@@ -356,7 +356,7 @@ export function PublicProfessionalPicker({
                   key={item.id}
                   type="button"
                   onClick={() => onOpenChange(item.id)}
-                  className="relative flex min-w-0 flex-col gap-3 rounded-3xl border border-white/10 bg-white/[0.04] px-2.5 py-3.5 text-left transition hover:bg-white/[0.055] active:scale-[0.98]"
+                  className="relative flex min-w-0 flex-col gap-3 rounded-3xl border border-white/10 bg-white/[0.04] px-2 py-3.5 text-left transition hover:bg-white/[0.055] active:scale-[0.98]"
                 >
                   {item.priceChanged ? (
                     <span
@@ -391,7 +391,7 @@ export function PublicProfessionalPicker({
                     <span className="block space-y-1">
                       <span className="flex items-baseline justify-between gap-1">
                         <span className="text-[11px] font-bold text-white/60">Lista</span>
-                        <span className={cn("text-xl font-extrabold text-white/70", item.promoPrice != null && "line-through")}>{formatMoney(item.listPrice)}</span>
+                        <span className={cn("whitespace-nowrap text-xl font-extrabold tracking-tight text-white/70", item.promoPrice != null && "line-through")}>{formatMoney(item.listPrice)}</span>
                       </span>
                       {second ? (
                         <span className="flex items-baseline justify-between gap-1">
@@ -399,7 +399,7 @@ export function PublicProfessionalPicker({
                             {second.label}
                             {second.label === "Promo" && item.promoPercent != null ? ` -${item.promoPercent}%` : ""}
                           </span>
-                          <span className="text-xl font-extrabold" style={{ color: accent }}>{formatMoney(second.value)}</span>
+                          <span className="whitespace-nowrap text-xl font-extrabold tracking-tight" style={{ color: accent }}>{formatMoney(second.value)}</span>
                         </span>
                       ) : null}
                     </span>
