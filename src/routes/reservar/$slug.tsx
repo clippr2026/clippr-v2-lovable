@@ -51,6 +51,7 @@ import {
   normalizeEmployeeSchedule,
   normalizeDaySchedule,
   buildSlots,
+  toDateKey,
 } from "@/lib/availability";
 import clipprMark from "@/assets/clippr-mark.png";
 import { ServiceImage } from "@/components/ui/service-image";
@@ -654,7 +655,34 @@ function PublicBookingPage() {
       businessTimeZone,
     ],
   );
-  const availableDays = React.useMemo(() => slots.filter((day) => day.slots.length > 0), [slots]);
+  // Días cerrados del negocio (Agenda → Día cerrado): no se ofrecen horarios esos días.
+  const [closures, setClosures] = React.useState<{ branch_id: string | null; start_date: string; end_date: string }[]>([]);
+  React.useEffect(() => {
+    const bid = business?.id;
+    if (!bid) return;
+    let cancelled = false;
+    void (async () => {
+      const { data, error } = await (supabase.from("public_booking_closures" as any) as any)
+        .select("branch_id,start_date,end_date")
+        .eq("business_id", bid);
+      if (cancelled || error || !Array.isArray(data)) return;
+      setClosures(data as { branch_id: string | null; start_date: string; end_date: string }[]);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [business?.id]);
+  const availableDays = React.useMemo(
+    () =>
+      slots.filter((day) => {
+        if (day.slots.length === 0) return false;
+        const key = toDateKey(day.date);
+        return !closures.some(
+          (c) => (c.branch_id == null || c.branch_id === selectedBranchId) && c.start_date <= key && key <= c.end_date,
+        );
+      }),
+    [slots, closures, selectedBranchId],
+  );
   const [selectedDayIndex, setSelectedDayIndex] = React.useState(0);
   const selectedDay = availableDays[selectedDayIndex] ?? availableDays[0] ?? null;
 
