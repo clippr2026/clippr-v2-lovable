@@ -21,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { applyPromotionDiscount, resolvePromotionBadgeLabel, resolveServicePricing, type Promotion } from "@/lib/service-pricing";
 import { appendHistorialCobro, readHistorialCobro, syncHistorialFromDB, attributionLabel } from "@/lib/cobro-historial";
 import { ServiceImage } from "@/components/ui/service-image";
+import { DepositPanel } from "@/components/agenda/deposit-panel";
 import { useAuth } from "@/hooks/use-auth";
 import {
   useAgendaData,
@@ -1044,6 +1045,34 @@ function AgendaPage() {
   };
 
   const onCancelWithDeposit = async (a: Appointment, action: "keep" | "return", reason: string) => {
+    // Seña registrada en el sistema nuevo: se cancela el turno (la base la deja "a decidir")
+    // y se aplica la decisión elegida. Por ahora no escribe en Caja.
+    const { data: ledger } = await (supabase.from("appointment_deposits" as any) as any)
+      .select("id")
+      .eq("appointment_id", a.id)
+      .maybeSingle();
+    if (ledger?.id) {
+      try {
+        await cancelAppointment(a.id, { userId: profile?.id ?? null, name: profile?.full_name ?? null, role: profile?.role ?? null, reason });
+        const { data: res, error } = await (supabase.rpc as any)("decide_deposit_v1", {
+          p_deposit_id: ledger.id,
+          p_action: action === "keep" ? "retain" : "refund",
+          p_prof_pct: null,
+          p_local_pct: null,
+          p_note: reason || null,
+        });
+        if (error) throw error;
+        if (!res?.ok) throw new Error(res?.error ?? "No se pudo registrar la decisión de la seña.");
+        toast.success(action === "keep" ? "Turno cancelado. Seña retenida." : "Turno cancelado. Seña marcada como devuelta.");
+      } catch (e) {
+        toast.error((e as Error).message);
+        return;
+      } finally {
+        setActiveDrawer(null);
+        data.refresh();
+      }
+      return;
+    }
     if (action === "return") {
       try {
         // Register refund in expenses
@@ -1900,6 +1929,7 @@ function AgendaPage() {
           onChangeStatus={handleChangeStatus}
           onMarkDeposit={handleMarkDeposit}
           onCancelWithDeposit={handleCancelWithDeposit}
+          onDepositChanged={() => data.refresh()}
           onReleaseBlock={handleReleaseBlock}
         />
 
@@ -3801,6 +3831,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   onMarkDeposit,
   onCancelWithDeposit,
   onReleaseBlock,
+  onDepositChanged,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -3822,6 +3853,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   onMarkDeposit: (a: Appointment) => void;
   onCancelWithDeposit: (a: Appointment, action: "keep" | "return", reason: string) => void;
   onReleaseBlock: (a: Appointment) => void;
+  onDepositChanged: () => void;
 }) {
   const [confirmCancel, setConfirmCancel] = React.useState(false);
   const [cancelReason, setCancelReason] = React.useState("");
@@ -4134,47 +4166,14 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                 </div>
               )}
             </div>
-
-            {appointment.deposit_status &&
-              appointment.deposit_status !== "none" &&
-              (() => {
-                const ds = appointment.deposit_status;
-                const depositAmt = Number(appointment.deposit_amount ?? 0);
-                const depositPaid = Number(appointment.deposit_paid ?? 0);
-                const total = Number(appointment.service_price ?? 0);
-                const remaining = Math.max(0, total - depositPaid);
-                const statusMap: Record<string, { icon: string; label: string; color: string }> = {
-                  pending: { icon: "🟡", label: "Seña pendiente", color: "text-amber-300" },
-                  paid: { icon: "🟢", label: "Seña pagada", color: "text-emerald-300" },
-                  lost: { icon: "🔴", label: "Seña perdida", color: "text-rose-300" },
-                  returned: { icon: "🔵", label: "Seña devuelta", color: "text-sky-300" },
-                };
-                const dsInfo = statusMap[ds] ?? statusMap.pending;
-                return (
-                  <div className="mt-3 pt-3 border-t border-white/10 text-sm">
-                    <div className={`font-semibold ${dsInfo.color}`}>
-                      {dsInfo.icon} {dsInfo.label}
-                    </div>
-                    {depositAmt > 0 && (
-                      <div className="mt-1 text-muted-foreground">
-                        Seña requerida:{" "}
-                        <span className="text-foreground font-medium">
-                          ${depositAmt.toLocaleString("es-AR")}
-                        </span>
-                      </div>
-                    )}
-                    {ds === "paid" && depositPaid > 0 && (
-                      <div className="mt-1 text-muted-foreground">
-                        Por confirmar de cobro:{" "}
-                        <span className="text-foreground font-medium">
-                          ${remaining.toLocaleString("es-AR")}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
           </div>
+
+          <DepositPanel
+            appointmentId={appointment.id}
+            status={appointment.status}
+            isPast={isPast}
+            onChanged={onDepositChanged}
+          />
 
           {/* Fecha/hora real en que se creó la reserva (created_at) — no
               confundir con el horario del turno (starts_at). Secundario y
@@ -4348,21 +4347,6 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                       </button>
                     );
                   })()}
-
-                {/* Cobrar seña (si aplica) */}
-                {!isPast &&
-                  requiresDeposit &&
-                  appointment.status !== "charged" &&
-                  appointment.deposit_status !== "paid" &&
-                  appointment.deposit_status !== "lost" && (
-                    <Button
-                      variant="secondary"
-                      onClick={() => onMarkDeposit(appointment)}
-                      className="w-full h-10 border-amber-300/25 bg-amber-300/10 text-amber-200 hover:bg-amber-300/15"
-                    >
-                      <DollarSign className="h-4 w-4 mr-1" /> Cobrar seña
-                    </Button>
-                  )}
 
                 {/* Cancelar turno — acción operativa, solo mientras el turno
                     todavía no ARRANCÓ (hasStarted, misma hora de inicio que
