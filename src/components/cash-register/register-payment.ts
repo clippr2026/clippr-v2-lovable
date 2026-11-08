@@ -27,7 +27,7 @@ import { assertProfessionalClockedIn } from "@/lib/fichaje-cobro-gate";
 // son las reemplazan: métodos independientes también a nivel de datos
 // (no solo de texto), para poder tener a futuro comisión/configuración
 // propia por cada uno sin tener que migrar ningún pago histórico.
-export type PayMethod = "cash" | "transfer" | "card" | "debit" | "credit" | "mp" | "qr" | "cuenta";
+export type PayMethod = "cash" | "transfer" | "card" | "debit" | "credit" | "mp" | "qr" | "cuenta" | "sena";
 
 export const PAY_METHOD_LABEL: Record<PayMethod, string> = {
   cash: "Efectivo",
@@ -38,6 +38,7 @@ export const PAY_METHOD_LABEL: Record<PayMethod, string> = {
   mp: "Mercado Pago", // legado
   qr: "QR",
   cuenta: "Cuenta",
+  sena: "Seña (ya pagada)",
 };
 
 // Selector de métodos de pago de Caja (Nueva venta, Pago múltiple, Pagar
@@ -196,6 +197,36 @@ function buildSaleSummary(items: RegisterPaymentItem[]) {
   }
 
   return `${names.slice(0, 3).join(" / ")} +${names.length - 3} más`;
+}
+
+/**
+ * Seña ya pagada de un turno: se registra como un medio de pago más ("sena") dentro del cobro, así la
+ * venta (y la comisión del profesional) sigue siendo por el servicio completo, y lo que se cobra en el
+ * momento es solo el resto. La parte "sena" no vuelve a contar como plata recibida (ya entró a caja el
+ * día de la seña). `deposit` se topa en el total de la venta.
+ */
+export function applyDepositToSplits(
+  total: number,
+  deposit: number,
+  method: PayMethod,
+  splits?: Array<{ method: PayMethod; amount: number }> | null,
+): Array<{ method: PayMethod; amount: number }> {
+  const ded = Math.max(0, Math.min(Number(deposit) || 0, total));
+  if (ded <= 0) return splits && splits.length > 0 ? splits : [];
+  const rest = Math.round((total - ded) * 100) / 100;
+  const valid = (splits ?? []).filter((s) => Number(s.amount) > 0).map((s) => ({ ...s }));
+  if (valid.length === 0) {
+    return rest > 0 ? [{ method: "sena", amount: ded }, { method, amount: rest }] : [{ method: "sena", amount: ded }];
+  }
+  // Quita la seña de los medios ya cargados, empezando por el de mayor monto.
+  let left = ded;
+  for (const s of [...valid].sort((a, b) => b.amount - a.amount)) {
+    const take = Math.min(s.amount, left);
+    s.amount = Math.round((s.amount - take) * 100) / 100;
+    left = Math.round((left - take) * 100) / 100;
+    if (left <= 0) break;
+  }
+  return [{ method: "sena", amount: ded }, ...valid.filter((s) => s.amount > 0)];
 }
 
 export async function registerPayment(input: RegisterPaymentInput) {
@@ -398,6 +429,19 @@ export async function registerPayment(input: RegisterPaymentInput) {
   const tipAmount = Math.max(0, Number(input.tipAmount ?? 0));
   const nowIso = new Date().toISOString();
 
+  // Turno con seña recibida: la seña se registra como un medio de pago más (ver applyDepositToSplits).
+  // Solo en cobros completos (un pago pendiente/parcial no se mezcla con la seña).
+  let effectiveSplits = input.splits;
+  if (input.appointmentId && (input.status ?? "cobrado") === "cobrado" && input.collectedAmount == null) {
+    const { data: dep } = await (supabase.from("appointment_deposits" as any) as any)
+      .select("status,paid_amount")
+      .eq("appointment_id", input.appointmentId)
+      .maybeSingle();
+    if (dep?.status === "paid" && Number(dep.paid_amount) > 0) {
+      effectiveSplits = applyDepositToSplits(total, Number(dep.paid_amount), input.method, input.splits);
+    }
+  }
+
   // register_sale (RPC security definer, ver migración
   // 20261011030000_register_sale_atomic.sql) hace TODO esto en una sola
   // transacción: insertar el payment, la comisión (si corresponde), la
@@ -419,7 +463,7 @@ export async function registerPayment(input: RegisterPaymentInput) {
     p_tip_amount: tipAmount,
     p_items: savedItems,
     p_method: input.method,
-    p_splits: input.splits && input.splits.length > 0 ? input.splits : null,
+    p_splits: effectiveSplits && effectiveSplits.length > 0 ? effectiveSplits : null,
     p_appointment_id: input.appointmentId ?? null,
     p_appointment_notes: input.appointmentNotes ?? null,
     p_charge_type: input.chargeOrigin ?? "caja",

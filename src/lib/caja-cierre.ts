@@ -396,6 +396,29 @@ export function distributeCobroByMethod(
   return result;
 }
 
+// Medio ficticio "sena": la parte de un cobro que el cliente ya había pagado como seña.
+// Esa plata entró a la caja el día en que se recibió la seña (movimiento de caja, ver
+// 20261108250000_senas_caja.sql), así que NO vuelve a contar como plata recibida cuando se
+// cobra el turno. Es parte de la venta (facturación/comisión) pero no del efectivo/cuenta
+// recibidos: se quita de acá, y su porción de propina (la propina siempre se paga por el
+// medio real del cobro) pasa al medio con el que se cobró el resto.
+export const SENA_METHOD_KEY = "sena";
+
+export function receivedDistribution(
+  dist: Record<string, MethodAmount>,
+  paymentMethod: string | null | undefined,
+): Record<string, MethodAmount> {
+  const sena = dist[SENA_METHOD_KEY];
+  if (!sena) return dist;
+  const out: Record<string, MethodAmount> = {};
+  for (const [k, v] of Object.entries(dist)) if (k !== SENA_METHOD_KEY) out[k] = { ...v };
+  let target = normalizeCierreMethodKey(paymentMethod);
+  if (target === SENA_METHOD_KEY) target = "cash";
+  if (!out[target]) out[target] = { monto: 0, propina: 0 };
+  out[target].propina += sena.propina;
+  return out;
+}
+
 export type PendingCierre = { date: string; cierreId: string | null };
 
 // Período de caja vigente: desde cuándo hay que contar payments/
@@ -828,8 +851,11 @@ export async function buildCierreSnapshotForDate(
     const dist = distributeCobroByMethod(monto, propina, p.method ?? p.payment_method, rawSplits);
     for (const [key, amt] of Object.entries(dist)) {
       if (!detalleMetodos[key]) detalleMetodos[key] = { ingresos: 0, gastos: 0, utilidad: 0 };
-      if (!detalleMetodosRecibido[key]) detalleMetodosRecibido[key] = { ingresos: 0, gastos: 0, utilidad: 0 };
       detalleMetodos[key].ingresos += amt.monto;
+    }
+    // Lo "recibido" excluye la parte pagada como seña (ya entró el día de la seña).
+    for (const [key, amt] of Object.entries(receivedDistribution(dist, p.method ?? p.payment_method))) {
+      if (!detalleMetodosRecibido[key]) detalleMetodosRecibido[key] = { ingresos: 0, gastos: 0, utilidad: 0 };
       // La propina usa el MISMO reparto que el cobro — payments no guarda
       // un medio separado para ella, y es el medio por el que realmente
       // entró (ver distributeCobroByMethod).
@@ -1199,7 +1225,10 @@ export function computeExpectedCashAndDigital(params: {
     if (!isCountableCajaPayment(p.status)) continue;
     const monto = Number(p.total ?? p.amount ?? 0);
     const propina = Number(p.tip_amount ?? p.tip ?? 0);
-    const dist = distributeCobroByMethod(monto, propina, p.method ?? p.payment_method, p.splits);
+    const dist = receivedDistribution(
+      distributeCobroByMethod(monto, propina, p.method ?? p.payment_method, p.splits),
+      p.method ?? p.payment_method,
+    );
     for (const [key, amt] of Object.entries(dist)) {
       if (key === "cash") cashPayments += amt.monto + amt.propina;
       else digitalPayments += amt.monto + amt.propina;
