@@ -55,7 +55,6 @@ import {
   buildSlots,
   toDateKey,
 } from "@/lib/availability";
-import clipprMark from "@/assets/clippr-mark.png";
 import { ServiceImage } from "@/components/ui/service-image";
 import { publicButtonStyle } from "@/lib/public-button";
 import { PublicProfessionalPicker, type ProfessionalRating, type ProfessionalReview } from "@/components/public-professional-picker";
@@ -2498,7 +2497,6 @@ function PublicBookingPage() {
                           .replace(/^./, (c) => c.toUpperCase())
                       : (cb?.date ?? "-");
                     const timeLabel = cb?.time || (when ? formatTime(when, businessTimeZone) : "-");
-                    const firstName = (cb?.clientName || clientName).trim().split(/\s+/)[0] || "";
                     const address = branches.find((b) => b.id === selectedBranchId)?.address || business?.address || null;
                     const phoneDigits = (business?.phone ?? "").replace(/\D/g, "");
                     const email = cb?.clientEmail || clientEmail;
@@ -2528,7 +2526,7 @@ function PublicBookingPage() {
                             <CheckCircle2 className="h-8 w-8" />
                           </div>
                           <h3 className="mt-4 text-3xl font-extrabold tracking-tight">¡Turno confirmado!</h3>
-                          <p className="mt-1.5 text-sm text-white/60">{firstName ? `Te esperamos, ${firstName}.` : "Te esperamos."}</p>
+                          <p className="mt-1.5 text-sm text-white/60">Te esperamos.</p>
                         </div>
 
                         <div
@@ -2633,11 +2631,6 @@ function PublicBookingPage() {
                           <Link to="/negocio/$slug" params={{ slug }} className="text-sm font-bold text-white/80 underline-offset-4 hover:underline">
                             Volver al perfil
                           </Link>
-                        </div>
-
-                        <div className="flex items-center justify-center gap-2 border-t border-white/[0.08] pt-4">
-                          <img loading="lazy" decoding="async" src={clipprMark} alt="" className="h-4 w-4 object-contain opacity-90" />
-                          <span className="text-xs font-medium tracking-wide text-white/40">Reservá fácil con Clippr</span>
                         </div>
                       </div>
                     );
