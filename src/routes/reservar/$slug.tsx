@@ -1590,7 +1590,22 @@ function PublicBookingPage() {
       {submitting ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 px-4 backdrop-blur-md">
           <div className="rounded-3xl border border-white/10 bg-[#09090f] p-8 text-center text-white shadow-2xl">
-            <div className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-gradient-to-br from-sky-400 via-violet-500 to-fuchsia-500 text-2xl font-black text-white">C</div>
+            {/* Logo del local (nunca el de Clippr); sin logo, la inicial del nombre. */}
+            {splashLogo || business?.avatar_url || business?.logo_url ? (
+              <img
+                src={(splashLogo || business?.avatar_url || business?.logo_url) as string}
+                alt={business?.name ?? ""}
+                className="mx-auto h-20 w-20 rounded-2xl object-cover"
+                style={{ boxShadow: `0 0 28px -4px ${accent}` }}
+              />
+            ) : (
+              <div
+                className="mx-auto grid h-20 w-20 place-items-center rounded-2xl text-3xl font-black"
+                style={{ ...publicButtonStyle(accent, accentButtonText) }}
+              >
+                {(business?.name ?? "").trim().slice(0, 1).toUpperCase()}
+              </div>
+            )}
             <Loader2 className="mx-auto mt-5 h-7 w-7 animate-spin" style={{ color: accent }} />
             <p className="mt-4 text-sm text-white/65">Confirmando tu turno...</p>
           </div>
