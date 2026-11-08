@@ -1,5 +1,5 @@
 import * as React from "react";
-import { publicButtonStyle } from "@/lib/public-button";
+import { accentFill, publicButtonStyle } from "@/lib/public-button";
 import { AlertCircle, Check, ChevronLeft, ChevronRight, Loader2, MessageSquarePlus, Star, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -228,7 +228,7 @@ export function LeaveReviewModal({
       {open && notFound ? (
         <div className="fixed inset-0 z-[260] grid place-items-center bg-black/80 p-4 backdrop-blur-sm">
           <div className={`${panel} text-center`}>
-            <div className="mx-auto grid h-14 w-14 place-items-center rounded-full" style={{ background: accent, color: buttonText }}>
+            <div className="mx-auto grid h-14 w-14 place-items-center rounded-full" style={accentFill(accent, buttonText)}>
               <AlertCircle className="h-7 w-7" />
             </div>
             <p className="mt-4 text-base text-white/75">

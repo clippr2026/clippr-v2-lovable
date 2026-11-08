@@ -1,7 +1,7 @@
 import * as React from "react";
 import { ArrowRight, Briefcase, Star, UserRound, UsersRound } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { publicButtonStyle } from "@/lib/public-button";
+import { legibleAccent, publicButtonStyle } from "@/lib/public-button";
 
 export type ProfessionalPickerItem = {
   id: string;
@@ -75,6 +75,7 @@ export function PublicProfessionalPicker({
   reviews = {},
   openId,
   onOpenChange,
+  light = false,
   accent,
   buttonText,
   hasServices,
@@ -89,6 +90,8 @@ export function PublicProfessionalPicker({
   // Profesional abierto (lo maneja la página, para que "Volver" lo cierre).
   openId: string | null;
   onOpenChange: (id: string | null) => void;
+  // Tema claro de la página: define el color de las letras sobre las superficies propias de este módulo.
+  light?: boolean;
   accent: string;
   buttonText: string;
   hasServices: boolean;
@@ -98,6 +101,13 @@ export function PublicProfessionalPicker({
 }) {
   const [showAllReviews, setShowAllReviews] = React.useState(false);
   const open = items.find((i) => i.id === openId) ?? null;
+  // Las páginas públicas en tema claro fuerzan oscuro cualquier texto con "text-white". Las superficies
+  // propias (recuadros de precio, fila de datos) fijan su color de letra en línea, con WebkitTextFillColor,
+  // que ese cambio no pisa; así se leen con cualquier color de acento y en los dos temas.
+  const fg = light ? "#111827" : "#ffffff";
+  const fgMuted = light ? "rgba(17,24,39,0.62)" : "rgba(255,255,255,0.62)";
+  const solid = (c: string): React.CSSProperties => ({ color: c, WebkitTextFillColor: c });
+  const accentText = legibleAccent(accent, light);
   React.useEffect(() => {
     setShowAllReviews(false);
   }, [openId]);
@@ -110,7 +120,7 @@ export function PublicProfessionalPicker({
       <span
         key={label}
         className={cn(
-          "block min-w-0 flex-1 border-2 px-2 text-center leading-tight text-white",
+          "block min-w-0 flex-1 border-2 px-2 text-center leading-tight",
           big ? "rounded-[1.6rem] py-2.5" : "rounded-xl py-0.5",
           kind === "list" && !big ? "border-white/20 bg-white/[0.05]" : "",
         )}
@@ -118,16 +128,18 @@ export function PublicProfessionalPicker({
           kind === "list"
             ? big
               ? {
-                  borderColor: `color-mix(in oklch, ${accent} 50%, white)`,
+                  borderColor: `color-mix(in oklch, ${accent} 50%, ${light ? "black" : "white"})`,
                   borderWidth: 1.5,
-                  background: "rgba(255,255,255,0.04)",
+                  background: light ? "#ffffff" : "rgba(255,255,255,0.04)",
                 }
               : { boxShadow: "0 0 7px color-mix(in oklch, var(--c-primary) 85%, transparent), inset 0 0 6px -2px var(--c-primary)" }
             : {
                 borderColor: accent,
                 borderWidth: big ? 1.5 : undefined,
                 background: big
-                  ? `linear-gradient(180deg, color-mix(in oklch, ${accent} 48%, #170a33), color-mix(in oklch, ${accent} 30%, #170a33))`
+                  ? light
+                    ? `linear-gradient(180deg, color-mix(in oklch, ${accent} 26%, white), color-mix(in oklch, ${accent} 14%, white))`
+                    : `linear-gradient(180deg, color-mix(in oklch, ${accent} 48%, #170a33), color-mix(in oklch, ${accent} 30%, #170a33))`
                   : `color-mix(in oklch, ${accent} 32%, transparent)`,
                 boxShadow: big ? `0 0 20px -2px ${accent}, inset 0 0 10px -3px ${accent}` : `0 0 7px ${accent}, inset 0 0 6px -2px ${accent}`,
               }
@@ -136,12 +148,12 @@ export function PublicProfessionalPicker({
         {big ? (
           <>
             <span
-              className={cn("block text-[11px] font-bold uppercase tracking-wider", kind === "list" && "text-white/55")}
-              style={kind === "accent" ? { color: `color-mix(in oklch, ${accent} 50%, white)` } : undefined}
+              className="block text-[11px] font-bold uppercase tracking-wider"
+              style={kind === "accent" ? solid(light ? fg : `color-mix(in oklch, ${accent} 50%, white)`) : solid(fgMuted)}
             >
               {label}
             </span>
-            <span className="block text-xl font-extrabold">{value}</span>
+            <span className="block text-xl font-extrabold" style={solid(fg)}>{value}</span>
           </>
         ) : (
           <span className="flex items-baseline justify-between gap-1">
@@ -211,8 +223,8 @@ export function PublicProfessionalPicker({
           <div key={open.id} className="pp-card-in relative mt-3.5 rounded-[2rem] border border-white/10 bg-white/[0.03] px-4 pb-4 pt-5 text-center">
             {open.priceChanged ? (
               <span
-                className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border px-4 py-1 text-xs font-bold text-white"
-                style={{ borderColor: accent, background: `color-mix(in oklch, ${accent} 30%, #0b0818)` }}
+                className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border px-4 py-1 text-xs font-bold"
+                style={{ borderColor: accent, background: `color-mix(in oklch, ${accent} 30%, #0b0818)`, color: "#ffffff", WebkitTextFillColor: "#ffffff" }}
               >
                 Precio diferencial
               </span>
@@ -230,7 +242,7 @@ export function PublicProfessionalPicker({
                 className="mt-3 grid grid-flow-col auto-cols-fr rounded-3xl border py-3"
                 style={{
                   borderColor: `color-mix(in oklch, ${accent} 65%, transparent)`,
-                  background: "rgba(0,0,0,0.28)",
+                  background: light ? `color-mix(in oklch, ${accent} 8%, white)` : "rgba(0,0,0,0.28)",
                   boxShadow: `0 0 14px -5px ${accent}`,
                   ["--pp-line" as string]: `color-mix(in oklch, ${accent} 55%, transparent)`,
                 }}
@@ -239,7 +251,7 @@ export function PublicProfessionalPicker({
                   open.ageYears != null
                     ? {
                         key: "edad",
-                        icon: <UserRound className="mx-auto mb-1 h-6 w-6" strokeWidth={1.6} style={{ color: `color-mix(in oklch, ${accent} 70%, white)` }} />,
+                        icon: <UserRound className="mx-auto mb-1 h-6 w-6" strokeWidth={1.6} style={{ color: accentText }} />,
                         label: "Edad",
                         value: `${open.ageYears} años`,
                       }
@@ -247,7 +259,7 @@ export function PublicProfessionalPicker({
                   open.nationality
                     ? {
                         key: "nac",
-                        icon: <span className="mx-auto mb-1 grid h-6 w-6 place-items-center overflow-hidden rounded-full bg-white/15 text-sm leading-none">{flagFor(open.nationality)}</span>,
+                        icon: <span className="mx-auto mb-1 grid h-6 w-6 place-items-center overflow-hidden rounded-full text-sm leading-none" style={{ background: light ? "rgba(17,24,39,0.08)" : "rgba(255,255,255,0.15)" }}>{flagFor(open.nationality)}</span>,
                         label: "Nacionalidad",
                         value: open.nationality,
                       }
@@ -255,7 +267,7 @@ export function PublicProfessionalPicker({
                   open.experienceYears != null
                     ? {
                         key: "exp",
-                        icon: <Briefcase className="mx-auto mb-1 h-6 w-6" strokeWidth={1.6} style={{ color: `color-mix(in oklch, ${accent} 70%, white)` }} />,
+                        icon: <Briefcase className="mx-auto mb-1 h-6 w-6" strokeWidth={1.6} style={{ color: accentText }} />,
                         label: "Experiencia",
                         value: open.experienceYears === 1 ? "1 año" : `${open.experienceYears} años`,
                       }
@@ -268,14 +280,14 @@ export function PublicProfessionalPicker({
                       className="relative px-2 text-center leading-tight after:absolute after:right-0 after:top-1/2 after:h-11 after:w-px after:-translate-y-1/2 after:bg-[var(--pp-line)] last:after:hidden"
                     >
                       {c.icon}
-                      <span className="block text-[10px] font-bold uppercase tracking-wider text-white/65">{c.label}</span>
-                      <span className="block text-sm font-bold">{c.value}</span>
+                      <span className="block text-[10px] font-bold uppercase tracking-wider" style={solid(fgMuted)}>{c.label}</span>
+                      <span className="block text-sm font-bold" style={solid(fg)}>{c.value}</span>
                     </div>
                   ))}
               </div>
             ) : null}
             {hasServices ? (
-              <p className="mt-2 text-xs text-white/60">🕒 {open.duration} min</p>
+              <p className="mt-2 text-xs" style={solid(fgMuted)}>🕒 {open.duration} min</p>
             ) : null}
             <button
               type="button"
@@ -327,7 +339,7 @@ export function PublicProfessionalPicker({
                     type="button"
                     onClick={() => setShowAllReviews((v) => !v)}
                     className="mt-3 w-full text-center text-xs font-semibold"
-                    style={{ color: accent }}
+                    style={{ color: accentText }}
                   >
                     {showAllReviews ? "Ver menos" : `Ver todas (${all.length})`}
                   </button>
@@ -356,8 +368,8 @@ export function PublicProfessionalPicker({
                 >
                   {item.priceChanged ? (
                     <span
-                      className="absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border px-1.5 py-[1px] text-[8px] font-bold leading-tight text-white"
-                      style={{ borderColor: accent, background: `color-mix(in oklch, ${accent} 30%, #0b0818)` }}
+                      className="absolute -bottom-2 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border px-1.5 py-[1px] text-[8px] font-bold leading-tight"
+                      style={{ borderColor: accent, background: `color-mix(in oklch, ${accent} 30%, #0b0818)`, color: "#ffffff", WebkitTextFillColor: "#ffffff" }}
                     >
                       Precio diferencial
                     </span>
@@ -391,11 +403,11 @@ export function PublicProfessionalPicker({
                       <span className={cn("whitespace-nowrap text-right text-lg font-extrabold tracking-tight text-white/70", item.promoPrice != null && "line-through")}>{formatMoney(item.listPrice)}</span>
                       {second ? (
                         <>
-                          <span className="text-center text-[11px] font-bold" style={{ color: accent }}>
+                          <span className="text-center text-[11px] font-bold" style={{ color: accentText }}>
                             {second.label}
                             {second.label === "Promo" && item.promoPercent != null ? ` -${item.promoPercent}%` : ""}
                           </span>
-                          <span className="whitespace-nowrap text-right text-lg font-extrabold tracking-tight" style={{ color: accent }}>{formatMoney(second.value)}</span>
+                          <span className="whitespace-nowrap text-right text-lg font-extrabold tracking-tight" style={{ color: accentText }}>{formatMoney(second.value)}</span>
                         </>
                       ) : null}
                     </span>
@@ -409,7 +421,7 @@ export function PublicProfessionalPicker({
             onClick={onAny}
             className="mt-2.5 flex w-full items-center justify-center gap-2 rounded-3xl border border-white/10 bg-white/[0.04] p-2.5 text-sm font-semibold transition hover:bg-white/[0.055]"
           >
-            <UsersRound className="h-4 w-4" style={{ color: accent }} /> Sin preferencia
+            <UsersRound className="h-4 w-4" style={{ color: accentText }} /> Sin preferencia
             <span className="text-xs font-normal text-white/55">· Disponible</span>
           </button>
         </div>

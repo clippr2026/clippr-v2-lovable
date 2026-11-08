@@ -56,7 +56,7 @@ import {
   toDateKey,
 } from "@/lib/availability";
 import { ServiceImage } from "@/components/ui/service-image";
-import { publicButtonStyle } from "@/lib/public-button";
+import { accentFill, publicButtonStyle } from "@/lib/public-button";
 import { PublicProfessionalPicker, type ProfessionalRating, type ProfessionalReview } from "@/components/public-professional-picker";
 import {
   resolveServicePricing,
@@ -1657,7 +1657,7 @@ function PublicBookingPage() {
       <section
         className={cn(
           "relative w-full overflow-hidden border-b",
-          isLight ? "border-white/10 bg-black" : "border-white/10 bg-transparent",
+          isLight ? "border-black/10 bg-transparent" : "border-white/10 bg-transparent",
         )}
       >
         <div className="relative flex w-full items-center justify-center px-4 py-0.5 sm:py-1">
@@ -1674,7 +1674,7 @@ function PublicBookingPage() {
               className="text-[10px] font-medium sm:text-[11px]"
               style={
                 isLight
-                  ? { color: "rgba(255,255,255,0.62)", WebkitTextFillColor: "rgba(255,255,255,0.62)" }
+                  ? { color: "#6B7280", WebkitTextFillColor: "#6B7280" }
                   : { color: "rgba(255,255,255,0.6)", WebkitTextFillColor: "rgba(255,255,255,0.6)" }
               }
             >
@@ -1691,7 +1691,7 @@ function PublicBookingPage() {
               className="text-base font-bold tracking-tight sm:text-lg"
               style={
                 isLight
-                  ? { color: "#ffffff", WebkitTextFillColor: "#ffffff" }
+                  ? { color: "#111827", WebkitTextFillColor: "#111827" }
                   : { color: "#ffffff", WebkitTextFillColor: "#ffffff" }
               }
             >
@@ -1811,7 +1811,7 @@ function PublicBookingPage() {
                             className="rounded-full px-4 py-1.5 text-sm font-semibold transition"
                             style={
                               b.id === selectedBranchId
-                                ? { background: accent, color: accentButtonText }
+                                ? accentFill(accent, accentButtonText)
                                 : { background: "rgba(255,255,255,0.06)", color: "inherit" }
                             }
                           >
@@ -1836,7 +1836,7 @@ function PublicBookingPage() {
                         className="shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold transition"
                         style={
                           activeServiceCategory === null
-                            ? { background: accent, color: accentButtonText }
+                            ? accentFill(accent, accentButtonText)
                             : { background: "rgba(255,255,255,0.06)", color: "inherit" }
                         }
                       >
@@ -1850,7 +1850,7 @@ function PublicBookingPage() {
                           className="shrink-0 rounded-full px-4 py-1.5 text-sm font-semibold transition"
                           style={
                             activeServiceCategory === category
-                              ? { background: accent, color: accentButtonText }
+                              ? accentFill(accent, accentButtonText)
                               : { background: "rgba(255,255,255,0.06)", color: "inherit" }
                           }
                         >
@@ -1871,7 +1871,7 @@ function PublicBookingPage() {
                             className="h-11 w-11 shrink-0 rounded-xl bg-white/[0.06] ring-1 ring-white/10"
                             fallback={<Scissors className="h-4 w-4 text-white/30" />}
                           />
-                          <span className={cn("grid h-6 w-6 shrink-0 place-items-center rounded-full border", checked ? "border-transparent" : "border-white/20")} style={checked ? { background: accent, color: accentButtonText } : undefined}>
+                          <span className={cn("grid h-6 w-6 shrink-0 place-items-center rounded-full border", checked ? "border-transparent" : "border-white/20")} style={checked ? accentFill(accent, accentButtonText) : undefined}>
                             {checked ? <CheckCircle2 className="h-4 w-4" /> : null}
                           </span>
                           <span className="min-w-0 truncate font-medium">{service.name}</span>
@@ -1899,7 +1899,7 @@ function PublicBookingPage() {
                         "grid h-5 w-5 shrink-0 place-items-center rounded-full border",
                         promoChoice === "none" ? "border-transparent" : "border-white/25",
                       )}
-                      style={promoChoice === "none" ? { background: accent, color: accentButtonText } : undefined}
+                      style={promoChoice === "none" ? accentFill(accent, accentButtonText) : undefined}
                     >
                       {promoChoice === "none" && <CheckCircle2 className="h-3.5 w-3.5" />}
                     </span>
@@ -1923,7 +1923,7 @@ function PublicBookingPage() {
                               "grid h-5 w-5 shrink-0 place-items-center rounded-full border",
                               promoChoice === promo.id ? "border-transparent" : "border-white/25",
                             )}
-                            style={promoChoice === promo.id ? { background: accent, color: accentButtonText } : undefined}
+                            style={promoChoice === promo.id ? accentFill(accent, accentButtonText) : undefined}
                           >
                             {promoChoice === promo.id && (
                               <CheckCircle2 className="h-3.5 w-3.5" />
@@ -1961,7 +1961,7 @@ function PublicBookingPage() {
                             "grid h-5 w-5 shrink-0 place-items-center rounded-full border",
                             promoChoice === "code" ? "border-transparent" : "border-white/25",
                           )}
-                          style={promoChoice === "code" ? { background: accent, color: accentButtonText } : undefined}
+                          style={promoChoice === "code" ? accentFill(accent, accentButtonText) : undefined}
                         >
                           {promoChoice === "code" && (
                             <CheckCircle2 className="h-3.5 w-3.5" />
@@ -2178,6 +2178,7 @@ function PublicBookingPage() {
                       ratings={proRatings}
                       reviews={proReviews}
                       openId={proOpenId}
+                      light={isLight}
                       onOpenChange={setProOpenId}
                       accent={accent}
                       buttonText={accentButtonText}
@@ -2418,7 +2419,7 @@ function PublicBookingPage() {
                                     solo ? "mt-3 py-3 text-base" : compact ? "mt-1.5 py-1.5 text-[10px]" : "mt-2 py-2 text-xs",
                                     added && "bg-emerald-500",
                                   )}
-                                  style={added ? { color: "#ffffff" } : { background: accent, color: accentButtonText }}
+                                  style={added ? { color: "#ffffff" } : accentFill(accent, accentButtonText)}
                                 >
                                   {added ? "✓ Agregado" : "+ Agregar"}
                                 </button>
