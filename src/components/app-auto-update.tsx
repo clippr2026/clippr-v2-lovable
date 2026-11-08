@@ -32,6 +32,9 @@ export function AppAutoUpdate() {
     };
     const tryReload = () => {
       if (!stale || document.visibilityState !== "visible") return;
+      // Un cliente reservando: recargar le haría perder lo elegido y lo mandaría de nuevo al paso
+      // anterior. En la página de reservas se actualiza solo cuando entra de nuevo.
+      if (window.location.pathname.startsWith("/reservar")) return;
       if (Date.now() - lastTouch < IDLE_MS || userIsBusy()) return;
       try {
         const last = Number(sessionStorage.getItem(RELOAD_KEY) ?? 0);
