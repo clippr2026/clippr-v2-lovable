@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { CalendarDays, AlarmClock, CalendarOff, Clock3 } from "lucide-react";
+import { CalendarDays, AlarmClock, CalendarOff, CalendarSync, Clock3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 import { SectionCard, reportSaveStatus, Toggle } from "@/components/settings/shared";
@@ -23,15 +23,17 @@ type ReservationSettings = {
   maxAdvance: string;
   minAdvance: string;
   minCancel: string;
+  minReschedule: string;
 };
 
 const DEFAULT_RESERVATION_SETTINGS: ReservationSettings = {
   maxAdvance: "30",
   minAdvance: "60",
   minCancel: "2",
+  minReschedule: "2",
 };
 
-// Opciones de los selectores. maxAdvance en días, minAdvance en minutos, minCancel en horas.
+// Opciones de los selectores. maxAdvance en días, minAdvance en minutos, minCancel y minReschedule en horas.
 const MAX_ADVANCE_OPTIONS: { value: number; label: string }[] = [
   { value: 1, label: "1 día" },
   { value: 7, label: "1 semana" },
@@ -146,6 +148,9 @@ export function HorariosSection() {
                   minCancel: String(
                     settings.minCancel ?? DEFAULT_RESERVATION_SETTINGS.minCancel,
                   ),
+                  minReschedule: String(
+                    settings.minReschedule ?? DEFAULT_RESERVATION_SETTINGS.minReschedule,
+                  ),
                 }
               : DEFAULT_RESERVATION_SETTINGS,
           );
@@ -222,6 +227,7 @@ export function HorariosSection() {
       maxAdvance: Math.max(1, asNumber(reservationSettings.maxAdvance, 30)),
       minAdvance: asNumber(reservationSettings.minAdvance, 60),
       minCancel: asNumber(reservationSettings.minCancel, 2),
+      minReschedule: asNumber(reservationSettings.minReschedule, 2),
     };
     const { error } = await supabase
       .from("branch_settings" as any)
@@ -294,6 +300,14 @@ export function HorariosSection() {
       icon: AlarmClock,
       title: "Cancelación",
       hint: "Hasta cuánto antes del turno se puede cancelar",
+      options: MIN_CANCEL_OPTIONS,
+      unit: "horas",
+    },
+    {
+      key: "minReschedule",
+      icon: CalendarSync,
+      title: "Reprogramación",
+      hint: "Hasta cuánto antes del turno se puede reprogramar",
       options: MIN_CANCEL_OPTIONS,
       unit: "horas",
     },
