@@ -188,10 +188,10 @@ export function PublicProfessionalPicker({
             })}
           </div>
 
-          <div key={open.id} className="pp-card-in mt-3 rounded-[2rem] border border-white/10 bg-white/[0.03] p-5 text-center">
+          <div key={open.id} className="pp-card-in relative mt-4 rounded-[2rem] border border-white/10 bg-white/[0.03] p-5 text-center">
             {open.priceChanged ? (
               <span
-                className="mb-3 inline-block rounded-full border px-3 py-1 text-xs font-bold text-white"
+                className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border px-4 py-1 text-xs font-bold text-white"
                 style={{ borderColor: accent, background: `color-mix(in oklch, ${accent} 30%, #0b0818)` }}
               >
                 Precio diferencial
