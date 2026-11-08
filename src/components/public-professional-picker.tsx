@@ -76,37 +76,42 @@ export function PublicProfessionalPicker({
   const [openId, setOpenId] = React.useState<string | null>(null);
   const open = items.find((i) => i.id === openId) ?? null;
 
+  // Mismos recuadros de precio que la lista de servicios: título chico arriba, monto abajo, letras
+  // blancas y borde neón (lista con el color principal, efectivo/promo con el de acento).
   const priceBlock = (item: ProfessionalPickerItem, big: boolean) => {
     if (!hasServices) return null;
-    const row = (label: string, value: string, strong?: boolean) =>
-      big ? (
-        <span
-          className={cn("flex-1 rounded-2xl border px-3 py-2 text-center leading-tight", strong ? "border-white/30 bg-white/[0.08]" : "border-white/15 bg-white/[0.03]")}
-          style={strong ? { boxShadow: "0 0 12px -3px var(--c-accent)" } : undefined}
-        >
-          <span className="block text-[11px] font-bold uppercase tracking-wide text-white/65">{label}</span>
-          <span className="block text-xl font-extrabold">{value}</span>
-        </span>
-      ) : (
-        <span
-          className={cn("flex w-full items-center justify-between gap-1 rounded-full border px-2.5 py-1 text-[11px] leading-tight", strong ? "border-white/30 bg-white/[0.09]" : "border-white/15")}
-        >
-          <span className="whitespace-nowrap text-white/75">{label}:</span>
-          <span className="font-bold">{value}</span>
-        </span>
-      );
-    const rows = [
-      row(big ? "Precio de lista" : "Lista", formatMoney(item.listPrice)),
+    const chip = (label: string, value: string, kind: "list" | "accent") => (
+      <span
+        key={label}
+        className={cn(
+          "block min-w-0 flex-1 rounded-xl border-2 px-2 py-1 text-center leading-tight text-white",
+          kind === "list" ? "border-white/20 bg-white/[0.05]" : "",
+        )}
+        style={
+          kind === "list"
+            ? { boxShadow: "0 0 7px color-mix(in oklch, var(--c-primary) 85%, transparent), inset 0 0 6px -2px var(--c-primary)" }
+            : {
+                borderColor: "var(--c-accent)",
+                background: "color-mix(in oklch, var(--c-accent) 32%, transparent)",
+                boxShadow: "0 0 7px var(--c-accent), inset 0 0 6px -2px var(--c-accent)",
+              }
+        }
+      >
+        <span className="block text-[10px] font-bold">{label}</span>
+        <span className={cn("block font-extrabold", big ? "text-xl" : "text-base")}>{value}</span>
+      </span>
+    );
+    const second =
       item.promoPrice != null
-        ? row(big ? `Promo${item.promoPercent != null ? ` (-${item.promoPercent}%)` : ""}` : "Promo", formatMoney(item.promoPrice), true)
+        ? chip(`Promo${item.promoPercent != null ? ` (-${item.promoPercent}%)` : ""}`, formatMoney(item.promoPrice), "accent")
         : item.effectivePrice != null
-          ? row(big ? "Precio efectivo" : "Efectivo", formatMoney(item.effectivePrice), true)
-          : null,
-    ];
-    return big ? (
-      <div className="flex gap-2">{rows}</div>
-    ) : (
-      <div className="flex w-full flex-col gap-1">{rows}</div>
+          ? chip("Precio efectivo", formatMoney(item.effectivePrice), "accent")
+          : null;
+    return (
+      <div className={cn("flex gap-2", big ? "flex-row" : "flex-col")}>
+        {chip("Precio de lista", formatMoney(item.listPrice), "list")}
+        {second}
+      </div>
     );
   };
 
@@ -184,7 +189,7 @@ export function PublicProfessionalPicker({
               </div>
             ) : null}
             {hasServices ? (
-              <p className="mt-3 text-xs text-white/60">🕒 {open.duration} min{open.priceChanged ? " · precio diferente al estándar" : ""}</p>
+              <p className="mt-3 text-xs text-white/60">🕒 {open.duration} min{open.priceChanged ? " · precio diferencial" : ""}</p>
             ) : null}
             <button
               type="button"
@@ -210,16 +215,17 @@ export function PublicProfessionalPicker({
                 onClick={() => setOpenId(item.id)}
                 className="flex min-w-0 flex-col gap-2 overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] p-3 text-left transition hover:border-white/30 hover:bg-white/[0.055] active:scale-[0.98]"
               >
-                <span className="flex items-center gap-2.5">
-                  <Avatar item={item} icon="h-6 w-6" className="h-16 w-16 border-2 border-white/30" />
-                  <span className="flex min-w-0 flex-1 flex-col items-start gap-1">
-                    <span className="w-full truncate text-base font-extrabold uppercase leading-tight">{item.name.split(" ")[0]}</span>
-                    {ratingPill(item.id, false)}
-                  </span>
+                <span className="flex flex-col items-center gap-1.5 text-center">
+                  <Avatar item={item} icon="h-7 w-7" className="h-[72px] w-[72px] border-2 border-white/30" />
+                  <span className="w-full break-words text-sm font-extrabold uppercase leading-tight">{item.name.split(" ")[0]}</span>
+                  {ratingPill(item.id, false)}
                 </span>
                 {item.priceChanged ? (
-                  <span className="self-start rounded-full bg-violet-900 px-2 py-[2px] text-[9px] font-semibold" style={{ color: "#fff" }}>
-                    Precio diferente
+                  <span
+                    className="self-center rounded-full border px-2 py-[2px] text-[10px] font-bold text-white"
+                    style={{ borderColor: "var(--c-accent)", background: "color-mix(in oklch, var(--c-accent) 18%, transparent)" }}
+                  >
+                    Precio diferencial
                   </span>
                 ) : null}
                 {priceBlock(item, false)}
