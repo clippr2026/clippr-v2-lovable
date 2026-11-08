@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import {
   CalendarDays,
+  CalendarPlus,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -17,6 +18,7 @@ import {
   Loader2,
   Mail,
   MapPin,
+  MessageCircle,
   Phone,
   Scissors,
   ShieldCheck,
@@ -1178,6 +1180,48 @@ function PublicBookingPage() {
     if (step === "details") setStep(recommendedProducts.length > 0 ? "products" : "datetime");
   }
 
+  // Arma un evento de calendario (.ics) con el turno confirmado y lo descarga; en el celular se abre
+  // "Agregar al calendario". Lleva un recordatorio 1 hora antes.
+  function addToCalendar() {
+    if (!selectedSlot || !confirmedBooking) return;
+    const start = selectedSlot.time;
+    const end = new Date(start.getTime() + Math.max(15, confirmedBooking.duration || 30) * 60000);
+    const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+    const esc = (t: string) => t.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
+    const place = branches.find((b) => b.id === selectedBranchId)?.address || business?.address || "";
+    const lines = [
+      "BEGIN:VCALENDAR",
+      "VERSION:2.0",
+      "PRODID:-//Clippr//Reservas//ES",
+      "CALSCALE:GREGORIAN",
+      "METHOD:PUBLISH",
+      "BEGIN:VEVENT",
+      `UID:${fmt(start)}-${Math.random().toString(36).slice(2, 10)}@clippr`,
+      `DTSTAMP:${fmt(new Date())}`,
+      `DTSTART:${fmt(start)}`,
+      `DTEND:${fmt(end)}`,
+      `SUMMARY:${esc(`${confirmedBooking.services} · ${business?.name ?? ""}`.trim())}`,
+      ...(place ? [`LOCATION:${esc(place)}`] : []),
+      `DESCRIPTION:${esc(`Profesional: ${confirmedBooking.professional}\nTotal: ${formatMoney(confirmedBooking.total)}`)}`,
+      "BEGIN:VALARM",
+      "TRIGGER:-PT60M",
+      "ACTION:DISPLAY",
+      "DESCRIPTION:Recordatorio de tu turno",
+      "END:VALARM",
+      "END:VEVENT",
+      "END:VCALENDAR",
+    ];
+    const blob = new Blob([lines.join("\r\n")], { type: "text/calendar;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "turno.ics";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    window.setTimeout(() => URL.revokeObjectURL(url), 4000);
+  }
+
   function nextFromServices() {
     if (selectedServiceIds.length === 0) return toast.error("Elegí al menos un servicio.");
     // Profesional ya fijo por deep link (?professional=): no volver a
@@ -1658,7 +1702,7 @@ function PublicBookingPage() {
         </div>
       </section>
 
-      <section className={cn("mx-auto px-4 py-6", step === "done" ? "max-w-5xl" : "max-w-2xl")}>
+      <section className="mx-auto max-w-2xl px-4 py-6">
         {/* Resumen "Tu reserva": barra compacta arriba de todo el flujo (no
             más sidebar aparte al costado ni al final) — el cliente ve
             servicio/profesional/horario/total/duración mientras avanza,
@@ -2444,179 +2488,161 @@ function PublicBookingPage() {
                 </div>
               ) : null}
 
-              {step === "done" ? (
-                <div
-                  className={cn(
-                    "relative mt-6 overflow-hidden rounded-[2rem] border p-6 shadow-2xl sm:p-10",
-                    isLight
-                      ? "border-slate-200 bg-white text-slate-950 shadow-slate-200/60"
-                      : "border-white/10 bg-[#070711] text-white shadow-black/50",
-                  )}
-                >
-                  <div
-                    className="pointer-events-none absolute inset-x-0 top-0 h-64"
-                    style={{
-                      background: isLight
-                        ? "radial-gradient(60% 100% at 50% 0%, color-mix(in oklch, var(--c-primary) 12%, transparent), transparent 70%)"
-                        : "radial-gradient(60% 100% at 50% 0%, rgba(124,58,237,.18), transparent 70%)",
-                    }}
-                  />
-
-                  <div className="relative mx-auto max-w-2xl">
-                    {/* Encabezado */}
-                    <div className="text-center">
-                      <div
-                        className={cn(
-                          "mx-auto inline-flex items-center gap-2 rounded-full border px-4 py-1.5 text-xs font-semibold",
-                          isLight ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-emerald-400/25 bg-emerald-400/10 text-emerald-300",
-                        )}
-                      >
-                        <CheckCircle2 className="h-4 w-4" /> Reserva confirmada
-                      </div>
-                      <h3 className={cn("mt-5 text-4xl font-bold tracking-tight sm:text-5xl", isLight ? "text-slate-950" : "text-white")}>
-                        ¡Turno confirmado!
-                      </h3>
-                      <p className={cn("mx-auto mt-3 max-w-md text-sm leading-relaxed sm:text-base", isLight ? "text-slate-500" : "text-white/60")}>
-                        Tu reserva fue registrada correctamente. Revisá los detalles de tu turno a continuación.
-                      </p>
-
-                      <div
-                        className={cn(
-                          "mx-auto mt-6 max-w-md rounded-2xl border px-5 py-4",
-                          isLight ? "border-slate-200 bg-slate-50/60" : "border-white/[0.08] bg-white/[0.02]",
-                        )}
-                      >
-                        <div className="flex flex-col items-center text-center">
-                          <span
-                            className={cn(
-                              "mb-3 grid h-10 w-10 place-items-center rounded-full",
-                              isLight ? "bg-white text-slate-500 ring-1 ring-slate-200/80" : "bg-white/[0.06] text-white/70 ring-1 ring-white/10",
-                            )}
+              {step === "done"
+                ? (() => {
+                    const cb = confirmedBooking;
+                    const when = selectedSlot?.time ?? null;
+                    const dayLabel = when
+                      ? when
+                          .toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", timeZone: businessTimeZone })
+                          .replace(/^./, (c) => c.toUpperCase())
+                      : (cb?.date ?? "-");
+                    const timeLabel = cb?.time || (when ? formatTime(when, businessTimeZone) : "-");
+                    const firstName = (cb?.clientName || clientName).trim().split(/\s+/)[0] || "";
+                    const address = branches.find((b) => b.id === selectedBranchId)?.address || business?.address || null;
+                    const phoneDigits = (business?.phone ?? "").replace(/\D/g, "");
+                    const email = cb?.clientEmail || clientEmail;
+                    const total = cb?.total ?? grandTotal;
+                    const gcalHref = (() => {
+                      if (!when || !cb) return null;
+                      const f = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
+                      const end = new Date(when.getTime() + Math.max(15, cb.duration || 30) * 60000);
+                      const q = new URLSearchParams({
+                        action: "TEMPLATE",
+                        text: `${cb.services} · ${business?.name ?? ""}`.trim(),
+                        dates: `${f(when)}/${f(end)}`,
+                        details: `Profesional: ${cb.professional}\nTotal: ${formatMoney(cb.total)}`,
+                        location: address ?? "",
+                      });
+                      return `https://calendar.google.com/calendar/render?${q.toString()}`;
+                    })();
+                    const secondary =
+                      "flex items-center justify-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-3 py-3 text-sm font-semibold transition hover:bg-white/[0.08]";
+                    return (
+                      <div className="mt-2 space-y-5">
+                        <div className="text-center">
+                          <div
+                            className="mx-auto grid h-16 w-16 place-items-center rounded-full"
+                            style={publicButtonStyle(accent, accentButtonText)}
                           >
-                            <Mail className="h-5 w-5" />
-                          </span>
-                          <p className={cn("text-sm font-medium", isLight ? "text-slate-700" : "text-white/80")}>
-                            Te enviamos la confirmación a tu correo electrónico.
-                          </p>
-                          <p className={cn("mt-1 text-xs leading-relaxed sm:text-sm", isLight ? "text-slate-500" : "text-white/55")}>
-                            Desde allí podrás consultar todos los detalles de tu reserva.
-                          </p>
+                            <CheckCircle2 className="h-8 w-8" />
+                          </div>
+                          <h3 className="mt-4 text-3xl font-extrabold tracking-tight">¡Turno confirmado!</h3>
+                          <p className="mt-1.5 text-sm text-white/60">{firstName ? `Te esperamos, ${firstName}.` : "Te esperamos."}</p>
                         </div>
-                      </div>
-                    </div>
 
-                    {/* Datos del turno */}
-                    <div className={cn("mt-8 rounded-[1.5rem] border p-4 sm:p-5", isLight ? "border-slate-200 bg-slate-50/70" : "border-white/[0.08] bg-white/[0.03]")}>
-                      <div className="grid gap-3 sm:grid-cols-2">
-                        {[
-                          { label: "Servicio", value: confirmedBooking?.services || selectedServices.map((service) => service.name).join(" + "), icon: Scissors },
-                          { label: "Profesional", value: confirmedBooking?.professional || selectedEmployee?.full_name || "Sin preferencia", icon: UserRound },
-                          { label: "Cliente", value: confirmedBooking?.clientName || clientName, icon: UsersRound },
-                          { label: "Teléfono", value: confirmedBooking?.clientPhone || clientPhone, icon: Phone },
-                          { label: "Fecha", value: confirmedBooking?.date || (selectedSlot ? formatDay(selectedSlot.time, businessTimeZone) : "-"), icon: CalendarDays },
-                          { label: "Horario", value: confirmedBooking?.time || (selectedSlot ? formatTime(selectedSlot.time, businessTimeZone) : "-"), icon: Clock3 },
-                        ].map((item) => (
-                          <div key={item.label} className={cn("rounded-2xl border p-4", isLight ? "border-slate-200 bg-white" : "border-white/[0.06] bg-black/20")}>
-                            <div className="flex items-center gap-3">
-                              <span
-                                className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-white"
-                                style={{ background: `linear-gradient(135deg, ${cPrimary}, ${cSecondary})` }}
-                              >
-                                {React.createElement(item.icon, { className: "h-[18px] w-[18px]" })}
-                              </span>
-                              <div className="min-w-0">
-                                <p className={cn("text-[0.7rem] font-medium uppercase tracking-wide", isLight ? "text-slate-400" : "text-white/40")}>{item.label}</p>
-                                <p className={cn("mt-0.5 break-words text-sm font-semibold", isLight ? "text-slate-900" : "text-white")}>{item.value}</p>
+                        <div
+                          className="overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04]"
+                          style={{ boxShadow: `0 0 24px -10px ${accent}` }}
+                        >
+                          <div className="px-5 pb-4 pt-5 text-center">
+                            <p className="text-[11px] font-bold uppercase tracking-[0.2em]" style={{ color: accent }}>{business?.name}</p>
+                            <p className="mt-2 text-lg font-bold leading-tight">{dayLabel}</p>
+                            <p className="mt-0.5 text-4xl font-black tracking-tight">{timeLabel}</p>
+                          </div>
+                          <div className="grid grid-cols-2 gap-x-4 gap-y-3 border-t border-dashed border-white/15 px-5 py-4">
+                            <div className="col-span-2">
+                              <p className="text-[10px] font-bold uppercase tracking-wider text-white/45">Servicio</p>
+                              <p className="mt-0.5 text-sm font-semibold">{cb?.services || selectedServices.map((service) => service.name).join(" + ")}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-bold uppercase tracking-wider text-white/45">Profesional</p>
+                              <p className="mt-0.5 text-sm font-semibold">{cb?.professional || selectedEmployee?.full_name || "Sin preferencia"}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-bold uppercase tracking-wider text-white/45">Duración</p>
+                              <p className="mt-0.5 text-sm font-semibold">{cb?.duration ?? totalDuration} min</p>
+                            </div>
+                            {cb?.products && cb.products.length > 0 ? (
+                              <div className="col-span-2">
+                                <p className="text-[10px] font-bold uppercase tracking-wider text-white/45">Productos</p>
+                                <div className="mt-1 space-y-1">
+                                  {cb.products.map((product, index) => (
+                                    <div key={`${product.name}-${index}`} className="flex items-center justify-between gap-3 text-sm">
+                                      <span className="min-w-0 truncate font-medium">{product.name}</span>
+                                      <span className="shrink-0 font-semibold">{formatMoney(product.price)}</span>
+                                    </div>
+                                  ))}
+                                </div>
                               </div>
+                            ) : null}
+                          </div>
+                          <div
+                            className="flex items-center justify-between px-5 py-4"
+                            style={{ background: `color-mix(in oklch, ${accent} 16%, transparent)` }}
+                          >
+                            <span className="text-sm font-semibold text-white/70">Total</span>
+                            <div className="text-right">
+                              {cb && cb.originalTotal > cb.total ? (
+                                <>
+                                  <span className="mr-2 text-sm text-white/40 line-through">{formatMoney(cb.originalTotal)}</span>
+                                  <span className="text-2xl font-black tracking-tight">{formatMoney(cb.total)}</span>
+                                  <p className="mt-0.5 text-xs font-semibold text-emerald-400">Ahorrás {formatMoney(cb.originalTotal - cb.total)}</p>
+                                </>
+                              ) : (
+                                <span className="text-2xl font-black tracking-tight">{formatMoney(total)}</span>
+                              )}
                             </div>
                           </div>
-                        ))}
-                      </div>
+                        </div>
 
-                      {(confirmedBooking?.clientEmail || clientEmail) ? (
-                        <div className={cn("mt-3 rounded-2xl border p-4", isLight ? "border-slate-200 bg-white" : "border-white/[0.06] bg-black/20")}>
-                          <div className="flex items-center gap-3">
-                            <span
-                              className="grid h-9 w-9 shrink-0 place-items-center rounded-xl text-white"
-                              style={{ background: `linear-gradient(135deg, ${cPrimary}, ${cSecondary})` }}
+                        <div className="space-y-2.5">
+                          {when && cb ? (
+                            <button
+                              type="button"
+                              onClick={addToCalendar}
+                              className="flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-sm font-bold uppercase tracking-wide transition hover:brightness-110"
+                              style={publicButtonStyle(accent, accentButtonText)}
                             >
-                              <Mail className="h-[18px] w-[18px]" />
-                            </span>
-                            <div className="min-w-0">
-                              <p className={cn("text-[0.7rem] font-medium uppercase tracking-wide", isLight ? "text-slate-400" : "text-white/40")}>Email</p>
-                              <p className={cn("mt-0.5 break-words text-sm font-semibold", isLight ? "text-slate-900" : "text-white")}>{confirmedBooking?.clientEmail || clientEmail}</p>
+                              <CalendarPlus className="h-4 w-4" /> Agregar al calendario
+                            </button>
+                          ) : null}
+                          {address || phoneDigits ? (
+                            <div className={cn("grid gap-2.5", address && phoneDigits ? "grid-cols-2" : "grid-cols-1")}>
+                              {address ? (
+                                <a
+                                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className={secondary}
+                                >
+                                  <MapPin className="h-4 w-4" style={{ color: accent }} /> Cómo llegar
+                                </a>
+                              ) : null}
+                              {phoneDigits ? (
+                                <a href={`https://wa.me/${phoneDigits}`} target="_blank" rel="noreferrer" className={secondary}>
+                                  <MessageCircle className="h-4 w-4" style={{ color: accent }} /> WhatsApp
+                                </a>
+                              ) : null}
                             </div>
-                          </div>
+                          ) : null}
+                          {gcalHref ? (
+                            <a href={gcalHref} target="_blank" rel="noreferrer" className="block text-center text-xs font-semibold text-white/55 hover:text-white">
+                              ¿Usás Google Calendar? Agregalo desde acá
+                            </a>
+                          ) : null}
                         </div>
-                      ) : null}
 
-                      {confirmedBooking?.products && confirmedBooking.products.length > 0 ? (
-                        <div className={cn("mt-3 rounded-2xl border p-4", isLight ? "border-slate-200 bg-white" : "border-white/[0.06] bg-black/20")}>
-                          <p className={cn("text-[0.7rem] font-medium uppercase tracking-wide", isLight ? "text-slate-400" : "text-white/40")}>Productos agregados</p>
-                          <div className="mt-2 space-y-1.5">
-                            {confirmedBooking.products.map((product, index) => (
-                              <div key={`${product.name}-${index}`} className="flex items-center justify-between gap-3">
-                                <span className={cn("min-w-0 truncate text-sm font-medium", isLight ? "text-slate-900" : "text-white")}>{product.name}</span>
-                                <span className={cn("shrink-0 text-sm font-semibold", isLight ? "text-slate-900" : "text-white")}>{formatMoney(product.price)}</span>
-                              </div>
-                            ))}
-                          </div>
+                        {email ? (
+                          <p className="text-center text-xs leading-relaxed text-white/50">
+                            Te enviamos la confirmación a <span className="font-semibold text-white/75">{email}</span>.
+                          </p>
+                        ) : null}
+
+                        <div className="flex justify-center">
+                          <Link to="/negocio/$slug" params={{ slug }} className="text-sm font-bold text-white/80 underline-offset-4 hover:underline">
+                            Volver al perfil
+                          </Link>
                         </div>
-                      ) : null}
 
-                      <div
-                        className={cn(
-                          "mt-3 flex items-center justify-between rounded-2xl px-5 py-4",
-                          isLight ? "text-slate-950" : "text-white",
-                        )}
-                        style={{ background: `linear-gradient(135deg, color-mix(in oklch, ${cPrimary} 14%, transparent), color-mix(in oklch, ${cSecondary} 14%, transparent))` }}
-                      >
-                        <span className={cn("text-sm font-medium", isLight ? "text-slate-600" : "text-white/70")}>Total</span>
-                        <div className="text-right">
-                          {confirmedBooking &&
-                          confirmedBooking.originalTotal > confirmedBooking.total ? (
-                            <>
-                              <span className={cn("mr-2 text-base line-through", isLight ? "text-slate-400" : "text-white/40")}>
-                                {formatMoney(confirmedBooking.originalTotal)}
-                              </span>
-                              <span className={cn("text-3xl font-black tracking-tight", isLight ? "text-slate-950" : "text-white")}>
-                                {formatMoney(confirmedBooking.total)}
-                              </span>
-                              <p className={cn("mt-0.5 text-xs font-semibold", isLight ? "text-emerald-600" : "text-emerald-400")}>
-                                Ahorrás {formatMoney(confirmedBooking.originalTotal - confirmedBooking.total)}
-                              </p>
-                            </>
-                          ) : (
-                            <span className={cn("text-3xl font-black tracking-tight", isLight ? "text-slate-950" : "text-white")}>
-                              {formatMoney(confirmedBooking?.total ?? grandTotal)}
-                            </span>
-                          )}
+                        <div className="flex items-center justify-center gap-2 border-t border-white/[0.08] pt-4">
+                          <img loading="lazy" decoding="async" src={clipprMark} alt="" className="h-4 w-4 object-contain opacity-90" />
+                          <span className="text-xs font-medium tracking-wide text-white/40">Reservá fácil con Clippr</span>
                         </div>
                       </div>
-                    </div>
-
-                    {/* Acción */}
-                    <div className="mt-7 flex justify-center">
-                      <Link
-                        to="/negocio/$slug"
-                        params={{ slug }}
-                        className={cn(
-                          "inline-flex rounded-2xl border px-7 py-3 text-sm font-bold transition hover:scale-[1.01]",
-                          isLight ? "border-slate-200 bg-white text-slate-950 shadow-lg shadow-slate-200/60 hover:bg-slate-50" : "border-white/10 bg-white/[0.08] text-white hover:bg-white/[0.12]",
-                        )}
-                      >
-                        Volver al perfil
-                      </Link>
-                    </div>
-
-                    {/* Firma Clippr */}
-                    <div className={cn("mt-9 flex items-center justify-center gap-2 border-t pt-6", isLight ? "border-slate-200" : "border-white/[0.08]")}>
-                      <img loading="lazy" decoding="async" src={clipprMark} alt="" className="h-4 w-4 object-contain opacity-90" />
-                      <span className={cn("text-xs font-medium tracking-wide", isLight ? "text-slate-400" : "text-white/40")}>Reservá fácil con Clippr</span>
-                    </div>
-                  </div>
-                </div>
-              ) : null}
+                    );
+                  })()
+                : null}
             </CardContent>
           </Card>
         </div>
