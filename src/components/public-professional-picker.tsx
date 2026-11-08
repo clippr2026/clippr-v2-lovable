@@ -300,11 +300,7 @@ export function PublicProfessionalPicker({
                   <h4 className="text-sm font-bold">Reseñas de {open.name.split(" ")[0]}</h4>
                   {rating && rating.count > 0 ? (
                     <span className="inline-flex items-center gap-1.5 text-sm font-bold">
-                      <span className="inline-flex items-center gap-0.5" aria-label={`${avg1(rating.avg)} de 5 estrellas`}>
-                        {[1, 2, 3, 4, 5].map((n) => (
-                          <Star key={n} className={cn("h-4 w-4", n <= Math.round(rating.avg) ? "fill-current text-amber-400" : "text-white/25")} />
-                        ))}
-                      </span>
+                      <Star className="h-4 w-4 fill-current text-amber-400" aria-label={`${avg1(rating.avg)} de 5 estrellas`} />
                       {avg1(rating.avg)}
                       <span className="font-medium text-white/60">({rating.count})</span>
                     </span>
