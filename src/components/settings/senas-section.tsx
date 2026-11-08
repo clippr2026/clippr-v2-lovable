@@ -451,7 +451,7 @@ export function SenasSection() {
         </SectionCard>
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-30 border-t border-white/10 bg-background/90 px-4 py-3 backdrop-blur">
+      <div className="fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-40 border-t border-white/10 bg-background/90 px-4 py-3 backdrop-blur md:bottom-0">
         <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
           <span className="text-xs text-muted-foreground">{dirty ? "Tenés cambios sin guardar." : "Todo guardado."}</span>
           <button
