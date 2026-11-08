@@ -102,7 +102,18 @@ export function cleanCajaEventosForDisplay(events: CajaEvento[]): CajaEvento[] {
   return cleaned;
 }
 
+// `estado` casi nunca cambia (queda 'cerrada' aunque se reabra el día: "Reabrir
+// caja" solo agrega un evento 'reapertura'). El criterio real es el mismo que
+// usa la base (is_caja_closed_now): el ÚLTIMO evento de tipo 'cierre' o
+// 'reapertura' de `eventos`. Sin eventos de ese tipo (filas viejas o consultas
+// que no traen `eventos`) se cae a `estado`.
 export function isCajaCerradaRow(cierre: any) {
+  const eventos = Array.isArray(cierre?.eventos) ? cierre.eventos : [];
+  for (let i = eventos.length - 1; i >= 0; i--) {
+    const tipo = eventos[i]?.tipo;
+    if (tipo === "cierre") return true;
+    if (tipo === "reapertura") return false;
+  }
   return String(cierre?.estado ?? "").toLowerCase() === "cerrada";
 }
 

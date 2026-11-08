@@ -982,7 +982,7 @@ function CashRegisterPage() {
       // historial), con su propio findAllPendingCierres.
       let todayQuery = supabase
         .from("caja_cierres" as any)
-        .select("estado")
+        .select("estado,eventos")
         .eq("business_id", data.businessId)
         .eq("fecha", cajaDateKey());
       if (data.activeBranchId) todayQuery = todayQuery.eq("branch_id", data.activeBranchId);

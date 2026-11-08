@@ -213,6 +213,21 @@ describe("isCajaCerradaRow / isCajaReabiertaRow — la guarda contra cierres dup
     expect(isCajaCerradaRow(undefined)).toBe(false);
     expect(isCajaCerradaRow({})).toBe(false);
   });
+
+  it("una caja cerrada y luego reabierta (estado sigue 'cerrada') NO cuenta como cerrada", () => {
+    const eventos = [{ tipo: "cierre" }, { tipo: "reapertura" }];
+    expect(isCajaCerradaRow({ estado: "cerrada", eventos })).toBe(false);
+  });
+
+  it("cerrada, reabierta y vuelta a cerrar sí cuenta como cerrada", () => {
+    const eventos = [{ tipo: "cierre" }, { tipo: "reapertura" }, { tipo: "cierre" }];
+    expect(isCajaCerradaRow({ estado: "cerrada", eventos })).toBe(true);
+  });
+
+  it("una corrección posterior no cambia el estado de cerrada", () => {
+    const eventos = [{ tipo: "cierre" }, { tipo: "correccion" }];
+    expect(isCajaCerradaRow({ estado: "cerrada", eventos })).toBe(true);
+  });
 });
 
 // Actualización en tiempo real (sección 6 del pedido): un cierre/reapertura

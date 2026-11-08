@@ -269,7 +269,7 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     try {
       let todayCierreQuery = supabase
         .from("caja_cierres" as any)
-        .select("estado")
+        .select("estado,eventos")
         .eq("business_id", businessId)
         .eq("fecha", cajaDateKeyBA());
       if (branchId) todayCierreQuery = todayCierreQuery.eq("branch_id", branchId);
