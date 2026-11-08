@@ -1,5 +1,6 @@
 import * as React from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { toast } from "sonner";
 import { useAuth } from "@/hooks/use-auth";
 // Tipos y resolución de prioridad de horarios viven en el motor compartido
 // (`@/lib/availability`) para que la Agenda y la reserva online usen EXACTAMENTE
@@ -797,7 +798,68 @@ export type SaveAppointmentInput = {
   // Solo se pasa al CREAR turnos generados desde una recurrencia — nunca se
   // sobreescribe en un update salvo que el caller lo pida explícitamente.
   recurring_series_id?: string | null;
+  // Solo al CREAR desde la Agenda (recepción o un profesional): manda el correo de confirmación al
+  // cliente. Por defecto no manda nada: las series repetidas, los turnos regenerados y las
+  // ediciones nunca disparan correos, así el cliente recibe uno solo por turno.
+  notifyClient?: boolean;
 };
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Correo de confirmación al cliente cuando se agenda un turno desde la Agenda. No bloquea nada: el
+// turno ya está guardado; si el cliente no tiene email, o el envío falla, solo se avisa.
+async function sendAgendaConfirmationEmail(input: SaveAppointmentInput, saved: Record<string, any> | undefined) {
+  try {
+    if (!saved?.id) return;
+    if (input.status && input.status !== "pending" && input.status !== "confirmed") return;
+
+    let storedEmail = "";
+    let phone = (input.client_phone ?? "").trim();
+    if (input.client_id) {
+      const { data: client } = await supabase.from("clients").select("email,phone").eq("id", input.client_id).maybeSingle();
+      storedEmail = ((client?.email as string | null) ?? "").trim();
+      phone = phone || ((client?.phone as string | null) ?? "").trim();
+    }
+    const email = (input.client_email ?? "").trim() || storedEmail;
+    if (!EMAIL_RE.test(email)) return;
+
+    const { data: biz } = await supabase.from("businesses").select("timezone").eq("id", input.business_id).maybeSingle();
+    const timeZone = ((biz?.timezone as string | null) ?? "") || "America/Argentina/Buenos_Aires";
+    let professional = "Sin preferencia";
+    if (input.employee_id) {
+      const { data: emp } = await supabase.from("employees").select("full_name").eq("id", input.employee_id).maybeSingle();
+      professional = ((emp?.full_name as string | null) ?? "").trim() || professional;
+    }
+
+    const start = new Date(input.starts_at);
+    const { error } = await supabase.functions.invoke("send-booking-email", {
+      body: {
+        type: "confirmation",
+        businessId: input.business_id,
+        to: email,
+        booking: {
+          services: input.service_name,
+          professional,
+          clientName: input.client_name,
+          clientPhone: phone || null,
+          clientEmail: email,
+          appointmentId: saved.id,
+          manageToken: (saved.manage_token as string | null) ?? null,
+          date: start.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", timeZone }),
+          time: start.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone }),
+          total: Number(input.service_price) || 0,
+          startIso: input.starts_at,
+          durationMin: input.duration_min,
+        },
+      },
+    });
+    if (error) throw error;
+    toast.success(`Confirmación enviada a ${email}`);
+  } catch (e) {
+    console.error("send-booking-email (agenda)", e);
+    toast.error("El turno se guardó, pero no se pudo enviar el correo de confirmación.");
+  }
+}
 
 export async function saveAppointment(input: SaveAppointmentInput) {
   // Único punto real de creación de turnos (Agenda, Mi Agenda, cualquier
@@ -871,7 +933,9 @@ export async function saveAppointment(input: SaveAppointmentInput) {
     }
     throw new Error(error.message);
   }
-  return data?.[0];
+  const created = data?.[0];
+  if (!input.id && input.notifyClient && created) void sendAgendaConfirmationEmail(input, created as Record<string, any>);
+  return created;
 }
 
 export async function setAppointmentStatus(id: string, status: ApptStatus) {

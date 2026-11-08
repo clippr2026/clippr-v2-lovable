@@ -312,6 +312,8 @@ function ClientPicker({
   );
 }
 
+const EMAIL_OK = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 export function AppointmentDialog({
   open,
   onOpenChange,
@@ -395,6 +397,8 @@ export function AppointmentDialog({
   const [clientPhone, setClientPhone] = React.useState("");
   const [clientFirstName, setClientFirstName] = React.useState("");
   const [clientLastName, setClientLastName] = React.useState("");
+  // Email opcional del cliente: solo sirve para mandarle la confirmación del turno.
+  const [clientEmail, setClientEmail] = React.useState("");
   // Buscar cliente / Agregar cliente — ver sección Cliente más abajo:
   // primero se busca entre los existentes, los campos de alta (Teléfono/
   // Nombre/Apellido, los tres obligatorios) solo aparecen si se toca
@@ -479,6 +483,7 @@ export function AppointmentDialog({
     } else {
       setClientId("");
       setClientPhone("");
+      setClientEmail("");
       setClientFirstName("");
       setClientLastName("");
       setClientSearchQuery("");
@@ -555,6 +560,7 @@ export function AppointmentDialog({
     setShowNewClientForm(true);
     setClientId("");
     setClientPhone("");
+    setClientEmail("");
     setClientFirstName("");
     setClientLastName("");
   };
@@ -564,6 +570,7 @@ export function AppointmentDialog({
   const clearClientSelection = () => {
     setClientId("");
     setClientPhone("");
+    setClientEmail("");
     setClientFirstName("");
     setClientLastName("");
     setShowNewClientForm(false);
@@ -675,6 +682,7 @@ export function AppointmentDialog({
     setClientFirstName("");
     setClientLastName("");
     setClientPhone("");
+    setClientEmail("");
     setClientSearchQuery("");
     setShowNewClientForm(false);
     setServiceId("");
@@ -712,6 +720,7 @@ export function AppointmentDialog({
       branch_id: await resolveBranchIdForWrite(),
       full_name: fullName || null,
       phone,
+      ...(EMAIL_OK.test(clientEmail.trim()) ? { email: clientEmail.trim() } : {}),
     };
 
     const { data: newClient, error } = await supabase
@@ -752,8 +761,11 @@ export function AppointmentDialog({
       }
     }
 
-    for (const date of dates) {
+    for (const [dateIndex, date] of dates.entries()) {
       await saveAppointment({
+        // Un solo correo por tanda: con "repetir turno" solo el primero lleva confirmación.
+        notifyClient: !isEdit && dateIndex === 0,
+        client_email: EMAIL_OK.test(clientEmail.trim()) ? clientEmail.trim() : null,
         id: isEdit ? appointment?.id ?? null : null,
         business_id: businessId,
         branch_id: writeBranchId,
@@ -1169,6 +1181,13 @@ export function AppointmentDialog({
                       <Input className="h-8 text-sm" value={clientFirstName} onChange={(e) => setClientFirstName(e.target.value)} placeholder="Nombre *" />
                       <Input className="h-8 text-sm" value={clientLastName} onChange={(e) => setClientLastName(e.target.value)} placeholder="Apellido *" />
                     </div>
+                    <Input
+                      className="h-8 text-sm"
+                      type="email"
+                      value={clientEmail}
+                      onChange={(e) => setClientEmail(e.target.value)}
+                      placeholder="Email (opcional, para enviarle la confirmación)"
+                    />
                   </div>
                 )}
               </div>
