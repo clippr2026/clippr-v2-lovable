@@ -1649,7 +1649,7 @@ function PublicBookingPage() {
             servicio/profesional/horario/total/duración mientras avanza,
             sin que ocupe una tarjeta alta. Se actualiza solo, mismos
             valores que ya se calculan para el resto de la página. */}
-        {step !== "done" && step !== "services" && step !== "promo" && step !== "professional" ? (
+        {step === "details" ? (
           <div className="booking-card mb-4 flex items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.06] p-3 text-white">
             <CalendarDays className="h-4 w-4 shrink-0" style={{ color: accent }} />
             <div className="min-w-0 flex-1 leading-tight">
