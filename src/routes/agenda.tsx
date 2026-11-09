@@ -156,6 +156,21 @@ const STATUS_META: Record<ApptStatus, { label: string; bg: string; border: strin
     },
   };
 
+// Turno con seña por pagar: es un estado propio (amarillo) hasta que se aprueba la seña.
+const DEPOSIT_PENDING_META = {
+  label: "Seña pendiente",
+  bg: "oklch(0.42 0.18 75 / 0.42)",
+  border: "oklch(0.82 0.2 75)",
+  dot: "oklch(0.9 0.18 85)",
+};
+function isDepositPendingAppt(a: { status?: string | null; deposit_status?: string | null }) {
+  return a.deposit_status === "pending" && (a.status === "pending" || a.status === "confirmed");
+}
+function metaForAppt(a: { status: ApptStatus; deposit_status?: string | null }) {
+  if (isDepositPendingAppt(a)) return DEPOSIT_PENDING_META;
+  return STATUS_META[a.status] ?? STATUS_META.pending;
+}
+
 // ---------------------------------------------------------------------------
 // Helpers de fechas
 // ---------------------------------------------------------------------------
@@ -1249,7 +1264,8 @@ function AgendaPage() {
   }
 
   const counts = {
-    pending: data.appointments.filter((a) => a.status === "pending").length,
+    pending: data.appointments.filter((a) => a.status === "pending" && !isDepositPendingAppt(a)).length,
+    deposit: data.appointments.filter((a) => isDepositPendingAppt(a)).length,
     confirmed: data.appointments.filter((a) => a.status === "confirmed").length,
     seña: data.appointments.filter((a) => /se(ñ|n)a/i.test(a.notes || "")).length,
     charged: data.appointments.filter((a) => a.status === "charged").length,
@@ -1261,6 +1277,7 @@ function AgendaPage() {
   // grilla fija de mobile (3 arriba + 2 abajo, sin scroll).
   const STATUS_FILTERS: [string, string, string, string, string][] = [
     ["pending", "Por confirmar", "oklch(0.72 0.2 245)", "oklch(0.72 0.2 245 / 0.12)", "oklch(0.72 0.2 245 / 0.3)"],
+    ["deposit", "Seña pendiente", "oklch(0.86 0.18 85)", "oklch(0.8 0.17 80 / 0.14)", "oklch(0.8 0.17 80 / 0.38)"],
     ["confirmed", "Confirmados", "#8B5CF6", "rgba(139, 92, 246, 0.14)", "rgba(139, 92, 246, 0.35)"],
     ["charged", "Cobrados", "oklch(0.76 0.2 155)", "oklch(0.76 0.2 155 / 0.12)", "oklch(0.76 0.2 155 / 0.3)"],
     ["cancelled", "Cancelados", "oklch(0.76 0.02 270)", "oklch(0.76 0.02 270 / 0.10)", "oklch(0.76 0.02 270 / 0.25)"],
@@ -1580,6 +1597,7 @@ function AgendaPage() {
             };
             const labels: Record<string, string> = {
               pending: "Por confirmar",
+              deposit: "Seña pendiente",
               confirmed: "Confirmados",
               charged: "Cobrados",
               cancelled: "Cancelados",
@@ -1587,6 +1605,7 @@ function AgendaPage() {
             };
             const descriptions: Record<string, string> = {
               pending: "Espera confirmación.",
+              deposit: "Reservaron y todavía no pagaron la seña. Si no la pagan a tiempo, el turno se cancela solo.",
               confirmed: "Turnos confirmados.",
               charged: "Servicios finalizados y cobrados.",
               cancelled: "Turnos cancelados antes de ser atendidos.",
@@ -1595,7 +1614,11 @@ function AgendaPage() {
             const filtered =
               filterModal === "seña"
                 ? data.appointments.filter((a) => /se(ñ|n)a/i.test(a.notes || ""))
-                : data.appointments.filter((a) => a.status === statusMap[filterModal]);
+                : filterModal === "deposit"
+                  ? data.appointments.filter((a) => isDepositPendingAppt(a))
+                  : filterModal === "pending"
+                    ? data.appointments.filter((a) => a.status === "pending" && !isDepositPendingAppt(a))
+                    : data.appointments.filter((a) => a.status === statusMap[filterModal]);
             return (
               <AgendaDrawer
                 open={activeDrawer === "filter"}
@@ -1615,7 +1638,7 @@ function AgendaPage() {
                     </div>
                   ) : (
                     filtered.map((a) => {
-                      const m = STATUS_META[a.status] ?? STATUS_META.pending;
+                      const m = metaForAppt(a);
                       const emp = data.employees.find((e) => e.id === a.employee_id);
                       return (
                         <button
@@ -3362,8 +3385,8 @@ const ApptCard = React.memo(function ApptCard({
   const top = (startH - hourStart) * rowPx + 1;
   const height = Math.max(18, dur * rowPx - 2);
   if (top < 0 || top > (hourEnd - hourStart) * rowPx) return null;
-  const meta = STATUS_META[a.status] ?? STATUS_META.pending;
-  const depositPending = a.deposit_status === "pending" && (a.status === "pending" || a.status === "confirmed");
+  const meta = metaForAppt(a);
+  const depositPending = isDepositPendingAppt(a);
   const isMovable = a.status !== "charged" && a.status !== "no_show";
   const laneCount = layout?.laneCount ?? 1;
   const lane = layout?.lane ?? 0;
@@ -3396,10 +3419,8 @@ const ApptCard = React.memo(function ApptCard({
         height,
         left,
         width,
-        background: depositPending
-          ? "repeating-linear-gradient(135deg, oklch(0.42 0.18 75 / 0.32) 0 6px, oklch(0.42 0.18 75 / 0.14) 6px 12px)"
-          : meta.bg,
-        boxShadow: depositPending ? "inset 0 0 0 1px oklch(0.82 0.2 75)" : `inset 0 0 0 1px ${meta.border}`,
+        background: meta.bg,
+        boxShadow: `inset 0 0 0 1px ${meta.border}`,
       }}
       draggable={isMovable}
       onDragStart={handleDragStart}
@@ -3444,7 +3465,15 @@ const ApptCard = React.memo(function ApptCard({
           Seña pendiente
         </div>
       )}
-      {!depositPending && /se(ñ|n)a/i.test(a.notes || "") && (
+      {a.deposit_status === "paid" && (a.status === "pending" || a.status === "confirmed") && (
+        <div
+          className="text-[8px] font-bold mt-px px-1 rounded w-fit uppercase tracking-wide"
+          style={{ background: "rgba(139, 92, 246, 0.35)", color: "#DDD6FE" }}
+        >
+          Seña paga
+        </div>
+      )}
+      {!depositPending && a.deposit_status !== "paid" && /se(ñ|n)a/i.test(a.notes || "") && (
         <div
           className="text-[8px] font-semibold mt-px px-1 rounded w-fit"
           style={{ background: "oklch(0.42 0.18 75 / 0.5)", color: "oklch(0.88 0.2 75)" }}
@@ -3889,13 +3918,15 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
     : new Date(start.getTime() + Number(appointment.duration_min ?? 30) * 60_000);
   const phone = client?.phone ?? null;
   const email = client?.email ?? null;
-  const meta = STATUS_META[appointment.status] ?? STATUS_META.pending;
+  const meta = metaForAppt(appointment);
   const requiresDeposit = Boolean(
     appointment.deposit_status && appointment.deposit_status !== "none",
   );
   const dateText = `${start.toLocaleDateString("es-AR", { weekday: "short", day: "2-digit", month: "2-digit" }).replace(".", "")} · ${fmtTime(start)} a ${fmtTime(end)}`;
   const statusLabel =
-    appointment.status === "charged"
+    isDepositPendingAppt(appointment)
+      ? "Seña pendiente"
+      : appointment.status === "charged"
       ? "Cobrado"
       : appointment.status === "confirmed"
         ? "Confirmado"
@@ -4653,7 +4684,7 @@ function WeekView({
                   const top = (startH - hourStart) * ROW_PX + 2;
                   const height = Math.max(18, dur * ROW_PX - 4);
                   if (top < 0 || top > (hourEnd - hourStart) * ROW_PX) return null;
-                  const meta = STATUS_META[a.status] ?? STATUS_META.pending;
+                  const meta = metaForAppt(a);
                   return (
                     <div
                       key={a.id}
@@ -4766,7 +4797,7 @@ function MonthView({
               </div>
               <div className="mt-1 space-y-1">
                 {items.slice(0, 2).map((a) => {
-                  const meta = STATUS_META[a.status] ?? STATUS_META.pending;
+                  const meta = metaForAppt(a);
                   return (
                     <div
                       key={a.id}
