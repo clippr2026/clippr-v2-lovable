@@ -50,6 +50,8 @@ export type BookingEmailData = {
   mapsUrl?: string | null;
   /** Chat de WhatsApp del negocio (si tiene teléfono). */
   whatsappUrl?: string | null;
+  /** Seña pendiente de pago: el correo pide pagarla y enlaza a la página de pago. */
+  deposit?: { amount: number; deadline: string; payUrl: string } | null;
 };
 
 type Row = { label: string; value: string };
@@ -306,8 +308,9 @@ function detailRows(d: BookingEmailData): Row[] {
 
 function bookingButtons(d: BookingEmailData): Btn[] {
   const btns: Btn[] = [];
-  if (d.confirmUrl) btns.push({ label: "Confirmar asistencia", url: d.confirmUrl, variant: "primary", icon: "confirmar" });
-  if (d.calendarUrl) btns.push({ label: "Agregar al calendario", url: d.calendarUrl, variant: d.confirmUrl ? "secondary" : "primary", icon: "agregar" });
+  if (d.deposit) btns.push({ label: "Pagar seña y enviar comprobante", url: d.deposit.payUrl, variant: "primary", icon: "confirmar" });
+  if (d.confirmUrl && !d.deposit) btns.push({ label: "Confirmar asistencia", url: d.confirmUrl, variant: "primary", icon: "confirmar" });
+  if (d.calendarUrl) btns.push({ label: "Agregar al calendario", url: d.calendarUrl, variant: d.confirmUrl || d.deposit ? "secondary" : "primary", icon: "agregar" });
   if (d.mapsUrl) btns.push({ label: "Cómo llegar", url: d.mapsUrl, variant: "secondary", icon: "llegar" });
   if (d.whatsappUrl) btns.push({ label: "WhatsApp", url: d.whatsappUrl, variant: "secondary", icon: "whatsapp" });
   if (d.manageUrl) btns.push({ label: "Gestionar turno", url: d.manageUrl, variant: "secondary", icon: "gestionar" });
@@ -331,6 +334,22 @@ export function buildBookingEmail(
 
   switch (type) {
     case "confirmation":
+      if (d.deposit) {
+        const amt = new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(d.deposit.amount);
+        return {
+          subject: `Falta la seña para confirmar tu turno en ${biz} · ${d.date}`,
+          html: baseLayout({
+            ...base,
+            preheader: `Pagá la seña de ${amt} antes de ${d.deposit.deadline} para asegurar tu turno.`,
+            eyebrow: "Falta pagar la seña",
+            eyebrowColor: "#b45309",
+            eyebrowBg: "#fffbeb",
+            title: "Pagá la seña para confirmar tu turno",
+            intro: `${first && first !== "-" ? `${first}, ` : ""}reservaste tu turno. Para asegurarlo, pagá la seña de ${amt} y enviá el comprobante desde el botón de abajo antes de ${d.deposit.deadline}. Si no, el turno se cancela y el horario se libera.`,
+            footerNote: `Recibiste este correo porque reservaste un turno en ${biz}.`,
+          }),
+        };
+      }
       return {
         subject: d.confirmUrl ? `Turno agendado en ${biz} · ${d.date}` : `Turno confirmado en ${biz} · ${d.date}`,
         html: baseLayout({
