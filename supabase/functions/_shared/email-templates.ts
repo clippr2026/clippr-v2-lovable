@@ -449,6 +449,11 @@ export function buildBookingEmail(
         subject: `Falta la seña para confirmar tu turno en ${biz} · ${d.date}`,
         html: baseLayout({
           ...base,
+          // Correo mínimo: el botón lleva a la página del turno con todos los detalles.
+          rows: [],
+          when: undefined,
+          total: undefined,
+          buttons: d.deposit ? [{ label: "Pagar seña y enviar comprobante", url: d.deposit.payUrl, variant: "primary", icon: "confirmar" }] : [],
           preheader: `Pagá la seña de ${amt} para asegurar tu turno.`,
           eyebrow: "Falta pagar la seña",
           eyebrowColor: "#b45309",
