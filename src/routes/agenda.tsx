@@ -1634,6 +1634,12 @@ function AgendaPage() {
                     filtered.map((a) => {
                       const m = metaForAppt(a);
                       const emp = data.employees.find((e) => e.id === a.employee_id);
+                      // Cancelados: motivo guardado en el turno (seña vencida, comprobante rechazado, motivo escrito
+                      // al cancelar) o, en turnos viejos, el del historial.
+                      const cancelReasonText =
+                        a.status === "cancelled"
+                          ? (a.cancel_reason?.trim() || readHistorialCobro(a.id).find((e) => e.action === "Canceló")?.reason?.trim() || null)
+                          : null;
                       return (
                         <button
                           key={a.id}
@@ -1655,6 +1661,14 @@ function AgendaPage() {
                             <div className="text-xs text-muted-foreground truncate">
                               {emp?.full_name ?? emp?.name ?? "—"} · {a.service_name || "—"}
                             </div>
+                            {cancelReasonText && (
+                              <div
+                                className="mt-1 inline-block max-w-full truncate rounded-md px-1.5 py-0.5 text-[11px] font-semibold"
+                                style={{ background: "rgba(244,63,94,0.12)", color: "#fb7185", boxShadow: "inset 0 0 0 1px rgba(251,113,133,0.3)" }}
+                              >
+                                {cancelReasonText}
+                              </div>
+                            )}
                           </div>
                           <div className="text-right shrink-0">
                             <div className="text-xs tabular-nums">
