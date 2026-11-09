@@ -390,7 +390,9 @@ function DepositCountdown({
   const sec = total % 60;
   const pad = (n: number) => String(n).padStart(2, "0");
   const urgent = total <= 600;
-  const tone = total === 0 ? "#dc2626" : urgent ? "#d97706" : "#7c3aed";
+  // En tema oscuro los tonos se aclaran para que el reloj se lea bien sobre el fondo.
+  const onDark = colors.text.toLowerCase().startsWith("#f");
+  const tone = total === 0 ? (onDark ? "#fca5a5" : "#dc2626") : urgent ? (onDark ? "#fcd34d" : "#d97706") : onDark ? "#d8c7ff" : "#7c3aed";
   return (
     <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, padding: "14px 14px", borderRadius: 14, background: `${tone}1a`, border: `1px solid ${tone}55`, marginTop: 12 }}>
       <Clock size={26} color={tone} />
