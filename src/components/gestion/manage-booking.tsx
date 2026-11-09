@@ -170,6 +170,8 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
   const active = a.status === "pending" || a.status === "confirmed";
   const past = start.getTime() <= Date.now();
   const cancelled = a.status === "cancelled";
+  // Mientras se pide la seña la página muestra solo el pago: sin reprogramar, cancelar ni accesos extra.
+  const askingDeposit = Boolean(data.deposit && active && !past && (data.deposit.status === "pending" || data.deposit.status === "rejected"));
   const wa = waNumber(b.phone);
   const waMsg = (verb: string) => `Hola, quiero ${verb} mi turno del ${day} a las ${time} (${a.service_name}).`;
   const waUrl = (verb: string) => (wa ? `https://wa.me/${wa}?text=${encodeURIComponent(waMsg(verb))}` : null);
@@ -267,7 +269,7 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
           )}
 
           <div style={{ display: "grid", gap: 10, marginTop: 18 }}>
-            {data.can_confirm && (
+            {!askingDeposit && data.can_confirm && (
               <button
                 disabled={busy}
                 style={primaryBtn}
@@ -276,17 +278,17 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
                 <Check size={18} /> Confirmar asistencia
               </button>
             )}
-            {active && !past && data.can_reschedule && (
+            {!askingDeposit && active && !past && data.can_reschedule && (
               <button disabled={busy} style={data.can_confirm ? ghostBtn : primaryBtn} onClick={() => { setNotice(null); setView("reschedule"); }}>
                 <RefreshCw size={17} /> Reprogramar
               </button>
             )}
-            {active && !past && data.can_cancel && view !== "cancel" && (
+            {!askingDeposit && active && !past && data.can_cancel && view !== "cancel" && (
               <button disabled={busy} style={ghostBtn} onClick={() => setView("cancel")}>
                 <X size={17} /> Cancelar turno
               </button>
             )}
-            {view === "cancel" && (
+            {!askingDeposit && view === "cancel" && (
               <div style={{ border: `1px solid ${c.border}`, borderRadius: 14, padding: 14, background: c.innerBg }}>
                 <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 700 }}>¿Seguro que querés cancelar este turno?</p>
                 <div style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr 1fr" }}>
@@ -303,7 +305,7 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
             )}
           </div>
 
-          {policy && (
+          {!askingDeposit && policy && (
             <div style={{ marginTop: 14, padding: "13px 14px", borderRadius: 14, border: `1px solid ${c.border}`, background: c.innerBg, fontSize: 13.5, lineHeight: 1.5, color: c.muted }}>
               <strong style={{ color: c.text }}>Política del local.</strong> {policyText} Para hacer cambios, contactá directamente al local.
               {waUrl("hacer un cambio en") && (
@@ -320,7 +322,7 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
             </div>
           )}
 
-          {active && !past && (
+          {!askingDeposit && active && !past && (
             <div style={{ display: "grid", gap: 10, marginTop: 14, gridTemplateColumns: mapsUrl && wa ? "1fr 1fr" : "1fr" }}>
               <a href={gcal} target="_blank" rel="noreferrer" style={{ ...ghostBtn, gridColumn: "1 / -1" }}><CalendarPlus size={17} /> Agregar al calendario</a>
               {mapsUrl && <a href={mapsUrl} target="_blank" rel="noreferrer" style={ghostBtn}><MapPin size={17} /> Cómo llegar</a>}
