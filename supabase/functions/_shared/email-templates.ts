@@ -268,9 +268,21 @@ function baseLayout(opts: {
           <tr><td align="center" style="padding:14px 32px 0;">
             <span style="display:inline-block;padding:5px 11px;border-radius:999px;background:${opts.eyebrowBg};color:${opts.eyebrowColor};font-size:12px;font-weight:700;">${esc(opts.eyebrow)}</span>
             <h1 style="margin:12px 0 0;font-size:26px;line-height:1.15;color:${p.text};font-weight:800;letter-spacing:-.02em;">${esc(opts.title)}</h1>
-            <p style="margin:6px 0 0;font-size:${opts.introSize ?? 15}px;line-height:1.5;color:${opts.introSize ? p.text : p.muted};">${esc(opts.intro)}</p>
+            ${opts.introSize ? "" : `<p style="margin:6px 0 0;font-size:15px;line-height:1.5;color:${p.muted};">${esc(opts.intro)}</p>`}
           </td></tr>
-          <!-- detalle -->
+          ${
+            opts.introSize
+              ? `<!-- mensaje en tarjeta clara -->
+          <tr><td style="padding:18px 32px 0;">
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid ${p.border};border-radius:16px;background:${p.innerBg};" bgcolor="${p.innerBg}">
+              <tr><td style="padding:20px 22px;font-size:${opts.introSize}px;line-height:1.5;color:${p.text};text-align:center;">${esc(opts.intro)}</td></tr>
+            </table>
+          </td></tr>`
+              : ""
+          }
+          ${
+            opts.when || opts.rows.length > 0
+              ? `<!-- detalle -->
           <tr><td style="padding:18px 32px 0;">
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid ${p.border};border-radius:16px;background:${p.innerBg};" bgcolor="${p.innerBg}">${whenHtml}
               <tr><td style="padding:6px 20px;">
@@ -278,7 +290,9 @@ function baseLayout(opts: {
               </td></tr>
             </table>
             ${totalHtml}
-          </td></tr>
+          </td></tr>`
+              : ""
+          }
           <!-- botones -->
           <tr><td style="padding:0 32px;">${buttonsHtml(opts.buttons ?? [], brand, p)}</td></tr>
           <!-- footer -->
