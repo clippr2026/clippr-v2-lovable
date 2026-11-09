@@ -173,7 +173,10 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
   const cancelled = a.status === "cancelled";
   // Mientras se pide la seña la página muestra solo el pago: sin reprogramar, cancelar ni accesos extra.
   const raised = { innerBg: dark ? "#2a2640" : "#ffffff", border: `${primary}66` };
+  const inReview = Boolean(data.deposit && active && !past && data.deposit.status === "review");
   const askingDeposit = Boolean(data.deposit && active && !past && (data.deposit.status === "pending" || data.deposit.status === "rejected"));
+  // Pantallas del flujo de la seña (pedirla o revisar el comprobante): solo el pago y los detalles, sin accesos extra.
+  const depositFlow = askingDeposit || inReview;
   const wa = waNumber(b.phone);
   const waMsg = (verb: string) => `Hola, quiero ${verb} mi turno del ${day} a las ${time} (${a.service_name}).`;
   const waUrl = (verb: string) => (wa ? `https://wa.me/${wa}?text=${encodeURIComponent(waMsg(verb))}` : null);
@@ -252,19 +255,19 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
             ) : (
               <span style={{ display: "inline-block", padding: "5px 11px", borderRadius: 999, background: statusChip.bg, color: statusChip.fg, fontSize: 12, fontWeight: 800 }}>{statusChip.text}</span>
             )}
-            {!askingDeposit && (
+            {!depositFlow && (
               <>
                 <h1 style={{ margin: "14px 0 2px", fontSize: 26, fontWeight: 800, letterSpacing: "-.02em" }}>{day}</h1>
                 <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: "-.02em", color: primary === "#000000" ? c.text : accent }}>{time}</div>
               </>
             )}
           </div>
-          <div style={{ marginTop: 18, border: `1px solid ${askingDeposit ? raised.border : c.border}`, background: askingDeposit ? raised.innerBg : c.innerBg, borderRadius: 16, padding: "6px 16px" }}>
+          <div style={{ marginTop: 18, border: `1px solid ${depositFlow ? raised.border : c.border}`, background: depositFlow ? raised.innerBg : c.innerBg, borderRadius: 16, padding: "6px 16px" }}>
             {[
               ["Servicio", a.service_name],
               ["Profesional", a.employee_name ?? "Sin preferencia"],
-              ...(askingDeposit ? [["Día", day], ["Horario", time]] : []),
-              [askingDeposit ? "Total del servicio" : "Total", money(Number(a.service_price) || 0)],
+              ...(depositFlow ? [["Día", day], ["Horario", time]] : []),
+              [depositFlow ? "Total del servicio" : "Total", money(Number(a.service_price) || 0)],
             ].map(([k, v], i) => (
               <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "11px 0", borderTop: i ? `1px solid ${c.border}` : "none", fontSize: 14 }}>
                 <span style={{ color: c.muted }}>{k}</span>
@@ -274,7 +277,7 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
           </div>
 
           {data.deposit && active && !past && (
-            <DepositCard deposit={data.deposit} token={token} colors={askingDeposit ? { ...c, ...raised } : c} primaryBtn={primaryBtn} onChanged={refresh} />
+            <DepositCard deposit={data.deposit} token={token} colors={depositFlow ? { ...c, ...raised } : c} primaryBtn={primaryBtn} onChanged={refresh} />
           )}
 
           {notice && (
@@ -286,7 +289,7 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
           )}
 
           <div style={{ display: "grid", gap: 10, marginTop: 18 }}>
-            {!askingDeposit && data.can_confirm && (
+            {!depositFlow && data.can_confirm && (
               <button
                 disabled={busy}
                 style={primaryBtn}
@@ -295,17 +298,17 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
                 <Check size={18} /> Confirmar asistencia
               </button>
             )}
-            {!askingDeposit && active && !past && data.can_reschedule && (
+            {!depositFlow && active && !past && data.can_reschedule && (
               <button disabled={busy} style={data.can_confirm ? ghostBtn : primaryBtn} onClick={() => { setNotice(null); setView("reschedule"); }}>
                 <RefreshCw size={17} /> Reprogramar
               </button>
             )}
-            {!askingDeposit && active && !past && data.can_cancel && view !== "cancel" && (
+            {!depositFlow && active && !past && data.can_cancel && view !== "cancel" && (
               <button disabled={busy} style={ghostBtn} onClick={() => setView("cancel")}>
                 <X size={17} /> Cancelar turno
               </button>
             )}
-            {!askingDeposit && view === "cancel" && (
+            {!depositFlow && view === "cancel" && (
               <div style={{ border: `1px solid ${c.border}`, borderRadius: 14, padding: 14, background: c.innerBg }}>
                 <p style={{ margin: "0 0 10px", fontSize: 14, fontWeight: 700 }}>¿Seguro que querés cancelar este turno?</p>
                 <div style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr 1fr" }}>
@@ -322,7 +325,7 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
             )}
           </div>
 
-          {!askingDeposit && policy && (
+          {!depositFlow && policy && (
             <div style={{ marginTop: 14, padding: "13px 14px", borderRadius: 14, border: `1px solid ${c.border}`, background: c.innerBg, fontSize: 13.5, lineHeight: 1.5, color: c.muted }}>
               <strong style={{ color: c.text }}>Política del local.</strong> {policyText} Para hacer cambios, contactá directamente al local.
               {waUrl("hacer un cambio en") && (
@@ -339,7 +342,7 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
             </div>
           )}
 
-          {!askingDeposit && active && !past && (
+          {!depositFlow && active && !past && (
             <div style={{ display: "grid", gap: 10, marginTop: 14, gridTemplateColumns: mapsUrl && wa ? "1fr 1fr" : "1fr" }}>
               <a href={gcal} target="_blank" rel="noreferrer" style={{ ...ghostBtn, gridColumn: "1 / -1" }}><CalendarPlus size={17} /> Agregar al calendario</a>
               {mapsUrl && <a href={mapsUrl} target="_blank" rel="noreferrer" style={ghostBtn}><MapPin size={17} /> Cómo llegar</a>}
