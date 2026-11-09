@@ -245,11 +245,20 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
         <>
           <div style={{ textAlign: "center" }}>
             <span style={{ display: "inline-block", padding: "5px 11px", borderRadius: 999, background: statusChip.bg, color: statusChip.fg, fontSize: 12, fontWeight: 800 }}>{statusChip.text}</span>
-            <h1 style={{ margin: "14px 0 2px", fontSize: 26, fontWeight: 800, letterSpacing: "-.02em" }}>{day}</h1>
-            <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: "-.02em", color: primary === "#000000" ? c.text : accent }}>{time}</div>
+            {!askingDeposit && (
+              <>
+                <h1 style={{ margin: "14px 0 2px", fontSize: 26, fontWeight: 800, letterSpacing: "-.02em" }}>{day}</h1>
+                <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: "-.02em", color: primary === "#000000" ? c.text : accent }}>{time}</div>
+              </>
+            )}
           </div>
           <div style={{ marginTop: 18, border: `1px solid ${c.border}`, background: c.innerBg, borderRadius: 16, padding: "6px 16px" }}>
-            {[["Servicio", a.service_name], ["Profesional", a.employee_name ?? "Sin preferencia"], ["Total", money(Number(a.service_price) || 0)]].map(([k, v], i) => (
+            {[
+              ["Servicio", a.service_name],
+              ["Profesional", a.employee_name ?? "Sin preferencia"],
+              ...(askingDeposit ? [["Día", day], ["Horario", time]] : []),
+              [askingDeposit ? "Total del servicio" : "Total", money(Number(a.service_price) || 0)],
+            ].map(([k, v], i) => (
               <div key={k} style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "11px 0", borderTop: i ? `1px solid ${c.border}` : "none", fontSize: 14 }}>
                 <span style={{ color: c.muted }}>{k}</span>
                 <span style={{ fontWeight: 700, textAlign: "right" }}>{v}</span>
@@ -485,8 +494,7 @@ function DepositCard({
 
   return (
     <div style={box}>
-      <div style={{ fontWeight: 800, fontSize: 15 }}>Pagá la seña para asegurar tu turno</div>
-      <div style={{ fontSize: 28, fontWeight: 800, margin: "4px 0 2px" }}>{money(deposit.amount)}</div>
+      <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: "-.02em", lineHeight: 1.1, margin: "2px 0" }}>Seña {money(deposit.amount)}</div>
       {deposit.expires_at && (
         <DepositCountdown expiresAt={deposit.expires_at} colors={colors} onExpired={() => void (async () => {
           try {
