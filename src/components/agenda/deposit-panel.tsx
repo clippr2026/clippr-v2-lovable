@@ -181,8 +181,14 @@ export function DepositPanel({
   const prof = dist === "professional" ? 100 : dist === "split" ? 50 : dist === "custom" ? customProf : 0;
 
   return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3.5 text-sm space-y-2.5">
-      <div className={`font-semibold ${info.cls}`}>{info.text}</div>
+    <div
+      className="rounded-2xl p-4 text-sm space-y-3"
+      style={{
+        background: "linear-gradient(180deg, rgba(139,92,246,0.10), rgba(255,255,255,0.025))",
+        boxShadow: "inset 0 0 0 1px rgba(167,139,250,0.34), 0 18px 36px -28px rgba(139,92,246,0.9)",
+      }}
+    >
+      <div className={`text-base font-bold tracking-tight ${info.cls}`}>{info.text}</div>
       <div className="text-muted-foreground">
         Seña pedida: <span className="font-medium text-foreground">{money(dep.amount)}</span>
         {dep.paid_amount > 0 && (
@@ -194,12 +200,20 @@ export function DepositPanel({
       </div>
 
       {dep.proof_path && (
-        <div>
-          <button type="button" onClick={() => setShowProof((v) => !v)} className="flex items-center gap-1.5 text-xs font-semibold text-violet-300 hover:text-violet-200">
-            <FileText className="h-3.5 w-3.5" /> {showProof ? "Ocultar comprobante" : "Ver comprobante"}
+        <div className="space-y-2">
+          <button
+            type="button"
+            onClick={() => setShowProof((v) => !v)}
+            className="flex h-11 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold text-violet-200 transition hover:brightness-125 active:scale-[0.99]"
+            style={{
+              background: "rgba(139,92,246,0.14)",
+              boxShadow: "inset 0 0 0 1px rgba(167,139,250,0.5), 0 10px 22px -18px rgba(139,92,246,0.9)",
+            }}
+          >
+            <FileText className="h-4 w-4" /> {showProof ? "Ocultar comprobante" : "Ver comprobante"}
           </button>
           {showProof && proof && (
-            <div className="mt-2 overflow-hidden rounded-xl ring-1 ring-white/10">
+            <div className="overflow-hidden rounded-xl ring-1 ring-white/10">
               {proof.mime === "application/pdf" ? (
                 <a href={`data:application/pdf;base64,${proof.data}`} download="comprobante.pdf" className="block p-3 text-xs text-violet-300 underline">
                   Descargar comprobante (PDF)
@@ -213,11 +227,32 @@ export function DepositPanel({
       )}
 
       {(dep.status === "review" || dep.status === "pending") && !rejecting && (
-        <div className="grid grid-cols-2 gap-2">
-          <Button variant="secondary" className="h-9" disabled={busy} onClick={() => setRejecting(true)}>Rechazar</Button>
-          <Button className="h-9" disabled={busy} onClick={() => run("review_deposit_v1", { p_deposit_id: dep.id, p_approve: true, p_amount: null, p_note: null }, "Seña aprobada")}>
+        <div className="space-y-3 border-t border-white/10 pt-3">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => run("review_deposit_v1", { p_deposit_id: dep.id, p_approve: true, p_amount: null, p_note: null }, "Seña aprobada")}
+            className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-[15px] font-bold text-white transition hover:brightness-110 active:scale-[0.99] disabled:opacity-60"
+            style={{
+              background: "linear-gradient(135deg, rgba(16,185,129,.95), rgba(34,197,94,.72))",
+              boxShadow: "0 16px 34px -22px rgba(34,197,94,.95), inset 0 0 0 1px rgba(255,255,255,.18)",
+            }}
+          >
             Aprobar seña
-          </Button>
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setRejecting(true)}
+            className="flex h-11 w-full items-center justify-center rounded-xl text-sm font-semibold transition hover:brightness-125 active:scale-[0.99] disabled:opacity-60"
+            style={{
+              background: "rgba(244,63,94,0.08)",
+              color: "#fda4af",
+              boxShadow: "inset 0 0 0 1px rgba(251,113,133,0.4)",
+            }}
+          >
+            Rechazar comprobante
+          </button>
         </div>
       )}
       {rejecting && (

@@ -15,7 +15,8 @@ import {
   Repeat2,
   CalendarOff,
   ChevronDown,
-  Users
+  Users,
+  CalendarSync,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { applyPromotionDiscount, resolvePromotionBadgeLabel, resolveServicePricing, type Promotion } from "@/lib/service-pricing";
@@ -66,16 +67,8 @@ function useStableCallback<T extends (...args: any[]) => any>(fn: T): T {
 
 function WhatsAppIcon(props: React.SVGProps<SVGSVGElement>) {
   return (
-    <svg
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      {...props}
-    >
-      <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.8 19.8 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.12 4.18 2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.12.9.33 1.78.63 2.64a2 2 0 0 1-.45 2.11L8 9.99a16 16 0 0 0 6 6l1.52-1.29a2 2 0 0 1 2.11-.45c.86.3 1.74.51 2.64.63A2 2 0 0 1 22 16.92z"/>
+    <svg viewBox="0 0 24 24" fill="currentColor" {...props}>
+      <path d="M17.47 14.38c-.3-.15-1.76-.87-2.03-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.94 1.17-.17.2-.35.22-.65.07-.3-.15-1.26-.46-2.4-1.48-.89-.79-1.49-1.77-1.66-2.07-.17-.3-.02-.46.13-.61.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.07-.15-.67-1.62-.92-2.22-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.8.37-.27.3-1.04 1.02-1.04 2.48s1.07 2.88 1.22 3.08c.15.2 2.1 3.2 5.08 4.49.71.31 1.26.49 1.69.63.71.23 1.36.2 1.87.12.57-.08 1.76-.72 2.01-1.41.25-.69.25-1.29.17-1.41-.07-.12-.27-.2-.57-.35zM12.04 21.5h-.01a9.87 9.87 0 0 1-5.03-1.38l-.36-.21-3.74.98 1-3.65-.24-.37a9.86 9.86 0 0 1-1.51-5.26c0-5.45 4.44-9.88 9.9-9.88a9.82 9.82 0 0 1 6.99 2.9 9.82 9.82 0 0 1 2.89 6.99c0 5.45-4.44 9.88-9.89 9.88zM20.52 3.45A11.8 11.8 0 0 0 12.04 0C5.5 0 .17 5.33.17 11.87c0 2.09.55 4.13 1.59 5.93L0 24l6.35-1.66a11.85 11.85 0 0 0 5.69 1.45h.01c6.54 0 11.87-5.33 11.87-11.87 0-3.17-1.23-6.15-3.4-8.47z" />
     </svg>
   );
 }
@@ -4034,95 +4027,97 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
             className="pointer-events-none absolute -top-10 left-4 h-24 w-32 rounded-full opacity-12 blur-2xl"
             style={{ background: meta.dot }}
           />
-          <div className="relative space-y-3">
-            <div className="flex min-w-0 items-start pr-8">
-              <div className="min-w-0 flex-1 pt-0.5">
-                <SheetTitle className="text-[26px] leading-tight font-display font-semibold tracking-tight truncate">
-                  {appointment.status === "blocked"
-                    ? "Horario bloqueado"
-                    : appointment.client_name || "Sin cliente"}
-                </SheetTitle>
-              </div>
+          <div className="relative space-y-3.5">
+            <div className="min-w-0 pr-9 pt-0.5">
+              <SheetTitle className="text-[26px] leading-tight font-display font-semibold tracking-tight truncate">
+                {appointment.status === "blocked"
+                  ? "Horario bloqueado"
+                  : appointment.client_name || "Sin cliente"}
+              </SheetTitle>
             </div>
 
-            <div className="flex items-center justify-between gap-2 pr-8">
+            <div className="flex items-center justify-between gap-2">
               <div
-                className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-[9px] font-semibold uppercase tracking-[0.16em]"
+                className="inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em]"
                 style={{
-                  color: appointment.status === "confirmed" ? "rgba(255,255,255,0.92)" : meta.dot,
+                  color: appointment.status === "confirmed" ? "rgba(255,255,255,0.95)" : meta.dot,
                   background:
                     appointment.status === "confirmed"
-                      ? "rgba(124, 58, 237, 0.18)"
-                      : withAlpha(meta.dot, 0.13),
+                      ? "rgba(124, 58, 237, 0.2)"
+                      : withAlpha(meta.dot, 0.14),
                   border:
                     appointment.status === "confirmed"
-                      ? "1px solid rgba(167, 139, 250, 0.68)"
-                      : `1px solid ${withAlpha(meta.dot, 0.36)}`,
+                      ? "1px solid rgba(167, 139, 250, 0.7)"
+                      : `1px solid ${withAlpha(meta.dot, 0.45)}`,
                   boxShadow:
                     appointment.status === "confirmed"
-                      ? "0 0 14px rgba(139,92,246,.25), inset 0 0 0 1px rgba(255,255,255,0.045)"
-                      : `0 0 18px ${withAlpha(meta.dot, 0.18)}, inset 0 0 0 1px rgba(255,255,255,0.04)`,
+                      ? "0 0 18px rgba(139,92,246,.35), inset 0 0 0 1px rgba(255,255,255,0.05)"
+                      : `0 0 20px ${withAlpha(meta.dot, 0.28)}, inset 0 0 0 1px rgba(255,255,255,0.05)`,
                 }}
               >
                 <span
-                  className="size-1.5 rounded-full"
+                  className="size-2 rounded-full"
                   style={{ background: meta.dot, boxShadow: `0 0 12px ${meta.dot}` }}
                 />
                 {statusLabel}
               </div>
 
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-2">
                 {whatsappHref && (
                   <a
                     href={whatsappHref}
                     target="_blank"
                     rel="noreferrer"
                     aria-label="WhatsApp"
-                    className="inline-flex h-7 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] px-2.5 text-xs text-white/72 transition hover:bg-white/[0.1] hover:text-white"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full transition hover:brightness-125 active:scale-95"
+                    style={{
+                      color: "#4ade80",
+                      background: "rgba(34,197,94,0.14)",
+                      boxShadow: "inset 0 0 0 1px rgba(74,222,128,0.5), 0 0 16px rgba(34,197,94,0.3)",
+                    }}
                   >
-                    <WhatsAppIcon className="h-3.5 w-3.5" />
+                    <WhatsAppIcon className="h-[18px] w-[18px]" />
                   </a>
                 )}
-
                 {email && (
                   <a
                     href={`mailto:${email}`}
                     aria-label="Mail"
-                    className="inline-flex h-7 items-center justify-center rounded-full border border-white/10 bg-white/[0.06] px-2.5 text-xs text-white/72 transition hover:bg-white/[0.1] hover:text-white"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-full transition hover:brightness-125 active:scale-95"
+                    style={{
+                      color: "#7dd3fc",
+                      background: "rgba(56,189,248,0.12)",
+                      boxShadow: "inset 0 0 0 1px rgba(125,211,252,0.45), 0 0 16px rgba(56,189,248,0.25)",
+                    }}
                   >
-                    <Mail className="h-3.5 w-3.5" />
+                    <Mail className="h-[18px] w-[18px]" />
                   </a>
                 )}
-
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  className="h-7 rounded-full border-white/10 bg-white/[0.06] px-2.5 text-xs hover:bg-white/[0.1]"
-                  onClick={() => onFicha(appointment)}
-                >
-                  <UserRound className="h-3.5 w-3.5 mr-1" /> Ficha
-                </Button>
-                {appointment.recurring_series_id && (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="h-7 rounded-full border-white/10 bg-white/[0.06] px-2.5 text-xs hover:bg-white/[0.1]"
-                    onClick={() => onViewRecurring(appointment)}
-                  >
-                    <Repeat2 className="h-3.5 w-3.5 mr-1" /> Ver recurrencia
-                  </Button>
-                )}
-                {!isPast && (
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    className="h-7 rounded-full border-white/10 bg-white/[0.06] px-2.5 text-xs hover:bg-white/[0.1]"
-                    onClick={() => onEdit(appointment)}
-                  >
-                    Reprogramar
-                  </Button>
-                )}
               </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {[
+                { key: "ficha", label: "Ficha", icon: <UserRound className="h-4 w-4" />, onClick: () => onFicha(appointment), show: true },
+                { key: "rec", label: "Recurrencia", icon: <Repeat2 className="h-4 w-4" />, onClick: () => onViewRecurring(appointment), show: Boolean(appointment.recurring_series_id) },
+                { key: "edit", label: "Reprogramar", icon: <CalendarSync className="h-4 w-4" />, onClick: () => onEdit(appointment), show: !isPast },
+              ]
+                .filter((b) => b.show)
+                .map((b) => (
+                  <button
+                    key={b.key}
+                    type="button"
+                    onClick={b.onClick}
+                    className="flex h-10 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl px-2 text-[13px] font-semibold text-white transition hover:brightness-125 active:scale-[0.98]"
+                    style={{
+                      background: "rgba(139,92,246,0.12)",
+                      boxShadow: "inset 0 0 0 1px rgba(167,139,250,0.4), 0 10px 22px -18px rgba(139,92,246,0.9)",
+                    }}
+                  >
+                    <span className="text-violet-300">{b.icon}</span>
+                    <span className="truncate">{b.label}</span>
+                  </button>
+                ))}
             </div>
           </div>
         </SheetHeader>
@@ -4316,7 +4311,8 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                   del turno, a diferencia de Cobrar/Cancelar (operativas). */}
               {(() => {
                 const status = appointment.status;
-                const showConfirm = !hasStarted && status === "pending";
+                const depositDecides = appointment.deposit_status === "pending";
+                const showConfirm = !hasStarted && status === "pending" && !depositDecides;
                 const showNoShow =
                   hasStarted && status !== "cancelled" && status !== "no_show" && status !== "charged";
                 if (!showConfirm && !showNoShow) return null;
@@ -4537,13 +4533,14 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                   ) : appointment.status !== "charged" ? (
                     <button
                       onClick={() => setConfirmCancel(true)}
-                      className="w-full h-10 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:bg-white/[0.045]"
+                      className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-125 active:scale-[0.99]"
                       style={{
-                        background: "rgba(255,255,255,0.018)",
-                        color: "rgba(255,255,255,.72)",
-                        boxShadow: "inset 0 0 0 1px rgba(255,255,255,.13)",
+                        background: "rgba(244,63,94,0.08)",
+                        color: "#fda4af",
+                        boxShadow: "inset 0 0 0 1px rgba(251,113,133,0.4), 0 10px 24px -20px rgba(244,63,94,0.8)",
                       }}
                     >
+                      <X className="h-4 w-4" />
                       Cancelar turno
                     </button>
                   ) : null;
