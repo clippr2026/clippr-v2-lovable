@@ -15229,6 +15229,17 @@ export function NuevaVentaTab({
   }, [categories, category]);
 
   const filtered = servicesWithSynthetic.filter((i) => {
+    // Con un profesional elegido, solo se ofrecen los servicios que tiene habilitados
+    // (Configuración → Equipo). Si ya está en el carrito (turno cargado) se deja ver para poder quitarlo.
+    if (
+      employeeId &&
+      !i.is_catalog &&
+      !String(i.id).startsWith("__pending__") &&
+      (cart[i.id] ?? 0) === 0 &&
+      !isServiceOfferedByEmployee(i.id, employeeId, data.employeeServiceOverrides)
+    ) {
+      return false;
+    }
     const q = query.trim().toLowerCase();
     const matchesText =
       !q || `${i.name} ${i.category ?? ""}`.toLowerCase().includes(q);
