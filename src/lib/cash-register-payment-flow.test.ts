@@ -21,9 +21,11 @@ describe("Monto recibido — tope correcto contra finalTotal (con propina), no s
     expect(cashRegisterSrc).not.toMatch(/if \(receivedAmount > subtotalAfterDiscount \+ 0\.01\) \{/);
   });
 
-  it("el mensaje de error ya no dice 'sin contar la propina' sobre un tope que ahora sí la incluye", () => {
+  it("recibir de más ya no se rechaza: se pregunta si la diferencia es vuelto (efectivo) o propina", () => {
     expect(cashRegisterSrc).not.toMatch(/sin contar la propina/);
-    expect(cashRegisterSrc).toMatch(/con propina incluida/);
+    expect(cashRegisterSrc).toMatch(/setOverpay\(\{ diff: Math\.round\(receivedAmount - finalTotal\) \}\)/);
+    expect(cashRegisterSrc).toMatch(/Recibiste de más/);
+    expect(cashRegisterSrc).toMatch(/Es vuelto: se lo devuelvo/);
   });
 
   it("el piso (monto insuficiente) ya no es exclusivo de efectivo — aplica a cualquier medio en Pago simple", () => {

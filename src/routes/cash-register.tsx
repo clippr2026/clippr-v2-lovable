@@ -14989,6 +14989,10 @@ export function NuevaVentaTab({
   const [tipAmountInput, setTipAmountInput] = React.useState("");
   const [tipPanelOpen, setTipPanelOpen] = React.useState(false);
   const [showPartialConfirm, setShowPartialConfirm] = React.useState(false);
+  // Recibió de más: se pregunta si la diferencia es vuelto (solo efectivo) o propina.
+  const [overpay, setOverpay] = React.useState<{ diff: number } | null>(null);
+  const overpayAsChangeRef = React.useRef(false);
+  const [resubmitTick, setResubmitTick] = React.useState(0);
   // "Sin cargo": cortesía/garantía/modelo de práctica. Se registra como una
   // venta de $0 (descuento del 100%) con el motivo en el nombre del descuento
   // — sin cobro, sin deuda y sin comisión (todo sale de total = 0). null =
@@ -15642,6 +15646,12 @@ export function NuevaVentaTab({
     setSplitReceiptPreviews({});
   }
 
+  // Tras elegir "propina" el total ya incluye la diferencia: se vuelve a enviar el cobro.
+  React.useEffect(() => {
+    if (resubmitTick > 0) void handleCobrar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resubmitTick]);
+
   async function handleCobrar() {
     // Idempotencia: se genera una sola vez por intento — si esta misma
     // llamada falla y el usuario clickea "Confirmar" de nuevo sin cambiar
@@ -15695,10 +15705,11 @@ export function NuevaVentaTab({
         return;
       }
       if (receivedAmount > finalTotal + 0.01) {
-        toast.error(
-          `El monto recibido ($${Math.round(typedAmount).toLocaleString("es-AR")}) no puede superar el total a cobrar ($${Math.round(finalTotal - depositApplied).toLocaleString("es-AR")}, con propina incluida).`,
-        );
-        return;
+        // Recibió de más: no se rechaza, se pregunta qué hacer con la diferencia.
+        if (!(method === "cash" && overpayAsChangeRef.current)) {
+          setOverpay({ diff: Math.round(receivedAmount - finalTotal) });
+          return;
+        }
       }
     }
 
@@ -17522,6 +17533,63 @@ export function NuevaVentaTab({
           handleCobrar. z-[60]: por encima del overlay z-50 que usa
           variant="modal" (Cobrar turno desde Mi Agenda) cuando este
           componente se renderiza adentro de ese modal. */}
+      {overpay && typeof document !== "undefined" && createPortal(
+        <div
+          className="fixed inset-0 z-[60] grid place-items-center bg-black/70 backdrop-blur-sm p-4"
+          onClick={() => setOverpay(null)}
+        >
+          <div
+            className="w-full max-w-sm overflow-hidden rounded-2xl bg-[oklch(0.11_0.04_275)] shadow-2xl ring-1 ring-white/10"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="border-b border-white/10 px-5 py-4">
+              <h3 className="text-sm font-semibold text-sky-200">Recibiste de más</h3>
+              <p className="mt-1 text-sm text-white/80">
+                El cliente entregó <strong>${overpay.diff.toLocaleString("es-AR")}</strong> más que el total a cobrar.{" "}
+                {method === "cash" ? "¿Qué hacés con la diferencia?" : "¿La diferencia va como propina?"}
+              </p>
+            </div>
+            <div className="space-y-2 px-5 py-4">
+              <button
+                type="button"
+                className="h-11 w-full rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-sm font-bold text-white"
+                onClick={() => {
+                  const diff = overpay.diff;
+                  setTipAmountInput(String((Number(tipAmountInput) || 0) + diff));
+                  setOverpay(null);
+                  setResubmitTick((n) => n + 1);
+                }}
+              >
+                {method === "cash" ? "Dejarla como propina" : "Sí, es propina"}
+              </button>
+              {method === "cash" && (
+                <button
+                  type="button"
+                  className="h-11 w-full rounded-xl text-sm font-semibold text-white/90 ring-1 ring-white/20 hover:bg-white/[0.06]"
+                  onClick={() => {
+                    overpayAsChangeRef.current = true;
+                    setOverpay(null);
+                    void handleCobrar().finally(() => {
+                      overpayAsChangeRef.current = false;
+                    });
+                  }}
+                >
+                  Es vuelto: se lo devuelvo
+                </button>
+              )}
+              <button
+                type="button"
+                className="h-10 w-full rounded-xl text-sm font-medium text-white/60 hover:text-white"
+                onClick={() => setOverpay(null)}
+              >
+                Corregir el monto
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+
       {showPartialConfirm && typeof document !== "undefined" && createPortal(
         <div
           className="fixed inset-0 z-[60] grid place-items-center bg-black/70 backdrop-blur-sm p-4"
