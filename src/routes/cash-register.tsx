@@ -1,3 +1,4 @@
+import { SenasCajaCard } from "@/components/senas/senas-caja-card";
 import { useDepositCredit } from "@/components/cash-register/deposit-charge-banner";
 import React from "react";
 import {
@@ -13030,6 +13031,8 @@ function FacturacionPanel({
           onClick={() => setSaldoDetalle("digital")}
         />
       </div>
+
+      <SenasCajaCard businessId={data.businessId} branchId={data.activeBranchId} onChanged={() => void data.refresh()} />
 
       {saldoDetalle && (
         <SaldoComposicionModal
