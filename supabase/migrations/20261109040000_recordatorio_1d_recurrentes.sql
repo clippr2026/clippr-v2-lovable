@@ -1,5 +1,5 @@
--- Recordatorios: los turnos de series recurrentes también reciben el aviso de 1 día antes (con
--- "Confirmar asistencia"), igual que los turnos normales; el de 2 horas antes sigue para todos.
+-- Recordatorios: los turnos de series recurrentes reciben SOLO el aviso de 1 día antes (con
+-- "Confirmar asistencia"); los turnos normales siguen con el de 1 día y el de 2 horas antes.
 -- Solo reemplaza la función; no toca datos.
 
 create or replace function public.due_booking_reminders(p_now timestamptz default now())
@@ -32,7 +32,8 @@ as $$
         b.starts_at between p_now + interval '22 hours' and p_now + interval '24 hours'
         and b.ref_time <= b.starts_at - interval '24 hours'),
       ('reminder_2h',
-        b.starts_at between p_now + interval '1 hour' and p_now + interval '2 hours'
+        b.recurring_series_id is null
+        and b.starts_at between p_now + interval '1 hour' and p_now + interval '2 hours'
         and b.ref_time <= b.starts_at - interval '2 hours')
   ) as k(kind, due)
   where k.due
