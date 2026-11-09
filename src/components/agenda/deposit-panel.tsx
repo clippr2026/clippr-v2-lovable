@@ -356,7 +356,38 @@ export function DepositPanel({
           )}
         </div>
       )}
-      {dep.status === "rejected" && dep.decision_note && <div className="text-xs text-muted-foreground">Motivo: {dep.decision_note}</div>}
+      {dep.status === "rejected" && (
+        <div className="space-y-2.5">
+          <div className="text-xs text-muted-foreground">
+            El cliente ya no puede volver a subir el comprobante: se comunica con el local. Si te confirma el pago, registrá la seña recibida; si no, cancelá el turno.
+          </div>
+          {!recording ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => { setAmount(String(Math.round(dep.amount))); setRecording(true); }}
+              className="flex h-11 w-full items-center justify-center rounded-2xl text-[14px] font-bold text-white transition hover:brightness-110 active:scale-[0.99] disabled:opacity-60"
+              style={{ background: "linear-gradient(135deg, #7c5cff, #4f7dff)", boxShadow: "0 0 24px rgba(99,102,241,.5), inset 0 0 0 1px rgba(255,255,255,.28)" }}
+            >
+              Registrar seña recibida
+            </button>
+          ) : (
+            <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-2">
+                <input type="number" min={1} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Monto ($)" className="rounded-lg bg-white/5 px-2.5 py-2 text-sm ring-1 ring-white/10 outline-none" />
+                <select value={method} onChange={(e) => setMethod(e.target.value as "cash" | "transfer")} className="rounded-lg bg-white/5 px-2.5 py-2 text-sm ring-1 ring-white/10 outline-none">
+                  <option value="cash">Efectivo</option>
+                  <option value="transfer">Transferencia</option>
+                </select>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <Button variant="secondary" className="h-10" onClick={() => setRecording(false)}>Volver</Button>
+                <Button className="h-10" disabled={busy || !(Number(amount) > 0)} onClick={() => run("record_deposit_received_v1", { p_appointment_id: appointmentId, p_amount: Number(amount), p_method: method, p_note: null }, "Seña registrada")}>Guardar</Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

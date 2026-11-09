@@ -279,7 +279,7 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
           </div>
 
           {data.deposit && active && !past && (
-            <DepositCard deposit={data.deposit} token={token} colors={depositFlow ? { ...c, ...raised } : c} primaryBtn={primaryBtn} onChanged={refresh} />
+            <DepositCard deposit={data.deposit} token={token} colors={depositFlow ? { ...c, ...raised } : c} primaryBtn={primaryBtn} onChanged={refresh} waHref={wa ? `https://wa.me/${wa}` : null} />
           )}
 
           {notice && (
@@ -442,7 +442,12 @@ function DepositSummary({
           Seña {money(deposit.amount)}
         </span>
       </div>
-      {deposit.expires_at && (
+      {deposit.status === "rejected" && (
+        <div style={{ marginTop: 12, padding: "12px 14px", borderRadius: 14, background: "rgba(248,113,113,.14)", border: "1px solid rgba(248,113,113,.45)", textAlign: "center", fontWeight: 700, color: colors.text }}>
+          No pudimos validar tu comprobante. Contactá al local para resolverlo.
+        </div>
+      )}
+      {deposit.expires_at && deposit.status !== "rejected" && (
         <DepositCountdown expiresAt={deposit.expires_at} colors={colors} onExpired={() => void (async () => {
           try {
             await (supabase.rpc as any)("expire_deposit_public_v1", { p_token: token });
@@ -452,7 +457,7 @@ function DepositSummary({
           await onChanged();
         })()} />
       )}
-      <div style={{ color: colors.muted, fontSize: 13, marginTop: 10, textAlign: "center" }}>
+      <div style={{ color: colors.muted, fontSize: 13, marginTop: 10, textAlign: "center", display: deposit.status === "rejected" ? "none" : undefined }}>
         Si no enviás el comprobante antes de que termine el tiempo, el turno se cancela y el horario se libera.
       </div>
     </div>
@@ -460,8 +465,9 @@ function DepositSummary({
 }
 
 function DepositCard({
-  deposit, token, colors, primaryBtn, onChanged,
+  deposit, token, colors, primaryBtn, onChanged, waHref,
 }: {
+  waHref?: string | null;
   deposit: Deposit;
   token: string;
   colors: { innerBg: string; border: string; text: string; muted: string };
@@ -492,6 +498,23 @@ function DepositCard({
   }
   if (deposit.status === "retained") {
     return <div style={{ ...box, color: colors.muted }}>La seña no se reintegra según las políticas del local.</div>;
+  }
+
+  // Comprobante rechazado: no se puede volver a subir; el cliente se comunica con el local.
+  if (deposit.status === "rejected") {
+    return (
+      <div style={box}>
+        <div style={{ fontWeight: 800, color: colors.text, fontSize: 16 }}>Contactá al local</div>
+        <p style={{ margin: "8px 0 12px", color: colors.muted, fontSize: 14 }}>
+          Para resolver tu seña y asegurar tu turno, escribile al local.
+        </p>
+        {waHref && (
+          <a href={waHref} target="_blank" rel="noreferrer" style={{ ...primaryBtn, textDecoration: "none" }}>
+            <MessageCircle size={18} /> Contactar por WhatsApp
+          </a>
+        )}
+      </div>
+    );
   }
 
   const t = deposit.instructions?.payment?.transfer;
@@ -542,11 +565,6 @@ function DepositCard({
 
   return (
     <div style={box}>
-      {deposit.status === "rejected" && (
-        <div style={{ marginTop: 10, padding: "10px 12px", borderRadius: 12, background: "#fef2f2", color: "#b91c1c", fontSize: 13.5, fontWeight: 600 }}>
-          No pudimos validar tu comprobante{deposit.rejected_note ? `: ${deposit.rejected_note}` : "."} Subí uno nuevo.
-        </div>
-      )}
       {(deposit.instructions?.message?.trim() || DEFAULT_SENAS_MESSAGE) && (
         <div style={{ marginTop: 10, color: colors.muted, fontSize: 13.5 }}>
           <div style={{ fontWeight: 800, color: colors.text, fontSize: 16 }}>IMPORTANTE:</div>
