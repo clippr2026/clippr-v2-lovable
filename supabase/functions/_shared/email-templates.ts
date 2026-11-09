@@ -441,6 +441,57 @@ export function buildBookingEmail(
         }),
       };
 
+    case "deposit_reminder": {
+      const amt = d.deposit
+        ? new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(d.deposit.amount)
+        : "";
+      return {
+        subject: `Falta la seña para confirmar tu turno en ${biz} · ${d.date}`,
+        html: baseLayout({
+          ...base,
+          preheader: `Pagá la seña de ${amt} para asegurar tu turno.`,
+          eyebrow: "Falta pagar la seña",
+          eyebrowColor: "#b45309",
+          eyebrowBg: "#fffbeb",
+          title: "Pagá la seña para confirmar tu turno",
+          intro: `${first && first !== "-" ? `${first}, ` : ""}reservaste tu turno y todavía falta la seña de ${amt}. Pagala y enviá el comprobante desde el botón de abajo${d.deposit ? ` antes de ${d.deposit.deadline}` : ""}. Si no, el turno se cancela y el horario se libera.`,
+          footerNote: `Recibiste este correo porque reservaste un turno en ${biz}.`,
+        }),
+      };
+    }
+
+    case "deposit_confirmed":
+      return {
+        subject: `Turno confirmado en ${biz} · ${d.date}`,
+        html: baseLayout({
+          ...base,
+          preheader: `Recibimos tu seña. Tu turno en ${biz} es el ${d.date} a las ${d.time}.`,
+          eyebrow: "✓ Seña recibida",
+          eyebrowColor: "#047857",
+          eyebrowBg: "#ecfdf5",
+          title: "¡Turno confirmado!",
+          intro: `${first && first !== "-" ? `Te esperamos, ${first}. ` : "Te esperamos. "}Recibimos tu seña y tu turno quedó confirmado.`,
+          footerNote: `Recibiste este correo porque reservaste un turno en ${biz}.`,
+        }),
+      };
+
+    case "deposit_expired":
+      return {
+        subject: `Tu turno en ${biz} se canceló por falta de pago`,
+        html: baseLayout({
+          ...base,
+          total: undefined,
+          buttons: d.whatsappUrl ? [{ label: "WhatsApp", url: d.whatsappUrl, variant: "secondary", icon: "whatsapp" }] : [],
+          eyebrow: "✕ Turno cancelado",
+          eyebrowColor: "#b91c1c",
+          eyebrowBg: "#fef2f2",
+          preheader: `Tu turno del ${d.date} en ${biz} se canceló porque no se pagó la seña a tiempo.`,
+          title: "Tu turno se canceló",
+          intro: "No recibimos la seña dentro del plazo, así que el horario se liberó. Podés reservar de nuevo cuando quieras.",
+          footerNote: `Recibiste este correo por una reserva en ${biz}.`,
+        }),
+      };
+
     default:
       return null;
   }

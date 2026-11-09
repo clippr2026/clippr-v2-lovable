@@ -36,10 +36,15 @@ Deno.serve(async (req: Request) => {
     return json({ error: error.message }, 500);
   }
 
+  // Avisos de seña (recordatorio a los 10 min, confirmada, rechazada, vencida).
+  const { data: depositDue, error: depositError } = await supabase.rpc("due_deposit_notices");
+  if (depositError) console.error("due_deposit_notices", depositError);
+  const queue: Array<Record<string, any>> = [...((due ?? []) as Array<Record<string, any>>), ...((depositDue ?? []) as Array<Record<string, any>>)];
+
   let sent = 0;
   let skipped = 0;
   let failed = 0;
-  for (const r of (due ?? []) as Array<Record<string, any>>) {
+  for (const r of queue) {
     const { data: claimed } = await supabase.rpc("claim_booking_notification", {
       p_appointment_id: r.appointment_id,
       p_kind: r.kind,
@@ -74,5 +79,5 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  return json({ ok: true, due: due?.length ?? 0, sent, skipped, failed, expiredDeposits: expired?.length ?? 0 });
+  return json({ ok: true, due: queue.length, sent, skipped, failed, expiredDeposits: expired?.length ?? 0 });
 });

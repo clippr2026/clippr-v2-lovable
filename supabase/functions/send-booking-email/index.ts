@@ -244,31 +244,34 @@ Deno.serve(async (req: Request) => {
       ? `${APP_ORIGIN}/gestion?k=${manageToken}`
       : buildManageUrl(...baseUrlArgs, "manage");
     // "Confirmar asistencia" solo mientras el turno está por confirmar.
-    const confirmUrl = manageToken && appt.status === "pending" && type !== "cancellation" && type !== "reminder_2h"
+    const confirmUrl = manageToken && appt.status === "pending" && type !== "cancellation" && type !== "reminder_2h" && !type.startsWith("deposit_")
       ? `${APP_ORIGIN}/gestion?k=${manageToken}&a=confirmar`
       : null;
 
-    // Seña pendiente: se crea acá si todavía no existe (el cliente puede cerrar la página de pago
-    // antes de que se genere) y el correo enlaza directo a pagarla.
+    // Con seña por pagar no se manda el "turno agendado": el cliente recibe luego el aviso de pago
+    // (a los 10 min si no envió el comprobante), el de turno confirmado o el de cancelación.
     let deposit: BookingEmailData["deposit"] = null;
-    if (type === "confirmation" && manageToken) {
-      await supabase.rpc("ensure_public_deposit_v1", { p_token: manageToken });
+    if (manageToken && (type === "confirmation" || type === "deposit_reminder")) {
+      if (type === "confirmation") await supabase.rpc("ensure_public_deposit_v1", { p_token: manageToken });
       const { data: dep } = await supabase
         .from("appointment_deposits")
         .select("status, amount, expires_at")
         .eq("appointment_id", appt.id)
         .maybeSingle();
-      if (dep && (dep.status === "pending" || dep.status === "rejected") && dep.expires_at) {
-        const exp = new Date(dep.expires_at as string);
-        const sameDay = exp.toLocaleDateString("es-AR", { timeZone }) === new Date().toLocaleDateString("es-AR", { timeZone });
-        const hm = exp.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone });
-        deposit = {
-          amount: Number(dep.amount) || 0,
-          deadline: sameDay
-            ? `las ${hm} de hoy`
-            : `las ${hm} del ${exp.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", timeZone })}`,
-          payUrl: `${APP_ORIGIN}/gestion?k=${manageToken}&a=pagar`,
-        };
+      if (dep && (dep.status === "pending" || dep.status === "rejected" || dep.status === "review")) {
+        if (type === "confirmation") return json({ ok: true, skipped: "seña pendiente: el aviso sale más tarde" });
+        if (dep.expires_at) {
+          const exp = new Date(dep.expires_at as string);
+          const sameDay = exp.toLocaleDateString("es-AR", { timeZone }) === new Date().toLocaleDateString("es-AR", { timeZone });
+          const hm = exp.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone });
+          deposit = {
+            amount: Number(dep.amount) || 0,
+            deadline: sameDay
+              ? `las ${hm} de hoy`
+              : `las ${hm} del ${exp.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", timeZone })}`,
+            payUrl: `${APP_ORIGIN}/gestion?k=${manageToken}&a=pagar`,
+          };
+        }
       }
     }
 

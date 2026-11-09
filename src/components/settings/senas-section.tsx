@@ -42,7 +42,7 @@ const DEFAULTS: SenasConfig = {
   amount_type: "percent",
   amount_value: 30,
   proof_mode: "review",
-  hold_minutes: 120,
+  hold_minutes: 30,
   lost_dist: "local",
   lost_prof: 0,
   message: DEFAULT_MESSAGE,
