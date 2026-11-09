@@ -286,7 +286,14 @@ function SettingsPage() {
     );
   }
 
+  // Secciones con guardado explícito (Señas) cancelan el evento si el usuario
+  // decide quedarse con sus cambios sin guardar.
+  function canLeaveSection() {
+    return window.dispatchEvent(new Event("clippr:before-leave-settings", { cancelable: true }));
+  }
+
   function requestSectionChange(section: SectionId) {
+    if (section !== active && !canLeaveSection()) return;
     setMobileDrilledIn(true);
     if (section === active) return;
     // Guardado silencioso al cambiar de sección. No bloquea la navegación
@@ -297,6 +304,7 @@ function SettingsPage() {
   }
 
   function goBackToList() {
+    if (!canLeaveSection()) return;
     saveCurrentSection();
     setMobileDrilledIn(false);
   }

@@ -120,6 +120,21 @@ export function SenasSection() {
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
 
+  // Avisa antes de salir de la sección (o cerrar la pestaña) con cambios sin guardar.
+  useEffect(() => {
+    if (!dirty) return;
+    const onLeave = (e: Event) => {
+      if (!window.confirm("Tenés cambios sin guardar. ¿Salir sin guardar?")) e.preventDefault();
+    };
+    const onUnload = (e: BeforeUnloadEvent) => e.preventDefault();
+    window.addEventListener("clippr:before-leave-settings", onLeave);
+    window.addEventListener("beforeunload", onUnload);
+    return () => {
+      window.removeEventListener("clippr:before-leave-settings", onLeave);
+      window.removeEventListener("beforeunload", onUnload);
+    };
+  }, [dirty]);
+
   const load = useCallback(async () => {
     if (!businessId) {
       setLoading(false);
@@ -451,19 +466,16 @@ export function SenasSection() {
         </SectionCard>
       </div>
 
-      <div className="fixed inset-x-0 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-40 border-t border-white/10 bg-background/90 px-4 py-3 backdrop-blur md:bottom-0">
-        <div className="mx-auto flex max-w-3xl items-center justify-between gap-3">
-          <span className="text-xs text-muted-foreground">{dirty ? "Tenés cambios sin guardar." : "Todo guardado."}</span>
-          <button
-            type="button"
-            disabled={!dirty || saving}
-            onClick={() => void save()}
-            className="rounded-xl bg-primary px-5 py-2.5 text-sm font-semibold text-primary-foreground transition disabled:opacity-40"
-          >
-            {saving ? "Guardando…" : "Guardar cambios"}
-          </button>
-        </div>
-      </div>
+      {dirty ? (
+        <button
+          type="button"
+          disabled={saving}
+          onClick={() => void save()}
+          className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] right-4 z-40 rounded-full bg-primary px-6 py-3.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition active:scale-95 disabled:opacity-60 md:bottom-6 md:right-8"
+        >
+          {saving ? "Guardando…" : "Guardar cambios"}
+        </button>
+      ) : null}
     </div>
   );
 }
