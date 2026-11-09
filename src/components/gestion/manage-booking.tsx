@@ -247,7 +247,7 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
           <div style={{ textAlign: "center" }}>
             {askingDeposit && data.deposit ? (
               <div style={{ textAlign: "left" }}>
-                <DepositSummary deposit={data.deposit} token={token} colors={{ ...c, ...raised }} onChanged={refresh} />
+                <DepositSummary deposit={data.deposit} token={token} colors={{ ...c, ...raised }} pillStyle={primaryBtn} onChanged={refresh} />
               </div>
             ) : (
               <span style={{ display: "inline-block", padding: "5px 11px", borderRadius: 999, background: statusChip.bg, color: statusChip.fg, fontSize: 12, fontWeight: 800 }}>{statusChip.text}</span>
@@ -419,19 +419,20 @@ function fillDepositMessage(message: string, t?: { alias?: string; cbu?: string;
 }
 
 function DepositSummary({
-  deposit, token, colors, onChanged,
+  deposit, token, colors, pillStyle, onChanged,
 }: {
   deposit: Deposit;
   token: string;
   colors: { innerBg: string; border: string; text: string; muted: string };
+  pillStyle: React.CSSProperties;
   onChanged: () => Promise<void> | void;
 }) {
   const money = (n: number) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n);
   return (
     <div style={{ padding: "14px 14px", borderRadius: 16, border: `1px solid ${colors.border}`, background: colors.innerBg, fontSize: 14 }}>
       <div style={{ display: "flex", justifyContent: "center" }}>
-        <span style={{ display: "inline-block", padding: "13px 22px", borderRadius: 999, background: "linear-gradient(180deg,#fcd34d,#f59e0b)", color: "#2a1700", fontSize: 22, fontWeight: 800, letterSpacing: "-.01em", boxShadow: "0 6px 18px rgba(245,158,11,.35), inset 0 1px 0 rgba(255,255,255,.45)" }}>
-          Seña pendiente {money(deposit.amount)}
+        <span style={{ ...pillStyle, display: "inline-block", width: "auto", padding: "13px 26px", borderRadius: 999, fontSize: 24, fontWeight: 800, letterSpacing: "-.01em" }}>
+          Seña {money(deposit.amount)}
         </span>
       </div>
       {deposit.expires_at && (
@@ -541,8 +542,8 @@ function DepositCard({
       )}
       {(deposit.instructions?.message?.trim() || DEFAULT_SENAS_MESSAGE) && (
         <div style={{ marginTop: 10, color: colors.muted, fontSize: 13.5 }}>
-          <div style={{ fontWeight: 800, color: colors.text, fontSize: 15 }}>Condiciones de la seña</div>
-          <p style={{ margin: "8px 0 0", whiteSpace: "pre-line" }}>{fillDepositMessage(deposit.instructions?.message?.trim() || DEFAULT_SENAS_MESSAGE, t)}</p>
+          <div style={{ fontWeight: 800, color: colors.text, fontSize: 16 }}>IMPORTANTE:</div>
+          <p style={{ margin: "8px 0 0", whiteSpace: "pre-line" }}>{fillDepositMessage((deposit.instructions?.message?.trim() || DEFAULT_SENAS_MESSAGE).replace(/^\s*IMPORTANTE:?\s*/i, ""), t)}</p>
         </div>
       )}
       <div style={{ marginTop: 10 }}>
