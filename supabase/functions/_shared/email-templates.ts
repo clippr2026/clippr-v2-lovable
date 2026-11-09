@@ -386,6 +386,8 @@ export function buildBookingEmail(
         subject: `Tu turno en ${biz} es en 2 horas · ${d.time}`,
         html: baseLayout({
           ...base,
+          // A 2 horas ya venció el plazo de cancelar/reprogramar: sin el botón "Gestionar turno".
+          buttons: base.buttons.filter((b) => b.icon !== "gestionar"),
           preheader: `Te esperamos hoy a las ${d.time} en ${biz}.`,
           eyebrow: "⏰ En 2 horas",
           eyebrowColor: "#9a3412",
