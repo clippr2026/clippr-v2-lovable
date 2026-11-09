@@ -46,6 +46,7 @@ import {
 } from "@/lib/recurring-schedule";
 import {
   resolveServicePricing,
+  isServiceOfferedByEmployee,
   isPromotionCurrentlyValid,
   isPromotionApplicable,
   applyPromotionDiscount,
@@ -874,6 +875,11 @@ export function AppointmentDialog({
     // tiene que seguir funcionando sin este bloqueo.
     if (!isEdit && start.getTime() < Date.now()) {
       return toast.error("No podés crear turnos en horarios que ya pasaron.");
+    }
+
+    // El profesional solo puede atender los servicios que tiene habilitados (Configuración → Equipo).
+    if (serviceId && employeeId && !isServiceOfferedByEmployee(serviceId, employeeId, employeeServiceOverrides)) {
+      return toast.error("Este profesional no tiene habilitado ese servicio. Habilitalo en Configuración → Equipo o elegí otro profesional.");
     }
 
     if (!isEdit && bookingWindowEnd && start.getTime() > bookingWindowEnd.getTime()) {

@@ -157,6 +157,7 @@ import {
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 import {
   resolveServicePricing,
+  isServiceOfferedByEmployee,
   computeCommissionAmount,
   type EmployeeCommissionMap,
   computeStandardEffectivePrice,
@@ -15670,6 +15671,16 @@ export function NuevaVentaTab({
     if (!employeeId) {
       toast.error("Seleccioná un profesional.");
       setStep(1);
+      return;
+    }
+    // El profesional solo puede cobrar los servicios que tiene habilitados (Configuración → Equipo).
+    const notOffered = cartItems.find(
+      ({ svc }) => !svc.is_catalog && !String(svc.id).startsWith("__pending__") && !isServiceOfferedByEmployee(svc.id, employeeId, data.employeeServiceOverrides),
+    );
+    if (notOffered) {
+      toast.error(
+        `${selectedEmployee?.name ?? "Este profesional"} no tiene habilitado «${notOffered.svc.name}». Habilitalo en Configuración → Equipo o elegí otro profesional.`,
+      );
       return;
     }
     if (!hasSelectedClient) {
