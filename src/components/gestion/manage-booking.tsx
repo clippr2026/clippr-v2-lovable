@@ -147,7 +147,7 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
   }
 
   const frame = (children: React.ReactNode) => (
-    <div style={{ minHeight: "100vh", background: c.pageBg, color: c.text, fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif", padding: "32px 16px 48px", colorScheme: dark ? "dark" : "light" }}>
+    <div style={{ minHeight: "100vh", background: `radial-gradient(130% 55% at 50% 0%, ${primary}4d, transparent 72%), ${c.pageBg}`, color: c.text, fontFamily: "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif", padding: "32px 16px 48px", colorScheme: dark ? "dark" : "light" }}>
       <div style={{ maxWidth: 440, margin: "0 auto" }}>{children}</div>
     </div>
   );
@@ -172,6 +172,7 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
   const past = start.getTime() <= Date.now();
   const cancelled = a.status === "cancelled";
   // Mientras se pide la seña la página muestra solo el pago: sin reprogramar, cancelar ni accesos extra.
+  const raised = { innerBg: dark ? "#2a2640" : "#ffffff", border: `${primary}66` };
   const askingDeposit = Boolean(data.deposit && active && !past && (data.deposit.status === "pending" || data.deposit.status === "rejected"));
   const wa = waNumber(b.phone);
   const waMsg = (verb: string) => `Hola, quiero ${verb} mi turno del ${day} a las ${time} (${a.service_name}).`;
@@ -246,7 +247,7 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
           <div style={{ textAlign: "center" }}>
             {askingDeposit && data.deposit ? (
               <div style={{ textAlign: "left" }}>
-                <DepositSummary deposit={data.deposit} token={token} colors={c} onChanged={refresh} />
+                <DepositSummary deposit={data.deposit} token={token} colors={{ ...c, ...raised }} onChanged={refresh} />
               </div>
             ) : (
               <span style={{ display: "inline-block", padding: "5px 11px", borderRadius: 999, background: statusChip.bg, color: statusChip.fg, fontSize: 12, fontWeight: 800 }}>{statusChip.text}</span>
@@ -258,7 +259,7 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
               </>
             )}
           </div>
-          <div style={{ marginTop: 18, border: `1px solid ${c.border}`, background: c.innerBg, borderRadius: 16, padding: "6px 16px" }}>
+          <div style={{ marginTop: 18, border: `1px solid ${askingDeposit ? raised.border : c.border}`, background: askingDeposit ? raised.innerBg : c.innerBg, borderRadius: 16, padding: "6px 16px" }}>
             {[
               ["Servicio", a.service_name],
               ["Profesional", a.employee_name ?? "Sin preferencia"],
@@ -273,7 +274,7 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
           </div>
 
           {data.deposit && active && !past && (
-            <DepositCard deposit={data.deposit} token={token} colors={c} primaryBtn={primaryBtn} onChanged={refresh} />
+            <DepositCard deposit={data.deposit} token={token} colors={askingDeposit ? { ...c, ...raised } : c} primaryBtn={primaryBtn} onChanged={refresh} />
           )}
 
           {notice && (
@@ -391,9 +392,9 @@ function DepositCountdown({
   const urgent = total <= 600;
   const tone = total === 0 ? "#dc2626" : urgent ? "#d97706" : "#7c3aed";
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 14, background: `${tone}1a`, border: `1px solid ${tone}55`, marginTop: 10 }}>
-      <Clock size={22} color={tone} />
-      <div style={{ minWidth: 0 }}>
+    <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 14, padding: "14px 14px", borderRadius: 14, background: `${tone}1a`, border: `1px solid ${tone}55`, marginTop: 12 }}>
+      <Clock size={26} color={tone} />
+      <div style={{ minWidth: 0, textAlign: "center" }}>
         <div style={{ fontSize: 12, color: colors.muted, fontWeight: 600 }}>
           {total === 0 ? "Se agotó el tiempo" : "Tiempo para pagar la seña"}
         </div>
@@ -428,7 +429,11 @@ function DepositSummary({
   const money = (n: number) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n);
   return (
     <div style={{ padding: "14px 14px", borderRadius: 16, border: `1px solid ${colors.border}`, background: colors.innerBg, fontSize: 14 }}>
-      <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: "-.02em", lineHeight: 1.1, margin: "2px 0" }}>Seña {money(deposit.amount)}</div>
+      <div style={{ display: "flex", justifyContent: "center" }}>
+        <span style={{ display: "inline-block", padding: "13px 22px", borderRadius: 999, background: "linear-gradient(180deg,#fcd34d,#f59e0b)", color: "#2a1700", fontSize: 22, fontWeight: 800, letterSpacing: "-.01em", boxShadow: "0 6px 18px rgba(245,158,11,.35), inset 0 1px 0 rgba(255,255,255,.45)" }}>
+          Seña pendiente {money(deposit.amount)}
+        </span>
+      </div>
       {deposit.expires_at && (
         <DepositCountdown expiresAt={deposit.expires_at} colors={colors} onExpired={() => void (async () => {
           try {
@@ -439,7 +444,7 @@ function DepositSummary({
           await onChanged();
         })()} />
       )}
-      <div style={{ color: colors.muted, fontSize: 12.5, marginTop: 8 }}>
+      <div style={{ color: colors.muted, fontSize: 13, marginTop: 10, textAlign: "center" }}>
         Si no enviás el comprobante antes de que termine el tiempo, el turno se cancela y el horario se libera.
       </div>
     </div>
@@ -535,10 +540,10 @@ function DepositCard({
         </div>
       )}
       {(deposit.instructions?.message?.trim() || DEFAULT_SENAS_MESSAGE) && (
-        <details open style={{ marginTop: 10, color: colors.muted, fontSize: 13.5 }}>
-          <summary style={{ cursor: "pointer", fontWeight: 700, color: colors.text }}>Condiciones de la seña</summary>
+        <div style={{ marginTop: 10, color: colors.muted, fontSize: 13.5 }}>
+          <div style={{ fontWeight: 800, color: colors.text, fontSize: 15 }}>Condiciones de la seña</div>
           <p style={{ margin: "8px 0 0", whiteSpace: "pre-line" }}>{fillDepositMessage(deposit.instructions?.message?.trim() || DEFAULT_SENAS_MESSAGE, t)}</p>
-        </details>
+        </div>
       )}
       <div style={{ marginTop: 10 }}>
         {row("Alias", t?.alias)}
