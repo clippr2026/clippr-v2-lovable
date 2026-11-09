@@ -1,10 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
-import { Field, SectionCard, Toggle, inputCls } from "@/components/settings/shared";
+import { Field, SectionCard, Toggle, inputCls, registerUnsavedGuard } from "@/components/settings/shared";
 
 // Se guarda en business_settings.senas_config (JSON). Los campos que esta pantalla
 // no maneja (por ejemplo el texto viejo "msg") se conservan al guardar.
@@ -120,20 +120,30 @@ export function SenasSection() {
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
 
-  // Avisa antes de salir de la sección (o cerrar la pestaña) con cambios sin guardar.
+  const dirtyRef = useRef(false);
+  dirtyRef.current = dirty;
+  const saveRef = useRef<() => Promise<boolean>>(async () => true);
+  const loadRef = useRef<() => Promise<void> | void>(() => {});
+
+  // Configuración pregunta antes de salir de la sección con cambios sin guardar.
   useEffect(() => {
-    if (!dirty) return;
-    const onLeave = (e: Event) => {
-      if (!window.confirm("Tenés cambios sin guardar. ¿Salir sin guardar?")) e.preventDefault();
+    registerUnsavedGuard({
+      isDirty: () => dirtyRef.current,
+      save: () => saveRef.current(),
+      discard: () => {
+        setDirty(false);
+        void loadRef.current();
+      },
+    });
+    const onUnload = (e: BeforeUnloadEvent) => {
+      if (dirtyRef.current) e.preventDefault();
     };
-    const onUnload = (e: BeforeUnloadEvent) => e.preventDefault();
-    window.addEventListener("clippr:before-leave-settings", onLeave);
     window.addEventListener("beforeunload", onUnload);
     return () => {
-      window.removeEventListener("clippr:before-leave-settings", onLeave);
+      registerUnsavedGuard(null);
       window.removeEventListener("beforeunload", onUnload);
     };
-  }, [dirty]);
+  }, []);
 
   const load = useCallback(async () => {
     if (!businessId) {
@@ -200,12 +210,12 @@ export function SenasSection() {
     return null;
   };
 
-  const save = async () => {
-    if (!businessId) return;
+  const save = async (): Promise<boolean> => {
+    if (!businessId) return false;
     const problem = validate();
     if (problem) {
       toast.error(problem);
-      return;
+      return false;
     }
     setSaving(true);
     try {
@@ -245,12 +255,17 @@ export function SenasSection() {
       setRaw(next);
       setDirty(false);
       toast.success("Configuración de señas guardada");
+      return true;
     } catch (e) {
       toast.error(`No se pudo guardar: ${(e as Error).message}`);
+      return false;
     } finally {
       setSaving(false);
     }
   };
+
+  saveRef.current = save;
+  loadRef.current = load;
 
   if (loading) {
     return (

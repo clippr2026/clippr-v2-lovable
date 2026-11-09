@@ -73,6 +73,7 @@ import { PlanSection } from "@/components/settings/plan-section";
 import {
   SectionCard,
   reportSaveStatus,
+  getUnsavedGuard,
   processImage,
   Toggle,
   ConfirmDialog,
@@ -286,14 +287,29 @@ function SettingsPage() {
     );
   }
 
-  // Secciones con guardado explícito (Señas) cancelan el evento si el usuario
-  // decide quedarse con sus cambios sin guardar.
-  function canLeaveSection() {
-    return window.dispatchEvent(new Event("clippr:before-leave-settings", { cancelable: true }));
+  // Secciones con guardado explícito (Señas) registran una guardia: si hay
+  // cambios sin guardar, se pregunta antes de salir (modal con los colores
+  // de Clippr) y recién después se ejecuta la navegación pendiente.
+  const [leavePrompt, setLeavePrompt] = useState<{ proceed: () => void } | null>(null);
+
+  function guardLeave(proceed: () => void) {
+    const guard = getUnsavedGuard();
+    if (guard?.isDirty()) {
+      setLeavePrompt({ proceed });
+      return;
+    }
+    proceed();
   }
 
   function requestSectionChange(section: SectionId) {
-    if (section !== active && !canLeaveSection()) return;
+    if (section !== active) {
+      guardLeave(() => doSectionChange(section));
+      return;
+    }
+    doSectionChange(section);
+  }
+
+  function doSectionChange(section: SectionId) {
     setMobileDrilledIn(true);
     if (section === active) return;
     // Guardado silencioso al cambiar de sección. No bloquea la navegación
@@ -304,9 +320,10 @@ function SettingsPage() {
   }
 
   function goBackToList() {
-    if (!canLeaveSection()) return;
-    saveCurrentSection();
-    setMobileDrilledIn(false);
+    guardLeave(() => {
+      saveCurrentSection();
+      setMobileDrilledIn(false);
+    });
   }
 
   // En desktop aside/section están lado a lado — con el drill-down mobile
@@ -330,6 +347,19 @@ function SettingsPage() {
   return (
     <AppShell>
       <SaveStatusIndicator />
+      <ConfirmDialog
+        open={leavePrompt !== null}
+        title="Tenés cambios sin guardar"
+        message="Si salís ahora, los cambios de esta pantalla se pierden."
+        confirmLabel="Salir sin guardar"
+        onCancel={() => setLeavePrompt(null)}
+        onConfirm={() => {
+          const next = leavePrompt;
+          setLeavePrompt(null);
+          getUnsavedGuard()?.discard();
+          next?.proceed();
+        }}
+      />
       <div className="settings-compact-page -mt-4 sm:-mt-5 lg:-mt-6">
         {/* mt-7 fijo (no responsive) para separar el título del header
             superior sin tocar el resto del espaciado de Topbar. El grid de

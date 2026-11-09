@@ -55,6 +55,22 @@ export function reportSaveStatus(status: "saving" | "saved") {
   );
 }
 
+// Secciones con guardado explícito (ej. Señas) registran acá cómo saber si
+// tienen cambios sin guardar y cómo guardarlos / descartarlos; la página de
+// Configuración lo consulta antes de dejar la sección.
+export type UnsavedGuard = {
+  isDirty: () => boolean;
+  save: () => Promise<boolean>;
+  discard: () => void;
+};
+let unsavedGuard: UnsavedGuard | null = null;
+export function registerUnsavedGuard(guard: UnsavedGuard | null) {
+  unsavedGuard = guard;
+}
+export function getUnsavedGuard() {
+  return unsavedGuard;
+}
+
 export function markSettingsDirty() {
   // Configuración guarda automáticamente o mediante botones propios de cada panel.
   // No disparamos más el estado global de "cambios sin guardar" para evitar
