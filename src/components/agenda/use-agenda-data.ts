@@ -68,6 +68,7 @@ export type Appointment = {
   created_at: string | null;
   updated_at: string | null;
   deposit_status?: string | null;
+  cancel_reason?: string | null;
   deposit_amount?: number | null;
   deposit_paid?: number | null;
   // Promoción PREVISTA al agendar — solo informativa, nunca consume uso/
@@ -381,7 +382,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     let apptQuery = supabase
       .from("appointments")
       .select(
-        "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,created_at,updated_at,promotion_id,promotion_snapshot,recurring_series_id,deposit_status,deposit_amount",
+        "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,created_at,updated_at,promotion_id,promotion_snapshot,recurring_series_id,deposit_status,deposit_amount,cancel_reason",
       )
       .eq("business_id", businessId)
       .gte("starts_at", startIso)
@@ -532,7 +533,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
       const retry = await supabase
         .from("appointments")
         .select(
-          "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,updated_at,promotion_id,promotion_snapshot,deposit_status,deposit_amount",
+          "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,updated_at,promotion_id,promotion_snapshot,deposit_status,deposit_amount,cancel_reason",
         )
         .eq("business_id", businessId)
         .gte("starts_at", startIso)
@@ -596,7 +597,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     let apptQuery = supabase
       .from("appointments")
       .select(
-        "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,created_at,updated_at,promotion_id,promotion_snapshot,recurring_series_id,deposit_status,deposit_amount",
+        "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,created_at,updated_at,promotion_id,promotion_snapshot,recurring_series_id,deposit_status,deposit_amount,cancel_reason",
       )
       .eq("business_id", businessId)
       .gte("starts_at", startIso)
@@ -613,7 +614,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     let retryQuery = supabase
       .from("appointments")
       .select(
-        "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,updated_at,promotion_id,promotion_snapshot,deposit_status,deposit_amount",
+        "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,updated_at,promotion_id,promotion_snapshot,deposit_status,deposit_amount,cancel_reason",
       )
       .eq("business_id", businessId)
       .gte("starts_at", startIso)
@@ -1026,6 +1027,10 @@ export async function cancelAppointment(
     .from("appointments")
     .update({
       status: "cancelled",
+      cancel_reason: by.reason?.trim() || null,
+      cancelled_at: new Date().toISOString(),
+      cancelled_by_name: by.name ?? null,
+      cancelled_by_role: by.role ?? null,
       updated_at: new Date().toISOString(),
     })
     .eq("id", id);

@@ -47,11 +47,14 @@ export function DepositPanel({
   status,
   isPast,
   onChanged,
+  onCancelAppointment,
 }: {
   appointmentId: string;
   status: string;
   isPast: boolean;
   onChanged: () => void;
+  /** Cancela el turno con el motivo indicado (ej. comprobante rechazado). */
+  onCancelAppointment?: (reason: string) => void;
 }) {
   const [dep, setDep] = React.useState<DepositRow | null>(null);
   const [loaded, setLoaded] = React.useState(false);
@@ -361,6 +364,17 @@ export function DepositPanel({
           <div className="text-xs text-muted-foreground">
             El cliente ya no puede volver a subir el comprobante: se comunica con el local. Si te confirma el pago, registrá la seña recibida; si no, cancelá el turno.
           </div>
+          {!recording && !isPast && onCancelAppointment && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => onCancelAppointment("Comprobante rechazado")}
+              className="flex h-11 w-full items-center justify-center rounded-2xl text-[14px] font-semibold transition hover:brightness-125 active:scale-[0.99] disabled:opacity-60"
+              style={{ background: "rgba(244,63,94,0.10)", color: "#fb7185", boxShadow: "inset 0 0 0 1.5px rgba(251,113,133,0.7)" }}
+            >
+              Cancelar turno por comprobante rechazado
+            </button>
+          )}
           {!recording ? (
             <button
               type="button"

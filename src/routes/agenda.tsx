@@ -4192,6 +4192,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
             status={appointment.status}
             isPast={isPast}
             onChanged={onDepositChanged}
+            onCancelAppointment={(reason) => onCancel(appointment, reason)}
           />
 
           {/* Fecha/hora real en que se creó la reserva (created_at) — no
@@ -4415,6 +4416,11 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                         {cancelEvent?.reason && (
                           <div className="text-center text-xs text-muted-foreground/80">
                             Motivo: {cancelEvent.reason}
+                          </div>
+                        )}
+                        {cancelled && !cancelEvent?.reason && appointment.cancel_reason && (
+                          <div className="text-center text-sm font-semibold" style={{ color: dot }}>
+                            {appointment.cancel_reason}
                           </div>
                         )}
                       </div>
