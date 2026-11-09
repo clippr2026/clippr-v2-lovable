@@ -26,6 +26,10 @@ Deno.serve(async (req: Request) => {
   const key = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
   const supabase = createClient(url, key);
 
+  // Primero libera los horarios de turnos con seña impaga cuyo plazo venció.
+  const { data: expired, error: expireError } = await supabase.rpc("expire_unpaid_deposits_v1");
+  if (expireError) console.error("expire_unpaid_deposits_v1", expireError);
+
   const { data: due, error } = await supabase.rpc("due_booking_reminders");
   if (error) {
     console.error("due_booking_reminders", error);
@@ -70,5 +74,5 @@ Deno.serve(async (req: Request) => {
     }
   }
 
-  return json({ ok: true, due: due?.length ?? 0, sent, skipped, failed });
+  return json({ ok: true, due: due?.length ?? 0, sent, skipped, failed, expiredDeposits: expired?.length ?? 0 });
 });

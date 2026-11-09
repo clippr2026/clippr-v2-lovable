@@ -1,5 +1,5 @@
 import * as React from "react";
-import { CalendarPlus, Check, ChevronLeft, ChevronRight, Copy, MapPin, MessageCircle, RefreshCw, Upload, X } from "lucide-react";
+import { CalendarPlus, Check, ChevronLeft, ChevronRight, Clock, Copy, MapPin, MessageCircle, RefreshCw, Upload, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { loadRescheduleDays, type RescheduleDay } from "@/lib/gestion-availability";
 import { contrastText, publicButtonStyle } from "@/lib/public-button";
@@ -339,6 +339,66 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
   );
 }
 
+function DepositCountdown({
+  expiresAt, colors, onExpired,
+}: {
+  expiresAt: string;
+  colors: { text: string; muted: string; border: string };
+  onExpired: () => void;
+}) {
+  const target = React.useMemo(() => new Date(expiresAt).getTime(), [expiresAt]);
+  const [left, setLeft] = React.useState(() => target - Date.now());
+  const firedRef = React.useRef(false);
+  const onExpiredRef = React.useRef(onExpired);
+  onExpiredRef.current = onExpired;
+  React.useEffect(() => {
+    const tick = () => {
+      const ms = target - Date.now();
+      setLeft(ms);
+      if (ms <= 0 && !firedRef.current) {
+        firedRef.current = true;
+        onExpiredRef.current();
+      }
+    };
+    tick();
+    const id = window.setInterval(tick, 1000);
+    return () => window.clearInterval(id);
+  }, [target]);
+
+  const total = Math.max(0, Math.floor(left / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const sec = total % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const urgent = total <= 600;
+  const tone = total === 0 ? "#dc2626" : urgent ? "#d97706" : "#7c3aed";
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 14, background: `${tone}1a`, border: `1px solid ${tone}55`, marginTop: 10 }}>
+      <Clock size={22} color={tone} />
+      <div style={{ minWidth: 0 }}>
+        <div style={{ fontSize: 12, color: colors.muted, fontWeight: 600 }}>
+          {total === 0 ? "Se agotó el tiempo" : "Tiempo para pagar la seña"}
+        </div>
+        <div style={{ fontSize: 26, fontWeight: 800, color: tone, fontVariantNumeric: "tabular-nums", letterSpacing: 0.5, lineHeight: 1.1 }}>
+          {h > 0 ? `${pad(h)}:` : ""}{pad(m)}:{pad(sec)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Las instrucciones guardadas pueden traer marcadores ([Alias], [CBU]…): se
+// reemplazan por los datos reales para que el cliente no vea corchetes.
+function fillDepositMessage(message: string, t?: { alias?: string; cbu?: string; holder?: string; bank?: string }, whatsapp?: string) {
+  return message
+    .replace(/\[Nombre\]/gi, t?.holder || "")
+    .replace(/\[Titular\]/gi, t?.holder || "")
+    .replace(/\[Alias\]/gi, t?.alias || "")
+    .replace(/\[CBU[^\]]*\]/gi, t?.cbu || "")
+    .replace(/\[Banco\]/gi, t?.bank || "")
+    .replace(/\[WhatsApp[^\]]*\]/gi, whatsapp || "el WhatsApp del local");
+}
+
 function DepositCard({
   deposit, token, colors, primaryBtn, onChanged,
 }: {
@@ -385,14 +445,6 @@ function DepositCard({
       /* sin portapapeles: el valor igual está visible */
     }
   };
-  const deadline = (() => {
-    if (!deposit.expires_at) return null;
-    const d = new Date(deposit.expires_at);
-    const hm = d.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false });
-    if (d.toDateString() === new Date().toDateString()) return `hoy a las ${hm}`;
-    return `${d.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })} a las ${hm}`;
-  })();
-
   const send = async () => {
     if (!file) return;
     setBusy(true);
@@ -432,13 +484,30 @@ function DepositCard({
     <div style={box}>
       <div style={{ fontWeight: 800, fontSize: 15 }}>Pagá la seña para asegurar tu turno</div>
       <div style={{ fontSize: 28, fontWeight: 800, margin: "4px 0 2px" }}>{money(deposit.amount)}</div>
-      {deadline && <div style={{ color: colors.muted, fontSize: 13 }}>Tenés hasta {deadline} para pagarla.</div>}
+      {deposit.expires_at && (
+        <DepositCountdown expiresAt={deposit.expires_at} colors={colors} onExpired={() => void (async () => {
+          try {
+            await (supabase.rpc as any)("expire_deposit_public_v1", { p_token: token });
+          } catch {
+            /* el programador lo cancela igual */
+          }
+          await onChanged();
+        })()} />
+      )}
+      <div style={{ color: colors.muted, fontSize: 12.5, marginTop: 8 }}>
+        Si no enviás el comprobante antes de que termine el tiempo, el turno se cancela y el horario se libera.
+      </div>
       {deposit.status === "rejected" && (
         <div style={{ marginTop: 10, padding: "10px 12px", borderRadius: 12, background: "#fef2f2", color: "#b91c1c", fontSize: 13.5, fontWeight: 600 }}>
           No pudimos validar tu comprobante{deposit.rejected_note ? `: ${deposit.rejected_note}` : "."} Subí uno nuevo.
         </div>
       )}
-      {deposit.instructions?.message && <p style={{ margin: "10px 0 0", color: colors.muted, fontSize: 13.5, whiteSpace: "pre-line" }}>{deposit.instructions.message}</p>}
+      {deposit.instructions?.message && (
+        <details style={{ marginTop: 10, color: colors.muted, fontSize: 13.5 }}>
+          <summary style={{ cursor: "pointer", fontWeight: 700, color: colors.text }}>Condiciones de la seña</summary>
+          <p style={{ margin: "8px 0 0", whiteSpace: "pre-line" }}>{fillDepositMessage(deposit.instructions.message, t)}</p>
+        </details>
+      )}
       <div style={{ marginTop: 10 }}>
         {row("Alias", t?.alias)}
         {row("CBU / CVU", t?.cbu)}

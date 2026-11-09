@@ -3363,6 +3363,7 @@ const ApptCard = React.memo(function ApptCard({
   const height = Math.max(18, dur * rowPx - 2);
   if (top < 0 || top > (hourEnd - hourStart) * rowPx) return null;
   const meta = STATUS_META[a.status] ?? STATUS_META.pending;
+  const depositPending = a.deposit_status === "pending" && (a.status === "pending" || a.status === "confirmed");
   const isMovable = a.status !== "charged" && a.status !== "no_show";
   const laneCount = layout?.laneCount ?? 1;
   const lane = layout?.lane ?? 0;
@@ -3395,8 +3396,10 @@ const ApptCard = React.memo(function ApptCard({
         height,
         left,
         width,
-        background: meta.bg,
-        boxShadow: `inset 0 0 0 1px ${meta.border}`,
+        background: depositPending
+          ? "repeating-linear-gradient(135deg, oklch(0.42 0.18 75 / 0.32) 0 6px, oklch(0.42 0.18 75 / 0.14) 6px 12px)"
+          : meta.bg,
+        boxShadow: depositPending ? "inset 0 0 0 1px oklch(0.82 0.2 75)" : `inset 0 0 0 1px ${meta.border}`,
       }}
       draggable={isMovable}
       onDragStart={handleDragStart}
@@ -3433,7 +3436,15 @@ const ApptCard = React.memo(function ApptCard({
           )}
         </div>
       )}
-      {/se(ñ|n)a/i.test(a.notes || "") && (
+      {depositPending && (
+        <div
+          className="text-[8px] font-bold mt-px px-1 rounded w-fit uppercase tracking-wide"
+          style={{ background: "oklch(0.42 0.18 75 / 0.6)", color: "oklch(0.92 0.18 80)" }}
+        >
+          Seña pendiente
+        </div>
+      )}
+      {!depositPending && /se(ñ|n)a/i.test(a.notes || "") && (
         <div
           className="text-[8px] font-semibold mt-px px-1 rounded w-fit"
           style={{ background: "oklch(0.42 0.18 75 / 0.5)", color: "oklch(0.88 0.2 75)" }}
