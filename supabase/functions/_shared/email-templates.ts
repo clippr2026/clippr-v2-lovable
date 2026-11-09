@@ -40,6 +40,8 @@ export type BookingEmailData = {
   date: string; // ya formateada: "lunes, 15 de junio"
   time: string; // ya formateada: "11:00 a. m."
   total: number;
+  /** El turno todavía está "Por confirmar" (no confirmado). */
+  pending?: boolean;
   /** Link a la página de gestión del turno (/gestion?...). */
   manageUrl?: string | null;
   /** Link que abre la gestión del turno con "Confirmar asistencia" destacado (solo si está por confirmar). */
@@ -122,9 +124,9 @@ function palette(mode: "light" | "dark", primary: string = CLIPPR_PURPLE) {
     dark,
     pageBg: dark ? mixHex("#0a0911", primary, 0.16) : mixHex("#f1f3f7", primary, 0.07),
     cardBg: dark ? mixHex("#15131e", primary, 0.1) : "#ffffff",
-    innerBg: dark ? mixHex("#1d1b27", primary, 0.14) : mixHex("#f8fafc", primary, 0.05),
-    border: dark ? mixHex("#2c2937", primary, 0.35) : mixHex("#eef0f4", primary, 0.18),
-    rowBorder: dark ? "#26232f" : "#eef0f4",
+    innerBg: dark ? mixHex("#2a2640", primary, 0.22) : mixHex("#f8fafc", primary, 0.05),
+    border: dark ? mixHex("#3a3558", primary, 0.55) : mixHex("#eef0f4", primary, 0.18),
+    rowBorder: dark ? "#3d3858" : "#eef0f4",
     text: dark ? "#f4f4f6" : "#0f172a",
     muted: dark ? "#a8a8b3" : "#64748b",
     subtle: dark ? "#74737f" : "#94a3b8",
@@ -353,15 +355,21 @@ export function buildBookingEmail(
         };
       }
       return {
-        subject: d.confirmUrl ? `Turno agendado en ${biz} · ${d.date}` : `Turno confirmado en ${biz} · ${d.date}`,
+        subject: d.pending ? `Turno agendado en ${biz} · ${d.date}` : `Turno confirmado en ${biz} · ${d.date}`,
         html: baseLayout({
           ...base,
           preheader: `Tu turno en ${biz} es el ${d.date} a las ${d.time}.`,
-          eyebrow: d.confirmUrl ? "✓ Turno agendado" : "✓ Reserva confirmada",
+          eyebrow: d.pending ? "✓ Turno agendado" : "✓ Reserva confirmada",
           eyebrowColor: "#047857",
           eyebrowBg: "#ecfdf5",
-          title: d.confirmUrl ? "¡Turno agendado!" : "¡Turno confirmado!",
-          intro: `${first && first !== "-" ? `Te esperamos, ${first}.` : "Te esperamos."}${d.confirmUrl ? " Confirmá tu asistencia con un toque." : ""}`,
+          title: d.pending ? "¡Turno agendado!" : "¡Turno confirmado!",
+          intro: `${first && first !== "-" ? `Te esperamos, ${first}.` : "Te esperamos."}${
+            d.confirmUrl
+              ? " Confirmá tu asistencia con un toque."
+              : d.pending
+                ? " Un día antes te mandamos un correo para que confirmes tu asistencia."
+                : ""
+          }`,
           footerNote: `Recibiste este correo porque reservaste un turno en ${biz}.`,
         }),
       };

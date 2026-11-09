@@ -229,10 +229,15 @@ Deno.serve(async (req: Request) => {
     const manageUrl = manageToken
       ? `${APP_ORIGIN}/gestion?k=${manageToken}`
       : buildManageUrl(...baseUrlArgs, "manage");
-    // "Confirmar asistencia" solo mientras el turno está por confirmar.
-    const confirmUrl = manageToken && appt.status === "pending" && type !== "cancellation" && !type.startsWith("deposit_")
-      ? `${APP_ORIGIN}/gestion?k=${manageToken}&a=confirmar`
-      : null;
+    // "Confirmar asistencia" solo mientras el turno está por confirmar y ya es momento de
+    // hacerlo: los recordatorios siempre lo llevan; al agendar o reprogramar, solo si el turno
+    // es dentro de las próximas 24 horas (si falta más, el aviso de 1 día antes pide confirmar).
+    const hoursUntil = (new Date(appt.starts_at as string).getTime() - Date.now()) / 3_600_000;
+    const askConfirmNow = type === "reminder_1d" || type === "reminder_2h" || type === "reminder" || hoursUntil <= 24;
+    const confirmUrl =
+      manageToken && appt.status === "pending" && type !== "cancellation" && !type.startsWith("deposit_") && askConfirmNow
+        ? `${APP_ORIGIN}/gestion?k=${manageToken}&a=confirmar`
+        : null;
 
     // Con seña por pagar no se manda el "turno agendado": el cliente recibe luego el aviso de pago
     // (a los 10 min si no envió el comprobante), el de turno confirmado o el de cancelación.
@@ -263,6 +268,7 @@ Deno.serve(async (req: Request) => {
 
     const data: BookingEmailData = {
       deposit,
+      pending: appt.status === "pending",
       brand,
       services: booking.services || "-",
       professional: booking.professional || "Sin preferencia",
