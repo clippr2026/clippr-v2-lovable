@@ -29,8 +29,8 @@ type ReservationSettings = {
 const DEFAULT_RESERVATION_SETTINGS: ReservationSettings = {
   maxAdvance: "30",
   minAdvance: "60",
-  minCancel: "2",
-  minReschedule: "2",
+  minCancel: "3",
+  minReschedule: "3",
 };
 
 // Opciones de los selectores. maxAdvance en días, minAdvance en minutos, minCancel y minReschedule en horas.
@@ -56,6 +56,7 @@ const MIN_CANCEL_OPTIONS: { value: number; label: string }[] = [
   { value: 0, label: "Sin límite" },
   { value: 1, label: "1 hora" },
   { value: 2, label: "2 horas" },
+  { value: 3, label: "3 horas" },
   { value: 4, label: "4 horas" },
   { value: 12, label: "12 horas" },
   { value: 24, label: "1 día" },
@@ -228,8 +229,8 @@ export function HorariosSection() {
     schedule._settings = {
       maxAdvance: Math.max(1, asNumber(reservationSettings.maxAdvance, 30)),
       minAdvance: asNumber(reservationSettings.minAdvance, 60),
-      minCancel: asNumber(reservationSettings.minCancel, 2),
-      minReschedule: asNumber(reservationSettings.minReschedule, 2),
+      minCancel: asNumber(reservationSettings.minCancel, 3),
+      minReschedule: asNumber(reservationSettings.minReschedule, 3),
     };
     const { error } = await supabase
       .from("branch_settings" as any)

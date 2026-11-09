@@ -503,7 +503,7 @@ function DepositCard({
         </div>
       )}
       {deposit.instructions?.message && (
-        <details style={{ marginTop: 10, color: colors.muted, fontSize: 13.5 }}>
+        <details open style={{ marginTop: 10, color: colors.muted, fontSize: 13.5 }}>
           <summary style={{ cursor: "pointer", fontWeight: 700, color: colors.text }}>Condiciones de la seña</summary>
           <p style={{ margin: "8px 0 0", whiteSpace: "pre-line" }}>{fillDepositMessage(deposit.instructions.message, t)}</p>
         </details>

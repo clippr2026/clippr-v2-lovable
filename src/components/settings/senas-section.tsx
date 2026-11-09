@@ -29,6 +29,9 @@ type SenasConfig = {
 
 type Service = { id: string; name: string; category: string | null };
 
+const DEFAULT_MESSAGE =
+  "IMPORTANTE:\n\n• La seña se descuenta del valor total del servicio.\n• Podés cancelar o reprogramar tu turno hasta 3 horas antes sin perder la seña.\n• Si cancelás con menos de 3 horas de anticipación o no asistís al turno, la seña no será reembolsable.\n• La reserva queda confirmada únicamente una vez acreditado el pago.\n• En caso de no recibir el comprobante, el turno podrá ser liberado para otro cliente.\n\n¡Muchas gracias! Te esperamos. 🙌";
+
 const DEFAULTS: SenasConfig = {
   enabled: false,
   scope: "selected",
@@ -42,7 +45,7 @@ const DEFAULTS: SenasConfig = {
   hold_minutes: 120,
   lost_dist: "local",
   lost_prof: 0,
-  message: "",
+  message: DEFAULT_MESSAGE,
   payment: { transfer: { enabled: true, alias: "", cbu: "", holder: "", bank: "" } },
 };
 
@@ -72,7 +75,7 @@ function fromRaw(raw: Record<string, any> | null): SenasConfig {
     hold_minutes: Number(r.hold_minutes) > 0 ? Number(r.hold_minutes) : DEFAULTS.hold_minutes,
     lost_dist: ["local", "professional", "split", "custom"].includes(r.lost_dist) ? r.lost_dist : "local",
     lost_prof: Math.min(100, Math.max(0, Number(r.lost_prof) || 0)),
-    message: typeof r.message === "string" ? r.message : typeof r.msg === "string" ? r.msg : "",
+    message: typeof r.message === "string" ? r.message : typeof r.msg === "string" ? r.msg : DEFAULT_MESSAGE,
     payment: {
       transfer: {
         enabled: t.enabled !== false,
@@ -449,7 +452,7 @@ export function SenasSection() {
             value={cfg.message}
             onChange={(e) => set("message", e.target.value)}
             rows={4}
-            placeholder="Ej: La seña se descuenta del valor del servicio. Si cancelás con menos de 24 horas, no se devuelve."
+            placeholder="Ej: La seña se descuenta del valor del servicio. Si cancelás con menos de 3 horas, no se devuelve."
             className={cn(inputCls, "resize-y")}
           />
         </SectionCard>
