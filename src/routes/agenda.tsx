@@ -153,9 +153,9 @@ const STATUS_META: Record<ApptStatus, { label: string; bg: string; border: strin
 // Turno con seña por pagar: es un estado propio (amarillo) hasta que se aprueba la seña.
 const DEPOSIT_PENDING_META = {
   label: "Seña pendiente",
-  bg: "oklch(0.42 0.18 75 / 0.42)",
-  border: "oklch(0.82 0.2 75)",
-  dot: "oklch(0.9 0.18 85)",
+  bg: "oklch(0.86 0.17 92 / 0.17)",
+  border: "oklch(0.9 0.18 92)",
+  dot: "oklch(0.9 0.18 92)",
 };
 function isDepositPendingAppt(a: { status?: string | null; deposit_status?: string | null }) {
   return a.deposit_status === "pending" && (a.status === "pending" || a.status === "confirmed");
@@ -4011,7 +4011,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
         className="w-full sm:max-w-[372px] p-0 overflow-y-auto border-white/10 bg-[#08070f] shadow-[0_24px_80px_-24px_rgba(0,0,0,0.85)] data-[state=open]:duration-100 data-[state=closed]:duration-100 [background-image:radial-gradient(120%_40%_at_85%_0%,rgba(79,125,255,0.22),transparent_60%),radial-gradient(110%_45%_at_0%_100%,rgba(139,92,246,0.24),transparent_62%)]"
         aria-describedby={undefined}
       >
-        <SheetHeader className="relative px-4 pt-4 pb-3 border-b border-white/10 bg-white/[0.025] text-left space-y-0">
+        <SheetHeader className="relative px-4 pt-3 pb-3 border-b border-white/10 bg-white/[0.025] text-left space-y-0">
           <button
             type="button"
             aria-label="Cerrar"
@@ -4028,9 +4028,9 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
             className="pointer-events-none absolute -top-10 left-4 h-24 w-32 rounded-full opacity-12 blur-2xl"
             style={{ background: meta.dot }}
           />
-          <div className="relative space-y-3.5">
-            <div className="min-w-0 pr-9 pt-0.5">
-              <SheetTitle className="text-[26px] leading-tight font-display font-semibold tracking-tight truncate">
+          <div className="relative space-y-2.5">
+            <div className="min-w-0 pr-9">
+              <SheetTitle className="text-[22px] leading-tight font-display font-semibold tracking-tight truncate">
                 {appointment.status === "blocked"
                   ? "Horario bloqueado"
                   : appointment.client_name || "Sin cliente"}
@@ -4038,7 +4038,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
             </div>
 
             <div
-              className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-[12px] font-bold uppercase tracking-[0.16em]"
+              className="inline-flex items-center gap-2 rounded-full px-3.5 py-1 text-[11px] font-bold uppercase tracking-[0.16em]"
               style={{
                 color: appointment.status === "confirmed" ? "rgba(255,255,255,0.95)" : meta.dot,
                 background:
@@ -4064,14 +4064,14 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
 
             <div className="flex items-stretch gap-2">
               {[
-                { key: "wa", label: "WhatsApp", icon: <WhatsAppIcon className="h-6 w-6" />, color: "#4ade80", href: whatsappHref, show: Boolean(whatsappHref) },
-                { key: "mail", label: "Email", icon: <Mail className="h-6 w-6" />, color: "#e5e7eb", href: email ? `mailto:${email}` : undefined, show: Boolean(email) },
-                { key: "ficha", label: "Ficha", icon: <UserRound className="h-6 w-6" />, color: "#e5e7eb", onClick: () => onFicha(appointment), show: true },
-                { key: "rec", label: "Recurrencia", icon: <Repeat2 className="h-6 w-6" />, color: "#c4b5fd", onClick: () => onViewRecurring(appointment), show: Boolean(appointment.recurring_series_id) },
+                { key: "wa", label: "WhatsApp", icon: <WhatsAppIcon className="h-5 w-5" />, color: "#4ade80", href: whatsappHref, show: Boolean(whatsappHref) },
+                { key: "mail", label: "Email", icon: <Mail className="h-5 w-5" />, color: "#e5e7eb", href: email ? `mailto:${email}` : undefined, show: Boolean(email) },
+                { key: "ficha", label: "Ficha", icon: <UserRound className="h-5 w-5" />, color: "#e5e7eb", onClick: () => onFicha(appointment), show: true },
+                { key: "rec", label: "Recurrencia", icon: <Repeat2 className="h-5 w-5" />, color: "#c4b5fd", onClick: () => onViewRecurring(appointment), show: Boolean(appointment.recurring_series_id) },
               ]
                 .filter((b) => b.show)
                 .map((b) => {
-                  const cls = "flex min-w-0 flex-1 flex-col items-center justify-center gap-1.5 rounded-2xl py-3 text-[13px] font-medium text-white/90 transition hover:brightness-125 active:scale-[0.98]";
+                  const cls = "flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-2xl py-2 text-[12px] font-medium text-white/90 transition hover:brightness-125 active:scale-[0.98]";
                   const st: React.CSSProperties = {
                     background: "linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02))",
                     boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.14), 0 12px 24px -20px rgba(139,92,246,0.9)",
@@ -4092,9 +4092,9 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
           </div>
         </SheetHeader>
 
-        <div className="space-y-3 p-4 pt-5">
+        <div className="space-y-2.5 p-3 pt-3">
           <div
-            className="rounded-3xl border p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+            className="rounded-3xl border p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
             style={{
               background: meta.bg,
               borderColor: meta.border,
@@ -4105,9 +4105,9 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
             }}
           >
             <div className="space-y-2.5">
-              <div className="flex items-start gap-3.5">
+              <div className="flex items-start gap-3">
                 <div
-                  className="grid h-[84px] w-[84px] shrink-0 place-items-center rounded-2xl overflow-hidden"
+                  className="grid h-[68px] w-[68px] shrink-0 place-items-center rounded-2xl overflow-hidden"
                   style={{ boxShadow: `0 0 0 1.5px ${meta.dot}, 0 0 18px ${withAlpha(meta.dot, 0.45)}` }}
                 >
                   <ServiceImage
@@ -4121,7 +4121,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
 
                 <div className="min-w-0 flex-1">
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 text-[19px] font-display font-semibold leading-snug text-white break-words">
+                    <div className="min-w-0 text-[17px] font-display font-semibold leading-tight text-white break-words">
                       {appointment.service_name || "Servicio"}
                     </div>
                     {appointment.service_price ? (
@@ -4163,16 +4163,16 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                 ) : null}
                   </div>
 
-                  <div className="my-2.5 h-px" style={{ background: withAlpha(meta.dot, 0.4) }} />
+                  <div className="my-2 h-px" style={{ background: withAlpha(meta.dot, 0.4) }} />
 
-                  <div className="flex min-w-0 items-center gap-3 text-[15px]">
-                    <div className="flex items-center gap-2 text-white/85">
-                      <Clock3 className="h-[18px] w-[18px] shrink-0" style={{ color: meta.dot }} />
+                  <div className="flex min-w-0 items-center gap-2.5 text-[14px]">
+                    <div className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-white/85">
+                      <Clock3 className="h-4 w-4 shrink-0" style={{ color: meta.dot }} />
                       <span className="tabular-nums">{fmtTime(start)} – {fmtTime(end)}</span>
                     </div>
-                    <span className="h-4 w-px bg-white/20" aria-hidden />
-                    <div className="flex min-w-0 items-center gap-2 text-white/80">
-                      <UserRound className="h-[18px] w-[18px] shrink-0" style={{ color: meta.dot }} />
+                    <span className="h-4 w-px shrink-0 bg-white/20" aria-hidden />
+                    <div className="flex min-w-0 flex-1 items-center gap-1.5 text-white/90">
+                      <UserRound className="h-4 w-4 shrink-0" style={{ color: meta.dot }} />
                       <span className="truncate">{employee?.full_name ?? employee?.name ?? "Sin asignar"}</span>
                     </div>
                   </div>
@@ -4288,7 +4288,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
               </Button>
             </div>
           ) : (
-            <div className="space-y-4">
+            <div className="space-y-2.5">
               {/* Acciones de estado (Confirmar / No asistió) — debajo de la
                   tarjeta del turno y antes de ACCIONES: cambian el ESTADO
                   del turno, a diferencia de Cobrar/Cancelar (operativas). */}
@@ -4338,7 +4338,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                 );
               })()}
 
-              <div className="space-y-2 pt-1">
+              <div className="space-y-2">
                 <div className="px-1 text-[10px] uppercase tracking-[0.18em] text-white/35">
                   Acciones
                 </div>
@@ -4354,7 +4354,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                     return (
                       <button
                         onClick={() => onCobrar(appointment)}
-                        className="w-full h-12 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 transition hover:brightness-110 active:scale-[0.99]"
+                        className="w-full h-11 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 transition hover:brightness-110 active:scale-[0.99]"
                         style={{
                           background:
                             "linear-gradient(135deg, rgba(16,185,129,.95), rgba(34,197,94,.72))",
@@ -4518,7 +4518,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                       {!isPast && (
                         <button
                           onClick={() => onEdit(appointment)}
-                          className="flex h-12 items-center justify-center gap-2 rounded-2xl text-sm font-semibold text-white/90 transition hover:brightness-125 active:scale-[0.99]"
+                          className="flex h-11 items-center justify-center gap-2 rounded-2xl text-sm font-semibold text-white/90 transition hover:brightness-125 active:scale-[0.99]"
                           style={{
                             background: "linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02))",
                             boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.16)",
@@ -4531,7 +4531,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                       <button
                         onClick={() => setConfirmCancel(true)}
                         className={cn(
-                          "flex h-12 items-center justify-center gap-2 rounded-2xl text-sm font-semibold transition hover:brightness-125 active:scale-[0.99]",
+                          "flex h-11 items-center justify-center gap-2 rounded-2xl text-sm font-semibold transition hover:brightness-125 active:scale-[0.99]",
                           isPast && "col-span-2",
                         )}
                         style={{

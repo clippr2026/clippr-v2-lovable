@@ -182,7 +182,7 @@ export function DepositPanel({
 
   return (
     <div
-      className="rounded-2xl p-4 text-sm space-y-3"
+      className="rounded-2xl p-3 text-sm space-y-2.5"
       style={{
         background: "linear-gradient(180deg, rgba(139,92,246,0.10), rgba(255,255,255,0.025))",
         boxShadow: "inset 0 0 0 1px rgba(167,139,250,0.34), 0 18px 36px -28px rgba(139,92,246,0.9)",
@@ -190,12 +190,12 @@ export function DepositPanel({
     >
       <div className="flex items-center gap-3">
         <span
-          className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-amber-300"
+          className="grid h-9 w-9 shrink-0 place-items-center rounded-full text-amber-300"
           style={{ background: "rgba(251,191,36,0.16)", boxShadow: "inset 0 0 0 1px rgba(251,191,36,0.4)" }}
         >
-          <Layers className="h-5 w-5" />
+          <Layers className="h-4 w-4" />
         </span>
-        <div className={`text-xl font-bold tracking-tight text-white`}>{info.text.replace(/^\S+\s/, "")}</div>
+        <div className={`text-lg font-bold tracking-tight text-white`}>{info.text.replace(/^\S+\s/, "")}</div>
       </div>
       <div className="text-muted-foreground">
         Seña pedida: <span className="font-medium text-foreground">{money(dep.amount)}</span>
@@ -212,7 +212,7 @@ export function DepositPanel({
           <button
             type="button"
             onClick={() => setShowProof((v) => !v)}
-            className="flex h-12 w-full items-center justify-between gap-2 rounded-2xl px-4 text-[15px] font-semibold text-violet-200 transition hover:brightness-125 active:scale-[0.99]"
+            className="flex h-11 w-full items-center justify-between gap-2 rounded-2xl px-4 text-[14px] font-semibold text-violet-200 transition hover:brightness-125 active:scale-[0.99]"
             style={{
               background: "rgba(139,92,246,0.14)",
               boxShadow: "inset 0 0 0 1px rgba(167,139,250,0.5), 0 10px 22px -18px rgba(139,92,246,0.9)",
@@ -236,12 +236,12 @@ export function DepositPanel({
       )}
 
       {(dep.status === "review" || dep.status === "pending") && !rejecting && (
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-2.5">
           <button
             type="button"
             disabled={busy}
             onClick={() => setRejecting(true)}
-            className="flex h-12 items-center justify-center rounded-2xl text-[15px] font-semibold text-white/85 transition hover:brightness-125 active:scale-[0.99] disabled:opacity-60"
+            className="flex h-11 items-center justify-center rounded-2xl text-[14px] font-semibold text-white/85 transition hover:brightness-125 active:scale-[0.99] disabled:opacity-60"
             style={{
               background: "linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02))",
               boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.16)",
@@ -253,7 +253,7 @@ export function DepositPanel({
             type="button"
             disabled={busy}
             onClick={() => run("review_deposit_v1", { p_deposit_id: dep.id, p_approve: true, p_amount: null, p_note: null }, "Seña aprobada")}
-            className="flex h-12 items-center justify-center gap-2 rounded-2xl text-[15px] font-bold text-white transition hover:brightness-110 active:scale-[0.99] disabled:opacity-60"
+            className="flex h-11 items-center justify-center gap-2 rounded-2xl text-[14px] font-bold text-white transition hover:brightness-110 active:scale-[0.99] disabled:opacity-60"
             style={{
               background: "linear-gradient(135deg, #7c5cff, #4f7dff)",
               boxShadow: "0 0 24px rgba(99,102,241,.6), inset 0 0 0 1px rgba(255,255,255,.28)",
