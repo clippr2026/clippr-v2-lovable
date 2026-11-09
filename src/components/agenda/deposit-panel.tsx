@@ -1,6 +1,6 @@
 import * as React from "react";
 import { toast } from "sonner";
-import { FileText } from "lucide-react";
+import { ChevronRight, CheckCircle2, FileText, Layers } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 
@@ -188,7 +188,15 @@ export function DepositPanel({
         boxShadow: "inset 0 0 0 1px rgba(167,139,250,0.34), 0 18px 36px -28px rgba(139,92,246,0.9)",
       }}
     >
-      <div className={`text-base font-bold tracking-tight ${info.cls}`}>{info.text}</div>
+      <div className="flex items-center gap-3">
+        <span
+          className="grid h-11 w-11 shrink-0 place-items-center rounded-full text-amber-300"
+          style={{ background: "rgba(251,191,36,0.16)", boxShadow: "inset 0 0 0 1px rgba(251,191,36,0.4)" }}
+        >
+          <Layers className="h-5 w-5" />
+        </span>
+        <div className={`text-xl font-bold tracking-tight text-white`}>{info.text.replace(/^\S+\s/, "")}</div>
+      </div>
       <div className="text-muted-foreground">
         Seña pedida: <span className="font-medium text-foreground">{money(dep.amount)}</span>
         {dep.paid_amount > 0 && (
@@ -204,13 +212,14 @@ export function DepositPanel({
           <button
             type="button"
             onClick={() => setShowProof((v) => !v)}
-            className="flex h-11 w-full items-center justify-center gap-2 rounded-xl text-sm font-semibold text-violet-200 transition hover:brightness-125 active:scale-[0.99]"
+            className="flex h-12 w-full items-center justify-between gap-2 rounded-2xl px-4 text-[15px] font-semibold text-violet-200 transition hover:brightness-125 active:scale-[0.99]"
             style={{
               background: "rgba(139,92,246,0.14)",
               boxShadow: "inset 0 0 0 1px rgba(167,139,250,0.5), 0 10px 22px -18px rgba(139,92,246,0.9)",
             }}
           >
-            <FileText className="h-4 w-4" /> {showProof ? "Ocultar comprobante" : "Ver comprobante"}
+            <span className="flex items-center gap-3"><FileText className="h-5 w-5" /> {showProof ? "Ocultar comprobante" : "Ver comprobante"}</span>
+            <ChevronRight className={`h-5 w-5 transition ${showProof ? "rotate-90" : ""}`} />
           </button>
           {showProof && proof && (
             <div className="overflow-hidden rounded-xl ring-1 ring-white/10">
@@ -227,31 +236,30 @@ export function DepositPanel({
       )}
 
       {(dep.status === "review" || dep.status === "pending") && !rejecting && (
-        <div className="space-y-3 border-t border-white/10 pt-3">
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => run("review_deposit_v1", { p_deposit_id: dep.id, p_approve: true, p_amount: null, p_note: null }, "Seña aprobada")}
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl text-[15px] font-bold text-white transition hover:brightness-110 active:scale-[0.99] disabled:opacity-60"
-            style={{
-              background: "linear-gradient(135deg, rgba(16,185,129,.95), rgba(34,197,94,.72))",
-              boxShadow: "0 16px 34px -22px rgba(34,197,94,.95), inset 0 0 0 1px rgba(255,255,255,.18)",
-            }}
-          >
-            Aprobar seña
-          </button>
+        <div className="grid grid-cols-2 gap-3">
           <button
             type="button"
             disabled={busy}
             onClick={() => setRejecting(true)}
-            className="flex h-11 w-full items-center justify-center rounded-xl text-sm font-semibold transition hover:brightness-125 active:scale-[0.99] disabled:opacity-60"
+            className="flex h-12 items-center justify-center rounded-2xl text-[15px] font-semibold text-white/85 transition hover:brightness-125 active:scale-[0.99] disabled:opacity-60"
             style={{
-              background: "rgba(244,63,94,0.08)",
-              color: "#fda4af",
-              boxShadow: "inset 0 0 0 1px rgba(251,113,133,0.4)",
+              background: "linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02))",
+              boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.16)",
             }}
           >
-            Rechazar comprobante
+            Rechazar seña
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => run("review_deposit_v1", { p_deposit_id: dep.id, p_approve: true, p_amount: null, p_note: null }, "Seña aprobada")}
+            className="flex h-12 items-center justify-center gap-2 rounded-2xl text-[15px] font-bold text-white transition hover:brightness-110 active:scale-[0.99] disabled:opacity-60"
+            style={{
+              background: "linear-gradient(135deg, #7c5cff, #4f7dff)",
+              boxShadow: "0 0 24px rgba(99,102,241,.6), inset 0 0 0 1px rgba(255,255,255,.28)",
+            }}
+          >
+            <CheckCircle2 className="h-5 w-5" /> Aprobar seña
           </button>
         </div>
       )}

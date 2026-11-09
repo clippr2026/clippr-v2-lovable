@@ -17,6 +17,7 @@ import {
   ChevronDown,
   Users,
   CalendarSync,
+  Trash2,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { applyPromotionDiscount, resolvePromotionBadgeLabel, resolveServicePricing, type Promotion } from "@/lib/service-pricing";
@@ -4007,7 +4008,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
         side="right"
         hideOverlay
         hideClose
-        className="w-full sm:max-w-[372px] p-0 overflow-y-auto border-white/10 bg-[#08070f] shadow-[0_24px_80px_-24px_rgba(0,0,0,0.85)] data-[state=open]:duration-100 data-[state=closed]:duration-100"
+        className="w-full sm:max-w-[372px] p-0 overflow-y-auto border-white/10 bg-[#08070f] shadow-[0_24px_80px_-24px_rgba(0,0,0,0.85)] data-[state=open]:duration-100 data-[state=closed]:duration-100 [background-image:radial-gradient(120%_40%_at_85%_0%,rgba(79,125,255,0.22),transparent_60%),radial-gradient(110%_45%_at_0%_100%,rgba(139,92,246,0.24),transparent_62%)]"
         aria-describedby={undefined}
       >
         <SheetHeader className="relative px-4 pt-4 pb-3 border-b border-white/10 bg-white/[0.025] text-left space-y-0">
@@ -4036,120 +4037,94 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
               </SheetTitle>
             </div>
 
-            <div className="flex items-center justify-between gap-2">
-              <div
-                className="inline-flex items-center gap-2 rounded-full px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-[0.16em]"
-                style={{
-                  color: appointment.status === "confirmed" ? "rgba(255,255,255,0.95)" : meta.dot,
-                  background:
-                    appointment.status === "confirmed"
-                      ? "rgba(124, 58, 237, 0.2)"
-                      : withAlpha(meta.dot, 0.14),
-                  border:
-                    appointment.status === "confirmed"
-                      ? "1px solid rgba(167, 139, 250, 0.7)"
-                      : `1px solid ${withAlpha(meta.dot, 0.45)}`,
-                  boxShadow:
-                    appointment.status === "confirmed"
-                      ? "0 0 18px rgba(139,92,246,.35), inset 0 0 0 1px rgba(255,255,255,0.05)"
-                      : `0 0 20px ${withAlpha(meta.dot, 0.28)}, inset 0 0 0 1px rgba(255,255,255,0.05)`,
-                }}
-              >
-                <span
-                  className="size-2 rounded-full"
-                  style={{ background: meta.dot, boxShadow: `0 0 12px ${meta.dot}` }}
-                />
-                {statusLabel}
-              </div>
-
-              <div className="flex items-center gap-2">
-                {whatsappHref && (
-                  <a
-                    href={whatsappHref}
-                    target="_blank"
-                    rel="noreferrer"
-                    aria-label="WhatsApp"
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-full transition hover:brightness-125 active:scale-95"
-                    style={{
-                      color: "#4ade80",
-                      background: "rgba(34,197,94,0.14)",
-                      boxShadow: "inset 0 0 0 1px rgba(74,222,128,0.5), 0 0 16px rgba(34,197,94,0.3)",
-                    }}
-                  >
-                    <WhatsAppIcon className="h-[18px] w-[18px]" />
-                  </a>
-                )}
-                {email && (
-                  <a
-                    href={`mailto:${email}`}
-                    aria-label="Mail"
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-full transition hover:brightness-125 active:scale-95"
-                    style={{
-                      color: "#7dd3fc",
-                      background: "rgba(56,189,248,0.12)",
-                      boxShadow: "inset 0 0 0 1px rgba(125,211,252,0.45), 0 0 16px rgba(56,189,248,0.25)",
-                    }}
-                  >
-                    <Mail className="h-[18px] w-[18px]" />
-                  </a>
-                )}
-              </div>
+            <div
+              className="inline-flex items-center gap-2 rounded-full px-4 py-1.5 text-[12px] font-bold uppercase tracking-[0.16em]"
+              style={{
+                color: appointment.status === "confirmed" ? "rgba(255,255,255,0.95)" : meta.dot,
+                background:
+                  appointment.status === "confirmed"
+                    ? "rgba(124, 58, 237, 0.2)"
+                    : withAlpha(meta.dot, 0.12),
+                border:
+                  appointment.status === "confirmed"
+                    ? "1.5px solid rgba(167, 139, 250, 0.8)"
+                    : `1.5px solid ${withAlpha(meta.dot, 0.75)}`,
+                boxShadow:
+                  appointment.status === "confirmed"
+                    ? "0 0 22px rgba(139,92,246,.45), inset 0 0 12px rgba(139,92,246,.2)"
+                    : `0 0 22px ${withAlpha(meta.dot, 0.4)}, inset 0 0 12px ${withAlpha(meta.dot, 0.18)}`,
+              }}
+            >
+              <span
+                className="size-2.5 rounded-full"
+                style={{ background: meta.dot, boxShadow: `0 0 12px ${meta.dot}` }}
+              />
+              {statusLabel}
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex items-stretch gap-2">
               {[
-                { key: "ficha", label: "Ficha", icon: <UserRound className="h-4 w-4" />, onClick: () => onFicha(appointment), show: true },
-                { key: "rec", label: "Recurrencia", icon: <Repeat2 className="h-4 w-4" />, onClick: () => onViewRecurring(appointment), show: Boolean(appointment.recurring_series_id) },
-                { key: "edit", label: "Reprogramar", icon: <CalendarSync className="h-4 w-4" />, onClick: () => onEdit(appointment), show: !isPast },
+                { key: "wa", label: "WhatsApp", icon: <WhatsAppIcon className="h-6 w-6" />, color: "#4ade80", href: whatsappHref, show: Boolean(whatsappHref) },
+                { key: "mail", label: "Email", icon: <Mail className="h-6 w-6" />, color: "#e5e7eb", href: email ? `mailto:${email}` : undefined, show: Boolean(email) },
+                { key: "ficha", label: "Ficha", icon: <UserRound className="h-6 w-6" />, color: "#e5e7eb", onClick: () => onFicha(appointment), show: true },
+                { key: "rec", label: "Recurrencia", icon: <Repeat2 className="h-6 w-6" />, color: "#c4b5fd", onClick: () => onViewRecurring(appointment), show: Boolean(appointment.recurring_series_id) },
               ]
                 .filter((b) => b.show)
-                .map((b) => (
-                  <button
-                    key={b.key}
-                    type="button"
-                    onClick={b.onClick}
-                    className="flex h-10 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl px-2 text-[13px] font-semibold text-white transition hover:brightness-125 active:scale-[0.98]"
-                    style={{
-                      background: "rgba(139,92,246,0.12)",
-                      boxShadow: "inset 0 0 0 1px rgba(167,139,250,0.4), 0 10px 22px -18px rgba(139,92,246,0.9)",
-                    }}
-                  >
-                    <span className="text-violet-300">{b.icon}</span>
-                    <span className="truncate">{b.label}</span>
-                  </button>
-                ))}
+                .map((b) => {
+                  const cls = "flex min-w-0 flex-1 flex-col items-center justify-center gap-1.5 rounded-2xl py-3 text-[13px] font-medium text-white/90 transition hover:brightness-125 active:scale-[0.98]";
+                  const st: React.CSSProperties = {
+                    background: "linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02))",
+                    boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.14), 0 12px 24px -20px rgba(139,92,246,0.9)",
+                  };
+                  const inner = (
+                    <>
+                      <span style={{ color: b.color }}>{b.icon}</span>
+                      <span className="truncate">{b.label}</span>
+                    </>
+                  );
+                  return b.href ? (
+                    <a key={b.key} href={b.href} target="_blank" rel="noreferrer" className={cls} style={st}>{inner}</a>
+                  ) : (
+                    <button key={b.key} type="button" onClick={b.onClick} className={cls} style={st}>{inner}</button>
+                  );
+                })}
             </div>
           </div>
         </SheetHeader>
 
         <div className="space-y-3 p-4 pt-5">
           <div
-            className="rounded-2xl border p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
+            className="rounded-3xl border p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
             style={{
               background: meta.bg,
               borderColor: meta.border,
               boxShadow:
                 appointment.status === "confirmed"
                   ? "0 0 0 1px rgba(167,139,250,.78), 0 18px 38px -26px rgba(139,92,246,.95), inset 0 1px 0 rgba(255,255,255,0.07)"
-                  : `0 0 0 1px ${meta.border}, 0 18px 34px -28px ${meta.dot}, inset 0 1px 0 rgba(255,255,255,0.06)`,
+                  : `0 0 0 1.5px ${meta.border}, 0 0 28px ${withAlpha(meta.dot, 0.32)}, 0 18px 34px -28px ${meta.dot}, inset 0 1px 0 rgba(255,255,255,0.06)`,
             }}
           >
             <div className="space-y-2.5">
-              <div className="flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3.5">
                 <div
-                  className="grid h-14 w-14 shrink-0 place-items-center rounded-xl overflow-hidden"
-                  style={{ boxShadow: `0 0 0 1px ${meta.border}, 0 10px 22px -18px ${meta.dot}` }}
+                  className="grid h-[84px] w-[84px] shrink-0 place-items-center rounded-2xl overflow-hidden"
+                  style={{ boxShadow: `0 0 0 1.5px ${meta.dot}, 0 0 18px ${withAlpha(meta.dot, 0.45)}` }}
                 >
                   <ServiceImage
                     src={serviceImageUrl}
                     alt={appointment.service_name || "Servicio"}
                     position={serviceImagePosition}
-                    className="h-full w-full rounded-xl"
-                    fallback={<Scissors className="h-4 w-4 shrink-0" style={{ color: meta.dot }} />}
+                    className="h-full w-full rounded-2xl"
+                    fallback={<Scissors className="h-5 w-5 shrink-0" style={{ color: meta.dot }} />}
                   />
                 </div>
 
-                {appointment.service_price ? (
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 text-[19px] font-display font-semibold leading-snug text-white break-words">
+                      {appointment.service_name || "Servicio"}
+                    </div>
+                    {appointment.service_price ? (
                   promoSnapshot ? (
                     <div className="shrink-0 text-right leading-none">
                       <div className="text-sm text-white/40 line-through tabular-nums">
@@ -4175,25 +4150,32 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                       </div>
                     </div>
                   ) : (
-                    <div className="shrink-0 text-right text-xl font-display font-semibold tracking-tight">
+                    <div
+                      className="shrink-0 rounded-full px-3.5 py-1 text-lg font-display font-semibold tracking-tight text-white tabular-nums"
+                      style={{
+                        background: withAlpha(meta.dot, 0.12),
+                        boxShadow: `inset 0 0 0 1.5px ${withAlpha(meta.dot, 0.8)}, 0 0 16px ${withAlpha(meta.dot, 0.35)}`,
+                      }}
+                    >
                       ${listPrice.toLocaleString("es-AR")}
                     </div>
                   )
                 ) : null}
-              </div>
+                  </div>
 
-              <div className="text-base font-semibold leading-snug text-white/95 break-words">
-                {appointment.service_name || "Servicio"}
-              </div>
+                  <div className="my-2.5 h-px" style={{ background: withAlpha(meta.dot, 0.4) }} />
 
-              <div className="flex min-w-0 items-center gap-4 text-sm">
-                <div className="flex items-center gap-2 text-white/72">
-                  <Clock3 className="h-4 w-4 shrink-0 text-white/38" />
-                  <span className="tabular-nums">{fmtTime(start)} – {fmtTime(end)}</span>
-                </div>
-                <div className="flex min-w-0 items-center gap-2 text-white/60">
-                  <UserRound className="h-4 w-4 shrink-0 text-white/35" />
-                  <span className="truncate">{employee?.full_name ?? employee?.name ?? "Sin asignar"}</span>
+                  <div className="flex min-w-0 items-center gap-3 text-[15px]">
+                    <div className="flex items-center gap-2 text-white/85">
+                      <Clock3 className="h-[18px] w-[18px] shrink-0" style={{ color: meta.dot }} />
+                      <span className="tabular-nums">{fmtTime(start)} – {fmtTime(end)}</span>
+                    </div>
+                    <span className="h-4 w-px bg-white/20" aria-hidden />
+                    <div className="flex min-w-0 items-center gap-2 text-white/80">
+                      <UserRound className="h-[18px] w-[18px] shrink-0" style={{ color: meta.dot }} />
+                      <span className="truncate">{employee?.full_name ?? employee?.name ?? "Sin asignar"}</span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
@@ -4220,12 +4202,13 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
               la misma tabla `appointments`, cuyo created_at lo pone la
               base de datos automáticamente en el momento del insert. */}
           {appointment.created_at && (
-            <div className="px-1 text-[11px] text-white/35">
-              Reserva creada:{" "}
+            <div className="flex items-center gap-2 px-1 text-[12px] text-white/45">
+              <CalendarIcon className="h-4 w-4 shrink-0" />
+              <span>Reserva creada:{" "}
               {new Date(appointment.created_at).toLocaleDateString("es-AR", { weekday: "long" })}{" "}
               {new Date(appointment.created_at).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}
               {" · "}
-              {new Date(appointment.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}
+              {new Date(appointment.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}</span>
             </div>
           )}
 
@@ -4531,18 +4514,36 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                       )}
                     </div>
                   ) : appointment.status !== "charged" ? (
-                    <button
-                      onClick={() => setConfirmCancel(true)}
-                      className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-125 active:scale-[0.99]"
-                      style={{
-                        background: "rgba(244,63,94,0.08)",
-                        color: "#fda4af",
-                        boxShadow: "inset 0 0 0 1px rgba(251,113,133,0.4), 0 10px 24px -20px rgba(244,63,94,0.8)",
-                      }}
-                    >
-                      <X className="h-4 w-4" />
-                      Cancelar turno
-                    </button>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      {!isPast && (
+                        <button
+                          onClick={() => onEdit(appointment)}
+                          className="flex h-12 items-center justify-center gap-2 rounded-2xl text-sm font-semibold text-white/90 transition hover:brightness-125 active:scale-[0.99]"
+                          style={{
+                            background: "linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02))",
+                            boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.16)",
+                          }}
+                        >
+                          <CalendarSync className="h-[18px] w-[18px]" />
+                          Reprogramar turno
+                        </button>
+                      )}
+                      <button
+                        onClick={() => setConfirmCancel(true)}
+                        className={cn(
+                          "flex h-12 items-center justify-center gap-2 rounded-2xl text-sm font-semibold transition hover:brightness-125 active:scale-[0.99]",
+                          isPast && "col-span-2",
+                        )}
+                        style={{
+                          background: "rgba(244,63,94,0.10)",
+                          color: "#fb7185",
+                          boxShadow: "inset 0 0 0 1.5px rgba(251,113,133,0.7), 0 0 22px rgba(244,63,94,0.3)",
+                        }}
+                      >
+                        <Trash2 className="h-[18px] w-[18px]" />
+                        Cancelar turno
+                      </button>
+                    </div>
                   ) : null;
                 })()}
               </div>
