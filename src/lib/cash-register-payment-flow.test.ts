@@ -34,9 +34,9 @@ describe("Monto recibido — tope correcto contra finalTotal (con propina), no s
     expect(cashRegisterSrc).toMatch(/if \(receivedAmount < finalTotal - 0\.01\) \{/);
   });
 
-  it("el placeholder de 'Monto recibido' sugiere finalTotal (con propina), no subtotalAfterDiscount", () => {
+  it("el placeholder de 'Monto recibido' sugiere finalTotal (con propina, menos la seña paga), no subtotalAfterDiscount", () => {
     expect(cashRegisterSrc).toMatch(
-      /placeholder=\{`Total: \$\$\{Math\.round\(finalTotal\)\.toLocaleString\("es-AR"\)\}`\}/,
+      /placeholder=\{`Total: \$\$\{Math\.round\(finalTotal - depositApplied\)\.toLocaleString\("es-AR"\)\}`\}/,
     );
   });
 });

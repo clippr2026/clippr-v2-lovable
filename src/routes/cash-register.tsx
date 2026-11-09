@@ -1,4 +1,4 @@
-import { DepositChargeBanner } from "@/components/cash-register/deposit-charge-banner";
+import { DepositChargeBanner, useDepositCredit } from "@/components/cash-register/deposit-charge-banner";
 import React from "react";
 import {
   createFileRoute,
@@ -15405,18 +15405,28 @@ export function NuevaVentaTab({
   // siempre completa y aparte, nunca entra en esta comparación). No
   // disponible en "Enviar a caja" (isManualFlow): ahí todavía no existe
   // ningún cobro que dejar pendiente.
+  // Seña ya pagada del turno: se descuenta sola. Lo tipeado es lo que el cliente paga AHORA; si
+  // con la seña cubre el total, el monto efectivo es tipeado + seña. Un pago parcial sigue como
+  // siempre (la seña no se mezcla con parciales, ver registerPayment).
+  const depositCredit = useDepositCredit(pendingCharge?.id);
+  const depositApplied = isManualFlow ? 0 : Math.min(depositCredit, subtotalAfterDiscount);
+  const typedAmount = received === "" ? subtotalAfterDiscount : Number(received) || 0;
   const receivedAmount =
-    received === "" ? subtotalAfterDiscount : Number(received) || 0;
+    received === "" || depositApplied <= 0
+      ? typedAmount
+      : typedAmount + depositApplied >= subtotalAfterDiscount - 0.01
+        ? typedAmount + depositApplied
+        : typedAmount;
   // Con cualquier medio, abonar menos del total es pago parcial (queda el
   // saldo como deuda); abonar $0 es Pago pendiente.
   const pagoPendiente = !isManualFlow && receivedAmount < subtotalAfterDiscount;
   // Pago pendiente (nada abonado) o Sin cargo: no hay medio de pago
   // elegido. Tocar un medio vuelve al cobro normal (sale de esa modalidad).
-  const sinPagoAhora = isSinCargo || (received !== "" && receivedAmount === 0);
+  const sinPagoAhora = isSinCargo || (received !== "" && typedAmount === 0);
   const elegirMedio = (m: PayMethod) => {
     setMethod(m);
     if (isSinCargo) setSinCargoReason(null);
-    if (received !== "" && receivedAmount === 0) setReceived("");
+    if (received !== "" && typedAmount === 0) setReceived("");
     setPendienteBtn(false);
   };
 
@@ -15434,7 +15444,7 @@ export function NuevaVentaTab({
       ? finalTotal - receivedAmount
       : 0;
   const splitsTotal = splits.reduce((s, sp) => s + Number(sp.amount || 0), 0);
-  const splitsRemaining = finalTotal - splitsTotal;
+  const splitsRemaining = finalTotal - depositApplied - splitsTotal;
   const selectedEmployee = data.employees.find((e) => e.id === employeeId);
   const filteredSaleEmployees = React.useMemo(() => {
     const q = professionalSearch.trim().toLowerCase();
@@ -15689,7 +15699,7 @@ export function NuevaVentaTab({
       }
       if (receivedAmount > finalTotal + 0.01) {
         toast.error(
-          `El monto recibido ($${Math.round(receivedAmount).toLocaleString("es-AR")}) no puede superar el total a cobrar ($${Math.round(finalTotal).toLocaleString("es-AR")}, con propina incluida).`,
+          `El monto recibido ($${Math.round(typedAmount).toLocaleString("es-AR")}) no puede superar el total a cobrar ($${Math.round(finalTotal - depositApplied).toLocaleString("es-AR")}, con propina incluida).`,
         );
         return;
       }
@@ -15712,7 +15722,7 @@ export function NuevaVentaTab({
         // finalTotal completo.
         if (receivedAmount < finalTotal - 0.01) {
           toast.error(
-            `El monto recibido es menor al total ($${finalTotal.toLocaleString("es-AR")}).`,
+            `El monto recibido es menor al total ($${(finalTotal - depositApplied).toLocaleString("es-AR")}).`,
           );
           return;
         }
@@ -15723,9 +15733,9 @@ export function NuevaVentaTab({
           toast.error("Cargá al menos un monto en pago múltiple.");
           return;
         }
-        if (Math.round(splitsTotal) !== Math.round(finalTotal)) {
+        if (Math.round(splitsTotal) !== Math.round(finalTotal - depositApplied)) {
           toast.error(
-            `El pago múltiple debe sumar $${finalTotal.toLocaleString("es-AR")}. Falta/sobra $${Math.abs(splitsRemaining).toLocaleString("es-AR")}.`,
+            `El pago múltiple debe sumar $${(finalTotal - depositApplied).toLocaleString("es-AR")}. Falta/sobra $${Math.abs(splitsRemaining).toLocaleString("es-AR")}.`,
           );
           return;
         }
@@ -15737,7 +15747,7 @@ export function NuevaVentaTab({
     // subtotalAfterDiscount, nunca contra finalTotal (ese incluye
     // tipAmount, pero payments.total en la base — lo que valida
     // register_sale/p_total — es siempre sin propina).
-    const pendingCollectedAmount = pagoPendiente ? receivedAmount : undefined;
+    const pendingCollectedAmount = pagoPendiente ? typedAmount : undefined;
 
     setSubmitting(true);
     let normalSaleCompleted = false;
@@ -16917,12 +16927,24 @@ export function NuevaVentaTab({
                   jerarquía visual que el resto de las filas (fondo propio,
                   texto más grande). Reactivo: ya incluye cualquier
                   descuento/propina cargado en Ajustes, debajo. */}
+              {depositApplied > 0 && (
+                <div className="mb-1.5 space-y-0.5 px-1 text-xs">
+                  <div className="flex items-center justify-between text-white/70">
+                    <span>Total del servicio</span>
+                    <span className="tabular-nums">${Math.round(finalTotal).toLocaleString("es-AR")}</span>
+                  </div>
+                  <div className="flex items-center justify-between font-semibold text-violet-300">
+                    <span>Seña paga</span>
+                    <span className="tabular-nums">−${Math.round(depositApplied).toLocaleString("es-AR")}</span>
+                  </div>
+                </div>
+              )}
               <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.07] px-3 py-1.5">
                 <span className="flex items-center gap-1.5 text-xs font-bold text-white">
                   <Receipt className="size-3.5 text-emerald-300" /> Total a cobrar
                 </span>
                 <span className="tabular-nums text-base font-extrabold text-white">
-                  ${Math.round(finalTotal).toLocaleString("es-AR")}
+                  ${Math.round(finalTotal - depositApplied).toLocaleString("es-AR")}
                 </span>
               </div>
             </div>
@@ -17200,7 +17222,7 @@ export function NuevaVentaTab({
                       }}
                       inputMode="numeric"
                       disabled={pendienteBtn && received === "0"}
-                      placeholder={`Total: $${Math.round(finalTotal).toLocaleString("es-AR")}`}
+                      placeholder={`Total: $${Math.round(finalTotal - depositApplied).toLocaleString("es-AR")}`}
                       aria-label="Monto recibido"
                       className={cn(
                         "h-10 w-full rounded-xl border bg-black/45 pl-8 pr-3 text-left text-lg font-extrabold tabular-nums text-white outline-none placeholder:text-xs placeholder:font-normal placeholder:text-white/30 focus:ring-2",
@@ -17268,7 +17290,7 @@ export function NuevaVentaTab({
                 splits={splits}
                 onChange={setSplits}
                 paymentOptions={paymentOptions}
-                total={finalTotal}
+                total={finalTotal - depositApplied}
               />
               {/* Un comprobante por cada componente no efectivo del pago
                   múltiple — llave por método (ver splitReceiptFiles

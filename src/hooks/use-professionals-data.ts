@@ -79,6 +79,7 @@ export type ProfTurno = {
   charge_origin: string | null;
   charged_by: string | null;
   payment_method: string | null;
+  deposit_status?: string | null;
 };
 
 // ── Professionals list ─────────────────────────────────────────────────────
@@ -378,7 +379,7 @@ export function useProfTurnos(
       // cuántos se cancelaran ni cuántas veces se refetcheara.
       const { data, error } = await supabase
         .from("appointments")
-        .select("id,client_name,service_name,service_price,starts_at,ends_at,status,notes,employee_id")
+        .select("id,client_name,service_name,service_price,starts_at,ends_at,status,notes,employee_id,deposit_status")
         .eq("business_id", businessId!)
         .eq("employee_id", empId!)
         .gte("starts_at", fromDate.toISOString())
@@ -405,6 +406,7 @@ export function useProfTurnos(
           charge_origin: null,
           charged_by: null,
           payment_method: null,
+          deposit_status: (row as { deposit_status?: string | null }).deposit_status ?? null,
         })) as ProfTurno[];
     },
     enabled: !!businessId && !!empId,

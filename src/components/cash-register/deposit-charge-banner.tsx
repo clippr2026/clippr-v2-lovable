@@ -3,6 +3,28 @@ import { supabase } from "@/integrations/supabase/client";
 
 const money = (n: number) => `$${Math.round(Number(n) || 0).toLocaleString("es-AR")}`;
 
+/** Seña ya recibida de un turno (0 si no tiene o todavía no está pagada). */
+export function useDepositCredit(appointmentId: string | null | undefined): number {
+  const [paid, setPaid] = React.useState(0);
+  React.useEffect(() => {
+    setPaid(0);
+    if (!appointmentId || appointmentId.startsWith("__")) return;
+    let off = false;
+    void (async () => {
+      const { data: dep } = await (supabase.from("appointment_deposits" as any) as any)
+        .select("status,paid_amount")
+        .eq("appointment_id", appointmentId)
+        .maybeSingle();
+      if (off || dep?.status !== "paid") return;
+      setPaid(Math.max(0, Number(dep.paid_amount) || 0));
+    })();
+    return () => {
+      off = true;
+    };
+  }, [appointmentId]);
+  return paid;
+}
+
 /**
  * Aviso en "Cobrar turno" cuando el turno tiene una seña ya recibida: muestra cuánto se cobra ahora.
  * La venta se registra por el servicio completo; la seña pagada queda como un medio de pago más

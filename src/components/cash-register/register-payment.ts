@@ -210,6 +210,7 @@ export function applyDepositToSplits(
   deposit: number,
   method: PayMethod,
   splits?: Array<{ method: PayMethod; amount: number }> | null,
+  tip = 0,
 ): Array<{ method: PayMethod; amount: number }> {
   const ded = Math.max(0, Math.min(Number(deposit) || 0, total));
   if (ded <= 0) return splits && splits.length > 0 ? splits : [];
@@ -218,6 +219,10 @@ export function applyDepositToSplits(
   if (valid.length === 0) {
     return rest > 0 ? [{ method: "sena", amount: ded }, { method, amount: rest }] : [{ method: "sena", amount: ded }];
   }
+  // La pantalla de cobro ya descontó la seña: los medios suman lo que falta (más propina), así que
+  // alcanza con sumar la seña como un medio más.
+  const sum = valid.reduce((acc, s) => acc + s.amount, 0);
+  if (sum <= total + Math.max(0, tip) - ded + 0.5) return [{ method: "sena", amount: ded }, ...valid];
   // Quita la seña de los medios ya cargados, empezando por el de mayor monto.
   let left = ded;
   for (const s of [...valid].sort((a, b) => b.amount - a.amount)) {
@@ -438,7 +443,7 @@ export async function registerPayment(input: RegisterPaymentInput) {
       .eq("appointment_id", input.appointmentId)
       .maybeSingle();
     if (dep?.status === "paid" && Number(dep.paid_amount) > 0) {
-      effectiveSplits = applyDepositToSplits(total, Number(dep.paid_amount), input.method, input.splits);
+      effectiveSplits = applyDepositToSplits(total, Number(dep.paid_amount), input.method, input.splits, Number(input.tipAmount ?? 0));
     }
   }
 

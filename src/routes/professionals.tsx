@@ -1217,6 +1217,15 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
       label: "Cobrado",
       labelColor: "text-emerald-300",
     };
+    // Seña por pagar: estado propio (amarillo) hasta que se apruebe la seña.
+    if (t.deposit_status === "pending" && (t.status === "pending" || t.status === "confirmed")) return {
+      border: "border-l-amber-400",
+      bg: "bg-amber-500/[0.14]",
+      ring: "ring-amber-400/35",
+      dot: "bg-amber-400",
+      label: "Seña pendiente",
+      labelColor: "text-amber-300",
+    };
     if (isConfirmed) return {
       border: "border-l-violet-400",
       bg: "bg-violet-500/[0.08]",
@@ -1644,6 +1653,11 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                       </div>
                       <div className="truncate text-[10.5px] text-muted-foreground/70">
                         {t.service_name ?? "—"}
+                        {t.deposit_status === "pending" && (t.status === "pending" || t.status === "confirmed") ? (
+                          <span className="ml-1.5 rounded px-1 text-[9px] font-bold uppercase tracking-wide text-amber-200 bg-amber-500/25">Seña pendiente</span>
+                        ) : t.deposit_status === "paid" && (t.status === "pending" || t.status === "confirmed") ? (
+                          <span className="ml-1.5 rounded px-1 text-[9px] font-bold uppercase tracking-wide text-violet-200 bg-violet-500/30">Seña paga</span>
+                        ) : null}
                       </div>
                     </div>
                     <div className="shrink-0 flex items-center gap-1">
@@ -1671,6 +1685,9 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
 
                     <div className="flex min-w-0 items-center gap-1.5">
                       <span className="truncate text-xs text-muted-foreground">{t.service_name ?? "—"}</span>
+                      {t.deposit_status === "paid" && (t.status === "pending" || t.status === "confirmed") && (
+                        <span className="shrink-0 rounded px-1 text-[9px] font-bold uppercase tracking-wide text-violet-200 bg-violet-500/30">Seña paga</span>
+                      )}
                       {hasProductBadge(t) && (
                         <span className="inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap text-[10px] font-semibold text-amber-300">
                           <span aria-hidden>⭐</span>

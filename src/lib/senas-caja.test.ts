@@ -83,3 +83,19 @@ describe("Seña ya pagada: se registra como un medio de pago y no vuelve a conta
     expect(rec.cash.monto).toBeCloseTo(17500, 5);
   });
 });
+
+describe("applyDepositToSplits con la seña ya descontada en la pantalla de cobro", () => {
+  it("medios que suman lo que falta: solo se agrega la seña, sin descontarla de nuevo", () => {
+    const out = applyDepositToSplits(27900, 1000, "cash", [{ method: "cash", amount: 26900 }]);
+    expect(out).toEqual([{ method: "sena", amount: 1000 }, { method: "cash", amount: 26900 }]);
+  });
+  it("medios que suman el total completo: la seña se descuenta del mayor, como antes", () => {
+    const out = applyDepositToSplits(27900, 1000, "cash", [{ method: "cash", amount: 27900 }]);
+    expect(out).toEqual([{ method: "sena", amount: 1000 }, { method: "cash", amount: 26900 }]);
+  });
+  it("con propina: los medios suman lo que falta más la propina", () => {
+    const out = applyDepositToSplits(27900, 1000, "cash", [{ method: "cash", amount: 26900 }, { method: "transfer" as any, amount: 2000 }], 2000);
+    expect(out[0]).toEqual({ method: "sena", amount: 1000 });
+    expect(out.slice(1).reduce((a, s) => a + s.amount, 0)).toBe(28900);
+  });
+});
