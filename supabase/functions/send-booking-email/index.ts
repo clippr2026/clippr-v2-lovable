@@ -154,14 +154,20 @@ Deno.serve(async (req: Request) => {
     // no sirve para mandar correos a direcciones arbitrarias.
     const lookupToken = payload.token ?? booking.manageToken ?? null;
     let appt: Record<string, any> | null = null;
+    let lookupError: string | null = null;
     if (booking.appointmentId) {
-      const { data } = await supabase.from("appointments").select(APPT_COLUMNS).eq("id", booking.appointmentId).maybeSingle();
+      const { data, error } = await supabase.from("appointments").select(APPT_COLUMNS).eq("id", booking.appointmentId).maybeSingle();
       appt = data;
+      lookupError = error?.message ?? null;
     } else if (lookupToken) {
-      const { data } = await supabase.from("appointments").select(APPT_COLUMNS).eq("manage_token", lookupToken).maybeSingle();
+      const { data, error } = await supabase.from("appointments").select(APPT_COLUMNS).eq("manage_token", lookupToken).maybeSingle();
       appt = data;
+      lookupError = error?.message ?? null;
     }
-    if (!appt || appt.business_id !== businessId) return json({ ok: true, skipped: "turno no encontrado" });
+    if (lookupError) console.error("send-booking-email: no se pudo leer el turno", lookupError);
+    if (!appt || appt.business_id !== businessId) {
+      return json({ ok: true, skipped: "turno no encontrado", detail: lookupError });
+    }
 
     let clientRow: Record<string, any> | null = null;
     if (appt.client_id) {
