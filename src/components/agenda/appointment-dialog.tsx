@@ -768,8 +768,9 @@ export function AppointmentDialog({
 
     for (const [dateIndex, date] of dates.entries()) {
       await saveAppointment({
-        // Un solo correo por tanda: con "repetir turno" solo el primero lleva confirmación.
-        notifyClient: !isEdit && dateIndex === 0,
+        // Un solo correo por tanda; los clientes recurrentes no reciben confirmación (solo el
+        // recordatorio de 2 horas antes, ver due_booking_reminders).
+        notifyClient: !isEdit && dateIndex === 0 && !seriesId,
         client_email: EMAIL_OK.test(clientEmail.trim()) ? clientEmail.trim() : null,
         id: isEdit ? appointment?.id ?? null : null,
         business_id: businessId,
@@ -781,7 +782,8 @@ export function AppointmentDialog({
         service_price: Number(price) || 0,
         duration_min: Number(duration) || 30,
         starts_at: date.toISOString(),
-        status,
+        // Los turnos de una serie recurrente nacen confirmados.
+        status: seriesId ? "confirmed" : status,
         notes: mergedNotes || null,
         deposit_amount: requiresDeposit ? depositAmount : null,
         deposit_paid: requiresDeposit ? 0 : null,

@@ -1168,7 +1168,7 @@ export async function topUpRecurringSeries(
             service_price: Number(s.service_price) || 0,
             duration_min: durationMin,
             starts_at: date.toISOString(),
-            status: "pending",
+            status: "confirmed",
             recurring_series_id: s.id,
           });
         } catch {
