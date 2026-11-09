@@ -1,10 +1,10 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
-import { Field, SectionCard, Toggle, inputCls, registerUnsavedGuard } from "@/components/settings/shared";
+import { Field, SectionCard, Toggle, inputCls, useUnsavedGuard, FloatingSaveButton } from "@/components/settings/shared";
 
 // Se guarda en business_settings.senas_config (JSON). Los campos que esta pantalla
 // no maneja (por ejemplo el texto viejo "msg") se conservan al guardar.
@@ -120,30 +120,7 @@ export function SenasSection() {
   const [saving, setSaving] = useState(false);
   const [dirty, setDirty] = useState(false);
 
-  const dirtyRef = useRef(false);
-  dirtyRef.current = dirty;
-  const saveRef = useRef<() => Promise<boolean>>(async () => true);
-  const loadRef = useRef<() => Promise<void> | void>(() => {});
-
-  // Configuración pregunta antes de salir de la sección con cambios sin guardar.
-  useEffect(() => {
-    registerUnsavedGuard({
-      isDirty: () => dirtyRef.current,
-      save: () => saveRef.current(),
-      discard: () => {
-        setDirty(false);
-        void loadRef.current();
-      },
-    });
-    const onUnload = (e: BeforeUnloadEvent) => {
-      if (dirtyRef.current) e.preventDefault();
-    };
-    window.addEventListener("beforeunload", onUnload);
-    return () => {
-      registerUnsavedGuard(null);
-      window.removeEventListener("beforeunload", onUnload);
-    };
-  }, []);
+  useUnsavedGuard(dirty);
 
   const load = useCallback(async () => {
     if (!businessId) {
@@ -263,9 +240,6 @@ export function SenasSection() {
       setSaving(false);
     }
   };
-
-  saveRef.current = save;
-  loadRef.current = load;
 
   if (loading) {
     return (
@@ -481,16 +455,7 @@ export function SenasSection() {
         </SectionCard>
       </div>
 
-      {dirty ? (
-        <button
-          type="button"
-          disabled={saving}
-          onClick={() => void save()}
-          className="fixed bottom-[calc(6rem+env(safe-area-inset-bottom))] right-4 z-40 rounded-full bg-primary px-6 py-3.5 text-sm font-semibold text-primary-foreground shadow-lg shadow-primary/30 transition active:scale-95 disabled:opacity-60 md:bottom-6 md:right-8"
-        >
-          {saving ? "Guardando…" : "Guardar cambios"}
-        </button>
-      ) : null}
+      <FloatingSaveButton visible={dirty} saving={saving} onClick={() => void save()} />
     </div>
   );
 }

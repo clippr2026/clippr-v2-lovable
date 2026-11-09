@@ -29,6 +29,8 @@ import {
   reportSaveStatus,
   processImage,
   markSettingsDirty,
+  FloatingSaveButton,
+  useUnsavedGuard,
   Field,
   inputCls,
   normalizePublicBooleanMap,
@@ -1120,6 +1122,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   };
   const [pendingItems, setPendingItems] = useState<PendingItem[]>([]);
   const [pendingDeletes, setPendingDeletes] = useState<Set<string>>(new Set());
+  useUnsavedGuard(pendingItems.length > 0 || pendingDeletes.size > 0);
   const [confirmDelCat, setConfirmDelCat] = useState<string | null>(null);
   const [customCatalogCategories, setCustomCatalogCategories] = useState<
     string[]
@@ -3136,6 +3139,14 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         </div>,
         document.body,
       )}
+      <FloatingSaveButton
+        visible={pendingItems.length > 0 || pendingDeletes.size > 0}
+        onClick={() =>
+          window.dispatchEvent(
+            new CustomEvent("clippr:save-settings", { detail: { section: isService ? "servicios" : "catalogo", silent: false } }),
+          )
+        }
+      />
     </>
   );
 }

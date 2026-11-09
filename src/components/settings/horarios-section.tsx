@@ -5,7 +5,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { CalendarDays, AlarmClock, CalendarOff, CalendarSync, Clock3 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
-import { SectionCard, reportSaveStatus, Toggle } from "@/components/settings/shared";
+import { SectionCard, Toggle, FloatingSaveButton, useUnsavedGuard } from "@/components/settings/shared";
 import { ClosuresModal } from "@/components/agenda/closures-button";
 
 // ─────────── Horarios ───────────
@@ -76,6 +76,8 @@ export function HorariosSection() {
   const [reservationSettings, setReservationSettings] =
     useState<ReservationSettings>(DEFAULT_RESERVATION_SETTINGS);
   const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  useUnsavedGuard(dirty);
   const [loading, setLoading] = useState(true);
   const dayKeys = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
   // true justo después de una carga (mount o cambio de sucursal): el
@@ -116,6 +118,7 @@ export function HorariosSection() {
       .then(({ data }) => {
         if (cancelled) return;
         skipNextAutoSaveRef.current = true;
+        setDirty(false);
         const schedule = data?.schedule as
           Record<string, any> | null | undefined;
         if (schedule && typeof schedule === "object") {
@@ -158,8 +161,8 @@ export function HorariosSection() {
           // Esta sucursal todavía no tiene horario propio configurado —
           // nunca mostrar el de la sucursal anterior, arranca en blanco
           // (default), igual que un negocio nuevo.
-          setDays(DEFAULT_DAYS);
-          setReservationSettings(DEFAULT_RESERVATION_SETTINGS);
+          setDays([...DEFAULT_DAYS]);
+          setReservationSettings({ ...DEFAULT_RESERVATION_SETTINGS });
         }
         setLoading(false);
       }, () => {
@@ -170,9 +173,9 @@ export function HorariosSection() {
     };
   }, [businessId, activeBranchId]);
 
-  async function saveSchedule(showToast = true) {
-    if (!businessId) return toast.error("No se encontró el negocio");
-    if (!activeBranchId) return toast.error("No se encontró la sucursal");
+  async function saveSchedule(): Promise<boolean> {
+    if (!businessId) return void toast.error("No se encontró el negocio"), false;
+    if (!activeBranchId) return void toast.error("No se encontró la sucursal"), false;
 
     const invalidDay = days.find((day) => {
       if (!day.enabled) return false;
@@ -185,10 +188,9 @@ export function HorariosSection() {
       toast.error(
         "El horario de cierre debe ser posterior al horario de apertura.",
       );
-      return;
+      return false;
     }
 
-    if (!showToast) reportSaveStatus("saving");
     setSaving(true);
     // IMPORTANTE: leer el schedule existente y MERGEAR. Antes se reconstruía
     // desde cero y el upsert pisaba el resto de sub-configs (_employeeSchedules,
@@ -237,39 +239,25 @@ export function HorariosSection() {
       );
 
     setSaving(false);
-    if (error) return toast.error("Error guardando horarios: " + error.message);
-    if (showToast) toast.success("Guardado");
-    else reportSaveStatus("saved");
+    if (error) {
+      toast.error("Error guardando horarios: " + error.message);
+      return false;
+    }
+    setDirty(false);
+    toast.success("Guardado");
+    return true;
   }
 
-  const saveScheduleRef = useRef(saveSchedule);
   useEffect(() => {
-    saveScheduleRef.current = saveSchedule;
-  }, [businessId, activeBranchId, days, reservationSettings]);
-
-  useEffect(() => {
-    if (!businessId || !activeBranchId) return;
+    if (loading || !businessId || !activeBranchId) return;
 
     if (skipNextAutoSaveRef.current) {
       skipNextAutoSaveRef.current = false;
       return;
     }
 
-    const timer = window.setTimeout(() => {
-      void saveSchedule(false);
-    }, 550);
-
-    return () => window.clearTimeout(timer);
-  }, [businessId, activeBranchId, days, reservationSettings]);
-
-  useEffect(() => {
-    const handler = (event: Event) => {
-      const section = (event as CustomEvent).detail?.section;
-      if (!section || section === "horarios") void saveScheduleRef.current(false);
-    };
-    window.addEventListener("clippr:save-settings", handler);
-    return () => window.removeEventListener("clippr:save-settings", handler);
-  }, []);
+    setDirty(true);
+  }, [loading, businessId, activeBranchId, days, reservationSettings]);
 
   const reservationRows: {
     key: keyof ReservationSettings;
@@ -479,6 +467,7 @@ export function HorariosSection() {
           })}
         </div>
       </SectionCard>
+      <FloatingSaveButton visible={dirty} saving={saving} onClick={() => void saveSchedule()} />
     </>
   );
 }

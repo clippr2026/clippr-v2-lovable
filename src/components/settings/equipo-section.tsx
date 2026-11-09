@@ -40,6 +40,8 @@ import {
   normalizePublicBooleanMap,
   getPublicVisibility,
   type PriceRow,
+  FloatingSaveButton,
+  useUnsavedGuard,
 } from "@/components/settings/shared";
 import { getJornadaRecepcionMap, jornadaEmailKey, setJornadaRecepcion } from "@/lib/jornada-recepcion";
 
@@ -1080,6 +1082,12 @@ export function EquipoSection() {
   const [pendingProfessionals, setPendingProfessionals] = useState<
     PendingProfessional[]
   >([]);
+  // Permisos tal como están guardados: si difieren de los del estado, hay cambios sin guardar.
+  const savedPermsRef = useRef<string | null>(null);
+  const equipoDirty =
+    pendingProfessionals.length > 0 ||
+    (savedPermsRef.current !== null && JSON.stringify(rolePermissions) !== savedPermsRef.current);
+  useUnsavedGuard(equipoDirty);
   const [commissionItems, setCommissionItems] = useState<PriceRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [open, setOpen] = useState(false);
@@ -1266,7 +1274,9 @@ export function EquipoSection() {
       .maybeSingle()
       .then(({ data }) => {
         const schedule = (data?.schedule ?? {}) as Record<string, unknown>;
-        setRolePermissions(normalizeRolePermissions(schedule._rolePermissions));
+        const loadedPerms = normalizeRolePermissions(schedule._rolePermissions);
+        savedPermsRef.current = JSON.stringify(loadedPerms);
+        setRolePermissions(loadedPerms);
         const visibility = getPublicVisibility(schedule);
         setEmployeeOnlineMap(
           normalizePublicBooleanMap(
@@ -4850,6 +4860,14 @@ export function EquipoSection() {
         message={`¿Deseás eliminar a "${confirmDel?.full_name ?? confirmDel?.name}"?`}
         onConfirm={() => void doRemoveEmp()}
         onCancel={() => setConfirmDel(null)}
+      />
+      <FloatingSaveButton
+        visible={equipoDirty}
+        onClick={() =>
+          window.dispatchEvent(
+            new CustomEvent("clippr:save-settings", { detail: { section: "equipo", silent: false } }),
+          )
+        }
       />
     </>
   );

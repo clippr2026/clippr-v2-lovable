@@ -55,20 +55,58 @@ export function reportSaveStatus(status: "saving" | "saved") {
   );
 }
 
-// Secciones con guardado explícito (ej. Señas) registran acá cómo saber si
-// tienen cambios sin guardar y cómo guardarlos / descartarlos; la página de
-// Configuración lo consulta antes de dejar la sección.
-export type UnsavedGuard = {
-  isDirty: () => boolean;
-  save: () => Promise<boolean>;
-  discard: () => void;
-};
+// Secciones con guardado manual avisan acá si tienen cambios sin guardar; la
+// página de Configuración lo consulta antes de dejar la sección (y, si el
+// usuario descarta, vuelve a montar la sección para recargar lo guardado).
+export type UnsavedGuard = { isDirty: () => boolean };
 let unsavedGuard: UnsavedGuard | null = null;
 export function registerUnsavedGuard(guard: UnsavedGuard | null) {
   unsavedGuard = guard;
 }
 export function getUnsavedGuard() {
   return unsavedGuard;
+}
+
+export function useUnsavedGuard(dirty: boolean) {
+  const dirtyRef = React.useRef(dirty);
+  dirtyRef.current = dirty;
+  React.useEffect(() => {
+    registerUnsavedGuard({ isDirty: () => dirtyRef.current });
+    const onUnload = (e: BeforeUnloadEvent) => {
+      if (dirtyRef.current) e.preventDefault();
+    };
+    window.addEventListener("beforeunload", onUnload);
+    return () => {
+      registerUnsavedGuard(null);
+      window.removeEventListener("beforeunload", onUnload);
+    };
+  }, []);
+}
+
+// Botón flotante "Guardar cambios": solo aparece cuando hay algo sin guardar.
+export function FloatingSaveButton({
+  visible,
+  saving,
+  onClick,
+  raised,
+}: {
+  visible: boolean;
+  saving?: boolean;
+  onClick: () => void;
+  // Sube el botón para no pisar otro botón flotante (ej. "Vista previa").
+  raised?: boolean;
+}) {
+  if (!visible) return null;
+  return (
+    <button
+      type="button"
+      disabled={saving}
+      onClick={onClick}
+      className={cn("fixed right-4 z-40 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-violet-500/30 transition active:scale-95 disabled:opacity-60 md:bottom-6 md:right-8", raised ? "bottom-[calc(9.5rem+env(safe-area-inset-bottom))]" : "bottom-[calc(6rem+env(safe-area-inset-bottom))]")}
+    >
+      {saving ? "Guardando…" : "Guardar cambios"}
+    </button>
+  );
 }
 
 export function markSettingsDirty() {

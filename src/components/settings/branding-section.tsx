@@ -32,7 +32,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
-import { SectionCard, reportSaveStatus, processImage } from "@/components/settings/shared";
+import { SectionCard, reportSaveStatus, processImage, FloatingSaveButton, useUnsavedGuard } from "@/components/settings/shared";
 
 export function ReservasOnlineIcon({
   className,
@@ -388,6 +388,8 @@ export function BrandingSection() {
   const [data, setData] = useState<BrandingData>(EMPTY_BRANDING);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  useUnsavedGuard(dirty);
   // Se marca true solo dentro del .then() del fetch real (businessId
   // truthy), nunca en el branch "!businessId" — ver comentario junto al
   // efecto de autosave más abajo.
@@ -1069,6 +1071,8 @@ export function BrandingSection() {
       return;
     }
     if (showToast) {
+      // El setData de abajo dispara el efecto de "hay cambios": se saltea una vez.
+      brandingHydratedRef.current = false;
       setData((d) => ({
         ...d,
         logo_url,
@@ -1082,6 +1086,7 @@ export function BrandingSection() {
     window.dispatchEvent(
       new CustomEvent("clippr:slug-updated", { detail: { slug: finalSlug } }),
     );
+    setDirty(false);
     if (showToast) toast.success("Guardado");
     else reportSaveStatus("saved");
   }
@@ -1113,21 +1118,8 @@ export function BrandingSection() {
       return;
     }
 
-    const timer = window.setTimeout(() => {
-      void save(false);
-    }, 650);
-
-    return () => window.clearTimeout(timer);
+    setDirty(true);
   }, [data, logoFile, colors, theme, fontKey, entryEffect, bgStyle, decor, neonKey, benefits, loading, businessId]);
-
-  useEffect(() => {
-    const handler = (e: Event) => {
-      const section = (e as CustomEvent).detail?.section;
-      if (!section || section === "branding") void saveRef.current(false);
-    };
-    window.addEventListener("clippr:save-settings", handler);
-    return () => window.removeEventListener("clippr:save-settings", handler);
-  }, []);
 
   // Vista previa en vivo (panel al costado en pantallas grandes, cajón en las chicas).
   const [previewOpen, setPreviewOpen] = useState(false);
@@ -2263,6 +2255,7 @@ export function BrandingSection() {
   return (
     <div>
     <div className="min-w-0 space-y-6">{formContent}</div>
+    <FloatingSaveButton visible={dirty} saving={saving} raised={Boolean(previewPanel) && !isXl} onClick={() => void save(true)} />
     {previewPanel && !isXl ? (
       <>
         <button

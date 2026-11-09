@@ -290,6 +290,8 @@ function SettingsPage() {
   // Secciones con guardado explícito (Señas) registran una guardia: si hay
   // cambios sin guardar, se pregunta antes de salir (modal con los colores
   // de Clippr) y recién después se ejecuta la navegación pendiente.
+  // Se incrementa al descartar cambios: la sección se monta de nuevo y recarga lo guardado.
+  const [sectionEpoch, setSectionEpoch] = useState(0);
   const [leavePrompt, setLeavePrompt] = useState<{ proceed: () => void } | null>(null);
 
   function guardLeave(proceed: () => void) {
@@ -357,7 +359,7 @@ function SettingsPage() {
         onConfirm={() => {
           const next = leavePrompt;
           setLeavePrompt(null);
-          getUnsavedGuard()?.discard();
+          setSectionEpoch((n) => n + 1);
           next?.proceed();
         }}
       />
@@ -482,6 +484,7 @@ function SettingsPage() {
                   </h1>
                 </div>
 
+                <React.Fragment key={sectionEpoch}>
                 {active === "branding" && <BrandingSection />}
                 {active === "resenas" && <ResenasSection />}
 
@@ -497,6 +500,7 @@ function SettingsPage() {
                 {active === "cuenta" && <CuentaSection />}
                 {active === "plan" && <PlanSection />}
                 {active === "seguridad" && <SeguridadSection />}
+                </React.Fragment>
               </section>
             </div>
           </div>
