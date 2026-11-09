@@ -878,7 +878,7 @@ export async function notifyRescheduleEmail(
     const after = new Date(newStartsAt).getTime();
     if (Number.isNaN(before) || Number.isNaN(after) || before === after || after <= Date.now()) return;
     const { data, error } = await supabase.functions.invoke("send-booking-email", {
-      body: { type: "reschedule", businessId, booking: { appointmentId } },
+      body: { type: "reschedule", businessId, booking: { appointmentId, previousStartIso: previousStartsAt } },
     });
     if (error) throw error;
     if (data && typeof data === "object" && !(data as Record<string, unknown>).skipped) {

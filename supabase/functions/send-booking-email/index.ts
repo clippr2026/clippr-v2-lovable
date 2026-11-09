@@ -39,6 +39,7 @@ type Payload = {
     time?: string;
     total?: number;
     startIso?: string | null;
+    previousStartIso?: string | null;
     durationMin?: number | null;
     notes?: string | null;
   };
@@ -270,6 +271,15 @@ Deno.serve(async (req: Request) => {
     const data: BookingEmailData = {
       deposit,
       pending: appt.status === "pending",
+      previous: (() => {
+        if (type !== "reschedule" || !booking.previousStartIso) return null;
+        const prev = new Date(booking.previousStartIso);
+        if (Number.isNaN(prev.getTime()) || prev.getTime() === apptStart.getTime()) return null;
+        return {
+          date: prev.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", timeZone }),
+          time: prev.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone }),
+        };
+      })(),
       bookUrl: (biz?.slug as string | undefined) ? `${APP_ORIGIN}/reservar/${biz.slug}` : null,
       brand,
       services: booking.services || "-",

@@ -118,10 +118,10 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
   const primaryBtn = { ...publicButtonStyle(accent, buttonText), display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "14px 18px", borderRadius: 14, fontSize: 15, fontWeight: 800, width: "100%", cursor: "pointer", textDecoration: "none", border: "none" } as React.CSSProperties;
   const ghostBtn: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "13px 16px", borderRadius: 14, border: `1px solid ${c.border}`, background: c.innerBg, color: c.text, fontSize: 14, fontWeight: 700, width: "100%", cursor: "pointer", textDecoration: "none" };
 
-  const fireEmail = (type: "reschedule" | "cancellation") => {
+  const fireEmail = (type: "reschedule" | "cancellation", previousStartIso?: string) => {
     if (!data) return;
     void supabase.functions
-      .invoke("send-booking-email", { body: { type, businessId: data.business.id, token, booking: { appointmentId: data.appointment.id } } })
+      .invoke("send-booking-email", { body: { type, businessId: data.business.id, token, booking: { appointmentId: data.appointment.id, previousStartIso } } })
       .catch((e) => console.error("send-booking-email", e));
   };
 
@@ -229,13 +229,14 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
             colors={{ ...c, accent, buttonText }}
             busy={busy}
             onBack={() => setView("main")}
-            onPick={(when) =>
-              run("reschedule_public_booking_v2", { p_token: token, p_starts_at: when.toISOString() }, () => {
-                fireEmail("reschedule");
+            onPick={(when) => {
+              const previousStart = data.appointment.starts_at;
+              return run("reschedule_public_booking_v2", { p_token: token, p_starts_at: when.toISOString() }, () => {
+                fireEmail("reschedule", previousStart);
                 setNotice({ kind: "ok", text: "¡Listo! Reprogramamos tu turno. Te mandamos un correo con el nuevo horario." });
                 setView("main");
-              })
-            }
+              });
+            }}
           />,
         )}
       </>,
