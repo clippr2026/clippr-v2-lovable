@@ -244,7 +244,13 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
       {card(
         <>
           <div style={{ textAlign: "center" }}>
-            <span style={{ display: "inline-block", padding: "5px 11px", borderRadius: 999, background: statusChip.bg, color: statusChip.fg, fontSize: 12, fontWeight: 800 }}>{statusChip.text}</span>
+            {askingDeposit && data.deposit ? (
+              <div style={{ textAlign: "left" }}>
+                <DepositSummary deposit={data.deposit} token={token} colors={c} onChanged={refresh} />
+              </div>
+            ) : (
+              <span style={{ display: "inline-block", padding: "5px 11px", borderRadius: 999, background: statusChip.bg, color: statusChip.fg, fontSize: 12, fontWeight: 800 }}>{statusChip.text}</span>
+            )}
             {!askingDeposit && (
               <>
                 <h1 style={{ margin: "14px 0 2px", fontSize: 26, fontWeight: 800, letterSpacing: "-.02em" }}>{day}</h1>
@@ -411,6 +417,35 @@ function fillDepositMessage(message: string, t?: { alias?: string; cbu?: string;
     .replace(/\[WhatsApp[^\]]*\]/gi, whatsapp || "el WhatsApp del local");
 }
 
+function DepositSummary({
+  deposit, token, colors, onChanged,
+}: {
+  deposit: Deposit;
+  token: string;
+  colors: { innerBg: string; border: string; text: string; muted: string };
+  onChanged: () => Promise<void> | void;
+}) {
+  const money = (n: number) => new Intl.NumberFormat("es-AR", { style: "currency", currency: "ARS", maximumFractionDigits: 0 }).format(n);
+  return (
+    <div style={{ padding: "14px 14px", borderRadius: 16, border: `1px solid ${colors.border}`, background: colors.innerBg, fontSize: 14 }}>
+      <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: "-.02em", lineHeight: 1.1, margin: "2px 0" }}>Seña {money(deposit.amount)}</div>
+      {deposit.expires_at && (
+        <DepositCountdown expiresAt={deposit.expires_at} colors={colors} onExpired={() => void (async () => {
+          try {
+            await (supabase.rpc as any)("expire_deposit_public_v1", { p_token: token });
+          } catch {
+            /* el programador lo cancela igual */
+          }
+          await onChanged();
+        })()} />
+      )}
+      <div style={{ color: colors.muted, fontSize: 12.5, marginTop: 8 }}>
+        Si no enviás el comprobante antes de que termine el tiempo, el turno se cancela y el horario se libera.
+      </div>
+    </div>
+  );
+}
+
 function DepositCard({
   deposit, token, colors, primaryBtn, onChanged,
 }: {
@@ -494,20 +529,6 @@ function DepositCard({
 
   return (
     <div style={box}>
-      <div style={{ fontSize: 34, fontWeight: 800, letterSpacing: "-.02em", lineHeight: 1.1, margin: "2px 0" }}>Seña {money(deposit.amount)}</div>
-      {deposit.expires_at && (
-        <DepositCountdown expiresAt={deposit.expires_at} colors={colors} onExpired={() => void (async () => {
-          try {
-            await (supabase.rpc as any)("expire_deposit_public_v1", { p_token: token });
-          } catch {
-            /* el programador lo cancela igual */
-          }
-          await onChanged();
-        })()} />
-      )}
-      <div style={{ color: colors.muted, fontSize: 12.5, marginTop: 8 }}>
-        Si no enviás el comprobante antes de que termine el tiempo, el turno se cancela y el horario se libera.
-      </div>
       {deposit.status === "rejected" && (
         <div style={{ marginTop: 10, padding: "10px 12px", borderRadius: 12, background: "#fef2f2", color: "#b91c1c", fontSize: 13.5, fontWeight: 600 }}>
           No pudimos validar tu comprobante{deposit.rejected_note ? `: ${deposit.rejected_note}` : "."} Subí uno nuevo.
