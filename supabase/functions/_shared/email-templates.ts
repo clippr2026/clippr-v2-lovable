@@ -53,7 +53,7 @@ export type BookingEmailData = {
   /** Chat de WhatsApp del negocio (si tiene teléfono). */
   whatsappUrl?: string | null;
   /** Seña pendiente de pago: el correo pide pagarla y enlaza a la página de pago. */
-  deposit?: { amount: number; deadline: string; payUrl: string } | null;
+  deposit?: { amount: number; deadline: string; payUrl: string; note?: string | null } | null;
 };
 
 type Row = { label: string; value: string };
@@ -473,6 +473,28 @@ export function buildBookingEmail(
           title: "Pagá la seña para confirmar tu turno",
           introSize: 19,
           intro: `${first && first !== "-" ? `${first}, ` : ""}reservaste tu turno${d.services && d.services !== "-" ? ` para ${d.services}` : ""} y todavía falta la seña de ${amt}. Pagala y enviá el comprobante desde el botón de abajo${d.deposit ? ` antes de ${d.deposit.deadline}` : ""}. Si no, el turno se cancela y el horario se libera.`,
+          footerNote: `Recibiste este correo porque reservaste un turno en ${biz}.`,
+        }),
+      };
+    }
+
+    case "deposit_rejected": {
+      const motivo = d.deposit?.note?.trim();
+      return {
+        subject: `No pudimos validar tu comprobante · ${biz}`,
+        html: baseLayout({
+          ...base,
+          rows: [],
+          when: undefined,
+          total: undefined,
+          buttons: d.deposit ? [{ label: "Subir nuevo comprobante", url: d.deposit.payUrl, variant: "primary", icon: "confirmar" }] : [],
+          introSize: 19,
+          preheader: "Enviá un nuevo comprobante para asegurar tu turno.",
+          eyebrow: "Comprobante rechazado",
+          eyebrowColor: "#b91c1c",
+          eyebrowBg: "#fef2f2",
+          title: "No pudimos validar tu comprobante",
+          intro: `${first && first !== "-" ? `${first}, ` : ""}el comprobante que enviaste${d.services && d.services !== "-" ? ` para ${d.services}` : ""} no se pudo validar.${motivo ? ` Motivo: ${motivo}.` : ""} Subí uno nuevo desde el botón de abajo${d.deposit ? ` antes de ${d.deposit.deadline}` : ""} para no perder tu turno.`,
           footerNote: `Recibiste este correo porque reservaste un turno en ${biz}.`,
         }),
       };

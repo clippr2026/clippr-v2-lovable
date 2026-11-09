@@ -242,8 +242,8 @@ Deno.serve(async (req: Request) => {
     // Con seña por pagar no se manda el "turno agendado": el cliente recibe luego el aviso de pago
     // (a los 10 min si no envió el comprobante), el de turno confirmado o el de cancelación.
     let deposit: BookingEmailData["deposit"] = null;
-    if (manageToken && (type === "confirmation" || type === "deposit_reminder")) {
-      let dep = (ctx?.deposit ?? null) as { status: string; amount: number; expires_at: string | null } | null;
+    if (manageToken && (type === "confirmation" || type === "deposit_reminder" || type === "deposit_rejected")) {
+      let dep = (ctx?.deposit ?? null) as { status: string; amount: number; expires_at: string | null; note?: string | null } | null;
       if (type === "confirmation") {
         await supabase.rpc("ensure_public_deposit_v1", { p_token: manageToken });
         const { data: fresh } = await supabase.rpc("get_booking_email_context_v1", { p_appointment_id: appt.id, p_token: null });
@@ -261,6 +261,7 @@ Deno.serve(async (req: Request) => {
               ? `las ${hm} de hoy`
               : `las ${hm} del ${exp.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", timeZone })}`,
             payUrl: `${APP_ORIGIN}/gestion?k=${manageToken}&a=pagar`,
+            note: dep.note ?? null,
           };
         }
       }
