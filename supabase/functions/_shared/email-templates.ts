@@ -188,6 +188,8 @@ function baseLayout(opts: {
   eyebrowBg: string;
   title: string;
   intro: string;
+  /** Tamaño del texto del mensaje (px); por defecto 15. */
+  introSize?: number;
   rows: Row[];
   /** Día y hora grandes arriba del detalle (correos de turno). */
   when?: { date: string; time: string };
@@ -264,7 +266,7 @@ function baseLayout(opts: {
           <tr><td align="center" style="padding:14px 32px 0;">
             <span style="display:inline-block;padding:5px 11px;border-radius:999px;background:${opts.eyebrowBg};color:${opts.eyebrowColor};font-size:12px;font-weight:700;">${esc(opts.eyebrow)}</span>
             <h1 style="margin:12px 0 0;font-size:26px;line-height:1.15;color:${p.text};font-weight:800;letter-spacing:-.02em;">${esc(opts.title)}</h1>
-            <p style="margin:6px 0 0;font-size:15px;line-height:1.45;color:${p.muted};">${esc(opts.intro)}</p>
+            <p style="margin:6px 0 0;font-size:${opts.introSize ?? 15}px;line-height:1.5;color:${opts.introSize ? p.text : p.muted};">${esc(opts.intro)}</p>
           </td></tr>
           <!-- detalle -->
           <tr><td style="padding:18px 32px 0;">
@@ -459,7 +461,8 @@ export function buildBookingEmail(
           eyebrowColor: "#b45309",
           eyebrowBg: "#fffbeb",
           title: "Pagá la seña para confirmar tu turno",
-          intro: `${first && first !== "-" ? `${first}, ` : ""}reservaste tu turno y todavía falta la seña de ${amt}. Pagala y enviá el comprobante desde el botón de abajo${d.deposit ? ` antes de ${d.deposit.deadline}` : ""}. Si no, el turno se cancela y el horario se libera.`,
+          introSize: 19,
+          intro: `${first && first !== "-" ? `${first}, ` : ""}reservaste tu turno${d.services && d.services !== "-" ? ` para ${d.services}` : ""} y todavía falta la seña de ${amt}. Pagala y enviá el comprobante desde el botón de abajo${d.deposit ? ` antes de ${d.deposit.deadline}` : ""}. Si no, el turno se cancela y el horario se libera.`,
           footerNote: `Recibiste este correo porque reservaste un turno en ${biz}.`,
         }),
       };
