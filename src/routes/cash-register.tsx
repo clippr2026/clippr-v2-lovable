@@ -1,4 +1,4 @@
-import { DepositChargeBanner, useDepositCredit } from "@/components/cash-register/deposit-charge-banner";
+import { useDepositCredit } from "@/components/cash-register/deposit-charge-banner";
 import React from "react";
 import {
   createFileRoute,
@@ -1163,9 +1163,6 @@ function CashRegisterPage() {
                 setTab("resumen");
               }}
             />
-          )}
-          {tab === "nueva" && activePendingCharge?.id && (
-            <DepositChargeBanner appointmentId={activePendingCharge.id} />
           )}
           {tab === "nueva" && (
             <NuevaVentaTab
