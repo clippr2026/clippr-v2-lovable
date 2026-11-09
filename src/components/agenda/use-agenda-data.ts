@@ -871,14 +871,18 @@ export async function notifyRescheduleEmail(
   businessId: string,
   previousStartsAt: string | null | undefined,
   newStartsAt: string,
+  // Nombre del profesional anterior, solo si el turno cambió de profesional.
+  previousProfessional?: string | null,
 ) {
   try {
     if (!previousStartsAt) return;
     const before = new Date(previousStartsAt).getTime();
     const after = new Date(newStartsAt).getTime();
-    if (Number.isNaN(before) || Number.isNaN(after) || before === after || after <= Date.now()) return;
+    if (Number.isNaN(before) || Number.isNaN(after) || after <= Date.now()) return;
+    // Se avisa si cambió el horario o el profesional.
+    if (before === after && !previousProfessional) return;
     const { data, error } = await supabase.functions.invoke("send-booking-email", {
-      body: { type: "reschedule", businessId, booking: { appointmentId, previousStartIso: previousStartsAt } },
+      body: { type: "reschedule", businessId, booking: { appointmentId, previousStartIso: previousStartsAt, previousProfessional: previousProfessional ?? null } },
     });
     if (error) throw error;
     if (data && typeof data === "object" && !(data as Record<string, unknown>).skipped) {
@@ -950,9 +954,16 @@ export async function saveAppointment(input: SaveAppointmentInput) {
   }
 
   let previousStartsAt: string | null = null;
+  let previousProfessional: string | null = null;
   if (input.id) {
-    const { data: prev } = await supabase.from("appointments").select("starts_at").eq("id", input.id).maybeSingle();
+    const { data: prev } = await supabase.from("appointments").select("starts_at,employee_id").eq("id", input.id).maybeSingle();
     previousStartsAt = (prev?.starts_at as string | undefined) ?? null;
+    // Si cambió de profesional, el correo dice quién era antes.
+    const prevEmployeeId = (prev?.employee_id as string | null | undefined) ?? null;
+    if (prevEmployeeId && input.employee_id && prevEmployeeId !== input.employee_id) {
+      const { data: emp } = await supabase.from("employees").select("full_name").eq("id", prevEmployeeId).maybeSingle();
+      previousProfessional = ((emp?.full_name as string | null | undefined) ?? "").trim() || null;
+    }
   }
 
   const q = input.id
@@ -971,7 +982,7 @@ export async function saveAppointment(input: SaveAppointmentInput) {
   const created = data?.[0];
   if (!input.id && input.notifyClient && created) void sendAgendaConfirmationEmail(input, created as Record<string, any>);
   if (input.id && created && input.status !== "blocked" && input.status !== "cancelled") {
-    void notifyRescheduleEmail(input.id, input.business_id, previousStartsAt, input.starts_at);
+    void notifyRescheduleEmail(input.id, input.business_id, previousStartsAt, input.starts_at, previousProfessional);
   }
   return created;
 }

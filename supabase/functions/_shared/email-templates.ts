@@ -55,7 +55,7 @@ export type BookingEmailData = {
   /** Página pública para volver a reservar. */
   bookUrl?: string | null;
   /** Horario anterior (solo correos de reprogramación). */
-  previous?: { date: string; time: string } | null;
+  previous?: { date: string | null; time: string | null; professional?: string | null } | null;
   /** Seña pendiente de pago: el correo pide pagarla y enlaza a la página de pago. */
   deposit?: { amount: number; deadline: string; payUrl: string; note?: string | null } | null;
 };
@@ -445,12 +445,22 @@ export function buildBookingEmail(
         html: baseLayout({
           ...base,
           preheader: `Nuevo horario: ${d.date} a las ${d.time}.`,
-          rows: d.previous ? [{ label: "Horario anterior", value: `${d.previous.date} · ${d.previous.time}` }, ...base.rows] : base.rows,
+          rows: [
+            ...(d.previous?.date ? [{ label: "Horario anterior", value: `${d.previous.date} · ${d.previous.time}` }] : []),
+            ...(d.previous?.professional ? [{ label: "Profesional anterior", value: d.previous.professional }] : []),
+            ...base.rows,
+          ],
           eyebrow: "🔄 Turno reprogramado",
           eyebrowColor: "#1d4ed8",
           eyebrowBg: "#eff6ff",
-          title: "Tu turno cambió de horario",
-          intro: `${d.previous ? `Tu turno pasó del ${d.previous.date} a las ${d.previous.time} al ${d.date} a las ${d.time}.` : "Estos son los nuevos datos de tu turno."}${d.confirmUrl ? " Confirmá tu asistencia con un toque." : ""}`,
+          title: d.previous?.date ? "Tu turno cambió de horario" : d.previous?.professional ? "Cambió el profesional de tu turno" : "Tu turno cambió de horario",
+          intro: `${(() => {
+            const p = d.previous;
+            if (!p) return "Estos son los nuevos datos de tu turno.";
+            const when = p.date ? `Tu turno pasó del ${p.date} a las ${p.time} al ${d.date} a las ${d.time}.` : "";
+            const who = p.professional ? `${p.date ? " Además, ahora" : "Ahora"} te atiende ${d.professional} (antes: ${p.professional}).` : "";
+            return `${when}${who}`.trim().replace(/\.\./g, ".");
+          })()}${d.confirmUrl ? " Confirmá tu asistencia con un toque." : ""}`,
           footerNote: `Recibiste este correo por tu turno en ${biz}.`,
         }),
       };

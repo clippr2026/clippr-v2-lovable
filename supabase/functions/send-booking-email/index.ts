@@ -40,6 +40,7 @@ type Payload = {
     total?: number;
     startIso?: string | null;
     previousStartIso?: string | null;
+    previousProfessional?: string | null;
     durationMin?: number | null;
     notes?: string | null;
   };
@@ -272,12 +273,16 @@ Deno.serve(async (req: Request) => {
       deposit,
       pending: appt.status === "pending",
       previous: (() => {
-        if (type !== "reschedule" || !booking.previousStartIso) return null;
-        const prev = new Date(booking.previousStartIso);
-        if (Number.isNaN(prev.getTime()) || prev.getTime() === apptStart.getTime()) return null;
+        if (type !== "reschedule") return null;
+        const prev = booking.previousStartIso ? new Date(booking.previousStartIso) : null;
+        const timeChanged = Boolean(prev && !Number.isNaN(prev.getTime()) && prev.getTime() !== apptStart.getTime());
+        const prevProf = (booking.previousProfessional ?? "").trim().slice(0, 80);
+        const profChanged = Boolean(prevProf) && prevProf.toLowerCase() !== (booking.professional ?? "").trim().toLowerCase();
+        if (!timeChanged && !profChanged) return null;
         return {
-          date: prev.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", timeZone }),
-          time: prev.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone }),
+          date: timeChanged ? prev!.toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long", timeZone }) : null,
+          time: timeChanged ? prev!.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: true, timeZone }) : null,
+          professional: profChanged ? prevProf : null,
         };
       })(),
       bookUrl: (biz?.slug as string | undefined) ? `${APP_ORIGIN}/reservar/${biz.slug}` : null,
