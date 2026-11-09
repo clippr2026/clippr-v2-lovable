@@ -492,8 +492,7 @@ export function buildBookingEmail(
       };
     }
 
-    case "deposit_rejected": {
-      const motivo = d.deposit?.note?.trim();
+    case "deposit_rejected":
       return {
         subject: `No pudimos validar tu comprobante · ${biz}`,
         html: baseLayout({
@@ -501,18 +500,20 @@ export function buildBookingEmail(
           rows: [],
           when: undefined,
           total: undefined,
-          buttons: d.deposit ? [{ label: "Subir nuevo comprobante", url: d.deposit.payUrl, variant: "primary", icon: "confirmar" }] : [],
+          buttons: [
+            ...(d.deposit ? [{ label: "Subir nuevo comprobante", url: d.deposit.payUrl, variant: "primary" as const, icon: "confirmar" as const }] : []),
+            ...(d.whatsappUrl ? [{ label: "WhatsApp", url: d.whatsappUrl, variant: "secondary" as const, icon: "whatsapp" as const }] : []),
+          ],
           introSize: 19,
-          preheader: "Enviá un nuevo comprobante para asegurar tu turno.",
+          preheader: "Subí un nuevo comprobante para asegurar tu turno.",
           eyebrow: "Comprobante rechazado",
           eyebrowColor: "#b91c1c",
           eyebrowBg: "#fef2f2",
           title: "No pudimos validar tu comprobante",
-          intro: `${first && first !== "-" ? `${first}, ` : ""}el comprobante que enviaste${d.services && d.services !== "-" ? ` para ${d.services}` : ""} no se pudo validar.${motivo ? ` Motivo: ${motivo}.` : ""} Subí uno nuevo desde el botón de abajo${d.deposit ? ` antes de ${d.deposit.deadline}` : ""} para no perder tu turno.`,
+          intro: `${first && first !== "-" ? `${first}, ` : ""}el comprobante que enviaste${d.services && d.services !== "-" ? ` para ${d.services}` : ""} no se pudo validar. Subí uno nuevo desde el botón de abajo${d.deposit ? ` antes de ${d.deposit.deadline}` : ""} para no perder tu turno. Si tenés dudas, contactá al local.`,
           footerNote: `Recibiste este correo porque reservaste un turno en ${biz}.`,
         }),
       };
-    }
 
     case "deposit_confirmed":
       return {
