@@ -1,4 +1,5 @@
 import * as React from "react";
+import { DEFAULT_SENAS_MESSAGE } from "@/lib/senas-default-message";
 import { CalendarPlus, Check, ChevronLeft, ChevronRight, Clock, Copy, MapPin, MessageCircle, RefreshCw, Upload, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { loadRescheduleDays, type RescheduleDay } from "@/lib/gestion-availability";
@@ -504,10 +505,10 @@ function DepositCard({
           No pudimos validar tu comprobante{deposit.rejected_note ? `: ${deposit.rejected_note}` : "."} Subí uno nuevo.
         </div>
       )}
-      {deposit.instructions?.message && (
+      {(deposit.instructions?.message?.trim() || DEFAULT_SENAS_MESSAGE) && (
         <details open style={{ marginTop: 10, color: colors.muted, fontSize: 13.5 }}>
           <summary style={{ cursor: "pointer", fontWeight: 700, color: colors.text }}>Condiciones de la seña</summary>
-          <p style={{ margin: "8px 0 0", whiteSpace: "pre-line" }}>{fillDepositMessage(deposit.instructions.message, t)}</p>
+          <p style={{ margin: "8px 0 0", whiteSpace: "pre-line" }}>{fillDepositMessage(deposit.instructions?.message?.trim() || DEFAULT_SENAS_MESSAGE, t)}</p>
         </details>
       )}
       <div style={{ marginTop: 10 }}>

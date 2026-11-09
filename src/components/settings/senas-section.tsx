@@ -1,3 +1,4 @@
+import { DEFAULT_SENAS_MESSAGE as DEFAULT_MESSAGE } from "@/lib/senas-default-message";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
@@ -29,8 +30,6 @@ type SenasConfig = {
 
 type Service = { id: string; name: string; category: string | null };
 
-const DEFAULT_MESSAGE =
-  "IMPORTANTE:\n\n• La seña se descuenta del valor total del servicio.\n• Podés cancelar o reprogramar tu turno hasta 3 horas antes sin perder la seña.\n• Si cancelás con menos de 3 horas de anticipación o no asistís al turno, la seña no será reembolsable.\n• La reserva queda confirmada únicamente una vez acreditado el pago.\n• En caso de no recibir el comprobante, el turno podrá ser liberado para otro cliente.\n\n¡Muchas gracias! Te esperamos. 🙌";
 
 const DEFAULTS: SenasConfig = {
   enabled: false,
