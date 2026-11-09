@@ -52,6 +52,8 @@ export type BookingEmailData = {
   mapsUrl?: string | null;
   /** Chat de WhatsApp del negocio (si tiene teléfono). */
   whatsappUrl?: string | null;
+  /** Página pública para volver a reservar. */
+  bookUrl?: string | null;
   /** Seña pendiente de pago: el correo pide pagarla y enlaza a la página de pago. */
   deposit?: { amount: number; deadline: string; payUrl: string; note?: string | null } | null;
 };
@@ -533,7 +535,10 @@ export function buildBookingEmail(
         html: baseLayout({
           ...base,
           total: undefined,
-          buttons: d.whatsappUrl ? [{ label: "WhatsApp", url: d.whatsappUrl, variant: "secondary", icon: "whatsapp" }] : [],
+          buttons: [
+            ...(d.bookUrl ? [{ label: "Volver a agendar", url: d.bookUrl, variant: "primary" as const, icon: "agregar" as const }] : []),
+            ...(d.whatsappUrl ? [{ label: "WhatsApp", url: d.whatsappUrl, variant: "secondary" as const, icon: "whatsapp" as const }] : []),
+          ],
           eyebrow: "✕ Turno cancelado",
           eyebrowColor: "#b91c1c",
           eyebrowBg: "#fef2f2",

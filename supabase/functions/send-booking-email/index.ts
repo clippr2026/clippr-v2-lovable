@@ -270,6 +270,7 @@ Deno.serve(async (req: Request) => {
     const data: BookingEmailData = {
       deposit,
       pending: appt.status === "pending",
+      bookUrl: (biz?.slug as string | undefined) ? `${APP_ORIGIN}/reservar/${biz.slug}` : null,
       brand,
       services: booking.services || "-",
       professional: booking.professional || "Sin preferencia",
