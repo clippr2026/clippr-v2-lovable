@@ -153,9 +153,9 @@ const STATUS_META: Record<ApptStatus, { label: string; bg: string; border: strin
 // Turno con seña por pagar: es un estado propio (amarillo) hasta que se aprueba la seña.
 const DEPOSIT_PENDING_META = {
   label: "Seña pendiente",
-  bg: "oklch(0.86 0.17 92 / 0.17)",
-  border: "oklch(0.9 0.18 92)",
-  dot: "oklch(0.9 0.18 92)",
+  bg: "oklch(0.88 0.18 95 / 0.3)",
+  border: "oklch(0.93 0.19 95)",
+  dot: "oklch(0.93 0.19 95)",
 };
 function isDepositPendingAppt(a: { status?: string | null; deposit_status?: string | null }) {
   return a.deposit_status === "pending" && (a.status === "pending" || a.status === "confirmed");
@@ -1271,7 +1271,7 @@ function AgendaPage() {
   // grilla fija de mobile (3 arriba + 2 abajo, sin scroll).
   const STATUS_FILTERS: [string, string, string, string, string][] = [
     ["pending", "Por confirmar", "oklch(0.72 0.2 245)", "oklch(0.72 0.2 245 / 0.12)", "oklch(0.72 0.2 245 / 0.3)"],
-    ["deposit", "Seña pendiente", "oklch(0.86 0.18 85)", "oklch(0.8 0.17 80 / 0.14)", "oklch(0.8 0.17 80 / 0.38)"],
+    ["deposit", "Seña pendiente", "oklch(0.92 0.18 95)", "oklch(0.9 0.18 95 / 0.16)", "oklch(0.9 0.18 95 / 0.5)"],
     ["confirmed", "Confirmados", "#8B5CF6", "rgba(139, 92, 246, 0.14)", "rgba(139, 92, 246, 0.35)"],
     ["charged", "Cobrados", "oklch(0.76 0.2 155)", "oklch(0.76 0.2 155 / 0.12)", "oklch(0.76 0.2 155 / 0.3)"],
     ["cancelled", "Cancelados", "oklch(0.76 0.02 270)", "oklch(0.76 0.02 270 / 0.10)", "oklch(0.76 0.02 270 / 0.25)"],
@@ -3454,7 +3454,7 @@ const ApptCard = React.memo(function ApptCard({
       {depositPending && (
         <div
           className="text-[8px] font-bold mt-px px-1 rounded w-fit uppercase tracking-wide"
-          style={{ background: "oklch(0.42 0.18 75 / 0.6)", color: "oklch(0.92 0.18 80)" }}
+          style={{ background: "oklch(0.9 0.18 92)", color: "#2a2400" }}
         >
           Seña pendiente
         </div>
@@ -4008,10 +4008,10 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
         side="right"
         hideOverlay
         hideClose
-        className="w-full sm:max-w-[372px] p-0 overflow-y-auto border-white/10 bg-[#08070f] shadow-[0_24px_80px_-24px_rgba(0,0,0,0.85)] data-[state=open]:duration-100 data-[state=closed]:duration-100 [background-image:radial-gradient(120%_40%_at_85%_0%,rgba(79,125,255,0.22),transparent_60%),radial-gradient(110%_45%_at_0%_100%,rgba(139,92,246,0.24),transparent_62%)]"
+        className="flex flex-col w-full sm:max-w-[372px] p-0 overflow-y-auto border-white/10 bg-[#08070f] shadow-[0_24px_80px_-24px_rgba(0,0,0,0.85)] data-[state=open]:duration-100 data-[state=closed]:duration-100 [background-image:radial-gradient(120%_40%_at_85%_0%,rgba(79,125,255,0.22),transparent_60%),radial-gradient(110%_45%_at_0%_100%,rgba(139,92,246,0.24),transparent_62%)]"
         aria-describedby={undefined}
       >
-        <SheetHeader className="relative px-4 pt-3 pb-3 border-b border-white/10 bg-white/[0.025] text-left space-y-0">
+        <SheetHeader className="relative shrink-0 px-4 pt-3 pb-3 border-b border-white/10 bg-white/[0.025] text-left space-y-0">
           <button
             type="button"
             aria-label="Cerrar"
@@ -4092,7 +4092,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
           </div>
         </SheetHeader>
 
-        <div className="space-y-2.5 p-3 pt-3">
+        <div className="flex flex-1 flex-col justify-between gap-2.5 p-3 pt-3">
           <div
             className="rounded-3xl border p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
             style={{
@@ -4550,8 +4550,8 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
             </div>
           )}
 
-          <div className="space-y-2 text-sm">
-            {noteText && (
+          {noteText && (
+            <div className="space-y-2 text-sm">
               <div className="rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2.5">
                 <div className="text-[9px] uppercase tracking-[0.16em] text-white/35 mb-1">
                   Notas
@@ -4560,9 +4560,8 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                   {noteText}
                 </div>
               </div>
-            )}
-          </div>
-
+            </div>
+          )}
         </div>
       </SheetContent>
     </Sheet>
