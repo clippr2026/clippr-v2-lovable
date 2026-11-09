@@ -22,9 +22,6 @@ import {
 } from "../_shared/email-templates.ts";
 
 const APP_ORIGIN = "https://myclippr.com";
-const APPT_COLUMNS =
-  "id, business_id, manage_token, employee_id, client_id, status, starts_at, duration_min, service_name, service_price, client_name, created_at";
-
 type Payload = {
   type?: string;
   businessId?: string;
@@ -153,27 +150,18 @@ Deno.serve(async (req: Request) => {
     // cliente puede haber escrito un correo nuevo al reservar); así la función
     // no sirve para mandar correos a direcciones arbitrarias.
     const lookupToken = payload.token ?? booking.manageToken ?? null;
-    let appt: Record<string, any> | null = null;
-    let lookupError: string | null = null;
-    if (booking.appointmentId) {
-      const { data, error } = await supabase.from("appointments").select(APPT_COLUMNS).eq("id", booking.appointmentId).maybeSingle();
-      appt = data;
-      lookupError = error?.message ?? null;
-    } else if (lookupToken) {
-      const { data, error } = await supabase.from("appointments").select(APPT_COLUMNS).eq("manage_token", lookupToken).maybeSingle();
-      appt = data;
-      lookupError = error?.message ?? null;
-    }
-    if (lookupError) console.error("send-booking-email: no se pudo leer el turno", lookupError);
+    // Lectura acotada por función: el rol del servidor no tiene acceso directo a las tablas.
+    const { data: ctx, error: ctxError } = await supabase.rpc("get_booking_email_context_v1", {
+      p_appointment_id: booking.appointmentId ?? null,
+      p_token: booking.appointmentId ? null : lookupToken,
+    });
+    if (ctxError) console.error("send-booking-email: no se pudo leer el turno", ctxError.message);
+    const appt: Record<string, any> | null = (ctx?.appointment as Record<string, any> | undefined) ?? null;
     if (!appt || appt.business_id !== businessId) {
-      return json({ ok: true, skipped: "turno no encontrado", detail: lookupError });
+      return json({ ok: true, skipped: "turno no encontrado", detail: ctxError?.message ?? null });
     }
-
-    let clientRow: Record<string, any> | null = null;
-    if (appt.client_id) {
-      const { data } = await supabase.from("clients").select("email, phone, full_name").eq("id", appt.client_id).maybeSingle();
-      clientRow = data;
-    }
+    const clientRow: Record<string, any> | null = (ctx?.client as Record<string, any> | undefined) ?? null;
+    const employeeName = ((ctx?.employee_name as string | null) ?? "").trim();
     const storedEmail = ((clientRow?.email as string | null) ?? "").trim();
     const fresh = Date.now() - new Date(appt.created_at as string).getTime() < 15 * 60_000;
     if (!(to && fresh) && !(to && storedEmail && to.toLowerCase() === storedEmail.toLowerCase())) {
@@ -185,10 +173,7 @@ Deno.serve(async (req: Request) => {
     // Completa lo que no llegó en el pedido (recordatorios del programador).
     const tzRow = await supabase.from("businesses").select("timezone").eq("id", businessId).maybeSingle();
     const timeZone = ((tzRow.data?.timezone as string | null) ?? "") || "America/Argentina/Buenos_Aires";
-    if (!booking.professional && appt.employee_id) {
-      const { data: emp } = await supabase.from("employees").select("full_name").eq("id", appt.employee_id).maybeSingle();
-      booking.professional = ((emp?.full_name as string | null) ?? "").trim() || undefined;
-    }
+    if (!booking.professional && employeeName) booking.professional = employeeName;
     const apptStart = new Date(appt.starts_at as string);
     // El horario guardado manda: así un reprogramado o un pedido viejo nunca muestran otra hora.
     booking.startIso = apptStart.toISOString();
@@ -208,12 +193,7 @@ Deno.serve(async (req: Request) => {
       .maybeSingle();
 
     // Branding configurado en la página pública.
-    const { data: settings } = await supabase
-      .from("business_settings")
-      .select("schedule")
-      .eq("business_id", businessId)
-      .maybeSingle();
-    const branding = ((settings?.schedule as Record<string, any> | null)?._branding ?? {}) as Record<string, any>;
+    const branding = ((ctx?.branding ?? {}) as Record<string, any>);
     const colors = (branding.colors ?? {}) as Record<string, string>;
     // WhatsApp configurado en Configuración > Branding > WhatsApp.
     // Fallback: columna businesses.phone para instalaciones viejas.
@@ -258,12 +238,12 @@ Deno.serve(async (req: Request) => {
     // (a los 10 min si no envió el comprobante), el de turno confirmado o el de cancelación.
     let deposit: BookingEmailData["deposit"] = null;
     if (manageToken && (type === "confirmation" || type === "deposit_reminder")) {
-      if (type === "confirmation") await supabase.rpc("ensure_public_deposit_v1", { p_token: manageToken });
-      const { data: dep } = await supabase
-        .from("appointment_deposits")
-        .select("status, amount, expires_at")
-        .eq("appointment_id", appt.id)
-        .maybeSingle();
+      let dep = (ctx?.deposit ?? null) as { status: string; amount: number; expires_at: string | null } | null;
+      if (type === "confirmation") {
+        await supabase.rpc("ensure_public_deposit_v1", { p_token: manageToken });
+        const { data: fresh } = await supabase.rpc("get_booking_email_context_v1", { p_appointment_id: appt.id, p_token: null });
+        dep = (fresh?.deposit ?? null) as typeof dep;
+      }
       if (dep && (dep.status === "pending" || dep.status === "rejected" || dep.status === "review")) {
         if (type === "confirmation") return json({ ok: true, skipped: "seña pendiente: el aviso sale más tarde" });
         if (dep.expires_at) {

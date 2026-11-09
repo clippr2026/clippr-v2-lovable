@@ -70,12 +70,11 @@ Deno.serve(async (req: Request) => {
     } catch (e) {
       failed++;
       console.error("recordatorio", r.appointment_id, r.kind, (e as Error).message);
-      await supabase
-        .from("booking_notifications")
-        .delete()
-        .eq("appointment_id", r.appointment_id)
-        .eq("kind", r.kind)
-        .eq("starts_at", r.starts_at);
+      await supabase.rpc("release_booking_notification", {
+        p_appointment_id: r.appointment_id,
+        p_kind: r.kind,
+        p_starts_at: r.starts_at,
+      });
     }
   }
 
