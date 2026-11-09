@@ -495,7 +495,10 @@ export function buildBookingEmail(
         html: baseLayout({
           ...base,
           total: undefined,
-          buttons: [],
+          buttons: [
+            ...(d.bookUrl ? [{ label: "Volver a agendar", url: d.bookUrl, variant: "primary" as const, icon: "agregar" as const }] : []),
+            ...(d.whatsappUrl ? [{ label: "WhatsApp", url: d.whatsappUrl, variant: "secondary" as const, icon: "whatsapp" as const }] : []),
+          ],
           eyebrow: "✕ Turno cancelado",
           eyebrowColor: "#b91c1c",
           eyebrowBg: "#fef2f2",

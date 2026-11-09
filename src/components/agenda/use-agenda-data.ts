@@ -1055,6 +1055,38 @@ export async function cancelAppointment(
       // No bloquear la cancelación (ya confirmada arriba) si esto falla.
     }
   }
+
+  void notifyCancellationEmail(id, by.reason);
+}
+
+// Avisa al cliente por correo que su turno fue cancelado desde el local (Agenda o Mi Panel). Solo en
+// turnos normales: no en series recurrentes, no en turnos con seña (esos tienen su propio aviso) ni
+// cuando se cancela por comprobante rechazado (el cliente ya fue derivado al local).
+async function notifyCancellationEmail(appointmentId: string, reason?: string | null) {
+  try {
+    if ((reason ?? "").trim().toLowerCase() === "comprobante rechazado") return;
+    const { data: appt } = await supabase
+      .from("appointments")
+      .select("business_id,recurring_series_id,starts_at")
+      .eq("id", appointmentId)
+      .maybeSingle();
+    if (!appt || appt.recurring_series_id) return;
+    if (new Date(appt.starts_at as string).getTime() <= Date.now()) return;
+    const { data: dep } = await (supabase.from("appointment_deposits" as any) as any)
+      .select("id")
+      .eq("appointment_id", appointmentId)
+      .maybeSingle();
+    if (dep?.id) return;
+    const { data, error } = await supabase.functions.invoke("send-booking-email", {
+      body: { type: "cancellation", businessId: appt.business_id, booking: { appointmentId } },
+    });
+    if (error) throw error;
+    if (data && typeof data === "object" && !(data as Record<string, unknown>).skipped) {
+      toast.success("Le avisamos al cliente de la cancelación");
+    }
+  } catch (e) {
+    console.error("send-booking-email (cancelación)", e);
+  }
 }
 
 // "Este y los siguientes" al editar un turno de una recurrencia — propaga
