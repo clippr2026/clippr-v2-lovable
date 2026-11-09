@@ -381,7 +381,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     let apptQuery = supabase
       .from("appointments")
       .select(
-        "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,created_at,updated_at,promotion_id,promotion_snapshot,recurring_series_id",
+        "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,created_at,updated_at,promotion_id,promotion_snapshot,recurring_series_id,deposit_status,deposit_amount",
       )
       .eq("business_id", businessId)
       .gte("starts_at", startIso)
@@ -532,7 +532,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
       const retry = await supabase
         .from("appointments")
         .select(
-          "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,updated_at,promotion_id,promotion_snapshot",
+          "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,updated_at,promotion_id,promotion_snapshot,deposit_status,deposit_amount",
         )
         .eq("business_id", businessId)
         .gte("starts_at", startIso)
@@ -596,7 +596,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     let apptQuery = supabase
       .from("appointments")
       .select(
-        "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,created_at,updated_at,promotion_id,promotion_snapshot,recurring_series_id",
+        "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,created_at,updated_at,promotion_id,promotion_snapshot,recurring_series_id,deposit_status,deposit_amount",
       )
       .eq("business_id", businessId)
       .gte("starts_at", startIso)
@@ -613,7 +613,7 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
     let retryQuery = supabase
       .from("appointments")
       .select(
-        "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,updated_at,promotion_id,promotion_snapshot",
+        "id,business_id,client_id,client_name,service_name,service_price,starts_at,ends_at,duration_min,status,employee_id,notes,created_by_name,created_by_role,updated_at,promotion_id,promotion_snapshot,deposit_status,deposit_amount",
       )
       .eq("business_id", businessId)
       .gte("starts_at", startIso)
