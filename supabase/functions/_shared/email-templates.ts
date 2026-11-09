@@ -196,6 +196,8 @@ function baseLayout(opts: {
   intro: string;
   /** Tamaño del texto del mensaje (px); por defecto 15. */
   introSize?: number;
+  /** Bloque propio entre el mensaje y el detalle. */
+  extraHtml?: string;
   rows: Row[];
   /** Día y hora grandes arriba del detalle (correos de turno). */
   when?: { date: string; time: string };
@@ -284,6 +286,7 @@ function baseLayout(opts: {
           </td></tr>`
               : ""
           }
+          ${opts.extraHtml ? `<tr><td style="padding:18px 32px 0;">${opts.extraHtml}</td></tr>` : ""}
           ${
             opts.when || opts.rows.length > 0
               ? `<!-- detalle -->
@@ -337,6 +340,35 @@ function bookingButtons(d: BookingEmailData): Btn[] {
   if (d.whatsappUrl) btns.push({ label: "WhatsApp", url: d.whatsappUrl, variant: "secondary", icon: "whatsapp" });
   if (d.manageUrl) btns.push({ label: "Gestionar turno", url: d.manageUrl, variant: "secondary", icon: "gestionar" });
   return btns;
+}
+
+// Reprogramación: "Antes" (tachado) y "Ahora" (destacado), solo con lo que cambió en el primero.
+function rescheduleCompare(d: BookingEmailData): string {
+  const primary = hex(d.brand.primary);
+  const p = palette(d.brand.mode, primary);
+  const pv = d.previous;
+  const line = (text: string, struck: boolean, size = 16, bold = true) =>
+    `<div style="margin:3px 0;font-size:${size}px;line-height:1.35;font-weight:${bold ? 700 : 500};color:${struck ? p.muted : p.text};${struck ? "text-decoration:line-through;" : ""}">${esc(text)}</div>`;
+  const antes: string[] = [];
+  if (pv?.date) {
+    antes.push(line(pv.date.charAt(0).toUpperCase() + pv.date.slice(1), true));
+    antes.push(line(pv.time ?? "", true, 22));
+  }
+  if (pv?.professional) antes.push(line(`Con ${pv.professional}`, true));
+  const label = (text: string, color: string) =>
+    `<div style="font-size:11px;letter-spacing:.2em;text-transform:uppercase;font-weight:800;color:${color};margin-bottom:6px;">${esc(text)}</div>`;
+  const cap = (x: string) => x.charAt(0).toUpperCase() + x.slice(1);
+  return `
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+      ${antes.length ? `<tr><td style="padding:14px 18px;border:1px dashed ${p.border};border-radius:14px;text-align:center;">${label("Antes", p.subtle)}${antes.join("")}</td></tr>
+      <tr><td align="center" style="padding:8px 0;font-size:22px;line-height:1;color:${primary};font-weight:800;">&#8595;</td></tr>` : ""}
+      <tr><td style="padding:16px 18px;border:2px solid ${primary};border-radius:14px;background:${p.innerBg};text-align:center;" bgcolor="${p.innerBg}">
+        ${label("Ahora", primary)}
+        <div style="font-size:18px;font-weight:800;color:${p.text};">${esc(cap(d.date))}</div>
+        <div style="margin-top:2px;font-size:40px;line-height:1.1;font-weight:800;letter-spacing:-.02em;color:${p.text};">${esc(d.time)}</div>
+        <div style="margin-top:8px;font-size:16px;font-weight:700;color:${p.text};">Con ${esc(d.professional)}</div>
+      </td></tr>
+    </table>`;
 }
 
 /** Subject + HTML por tipo de correo. Devuelve null si el tipo no existe. */
@@ -445,22 +477,14 @@ export function buildBookingEmail(
         html: baseLayout({
           ...base,
           preheader: `Nuevo horario: ${d.date} a las ${d.time}.`,
-          rows: [
-            ...(d.previous?.date ? [{ label: "Horario anterior", value: `${d.previous.date} · ${d.previous.time}` }] : []),
-            ...(d.previous?.professional ? [{ label: "Profesional anterior", value: d.previous.professional }] : []),
-            ...base.rows,
-          ],
+          when: undefined,
+          extraHtml: rescheduleCompare(d),
+          rows: [{ label: "Servicio", value: d.services }],
           eyebrow: "🔄 Turno reprogramado",
           eyebrowColor: "#1d4ed8",
           eyebrowBg: "#eff6ff",
           title: d.previous?.date ? "Tu turno cambió de horario" : d.previous?.professional ? "Cambió el profesional de tu turno" : "Tu turno cambió de horario",
-          intro: `${(() => {
-            const p = d.previous;
-            if (!p) return "Estos son los nuevos datos de tu turno.";
-            const when = p.date ? `Tu turno pasó del ${p.date} a las ${p.time} al ${d.date} a las ${d.time}.` : "";
-            const who = p.professional ? `${p.date ? " Además, ahora" : "Ahora"} te atiende ${d.professional} (antes: ${p.professional}).` : "";
-            return `${when}${who}`.trim().replace(/\.\./g, ".");
-          })()}${d.confirmUrl ? " Confirmá tu asistencia con un toque." : ""}`,
+          intro: `Hicimos un cambio en tu turno. Estos son los datos actualizados.${d.confirmUrl ? " Confirmá tu asistencia con un toque." : ""}`,
           footerNote: `Recibiste este correo por tu turno en ${biz}.`,
         }),
       };
