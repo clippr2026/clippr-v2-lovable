@@ -273,8 +273,8 @@ function baseLayout(opts: {
           <!-- eyebrow + título -->
           <tr><td align="center" style="padding:14px 32px 0;">
             <span style="display:inline-block;padding:5px 11px;border-radius:999px;background:${opts.eyebrowBg};color:${opts.eyebrowColor};font-size:12px;font-weight:700;">${esc(opts.eyebrow)}</span>
-            <h1 style="margin:12px 0 0;font-size:26px;line-height:1.15;color:${p.text};font-weight:800;letter-spacing:-.02em;">${esc(opts.title)}</h1>
-            ${opts.introSize ? "" : `<p style="margin:6px 0 0;font-size:15px;line-height:1.5;color:${p.muted};">${esc(opts.intro)}</p>`}
+            ${opts.title ? `<h1 style="margin:12px 0 0;font-size:26px;line-height:1.15;color:${p.text};font-weight:800;letter-spacing:-.02em;">${esc(opts.title)}</h1>` : ""}
+            ${opts.introSize ? "" : opts.title ? `<p style="margin:6px 0 0;font-size:15px;line-height:1.5;color:${p.muted};">${esc(opts.intro)}</p>` : `<p style="margin:14px 0 0;font-size:19px;line-height:1.4;font-weight:700;color:${p.text};">${esc(opts.intro)}</p>`}
           </td></tr>
           ${
             opts.introSize
@@ -483,7 +483,7 @@ export function buildBookingEmail(
           eyebrow: "🔄 Turno reprogramado",
           eyebrowColor: "#1d4ed8",
           eyebrowBg: "#eff6ff",
-          title: d.previous?.date ? "Tu turno cambió de horario" : d.previous?.professional ? "Cambió el profesional de tu turno" : "Tu turno cambió de horario",
+          title: "",
           intro: `Hicimos un cambio en tu turno. Estos son los datos actualizados.${d.confirmUrl ? " Confirmá tu asistencia con un toque." : ""}`,
           footerNote: `Recibiste este correo por tu turno en ${biz}.`,
         }),
