@@ -22,9 +22,12 @@ const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 export function DarkCalendar({
   value,
   onSelect,
+  maxDate,
 }: {
   value: Date;
   onSelect: (date: Date) => void;
+  /** Último día habilitado; los siguientes se ven bloqueados (límite de anticipación de reservas). */
+  maxDate?: Date | null;
 }) {
   const [viewMonth, setViewMonth] = React.useState(
     () => new Date(value.getFullYear(), value.getMonth(), 1),
@@ -104,14 +107,19 @@ export function DarkCalendar({
           const inMonth = d.getMonth() === viewMonth.getMonth();
           const selected = sameDay(d, value);
           const isToday = sameDay(d, today);
+          const blocked = Boolean(maxDate && startOfDay(d).getTime() > startOfDay(maxDate).getTime());
           return (
             <button
               type="button"
               key={i}
+              disabled={blocked}
+              title={blocked ? "Fuera del límite de reservas (Configuración → Horarios)" : undefined}
               onClick={() => onSelect(startOfDay(d))}
               className={[
                 "h-9 rounded-lg text-sm flex items-center justify-center transition-colors",
-                selected
+                blocked
+                  ? "cursor-not-allowed text-white/20 line-through"
+                  : selected
                   ? "font-semibold text-white"
                   : inMonth
                     ? "text-white/85 hover:bg-[oklch(0.66_0.22_265_/_0.18)]"

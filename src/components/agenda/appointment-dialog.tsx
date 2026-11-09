@@ -25,6 +25,7 @@ import { cn } from "@/lib/utils";
 import { searchClientsLite, type ClientLiteResult } from "@/components/cash-register/use-caja-data";
 import {
   saveAppointment,
+  getMaxAdvanceDays,
   checkOverlap,
   checkDaySchedule,
   resolveDaySchedule,
@@ -167,14 +168,14 @@ function formatReadableDate(date: string) {
 // RepeatConfig compartido — computeRepeatDates (recurring-schedule.ts) es la
 // única fuente de verdad del algoritmo, reusada también al editar el
 // patrón de una serie desde la ficha del cliente (clients.tsx).
-function getRepeatDates(firstDate: Date, repeat: RepeatConfig): Date[] {
+function getRepeatDates(firstDate: Date, repeat: RepeatConfig, windowEnd?: Date | null): Date[] {
   if (!repeat.enabled) return [firstDate];
-  return computeRepeatDates(firstDate, repeat);
+  return computeRepeatDates(firstDate, repeat, windowEnd);
 }
 
 // Inline date picker — usa el DarkCalendar compartido (con botón Hoy), en un
 // popover fixed para que no lo recorte el overflow del drawer.
-function AppointmentDatePicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function AppointmentDatePicker({ value, onChange, maxDate }: { value: string; onChange: (v: string) => void; maxDate?: Date | null }) {
   const [open, setOpen] = React.useState(false);
   const btnRef = React.useRef<HTMLButtonElement>(null);
   const [pos, setPos] = React.useState<{ top: number; left: number }>({ top: 0, left: 0 });
@@ -214,7 +215,7 @@ function AppointmentDatePicker({ value, onChange }: { value: string; onChange: (
         <>
           <div className="fixed inset-0 z-[60]" onClick={() => setOpen(false)} />
           <div className="fixed z-[61]" style={{ top: pos.top, left: pos.left }}>
-            <DarkCalendar value={selectedDate} onSelect={handleSelect} />
+            <DarkCalendar value={selectedDate} onSelect={handleSelect} maxDate={maxDate} />
           </div>
         </>
       )}
@@ -438,6 +439,21 @@ export function AppointmentDialog({
     count: 4,
     until: "",
   });
+
+  // Límite de anticipación de reservas (Configuración → Horarios): las fechas más lejanas se ven
+  // bloqueadas y las series solo agendan hasta ahí (el resto se agenda solo al liberarse días).
+  const [maxAdvanceDays, setMaxAdvanceDays] = React.useState<number | null>(null);
+  const bookingWindowEnd = React.useMemo(() => {
+    if (!maxAdvanceDays) return null;
+    const d = new Date();
+    d.setDate(d.getDate() + maxAdvanceDays);
+    d.setHours(23, 59, 59, 0);
+    return d;
+  }, [maxAdvanceDays]);
+  React.useEffect(() => {
+    if (!open || !businessId) return;
+    void getMaxAdvanceDays(businessId).then(setMaxAdvanceDays).catch(() => setMaxAdvanceDays(null));
+  }, [open, businessId]);
 
   React.useEffect(() => {
     if (!open || !businessId) return;
@@ -782,8 +798,7 @@ export function AppointmentDialog({
         service_price: Number(price) || 0,
         duration_min: Number(duration) || 30,
         starts_at: date.toISOString(),
-        // Los turnos de una serie recurrente nacen confirmados.
-        status: seriesId ? "confirmed" : status,
+        status,
         notes: mergedNotes || null,
         deposit_amount: requiresDeposit ? depositAmount : null,
         deposit_paid: requiresDeposit ? 0 : null,
@@ -861,9 +876,13 @@ export function AppointmentDialog({
       return toast.error("No podés crear turnos en horarios que ya pasaron.");
     }
 
+    if (!isEdit && bookingWindowEnd && start.getTime() > bookingWindowEnd.getTime()) {
+      return toast.error(`Solo se puede agendar hasta ${maxAdvanceDays} días de anticipación (Configuración → Horarios).`);
+    }
+
     setBusy(true);
     try {
-      const dates = isEdit ? [start] : getRepeatDates(start, repeat);
+      const dates = isEdit ? [start] : getRepeatDates(start, repeat, bookingWindowEnd);
       // Serie de verdad (>1 fecha) solo aplica a turnos nuevos — editar
       // siempre es una sola fecha (§ handleEdit más abajo cubre "este y los
       // siguientes" como una operación aparte, no acá).
@@ -1057,7 +1076,7 @@ export function AppointmentDialog({
               )}
             </div>
             <div className="space-y-2">
-              <AppointmentDatePicker value={dateValue} onChange={setDateValue} />
+              <AppointmentDatePicker value={dateValue} onChange={setDateValue} maxDate={isEdit ? null : bookingWindowEnd} />
               {/* "hs" describe el horario completo (hora : minuto), no un
                   selector individual — así no se lee raro como "14 hs". */}
               <div className="flex items-center gap-1.5">

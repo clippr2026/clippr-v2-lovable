@@ -391,7 +391,7 @@ export function buildBookingEmail(
           eyebrowColor: "#9a3412",
           eyebrowBg: "#fff7ed",
           title: "Tu turno es en 2 horas",
-          intro: "Te esperamos. ¡Nos vemos pronto!",
+          intro: d.confirmUrl ? "Confirmá tu asistencia con un toque para que sepamos que venís." : "Te esperamos. ¡Nos vemos pronto!",
           footerNote: `Recibiste este recordatorio por tu turno en ${biz}.`,
         }),
       };

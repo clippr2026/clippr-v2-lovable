@@ -37,7 +37,9 @@ export function addDays(date: Date, days: number): Date {
   return next;
 }
 
-export function computeRepeatDates(firstDate: Date, repeat: RepeatConfig): Date[] {
+// `windowEnd`: último instante en que se puede agendar (límite de anticipación de Configuración →
+// Horarios). Las fechas posteriores no se generan ahora: el top-up las agenda a medida que se liberan.
+export function computeRepeatDates(firstDate: Date, repeat: RepeatConfig, windowEnd?: Date | null): Date[] {
   if (repeat.weekdays.length === 0) return [firstDate];
 
   const results: Date[] = [];
@@ -58,6 +60,7 @@ export function computeRepeatDates(firstDate: Date, repeat: RepeatConfig): Date[
     if (!repeat.weekdays.includes(candidate.getDay() as RepeatWeekday)) continue;
     if (candidate < start) continue;
     if (untilDate && candidate > untilDate) break;
+    if (windowEnd && candidate > windowEnd) break;
 
     results.push(candidate);
     if (repeat.endMode === "count" && results.length >= Math.max(1, repeat.count)) break;

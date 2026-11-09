@@ -11,13 +11,14 @@ const repoRoot = path.resolve(__dirname, "..", "..");
 const read = (rel: string) => fs.readFileSync(path.join(repoRoot, rel), "utf8");
 
 describe("Agenda — estados visibles tras eliminar 'No atendidos'", () => {
-  it("STATUS_FILTERS mantiene exactamente los 5 estados pedidos, en este orden", () => {
+  it("STATUS_FILTERS mantiene los estados pedidos (más Seña pendiente), en este orden", () => {
     const src = read("src/routes/agenda.tsx");
     const match = src.match(/STATUS_FILTERS:[^=]*=\s*\[([\s\S]*?)\];/);
     expect(match).not.toBeNull();
     const keys = [...match![1].matchAll(/\["(\w+)",\s*"([^"]+)"/g)].map((m) => [m[1], m[2]]);
     expect(keys).toEqual([
       ["pending", "Por confirmar"],
+      ["deposit", "Seña pendiente"],
       ["confirmed", "Confirmados"],
       ["charged", "Cobrados"],
       ["cancelled", "Cancelados"],

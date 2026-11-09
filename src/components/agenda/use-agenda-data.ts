@@ -1095,22 +1095,30 @@ function addCalendarDays(date: Date, days: number): Date {
   return next;
 }
 
-// Completa la ventana de reservas ya generadas para series "sin fecha de
-// finalización" (recurring_series.end_mode = 'none') cuando quedan menos de
-// 28 días de turnos ya creados por delante — genera el próximo bloque de 56
-// días (mismo tamaño que la ventana inicial, ver RECURRING_WINDOW_DAYS en
-// appointment-dialog.tsx) y avanza last_generated_until.
+// Días de anticipación con que se puede agendar (Configuración → Horarios → Reservas).
+// Si hay varias sucursales se toma el mayor; sin configuración, 30.
+export async function getMaxAdvanceDays(businessId: string): Promise<number> {
+  const { data } = await supabase.from("branch_settings" as any).select("schedule").eq("business_id", businessId);
+  let max = 0;
+  for (const row of (data ?? []) as Array<{ schedule?: Record<string, any> | null }>) {
+    const v = Number(row.schedule?._settings?.maxAdvance);
+    if (Number.isFinite(v) && v > max) max = v;
+  }
+  return max || 30;
+}
+
+// Agenda los turnos de las series recurrentes DENTRO del límite de anticipación de reservas
+// (Configuración → Horarios) y, a medida que pasan los días y se libera lugar, va agendando los
+// siguientes. Los turnos nacen "Por confirmar": el cliente recibe 2 horas antes un correo para
+// confirmar asistencia.
 //
-// Best-effort y silencioso a propósito: corre solo (fire-and-forget) cada
-// vez que carga la Agenda — no hay a quién preguntarle si una fecha puntual
-// choca con otro turno, así que esa fecha simplemente se saltea (una
-// ocurrencia menos esa semana) en vez de bloquear el resto de la serie.
+// Best-effort y silencioso a propósito: corre solo (fire-and-forget) cada vez que carga la
+// Agenda — no hay a quién preguntarle si una fecha puntual choca con otro turno, así que esa
+// fecha simplemente se saltea (una ocurrencia menos esa semana) en vez de bloquear el resto.
 //
-// Usar `last_generated_until` como ancla local para contar "cada N
-// semanas" es matemáticamente equivalente a contar desde la fecha original
-// de la serie: last_generated_until siempre es una fecha que SÍ se generó
-// (fase 0 del ciclo de every_weeks), así que reiniciar el conteo ahí
-// preserva el mismo patrón sin necesitar guardar la fecha ancla original.
+// Usar `last_generated_until` como ancla local para contar "cada N semanas" es equivalente a
+// contar desde la fecha original de la serie: siempre es una fecha que SÍ se generó (fase 0 del
+// ciclo de every_weeks), así que reiniciar el conteo ahí preserva el patrón.
 export async function topUpRecurringSeries(
   businessId: string,
   schedule: ScheduleMap | null,
@@ -1118,40 +1126,56 @@ export async function topUpRecurringSeries(
   businessSpecialDates: SpecialDateMap,
   employeeSpecialDates: EmployeeSpecialDateMap,
 ): Promise<void> {
-  const TOP_UP_THRESHOLD_DAYS = 28;
-  const WINDOW_DAYS = 56;
-  const thresholdIso = addCalendarDays(new Date(), TOP_UP_THRESHOLD_DAYS).toISOString().slice(0, 10);
+  const maxAdvance = await getMaxAdvanceDays(businessId);
+  const windowEnd = addCalendarDays(new Date(), maxAdvance);
+  windowEnd.setHours(23, 59, 59, 0);
+  const windowEndIso = windowEnd.toISOString().slice(0, 10);
 
   const { data: seriesRows, error } = await supabase
     .from("recurring_series" as any)
     .select("*")
     .eq("business_id", businessId)
-    .eq("status", "active")
-    .eq("end_mode", "none")
-    .lte("last_generated_until", thresholdIso);
+    .eq("status", "active");
   if (error || !seriesRows?.length) return;
 
   for (const s of seriesRows as any[]) {
     try {
+      if (s.last_generated_until && String(s.last_generated_until) >= windowEndIso) continue;
       const weekdays: number[] = Array.isArray(s.weekdays) ? s.weekdays : [];
       if (!weekdays.length) continue;
       const everyWeeks = Math.max(1, Number(s.every_weeks) || 1);
       const [h, m] = String(s.start_time || "09:00").split(":").map((x: string) => Number(x) || 0);
       const durationMin = Number(s.duration_min) || 30;
 
+      // Series con cantidad fija: no se generan más turnos que los pedidos.
+      let remaining = Infinity;
+      if (s.end_mode === "count") {
+        const { count: existing } = await supabase
+          .from("appointments")
+          .select("id", { count: "exact", head: true })
+          .eq("recurring_series_id", s.id);
+        remaining = Math.max(0, (Number(s.end_count) || 0) - (existing ?? 0));
+        if (remaining === 0) continue;
+      }
+      const endUntil = s.end_mode === "until" && s.end_until ? new Date(`${s.end_until}T23:59:59`) : null;
+
       const anchor = s.last_generated_until ? new Date(`${s.last_generated_until}T00:00:00`) : new Date();
-      const windowEnd = addCalendarDays(anchor, WINDOW_DAYS);
+      const spanDays = Math.ceil((windowEnd.getTime() - anchor.getTime()) / 86_400_000);
 
       const candidates: Date[] = [];
-      for (let i = 1; i <= WINDOW_DAYS; i++) {
+      for (let i = 1; i <= spanDays; i++) {
         if (Math.floor(i / 7) % everyWeeks !== 0) continue;
         const day = addCalendarDays(anchor, i);
         if (!weekdays.includes(day.getDay())) continue;
         day.setHours(h, m, 0, 0);
+        if (day.getTime() <= Date.now() || day > windowEnd) continue;
+        if (endUntil && day > endUntil) break;
         candidates.push(day);
       }
 
+      let created = 0;
       for (const date of candidates) {
+        if (created >= remaining) break;
         try {
           if (s.employee_id) {
             const day = resolveDaySchedule(schedule, employeeSchedules, businessSpecialDates, employeeSpecialDates, s.employee_id, date);
@@ -1168,19 +1192,23 @@ export async function topUpRecurringSeries(
             service_price: Number(s.service_price) || 0,
             duration_min: durationMin,
             starts_at: date.toISOString(),
-            status: "confirmed",
+            status: "pending",
             recurring_series_id: s.id,
           });
+          created++;
         } catch {
           // Una fecha puntual que falla (choque, etc.) no debe frenar el
-          // resto de la ventana — se saltea, sin UI a quién preguntarle.
+          // resto — se saltea, sin UI a quién preguntarle.
         }
       }
 
-      await supabase
-        .from("recurring_series" as any)
-        .update({ last_generated_until: windowEnd.toISOString().slice(0, 10), updated_at: new Date().toISOString() })
-        .eq("id", s.id);
+      const lastCandidate = candidates[candidates.length - 1];
+      if (lastCandidate) {
+        await supabase
+          .from("recurring_series" as any)
+          .update({ last_generated_until: lastCandidate.toISOString().slice(0, 10), updated_at: new Date().toISOString() })
+          .eq("id", s.id);
+      }
     } catch {
       // Una serie con error no debe frenar el top-up del resto.
     }

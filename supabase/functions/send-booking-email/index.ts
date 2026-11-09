@@ -230,7 +230,7 @@ Deno.serve(async (req: Request) => {
       ? `${APP_ORIGIN}/gestion?k=${manageToken}`
       : buildManageUrl(...baseUrlArgs, "manage");
     // "Confirmar asistencia" solo mientras el turno está por confirmar.
-    const confirmUrl = manageToken && appt.status === "pending" && type !== "cancellation" && type !== "reminder_2h" && !type.startsWith("deposit_")
+    const confirmUrl = manageToken && appt.status === "pending" && type !== "cancellation" && !type.startsWith("deposit_")
       ? `${APP_ORIGIN}/gestion?k=${manageToken}&a=confirmar`
       : null;
 

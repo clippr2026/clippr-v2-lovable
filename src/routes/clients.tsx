@@ -49,7 +49,7 @@ import {
 import { useAuth } from "@/hooks/use-auth";
 import { DeudaClientesBanner } from "@/components/clients/deuda-clientes-banner";
 import { PAY_METHOD_LABEL, type PayMethod } from "@/components/cash-register/register-payment";
-import { cancelAppointment, checkOverlap, saveAppointment } from "@/components/agenda/use-agenda-data";
+import { cancelAppointment, checkOverlap, getMaxAdvanceDays, saveAppointment } from "@/components/agenda/use-agenda-data";
 import { computeRepeatDates, WEEKDAYS, type RepeatWeekday } from "@/lib/recurring-schedule";
 
 // "Reservas recurrentes" (ficha del cliente) — misma tabla que arma
@@ -607,13 +607,19 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
       if (anchor.getTime() <= now.getTime()) anchor.setDate(anchor.getDate() + 1);
 
       const everyWeeks = Math.max(1, Number(seriesEditForm.everyWeeks) || 1);
+      // Solo se agenda dentro del límite de anticipación (Configuración → Horarios); el resto se
+      // agenda solo a medida que se liberan días.
+      const advanceDays = await getMaxAdvanceDays(businessId);
+      const windowEnd = new Date();
+      windowEnd.setDate(windowEnd.getDate() + advanceDays);
+      windowEnd.setHours(23, 59, 59, 0);
       const candidateDates = computeRepeatDates(anchor, {
         weekdays: newWeekdays as RepeatWeekday[],
         everyWeeks,
         endMode: seriesEditForm.endMode,
         count: Number(seriesEditForm.count) || 1,
         until: seriesEditForm.until,
-      });
+      }, windowEnd);
 
       // Valida que no choque con otro turno del mismo profesional — no
       // repite acá la validación de horario laboral/descansos de Agenda
