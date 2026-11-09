@@ -352,6 +352,7 @@ function SettingsPage() {
         title="Tenés cambios sin guardar"
         message="Si salís ahora, los cambios de esta pantalla se pierden."
         confirmLabel="Salir sin guardar"
+        danger={false}
         onCancel={() => setLeavePrompt(null)}
         onConfirm={() => {
           const next = leavePrompt;
