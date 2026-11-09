@@ -252,6 +252,8 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
               <div style={{ textAlign: "left" }}>
                 <DepositSummary deposit={data.deposit} token={token} colors={{ ...c, ...raised }} pillStyle={primaryBtn} onChanged={refresh} />
               </div>
+            ) : inReview ? (
+              <span style={{ ...primaryBtn, display: "inline-block", width: "auto", padding: "13px 26px", borderRadius: 999, fontSize: 22, fontWeight: 800, letterSpacing: "-.01em" }}>Seña en revisión</span>
             ) : (
               <span style={{ display: "inline-block", padding: "5px 11px", borderRadius: 999, background: statusChip.bg, color: statusChip.fg, fontSize: 12, fontWeight: 800 }}>{statusChip.text}</span>
             )}
