@@ -16,6 +16,8 @@ export type CashMovement = {
   note: string | null;
   created_by: string | null;
   created_at: string;
+  deposit_id?: string | null;
+  credited_at?: string | null;
 };
 
 export type ProfessionalAdvance = {
@@ -83,7 +85,7 @@ export function useCashMovements(
 
     let movQuery = supabase
       .from("cash_movements" as any)
-      .select("id,type,amount,method,note,created_by,created_at")
+      .select("id,type,amount,method,note,created_by,created_at,deposit_id,credited_at")
       .eq("business_id", businessId)
       .gte("created_at", dayStart)
       .lte("created_at", dayEnd);

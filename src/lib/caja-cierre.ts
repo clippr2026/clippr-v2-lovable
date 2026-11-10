@@ -1,4 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
+import { senaCreditedOtherDay } from "@/lib/senas-contable";
 
 // Helpers de "Cierre de caja" (caja_cierres) — compartidos entre Caja
 // (src/routes/cash-register.tsx, históricamente donde vivía todo esto) e
@@ -1190,7 +1191,16 @@ export function computeExpectedCashAndDigital(params: {
   // method: "efectivo" (cajón físico) | "cuenta" (digital) — filas viejas,
   // de antes de que cash_movements tuviera esta columna, no traen method;
   // se tratan como "efectivo" (mismo comportamiento que tenían).
-  cashMovements: Array<{ type: "ingreso" | "retiro"; amount: number | null; method?: string | null }>;
+  // deposit_id/credited_at/created_at: una seña cuya transferencia se acreditó
+  // otro día no suma al dinero en cuenta de este día (ver senas-contable.ts).
+  cashMovements: Array<{
+    type: "ingreso" | "retiro";
+    amount: number | null;
+    method?: string | null;
+    deposit_id?: string | null;
+    credited_at?: string | null;
+    created_at?: string | null;
+  }>;
   // Cobros de pagos pendientes (payment_collections) del mismo período —
   // ya filtrados por el caller a la ventana que corresponda (collected_at,
   // nunca la fecha de la venta). amount puede ser negativo (reversión, ver
@@ -1204,7 +1214,8 @@ export function computeExpectedCashAndDigital(params: {
   // profesional y esto no.
   settlementOutflows?: Array<{ amount?: number | null; payment_method?: string | null }>;
 }): ExpectedCashDigital {
-  const { payments, expenses, advances, cashMovements, collections = [], settlementOutflows = [] } = params;
+  const { payments, expenses, advances, collections = [], settlementOutflows = [] } = params;
+  const cashMovements = params.cashMovements.filter((m) => !senaCreditedOtherDay(m));
   const isCash = (m: string | null | undefined) => normalizeCierreMethodKey(m) === "cash";
   const isCashMovement = (m: { method?: string | null }) => !m.method || isCash(m.method);
 
@@ -1431,6 +1442,10 @@ export type CajaMovimientoManual = {
   metodo: string | null;
   nota: string | null;
   usuario: string | null;
+  // Seña (appointment_deposits) y día real en que se acreditó la transferencia.
+  depositId?: string | null;
+  acreditadaEn?: string | null;
+  creadoEn?: string | null;
 };
 
 // Retiros/ingresos manuales de caja (cash_movements) de UN día calendario
@@ -1449,7 +1464,7 @@ export async function buildCajaMovimientosManualesForDate(
 
   let movQuery = supabase
     .from("cash_movements" as any)
-    .select("id,type,amount,method,note,created_by,created_at")
+    .select("id,type,amount,method,note,created_by,created_at,deposit_id,credited_at")
     .eq("business_id", businessId)
     .gte("created_at", start.toISOString())
     .lte("created_at", end.toISOString());
@@ -1477,6 +1492,9 @@ export async function buildCajaMovimientosManualesForDate(
     metodo: m.method ?? null,
     nota: m.note ?? null,
     usuario: m.created_by ? profileNameById.get(m.created_by) ?? m.created_by : null,
+    depositId: m.deposit_id ?? null,
+    acreditadaEn: m.credited_at ?? null,
+    creadoEn: m.created_at ?? null,
   }));
 }
 
@@ -1570,6 +1588,9 @@ export async function buildSingleDayCierrePreview(
     // cual, isCash() de computeExpectedCashAndDigital ya lo trata como
     // "no efectivo" sin necesitar ningún mapeo especial acá.
     method: m.metodo,
+    deposit_id: m.depositId ?? null,
+    credited_at: m.acreditadaEn ?? null,
+    created_at: m.creadoEn ?? null,
   }));
 
   const expected = computeExpectedCashAndDigital({
