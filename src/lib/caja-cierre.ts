@@ -1410,7 +1410,10 @@ export function buildConciliacion(
   };
 }
 
-// "Dinero en cuenta" no se resetea en cada cierre — a diferencia del
+// EN DESUSO desde el 9/11/2026: "Dinero en cuenta" ahora arranca en 0 después
+// de cada cierre (se recomienda pasar el dinero a otra cuenta), así que ya
+// nadie suma este saldo. Se conserva la función por si hace falta consultarlo.
+// Regla anterior: "Dinero en cuenta" no se reseteaba en cada cierre — a diferencia del
 // efectivo (que se cuenta físico y arranca de nuevo), el saldo esperado de
 // HOY arranca de lo que quedó registrado en el último cierre ya cerrado
 // (su dinero_cuenta_real si el usuario lo cargó, o su _esperado si no) y

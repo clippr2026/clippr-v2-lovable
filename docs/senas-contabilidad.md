@@ -33,3 +33,9 @@ dinero en cuenta por señas 100.000; el cierre avisa "1 seña del domingo" y lis
 - `src/components/cash-register/use-caja-data.ts`, `src/components/dashboard/*`.
 - `src/routes/reports.tsx` (facturación mensual por medio de pago).
 - Cada etapa se prueba en una copia aislada con datos reales antes de tocar producción.
+
+## Dinero en cuenta arranca en 0 después de cada cierre (9/11/2026)
+
+Antes el saldo esperado de la cuenta partía de lo que había quedado en el último cierre (`getDigitalCarryForward`).
+Ahora no se arrastra: cada período cuenta solo lo que entró y salió desde el último cierre, y el cierre muestra la
+recomendación de pasar el dinero a otra cuenta y dejarla en $0. Los cierres ya hechos no se modifican.

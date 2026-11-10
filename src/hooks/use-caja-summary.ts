@@ -13,7 +13,6 @@ import {
   cajaDateKeyBA,
   filterToDayBA,
   computeExpectedCashAndDigital,
-  getDigitalCarryForward,
   isCountableCajaPayment,
   collectionPaymentIdSet,
   isCajaCerradaRow,
@@ -100,9 +99,9 @@ export type CajaSummary = {
   cashInflows: number;
   digitalExpected: number;
   digitalOutflows: number;
-  // digitalExpected + carry-forward del último cierre — "Dinero esperado en
-  // cuenta" no se resetea cada cierre como el efectivo (ver
-  // getDigitalCarryForward en caja-cierre.ts).
+  // "Dinero esperado en cuenta": arranca en 0 después de cada cierre, igual
+  // que el efectivo (al cerrar se recomienda pasar el dinero a otra cuenta).
+  // Ya no arrastra el saldo del último cierre.
   bankExpected: number;
   // "Efectivo del día"/"Dinero en cuenta del día" — SOLO hoy, nunca el
   // acumulado de jornadas pendientes (eso es cashExpected/bankExpected,
@@ -339,7 +338,7 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     // backlog largo + mucho volumen. Todas arrancan YA (sin `await`
     // todavía); payRes se espera primero y SOLO para poder lanzar el
     // lookup de cobro_events apenas se conocen los appointment_id de hoy,
-    // en paralelo con expenses/carryForward/movimientos (que ya vienen en
+    // en paralelo con expenses/movimientos (que ya vienen en
     // vuelo desde acá) — nunca como una cola serial después de esperar
     // TODO lo demás.
     const payResultPromise = pagedResult<Payment>((from, to) => payQuery.range(from, to));
@@ -350,7 +349,6 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     // (muchos-a-uno), sea siempre 0 o 1 fila — se normaliza a objeto único
     // (o null) más abajo, al construir collectionsList.
     const collResultPromise = pagedResult<any>((from, to) => collQuery.range(from, to));
-    const carryForwardPromise = getDigitalCarryForward(businessId, branchId);
     const freshMovementsPromise = refreshMovementsRef.current();
 
     const payRes = await payResultPromise;
@@ -371,17 +369,16 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
       ? supabase.from("appointments").select("id,cobro_events").eq("business_id", businessId).in("id", paymentApptIds)
       : Promise.resolve({ data: [] as Array<{ id: string; cobro_events: unknown }> });
 
-    const [expRes, collRes, carryForward, freshMovements, apptHistResult] = await Promise.all([
+    const [expRes, collRes, freshMovements, apptHistResult] = await Promise.all([
       expResultPromise,
       collResultPromise,
-      carryForwardPromise,
       freshMovementsPromise,
       apptHistPromise,
     ]);
     console.log(
       `[CajaSummary] payQuery rango=[${dayStart.toISOString()} .. ${dayEnd.toISOString()}] branchFilter=${branchFilter} ` +
         `-> rows=${payRes.data?.length ?? 0} error=${payRes.error?.message ?? "none"} | ` +
-        `expenses rows=${expRes.data?.length ?? 0} error=${expRes.error?.message ?? "none"} carryForward=${carryForward}`,
+        `expenses rows=${expRes.data?.length ?? 0} error=${expRes.error?.message ?? "none"}`,
     );
     if (!keyMatches()) {
       console.log("[CajaSummary] discarded after payQuery/expQuery (key changed)");
@@ -442,7 +439,7 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
 
     console.log(
       `[CajaSummary] COMMIT paymentsToday=${paymentsEnriched.length} revHoy=${paymentsEnriched.reduce((s, p) => s + Number(p.total ?? p.amount ?? 0), 0)} ` +
-        `cashExpected=${expected.cashExpected} digitalExpected=${expected.digitalExpected} carryForward=${carryForward}`,
+        `cashExpected=${expected.cashExpected} digitalExpected=${expected.digitalExpected}`,
     );
     setPaymentsToday(paymentsEnriched);
     setExpensesToday(expensesList);
@@ -452,7 +449,7 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     setCashInflows(expected.cashInflows);
     setDigitalExpected(expected.digitalExpected);
     setDigitalOutflows(expected.digitalOutflows);
-    setBankExpected(expected.digitalExpected + carryForward);
+    setBankExpected(expected.digitalExpected);
     setMovementsForPeriod(freshMovements.movements);
     setAdvancesForPeriod(freshMovements.advances);
     setSettlementForPeriod(freshMovements.settlementOutflows);

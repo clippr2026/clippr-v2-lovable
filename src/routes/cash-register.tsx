@@ -843,8 +843,8 @@ function CashRegisterPage() {
       cashOutflows: summary.cashOutflows,
       cashInflows: summary.cashInflows,
       // Mismo nombre/semántica que el `expected.digitalExpected` de
-      // siempre: ya incluye el carry-forward de cuenta (ver bankExpected
-      // en use-caja-summary.ts) — ningún consumidor existente (
+      // siempre (ver bankExpected en use-caja-summary.ts; arranca en 0
+      // después de cada cierre) — ningún consumidor existente (
       // FacturacionStatCard, CierreCajaBtn) necesita cambiar.
       digitalExpected: summary.bankExpected,
       digitalOutflows: summary.digitalOutflows,
@@ -8418,11 +8418,10 @@ function CierreRevisionDetalle({
           <p className="text-xs text-muted-foreground">Si coincide con lo esperado, no se registra diferencia.</p>
         </section>
 
-        {/* Dinero en cuenta — a diferencia del efectivo, NO se resetea: el
-            saldo esperado ya arrastra el carry-forward del último cierre (ver
-            getDigitalCarryForward). Acá solo se deja constancia del saldo
-            real al momento de cerrar; el ajuste nunca se mezcla con la
-            diferencia de efectivo. */}
+        {/* Dinero en cuenta — arranca en 0 después de cada cierre (por eso la
+            recomendación de pasar el dinero a otra cuenta). Acá se deja
+            constancia del saldo real al momento de cerrar; el ajuste nunca se
+            mezcla con la diferencia de efectivo. */}
         <section className="space-y-3 rounded-2xl bg-white/[0.03] ring-1 ring-white/10 p-4">
           <div className="text-xs font-bold uppercase tracking-[0.16em] text-sky-200/80">Dinero en banco</div>
           <div className="flex items-center justify-between gap-3">
@@ -8465,6 +8464,10 @@ function CierreRevisionDetalle({
             </span>
           </div>
           <p className="text-xs text-muted-foreground">Si coincide con lo esperado, no se registra ningún ajuste.</p>
+          <div className="rounded-xl bg-emerald-400/10 px-3 py-2 text-xs leading-snug text-emerald-100 ring-1 ring-emerald-300/30">
+            <strong>Recomendación:</strong> pasá este dinero a otra cuenta y dejá esta en $0. Así mañana arrancás de cero y
+            todo lo que entre es del día.
+          </div>
         </section>
       </div>
 
