@@ -37,6 +37,23 @@ export function senaCreditedOtherDay(m: { deposit_id?: string | null; credited_a
   return dayKeyBA(m.credited_at) !== dayKeyBA(m.created_at);
 }
 
+/**
+ * Ingresos por señas a partir de los movimientos de caja de UN día (ya acotados a ese día por created_at):
+ * el ingreso de la seña se crea al aprobarla y el retiro al devolverla, así que no hace falta otra consulta.
+ */
+export function senasIngresosDesdeMovimientos(
+  movements: Array<{ type: string; amount: number | null; deposit_id?: string | null }>,
+) {
+  let aprobadas = 0;
+  let devueltas = 0;
+  for (const m of movements) {
+    if (!m.deposit_id) continue;
+    if (m.type === "ingreso") aprobadas += Number(m.amount) || 0;
+    else if (m.type === "retiro") devueltas += Number(m.amount) || 0;
+  }
+  return { aprobadas, devueltas, neto: aprobadas - devueltas };
+}
+
 /** Ingresos por señas de un día: aprobadas ese día, menos las devueltas ese día. */
 export function senasIngresosDelDia(deposits: SenaLedgerRow[], dayKey: string) {
   let aprobadas = 0;

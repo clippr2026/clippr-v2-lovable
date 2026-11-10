@@ -21,6 +21,7 @@ import {
   type ExpectedCashDigital,
 } from "@/lib/caja-cierre";
 import type { Payment, Expense, HistorialEvento, PaymentCollectionRow } from "@/components/cash-register/use-caja-data";
+import { saleIngreso, senasIngresosDesdeMovimientos } from "@/lib/senas-contable";
 import { fetchAllRows, type PageResult } from "@/lib/supabase-paginate";
 
 // Mismo criterio que pagedSettled en use-caja-data.ts, pero sin el
@@ -609,9 +610,14 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     paymentsStrictlyToday.reduce(
       // anulado/reembolsado: nunca aporta — no es un ingreso válido (ver
       // isCountableCajaPayment, bug real 26/10/2026).
-      (s, p) => s + (isCountableCajaPayment(p.status) && !viaCobrosHoy.has(p.id) ? Number(p.total ?? p.amount ?? 0) : 0),
+      // saleIngreso: la parte pagada con seña no vuelve a contar — ya fue
+      // ingreso el día en que se aprobó la seña (ver senas-contable.ts).
+      (s, p) => s + (isCountableCajaPayment(p.status) && !viaCobrosHoy.has(p.id) ? saleIngreso(p) : 0),
       0,
-    ) + collectionsStrictlyToday.reduce((s, c) => s + Number(c.amount ?? 0), 0);
+    ) +
+    collectionsStrictlyToday.reduce((s, c) => s + Number(c.amount ?? 0), 0) +
+    // Señas aprobadas hoy, menos las devueltas hoy.
+    senasIngresosDesdeMovimientos(filterToDayBA(movementsForPeriod, (m) => m.created_at, todayKeyBA)).neto;
   // Mismo criterio que revHoy — una venta anulada/reembolsada no es un
   // cobro real, no debe inflar el "ticket promedio" (revHoy/cobros).
   const cobros = paymentsStrictlyToday.filter((p) => isCountableCajaPayment(p.status) && !viaCobrosHoy.has(p.id)).length;

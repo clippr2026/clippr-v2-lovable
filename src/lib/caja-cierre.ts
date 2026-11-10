@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { senaCreditedOtherDay } from "@/lib/senas-contable";
+import { saleIngreso, senaCreditedOtherDay, senasIngresosDesdeMovimientos } from "@/lib/senas-contable";
 
 // Helpers de "Cierre de caja" (caja_cierres) — compartidos entre Caja
 // (src/routes/cash-register.tsx, históricamente donde vivía todo esto) e
@@ -763,14 +763,30 @@ export async function buildCierreSnapshotForDate(
     .lte("collected_at", dayEnd.toISOString());
   if (branchFilter) collQuery = collQuery.or(branchFilter);
 
-  const [payRes, expRes, employeesRes, profilesRes, anuladosRes, collRes] = await Promise.allSettled([
+  // Señas aprobadas/devueltas ESE día (movimientos de caja con deposit_id):
+  // cuentan como Ingresos el día de la aprobación, menos lo devuelto el día
+  // de la devolución (ver senas-contable.ts).
+  let senasQuery = supabase
+    .from("cash_movements" as any)
+    .select("id,type,amount,deposit_id")
+    .eq("business_id", businessId)
+    .not("deposit_id", "is", null)
+    .gte("created_at", dayStart.toISOString())
+    .lte("created_at", dayEnd.toISOString());
+  if (branchFilter) senasQuery = senasQuery.or(branchFilter);
+
+  const [payRes, expRes, employeesRes, profilesRes, anuladosRes, collRes, senasRes] = await Promise.allSettled([
     payQuery,
     expQuery,
     employeesQuery,
     profilesQuery,
     anuladosQuery,
     collQuery,
+    senasQuery,
   ]);
+  const senasIngresos = senasIngresosDesdeMovimientos(
+    senasRes.status === "fulfilled" && !senasRes.value.error ? ((senasRes.value.data ?? []) as any[]) : [],
+  );
 
   const allPayments =
     payRes.status === "fulfilled" && !payRes.value.error ? ((payRes.value.data ?? []) as any[]) : [];
@@ -808,11 +824,18 @@ export async function buildCierreSnapshotForDate(
   // totalRecibido son los que sí la incluyen, para "dinero realmente
   // recibido" (efectivo esperado, dinero en cuenta esperado, Resumen del
   // cierre) sin mezclarla con "Ingresos"/facturación.
-  const totalCobrado =
-    payments.reduce((s, p) => s + Number(p.total ?? p.amount ?? 0), 0) +
-    collections.reduce((s, c) => s + Number(c.amount ?? 0), 0);
+  // Señas: la parte de una venta que ya se había pagado como seña NO vuelve
+  // a contar (entró como ingreso el día en que se aprobó la seña); a cambio
+  // suman las señas aprobadas ese día, menos las devueltas ese día.
+  // totalVentas conserva el valor completo de lo vendido (ventas/rendimiento).
+  const totalCobranzas = collections.reduce((s, c) => s + Number(c.amount ?? 0), 0);
+  const totalVentas = payments.reduce((s, p) => s + Number(p.total ?? p.amount ?? 0), 0) + totalCobranzas;
+  const totalVentasSinSena = payments.reduce((s, p) => s + saleIngreso(p), 0) + totalCobranzas;
+  const totalCobrado = totalVentasSinSena + senasIngresos.neto;
   const totalPropinas = payments.reduce((s, p) => s + Number(p.tip_amount ?? p.tip ?? 0), 0);
-  const totalRecibido = totalCobrado + totalPropinas;
+  // Recibido por cobros del día: sin la parte pagada con seña (misma base que
+  // detalleMetodosRecibido); las señas van aparte, como movimientos de caja.
+  const totalRecibido = totalVentasSinSena + totalPropinas;
   const totalGastos = expenses.reduce((s, e) => s + Number(e.amount ?? 0), 0);
   const utilidad = totalCobrado - totalGastos;
 
@@ -1070,6 +1093,8 @@ export async function buildCierreSnapshotForDate(
 
   return {
     totalCobrado,
+    totalVentas,
+    senasIngresos,
     totalPropinas,
     totalRecibido,
     totalGastos,
@@ -1591,7 +1616,10 @@ export async function buildSingleDayCierrePreview(
     deposit_id: m.depositId ?? null,
     credited_at: m.acreditadaEn ?? null,
     created_at: m.creadoEn ?? null,
-  }));
+  }))
+    // Una seña acreditada otro día no entra en el dinero de este día: se saca
+    // acá para que la Conciliación muestre los mismos términos que `expected`.
+    .filter((m) => !senaCreditedOtherDay(m));
 
   const expected = computeExpectedCashAndDigital({
     payments: snapshot.cobrosSnapshot.map((c) => ({
