@@ -83,7 +83,7 @@ export function SenasCajaCard({
             </div>
           </div>
           <div>
-            <div className="text-xs text-white/55">Devueltas</div>
+            <div className="text-xs text-white/55">Reembolsos</div>
             <div className="text-xl font-bold tabular-nums text-white">{money(day.refunded)}</div>
           </div>
         </div>
