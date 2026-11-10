@@ -72,6 +72,8 @@ export function DepositPanel({
   const [dist, setDist] = React.useState<Dist>("local");
   const [customProf, setCustomProf] = React.useState(50);
   const [shareMethod, setShareMethod] = React.useState<"cash" | "transfer">("cash");
+  // Reembolso: primero se elige de dónde sale la plata (caja o fondos externos).
+  const [refunding, setRefunding] = React.useState(false);
 
   const load = React.useCallback(async () => {
     const [{ data: row }, { data: appt }] = await Promise.all([
@@ -248,7 +250,7 @@ export function DepositPanel({
             <strong>
               {new Date(dep.proof_uploaded_at).toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "2-digit", timeZone: "America/Argentina/Buenos_Aires" })}
             </strong>
-            . Al aprobarlo queda en <strong>Recibidas de hoy</strong> y suma a los Ingresos y al dinero en cuenta de hoy.
+            . Al aprobarlo, la seña entra en la caja de <strong>ese día</strong> (Dinero en banco). Si esa caja ya está cerrada, queda como seña pendiente de cierre.
           </div>
         )}
 
@@ -332,14 +334,44 @@ export function DepositPanel({
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <Button variant="secondary" className="h-9" disabled={busy} onClick={() => run("decide_deposit_v1", { p_deposit_id: dep.id, p_action: "refund", p_prof_pct: null, p_local_pct: null, p_note: null }, "Seña marcada como reembolsada")}>
+            <Button variant="secondary" className="h-9" disabled={busy} onClick={() => setRefunding((v) => !v)}>
               Reembolsar seña
             </Button>
             <Button variant="destructive" className="h-9" disabled={busy} onClick={() => run("decide_deposit_v1", { p_deposit_id: dep.id, p_action: "retain", p_prof_pct: prof, p_local_pct: 100 - prof, p_note: null }, "Seña retenida")}>
               Retener seña
             </Button>
           </div>
-          <div className="text-[11px] text-muted-foreground">Recibir la seña la suma a Caja; reembolsarla la resta. Retenerla no mueve plata.</div>
+          {refunding && (
+            <div className="space-y-2 rounded-xl bg-white/[0.04] p-2.5 ring-1 ring-white/10">
+              <div className="text-xs font-semibold">¿De dónde sale el reembolso?</div>
+              <div className="grid grid-cols-2 gap-2">
+                {(
+                  [
+                    ["caja", dep.method === "cash" ? "Efectivo en caja" : "Dinero en banco"],
+                    ["otros", "Fondos externos"],
+                  ] as const
+                ).map(([src, label]) => (
+                  <Button
+                    key={src}
+                    variant="secondary"
+                    className="h-9"
+                    disabled={busy}
+                    onClick={() => {
+                      setRefunding(false);
+                      void run(
+                        "decide_deposit_v1",
+                        { p_deposit_id: dep.id, p_action: "refund", p_prof_pct: null, p_local_pct: null, p_note: null, p_funds_source: src },
+                        "Seña reembolsada. Quedó como gasto de hoy.",
+                      );
+                    }}
+                  >
+                    {label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="text-[11px] text-muted-foreground">El reembolso queda como gasto de hoy ("Reembolso de seña"). Retenerla no mueve plata.</div>
         </div>
       )}
 

@@ -1054,7 +1054,12 @@ function AgendaPage() {
     });
   };
 
-  const onCancelWithDeposit = async (a: Appointment, action: "keep" | "return", reason: string) => {
+  const onCancelWithDeposit = async (
+    a: Appointment,
+    action: "keep" | "return",
+    reason: string,
+    fundsSource: "caja" | "otros" = "caja",
+  ) => {
     // Seña registrada en el sistema nuevo: se cancela el turno (la base la deja "a decidir")
     // y se aplica la decisión elegida. Por ahora no escribe en Caja.
     const { data: ledger } = await (supabase.from("appointment_deposits" as any) as any)
@@ -1070,10 +1075,11 @@ function AgendaPage() {
           p_prof_pct: null,
           p_local_pct: null,
           p_note: reason || null,
+          p_funds_source: fundsSource,
         });
         if (error) throw error;
         if (!res?.ok) throw new Error(res?.error ?? "No se pudo registrar la decisión de la seña.");
-        toast.success(action === "keep" ? "Turno cancelado. Seña retenida." : "Turno cancelado. Seña marcada como reembolsada.");
+        toast.success(action === "keep" ? "Turno cancelado. Seña retenida." : "Turno cancelado. Seña reembolsada: quedó como gasto de hoy.");
       } catch (e) {
         toast.error((e as Error).message);
         return;
@@ -3902,12 +3908,14 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   onViewRecurring: (a: Appointment) => void;
   onChangeStatus: (a: Appointment, s: ApptStatus) => void;
   onMarkDeposit: (a: Appointment) => void;
-  onCancelWithDeposit: (a: Appointment, action: "keep" | "return", reason: string) => void;
+  onCancelWithDeposit: (a: Appointment, action: "keep" | "return", reason: string, fundsSource?: "caja" | "otros") => void;
   onReleaseBlock: (a: Appointment) => void;
   onDepositChanged: () => void;
 }) {
   const [confirmCancel, setConfirmCancel] = React.useState(false);
   const [cancelReason, setCancelReason] = React.useState("");
+  // Reembolso de seña al cancelar: se elige de dónde sale la plata.
+  const [refundOrigin, setRefundOrigin] = React.useState(false);
   const apptId = appointment?.id;
   React.useEffect(() => {
     setConfirmCancel(false);
@@ -4489,15 +4497,41 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                               variant="secondary"
                               className="h-9"
                               disabled={cancelReasonMissing}
-                              onClick={() => {
-                                onCancelWithDeposit(appointment, "return", cancelReason.trim());
-                                setConfirmCancel(false);
-                                setCancelReason("");
-                              }}
+                              onClick={() => setRefundOrigin((v) => !v)}
                             >
                               Reembolsar seña
                             </Button>
                           </div>
+                          {refundOrigin && (
+                            <div className="space-y-1.5 rounded-lg bg-white/[0.04] p-2 ring-1 ring-white/10">
+                              <div className="text-center text-[11px] text-muted-foreground">
+                                ¿De dónde sale el reembolso? Queda como gasto de hoy.
+                              </div>
+                              <div className="grid grid-cols-2 gap-2">
+                                {(
+                                  [
+                                    ["caja", "De la caja"],
+                                    ["otros", "Fondos externos"],
+                                  ] as const
+                                ).map(([src, label]) => (
+                                  <Button
+                                    key={src}
+                                    variant="secondary"
+                                    className="h-9"
+                                    disabled={cancelReasonMissing}
+                                    onClick={() => {
+                                      onCancelWithDeposit(appointment, "return", cancelReason.trim(), src);
+                                      setRefundOrigin(false);
+                                      setConfirmCancel(false);
+                                      setCancelReason("");
+                                    }}
+                                  >
+                                    {label}
+                                  </Button>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                           <button
                             type="button"
                             className="w-full text-center text-xs text-muted-foreground hover:text-foreground transition"

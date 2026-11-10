@@ -608,8 +608,23 @@ async function datesWithActivity(
     .lte("date", newest);
   if (branchFilter) expQuery = expQuery.or(branchFilter);
 
-  const [payRes, expRes] = await Promise.all([payQuery, expQuery]);
+  // Señas aprobadas: el ingreso queda en el día de la transferencia. Si ese día
+  // no se abrió (domingo, feriado), igual hay plata que cerrar: es actividad.
+  let senaQuery = supabase
+    .from("cash_movements" as any)
+    .select("created_at")
+    .eq("business_id", businessId)
+    .not("deposit_id", "is", null)
+    .eq("extension_pendiente", false)
+    .gte("created_at", dayBoundsBA(oldest).start.toISOString())
+    .lte("created_at", dayBoundsBA(newest).end.toISOString());
+  if (branchFilter) senaQuery = senaQuery.or(branchFilter);
+
+  const [payRes, expRes, senaRes] = await Promise.all([payQuery, expQuery, senaQuery]);
   const active = new Set<string>();
+  for (const row of ((senaRes as any).data ?? []) as { created_at: string | null }[]) {
+    if (row.created_at) active.add(cajaDateKeyBA(new Date(row.created_at)));
+  }
   for (const row of (payRes.data ?? []) as { created_at: string | null }[]) {
     // cajaDateKeyBA, no cajaDateKey: un pago hecho después de medianoche
     // BA pero antes de medianoche del huso local/UTC tiene que contar
@@ -771,6 +786,8 @@ export async function buildCierreSnapshotForDate(
     .select("id,type,amount,deposit_id")
     .eq("business_id", businessId)
     .not("deposit_id", "is", null)
+    // Seña de un día cuya caja ya estaba cerrada: va por la extensión, no por el cierre.
+    .eq("extension_pendiente", false)
     .gte("created_at", dayStart.toISOString())
     .lte("created_at", dayEnd.toISOString());
   if (branchFilter) senasQuery = senasQuery.or(branchFilter);
@@ -1494,6 +1511,7 @@ export async function buildCajaMovimientosManualesForDate(
     .from("cash_movements" as any)
     .select("id,type,amount,method,note,created_by,created_at,deposit_id,credited_at")
     .eq("business_id", businessId)
+    .eq("extension_pendiente", false)
     .gte("created_at", start.toISOString())
     .lte("created_at", end.toISOString());
   if (branchFilter) movQuery = movQuery.or(branchFilter);

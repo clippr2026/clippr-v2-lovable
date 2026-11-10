@@ -1,5 +1,23 @@
 # Señas: contabilidad en Caja, Inicio, cierre y reportes
 
+## Nueva forma (10/11/2026) — reemplaza lo que diga distinto más abajo
+
+- La seña con comprobante queda **Por revisar**. Al aprobarla, el ingreso (`cash_movements.created_at`) queda en el
+  **día de la transferencia** (`credited_at`), en **Dinero en banco**. Efectivo / cargada a mano desde Agenda: queda
+  aprobada en el momento (efectivo → **Efectivo en caja**, transferencia → Dinero en banco).
+- Día de la transferencia **sin caja** (domingo, feriado): ese día aparece como **caja pendiente de cierre**
+  (`datesWithActivity` cuenta los movimientos de seña).
+- Día de la transferencia con la **caja ya cerrada**: el movimiento queda con `extension_pendiente = true` y no entra en
+  ningún cierre ni en la caja abierta. Aparece el aviso **"Señas pendientes de cierre"** (Inicio y Caja); al confirmarlo,
+  `close_caja_extension_v1` crea una fila en `caja_cierre_extensiones` y el Historial la muestra debajo del cierre.
+  El cierre original no se modifica.
+- **No se puede confirmar un cierre** con señas por revisar cuyo comprobante es de ese día o anterior (`CierreSenasGate`).
+- **Reembolso**: ya no es un retiro de caja. `decide_deposit_v1(..., p_funds_source)` crea un **gasto del día**
+  ("Reembolso de seña", tipo ocasional, `expenses.deposit_id`) con origen Caja (`caja`) o Fondos externos (`otros`).
+  Se hace desde Agenda, en el turno.
+- Tarjeta "Señas" (Inicio y Caja): solo **Por revisar**.
+- Migración: `supabase/migrations/20261110030000_senas_dia_transferencia_y_extension.sql`.
+
 ## Fechas que guarda cada seña
 - `credited_at` — fecha REAL de acreditación (día que el cliente transfirió; efectivo/registrada a mano: el momento).
 - `approved_at` — fecha de aprobación en el local.

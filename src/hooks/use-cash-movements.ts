@@ -87,6 +87,8 @@ export function useCashMovements(
       .from("cash_movements" as any)
       .select("id,type,amount,method,note,created_by,created_at,deposit_id,credited_at")
       .eq("business_id", businessId)
+      // Seña de un día cuya caja ya estaba cerrada: va por la extensión, no por la caja abierta.
+      .eq("extension_pendiente", false)
       .gte("created_at", dayStart)
       .lte("created_at", dayEnd);
     if (branchFilter) movQuery = movQuery.or(branchFilter);

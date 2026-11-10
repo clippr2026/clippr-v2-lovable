@@ -1,5 +1,6 @@
 import { CierreSenasGate } from "@/components/senas/cierre-senas-gate";
 import { SenasCajaCard } from "@/components/senas/senas-caja-card";
+import { CierreExtensionesNota, SenasExtensionBanner } from "@/components/senas/senas-extension";
 import { senaMovimientoInfo, senaNotaVisible, senasOtroDiaAviso } from "@/lib/senas-contable";
 import { useDepositCredit } from "@/components/cash-register/deposit-charge-banner";
 import React from "react";
@@ -9363,6 +9364,8 @@ function CierreDetalleView({
               </dl>
             </section>
 
+            <CierreExtensionesNota businessId={businessId} branchId={branchId} fecha={fecha} />
+
             <section className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 p-4">
               <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-sky-200/80">Dinero en banco</div>
               <dl className="space-y-2.5">
@@ -12948,6 +12951,8 @@ function FacturacionPanel({
           (summary.pendingCierres) y mismo botón "Revisar cierre" que ya
           usan Inicio y Caja > Cierres, para que las tres pantallas
           queden sincronizadas en tiempo real sin un cálculo aparte. */}
+      <SenasExtensionBanner businessId={data.businessId} branchId={data.activeBranchId} onClosed={() => void data.refresh()} />
+
       {summary.pendingCierres.length > 0 && (
         <div className="rounded-[20px] border border-amber-400/25 bg-amber-400/[0.08] p-4">
           <div className="flex items-start gap-2.5">
