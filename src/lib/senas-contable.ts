@@ -102,7 +102,7 @@ const DIA_MES = new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "numer
  */
 export function senaMovimientoInfo(m: SenaMovimiento, todayKey: string = dayKeyBA(new Date())) {
   if (!m.depositId) return null;
-  if (m.tipo === "retiro") return { devolucion: true, otroDia: false, etiqueta: "Devolución de seña" };
+  if (m.tipo === "retiro") return { devolucion: true, otroDia: false, etiqueta: "Reembolso de seña" };
   const otroDia = senaCreditedOtherDay({ deposit_id: m.depositId, credited_at: m.acreditadaEn, created_at: m.creadoEn });
   if (!otroDia) {
     const esHoy = !m.creadoEn || dayKeyBA(m.creadoEn) === todayKey;
