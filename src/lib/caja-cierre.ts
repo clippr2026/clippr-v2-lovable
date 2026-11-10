@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { saleIngreso, senasIngresosDesdeMovimientos } from "@/lib/senas-contable";
+import { saleIngreso, senaNotaVisible, senasIngresosDesdeMovimientos } from "@/lib/senas-contable";
 
 // Helpers de "Cierre de caja" (caja_cierres) — compartidos entre Caja
 // (src/routes/cash-register.tsx, históricamente donde vivía todo esto) e
@@ -1518,7 +1518,7 @@ export async function buildCajaMovimientosManualesForDate(
       : null,
     monto: Number(m.amount ?? 0),
     metodo: m.method ?? null,
-    nota: m.note ?? null,
+    nota: senaNotaVisible(m.note),
     usuario: m.created_by ? profileNameById.get(m.created_by) ?? m.created_by : null,
     depositId: m.deposit_id ?? null,
     acreditadaEn: m.credited_at ?? null,

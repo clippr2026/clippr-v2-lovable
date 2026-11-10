@@ -115,6 +115,12 @@ export function senaMovimientoInfo(m: SenaMovimiento, todayKey: string = dayKeyB
   return { devolucion: false, otroDia, etiqueta: `Seña del ${cuando}` };
 }
 
+/** La base guarda el concepto del reembolso como "Devolución de Seña – …"; en pantalla se lee "Reembolso de seña – …". */
+export function senaNotaVisible(nota: string | null | undefined): string | null {
+  if (!nota) return nota ?? null;
+  return nota.replace(/^Devolución de Seña/, "Reembolso de seña");
+}
+
 /**
  * Aviso para el cierre de dinero en cuenta: señas aprobadas ese día cuya transferencia es de otro día,
  * agrupadas por día ("2 señas del domingo", "1 seña del sábado"). Vacío si no hay ninguna.

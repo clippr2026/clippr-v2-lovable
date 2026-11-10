@@ -1,5 +1,5 @@
 import { SenasCajaCard } from "@/components/senas/senas-caja-card";
-import { senaMovimientoInfo, senasOtroDiaAviso } from "@/lib/senas-contable";
+import { senaMovimientoInfo, senaNotaVisible, senasOtroDiaAviso } from "@/lib/senas-contable";
 import { useDepositCredit } from "@/components/cash-register/deposit-charge-banner";
 import React from "react";
 import {
@@ -8108,7 +8108,7 @@ function CierreMovimientosDetalleList({
                     <div className="flex items-center justify-between gap-3">
                       <span className="truncate font-semibold text-white">
                         {senaMovimientoInfo(m)?.etiqueta ?? (m.tipo === "retiro" ? "Retiro" : "Ingreso manual")}
-                        {m.nota ? ` · ${m.nota}` : ""}
+                        {m.nota ? ` · ${m.nota.replace(/^Reembolso de seña – /, "")}` : ""}
                       </span>
                       <span className={cn("font-bold", m.tipo === "retiro" ? "text-rose-300" : "text-emerald-300")}>
                         {m.tipo === "retiro" ? "-" : "+"}
@@ -11324,7 +11324,7 @@ function movimientoRow(m: CashMovement) {
           </span>
         </div>
         <div className="mt-0.5 truncate text-xs text-muted-foreground">
-          {m.note || "—"} · {displayResponsibleUser(m.created_by)} · {hora}hs
+          {senaNotaVisible(m.note) || "—"} · {displayResponsibleUser(m.created_by)} · {hora}hs
         </div>
       </div>
       <span
@@ -11778,7 +11778,7 @@ function unifiedMovView(
   // "—" ahí. cash_movements.note es el único campo de texto que carga ese
   // formulario (ver RegistrarMovimientoModal), así que si por algún motivo
   // quedó vacío, el fallback es el tipo de movimiento, no un guion.
-  const concepto = m.note?.trim() || tipoLabel;
+  const concepto = senaNotaVisible(m.note)?.trim() || tipoLabel;
   return {
     typeLabel: tipoLabel,
     fecha: formatArgFecha(dt),

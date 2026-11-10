@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { computeExpectedCashAndDigital } from "./caja-cierre";
-import { saleIngreso, senaMovimientoInfo, senasIngresosDesdeMovimientos, senasOtroDiaAviso } from "./senas-contable";
+import { saleIngreso, senaMovimientoInfo, senaNotaVisible, senasIngresosDesdeMovimientos, senasOtroDiaAviso } from "./senas-contable";
 
 const base = { payments: [], expenses: [], advances: [] };
 
@@ -112,5 +112,15 @@ describe("Señas en la tarjeta y en el detalle del cierre (etapa 4)", () => {
 
   it("sin señas de otro día no hay aviso", () => {
     expect(senasOtroDiaAviso([deHoy, devolucion, manual])).toEqual([]);
+  });
+});
+
+describe("Concepto del reembolso en pantalla", () => {
+  it("'Devolución de Seña – …' se lee 'Reembolso de seña – …'", () => {
+    expect(senaNotaVisible("Devolución de Seña – Juan – Corte")).toBe("Reembolso de seña – Juan – Corte");
+  });
+  it("las demás notas no cambian", () => {
+    expect(senaNotaVisible("Seña – Juan – Corte")).toBe("Seña – Juan – Corte");
+    expect(senaNotaVisible(null)).toBeNull();
   });
 });
