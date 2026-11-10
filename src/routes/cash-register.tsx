@@ -1,3 +1,4 @@
+import { CierreSenasGate } from "@/components/senas/cierre-senas-gate";
 import { SenasCajaCard } from "@/components/senas/senas-caja-card";
 import { senaMovimientoInfo, senaNotaVisible, senasOtroDiaAviso } from "@/lib/senas-contable";
 import { useDepositCredit } from "@/components/cash-register/deposit-charge-banner";
@@ -6318,7 +6319,7 @@ function ProfesionalesTab({
               </div>
               <p className="text-[11px] font-medium leading-snug text-white/40">
                 {adelantoForm.source === "caja"
-                  ? "Pagás con dinero de la jornada. Se descuenta de Efectivo o Dinero en cuenta, según el medio de pago, y se registra en el cierre."
+                  ? "Pagás con dinero de la jornada. Se descuenta de Efectivo en caja o Dinero en banco, según el medio de pago, y se registra en el cierre."
                   : "Pagás con dinero fuera de la caja del día. No afecta los saldos ni el cierre, pero se descuenta de la liquidación del profesional."}
               </p>
               {cajaCerrada && (
@@ -6595,7 +6596,7 @@ function ProfesionalesTab({
                 </div>
                 <p className="text-[11px] font-medium leading-snug text-white/40">
                   {liquidarFunds === "caja"
-                    ? "Pagás con dinero de la jornada. Se descuenta de Efectivo o Dinero en cuenta, según el medio de pago, y se registra en el cierre."
+                    ? "Pagás con dinero de la jornada. Se descuenta de Efectivo en caja o Dinero en banco, según el medio de pago, y se registra en el cierre."
                     : "Pagás con dinero fuera de la caja del día. No afecta los saldos ni el cierre, pero se descuenta de la liquidación del profesional."}
                 </p>
                 {cajaCerrada && (
@@ -6930,7 +6931,7 @@ function NuevoGastoTab({
                 >
                   <span className="block text-sm font-semibold">Caja del día</span>
                   <span className="mt-1 block text-xs font-normal leading-snug text-muted-foreground">
-                    Se paga con dinero de la jornada. Se descuenta de Efectivo o Dinero en cuenta y se registra en el cierre.
+                    Se paga con dinero de la jornada. Se descuenta de Efectivo en caja o Dinero en banco y se registra en el cierre.
                   </span>
                 </button>
                 <button
@@ -6967,8 +6968,8 @@ function NuevoGastoTab({
               <p className="mt-1.5 text-xs text-muted-foreground">
                 {form.source === "caja"
                   ? form.method === ""
-                    ? "Elegí un medio: según cuál sea, se descuenta de Efectivo o de Dinero en cuenta de la caja del día."
-                    : `Se descuenta de ${form.method === "efectivo" ? "Efectivo" : "Dinero en cuenta"} de la caja del día.`
+                    ? "Elegí un medio: según cuál sea, se descuenta de Efectivo en caja o de Dinero en banco."
+                    : `Se descuenta de ${form.method === "efectivo" ? "Efectivo en caja" : "Dinero en banco"}.`
                   : "Elegí cómo se pagó. Con fondos externos el medio queda registrado en el gasto pero no mueve los saldos de la caja."}
               </p>
             </div>
@@ -8204,7 +8205,7 @@ function CierreConciliacionPanel({ conciliacion }: { conciliacion: Conciliacion 
 
       <div className="grid gap-3 sm:grid-cols-2">
         <SaldoComposicionLado label="Efectivo" lado={conciliacion.efectivo} />
-        <SaldoComposicionLado label="Dinero en cuenta" lado={conciliacion.digital} />
+        <SaldoComposicionLado label="Dinero en banco" lado={conciliacion.digital} />
       </div>
 
       {conciliacion.alertas.length > 0 && (
@@ -8622,6 +8623,8 @@ function CierreCajaBtn({
 }) {
   const [open, setOpen] = useState(false);
   const [obs, setObs] = useState("");
+  // Señas por revisar de este día o anteriores: no se puede cerrar hasta revisarlas.
+  const [senasBloquean, setSenasBloquean] = useState(false);
   const [saving, setSaving] = useState(false);
   const [efectivoContado, setEfectivoContado] = useState("");
   const [contadoTouched, setContadoTouched] = useState(false);
@@ -8829,11 +8832,17 @@ function CierreCajaBtn({
                     observacion={obs}
                     onObservacionChange={setObs}
                   />
+                  <CierreSenasGate
+                    businessId={businessId}
+                    fecha={cajaRangeStartDate}
+                    onBlockedChange={setSenasBloquean}
+                    onChanged={() => setRefreshTick((t) => t + 1)}
+                  />
                   <button
                     type="button"
                     onClick={() => setPrereqStep(true)}
-                    disabled={obsRequeridaFalta}
-                    title={obsRequeridaFalta ? "Contá qué pasó con la diferencia antes de continuar" : undefined}
+                    disabled={obsRequeridaFalta || senasBloquean}
+                    title={senasBloquean ? "Revisá las señas pendientes antes de cerrar" : obsRequeridaFalta ? "Contá qué pasó con la diferencia antes de continuar" : undefined}
                     className="w-full inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold bg-gradient-to-b from-blue-400 to-violet-500 text-white hover:brightness-105 disabled:opacity-50 transition-all"
                   >
                     Confirmar cierre de caja
@@ -8893,6 +8902,8 @@ function CerrarDiaAnteriorCard({
   const [saldoReal, setSaldoReal] = useState("");
   const [saldoRealTouched, setSaldoRealTouched] = useState(false);
   const [obs, setObs] = useState("");
+  // Señas por revisar de este día o anteriores: no se puede cerrar hasta revisarlas.
+  const [senasBloquean, setSenasBloquean] = useState(false);
   // Sección 5 del pedido: resumen final + segundo clic antes de confirmar.
   const [confirmStep, setConfirmStep] = useState(false);
   // Paso previo: salidas sin fichar + puntualidad del día (solo se ve si hay
@@ -9133,10 +9144,16 @@ function CerrarDiaAnteriorCard({
                   observacion={obs}
                   onObservacionChange={setObs}
                 />
+                <CierreSenasGate
+                  businessId={businessId}
+                  fecha={selectedDate}
+                  onBlockedChange={setSenasBloquean}
+                  onChanged={() => verVistaPrevia()}
+                />
                 <button
                   type="button"
-                  disabled={obsRequeridaFalta}
-                  title={obsRequeridaFalta ? "Contá qué pasó con la diferencia antes de continuar" : undefined}
+                  disabled={obsRequeridaFalta || senasBloquean}
+                  title={senasBloquean ? "Revisá las señas pendientes antes de cerrar" : obsRequeridaFalta ? "Contá qué pasó con la diferencia antes de continuar" : undefined}
                   onClick={() => setPrereqStep(true)}
                   className="mt-4 h-10 w-full rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-4 text-sm font-extrabold text-emerald-300 transition hover:bg-emerald-400/15 disabled:opacity-50"
                 >
@@ -12386,7 +12403,7 @@ function MovimientosUnificados({
       const method = String(payment.method ?? payment.payment_method ?? "cash");
       if (!groups[method]) groups[method] = { method, total: 0, count: 0 };
       // Con la propina: es plata real que entra por el mismo medio (así el
-      // chip coincide con "Dinero en cuenta del día" y con el banco).
+      // chip coincide con "Dinero en banco" y con el banco).
       groups[method].total +=
         Number(payment.total ?? payment.amount ?? 0) + Number((payment as any).tip_amount ?? (payment as any).tip ?? 0);
       groups[method].count += 1;
@@ -12874,7 +12891,7 @@ function FacturacionPanel({
     pendingDebtSummary.refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data.paymentsToday, data.collectionsToday]);
-  // Composición de "Efectivo del día"/"Dinero en cuenta del día" — un
+  // Composición de "Efectivo en caja"/"Dinero en banco" — un
   // saldo negativo nunca queda sin explicación, un clic alcanza (ver
   // src/components/caja/saldo-composicion.tsx).
   const [saldoDetalle, setSaldoDetalle] = React.useState<"cash" | "digital" | null>(null);
@@ -13032,7 +13049,7 @@ function FacturacionPanel({
         <FacturacionStatCard
           icon={Wallet}
           iconClass="text-amber-400"
-          label="Efectivo del día"
+          label="Efectivo en caja"
           value={summary.todayCashExpected}
           loading={summary.loading}
           onClick={() => setSaldoDetalle("cash")}
@@ -13040,7 +13057,7 @@ function FacturacionPanel({
         <FacturacionStatCard
           icon={CreditCard}
           iconClass="text-sky-400"
-          label="Dinero en cuenta del día"
+          label="Dinero en banco"
           value={summary.todayDigitalExpected}
           loading={summary.loading}
           onClick={() => setSaldoDetalle("digital")}
@@ -13051,7 +13068,7 @@ function FacturacionPanel({
 
       {saldoDetalle && (
         <SaldoComposicionModal
-          title={saldoDetalle === "cash" ? "Efectivo del día" : "Dinero en cuenta del día"}
+          title={saldoDetalle === "cash" ? "Efectivo en caja" : "Dinero en banco"}
           expected={summary.todayExpectedFull}
           side={saldoDetalle}
           onClose={() => setSaldoDetalle(null)}
