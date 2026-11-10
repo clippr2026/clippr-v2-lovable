@@ -27,7 +27,7 @@ const STATUS_LABEL: Record<DepositRow["status"], { text: string; cls: string }> 
   paid: { text: "🟢 Seña recibida", cls: "text-emerald-300" },
   applied: { text: "🟢 Seña aplicada al cobro", cls: "text-emerald-300" },
   to_decide: { text: "⚠️ Seña a decidir", cls: "text-amber-300" },
-  returned: { text: "🔵 Seña devuelta", cls: "text-sky-300" },
+  returned: { text: "🔵 Seña reembolsada", cls: "text-sky-300" },
   retained: { text: "🔴 Seña retenida", cls: "text-rose-300" },
   rejected: { text: "🔴 Comprobante rechazado", cls: "text-rose-300" },
   expired: { text: "⚪ Seña vencida", cls: "text-muted-foreground" },
@@ -302,7 +302,7 @@ export function DepositPanel({
         <div className="space-y-2.5 rounded-xl bg-amber-300/10 p-3 ring-1 ring-amber-300/25">
           <div className="text-xs text-amber-100">
             {dep.suggested_action === "refund"
-              ? "El cliente canceló dentro del plazo: se sugiere devolver la seña."
+              ? "El cliente canceló dentro del plazo: se sugiere reembolsar la seña."
               : "Se pasó el plazo o el cliente no asistió: se sugiere retener la seña. Elegí qué hacer."}
           </div>
           <div>
@@ -332,18 +332,18 @@ export function DepositPanel({
             </div>
           </div>
           <div className="grid grid-cols-2 gap-2">
-            <Button variant="secondary" className="h-9" disabled={busy} onClick={() => run("decide_deposit_v1", { p_deposit_id: dep.id, p_action: "refund", p_prof_pct: null, p_local_pct: null, p_note: null }, "Seña marcada como devuelta")}>
-              Devolver seña
+            <Button variant="secondary" className="h-9" disabled={busy} onClick={() => run("decide_deposit_v1", { p_deposit_id: dep.id, p_action: "refund", p_prof_pct: null, p_local_pct: null, p_note: null }, "Seña marcada como reembolsada")}>
+              Reembolsar seña
             </Button>
             <Button variant="destructive" className="h-9" disabled={busy} onClick={() => run("decide_deposit_v1", { p_deposit_id: dep.id, p_action: "retain", p_prof_pct: prof, p_local_pct: 100 - prof, p_note: null }, "Seña retenida")}>
               Retener seña
             </Button>
           </div>
-          <div className="text-[11px] text-muted-foreground">Recibir la seña la suma a Caja; devolverla la resta. Retenerla no mueve plata.</div>
+          <div className="text-[11px] text-muted-foreground">Recibir la seña la suma a Caja; reembolsarla la resta. Retenerla no mueve plata.</div>
         </div>
       )}
 
-      {dep.status === "returned" && <div className="text-xs text-muted-foreground">Devuelta: {money(dep.refund_amount)}</div>}
+      {dep.status === "returned" && <div className="text-xs text-muted-foreground">Reembolso: {money(dep.refund_amount)}</div>}
       {dep.status === "retained" && (
         <div className="space-y-2">
           <div className="text-xs text-muted-foreground">

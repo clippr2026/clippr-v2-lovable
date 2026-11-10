@@ -1073,7 +1073,7 @@ function AgendaPage() {
         });
         if (error) throw error;
         if (!res?.ok) throw new Error(res?.error ?? "No se pudo registrar la decisión de la seña.");
-        toast.success(action === "keep" ? "Turno cancelado. Seña retenida." : "Turno cancelado. Seña marcada como devuelta.");
+        toast.success(action === "keep" ? "Turno cancelado. Seña retenida." : "Turno cancelado. Seña marcada como reembolsada.");
       } catch (e) {
         toast.error((e as Error).message);
         return;
@@ -1089,7 +1089,7 @@ function AgendaPage() {
         await supabase.from("expenses").insert({
           business_id: a.business_id,
           branch_id: activeBranchId,
-          description: `Devolución de seña – ${a.client_name ?? "cliente"} – ${a.service_name ?? ""}${reason ? " – " + reason : ""}`,
+          description: `Reembolso de seña – ${a.client_name ?? "cliente"} – ${a.service_name ?? ""}${reason ? " – " + reason : ""}`,
           amount: Number(a.deposit_paid ?? 0),
           type: "devolucion_sena",
           date: new Date().toISOString().slice(0, 10),
@@ -1114,7 +1114,7 @@ function AgendaPage() {
             reason: reason.trim() || undefined,
           }).catch(() => {});
         }
-        toast.success("Seña devuelta y egreso registrado en Caja");
+        toast.success("Seña reembolsada y egreso registrado en Caja");
       } catch (e) {
         toast.error((e as Error).message);
         return;
@@ -4495,7 +4495,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                                 setCancelReason("");
                               }}
                             >
-                              Devolver seña
+                              Reembolsar seña
                             </Button>
                           </div>
                           <button
