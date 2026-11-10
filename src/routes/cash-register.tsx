@@ -1,4 +1,5 @@
 import { SenasCajaCard } from "@/components/senas/senas-caja-card";
+import { senaMovimientoInfo, senasOtroDiaAviso } from "@/lib/senas-contable";
 import { useDepositCredit } from "@/components/cash-register/deposit-charge-banner";
 import React from "react";
 import {
@@ -7359,10 +7360,12 @@ function CierreMovimientosDetalleList({
     for (const m of [...retiros, ...ingresosManuales]) {
       const metodo = m.metodo === "cuenta" ? "transfer" : "cash";
       if (medioFiltro !== "todos" && metodo !== medioFiltro) continue;
+      // Seña: se identifica con su etiqueta de fecha ("Seña de hoy" / "Seña del domingo").
+      const sena = senaMovimientoInfo(m);
       out.push({
         key: `mov-${m.id}`,
         hora: m.hora,
-        cliente: m.tipo === "retiro" ? "Retiro" : "Ingreso manual",
+        cliente: sena ? sena.etiqueta : m.tipo === "retiro" ? "Retiro" : "Ingreso manual",
         profesional: null,
         concepto: m.nota ?? "—",
         cobrado: Number(m.monto ?? 0),
@@ -8104,7 +8107,7 @@ function CierreMovimientosDetalleList({
                   <div key={m.id} className="rounded-xl bg-black/22 px-3 py-2 text-xs">
                     <div className="flex items-center justify-between gap-3">
                       <span className="truncate font-semibold text-white">
-                        {m.tipo === "retiro" ? "Retiro" : "Ingreso manual"}
+                        {senaMovimientoInfo(m)?.etiqueta ?? (m.tipo === "retiro" ? "Retiro" : "Ingreso manual")}
                         {m.nota ? ` · ${m.nota}` : ""}
                       </span>
                       <span className={cn("font-bold", m.tipo === "retiro" ? "text-rose-300" : "text-emerald-300")}>
@@ -8350,6 +8353,8 @@ function CierreRevisionDetalle({
   onObservacionChange: (v: string) => void;
 }) {
   const { snapshot, expected, manualMovements, movimientosManuales, adelantosDetalle, conciliacion } = preview;
+  // Señas aprobadas este día con transferencia de otro día: se avisan en "Dinero en banco".
+  const senasOtroDia = senasOtroDiaAviso(movimientosManuales);
   const { servicios, productos } = countServiciosYProductos(snapshot.cobrosSnapshot);
   const { detailPayment, openDetail, closeDetail } = useCierreDetailPayment(businessId);
   // Recibido por método, CON propina (detalleMetodosRecibido) — la plata
@@ -8426,6 +8431,13 @@ function CierreRevisionDetalle({
               ${Math.round(expected.digitalExpected).toLocaleString("es-AR")}
             </span>
           </div>
+          {senasOtroDia.length > 0 && (
+            <div className="rounded-xl bg-sky-400/10 px-3 py-2 text-xs leading-snug text-sky-100 ring-1 ring-sky-300/30">
+              Incluye <strong>{senasOtroDia.map((g) => g.texto).join(" y ")}</strong> ($
+              {Math.round(senasOtroDia.reduce((t, g) => t + g.monto, 0)).toLocaleString("es-AR")}): se aprobaron este día,
+              pero el cliente transfirió antes.
+            </div>
+          )}
           <div>
             <label className="text-xs text-muted-foreground">Saldo real en cuenta — el que ves hoy en tu cuenta</label>
             <div className="mt-1 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 focus-within:border-blue-300/40">

@@ -27,10 +27,10 @@ describe("Ejemplo del pedido: hoy apruebo $100.000, $50.000 transferidos hoy y $
   it("señas aprobadas e ingresos de hoy por señas: $100.000", () => {
     expect(senasIngresosDelDia(deps, HOY).neto).toBe(100000);
   });
-  it("dinero en cuenta de hoy por estas señas: $50.000 (la del domingo no suma)", () => {
-    expect(senasDineroEnCuentaDelDia(deps, HOY)).toBe(50000);
+  it("dinero en cuenta de hoy por estas señas: $100.000 (suman el día en que se aprueban)", () => {
+    expect(senasDineroEnCuentaDelDia(deps, HOY)).toBe(100000);
   });
-  it("el detalle etiqueta 'Seña de hoy' y 'Seña del domingo' y marca cuál suma al dinero del día", () => {
+  it("el detalle etiqueta 'Seña de hoy' y 'Seña del domingo' y marca cuál se transfirió el mismo día", () => {
     const det = senasDetalleDelDia(deps, HOY);
     expect(det.map((d) => [d.etiqueta, d.delDia])).toEqual([
       ["Seña de hoy", true],

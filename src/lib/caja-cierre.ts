@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { saleIngreso, senaCreditedOtherDay, senasIngresosDesdeMovimientos } from "@/lib/senas-contable";
+import { saleIngreso, senasIngresosDesdeMovimientos } from "@/lib/senas-contable";
 
 // Helpers de "Cierre de caja" (caja_cierres) — compartidos entre Caja
 // (src/routes/cash-register.tsx, históricamente donde vivía todo esto) e
@@ -1216,8 +1216,9 @@ export function computeExpectedCashAndDigital(params: {
   // method: "efectivo" (cajón físico) | "cuenta" (digital) — filas viejas,
   // de antes de que cash_movements tuviera esta columna, no traen method;
   // se tratan como "efectivo" (mismo comportamiento que tenían).
-  // deposit_id/credited_at/created_at: una seña cuya transferencia se acreditó
-  // otro día no suma al dinero en cuenta de este día (ver senas-contable.ts).
+  // deposit_id/credited_at/created_at: datos de la seña. Una seña suma al
+  // dinero el día en que se APRUEBA, aunque el cliente haya transferido otro
+  // día; credited_at solo se usa para avisarlo en el cierre (senas-contable.ts).
   cashMovements: Array<{
     type: "ingreso" | "retiro";
     amount: number | null;
@@ -1239,8 +1240,7 @@ export function computeExpectedCashAndDigital(params: {
   // profesional y esto no.
   settlementOutflows?: Array<{ amount?: number | null; payment_method?: string | null }>;
 }): ExpectedCashDigital {
-  const { payments, expenses, advances, collections = [], settlementOutflows = [] } = params;
-  const cashMovements = params.cashMovements.filter((m) => !senaCreditedOtherDay(m));
+  const { payments, expenses, advances, cashMovements, collections = [], settlementOutflows = [] } = params;
   const isCash = (m: string | null | undefined) => normalizeCierreMethodKey(m) === "cash";
   const isCashMovement = (m: { method?: string | null }) => !m.method || isCash(m.method);
 
@@ -1616,10 +1616,7 @@ export async function buildSingleDayCierrePreview(
     deposit_id: m.depositId ?? null,
     credited_at: m.acreditadaEn ?? null,
     created_at: m.creadoEn ?? null,
-  }))
-    // Una seña acreditada otro día no entra en el dinero de este día: se saca
-    // acá para que la Conciliación muestre los mismos términos que `expected`.
-    .filter((m) => !senaCreditedOtherDay(m));
+  }));
 
   const expected = computeExpectedCashAndDigital({
     payments: snapshot.cobrosSnapshot.map((c) => ({

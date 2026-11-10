@@ -8,8 +8,8 @@ import { useSenasPendientes } from "./use-senas-pendientes";
 const money = (n: number) => `$${Math.round(Number(n) || 0).toLocaleString("es-AR")}`;
 
 /**
- * Tarjeta "Señas" de Caja: lo recibido y devuelto hoy (el ingreso cuenta el día en que el cliente subió el
- * comprobante) y las señas que esperan revisión, de cualquier fecha de turno.
+ * Tarjeta "Señas" de Caja: lo recibido y devuelto hoy (una seña cuenta como recibida el día en que se
+ * aprueba, sin importar qué día transfirió el cliente) y las señas que esperan revisión, de cualquier fecha de turno.
  */
 export function SenasCajaCard({
   businessId,
@@ -76,14 +76,14 @@ export function SenasCajaCard({
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <div className="text-xs text-white/55">Recibidas hoy</div>
+            <div className="text-xs text-white/55">Recibidas</div>
             <div className="text-xl font-bold tabular-nums text-white">{money(day.received)}</div>
             <div className="text-[11px] text-white/45">
               {day.receivedCount} {day.receivedCount === 1 ? "seña" : "señas"}
             </div>
           </div>
           <div>
-            <div className="text-xs text-white/55">Devueltas hoy</div>
+            <div className="text-xs text-white/55">Devueltas</div>
             <div className="text-xl font-bold tabular-nums text-white">{money(day.refunded)}</div>
           </div>
         </div>

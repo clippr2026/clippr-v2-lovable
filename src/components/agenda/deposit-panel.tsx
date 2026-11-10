@@ -248,7 +248,7 @@ export function DepositPanel({
             <strong>
               {new Date(dep.proof_uploaded_at).toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "2-digit", timeZone: "America/Argentina/Buenos_Aires" })}
             </strong>
-            . Al aprobarlo queda en los <strong>Ingresos de hoy</strong>, pero <strong>no suma al dinero en cuenta de hoy</strong>, porque el dinero entró otro día.
+            . Al aprobarlo queda en <strong>Recibidas de hoy</strong> y suma a los Ingresos y al dinero en cuenta de hoy.
           </div>
         )}
 

@@ -54,7 +54,7 @@ function Row({ item, onDone }: { item: SenaPendiente; onDone: () => void }) {
     })();
   }, [showProof, proof, item.id]);
 
-  // Comprobante enviado otro día: el dinero cuenta ese día; el ingreso cuenta el día que se aprueba.
+  // Comprobante enviado otro día: igual cuenta (ingreso y dinero) el día en que se aprueba; solo se avisa.
   const otherDay = Boolean(item.proof_uploaded_at && dayBA(item.proof_uploaded_at) !== dayBA(new Date()));
 
   const review = async (approve: boolean) => {
@@ -71,7 +71,7 @@ function Row({ item, onDone }: { item: SenaPendiente; onDone: () => void }) {
       toast.success(
         approve
           ? otherDay
-            ? "Seña aprobada. Queda en los Ingresos de hoy; el dinero ya había entrado otro día."
+            ? "Seña aprobada. Queda en Recibidas de hoy."
             : "Seña aprobada"
           : "Comprobante rechazado",
       );
@@ -136,7 +136,7 @@ function Row({ item, onDone }: { item: SenaPendiente; onDone: () => void }) {
       {otherDay && item.proof_uploaded_at && (
         <div className="rounded-xl bg-sky-400/10 px-3 py-2 text-xs leading-snug text-sky-100 ring-1 ring-sky-300/30">
           Este comprobante se envió el <strong>{fmtDayShort(item.proof_uploaded_at)}</strong>. Al aprobarlo queda en los
-          <strong> Ingresos de hoy</strong>, pero <strong>no suma al dinero en cuenta de hoy</strong>, porque el dinero entró otro día.
+          <strong> Recibidas de hoy</strong> y suma a los Ingresos y al dinero en cuenta de hoy.
         </div>
       )}
 

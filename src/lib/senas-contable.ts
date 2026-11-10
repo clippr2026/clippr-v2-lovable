@@ -5,8 +5,9 @@
 //   - approved_at  = fecha de APROBACIÓN en el local.
 // Reglas (ver docs/senas-contabilidad.md):
 //   Ingresos      → cuenta el día de aprobación (neto de devoluciones el día en que se devuelven).
-//   Dinero cuenta → solo lo acreditado ese mismo día; una seña acreditada otro día NO suma al dinero de hoy
-//                   y nunca modifica una caja de un día anterior.
+//   Dinero cuenta → la seña suma el día en que se APRUEBA (va a "Recibidas"), sin importar qué día transfirió
+//                   el cliente; nunca modifica una caja de un día anterior. Si la transferencia es de otro día,
+//                   el cierre de dinero en cuenta lo avisa ("2 señas del domingo").
 //   Venta         → al cobrar el turno, la parte pagada como seña NO vuelve a contar como ingreso.
 
 export const BA_TZ = "America/Argentina/Buenos_Aires";
@@ -65,10 +66,10 @@ export function senasIngresosDelDia(deposits: SenaLedgerRow[], dayKey: string) {
   return { aprobadas, devueltas, neto: aprobadas - devueltas };
 }
 
-/** Dinero en cuenta del día por señas: transferencias aprobadas y acreditadas ese mismo día. */
+/** Dinero en cuenta del día por señas: transferencias aprobadas ese día (sin importar el día de la transferencia). */
 export function senasDineroEnCuentaDelDia(deposits: SenaLedgerRow[], dayKey: string): number {
   return deposits
-    .filter((d) => isApproved(d) && isTransfer(d) && d.approved_at && d.credited_at && dayKeyBA(d.approved_at) === dayKey && dayKeyBA(d.credited_at) === dayKey)
+    .filter((d) => isApproved(d) && isTransfer(d) && d.approved_at && dayKeyBA(d.approved_at) === dayKey)
     .reduce((s, d) => s + (Number(d.amount) || 0), 0);
 }
 
@@ -82,6 +83,56 @@ export function senaEtiqueta(creditedAt: string | null, dayKey: string): string 
   const k = dayKeyBA(creditedAt);
   if (k === dayKey) return "Seña de hoy";
   return `Seña del ${WEEKDAY.format(new Date(creditedAt))}`;
+}
+
+export type SenaMovimiento = {
+  tipo: "ingreso" | "retiro";
+  monto: number;
+  depositId?: string | null;
+  acreditadaEn?: string | null;
+  creadoEn?: string | null;
+};
+
+const DIA_MES = new Intl.DateTimeFormat("es-AR", { day: "numeric", month: "numeric", timeZone: BA_TZ });
+
+/**
+ * Cómo se muestra un movimiento de caja de una seña (null si el movimiento no es de una seña):
+ * "Seña de hoy" / "Seña del domingo" según cuándo transfirió el cliente respecto del día en que se aprobó,
+ * y si la transferencia es de otro día (suma igual el día de la aprobación; solo se avisa).
+ */
+export function senaMovimientoInfo(m: SenaMovimiento, todayKey: string = dayKeyBA(new Date())) {
+  if (!m.depositId) return null;
+  if (m.tipo === "retiro") return { devolucion: true, otroDia: false, etiqueta: "Devolución de seña" };
+  const otroDia = senaCreditedOtherDay({ deposit_id: m.depositId, credited_at: m.acreditadaEn, created_at: m.creadoEn });
+  if (!otroDia) {
+    const esHoy = !m.creadoEn || dayKeyBA(m.creadoEn) === todayKey;
+    return { devolucion: false, otroDia, etiqueta: esHoy ? "Seña de hoy" : "Seña del día" };
+  }
+  const credited = new Date(m.acreditadaEn as string);
+  const dias = Math.abs(new Date(m.creadoEn as string).getTime() - credited.getTime()) / 86_400_000;
+  // Más de una semana de diferencia: el día de la semana solo sería ambiguo.
+  const cuando = dias < 7 ? WEEKDAY.format(credited) : DIA_MES.format(credited);
+  return { devolucion: false, otroDia, etiqueta: `Seña del ${cuando}` };
+}
+
+/**
+ * Aviso para el cierre de dinero en cuenta: señas aprobadas ese día cuya transferencia es de otro día,
+ * agrupadas por día ("2 señas del domingo", "1 seña del sábado"). Vacío si no hay ninguna.
+ */
+export function senasOtroDiaAviso(movs: SenaMovimiento[]): Array<{ texto: string; cantidad: number; monto: number }> {
+  const grupos = new Map<string, { cuando: string; cantidad: number; monto: number; orden: string }>();
+  for (const m of movs) {
+    const info = senaMovimientoInfo(m);
+    if (!info || info.devolucion || !info.otroDia) continue;
+    const cuando = info.etiqueta.replace("Seña del ", "");
+    const g = grupos.get(cuando) ?? { cuando, cantidad: 0, monto: 0, orden: m.acreditadaEn as string };
+    g.cantidad += 1;
+    g.monto += Number(m.monto) || 0;
+    grupos.set(cuando, g);
+  }
+  return [...grupos.values()]
+    .sort((x, y) => x.orden.localeCompare(y.orden))
+    .map((g) => ({ texto: `${g.cantidad} ${g.cantidad === 1 ? "seña" : "señas"} del ${g.cuando}`, cantidad: g.cantidad, monto: g.monto }));
 }
 
 /** Señas aprobadas en un día, con su etiqueta y si cuentan para el dinero en cuenta de ese día. */

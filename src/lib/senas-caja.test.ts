@@ -1,10 +1,10 @@
 import { describe, it, expect } from "vitest";
 import { computeExpectedCashAndDigital } from "./caja-cierre";
-import { saleIngreso, senasIngresosDesdeMovimientos } from "./senas-contable";
+import { saleIngreso, senaMovimientoInfo, senasIngresosDesdeMovimientos, senasOtroDiaAviso } from "./senas-contable";
 
 const base = { payments: [], expenses: [], advances: [] };
 
-describe("Dinero en cuenta con señas (etapa 2)", () => {
+describe("Dinero en cuenta con señas: suman el día en que se aprueban", () => {
   it("una seña acreditada el mismo día suma a la cuenta", () => {
     const r = computeExpectedCashAndDigital({
       ...base,
@@ -15,14 +15,14 @@ describe("Dinero en cuenta con señas (etapa 2)", () => {
     expect(r.digitalExpected).toBe(100000);
   });
 
-  it("una seña acreditada el domingo y aprobada el lunes no suma a la cuenta del lunes", () => {
+  it("una seña transferida el domingo y aprobada el lunes suma a la cuenta del lunes", () => {
     const r = computeExpectedCashAndDigital({
       ...base,
       cashMovements: [
         { type: "ingreso", amount: 100000, method: "cuenta", deposit_id: "d1", credited_at: "2026-11-08T15:00:00Z", created_at: "2026-11-09T15:00:00Z" },
       ],
     });
-    expect(r.digitalExpected).toBe(0);
+    expect(r.digitalExpected).toBe(100000);
   });
 
   it("movimientos manuales sin seña no cambian", () => {
@@ -69,5 +69,48 @@ describe("Ingresos con señas (etapa 3)", () => {
   it("una venta sin seña cuenta completa, igual que antes", () => {
     expect(saleIngreso({ total: 30000, splits: [{ method: "cash", amount: 30000 }] })).toBe(30000);
     expect(saleIngreso({ total: 30000, splits: null })).toBe(30000);
+  });
+});
+
+describe("Señas en la tarjeta y en el detalle del cierre (etapa 4)", () => {
+  // Lunes 9/11/2026 (hora de Buenos Aires).
+  const hoy = "2026-11-09";
+  const deHoy = { tipo: "ingreso" as const, monto: 40000, depositId: "d1", acreditadaEn: "2026-11-09T14:00:00Z", creadoEn: "2026-11-09T15:00:00Z" };
+  const delDomingo = { tipo: "ingreso" as const, monto: 60000, depositId: "d2", acreditadaEn: "2026-11-08T20:00:00Z", creadoEn: "2026-11-09T15:30:00Z" };
+  const devolucion = { tipo: "retiro" as const, monto: 10000, depositId: "d3", acreditadaEn: "2026-11-09T16:00:00Z", creadoEn: "2026-11-09T16:00:00Z" };
+  const manual = { tipo: "ingreso" as const, monto: 5000 };
+
+  it("etiqueta 'Seña de hoy' la acreditada y aprobada hoy", () => {
+    expect(senaMovimientoInfo(deHoy, hoy)).toEqual({ devolucion: false, otroDia: false, etiqueta: "Seña de hoy" });
+  });
+
+  it("etiqueta 'Seña del domingo' la acreditada el domingo y aprobada el lunes, (se avisa en el cierre)", () => {
+    expect(senaMovimientoInfo(delDomingo, hoy)).toEqual({ devolucion: false, otroDia: true, etiqueta: "Seña del domingo" });
+  });
+
+  it("en un cierre de un día pasado no dice 'de hoy'", () => {
+    expect(senaMovimientoInfo(deHoy, "2026-11-12")?.etiqueta).toBe("Seña del día");
+  });
+
+  it("con más de una semana de diferencia usa la fecha, no el día de la semana", () => {
+    const vieja = { ...delDomingo, acreditadaEn: "2026-10-28T20:00:00Z" };
+    expect(senaMovimientoInfo(vieja, hoy)?.etiqueta).toBe("Seña del 28/10");
+  });
+
+  it("un movimiento manual no es una seña", () => {
+    expect(senaMovimientoInfo(manual, hoy)).toBeNull();
+  });
+
+  it("aviso del cierre: agrupa por día las señas transferidas otro día", () => {
+    const otraDelDomingo = { ...delDomingo, depositId: "d4", monto: 20000 };
+    const delSabado = { ...delDomingo, depositId: "d5", monto: 15000, acreditadaEn: "2026-11-07T20:00:00Z" };
+    expect(senasOtroDiaAviso([deHoy, delDomingo, otraDelDomingo, delSabado, devolucion, manual])).toEqual([
+      { texto: "1 seña del sábado", cantidad: 1, monto: 15000 },
+      { texto: "2 señas del domingo", cantidad: 2, monto: 80000 },
+    ]);
+  });
+
+  it("sin señas de otro día no hay aviso", () => {
+    expect(senasOtroDiaAviso([deHoy, devolucion, manual])).toEqual([]);
   });
 });

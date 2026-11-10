@@ -9,23 +9,22 @@
 ## Reglas
 | Concepto | Regla |
 |---|---|
-| Señas aprobadas (tarjeta) | Un único total: todas las aprobadas en el día. Detalle con etiqueta "Seña de hoy" / "Seña del domingo"… |
+| Señas (tarjeta) | "Recibidas": todas las aprobadas en el día, sin importar qué día transfirió el cliente. "Devueltas": las devueltas en el día. |
 | Ingresos del día | Señas aprobadas ese día − señas devueltas ese día + ventas (sin la parte pagada como seña). |
-| Dinero en cuenta del día | Solo transferencias acreditadas ese día. Una seña acreditada otro día no suma. |
+| Dinero en cuenta del día | La seña suma el día en que se aprueba (decisión del 9/11/2026: al cerrar se recomienda pasar el dinero a otra cuenta y arrancar en 0). Si la transferencia es de otro día, el cierre de dinero en cuenta lo avisa: "2 señas del domingo". |
 | Venta con seña | Se registra por el total; la parte `sena` no vuelve a contar como ingreso ni como dinero recibido. |
 | Total mensual de transferencias | Por `credited_at` (fecha real), sin duplicar, aunque la caja de ese día esté cerrada. Distinto del total de ingresos del mes. |
 | Conciliación | Lista las señas acreditadas en días cerrados: explican la diferencia entre el total mensual y la suma de los cierres diarios. |
 | Cierres históricos | No se modifican. |
 
 Ejemplo: hoy apruebo $100.000 (50.000 hoy + 50.000 del domingo) → señas aprobadas 100.000; ingresos por señas 100.000;
-dinero en cuenta por señas 50.000; en el cierre, filtro Transferencias muestra ambas con su etiqueta; la caja del domingo no cambia.
+dinero en cuenta por señas 100.000; el cierre avisa "1 seña del domingo" y lista ambas con su etiqueta; la caja del domingo no cambia.
 
 ## Implementación por etapas
 1. **Datos** (migración `20261109080000_senas_fechas_acreditacion.sql`) y reglas puras (`src/lib/senas-contable.ts`, con pruebas).
-2. **Dinero en cuenta**: `computeExpectedCashAndDigital` y los resúmenes ignoran movimientos de señas acreditadas otro día
-   (`senaCreditedOtherDay`).
+2. **Dinero en cuenta**: la seña suma el día de la aprobación (no se filtra nada); `senaCreditedOtherDay` solo alimenta el aviso.
 3. **Ingresos**: `use-caja-summary`, `use-caja-data`, dashboard/Inicio y `caja-cierre` usan `saleIngreso` y suman `senasIngresosDelDia`.
-4. **Tarjeta "Señas aprobadas"** y detalle con etiquetas; **cierre** con filtro Transferencias mostrando las señas (las de otros días solo informativas).
+4. **Tarjeta "Señas"** (Recibidas / Devueltas); **cierre**: señas con su etiqueta en el detalle y aviso en dinero en cuenta de las transferidas otro día (`senasOtroDiaAviso`).
 5. **Reportes**: total mensual de transferencias por fecha de acreditación + conciliación con los cierres.
 
 ## Impacto sobre cálculos existentes (a revisar antes de cada etapa)
