@@ -15,14 +15,35 @@ export function SenasCajaCard({
   businessId,
   branchId,
   onChanged,
+  hideWhenDisabled = false,
 }: {
   businessId: string | null | undefined;
   branchId: string | null | undefined;
   onChanged?: () => void;
+  /** Inicio: si las señas están desactivadas y no hay nada de hoy ni por revisar, la tarjeta no se muestra. */
+  hideWhenDisabled?: boolean;
 }) {
   const pend = useSenasPendientes(businessId);
   const [open, setOpen] = React.useState(false);
   const [day, setDay] = React.useState({ received: 0, receivedCount: 0, refunded: 0 });
+  // null = todavía no se sabe (no se muestra hasta saberlo, para que no parpadee).
+  const [enabled, setEnabled] = React.useState<boolean | null>(hideWhenDisabled ? null : true);
+
+  React.useEffect(() => {
+    if (!hideWhenDisabled || !businessId) return;
+    let cancelled = false;
+    void supabase
+      .from("business_settings")
+      .select("senas_config")
+      .eq("business_id", businessId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setEnabled(Boolean(((data as any)?.senas_config ?? {}).enabled));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [hideWhenDisabled, businessId]);
 
   const loadDay = React.useCallback(async () => {
     if (!businessId) return;
@@ -61,6 +82,9 @@ export function SenasCajaCard({
     void loadDay();
     onChanged?.();
   };
+
+  const hayActividad = day.received > 0 || day.refunded > 0 || pend.items.length > 0;
+  if (hideWhenDisabled && (enabled === null || (!enabled && !hayActividad))) return null;
 
   return (
     <>

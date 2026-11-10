@@ -15,6 +15,7 @@ import { useFichajeHoy } from "@/components/dashboard/use-fichaje-hoy";
 import { FichajeQrModal } from "@/components/dashboard/fichaje-qr-modal";
 import { FichajeEvidenciaModal } from "@/components/dashboard/fichaje-evidencia-modal";
 import { JornadaRecepcionCard } from "@/components/dashboard/jornada-recepcion-card";
+import { SenasCajaCard } from "@/components/senas/senas-caja-card";
 import { NegocioHero } from "@/components/dashboard/negocio-hero";
 import { type FichajeHoyPersona } from "@/lib/fichaje";
 import { cajaDateKeyBA, dayBoundsBA } from "@/lib/caja-cierre";
@@ -163,6 +164,12 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
   return (
     <div className="dashboard-premium-shell space-y-3 animate-fade-in-safe">
       <CajaHoyCard caja={cajaHoy} data={data} userEmail={userEmail} />
+      <SenasCajaCard
+        businessId={businessId}
+        branchId={activeBranchId}
+        onChanged={() => void cajaHoy.refresh()}
+        hideWhenDisabled
+      />
       <JornadaRecepcionCard businessId={businessId} branchId={fichajeBranchId} />
       <FichajeHoyCard
         fichaje={fichajeHoy}
