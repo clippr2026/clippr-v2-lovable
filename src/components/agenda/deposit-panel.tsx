@@ -11,6 +11,7 @@ type DepositRow = {
   paid_amount: number;
   method: string | null;
   proof_path: string | null;
+  proof_uploaded_at: string | null;
   suggested_action: "refund" | "retain" | null;
   refund_amount: number;
   retained_prof_amount: number;
@@ -75,7 +76,7 @@ export function DepositPanel({
   const load = React.useCallback(async () => {
     const [{ data: row }, { data: appt }] = await Promise.all([
       (supabase.from("appointment_deposits" as any) as any)
-        .select("id,status,amount,paid_amount,method,proof_path,suggested_action,refund_amount,retained_prof_amount,retained_local_amount,decision_note,prof_share_paid_at,prof_share_method")
+        .select("id,status,amount,paid_amount,method,proof_path,proof_uploaded_at,suggested_action,refund_amount,retained_prof_amount,retained_local_amount,decision_note,prof_share_paid_at,prof_share_method")
         .eq("appointment_id", appointmentId)
         .maybeSingle(),
       supabase.from("appointments").select("business_id").eq("id", appointmentId).maybeSingle(),
@@ -237,6 +238,19 @@ export function DepositPanel({
           )}
         </div>
       )}
+
+      {dep.status === "review" &&
+        dep.proof_uploaded_at &&
+        new Date(dep.proof_uploaded_at).toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }) !==
+          new Date().toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }) && (
+          <div className="rounded-xl bg-sky-400/10 px-3 py-2 text-xs leading-snug text-sky-100 ring-1 ring-sky-300/30">
+            Este comprobante se envió el{" "}
+            <strong>
+              {new Date(dep.proof_uploaded_at).toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "2-digit", timeZone: "America/Argentina/Buenos_Aires" })}
+            </strong>
+            . Al aprobarlo queda en los <strong>Ingresos de hoy</strong>, pero <strong>no suma al dinero en cuenta de hoy</strong>, porque el dinero entró otro día.
+          </div>
+        )}
 
       {(dep.status === "review" || dep.status === "pending") && !rejecting && (
         <div className="grid grid-cols-2 gap-2.5">
