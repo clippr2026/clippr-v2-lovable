@@ -1494,21 +1494,6 @@ function AgendaPage() {
             </span>
           </div>
 
-          {/* Ocupación de todo el local en el día — solo desktop/tablet */}
-          {localOccupancy !== null && (
-            <div
-              className="hidden sm:flex shrink-0 items-center gap-1.5 rounded-lg bg-white/[0.04] px-2 py-0.5 text-xs font-medium text-foreground ring-1 ring-white/12"
-              title="Ocupación del local: minutos con turno sobre los minutos disponibles de todos los profesionales"
-            >
-              <span
-                className="h-1.5 w-1.5 rounded-full"
-                style={{ background: localOccupancy > 0 ? "oklch(0.76 0.2 155)" : "oklch(0.65 0.025 270)" }}
-              />
-              <span className="text-sm font-semibold tabular-nums">{localOccupancy}%</span>
-              <span className="opacity-80">ocupado</span>
-            </div>
-          )}
-
           {/* "+" en mobile — mismo lugar donde en desktop está el puntito verde de sync.
               Fuera de cualquier contenedor con scroll horizontal, para que el tap responda bien. */}
           <Button
@@ -1522,6 +1507,20 @@ function AgendaPage() {
 
           {/* Status counts (clickable filters) — pushed right, solo desktop/tablet */}
           <div className="hidden sm:flex items-center gap-1.5 shrink-0 ml-auto">
+            {/* Ocupación de todo el local en el día */}
+            {localOccupancy !== null && (
+              <div
+                className="mr-1 flex shrink-0 items-center gap-1.5 rounded-lg bg-white/[0.04] px-2 py-0.5 text-xs font-medium text-foreground ring-1 ring-white/12"
+                title="Ocupación del local: minutos con turno sobre los minutos disponibles de todos los profesionales"
+              >
+                <span
+                  className="h-1.5 w-1.5 rounded-full"
+                  style={{ background: localOccupancy > 0 ? "oklch(0.76 0.2 155)" : "oklch(0.65 0.025 270)" }}
+                />
+                <span className="opacity-80">Ocupación</span>
+                <span className="text-sm font-semibold tabular-nums">{localOccupancy}%</span>
+              </div>
+            )}
             {STATUS_FILTERS.map(([k, label, color, ring, bg]) => (
               <button
                 key={k}
@@ -2944,8 +2943,9 @@ const DayView = React.memo(function DayView({
     ],
   );
 
-  // Ocupación de TODO el local: misma cuenta que la de cada profesional (turnos válidos sobre
-  // minutos disponibles, sin descansos ni bloqueos), sumada entre todos los que trabajan ese día.
+  // Ocupación de TODO el local: misma cuenta que la de cada profesional (turnos reservados, incluidos
+  // los que no asistieron, sobre minutos disponibles sin descansos ni bloqueos), sumada entre todos
+  // los que trabajan ese día. Los cancelados liberan el horario y no cuentan.
   const localOccupancyPct = React.useMemo(() => {
     if (closure) return null;
     let occupied = 0;
@@ -2960,7 +2960,7 @@ const DayView = React.memo(function DayView({
       const blocked = unionRangeMinutes(mine.filter((a) => a.status === "blocked").map(range)) / 60_000;
       const busy =
         unionRangeMinutes(
-          mine.filter((a) => a.status === "pending" || a.status === "confirmed" || a.status === "completed" || a.status === "charged").map(range),
+          mine.filter((a) => a.status === "pending" || a.status === "confirmed" || a.status === "completed" || a.status === "charged" || a.status === "no_show").map(range),
         ) / 60_000;
       available += Math.max(0, working - breakMin - blocked);
       occupied += busy;
@@ -3076,10 +3076,11 @@ const DayView = React.memo(function DayView({
           {shouldVirtualizeColumns && <div aria-hidden="true" />}
           {renderedColumns.map(({ e }) => {
             // % de ocupación del día: minutos ocupados por turnos válidos
-            // (por confirmar/confirmado/completado/cobrado) sobre minutos
+            // (por confirmar/confirmado/completado/cobrado/no asistió: el horario
+            // estaba reservado aunque el cliente no viniera) sobre minutos
             // disponibles reales (horario laboral menos descansos y menos
             // bloqueos de horario — un bloqueo resta del disponible, no
-            // cuenta como "ocupado"). Cancelados/rechazados/no-show no
+            // cuenta como "ocupado"). Los cancelados liberan el horario: no
             // restan ni ocupan.
             const empDayAppts = visibleDayAppts.filter((a) => a.employee_id === e.id);
             const dayWindow = effectiveWindowFor(e.id);
@@ -3106,7 +3107,8 @@ const DayView = React.memo(function DayView({
                       a.status === "pending" ||
                       a.status === "confirmed" ||
                       a.status === "completed" ||
-                      a.status === "charged",
+                      a.status === "charged" ||
+                      a.status === "no_show",
                   )
                   .map(apptRange),
               ) / 60_000;
@@ -3165,7 +3167,7 @@ const DayView = React.memo(function DayView({
                             : "oklch(0.65 0.025 270)",
                       }}
                     />
-                    {occupancyPct === null ? "Sin horario" : `${occupancyPct}% ocupado`}
+                    {occupancyPct === null ? "Sin horario" : `Ocupación ${occupancyPct}%`}
                   </div>
                 </div>
               </div>
