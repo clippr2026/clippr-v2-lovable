@@ -11,12 +11,14 @@ import {
   Clock,
   ChevronLeft,
   ChevronRight,
+  CalendarOff,
   CalendarPlus,
   CreditCard,
   HandCoins,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { useClosures } from "@/hooks/use-closures";
 import { DateRangePicker } from "@/components/date-range-picker";
 import { useAuth } from "@/hooks/use-auth";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
@@ -1044,6 +1046,13 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
   const agendaRangeStart = React.useMemo(() => new Date(`${from}T00:00:00`), [from]);
   const agendaRangeEnd = React.useMemo(() => new Date(`${from}T23:59:59`), [from]);
   const agendaData = useAgendaData(agendaRangeStart, agendaRangeEnd);
+  // Día cerrado (Cierres de Agenda): mismo aviso que la Agenda general. Los turnos que ya
+  // existan se siguen mostrando; esto es solo un cartel arriba.
+  const closuresQuery = useClosures(agendaData.businessId, agendaData.activeBranchId);
+  const closedToday = React.useMemo(
+    () => (closuresQuery.data ?? []).find((c) => from >= c.start_date && to <= c.end_date) ?? null,
+    [closuresQuery.data, from, to],
+  );
   const lockedEmployees = React.useMemo(
     () => agendaData.employees.filter((e) => e.id === empId),
     [agendaData.employees, empId],
@@ -1496,6 +1505,18 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
 
       {/* Celular: Hoy + fecha, justo arriba de la agenda. */}
       <div className="mb-3 flex justify-center sm:hidden">{dateControl}</div>
+
+      {closedToday && (
+        <div className="mb-2 flex flex-wrap items-center gap-3 rounded-2xl bg-rose-500/10 px-4 py-3 ring-1 ring-rose-400/25">
+          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-rose-500/15 text-rose-300">
+            <CalendarOff className="h-4.5 w-4.5" />
+          </span>
+          <div className="min-w-0">
+            <div className="text-sm font-bold tracking-wide text-rose-200">CERRADO</div>
+            <div className="text-xs text-rose-200/70">{closedToday.reason?.trim() || "Día cerrado"}</div>
+          </div>
+        </div>
+      )}
 
       {/* Agenda visual */}
       {isLoading ? (
