@@ -168,14 +168,15 @@ function metaForAppt(a: { status: ApptStatus; deposit_status?: string | null }) 
   return STATUS_META[a.status] ?? STATUS_META.pending;
 }
 
-// Neón de un estado: mismo color que el turno en el calendario (meta.dot / meta.border).
+// Neón de un estado: mismo relleno, borde y color de texto que el bloque del turno en el
+// calendario (meta.bg / meta.border / meta.dot). El resplandor sale del color del borde.
 // color-mix sirve para cualquier formato de color (oklch, rgba o hex).
 const mixAlpha = (color: string, pct: number) => `color-mix(in srgb, ${color} ${pct}%, transparent)`;
-function statusNeonStyle(dot: string, border: string): React.CSSProperties {
+function statusNeonStyle(dot: string, border: string, bg: string): React.CSSProperties {
   return {
     color: dot,
-    background: mixAlpha(dot, 14),
-    boxShadow: `0 0 0 1.5px ${border}, 0 0 16px ${mixAlpha(dot, 40)}, inset 0 0 10px ${mixAlpha(dot, 16)}`,
+    background: bg,
+    boxShadow: `inset 0 0 0 1px ${border}, 0 0 14px ${mixAlpha(border, 38)}, 0 0 2px ${mixAlpha(border, 55)}`,
   };
 }
 
@@ -1299,13 +1300,13 @@ function AgendaPage() {
 
   // Compartido entre la barra de estados de desktop (fila con scroll) y la
   // grilla fija de mobile (3 arriba + 2 abajo, sin scroll).
-  const STATUS_FILTERS: [string, string, string, string][] = [
-    ["pending", "Por confirmar", STATUS_META.pending.dot, STATUS_META.pending.border],
-    ["deposit", "Seña pendiente", DEPOSIT_PENDING_META.dot, DEPOSIT_PENDING_META.border],
-    ["confirmed", "Confirmados", STATUS_META.confirmed.dot, STATUS_META.confirmed.border],
-    ["charged", "Cobrados", STATUS_META.charged.dot, STATUS_META.charged.border],
-    ["cancelled", "Cancelados", STATUS_META.cancelled.dot, STATUS_META.cancelled.border],
-    ["no_show", "No asistió", STATUS_META.no_show.dot, STATUS_META.no_show.border],
+  const STATUS_FILTERS: [string, string, string, string, string][] = [
+    ["pending", "Por confirmar", STATUS_META.pending.dot, STATUS_META.pending.border, STATUS_META.pending.bg],
+    ["deposit", "Seña pendiente", DEPOSIT_PENDING_META.dot, DEPOSIT_PENDING_META.border, DEPOSIT_PENDING_META.bg],
+    ["confirmed", "Confirmados", STATUS_META.confirmed.dot, STATUS_META.confirmed.border, STATUS_META.confirmed.bg],
+    ["charged", "Cobrados", STATUS_META.charged.dot, STATUS_META.charged.border, STATUS_META.charged.bg],
+    ["cancelled", "Cancelados", STATUS_META.cancelled.dot, STATUS_META.cancelled.border, STATUS_META.cancelled.bg],
+    ["no_show", "No asistió", STATUS_META.no_show.dot, STATUS_META.no_show.border, STATUS_META.no_show.bg],
   ];
 
   // Always day view — navigation via the banner arrows
@@ -1447,7 +1448,7 @@ function AgendaPage() {
 
           {/* Status counts (clickable filters) — pushed right, solo desktop/tablet */}
           <div className="hidden sm:flex items-center gap-1.5 shrink-0 ml-auto">
-            {STATUS_FILTERS.map(([k, label, color, ring]) => (
+            {STATUS_FILTERS.map(([k, label, color, ring, bg]) => (
               <button
                 key={k}
                 onClick={() => {
@@ -1455,7 +1456,7 @@ function AgendaPage() {
                   setActiveDrawer("filter");
                 }}
                 className="inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs font-medium transition-all hover:brightness-110 shrink-0"
-                style={statusNeonStyle(color, ring)}
+                style={statusNeonStyle(color, ring, bg)}
               >
                 <span className="font-semibold tabular-nums text-sm">
                   {(counts as Record<string, number>)[k] ?? 0}
@@ -1601,7 +1602,7 @@ function AgendaPage() {
 
         {/* Estados — mobile: 3 arriba y 2 abajo, cada fila centrada, sin scroll horizontal. */}
         <div className="flex flex-wrap justify-center gap-1.5 mb-2 sm:hidden">
-          {STATUS_FILTERS.map(([k, label, color, ring]) => (
+          {STATUS_FILTERS.map(([k, label, color, ring, bg]) => (
             <button
               key={k}
               onClick={() => {
@@ -1609,7 +1610,7 @@ function AgendaPage() {
                 setActiveDrawer("filter");
               }}
               className="flex w-[calc((100%-0.75rem)/3)] flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 text-center transition-all active:brightness-110"
-              style={statusNeonStyle(color, ring)}
+              style={statusNeonStyle(color, ring, bg)}
             >
               <span className="font-semibold tabular-nums text-sm leading-none">
                 {(counts as Record<string, number>)[k] ?? 0}
@@ -4095,7 +4096,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
 
             <div
               className="inline-flex items-center gap-2 rounded-full px-3.5 py-1 text-[11px] font-bold uppercase tracking-[0.16em]"
-              style={statusNeonStyle(meta.dot, meta.border)}
+              style={statusNeonStyle(meta.dot, meta.border, meta.bg)}
             >
               <span
                 className="size-2.5 rounded-full"
