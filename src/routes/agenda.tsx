@@ -1582,6 +1582,7 @@ function AgendaPage() {
             branchId={data.activeBranchId}
             createdByName={(profile as any)?.full_name ?? null}
             employees={data.employees}
+            className="flex-1 justify-center sm:flex-none"
           />
         </div>
 

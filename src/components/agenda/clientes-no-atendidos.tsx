@@ -26,12 +26,15 @@ export function ClientesNoAtendidosButton({
   branchId,
   createdByName,
   employees,
+  className = "",
 }: {
   businessId: string | null | undefined;
   branchId: string | null | undefined;
   createdByName?: string | null;
   /** Profesionales de la sucursal elegida (los inactivos no se ofrecen). */
   employees: Profesional[];
+  /** Clases extra para el botón de la Agenda (por ejemplo, para que ocupe el ancho que sobra). */
+  className?: string;
 }) {
   const [open, setOpen] = React.useState(false);
   const [eligiendo, setEligiendo] = React.useState(false);
@@ -92,7 +95,7 @@ export function ClientesNoAtendidosButton({
           setEligiendo(false);
           setOpen(true);
         }}
-        className="inline-flex items-center gap-1.5 rounded-xl bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-foreground ring-1 ring-white/10 transition hover:bg-white/[0.07]"
+        className={`inline-flex items-center gap-1.5 rounded-xl bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-foreground ring-1 ring-white/10 transition hover:bg-white/[0.07] ${className}`}
       >
         <DoorOpen className="h-3.5 w-3.5 text-rose-300" />
         Se fue
