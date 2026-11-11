@@ -95,11 +95,7 @@ export function ClientesNoAtendidosButton({
           setEligiendo(false);
           setOpen(true);
         }}
-        className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium text-white transition hover:brightness-125 active:brightness-110 ${className}`}
-        style={{
-          background: "linear-gradient(180deg, rgba(120,28,105,0.40), rgba(46,12,50,0.78))",
-          boxShadow: "inset 0 0 0 1px rgba(240,120,250,0.55), 0 0 14px -3px rgba(217,70,239,0.55), inset 0 1px 0 rgba(255,255,255,0.07)",
-        }}
+        className={`inline-flex items-center gap-1.5 rounded-xl bg-white/[0.06] px-3 py-1.5 text-xs font-medium text-white ring-1 ring-white/15 transition hover:bg-white/[0.1] ${className}`}
       >
         <DoorOpen className="h-3.5 w-3.5 text-[#ff8f86]" />
         Se fue
