@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import { ClosedDayBanner } from "@/components/agenda/closed-day-banner";
 import { DateRangePicker } from "@/components/date-range-picker";
 import { useAuth } from "@/hooks/use-auth";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
@@ -1496,6 +1497,8 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
 
       {/* Celular: Hoy + fecha, justo arriba de la agenda. */}
       <div className="mb-3 flex justify-center sm:hidden">{dateControl}</div>
+
+      <ClosedDayBanner businessId={businessId} branchId={agendaData.activeBranchId} from={from} to={to} />
 
       {/* Agenda visual */}
       {isLoading ? (
