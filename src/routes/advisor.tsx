@@ -14,6 +14,7 @@ import { ADVISOR_MONTHS_SELECTABLE, useAdvisorAnalytics } from "@/hooks/use-advi
 import { cajaDateKeyBA } from "@/lib/caja-cierre";
 import { shiftMonth } from "@/lib/monthly-performance";
 import { MesSelector, RendimientoMensual } from "@/components/advisor/rendimiento-mensual";
+import { ClientesPerdidosCard } from "@/components/advisor/clientes-perdidos-card";
 import { useAiRecommendations, type RecommendationAchievement, type UseAiRecommendationsResult } from "@/hooks/use-ai-recommendations";
 import { MEASURABLE_CHANNELS } from "@/lib/acquisition-channels";
 import { AcquisitionChannelIcon } from "@/components/acquisition-channel-icon";
@@ -691,6 +692,14 @@ function AdvisorContent({
             </GlassCard>
           </div>
           {/* /Salud */}
+
+          <ClientesPerdidosCard
+            businessId={businessId}
+            monthKey={selectedMonthKey}
+            monthLabel={analytics.analysisMonthLabel}
+            occupancy={analytics.current?.hasData ? analytics.current.occupancy : null}
+            ticket={analytics.current?.ticket ?? null}
+          />
 
           {/* ── RADIOGRAFÍA DEL LOCAL ─────────────────────────────── */}
           {/* overflow-hidden: mismo fix que Salud/Evolución — el glow
