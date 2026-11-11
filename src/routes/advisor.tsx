@@ -699,6 +699,7 @@ function AdvisorContent({
             monthLabel={analytics.analysisMonthLabel}
             occupancy={analytics.current?.hasData ? analytics.current.occupancy : null}
             ticket={analytics.current?.ticket ?? null}
+            employeeLoad={analytics.current?.employeeLoad}
           />
 
           {/* ── RADIOGRAFÍA DEL LOCAL ─────────────────────────────── */}

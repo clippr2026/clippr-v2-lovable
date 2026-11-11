@@ -1581,6 +1581,7 @@ function AgendaPage() {
             businessId={data.businessId}
             branchId={data.activeBranchId}
             createdByName={(profile as any)?.full_name ?? null}
+            employees={data.employees}
           />
         </div>
 
