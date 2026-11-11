@@ -330,6 +330,8 @@ function AgendaPage() {
   // no los conteos de estado de arriba.
   const [profFilterId, setProfFilterId] = React.useState<string | null>(null);
   const [profFilterOpen, setProfFilterOpen] = React.useState(false);
+  // Ocupación de todo el local en el día (la calcula la grilla del día).
+  const [localOccupancy, setLocalOccupancy] = React.useState<number | null>(null);
   const profFilterKey = data.businessId
     ? `agenda_prof_filter_${data.businessId}_${data.activeBranchId ?? "none"}`
     : null;
@@ -1491,6 +1493,21 @@ function AgendaPage() {
             </span>
           </div>
 
+          {/* Ocupación de todo el local en el día — solo desktop/tablet */}
+          {localOccupancy !== null && (
+            <div
+              className="hidden sm:flex shrink-0 items-center gap-1.5 rounded-lg bg-white/[0.04] px-2 py-0.5 text-xs font-medium text-foreground ring-1 ring-white/12"
+              title="Ocupación del local: minutos con turno sobre los minutos disponibles de todos los profesionales"
+            >
+              <span
+                className="h-1.5 w-1.5 rounded-full"
+                style={{ background: localOccupancy > 0 ? "oklch(0.76 0.2 155)" : "oklch(0.65 0.025 270)" }}
+              />
+              <span className="text-sm font-semibold tabular-nums">{localOccupancy}%</span>
+              <span className="opacity-80">ocupado</span>
+            </div>
+          )}
+
           {/* "+" en mobile — mismo lugar donde en desktop está el puntito verde de sync.
               Fuera de cualquier contenedor con scroll horizontal, para que el tap responda bien. */}
           <Button
@@ -1821,6 +1838,7 @@ function AgendaPage() {
             onApptClick={handleApptClick}
             onChangeStatus={handleChangeStatus}
             onCobrar={handleCobrar}
+            onLocalOccupancy={setLocalOccupancy}
             onBreakClick={(item) => {
               setBreakModal({
                 employeeId: item.employeeId === "__none__" ? null : item.employeeId,
@@ -2247,6 +2265,7 @@ const DayView = React.memo(function DayView({
   onChangeStatus,
   onCobrar,
   onBreakClick,
+  onLocalOccupancy,
 }: {
   date: Date;
   data: ReturnType<typeof useAgendaData>;
@@ -2261,6 +2280,8 @@ const DayView = React.memo(function DayView({
   onChangeStatus: (a: Appointment, s: ApptStatus) => void;
   onCobrar: (a: Appointment) => void;
   onBreakClick: (item: { employeeId: string; startMin: number; endMin: number }) => void;
+  // Avisa a la página el % de ocupación de todo el local (null si no hay horario ese día).
+  onLocalOccupancy?: (pct: number | null) => void;
 }) {
   const [now, setNow] = React.useState(() => new Date());
   const [hoverTime, setHoverTime] = React.useState<{
@@ -2922,6 +2943,34 @@ const DayView = React.memo(function DayView({
     ],
   );
 
+  // Ocupación de TODO el local: misma cuenta que la de cada profesional (turnos válidos sobre
+  // minutos disponibles, sin descansos ni bloqueos), sumada entre todos los que trabajan ese día.
+  const localOccupancyPct = React.useMemo(() => {
+    if (closure) return null;
+    let occupied = 0;
+    let available = 0;
+    for (const emp of allEmployees) {
+      const win = effectiveWindowFor(emp.id);
+      const working = win.closeMin - win.openMin;
+      if (working <= 0) continue;
+      const breakMin = win.breaks.reduce((sum, b) => sum + Math.max(0, b.endMin - b.startMin), 0);
+      const mine = visibleDayAppts.filter((a) => a.employee_id === emp.id);
+      const range = (a: Appointment) => ({ start: new Date(a.starts_at).getTime(), end: getApptEnd(a).getTime() });
+      const blocked = unionRangeMinutes(mine.filter((a) => a.status === "blocked").map(range)) / 60_000;
+      const busy =
+        unionRangeMinutes(
+          mine.filter((a) => a.status === "pending" || a.status === "confirmed" || a.status === "completed" || a.status === "charged").map(range),
+        ) / 60_000;
+      available += Math.max(0, working - breakMin - blocked);
+      occupied += busy;
+    }
+    if (available <= 0) return occupied > 0 ? 100 : null;
+    return Math.min(100, Math.round((occupied / available) * 100));
+  }, [closure, allEmployees, effectiveWindowFor, visibleDayAppts]);
+  React.useEffect(() => {
+    onLocalOccupancy?.(localOccupancyPct);
+  }, [localOccupancyPct, onLocalOccupancy]);
+
   // Día cerrado (Fase 5): la grilla sigue mostrándose normal (horarios,
   // profesionales, descansos, turnos existentes) — esto es solo un aviso
   // arriba + una capa sutil sobre la grilla, nunca la reemplaza. Turnos ya
@@ -3075,15 +3124,6 @@ const DayView = React.memo(function DayView({
               .slice(0, 2)
               .join("")
               .toUpperCase();
-            // Modo de cobro del profesional — solo lectura acá, se configura
-            // en Equipo → Editar profesional.
-            const chargeEnabled = data.employeeApprovalEnabled[e.id] === true;
-            const chargeMode = data.employeeApprovalMode[e.id] === "manual" ? "manual" : "auto";
-            const chargeBadge = !chargeEnabled
-              ? { emoji: "⚪", label: "No cobra servicios", cls: "text-muted-foreground/85" }
-              : chargeMode === "manual"
-                ? { emoji: "🔵", label: "Envía servicios", cls: "text-sky-300/85" }
-                : { emoji: "🟢", label: "Cobra servicios", cls: "text-emerald-300/85" };
             return (
               <div
                 key={e.id}
@@ -3125,12 +3165,6 @@ const DayView = React.memo(function DayView({
                       }}
                     />
                     {occupancyPct === null ? "Sin horario" : `${occupancyPct}% ocupado`}
-                  </div>
-                  <div
-                    className={cn("mt-0.5 truncate text-[9px] leading-none", chargeBadge.cls)}
-                    title={chargeBadge.label}
-                  >
-                    {chargeBadge.emoji} {chargeBadge.label}
                   </div>
                 </div>
               </div>
