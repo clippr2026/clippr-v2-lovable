@@ -182,7 +182,7 @@ export function NegocioHero({ businessId }: { businessId: string | null }) {
       {/* De borde a borde y con el mismo fondo que la página pública (compensa el margen de AppShell). */}
       <div
         className="-mx-3 -mt-2 sm:-mx-5 sm:-mt-3 lg:-mx-6 lg:-mt-4"
-        style={{ WebkitMaskImage: "linear-gradient(#000 88%, transparent)", maskImage: "linear-gradient(#000 88%, transparent)" }}
+        style={{ WebkitMaskImage: "linear-gradient(#000 95%, transparent)", maskImage: "linear-gradient(#000 95%, transparent)" }}
       >
       {font ? <link rel="stylesheet" href={publicFontsStylesheet([font])} /> : null}
       <PublicHero
