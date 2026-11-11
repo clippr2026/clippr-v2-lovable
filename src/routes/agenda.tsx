@@ -1484,7 +1484,8 @@ function AgendaPage() {
                 data.realtimeStatus === "disconnected" && "bg-rose-400",
               )}
             />
-            <span className="hidden sm:inline whitespace-nowrap">
+            {/* Conectado: el texto solo en pantallas anchas (el punto verde ya lo dice). Si hay un problema, siempre se ve. */}
+            <span className={cn("whitespace-nowrap", data.realtimeStatus === "connected" ? "hidden 2xl:inline" : "hidden sm:inline")}>
               {data.realtimeStatus === "connected"
                 ? "Actualizado en tiempo real"
                 : data.realtimeStatus === "connecting"
