@@ -635,6 +635,14 @@ html.neon-skin .dashboard-premium-shell .glass.glass {
     0 0 46px -12px oklch(0.66 0.27 295 / 0.75),
     0 18px 46px -28px oklch(0 0 0 / 0.9);
 }
+/* Resplandor de fondo más suave arriba: si no, la primera tarjeta (Caja de hoy) se veía
+   mucho más clara que el resto, porque el vidrio deja pasar ese resplandor. */
+html.neon-skin .dashboard-premium-shell::before {
+  background:
+    radial-gradient(circle at 17% 4%, rgb(139 92 246 / 0.1), transparent 38%),
+    radial-gradient(circle at 76% 0%, rgb(79 125 255 / 0.08), transparent 36%),
+    radial-gradient(circle at 46% 96%, rgb(255 123 229 / 0.08), transparent 50%);
+}
 /* Línea de luz arriba de cada tarjeta. */
 html.neon-skin .dashboard-premium-shell .glass {
   position: relative;
