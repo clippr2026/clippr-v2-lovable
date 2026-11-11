@@ -3438,6 +3438,9 @@ const ApptCard = React.memo(function ApptCard({
   if (top < 0 || top > (hourEnd - hourStart) * rowPx) return null;
   const meta = metaForAppt(a);
   const depositPending = isDepositPendingAppt(a);
+  const promoLabel = resolvePromotionBadgeLabel(a.promotion_id, a.promotion_snapshot);
+  // Con alto suficiente (desde ~40 min): hora / cliente / servicio, cada uno en su línea.
+  const threeLines = height >= 38;
   const isMovable = a.status !== "charged" && a.status !== "no_show";
   const laneCount = layout?.laneCount ?? 1;
   const lane = layout?.lane ?? 0;
@@ -3482,32 +3485,52 @@ const ApptCard = React.memo(function ApptCard({
         onClick();
       }}
     >
-      {/* Línea 1: horario (lo más importante) + cliente */}
-      <div className="flex items-center gap-1 min-w-0 leading-none">
-        <span
-          className="text-[11px] font-bold tabular-nums shrink-0 leading-none"
-          style={{ color: meta.dot }}
-        >
-          {fmtHM(start)} • {fmtHM(end)}
-        </span>
-        <span className="text-[10px] opacity-40 shrink-0 leading-none">·</span>
-        <span className="text-[12px] font-semibold truncate flex-1 min-w-0 leading-none">
-          {clientDisplay}
-        </span>
-      </div>
-      {/* Línea 2: servicio + producto online — pegado al horario, legible y sin cortarse */}
-      {a.service_name && (
-        <div className="mt-0.5 flex min-w-0 items-center gap-1.5 leading-none">
-          <span className="truncate text-[11px] opacity-90">
-            {a.service_name}
-          </span>
-          {appointmentProductsFromNotes(a.notes).length > 0 && (
-            <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full px-1 py-px text-[9px] font-semibold leading-none text-amber-300">
-              <span aria-hidden>⭐</span>
-              <span>Producto</span>
-            </span>
+      {threeLines ? (
+        <>
+          {/* Hora arriba, cliente en el medio y servicio abajo */}
+          <div className="text-[11px] font-bold tabular-nums leading-none">
+            {fmtHM(start)} • {fmtHM(end)}
+          </div>
+          <div className="mt-px truncate text-[12px] font-semibold leading-none">{clientDisplay}</div>
+          {a.service_name && (
+            <div className={cn("mt-px flex min-w-0 items-center gap-1.5 leading-none", promoLabel && "pr-11")}>
+              <span className="truncate text-[11px] opacity-90">{a.service_name}</span>
+              {appointmentProductsFromNotes(a.notes).length > 0 && (
+                <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full px-1 py-px text-[9px] font-semibold leading-none text-amber-300">
+                  <span aria-hidden>⭐</span>
+                  <span>Producto</span>
+                </span>
+              )}
+            </div>
           )}
-        </div>
+        </>
+      ) : (
+        <>
+          {/* Turno corto: horario + cliente en una línea y el servicio abajo */}
+          <div className="flex items-center gap-1 min-w-0 leading-none">
+            <span
+              className="text-[11px] font-bold tabular-nums shrink-0 leading-none"
+              style={{ color: meta.dot }}
+            >
+              {fmtHM(start)} • {fmtHM(end)}
+            </span>
+            <span className="text-[10px] opacity-40 shrink-0 leading-none">·</span>
+            <span className="text-[12px] font-semibold truncate flex-1 min-w-0 leading-none">
+              {clientDisplay}
+            </span>
+          </div>
+          {a.service_name && (
+            <div className="mt-0.5 flex min-w-0 items-center gap-1.5 leading-none">
+              <span className="truncate text-[11px] opacity-90">{a.service_name}</span>
+              {appointmentProductsFromNotes(a.notes).length > 0 && (
+                <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full px-1 py-px text-[9px] font-semibold leading-none text-amber-300">
+                  <span aria-hidden>⭐</span>
+                  <span>Producto</span>
+                </span>
+              )}
+            </div>
+          )}
+        </>
       )}
       {depositPending && (
         <div
@@ -3536,19 +3559,16 @@ const ApptCard = React.memo(function ApptCard({
 
       {/* Quick actions removed — use detail modal instead */}
 
-      {(() => {
-        const promoLabel = resolvePromotionBadgeLabel(a.promotion_id, a.promotion_snapshot);
-        if (!promoLabel) return null;
-        return (
-          <span
-            className="absolute bottom-0.5 right-1.5 max-w-[65%] truncate text-[8px] font-semibold uppercase tracking-wide leading-none text-violet-300"
-            title={promoLabel}
-            aria-label={`Turno con promoción: ${promoLabel}`}
-          >
-            {promoLabel}
-          </span>
-        );
-      })()}
+      {promoLabel && (
+        <span
+          className="absolute bottom-0.5 right-1.5 text-[9px] font-black uppercase tracking-wide leading-none"
+          style={{ color: meta.dot, textShadow: `0 0 8px ${mixAlpha(meta.dot, 70)}` }}
+          title={promoLabel}
+          aria-label={`Turno con promoción: ${promoLabel}`}
+        >
+          Promo
+        </span>
+      )}
     </div>
   );
 });
