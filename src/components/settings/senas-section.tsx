@@ -146,15 +146,24 @@ function ServiceChips({
   grouped,
   selected,
   onToggle,
+  hidden,
 }: {
   grouped: [string, Service[]][];
   selected: string[];
   onToggle: (id: string) => void;
+  /** Servicios ya elegidos en otro caso: no se ofrecen acá (un servicio va en un solo caso). */
+  hidden?: Set<string>;
 }) {
+  const visible = grouped
+    .map(([cat, list]) => [cat, list.filter((s) => selected.includes(s.id) || !hidden?.has(s.id))] as [string, Service[]])
+    .filter(([, list]) => list.length > 0);
   return (
     <div className="mt-3 space-y-3">
       {grouped.length === 0 && <p className="text-sm text-muted-foreground">Todavía no hay servicios cargados.</p>}
-      {grouped.map(([cat, list]) => (
+      {grouped.length > 0 && visible.length === 0 && (
+        <p className="text-sm text-muted-foreground">Ya elegiste todos los servicios en los otros casos.</p>
+      )}
+      {visible.map(([cat, list]) => (
         <div key={cat}>
           <div className="mb-1.5 text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">{cat}</div>
           <div className="flex flex-wrap gap-2">
@@ -187,17 +196,17 @@ function RuleBlock({
   hint,
   rule,
   grouped,
+  takenByOthers,
   onPatch,
   onToggleService,
-  extra,
 }: {
   title: string;
   hint: string;
   rule: SenasRule;
   grouped: [string, Service[]][];
+  takenByOthers: Set<string>;
   onPatch: (patch: Partial<SenasRule>) => void;
   onToggleService: (id: string) => void;
-  extra?: React.ReactNode;
 }) {
   return (
     <div className={cn("rounded-xl p-3.5 ring-1 transition", rule.enabled ? "bg-primary/10 ring-primary/40" : "bg-white/[0.03] ring-white/10")}>
@@ -209,22 +218,9 @@ function RuleBlock({
         <Toggle on={rule.enabled} onChange={(v) => onPatch({ enabled: v })} />
       </label>
       {rule.enabled && (
-        <div className="mt-3 space-y-3">
-          {extra}
-          <div>
-            <div className="mb-1.5 text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">¿En qué servicios?</div>
-            <button
-              type="button"
-              onClick={() => onPatch({ all_services: !rule.all_services })}
-              className={cn(
-                "rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition",
-                rule.all_services ? "bg-primary/25 text-foreground ring-primary/70" : "bg-white/[0.03] text-muted-foreground ring-white/10",
-              )}
-            >
-              Todos los servicios
-            </button>
-            {!rule.all_services && <ServiceChips grouped={grouped} selected={rule.services} onToggle={onToggleService} />}
-          </div>
+        <div className="mt-3">
+          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">¿En qué servicios?</div>
+          <ServiceChips grouped={grouped} selected={rule.services} onToggle={onToggleService} hidden={takenByOthers} />
         </div>
       )}
     </div>
@@ -261,9 +257,16 @@ export function SenasSection() {
       svcQuery,
     ]);
     const stored = ((settings as any)?.senas_config ?? {}) as Record<string, any>;
+    const svcList = ((svc ?? []) as Service[]).filter((s) => !!s.name);
+    const loaded = fromRaw(stored);
+    // Una regla anterior que valía para "todos los servicios" pasa a la lista explícita.
+    const allIds = svcList.map((s) => s.id);
+    if (loaded.rules.all.all_services) loaded.rules.all = { ...loaded.rules.all, all_services: false, services: allIds };
+    if (loaded.rules.first.all_services) loaded.rules.first = { ...loaded.rules.first, all_services: false, services: allIds };
+    if (loaded.rules.noshow.all_services) loaded.rules.noshow = { ...loaded.rules.noshow, all_services: false, services: allIds };
     setRaw(stored);
-    setCfg(fromRaw(stored));
-    setServices(((svc ?? []) as Service[]).filter((s) => !!s.name));
+    setCfg(loaded);
+    setServices(svcList);
     setDirty(false);
     setLoading(false);
   }, [businessId, activeBranchId]);
@@ -291,6 +294,8 @@ export function SenasSection() {
   }, [services]);
 
   type RuleKey = keyof SenasConfig["rules"];
+  const takenBy = (key: RuleKey) =>
+    new Set((Object.keys(cfg.rules) as RuleKey[]).filter((k) => k !== key).flatMap((k) => cfg.rules[k].services));
   const patchRule = (key: RuleKey, patch: Partial<SenasRule> & { min?: number }) => {
     setCfg((c) => ({ ...c, rules: { ...c.rules, [key]: { ...c.rules[key], ...patch } } }));
     setDirty(true);
@@ -304,8 +309,7 @@ export function SenasSection() {
     if (!cfg.enabled) return null;
     const active = (Object.entries(cfg.rules) as [RuleKey, SenasRule][]).filter(([, r]) => r.enabled);
     if (active.length === 0) return "Activá al menos un caso en el que se pida seña.";
-    if (active.some(([, r]) => !r.all_services && r.services.length === 0))
-      return "En cada caso activado, elegí al menos un servicio (o “Todos los servicios”).";
+    if (active.some(([, r]) => r.services.length === 0)) return "En cada caso activado, elegí al menos un servicio.";
     if (cfg.amount_type === "percent" && (cfg.amount_value <= 0 || cfg.amount_value > 100))
       return "El porcentaje de la seña debe estar entre 1 y 100.";
     if (cfg.amount_type === "fixed" && cfg.amount_value <= 0) return "El monto de la seña debe ser mayor a 0.";
@@ -329,7 +333,12 @@ export function SenasSection() {
         enabled: cfg.enabled,
         // Los campos de la configuración anterior (scope, services, trigger…) quedan como estaban:
         // con `rules` presente la base los ignora.
-        rules: cfg.rules,
+        rules: {
+          all: { ...cfg.rules.all, all_services: false },
+          first: { ...cfg.rules.first, all_services: false },
+          // Con una falta alcanza.
+          noshow: { ...cfg.rules.noshow, all_services: false, min: 1 },
+        },
         amount_type: cfg.amount_type,
         amount_value: cfg.amount_value,
         proof_mode: cfg.proof_mode,
@@ -393,7 +402,7 @@ export function SenasSection() {
       <div className={cn("space-y-4 transition-opacity", off && "pointer-events-none opacity-40")}>
         <SectionCard label="¿Cuándo se pide seña?">
           <p className="text-sm text-muted-foreground">
-            Activá cada caso y elegí en qué servicios se pide. Si una reserva cumple alguno, se pide la seña.
+            Activá cada caso y elegí en qué servicios se pide. Un servicio va en un solo caso: los que ya elegiste en otro no aparecen.
           </p>
           <div className="mt-3 space-y-3">
             <RuleBlock
@@ -401,6 +410,7 @@ export function SenasSection() {
               hint="Piden seña siempre, sin importar quién reserve."
               rule={cfg.rules.all}
               grouped={grouped}
+              takenByOthers={takenBy("all")}
               onPatch={(patch) => patchRule("all", patch)}
               onToggleService={(id) => toggleRuleService("all", id)}
             />
@@ -409,30 +419,18 @@ export function SenasSection() {
               hint="Solo si es su primer turno."
               rule={cfg.rules.first}
               grouped={grouped}
+              takenByOthers={takenBy("first")}
               onPatch={(patch) => patchRule("first", patch)}
               onToggleService={(id) => toggleRuleService("first", id)}
             />
             <RuleBlock
               title="Clientes que no asistieron"
-              hint="Solo si faltaron a un turno anterior."
+              hint="Si faltaron una vez a un turno, ya se les pide."
               rule={cfg.rules.noshow}
               grouped={grouped}
+              takenByOthers={takenBy("noshow")}
               onPatch={(patch) => patchRule("noshow", patch)}
               onToggleService={(id) => toggleRuleService("noshow", id)}
-              extra={
-                <div className="flex items-center justify-between gap-3 text-sm">
-                  <span>Cuántas veces</span>
-                  <select
-                    value={cfg.rules.noshow.min}
-                    onChange={(e) => patchRule("noshow", { min: Number(e.target.value) })}
-                    className={cn(inputCls, "w-auto")}
-                  >
-                    <option value={1}>1 vez o más</option>
-                    <option value={2}>2 veces o más</option>
-                    <option value={3}>3 veces o más</option>
-                  </select>
-                </div>
-              }
             />
           </div>
         </SectionCard>
