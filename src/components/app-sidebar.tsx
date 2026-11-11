@@ -610,6 +610,9 @@ const MOBILE_NAV_SHORT_LABEL: Record<string, string> = {
   Configuración: "Config.",
 };
 
+// Orden de izquierda a derecha en la barra de abajo (Inicio va aparte, siempre al medio).
+const MOBILE_BAR_ORDER: PermKey[] = ["clientes", "profesionales", "agenda", "caja", "asesor_ia", "configuracion"];
+
 type MobileNavEntry = {
   label: string;
   to: string;
@@ -687,7 +690,10 @@ function MobileBottomNav() {
 
   // Inicio va siempre en el medio de la barra (si la cuenta lo tiene).
   const inicio = items.find((item) => item.permKey === "dashboard");
-  const resto = items.filter((item) => item.permKey !== "dashboard");
+  // A los costados de Inicio, lo que más se usa (Agenda y Caja), más cerca del pulgar.
+  const resto = items
+    .filter((item) => item.permKey !== "dashboard")
+    .sort((x, y) => MOBILE_BAR_ORDER.indexOf(x.permKey) - MOBILE_BAR_ORDER.indexOf(y.permKey));
   const mitad = Math.floor(resto.length / 2);
   const barItems = inicio ? [...resto.slice(0, mitad), inicio, ...resto.slice(mitad)] : items;
 
