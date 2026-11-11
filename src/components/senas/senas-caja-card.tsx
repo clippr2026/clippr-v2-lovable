@@ -46,7 +46,7 @@ function ReembolsosModal({ open, onClose, items }: { open: boolean; onClose: () 
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-1 flex items-center justify-between">
-          <h3 className="text-lg font-bold text-white">Reembolsos por revisar</h3>
+          <h3 className="text-lg font-bold text-white">Reembolsos</h3>
           <button type="button" aria-label="Cerrar" onClick={onClose} className="grid h-8 w-8 place-items-center rounded-full text-white/60 hover:bg-white/10 hover:text-white">
             <X className="h-4 w-4" />
           </button>
@@ -139,10 +139,10 @@ export function SenasCajaCard({
   return (
     <>
       <div
-        className="space-y-2.5 rounded-2xl p-3.5"
+        className="senas-neon-card space-y-2.5 rounded-2xl p-3.5"
         style={{
-          background: "linear-gradient(180deg, rgba(139,92,246,0.10), rgba(255,255,255,0.02))",
-          boxShadow: "inset 0 0 0 1px rgba(167,139,250,0.3)",
+          background: "linear-gradient(180deg, rgba(139,92,246,0.14), rgba(255,255,255,0.02))",
+          boxShadow: "inset 0 0 0 1px rgba(167,139,250,0.45), 0 0 28px -10px rgba(139,92,246,0.7)",
         }}
       >
         <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-200/80">
@@ -160,7 +160,7 @@ export function SenasCajaCard({
         >
           <span>Por revisar</span>
           <span className="tabular-nums">
-            {pend.items.length} {pend.items.length === 1 ? "seña" : "señas"}
+            {pend.items.length}
             {pend.items.length > 0 ? ` · ${money(pendTotal)}` : ""}
           </span>
         </button>
@@ -174,7 +174,7 @@ export function SenasCajaCard({
               : { background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.7)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.12)" }
           }
         >
-          <span>Reembolsos por revisar</span>
+          <span>Reembolsos</span>
           <span className="tabular-nums">
             {reemb.items.length}
             {reemb.items.length > 0 ? ` · ${money(reembTotal)}` : ""}
