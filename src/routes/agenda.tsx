@@ -175,7 +175,9 @@ const mixAlpha = (color: string, pct: number) => `color-mix(in srgb, ${color} ${
 function statusNeonStyle(dot: string, border: string, bg: string): React.CSSProperties {
   return {
     color: dot,
-    background: bg,
+    // El relleno es semitransparente: se apoya en el mismo gris del calendario (#111323) para
+    // que el tono final sea idéntico al del turno.
+    background: `linear-gradient(${bg}, ${bg}), #111323`,
     boxShadow: `inset 0 0 0 1px ${border}, 0 0 14px ${mixAlpha(border, 38)}, 0 0 2px ${mixAlpha(border, 55)}`,
   };
 }
