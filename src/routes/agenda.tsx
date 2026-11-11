@@ -1862,21 +1862,14 @@ function AgendaPage() {
               className="fixed z-50 w-64 overflow-hidden rounded-2xl border border-white/10 bg-background/95 shadow-2xl backdrop-blur-xl"
               style={{
                 left: Math.min(slotMenu.x, window.innerWidth - 272),
-                top: Math.max(8, Math.min(slotMenu.y, window.innerHeight - 150 - MOBILE_BOTTOM_NAV_CLEARANCE)),
+                top: Math.max(8, Math.min(slotMenu.y, window.innerHeight - 190 - MOBILE_BOTTOM_NAV_CLEARANCE)),
               }}
             >
-              <div className="border-b border-white/10 px-3 py-2 text-xs text-muted-foreground">
-                {slotMenu.startsAt.toLocaleDateString("es-AR", {
-                  day: "2-digit",
-                  month: "2-digit",
-                })}{" "}
-                · {fmtTime(slotMenu.startsAt)}
-                {slotMenu.restricted && (
-                  <div className="mt-0.5 text-[11px] font-medium text-amber-300/90">
-                    Profesional no disponible este día
-                  </div>
-                )}
-              </div>
+              {slotMenu.restricted && (
+                <div className="border-b border-white/10 px-3 py-2 text-[11px] font-medium text-amber-300/90">
+                  Profesional no disponible este día
+                </div>
+              )}
               {!slotMenu.restricted && (
                 <>
                   <button
@@ -1896,6 +1889,17 @@ function AgendaPage() {
               >
                 <Pencil className="h-4 w-4 shrink-0 text-violet-300" />
                 <span className="whitespace-nowrap">Horario especial</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSlotMenu(null);
+                  setClosuresOpen(true);
+                }}
+                className="flex w-full items-center gap-3 px-4 py-3 text-left text-sm font-medium text-foreground transition hover:bg-white/[0.06]"
+              >
+                <CalendarOff className="h-4 w-4 shrink-0 text-rose-300" />
+                <span className="whitespace-nowrap">Día cerrado</span>
               </button>
             </div>
           </MobileSafePortal>
@@ -3140,11 +3144,11 @@ const DayView = React.memo(function DayView({
                   <img
                     src={e.avatar_url}
                     alt={e.full_name ?? ""}
-                    className="h-7 w-7 rounded-full object-cover ring-1 ring-white/10 shrink-0"
+                    className="h-10 w-10 rounded-full object-cover ring-1 ring-white/15 shrink-0"
                   />
                 ) : (
                   <div
-                    className="h-7 w-7 rounded-full grid place-items-center text-[10px] font-semibold text-white ring-1 ring-white/10 shrink-0"
+                    className="h-10 w-10 rounded-full grid place-items-center text-xs font-semibold text-white ring-1 ring-white/15 shrink-0"
                     style={{
                       background:
                         "linear-gradient(135deg, oklch(0.7 0.22 245), oklch(0.65 0.27 305))",
