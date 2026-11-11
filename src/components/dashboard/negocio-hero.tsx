@@ -6,7 +6,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { PublicHero, AnnouncementBubble } from "@/components/public-hero";
 import { normalizePublicDecor, type PublicDecorKey } from "@/components/public-decor";
 import { normalizePublicNeon, type PublicNeonKey } from "@/lib/public-neon";
-import { normalizePublicBg, pageBackground, type PublicBgKey } from "@/lib/public-theme";
+import { normalizePublicBg, type PublicBgKey } from "@/lib/public-theme";
 import { getPublicFont, publicFontsStylesheet } from "@/lib/public-fonts";
 import {
   ANNOUNCEMENT_MAX_CHARS,
@@ -179,11 +179,14 @@ export function NegocioHero({ businessId }: { businessId: string | null }) {
 
   return (
     <div className="mb-5">
+      {/* De borde a borde y con el mismo fondo que la página pública (compensa el margen de AppShell). */}
+      <div
+        className="-mx-3 -mt-2 sm:-mx-5 sm:-mt-3 lg:-mx-6 lg:-mt-4"
+        style={{ WebkitMaskImage: "linear-gradient(#000 88%, transparent)", maskImage: "linear-gradient(#000 88%, transparent)" }}
+      >
       {font ? <link rel="stylesheet" href={publicFontsStylesheet([font])} /> : null}
       <PublicHero
-        compact
-        className="overflow-hidden rounded-3xl border border-white/10"
-        background={pageBackground(data.bg, data.light, data.primary, data.secondary)}
+        background={data.light ? "#ffffff" : "#08070c"}
         name={data.name}
         coverUrl={data.coverUrl}
         avatarUrl={data.avatarUrl}
@@ -203,6 +206,7 @@ export function NegocioHero({ businessId }: { businessId: string | null }) {
         years={data.years}
         bubble={bubble}
       />
+      </div>
       {text ? (
         <p className="mt-2 px-1 text-xs text-white/55">
           Tu anuncio se ve en tu página pública y se borra solo en {formatRemaining(remaining)}.
