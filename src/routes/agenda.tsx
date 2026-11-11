@@ -174,6 +174,10 @@ function metaForAppt(a: { status: ApptStatus; deposit_status?: string | null }) 
 // color-mix sirve para cualquier formato de color (oklch, rgba o hex).
 const mixAlpha = (color: string, pct: number) => `color-mix(in srgb, ${color} ${pct}%, transparent)`;
 // Oscurece apenas el relleno; se aplica igual a tarjetas y turnos para que sigan coincidiendo.
+// Letras del turno en el calendario: la hora y PROMO van en el color del estado; el cliente en
+// blanco y el servicio en un gris azulado apagado, para que el nombre sea lo más destacado.
+const TURNO_NAME_COLOR = "#fbffff";
+const TURNO_SERVICE_COLOR = "#b1c7da";
 const STATUS_DARKEN = "linear-gradient(rgba(6, 8, 22, 0.16), rgba(6, 8, 22, 0.16))";
 function statusNeonStyle(dot: string, border: string, bg: string): React.CSSProperties {
   return {
@@ -193,7 +197,11 @@ const ROW_PX = 88;
 // Alto FIJO de cada bloque de 1 hora (no se achica para meter más horas) y alto
 // del header de profesionales. La grilla muestra ~11 bloques y, si el día tiene
 // más horas visibles, scrollea verticalmente en vez de comprimir las filas.
-const AGENDA_ROW_PX = 64;
+// Alto de 1 hora. 86 hace que un turno de 30 min mida lo que antes medía uno de 40 (entran 3 líneas);
+// los de 40 y 60 se estiran en proporción, siguiendo la escala de horas de la izquierda.
+const AGENDA_ROW_PX = 86;
+// Alto de la ventana de la grilla en desktop/tablet: se mantiene igual que antes (11 bloques de 64 px).
+const AGENDA_WINDOW_ROW_PX = 64;
 const AGENDA_HEADER_PX = 58;
 const AGENDA_VISIBLE_ROWS = 11;
 const AGENDA_SLOT_OPTIONS = [20, 30, 40, 45, 50, 60] as const;
@@ -2916,7 +2924,7 @@ const DayView = React.memo(function DayView({
           // contenido (header + horas configuradas) y el scroll vertical lo
           // maneja la página. En desktop/tablet se mantiene la ventana fija
           // de AGENDA_VISIBLE_ROWS con su propio scroll interno.
-          maxHeight: isMobileViewport ? undefined : AGENDA_HEADER_PX + AGENDA_VISIBLE_ROWS * rowPx,
+          maxHeight: isMobileViewport ? undefined : AGENDA_HEADER_PX + AGENDA_VISIBLE_ROWS * AGENDA_WINDOW_ROW_PX,
         }}
       >
         <div
@@ -3494,10 +3502,14 @@ const ApptCard = React.memo(function ApptCard({
           <div className="text-[10px] font-semibold tabular-nums leading-none">
             {fmtHM(start)} • {fmtHM(end)}
           </div>
-          <div className="mt-px truncate text-[13px] font-bold leading-none">{clientDisplay}</div>
+          <div className="mt-px truncate text-[13px] font-bold leading-none" style={{ color: TURNO_NAME_COLOR }}>
+            {clientDisplay}
+          </div>
           {a.service_name && (
             <div className={cn("mt-px flex min-w-0 items-center gap-1.5 leading-none", promoLabel && "pr-11")}>
-              <span className="truncate text-[10px] opacity-70">{a.service_name}</span>
+              <span className="truncate text-[10px]" style={{ color: TURNO_SERVICE_COLOR }}>
+                {a.service_name}
+              </span>
               {appointmentProductsFromNotes(a.notes).length > 0 && (
                 <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full px-1 py-px text-[9px] font-semibold leading-none text-amber-300">
                   <span aria-hidden>⭐</span>
@@ -3518,13 +3530,15 @@ const ApptCard = React.memo(function ApptCard({
               {fmtHM(start)} • {fmtHM(end)}
             </span>
             <span className="text-[10px] opacity-40 shrink-0 leading-none">·</span>
-            <span className="text-[12px] font-semibold truncate flex-1 min-w-0 leading-none">
+            <span className="text-[12px] font-semibold truncate flex-1 min-w-0 leading-none" style={{ color: TURNO_NAME_COLOR }}>
               {clientDisplay}
             </span>
           </div>
           {a.service_name && (
             <div className="mt-0.5 flex min-w-0 items-center gap-1.5 leading-none">
-              <span className="truncate text-[11px] opacity-90">{a.service_name}</span>
+              <span className="truncate text-[11px]" style={{ color: TURNO_SERVICE_COLOR }}>
+                {a.service_name}
+              </span>
               {appointmentProductsFromNotes(a.notes).length > 0 && (
                 <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full px-1 py-px text-[9px] font-semibold leading-none text-amber-300">
                   <span aria-hidden>⭐</span>
@@ -4811,10 +4825,10 @@ function WeekView({
                           ? ` – ${fmtTime(new Date(start.getTime() + Number(a.duration_min) * 60000))}`
                           : ""}
                       </div>
-                      <div className="text-[10px] font-semibold truncate leading-[1.05] mt-0.5">
+                      <div className="text-[10px] font-semibold truncate leading-[1.05] mt-0.5" style={{ color: TURNO_NAME_COLOR }}>
                         {a.client_name || "—"}
                       </div>
-                      <div className="text-[9px] truncate opacity-85 leading-[1.05] mt-0.5">
+                      <div className="text-[9px] truncate leading-[1.05] mt-0.5" style={{ color: TURNO_SERVICE_COLOR }}>
                         {a.service_name}
                       </div>
                     </div>
