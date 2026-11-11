@@ -95,7 +95,12 @@ export function ClientesNoAtendidosButton({
           setEligiendo(false);
           setOpen(true);
         }}
-        className={`inline-flex items-center gap-1.5 rounded-xl bg-white/[0.06] px-3 py-1.5 text-xs font-medium text-white ring-1 ring-white/15 transition hover:bg-white/[0.1] ${className}`}
+        className={`inline-flex items-center justify-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-semibold text-white transition hover:brightness-125 active:translate-y-px active:brightness-95 ${className}`}
+        style={{
+          // Aspecto de botón (relieve y sombra), neutro: sin neón para no confundirse con un estado.
+          background: "linear-gradient(180deg, rgba(255,255,255,0.20), rgba(255,255,255,0.08))",
+          boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.28), inset 0 1px 0 rgba(255,255,255,0.30), 0 3px 8px -2px rgba(0,0,0,0.6)",
+        }}
       >
         <DoorOpen className="h-3.5 w-3.5 text-[#ff8f86]" />
         Se fue

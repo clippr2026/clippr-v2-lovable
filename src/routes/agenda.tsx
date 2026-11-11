@@ -197,9 +197,9 @@ const ROW_PX = 88;
 // Alto FIJO de cada bloque de 1 hora (no se achica para meter más horas) y alto
 // del header de profesionales. La grilla muestra ~11 bloques y, si el día tiene
 // más horas visibles, scrollea verticalmente en vez de comprimir las filas.
-// Alto de 1 hora. 86 hace que un turno de 30 min mida lo que antes medía uno de 40 (entran 3 líneas);
+// Alto de 1 hora. 94 hace que un turno de 30 min mida ~45 px y entren 3 líneas con letra grande;
 // los de 40 y 60 se estiran en proporción, siguiendo la escala de horas de la izquierda.
-const AGENDA_ROW_PX = 86;
+const AGENDA_ROW_PX = 94;
 // Alto de la ventana de la grilla en desktop/tablet: se mantiene igual que antes (11 bloques de 64 px).
 const AGENDA_WINDOW_ROW_PX = 64;
 const AGENDA_HEADER_PX = 58;
@@ -1526,7 +1526,7 @@ function AgendaPage() {
               branchId={data.activeBranchId}
               createdByName={(profile as any)?.full_name ?? null}
               employees={data.employees}
-              className="hidden shrink-0 sm:inline-flex !rounded-lg !px-2 !py-0.5"
+              className="hidden shrink-0 sm:inline-flex !px-3 !py-1"
             />
           </div>
 
@@ -3551,16 +3551,16 @@ const ApptCard = React.memo(function ApptCard({
       {threeLines ? (
         <>
           {/* Hora arriba, cliente en el medio y servicio abajo */}
-          <div className="text-[10px] font-semibold tabular-nums leading-none">
+          <div className="text-[11px] font-semibold tabular-nums leading-none">
             {fmtHM(start)} • {fmtHM(end)}
           </div>
-          <div className="mt-px truncate text-[13px] font-bold leading-none" style={{ color: TURNO_NAME_COLOR }}>
+          <div className="mt-px truncate text-[15px] font-bold leading-none" style={{ color: TURNO_NAME_COLOR }}>
             {clientDisplay}
           </div>
           {a.service_name && (
             // PROMO va en la esquina de abajo: solo tapa el servicio si el turno es bajo (~30 min).
-            <div className={cn("mt-px flex min-w-0 items-center gap-1.5 leading-none", promoLabel && height < 52 && "pr-11")}>
-              <span className="truncate text-[10px]" style={{ color: TURNO_SERVICE_COLOR }}>
+            <div className={cn("mt-px flex min-w-0 items-center gap-1.5 leading-none", promoLabel && height < 52 && "pr-12")}>
+              <span className="truncate text-[12px]" style={{ color: TURNO_SERVICE_COLOR }}>
                 {a.service_name}
               </span>
               {appointmentProductsFromNotes(a.notes).length > 0 && (
@@ -3583,13 +3583,13 @@ const ApptCard = React.memo(function ApptCard({
               {fmtHM(start)} • {fmtHM(end)}
             </span>
             <span className="text-[10px] opacity-40 shrink-0 leading-none">·</span>
-            <span className="text-[12px] font-semibold truncate flex-1 min-w-0 leading-none" style={{ color: TURNO_NAME_COLOR }}>
+            <span className="text-[14px] font-semibold truncate flex-1 min-w-0 leading-none" style={{ color: TURNO_NAME_COLOR }}>
               {clientDisplay}
             </span>
           </div>
           {a.service_name && (
             <div className="mt-0.5 flex min-w-0 items-center gap-1.5 leading-none">
-              <span className="truncate text-[11px]" style={{ color: TURNO_SERVICE_COLOR }}>
+              <span className="truncate text-[12px]" style={{ color: TURNO_SERVICE_COLOR }}>
                 {a.service_name}
               </span>
               {appointmentProductsFromNotes(a.notes).length > 0 && (
@@ -3631,7 +3631,7 @@ const ApptCard = React.memo(function ApptCard({
 
       {promoLabel && (
         <span
-          className="absolute bottom-1 right-1.5 rounded-md px-1.5 py-px text-[9px] font-black uppercase tracking-wide leading-none"
+          className="absolute bottom-1 right-1.5 rounded-md px-1.5 py-px text-[10px] font-black uppercase tracking-wide leading-none"
           style={{
             color: meta.dot,
             background: mixAlpha(meta.dot, 18),
