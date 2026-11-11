@@ -79,8 +79,10 @@ export const Route = createFileRoute("/agenda")({
   // `date` ("YYYY-MM-DD"): permite volver a Agenda desde otra pantalla (ej.
   // "Ficha" de un turno, ver handleFicha) conservando el día que se estaba
   // viendo en vez de resetear siempre a hoy.
-  validateSearch: (search: Record<string, unknown>): { date?: string } => ({
+  // `turno` (id): abre directamente el detalle de ese turno (ej. desde "Reembolsos por revisar").
+  validateSearch: (search: Record<string, unknown>): { date?: string; turno?: string } => ({
     date: typeof search.date === "string" ? search.date : undefined,
+    turno: typeof search.turno === "string" ? search.turno : undefined,
   }),
   head: () => ({
     meta: [
@@ -949,6 +951,16 @@ function AgendaPage() {
     setSelected(a);
     setActiveDrawer("detail");
   };
+  // Llegada con ?turno=<id>: abre ese turno una sola vez, cuando ya cargó el día.
+  const turnoAbiertoRef = React.useRef<string | null>(null);
+  React.useEffect(() => {
+    if (!search.turno || turnoAbiertoRef.current === search.turno) return;
+    const a = data.appointments.find((x) => x.id === search.turno);
+    if (!a) return;
+    turnoAbiertoRef.current = search.turno;
+    openDetail(a);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [search.turno, data.appointments]);
   const openEdit = (a: Appointment) => {
     if (a.status === "blocked") {
       openBlockDialog(a.employee_id ?? null, new Date(a.starts_at), a);

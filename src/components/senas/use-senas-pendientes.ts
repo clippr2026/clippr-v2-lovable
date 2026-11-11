@@ -17,6 +17,18 @@ export type SenaPendiente = {
  * cada 30 segundos y al volver a la pestaña; `refresh` fuerza la recarga (ej. tras aprobar/rechazar).
  */
 export function useSenasPendientes(businessId: string | null | undefined) {
+  return useSenasPorEstado(businessId, "review");
+}
+
+/**
+ * Reembolsos por revisar: señas de turnos cancelados dentro del plazo de la política de cancelación
+ * (la app sugiere reembolsar). Se resuelven desde el turno, en Agenda.
+ */
+export function useReembolsosPorRevisar(businessId: string | null | undefined) {
+  return useSenasPorEstado(businessId, "to_decide");
+}
+
+function useSenasPorEstado(businessId: string | null | undefined, estado: "review" | "to_decide") {
   const [items, setItems] = React.useState<SenaPendiente[]>([]);
   const [loading, setLoading] = React.useState(true);
 
@@ -26,17 +38,19 @@ export function useSenasPendientes(businessId: string | null | undefined) {
       setLoading(false);
       return;
     }
-    const { data, error } = await (supabase.from("appointment_deposits" as any) as any)
-      .select("id,appointment_id,amount,method,proof_uploaded_at,appointments:appointment_id(client_name,service_name,starts_at)")
+    let q = (supabase.from("appointment_deposits" as any) as any)
+      .select("id,appointment_id,amount,paid_amount,method,proof_uploaded_at,appointments:appointment_id(client_name,service_name,starts_at)")
       .eq("business_id", businessId)
-      .eq("status", "review")
+      .eq("status", estado)
       .order("proof_uploaded_at", { ascending: true });
+    if (estado === "to_decide") q = q.eq("suggested_action", "refund");
+    const { data, error } = await q;
     if (!error) {
       setItems(
         ((data ?? []) as any[]).map((r) => ({
           id: r.id,
           appointment_id: r.appointment_id,
-          amount: Number(r.amount) || 0,
+          amount: Number(estado === "to_decide" ? (r.paid_amount ?? r.amount) : r.amount) || 0,
           method: r.method ?? null,
           proof_uploaded_at: r.proof_uploaded_at ?? null,
           client_name: r.appointments?.client_name ?? null,
@@ -46,7 +60,7 @@ export function useSenasPendientes(businessId: string | null | undefined) {
       );
     }
     setLoading(false);
-  }, [businessId]);
+  }, [businessId, estado]);
 
   React.useEffect(() => {
     void refresh();

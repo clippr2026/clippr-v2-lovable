@@ -250,7 +250,7 @@ export function DepositPanel({
             <strong>
               {new Date(dep.proof_uploaded_at).toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "2-digit", timeZone: "America/Argentina/Buenos_Aires" })}
             </strong>
-            . Al aprobarlo, la seña entra en la caja de <strong>ese día</strong> (Dinero en banco). Si esa caja ya está cerrada, queda como seña pendiente de cierre.
+            . Al aprobarlo, la seña entra en la caja de <strong>ese día</strong> (Dinero en banco). Si esa caja ya está cerrada o el local no abrió, pasa a la próxima caja abierta.
           </div>
         )}
 

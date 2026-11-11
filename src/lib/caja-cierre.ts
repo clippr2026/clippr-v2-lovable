@@ -608,8 +608,8 @@ async function datesWithActivity(
     .lte("date", newest);
   if (branchFilter) expQuery = expQuery.or(branchFilter);
 
-  // Señas aprobadas: el ingreso queda en el día de la transferencia. Si ese día
-  // no se abrió (domingo, feriado), igual hay plata que cerrar: es actividad.
+  // Señas aprobadas: el ingreso queda en la primera caja abierta desde el día de
+  // la transferencia (lo decide la base). Ese día tiene plata que cerrar: es actividad.
   let senaQuery = supabase
     .from("cash_movements" as any)
     .select("created_at")

@@ -1,5 +1,16 @@
 # Señas: contabilidad en Caja, Inicio, cierre y reportes
 
+## Próxima caja abierta (11/11/2026)
+
+Reemplaza la "extensión de la caja cerrada" de la sección siguiente:
+
+- La seña aprobada entra en la **primera caja abierta desde el día de la transferencia**.
+  - Caja de ese día sin cerrar → queda en ese día.
+  - Caja de ese día ya cerrada, o el local no abrió (día no laborable según Horarios, o cierre de Agenda) → pasa al siguiente día con caja abierta. Ej.: seña del domingo → lunes; seña aprobada después de cerrar el lunes → martes.
+- `credited_at` conserva el día real de la transferencia: el cierre avisa "Incluye 1 seña del domingo" y la tarjeta de Señas avisa cuando una seña entra en una caja futura.
+- Tarjeta de Señas: "Por revisar" (comprobantes) y "Reembolsos por revisar" (turnos con seña cancelados dentro del plazo de cancelación; se resuelven desde el turno en Agenda). Fuera de plazo el cliente no puede cancelar desde su link.
+- Base: `_caja_dia_abierto` + `_deposit_cash_movements` (migración `20261111010000_senas_proxima_caja_abierta.sql`).
+
 ## Nueva forma (10/11/2026) — reemplaza lo que diga distinto más abajo
 
 - La seña con comprobante queda **Por revisar**. Al aprobarla, el ingreso (`cash_movements.created_at`) queda en el

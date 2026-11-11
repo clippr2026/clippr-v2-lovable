@@ -71,7 +71,7 @@ function Row({ item, onDone }: { item: SenaPendiente; onDone: () => void }) {
       toast.success(
         approve
           ? otherDay
-            ? "Seña aprobada. Queda en Recibidas de hoy."
+            ? "Seña aprobada. Entra en la primera caja abierta desde el día de la transferencia."
             : "Seña aprobada"
           : "Comprobante rechazado",
       );
@@ -135,8 +135,8 @@ function Row({ item, onDone }: { item: SenaPendiente; onDone: () => void }) {
 
       {otherDay && item.proof_uploaded_at && (
         <div className="rounded-xl bg-sky-400/10 px-3 py-2 text-xs leading-snug text-sky-100 ring-1 ring-sky-300/30">
-          Este comprobante se envió el <strong>{fmtDayShort(item.proof_uploaded_at)}</strong>. Al aprobarlo queda en los
-          <strong> Recibidas de hoy</strong> y suma a los Ingresos y al dinero en cuenta de hoy.
+          Este comprobante se envió el <strong>{fmtDayShort(item.proof_uploaded_at)}</strong>. Al aprobarlo entra en la
+          caja de ese día si sigue abierta; si ya se cerró o el local no abrió, pasa a la <strong>próxima caja abierta</strong>.
         </div>
       )}
 

@@ -8435,8 +8435,8 @@ function CierreRevisionDetalle({
           {senasOtroDia.length > 0 && (
             <div className="rounded-xl bg-sky-400/10 px-3 py-2 text-xs leading-snug text-sky-100 ring-1 ring-sky-300/30">
               Incluye <strong>{senasOtroDia.map((g) => g.texto).join(" y ")}</strong> ($
-              {Math.round(senasOtroDia.reduce((t, g) => t + g.monto, 0)).toLocaleString("es-AR")}): se aprobaron este día,
-              pero el cliente transfirió antes.
+              {Math.round(senasOtroDia.reduce((t, g) => t + g.monto, 0)).toLocaleString("es-AR")}): el cliente transfirió otro día,
+              con la caja ya cerrada o el local sin abrir, y por eso cuentan en esta caja.
             </div>
           )}
           <div>
