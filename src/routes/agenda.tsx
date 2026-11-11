@@ -3506,7 +3506,8 @@ const ApptCard = React.memo(function ApptCard({
             {clientDisplay}
           </div>
           {a.service_name && (
-            <div className={cn("mt-px flex min-w-0 items-center gap-1.5 leading-none", promoLabel && "pr-11")}>
+            // PROMO va en la esquina de abajo: solo tapa el servicio si el turno es bajo (~30 min).
+            <div className={cn("mt-px flex min-w-0 items-center gap-1.5 leading-none", promoLabel && height < 52 && "pr-11")}>
               <span className="truncate text-[10px]" style={{ color: TURNO_SERVICE_COLOR }}>
                 {a.service_name}
               </span>
