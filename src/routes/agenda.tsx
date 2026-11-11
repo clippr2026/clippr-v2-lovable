@@ -1,6 +1,6 @@
 import {
   createFileRoute,
-  useNavigate } from "@tanstack/react-router"; import * as React from "react"; import { createPortal } from "react-dom"; import { supabase } from "@/integrations/supabase/client"; import { toast } from "sonner"; import { AppShell } from "@/components/app-shell"; import {   ChevronLeft,
+  useNavigate } from "@tanstack/react-router"; import * as React from "react"; import { createPortal } from "react-dom"; import { supabase } from "@/integrations/supabase/client"; import { toast } from "sonner"; import { ClientesNoAtendidosButton } from "@/components/agenda/clientes-no-atendidos"; import { AppShell } from "@/components/app-shell"; import {   ChevronLeft,
   ChevronRight,
   Plus,
   Calendar as CalendarIcon,
@@ -1526,11 +1526,11 @@ function AgendaPage() {
             backdrop-filter en este wrapper (a diferencia de la barra de
             arriba, que es ".glass") para no necesitar portal: el dropdown
             no queda atrapado en ningún stacking context raro. */}
-        <div className="relative z-[90] mb-2 sm:hidden">
+        <div className="relative z-[90] mb-2 flex items-center gap-2">
           <button
             type="button"
             onClick={() => setProfFilterOpen((v) => !v)}
-            className="inline-flex items-center gap-1.5 rounded-xl bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-foreground ring-1 ring-white/10 transition hover:bg-white/[0.07]"
+            className="inline-flex sm:hidden items-center gap-1.5 rounded-xl bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-foreground ring-1 ring-white/10 transition hover:bg-white/[0.07]"
           >
             {profFilterId ? (
               <UserRound className="h-3.5 w-3.5 text-muted-foreground" />
@@ -1576,6 +1576,12 @@ function AgendaPage() {
               </div>
             </>
           )}
+          {/* Cliente que entró y se fue sin atender (todos ocupados): cuenta del mes con día y hora. */}
+          <ClientesNoAtendidosButton
+            businessId={data.businessId}
+            branchId={data.activeBranchId}
+            createdByName={(profile as any)?.full_name ?? null}
+          />
         </div>
 
         <SenasPendientesBar businessId={data.businessId} onChanged={() => data.refresh()} />
