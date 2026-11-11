@@ -702,6 +702,7 @@ function ProximosTurnosCard({ widgets }: { widgets: ReturnType<typeof useInicioW
                   {t.client_name ?? "Cliente"}
                 </div>
                 <div className="truncate text-xs text-muted-foreground">{t.service_name ?? "—"}</div>
+                {t.employee_name && <div className="truncate text-xs font-medium text-violet-200/90">Con {t.employee_name}</div>}
               </div>
               <div className="shrink-0 text-xs font-semibold text-violet-200">{diaYHoraCorta(t.starts_at)}</div>
             </div>
@@ -717,12 +718,16 @@ function ActividadRecienteCard({ widgets }: { widgets: ReturnType<typeof useInic
     if (item.kind === "cobro") {
       return {
         icon: Receipt,
-        text: `Cobro a ${item.client_name ?? "cliente"} · ${fmtAR(item.total)}`,
+        title: `Cobro a ${item.client_name ?? "cliente"}`,
+        detail: [fmtAR(item.total), item.service_name, item.employee_name].filter(Boolean).join(" · "),
       };
     }
     return {
       icon: CalendarClock,
-      text: `Turno agendado: ${item.client_name ?? "cliente"} · ${item.service_name ?? "—"}`,
+      title: `Turno: ${item.client_name ?? "cliente"}`,
+      detail: [diaYHoraCorta(item.starts_at), item.service_name, item.employee_name && `con ${item.employee_name}`]
+        .filter(Boolean)
+        .join(" · "),
     };
   }
 
@@ -739,12 +744,15 @@ function ActividadRecienteCard({ widgets }: { widgets: ReturnType<typeof useInic
           <div className="text-sm text-muted-foreground">Sin actividad reciente.</div>
         ) : (
           widgets.actividad.map((item) => {
-            const { icon: Icon, text } = describe(item);
+            const { icon: Icon, title, detail } = describe(item);
             return (
-              <div key={`${item.kind}-${item.id}`} className="flex items-center gap-3 rounded-xl bg-white/[0.03] px-3 py-2.5">
-                <Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
-                <div className="min-w-0 flex-1 truncate text-sm text-foreground">{text}</div>
-                <div className="shrink-0 text-xs text-muted-foreground">{horaCorta(item.at)}</div>
+              <div key={`${item.kind}-${item.id}`} className="flex items-start gap-3 rounded-xl bg-white/[0.03] px-3 py-2.5">
+                <Icon className="mt-0.5 h-4 w-4 shrink-0 text-muted-foreground" />
+                <div className="min-w-0 flex-1">
+                  <div className="break-words text-sm font-medium leading-snug text-foreground">{title}</div>
+                  {detail && <div className="break-words text-xs leading-snug text-muted-foreground">{detail}</div>}
+                </div>
+                <div className="shrink-0 pt-0.5 text-xs text-muted-foreground">{horaCorta(item.at)}</div>
               </div>
             );
           })

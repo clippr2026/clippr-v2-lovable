@@ -12,11 +12,12 @@ export type ProximoTurno = {
   service_name: string | null;
   starts_at: string;
   employee_id: string | null;
+  employee_name: string | null;
 };
 
 export type ActividadItem =
-  | { kind: "cobro"; id: string; at: string; client_name: string | null; service_name: string | null; total: number }
-  | { kind: "turno"; id: string; at: string; client_name: string | null; service_name: string | null; starts_at: string };
+  | { kind: "cobro"; id: string; at: string; client_name: string | null; service_name: string | null; employee_name: string | null; total: number }
+  | { kind: "turno"; id: string; at: string; client_name: string | null; service_name: string | null; employee_name: string | null; starts_at: string };
 
 const VENTANA_DIAS_PROXIMOS = 7;
 const LIMITE_PROXIMOS = 6;
@@ -52,25 +53,35 @@ export function useInicioWidgets(businessId: string | null, branchId: string | n
 
     let paymentsQuery = supabase
       .from("payments")
-      .select("id,total,amount,client_name,service_name,created_at")
+      .select("id,total,amount,client_name,service_name,employee_id,created_at")
       .eq("business_id", businessId)
       .gte("created_at", recentSince.toISOString());
     if (branchFilter) paymentsQuery = paymentsQuery.or(branchFilter);
 
     let apptActivityQuery = supabase
       .from("appointments")
-      .select("id,client_name,service_name,starts_at,created_at,updated_at")
+      .select("id,client_name,service_name,starts_at,employee_id,created_at,updated_at")
       .eq("business_id", businessId)
-      .gte("created_at", recentSince.toISOString());
+      .gte("created_at", recentSince.toISOString())
+      // Los bloqueos de horario no son turnos: no van como "turno agendado".
+      .neq("status", "blocked");
     if (branchFilter) apptActivityQuery = apptActivityQuery.or(branchFilter);
 
-    const [proximosRes, paymentsRes, apptActivityRes] = await Promise.all([
+    const [proximosRes, paymentsRes, apptActivityRes, employeesRes] = await Promise.all([
       proximosQuery.order("starts_at", { ascending: true }).limit(LIMITE_PROXIMOS),
       paymentsQuery.order("created_at", { ascending: false }).limit(LIMITE_ACTIVIDAD),
       apptActivityQuery.order("created_at", { ascending: false }).limit(LIMITE_ACTIVIDAD),
+      supabase.from("employees").select("id,full_name").eq("business_id", businessId),
     ]);
 
-    setProximosTurnos(((proximosRes.data ?? []) as any[]) as ProximoTurno[]);
+    const nombres = new Map<string, string>(
+      ((employeesRes.data ?? []) as any[]).map((e) => [e.id as string, String(e.full_name ?? "").trim()]),
+    );
+    const profesional = (id: string | null | undefined) => (id ? nombres.get(id) || null : null);
+
+    setProximosTurnos(
+      ((proximosRes.data ?? []) as any[]).map((a) => ({ ...a, employee_name: profesional(a.employee_id) })) as ProximoTurno[],
+    );
 
     const cobros: ActividadItem[] = ((paymentsRes.data ?? []) as any[]).map((p) => ({
       kind: "cobro",
@@ -78,6 +89,7 @@ export function useInicioWidgets(businessId: string | null, branchId: string | n
       at: p.created_at,
       client_name: p.client_name ?? null,
       service_name: p.service_name ?? null,
+      employee_name: profesional(p.employee_id),
       total: Number(p.total ?? p.amount ?? 0),
     }));
     const turnos: ActividadItem[] = ((apptActivityRes.data ?? []) as any[]).map((a) => ({
@@ -86,6 +98,7 @@ export function useInicioWidgets(businessId: string | null, branchId: string | n
       at: a.created_at,
       client_name: a.client_name ?? null,
       service_name: a.service_name ?? null,
+      employee_name: profesional(a.employee_id),
       starts_at: a.starts_at,
     }));
     const merged = [...cobros, ...turnos]
