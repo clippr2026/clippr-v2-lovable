@@ -12,7 +12,6 @@ import {
 import appCss from "../styles.css?url";
 import { AuthProvider } from "@/hooks/use-auth";
 import { Toaster } from "@/components/ui/sonner";
-import { AppAutoUpdate } from "@/components/app-auto-update";
 import { NeonSkinFlag } from "@/components/neon-skin-flag";
 
 function NotFoundComponent() {
@@ -181,7 +180,6 @@ function RootComponent() {
         {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
         <NeonSkinFlag />
         <Outlet />
-        <AppAutoUpdate />
         <Toaster richColors position="top-right" visibleToasts={1} />
       </AuthProvider>
     </QueryClientProvider>
