@@ -1520,6 +1520,14 @@ function AgendaPage() {
                 <span className="opacity-80">{label}</span>
               </button>
             ))}
+            {/* "Se fue": en desktop va pegado a la derecha de "No asistió". */}
+            <ClientesNoAtendidosButton
+              businessId={data.businessId}
+              branchId={data.activeBranchId}
+              createdByName={(profile as any)?.full_name ?? null}
+              employees={data.employees}
+              className="hidden shrink-0 sm:inline-flex !rounded-lg !px-2 !py-0.5"
+            />
           </div>
 
           <div className="hidden sm:block h-5 w-px bg-white/10 shrink-0" />
@@ -1594,7 +1602,7 @@ function AgendaPage() {
             backdrop-filter en este wrapper (a diferencia de la barra de
             arriba, que es ".glass") para no necesitar portal: el dropdown
             no queda atrapado en ningún stacking context raro. */}
-        <div className="relative z-[90] mb-2 flex items-center gap-2">
+        <div className="relative z-[90] mb-2 flex items-center gap-2 sm:hidden">
           <button
             type="button"
             onClick={() => setProfFilterOpen((v) => !v)}
@@ -1650,7 +1658,7 @@ function AgendaPage() {
             branchId={data.activeBranchId}
             createdByName={(profile as any)?.full_name ?? null}
             employees={data.employees}
-            className="flex-1 justify-center sm:flex-none"
+            className="flex-1 justify-center"
           />
         </div>
 
