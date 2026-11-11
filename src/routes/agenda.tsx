@@ -169,16 +169,19 @@ function metaForAppt(a: { status: ApptStatus; deposit_status?: string | null }) 
 }
 
 // Neón de un estado: mismo relleno, borde y color de texto que el bloque del turno en el
-// calendario (meta.bg / meta.border / meta.dot). El resplandor sale del color del borde.
+// calendario (meta.bg / meta.border / meta.dot). Borde fino y definido, con un brillo exterior
+// suave que sale del color del borde (así no invade a los turnos vecinos).
 // color-mix sirve para cualquier formato de color (oklch, rgba o hex).
 const mixAlpha = (color: string, pct: number) => `color-mix(in srgb, ${color} ${pct}%, transparent)`;
+// Oscurece apenas el relleno; se aplica igual a tarjetas y turnos para que sigan coincidiendo.
+const STATUS_DARKEN = "linear-gradient(rgba(6, 8, 22, 0.16), rgba(6, 8, 22, 0.16))";
 function statusNeonStyle(dot: string, border: string, bg: string): React.CSSProperties {
   return {
     color: dot,
     // El relleno es semitransparente: se apoya en el mismo gris del calendario (#111323) para
     // que el tono final sea idéntico al del turno.
-    background: `linear-gradient(${bg}, ${bg}), #111323`,
-    boxShadow: `inset 0 0 0 1px ${border}, 0 0 14px ${mixAlpha(border, 38)}, 0 0 2px ${mixAlpha(border, 55)}`,
+    background: `${STATUS_DARKEN}, linear-gradient(${bg}, ${bg}), #111323`,
+    boxShadow: `inset 0 0 0 1px ${border}, 0 0 9px ${mixAlpha(border, 24)}`,
   };
 }
 
@@ -3444,7 +3447,7 @@ const ApptCard = React.memo(function ApptCard({
   const isMovable = a.status !== "charged" && a.status !== "no_show";
   const laneCount = layout?.laneCount ?? 1;
   const lane = layout?.lane ?? 0;
-  const gapPx = 6;
+  const gapPx = 10;
   const width = `calc(${100 / laneCount}% - ${gapPx}px)`;
   const left = `calc(${(lane * 100) / laneCount}% + ${gapPx / 2}px)`;
 
@@ -3465,7 +3468,7 @@ const ApptCard = React.memo(function ApptCard({
   return (
     <div
       className={cn(
-        "absolute rounded-[6px] px-1.5 py-0.5 group transition hover:z-10 hover:scale-[1.01] overflow-hidden",
+        "absolute rounded-[6px] px-2 py-0.5 group transition hover:z-10 hover:scale-[1.01] overflow-hidden",
         isMovable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer",
       )}
       style={{
@@ -3475,7 +3478,7 @@ const ApptCard = React.memo(function ApptCard({
         width,
         // Mismo color de letras, borde y luz que las tarjetas de estado de arriba.
         ...statusNeonStyle(meta.dot, meta.border, meta.bg),
-        background: meta.bg,
+        background: `${STATUS_DARKEN}, ${meta.bg}`,
       }}
       draggable={isMovable}
       onDragStart={handleDragStart}
@@ -3488,13 +3491,13 @@ const ApptCard = React.memo(function ApptCard({
       {threeLines ? (
         <>
           {/* Hora arriba, cliente en el medio y servicio abajo */}
-          <div className="text-[11px] font-bold tabular-nums leading-none">
+          <div className="text-[10px] font-semibold tabular-nums leading-none">
             {fmtHM(start)} • {fmtHM(end)}
           </div>
-          <div className="mt-px truncate text-[12px] font-semibold leading-none">{clientDisplay}</div>
+          <div className="mt-px truncate text-[13px] font-bold leading-none">{clientDisplay}</div>
           {a.service_name && (
             <div className={cn("mt-px flex min-w-0 items-center gap-1.5 leading-none", promoLabel && "pr-11")}>
-              <span className="truncate text-[11px] opacity-90">{a.service_name}</span>
+              <span className="truncate text-[10px] opacity-70">{a.service_name}</span>
               {appointmentProductsFromNotes(a.notes).length > 0 && (
                 <span className="inline-flex shrink-0 items-center gap-0.5 rounded-full px-1 py-px text-[9px] font-semibold leading-none text-amber-300">
                   <span aria-hidden>⭐</span>
@@ -3561,8 +3564,12 @@ const ApptCard = React.memo(function ApptCard({
 
       {promoLabel && (
         <span
-          className="absolute bottom-0.5 right-1.5 text-[9px] font-black uppercase tracking-wide leading-none"
-          style={{ color: meta.dot, textShadow: `0 0 8px ${mixAlpha(meta.dot, 70)}` }}
+          className="absolute bottom-1 right-1.5 rounded-md px-1.5 py-px text-[9px] font-black uppercase tracking-wide leading-none"
+          style={{
+            color: meta.dot,
+            background: mixAlpha(meta.dot, 18),
+            boxShadow: `inset 0 0 0 1px ${mixAlpha(meta.dot, 60)}`,
+          }}
           title={promoLabel}
           aria-label={`Turno con promoción: ${promoLabel}`}
         >
@@ -4788,7 +4795,7 @@ function WeekView({
                         top,
                         height,
                         ...statusNeonStyle(meta.dot, meta.border, meta.bg),
-                        background: meta.bg,
+                        background: `${STATUS_DARKEN}, ${meta.bg}`,
                       }}
                       onClick={(e) => {
                         e.stopPropagation();
