@@ -1021,7 +1021,14 @@ export async function markAppointmentDeposit(id: string, currentNotes?: string |
 
 export async function cancelAppointment(
   id: string,
-  by: { userId?: string | null; name?: string | null; role?: string | null; reason?: string | null },
+  by: {
+    userId?: string | null;
+    name?: string | null;
+    role?: string | null;
+    reason?: string | null;
+    /** Turno que ya pasó (el cliente no vino): se cancela sin mandarle el correo de cancelación. */
+    silent?: boolean;
+  },
 ) {
   const { error } = await supabase
     .from("appointments")
@@ -1056,7 +1063,7 @@ export async function cancelAppointment(
     }
   }
 
-  void notifyCancellationEmail(id, by.reason);
+  if (!by.silent) void notifyCancellationEmail(id, by.reason);
 }
 
 // Avisa al cliente por correo que su turno fue cancelado desde el local (Agenda o Mi Panel). Solo en

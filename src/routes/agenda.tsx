@@ -1003,7 +1003,10 @@ function AgendaPage() {
   const onChangeStatus = async (a: Appointment, status: ApptStatus, reason?: string) => {
     // Turno pasado (ya terminó): no se cancela ni confirma; se marca como
     // "No asistió" para conservar historial (sin aviso).
-    if (a.status !== "blocked" && isPastAppointment(a) && status !== "no_show") {
+    // Excepción: un turno que pedía seña sí se puede cancelar aunque haya pasado la hora
+    // (el cliente no vino y hay que resolver la seña).
+    const askedDeposit = !!a.deposit_status && a.deposit_status !== "none";
+    if (a.status !== "blocked" && isPastAppointment(a) && status !== "no_show" && !(status === "cancelled" && askedDeposit)) {
       return;
     }
     // Desde que ARRANCA el turno (aunque todavía no haya terminado) ya no se
@@ -1025,6 +1028,7 @@ function AgendaPage() {
           name: profile?.full_name,
           role: profile?.role,
           reason,
+          silent: isPastAppointment(a),
         });
       } else {
         await setAppointmentStatus(a.id, status);
@@ -1105,7 +1109,7 @@ function AgendaPage() {
       .maybeSingle();
     if (ledger?.id) {
       try {
-        await cancelAppointment(a.id, { userId: profile?.id ?? null, name: profile?.full_name ?? null, role: profile?.role ?? null, reason });
+        await cancelAppointment(a.id, { userId: profile?.id ?? null, name: profile?.full_name ?? null, role: profile?.role ?? null, reason, silent: isPastAppointment(a) });
         const { data: res, error } = await (supabase.rpc as any)("decide_deposit_v1", {
           p_deposit_id: ledger.id,
           p_action: action === "keep" ? "retain" : "refund",
@@ -4515,7 +4519,10 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                     );
                   }
 
-                  if (hasStarted) return null;
+                  // Un turno que pedía seña se puede cancelar aunque ya haya empezado o pasado la hora
+                  // (el cliente no vino): ahí se decide qué hacer con la seña.
+                  const askedDeposit = !!appointment.deposit_status && appointment.deposit_status !== "none";
+                  if (hasStarted && !askedDeposit) return null;
 
                   // Motivo obligatorio antes de poder confirmar — nada se
                   // cancela con un solo toque. El textarea vacío bloquea los
