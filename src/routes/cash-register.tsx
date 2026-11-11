@@ -157,6 +157,7 @@ import {
   ChevronDown,
   ChevronRight,
   HandCoins,
+  Pencil,
 } from "lucide-react";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 import {
@@ -14918,6 +14919,40 @@ function getInitials(name?: string | null): string {
 
 type PendingCharge = ReturnType<typeof useCajaData>["pendingCharges"][number];
 
+// Campo para escribir el nuevo precio de un servicio al cobrar. Enter o salir del campo lo confirman.
+function PriceEditInput({
+  value,
+  onChange,
+  onCommit,
+  onCancel,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  onCommit: () => void;
+  onCancel: () => void;
+}) {
+  return (
+    <span className="flex items-center gap-1">
+      <span className="text-xs text-white/50">$</span>
+      <input
+        autoFocus
+        type="text"
+        inputMode="numeric"
+        aria-label="Nuevo precio del servicio"
+        value={value}
+        onChange={(e) => onChange(e.target.value.replace(/[^0-9]/g, ""))}
+        onFocus={(e) => e.currentTarget.select()}
+        onBlur={onCommit}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") onCommit();
+          else if (e.key === "Escape") onCancel();
+        }}
+        className="h-7 w-24 rounded-md bg-white/10 px-2 text-right text-sm font-semibold tabular-nums text-white outline-none ring-1 ring-amber-300/50 focus:ring-amber-300"
+      />
+    </span>
+  );
+}
+
 export function NuevaVentaTab({
   data,
   pendingCharge = null,
@@ -15068,6 +15103,14 @@ export function NuevaVentaTab({
   // registerPayment (register-payment.ts) cuando queda por debajo del
   // total.
   const [received, setReceived] = React.useState("");
+  // Precio del servicio cambiado al cobrar (por ejemplo, el cliente pagó otro monto con el posnet).
+  // Solo para dueño/administrador: nunca para un acceso "profesional". La comisión NO sube sola:
+  // sigue la regla de siempre (base = el menor entre el precio efectivo y lo cobrado).
+  const { profile: authProfile } = useAuth();
+  const canEditPrice = !lockedEmployeeId && turnoChargeMode !== "manual" && authProfile?.role !== "profesional";
+  const [priceOverrides, setPriceOverrides] = React.useState<Record<string, number>>({});
+  const [priceEditId, setPriceEditId] = React.useState<string | null>(null);
+  const [priceEditValue, setPriceEditValue] = React.useState("");
   const [splits, setSplits] = React.useState<MultiSplit[]>([
     { method: "cash", amount: "" },
   ]);
@@ -15096,7 +15139,7 @@ export function NuevaVentaTab({
   const chargeAttemptKeyRef = React.useRef<string | null>(null);
   React.useEffect(() => {
     chargeAttemptKeyRef.current = null;
-  }, [cart, method, client, clientId, tipAmountInput, splits, employeeId]);
+  }, [cart, method, client, clientId, tipAmountInput, splits, employeeId, priceOverrides]);
   const [newClientOpen, setNewClientOpen] = React.useState(false);
   // Apellido del cliente nuevo — "client" guarda el nombre (o el nombre
   // completo, una vez elegido un cliente existente por el buscador). Flujo
@@ -15320,7 +15363,10 @@ export function NuevaVentaTab({
   const cartItems = Object.entries(cart)
     .map(([id, qty]) => {
       const svc = servicesWithSynthetic.find((s) => s.id === id);
-      return svc ? { svc, qty } : null;
+      if (!svc) return null;
+      const changed = priceOverrides[id];
+      // Con el precio cambiado manda ese precio (sin precio en efectivo); commissionCap queda igual.
+      return { svc: changed != null && !svc.is_catalog ? ({ ...svc, price: changed, cashPrice: null } as typeof svc) : svc, qty };
     })
     .filter(
       (x): x is { svc: (typeof data.services)[0]; qty: number } => x !== null,
@@ -15334,6 +15380,43 @@ export function NuevaVentaTab({
   // payments/comisión/liquidación (ver items en handleCobrar más abajo).
   // Pago pendiente (nada abonado) y Sin cargo no tienen medio de pago: ahí
   // rige el precio de LISTA, nunca el precio en efectivo.
+  React.useEffect(() => {
+    setPriceOverrides((prev) => {
+      const keep = Object.fromEntries(Object.entries(prev).filter(([id]) => id in cart));
+      return Object.keys(keep).length === Object.keys(prev).length ? prev : keep;
+    });
+  }, [cart]);
+  // Texto para el historial del cobro cuando se cambió el precio de algún servicio.
+  const priceChangeNote = Object.entries(priceOverrides)
+    .filter(([id]) => id in cart)
+    .map(([id, price]) => {
+      const base = servicesWithSynthetic.find((x) => x.id === id);
+      const original = rawServicePriceById[id] ?? Number(base?.price ?? 0);
+      return `Precio modificado: ${base?.name ?? "Servicio"} $${Math.round(original).toLocaleString("es-AR")} → $${Math.round(price).toLocaleString("es-AR")}`;
+    })
+    .join(" · ");
+  const startPriceEdit = (id: string, current: number) => {
+    setPriceEditValue(String(current));
+    setPriceEditId(id);
+  };
+  const commitPriceEdit = (id: string) => {
+    const n = Math.round(Number(priceEditValue.replace(/[^0-9.]/g, "")) || 0);
+    setPriceEditId(null);
+    if (n <= 0) return;
+    const original = Math.round(Number(servicesWithSynthetic.find((x) => x.id === id)?.price ?? 0));
+    setPriceOverrides((prev) => {
+      const next = { ...prev };
+      if (n === original) delete next[id];
+      else next[id] = n;
+      return next;
+    });
+  };
+  const revertPrice = (id: string) =>
+    setPriceOverrides((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
   const nadaAbonado = received !== "" && (Number(received) || 0) === 0;
   const isCashMethod = method === "cash" && !nadaAbonado && !isSinCargo;
   const cartUnitPrice = (svc: (typeof cartItems)[number]["svc"]) =>
@@ -15383,7 +15466,7 @@ export function NuevaVentaTab({
   // ítems sin promoción (o sin promo seleccionada), se mantiene el
   // comportamiento de siempre: precio en efectivo si corresponde.
   const promoAwareUnitPrice = (svc: (typeof cartItems)[number]["svc"]) =>
-    promoAppliesToItem(svc) ? rawServicePriceById[svc.id] ?? Number(svc.price) : cartUnitPrice(svc);
+    promoAppliesToItem(svc) ? priceOverrides[svc.id] ?? rawServicePriceById[svc.id] ?? Number(svc.price) : cartUnitPrice(svc);
   const total = cartItems.reduce(
     (acc, { svc, qty }) => acc + promoAwareUnitPrice(svc) * qty,
     0,
@@ -15400,7 +15483,7 @@ export function NuevaVentaTab({
   const promoItemDiscounts: number[] = selectedPromotion
     ? cartItems.map(({ svc, qty }) => {
         if (!promoAppliesToItem(svc)) return 0;
-        const subtotal = (rawServicePriceById[svc.id] ?? Number(svc.price)) * qty;
+        const subtotal = (priceOverrides[svc.id] ?? rawServicePriceById[svc.id] ?? Number(svc.price)) * qty;
         return subtotal - applyPromotionDiscount(subtotal, selectedPromotion);
       })
     : cartItems.map(() => 0);
@@ -15851,7 +15934,7 @@ export function NuevaVentaTab({
         // efectivo y esconder el tachado justo en el caso que se quiere
         // mostrar. "Precio de lista" es siempre el precio único del
         // catálogo, nunca el ajustado por profesional.
-        listPrice: rawServicePriceById[svc.id] ?? svc.price,
+        listPrice: priceOverrides[svc.id] ?? rawServicePriceById[svc.id] ?? svc.price,
         // Tope de la base de comisión — commissionCap, NO cashPrice: un
         // profesional puede tener el "Precio en efectivo" público
         // desactivado para este servicio y aun así corresponde aplicar el
@@ -16020,7 +16103,7 @@ export function NuevaVentaTab({
         // appointment.cobro_events al que asociarlos.
         const fullHist: HistorialEvento[] = [
           ...(thisSale.events ?? []),
-          { time: hhmm, ts: now.toISOString(), user: chargedByName || chargedByUsername(userEmail), action: "Cobró" },
+          { time: hhmm, ts: now.toISOString(), user: chargedByName || chargedByUsername(userEmail), action: "Cobró", ...(priceChangeNote ? { reason: priceChangeNote } : {}) },
         ];
 
         const walkinRows = await registerPayment({
@@ -16165,6 +16248,7 @@ export function NuevaVentaTab({
           ts: now.toISOString(),
           user: chargedByName || chargedByUsername(userEmail),
           action: "Cobró",
+          ...(priceChangeNote ? { reason: priceChangeNote } : {}),
         });
 
         // 4. Limpiar de localStorage
@@ -16197,6 +16281,7 @@ export function NuevaVentaTab({
           ts: now.toISOString(),
           user: chargedByName || chargedByUsername(userEmail),
           action: "Cobró",
+          ...(priceChangeNote ? { reason: priceChangeNote } : {}),
         };
         const saleRows = await registerPayment({
           idempotencyKey,
@@ -16925,18 +17010,53 @@ export function NuevaVentaTab({
                       <span className="font-semibold">{cartItems[0].svc.name}</span>
                     </span>
                   </span>
-                  <span className="shrink-0 tabular-nums">
-                    {listTotal !== total ? (
-                      <>
-                        <span className="text-white/30 line-through">
-                          ${Math.round(listTotal).toLocaleString("es-AR")}
-                        </span>{" "}
-                        <span className="font-bold text-emerald-300">
-                          ${Math.round(total).toLocaleString("es-AR")}
-                        </span>
-                      </>
+                  <span className="flex shrink-0 items-center gap-1.5 tabular-nums">
+                    {priceEditId === cartItems[0].svc.id ? (
+                      <PriceEditInput
+                        value={priceEditValue}
+                        onChange={setPriceEditValue}
+                        onCommit={() => commitPriceEdit(cartItems[0].svc.id)}
+                        onCancel={() => setPriceEditId(null)}
+                      />
                     ) : (
-                      <span className="font-bold text-white">${Math.round(total).toLocaleString("es-AR")}</span>
+                      <>
+                        <span className="tabular-nums">
+                          {listTotal !== total && priceOverrides[cartItems[0].svc.id] == null ? (
+                            <>
+                              <span className="text-white/30 line-through">
+                                ${Math.round(listTotal).toLocaleString("es-AR")}
+                              </span>{" "}
+                              <span className="font-bold text-emerald-300">
+                                ${Math.round(total).toLocaleString("es-AR")}
+                              </span>
+                            </>
+                          ) : (
+                            <span className={cn("font-bold", priceOverrides[cartItems[0].svc.id] != null ? "text-amber-300" : "text-white")}>
+                              ${Math.round(total).toLocaleString("es-AR")}
+                            </span>
+                          )}
+                        </span>
+                        {canEditPrice && !cartItems[0].svc.is_catalog && (
+                          <button
+                            type="button"
+                            aria-label="Cambiar el precio del servicio"
+                            title="Cambiar el precio"
+                            onClick={() => startPriceEdit(cartItems[0].svc.id, Math.round(total))}
+                            className="grid size-6 place-items-center rounded-md text-white/45 transition hover:bg-white/10 hover:text-white"
+                          >
+                            <Pencil className="size-3.5" />
+                          </button>
+                        )}
+                        {priceOverrides[cartItems[0].svc.id] != null && (
+                          <button
+                            type="button"
+                            onClick={() => revertPrice(cartItems[0].svc.id)}
+                            className="text-[10px] font-medium text-amber-300/80 underline underline-offset-2 hover:text-amber-200"
+                          >
+                            Quitar cambio
+                          </button>
+                        )}
+                      </>
                     )}
                   </span>
                 </div>
@@ -16964,20 +17084,53 @@ export function NuevaVentaTab({
                             {qty > 1 ? ` ×${qty}` : ""}
                           </span>
                         </span>
-                        {showCashPrice ? (
-                          <span className="shrink-0 whitespace-nowrap text-xs">
-                            <span className="text-white/30 line-through">
-                              ${Math.round(Number(svc.price) * qty).toLocaleString("es-AR")}
-                            </span>{" "}
-                            <span className="font-semibold text-emerald-300">
-                              ${Math.round(Number(svc.cashPrice) * qty).toLocaleString("es-AR")}
-                            </span>
-                          </span>
-                        ) : (
-                          <span className="shrink-0 tabular-nums text-xs text-white/70">
-                            ${Math.round(Number(svc.price) * qty).toLocaleString("es-AR")}
-                          </span>
-                        )}
+                        <span className="flex shrink-0 items-center gap-1.5">
+                          {priceEditId === svc.id ? (
+                            <PriceEditInput
+                              value={priceEditValue}
+                              onChange={setPriceEditValue}
+                              onCommit={() => commitPriceEdit(svc.id)}
+                              onCancel={() => setPriceEditId(null)}
+                            />
+                          ) : (
+                            <>
+                              {showCashPrice ? (
+                                <span className="whitespace-nowrap text-xs">
+                                  <span className="text-white/30 line-through">
+                                    ${Math.round(Number(svc.price) * qty).toLocaleString("es-AR")}
+                                  </span>{" "}
+                                  <span className="font-semibold text-emerald-300">
+                                    ${Math.round(Number(svc.cashPrice) * qty).toLocaleString("es-AR")}
+                                  </span>
+                                </span>
+                              ) : (
+                                <span className={cn("tabular-nums text-xs", priceOverrides[svc.id] != null ? "font-semibold text-amber-300" : "text-white/70")}>
+                                  ${Math.round(Number(svc.price) * qty).toLocaleString("es-AR")}
+                                </span>
+                              )}
+                              {canEditPrice && !svc.is_catalog && qty === 1 && (
+                                <button
+                                  type="button"
+                                  aria-label="Cambiar el precio del servicio"
+                                  title="Cambiar el precio"
+                                  onClick={() => startPriceEdit(svc.id, Math.round(cartUnitPrice(svc)))}
+                                  className="grid size-5 place-items-center rounded-md text-white/45 transition hover:bg-white/10 hover:text-white"
+                                >
+                                  <Pencil className="size-3" />
+                                </button>
+                              )}
+                              {priceOverrides[svc.id] != null && (
+                                <button
+                                  type="button"
+                                  onClick={() => revertPrice(svc.id)}
+                                  className="text-[10px] font-medium text-amber-300/80 underline underline-offset-2 hover:text-amber-200"
+                                >
+                                  Quitar
+                                </button>
+                              )}
+                            </>
+                          )}
+                        </span>
                       </div>
                     );
                   })}
