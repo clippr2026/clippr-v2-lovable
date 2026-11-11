@@ -1095,6 +1095,46 @@ function AgendaPage() {
     });
   };
 
+  // Turno con seña pagada que NO asistió: se marca "No asistió" (la base deja la seña "a decidir")
+  // y se aplica la decisión elegida acá mismo: retenerla o reembolsarla.
+  const onNoShowWithDeposit = async (
+    a: Appointment,
+    action: "keep" | "return",
+    fundsSource: "caja" | "otros" = "caja",
+  ) => {
+    try {
+      await setAppointmentStatus(a.id, "no_show");
+      setSelected((current) => (current && current.id === a.id ? { ...current, status: "no_show" } : current));
+      const { data: ledger } = await (supabase.from("appointment_deposits" as any) as any)
+        .select("id")
+        .eq("appointment_id", a.id)
+        .maybeSingle();
+      if (!ledger?.id) {
+        toast.info("Marcado como No asistió. Esta seña es de un registro anterior: resolvela desde Caja.");
+        return;
+      }
+      const { data: res, error } = await (supabase.rpc as any)("decide_deposit_v1", {
+        p_deposit_id: ledger.id,
+        p_action: action === "keep" ? "retain" : "refund",
+        p_prof_pct: null,
+        p_local_pct: null,
+        p_note: "No asistió",
+        p_funds_source: fundsSource,
+      });
+      if (error) throw error;
+      if (!res?.ok) throw new Error(res?.error ?? "No se pudo registrar la decisión de la seña.");
+      toast.success(
+        action === "keep"
+          ? "Marcado como No asistió. Seña retenida."
+          : "Marcado como No asistió. Seña reembolsada: quedó como gasto de hoy.",
+      );
+    } catch (e) {
+      toast.error((e as Error).message);
+    } finally {
+      data.refresh();
+    }
+  };
+
   const onCancelWithDeposit = async (
     a: Appointment,
     action: "keep" | "return",
@@ -1282,6 +1322,7 @@ function AgendaPage() {
   });
   const handleMarkDeposit = useStableCallback(onMarkDeposit);
   const handleCancelWithDeposit = useStableCallback(onCancelWithDeposit);
+  const handleNoShowWithDeposit = useStableCallback(onNoShowWithDeposit);
   const handleReleaseBlock = useStableCallback(releaseBlock);
   // "Ver recurrencia" — misma navegación que handleFicha, pero directo a la
   // sección "Reservas recurrentes" (ver openRecurring en clients.tsx). Sin
@@ -2018,6 +2059,7 @@ function AgendaPage() {
           onChangeStatus={handleChangeStatus}
           onMarkDeposit={handleMarkDeposit}
           onCancelWithDeposit={handleCancelWithDeposit}
+          onNoShowWithDeposit={handleNoShowWithDeposit}
           onDepositChanged={() => data.refresh()}
           onReleaseBlock={handleReleaseBlock}
         />
@@ -3968,6 +4010,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   onChangeStatus,
   onMarkDeposit,
   onCancelWithDeposit,
+  onNoShowWithDeposit,
   onReleaseBlock,
   onDepositChanged,
 }: {
@@ -3990,6 +4033,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   onChangeStatus: (a: Appointment, s: ApptStatus) => void;
   onMarkDeposit: (a: Appointment) => void;
   onCancelWithDeposit: (a: Appointment, action: "keep" | "return", reason: string, fundsSource?: "caja" | "otros") => void;
+  onNoShowWithDeposit: (a: Appointment, action: "keep" | "return", fundsSource?: "caja" | "otros") => void;
   onReleaseBlock: (a: Appointment) => void;
   onDepositChanged: () => void;
 }) {
@@ -3997,6 +4041,13 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   const [cancelReason, setCancelReason] = React.useState("");
   // Reembolso de seña al cancelar: se elige de dónde sale la plata.
   const [refundOrigin, setRefundOrigin] = React.useState(false);
+  // "No asistió" con seña pagada: primero se pregunta qué hacer con la seña.
+  const [noShowAsk, setNoShowAsk] = React.useState(false);
+  const [noShowRefundOrigin, setNoShowRefundOrigin] = React.useState(false);
+  React.useEffect(() => {
+    setNoShowAsk(false);
+    setNoShowRefundOrigin(false);
+  }, [appointment?.id]);
   const apptId = appointment?.id;
   React.useEffect(() => {
     setConfirmCancel(false);
@@ -4414,9 +4465,80 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                       </button>
                     )}
 
-                    {showNoShow && (
+                    {showNoShow && noShowAsk && (
+                      <div
+                        className="space-y-2 rounded-xl p-2.5"
+                        style={{
+                          background: withAlpha(STATUS_META.no_show.dot, 0.08),
+                          boxShadow: `inset 0 0 0 1px ${withAlpha(STATUS_META.no_show.dot, 0.36)}`,
+                        }}
+                      >
+                        <div className="text-center text-xs" style={{ color: STATUS_META.no_show.dot }}>
+                          Tiene seña pagada. ¿Qué hacés con la seña?
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Button
+                            variant="destructive"
+                            className="h-9"
+                            onClick={() => {
+                              onNoShowWithDeposit(appointment, "keep");
+                              setNoShowAsk(false);
+                            }}
+                          >
+                            Perder seña
+                          </Button>
+                          <Button variant="secondary" className="h-9" onClick={() => setNoShowRefundOrigin((v) => !v)}>
+                            Reembolsar seña
+                          </Button>
+                        </div>
+                        {noShowRefundOrigin && (
+                          <div className="space-y-1.5 rounded-lg bg-white/[0.04] p-2 ring-1 ring-white/10">
+                            <div className="text-center text-[11px] text-muted-foreground">
+                              ¿De dónde sale el reembolso? Queda como gasto de hoy.
+                            </div>
+                            <div className="grid grid-cols-2 gap-2">
+                              {(
+                                [
+                                  ["caja", "De la caja"],
+                                  ["otros", "Fondos externos"],
+                                ] as const
+                              ).map(([src, label]) => (
+                                <Button
+                                  key={src}
+                                  variant="secondary"
+                                  className="h-9"
+                                  onClick={() => {
+                                    onNoShowWithDeposit(appointment, "return", src);
+                                    setNoShowRefundOrigin(false);
+                                    setNoShowAsk(false);
+                                  }}
+                                >
+                                  {label}
+                                </Button>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          className="w-full text-center text-xs text-muted-foreground transition hover:text-foreground"
+                          onClick={() => {
+                            setNoShowAsk(false);
+                            setNoShowRefundOrigin(false);
+                          }}
+                        >
+                          Volver
+                        </button>
+                      </div>
+                    )}
+
+                    {showNoShow && !noShowAsk && (
                       <button
-                        onClick={() => onChangeStatus(appointment, "no_show")}
+                        onClick={() =>
+                          appointment.deposit_status === "paid"
+                            ? setNoShowAsk(true)
+                            : onChangeStatus(appointment, "no_show")
+                        }
                         className="w-full h-10 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
                         style={{
                           background: "rgba(255,255,255,0.025)",
