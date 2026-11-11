@@ -603,6 +603,13 @@ function PublicSiteMenu() {
   );
 }
 
+// Nombres cortos para la barra de abajo del celular (entran 7 en el ancho de la pantalla).
+const MOBILE_NAV_SHORT_LABEL: Record<string, string> = {
+  Profesionales: "Profes.",
+  "Asesor IA": "Asesor IA",
+  Configuración: "Config.",
+};
+
 type MobileNavEntry = {
   label: string;
   to: string;
@@ -678,6 +685,12 @@ function MobileBottomNav() {
   // Con un solo ítem (o ninguno) no se muestra la barra.
   if (!visible) return null;
 
+  // Inicio va siempre en el medio de la barra (si la cuenta lo tiene).
+  const inicio = items.find((item) => item.permKey === "dashboard");
+  const resto = items.filter((item) => item.permKey !== "dashboard");
+  const mitad = Math.floor(resto.length / 2);
+  const barItems = inicio ? [...resto.slice(0, mitad), inicio, ...resto.slice(mitad)] : items;
+
   // Barra fija abajo, en TODAS las pantallas del celular (incluida la Agenda):
   // se monta directo en <body> (portal) para que ningún contenedor de la
   // página (scroll, overflow, transform, stacking context) pueda arrastrarla
@@ -699,28 +712,58 @@ function MobileBottomNav() {
         willChange: "transform",
       }}
     >
-      <div className="grid h-14" style={{ gridTemplateColumns: `repeat(${items.length}, minmax(0, 1fr))` }}>
-        {items.map((item) => {
+      <div className="grid h-14" style={{ gridTemplateColumns: `repeat(${barItems.length}, minmax(0, 1fr))` }}>
+        {barItems.map((item) => {
           const active = pathname === item.to;
           const Icon = item.icon;
+          const label = MOBILE_NAV_SHORT_LABEL[item.label] ?? item.label;
+          if (item.permKey === "dashboard") {
+            // Inicio: botón grande y redondo que sobresale de la barra, en el medio.
+            return (
+              <Link
+                key={item.to}
+                to={item.to}
+                aria-label={item.label}
+                title={item.label}
+                className="relative flex flex-col items-center justify-end pb-1 transition active:scale-[0.94]"
+              >
+                <span
+                  className={cn(
+                    "absolute -top-5 grid h-[52px] w-[52px] place-items-center rounded-full bg-gradient-to-b from-sky-400 to-violet-500 ring-4 ring-black transition",
+                    active
+                      ? "shadow-[0_0_22px_rgba(139,92,246,0.85)]"
+                      : "opacity-90 shadow-[0_0_12px_rgba(139,92,246,0.45)]",
+                  )}
+                >
+                  <Icon className="h-6 w-6 text-white" />
+                </span>
+                <span className={cn("text-[10px] font-semibold leading-none", active ? "text-primary" : "text-muted-foreground")}>
+                  {label}
+                </span>
+              </Link>
+            );
+          }
           return (
             <Link
               key={item.to}
               to={item.to}
               aria-label={item.label}
               title={item.label}
-              // La celda del grid ya cubre todo el alto (56px) y 1/N del
-              // ancho — la zona táctil real es mucho más grande que el
-              // ícono visual (22px), sin necesidad de agrandarlo.
-              className="flex items-center justify-center transition active:scale-[0.94]"
+              className="flex min-w-0 flex-col items-center justify-center gap-1 transition active:scale-[0.94]"
             >
-              <span className={cn("grid place-items-center rounded-xl p-2 transition", active && "bg-primary/10")}>
-                <Icon
-                  className={cn(
-                    "h-[22px] w-[22px] transition",
-                    active ? "text-primary drop-shadow-[0_0_7px_rgba(139,92,246,0.55)]" : "text-muted-foreground",
-                  )}
-                />
+              <Icon
+                className={cn(
+                  "h-[20px] w-[20px] transition",
+                  active ? "text-primary drop-shadow-[0_0_7px_rgba(139,92,246,0.55)]" : "text-muted-foreground",
+                )}
+              />
+              <span
+                className={cn(
+                  "max-w-full truncate px-0.5 text-[10px] font-medium leading-none",
+                  active ? "text-primary" : "text-muted-foreground",
+                )}
+              >
+                {label}
               </span>
             </Link>
           );
