@@ -95,11 +95,15 @@ export function ClientesNoAtendidosButton({
           setEligiendo(false);
           setOpen(true);
         }}
-        className={`inline-flex items-center gap-1.5 rounded-xl bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-foreground ring-1 ring-white/10 transition hover:bg-white/[0.07] ${className}`}
+        className={`inline-flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-medium text-white transition hover:brightness-125 active:brightness-110 ${className}`}
+        style={{
+          background: "linear-gradient(180deg, rgba(76,40,150,0.38), rgba(30,16,70,0.72))",
+          boxShadow: "inset 0 0 0 1px rgba(167,139,250,0.5), 0 0 14px -3px rgba(139,92,246,0.55), inset 0 1px 0 rgba(255,255,255,0.07)",
+        }}
       >
-        <DoorOpen className="h-3.5 w-3.5 text-rose-300" />
+        <DoorOpen className="h-3.5 w-3.5 text-[#ff8f86]" />
         Se fue
-        <span className="rounded-full bg-rose-400/20 px-1.5 text-[11px] font-semibold tabular-nums text-rose-200">{countHoy}</span>
+        <span className="rounded-full bg-[#7f1d2d] px-1.5 text-[11px] font-semibold tabular-nums text-white">{countHoy}</span>
       </button>
       {open &&
         typeof document !== "undefined" &&
