@@ -1003,10 +1003,8 @@ function AgendaPage() {
   const onChangeStatus = async (a: Appointment, status: ApptStatus, reason?: string) => {
     // Turno pasado (ya terminó): no se cancela ni confirma; se marca como
     // "No asistió" para conservar historial (sin aviso).
-    // Excepción: un turno que pedía seña sí se puede cancelar aunque haya pasado la hora
-    // (el cliente no vino y hay que resolver la seña).
-    const askedDeposit = !!a.deposit_status && a.deposit_status !== "none";
-    if (a.status !== "blocked" && isPastAppointment(a) && status !== "no_show" && !(status === "cancelled" && askedDeposit)) {
+    // Un turno pasado admite "No asistió" o cancelarlo (sin avisar por correo); no confirmarlo ni otros cambios.
+    if (a.status !== "blocked" && isPastAppointment(a) && status !== "no_show" && status !== "cancelled") {
       return;
     }
     // Desde que ARRANCA el turno (aunque todavía no haya terminado) ya no se
@@ -4641,10 +4639,8 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                     );
                   }
 
-                  // Un turno que pedía seña se puede cancelar aunque ya haya empezado o pasado la hora
-                  // (el cliente no vino): ahí se decide qué hacer con la seña.
-                  const askedDeposit = !!appointment.deposit_status && appointment.deposit_status !== "none";
-                  if (hasStarted && !askedDeposit) return null;
+                  // Un turno se puede cancelar también cuando ya empezó o pasó la hora (el cliente no
+                  // vino): si tiene seña pagada, ahí se decide qué hacer con ella.
 
                   // Motivo obligatorio antes de poder confirmar — nada se
                   // cancela con un solo toque. El textarea vacío bloquea los
