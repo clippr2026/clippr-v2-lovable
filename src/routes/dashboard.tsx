@@ -411,6 +411,17 @@ function horaCorta(iso: string) {
   return new Date(iso).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" });
 }
 
+/** Cuándo pasó algo: hoy → la hora; ayer → "Ayer"; otro día → la fecha. */
+function cuandoCorto(iso: string) {
+  const d = new Date(iso);
+  const hoy = new Date();
+  if (d.toDateString() === hoy.toDateString()) return horaCorta(iso);
+  const ayer = new Date(hoy);
+  ayer.setDate(hoy.getDate() - 1);
+  if (d.toDateString() === ayer.toDateString()) return "Ayer";
+  return d.toLocaleDateString("es-AR", { day: "numeric", month: "short" });
+}
+
 function diaYHoraCorta(iso: string) {
   const d = new Date(iso);
   const hoy = new Date();
@@ -752,7 +763,7 @@ function ActividadRecienteCard({ widgets }: { widgets: ReturnType<typeof useInic
                   <div className="break-words text-sm font-medium leading-snug text-foreground">{title}</div>
                   {detail && <div className="break-words text-xs leading-snug text-muted-foreground">{detail}</div>}
                 </div>
-                <div className="shrink-0 pt-0.5 text-xs text-muted-foreground">{horaCorta(item.at)}</div>
+                <div className="shrink-0 pt-0.5 text-xs text-muted-foreground">{cuandoCorto(item.at)}</div>
               </div>
             );
           })
