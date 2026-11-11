@@ -179,13 +179,12 @@ export function NegocioHero({ businessId }: { businessId: string | null }) {
 
   return (
     <div className="mb-5">
-      {/* De borde a borde y con el mismo fondo que la página pública (compensa el margen de AppShell). */}
-      <div
-        className="-mx-3 -mt-2 sm:-mx-5 sm:-mt-3 lg:-mx-6 lg:-mt-4"
-        style={{ WebkitMaskImage: "linear-gradient(#000 95%, transparent)", maskImage: "linear-gradient(#000 95%, transparent)" }}
-      >
+      {/* De borde a borde y con el mismo fondo que la página pública (compensa el margen de AppShell).
+          Va por encima del resplandor de fondo de Inicio, para que no lo tiña. */}
+      <div className="relative z-[1] -mx-3 -mt-2 sm:-mx-5 sm:-mt-3 lg:-mx-6 lg:-mt-4">
       {font ? <link rel="stylesheet" href={publicFontsStylesheet([font])} /> : null}
       <PublicHero
+        compact
         background={data.light ? "#ffffff" : "#08070c"}
         name={data.name}
         coverUrl={data.coverUrl}
