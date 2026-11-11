@@ -9,15 +9,15 @@ import { Field, SectionCard, Toggle, inputCls, useUnsavedGuard, FloatingSaveButt
 
 // Se guarda en business_settings.senas_config (JSON). Los campos que esta pantalla
 // no maneja (por ejemplo el texto viejo "msg") se conservan al guardar.
+// Una regla de seña: a qué clientes aplica (según la regla) y en qué servicios.
+type SenasRule = { enabled: boolean; all_services: boolean; services: string[] };
 type SenasConfig = {
   enabled: boolean;
-  scope: "all" | "selected";
-  services: string[];
-  // Servicios que piden seña a cualquier cliente; los demás siguen scope / trigger.
-  always_services: string[];
-  trigger: "always" | "conditional";
-  first_time: boolean;
-  no_show_min: number; // 0 = no aplica
+  rules: {
+    all: SenasRule; // a cualquier cliente
+    first: SenasRule; // clientes que vienen por primera vez
+    noshow: SenasRule & { min: number }; // clientes que faltaron `min` veces o más
+  };
   amount_type: "percent" | "fixed";
   amount_value: number;
   proof_mode: "review" | "auto";
@@ -33,14 +33,11 @@ type SenasConfig = {
 type Service = { id: string; name: string; category: string | null };
 
 
+const emptyRule = (): SenasRule => ({ enabled: false, all_services: false, services: [] });
+
 const DEFAULTS: SenasConfig = {
   enabled: false,
-  scope: "selected",
-  services: [],
-  always_services: [],
-  trigger: "always",
-  first_time: false,
-  no_show_min: 0,
+  rules: { all: emptyRule(), first: emptyRule(), noshow: { ...emptyRule(), min: 1 } },
   amount_type: "percent",
   amount_value: 30,
   proof_mode: "review",
@@ -60,18 +57,46 @@ const HOLD_OPTIONS = [
   { v: 1440, l: "24 horas" },
 ];
 
+const strList = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+
+function ruleFromRaw(x: any): SenasRule {
+  return { enabled: !!x?.enabled, all_services: !!x?.all_services, services: strList(x?.services) };
+}
+
+// Configuración anterior (scope + trigger + lista "siempre") → las tres reglas de hoy.
+function rulesFromLegacy(r: Record<string, any>): SenasConfig["rules"] {
+  const allServices = r.scope === "all";
+  const services = strList(r.services);
+  const always = strList(r.always_services);
+  const noShowMin = Math.max(0, Number(r.no_show_min) || 0);
+  if (r.trigger === "conditional") {
+    return {
+      all: { enabled: always.length > 0, all_services: false, services: always },
+      first: { enabled: !!r.first_time, all_services: allServices, services },
+      noshow: { enabled: noShowMin > 0, all_services: allServices, services, min: noShowMin || 1 },
+    };
+  }
+  return {
+    all: { enabled: true, all_services: allServices, services: [...new Set([...services, ...always])] },
+    first: emptyRule(),
+    noshow: { ...emptyRule(), min: 1 },
+  };
+}
+
 function fromRaw(raw: Record<string, any> | null): SenasConfig {
   const r = raw ?? {};
   const t = (r.payment?.transfer ?? {}) as Record<string, any>;
   const type = r.amount_type === "fixed" ? "fixed" : "percent";
+  const rules: SenasConfig["rules"] = r.rules
+    ? {
+        all: ruleFromRaw(r.rules.all),
+        first: ruleFromRaw(r.rules.first),
+        noshow: { ...ruleFromRaw(r.rules.noshow), min: Math.max(1, Number(r.rules.noshow?.min) || 1) },
+      }
+    : rulesFromLegacy(r);
   return {
     enabled: !!r.enabled,
-    scope: r.scope === "all" ? "all" : "selected",
-    services: Array.isArray(r.services) ? r.services.filter((x: unknown) => typeof x === "string") : [],
-    always_services: Array.isArray(r.always_services) ? r.always_services.filter((x: unknown) => typeof x === "string") : [],
-    trigger: r.trigger === "conditional" ? "conditional" : "always",
-    first_time: !!r.first_time,
-    no_show_min: Math.max(0, Number(r.no_show_min) || 0),
+    rules,
     amount_type: type,
     amount_value: Number(r.amount_value) > 0 ? Number(r.amount_value) : DEFAULTS.amount_value,
     proof_mode: r.proof_mode === "auto" ? "auto" : "review",
@@ -156,6 +181,56 @@ function ServiceChips({
   );
 }
 
+// Un caso (interruptor): al activarlo aparecen los servicios para elegir.
+function RuleBlock({
+  title,
+  hint,
+  rule,
+  grouped,
+  onPatch,
+  onToggleService,
+  extra,
+}: {
+  title: string;
+  hint: string;
+  rule: SenasRule;
+  grouped: [string, Service[]][];
+  onPatch: (patch: Partial<SenasRule>) => void;
+  onToggleService: (id: string) => void;
+  extra?: React.ReactNode;
+}) {
+  return (
+    <div className={cn("rounded-xl p-3.5 ring-1 transition", rule.enabled ? "bg-primary/10 ring-primary/40" : "bg-white/[0.03] ring-white/10")}>
+      <label className="flex cursor-pointer items-center justify-between gap-3">
+        <span className="min-w-0">
+          <span className="block text-sm font-semibold">{title}</span>
+          <span className="block text-xs text-muted-foreground">{hint}</span>
+        </span>
+        <Toggle on={rule.enabled} onChange={(v) => onPatch({ enabled: v })} />
+      </label>
+      {rule.enabled && (
+        <div className="mt-3 space-y-3">
+          {extra}
+          <div>
+            <div className="mb-1.5 text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">¿En qué servicios?</div>
+            <button
+              type="button"
+              onClick={() => onPatch({ all_services: !rule.all_services })}
+              className={cn(
+                "rounded-full px-3 py-1.5 text-xs font-semibold ring-1 transition",
+                rule.all_services ? "bg-primary/25 text-foreground ring-primary/70" : "bg-white/[0.03] text-muted-foreground ring-white/10",
+              )}
+            >
+              Todos los servicios
+            </button>
+            {!rule.all_services && <ServiceChips grouped={grouped} selected={rule.services} onToggle={onToggleService} />}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function SenasSection() {
   const { businessId, activeBranchId } = useAuth();
   const [cfg, setCfg] = useState<SenasConfig>(DEFAULTS);
@@ -215,21 +290,22 @@ export function SenasSection() {
     return [...map.entries()];
   }, [services]);
 
-  const toggleService = (id: string) =>
-    set("services", cfg.services.includes(id) ? cfg.services.filter((x) => x !== id) : [...cfg.services, id]);
-
-  const toggleAlways = (id: string) =>
-    set(
-      "always_services",
-      cfg.always_services.includes(id) ? cfg.always_services.filter((x) => x !== id) : [...cfg.always_services, id],
-    );
+  type RuleKey = keyof SenasConfig["rules"];
+  const patchRule = (key: RuleKey, patch: Partial<SenasRule> & { min?: number }) => {
+    setCfg((c) => ({ ...c, rules: { ...c.rules, [key]: { ...c.rules[key], ...patch } } }));
+    setDirty(true);
+  };
+  const toggleRuleService = (key: RuleKey, id: string) => {
+    const cur = cfg.rules[key].services;
+    patchRule(key, { services: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id] });
+  };
 
   const validate = (): string | null => {
     if (!cfg.enabled) return null;
-    if (cfg.scope === "selected" && cfg.services.length === 0 && cfg.always_services.length === 0)
-      return "Elegí al menos un servicio para pedir seña.";
-    if (cfg.trigger === "conditional" && !cfg.first_time && cfg.no_show_min < 1)
-      return "Elegí cuándo pedir la seña: clientes nuevos o clientes que faltaron.";
+    const active = (Object.entries(cfg.rules) as [RuleKey, SenasRule][]).filter(([, r]) => r.enabled);
+    if (active.length === 0) return "Activá al menos un caso en el que se pida seña.";
+    if (active.some(([, r]) => !r.all_services && r.services.length === 0))
+      return "En cada caso activado, elegí al menos un servicio (o “Todos los servicios”).";
     if (cfg.amount_type === "percent" && (cfg.amount_value <= 0 || cfg.amount_value > 100))
       return "El porcentaje de la seña debe estar entre 1 y 100.";
     if (cfg.amount_type === "fixed" && cfg.amount_value <= 0) return "El monto de la seña debe ser mayor a 0.";
@@ -251,12 +327,9 @@ export function SenasSection() {
       const next = {
         ...raw,
         enabled: cfg.enabled,
-        scope: cfg.scope,
-        services: cfg.services,
-        always_services: cfg.always_services,
-        trigger: cfg.trigger,
-        first_time: cfg.trigger === "conditional" ? cfg.first_time : false,
-        no_show_min: cfg.trigger === "conditional" ? cfg.no_show_min : 0,
+        // Los campos de la configuración anterior (scope, services, trigger…) quedan como estaban:
+        // con `rules` presente la base los ignora.
+        rules: cfg.rules,
         amount_type: cfg.amount_type,
         amount_value: cfg.amount_value,
         proof_mode: cfg.proof_mode,
@@ -318,57 +391,50 @@ export function SenasSection() {
       </SectionCard>
 
       <div className={cn("space-y-4 transition-opacity", off && "pointer-events-none opacity-40")}>
-        <SectionCard label="Servicios que siempre piden seña">
+        <SectionCard label="¿Cuándo se pide seña?">
           <p className="text-sm text-muted-foreground">
-            Estos servicios piden seña a cualquier cliente. Los demás servicios siguen lo que elijas más abajo.
+            Activá cada caso y elegí en qué servicios se pide. Si una reserva cumple alguno, se pide la seña.
           </p>
-          <ServiceChips grouped={grouped} selected={cfg.always_services} onToggle={toggleAlways} />
-        </SectionCard>
-
-        <SectionCard label="¿Por qué servicios?">
-          {cfg.always_services.length > 0 && (
-            <p className="mb-3 text-xs text-muted-foreground">Vale para los servicios que no están en la lista de arriba.</p>
-          )}
-          <div className="grid gap-2">
-            <Choice on={cfg.scope === "all"} onClick={() => set("scope", "all")} title="Todos los servicios" />
-            <Choice on={cfg.scope === "selected"} onClick={() => set("scope", "selected")} title="Solo los que elija" />
-          </div>
-          {cfg.scope === "selected" && (
-            <ServiceChips grouped={grouped} selected={cfg.services} onToggle={toggleService} />
-          )}
-        </SectionCard>
-
-        <SectionCard label="¿A qué clientes?">
-          <div className="grid gap-2">
-            <Choice on={cfg.trigger === "always"} onClick={() => set("trigger", "always")} title="A todos los clientes" />
-            <Choice
-              on={cfg.trigger === "conditional"}
-              onClick={() => set("trigger", "conditional")}
-              title="Solo en ciertos casos"
-              hint="No se pide seña al resto de los clientes."
+          <div className="mt-3 space-y-3">
+            <RuleBlock
+              title="Para todos los clientes"
+              hint="Piden seña siempre, sin importar quién reserve."
+              rule={cfg.rules.all}
+              grouped={grouped}
+              onPatch={(patch) => patchRule("all", patch)}
+              onToggleService={(id) => toggleRuleService("all", id)}
+            />
+            <RuleBlock
+              title="Clientes que vienen por primera vez"
+              hint="Solo si es su primer turno."
+              rule={cfg.rules.first}
+              grouped={grouped}
+              onPatch={(patch) => patchRule("first", patch)}
+              onToggleService={(id) => toggleRuleService("first", id)}
+            />
+            <RuleBlock
+              title="Clientes que no asistieron"
+              hint="Solo si faltaron a un turno anterior."
+              rule={cfg.rules.noshow}
+              grouped={grouped}
+              onPatch={(patch) => patchRule("noshow", patch)}
+              onToggleService={(id) => toggleRuleService("noshow", id)}
+              extra={
+                <div className="flex items-center justify-between gap-3 text-sm">
+                  <span>Cuántas veces</span>
+                  <select
+                    value={cfg.rules.noshow.min}
+                    onChange={(e) => patchRule("noshow", { min: Number(e.target.value) })}
+                    className={cn(inputCls, "w-auto")}
+                  >
+                    <option value={1}>1 vez o más</option>
+                    <option value={2}>2 veces o más</option>
+                    <option value={3}>3 veces o más</option>
+                  </select>
+                </div>
+              }
             />
           </div>
-          {cfg.trigger === "conditional" && (
-            <div className="mt-3 space-y-3 rounded-xl bg-white/[0.03] p-3 ring-1 ring-white/10">
-              <label className="flex items-center justify-between gap-3 text-sm">
-                <span>Clientes que vienen por primera vez</span>
-                <Toggle on={cfg.first_time} onChange={(v) => set("first_time", v)} />
-              </label>
-              <div className="flex items-center justify-between gap-3 text-sm">
-                <span>Clientes que no asistieron</span>
-                <select
-                  value={cfg.no_show_min}
-                  onChange={(e) => set("no_show_min", Number(e.target.value))}
-                  className={cn(inputCls, "w-auto")}
-                >
-                  <option value={0}>No aplica</option>
-                  <option value={1}>1 vez o más</option>
-                  <option value={2}>2 veces o más</option>
-                  <option value={3}>3 veces o más</option>
-                </select>
-              </div>
-            </div>
-          )}
         </SectionCard>
 
         <SectionCard label="¿Cuánto se pide?">

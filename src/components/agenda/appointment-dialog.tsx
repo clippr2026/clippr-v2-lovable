@@ -654,19 +654,22 @@ export function AppointmentDialog({
       : `-$${(Number(effectivePromotionPreview.discountValue) || 0).toLocaleString("es-AR")}`
     : "";
 
-  const requiresDeposit = !!(
-    senasConfig?.enabled
-    && selectedService?.id
-    && (
-      // Servicios que siempre piden seña (a cualquier cliente).
-      (Array.isArray((senasConfig as any).always_services) && (senasConfig as any).always_services.includes(selectedService.id))
-      // Las reglas "solo primera vez / solo si faltó" las resuelve el servidor (etapa siguiente):
-      // acá no se pide seña a ciegas a todos.
-      || (senasConfig.trigger !== "conditional"
-        && (senasConfig.scope === "all"
-          || (Array.isArray(senasConfig.services) && senasConfig.services.includes(selectedService.id))))
-    )
-  );
+  // La regla "para todos los clientes" se puede resolver acá; "primera vez" y "faltó" las resuelve
+  // el servidor según quién sea el cliente (no se pide seña a ciegas a todos).
+  const requiresDeposit = !!(() => {
+    if (!senasConfig?.enabled || !selectedService?.id) return false;
+    const cfg = senasConfig as any;
+    if (cfg.rules) {
+      const all = cfg.rules.all;
+      return !!all?.enabled && (!!all.all_services || (Array.isArray(all.services) && all.services.includes(selectedService.id)));
+    }
+    // Configuración anterior (sin `rules`).
+    return (
+      (Array.isArray(cfg.always_services) && cfg.always_services.includes(selectedService.id))
+      || (cfg.trigger !== "conditional"
+        && (cfg.scope === "all" || (Array.isArray(cfg.services) && cfg.services.includes(selectedService.id))))
+    );
+  })();
 
   const depositAmount = React.useMemo(() => {
     if (!requiresDeposit || !senasConfig) return 0;
