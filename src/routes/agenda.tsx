@@ -3470,8 +3470,9 @@ const ApptCard = React.memo(function ApptCard({
         height,
         left,
         width,
+        // Mismo color de letras, borde y luz que las tarjetas de estado de arriba.
+        ...statusNeonStyle(meta.dot, meta.border, meta.bg),
         background: meta.bg,
-        boxShadow: `inset 0 0 0 1px ${meta.border}`,
       }}
       draggable={isMovable}
       onDragStart={handleDragStart}
@@ -3497,7 +3498,7 @@ const ApptCard = React.memo(function ApptCard({
       {/* Línea 2: servicio + producto online — pegado al horario, legible y sin cortarse */}
       {a.service_name && (
         <div className="mt-0.5 flex min-w-0 items-center gap-1.5 leading-none">
-          <span className="truncate text-[11px] text-foreground/85">
+          <span className="truncate text-[11px] opacity-90">
             {a.service_name}
           </span>
           {appointmentProductsFromNotes(a.notes).length > 0 && (
@@ -4766,8 +4767,8 @@ function WeekView({
                       style={{
                         top,
                         height,
+                        ...statusNeonStyle(meta.dot, meta.border, meta.bg),
                         background: meta.bg,
-                        boxShadow: `inset 0 0 0 1px ${meta.border}`,
                       }}
                       onClick={(e) => {
                         e.stopPropagation();
@@ -4786,7 +4787,7 @@ function WeekView({
                       <div className="text-[10px] font-semibold truncate leading-[1.05] mt-0.5">
                         {a.client_name || "—"}
                       </div>
-                      <div className="text-[9px] truncate text-foreground/70 leading-[1.05] mt-0.5">
+                      <div className="text-[9px] truncate opacity-85 leading-[1.05] mt-0.5">
                         {a.service_name}
                       </div>
                     </div>
