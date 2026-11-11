@@ -657,11 +657,15 @@ export function AppointmentDialog({
   const requiresDeposit = !!(
     senasConfig?.enabled
     && selectedService?.id
-    // Las reglas "solo primera vez / solo si faltó" las resuelve el servidor (etapa siguiente):
-    // acá no se pide seña a ciegas a todos.
-    && senasConfig.trigger !== "conditional"
-    && (senasConfig.scope === "all"
-      || (Array.isArray(senasConfig.services) && senasConfig.services.includes(selectedService.id)))
+    && (
+      // Servicios que siempre piden seña (a cualquier cliente).
+      (Array.isArray((senasConfig as any).always_services) && (senasConfig as any).always_services.includes(selectedService.id))
+      // Las reglas "solo primera vez / solo si faltó" las resuelve el servidor (etapa siguiente):
+      // acá no se pide seña a ciegas a todos.
+      || (senasConfig.trigger !== "conditional"
+        && (senasConfig.scope === "all"
+          || (Array.isArray(senasConfig.services) && senasConfig.services.includes(selectedService.id))))
+    )
   );
 
   const depositAmount = React.useMemo(() => {

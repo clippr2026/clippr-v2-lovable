@@ -13,6 +13,8 @@ type SenasConfig = {
   enabled: boolean;
   scope: "all" | "selected";
   services: string[];
+  // Servicios que piden seña a cualquier cliente; los demás siguen scope / trigger.
+  always_services: string[];
   trigger: "always" | "conditional";
   first_time: boolean;
   no_show_min: number; // 0 = no aplica
@@ -35,6 +37,7 @@ const DEFAULTS: SenasConfig = {
   enabled: false,
   scope: "selected",
   services: [],
+  always_services: [],
   trigger: "always",
   first_time: false,
   no_show_min: 0,
@@ -65,6 +68,7 @@ function fromRaw(raw: Record<string, any> | null): SenasConfig {
     enabled: !!r.enabled,
     scope: r.scope === "all" ? "all" : "selected",
     services: Array.isArray(r.services) ? r.services.filter((x: unknown) => typeof x === "string") : [],
+    always_services: Array.isArray(r.always_services) ? r.always_services.filter((x: unknown) => typeof x === "string") : [],
     trigger: r.trigger === "conditional" ? "conditional" : "always",
     first_time: !!r.first_time,
     no_show_min: Math.max(0, Number(r.no_show_min) || 0),
@@ -110,6 +114,45 @@ function Choice({
       <div className="text-sm font-semibold">{title}</div>
       {hint && <div className="mt-0.5 text-xs text-muted-foreground">{hint}</div>}
     </button>
+  );
+}
+
+function ServiceChips({
+  grouped,
+  selected,
+  onToggle,
+}: {
+  grouped: [string, Service[]][];
+  selected: string[];
+  onToggle: (id: string) => void;
+}) {
+  return (
+    <div className="mt-3 space-y-3">
+      {grouped.length === 0 && <p className="text-sm text-muted-foreground">Todavía no hay servicios cargados.</p>}
+      {grouped.map(([cat, list]) => (
+        <div key={cat}>
+          <div className="mb-1.5 text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">{cat}</div>
+          <div className="flex flex-wrap gap-2">
+            {list.map((s) => {
+              const on = selected.includes(s.id);
+              return (
+                <button
+                  key={s.id}
+                  type="button"
+                  onClick={() => onToggle(s.id)}
+                  className={cn(
+                    "rounded-full px-3 py-1.5 text-xs font-medium ring-1 transition",
+                    on ? "bg-primary/20 text-foreground ring-primary/60" : "bg-white/[0.03] text-muted-foreground ring-white/10",
+                  )}
+                >
+                  {s.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -175,9 +218,16 @@ export function SenasSection() {
   const toggleService = (id: string) =>
     set("services", cfg.services.includes(id) ? cfg.services.filter((x) => x !== id) : [...cfg.services, id]);
 
+  const toggleAlways = (id: string) =>
+    set(
+      "always_services",
+      cfg.always_services.includes(id) ? cfg.always_services.filter((x) => x !== id) : [...cfg.always_services, id],
+    );
+
   const validate = (): string | null => {
     if (!cfg.enabled) return null;
-    if (cfg.scope === "selected" && cfg.services.length === 0) return "Elegí al menos un servicio para pedir seña.";
+    if (cfg.scope === "selected" && cfg.services.length === 0 && cfg.always_services.length === 0)
+      return "Elegí al menos un servicio para pedir seña.";
     if (cfg.trigger === "conditional" && !cfg.first_time && cfg.no_show_min < 1)
       return "Elegí cuándo pedir la seña: clientes nuevos o clientes que faltaron.";
     if (cfg.amount_type === "percent" && (cfg.amount_value <= 0 || cfg.amount_value > 100))
@@ -203,6 +253,7 @@ export function SenasSection() {
         enabled: cfg.enabled,
         scope: cfg.scope,
         services: cfg.services,
+        always_services: cfg.always_services,
         trigger: cfg.trigger,
         first_time: cfg.trigger === "conditional" ? cfg.first_time : false,
         no_show_min: cfg.trigger === "conditional" ? cfg.no_show_min : 0,
@@ -267,38 +318,23 @@ export function SenasSection() {
       </SectionCard>
 
       <div className={cn("space-y-4 transition-opacity", off && "pointer-events-none opacity-40")}>
+        <SectionCard label="Servicios que siempre piden seña">
+          <p className="text-sm text-muted-foreground">
+            Estos servicios piden seña a cualquier cliente. Los demás servicios siguen lo que elijas más abajo.
+          </p>
+          <ServiceChips grouped={grouped} selected={cfg.always_services} onToggle={toggleAlways} />
+        </SectionCard>
+
         <SectionCard label="¿Por qué servicios?">
+          {cfg.always_services.length > 0 && (
+            <p className="mb-3 text-xs text-muted-foreground">Vale para los servicios que no están en la lista de arriba.</p>
+          )}
           <div className="grid gap-2">
             <Choice on={cfg.scope === "all"} onClick={() => set("scope", "all")} title="Todos los servicios" />
             <Choice on={cfg.scope === "selected"} onClick={() => set("scope", "selected")} title="Solo los que elija" />
           </div>
           {cfg.scope === "selected" && (
-            <div className="mt-3 space-y-3">
-              {grouped.length === 0 && <p className="text-sm text-muted-foreground">Todavía no hay servicios cargados.</p>}
-              {grouped.map(([cat, list]) => (
-                <div key={cat}>
-                  <div className="mb-1.5 text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">{cat}</div>
-                  <div className="flex flex-wrap gap-2">
-                    {list.map((s) => {
-                      const on = cfg.services.includes(s.id);
-                      return (
-                        <button
-                          key={s.id}
-                          type="button"
-                          onClick={() => toggleService(s.id)}
-                          className={cn(
-                            "rounded-full px-3 py-1.5 text-xs font-medium ring-1 transition",
-                            on ? "bg-primary/20 text-foreground ring-primary/60" : "bg-white/[0.03] text-muted-foreground ring-white/10",
-                          )}
-                        >
-                          {s.name}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
+            <ServiceChips grouped={grouped} selected={cfg.services} onToggle={toggleService} />
           )}
         </SectionCard>
 
