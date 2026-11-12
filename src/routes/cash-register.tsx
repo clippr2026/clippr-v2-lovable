@@ -17567,7 +17567,7 @@ export function NuevaVentaTab({
         className={cn(
           "z-40",
           variant === "page"
-            ? "fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom,0px)+8px)] mx-auto w-full max-w-5xl px-3 md:px-3.5 lg:static lg:inset-auto lg:z-20 lg:mx-0 lg:w-auto lg:max-w-none lg:px-0 lg:pb-0"
+            ? "fixed inset-x-0 bottom-[calc(4.75rem+env(safe-area-inset-bottom,0px)+8px)] mx-auto w-full max-w-5xl px-3 md:px-3.5 lg:static lg:inset-auto lg:z-20 lg:mx-0 lg:w-auto lg:max-w-none lg:px-0 lg:pb-0"
             : "relative mt-2 shrink-0 pb-[max(1rem,env(safe-area-inset-bottom,0px))]",
         )}
       >

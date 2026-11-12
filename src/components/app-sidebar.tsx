@@ -626,10 +626,10 @@ type MobileNavEntry = {
 function MobileBottomNavSkeleton() {
   return (
     <nav
-      className="lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-black"
-      style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+      className="lg:hidden fixed inset-x-3 z-40 rounded-full border border-white/15 bg-[rgba(40,40,46,0.6)] backdrop-blur-2xl"
+      style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)" }}
     >
-      <div className="grid h-14 grid-cols-7">
+      <div className="grid h-[58px] grid-cols-7">
         {Array.from({ length: 7 }).map((_, i) => (
           <div key={i} className="flex items-center justify-center">
             <div className="h-[22px] w-[22px] rounded-full bg-white/[0.06] animate-pulse" />
@@ -706,45 +706,37 @@ function MobileBottomNav() {
   return (
     <MobileFixedBottom>
     <nav
-      className="lg:hidden fixed inset-x-0 bottom-0 z-40 border-t border-white/10 bg-black"
+      className="lg:hidden fixed inset-x-3 z-40 rounded-full border border-white/15 bg-[rgba(40,40,46,0.6)] shadow-[0_12px_32px_-8px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.18)] backdrop-blur-2xl backdrop-saturate-150"
       style={{
         position: "fixed",
-        left: 0,
-        right: 0,
-        bottom: 0,
-        paddingBottom: "env(safe-area-inset-bottom, 0px)",
+        bottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)",
         transform: "translate3d(0, 0, 0)",
         WebkitTransform: "translate3d(0, 0, 0)",
         willChange: "transform",
       }}
     >
-      <div className="grid h-14" style={{ gridTemplateColumns: `repeat(${barItems.length}, minmax(0, 1fr))` }}>
+      <div className="grid h-[58px] items-center px-1.5" style={{ gridTemplateColumns: `repeat(${barItems.length}, minmax(0, 1fr))` }}>
         {barItems.map((item) => {
           const active = pathname === item.to;
           const Icon = item.icon;
           const label = MOBILE_NAV_SHORT_LABEL[item.label] ?? item.label;
           if (item.permKey === "dashboard") {
-            // Inicio: botón grande y redondo que sobresale de la barra, en el medio.
+            // Inicio: círculo con degradé dentro de la barra, en el medio.
             return (
               <Link
                 key={item.to}
                 to={item.to}
                 aria-label={item.label}
                 title={item.label}
-                className="relative flex flex-col items-center justify-end pb-1 transition active:scale-[0.94]"
+                className="flex items-center justify-center transition active:scale-[0.92]"
               >
                 <span
                   className={cn(
-                    "absolute -top-5 grid h-[52px] w-[52px] place-items-center rounded-full bg-gradient-to-b from-sky-400 to-violet-500 ring-4 ring-black transition",
-                    active
-                      ? "shadow-[0_0_22px_rgba(139,92,246,0.85)]"
-                      : "opacity-90 shadow-[0_0_12px_rgba(139,92,246,0.45)]",
+                    "grid h-11 w-11 place-items-center rounded-full bg-gradient-to-b from-sky-400 to-violet-500 transition",
+                    active ? "shadow-[0_0_20px_rgba(139,92,246,0.85)] ring-2 ring-white/40" : "opacity-90 shadow-[0_0_10px_rgba(139,92,246,0.4)]",
                   )}
                 >
                   <Icon className="h-6 w-6 text-white" />
-                </span>
-                <span className={cn("text-[10px] font-semibold leading-none", active ? "text-primary" : "text-muted-foreground")}>
-                  {label}
                 </span>
               </Link>
             );
@@ -755,21 +747,17 @@ function MobileBottomNav() {
               to={item.to}
               aria-label={item.label}
               title={item.label}
-              className="flex min-w-0 flex-col items-center justify-center gap-1 transition active:scale-[0.94]"
+              className="flex min-w-0 items-center justify-center transition active:scale-[0.92]"
             >
-              <Icon
-                className={cn(
-                  "h-[20px] w-[20px] transition",
-                  active ? "text-primary drop-shadow-[0_0_7px_rgba(139,92,246,0.55)]" : "text-muted-foreground",
-                )}
-              />
+              {/* El ítem activo se marca con una pastilla más clara y su nombre, como en Instagram. */}
               <span
                 className={cn(
-                  "max-w-full truncate px-0.5 text-[10px] font-medium leading-none",
-                  active ? "text-primary" : "text-muted-foreground",
+                  "flex h-[46px] w-full flex-col items-center justify-center gap-0.5 rounded-full transition",
+                  active ? "bg-white/[0.18]" : "bg-transparent",
                 )}
               >
-                {label}
+                <Icon className={cn("h-[22px] w-[22px] transition", active ? "text-white" : "text-white/80")} />
+                {active && <span className="max-w-full truncate px-0.5 text-[9px] font-semibold leading-none text-white">{label}</span>}
               </span>
             </Link>
           );
