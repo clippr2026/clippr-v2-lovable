@@ -112,7 +112,7 @@ export function AppShell({
         className={
           "clippr-app-main flex-1 min-w-0 w-full py-2 sm:py-3 lg:py-4 " +
           // Sin barra inferior (un solo ítem) no se reserva su espacio.
-          (navLoading || hasBottomNav ? "pb-[calc(4.75rem+env(safe-area-inset-bottom))] lg:pb-2 " : "pb-2 ") +
+          (navLoading || hasBottomNav ? "pb-[calc(4.75rem+env(safe-area-inset-bottom))] lg:pb-[calc(5rem+env(safe-area-inset-bottom))] " : "pb-2 ") +
           // Sin [-webkit-overflow-scrolling:touch] a propósito: es la única
           // propiedad de scroll con momentum "legacy" de todo el proyecto —
           // desde iOS 13, overflow-y:auto ya tiene momentum nativo sin ella,
