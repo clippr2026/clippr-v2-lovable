@@ -4603,9 +4603,9 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                               !showCobrar && "col-span-2",
                             )}
                             style={{
-                              background: "linear-gradient(135deg, rgba(34,211,238,.95), rgba(56,189,248,.8))",
-                              color: "#04202b",
-                              boxShadow: "0 16px 34px -20px rgba(34,211,238,.95), inset 0 0 0 1px rgba(255,255,255,.25)",
+                              background: "linear-gradient(135deg, #7C3AED, #A855F7)",
+                              color: "#ffffff",
+                              boxShadow: "inset 0 0 0 1.5px rgba(196,181,253,.85), 0 0 22px rgba(168,85,247,.45), 0 14px 30px -20px rgba(124,58,237,.95)",
                             }}
                           >
                             <CheckCircle2 className="h-5 w-5" />
@@ -4913,10 +4913,11 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                       {!isPast && (
                         <button
                           onClick={() => onEdit(appointment)}
-                          className="flex h-12 items-center justify-center gap-2 rounded-full text-sm font-semibold text-violet-100 transition hover:brightness-125 active:scale-[0.99]"
+                          className="flex h-12 items-center justify-center gap-2 rounded-full text-sm font-semibold transition hover:brightness-125 active:scale-[0.99]"
                           style={{
-                            background: "rgba(139,92,246,0.10)",
-                            boxShadow: "inset 0 0 0 1.5px rgba(167,139,250,0.65), 0 0 20px rgba(139,92,246,0.25)",
+                            background: "#202A3D",
+                            color: "#E2E8F0",
+                            boxShadow: "inset 0 0 0 1.5px #64748B",
                           }}
                         >
                           <CalendarSync className="h-[18px] w-[18px]" />
