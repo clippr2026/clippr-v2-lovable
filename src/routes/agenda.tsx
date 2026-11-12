@@ -2091,6 +2091,7 @@ function AgendaPage() {
           onNoShowWithDeposit={handleNoShowWithDeposit}
           onDepositChanged={() => data.refresh()}
           onReleaseBlock={handleReleaseBlock}
+          senasConfigRaw={senasConfig as unknown as Record<string, any> | null}
         />
 
         <BlockHoursDialog
@@ -4056,6 +4057,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   onMarkDeposit,
   onCancelWithDeposit,
   onNoShowWithDeposit,
+  senasConfigRaw,
   onReleaseBlock,
   onDepositChanged,
 }: {
@@ -4079,6 +4081,8 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   onMarkDeposit: (a: Appointment) => void;
   onCancelWithDeposit: (a: Appointment, action: "keep" | "return", reason: string, fundsSource?: "caja" | "otros") => void;
   onNoShowWithDeposit: (a: Appointment, action: "keep" | "return", fundsSource?: "caja" | "otros") => void;
+  /** Configuración de señas ya cargada por la Agenda (evita volver a pedirla al abrir el turno). */
+  senasConfigRaw?: Record<string, any> | null;
   onReleaseBlock: (a: Appointment) => void;
   onDepositChanged: () => void;
 }) {
@@ -4403,6 +4407,9 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
             isPast={isPast}
             onChanged={onDepositChanged}
             onCancelAppointment={(reason) => onCancel(appointment, reason)}
+            businessId={appointment.business_id}
+            senasConfig={senasConfigRaw}
+            depositStatusHint={appointment.deposit_status}
           />
 
             {/* Horario y duración · profesional · fecha de creación de la reserva */}

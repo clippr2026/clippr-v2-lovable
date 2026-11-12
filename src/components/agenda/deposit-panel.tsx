@@ -33,6 +33,10 @@ const STATUS_LABEL: Record<DepositRow["status"], { text: string; cls: string }> 
   expired: { text: "⚪ Seña vencida", cls: "text-muted-foreground" },
 };
 
+// Última seña leída de cada turno: al volver a abrir un turno el panel aparece al instante y se
+// refresca por detrás (la lectura nueva siempre pisa a la guardada).
+const depositMemo = new Map<string, DepositRow | null>();
+
 const money = (n: number) => `$${Math.round(Number(n) || 0).toLocaleString("es-AR")}`;
 
 type Dist = "local" | "professional" | "split" | "custom";
@@ -49,6 +53,9 @@ export function DepositPanel({
   isPast,
   onChanged,
   onCancelAppointment,
+  businessId,
+  senasConfig,
+  depositStatusHint,
 }: {
   appointmentId: string;
   status: string;
@@ -56,10 +63,16 @@ export function DepositPanel({
   onChanged: () => void;
   /** Cancela el turno con el motivo indicado (ej. comprobante rechazado). */
   onCancelAppointment?: (reason: string) => void;
+  /** Negocio del turno: con esto se evita una consulta extra para averiguarlo. */
+  businessId?: string | null;
+  /** Configuración de señas que la Agenda ya tiene cargada: se usa tal cual, sin pedirla de nuevo. */
+  senasConfig?: Record<string, any> | null;
+  /** Estado de seña que ya trae el turno: permite reservar el lugar del panel mientras carga. */
+  depositStatusHint?: string | null;
 }) {
-  const [dep, setDep] = React.useState<DepositRow | null>(null);
-  const [loaded, setLoaded] = React.useState(false);
-  const [senasEnabled, setSenasEnabled] = React.useState(false);
+  const [dep, setDep] = React.useState<DepositRow | null>(() => depositMemo.get(appointmentId) ?? null);
+  const [loaded, setLoaded] = React.useState(() => depositMemo.has(appointmentId));
+  const [senasEnabled, setSenasEnabled] = React.useState(() => !!senasConfig?.enabled);
   const [defaultDist, setDefaultDist] = React.useState<{ dist: Dist; prof: number }>({ dist: "local", prof: 0 });
   const [busy, setBusy] = React.useState(false);
   const [proof, setProof] = React.useState<{ mime: string; data: string } | null>(null);
@@ -76,17 +89,26 @@ export function DepositPanel({
   const [refunding, setRefunding] = React.useState(false);
 
   const load = React.useCallback(async () => {
-    const [{ data: row }, { data: appt }] = await Promise.all([
-      (supabase.from("appointment_deposits" as any) as any)
-        .select("id,status,amount,paid_amount,method,proof_path,proof_uploaded_at,suggested_action,refund_amount,retained_prof_amount,retained_local_amount,decision_note,prof_share_paid_at,prof_share_method")
-        .eq("appointment_id", appointmentId)
-        .maybeSingle(),
-      supabase.from("appointments").select("business_id").eq("id", appointmentId).maybeSingle(),
-    ]);
-    setDep((row as DepositRow | null) ?? null);
-    if (appt?.business_id) {
-      const { data: st } = await supabase.from("business_settings").select("senas_config").eq("business_id", appt.business_id as string).maybeSingle();
-      const cfg = ((st as any)?.senas_config ?? {}) as Record<string, any>;
+    // Todo en paralelo: la seña del turno y (solo si la Agenda no la trajo) la configuración de señas.
+    const depositQuery = (supabase.from("appointment_deposits" as any) as any)
+      .select("id,status,amount,paid_amount,method,proof_path,proof_uploaded_at,suggested_action,refund_amount,retained_prof_amount,retained_local_amount,decision_note,prof_share_paid_at,prof_share_method")
+      .eq("appointment_id", appointmentId)
+      .maybeSingle();
+    const settingsQuery = senasConfig
+      ? Promise.resolve(null)
+      : (async () => {
+          const biz =
+            businessId ??
+            ((await supabase.from("appointments").select("business_id").eq("id", appointmentId).maybeSingle()).data?.business_id as string | undefined);
+          if (!biz) return null;
+          return supabase.from("business_settings").select("senas_config").eq("business_id", biz).maybeSingle();
+        })();
+    const [{ data: row }, settingsRes] = await Promise.all([depositQuery, settingsQuery]);
+    const found = (row as DepositRow | null) ?? null;
+    depositMemo.set(appointmentId, found);
+    setDep(found);
+    const cfg = (senasConfig ?? ((settingsRes as any)?.data?.senas_config ?? null)) as Record<string, any> | null;
+    if (cfg) {
       setSenasEnabled(!!cfg.enabled);
       const d: Dist = ["local", "professional", "split", "custom"].includes(cfg.lost_dist) ? cfg.lost_dist : "local";
       setDefaultDist({ dist: d, prof: Number(cfg.lost_prof) || 0 });
@@ -94,11 +116,12 @@ export function DepositPanel({
       setCustomProf(d === "custom" ? Number(cfg.lost_prof) || 0 : 50);
     }
     setLoaded(true);
-  }, [appointmentId]);
+  }, [appointmentId, businessId, senasConfig]);
 
   React.useEffect(() => {
-    setLoaded(false);
-    setDep(null);
+    // Con una lectura anterior guardada, el panel se ve ya y se refresca por detrás.
+    setLoaded(depositMemo.has(appointmentId));
+    setDep(depositMemo.get(appointmentId) ?? null);
     setProof(null);
     setShowProof(false);
     setRejecting(false);
@@ -139,7 +162,13 @@ export function DepositPanel({
     }
   };
 
-  if (!loaded) return null;
+  if (!loaded) {
+    // Mientras carga se reserva el lugar si se espera mostrar el panel (así lo de abajo no salta).
+    const expected =
+      (!!depositStatusHint && depositStatusHint !== "none") ||
+      (senasEnabled && !isPast && ["pending", "confirmed"].includes(status));
+    return expected ? <div className="h-16 animate-pulse rounded-2xl border border-white/10 bg-white/[0.03]" aria-hidden /> : null;
+  }
 
   // Sin seña: solo se ofrece registrar una recibida (turno vigente y señas activadas).
   if (!dep) {
