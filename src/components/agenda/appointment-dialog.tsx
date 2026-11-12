@@ -1079,7 +1079,7 @@ export function AppointmentDialog({
         </>
       }
     >
-        <div className="grid gap-4">
+        <div className={"grid gap-4" + (presentation === "premium" ? " [&_section]:rounded-2xl [&_section]:border-white/10 [&_section]:bg-white/[0.03] [&_section]:p-4 [&_section]:[background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.12),transparent_65%)] [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:normal-case [&_h3]:tracking-normal [&_h3]:text-white [&_label]:text-sm [&_label]:font-semibold [&_label]:normal-case [&_label]:tracking-normal [&_label]:text-white [&_input]:h-10 [&_input]:rounded-lg [&_input]:border-white/10 [&_input]:bg-white/[0.04] [&_button[role=combobox]]:h-10 [&_button[role=combobox]]:rounded-lg [&_button[role=combobox]]:border-white/10 [&_button[role=combobox]]:bg-white/[0.04]" : "")}>
           {/* Fecha y hora — compact */}
           <section className="rounded-xl border border-white/10 bg-white/[0.025] p-3 space-y-2.5">
             <div className="flex items-center justify-between gap-3">

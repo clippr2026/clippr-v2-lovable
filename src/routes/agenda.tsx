@@ -3856,7 +3856,7 @@ function BlockHoursDialog({
       }
     >
       <div className="space-y-4">
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-4">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-4 [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.12),transparent_65%)]">
           <label className="block text-sm font-semibold">
             Motivo/Etiqueta
             <input
@@ -3883,7 +3883,7 @@ function BlockHoursDialog({
           </label>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-4">
+        <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-4 [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.12),transparent_65%)]">
           <div className="grid grid-cols-2 gap-2 items-end sm:grid-cols-[1fr_auto_auto]">
             <label className="col-span-2 block text-sm font-semibold sm:col-span-1">
               Fecha de inicio
@@ -3891,7 +3891,7 @@ function BlockHoursDialog({
                 type="date"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
-                className={`${inputClass} mt-2 w-full`}
+                className={`${inputClass} mt-2 block w-full min-w-0 max-w-full appearance-none`}
               />
             </label>
             <label className="block text-sm font-semibold">
@@ -3930,7 +3930,7 @@ function BlockHoursDialog({
                 type="date"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
-                className={`${inputClass} mt-2 w-full`}
+                className={`${inputClass} mt-2 block w-full min-w-0 max-w-full appearance-none`}
               />
             </label>
             <label className="block text-sm font-semibold">
@@ -3965,7 +3965,7 @@ function BlockHoursDialog({
         </div>
 
         {!appointment && (
-          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-4">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-4 [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.12),transparent_65%)]">
             <label className="flex items-center gap-3 text-sm font-semibold">
               <input
                 type="checkbox"
