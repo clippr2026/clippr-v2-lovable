@@ -293,7 +293,7 @@ export function HorarioEspecialPanel({
           "inline-flex h-11 sm:h-10 items-center gap-1 sm:gap-1.5 whitespace-nowrap rounded-full px-2.5 sm:px-4 text-sm font-semibold transition hover:brightness-125 active:scale-[0.98]" +
           (fillOnMobile ? " flex-1 justify-center sm:flex-none" : "")
         }
-        style={className ? undefined : { background: "#202A3D", color: "#E2E8F0", boxShadow: "inset 0 0 0 1.5px #64748B" }}
+        style={className ? undefined : { background: "linear-gradient(180deg, #3A4760, #232C42)", color: "#F1F5F9", boxShadow: "inset 0 0 0 1px rgba(148,163,184,0.55), inset 0 1px 0 rgba(255,255,255,0.28), 0 6px 14px -4px rgba(0,0,0,0.7)" }}
       >
         <CalendarClock className="h-4 w-4 shrink-0" />
         {shortLabelOnMobile ? (

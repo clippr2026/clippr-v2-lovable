@@ -1591,7 +1591,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                 type="button"
                 onClick={() => setAddTurnoOpen(true)}
                 className="inline-flex h-11 sm:h-10 flex-1 items-center justify-center gap-1 sm:flex-none sm:gap-1.5 whitespace-nowrap rounded-full px-2.5 sm:px-4 text-sm font-semibold transition hover:brightness-125 active:scale-[0.98]"
-                style={{ background: "rgba(139,92,246,0.10)", color: "#ede9fe", boxShadow: "inset 0 0 0 1.5px rgba(167,139,250,0.65), 0 0 20px rgba(139,92,246,0.25)" }}
+                style={{ background: "linear-gradient(180deg, #A78BFA, #7C3AED)", color: "#fff", boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.3), inset 0 1px 0 rgba(255,255,255,0.4), 0 8px 18px -4px rgba(124,58,237,0.75)" }}
               >
                 <CalendarPlus className="h-3.5 w-3.5 shrink-0" />
                 <span className="sm:hidden">+ Turno</span>
@@ -1605,8 +1605,8 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                 className="inline-flex h-11 sm:h-10 flex-1 items-center justify-center gap-1 sm:flex-none sm:gap-1.5 whitespace-nowrap rounded-full px-2.5 sm:px-4 text-sm font-semibold transition hover:brightness-125 active:scale-[0.98]"
                 style={
                   approvalMode === "manual"
-                    ? { background: "rgba(34,211,238,0.10)", color: "#67e8f9", boxShadow: "inset 0 0 0 1.5px rgba(103,232,249,.65), 0 0 20px rgba(34,211,238,.22)" }
-                    : { background: "rgba(16,185,129,0.10)", color: "#4ade80", boxShadow: "inset 0 0 0 1.5px rgba(74,222,128,.7), 0 0 20px rgba(34,197,94,.22)" }
+                    ? { background: "linear-gradient(180deg, #38BDF8, #0284C7)", color: "#fff", boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.3), inset 0 1px 0 rgba(255,255,255,0.4), 0 8px 18px -4px rgba(2,132,199,0.75)" }
+                    : { background: "linear-gradient(180deg, #34D399, #059669)", color: "#fff", boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.3), inset 0 1px 0 rgba(255,255,255,0.4), 0 8px 18px -4px rgba(5,150,105,0.75)" }
                 }
               >
                 <CreditCard className="h-3.5 w-3.5 shrink-0" />
