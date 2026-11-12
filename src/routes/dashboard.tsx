@@ -13,7 +13,6 @@ import { useCajaHoy } from "@/components/dashboard/use-caja-hoy";
 import { useInicioWidgets, type ActividadItem } from "@/components/dashboard/use-inicio-widgets";
 import { useFichajeHoy } from "@/components/dashboard/use-fichaje-hoy";
 import { FichajeQrModal } from "@/components/dashboard/fichaje-qr-modal";
-import { FichajeEvidenciaModal } from "@/components/dashboard/fichaje-evidencia-modal";
 import { JornadaRecepcionCard } from "@/components/dashboard/jornada-recepcion-card";
 import { SenasCajaCard } from "@/components/senas/senas-caja-card";
 import { SenasExtensionBanner } from "@/components/senas/senas-extension";
@@ -36,7 +35,6 @@ import {
   Wallet,
   CreditCard,
   HandCoins,
-  Camera,
 } from "lucide-react";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 
@@ -641,8 +639,6 @@ function inicialAvatar(name: string) {
 function FichajePersonaChip({ persona }: { persona: FichajeHoyPersona }) {
   const enCurso = persona.clockOutAt === null;
   const puntualidad = puntualidadDe(persona);
-  const [evidenciaOpen, setEvidenciaOpen] = React.useState(false);
-  const tieneEvidencia = Boolean(persona.inSelfiePath || persona.outSelfiePath);
 
   return (
     <div className="flex w-[232px] shrink-0 flex-col gap-1.5 rounded-xl bg-white/[0.035] px-3 py-2.5 ring-1 ring-white/10">
@@ -670,17 +666,7 @@ function FichajePersonaChip({ persona }: { persona: FichajeHoyPersona }) {
             Salida <span className="tabular-nums text-foreground/80">{horaCorta(persona.clockOutAt as string)}</span>
           </span>
         )}
-        {tieneEvidencia && (
-          <button
-            type="button"
-            onClick={() => setEvidenciaOpen(true)}
-            className="ml-auto inline-flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-sky-200 ring-1 ring-white/10 hover:bg-white/10"
-          >
-            <Camera className="size-3" /> Ver fichaje
-          </button>
-        )}
       </div>
-      {evidenciaOpen && <FichajeEvidenciaModal persona={persona} onClose={() => setEvidenciaOpen(false)} />}
     </div>
   );
 }
