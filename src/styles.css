@@ -620,73 +620,71 @@ html.neon-skin h1 {
   text-shadow: 0 0 32px oklch(0.7 0.25 290 / 0.45);
 }
 
-/* Inicio: neón más marcado (tarjetas con borde de luz, números y títulos que brillan). */
-/* Sin :not(:hover): en el celular, tocar una tarjeta la deja en "hover" y se le apagaba el neón. */
+/* Inicio con estilo Clippr: mismas tarjetas premium que las ventanas de la Agenda
+   (borde violeta, fondo oscuro con luz azul/violeta, casilleros internos con luz,
+   rótulos blancos en minúscula, sin resplandor en los textos). */
+/* Sin :not(:hover): en el celular, tocar una tarjeta la deja en "hover" y se le apagaba el estilo. */
 html.neon-skin .dashboard-premium-shell .glass.glass {
-  border-color: oklch(0.8 0.17 285 / 0.5);
+  border-radius: 28px;
+  border-color: rgb(167 139 250 / 0.45);
+  background-color: #08070f;
   background-image:
-    radial-gradient(130% 90% at 0% 0%, oklch(0.72 0.2 235 / 0.16), transparent 55%),
-    radial-gradient(130% 90% at 100% 100%, oklch(0.68 0.26 310 / 0.2), transparent 55%);
+    radial-gradient(120% 45% at 85% 0%, rgb(79 125 255 / 0.2), transparent 60%),
+    radial-gradient(110% 50% at 0% 100%, rgb(139 92 246 / 0.22), transparent 62%);
   box-shadow:
-    inset 0 1px 0 oklch(1 0 0 / 0.14),
-    inset 0 0 22px -12px oklch(0.75 0.2 285 / 0.7),
-    0 0 0 1px oklch(0.7 0.22 285 / 0.14),
-    0 0 14px -4px oklch(0.72 0.24 290 / 0.6),
-    0 0 46px -12px oklch(0.66 0.27 295 / 0.75),
-    0 18px 46px -28px oklch(0 0 0 / 0.9);
+    0 0 0 1px rgb(139 92 246 / 0.35),
+    0 30px 90px -20px rgb(0 0 0 / 0.9),
+    0 0 60px -18px rgb(139 92 246 / 0.55);
 }
-/* Resplandor de fondo más suave arriba: si no, la primera tarjeta (Caja de hoy) se veía
-   mucho más clara que el resto, porque el vidrio deja pasar ese resplandor. */
+/* Resplandor de fondo suave arriba. */
 html.neon-skin .dashboard-premium-shell::before {
   background:
     radial-gradient(circle at 17% 4%, rgb(139 92 246 / 0.1), transparent 38%),
     radial-gradient(circle at 76% 0%, rgb(79 125 255 / 0.08), transparent 36%),
     radial-gradient(circle at 46% 96%, rgb(255 123 229 / 0.08), transparent 50%);
 }
-/* Línea de luz arriba de cada tarjeta. */
 html.neon-skin .dashboard-premium-shell .glass {
   position: relative;
 }
+/* Sin la línea de luz de arriba: el borde violeta ya cumple esa función. */
 html.neon-skin .dashboard-premium-shell .glass::before {
-  content: "";
-  position: absolute;
-  top: -1px;
-  left: 14%;
-  right: 14%;
-  height: 1px;
-  pointer-events: none;
-  background: linear-gradient(90deg, transparent, oklch(0.86 0.14 240), oklch(0.84 0.18 305), transparent);
-  box-shadow: 0 0 12px 1px oklch(0.74 0.24 290 / 0.8);
+  display: none;
 }
-/* Montos y números. */
+/* Montos y números: blancos, sin resplandor. */
 html.neon-skin .dashboard-premium-shell .font-display {
-  color: oklch(0.985 0.01 285);
-  text-shadow: 0 0 18px oklch(0.72 0.24 290 / 0.6), 0 0 2px oklch(0.9 0.08 285 / 0.5);
+  color: #fff;
+  text-shadow: none;
 }
-/* Rótulos en mayúsculas (Caja de hoy, Señas…). */
+/* Rótulos (Caja de hoy, Señas…): blancos, en minúscula y en negrita suave. */
 html.neon-skin .dashboard-premium-shell [class*="uppercase"][class*="tracking-"] {
-  color: oklch(0.86 0.1 285);
-  text-shadow: 0 0 12px oklch(0.72 0.24 290 / 0.7);
+  color: #fff;
+  text-shadow: none;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 600;
 }
-/* Casilleros internos. */
+/* Casilleros internos: tarjetas con luz. */
 html.neon-skin .dashboard-premium-shell .glass [class*="ring-white/8"] {
-  background: linear-gradient(180deg, oklch(0.72 0.2 285 / 0.1), oklch(1 0 0 / 0.02));
-  box-shadow: inset 0 0 0 1px oklch(0.8 0.16 285 / 0.3), 0 0 18px -10px oklch(0.7 0.25 290 / 0.9);
+  border-radius: 16px;
+  background-color: rgb(255 255 255 / 0.03);
+  background-image:
+    radial-gradient(110% 90% at 100% 0%, rgb(79 125 255 / 0.16), transparent 62%),
+    radial-gradient(90% 80% at 0% 100%, rgb(139 92 246 / 0.12), transparent 65%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.1);
 }
-/* Íconos con brillo propio. */
+/* Íconos sin resplandor. */
 html.neon-skin .dashboard-premium-shell .glass svg {
-  filter: drop-shadow(0 0 5px currentColor);
+  filter: none;
 }
 html.neon-skin .dashboard-premium-shell .senas-neon-card {
-  background:
-    radial-gradient(130% 90% at 0% 0%, oklch(0.72 0.2 235 / 0.16), transparent 55%),
-    radial-gradient(130% 90% at 100% 100%, oklch(0.68 0.26 310 / 0.2), transparent 55%),
-    linear-gradient(180deg, oklch(0.24 0.045 285 / 0.62), oklch(0.115 0.03 280 / 0.72)) !important;
+  background-color: #08070f !important;
+  background-image:
+    radial-gradient(120% 45% at 85% 0%, rgb(79 125 255 / 0.2), transparent 60%),
+    radial-gradient(110% 50% at 0% 100%, rgb(139 92 246 / 0.22), transparent 62%) !important;
   box-shadow:
-    inset 0 0 0 1px oklch(0.8 0.17 285 / 0.55),
-    inset 0 0 22px -12px oklch(0.75 0.2 285 / 0.7),
-    0 0 14px -4px oklch(0.72 0.24 290 / 0.6),
-    0 0 46px -12px oklch(0.66 0.27 295 / 0.75) !important;
+    0 0 0 1px rgb(139 92 246 / 0.35),
+    0 30px 90px -20px rgb(0 0 0 / 0.9),
+    0 0 60px -18px rgb(139 92 246 / 0.55) !important;
 }
 
 /* Pantallas táctiles: tocar deja el elemento en "hover"; el neón no se apaga al tocar. */

@@ -20,6 +20,7 @@ import {
   CalendarSync,
   Trash2,
   CreditCard,
+  Coffee,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { applyPromotionDiscount, resolvePromotionBadgeLabel, resolveServicePricing, type Promotion } from "@/lib/service-pricing";
@@ -3450,6 +3451,7 @@ const DayView = React.memo(function DayView({
                     }}
                     title="Arrastrar descanso"
                   >
+                    <Coffee className="h-4 w-4" style={{ color: BREAK_META.dot }} />
                     <span className="text-[11px] font-bold uppercase tracking-wide leading-none" style={{ color: BREAK_META.dot }}>
                       Descanso
                     </span>
