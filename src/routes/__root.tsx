@@ -180,7 +180,7 @@ function RootComponent() {
         {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
         <NeonSkinFlag />
         <Outlet />
-        <Toaster richColors position="top-right" visibleToasts={1} />
+        <Toaster position="top-right" visibleToasts={1} />
       </AuthProvider>
     </QueryClientProvider>
   );
