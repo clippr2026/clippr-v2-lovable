@@ -1632,7 +1632,8 @@ function AgendaPage() {
               <Users className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             )}
             <span className="min-w-0 flex-1 truncate text-left">
-              {profFilterId ? (data.employees.find((e) => e.id === profFilterId)?.full_name ?? "Profesional") : "Todos los profesionales"}
+              {/* "Todos" a secas: con Ocupación y Se fue al lado, el texto largo quedaba cortado. */}
+              {profFilterId ? (data.employees.find((e) => e.id === profFilterId)?.full_name ?? "Profesional") : "Todos"}
             </span>
             <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform", profFilterOpen && "rotate-180")} />
           </button>
