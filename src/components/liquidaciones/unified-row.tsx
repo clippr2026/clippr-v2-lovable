@@ -701,7 +701,19 @@ export function withDayHeaders<T extends { at?: unknown; kind?: string; data?: a
   return out;
 }
 
-export function MovDayHeader({ dayKey, presentismo }: { dayKey: string; presentismo?: any | null }) {
+export function MovDayHeader({
+  dayKey,
+  presentismo,
+  count,
+  open,
+  onToggle,
+}: {
+  dayKey: string;
+  presentismo?: any | null;
+  count?: number;
+  open?: boolean;
+  onToggle?: () => void;
+}) {
   const p = presentismo;
   const amount = p ? Number(p.discountAmountApplied ?? 0) : 0;
   const statusLabel = p ? (p.status === "a_tiempo" ? "A tiempo" : p.status === "tarde" ? "Tarde" : "Ausente") : "";
@@ -716,23 +728,89 @@ export function MovDayHeader({ dayKey, presentismo }: { dayKey: string; presenti
         timeZone: MOV_DAY_TZ,
       })
     : null;
+  const collapsible = !!onToggle;
+  const Tag = collapsible ? "button" : "div";
   return (
-    <div className="flex items-center gap-3 px-1 pb-1 pt-6">
-      <span className="shrink-0 rounded-full bg-white/[0.07] px-3 py-1 text-xs font-semibold text-white/80 ring-1 ring-white/10">
-        {movDayLabel(dayKey)}
-      </span>
+    <Tag
+      type={collapsible ? "button" : undefined}
+      onClick={onToggle}
+      className={cn("w-full px-1 pb-1 pt-3 text-left", collapsible && "active:opacity-80")}
+    >
+      <div className="flex items-center gap-2.5">
+        {collapsible && (
+          <ChevronDown className={cn("size-4 shrink-0 text-white/55 transition-transform", !open && "-rotate-90")} />
+        )}
+        <span className="shrink-0 rounded-full bg-white/[0.07] px-3 py-1 text-sm font-semibold text-white ring-1 ring-white/10">
+          {movDayLabel(dayKey)}
+        </span>
+        <div className="h-px flex-1 bg-white/[0.12]" />
+        {typeof count === "number" && (
+          <span className="shrink-0 text-xs text-white/50">
+            {count} {count === 1 ? "movimiento" : "movimientos"}
+          </span>
+        )}
+      </div>
       {p && (
-        <span className="flex shrink-0 items-center gap-1.5 text-xs">
+        <div className={cn("mt-1 flex items-center gap-1.5 text-xs", collapsible && "pl-[26px]")}>
           <span className="text-white/45">
-            Puntualidad{llegada ? ` · ${llegada}hs` : ""}
+            {llegada ? `Entrada ${llegada}` : "Puntualidad"}
             {p.penaltyOverridden ? " (ajustado)" : ""}
           </span>
           <span className={cn("font-semibold", cls)}>{text}</span>
-        </span>
+        </div>
       )}
-      <div className="h-px flex-1 bg-white/[0.12]" />
-    </div>
+    </Tag>
   );
+}
+
+// Días plegables: el más reciente abierto y los anteriores cerrados; lo que el usuario abre o cierra se recuerda.
+export function useDayCollapse(scope: string) {
+  const [state, setState] = React.useState<Record<string, boolean>>({});
+  return {
+    state,
+    scope,
+    toggle: (dayKey: string, currentlyOpen: boolean) =>
+      setState((cur) => ({ ...cur, [`${scope}:${dayKey}`]: !currentlyOpen })),
+  };
+}
+
+export function renderCollapsibleDays(
+  entries: any[],
+  collapse: ReturnType<typeof useDayCollapse>,
+  renderItem: (item: any) => React.ReactNode,
+): React.ReactNode[] {
+  const counts = new Map<string, number>();
+  let cur: string | null = null;
+  for (const e of entries) {
+    if (e.kind === "dia") {
+      cur = e.dayKey;
+      counts.set(cur!, 0);
+    } else if (cur) counts.set(cur, (counts.get(cur) ?? 0) + 1);
+  }
+  const out: React.ReactNode[] = [];
+  let open = true;
+  let firstDay = true;
+  for (const e of entries) {
+    if (e.kind === "dia") {
+      const stored = collapse.state[`${collapse.scope}:${e.dayKey}`];
+      open = stored ?? firstDay;
+      firstDay = false;
+      const isOpen = open;
+      out.push(
+        <MovDayHeader
+          key={`dia-${e.dayKey}`}
+          dayKey={e.dayKey}
+          presentismo={e.presentismo}
+          count={counts.get(e.dayKey) ?? 0}
+          open={isOpen}
+          onToggle={() => collapse.toggle(e.dayKey, isOpen)}
+        />,
+      );
+      continue;
+    }
+    if (open) out.push(renderItem(e));
+  }
+  return out;
 }
 
 // Fila genérica para Adelanto/Pago/Ajuste/Deducción dentro de la misma

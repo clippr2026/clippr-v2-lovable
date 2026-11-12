@@ -206,6 +206,8 @@ import {
   UnifiedMovimientosHeader,
   MovDayHeader,
   withDayHeaders,
+  useDayCollapse,
+  renderCollapsibleDays,
   StatCard,
 } from "@/components/liquidaciones/unified-row";
 
@@ -4456,6 +4458,7 @@ function ProfesionalesTab({
   // patrón que Panel del profesional, ver LiquidacionesPanelView/
   // HistorialPanelView en professionals.tsx.
   const [liqSubTab, setLiqSubTab] = React.useState<"movimientos" | "historial" | "llegadas">("movimientos");
+  const dayCollapse = useDayCollapse(selectedRow?.id ?? "");
   React.useEffect(() => {
     setLiqSubTab("movimientos");
   }, [selectedEmployeeId]);
@@ -5912,7 +5915,7 @@ function ProfesionalesTab({
                 profesional, para que una liquidación cerrada (su pago,
                 sus adelantos, sus ajustes/deducciones) nunca se mezcle
                 con lo pendiente. */}
-            <div className="flex gap-2 px-5 pt-3">
+            <div className="grid grid-cols-3 gap-2 px-5 pt-3">
               {(
                 [
                   { key: "movimientos", label: "Movimientos" },
@@ -5925,7 +5928,7 @@ function ProfesionalesTab({
                   type="button"
                   onClick={() => setLiqSubTab(key)}
                   className={cn(
-                    "rounded-full px-3.5 py-1.5 text-xs font-medium ring-1 transition",
+                    "rounded-full px-3.5 py-2 text-center text-sm font-semibold ring-1 transition",
                     liqSubTab === key
                       ? "bg-primary/15 ring-primary/40 text-foreground"
                       : "bg-white/[0.03] ring-white/10 text-muted-foreground hover:bg-white/[0.06]",
@@ -6039,8 +6042,7 @@ function ProfesionalesTab({
               ) : (
                 <div className="flex flex-col gap-2">
                   <UnifiedMovimientosHeader />
-                  {withDayHeaders(unifiedMovimientos, openPresentismo).map((item: any) => {
-                    if (item.kind === "dia") return <MovDayHeader key={`dia-${item.dayKey}`} dayKey={item.dayKey} presentismo={item.presentismo} />;
+                  {renderCollapsibleDays(withDayHeaders(unifiedMovimientos, openPresentismo), dayCollapse, (item: any) => {
                     if (item.kind === "venta") {
                       return (
                         <VentaRow
