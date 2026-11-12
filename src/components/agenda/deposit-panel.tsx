@@ -233,7 +233,11 @@ export function DepositPanel({
           <Layers className="h-4 w-4" />
         </span>
         <div className={`text-lg font-bold tracking-tight text-white`}>{info.text.replace(/^\S+\s/, "")}</div>
+        {dep.status === "paid" && (
+          <div className="ml-auto text-lg font-bold tabular-nums text-emerald-300">{money(dep.paid_amount || dep.amount)}</div>
+        )}
       </div>
+      {dep.status !== "paid" && (
       <div className="text-muted-foreground">
         Seña pedida: <span className="font-medium text-foreground">{money(dep.amount)}</span>
         {dep.paid_amount > 0 && (
@@ -243,6 +247,7 @@ export function DepositPanel({
         )}
         {dep.method && <span> · {dep.method === "transfer" ? "Transferencia" : dep.method === "cash" ? "Efectivo" : dep.method}</span>}
       </div>
+      )}
 
       {dep.proof_path && (
         <div className="space-y-2">
