@@ -1032,7 +1032,7 @@ function statusNeonStyle(dot: string, border: string, bg: string): React.CSSProp
   const glow = `color-mix(in srgb, ${border} 24%, transparent)`;
   return {
     color: dot,
-    background: `${STATUS_DARKEN}, linear-gradient(${bg}, ${bg}), #111323`,
+    background: `${STATUS_DARKEN}, linear-gradient(115deg, ${bg} 0%, color-mix(in srgb, ${bg} 30%, transparent) 100%), #111323`,
     boxShadow: `inset 0 0 0 1px ${border}, 0 0 9px ${glow}`,
   };
 }
@@ -1621,7 +1621,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                     top: TIMELINE_TOP_OFFSET + getBlockTop(t.starts_at) + 6,
                     height,
                     ...statusNeonStyle(meta.dot, meta.border, meta.bg),
-                    background: `${STATUS_DARKEN}, ${meta.bg}`,
+                    background: `${STATUS_DARKEN}, linear-gradient(115deg, ${meta.bg} 0%, color-mix(in srgb, ${meta.bg} 30%, transparent) 100%)`,
                   }}
                   // Corta la propagación: sin esto, tocar un turno existente
                   // también disparaba handleTimelineClick del contenedor de

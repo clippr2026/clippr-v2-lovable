@@ -188,12 +188,15 @@ const mixAlpha = (color: string, pct: number) => `color-mix(in srgb, ${color} ${
 const TURNO_NAME_COLOR = "#fbffff";
 const TURNO_SERVICE_COLOR = "#b1c7da";
 const STATUS_DARKEN = "linear-gradient(rgba(6, 8, 22, 0.16), rgba(6, 8, 22, 0.16))";
+// Relleno desvanecido: el color del estado es más intenso en una esquina y se va apagando hacia la otra.
+const statusFade = (bg: string) =>
+  `linear-gradient(115deg, ${bg} 0%, color-mix(in srgb, ${bg} 30%, transparent) 100%)`;
 function statusNeonStyle(dot: string, border: string, bg: string): React.CSSProperties {
   return {
     color: dot,
     // El relleno es semitransparente: se apoya en el mismo gris del calendario (#111323) para
     // que el tono final sea idéntico al del turno.
-    background: `${STATUS_DARKEN}, linear-gradient(${bg}, ${bg}), #111323`,
+    background: `${STATUS_DARKEN}, ${statusFade(bg)}, #111323`,
     boxShadow: `inset 0 0 0 1px ${border}, 0 0 9px ${mixAlpha(border, 24)}`,
   };
 }
@@ -3611,7 +3614,7 @@ const ApptCard = React.memo(function ApptCard({
         width,
         // Mismo color de letras, borde y luz que las tarjetas de estado de arriba.
         ...statusNeonStyle(meta.dot, meta.border, meta.bg),
-        background: `${STATUS_DARKEN}, ${meta.bg}`,
+        background: `${STATUS_DARKEN}, ${statusFade(meta.bg)}`,
       }}
       draggable={isMovable}
       onDragStart={handleDragStart}
@@ -5082,7 +5085,7 @@ function WeekView({
                         top,
                         height,
                         ...statusNeonStyle(meta.dot, meta.border, meta.bg),
-                        background: `${STATUS_DARKEN}, ${meta.bg}`,
+                        background: `${STATUS_DARKEN}, ${statusFade(meta.bg)}`,
                       }}
                       onClick={(e) => {
                         e.stopPropagation();
