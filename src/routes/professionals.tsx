@@ -426,7 +426,7 @@ function ProfessionalsPage() {
     const canGoSettings = isOwnerLike || permissions.configuracion === true;
     return (
       <AppShell>
-        <Topbar title="Profesionales" subtitle="Solo para barberos" />
+        <Topbar title="Mi Panel" subtitle="Solo para barberos" />
         <div className="mx-auto mt-6 max-w-md rounded-3xl bg-white/[0.04] p-8 text-center ring-1 ring-white/10">
           <div className="mx-auto grid h-14 w-14 place-items-center rounded-2xl bg-violet-400/15 ring-1 ring-violet-300/25">
             <ClipboardList className="h-7 w-7 text-violet-200" />
@@ -454,21 +454,21 @@ function ProfessionalsPage() {
   }
 
   if (isLoading) return (
-    <AppShell><Topbar title="Profesionales" subtitle="Equipo y rendimiento" />
+    <AppShell><Topbar title="Mi Panel" subtitle="Tu agenda, fichaje y movimientos" />
       <div className="grid place-items-center py-32">
         <ClipprLoader size="screen" delayMs={130} />
       </div>
     </AppShell>
   );
   if (!active) return (
-    <AppShell><Topbar title="Profesionales" subtitle="Equipo y rendimiento" />
+    <AppShell><Topbar title="Mi Panel" subtitle="Tu agenda, fichaje y movimientos" />
       <div className="glass rounded-3xl p-8 text-center text-sm text-muted-foreground">Sin profesionales configurados.</div>
     </AppShell>
   );
 
   return (
     <AppShell>
-      <Topbar title="Profesionales" subtitle="Equipo y rendimiento" />
+      <Topbar title="Mi Panel" subtitle="Tu agenda, fichaje y movimientos" />
       <div className="app-premium-shell">
       
       <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />

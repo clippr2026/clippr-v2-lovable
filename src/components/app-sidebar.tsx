@@ -43,7 +43,7 @@ const ALL_NAV: Array<{
   { label: "Inicio", to: "/dashboard", icon: LayoutDashboard, permKey: "dashboard" },
   { label: "Agenda", to: "/agenda", icon: Calendar, permKey: "agenda" },
   { label: "Caja", to: "/cash-register", icon: Wallet, permKey: "caja" },
-  { label: "Profesionales", to: "/professionals", icon: UserCog, permKey: "profesionales" },
+  { label: "Mi Panel", to: "/professionals", icon: ClipboardList, permKey: "profesionales" },
   { label: "Asesor IA", to: "/advisor", icon: Brain, badge: "Nuevo", permKey: "asesor_ia" },
   { label: "Clientes", to: "/clients", icon: Users, permKey: "clientes" },
   { label: "Configuración", to: "/settings", icon: Settings, permKey: "configuracion" },
