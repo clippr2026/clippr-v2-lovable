@@ -3883,8 +3883,8 @@ function BlockHoursDialog({
         </div>
 
         <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-4">
-          <div className="grid grid-cols-[1fr_auto_auto] gap-2 items-end">
-            <label className="block text-sm font-semibold">
+          <div className="grid grid-cols-2 gap-2 items-end sm:grid-cols-[1fr_auto_auto]">
+            <label className="col-span-2 block text-sm font-semibold sm:col-span-1">
               Fecha de inicio
               <input
                 type="date"
@@ -3922,8 +3922,8 @@ function BlockHoursDialog({
               </select>
             </label>
           </div>
-          <div className="grid grid-cols-[1fr_auto_auto] gap-2 items-end">
-            <label className="block text-sm font-semibold">
+          <div className="grid grid-cols-2 gap-2 items-end sm:grid-cols-[1fr_auto_auto]">
+            <label className="col-span-2 block text-sm font-semibold sm:col-span-1">
               Fecha de fin
               <input
                 type="date"
@@ -4348,7 +4348,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                     : `0 0 0 1.5px ${meta.border}, 0 0 28px ${withAlpha(meta.dot, 0.32)}, 0 18px 34px -28px ${meta.dot}, inset 0 1px 0 rgba(255,255,255,0.06)`,
               }}
             >
-              <div className="flex items-center gap-3.5 sm:gap-4">
+              <div className={cn("flex items-center gap-3.5 sm:gap-4", isBlocked && "flex-wrap sm:flex-nowrap")}>
                 <div
                   className="grid h-[76px] w-[76px] shrink-0 place-items-center overflow-hidden rounded-2xl sm:h-[88px] sm:w-[88px]"
                   style={{ boxShadow: `0 0 0 1.5px ${meta.dot}, 0 0 18px ${withAlpha(meta.dot, 0.45)}` }}
@@ -4376,7 +4376,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                     </div>
                   )}
                   {promoSnapshot && (
-                    <div className="text-sm font-medium text-violet-300 truncate">
+                    <div className="text-sm font-medium truncate" style={{ color: meta.dot }}>
                       {promoSnapshot.name}
                     </div>
                   )}
@@ -4386,7 +4386,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                   <div className="hidden h-16 w-px shrink-0 bg-white/15 sm:block" aria-hidden />
                 )}
                 {isBlocked && (
-                  <div className="shrink-0 pr-1 text-right leading-tight">
+                  <div className="w-full shrink-0 pr-1 text-left leading-tight sm:w-auto sm:text-right">
                     <div className="tabular-nums text-lg font-semibold text-white sm:text-xl">{fmtTime(start)} – {fmtTime(end)}</div>
                     <div className="text-sm text-white/60">({durationMin} min)</div>
                   </div>
