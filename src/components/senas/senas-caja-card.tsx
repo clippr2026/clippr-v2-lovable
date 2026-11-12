@@ -173,7 +173,7 @@ export function SenasCajaCard({
                 : { background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.7)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.12)" }
             }
           >
-            <span className="text-xs font-medium">Reembolsos</span>
+            <span className="text-xs font-medium">Por reembolsar</span>
             <span className="text-xl font-semibold tabular-nums leading-none">{reemb.items.length}</span>
             {reemb.items.length > 0 && <span className="text-[11px] tabular-nums opacity-80">{money(reembTotal)}</span>}
           </button>
