@@ -790,49 +790,6 @@ function MobileFixedBottom({ children }: { children: React.ReactNode }) {
   return createPortal(children, document.body);
 }
 
-// Barra fina debajo del header con la sección actual (ícono + nombre) — sin
-// texto en la barra inferior, esto es lo único que le dice al usuario dónde
-// está. sticky, no fixed: viaja pegada al header (top-12, mismo alto que
-// <header>) en vez de flotar tapando contenido.
-function MobileSectionBanner() {
-  const pathname = useRouterState({ select: (s) => s.location.pathname });
-  const { permissions, profile, loading, branches } = useAuth();
-  // Sin franja de sucursal (una sola, o un profesional) el banner queda justo
-  // debajo del header.
-  const hasBranchBar = branches.length > 1 && profile?.role !== "profesional";
-  // Con un solo ítem no hay barra inferior ni nada que elegir: el nombre de la
-  // sección sería puro ruido (el profesional con solo "Mi Panel").
-  const { visible: hasBottomNav } = useMobileNavItems();
-
-  if (loading || !hasBottomNav) return null;
-
-  const isOwner = !profile?.role || profile.role === "owner" || profile.role === "admin_general";
-  const isProfessional = profile?.role === "profesional" || !!profile?.employee_id;
-  const current = ALL_NAV.find((item) => item.to === pathname);
-  if (!current || (!isOwner && current.permKey && permissions[current.permKey] !== true)) return null;
-
-  const label = current.permKey === "profesionales" && isProfessional ? "Mi Panel" : current.label;
-  const Icon = current.permKey === "profesionales" && isProfessional ? ClipboardList : current.icon;
-
-  return (
-    <div
-      key={pathname}
-      // top-[84px] = altura del header (h-12 = 48px) + franja del selector
-      // de sucursal (h-9 = 36px) — ver la franja en AppSidebar, justo
-      // arriba de este banner en el DOM.
-      className={`lg:hidden sticky ${hasBranchBar ? "top-[84px]" : "top-12"} z-30 flex items-center gap-2 border-b border-white/[0.08] px-4 py-3 backdrop-blur-sm`}
-      style={{
-        background: "linear-gradient(90deg, oklch(0.24 0.06 292 / 0.55), oklch(0.09 0.02 280 / 0.88))",
-        boxShadow: "0 10px 28px -22px oklch(0.65 0.24 290 / 0.6)",
-        animation: "sectionBannerSlideDown 220ms ease-out",
-      }}
-    >
-      <Icon className="h-4 w-4 shrink-0 text-violet-300 drop-shadow-[0_0_6px_oklch(0.72_0.2_300/0.55)]" />
-      <span className="text-sm font-semibold text-foreground">{label}</span>
-    </div>
-  );
-}
-
 export function AppSidebar() {
   const { branches, profile } = useAuth();
   const hasBranchBar = branches.length > 1 && profile?.role !== "profesional";
@@ -877,7 +834,7 @@ export function AppSidebar() {
         </div>
       )}
 
-      <MobileSectionBanner />
+      {/* Sin franja con el nombre de la sección en el celular: la barra de abajo ya marca dónde estás. */}
       <MobileBottomNav />
     </>
   );

@@ -1624,7 +1624,7 @@ function AgendaPage() {
           <button
             type="button"
             onClick={() => setProfFilterOpen((v) => !v)}
-            className="inline-flex min-w-0 flex-1 sm:hidden items-center gap-1.5 rounded-xl bg-white/[0.04] px-3 py-2 text-xs font-medium text-foreground ring-1 ring-white/10 transition hover:bg-white/[0.07]"
+            className="inline-flex shrink-0 sm:hidden items-center gap-1.5 rounded-xl bg-white/[0.04] px-3 py-2 text-xs font-medium text-foreground ring-1 ring-white/10 transition hover:bg-white/[0.07]"
           >
             {profFilterId ? (
               <UserRound className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
@@ -1632,8 +1632,7 @@ function AgendaPage() {
               <Users className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             )}
             <span className="min-w-0 flex-1 truncate text-left">
-              {/* "Todos" a secas: con Ocupación y Se fue al lado, el texto largo quedaba cortado. */}
-              {profFilterId ? (data.employees.find((e) => e.id === profFilterId)?.full_name ?? "Profesional") : "Todos"}
+              {profFilterId ? (data.employees.find((e) => e.id === profFilterId)?.full_name ?? "Profesional") : "Todos los profesionales"}
             </span>
             <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform", profFilterOpen && "rotate-180")} />
           </button>
@@ -1673,24 +1672,13 @@ function AgendaPage() {
               </div>
             </>
           )}
-          {/* Ocupación de todo el local en el día (igual que en computadora) */}
-          {localOccupancy !== null && (
-            <div
-              className="flex shrink-0 items-center gap-1.5 rounded-xl bg-white/[0.04] px-2.5 py-2 text-xs font-medium text-foreground ring-1 ring-white/15"
-              title="Ocupación del local"
-            >
-              <span className="h-2 w-2 rounded-full" style={{ background: "#4f7dff" }} />
-              <span className="opacity-85">Ocupación</span>
-              <span className="text-sm font-bold leading-none tabular-nums">{localOccupancy}%</span>
-            </div>
-          )}
           {/* Cliente que entró y se fue sin atender (todos ocupados): cuenta del mes con día y hora. */}
           <ClientesNoAtendidosButton
             businessId={data.businessId}
             branchId={data.activeBranchId}
             createdByName={(profile as any)?.full_name ?? null}
             employees={data.employees}
-            className="shrink-0 justify-center !px-3"
+            className="flex-1 justify-center"
           />
         </div>
 
@@ -1715,6 +1703,22 @@ function AgendaPage() {
             </button>
           ))}
         </div>
+
+        {/* Ocupación de todo el local: línea fina entre los estados y el calendario (celular) */}
+        {localOccupancy !== null && (
+          <div className="mb-2.5 px-1 sm:hidden" title="Ocupación del local">
+            <div className="mb-1 flex items-center justify-between text-[11px] font-medium text-white/65">
+              <span>Ocupación del local</span>
+              <span className="font-bold tabular-nums text-white">{localOccupancy}%</span>
+            </div>
+            <div className="h-1 w-full overflow-hidden rounded-full bg-white/10">
+              <div
+                className="h-full rounded-full transition-[width] duration-500"
+                style={{ width: `${localOccupancy}%`, background: "#4f7dff", boxShadow: "0 0 8px rgba(79,125,255,0.9)" }}
+              />
+            </div>
+          </div>
+        )}
 
         {/* Filter modal */}
         {filterModal &&
