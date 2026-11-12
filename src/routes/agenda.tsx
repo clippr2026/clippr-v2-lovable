@@ -1624,15 +1624,17 @@ function AgendaPage() {
           <button
             type="button"
             onClick={() => setProfFilterOpen((v) => !v)}
-            className="inline-flex sm:hidden items-center gap-1.5 rounded-xl bg-white/[0.04] px-3 py-1.5 text-xs font-medium text-foreground ring-1 ring-white/10 transition hover:bg-white/[0.07]"
+            className="inline-flex min-w-0 flex-1 sm:hidden items-center gap-1.5 rounded-xl bg-white/[0.04] px-3 py-2 text-xs font-medium text-foreground ring-1 ring-white/10 transition hover:bg-white/[0.07]"
           >
             {profFilterId ? (
-              <UserRound className="h-3.5 w-3.5 text-muted-foreground" />
+              <UserRound className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             ) : (
-              <Users className="h-3.5 w-3.5 text-muted-foreground" />
+              <Users className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
             )}
-            {profFilterId ? (data.employees.find((e) => e.id === profFilterId)?.full_name ?? "Profesional") : "Todos los profesionales"}
-            <ChevronDown className={cn("h-3.5 w-3.5 text-muted-foreground transition-transform", profFilterOpen && "rotate-180")} />
+            <span className="min-w-0 flex-1 truncate text-left">
+              {profFilterId ? (data.employees.find((e) => e.id === profFilterId)?.full_name ?? "Profesional") : "Todos los profesionales"}
+            </span>
+            <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform", profFilterOpen && "rotate-180")} />
           </button>
           {profFilterOpen && (
             <>
@@ -1670,13 +1672,24 @@ function AgendaPage() {
               </div>
             </>
           )}
+          {/* Ocupación de todo el local en el día (igual que en computadora) */}
+          {localOccupancy !== null && (
+            <div
+              className="flex shrink-0 items-center gap-1.5 rounded-xl bg-white/[0.04] px-2.5 py-2 text-xs font-medium text-foreground ring-1 ring-white/15"
+              title="Ocupación del local"
+            >
+              <span className="h-2 w-2 rounded-full" style={{ background: "#4f7dff" }} />
+              <span className="opacity-85">Ocupación</span>
+              <span className="text-sm font-bold leading-none tabular-nums">{localOccupancy}%</span>
+            </div>
+          )}
           {/* Cliente que entró y se fue sin atender (todos ocupados): cuenta del mes con día y hora. */}
           <ClientesNoAtendidosButton
             businessId={data.businessId}
             branchId={data.activeBranchId}
             createdByName={(profile as any)?.full_name ?? null}
             employees={data.employees}
-            className="flex-1 justify-center"
+            className="shrink-0 justify-center !px-3"
           />
         </div>
 
@@ -3164,9 +3177,9 @@ const DayView = React.memo(function DayView({
                   <div className="text-[15px] font-semibold truncate leading-none">
                     {e.full_name ?? e.name}
                   </div>
-                  <div className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1 leading-none">
+                  <div className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1 leading-none whitespace-nowrap">
                     <span
-                      className="h-2 w-2 rounded-full"
+                      className="h-2 w-2 shrink-0 rounded-full"
                       style={{
                         background: occupancyPct !== null ? "#4f7dff" : "oklch(0.65 0.025 270)",
                       }}
