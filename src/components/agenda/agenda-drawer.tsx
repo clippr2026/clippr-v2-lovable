@@ -100,6 +100,7 @@ export function AgendaCenteredModal({
   children,
   footer,
   lockOutside = true,
+  premium = false,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -108,6 +109,8 @@ export function AgendaCenteredModal({
   children: React.ReactNode;
   footer?: React.ReactNode;
   lockOutside?: boolean;
+  /** Mismo estilo que el detalle del turno: más ancho, borde violeta neón y fondo oscuro. */
+  premium?: boolean;
 }) {
   React.useEffect(() => {
     if (!open || lockOutside) return;
@@ -158,23 +161,31 @@ export function AgendaCenteredModal({
         // dinámico de la barra de direcciones, así que un 92vh "de sobra"
         // podía en la práctica seguir siendo más alto que el viewport
         // real visible, empujando el footer fuera de pantalla.
-        className="glass-strong relative flex w-full max-w-md max-h-[92dvh] flex-col rounded-3xl"
+        className={
+          premium
+            ? "relative flex w-full max-h-[92dvh] flex-col rounded-[28px] border border-violet-400/45 bg-[#08070f] shadow-[0_0_0_1px_rgba(139,92,246,0.35),0_30px_90px_-20px_rgba(0,0,0,0.9),0_0_60px_-18px_rgba(139,92,246,0.55)] sm:w-[min(94vw,max(520px,40vw))] sm:max-w-[720px] [background-image:radial-gradient(120%_45%_at_85%_0%,rgba(79,125,255,0.20),transparent_60%),radial-gradient(110%_50%_at_0%_100%,rgba(139,92,246,0.22),transparent_62%)]"
+            : "glass-strong relative flex w-full max-w-md max-h-[92dvh] flex-col rounded-3xl"
+        }
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="relative shrink-0 border-b border-white/10 px-4 pt-4 pb-3">
-          <div className="text-[18px] leading-tight font-display tracking-tight pr-9">{title}</div>
+        <div className={premium ? "relative shrink-0 px-5 pt-5 pb-3" : "relative shrink-0 border-b border-white/10 px-4 pt-4 pb-3"}>
+          <div className={premium ? "pr-12 font-display text-[22px] font-semibold leading-tight tracking-tight" : "text-[18px] leading-tight font-display tracking-tight pr-9"}>{title}</div>
           {subtitle && <div className="text-xs text-muted-foreground mt-0.5 pr-9">{subtitle}</div>}
           <button
             type="button"
             aria-label="Cerrar"
             onClick={() => onOpenChange(false)}
-            className="absolute right-3 top-3.5 inline-flex h-7 w-7 items-center justify-center rounded-full text-white/55 hover:text-white hover:bg-white/[0.08] transition"
+            className={
+              premium
+                ? "absolute right-4 top-4 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/[0.05] text-white/70 transition hover:bg-white/[0.1] hover:text-white"
+                : "absolute right-3 top-3.5 inline-flex h-7 w-7 items-center justify-center rounded-full text-white/55 hover:text-white hover:bg-white/[0.08] transition"
+            }
           >
-            <X className="h-4 w-4" />
+            <X className={premium ? "h-5 w-5" : "h-4 w-4"} />
           </button>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-4">{children}</div>
+        <div className={premium ? "flex-1 overflow-y-auto px-5 pb-4 pt-1" : "flex-1 overflow-y-auto p-4"}>{children}</div>
 
         {/* pb usa env(safe-area-inset-bottom) — en iPhone con home indicator
             (sin barra física de "atrás"), un padding fijo de 12px podía
@@ -182,7 +193,7 @@ export function AgendaCenteredModal({
             esa zona. max(...) asegura al menos 12px en dispositivos sin
             safe area (Android, desktop) y respeta la real cuando existe. */}
         {footer && (
-          <div className="shrink-0 border-t border-white/10 bg-white/[0.025] px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex items-center justify-between gap-2">
+          <div className={premium ? "shrink-0 border-t border-white/10 px-5 pt-3 pb-[max(1rem,env(safe-area-inset-bottom))] flex items-center justify-between gap-2" : "shrink-0 border-t border-white/10 bg-white/[0.025] px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] flex items-center justify-between gap-2"}>
             {footer}
           </div>
         )}

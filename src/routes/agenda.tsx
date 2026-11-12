@@ -46,7 +46,7 @@ import {
 } from "@/components/agenda/use-agenda-data";
 import { AppointmentDialog } from "@/components/agenda/appointment-dialog";
 import { SpecialDayEditor } from "@/components/settings/special-hours-editor";
-import { AgendaDrawer } from "@/components/agenda/agenda-drawer";
+import { AgendaCenteredModal, AgendaDrawer } from "@/components/agenda/agenda-drawer";
 import { DarkCalendar } from "@/components/agenda/dark-calendar";
 import { ClosuresModal } from "@/components/agenda/closures-button";
 import { useClosures, type Closure } from "@/hooks/use-closures";
@@ -3805,7 +3805,8 @@ function BlockHoursDialog({
     "h-10 rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm outline-none focus:border-primary/50";
 
   return (
-    <AgendaDrawer
+    <AgendaCenteredModal
+      premium
       open={open}
       onOpenChange={onOpenChange}
       title={appointment ? "Editar bloqueo de horas" : "Bloqueo de horas"}
@@ -3986,7 +3987,7 @@ function BlockHoursDialog({
           </div>
         )}
       </div>
-    </AgendaDrawer>
+    </AgendaCenteredModal>
   );
 }
 
