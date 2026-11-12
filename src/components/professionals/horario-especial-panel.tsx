@@ -290,11 +290,12 @@ export function HorarioEspecialPanel({
         onClick={() => openEditor(dateKey)}
         className={
           className ??
-          "inline-flex h-11 sm:h-9 items-center gap-1 sm:gap-1.5 whitespace-nowrap rounded-[10px] border border-white/20 bg-[linear-gradient(180deg,rgba(255,255,255,0.16),rgba(255,255,255,0.07))] px-2.5 sm:px-3 text-sm sm:text-xs font-semibold text-foreground shadow-[0_4px_12px_-2px_rgba(0,0,0,0.5),inset_0_1px_0_rgba(255,255,255,0.18)] transition hover:bg-white/15 active:translate-y-px" +
+          "inline-flex h-11 sm:h-10 items-center gap-1 sm:gap-1.5 whitespace-nowrap rounded-full px-2.5 sm:px-4 text-sm font-semibold transition hover:brightness-125 active:scale-[0.98]" +
           (fillOnMobile ? " flex-1 justify-center sm:flex-none" : "")
         }
+        style={className ? undefined : { background: "#202A3D", color: "#E2E8F0", boxShadow: "inset 0 0 0 1.5px #64748B" }}
       >
-        <CalendarClock className="h-4 w-4 shrink-0 text-violet-300" />
+        <CalendarClock className="h-4 w-4 shrink-0" />
         {shortLabelOnMobile ? (
           <>
             <span className="sm:hidden">Horario</span>

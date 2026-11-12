@@ -1590,7 +1590,8 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
               <button
                 type="button"
                 onClick={() => setAddTurnoOpen(true)}
-                className="inline-flex h-11 sm:h-9 flex-1 items-center justify-center gap-1 sm:flex-none sm:gap-1.5 whitespace-nowrap rounded-[10px] border border-white/25 bg-[linear-gradient(180deg,#A78BFA,#7C3AED)] px-2.5 sm:px-3 text-sm sm:text-xs font-semibold text-white shadow-[0_4px_14px_-2px_rgba(124,58,237,0.6),inset_0_1px_0_rgba(255,255,255,0.28)] transition hover:brightness-110 active:translate-y-px active:brightness-95"
+                className="inline-flex h-11 sm:h-10 flex-1 items-center justify-center gap-1 sm:flex-none sm:gap-1.5 whitespace-nowrap rounded-full px-2.5 sm:px-4 text-sm font-semibold transition hover:brightness-125 active:scale-[0.98]"
+                style={{ background: "rgba(139,92,246,0.10)", color: "#ede9fe", boxShadow: "inset 0 0 0 1.5px rgba(167,139,250,0.65), 0 0 20px rgba(139,92,246,0.25)" }}
               >
                 <CalendarPlus className="h-3.5 w-3.5 shrink-0" />
                 <span className="sm:hidden">+ Turno</span>
@@ -1601,12 +1602,12 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
               <button
                 type="button"
                 onClick={() => setWalkInChargeOpen(true)}
-                className={cn(
-                  "inline-flex h-11 sm:h-9 flex-1 items-center justify-center gap-1 sm:flex-none sm:gap-1.5 whitespace-nowrap rounded-[10px] border border-white/25 px-2.5 sm:px-3 text-sm sm:text-xs font-semibold text-white transition hover:brightness-110 active:translate-y-px active:brightness-95",
+                className="inline-flex h-11 sm:h-10 flex-1 items-center justify-center gap-1 sm:flex-none sm:gap-1.5 whitespace-nowrap rounded-full px-2.5 sm:px-4 text-sm font-semibold transition hover:brightness-125 active:scale-[0.98]"
+                style={
                   approvalMode === "manual"
-                    ? "bg-[linear-gradient(180deg,#60A5FA,#3B82F6)] shadow-[0_4px_14px_-2px_rgba(59,130,246,0.6),inset_0_1px_0_rgba(255,255,255,0.28)]"
-                    : "bg-[linear-gradient(180deg,#34D399,#10B981)] shadow-[0_4px_14px_-2px_rgba(16,185,129,0.6),inset_0_1px_0_rgba(255,255,255,0.28)]"
-                )}
+                    ? { background: "rgba(34,211,238,0.10)", color: "#67e8f9", boxShadow: "inset 0 0 0 1.5px rgba(103,232,249,.65), 0 0 20px rgba(34,211,238,.22)" }
+                    : { background: "rgba(16,185,129,0.10)", color: "#4ade80", boxShadow: "inset 0 0 0 1.5px rgba(74,222,128,.7), 0 0 20px rgba(34,197,94,.22)" }
+                }
               >
                 <CreditCard className="h-3.5 w-3.5 shrink-0" />
                 <span className="sm:hidden">{approvalMode === "manual" ? "Enviar" : "+ Venta"}</span>
