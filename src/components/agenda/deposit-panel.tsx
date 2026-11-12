@@ -321,7 +321,7 @@ export function DepositPanel({
       )}
 
       {showProof && dep.proof_path && typeof document !== "undefined" && createPortal(
-        <div className="fixed inset-0 z-[200] flex flex-col bg-[#08070f]">
+        <div className="pointer-events-auto fixed inset-0 z-[200] flex flex-col bg-[#08070f]">
           <div className="flex items-center justify-between gap-3 px-4 pb-2 pt-[max(1rem,env(safe-area-inset-top))]">
             <div className="text-lg font-semibold text-white">Comprobante de la seña</div>
             <button
