@@ -174,6 +174,13 @@ function metaForAppt(a: { status: ApptStatus; deposit_status?: string | null }) 
 // calendario (meta.bg / meta.border / meta.dot). Borde fino y definido, con un brillo exterior
 // suave que sale del color del borde (así no invade a los turnos vecinos).
 // color-mix sirve para cualquier formato de color (oklch, rgba o hex).
+// Ocupación: rojo de 0 a 49, amarillo de 50 a 69 y verde de 70 a 100.
+const occupancyColor = (pct: number) =>
+  pct >= 70
+    ? { fill: "#22c55e", glow: "rgba(34,197,94,0.9)" }
+    : pct >= 50
+      ? { fill: "#facc15", glow: "rgba(250,204,21,0.9)" }
+      : { fill: "#ef4444", glow: "rgba(239,68,68,0.9)" };
 const mixAlpha = (color: string, pct: number) => `color-mix(in srgb, ${color} ${pct}%, transparent)`;
 // Oscurece apenas el relleno; se aplica igual a tarjetas y turnos para que sigan coincidiendo.
 // Letras del turno en el calendario: la hora y PROMO van en el color del estado; el cliente en
@@ -1517,7 +1524,7 @@ function AgendaPage() {
               >
                 <span
                   className="h-2.5 w-2.5 rounded-full"
-                  style={{ background: "#4f7dff" }}
+                  style={{ background: occupancyColor(localOccupancy).fill }}
                 />
                 <span className="opacity-85">Ocupación</span>
                 <span className="text-lg font-bold leading-none tabular-nums">{localOccupancy}%</span>
@@ -1719,7 +1726,7 @@ function AgendaPage() {
             <div className="h-1 w-full overflow-hidden rounded-full bg-white/10">
               <div
                 className="h-full rounded-full transition-[width] duration-500"
-                style={{ width: `${localOccupancy}%`, background: "#4f7dff", boxShadow: "0 0 8px rgba(79,125,255,0.9)" }}
+                style={{ width: `${localOccupancy}%`, background: occupancyColor(localOccupancy).fill, boxShadow: `0 0 8px ${occupancyColor(localOccupancy).glow}` }}
               />
             </div>
           </div>
@@ -3194,7 +3201,7 @@ const DayView = React.memo(function DayView({
                     <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-white/10">
                       <div
                         className="h-full rounded-full transition-[width] duration-500"
-                        style={{ width: `${occupancyPct}%`, background: "#4f7dff", boxShadow: "0 0 8px rgba(79,125,255,0.9)" }}
+                        style={{ width: `${occupancyPct}%`, background: occupancyColor(occupancyPct).fill, boxShadow: `0 0 8px ${occupancyColor(occupancyPct).glow}` }}
                       />
                     </div>
                   )}
