@@ -1262,7 +1262,7 @@ export function AppointmentDialog({
                     <SelectValue placeholder="Elegí un servicio" />
                   </SelectTrigger>
                   <SelectContent>
-                    {services.map((s) => <SelectItem key={s.id} value={s.id}>{s.name} — {Number(s.duration ?? 30)} min · ${Math.round(s.price).toLocaleString("es-AR")}</SelectItem>)}
+                    {services.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
                   </SelectContent>
                 </Select>
               </div>
