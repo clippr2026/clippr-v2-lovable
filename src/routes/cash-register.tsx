@@ -11822,7 +11822,7 @@ function unifiedMovView(
 }
 
 const UNIFIED_GRID_COLS =
-  "grid-cols-[64px_minmax(150px,0.85fr)_minmax(130px,0.7fr)_minmax(220px,1.1fr)_120px_110px_72px_minmax(190px,0.9fr)]";
+  "grid-cols-[minmax(150px,0.9fr)_minmax(200px,1.5fr)_minmax(110px,0.6fr)_minmax(120px,0.6fr)_minmax(170px,0.9fr)_120px]";
 
 function UnifiedMovRow({
   item,
@@ -11838,54 +11838,68 @@ function UnifiedMovRow({
   onShowNote?: (title: string, note: string) => void;
 }) {
   const view = unifiedMovView(item, employees);
-  const colorCls = UNIFIED_COLOR_CLASSES[item.color];
+  const tone = movTone(item);
   const sign = item.color === "rojo" ? "-" : item.color === "gris" ? "" : "+";
+  const externo = item.kind === "gasto" && !expenseAffectsCaja(item.expense?.funds_source);
   return (
     <div
       className={cn(
-        "grid items-center gap-x-3 border-l-2 px-5 py-3 text-xs border-b border-white/[0.07] last:border-b-0 transition-colors",
+        "grid items-center gap-x-3 border-b border-white/[0.06] px-6 py-2.5 text-xs transition-colors last:border-b-0",
         UNIFIED_GRID_COLS,
-        colorCls.border,
-        colorCls.bg,
-        onClick ? "cursor-pointer hover:brightness-125" : "",
+        onClick ? "cursor-pointer hover:bg-white/[0.04]" : "",
       )}
+      style={{ boxShadow: `inset 3px 0 0 ${tone.border}`, backgroundImage: `linear-gradient(90deg, ${tone.glow}, transparent 35%)` }}
       onClick={onClick}
     >
-      <div className="text-muted-foreground whitespace-nowrap">{view.fecha}</div>
-      <div className="text-foreground truncate">{view.clienteOConcepto}</div>
-      <div className="text-muted-foreground truncate">{view.profesional}</div>
-      <div className="min-w-0 truncate text-muted-foreground">
-        <span>{view.servicio}</span>
-        {item.kind === "gasto" && !expenseAffectsCaja(item.expense?.funds_source) && (
-          <span className="ml-2 rounded-full bg-amber-400/10 px-2 py-0.5 text-[10px] font-semibold text-amber-300 ring-1 ring-amber-300/20">
-            Fondos externos
+      <div className="flex min-w-0 flex-col items-start gap-1">
+        <span className={cn("rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1", tone.chip)}>{view.typeLabel}</span>
+        <span className="text-[11px] tabular-nums text-white/45">{view.fecha} · {view.hora}</span>
+      </div>
+      <div className="min-w-0">
+        <div className="truncate text-sm font-semibold text-white">{view.clienteOConcepto}</div>
+        <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
+          {view.servicio !== "—" && <span className="truncate text-white/60">{view.servicio}</span>}
+          {externo && (
+            <span className="shrink-0 rounded-full bg-amber-400/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300 ring-1 ring-amber-300/20">Fondos externos</span>
+          )}
+          {view.nota && (
+            <button
+              type="button"
+              onClick={(event) => {
+                event.stopPropagation();
+                onShowNote?.(view.notaTitle ?? "Nota", view.nota!);
+              }}
+              className="shrink-0 rounded-full bg-sky-400/10 px-2 py-0.5 text-[10px] font-semibold text-sky-300 ring-1 ring-sky-300/20 transition hover:bg-sky-400/20"
+              title="Ver nota del profesional"
+            >
+              Ver nota
+            </button>
+          )}
+        </div>
+      </div>
+      <div className="min-w-0">
+        {view.profesional !== "—" && (
+          <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-white/[0.05] px-2 py-0.5 text-white/75 ring-1 ring-white/10">
+            <UserRound className="size-3 shrink-0 text-white/50" />
+            <span className="truncate">{view.profesional}</span>
           </span>
         )}
-        {view.nota && (
-          <button
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              onShowNote?.(view.notaTitle ?? "Nota", view.nota!);
-            }}
-            className="ml-2 rounded-full bg-sky-400/10 px-2 py-0.5 text-[10px] font-semibold text-sky-300 ring-1 ring-sky-300/20 hover:bg-sky-400/20 transition"
-            title="Ver nota del profesional"
-          >
-            Ver nota
-          </button>
+      </div>
+      <div className="min-w-0">
+        {view.metodoLabel !== "—" && (
+          <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-white/[0.05] px-2 py-0.5 text-white/75 ring-1 ring-white/10">
+            <CreditCard className="size-3 shrink-0 text-white/50" />
+            <span className="truncate">{view.metodoLabel}</span>
+          </span>
         )}
       </div>
-      <div className={cn("text-right font-bold tabular-nums", colorCls.text)}>
+      <div className="min-w-0">
+        <div className="truncate text-white/55">{view.quien}</div>
+        {item.kind === "pago" && item.payment && <ReceiptButton payment={item.payment} businessId={businessId} />}
+      </div>
+      <div className={cn("text-right text-base font-bold tabular-nums", tone.text, item.color === "gris" && "line-through")}>
         {sign}${Math.round(Math.abs(item.amount)).toLocaleString("es-AR")}
       </div>
-      <div className="min-w-0 flex flex-col text-muted-foreground">
-        <span className="truncate">{view.metodoLabel}</span>
-        {item.kind === "pago" && item.payment && (
-          <ReceiptButton payment={item.payment} businessId={businessId} />
-        )}
-      </div>
-      <div className="text-muted-foreground whitespace-nowrap">{view.hora}</div>
-      <div className="min-w-0 truncate text-muted-foreground">{view.quien}</div>
     </div>
   );
 }
@@ -12106,40 +12120,54 @@ function VentaPendienteRow({
   const empName = employees.find((e) => e.id === g.employeeId)?.name ?? "—";
   const dt = new Date(item.ts || Date.now());
   const saldo = Math.max(0, Math.round(g.total - g.collectedToDate));
-  const colorCls = UNIFIED_COLOR_CLASSES[item.color];
+  const tone = movTone(item);
   const sign = item.amount < 0 ? "-" : item.amount > 0 ? "+" : "";
 
   return (
     <div
       className={cn(
-        "grid items-center gap-x-3 border-l-2 px-5 py-3 text-xs border-b border-white/[0.07] last:border-b-0 transition-colors",
+        "grid items-center gap-x-3 border-b border-white/[0.06] px-6 py-2.5 text-xs transition-colors last:border-b-0",
         UNIFIED_GRID_COLS,
-        colorCls.border,
-        colorCls.bg,
-        onClick ? "cursor-pointer hover:brightness-125" : "",
-        loading ? "opacity-60 pointer-events-none" : "",
+        onClick ? "cursor-pointer hover:bg-white/[0.04]" : "",
+        loading ? "pointer-events-none opacity-60" : "",
       )}
+      style={{ boxShadow: `inset 3px 0 0 ${tone.border}`, backgroundImage: `linear-gradient(90deg, ${tone.glow}, transparent 35%)` }}
       onClick={onClick}
     >
-      <div className="text-muted-foreground whitespace-nowrap">{formatArgFecha(dt)}</div>
-      <div className="flex min-w-0 items-center gap-1.5 text-foreground">
-        {loading && <Loader2 className="size-3 shrink-0 animate-spin text-muted-foreground" />}
-        <span className="truncate">{g.clientName ?? "—"}</span>
-      </div>
-      <div className="text-muted-foreground truncate">{empName}</div>
-      <div className="min-w-0 truncate text-muted-foreground">
-        <span>{g.serviceName ?? "—"}</span>
+      <div className="flex min-w-0 flex-col items-start gap-1">
         <VentaPendienteBadge status={g.status} />
-        <span className="ml-2 text-[10px] text-muted-foreground/70">
-          Venta ${Math.round(g.total).toLocaleString("es-AR")} · Cobrado ${Math.round(g.collectedToDate).toLocaleString("es-AR")} · Saldo ${saldo.toLocaleString("es-AR")}
+        <span className="flex items-center gap-1 text-[11px] tabular-nums text-white/45">
+          {loading && <Loader2 className="size-3 shrink-0 animate-spin" />}
+          {formatArgFecha(dt)} · {formatArgHora(dt)}
         </span>
       </div>
-      <div className={cn("text-right font-bold tabular-nums", sign ? colorCls.text : "text-muted-foreground/50")}>
+      <div className="min-w-0">
+        <div className="truncate text-sm font-semibold text-white">{g.clientName ?? "—"}</div>
+        <div className="mt-0.5 truncate text-white/60">
+          {g.serviceName ?? "—"}
+          <span className="ml-2 text-[10px] text-white/45">
+            Venta ${Math.round(g.total).toLocaleString("es-AR")} · Cobrado ${Math.round(g.collectedToDate).toLocaleString("es-AR")} · Saldo ${saldo.toLocaleString("es-AR")}
+          </span>
+        </div>
+      </div>
+      <div className="min-w-0">
+        {empName !== "—" && (
+          <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-white/[0.05] px-2 py-0.5 text-white/75 ring-1 ring-white/10">
+            <UserRound className="size-3 shrink-0 text-white/50" />
+            <span className="truncate">{empName}</span>
+          </span>
+        )}
+      </div>
+      <div className="min-w-0">
+        <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-white/[0.05] px-2 py-0.5 text-white/75 ring-1 ring-white/10">
+          <CreditCard className="size-3 shrink-0 text-white/50" />
+          <span className="truncate">{paymentMethodLabel(g.method ?? "")}</span>
+        </span>
+      </div>
+      <div className="min-w-0 truncate text-white/55">{g.lastActorLabel}</div>
+      <div className={cn("text-right text-base font-bold tabular-nums", sign ? tone.text : "text-white/40")}>
         {sign}${Math.round(Math.abs(item.amount)).toLocaleString("es-AR")}
       </div>
-      <div className="min-w-0 truncate text-muted-foreground">{paymentMethodLabel(g.method ?? "")}</div>
-      <div className="text-muted-foreground whitespace-nowrap">{formatArgHora(dt)}</div>
-      <div className="min-w-0 truncate text-muted-foreground">{g.lastActorLabel}</div>
     </div>
   );
 }
@@ -12554,21 +12582,19 @@ function MovimientosUnificados({
 
         {/* Desktop: tabla con scroll horizontal — mobile usa tarjetas. */}
         <div className="hidden overflow-x-auto sm:block">
-          <div className="min-w-[1020px]">
+          <div className="min-w-[900px]">
             <div
               className={cn(
                 "grid items-center gap-x-3 px-6 py-2.5 text-[10px] font-semibold tracking-[0.18em] text-muted-foreground/60 border-b border-white/[0.07] uppercase",
                 UNIFIED_GRID_COLS,
               )}
             >
-              <div>Fecha</div>
-              <div>Cliente / concepto</div>
+              <div>Tipo · fecha</div>
+              <div>Cliente y servicio</div>
               <div>Profesional</div>
-              <div>Servicio / categoría</div>
-              <div className="text-right">Monto</div>
               <div>Método</div>
-              <div>Hora</div>
               <div>Quién</div>
+              <div className="text-right">Monto</div>
             </div>
             {loading ? (
               <div className="px-5 py-10 text-center text-sm text-muted-foreground">Cargando…</div>
@@ -12769,14 +12795,12 @@ function MovimientosUnificados({
                     UNIFIED_GRID_COLS,
                   )}
                 >
-                  <div>Fecha</div>
-                  <div>Cliente / concepto</div>
+                  <div>Tipo · fecha</div>
+                  <div>Cliente y servicio</div>
                   <div>Profesional</div>
-                  <div>Servicio / categoría</div>
-                  <div className="text-right">Monto</div>
                   <div>Método</div>
-                  <div>Hora</div>
                   <div>Quién</div>
+                  <div className="text-right">Monto</div>
                 </div>
                 {modalItems.length === 0 ? (
                   <div className="px-5 py-10 text-center text-sm text-white/45">
