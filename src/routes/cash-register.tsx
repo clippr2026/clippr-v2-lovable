@@ -158,6 +158,7 @@ import {
   Image as ImageIcon,
   ChevronDown,
   ArrowLeftRight,
+  UserRound,
   ChevronRight,
   HandCoins,
   Pencil,
@@ -1607,18 +1608,20 @@ function ResumenTab({
             movementsData={movementsData}
             showPendientes={showPendientes}
             cajaCerrada={cajaCerrada}
+            headerAction={
+              <div className={cajaCerrada ? "hidden" : ""}>
+                <CierreCajaBtn
+                  businessId={data.businessId}
+                  branchId={data.activeBranchId}
+                  userEmail={userEmail}
+                  employees={data.employees}
+                  onCajaCerrada={onCajaCerrada}
+                  cajaAbiertaDesde={cajaAbiertaDesde}
+                  cajaRangeStartDate={cajaRangeStartDate}
+                />
+              </div>
+            }
           />
-          <div className={`flex justify-center ${cajaCerrada ? "hidden" : ""}`}>
-        <CierreCajaBtn
-          businessId={data.businessId}
-          branchId={data.activeBranchId}
-          userEmail={userEmail}
-          employees={data.employees}
-          onCajaCerrada={onCajaCerrada}
-          cajaAbiertaDesde={cajaAbiertaDesde}
-          cajaRangeStartDate={cajaRangeStartDate}
-        />
-      </div>
         </div>
       </div>
     </>
@@ -8789,7 +8792,7 @@ function CierreCajaBtn({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="group inline-flex h-12 items-center justify-center gap-2 rounded-full border border-violet-300/40 bg-violet-500/10 px-7 text-sm font-semibold text-violet-100 shadow-[0_0_22px_-8px_rgba(139,92,246,0.6)] transition-all duration-200 hover:bg-violet-500/20 active:scale-[0.99]"
+        className="group inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-full border border-violet-300/40 bg-violet-500/10 px-3.5 text-sm font-semibold text-violet-100 shadow-[0_0_22px_-8px_rgba(139,92,246,0.6)] transition-all duration-200 hover:bg-violet-500/20 active:scale-[0.99]"
       >
         <Wallet className="size-4 text-white/80 transition-transform group-hover:scale-110" />
         Cerrar caja
@@ -11907,6 +11910,17 @@ function UnifiedMovRow({
   );
 }
 
+// Color del movimiento: ingresos en verde, gastos en rojo/rosa, retiros en ámbar, adelantos en
+// violeta, pendientes en celeste y lo anulado en gris.
+function movTone(item: UnifiedMov) {
+  if (item.color === "gris") return { text: "text-white/45", chip: "bg-white/[0.06] text-white/55 ring-white/15", border: "rgba(255,255,255,0.12)", glow: "transparent" };
+  if (item.kind === "gasto") return { text: "text-rose-300", chip: "bg-rose-400/10 text-rose-200 ring-rose-300/25", border: "rgba(251,113,133,0.35)", glow: "rgba(244,63,94,0.10)" };
+  if (item.kind === "adelanto") return { text: "text-violet-300", chip: "bg-violet-400/10 text-violet-200 ring-violet-300/25", border: "rgba(167,139,250,0.4)", glow: "rgba(139,92,246,0.12)" };
+  if (item.kind === "movimiento" && item.movement?.type !== "ingreso") return { text: "text-amber-300", chip: "bg-amber-400/10 text-amber-200 ring-amber-300/25", border: "rgba(251,191,36,0.4)", glow: "rgba(245,158,11,0.10)" };
+  if (item.kind === "pendiente" || item.kind === "venta_pendiente") return { text: "text-sky-300", chip: "bg-sky-400/10 text-sky-200 ring-sky-300/25", border: "rgba(125,211,252,0.35)", glow: "rgba(14,165,233,0.10)" };
+  return { text: "text-emerald-300", chip: "bg-emerald-400/10 text-emerald-200 ring-emerald-300/25", border: "rgba(110,231,183,0.35)", glow: "rgba(16,185,129,0.10)" };
+}
+
 function UnifiedMovCardMobile({
   item,
   employees,
@@ -11921,73 +11935,91 @@ function UnifiedMovCardMobile({
   onShowNote?: (title: string, note: string) => void;
 }) {
   const view = unifiedMovView(item, employees);
-  const colorCls = UNIFIED_COLOR_CLASSES[item.color];
+  const tone = movTone(item);
   const sign = item.color === "rojo" ? "-" : item.color === "gris" ? "" : "+";
+  const externo = item.kind === "gasto" && !expenseAffectsCaja(item.expense?.funds_source);
   return (
     <div
       className={cn(
-        "w-full rounded-2xl border-l-2 border border-white/[0.07] px-3.5 py-3 text-xs",
-        colorCls.border,
-        colorCls.bgMobile,
+        "w-full rounded-2xl border px-3.5 py-2.5",
         onClick ? "cursor-pointer active:brightness-125" : "",
       )}
+      style={{
+        borderColor: tone.border,
+        backgroundColor: "#0b0a14",
+        backgroundImage: `radial-gradient(120% 100% at 100% 0%, ${tone.glow}, transparent 62%)`,
+      }}
       onClick={onClick}
     >
-      <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] pb-2">
-        <span className="text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-          {view.typeLabel} · {view.fecha} · {view.hora}
-        </span>
-        <span className={cn("text-sm font-bold tabular-nums", colorCls.text)}>
+      {/* Fila 1: tipo + fecha y hora · importe */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          <span className={cn("shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1", tone.chip)}>
+            {view.typeLabel}
+          </span>
+          <span className="truncate text-[11px] tabular-nums text-white/45">
+            {view.fecha} · {view.hora}
+          </span>
+        </div>
+        <span className={cn("shrink-0 text-lg font-bold leading-none tabular-nums", tone.text, item.color === "gris" && "line-through")}>
           {sign}${Math.round(Math.abs(item.amount)).toLocaleString("es-AR")}
         </span>
       </div>
-      <div className="mt-2 space-y-1.5">
-        <div className="flex items-start justify-between gap-3">
-          <span className="shrink-0 text-muted-foreground/70">Cliente / concepto</span>
-          <span className="truncate text-right text-foreground/90">{view.clienteOConcepto}</span>
+
+      {/* Fila 2: cliente o concepto y servicio o categoría */}
+      <div className="mt-2 min-w-0">
+        <div className="truncate text-[15px] font-semibold leading-tight text-white">{view.clienteOConcepto}</div>
+        {(view.servicio !== "—" || externo || view.nota) && (
+          <div className="mt-0.5 flex min-w-0 items-center gap-1.5">
+            {view.servicio !== "—" && <span className="truncate text-[13px] text-white/60">{view.servicio}</span>}
+            {externo && (
+              <span className="shrink-0 rounded-full bg-amber-400/10 px-1.5 py-0.5 text-[10px] font-semibold text-amber-300 ring-1 ring-amber-300/20">
+                Fondos externos
+              </span>
+            )}
+            {view.nota && (
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onShowNote?.(view.notaTitle ?? "Nota", view.nota!);
+                }}
+                className="shrink-0 rounded-full bg-sky-400/10 px-2 py-0.5 text-[10px] font-semibold text-sky-300 ring-1 ring-sky-300/20 transition hover:bg-sky-400/20"
+                title="Ver nota del profesional"
+              >
+                Ver nota
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Fila 3: profesional y método de pago */}
+      {(view.profesional !== "—" || view.metodoLabel !== "—") && (
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {view.profesional !== "—" && (
+            <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-white/[0.05] px-2 py-0.5 text-[12px] text-white/75 ring-1 ring-white/10">
+              <UserRound className="size-3 shrink-0 text-white/50" />
+              <span className="truncate">{view.profesional}</span>
+            </span>
+          )}
+          {view.metodoLabel !== "—" && (
+            <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-white/[0.05] px-2 py-0.5 text-[12px] text-white/75 ring-1 ring-white/10">
+              <CreditCard className="size-3 shrink-0 text-white/50" />
+              <span className="truncate">{view.metodoLabel}</span>
+            </span>
+          )}
         </div>
-        {view.profesional !== "—" && (
-          <div className="flex items-start justify-between gap-3">
-            <span className="shrink-0 text-muted-foreground/70">Profesional</span>
-            <span className="truncate text-right text-muted-foreground">{view.profesional}</span>
-          </div>
-        )}
-        {view.servicio !== "—" && (
-          <div className="flex items-start justify-between gap-3">
-            <span className="shrink-0 text-muted-foreground/70">Servicio / categoría</span>
-            <span className="truncate text-right text-muted-foreground">{view.servicio}</span>
-          </div>
-        )}
-        {view.nota && (
-          <div className="flex justify-end">
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                onShowNote?.(view.notaTitle ?? "Nota", view.nota!);
-              }}
-              className="rounded-full bg-sky-400/10 px-2 py-0.5 text-[10px] font-semibold text-sky-300 ring-1 ring-sky-300/20 hover:bg-sky-400/20 transition"
-              title="Ver nota del profesional"
-            >
-              Ver nota
-            </button>
-          </div>
-        )}
-        {view.metodoLabel !== "—" && (
-          <div className="flex items-start justify-between gap-3">
-            <span className="shrink-0 text-muted-foreground/70">Método</span>
-            <span className="truncate text-right text-muted-foreground">{view.metodoLabel}</span>
-          </div>
-        )}
+      )}
+
+      {/* Fila 4: quién lo registró y comprobante */}
+      <div className="mt-2 flex items-center justify-between gap-2 border-t border-white/[0.06] pt-2">
+        <span className="min-w-0 truncate text-[12px] text-white/50">{view.quien}</span>
         {item.kind === "pago" && item.payment && (
-          <div className="flex justify-end">
+          <div className="shrink-0 [&_span]:!mt-0">
             <ReceiptButton payment={item.payment} businessId={businessId} />
           </div>
         )}
-        <div className="flex items-start justify-between gap-3">
-          <span className="shrink-0 text-muted-foreground/70">Quién</span>
-          <span className="truncate text-right text-muted-foreground">{view.quien}</span>
-        </div>
       </div>
     </div>
   );
@@ -12147,55 +12179,51 @@ function VentaPendienteCardMobile({
   const empName = employees.find((e) => e.id === g.employeeId)?.name ?? "—";
   const dt = new Date(item.ts || Date.now());
   const saldo = Math.max(0, Math.round(g.total - g.collectedToDate));
-  const colorCls = UNIFIED_COLOR_CLASSES[item.color];
+  const tone = movTone(item);
   const sign = item.amount < 0 ? "-" : item.amount > 0 ? "+" : "";
 
   return (
     <div
       className={cn(
-        "w-full rounded-2xl border-l-2 border border-white/[0.07] px-3.5 py-3 text-xs",
-        colorCls.border,
-        colorCls.bgMobile,
+        "w-full rounded-2xl border px-3.5 py-2.5",
         onClick ? "cursor-pointer active:brightness-125" : "",
-        loading ? "opacity-60 pointer-events-none" : "",
+        loading ? "pointer-events-none opacity-60" : "",
       )}
+      style={{
+        borderColor: tone.border,
+        backgroundColor: "#0b0a14",
+        backgroundImage: `radial-gradient(120% 100% at 100% 0%, ${tone.glow}, transparent 62%)`,
+      }}
       onClick={onClick}
     >
-      <div className="flex items-center justify-between gap-2 border-b border-white/[0.06] pb-2">
-        <span className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-          {loading && <Loader2 className="size-3 shrink-0 animate-spin" />}
-          {formatArgFecha(dt)} · {formatArgHora(dt)}
-        </span>
-        <span className={cn("text-sm font-bold tabular-nums", sign ? colorCls.text : "text-muted-foreground/50")}>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex min-w-0 items-center gap-2">
+          {loading && <Loader2 className="size-3 shrink-0 animate-spin text-white/50" />}
+          <VentaPendienteBadge status={g.status} />
+          <span className="truncate text-[11px] tabular-nums text-white/45">
+            {formatArgFecha(dt)} · {formatArgHora(dt)}
+          </span>
+        </div>
+        <span className={cn("shrink-0 text-lg font-bold leading-none tabular-nums", sign ? tone.text : "text-white/40")}>
           {sign}${Math.round(Math.abs(item.amount)).toLocaleString("es-AR")}
         </span>
       </div>
-      <div className="mt-2 space-y-1.5">
-        <div className="flex items-start justify-between gap-3">
-          <span className="shrink-0 text-muted-foreground/70">Cliente</span>
-          <span className="flex items-center gap-1.5 truncate text-right text-foreground/90">
-            {g.clientName ?? "—"} <VentaPendienteBadge status={g.status} />
-          </span>
-        </div>
-        <div className="flex items-start justify-between gap-3">
-          <span className="shrink-0 text-muted-foreground/70">Profesional</span>
-          <span className="truncate text-right text-muted-foreground">{empName}</span>
-        </div>
-        <div className="flex items-start justify-between gap-3">
-          <span className="shrink-0 text-muted-foreground/70">Servicio</span>
-          <span className="truncate text-right text-muted-foreground">{g.serviceName ?? "—"}</span>
-        </div>
-        <div className="flex items-start justify-between gap-3">
-          <span className="shrink-0 text-muted-foreground/70">Venta / cobrado / saldo</span>
-          <span className="truncate text-right text-muted-foreground">
-            ${Math.round(g.total).toLocaleString("es-AR")} / ${Math.round(g.collectedToDate).toLocaleString("es-AR")} / ${saldo.toLocaleString("es-AR")}
-          </span>
-        </div>
-        <div className="flex items-start justify-between gap-3">
-          <span className="shrink-0 text-muted-foreground/70">Quién</span>
-          <span className="truncate text-right text-muted-foreground">{g.lastActorLabel}</span>
-        </div>
+      <div className="mt-2 min-w-0">
+        <div className="truncate text-[15px] font-semibold leading-tight text-white">{g.clientName ?? "—"}</div>
+        <div className="mt-0.5 truncate text-[13px] text-white/60">{g.serviceName ?? "—"}</div>
       </div>
+      <div className="mt-2 flex flex-wrap items-center gap-1.5">
+        {empName !== "—" && (
+          <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-white/[0.05] px-2 py-0.5 text-[12px] text-white/75 ring-1 ring-white/10">
+            <UserRound className="size-3 shrink-0 text-white/50" />
+            <span className="truncate">{empName}</span>
+          </span>
+        )}
+        <span className="inline-flex items-center gap-1 rounded-full bg-white/[0.05] px-2 py-0.5 text-[12px] tabular-nums text-white/75 ring-1 ring-white/10">
+          Venta ${Math.round(g.total).toLocaleString("es-AR")} · Cobrado ${Math.round(g.collectedToDate).toLocaleString("es-AR")} · Saldo ${saldo.toLocaleString("es-AR")}
+        </span>
+      </div>
+      <div className="mt-2 border-t border-white/[0.06] pt-2 text-[12px] text-white/50">{g.lastActorLabel}</div>
     </div>
   );
 }
@@ -12229,11 +12257,14 @@ function MovimientosUnificados({
   movementsData,
   showPendientes,
   cajaCerrada = false,
+  headerAction,
 }: {
   data: ReturnType<typeof useCajaData>;
   movementsData: ReturnType<typeof useCashMovements>;
   showPendientes: boolean;
   cajaCerrada?: boolean;
+  /** Botón de la derecha del encabezado (Cerrar caja). */
+  headerAction?: React.ReactNode;
 }) {
   const [allOpen, setAllOpen] = React.useState(false);
   const [detailPayment, setDetailPayment] = React.useState<
@@ -12531,8 +12562,14 @@ function MovimientosUnificados({
             "radial-gradient(120% 45% at 85% 0%, rgba(79,125,255,0.2), transparent 60%), radial-gradient(110% 50% at 0% 100%, rgba(139,92,246,0.22), transparent 62%)",
         }}
       >
-        <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
-          <h3 className="text-base font-semibold text-white">Movimientos de caja</h3>
+        <div className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-3 sm:px-5 sm:py-4">
+          <div className="min-w-0">
+            <h3 className="text-base font-semibold text-white">Movimientos de caja</h3>
+            <div className="text-xs text-white/50">
+              {all.length === 1 ? "1 movimiento hoy" : `${all.length} movimientos hoy`}
+            </div>
+          </div>
+          {headerAction}
         </div>
 
         {/* Desktop: tabla con scroll horizontal — mobile usa tarjetas. */}
@@ -12585,7 +12622,7 @@ function MovimientosUnificados({
               Todavía no hay movimientos registrados hoy.
             </div>
           ) : (
-            <div className="flex flex-col gap-3 p-3">
+            <div className="flex flex-col gap-2 p-2.5">
               {recent.map((item) => (
                 <UnifiedCardAny
                   key={item.id}
