@@ -155,6 +155,7 @@ import {
   Camera,
   Image as ImageIcon,
   ChevronDown,
+  ArrowLeftRight,
   ChevronRight,
   HandCoins,
   Pencil,
@@ -1317,8 +1318,8 @@ function TabButton({
       className={cn(
         "group relative inline-flex items-center justify-center rounded-2xl font-semibold transition-all duration-200",
         compact
-          ? "flex-col gap-1 px-1 py-2 text-center text-[10px] leading-tight"
-          : "gap-2 px-4 py-2.5 text-sm whitespace-nowrap",
+          ? "flex-col gap-0.5 px-1 py-1.5 text-center text-[10px] leading-tight"
+          : "gap-2 px-4 py-2 text-sm whitespace-nowrap sm:py-2.5",
         active
           ? "bg-[linear-gradient(135deg,rgba(59,130,246,0.22),rgba(139,92,246,0.22))] text-white ring-1 ring-violet-200/28 shadow-[0_0_26px_rgba(99,102,241,0.18),0_1px_0_rgba(255,255,255,0.10)_inset]"
           : "text-white/55 hover:bg-white/[0.045] hover:text-white/85",
@@ -1598,6 +1599,17 @@ function ResumenTab({
             showPendientes={showPendientes}
             cajaCerrada={cajaCerrada}
           />
+          <div className={`flex justify-center ${cajaCerrada ? "hidden" : ""}`}>
+        <CierreCajaBtn
+          businessId={data.businessId}
+          branchId={data.activeBranchId}
+          userEmail={userEmail}
+          employees={data.employees}
+          onCajaCerrada={onCajaCerrada}
+          cajaAbiertaDesde={cajaAbiertaDesde}
+          cajaRangeStartDate={cajaRangeStartDate}
+        />
+      </div>
         </div>
       </div>
     </>
@@ -12919,27 +12931,43 @@ function FacturacionPanel({
   // — mismo criterio que ya usa el bloque "Modo de aprobación" de
   // Liquidaciones, ningún flag nuevo.
   const showPendientes = data.approvalModeEnabled && equipoEnabled;
+  const [movimientosOpen, setMovimientosOpen] = React.useState(false);
 
   return (
     <>
       {/* Acciones de caja — las cuatro juntas, mismo tamaño: lo que entra
           (Nueva venta, Ingresar dinero) en verde y lo que sale (Nuevo gasto,
           Retirar dinero) en rojo. Cerrar caja queda aparte, más abajo. */}
-      <div className={`mt-3 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:justify-center ${cajaCerrada ? "hidden" : ""}`}>
-        {/* Fila 1: Nueva venta | Nuevo gasto — Fila 2: Ingresar dinero | Retirar dinero.
-            Columna izquierda = lo que entra (verde), derecha = lo que sale (rojo). */}
-        <button type="button" onClick={onNuevaVenta} className="inline-flex h-12 items-center justify-center gap-2 rounded-full px-4 text-sm font-semibold transition hover:brightness-125 active:scale-[0.99] sm:min-w-[190px]" style={{ background: "rgba(16,185,129,0.10)", color: "#4ade80", boxShadow: "inset 0 0 0 1.5px rgba(74,222,128,.7), 0 0 20px rgba(34,197,94,.22)" }}>
-          <Plus className="size-4" /> Nueva venta
+      <div className={`mt-3 space-y-2.5 ${cajaCerrada ? "hidden" : ""}`}>
+        {/* Dos acciones principales: lo que entra (verde) y lo que sale (rojo). */}
+        <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:justify-center">
+          <button type="button" onClick={onNuevaVenta} className="inline-flex h-12 items-center justify-center gap-2 rounded-full px-4 text-sm font-semibold transition hover:brightness-125 active:scale-[0.99] sm:min-w-[190px]" style={{ background: "rgba(16,185,129,0.10)", color: "#4ade80", boxShadow: "inset 0 0 0 1.5px rgba(74,222,128,.7), 0 0 20px rgba(34,197,94,.22)" }}>
+            <Plus className="size-4" /> Nueva venta
+          </button>
+          <button type="button" onClick={onNuevoGasto} className="inline-flex h-12 items-center justify-center gap-2 rounded-full px-4 text-sm font-semibold transition hover:brightness-125 active:scale-[0.99] sm:min-w-[190px]" style={{ background: "rgba(244,63,94,0.10)", color: "#fb7185", boxShadow: "inset 0 0 0 1.5px rgba(251,113,133,.7), 0 0 20px rgba(244,63,94,.25)" }}>
+            <Wallet className="size-4" /> Nuevo gasto
+          </button>
+        </div>
+        {/* Movimientos de dinero: en el celular van dentro de un desplegable. */}
+        <button
+          type="button"
+          onClick={() => setMovimientosOpen((v) => !v)}
+          aria-expanded={movimientosOpen}
+          className="flex h-11 w-full items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-4 text-sm font-medium text-white/85 sm:hidden"
+        >
+          <span className="inline-flex items-center gap-2">
+            <ArrowLeftRight className="size-4 text-white/60" /> Movimientos de dinero
+          </span>
+          <ChevronDown className={cn("size-4 text-white/60 transition-transform", movimientosOpen && "rotate-180")} />
         </button>
-        <button type="button" onClick={onNuevoGasto} className="inline-flex h-12 items-center justify-center gap-2 rounded-full px-4 text-sm font-semibold transition hover:brightness-125 active:scale-[0.99] sm:min-w-[190px]" style={{ background: "rgba(244,63,94,0.10)", color: "#fb7185", boxShadow: "inset 0 0 0 1.5px rgba(251,113,133,.7), 0 0 20px rgba(244,63,94,.25)" }}>
-          <Wallet className="size-4" /> Nuevo gasto
-        </button>
-        <button type="button" onClick={() => setShowIngresoChoice(true)} className="inline-flex h-12 items-center justify-center gap-2 rounded-full px-4 text-sm font-semibold transition hover:brightness-125 active:scale-[0.99] sm:min-w-[190px]" style={{ background: "rgba(16,185,129,0.10)", color: "#4ade80", boxShadow: "inset 0 0 0 1.5px rgba(74,222,128,.7), 0 0 20px rgba(34,197,94,.22)" }}>
-          <Plus className="size-4" /> Ingresar dinero
-        </button>
-        <button type="button" onClick={() => setMovType("retiro")} className="inline-flex h-12 items-center justify-center gap-2 rounded-full px-4 text-sm font-semibold transition hover:brightness-125 active:scale-[0.99] sm:min-w-[190px]" style={{ background: "rgba(244,63,94,0.10)", color: "#fb7185", boxShadow: "inset 0 0 0 1.5px rgba(251,113,133,.7), 0 0 20px rgba(244,63,94,.25)" }}>
-          <Minus className="size-4" /> Retirar dinero
-        </button>
+        <div className={cn("grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:justify-center", movimientosOpen ? "grid" : "hidden sm:flex")}>
+          <button type="button" onClick={() => setShowIngresoChoice(true)} className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-4 text-sm font-medium text-white/85 transition hover:bg-white/[0.08] active:scale-[0.99] sm:min-w-[190px]">
+            <Plus className="size-4 text-emerald-300" /> Ingresar dinero
+          </button>
+          <button type="button" onClick={() => setMovType("retiro")} className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-4 text-sm font-medium text-white/85 transition hover:bg-white/[0.08] active:scale-[0.99] sm:min-w-[190px]">
+            <Minus className="size-4 text-rose-300" /> Retirar dinero
+          </button>
+        </div>
       </div>
 
       {/* Aviso de cajas pendientes de revisión — misma fuente
@@ -13075,17 +13103,6 @@ function FacturacionPanel({
         />
       )}
 
-      <div className={`flex justify-center ${cajaCerrada ? "hidden" : ""}`}>
-        <CierreCajaBtn
-          businessId={data.businessId}
-          branchId={data.activeBranchId}
-          userEmail={userEmail}
-          employees={data.employees}
-          onCajaCerrada={onCajaCerrada}
-          cajaAbiertaDesde={cajaAbiertaDesde}
-          cajaRangeStartDate={cajaRangeStartDate}
-        />
-      </div>
 
       {showPendientes && cobrosPendientesOpen && (
         <div ref={cobrosPendientesRef} className="scroll-mt-4">

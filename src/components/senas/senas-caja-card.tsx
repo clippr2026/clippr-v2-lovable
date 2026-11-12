@@ -145,41 +145,39 @@ export function SenasCajaCard({
           boxShadow: "inset 0 0 0 1px rgba(167,139,250,0.45), 0 0 28px -10px rgba(139,92,246,0.7)",
         }}
       >
-        <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.16em] text-violet-200/80">
+        <div className="flex items-center gap-2 text-sm font-semibold text-white">
           <HandCoins className="h-4 w-4" /> Señas
         </div>
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="flex h-11 w-full items-center justify-between rounded-xl px-3.5 text-sm font-semibold transition hover:brightness-125"
-          style={
-            pend.items.length > 0
-              ? { background: "rgba(251,191,36,0.14)", color: "#fcd34d", boxShadow: "inset 0 0 0 1.5px rgba(251,191,36,0.6), 0 0 18px rgba(251,191,36,0.22)" }
-              : { background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.7)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.12)" }
-          }
-        >
-          <span>Por revisar</span>
-          <span className="tabular-nums">
-            {pend.items.length}
-            {pend.items.length > 0 ? ` · ${money(pendTotal)}` : ""}
-          </span>
-        </button>
-        <button
-          type="button"
-          onClick={() => setOpenReemb(true)}
-          className="flex h-11 w-full items-center justify-between rounded-xl px-3.5 text-sm font-semibold transition hover:brightness-125"
-          style={
-            reemb.items.length > 0
-              ? { background: "rgba(251,191,36,0.14)", color: "#fcd34d", boxShadow: "inset 0 0 0 1.5px rgba(251,191,36,0.6), 0 0 18px rgba(251,191,36,0.22)" }
-              : { background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.7)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.12)" }
-          }
-        >
-          <span>Reembolsos</span>
-          <span className="tabular-nums">
-            {reemb.items.length}
-            {reemb.items.length > 0 ? ` · ${money(reembTotal)}` : ""}
-          </span>
-        </button>
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            className="flex min-h-[64px] flex-col items-start justify-center gap-0.5 rounded-2xl px-3.5 py-2 text-left transition hover:brightness-125"
+            style={
+              pend.items.length > 0
+                ? { background: "rgba(251,191,36,0.14)", color: "#fcd34d", boxShadow: "inset 0 0 0 1.5px rgba(251,191,36,0.6), 0 0 18px rgba(251,191,36,0.22)" }
+                : { background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.7)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.12)" }
+            }
+          >
+            <span className="text-xs font-medium">Por revisar</span>
+            <span className="text-xl font-semibold tabular-nums leading-none">{pend.items.length}</span>
+            {pend.items.length > 0 && <span className="text-[11px] tabular-nums opacity-80">{money(pendTotal)}</span>}
+          </button>
+          <button
+            type="button"
+            onClick={() => setOpenReemb(true)}
+            className="flex min-h-[64px] flex-col items-start justify-center gap-0.5 rounded-2xl px-3.5 py-2 text-left transition hover:brightness-125"
+            style={
+              reemb.items.length > 0
+                ? { background: "rgba(251,191,36,0.14)", color: "#fcd34d", boxShadow: "inset 0 0 0 1.5px rgba(251,191,36,0.6), 0 0 18px rgba(251,191,36,0.22)" }
+                : { background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.7)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.12)" }
+            }
+          >
+            <span className="text-xs font-medium">Reembolsos</span>
+            <span className="text-xl font-semibold tabular-nums leading-none">{reemb.items.length}</span>
+            {reemb.items.length > 0 && <span className="text-[11px] tabular-nums opacity-80">{money(reembTotal)}</span>}
+          </button>
+        </div>
         {proxima.length > 0 && (
           <div className="rounded-xl bg-sky-400/10 px-3 py-2 text-xs leading-snug text-sky-100 ring-1 ring-sky-300/30">
             {proxima.length === 1 ? "Hay 1 seña aprobada" : `Hay ${proxima.length} señas aprobadas`} después del cierre (
