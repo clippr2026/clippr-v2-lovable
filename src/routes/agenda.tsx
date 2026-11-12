@@ -1,3 +1,4 @@
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import {
   createFileRoute,
   useNavigate } from "@tanstack/react-router"; import * as React from "react"; import { createPortal } from "react-dom"; import { supabase } from "@/integrations/supabase/client"; import { toast } from "sonner"; import { ClientesNoAtendidosButton } from "@/components/agenda/clientes-no-atendidos"; import { AppShell } from "@/components/app-shell"; import {   ChevronLeft,
@@ -4106,6 +4107,8 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   onReleaseBlock: (a: Appointment) => void;
   onDepositChanged: () => void;
 }) {
+  // El detalle es un Dialog no modal (modal={false}): sin esto la pantalla de atrás sigue scrolleando.
+  useBodyScrollLock(open && !!appointment);
   const [confirmCancel, setConfirmCancel] = React.useState(false);
   const [cancelReason, setCancelReason] = React.useState("");
   // Reembolso de seña al cancelar: se elige de dónde sale la plata.
