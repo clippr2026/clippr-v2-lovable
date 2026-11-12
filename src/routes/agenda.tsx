@@ -4359,7 +4359,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
             <div
               className="rounded-3xl border p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:p-4"
               style={{
-                background: meta.bg,
+                background: statusFade(meta.bg),
                 borderColor: meta.border,
                 boxShadow:
                   appointment.status === "confirmed"
@@ -4463,7 +4463,8 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
           />
 
             {/* Horario y duración · profesional · fecha de creación (en un bloqueo: profesional · bloqueo creado · creado por) */}
-            <div className="grid grid-cols-1 gap-y-2.5 rounded-2xl border border-white/10 bg-white/[0.025] px-4 py-2.5 sm:grid-cols-3 sm:gap-0 sm:py-3 sm:divide-x sm:divide-white/10">
+            <div className="grid grid-cols-1 gap-y-2.5 rounded-2xl border border-white/10 bg-white/[0.025] px-4 py-2.5 sm:grid-cols-3 sm:gap-0 sm:py-3 sm:divide-x sm:divide-white/10"
+              style={{ backgroundImage: `linear-gradient(115deg, color-mix(in srgb, ${meta.dot} 16%, transparent) 0%, transparent 75%)` }}>
               {!isBlocked && (
                 <div className="order-1 flex items-center gap-3 sm:pr-4">
                   <Clock3 className="h-5 w-5 shrink-0" style={{ color: meta.dot }} />
