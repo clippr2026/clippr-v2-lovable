@@ -729,7 +729,7 @@ export function MovDayHeader({
     <Tag
       type={collapsible ? "button" : undefined}
       onClick={onToggle}
-      className={cn("w-full px-1 pb-1 pt-3 text-left", collapsible && "active:opacity-80")}
+      className={cn("w-full px-1 pb-0.5 pt-1.5 text-left", collapsible && "active:opacity-80")}
     >
       <div className="flex items-center gap-2.5">
         {collapsible && (
@@ -738,16 +738,15 @@ export function MovDayHeader({
         <span className="shrink-0 rounded-full bg-white/[0.07] px-3 py-1 text-sm font-semibold text-white ring-1 ring-white/10">
           {movDayLabel(dayKey)}
         </span>
-        <div className="h-px flex-1 bg-white/[0.12]" />
         {typeof count === "number" && (
-          <span className="shrink-0 text-xs text-white/50">
+          <span className="ml-auto shrink-0 text-xs text-white/65">
             {count} {count === 1 ? "movimiento" : "movimientos"}
           </span>
         )}
       </div>
       {p && (
         <div className={cn("mt-1 flex items-center gap-1.5 text-xs", collapsible && "pl-[26px]")}>
-          <span className="text-white/45">
+          <span className="text-white/60">
             {llegada ? `Entrada ${llegada}` : "Puntualidad"}
             {p.penaltyOverridden ? " (ajustado)" : ""}
           </span>
