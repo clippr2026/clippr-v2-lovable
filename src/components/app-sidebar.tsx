@@ -626,7 +626,7 @@ type MobileNavEntry = {
 function MobileBottomNavSkeleton() {
   return (
     <nav
-      className="lg:hidden fixed inset-x-3 z-40 rounded-full border border-white/15 bg-[rgba(40,40,46,0.6)] backdrop-blur-2xl"
+      className="fixed inset-x-3 z-40 rounded-full border border-white/15 bg-[rgba(40,40,46,0.6)] backdrop-blur-2xl lg:mx-auto lg:max-w-[720px]"
       style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)" }}
     >
       <div className="grid h-[58px] grid-cols-7">
@@ -706,7 +706,7 @@ function MobileBottomNav() {
   return (
     <MobileFixedBottom>
     <nav
-      className="lg:hidden fixed inset-x-3 z-40 rounded-full border border-white/15 bg-[rgba(40,40,46,0.6)] shadow-[0_12px_32px_-8px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.18)] backdrop-blur-2xl backdrop-saturate-150"
+      className="fixed inset-x-3 z-40 rounded-full border border-white/15 bg-[rgba(40,40,46,0.6)] lg:mx-auto lg:max-w-[720px] shadow-[0_12px_32px_-8px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.18)] backdrop-blur-2xl backdrop-saturate-150"
       style={{
         position: "fixed",
         bottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)",
@@ -757,7 +757,7 @@ function MobileBottomNav() {
                 )}
               >
                 <Icon className={cn("h-[22px] w-[22px] transition", active ? "text-white" : "text-white/80")} />
-                {active && <span className="max-w-full truncate px-0.5 text-[9px] font-semibold leading-none text-white">{label}</span>}
+                <span className={cn("max-w-full truncate px-0.5 text-[9px] font-semibold leading-none lg:text-[10px]", active ? "text-white" : "hidden text-white/70 lg:block")}>{label}</span>
               </span>
             </Link>
           );
@@ -788,9 +788,7 @@ export function AppSidebar() {
           <Brand />
 
           {/* Desktop nav */}
-          <div className="hidden lg:flex flex-1 justify-center">
-            <NavItems />
-          </div>
+          <div className="hidden lg:block flex-1" />
 
           {/* Right cluster */}
           <div className="ml-auto flex items-center gap-2">
