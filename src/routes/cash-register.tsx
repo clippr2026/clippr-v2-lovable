@@ -1283,13 +1283,14 @@ function Header({
 const TABS: {
   id: Tab;
   label: string;
+  shortLabel?: string;
   icon: React.ComponentType<{ className?: string }>;
 }[] = [
   { id: "resumen", label: "Resumen", icon: BarChart3 },
   { id: "precios", label: "Precios", icon: CreditCard },
   { id: "inventario", label: "Inventario", icon: ClipboardList },
   { id: "profesionales", label: "Liquidaciones", icon: Wallet },
-  { id: "cierres", label: "Historial de cierres", icon: CalendarDays },
+  { id: "cierres", label: "Historial de cierres", shortLabel: "Cierres", icon: CalendarDays },
 ];
 
 // Botón de pestaña usado solo en la fila mobile de 2 filas (ver Tabs). `compact`
@@ -1331,7 +1332,7 @@ function TabButton({
           active ? "text-blue-200" : "text-white/40 group-hover:text-white/70",
         )}
       />
-      <span className={compact ? "line-clamp-2" : undefined}>{t.label}</span>
+      <span className={compact ? "line-clamp-2" : undefined}>{compact ? (t.shortLabel ?? t.label) : t.label}</span>
     </button>
   );
 }
@@ -1357,7 +1358,7 @@ function Tabs({
     <div className="mt-2 flex flex-wrap items-end justify-between gap-5 border-b border-white/[0.055] pb-1.5 sm:mt-3 sm:pb-2">
       {/* Mobile: sin scroll horizontal — Resumen ocupa toda la fila 1, el
           resto se reparte en una fila 2 de 4 columnas parejas. */}
-      <div className="relative flex w-full flex-col gap-1.5 rounded-3xl border border-white/[0.085] bg-[linear-gradient(135deg,rgba(8,10,20,0.96),rgba(12,16,32,0.88))] p-1.5 backdrop-blur-2xl shadow-[0_18px_55px_-28px_rgba(0,0,0,0.95),0_1px_0_rgba(255,255,255,0.06)_inset] sm:hidden">
+      <div className="relative flex w-full flex-col gap-1.5 rounded-[28px] border border-violet-400/45 bg-[#08070f] p-1.5 shadow-[0_0_0_1px_rgba(139,92,246,0.35),0_20px_60px_-24px_rgba(0,0,0,0.9),0_0_50px_-20px_rgba(139,92,246,0.5)] sm:hidden">
         <div className="pointer-events-none absolute inset-0 rounded-3xl bg-[radial-gradient(circle_at_8%_0%,rgba(59,130,246,0.12),transparent_35%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,0.13),transparent_35%)]" />
         <TabButton t={firstTab} tab={tab} onChange={onChange} className="w-full" />
         <div className="grid grid-cols-4 gap-1">
@@ -1368,7 +1369,7 @@ function Tabs({
       </div>
 
       {/* Desktop/tablet: fila única, sin cambios visuales. */}
-      <div className="relative hidden sm:flex gap-1.5 overflow-x-auto rounded-3xl border border-white/[0.085] bg-[linear-gradient(135deg,rgba(8,10,20,0.96),rgba(12,16,32,0.88))] p-1.5 backdrop-blur-2xl shadow-[0_18px_55px_-28px_rgba(0,0,0,0.95),0_1px_0_rgba(255,255,255,0.06)_inset] sm:flex-none">
+      <div className="relative hidden sm:flex gap-1.5 overflow-x-auto rounded-[28px] border border-violet-400/45 bg-[#08070f] p-1.5 shadow-[0_0_0_1px_rgba(139,92,246,0.35),0_20px_60px_-24px_rgba(0,0,0,0.9),0_0_50px_-20px_rgba(139,92,246,0.5)] sm:flex-none">
         <div className="pointer-events-none absolute inset-0 rounded-3xl bg-[radial-gradient(circle_at_8%_0%,rgba(59,130,246,0.12),transparent_35%),radial-gradient(circle_at_92%_0%,rgba(139,92,246,0.13),transparent_35%)]" />
         {tabs.map((t) => {
           const active = t.id === tab;
@@ -8765,7 +8766,7 @@ function CierreCajaBtn({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="group inline-flex items-center justify-center gap-2 rounded-2xl px-4 py-2 text-sm font-bold transition-all duration-200 bg-white/[0.035] text-foreground border border-white/14 hover:-translate-y-0.5 hover:bg-white/[0.065] hover:border-white/20 shadow-[0_12px_40px_-28px_rgba(0,0,0,0.9)]"
+        className="group inline-flex h-12 items-center justify-center gap-2 rounded-full border border-violet-300/40 bg-violet-500/10 px-7 text-sm font-semibold text-violet-100 shadow-[0_0_22px_-8px_rgba(139,92,246,0.6)] transition-all duration-200 hover:bg-violet-500/20 active:scale-[0.99]"
       >
         <Wallet className="size-4 text-white/80 transition-transform group-hover:scale-110" />
         Cerrar caja
@@ -11172,9 +11173,9 @@ function FacturacionStatCard({
 }) {
   const content = (
     <>
-      <div className="flex items-center gap-1.5 text-muted-foreground">
-        <Icon className={cn("h-3.5 w-3.5 shrink-0", iconClass)} />
-        <span className="truncate text-xs">{label}</span>
+      <div className="flex items-center gap-1.5 text-white">
+        <Icon className={cn("h-4 w-4 shrink-0", iconClass)} />
+        <span className="truncate text-sm font-semibold">{label}</span>
       </div>
       {description && (
         <div className="truncate text-[10px] text-muted-foreground/60">{description}</div>
@@ -11197,13 +11198,13 @@ function FacturacionStatCard({
       <button
         type="button"
         onClick={onClick}
-        className="min-w-0 rounded-xl bg-white/[0.03] ring-1 ring-white/8 px-3.5 py-3 text-left transition hover:bg-white/[0.05]"
+        className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3.5 text-left transition hover:bg-white/[0.05] [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.12),transparent_65%)]"
       >
         {content}
       </button>
     );
   }
-  return <div className="min-w-0 rounded-xl bg-white/[0.03] ring-1 ring-white/8 px-3.5 py-3">{content}</div>;
+  return <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3.5 [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.12),transparent_65%)]">{content}</div>;
 }
 
 // Modal de "Ingresar dinero"/"Retirar dinero" — monto + motivo + medio
@@ -12499,9 +12500,16 @@ function MovimientosUnificados({
 
   return (
     <>
-      <Card className="rounded-3xl border-white/[0.075] bg-white/[0.02]">
-        <div className="flex items-center justify-between gap-3 border-b border-white/[0.06] px-5 py-3.5">
-          <h3 className="text-sm font-bold text-foreground/90">Movimientos de caja</h3>
+      <Card
+        className="rounded-[28px] border-violet-400/45 shadow-[0_0_0_1px_rgba(139,92,246,0.35),0_30px_90px_-20px_rgba(0,0,0,0.9),0_0_60px_-18px_rgba(139,92,246,0.55)]"
+        style={{
+          backgroundColor: "#08070f",
+          backgroundImage:
+            "radial-gradient(120% 45% at 85% 0%, rgba(79,125,255,0.2), transparent 60%), radial-gradient(110% 50% at 0% 100%, rgba(139,92,246,0.22), transparent 62%)",
+        }}
+      >
+        <div className="flex items-center justify-between gap-3 border-b border-white/10 px-5 py-4">
+          <h3 className="text-base font-semibold text-white">Movimientos de caja</h3>
         </div>
 
         {/* Desktop: tabla con scroll horizontal — mobile usa tarjetas. */}
@@ -12917,34 +12925,20 @@ function FacturacionPanel({
       {/* Acciones de caja — las cuatro juntas, mismo tamaño: lo que entra
           (Nueva venta, Ingresar dinero) en verde y lo que sale (Nuevo gasto,
           Retirar dinero) en rojo. Cerrar caja queda aparte, más abajo. */}
-      <div className={`grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-center sm:gap-2.5 ${cajaCerrada ? "hidden" : ""}`}>
-        <button
-          type="button"
-          onClick={onNuevaVenta}
-          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-emerald-400/30 bg-emerald-400/[0.12] px-4 py-2 text-xs font-semibold text-emerald-100 transition hover:bg-emerald-400/[0.2] sm:text-sm"
-        >
-          <Plus className="size-3.5" /> Nueva venta
+      <div className={`mt-3 grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:justify-center ${cajaCerrada ? "hidden" : ""}`}>
+        {/* Fila 1: Nueva venta | Nuevo gasto — Fila 2: Ingresar dinero | Retirar dinero.
+            Columna izquierda = lo que entra (verde), derecha = lo que sale (rojo). */}
+        <button type="button" onClick={onNuevaVenta} className="inline-flex h-12 items-center justify-center gap-2 rounded-full px-4 text-sm font-semibold transition hover:brightness-125 active:scale-[0.99] sm:min-w-[190px]" style={{ background: "rgba(16,185,129,0.10)", color: "#4ade80", boxShadow: "inset 0 0 0 1.5px rgba(74,222,128,.7), 0 0 20px rgba(34,197,94,.22)" }}>
+          <Plus className="size-4" /> Nueva venta
         </button>
-        <button
-          type="button"
-          onClick={onNuevoGasto}
-          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-rose-400/30 bg-rose-400/[0.12] px-4 py-2 text-xs font-semibold text-rose-100 transition hover:bg-rose-400/[0.2] sm:text-sm"
-        >
-          <Wallet className="size-3.5" /> Nuevo gasto
+        <button type="button" onClick={onNuevoGasto} className="inline-flex h-12 items-center justify-center gap-2 rounded-full px-4 text-sm font-semibold transition hover:brightness-125 active:scale-[0.99] sm:min-w-[190px]" style={{ background: "rgba(244,63,94,0.10)", color: "#fb7185", boxShadow: "inset 0 0 0 1.5px rgba(251,113,133,.7), 0 0 20px rgba(244,63,94,.25)" }}>
+          <Wallet className="size-4" /> Nuevo gasto
         </button>
-        <button
-          type="button"
-          onClick={() => setShowIngresoChoice(true)}
-          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.05] px-4 py-2 text-xs font-medium text-emerald-200 transition hover:bg-emerald-400/[0.12] sm:text-sm"
-        >
-          <Plus className="size-3.5" /> Ingresar dinero
+        <button type="button" onClick={() => setShowIngresoChoice(true)} className="inline-flex h-12 items-center justify-center gap-2 rounded-full px-4 text-sm font-semibold transition hover:brightness-125 active:scale-[0.99] sm:min-w-[190px]" style={{ background: "rgba(16,185,129,0.10)", color: "#4ade80", boxShadow: "inset 0 0 0 1.5px rgba(74,222,128,.7), 0 0 20px rgba(34,197,94,.22)" }}>
+          <Plus className="size-4" /> Ingresar dinero
         </button>
-        <button
-          type="button"
-          onClick={() => setMovType("retiro")}
-          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-rose-400/20 bg-rose-400/[0.05] px-4 py-2 text-xs font-medium text-rose-200 transition hover:bg-rose-400/[0.12] sm:text-sm"
-        >
-          <Minus className="size-3.5" /> Retirar dinero
+        <button type="button" onClick={() => setMovType("retiro")} className="inline-flex h-12 items-center justify-center gap-2 rounded-full px-4 text-sm font-semibold transition hover:brightness-125 active:scale-[0.99] sm:min-w-[190px]" style={{ background: "rgba(244,63,94,0.10)", color: "#fb7185", boxShadow: "inset 0 0 0 1.5px rgba(251,113,133,.7), 0 0 20px rgba(244,63,94,.25)" }}>
+          <Minus className="size-4" /> Retirar dinero
         </button>
       </div>
 
