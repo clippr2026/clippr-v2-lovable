@@ -1,6 +1,8 @@
 import * as React from "react";
 import { toast } from "sonner";
-import { Check, Clock3, Loader2, Pencil, UserX, X } from "lucide-react";
+import { Camera, Check, Clock3, Loader2, Pencil, UserX, X } from "lucide-react";
+import { getFichajesDeFecha, type FichajeHoyPersona } from "@/lib/fichaje";
+import { FichajeEvidenciaModal } from "@/components/dashboard/fichaje-evidencia-modal";
 import { supabase } from "@/integrations/supabase/client";
 import { puntualidadMessage } from "@/lib/puntualidad-text";
 import { dayWindowBA, fetchBusinessClosingTime, horaBA, saveSessionExit } from "@/lib/work-session-exit";
@@ -181,6 +183,18 @@ export function PresentismoRevisionPanel({
   onPendingChange?: (pendingNames: string[]) => void;
 }) {
   const [rows, setRows] = React.useState<Row[] | null>(null);
+  // Fotos del fichaje de cada persona (solo lectura), para verlas junto a su entrada y salida.
+  const [fichajes, setFichajes] = React.useState<Map<string, FichajeHoyPersona>>(new Map());
+  const [fotosDe, setFotosDe] = React.useState<FichajeHoyPersona | null>(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    void getFichajesDeFecha(businessId, branchId, date)
+      .then((r) => !cancelled && setFichajes(new Map(r.map((p) => [p.id, p]))))
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [businessId, branchId, date]);
   const [sessionByEmp, setSessionByEmp] = React.useState<Map<string, { id: string; clock_in_at: string; clock_out_at: string | null }>>(new Map());
   const [defaultOut, setDefaultOut] = React.useState("20:00");
   const [rules, setRules] = React.useState<LatenessRule[]>([]);
@@ -492,6 +506,18 @@ export function PresentismoRevisionPanel({
                     {live ? " · sin guardar" : isConfirmed ? " · confirmado" : ""}
                   </span>
                 )}
+                {(() => {
+                  const f = fichajes.get(row.employeeId);
+                  return f && (f.inSelfiePath || f.outSelfiePath) ? (
+                    <button
+                      type="button"
+                      onClick={() => setFotosDe(f)}
+                      className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-sky-200 ring-1 ring-white/10 hover:bg-white/5"
+                    >
+                      <Camera className="size-3.5" /> Ver fotos
+                    </button>
+                  ) : null;
+                })()}
                 {!isConfirmed && status && (
                   <button
                     type="button"
@@ -643,6 +669,7 @@ export function PresentismoRevisionPanel({
             ) : (
               confirmados.map(renderRow)
             )}
+            {fotosDe && <FichajeEvidenciaModal persona={fotosDe} onClose={() => setFotosDe(null)} />}
           </>
         );
       })()}

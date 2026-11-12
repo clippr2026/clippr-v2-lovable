@@ -2,7 +2,6 @@ import * as React from "react";
 import { Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { PresentismoRevisionPanel } from "@/components/professionals/presentismo-revision-panel";
-import { CierreFichajes } from "@/components/cash-register/cierre-fichajes";
 import { SalidasPendientesPanel } from "@/components/professionals/salidas-pendientes-panel";
 
 // El sistema de puntualidad rige desde el 29/10/2026 (ver
@@ -73,7 +72,6 @@ export function CierrePrerequisitosStep({
             Confirmá la puntualidad de cada profesional y cargá las salidas que falten. Después se habilita "Continuar".
           </p>
         </div>
-        <CierreFichajes businessId={businessId} fecha={date} />
         <div className="rounded-xl bg-white/[0.02] p-3.5 ring-1 ring-white/10">
           <div className="mb-3 flex items-center justify-between gap-2">
             <p className="text-sm font-semibold text-foreground">Entradas y salidas del día</p>
