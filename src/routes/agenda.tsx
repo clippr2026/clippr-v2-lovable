@@ -18,6 +18,7 @@ import {
   Users,
   CalendarSync,
   Trash2,
+  CreditCard,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { applyPromotionDiscount, resolvePromotionBadgeLabel, resolveServicePricing, type Promotion } from "@/lib/service-pricing";
@@ -50,7 +51,7 @@ import { DarkCalendar } from "@/components/agenda/dark-calendar";
 import { ClosuresModal } from "@/components/agenda/closures-button";
 import { useClosures, type Closure } from "@/hooks/use-closures";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 
 /**
@@ -4203,53 +4204,82 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
     ? applyPromotionDiscount(promoBasePrice, promoSnapshot as unknown as Promotion)
     : null;
 
+  const clientInitials = (appointment.client_name || "?")
+    .trim()
+    .split(/\s+/)
+    .map((w) => w[0])
+    .slice(0, 2)
+    .join("")
+    .toUpperCase();
+  const durationMin = Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000));
+  // Cambios sin guardar: el motivo de cancelación ya escrito. Con eso, Escape o un clic afuera no cierran.
+  const pendingChanges = confirmCancel && cancelReason.trim().length > 0;
+  const depositBadge =
+    appointment.deposit_status === "pending"
+      ? { label: "Seña pendiente", color: "#fcd34d", ring: "rgba(251,191,36,0.75)", bg: "rgba(251,191,36,0.10)" }
+      : appointment.deposit_status === "paid"
+        ? { label: "Seña paga", color: "#c4b5fd", ring: "rgba(167,139,250,0.75)", bg: "rgba(139,92,246,0.14)" }
+        : null;
+
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} modal={false}>
-      <SheetContent
-        side="right"
-        hideOverlay
-        hideClose
-        className="flex flex-col w-full sm:max-w-[372px] p-0 overflow-y-auto border-white/10 bg-[#08070f] shadow-[0_24px_80px_-24px_rgba(0,0,0,0.85)] data-[state=open]:duration-100 data-[state=closed]:duration-100 [background-image:radial-gradient(120%_40%_at_85%_0%,rgba(79,125,255,0.22),transparent_60%),radial-gradient(110%_45%_at_0%_100%,rgba(139,92,246,0.24),transparent_62%)]"
-        aria-describedby={undefined}
-      >
-        <SheetHeader className="relative shrink-0 px-4 pt-3 pb-3 border-b border-white/10 bg-white/[0.025] text-left space-y-0">
-          <button
-            type="button"
-            aria-label="Cerrar"
-            onClick={() => onOpenChange(false)}
-            className="absolute right-3 top-3.5 z-10 inline-flex h-7 w-7 items-center justify-center rounded-full text-white/55 hover:text-white hover:bg-white/[0.08] transition"
-          >
-            <X className="h-4 w-4" />
-          </button>
-          <div
-            className="pointer-events-none absolute -top-24 left-1/2 h-40 w-72 -translate-x-1/2 rounded-full opacity-20 blur-3xl"
-            style={{ background: meta.dot }}
-          />
-          <div
-            className="pointer-events-none absolute -top-10 left-4 h-24 w-32 rounded-full opacity-12 blur-2xl"
-            style={{ background: meta.dot }}
-          />
-          <div className="relative space-y-2.5">
-            <div className="min-w-0 pr-9">
-              <SheetTitle className="text-[22px] leading-tight font-display font-semibold tracking-tight truncate">
-                {appointment.status === "blocked"
-                  ? "Horario bloqueado"
-                  : appointment.client_name || "Sin cliente"}
-              </SheetTitle>
-            </div>
-
-            <div
-              className="inline-flex items-center gap-2 rounded-full px-3.5 py-1 text-[11px] font-bold uppercase tracking-[0.16em]"
-              style={statusNeonStyle(meta.dot, meta.border, meta.bg)}
+    <DialogPrimitive.Root open={open} onOpenChange={onOpenChange} modal={false}>
+      <DialogPrimitive.Portal>
+        {/* Fondo de la agenda, apenas oscurecido. Un clic acá cierra (salvo que haya algo escrito sin guardar). */}
+        <div className="fixed inset-0 z-50 bg-black/55 backdrop-blur-[1.5px]" aria-hidden />
+        <DialogPrimitive.Content
+          aria-describedby={undefined}
+          onEscapeKeyDown={(e) => {
+            if (pendingChanges) e.preventDefault();
+          }}
+          onInteractOutside={(e) => {
+            if (pendingChanges) e.preventDefault();
+          }}
+          className="fixed left-1/2 top-1/2 z-50 flex max-h-[92dvh] w-[calc(100vw-1.5rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-y-auto rounded-[28px] border border-violet-400/45 bg-[#08070f] shadow-[0_0_0_1px_rgba(139,92,246,0.35),0_30px_90px_-20px_rgba(0,0,0,0.9),0_0_60px_-18px_rgba(139,92,246,0.55)] sm:w-[min(94vw,max(560px,48vw))] sm:max-w-[900px] [background-image:radial-gradient(120%_45%_at_85%_0%,rgba(79,125,255,0.20),transparent_60%),radial-gradient(110%_50%_at_0%_100%,rgba(139,92,246,0.22),transparent_62%)]"
+        >
+          <div className="relative px-4 pb-3 pt-4 sm:px-6 sm:pt-5">
+            <button
+              type="button"
+              aria-label="Cerrar"
+              onClick={() => onOpenChange(false)}
+              className="absolute right-3 top-3 z-10 inline-flex h-10 w-10 items-center justify-center rounded-full border border-white/15 bg-white/[0.05] text-white/70 transition hover:bg-white/[0.1] hover:text-white sm:right-5 sm:top-4"
             >
-              <span
-                className="size-2.5 rounded-full"
-                style={{ background: meta.dot, boxShadow: `0 0 12px ${meta.dot}` }}
-              />
-              {statusLabel}
+              <X className="h-5 w-5" />
+            </button>
+            <div
+              className="pointer-events-none absolute -top-24 left-1/2 h-40 w-72 -translate-x-1/2 rounded-full opacity-20 blur-3xl"
+              style={{ background: meta.dot }}
+            />
+            <div className="relative flex items-center gap-4 pr-12">
+              <div
+                className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl text-xl font-bold text-white sm:h-[72px] sm:w-[72px]"
+                style={{
+                  background: "linear-gradient(135deg, oklch(0.7 0.22 245), oklch(0.65 0.27 305))",
+                  boxShadow: `0 0 0 1.5px ${withAlpha(meta.dot, 0.8)}, 0 0 22px ${withAlpha(meta.dot, 0.4)}`,
+                }}
+                aria-hidden
+              >
+                {appointment.status === "blocked" ? <CalendarOff className="h-7 w-7" /> : clientInitials}
+              </div>
+              <div className="min-w-0 flex-1 space-y-2">
+                <DialogPrimitive.Title className="truncate font-display text-[26px] font-semibold leading-tight tracking-tight sm:text-[30px]">
+                  {appointment.status === "blocked"
+                    ? "Horario bloqueado"
+                    : appointment.client_name || "Sin cliente"}
+                </DialogPrimitive.Title>
+                <div
+                  className="inline-flex items-center gap-2 rounded-full px-4 py-1 text-xs font-bold uppercase tracking-[0.16em]"
+                  style={statusNeonStyle(meta.dot, meta.border, meta.bg)}
+                >
+                  <span
+                    className="size-2.5 rounded-full"
+                    style={{ background: meta.dot, boxShadow: `0 0 12px ${meta.dot}` }}
+                  />
+                  {statusLabel}
+                </div>
+              </div>
             </div>
 
-            <div className="flex items-stretch gap-2">
+            <div className="relative mt-4 flex flex-wrap items-stretch gap-2.5">
               {[
                 { key: "wa", label: "WhatsApp", icon: <WhatsAppIcon className="h-5 w-5" />, color: "#4ade80", href: whatsappHref, show: Boolean(whatsappHref) },
                 { key: "mail", label: "Email", icon: <Mail className="h-5 w-5" />, color: "#e5e7eb", href: email ? `mailto:${email}` : undefined, show: Boolean(email) },
@@ -4258,10 +4288,10 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
               ]
                 .filter((b) => b.show)
                 .map((b) => {
-                  const cls = "flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-2xl py-2 text-[12px] font-medium text-white/90 transition hover:brightness-125 active:scale-[0.98]";
+                  const cls = "flex h-12 min-w-[112px] flex-1 items-center justify-center gap-2 rounded-full text-sm font-medium text-white/90 transition hover:brightness-125 active:scale-[0.98]";
                   const st: React.CSSProperties = {
                     background: "linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02))",
-                    boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.14), 0 12px 24px -20px rgba(139,92,246,0.9)",
+                    boxShadow: "inset 0 0 0 1px rgba(167,139,250,0.35), 0 12px 24px -20px rgba(139,92,246,0.9)",
                   };
                   const inner = (
                     <>
@@ -4277,24 +4307,23 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                 })}
             </div>
           </div>
-        </SheetHeader>
 
-        <div className="flex flex-1 flex-col justify-between gap-2.5 p-3 pt-3">
-          <div
-            className="rounded-3xl border p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)]"
-            style={{
-              background: meta.bg,
-              borderColor: meta.border,
-              boxShadow:
-                appointment.status === "confirmed"
-                  ? "0 0 0 1px rgba(167,139,250,.78), 0 18px 38px -26px rgba(139,92,246,.95), inset 0 1px 0 rgba(255,255,255,0.07)"
-                  : `0 0 0 1.5px ${meta.border}, 0 0 28px ${withAlpha(meta.dot, 0.32)}, 0 18px 34px -28px ${meta.dot}, inset 0 1px 0 rgba(255,255,255,0.06)`,
-            }}
-          >
-            <div className="space-y-2.5">
-              <div className="flex items-start gap-3">
+          <div className="flex flex-col gap-3.5 px-4 pb-5 pt-1 sm:px-6">
+            {/* Tarjeta del servicio: imagen, nombre y seña a la izquierda; precios a la derecha */}
+            <div
+              className="rounded-3xl border p-3.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] sm:p-4"
+              style={{
+                background: meta.bg,
+                borderColor: meta.border,
+                boxShadow:
+                  appointment.status === "confirmed"
+                    ? "0 0 0 1px rgba(167,139,250,.78), 0 18px 38px -26px rgba(139,92,246,.95), inset 0 1px 0 rgba(255,255,255,0.07)"
+                    : `0 0 0 1.5px ${meta.border}, 0 0 28px ${withAlpha(meta.dot, 0.32)}, 0 18px 34px -28px ${meta.dot}, inset 0 1px 0 rgba(255,255,255,0.06)`,
+              }}
+            >
+              <div className="flex items-center gap-3.5 sm:gap-4">
                 <div
-                  className="grid h-[68px] w-[68px] shrink-0 place-items-center rounded-2xl overflow-hidden"
+                  className="grid h-[76px] w-[76px] shrink-0 place-items-center overflow-hidden rounded-2xl sm:h-[88px] sm:w-[88px]"
                   style={{ boxShadow: `0 0 0 1.5px ${meta.dot}, 0 0 18px ${withAlpha(meta.dot, 0.45)}` }}
                 >
                   <ServiceImage
@@ -4302,16 +4331,32 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                     alt={appointment.service_name || "Servicio"}
                     position={serviceImagePosition}
                     className="h-full w-full rounded-2xl"
-                    fallback={<Scissors className="h-5 w-5 shrink-0" style={{ color: meta.dot }} />}
+                    fallback={<Scissors className="h-6 w-6 shrink-0" style={{ color: meta.dot }} />}
                   />
                 </div>
 
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 text-[17px] font-display font-semibold leading-tight text-white break-words">
-                      {appointment.service_name || "Servicio"}
+                <div className="min-w-0 flex-1 space-y-2">
+                  <div className="break-words font-display text-lg font-semibold leading-tight text-white sm:text-xl">
+                    {appointment.service_name || "Servicio"}
+                  </div>
+                  {depositBadge && (
+                    <div
+                      className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-sm font-semibold"
+                      style={{ color: depositBadge.color, background: depositBadge.bg, boxShadow: `inset 0 0 0 1.5px ${depositBadge.ring}` }}
+                    >
+                      <CreditCard className="h-4 w-4" />
+                      {depositBadge.label}
                     </div>
-                    {appointment.service_price ? (
+                  )}
+                  {promoSnapshot && (
+                    <div className="text-sm font-medium text-violet-300 truncate">
+                      {promoSnapshot.name}
+                    </div>
+                  )}
+                </div>
+
+                <div className="hidden h-16 w-px shrink-0 bg-white/15 sm:block" aria-hidden />
+                {appointment.service_price ? (
                   promoSnapshot ? (
                     <div className="shrink-0 text-right leading-none">
                       <div className="text-sm text-white/40 line-through tabular-nums">
@@ -4348,31 +4393,9 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                     </div>
                   )
                 ) : null}
-                  </div>
 
-                  <div className="my-2 h-px" style={{ background: withAlpha(meta.dot, 0.4) }} />
-
-                  <div className="flex min-w-0 items-center gap-2.5 text-[14px]">
-                    <div className="flex shrink-0 items-center gap-1.5 whitespace-nowrap text-white/85">
-                      <Clock3 className="h-4 w-4 shrink-0" style={{ color: meta.dot }} />
-                      <span className="tabular-nums">{fmtTime(start)} – {fmtTime(end)}</span>
-                    </div>
-                    <span className="h-4 w-px shrink-0 bg-white/20" aria-hidden />
-                    <div className="flex min-w-0 flex-1 items-center gap-1.5 text-white/90">
-                      <UserRound className="h-4 w-4 shrink-0" style={{ color: meta.dot }} />
-                      <span className="truncate">{employee?.full_name ?? employee?.name ?? "Sin asignar"}</span>
-                    </div>
-                  </div>
-                </div>
               </div>
-
-              {promoSnapshot && (
-                <div className="text-sm font-medium text-violet-300 truncate">
-                  {promoSnapshot.name}
-                </div>
-              )}
             </div>
-          </div>
 
           <DepositPanel
             appointmentId={appointment.id}
@@ -4382,23 +4405,37 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
             onCancelAppointment={(reason) => onCancel(appointment, reason)}
           />
 
-          {/* Fecha/hora real en que se creó la reserva (created_at) — no
-              confundir con el horario del turno (starts_at). Secundario y
-              discreto, sin tarjeta propia, para no competir visualmente con
-              la info principal de arriba. Funciona igual para turnos
-              creados desde la web pública o desde el panel: ambos escriben
-              la misma tabla `appointments`, cuyo created_at lo pone la
-              base de datos automáticamente en el momento del insert. */}
-          {appointment.created_at && (
-            <div className="flex items-center gap-2 px-1 text-[12px] text-white/45">
-              <CalendarIcon className="h-4 w-4 shrink-0" />
-              <span>Reserva creada:{" "}
-              {new Date(appointment.created_at).toLocaleDateString("es-AR", { weekday: "long" })}{" "}
-              {new Date(appointment.created_at).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}
-              {" · "}
-              {new Date(appointment.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}</span>
+            {/* Horario y duración · profesional · fecha de creación de la reserva */}
+            <div className="grid grid-cols-1 gap-3 rounded-2xl border border-white/10 bg-white/[0.025] px-4 py-3 sm:grid-cols-3 sm:gap-0 sm:divide-x sm:divide-white/10">
+              <div className="flex items-center gap-3 sm:pr-4">
+                <Clock3 className="h-5 w-5 shrink-0" style={{ color: meta.dot }} />
+                <div className="min-w-0 leading-tight">
+                  <div className="tabular-nums text-[15px] font-semibold text-white">{fmtTime(start)} – {fmtTime(end)}</div>
+                  <div className="text-xs text-white/55">({durationMin} min)</div>
+                </div>
+              </div>
+              <div className="flex items-center gap-3 sm:px-4">
+                <UserRound className="h-5 w-5 shrink-0" style={{ color: meta.dot }} />
+                <div className="min-w-0 leading-tight">
+                  <div className="text-xs text-white/55">Profesional</div>
+                  <div className="truncate text-[15px] font-semibold text-white">{employee?.full_name ?? employee?.name ?? "Sin asignar"}</div>
+                </div>
+              </div>
+              {appointment.created_at && (
+                <div className="flex items-center gap-3 sm:pl-4">
+                  <CalendarIcon className="h-5 w-5 shrink-0" style={{ color: meta.dot }} />
+                  <div className="min-w-0 leading-tight">
+                    <div className="text-xs text-white/55">Reserva creada</div>
+                    <div className="text-[15px] font-semibold text-white">
+                      {new Date(appointment.created_at).toLocaleDateString("es-AR", { weekday: "short" }).replace(".", "").replace(/^./, (c) => c.toUpperCase())}{" "}
+                      {new Date(appointment.created_at).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}
+                      {" · "}
+                      {new Date(appointment.created_at).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false })}
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
 
           {appointmentProducts.length > 0 && (
             <div
@@ -4476,40 +4513,64 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
               </Button>
             </div>
           ) : (
-            <div className="space-y-2.5">
-              {/* Acciones de estado (Confirmar / No asistió) — debajo de la
-                  tarjeta del turno y antes de ACCIONES: cambian el ESTADO
-                  del turno, a diferencia de Cobrar/Cancelar (operativas). */}
+            <div className="space-y-3">
               {(() => {
                 const status = appointment.status;
                 const depositDecides = appointment.deposit_status === "pending";
                 const showConfirm = !hasStarted && status === "pending" && !depositDecides;
                 const showNoShow =
                   hasStarted && status !== "cancelled" && status !== "no_show" && status !== "charged";
-                if (!showConfirm && !showNoShow) return null;
+                const showCobrar = status !== "charged" && status !== "cancelled" && status !== "no_show";
                 return (
-                  <div className="space-y-2">
-                    <div className="px-1 text-[10px] uppercase tracking-[0.18em] text-white/35">
-                      Estado
-                    </div>
-
-                    {showConfirm && (
-                      <button
-                        onClick={() => onChangeStatus(appointment, "confirmed")}
-                        className="w-full h-11 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110 active:scale-[0.99]"
-                        style={{
-                          background: "rgba(139, 92, 246, 0.16)",
-                          color: "#A78BFA",
-                          boxShadow:
-                            "inset 0 0 0 1px rgba(139, 92, 246, 0.42), 0 12px 26px -22px rgba(139, 92, 246, 0.8)",
-                        }}
-                      >
-                        <CheckCircle2 className="h-4 w-4" />
-                        Confirmar turno
-                      </button>
+                  <>
+                    {/* Primera fila: Confirmar turno · Cobrar turno (según el estado real del turno) */}
+                    {(showConfirm || showCobrar) && (
+                      <div className="grid grid-cols-2 gap-3">
+                        {showConfirm && (
+                          <button
+                            onClick={() => onChangeStatus(appointment, "confirmed")}
+                            className={cn(
+                              "flex h-12 items-center justify-center gap-2 rounded-full text-[15px] font-bold transition hover:brightness-110 active:scale-[0.99]",
+                              !showCobrar && "col-span-2",
+                            )}
+                            style={{
+                              background: "linear-gradient(135deg, rgba(34,211,238,.95), rgba(56,189,248,.8))",
+                              color: "#04202b",
+                              boxShadow: "0 16px 34px -20px rgba(34,211,238,.95), inset 0 0 0 1px rgba(255,255,255,.25)",
+                            }}
+                          >
+                            <CheckCircle2 className="h-5 w-5" />
+                            Confirmar turno
+                          </button>
+                        )}
+                        {showCobrar && (
+                          <button
+                            onClick={() => onCobrar(appointment)}
+                            className={cn(
+                              "flex h-12 items-center justify-center gap-2 rounded-full text-[15px] font-bold transition hover:brightness-110 active:scale-[0.99]",
+                              !showConfirm && "col-span-2",
+                            )}
+                            style={{
+                              background: showConfirm
+                                ? "rgba(16,185,129,0.10)"
+                                : "linear-gradient(135deg, rgba(16,185,129,.95), rgba(34,197,94,.72))",
+                              color: showConfirm ? "#4ade80" : "white",
+                              boxShadow: showConfirm
+                                ? "inset 0 0 0 1.5px rgba(74,222,128,.75), 0 0 22px rgba(34,197,94,.25)"
+                                : "0 16px 34px -22px rgba(34,197,94,.95), inset 0 0 0 1px rgba(255,255,255,.16)",
+                            }}
+                          >
+                            <DollarSign className="h-5 w-5" />
+                            Cobrar turno
+                          </button>
+                        )}
+                      </div>
                     )}
 
-                    {showNoShow && noShowAsk && (
+                    {/* No asistió (solo cuando el turno ya empezó): se pregunta por la seña si estaba paga */}
+                    {showNoShow && (
+                      <div className="space-y-2">
+                    {noShowAsk && (
                       <div
                         className="space-y-2 rounded-xl p-2.5"
                         style={{
@@ -4576,14 +4637,14 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                       </div>
                     )}
 
-                    {showNoShow && !noShowAsk && (
+                    {!noShowAsk && (
                       <button
                         onClick={() =>
                           appointment.deposit_status === "paid"
                             ? setNoShowAsk(true)
                             : onChangeStatus(appointment, "no_show")
                         }
-                        className="w-full h-10 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
+                        className="w-full h-11 rounded-full text-sm font-semibold flex items-center justify-center gap-2 transition hover:brightness-110"
                         style={{
                           background: "rgba(255,255,255,0.025)",
                           color: STATUS_META.no_show.dot,
@@ -4593,41 +4654,15 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                         No asistió
                       </button>
                     )}
-                  </div>
+
+                      </div>
+                    )}
+                  </>
                 );
               })()}
 
+              {/* Segunda fila: Reprogramar turno · Cancelar turno (o el estado final del turno) */}
               <div className="space-y-2">
-                <div className="px-1 text-[10px] uppercase tracking-[0.18em] text-white/35">
-                  Acciones
-                </div>
-
-                {/* CTA principal: Cobrar — sigue disponible aunque el turno
-                    ya haya pasado (isPast no lo oculta), por si el cliente
-                    igual se atendió y falta cobrarlo. Confirmar/No asistió
-                    ahora viven junto al estado, arriba. */}
-                {appointment.status !== "charged" &&
-                  appointment.status !== "cancelled" &&
-                  appointment.status !== "no_show" &&
-                  (() => {
-                    return (
-                      <button
-                        onClick={() => onCobrar(appointment)}
-                        className="w-full h-11 rounded-2xl text-sm font-bold flex items-center justify-center gap-2 transition hover:brightness-110 active:scale-[0.99]"
-                        style={{
-                          background:
-                            "linear-gradient(135deg, rgba(16,185,129,.95), rgba(34,197,94,.72))",
-                          color: "white",
-                          boxShadow:
-                            "0 16px 34px -22px rgba(34,197,94,.95), inset 0 0 0 1px rgba(255,255,255,.16)",
-                        }}
-                      >
-                        <DollarSign className="h-4 w-4" />
-                        Cobrar turno
-                      </button>
-                    );
-                  })()}
-
                 {/* Cancelar turno — acción operativa, solo mientras el turno
                     todavía no ARRANCÓ (hasStarted, misma hora de inicio que
                     Confirmar/No asistió — no la hora de fin de isPast): una
@@ -4805,14 +4840,14 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                       )}
                     </div>
                   ) : appointment.status !== "charged" ? (
-                    <div className="grid grid-cols-2 gap-2.5">
+                    <div className="grid grid-cols-2 gap-3">
                       {!isPast && (
                         <button
                           onClick={() => onEdit(appointment)}
-                          className="flex h-11 items-center justify-center gap-2 rounded-2xl text-sm font-semibold text-white/90 transition hover:brightness-125 active:scale-[0.99]"
+                          className="flex h-12 items-center justify-center gap-2 rounded-full text-sm font-semibold text-violet-100 transition hover:brightness-125 active:scale-[0.99]"
                           style={{
-                            background: "linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02))",
-                            boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.16)",
+                            background: "rgba(139,92,246,0.10)",
+                            boxShadow: "inset 0 0 0 1.5px rgba(167,139,250,0.65), 0 0 20px rgba(139,92,246,0.25)",
                           }}
                         >
                           <CalendarSync className="h-[18px] w-[18px]" />
@@ -4822,7 +4857,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                       <button
                         onClick={() => setConfirmCancel(true)}
                         className={cn(
-                          "flex h-11 items-center justify-center gap-2 rounded-2xl text-sm font-semibold transition hover:brightness-125 active:scale-[0.99]",
+                          "flex h-12 items-center justify-center gap-2 rounded-full text-sm font-semibold transition hover:brightness-125 active:scale-[0.99]",
                           isPast && "col-span-2",
                         )}
                         style={{
@@ -4854,8 +4889,9 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
             </div>
           )}
         </div>
-      </SheetContent>
-    </Sheet>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
   );
 });
 
