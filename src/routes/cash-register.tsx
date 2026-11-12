@@ -16,7 +16,6 @@ import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
 import { ServiceImage } from "@/components/ui/service-image";
 import { cn } from "@/lib/utils";
-import { CierreFichajes } from "@/components/cash-register/cierre-fichajes";
 import { useAuth } from "@/hooks/use-auth";
 import {
   type CierreMetodoDetalle,
@@ -7229,7 +7228,10 @@ function CierreMovimientosDetalleList({
   movimientos,
   adelantos,
   onRowClick,
+  ocultarFacturacion = false,
 }: {
+  /** En la revisión del cierre no se muestra "Facturación por profesional". */
+  ocultarFacturacion?: boolean;
   cobros: any[];
   // Ventas pendientes/parciales del día (ver cobrosPendientesSnapshot,
   // caja-cierre.ts): se identifican con su estado, sin medio de pago, y nunca
@@ -8027,7 +8029,7 @@ function CierreMovimientosDetalleList({
 
       {(filtro === "todos" || filtro === "servicios" || filtro === "productos") && (
         <div className="mt-4 space-y-3">
-          {profesionalFiltro === "todos" && facturacionPorProfesional.length > 0 && (
+          {!ocultarFacturacion && profesionalFiltro === "todos" && facturacionPorProfesional.length > 0 && (
             <div className="rounded-2xl border border-white/[0.075] bg-white/[0.025] p-4">
               <div>
                 <div className="text-[10px] uppercase tracking-wide text-white/40">
@@ -8488,20 +8490,24 @@ function CierreRevisionDetalle({
           jornada: los adelantos de "Caja del día" son un egreso incluido en
           el efectivo/cuenta esperados de arriba; los de "Fondos externos"
           se listan aparte y NO entran en el cierre. */}
-      <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 p-4">
-        <div className="mb-3 text-sm font-semibold text-white/85">Detalle de la jornada</div>
-        <CierreMovimientosDetalleList
-          cobros={snapshot.cobrosSnapshot}
-          cobrosAnulados={snapshot.cobrosAnuladosSnapshot}
-          cobrosPendientes={snapshot.cobrosPendientesSnapshot}
-          gastos={snapshot.gastosSnapshot}
-          movimientos={movimientosManuales}
-          adelantos={adelantosDetalle}
-          onRowClick={openDetail}
-        />
-      </div>
-
-      <CierreFichajes businessId={businessId} fecha={fecha} />
+      <details className="group rounded-xl bg-white/[0.025] ring-1 ring-white/10">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 p-4 text-sm font-semibold text-white/85">
+          <span>Ver movimientos</span>
+          <ChevronDown className="size-4 text-white/60 transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="px-4 pb-4">
+          <CierreMovimientosDetalleList
+            cobros={snapshot.cobrosSnapshot}
+            cobrosAnulados={snapshot.cobrosAnuladosSnapshot}
+            cobrosPendientes={snapshot.cobrosPendientesSnapshot}
+            gastos={snapshot.gastosSnapshot}
+            movimientos={movimientosManuales}
+            adelantos={adelantosDetalle}
+            onRowClick={openDetail}
+            ocultarFacturacion
+          />
+        </div>
+      </details>
 
       {detailPayment && (
         <DetailModal
