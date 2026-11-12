@@ -28,7 +28,6 @@ import { applyPromotionDiscount, resolvePromotionBadgeLabel, resolveServicePrici
 import { appendHistorialCobro, readHistorialCobro, syncHistorialFromDB, attributionLabel } from "@/lib/cobro-historial";
 import { ServiceImage } from "@/components/ui/service-image";
 import { DepositPanel } from "@/components/agenda/deposit-panel";
-import { SenasPendientesBar } from "@/components/senas/senas-pendientes-bar";
 import { useAuth } from "@/hooks/use-auth";
 import {
   useAgendaData,
@@ -1791,8 +1790,6 @@ function AgendaPage() {
             className="flex-1 justify-center"
           />
         </div>
-
-        <SenasPendientesBar businessId={data.businessId} onChanged={() => data.refresh()} />
 
         {/* Estados — mobile: 3 arriba y 2 abajo, cada fila centrada, sin scroll horizontal. */}
         <div className="flex flex-wrap justify-center gap-1.5 mb-2 sm:hidden">
