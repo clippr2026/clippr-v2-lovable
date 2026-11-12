@@ -8860,7 +8860,7 @@ function CierreCajaBtn({
                     title={senasBloquean ? "Revisá las señas pendientes antes de cerrar" : obsRequeridaFalta ? "Contá qué pasó con la diferencia antes de continuar" : undefined}
                     className="w-full inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm font-semibold bg-gradient-to-b from-blue-400 to-violet-500 text-white hover:brightness-105 disabled:opacity-50 transition-all"
                   >
-                    Confirmar cierre de caja
+                    Continuar
                   </button>
                 </>
               )}
@@ -9172,7 +9172,7 @@ function CerrarDiaAnteriorCard({
                   onClick={() => setPrereqStep(true)}
                   className="mt-4 h-10 w-full rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-4 text-sm font-extrabold text-emerald-300 transition hover:bg-emerald-400/15 disabled:opacity-50"
                 >
-                  {`Confirmar cierre de caja del ${fechaDDMMYYYY(selectedDate)}`}
+                  {`Continuar — cierre del ${fechaDDMMYYYY(selectedDate)}`}
                 </button>
               </>
             )}

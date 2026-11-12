@@ -58,6 +58,8 @@ export function CierrePrerequisitosStep({
   }, [salidasProg, salidasOtros, presentismoPending, decided]);
 
   const pendientes = (salidasProg?.length ?? 0) + (salidasOtros?.length ?? 0) + (presentismoPending?.length ?? 0);
+  // Una misma persona puede tener pendiente la puntualidad y la salida: se cuenta una sola vez.
+  const sinResolver = Array.from(new Set([...(presentismoPending ?? []), ...(salidasProg ?? []), ...(salidasOtros ?? [])]));
   const cargando = salidasProg === null || salidasOtros === null || presentismoPending === null;
 
   return (
@@ -77,7 +79,7 @@ export function CierrePrerequisitosStep({
             <p className="text-sm font-semibold text-foreground">Entradas y salidas del día</p>
             {pendientes > 0 ? (
               <span className="rounded-full bg-rose-400/10 px-2 py-0.5 text-[10px] font-semibold text-rose-300 ring-1 ring-rose-400/25">
-                {pendientes} sin resolver
+                {sinResolver.length} sin resolver
               </span>
             ) : (
               <span className="rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300 ring-1 ring-emerald-400/25">
@@ -85,14 +87,9 @@ export function CierrePrerequisitosStep({
               </span>
             )}
           </div>
-          {presentismoPending && presentismoPending.length > 0 && (
+          {sinResolver.length > 0 && (
             <p className="mb-3 text-xs text-rose-200/80">
-              Falta confirmar la puntualidad de: {presentismoPending.join(", ")}.
-            </p>
-          )}
-          {((salidasProg?.length ?? 0) + (salidasOtros?.length ?? 0)) > 0 && (
-            <p className="mb-3 text-xs text-rose-200/80">
-              Falta cargar la salida de: {[...(salidasProg ?? []), ...(salidasOtros ?? [])].join(", ")}.
+              Falta resolver: {sinResolver.join(", ")}.
             </p>
           )}
           {applies && profileId && (
