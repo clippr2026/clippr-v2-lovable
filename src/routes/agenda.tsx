@@ -1625,17 +1625,21 @@ function AgendaPage() {
           <button
             type="button"
             onClick={() => setProfFilterOpen((v) => !v)}
-            className="inline-flex shrink-0 sm:hidden items-center gap-1.5 rounded-xl bg-white/[0.04] px-3 py-2 text-xs font-medium text-foreground ring-1 ring-white/10 transition hover:bg-white/[0.07]"
+            className="inline-flex shrink-0 sm:hidden items-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-semibold text-white transition hover:brightness-125 active:translate-y-px active:brightness-95"
+            style={{
+              background: "linear-gradient(180deg, rgba(255,255,255,0.20), rgba(255,255,255,0.08))",
+              boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.28), inset 0 1px 0 rgba(255,255,255,0.30), 0 3px 8px -2px rgba(0,0,0,0.6)",
+            }}
           >
             {profFilterId ? (
-              <UserRound className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <UserRound className="h-3.5 w-3.5 shrink-0 text-white" />
             ) : (
-              <Users className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <Users className="h-3.5 w-3.5 shrink-0 text-white" />
             )}
             <span className="min-w-0 flex-1 truncate text-left">
               {profFilterId ? (data.employees.find((e) => e.id === profFilterId)?.full_name ?? "Profesional") : "Todos los profesionales"}
             </span>
-            <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform", profFilterOpen && "rotate-180")} />
+            <ChevronDown className={cn("h-3.5 w-3.5 shrink-0 text-white transition-transform", profFilterOpen && "rotate-180")} />
           </button>
           {profFilterOpen && (
             <>
