@@ -5019,9 +5019,9 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                           isPast && "col-span-2",
                         )}
                         style={{
-                          background: "rgba(244,63,94,0.10)",
-                          color: "#fb7185",
-                          boxShadow: "inset 0 0 0 1.5px rgba(251,113,133,0.7), 0 0 22px rgba(244,63,94,0.3)",
+                          background: "#26262e",
+                          color: "#d4d4d8",
+                          boxShadow: "inset 0 0 0 1.5px #71717a",
                         }}
                       >
                         <Trash2 className="h-[18px] w-[18px]" />
