@@ -445,7 +445,8 @@ export function PresentismoRevisionPanel({
 
   return (
     <div className="space-y-2.5">
-      {rows.map((row) => {
+      {/* Primero los que falta confirmar; los ya confirmados quedan abajo. */}
+      {[...rows].sort((x, y) => Number(Boolean(x.confirmation)) - Number(Boolean(y.confirmation))).map((row) => {
         const status = row.confirmation?.status ?? row.preview?.status ?? null;
         const lateMinutes = row.confirmation?.lateMinutes ?? row.preview?.lateMinutes ?? 0;
         const discount = row.confirmation?.discountAmountApplied ?? row.preview?.discountAmountRequested ?? 0;

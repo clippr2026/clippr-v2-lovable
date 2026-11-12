@@ -7818,26 +7818,29 @@ function CierreMovimientosDetalleList({
                         )}
                       </div>
                       {p.promocion && <div className="mt-1 text-[11px] text-violet-300/80">Promo: {p.promocion}</div>}
-                      <div className="mt-2.5 grid grid-cols-2 gap-x-3 gap-y-1.5 rounded-lg bg-white/[0.03] p-2.5">
-                        <div>
-                          <div className="text-[10px] uppercase tracking-wide text-white/35">Precio de lista</div>
-                          <div className={cn("tabular-nums", descuento > 0 ? "text-white/45 line-through decoration-white/20" : "text-white/60")}>
-                            {esSplitParcial ? "—" : money(precioLista)}
+                      {/* Resumen siempre visible: lo cobrado. El detalle (lista, descuento y propina) se despliega. */}
+                      <details className="mt-2 rounded-lg bg-white/[0.03] px-2.5 py-2" onClick={(e) => e.stopPropagation()}>
+                        <summary className="flex cursor-pointer list-none items-center justify-between gap-2">
+                          <span className="text-[10px] uppercase tracking-wide text-white/40">Cobrado · ver detalle</span>
+                          <span className="text-sm font-extrabold tabular-nums text-emerald-300">{money(montoMostrado)}</span>
+                        </summary>
+                        <div className="mt-2 grid grid-cols-3 gap-x-3 gap-y-1.5 border-t border-white/[0.06] pt-2">
+                          <div>
+                            <div className="text-[10px] uppercase tracking-wide text-white/35">Lista</div>
+                            <div className={cn("tabular-nums", descuento > 0 ? "text-white/45 line-through decoration-white/20" : "text-white/60")}>
+                              {esSplitParcial ? "—" : money(precioLista)}
+                            </div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] uppercase tracking-wide text-white/35">Descuento</div>
+                            <div className="tabular-nums text-amber-300/90">{esSplitParcial ? "—" : descuento > 0 ? `-${money(descuento)}` : "—"}</div>
+                          </div>
+                          <div>
+                            <div className="text-[10px] uppercase tracking-wide text-white/35">Propina</div>
+                            <div className="tabular-nums text-amber-200">{propinaMostrada > 0 ? money(propinaMostrada) : "—"}</div>
                           </div>
                         </div>
-                        <div>
-                          <div className="text-[10px] uppercase tracking-wide text-white/35">Descuento</div>
-                          <div className="tabular-nums text-amber-300/90">{esSplitParcial ? "—" : descuento > 0 ? `-${money(descuento)}` : "—"}</div>
-                        </div>
-                        <div>
-                          <div className="text-[10px] uppercase tracking-wide text-white/35">Cobrado</div>
-                          <div className="text-sm font-extrabold tabular-nums text-emerald-300">{money(montoMostrado)}</div>
-                        </div>
-                        <div>
-                          <div className="text-[10px] uppercase tracking-wide text-white/35">Propina</div>
-                          <div className="tabular-nums text-amber-200">{propinaMostrada > 0 ? money(propinaMostrada) : "—"}</div>
-                        </div>
-                      </div>
+                      </details>
                     </div>
                   );
                 })}
@@ -8762,13 +8765,28 @@ function CierreCajaBtn({
 
       {open && typeof document !== "undefined" && createPortal(
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 backdrop-blur-sm p-4">
-          <div className={cn("w-full rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden", confirmStep ? "max-w-lg" : "max-w-[min(96vw,1280px)]")}>
+          <div className={cn("w-full overflow-hidden rounded-[28px] border border-violet-400/45 bg-[#08070f] shadow-[0_0_0_1px_rgba(139,92,246,0.35),0_30px_90px_-20px_rgba(0,0,0,0.9),0_0_60px_-18px_rgba(139,92,246,0.55)] [background-image:radial-gradient(120%_45%_at_85%_0%,rgba(79,125,255,0.20),transparent_60%),radial-gradient(110%_50%_at_0%_100%,rgba(139,92,246,0.22),transparent_62%)]", confirmStep ? "max-w-lg" : "max-w-[min(96vw,1280px)]")}>
             <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-              <div>
+              <div className="min-w-0">
                 <h3 className="text-lg font-semibold">{confirmStep ? "Confirmar cierre de caja" : "Revisar cierre"}</h3>
                 <p className="text-xs text-muted-foreground mt-0.5">
                   Caja abierta desde {cajaAbiertaDesde}
                 </p>
+                {/* Pasos del cierre: solo indica dónde estás, no cambia el flujo. */}
+                <div className="mt-2 flex items-center gap-1.5 text-[11px] font-semibold">
+                  {[
+                    { n: 1, label: "Caja", on: !prereqStep && !confirmStep },
+                    { n: 2, label: "Personal", on: prereqStep },
+                    { n: 3, label: "Confirmar", on: confirmStep },
+                  ].map((st, i) => (
+                    <React.Fragment key={st.n}>
+                      {i > 0 && <span className="h-px w-3 bg-white/20" />}
+                      <span className={cn("rounded-full px-2.5 py-1 ring-1", st.on ? "bg-violet-500/20 text-white ring-violet-300/50" : "bg-white/[0.04] text-white/45 ring-white/10")}>
+                        {st.n}. {st.label}
+                      </span>
+                    </React.Fragment>
+                  ))}
+                </div>
               </div>
               <button
                 type="button"
