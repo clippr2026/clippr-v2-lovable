@@ -8,7 +8,8 @@
 // se aplica en un solo lugar y se ve igual en ambas.
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, Info, Loader2, Trash2, X } from "lucide-react";
+import { ChevronDown, Info, Loader2, MoreHorizontal, Trash2, X } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { money, paymentMethodLabel, realNote } from "./movimiento-format";
 import { normalizeCierreMethodKey } from "@/lib/caja-cierre";
@@ -861,17 +862,28 @@ export function MovRow({
           <div className="flex shrink-0 items-center gap-1">
             {verNotaButton}
             {onDelete ? (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete();
-                }}
-                disabled={deletingThis}
-                className="grid size-6 shrink-0 place-items-center rounded-lg text-white/40 transition hover:bg-rose-500/10 hover:text-rose-300 disabled:opacity-50"
-              >
-                <Trash2 className="size-3.5" />
-              </button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={(e) => e.stopPropagation()}
+                    disabled={deletingThis}
+                    aria-label="Más acciones"
+                    className="grid size-7 shrink-0 place-items-center rounded-full text-white/55 transition hover:bg-white/[0.08] hover:text-white disabled:opacity-50"
+                  >
+                    <MoreHorizontal className="size-4" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                  <DropdownMenuItem
+                    onSelect={() => onDelete()}
+                    className="text-rose-300 focus:text-rose-200"
+                  >
+                    <Trash2 className="mr-2 size-4" />
+                    Eliminar adelanto
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             ) : (
               clickable && (
                 <ChevronDown className={cn("size-3.5 shrink-0 transition-transform", expanded && "rotate-180")} />
@@ -897,17 +909,28 @@ export function MovRow({
             </span>
             {verNotaButton}
             {onDelete ? (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  onDelete();
-                }}
-                disabled={deletingThis}
-                className="grid size-6 shrink-0 place-items-center rounded-lg text-white/40 transition hover:bg-rose-500/10 hover:text-rose-300 disabled:opacity-50"
-              >
-                <Trash2 className="size-3.5" />
-              </button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    type="button"
+                    onClick={(e) => e.stopPropagation()}
+                    disabled={deletingThis}
+                    aria-label="Más acciones"
+                    className="grid size-7 shrink-0 place-items-center rounded-full text-white/55 transition hover:bg-white/[0.08] hover:text-white disabled:opacity-50"
+                  >
+                    <MoreHorizontal className="size-4" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" onClick={(e) => e.stopPropagation()}>
+                  <DropdownMenuItem
+                    onSelect={() => onDelete()}
+                    className="text-rose-300 focus:text-rose-200"
+                  >
+                    <Trash2 className="mr-2 size-4" />
+                    Eliminar adelanto
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             ) : (
               clickable && (
                 <ChevronDown className={cn("size-3.5 transition-transform", expanded && "rotate-180")} />
