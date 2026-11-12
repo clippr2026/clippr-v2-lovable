@@ -1,7 +1,7 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { toast } from "sonner";
-import { AgendaDrawer, AgendaCenteredModal } from "@/components/agenda/agenda-drawer";
+import { AgendaDrawer, AgendaCenteredModal, AgendaPremiumModal } from "@/components/agenda/agenda-drawer";
 import { DarkCalendar } from "@/components/agenda/dark-calendar";
 import {
   Select,
@@ -79,7 +79,8 @@ type Props = {
   // "drawer" (default) = panel lateral, igual que Agenda general.
   // "modal" = modal centrado en pantalla — usado por Mi Agenda, donde un
   // panel lateral no encaja con el resto del layout del profesional.
-  presentation?: "drawer" | "modal";
+  // "premium": ventana centrada con el estilo del detalle del turno (Agenda general).
+  presentation?: "drawer" | "modal" | "premium";
 };
 
 
@@ -362,7 +363,8 @@ export function AppointmentDialog({
     return (data as { id?: string } | null)?.id ?? null;
   }, [activeBranchId, businessId]);
 
-  const Wrapper = presentation === "modal" ? AgendaCenteredModal : AgendaDrawer;
+  const Wrapper =
+    presentation === "premium" ? AgendaPremiumModal : presentation === "modal" ? AgendaCenteredModal : AgendaDrawer;
   const isMobileView = useIsMobile();
   const isEdit = !!appointment?.id;
   const [busy, setBusy] = React.useState(false);

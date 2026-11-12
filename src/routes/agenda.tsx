@@ -2130,6 +2130,7 @@ function AgendaPage() {
           employeeSpecialDates={data.employeeSpecialDates}
           employeeServiceOverrides={data.employeeServiceOverrides}
           promotions={data.promotions}
+          presentation="premium"
         />
       )}
     </AppShell>

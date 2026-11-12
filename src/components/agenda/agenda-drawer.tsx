@@ -202,3 +202,8 @@ export function AgendaCenteredModal({
     document.body,
   );
 }
+
+/** AgendaCenteredModal con el estilo del detalle del turno (borde violeta neón, más ancho). */
+export function AgendaPremiumModal(props: Omit<React.ComponentProps<typeof AgendaCenteredModal>, "premium">) {
+  return <AgendaCenteredModal premium {...props} />;
+}
