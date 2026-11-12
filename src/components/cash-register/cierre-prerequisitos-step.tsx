@@ -118,11 +118,11 @@ export function CierrePrerequisitosStep({
             />
           )}
         </div>
-        <div className="flex gap-2">
+        <div className="sticky bottom-0 -mx-5 -mb-5 flex gap-2 border-t border-white/10 bg-[#08070f]/95 px-5 py-3 backdrop-blur">
           <button
             type="button"
             onClick={onVolver}
-            className="flex-1 rounded-xl border border-white/[0.09] bg-white/[0.04] px-4 py-3 text-sm font-semibold text-white/75 transition hover:bg-white/[0.08]"
+            className="h-12 flex-1 rounded-full border border-white/[0.12] bg-white/[0.04] px-4 text-sm font-semibold text-white/80 transition hover:bg-white/[0.08]"
           >
             Volver a revisar
           </button>
@@ -131,7 +131,7 @@ export function CierrePrerequisitosStep({
             onClick={onContinue}
             disabled={cargando || pendientes > 0}
             title={pendientes > 0 ? "Resolvé lo pendiente para continuar" : undefined}
-            className="flex-1 rounded-xl px-4 py-3 text-sm font-bold bg-gradient-to-b from-blue-400 to-violet-500 text-white transition-all hover:brightness-105 disabled:opacity-50"
+            className="h-12 flex-1 rounded-full bg-gradient-to-b from-blue-400 to-violet-500 px-4 text-sm font-bold text-white transition-all hover:brightness-105 disabled:opacity-50"
           >
             Continuar
           </button>

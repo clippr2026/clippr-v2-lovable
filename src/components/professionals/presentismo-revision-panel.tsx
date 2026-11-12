@@ -446,7 +446,8 @@ export function PresentismoRevisionPanel({
   return (
     <div className="space-y-2.5">
       {/* Primero los que falta confirmar; los ya confirmados quedan abajo. */}
-      {[...rows].sort((x, y) => Number(Boolean(x.confirmation)) - Number(Boolean(y.confirmation))).map((row) => {
+      {(() => {
+        const renderRow = (row: Row) => {
         const status = row.confirmation?.status ?? row.preview?.status ?? null;
         const lateMinutes = row.confirmation?.lateMinutes ?? row.preview?.lateMinutes ?? 0;
         const discount = row.confirmation?.discountAmountApplied ?? row.preview?.discountAmountRequested ?? 0;
@@ -626,7 +627,25 @@ export function PresentismoRevisionPanel({
             )}
           </div>
         );
-      })}
+        };
+        const pendientes = rows.filter((r) => !r.confirmation);
+        const confirmados = rows.filter((r) => r.confirmation);
+        return (
+          <>
+            {pendientes.map(renderRow)}
+            {confirmados.length > 0 && pendientes.length > 0 ? (
+              <details className="rounded-xl bg-white/[0.02] ring-1 ring-white/10">
+                <summary className="cursor-pointer px-3.5 py-2.5 text-sm font-semibold text-white/80">
+                  Ya confirmados ({confirmados.length})
+                </summary>
+                <div className="space-y-2.5 p-2.5 pt-0">{confirmados.map(renderRow)}</div>
+              </details>
+            ) : (
+              confirmados.map(renderRow)
+            )}
+          </>
+        );
+      })()}
     </div>
   );
 }
