@@ -484,6 +484,8 @@ function AgendaPage() {
     breakStart: string;
     breakEnd: string;
     saving: boolean;
+    // Bloqueo que se está editando (abre el editor con "Bloquear horas" activado).
+    editBlock?: { id: string; start: string; end: string; label: string };
   } | null>(null);
   // Confirmación "el horario del local está cerrado en este rango — ¿habilitar
   // igual?" — solo aparece cuando el horario especial elegido para ESE
@@ -733,6 +735,32 @@ function AgendaPage() {
     if (!specialEditor?.employeeId || !data.businessId) {
       toast.error("Seleccioná un profesional para bloquear horario.");
       return false;
+    }
+    if (specialEditor.editBlock) {
+      const r = ranges[0];
+      const dk = toDateKey(specialEditor.date);
+      const [sh, sm] = r.start.split(":");
+      const [eh, em] = r.end.split(":");
+      const startsAt = combineLocalDateTime(dk, sh, sm);
+      const endsAt = combineLocalDateTime(dk, eh, em);
+      const { error } = await supabase
+        .from("appointments")
+        .update({
+          client_name: label || "Horario bloqueado",
+          employee_id: specialEditor.employeeId,
+          starts_at: startsAt.toISOString(),
+          ends_at: endsAt.toISOString(),
+          duration_min: Math.max(15, Math.round((endsAt.getTime() - startsAt.getTime()) / 60_000)),
+          notes: label ? `Horario bloqueado: ${label}` : "Horario bloqueado desde Agenda",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", specialEditor.editBlock.id);
+      if (error) {
+        toast.error("No se pudo actualizar el bloqueo. Probá de nuevo.");
+        return false;
+      }
+      data.refresh();
+      return true;
     }
     const dateKey = toDateKey(specialEditor.date);
     const rows = [];
@@ -1045,7 +1073,16 @@ function AgendaPage() {
   }, [search.turno, data.appointments]);
   const openEdit = (a: Appointment) => {
     if (a.status === "blocked") {
-      openBlockDialog(a.employee_id ?? null, new Date(a.starts_at), a);
+      // Editar un bloqueo abre Horario especial con "Bloquear horas" activado y los datos de ese bloqueo.
+      const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+      const startD = new Date(a.starts_at);
+      const endD = a.ends_at ? new Date(a.ends_at) : new Date(startD.getTime() + Math.max(15, Number(a.duration_min ?? 60)) * 60_000);
+      const label = (a.client_name ?? "").trim();
+      setActiveDrawer(null);
+      setSpecialEditor({
+        ...buildSpecialEditorState(a.employee_id ?? null, startD),
+        editBlock: { id: a.id, start: hhmm(startD), end: hhmm(endD), label: label === "Horario bloqueado" ? "" : label },
+      });
       return;
     }
     // Turno pasado: no editable (sin aviso).
@@ -2140,6 +2177,7 @@ function AgendaPage() {
             selectedEmployeeId={specialEditor.employeeId}
             onSelectEmployee={changeSpecialEmployee}
             onBlocks={saveBlocksFromSpecial}
+            editBlock={specialEditor.editBlock ?? null}
             onSave={saveSpecialFromAgenda}
             onCancel={() => setSpecialEditor(null)}
           />

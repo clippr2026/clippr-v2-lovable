@@ -1,6 +1,6 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { Plus, X, Pencil } from "lucide-react";
+import { Plus, X, Pencil, Coffee } from "lucide-react";
 import { toast } from "sonner";
 import { DarkCalendar } from "@/components/agenda/dark-calendar";
 import { toDateKey, type SpecialDateMap, type DaySchedule } from "@/components/agenda/use-agenda-data";
@@ -148,6 +148,66 @@ function SpecialDayFields({
   );
 }
 
+// Versión "tarjetas" del editor de una fecha (Agenda / Mi Panel): el horario disponible y el
+// descanso van en tarjetas separadas, con "Desde ... hasta ...".
+const CARD_GLOW =
+  "[background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.12),transparent_65%)]";
+
+function SpecialDayCards({
+  state,
+  onChange,
+  allowBreak,
+  closedLabel,
+}: {
+  state: SpecialFormState;
+  onChange: (patch: Partial<SpecialFormState>) => void;
+  allowBreak: boolean;
+  closedLabel: string;
+}) {
+  return (
+    <>
+      <div className={"mt-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 " + CARD_GLOW}>
+        <div className="flex items-center gap-2.5 py-0.5">
+          <Toggle on={state.available} onChange={(v) => onChange({ available: v })} />
+          <span className="text-sm font-semibold">{state.available ? "Horario disponible" : closedLabel}</span>
+        </div>
+        {state.available && (
+          <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+            <span className="w-12 shrink-0 text-xs text-muted-foreground">Desde</span>
+            <input type="time" value={state.start} onChange={(e) => onChange({ start: e.target.value })} className={timeCls} />
+            <span className="text-xs text-muted-foreground">hasta</span>
+            <input type="time" value={state.end} onChange={(e) => onChange({ end: e.target.value })} className={timeCls} />
+          </div>
+        )}
+      </div>
+
+      {allowBreak && state.available && (
+        <div
+          className="mt-3 rounded-2xl border border-cyan-300/25 bg-cyan-400/[0.05] p-4 shadow-[0_0_28px_-14px_rgba(34,211,238,0.55)] [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(34,211,238,0.14),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.10),transparent_65%)]"
+        >
+          <div className="flex items-center justify-between gap-2.5">
+            <div className="flex items-center gap-2.5 py-0.5">
+              <Toggle on={state.breakEnabled} onChange={(v) => onChange({ breakEnabled: v })} />
+              <span className="text-sm font-semibold">Horario de descanso</span>
+            </div>
+            <span className="grid h-9 w-9 place-items-center rounded-xl border border-cyan-300/30 bg-cyan-400/10 text-cyan-200">
+              <Coffee className="h-[18px] w-[18px]" />
+            </span>
+          </div>
+          {state.breakEnabled && (
+            <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">
+              <span className="w-12 shrink-0 text-xs text-muted-foreground">Desde</span>
+              <input type="time" value={state.breakStart} onChange={(e) => onChange({ breakStart: e.target.value })} className={timeCls} />
+              <span className="text-xs text-muted-foreground">hasta</span>
+              <input type="time" value={state.breakEnd} onChange={(e) => onChange({ breakEnd: e.target.value })} className={timeCls} />
+            </div>
+          )}
+        </div>
+      )}
+    </>
+  );
+}
+
 // Valida desde/hasta y descanso. Devuelve un mensaje de error o null.
 function validateSpecial(state: SpecialFormState, allowBreak: boolean): string | null {
   if (!state.available) return null;
@@ -181,6 +241,7 @@ export function SpecialDayEditor({
   selectedEmployeeId,
   onSelectEmployee,
   onBlocks,
+  editBlock,
   onSave,
   onCancel,
 }: {
@@ -194,15 +255,17 @@ export function SpecialDayEditor({
   onSelectEmployee?: (employeeId: string) => void;
   /** Si se pasa, el editor muestra el interruptor "Bloquear horas" (uno o varios tramos del mismo día). Devuelve true si se guardó. */
   onBlocks?: (ranges: { start: string; end: string }[], label: string) => Promise<boolean>;
+  /** Si se pasa, el editor abre con "Bloquear horas" activado y con los datos de ese bloqueo (se actualiza en vez de crear uno nuevo). */
+  editBlock?: { start: string; end: string; label: string } | null;
   onSave: (day: DaySchedule) => void;
   onCancel: () => void;
 }) {
   const [state, setState] = React.useState<SpecialFormState>(() => specialStateFromDay(value));
   const patch = (p: Partial<SpecialFormState>) => setState((s) => ({ ...s, ...p }));
 
-  const [blockOn, setBlockOn] = React.useState(false);
-  const [blocks, setBlocks] = React.useState<{ start: string; end: string }[]>([]);
-  const [blockLabel, setBlockLabel] = React.useState("");
+  const [blockOn, setBlockOn] = React.useState(Boolean(editBlock));
+  const [blocks, setBlocks] = React.useState<{ start: string; end: string }[]>(editBlock ? [{ start: editBlock.start, end: editBlock.end }] : []);
+  const [blockLabel, setBlockLabel] = React.useState(editBlock?.label ?? "");
   const [busy, setBusy] = React.useState(false);
 
   const plusHour = (time: string) => {
@@ -251,8 +314,10 @@ export function SpecialDayEditor({
       setBusy(false);
       if (!ok) return;
       // Ya quedaron guardados: si el guardado del horario pide confirmación, no se vuelven a crear.
-      setBlockOn(false);
-      setBlocks([]);
+      if (!editBlock) {
+        setBlockOn(false);
+        setBlocks([]);
+      }
     }
     onSave(buildSpecialDay(state, allowBreak));
   };
@@ -301,9 +366,7 @@ export function SpecialDayEditor({
           </label>
         )}
 
-        <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.12),transparent_65%)]">
-          <SpecialDayFields state={state} onChange={patch} allowBreak={allowBreak} closedLabel={closedLabel} />
-        </div>
+        <SpecialDayCards state={state} onChange={patch} allowBreak={allowBreak} closedLabel={closedLabel} />
 
         {/* Bloquear horas: interruptor con uno o varios tramos "desde / hasta" del mismo día. */}
         {onBlocks && (
@@ -341,6 +404,7 @@ export function SpecialDayEditor({
                     )}
                   </div>
                 ))}
+                {!editBlock && (
                 <button
                   type="button"
                   onClick={addBlock}
@@ -349,6 +413,7 @@ export function SpecialDayEditor({
                   <Plus className="h-4 w-4" />
                   Agregar otro horario
                 </button>
+                )}
               </div>
             )}
           </div>
