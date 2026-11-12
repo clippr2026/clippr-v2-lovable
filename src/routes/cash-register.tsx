@@ -5647,12 +5647,12 @@ function ProfesionalesTab({
                 arrancar con "Primera liquidación"/fechas sueltas antes
                 de elegir a alguien confunde más que ayuda. */}
             {selectedRow && (
-              <div className="inline-flex w-full flex-col items-center gap-1 rounded-2xl border border-white/[0.10] bg-white/[0.055] px-3.5 py-2.5 text-center ring-1 ring-white/[0.07] sm:w-auto">
-                <span className="flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-white/45">
+              <div className="inline-flex w-full items-center justify-between gap-2 rounded-2xl border border-violet-400/20 bg-white/[0.03] px-3.5 py-2.5 sm:w-auto" style={{ backgroundImage: CLIPPR_CARD_GLOW }}>
+                <span className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-white/70">
                   <CalendarDays className="size-3.5" />
-                  Período actual
+                  Período
                 </span>
-                <div className="flex max-w-full flex-wrap items-center justify-center gap-x-2 gap-y-0.5">
+                <div className="flex min-w-0 flex-wrap items-center justify-end gap-x-2 gap-y-0.5">
                 <span className="break-words text-xs font-semibold text-white">
                   {periodoActualLabel.desde}
                 </span>
@@ -5777,23 +5777,14 @@ function ProfesionalesTab({
                   junto a "Pagar" en la barra de Total a pagar. No se tocó
                   StatCard (compartido con Panel del profesional, que no
                   tiene botones) para no arriesgar su layout ahí. */}
-              <div className="col-span-2 flex items-center justify-between gap-2 rounded-2xl border border-rose-400/18 bg-rose-400/[0.055] px-3.5 py-2.5 text-rose-300 shadow-[0_0_28px_rgba(251,113,133,0.10)] sm:col-span-1">
-                <div className="min-w-0">
-                  <div className="flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.16em] text-rose-200/70">
-                    <span>Adelantos</span>
-                    <InfoPopover text={ADELANTOS_INFO_TEXT} />
-                  </div>
-                  <div className="mt-0.5 text-lg font-bold tabular-nums">
-                    {liquidarPendingAdvances > 0 ? `−${money(liquidarPendingAdvances)}` : money(0)}
-                  </div>
+              <div className="rounded-2xl border border-rose-400/25 bg-rose-400/[0.055] px-3.5 py-2.5 text-rose-300 shadow-[0_0_28px_rgba(251,113,133,0.10)]" style={{ backgroundImage: "radial-gradient(110% 120% at 100% 0%, rgba(244,63,94,.14), transparent 62%)" }}>
+                <div className="flex items-center gap-1 text-xs font-semibold text-white/75">
+                  <span>Adelantos</span>
+                  <InfoPopover text={ADELANTOS_INFO_TEXT} />
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setAdelantoModalOpen(true)}
-                  className="shrink-0 rounded-xl bg-rose-500 px-3 py-2 text-xs font-bold text-white shadow-[0_0_18px_rgba(244,63,94,0.26)] transition hover:brightness-110"
-                >
-                  Adelantar
-                </button>
+                <div className="mt-0.5 text-lg font-bold tabular-nums">
+                  {liquidarPendingAdvances > 0 ? `−${money(liquidarPendingAdvances)}` : money(0)}
+                </div>
               </div>
             </div>
 
@@ -5803,24 +5794,32 @@ function ProfesionalesTab({
                 en la tarjeta Adelantos (ver arriba), no acá. sticky: queda
                 siempre visible arriba a la derecha aunque se haga scroll
                 en la lista de abajo. */}
-            <div className="sticky top-0 z-20 flex items-center gap-3 rounded-2xl border border-emerald-400/25 bg-emerald-400/[0.07] px-4 py-2.5 shadow-[0_0_28px_rgba(16,185,129,0.10)] backdrop-blur-xl lg:min-w-[300px]">
-              <div className="min-w-0 flex-1">
-                <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-200/70">
-                  Total a pagar
+            <div className="flex flex-col gap-2 lg:min-w-[300px]">
+              <div
+                className="sticky top-0 z-20 flex items-center gap-3 rounded-2xl border border-emerald-400/35 bg-emerald-400/[0.07] px-4 py-3 shadow-[0_0_30px_-12px_rgba(16,185,129,0.55)] backdrop-blur-xl"
+                style={{ backgroundImage: "radial-gradient(110% 120% at 100% 0%, rgba(16,185,129,.20), transparent 62%)" }}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-semibold text-white/75">Total a pagar</div>
+                  <div className="mt-0.5 text-2xl font-bold tabular-nums text-emerald-300">
+                    {money(Math.max(liquidarBaseTotal, 0))}
+                  </div>
                 </div>
-                <div className="mt-0.5 text-xl font-bold tabular-nums text-emerald-300 sm:text-2xl">
-                  {money(Math.max(liquidarBaseTotal, 0))}
-                </div>
-              </div>
-              <div className="flex shrink-0 gap-2">
                 <button
                   type="button"
                   onClick={() => openLiquidarModal(selectedRow)}
-                  className="rounded-xl bg-emerald-500 px-3 py-2 text-xs font-bold text-white shadow-[0_0_18px_rgba(16,185,129,0.28)] transition hover:brightness-110"
+                  className="h-11 shrink-0 rounded-full bg-emerald-500 px-7 text-sm font-bold text-white shadow-[0_0_18px_rgba(16,185,129,0.35)] transition hover:brightness-110"
                 >
                   Pagar
                 </button>
               </div>
+              <button
+                type="button"
+                onClick={() => setAdelantoModalOpen(true)}
+                className="h-10 self-end rounded-full border border-rose-400/35 bg-rose-400/10 px-5 text-sm font-semibold text-rose-200 transition hover:bg-rose-400/15"
+              >
+                + Registrar adelanto
+              </button>
             </div>
           </div>
         )}
@@ -6237,35 +6236,30 @@ function ProfesionalesTab({
                   onKeyDown={(e) => {
                     if (e.key === "Enter") selectEmployee(r.id);
                   }}
-                  className="flex cursor-pointer flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2xl border border-violet-400/20 bg-white/[0.03] px-4 py-3 transition hover:bg-white/[0.05]"
+                  className="cursor-pointer rounded-2xl border border-violet-400/20 bg-white/[0.03] px-4 py-3 transition hover:bg-white/[0.05]"
                   style={{ backgroundImage: CLIPPR_CARD_GLOW }}
                 >
-                  <div className="min-w-[140px] flex-1">
-                    <div className="truncate text-sm font-semibold text-white/90">{r.name}</div>
-                    <div className="mt-0.5 flex flex-wrap gap-x-3 text-[11px] text-white/45">
-                      <span>Comisiones {money(r.commissions)}</span>
-                      {r.tips > 0 && <span>Propinas {money(r.tips)}</span>}
-                      {r.advances > 0 && <span className="text-rose-300/80">Adelantos −{money(r.advances)}</span>}
-                      {r.presentismo !== 0 && (
-                        <span className={r.presentismo > 0 ? "text-rose-300/80" : "text-emerald-300/80"}>
-                          Puntualidad {r.presentismo > 0 ? "−" : "+"}
-                          {money(Math.abs(r.presentismo))}
-                        </span>
-                      )}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0 truncate text-base font-semibold text-white">{r.name}</div>
+                    <div className={cn("shrink-0 text-xl font-bold tabular-nums", r.total > 0 ? "text-emerald-300" : "text-white/40")}>
+                      {money(Math.max(r.total, 0))}
                     </div>
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <div className="text-xs font-semibold text-white/55">A pagar</div>
-                      <div
-                        className={cn(
-                          "text-base font-bold tabular-nums",
-                          r.total > 0 ? "text-emerald-300" : "text-white/40",
-                        )}
-                      >
-                        {money(Math.max(r.total, 0))}
-                      </div>
-                    </div>
+                  <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-white/55">
+                    <span>Comisiones {money(r.commissions)}</span>
+                    {r.tips > 0 && <span>Propinas {money(r.tips)}</span>}
+                    {r.advances > 0 && <span className="text-rose-300/90">Adelantos −{money(r.advances)}</span>}
+                    {r.presentismo !== 0 && (
+                      <span className={r.presentismo > 0 ? "text-rose-300/90" : "text-emerald-300/90"}>
+                        Puntualidad {r.presentismo > 0 ? "−" : "+"}
+                        {money(Math.abs(r.presentismo))}
+                      </span>
+                    )}
+                  </div>
+                  <div className="mt-2.5 flex items-center justify-between gap-3">
+                    <span className="inline-flex items-center gap-1 text-sm font-medium text-white/65">
+                      Ver detalle <ChevronRight className="size-4" />
+                    </span>
                     {r.total > 0 && (
                       <button
                         type="button"
@@ -6274,7 +6268,7 @@ function ProfesionalesTab({
                           selectEmployee(r.id);
                           setLiquidarModalOpen(true);
                         }}
-                        className="h-10 rounded-full bg-emerald-500 px-5 text-sm font-bold text-white shadow-[0_0_18px_rgba(16,185,129,0.35)] transition hover:brightness-110"
+                        className="h-10 rounded-full bg-emerald-500 px-6 text-sm font-bold text-white shadow-[0_0_18px_rgba(16,185,129,0.35)] transition hover:brightness-110"
                       >
                         Pagar
                       </button>
