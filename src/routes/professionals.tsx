@@ -77,6 +77,7 @@ import { money, displayResponsable, isRunEffectivelySettled } from "@/components
 import { advanceMethodLabel, advanceOriginLabel } from "@/lib/advance-origin";
 import { HistorialTabs } from "@/components/professionals/historial-tabs";
 import { AgendaCenteredModal } from "@/components/agenda/agenda-drawer";
+import { SlotScaleSelect, readStoredSlotMinutes, SLOT_STORAGE_KEY, type SlotMinutes } from "@/components/agenda/slot-scale-select";
 import { HorarioEspecialPanel } from "@/components/professionals/horario-especial-panel";
 import type { EmployeeCommissionMap } from "@/lib/service-pricing";
 import { cancelAppointment } from "@/components/agenda/use-agenda-data";
@@ -1397,6 +1398,20 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
     [dayBounds.startHour, dayBounds.endHour],
   );
 
+  const [slotMinutes, setSlotMinutes] = React.useState<SlotMinutes>(() => readStoredSlotMinutes());
+  React.useEffect(() => {
+    try {
+      window.localStorage.setItem(SLOT_STORAGE_KEY, String(slotMinutes));
+    } catch {
+      /* sin almacenamiento: la escala solo dura esta sesión */
+    }
+  }, [slotMinutes]);
+  const timelineSlots = React.useMemo(() => {
+    const out: number[] = [];
+    for (let m = dayBounds.startHour * 60; m <= dayBounds.endHour * 60; m += slotMinutes) out.push(m);
+    return out;
+  }, [dayBounds.startHour, dayBounds.endHour, slotMinutes]);
+
   const minutesFromDayStart = (value: string) => Math.max(0, minutesOfDayFromISO(value) - dayBounds.startHour * 60);
   const getBlockTop = (value: string) => (minutesFromDayStart(value) / 60) * HOUR_HEIGHT;
   const getTurnoEndMin = (t: import("@/hooks/use-professionals-data").ProfTurno) => {
@@ -1661,19 +1676,18 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
             style={{ height: timelineHeight }}
             onClick={handleTimelineClick}
           >
-            {timelineHours.map((hour) => (
+            {/* Escala de horarios (mismo botón y misma preferencia que la Agenda): cada línea es un casillero. */}
+            <div className="absolute left-0 top-0 z-[6] flex h-[36px] w-[56px] items-center justify-center sm:w-[84px]" onClick={(e) => e.stopPropagation()}>
+              <SlotScaleSelect value={slotMinutes} onChange={setSlotMinutes} className="h-7 w-9 sm:w-[50px]" />
+            </div>
+            {timelineSlots.map((min) => (
               <div
-                key={hour}
-                className="absolute left-0 right-0 border-t border-white/[0.065]"
-                style={{ top: TIMELINE_TOP_OFFSET + (hour - dayBounds.startHour) * HOUR_HEIGHT }}
+                key={min}
+                className={cn("absolute left-0 right-0 border-t", min % 60 === 0 ? "border-white/[0.065]" : "border-white/[0.03]")}
+                style={{ top: TIMELINE_TOP_OFFSET + ((min - dayBounds.startHour * 60) / 60) * HOUR_HEIGHT }}
               >
-                {/* Mobile: más angosto (48px), más fino (font-thin), más
-                    apagado (white/20) y centrado dentro de su franja horaria
-                    (top-10 ≈ mitad de HOUR_HEIGHT=92px) — referencia de
-                    fondo, no protagonista. Desktop (sm+) sin cambios: pegado
-                    a la línea de la hora, como siempre. */}
-                <div className="absolute left-2 top-10 sm:left-5 sm:top-auto sm:-top-2.5 text-[10px] sm:text-sm font-thin sm:font-normal text-white/20 sm:text-white/50 tabular-nums">
-                  {String(hour).padStart(2, "0")}:00
+                <div className="absolute left-2 top-1.5 sm:left-5 sm:top-auto sm:-top-2.5 text-[10px] sm:text-sm font-thin sm:font-normal text-white/25 sm:text-white/50 tabular-nums">
+                  {minToHHMM(min)}
                 </div>
               </div>
             ))}

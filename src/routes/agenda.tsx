@@ -48,6 +48,7 @@ import {
   notifyRescheduleEmail,
 } from "@/components/agenda/use-agenda-data";
 import { AppointmentDialog } from "@/components/agenda/appointment-dialog";
+import { SlotScaleSelect } from "@/components/agenda/slot-scale-select";
 import { SpecialDayEditor, findScheduleConflict } from "@/components/settings/special-hours-editor";
 import { AgendaCenteredModal, AgendaDrawer } from "@/components/agenda/agenda-drawer";
 import { DarkCalendar } from "@/components/agenda/dark-calendar";
@@ -3198,26 +3199,7 @@ const DayView = React.memo(function DayView({
             )}
             style={{ height: AGENDA_HEADER_PX }}
           >
-            <label
-              className="relative flex h-8 w-[50px] items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] text-foreground/80 shadow-[0_10px_24px_-18px_rgba(0,0,0,0.9)] hover:bg-white/[0.07] transition"
-              title="Escala de horarios"
-            >
-              <Clock3 className="h-4 w-4 pointer-events-none" />
-              <select
-                aria-label="Escala de horarios"
-                value={slotMinutes}
-                onChange={(event) =>
-                  setSlotMinutes(Number(event.target.value) as (typeof AGENDA_SLOT_OPTIONS)[number])
-                }
-                className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-              >
-                {AGENDA_SLOT_OPTIONS.map((minutes) => (
-                  <option key={minutes} value={minutes}>
-                    {minutes} minutos
-                  </option>
-                ))}
-              </select>
-            </label>
+            <SlotScaleSelect value={slotMinutes} onChange={setSlotMinutes} />
           </div>
           {shouldVirtualizeColumns && <div aria-hidden="true" />}
           {renderedColumns.map(({ e }) => {
