@@ -1516,7 +1516,7 @@ function AgendaPage() {
               >
                 <span
                   className="h-2.5 w-2.5 rounded-full"
-                  style={{ background: "oklch(0.82 0.18 210)" }}
+                  style={{ background: "#4f7dff" }}
                 />
                 <span className="opacity-85">Ocupación</span>
                 <span className="text-lg font-bold leading-none tabular-nums">{localOccupancy}%</span>
@@ -3168,7 +3168,7 @@ const DayView = React.memo(function DayView({
                     <span
                       className="h-2 w-2 rounded-full"
                       style={{
-                        background: occupancyPct !== null ? "oklch(0.82 0.18 210)" : "oklch(0.65 0.025 270)",
+                        background: occupancyPct !== null ? "#4f7dff" : "oklch(0.65 0.025 270)",
                       }}
                     />
                     {occupancyPct === null ? "Sin horario" : `Ocupación ${occupancyPct}%`}
