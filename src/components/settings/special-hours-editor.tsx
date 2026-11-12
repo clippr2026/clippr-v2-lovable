@@ -285,11 +285,7 @@ export function SpecialDayEditor({
   onCancel: () => void;
 }) {
   const [state, setState] = React.useState<SpecialFormState>(() => specialStateFromDay(value));
-  const [conflict, setConflict] = React.useState<string | null>(null);
-  const patch = (p: Partial<SpecialFormState>) => {
-    setConflict(null);
-    setState((s) => ({ ...s, ...p }));
-  };
+  const patch = (p: Partial<SpecialFormState>) => setState((s) => ({ ...s, ...p }));
 
   const [blockOn, setBlockOn] = React.useState(Boolean(editBlock));
   const [blocks, setBlocks] = React.useState<{ start: string; end: string }[]>(editBlock ? [{ start: editBlock.start, end: editBlock.end }] : []);
@@ -325,7 +321,6 @@ export function SpecialDayEditor({
     }
     const aviso = checkConflict?.(buildSpecialDay(state, allowBreak)) ?? null;
     if (aviso) {
-      setConflict(aviso);
       toast.error(aviso, { duration: 9000 });
       return;
     }
@@ -450,12 +445,6 @@ export function SpecialDayEditor({
                 )}
               </div>
             )}
-          </div>
-        )}
-
-        {conflict && (
-          <div className="mt-3 rounded-2xl border border-amber-300/40 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
-            {conflict}
           </div>
         )}
 
