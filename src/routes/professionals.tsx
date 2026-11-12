@@ -1641,21 +1641,6 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
       {/* Celular: Hoy + fecha, justo arriba de la agenda. */}
       <div className="mb-3 flex w-full justify-center sm:hidden">{dateControl}</div>
 
-      {occupancyPct !== null && (
-        <div className="mb-3 px-1" title="Tu ocupación del día">
-          <div className="mb-1 flex items-center justify-between text-[11px] font-medium text-white/65">
-            <span>Mi ocupación</span>
-            <span className="font-bold tabular-nums text-white">{occupancyPct}%</span>
-          </div>
-          <div className="h-1 w-full overflow-hidden rounded-full bg-white/10">
-            <div
-              className="h-full rounded-full transition-[width] duration-500"
-              style={{ width: `${occupancyPct}%`, background: occupancyColor(occupancyPct).fill, boxShadow: `0 0 8px ${occupancyColor(occupancyPct).glow}` }}
-            />
-          </div>
-        </div>
-      )}
-
       <ClosedDayBanner businessId={businessId} branchId={agendaData.activeBranchId} from={from} to={to} />
 
       {/* Agenda visual */}
@@ -1680,6 +1665,20 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
             <div className="absolute left-0 top-0 z-[6] flex h-[36px] w-[56px] items-center justify-center sm:w-[84px]" onClick={(e) => e.stopPropagation()}>
               <SlotScaleSelect value={slotMinutes} onChange={setSlotMinutes} className="h-7 w-9 sm:w-[50px]" />
             </div>
+            {occupancyPct !== null && (
+              <div className="pointer-events-none absolute left-[60px] right-3 top-0 z-[6] flex h-[36px] flex-col justify-center sm:left-[104px]" title="Tu ocupación del día">
+                <div className="mb-1 flex items-center justify-between text-[11px] font-medium text-white/65">
+                  <span>Mi ocupación</span>
+                  <span className="font-bold tabular-nums text-white">{occupancyPct}%</span>
+                </div>
+                <div className="h-1 w-full overflow-hidden rounded-full bg-white/10">
+                  <div
+                    className="h-full rounded-full transition-[width] duration-500"
+                    style={{ width: `${occupancyPct}%`, background: occupancyColor(occupancyPct).fill, boxShadow: `0 0 8px ${occupancyColor(occupancyPct).glow}` }}
+                  />
+                </div>
+              </div>
+            )}
             {timelineSlots.map((min) => (
               <div
                 key={min}
