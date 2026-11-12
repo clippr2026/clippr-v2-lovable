@@ -149,9 +149,9 @@ const STATUS_META: Record<ApptStatus, { label: string; bg: string; border: strin
     },
     blocked: {
       label: "Bloqueado",
-      bg: "oklch(0.3 0 0 / 0.4)",
-      border: "oklch(0.5 0 0)",
-      dot: "oklch(0.6 0 0)",
+      bg: "oklch(0.46 0.02 270 / 0.55)",
+      border: "oklch(0.72 0.02 270)",
+      dot: "oklch(0.82 0.02 270)",
     },
   };
 
