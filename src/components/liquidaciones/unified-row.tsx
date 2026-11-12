@@ -393,7 +393,7 @@ export function VentaRow({
   const MobileTag = hasExpandableContent ? "button" : "div";
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/[0.14] bg-white/[0.05] shadow-[0_2px_10px_-2px_rgba(0,0,0,0.5)] sm:border-white/[0.07] sm:bg-black/18 sm:shadow-none">
+    <div className="overflow-hidden rounded-2xl border border-violet-400/30 bg-[#0b0a14] bg-[radial-gradient(120%_100%_at_100%_0%,rgba(139,92,246,0.14),transparent_62%)] sm:border-white/[0.07] sm:bg-black/18 sm:bg-none">
       {/* Desktop — div con role="button", no <button> real: la celda de
           precio contiene su propio InfoPopover (un <button>), y un <button>
           no puede anidar otro <button> válidamente en HTML. */}
@@ -534,89 +534,88 @@ export function VentaRow({
           {presentismoVenta ? presentismoVenta.text : "—"}
         </div>
       </div>
-      {/* Mobile — sin InfoPopover acá, un <button> real es seguro. */}
+      {/* Mobile — sin InfoPopover acá, un <button> real es seguro. Misma tarjeta que Movimientos de caja:
+          tipo y fecha arriba, comisión a la derecha; cliente y servicio; chips con precio, medio y extras. */}
       <MobileTag
         type={hasExpandableContent ? "button" : undefined}
         onClick={hasExpandableContent ? () => setExpanded((v) => !v) : undefined}
-        className="w-full px-3 py-2 text-left text-xs sm:hidden"
+        className="w-full px-3.5 py-2.5 text-left sm:hidden"
       >
-        {/* Celular: dos líneas. Arriba, cliente y comisión; abajo, servicio ·
-            precio · medio (y la propina) y la fecha. */}
-        <div className="flex items-baseline justify-between gap-2">
-          <div className="min-w-0 flex-1 truncate text-sm font-semibold text-white/85">
-            {sale.client_name ?? "Sin cliente"}
-          </div>
-          <div className="shrink-0 font-bold tabular-nums text-violet-300">
-            <span className="mr-1 text-[10px] font-semibold uppercase tracking-wide text-violet-200/60">
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="shrink-0 rounded-full bg-violet-400/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-200 ring-1 ring-violet-300/25">
               Comisión{isRecovered ? " del cobro" : ""}
             </span>
-            {money(Number(c.pending_amount ?? c.amount ?? 0))}
+            <span className="truncate text-[11px] tabular-nums text-white/55">{dateTime}</span>
           </div>
+          <span className="shrink-0 text-lg font-bold leading-none tabular-nums text-violet-300">
+            +{money(Number(c.pending_amount ?? c.amount ?? 0))}
+          </span>
         </div>
-        <div className="mt-0.5 text-[11px] text-white/55">
-            <span className="block truncate">
-              {displayConcept}
-              {" · "}
-              {isRecovered ? (
+        <div className="mt-2 min-w-0">
+          <div className="truncate text-[15px] font-semibold leading-tight text-white">{sale.client_name ?? "Sin cliente"}</div>
+          <div className="mt-0.5 truncate text-[13px] text-white/65">{displayConcept}</div>
+        </div>
+        <div className="mt-2 flex flex-wrap items-center gap-1.5">
+          {isRecovered ? (
+            <span className="rounded-full bg-white/[0.05] px-2 py-0.5 text-[12px] text-white/80 ring-1 ring-white/10">
+              Total {money(saleTotal)} · Cobrado <span className="font-semibold text-emerald-300">{money(collectedAmount)}</span>
+              {saldoPendiente > 0 && (
                 <>
-                  Total {money(saleTotal)} · Cobrado{" "}
-                  <span className="font-semibold text-emerald-300">{money(collectedAmount)}</span>
-                  {saldoPendiente > 0 && (
-                    <>
-                      {" "}
-                      · Saldo <span className="font-semibold text-amber-300">{money(saldoPendiente)}</span>
-                    </>
-                  )}
+                  {" "}· Saldo <span className="font-semibold text-amber-300">{money(saldoPendiente)}</span>
                 </>
-              ) : showReduction ? (
+              )}
+            </span>
+          ) : (
+            <span className="rounded-full bg-white/[0.05] px-2 py-0.5 text-[12px] text-white/80 ring-1 ring-white/10">
+              {showReduction ? (
                 <>
-                  <span className="text-white/30 line-through">{money(originalAmount)}</span> {money(saleTotal)}
+                  <span className="text-white/40 line-through">{money(originalAmount)}</span> {money(saleTotal)}
                 </>
               ) : (
                 money(saleTotal)
               )}
-              {" · "}
-              {method}
             </span>
+          )}
+          <span className="rounded-full bg-white/[0.05] px-2 py-0.5 text-[12px] text-white/80 ring-1 ring-white/10">{method}</span>
+          {hasTip && (
+            <span className="rounded-full bg-emerald-400/10 px-2 py-0.5 text-[12px] font-semibold tabular-nums text-emerald-300 ring-1 ring-emerald-300/25">
+              + propina {money(Number(sale.tip_amount))}
+            </span>
+          )}
+          {presentismoVenta && (
+            <span className={cn("rounded-full bg-white/[0.05] px-2 py-0.5 text-[12px] font-semibold tabular-nums ring-1 ring-white/10", presentismoVenta.className)}>
+              Puntualidad {presentismoVenta.text}
+            </span>
+          )}
         </div>
-        {(isRecovered || conceptSubtitle || presentismoVenta) && (
-          <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-            {isRecovered && (
-              <span
-                className={cn(
-                  "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1",
-                  isFullyRecovered
-                    ? "bg-emerald-400/15 text-emerald-200 ring-emerald-400/25"
-                    : "bg-amber-400/15 text-amber-200 ring-amber-400/25",
-                )}
-              >
-                {recoveredBadgeLabel}
-              </span>
-            )}
-            {isRecovered && saleOriginalDateLabel && (
-              <span className="truncate text-[10px] text-white/40">Servicio: {saleOriginalDateLabel}</span>
-            )}
-            {conceptSubtitle && (
-              <span className={cn("truncate text-[11px] font-medium", conceptSubtitleClass)}>{conceptSubtitle}</span>
-            )}
-            {presentismoVenta && (
-              <span className={cn("text-[11px] font-semibold tabular-nums", presentismoVenta.className)}>
-                Puntualidad {presentismoVenta.text}
-              </span>
+        {(isRecovered || conceptSubtitle || hasExpandableContent) && (
+          <div className="mt-2 flex items-center justify-between gap-2 border-t border-white/[0.06] pt-2">
+            <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
+              {isRecovered && (
+                <span
+                  className={cn(
+                    "shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ring-1",
+                    isFullyRecovered
+                      ? "bg-emerald-400/15 text-emerald-200 ring-emerald-400/25"
+                      : "bg-amber-400/15 text-amber-200 ring-amber-400/25",
+                  )}
+                >
+                  {recoveredBadgeLabel}
+                </span>
+              )}
+              {isRecovered && saleOriginalDateLabel && (
+                <span className="truncate text-[11px] text-white/50">Servicio: {saleOriginalDateLabel}</span>
+              )}
+              {conceptSubtitle && (
+                <span className={cn("truncate text-[12px] font-medium", conceptSubtitleClass)}>{conceptSubtitle}</span>
+              )}
+            </div>
+            {hasExpandableContent && (
+              <ChevronDown className={cn("size-4 shrink-0 text-white/40 transition-transform", expanded && "rotate-180")} />
             )}
           </div>
         )}
-        <div className="mt-0.5 flex items-center justify-between gap-2 text-[10px]">
-          <span className="font-semibold uppercase tracking-wider text-white/40">{dateTime}</span>
-          <div className="flex shrink-0 items-center gap-1">
-            {hasTip && (
-              <span className="font-semibold tabular-nums text-emerald-300">+ propina {money(Number(sale.tip_amount))}</span>
-            )}
-            {hasExpandableContent && (
-              <ChevronDown className={cn("size-3 shrink-0 text-white/30 transition-transform", expanded && "rotate-180")} />
-            )}
-          </div>
-        </div>
       </MobileTag>
       {/* Contenido expandible: nota real (si hay) + historial completo de
           pagos (solo filas recuperadas) — ver PaymentHistoryPanel. Precio
@@ -907,7 +906,7 @@ export function MovRow({
           ? "border-rose-900/30 border-l-2 border-l-rose-500/55 bg-[linear-gradient(135deg,rgba(244,63,94,0.06),rgba(14,8,10,0.94),rgba(10,5,6,0.96))]"
           : skyStripe
             ? "border-sky-900/30 border-l-2 border-l-sky-400/55 bg-[linear-gradient(135deg,rgba(56,189,248,0.06),rgba(8,13,18,0.94),rgba(6,10,14,0.96))]"
-            : "border-white/[0.14] bg-white/[0.05] shadow-[0_2px_10px_-2px_rgba(0,0,0,0.5)] sm:border-white/[0.07] sm:bg-black/18 sm:shadow-none",
+            : "border-violet-400/30 bg-[#0b0a14] bg-[radial-gradient(120%_100%_at_100%_0%,rgba(139,92,246,0.14),transparent_62%)] sm:border-white/[0.07] sm:bg-black/18 sm:bg-none",
       )}
     >
       {/* Desktop */}
@@ -967,16 +966,21 @@ export function MovRow({
           {presentismoText ?? emptyFiller}
         </div>
       </Tag>
-      {/* Mobile */}
+      {/* Mobile: misma tarjeta que Movimientos de caja — tipo y fecha, importe, detalle y acciones. */}
       <Tag
         type={clickable ? "button" : undefined}
         onClick={clickable ? onToggle : undefined}
-        className="w-full px-3 py-2 text-left text-xs sm:hidden"
+        className="w-full px-3.5 py-2.5 text-left sm:hidden"
       >
         <div className="flex items-center justify-between gap-2">
-          <div className="min-w-0 flex-1 truncate text-sm font-semibold text-white/85">{concepto}</div>
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="shrink-0 rounded-full bg-white/[0.07] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white/85 ring-1 ring-white/15">
+              {concepto}
+            </span>
+            <span className="truncate text-[11px] tabular-nums text-white/55">{dateTime}</span>
+          </div>
           <div className="flex shrink-0 items-center gap-1.5">
-            <span className={cn("font-bold tabular-nums", (presentismoText ? presentismoClass : precioClass) ?? "text-white")}>
+            <span className={cn("text-lg font-bold leading-none tabular-nums", (presentismoText ? presentismoClass : precioClass) ?? "text-white")}>
               {presentismoText ?? precioText}
             </span>
             {verNotaButton}
@@ -1010,10 +1014,19 @@ export function MovRow({
             )}
           </div>
         </div>
-        <div className="mt-0.5 flex items-center justify-between gap-2 text-white/50">
-          <div className="min-w-0 flex-1 truncate">{detalle}</div>
-          <div className="shrink-0 text-[10px] tabular-nums text-white/35">{dateTime}</div>
-        </div>
+        {(cliente && cliente !== "—") || detalle ? (
+          <div className="mt-2 min-w-0">
+            {cliente && cliente !== "—" && (
+              <div className="truncate text-[15px] font-semibold leading-tight text-white">{cliente}</div>
+            )}
+            {detalle && <div className="mt-0.5 truncate text-[12px] text-white/60">{detalle}</div>}
+          </div>
+        ) : null}
+        {medioText && (
+          <div className="mt-2">
+            <span className="rounded-full bg-white/[0.05] px-2 py-0.5 text-[12px] text-white/80 ring-1 ring-white/10">{medioText}</span>
+          </div>
+        )}
       </Tag>
       {actions && (
         <div className="flex flex-wrap items-center gap-2 border-t border-white/[0.06] bg-white/[0.012] px-3.5 py-2.5 sm:px-4">
