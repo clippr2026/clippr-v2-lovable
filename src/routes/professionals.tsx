@@ -1028,6 +1028,13 @@ const AGENDA_META = {
   deposit: { label: "Seña pendiente", bg: "oklch(0.88 0.18 95 / 0.3)", border: "oklch(0.93 0.19 95)", dot: "oklch(0.93 0.19 95)" },
 };
 const BREAK_META = { bg: "oklch(0.36 0.09 200 / 0.5)", border: "oklch(0.78 0.12 200)", dot: "oklch(0.88 0.1 200)" };
+// Ocupación: rojo de 0 a 49, amarillo de 50 a 69 y verde de 70 a 100 (igual que la Agenda).
+const occupancyColor = (pct: number) =>
+  pct >= 70
+    ? { fill: "#22c55e", glow: "rgba(34,197,94,0.9)" }
+    : pct >= 50
+      ? { fill: "#facc15", glow: "rgba(250,204,21,0.9)" }
+      : { fill: "#ef4444", glow: "rgba(239,68,68,0.9)" };
 const TURNO_NAME_COLOR = "#fbffff";
 const TURNO_SERVICE_COLOR = "#b1c7da";
 const STATUS_DARKEN = "linear-gradient(rgba(6, 8, 22, 0.16), rgba(6, 8, 22, 0.16))";
@@ -1389,6 +1396,72 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
   };
   const timelineHeight = (dayBounds.endHour - dayBounds.startHour) * HOUR_HEIGHT + TIMELINE_TOP_OFFSET + 36;
 
+  // Hora actual (línea roja): se actualiza cada minuto.
+  const [nowTick, setNowTick] = React.useState(() => Date.now());
+  React.useEffect(() => {
+    const id = window.setInterval(() => setNowTick(Date.now()), 60_000);
+    return () => window.clearInterval(id);
+  }, []);
+  const nowDate = new Date(nowTick);
+  const nowMin = nowDate.getHours() * 60 + nowDate.getMinutes();
+  const showNowLine =
+    dateKeyAR(nowDate) === from && nowMin >= dayBounds.startHour * 60 && nowMin <= dayBounds.endHour * 60;
+  const nowLineTop = TIMELINE_TOP_OFFSET + ((nowMin - dayBounds.startHour * 60) / 60) * HOUR_HEIGHT;
+
+  // Ocupación del profesional en el día: minutos con turno sobre minutos disponibles
+  // (horario laboral menos descanso y bloqueos). Los cancelados liberan el horario.
+  const occupancyPct = React.useMemo(() => {
+    const day = resolveDaySchedule(
+      agendaData.schedule,
+      agendaData.employeeSchedules,
+      agendaData.businessSpecialDates,
+      agendaData.employeeSpecialDates,
+      empId,
+      agendaRangeStart,
+    );
+    if (!day || day.enabled === false || !day.start || !day.end) return null;
+    const open = Math.round(parseScheduleTime(day.start) * 60);
+    const close = Math.round(parseScheduleTime(day.end) * 60);
+    if (close <= open) return null;
+    const clip = (a: number, b: number) => [Math.max(open, a), Math.min(close, b)] as const;
+    const union = (ranges: Array<readonly [number, number]>) => {
+      const sorted = ranges.filter(([a, b]) => b > a).sort((x, y) => x[0] - y[0]);
+      let total = 0;
+      let curS = -1;
+      let curE = -1;
+      for (const [a, b] of sorted) {
+        if (a > curE) {
+          if (curE > curS) total += curE - curS;
+          curS = a;
+          curE = b;
+        } else if (b > curE) curE = b;
+      }
+      if (curE > curS) total += curE - curS;
+      return total;
+    };
+    const dayTurnos = turnos.filter((t) => dateKeyAR(t.starts_at) === from);
+    const rangeOf = (t: (typeof turnos)[number]) => {
+      const a = minutesOfDayFromISO(t.starts_at);
+      const b = t.ends_at ? minutesOfDayFromISO(t.ends_at) : a + 30;
+      return clip(a, b);
+    };
+    const breakMin = (day.breaks && day.breaks.length > 0
+      ? day.breaks
+      : day.breakStart && day.breakEnd
+        ? [{ start: day.breakStart, end: day.breakEnd }]
+        : []
+    ).reduce((sum, br) => {
+      const [a, b] = clip(Math.round(parseScheduleTime(br.start) * 60), Math.round(parseScheduleTime(br.end) * 60));
+      return sum + Math.max(0, b - a);
+    }, 0);
+    const blocked = union(dayTurnos.filter((t) => t.status === "blocked").map(rangeOf));
+    const occupied = union(
+      dayTurnos.filter((t) => ["pending", "confirmed", "completed", "charged", "no_show", "approved", "pending_payment"].includes(t.status)).map(rangeOf),
+    );
+    const available = Math.max(0, close - open - breakMin - blocked);
+    return available > 0 ? Math.min(100, Math.round((occupied / available) * 100)) : occupied > 0 ? 100 : 0;
+  }, [turnos, from, empId, agendaRangeStart, agendaData.schedule, agendaData.employeeSchedules, agendaData.businessSpecialDates, agendaData.employeeSpecialDates]);
+
   // Tocar un espacio vacío de la agenda abre "+ Turno" con fecha/hora ya
   // cargadas (redondeado a los 15' más cercanos) — mismo modal y mismo
   // guardado que el botón "+ Turno" de siempre, solo cambia el default. No
@@ -1536,6 +1609,21 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
       {/* Celular: Hoy + fecha, justo arriba de la agenda. */}
       <div className="mb-3 flex w-full justify-center sm:hidden">{dateControl}</div>
 
+      {occupancyPct !== null && (
+        <div className="mb-3 px-1" title="Tu ocupación del día">
+          <div className="mb-1 flex items-center justify-between text-[11px] font-medium text-white/65">
+            <span>Mi ocupación</span>
+            <span className="font-bold tabular-nums text-white">{occupancyPct}%</span>
+          </div>
+          <div className="h-1 w-full overflow-hidden rounded-full bg-white/10">
+            <div
+              className="h-full rounded-full transition-[width] duration-500"
+              style={{ width: `${occupancyPct}%`, background: occupancyColor(occupancyPct).fill, boxShadow: `0 0 8px ${occupancyColor(occupancyPct).glow}` }}
+            />
+          </div>
+        </div>
+      )}
+
       <ClosedDayBanner businessId={businessId} branchId={agendaData.activeBranchId} from={from} to={to} />
 
       {/* Agenda visual */}
@@ -1590,6 +1678,15 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                 <span className="text-[11px] tabular-nums leading-none" style={{ color: TURNO_SERVICE_COLOR }}>
                   {minToHHMM(breakRange.startMin)} - {minToHHMM(breakRange.endMin)}
                 </span>
+              </div>
+            )}
+
+            {showNowLine && (
+              <div
+                className="pointer-events-none absolute left-0 right-0 z-[5] border-t border-red-400/90 shadow-[0_0_10px_rgba(248,113,113,0.75)]"
+                style={{ top: nowLineTop }}
+              >
+                <span className="absolute -left-1 -top-1 h-2 w-2 rounded-full bg-red-400 shadow-[0_0_10px_rgba(248,113,113,0.9)]" />
               </div>
             )}
 
