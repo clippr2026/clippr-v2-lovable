@@ -3196,6 +3196,14 @@ const DayView = React.memo(function DayView({
                     />
                     {occupancyPct === null ? "Sin horario" : `Ocupación ${occupancyPct}%`}
                   </div>
+                  {occupancyPct !== null && (
+                    <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-white/10">
+                      <div
+                        className="h-full rounded-full transition-[width] duration-500"
+                        style={{ width: `${occupancyPct}%`, background: "#4f7dff", boxShadow: "0 0 8px rgba(79,125,255,0.9)" }}
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
             );
