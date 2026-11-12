@@ -1552,12 +1552,12 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
       ) : agendaTurnos.length === 0 && !breakRange ? (
         <div className="glass rounded-2xl py-10 text-center text-sm text-muted-foreground">Sin turnos en este período.</div>
       ) : (
-        <div className="relative overflow-hidden rounded-3xl border border-white/[0.10] bg-[#111323] shadow-[inset_0_1px_0_rgba(255,255,255,0.035),0_18px_60px_-34px_rgba(0,0,0,0.95)]">
+        <div className="relative overflow-hidden rounded-3xl border border-white/[0.10] bg-[#111323] shadow-[inset_0_1px_0_rgba(255,255,255,0.035),0_18px_60px_-34px_rgba(0,0,0,0.95)] [background-image:radial-gradient(120%_55%_at_100%_0%,rgba(79,125,255,0.17),transparent_62%),radial-gradient(110%_50%_at_0%_100%,rgba(139,92,246,0.15),transparent_65%)]">
           {/* Columna de horarios: más angosta y discreta en mobile (64px,
               texto fino y gris apagado — referencia de fondo, no elemento
               principal) para devolverle ese ancho a la tarjeta del turno.
               Desktop (sm+) sin cambios: 84px, texto normal. */}
-          <div className="absolute left-0 top-0 bottom-0 w-[48px] sm:w-[84px] bg-[#111323]" />
+          <div className="absolute left-0 top-0 bottom-0 w-[48px] sm:w-[84px]" />
           <div className="absolute left-12 sm:left-[84px] top-0 bottom-0 w-px bg-white/[0.07]" />
           <div
             className={cn("relative", canAddTurno && "cursor-pointer")}
