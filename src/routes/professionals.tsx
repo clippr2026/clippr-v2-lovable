@@ -1023,6 +1023,7 @@ const AGENDA_META = {
   pending: { label: "Por confirmar", bg: "oklch(0.38 0.2 220 / 0.4)", border: "oklch(0.72 0.2 210)", dot: "oklch(0.82 0.18 210)" },
   confirmed: { label: "Confirmado", bg: "rgba(124, 58, 237, 0.24)", border: "#A78BFA", dot: "#C4B5FD" },
   charged: { label: "Cobrado", bg: "oklch(0.38 0.2 150 / 0.55)", border: "oklch(0.76 0.2 150)", dot: "oklch(0.76 0.2 150)" },
+  cancelled: { label: "Cancelado", bg: "oklch(0.3 0.02 270 / 0.38)", border: "oklch(0.62 0.03 270)", dot: "oklch(0.76 0.02 270)" },
   deposit: { label: "Seña pendiente", bg: "oklch(0.88 0.18 95 / 0.3)", border: "oklch(0.93 0.19 95)", dot: "oklch(0.93 0.19 95)" },
 };
 const TURNO_NAME_COLOR = "#fbffff";
@@ -1301,6 +1302,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
   const statusCards = [
     {
       label: "Pendientes",
+      meta: AGENDA_META.pending,
       count: counts.pendientes,
       color: "text-sky-300",
       bg: "bg-sky-500/10",
@@ -1310,6 +1312,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
     },
     {
       label: "Confirmados",
+      meta: AGENDA_META.confirmed,
       count: counts.confirmados,
       color: "text-violet-300",
       bg: "bg-violet-500/10",
@@ -1319,6 +1322,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
     },
     {
       label: "Cobrados",
+      meta: AGENDA_META.charged,
       count: counts.finalizados,
       color: "text-emerald-300",
       bg: "bg-emerald-500/10",
@@ -1328,6 +1332,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
     },
     {
       label: "Cancelados",
+      meta: AGENDA_META.cancelled,
       count: counts.cancelados,
       color: "text-rose-300",
       bg: "bg-rose-500/10",
@@ -1520,7 +1525,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
 
       {/* Status cards — ocupan todo el ancho de la agenda. mb-4 (antes mb-1,
           quedaba pegado a la grilla horaria de abajo). */}
-      <div className="grid w-full grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+      <div className="mb-4 grid w-full grid-cols-2 gap-1.5 sm:grid-cols-4">
         {statusCards.map((card) => (
           <button
             key={card.label}
@@ -1528,15 +1533,13 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
             onClick={card.onClick}
             disabled={!card.onClick}
             className={cn(
-              "flex h-9 items-center justify-center gap-2 rounded-xl px-3 text-[11px] font-semibold transition-all ring-1",
-              card.bg,
-              card.ring,
-              card.color,
-              card.onClick ? "hover:brightness-110 cursor-pointer" : "cursor-default"
+              "flex flex-col items-center justify-center gap-0.5 rounded-lg px-1 py-1.5 text-center transition-all",
+              card.onClick ? "cursor-pointer hover:brightness-110 active:brightness-110" : "cursor-default",
             )}
+            style={statusNeonStyle(card.meta.dot, card.meta.border, card.meta.bg)}
           >
-            <span className="font-bold tabular-nums text-sm leading-none">{card.count}</span>
-            <span className="opacity-90 leading-none">{card.label}</span>
+            <span className="text-sm font-semibold leading-none tabular-nums">{card.count}</span>
+            <span className="max-w-full truncate text-[10px] leading-tight opacity-80">{card.label}</span>
           </button>
         ))}
       </div>
