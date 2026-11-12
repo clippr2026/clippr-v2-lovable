@@ -4217,6 +4217,8 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
     .toUpperCase();
   const durationMin = Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000));
   const isBlocked = appointment.status === "blocked";
+  // En un bloqueo la nota se guarda como "Horario bloqueado: <motivo>": se muestra solo el motivo.
+  const displayNote = isBlocked ? (noteText ?? "").replace(/^\s*Horario bloqueado:?\s*/i, "").trim() : noteText;
   // Cambios sin guardar: el motivo de cancelación ya escrito. Con eso, Escape o un clic afuera no cierran.
   const pendingChanges = confirmCancel && cancelReason.trim().length > 0;
   const depositBadge =
@@ -4909,14 +4911,14 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
             </div>
           )}
 
-          {noteText && (
+          {displayNote && (
             <div className="space-y-2 text-sm">
               <div className="rounded-xl border border-white/10 bg-white/[0.035] px-3 py-2.5">
                 <div className="text-[9px] uppercase tracking-[0.16em] text-white/35 mb-1">
                   Notas
                 </div>
                 <div className="text-white/80 text-[13px] whitespace-pre-wrap break-words">
-                  {noteText}
+                  {displayNote}
                 </div>
               </div>
             </div>
