@@ -1510,15 +1510,15 @@ function AgendaPage() {
             {/* Ocupación de todo el local en el día */}
             {localOccupancy !== null && (
               <div
-                className="mr-1 flex shrink-0 items-center gap-1.5 rounded-lg bg-white/[0.04] px-2 py-0.5 text-xs font-medium text-foreground ring-1 ring-white/12"
+                className="mr-1.5 flex shrink-0 items-center gap-2 rounded-xl bg-white/[0.04] px-3 py-1 text-sm font-medium text-foreground ring-1 ring-white/15"
                 title="Ocupación del local: minutos con turno sobre los minutos disponibles de todos los profesionales"
               >
                 <span
-                  className="h-1.5 w-1.5 rounded-full"
+                  className="h-2.5 w-2.5 rounded-full"
                   style={{ background: "oklch(0.82 0.18 210)" }}
                 />
-                <span className="opacity-80">Ocupación</span>
-                <span className="text-sm font-semibold tabular-nums">{localOccupancy}%</span>
+                <span className="opacity-85">Ocupación</span>
+                <span className="text-lg font-bold leading-none tabular-nums">{localOccupancy}%</span>
               </div>
             )}
             {STATUS_FILTERS.map(([k, label, color, ring, bg]) => (
