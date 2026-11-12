@@ -4472,10 +4472,10 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                   </div>
                   {depositBadge && (
                     <div
-                      className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1 text-sm font-semibold"
+                      className="inline-flex max-w-full items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-0.5 text-xs font-semibold"
                       style={{ color: depositBadge.color, background: depositBadge.bg, boxShadow: `inset 0 0 0 1.5px ${depositBadge.ring}` }}
                     >
-                      <CreditCard className="h-4 w-4" />
+                      <CreditCard className="h-3.5 w-3.5 shrink-0" />
                       {depositBadge.label}
                     </div>
                   )}
@@ -4536,16 +4536,6 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
               </div>
             </div>
 
-          <DepositPanel
-            appointmentId={appointment.id}
-            status={appointment.status}
-            isPast={isPast}
-            onChanged={onDepositChanged}
-            onCancelAppointment={(reason) => onCancel(appointment, reason)}
-            businessId={appointment.business_id}
-            senasConfig={senasConfigRaw}
-            depositStatusHint={appointment.deposit_status}
-          />
 
             {/* Horario y duración · profesional · fecha de creación (en un bloqueo: profesional · bloqueo creado · creado por) */}
             <div className="grid grid-cols-1 gap-y-2.5 rounded-2xl border border-white/10 bg-white/[0.025] px-4 py-2.5 sm:grid-cols-3 sm:gap-0 sm:py-3 sm:divide-x sm:divide-white/10"
@@ -4590,6 +4580,17 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                 </div>
               )}
             </div>
+
+          <DepositPanel
+            appointmentId={appointment.id}
+            status={appointment.status}
+            isPast={isPast}
+            onChanged={onDepositChanged}
+            onCancelAppointment={(reason) => onCancel(appointment, reason)}
+            businessId={appointment.business_id}
+            senasConfig={senasConfigRaw}
+            depositStatusHint={appointment.deposit_status}
+          />
 
 {appointmentProducts.length > 0 && (
             <div
