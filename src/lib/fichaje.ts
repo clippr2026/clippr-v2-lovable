@@ -258,6 +258,47 @@ export async function getTodayFichajeSummary(
   };
 }
 
+// Fichajes de UNA fecha (YYYY-MM-DD) de una sucursal — para revisar el día al hacer el cierre de caja.
+// Una fila por persona (la más reciente de ese día), con la evidencia (selfie y método) de entrada y salida.
+export async function getFichajesDeFecha(
+  businessId: string,
+  branchId: string,
+  dateKey: string,
+): Promise<FichajeHoyPersona[]> {
+  const dayStart = new Date(`${dateKey}T00:00:00`);
+  const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000);
+  const [{ data: sessions }, { data: employees }, { data: members }] = await Promise.all([
+    supabase
+      .from("work_sessions" as any)
+      .select("*")
+      .eq("business_id", businessId)
+      .eq("branch_id", branchId)
+      .gte("clock_in_at", dayStart.toISOString())
+      .lt("clock_in_at", dayEnd.toISOString())
+      .order("clock_in_at", { ascending: true }),
+    supabase.from("employees").select("id,full_name").eq("business_id", businessId).eq("branch_id", branchId),
+    supabase.from("team_members").select("auth_user_id,full_name,email").eq("business_id", businessId),
+  ]);
+  const names = new Map<string, string>();
+  for (const e of (employees ?? []) as { id: string; full_name: string | null }[]) names.set(e.id, e.full_name ?? "Profesional");
+  for (const m of (members ?? []) as { auth_user_id: string | null; full_name: string | null; email: string | null }[]) {
+    if (m.auth_user_id && !names.has(m.auth_user_id)) names.set(m.auth_user_id, m.full_name || m.email || "Recepción");
+  }
+  const latest = new Map<string, any>();
+  for (const row of (sessions ?? []) as any[]) latest.set(row.employee_id, row);
+  return Array.from(latest.entries()).map(([id, row]) => ({
+    id,
+    name: names.get(id) ?? "Profesional",
+    clockInAt: row.clock_in_at,
+    clockOutAt: row.clock_out_at,
+    expectedStartAt: row.expected_start_at,
+    inMethod: row.clock_in_method ?? null,
+    outMethod: row.clock_out_method ?? null,
+    inSelfiePath: row.clock_in_selfie_path ?? null,
+    outSelfiePath: row.clock_out_selfie_path ?? null,
+  }));
+}
+
 export async function getOpenWorkSession(employeeId: string): Promise<WorkSession | null> {
   const dayStart = new Date(`${todayKey()}T00:00:00`).toISOString();
   const { data } = await supabase

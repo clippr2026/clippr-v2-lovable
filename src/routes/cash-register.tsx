@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { AppShell } from "@/components/app-shell";
 import { ServiceImage } from "@/components/ui/service-image";
 import { cn } from "@/lib/utils";
+import { CierreFichajes } from "@/components/cash-register/cierre-fichajes";
 import { useAuth } from "@/hooks/use-auth";
 import {
   type CierreMetodoDetalle,
@@ -8531,6 +8532,8 @@ function CierreRevisionDetalle({
           onRowClick={openDetail}
         />
       </div>
+
+      <CierreFichajes businessId={businessId} fecha={fecha} />
 
       {detailPayment && (
         <DetailModal

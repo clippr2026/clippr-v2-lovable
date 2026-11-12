@@ -1024,6 +1024,7 @@ const AGENDA_META = {
   confirmed: { label: "Confirmado", bg: "rgba(124, 58, 237, 0.24)", border: "#A78BFA", dot: "#C4B5FD" },
   charged: { label: "Cobrado", bg: "oklch(0.38 0.2 150 / 0.55)", border: "oklch(0.76 0.2 150)", dot: "oklch(0.76 0.2 150)" },
   cancelled: { label: "Cancelado", bg: "oklch(0.3 0.02 270 / 0.38)", border: "oklch(0.62 0.03 270)", dot: "oklch(0.76 0.02 270)" },
+  no_show: { label: "No asistió", bg: "oklch(0.34 0.2 25 / 0.58)", border: "oklch(0.68 0.22 25)", dot: "oklch(0.68 0.22 25)" },
   deposit: { label: "Seña pendiente", bg: "oklch(0.88 0.18 95 / 0.3)", border: "oklch(0.93 0.19 95)", dot: "oklch(0.93 0.19 95)" },
 };
 const TURNO_NAME_COLOR = "#fbffff";
@@ -1137,7 +1138,9 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
   const [confirmadosOpen, setConfirmadosOpen] = useState(false);
   const [pendientesOpen, setPendientesOpen] = useState(false);
   const [cobradosOpen, setCobradosOpen] = useState(false);
-  useBodyScrollLock(canceladosOpen || confirmadosOpen || pendientesOpen || cobradosOpen);
+  const [senaOpen, setSenaOpen] = useState(false);
+  const [noShowOpen, setNoShowOpen] = useState(false);
+  useBodyScrollLock(canceladosOpen || confirmadosOpen || pendientesOpen || cobradosOpen || senaOpen || noShowOpen);
   const [sentToCajaIds, setSentToCajaIds] = useState<Set<string>>(() => {
     if (!businessId) return new Set();
     return new Set(readManualPendingCharges().filter((item) => item.business_id === businessId).map((item) => item.id));
@@ -1186,17 +1189,20 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
   }
 
   // Status card data
+  const isSenaPendiente = (t: import("@/hooks/use-professionals-data").ProfTurno) =>
+    t.deposit_status === "pending" && (t.status === "pending" || t.status === "confirmed");
   const counts = React.useMemo(() => {
-    let pendientes = 0, confirmados = 0, finalizados = 0, cancelados = 0;
+    let pendientes = 0, confirmados = 0, finalizados = 0, cancelados = 0, sena = 0, noShow = 0;
     for (const t of turnos) {
-      const { isPending, isCancelled, isCharged, isConfirmed } = getTurnoMeta(t);
+      const { isCancelled, isCharged, isConfirmed } = getTurnoMeta(t);
       if (isCancelled) cancelados++;
+      else if (t.status === "no_show") noShow++;
       else if (isCharged) finalizados++;
+      else if (isSenaPendiente(t)) sena++;
       else if (isConfirmed) confirmados++;
-      else if (isPending || t.status === "pending" || t.status === "pending_payment") pendientes++;
       else pendientes++;
     }
-    return { pendientes, confirmados, finalizados, cancelados };
+    return { pendientes, confirmados, finalizados, cancelados, sena, noShow };
   }, [turnos, sentToCajaIds]);
 
   // Active turnos (not cancelled) for agenda view
@@ -1217,14 +1223,16 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
     [turnos]
   );
   // Mismo criterio "todo lo demás" que ya usa counts.pendientes: ni
-  // cancelado, ni cobrado, ni confirmado.
+  // cancelado, ni cobrado, ni confirmado, ni no asistió, ni con seña pendiente.
   const pendingTurnosList = React.useMemo(() =>
     turnos.filter(t => {
       const meta = getTurnoMeta(t);
-      return !meta.isCancelled && !meta.isCharged && !meta.isConfirmed;
+      return !meta.isCancelled && !meta.isCharged && !meta.isConfirmed && t.status !== "no_show" && !isSenaPendiente(t);
     }),
     [turnos, sentToCajaIds]
   );
+  const senaTurnos = React.useMemo(() => turnos.filter((t) => !getTurnoMeta(t).isCancelled && t.status !== "no_show" && !getTurnoMeta(t).isCharged && isSenaPendiente(t)), [turnos]);
+  const noShowTurnos = React.useMemo(() => turnos.filter((t) => t.status === "no_show"), [turnos]);
 
   // Colores del turno: los mismos que usa la Agenda general (STATUS_META).
   function getAgendaMeta(t: import("@/hooks/use-professionals-data").ProfTurno) {
@@ -1300,46 +1308,12 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
 
   // Status cards config
   const statusCards = [
-    {
-      label: "Pendientes",
-      meta: AGENDA_META.pending,
-      count: counts.pendientes,
-      color: "text-sky-300",
-      bg: "bg-sky-500/10",
-      ring: "ring-sky-400/20",
-      dot: "bg-sky-400",
-      onClick: counts.pendientes > 0 ? () => setPendientesOpen(true) : undefined,
-    },
-    {
-      label: "Confirmados",
-      meta: AGENDA_META.confirmed,
-      count: counts.confirmados,
-      color: "text-violet-300",
-      bg: "bg-violet-500/10",
-      ring: "ring-violet-400/20",
-      dot: "bg-violet-400",
-      onClick: counts.confirmados > 0 ? () => setConfirmadosOpen(true) : undefined,
-    },
-    {
-      label: "Cobrados",
-      meta: AGENDA_META.charged,
-      count: counts.finalizados,
-      color: "text-emerald-300",
-      bg: "bg-emerald-500/10",
-      ring: "ring-emerald-400/20",
-      dot: "bg-emerald-400",
-      onClick: counts.finalizados > 0 ? () => setCobradosOpen(true) : undefined,
-    },
-    {
-      label: "Cancelados",
-      meta: AGENDA_META.cancelled,
-      count: counts.cancelados,
-      color: "text-rose-300",
-      bg: "bg-rose-500/10",
-      ring: "ring-rose-400/20",
-      dot: "bg-rose-400",
-      onClick: counts.cancelados > 0 ? () => setCanceladosOpen(true) : undefined,
-    },
+    { label: "Por confirmar", meta: AGENDA_META.pending, count: counts.pendientes, onClick: counts.pendientes > 0 ? () => setPendientesOpen(true) : undefined },
+    { label: "Seña pendiente", meta: AGENDA_META.deposit, count: counts.sena, onClick: counts.sena > 0 ? () => setSenaOpen(true) : undefined },
+    { label: "Confirmados", meta: AGENDA_META.confirmed, count: counts.confirmados, onClick: counts.confirmados > 0 ? () => setConfirmadosOpen(true) : undefined },
+    { label: "Cobrados", meta: AGENDA_META.charged, count: counts.finalizados, onClick: counts.finalizados > 0 ? () => setCobradosOpen(true) : undefined },
+    { label: "Cancelados", meta: AGENDA_META.cancelled, count: counts.cancelados, onClick: counts.cancelados > 0 ? () => setCanceladosOpen(true) : undefined },
+    { label: "No asistió", meta: AGENDA_META.no_show, count: counts.noShow, onClick: counts.noShow > 0 ? () => setNoShowOpen(true) : undefined },
   ];
 
   const HOUR_HEIGHT = 92;
@@ -1525,7 +1499,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
 
       {/* Status cards — ocupan todo el ancho de la agenda. mb-4 (antes mb-1,
           quedaba pegado a la grilla horaria de abajo). */}
-      <div className="mb-4 grid w-full grid-cols-2 gap-1.5 sm:grid-cols-4">
+      <div className="mb-4 grid w-full grid-cols-3 gap-1.5 sm:grid-cols-6">
         {statusCards.map((card) => (
           <button
             key={card.label}
@@ -2131,6 +2105,64 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                       <div className="text-sm text-muted-foreground">{t.service_name ?? "—"}</div>
                       <div className="text-xs text-muted-foreground">{formatDate(t.starts_at)} · {formatTime(t.starts_at)}</div>
                     </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {senaOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70" onClick={() => setSenaOpen(false)}>
+          <div className="glass-strong rounded-3xl w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-white/10 shrink-0">
+              <div>
+                <div className="font-semibold text-base">Turnos con seña pendiente</div>
+                <div className="text-xs text-muted-foreground mt-0.5">Solo lectura: la seña la aprueba recepción.</div>
+              </div>
+              <button type="button" onClick={() => setSenaOpen(false)}
+                className="rounded-xl p-2 text-muted-foreground hover:text-white hover:bg-white/[0.08] transition">✕</button>
+            </div>
+            <div className="overflow-y-auto flex-1 px-6 py-4 space-y-3">
+              {senaTurnos.map((t) => (
+                <div key={t.id} className="rounded-2xl bg-amber-500/[0.06] ring-1 ring-amber-400/20 border-l-[3px] border-l-amber-400 px-4 py-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-sm text-foreground">{t.client_name ?? "Sin cliente"}</span>
+                      <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ring-1 bg-white/5 ring-white/15">Seña pendiente</span>
+                    </div>
+                    <div className="text-sm text-muted-foreground">{t.service_name ?? "—"}</div>
+                    <div className="text-xs text-muted-foreground">{formatDate(t.starts_at)} · {formatTime(t.starts_at)}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {noShowOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70" onClick={() => setNoShowOpen(false)}>
+          <div className="glass-strong rounded-3xl w-full max-w-2xl max-h-[80vh] flex flex-col" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 pt-5 pb-4 border-b border-white/10 shrink-0">
+              <div>
+                <div className="font-semibold text-base">Turnos con No asistió</div>
+                <div className="text-xs text-muted-foreground mt-0.5">Clientes que no vinieron a su turno.</div>
+              </div>
+              <button type="button" onClick={() => setNoShowOpen(false)}
+                className="rounded-xl p-2 text-muted-foreground hover:text-white hover:bg-white/[0.08] transition">✕</button>
+            </div>
+            <div className="overflow-y-auto flex-1 px-6 py-4 space-y-3">
+              {noShowTurnos.map((t) => (
+                <div key={t.id} className="rounded-2xl bg-rose-500/[0.06] ring-1 ring-rose-400/20 border-l-[3px] border-l-rose-400 px-4 py-4">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold text-sm text-foreground">{t.client_name ?? "Sin cliente"}</span>
+                      <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full ring-1 bg-white/5 ring-white/15">No asistió</span>
+                    </div>
+                    <div className="text-sm text-muted-foreground">{t.service_name ?? "—"}</div>
+                    <div className="text-xs text-muted-foreground">{formatDate(t.starts_at)} · {formatTime(t.starts_at)}</div>
                   </div>
                 </div>
               ))}
