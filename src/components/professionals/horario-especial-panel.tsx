@@ -166,7 +166,44 @@ export function HorarioEspecialPanel({
     }
   };
 
-  // "Bloquear horas": acción independiente del switch Descanso. Si Descanso tiene un rango
+  // "Bloquear horas" dentro del editor: uno o varios tramos del día abierto.
+  const saveBlocks = async (ranges: { start: string; end: string }[], label: string) => {
+    if (!editor) return false;
+    const rows = [];
+    for (const r of ranges) {
+      const startsAt = new Date(`${editor.dateKey}T${r.start}:00`);
+      const endsAt = new Date(`${editor.dateKey}T${r.end}:00`);
+      if (startsAt.getTime() < Date.now()) {
+        toast.error("No podés bloquear horarios que ya pasaron.");
+        return false;
+      }
+      rows.push({
+        business_id: businessId,
+        branch_id: activeBranchId,
+        client_id: null,
+        client_name: label || "Horario bloqueado",
+        employee_id: employeeId,
+        service_name: "Bloqueo de horario",
+        service_price: 0,
+        starts_at: startsAt.toISOString(),
+        ends_at: endsAt.toISOString(),
+        duration_min: Math.max(15, Math.round((endsAt.getTime() - startsAt.getTime()) / 60_000)),
+        status: "blocked",
+        notes: label ? `Horario bloqueado: ${label}` : "Horario bloqueado desde el Panel Profesional",
+        created_by_name: profile?.full_name ?? null,
+        created_by_role: profile?.role ?? null,
+        updated_at: new Date().toISOString(),
+      });
+    }
+    const { error } = await supabase.from("appointments").insert(rows as any);
+    if (error) {
+      toast.error("No se pudo bloquear el horario. Probá de nuevo.");
+      return false;
+    }
+    return true;
+  };
+
+  // (Anterior) "Bloquear horas": acción independiente del switch Descanso. Si Descanso tiene un rango
   // válido, arranca con ese; si no, desde el inicio del horario del día (1 hora).
   const openBlock = (breakStart: string, breakEnd: string) => {
     if (!editor) return;
@@ -274,7 +311,7 @@ export function HorarioEspecialPanel({
           saving={editor.saving}
           // Sin selector de profesional: el horario es siempre del profesional
           // que tiene la sesión abierta.
-          onBlock={openBlock}
+          onBlocks={saveBlocks}
           onSave={save}
           onCancel={() => {
             setOverrideConfirm(null);

@@ -1,6 +1,6 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { Plus, X, Pencil, XCircle } from "lucide-react";
+import { Plus, X, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { DarkCalendar } from "@/components/agenda/dark-calendar";
 import { toDateKey, type SpecialDateMap, type DaySchedule } from "@/components/agenda/use-agenda-data";
@@ -180,7 +180,7 @@ export function SpecialDayEditor({
   professionals,
   selectedEmployeeId,
   onSelectEmployee,
-  onBlock,
+  onBlocks,
   onSave,
   onCancel,
 }: {
@@ -192,18 +192,67 @@ export function SpecialDayEditor({
   professionals?: { id: string; full_name?: string | null; name?: string | null }[];
   selectedEmployeeId?: string | null;
   onSelectEmployee?: (employeeId: string) => void;
-  onBlock?: (breakStart: string, breakEnd: string) => void;
+  /** Si se pasa, el editor muestra el interruptor "Bloquear horas" (uno o varios tramos del mismo día). Devuelve true si se guardó. */
+  onBlocks?: (ranges: { start: string; end: string }[], label: string) => Promise<boolean>;
   onSave: (day: DaySchedule) => void;
   onCancel: () => void;
 }) {
   const [state, setState] = React.useState<SpecialFormState>(() => specialStateFromDay(value));
   const patch = (p: Partial<SpecialFormState>) => setState((s) => ({ ...s, ...p }));
 
-  const handleSave = () => {
+  const [blockOn, setBlockOn] = React.useState(false);
+  const [blocks, setBlocks] = React.useState<{ start: string; end: string }[]>([]);
+  const [blockLabel, setBlockLabel] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+
+  const plusHour = (time: string) => {
+    const m = Math.min(23 * 60 + 59, toMin(time) + 60);
+    return `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+  };
+  const toggleBlock = (on: boolean) => {
+    setBlockOn(on);
+    if (on && blocks.length === 0) {
+      const start = state.breakStart && toMin(state.breakEnd) > toMin(state.breakStart) ? state.breakStart : state.start || "11:00";
+      const end = state.breakStart && toMin(state.breakEnd) > toMin(state.breakStart) ? state.breakEnd : plusHour(start);
+      setBlocks([{ start, end }]);
+    }
+  };
+  const addBlock = () =>
+    setBlocks((list) => {
+      const last = list[list.length - 1];
+      const start = last?.end || state.start || "11:00";
+      return [...list, { start, end: plusHour(start) }];
+    });
+  const patchBlock = (i: number, p: Partial<{ start: string; end: string }>) =>
+    setBlocks((list) => list.map((b, idx) => (idx === i ? { ...b, ...p } : b)));
+
+  const handleSave = async () => {
     const err = validateSpecial(state, allowBreak);
     if (err) {
       toast.error(err);
       return;
+    }
+    if (onBlocks && blockOn) {
+      for (const b of blocks) {
+        if (!b.start || !b.end || toMin(b.end) <= toMin(b.start)) {
+          toast.error("En cada bloqueo, la hora hasta debe ser posterior a la hora desde.");
+          return;
+        }
+      }
+      const sorted = [...blocks].sort((a, b) => toMin(a.start) - toMin(b.start));
+      for (let i = 1; i < sorted.length; i++) {
+        if (toMin(sorted[i].start) < toMin(sorted[i - 1].end)) {
+          toast.error("Los horarios bloqueados no pueden superponerse.");
+          return;
+        }
+      }
+      setBusy(true);
+      const ok = await onBlocks(blocks, blockLabel.trim());
+      setBusy(false);
+      if (!ok) return;
+      // Ya quedaron guardados: si el guardado del horario pide confirmación, no se vuelven a crear.
+      setBlockOn(false);
+      setBlocks([]);
     }
     onSave(buildSpecialDay(state, allowBreak));
   };
@@ -256,32 +305,63 @@ export function SpecialDayEditor({
           <SpecialDayFields state={state} onChange={patch} allowBreak={allowBreak} closedLabel={closedLabel} />
         </div>
 
-        {/* Acción independiente del switch Descanso: Descanso configura un
-            descanso recurrente, Bloquear horas bloquea una franja puntual —
-            son dos conceptos separados. Siempre visible debajo de Descanso,
-            esté ON u OFF; si Descanso tiene un rango cargado se usa como
-            sugerencia inicial al abrir el diálogo de bloqueo, pero nunca es
-            un requisito para poder bloquear. */}
-        {onBlock && (
-          <button
-            type="button"
-            onClick={() => onBlock(state.breakStart, state.breakEnd)}
-            disabled={saving}
-            className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-amber-500 px-3 text-sm font-semibold text-[#1a1300] shadow-md shadow-amber-500/25 transition hover:bg-amber-400 active:bg-amber-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#15161c] disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            <XCircle className="h-4 w-4" />
-            Bloquear horas
-          </button>
+        {/* Bloquear horas: interruptor con uno o varios tramos "desde / hasta" del mismo día. */}
+        {onBlocks && (
+          <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.12),transparent_65%)]">
+            <div className="flex items-center gap-2.5 py-0.5">
+              <Toggle on={blockOn} onChange={toggleBlock} />
+              <span className="text-sm">Bloquear horas</span>
+            </div>
+            {blockOn && (
+              <div className="mt-3 space-y-3">
+                <label className="block text-sm font-semibold">
+                  Motivo (opcional)
+                  <input
+                    value={blockLabel}
+                    onChange={(e) => setBlockLabel(e.target.value)}
+                    placeholder="Ej: Almuerzo, trámite"
+                    className="mt-2 h-11 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none focus:border-violet-300/45"
+                  />
+                </label>
+                {blocks.map((b, i) => (
+                  <div key={i} className="flex flex-wrap items-center gap-x-3 gap-y-2">
+                    <span className="w-14 shrink-0 text-xs text-muted-foreground">Desde</span>
+                    <input type="time" value={b.start} onChange={(e) => patchBlock(i, { start: e.target.value })} className={timeCls} />
+                    <span className="text-muted-foreground text-xs">hasta</span>
+                    <input type="time" value={b.end} onChange={(e) => patchBlock(i, { end: e.target.value })} className={timeCls} />
+                    {blocks.length > 1 && (
+                      <button
+                        type="button"
+                        aria-label="Quitar este horario"
+                        onClick={() => setBlocks((list) => list.filter((_, idx) => idx !== i))}
+                        className="grid h-8 w-8 place-items-center rounded-full text-white/60 hover:bg-white/10 hover:text-white"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  type="button"
+                  onClick={addBlock}
+                  className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.04] text-sm font-medium text-white/85 transition hover:bg-white/[0.08]"
+                >
+                  <Plus className="h-4 w-4" />
+                  Agregar otro horario
+                </button>
+              </div>
+            )}
+          </div>
         )}
 
         <div className="mt-4 flex items-center gap-2">
           <button
             type="button"
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || busy}
             className="h-11 flex-1 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 text-sm shadow-lg shadow-violet-500/30 ring-1 ring-white/25 disabled:opacity-50"
           >
-            {saving ? "Guardando…" : "Guardar"}
+            {saving || busy ? "Guardando…" : "Guardar"}
           </button>
           <button
             type="button"

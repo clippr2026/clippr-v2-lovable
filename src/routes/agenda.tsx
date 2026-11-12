@@ -728,6 +728,49 @@ function AgendaPage() {
     openBlockDialog(employeeId, start, null, end);
   };
 
+  // "Bloquear horas" dentro de Horario especial: uno o varios tramos del día que se está editando.
+  const saveBlocksFromSpecial = async (ranges: { start: string; end: string }[], label: string) => {
+    if (!specialEditor?.employeeId || !data.businessId) {
+      toast.error("Seleccioná un profesional para bloquear horario.");
+      return false;
+    }
+    const dateKey = toDateKey(specialEditor.date);
+    const rows = [];
+    for (const r of ranges) {
+      const [sh, sm] = r.start.split(":");
+      const [eh, em] = r.end.split(":");
+      const startsAt = combineLocalDateTime(dateKey, sh, sm);
+      const endsAt = combineLocalDateTime(dateKey, eh, em);
+      if (isPastSlot(startsAt)) {
+        toast.error(PAST_SLOT_MESSAGE);
+        return false;
+      }
+      rows.push({
+        business_id: data.businessId,
+        branch_id: data.activeBranchId,
+        client_id: null,
+        client_name: label || "Horario bloqueado",
+        employee_id: specialEditor.employeeId,
+        service_name: "Bloqueo de horario",
+        service_price: 0,
+        starts_at: startsAt.toISOString(),
+        ends_at: endsAt.toISOString(),
+        duration_min: Math.max(15, Math.round((endsAt.getTime() - startsAt.getTime()) / 60_000)),
+        status: "blocked",
+        notes: label ? `Horario bloqueado: ${label}` : "Horario bloqueado desde Agenda",
+        created_by_name: profile?.full_name ?? null,
+        created_by_role: profile?.role ?? null,
+        updated_at: new Date().toISOString(),
+      });
+    }
+    const { error } = await supabase.from("appointments").insert(rows);
+    if (error) {
+      toast.error("No se pudo bloquear el horario. Probá de nuevo.");
+      return false;
+    }
+    return true;
+  };
+
   const openSpecialFromBreak = () => {
     if (!breakModal || !breakModal.employeeId) {
       setBreakModal(null);
@@ -2096,7 +2139,7 @@ function AgendaPage() {
             professionals={data.employees}
             selectedEmployeeId={specialEditor.employeeId}
             onSelectEmployee={changeSpecialEmployee}
-            onBlock={openBlockFromSpecial}
+            onBlocks={saveBlocksFromSpecial}
             onSave={saveSpecialFromAgenda}
             onCancel={() => setSpecialEditor(null)}
           />
