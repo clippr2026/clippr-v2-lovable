@@ -158,6 +158,7 @@ import {
   ChevronDown,
   ArrowLeftRight,
   UserRound,
+  ChevronLeft,
   ChevronRight,
   HandCoins,
   Pencil,
@@ -4459,6 +4460,11 @@ function ProfesionalesTab({
   // HistorialPanelView en professionals.tsx.
   const [liqSubTab, setLiqSubTab] = React.useState<"movimientos" | "historial" | "llegadas">("movimientos");
   const dayCollapse = useDayCollapse(selectedRow?.id ?? "");
+  // Celular: la pantalla principal de Liquidaciones queda sola y Movimientos/Pagos/Llegadas viven en otra.
+  const [liqDetalle, setLiqDetalle] = React.useState(false);
+  React.useEffect(() => {
+    setLiqDetalle(false);
+  }, [selectedRow?.id]);
   React.useEffect(() => {
     setLiqSubTab("movimientos");
   }, [selectedEmployeeId]);
@@ -5629,7 +5635,7 @@ function ProfesionalesTab({
           "prende la luz" al cargar. Desktop no cambia (shadow doble original
           vía `sm:`). */}
       <section className="flex flex-col overflow-visible rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(10,14,26,0.96),rgba(4,6,14,0.985))] shadow-[0_24px_85px_-50px_rgba(139,92,246,0.42)] sm:h-full sm:overflow-hidden sm:shadow-[0_32px_100px_-58px_rgba(0,0,0,0.95),0_24px_85px_-62px_rgba(139,92,246,0.42)]">
-        <div className="flex flex-col gap-3 border-b border-white/[0.065] px-5 py-3.5 lg:flex-row lg:items-center lg:justify-between">
+        <div className={cn("flex flex-col gap-3 border-b border-white/[0.065] px-5 py-3.5 lg:flex-row lg:items-center lg:justify-between", liqDetalle && "hidden sm:flex")}>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <select
               value={selectedEmployeeId}
@@ -5680,7 +5686,7 @@ function ProfesionalesTab({
         </div>
 
         {selectedRow && (
-          <div className="flex flex-col gap-2.5 border-b border-white/[0.055] px-5 py-3 lg:flex-row lg:items-stretch">
+          <div className={cn("flex flex-col gap-2.5 border-b border-white/[0.055] px-5 py-3 lg:flex-row lg:items-stretch", liqDetalle && "hidden sm:flex")}>
             <div
               className={cn(
                 "grid flex-1 grid-cols-2 gap-2.5",
@@ -5827,6 +5833,35 @@ function ProfesionalesTab({
           </div>
         )}
 
+        {selectedRow && !liqDetalle && (
+          <div className="px-5 pb-4 pt-1 sm:hidden">
+            <button
+              type="button"
+              onClick={() => setLiqDetalle(true)}
+              className="flex h-12 w-full items-center justify-between rounded-full border border-violet-400/35 bg-violet-500/10 px-5 text-sm font-semibold text-white transition active:scale-[0.99]"
+            >
+              <span>Movimientos, pagos y llegadas</span>
+              <ChevronRight className="size-4 text-white/60" />
+            </button>
+          </div>
+        )}
+        {selectedRow && liqDetalle && (
+          <div className="flex items-center gap-3 border-b border-white/[0.065] px-5 py-3 sm:hidden">
+            <button
+              type="button"
+              onClick={() => setLiqDetalle(false)}
+              aria-label="Volver"
+              className="grid size-10 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.05] text-white transition active:scale-95"
+            >
+              <ChevronLeft className="size-5" />
+            </button>
+            <div className="min-w-0">
+              <div className="truncate text-base font-semibold text-white">{selectedRow.name}</div>
+              <div className="text-xs text-white/50">Movimientos, pagos y llegadas</div>
+            </div>
+          </div>
+        )}
+
         {(commissionsError || runsError) && (
           <div className="mx-5 mt-3 rounded-xl border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-xs text-rose-200">
             {commissionsError && (
@@ -5905,7 +5940,7 @@ function ProfesionalesTab({
             </div>
           </>
         ) : selectedRow ? (
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+          <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", !liqDetalle && "hidden sm:flex")}>
             {/* Adelantar/Pagar ahora viven integrados en la tarjeta "Total
                 a pagar" de arriba (ver bloque de resumen) — no hay una
                 barra de botones aparte acá. */}
