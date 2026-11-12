@@ -431,6 +431,14 @@ function AgendaPage() {
     "detail" | "new" | "edit" | "block" | "filter" | null
   >(null);
   const [selected, setSelected] = React.useState<Appointment | null>(null);
+  // Si el turno abierto cambió en los datos (ej. se aprobó la seña y pasó a confirmado), el detalle lo refleja sin cerrarlo.
+  React.useEffect(() => {
+    setSelected((current) => {
+      if (!current) return current;
+      const fresh = data.appointments.find((x) => x.id === current.id);
+      return fresh && (fresh.status !== current.status || fresh.deposit_status !== current.deposit_status) ? fresh : current;
+    });
+  }, [data.appointments]);
   // Solo para forzar el recálculo de "Confirmar/No asistió/Cancelar" en
   // AppointmentDetailDialog (memoizado) mientras el drawer sigue abierto y
   // el reloj cruza la hora de inicio del turno — sin esto, el panel queda
