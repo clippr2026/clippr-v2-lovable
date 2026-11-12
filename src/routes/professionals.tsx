@@ -378,11 +378,10 @@ function ProfessionalsPage() {
 
   const selectedDateObj = useMemo(() => parseLocalISODate(fromDate), [fromDate]);
   const selectedDayLabel = useMemo(() => {
-    return selectedDateObj.toLocaleDateString("es-AR", {
-      weekday: "long",
-      day: "numeric",
-      month: "long",
-    });
+    const t = selectedDateObj
+      .toLocaleDateString("es-AR", { weekday: "long", day: "numeric", month: "long" })
+      .replace(",", "");
+    return t.charAt(0).toUpperCase() + t.slice(1);
   }, [selectedDateObj]);
 
   const [dayPickerOpen, setDayPickerOpen] = React.useState(false);
@@ -659,7 +658,7 @@ function ProfessionalsPage() {
                   className="relative inline-flex h-8 w-full cursor-pointer items-center justify-center gap-1.5 sm:gap-2 whitespace-nowrap rounded-full bg-[#070814]/95 px-2.5 sm:px-3 text-xs font-semibold text-foreground ring-1 ring-white/10 shadow-[0_0_18px_rgba(124,58,237,0.14)] transition hover:bg-[#0d1020] hover:ring-violet-300/25"
                 >
                   <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-                  <span className="capitalize tabular-nums">{selectedDayLabel}</span>
+                  <span className="tabular-nums">{selectedDayLabel}</span>
                 </button>
 
                 {dayPickerOpen && typeof document !== "undefined" && createPortal(
