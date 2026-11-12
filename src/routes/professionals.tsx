@@ -14,6 +14,8 @@ import {
   CalendarPlus,
   CreditCard,
   HandCoins,
+  Trash2,
+  UserRound,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -1016,6 +1018,25 @@ function DayStripNav({ cursor, onSelect }: { cursor: Date; onSelect: (d: Date) =
   );
 }
 
+// Colores de los turnos de Mi Panel: los mismos que la Agenda general.
+const AGENDA_META = {
+  pending: { label: "Por confirmar", bg: "oklch(0.38 0.2 220 / 0.4)", border: "oklch(0.72 0.2 210)", dot: "oklch(0.82 0.18 210)" },
+  confirmed: { label: "Confirmado", bg: "rgba(124, 58, 237, 0.24)", border: "#A78BFA", dot: "#C4B5FD" },
+  charged: { label: "Cobrado", bg: "oklch(0.38 0.2 150 / 0.55)", border: "oklch(0.76 0.2 150)", dot: "oklch(0.76 0.2 150)" },
+  deposit: { label: "Seña pendiente", bg: "oklch(0.88 0.18 95 / 0.3)", border: "oklch(0.93 0.19 95)", dot: "oklch(0.93 0.19 95)" },
+};
+const TURNO_NAME_COLOR = "#fbffff";
+const TURNO_SERVICE_COLOR = "#b1c7da";
+const STATUS_DARKEN = "linear-gradient(rgba(6, 8, 22, 0.16), rgba(6, 8, 22, 0.16))";
+function statusNeonStyle(dot: string, border: string, bg: string): React.CSSProperties {
+  const glow = `color-mix(in srgb, ${border} 24%, transparent)`;
+  return {
+    color: dot,
+    background: `${STATUS_DARKEN}, linear-gradient(${bg}, ${bg}), #111323`,
+    boxShadow: `inset 0 0 0 1px ${border}, 0 0 9px ${glow}`,
+  };
+}
+
 function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approvalModeEnabled, profile, canOperate, equipoEnabled, canAddTurno, canDeleteTurno, canEditOwnSchedule, dateControl }: {
   businessId: string | null; empId: string | null;
   fromDate: string;
@@ -1110,6 +1131,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
   useBodyScrollLock(Boolean(cobroTurno) && !!businessId && !!empId);
   const [addTurnoOpen, setAddTurnoOpen] = useState(false);
   const [notaTurno, setNotaTurno] = useState<import("@/hooks/use-professionals-data").ProfTurno | null>(null);
+  const [detalleTurno, setDetalleTurno] = useState<import("@/hooks/use-professionals-data").ProfTurno | null>(null);
   const [canceladosOpen, setCanceladosOpen] = useState(false);
   const [confirmadosOpen, setConfirmadosOpen] = useState(false);
   const [pendientesOpen, setPendientesOpen] = useState(false);
@@ -1202,6 +1224,30 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
     }),
     [turnos, sentToCajaIds]
   );
+
+  // Colores del turno: los mismos que usa la Agenda general (STATUS_META).
+  function getAgendaMeta(t: import("@/hooks/use-professionals-data").ProfTurno) {
+    const { isCharged, isConfirmed } = getTurnoMeta(t);
+    if (isCharged) return AGENDA_META.charged;
+    if (t.deposit_status === "pending" && (t.status === "pending" || t.status === "confirmed")) return AGENDA_META.deposit;
+    if (isConfirmed) return AGENDA_META.confirmed;
+    return AGENDA_META.pending;
+  }
+
+  // Qué puede hacer el profesional con un turno (mismos permisos que antes
+  // tenían los botones de la grilla): cobrar/enviar y cancelar.
+  function getTurnoAcciones(t: import("@/hooks/use-professionals-data").ProfTurno) {
+    const historial = readHistorialCobro(t.id);
+    const { isSentToCaja } = getTurnoMeta(t);
+    const puedeCobrar = canShowAction(t.status) && historial.length === 0;
+    // Una vez enviado a caja, la decisión (cobrar/rechazar) pasa a Caja: se
+    // mira el ÚLTIMO evento del historial; si Caja lo rechazó vuelve a poder
+    // cancelarse.
+    const ordenado = [...historial].sort((x, y) => (x.ts ?? x.time).localeCompare(y.ts ?? y.time));
+    const bloqueadoPorCaja = ordenado[ordenado.length - 1]?.action === "Envió a caja";
+    const puedeCancelar = canDeleteTurno && !["cancelled", "charged"].includes(t.status) && !bloqueadoPorCaja;
+    return { puedeCobrar, enviado: isSentToCaja && !puedeCobrar, puedeCancelar };
+  }
 
   // Style per status
   function getBlockStyle(t: import("@/hooks/use-professionals-data").ProfTurno) {
@@ -1557,165 +1603,75 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
 
             {agendaTurnos.map((t) => {
               void historialVersion;
-              const style = getBlockStyle(t);
-              const noteText = getNoteDisplay(t);
-              const historialDisplay = readHistorialCobro(t.id);
-              const showActionBtn = canShowAction(t.status) && historialDisplay.length === 0;
-              const { isSentToCaja } = getTurnoMeta(t);
-
-              // Celda de acción (botón Cobrar-Enviar / Enviado / "—") — una
-              // sola definición, reusada tal cual en el layout compacto de
-              // mobile y en el grid de desktop. Ya NO muestra quién
-              // cobró/envió acá: esa info vive únicamente en Historial de
-              // ventas (pedido explícito — Mi Agenda queda limpia, solo
-              // información del turno y su estado). historialDisplay solo
-              // se usa para decidir si el botón sigue teniendo sentido.
-              // Enviado (gris, deshabilitado, ✓): reemplaza al botón
-              // Enviar en cuanto el profesional lo tocó, para que no se
-              // pueda enviar dos veces — el turno en sí no cambia de
-              // estado ni de color, solo cambia el botón.
-              const actionCell = showActionBtn ? (
-                <button
-                  onClick={() => setCobroTurno(t)}
-                  className={cn("rounded-lg px-3 py-1.5 text-xs font-semibold transition ring-1 whitespace-nowrap",
-                    approvalMode === "auto"
-                      ? "bg-emerald-500/15 ring-emerald-400/30 text-emerald-300 hover:bg-emerald-500/25"
-                      : "bg-cyan-500/15 ring-cyan-400/30 text-cyan-300 hover:bg-cyan-500/25"
-                  )}
-                >
-                  {approvalMode === "auto" ? "Cobrar" : "Enviar"}
-                </button>
-              ) : isSentToCaja ? (
-                <button
-                  type="button"
-                  disabled
-                  className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-semibold ring-1 whitespace-nowrap bg-white/5 ring-white/15 text-muted-foreground cursor-not-allowed"
-                >
-                  <span aria-hidden>✓</span> Enviado
-                </button>
-              ) : (
-                <span className="text-[11px] text-muted-foreground">—</span>
-              );
-
-              // Una vez enviado a caja, la decisión (cobrar/rechazar) pasa a
-              // depender exclusivamente de Caja — el profesional ya no debe
-              // poder cancelarlo desde acá. Se mira el ÚLTIMO evento del
-              // historial (no solo "¿existe el marcador?"): si Caja lo
-              // rechazó, el turno vuelve a estar disponible y el profesional
-              // puede cancelarlo de nuevo; "Cobró" ya excluye por t.status
-              // === "charged" más abajo.
-              const sortedHistForDelete = [...historialDisplay].sort(
-                (a, b) => (a.ts ?? a.time).localeCompare(b.ts ?? b.time),
-              );
-              const isBlockedByCaja =
-                sortedHistForDelete[sortedHistForDelete.length - 1]?.action === "Envió a caja";
-              const canDeleteThisTurno =
-                canDeleteTurno && !["cancelled", "charged"].includes(t.status) && !isBlockedByCaja;
-              const deleteCell = canDeleteThisTurno ? (
-                <button
-                  type="button"
-                  title="Cancelar turno"
-                  onClick={() => {
-                    setCancelReason("");
-                    setCancelingTurno(t);
-                  }}
-                  className="shrink-0 rounded-lg px-1.5 text-rose-400/70 transition hover:bg-rose-500/10 hover:text-rose-300"
-                >
-                  ✕
-                </button>
-              ) : null;
+              const meta = getAgendaMeta(t);
+              const height = getBlockHeight(t);
+              const threeLines = height >= 38;
+              const startLabel = minToHHMM(minutesOfDayFromISO(t.starts_at));
+              const endLabel = minToHHMM(getTurnoEndMin(t));
+              const depositPaid = t.deposit_status === "paid" && (t.status === "pending" || t.status === "confirmed");
+              const depositPending = t.deposit_status === "pending" && (t.status === "pending" || t.status === "confirmed");
 
               return (
                 <div
                   key={t.id}
-                  className={cn(
-                    "absolute left-[60px] sm:left-[104px] right-3 z-[2] rounded-xl border-l-[3px] ring-1 px-3 py-1.5 transition-all overflow-hidden",
-                    style.border, style.bg, style.ring
-                  )}
-                  style={{ top: TIMELINE_TOP_OFFSET + getBlockTop(t.starts_at) + 6, height: getBlockHeight(t) }}
+                  role="button"
+                  tabIndex={0}
+                  className="absolute left-[60px] sm:left-[104px] right-3 z-[2] cursor-pointer overflow-hidden rounded-[6px] px-2 py-0.5 transition hover:scale-[1.005]"
+                  style={{
+                    top: TIMELINE_TOP_OFFSET + getBlockTop(t.starts_at) + 6,
+                    height,
+                    ...statusNeonStyle(meta.dot, meta.border, meta.bg),
+                    background: `${STATUS_DARKEN}, ${meta.bg}`,
+                  }}
                   // Corta la propagación: sin esto, tocar un turno existente
                   // también disparaba handleTimelineClick del contenedor de
                   // fondo (la creación rápida es solo para espacios vacíos).
-                  onClick={(e) => e.stopPropagation()}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setDetalleTurno(t);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") setDetalleTurno(t);
+                  }}
                 >
-                  {/* Mobile (<sm): fila compacta — línea 1 hora (fina, celeste)
-                      + nombre del cliente (usa el ancho disponible, trunca
-                      solo si no entra); línea 2 servicio (más chico, gris
-                      claro). Acción (Cobrar/Enviar/historial) + cancelar
-                      siempre visibles a la derecha, sin cambios de lógica ni
-                      tamaño. El grid de desktop de abajo queda oculto acá. */}
-                  <div className="flex h-full items-center justify-between gap-2 sm:hidden">
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-baseline gap-1.5 min-w-0">
-                        <span className={cn("shrink-0 text-[10px] font-normal tabular-nums", style.labelColor)}>
-                          {minToHHMM(minutesOfDayFromISO(t.starts_at))} · {minToHHMM(getTurnoEndMin(t))}
-                        </span>
-                        <span className="min-w-0 flex-1 truncate text-xs font-semibold text-foreground">
+                  {threeLines ? (
+                    <>
+                      <div className="text-[11px] font-semibold tabular-nums leading-none">{startLabel} • {endLabel}</div>
+                      <div className="mt-px truncate text-[15px] font-bold leading-none" style={{ color: TURNO_NAME_COLOR }}>
+                        {t.client_name ?? "Sin cliente"}
+                      </div>
+                      <div className="mt-px flex min-w-0 items-center gap-1.5 leading-none">
+                        <span className="truncate text-[12px]" style={{ color: TURNO_SERVICE_COLOR }}>{t.service_name ?? "—"}</span>
+                        {hasProductBadge(t) && (
+                          <span className="inline-flex shrink-0 items-center gap-0.5 text-[9px] font-semibold leading-none text-amber-300">
+                            <span aria-hidden>⭐</span>
+                            <span>Producto</span>
+                          </span>
+                        )}
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <div className="flex min-w-0 items-center gap-1 leading-none">
+                        <span className="shrink-0 text-[11px] font-bold tabular-nums leading-none" style={{ color: meta.dot }}>{startLabel} • {endLabel}</span>
+                        <span className="shrink-0 text-[10px] leading-none opacity-40">·</span>
+                        <span className="min-w-0 flex-1 truncate text-[14px] font-semibold leading-none" style={{ color: TURNO_NAME_COLOR }}>
                           {t.client_name ?? "Sin cliente"}
                         </span>
                       </div>
-                      <div className="truncate text-[10.5px] text-muted-foreground/70">
-                        {t.service_name ?? "—"}
-                        {t.deposit_status === "pending" && (t.status === "pending" || t.status === "confirmed") ? (
-                          <span className="ml-1.5 rounded px-1 text-[9px] font-bold uppercase tracking-wide text-amber-200 bg-amber-500/25">Seña pendiente</span>
-                        ) : t.deposit_status === "paid" && (t.status === "pending" || t.status === "confirmed") ? (
-                          <span className="ml-1.5 rounded px-1 text-[9px] font-bold uppercase tracking-wide text-violet-200 bg-violet-500/30">Seña paga</span>
-                        ) : null}
-                      </div>
+                      <div className="mt-0.5 truncate text-[12px] leading-none" style={{ color: TURNO_SERVICE_COLOR }}>{t.service_name ?? "—"}</div>
+                    </>
+                  )}
+                  {depositPending && (
+                    <div className="mt-px w-fit rounded px-1 text-[8px] font-bold uppercase tracking-wide" style={{ background: "oklch(0.9 0.18 92)", color: "#2a2400" }}>
+                      Seña pendiente
                     </div>
-                    <div className="shrink-0 flex items-center gap-1">
-                      {actionCell}
-                      {deleteCell}
+                  )}
+                  {depositPaid && (
+                    <div className="mt-px w-fit rounded px-1 text-[8px] font-bold uppercase tracking-wide" style={{ background: "rgba(139, 92, 246, 0.35)", color: "#DDD6FE" }}>
+                      Seña paga
                     </div>
-                  </div>
-
-                  {/* Desktop (sm+): grid original, sin cambios. */}
-                  <div className="hidden h-full grid-cols-[112px_minmax(120px,0.85fr)_auto_minmax(170px,1.25fr)_auto_auto] items-center gap-3 sm:grid">
-                    <div className={cn("min-w-0 text-xs font-semibold tabular-nums", style.labelColor)}>
-                      {minToHHMM(minutesOfDayFromISO(t.starts_at))} - {minToHHMM(getTurnoEndMin(t))}
-                    </div>
-
-                    <div className="min-w-0 truncate text-xs font-semibold text-foreground">
-                      {t.client_name ?? "Sin cliente"}
-                    </div>
-
-                    <span className={cn(
-                      "justify-self-start whitespace-nowrap rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider ring-1",
-                      style.bg, style.ring, style.labelColor
-                    )}>
-                      {style.label}
-                    </span>
-
-                    <div className="flex min-w-0 items-center gap-1.5">
-                      <span className="truncate text-xs text-muted-foreground">{t.service_name ?? "—"}</span>
-                      {t.deposit_status === "paid" && (t.status === "pending" || t.status === "confirmed") && (
-                        <span className="shrink-0 rounded px-1 text-[9px] font-bold uppercase tracking-wide text-violet-200 bg-violet-500/30">Seña paga</span>
-                      )}
-                      {hasProductBadge(t) && (
-                        <span className="inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap text-[10px] font-semibold text-amber-300">
-                          <span aria-hidden>⭐</span>
-                          <span>Producto</span>
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="min-w-[70px] justify-self-start">
-                      {noteText ? (
-                        <button
-                          type="button"
-                          onClick={() => setNotaTurno(t)}
-                          className="inline-flex items-center gap-1 whitespace-nowrap text-[10px] font-semibold text-sky-300/80 hover:text-sky-300 transition"
-                        >
-                          📄 Ver nota
-                        </button>
-                      ) : null}
-                    </div>
-
-                    <div className="min-w-[92px] max-w-[260px] justify-self-end flex items-center justify-end gap-1 text-right">
-                      {actionCell}
-                      {deleteCell}
-                    </div>
-                  </div>
+                  )}
                 </div>
               );
             })}
@@ -1800,6 +1756,100 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
         </div>,
         document.body,
       )}
+
+      {detalleTurno && (() => {
+        const t = detalleTurno;
+        const meta = getAgendaMeta(t);
+        const acc = getTurnoAcciones(t);
+        const noteText = getNoteDisplay(t);
+        const mins = Math.max(0, getTurnoEndMin(t) - minutesOfDayFromISO(t.starts_at));
+        return (
+          <AgendaCenteredModal
+            premium
+            open
+            onOpenChange={(v) => { if (!v) setDetalleTurno(null); }}
+            lockOutside={false}
+            title={
+              <div className="flex items-center gap-3.5">
+                <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl border border-cyan-300/40 bg-[#0b1530] text-cyan-300">
+                  <UserRound className="h-7 w-7" />
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate">{t.client_name ?? "Sin cliente"}</div>
+                  <div
+                    className="mt-1.5 inline-flex items-center gap-2 rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em]"
+                    style={statusNeonStyle(meta.dot, meta.border, meta.bg)}
+                  >
+                    <span className="h-2 w-2 rounded-full" style={{ background: meta.dot }} />
+                    {meta.label}
+                  </div>
+                </div>
+              </div>
+            }
+          >
+            <div className="space-y-3">
+              <div className="rounded-3xl p-4" style={statusNeonStyle(meta.dot, meta.border, meta.bg)}>
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0 break-words font-display text-lg font-semibold leading-tight text-white">{t.service_name ?? "Servicio"}</div>
+                  {t.service_price ? (
+                    <div className="shrink-0 text-lg font-semibold tabular-nums text-white">{fmtMoney(t.service_price)}</div>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="space-y-2.5 rounded-2xl border border-white/10 bg-white/[0.025] px-4 py-3">
+                <div className="flex items-center gap-3">
+                  <Clock className="h-5 w-5 shrink-0" style={{ color: meta.dot }} />
+                  <div>
+                    <div className="font-semibold tabular-nums text-white">{minToHHMM(minutesOfDayFromISO(t.starts_at))}hs – {minToHHMM(getTurnoEndMin(t))}hs</div>
+                    <div className="text-xs text-white/55">({mins} min)</div>
+                  </div>
+                </div>
+              </div>
+
+              {noteText && (
+                <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3">
+                  <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-white/45">Notas</div>
+                  <div className="mt-1 whitespace-pre-wrap break-words text-sm text-white/90">{noteText}</div>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 gap-2.5 pt-1 sm:grid-cols-2">
+                {acc.puedeCobrar && (
+                  <button
+                    type="button"
+                    onClick={() => { setCobroTurno(t); setDetalleTurno(null); }}
+                    className={cn(
+                      "inline-flex h-12 items-center justify-center gap-2 rounded-full text-sm font-bold ring-1 transition",
+                      approvalMode === "auto"
+                        ? "bg-emerald-500/15 text-emerald-300 ring-emerald-400/60 hover:bg-emerald-500/25"
+                        : "bg-cyan-500/15 text-cyan-300 ring-cyan-400/60 hover:bg-cyan-500/25",
+                    )}
+                  >
+                    <CreditCard className="h-4 w-4" />
+                    {approvalMode === "auto" ? "Cobrar turno" : "Enviar a caja"}
+                  </button>
+                )}
+                {acc.enviado && (
+                  <button type="button" disabled className="inline-flex h-12 cursor-not-allowed items-center justify-center gap-2 rounded-full bg-white/5 text-sm font-semibold text-white/50 ring-1 ring-white/15">
+                    <span aria-hidden>✓</span> Enviado a caja
+                  </button>
+                )}
+                {acc.puedeCancelar && (
+                  <button
+                    type="button"
+                    onClick={() => { setCancelReason(""); setCancelingTurno(t); setDetalleTurno(null); }}
+                    className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-rose-500/10 text-sm font-bold text-rose-300 ring-1 ring-rose-400/60 transition hover:bg-rose-500/20"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    Cancelar turno
+                  </button>
+                )}
+              </div>
+            </div>
+          </AgendaCenteredModal>
+        );
+      })()}
 
       {cancelingTurno && typeof document !== "undefined" && createPortal(
         <div
