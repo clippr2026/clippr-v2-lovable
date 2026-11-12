@@ -11813,15 +11813,18 @@ function unifiedMovView(
   // formulario (ver RegistrarMovimientoModal), así que si por algún motivo
   // quedó vacío, el fallback es el tipo de movimiento, no un guion.
   const concepto = senaNotaVisible(m.note)?.trim() || tipoLabel;
+  // Movimiento de una seña: la base guarda "Seña – cliente – servicio" (o "Reembolso de seña – …").
+  // Se muestra como una venta: tipo "Seña", cliente arriba y servicio abajo.
+  const senaMatch = /^(Seña|Reembolso de seña)\s+[–-]\s+(.+?)\s+[–-]\s+(.*)$/.exec(concepto);
   return {
-    typeLabel: tipoLabel,
+    typeLabel: senaMatch ? (senaMatch[1] === "Seña" ? "Seña" : "Reembolso de seña") : tipoLabel,
     fecha: formatArgFecha(dt),
     hora: formatArgHora(dt),
     quien: `${displayResponsibleUser(m.created_by)} → ${m.type === "ingreso" ? "Ingresó" : "Retiró"}`,
-    clienteOConcepto: concepto,
+    clienteOConcepto: senaMatch ? senaMatch[2] : concepto,
     profesional: "—",
-    servicio: "—",
-    metodoLabel: m.method === "cuenta" ? "Cuenta" : "Efectivo",
+    servicio: senaMatch ? senaMatch[3].trim() || "—" : "—",
+    metodoLabel: m.method === "cuenta" ? "Transferencia" : "Efectivo",
     nota: null,
     notaTitle: null,
   };
