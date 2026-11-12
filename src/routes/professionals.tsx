@@ -16,6 +16,7 @@ import {
   HandCoins,
   Trash2,
   UserRound,
+  Coffee,
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
@@ -378,10 +379,10 @@ function ProfessionalsPage() {
   const selectedDateObj = useMemo(() => parseLocalISODate(fromDate), [fromDate]);
   const selectedDayLabel = useMemo(() => {
     return selectedDateObj.toLocaleDateString("es-AR", {
-      weekday: "short",
-      day: "2-digit",
-      month: "2-digit",
-    }).replace(".", "");
+      weekday: "long",
+      day: "numeric",
+      month: "long",
+    });
   }, [selectedDateObj]);
 
   const [dayPickerOpen, setDayPickerOpen] = React.useState(false);
@@ -636,7 +637,7 @@ function ProfessionalsPage() {
           canDeleteTurno={canDeleteTurno}
           canEditOwnSchedule={isProfessionalAccess}
           dateControl={
-            <div className="flex shrink-0 items-center gap-1.5 sm:gap-2 rounded-full bg-[#070814]/85 p-1 ring-1 ring-white/10 shadow-[0_0_24px_rgba(0,0,0,0.22)]">
+            <div className="flex w-full items-center gap-1.5 sm:w-auto sm:shrink-0 sm:gap-2 rounded-full bg-[#070814]/85 p-1 ring-1 ring-white/10 shadow-[0_0_24px_rgba(0,0,0,0.22)]">
               <button
                 type="button"
                 onClick={() => {
@@ -651,11 +652,11 @@ function ProfessionalsPage() {
                 Hoy
               </button>
 
-              <div className="relative shrink-0">
+              <div className="relative min-w-0 flex-1 sm:flex-none">
                 <button
                   type="button"
                   onClick={() => setDayPickerOpen((v) => !v)}
-                  className="relative inline-flex h-8 cursor-pointer items-center gap-1.5 sm:gap-2 whitespace-nowrap rounded-full bg-[#070814]/95 px-2.5 sm:px-3 text-xs font-semibold text-foreground ring-1 ring-white/10 shadow-[0_0_18px_rgba(124,58,237,0.14)] transition hover:bg-[#0d1020] hover:ring-violet-300/25"
+                  className="relative inline-flex h-8 w-full cursor-pointer items-center justify-center gap-1.5 sm:gap-2 whitespace-nowrap rounded-full bg-[#070814]/95 px-2.5 sm:px-3 text-xs font-semibold text-foreground ring-1 ring-white/10 shadow-[0_0_18px_rgba(124,58,237,0.14)] transition hover:bg-[#0d1020] hover:ring-violet-300/25"
                 >
                   <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                   <span className="capitalize tabular-nums">{selectedDayLabel}</span>
@@ -1027,6 +1028,7 @@ const AGENDA_META = {
   no_show: { label: "No asistió", bg: "oklch(0.34 0.2 25 / 0.58)", border: "oklch(0.68 0.22 25)", dot: "oklch(0.68 0.22 25)" },
   deposit: { label: "Seña pendiente", bg: "oklch(0.88 0.18 95 / 0.3)", border: "oklch(0.93 0.19 95)", dot: "oklch(0.93 0.19 95)" },
 };
+const BREAK_META = { bg: "oklch(0.36 0.09 200 / 0.5)", border: "oklch(0.78 0.12 200)", dot: "oklch(0.88 0.1 200)" };
 const TURNO_NAME_COLOR = "#fbffff";
 const TURNO_SERVICE_COLOR = "#b1c7da";
 const STATUS_DARKEN = "linear-gradient(rgba(6, 8, 22, 0.16), rgba(6, 8, 22, 0.16))";
@@ -1328,10 +1330,24 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
     return new Date(first);
   }, [agendaTurnos, from]);
 
-  const breakRange = React.useMemo(
-    () => readBreakRange(businessSchedule, empId, timelineBaseDate),
-    [businessSchedule, empId, timelineBaseDate],
-  );
+  // El descanso sale del horario ya resuelto del profesional (si ese día tiene un horario
+  // especial, manda ese: sin descanso ahí, no se dibuja).
+  const breakRange = React.useMemo(() => {
+    const day = resolveDaySchedule(
+      agendaData.schedule,
+      agendaData.employeeSchedules,
+      agendaData.businessSpecialDates,
+      agendaData.employeeSpecialDates,
+      empId,
+      timelineBaseDate,
+    );
+    if (!day || day.enabled === false) return null;
+    const first = day.breaks?.[0] ?? (day.breakStart && day.breakEnd ? { start: day.breakStart, end: day.breakEnd } : null);
+    if (!first) return null;
+    const startMin = Math.round(parseScheduleTime(first.start) * 60);
+    const endMin = Math.round(parseScheduleTime(first.end) * 60);
+    return endMin > startMin ? { startMin, endMin } : null;
+  }, [agendaData.schedule, agendaData.employeeSchedules, agendaData.businessSpecialDates, agendaData.employeeSpecialDates, empId, timelineBaseDate]);
 
   const dayBounds = React.useMemo(() => {
     const mins = [
@@ -1519,7 +1535,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
       </div>
 
       {/* Celular: Hoy + fecha, justo arriba de la agenda. */}
-      <div className="mb-3 flex justify-center sm:hidden">{dateControl}</div>
+      <div className="mb-3 flex w-full justify-center sm:hidden">{dateControl}</div>
 
       <ClosedDayBanner businessId={businessId} branchId={agendaData.activeBranchId} from={from} to={to} />
 
@@ -1560,19 +1576,19 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
 
             {breakRange && (
               <div
-                className="pointer-events-none absolute left-[60px] sm:left-[104px] right-3 z-[1] flex flex-col items-center justify-center gap-0.5 overflow-hidden rounded-xl px-3 text-center"
+                className="pointer-events-none absolute left-[60px] sm:left-[104px] right-3 z-[1] flex flex-col items-center justify-center gap-0.5 overflow-hidden rounded-[6px] px-3 text-center"
                 style={{
                   top: TIMELINE_TOP_OFFSET + ((breakRange.startMin - dayBounds.startHour * 60) / 60) * HOUR_HEIGHT + 6,
                   height: Math.max(44, ((breakRange.endMin - breakRange.startMin) / 60) * HOUR_HEIGHT - 6),
-                  border: "1px solid rgba(148,163,184,0.28)",
-                  background:
-                    "repeating-linear-gradient(135deg, rgba(148,163,184,0.10) 0, rgba(148,163,184,0.10) 8px, rgba(148,163,184,0.18) 8px, rgba(148,163,184,0.18) 16px)",
+                  ...statusNeonStyle(BREAK_META.dot, BREAK_META.border, BREAK_META.bg),
+                  background: `repeating-linear-gradient(135deg, rgba(255,255,255,0.03) 0, rgba(255,255,255,0.03) 8px, transparent 8px, transparent 16px), ${STATUS_DARKEN}, linear-gradient(115deg, ${BREAK_META.bg} 0%, color-mix(in srgb, ${BREAK_META.bg} 30%, transparent) 100%)`,
                 }}
               >
-                <span className="text-[11px] font-bold uppercase tracking-wide leading-none text-slate-300/85">
+                <Coffee className="h-4 w-4" style={{ color: BREAK_META.dot }} />
+                <span className="text-[11px] font-bold uppercase tracking-wide leading-none" style={{ color: BREAK_META.dot }}>
                   Descanso
                 </span>
-                <span className="text-[11px] tabular-nums leading-none text-slate-400/80">
+                <span className="text-[11px] tabular-nums leading-none" style={{ color: TURNO_SERVICE_COLOR }}>
                   {minToHHMM(breakRange.startMin)} - {minToHHMM(breakRange.endMin)}
                 </span>
               </div>
