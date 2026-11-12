@@ -1,3 +1,4 @@
+import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import {
   createFileRoute,
@@ -93,7 +94,7 @@ export const Route = createFileRoute("/agenda")({
       { name: "description", content: "Agenda diaria y semanal con turnos reales." },
     ],
   }),
-  component: AgendaPage,
+  component: AgendaPageGuarded,
 });
 
 // "YYYY-MM-DD" → Date a medianoche LOCAL (no usar `new Date("YYYY-MM-DD")`
@@ -301,6 +302,13 @@ const MOBILE_BOTTOM_NAV_CLEARANCE = 96;
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
+// Sin el permiso de esta sección (por ejemplo, una cuenta Profesional), no se muestra aunque entre por el link.
+function AgendaPageGuarded() {
+  const hasAccess = usePermGuard("agenda");
+  if (!hasAccess) return <AccessDenied />;
+  return <AgendaPage />;
+}
+
 function AgendaPage() {
   const navigate = useNavigate();
   const search = Route.useSearch();

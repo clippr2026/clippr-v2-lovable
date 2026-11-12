@@ -1,3 +1,4 @@
+import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
 import { CierreSenasGate } from "@/components/senas/cierre-senas-gate";
 import { SenasCajaCard } from "@/components/senas/senas-caja-card";
 import { CierreExtensionesNota, SenasExtensionBanner } from "@/components/senas/senas-extension";
@@ -775,7 +776,7 @@ export const Route = createFileRoute("/cash-register")({
       { name: "description", content: "Cobros, gastos y liquidaciones." },
     ],
   }),
-  component: CashRegisterPage,
+  component: CashRegisterPageGuarded,
 });
 
 type Tab =
@@ -787,6 +788,13 @@ type Tab =
   | "gastos"
   | "profesionales"
   | "cierres";
+
+// Sin el permiso de esta sección (por ejemplo, una cuenta Profesional), no se muestra aunque entre por el link.
+function CashRegisterPageGuarded() {
+  const hasAccess = usePermGuard("caja");
+  if (!hasAccess) return <AccessDenied />;
+  return <CashRegisterPage />;
+}
 
 function CashRegisterPage() {
   const { session, profile, loading: authLoading, permissions } = useAuth();

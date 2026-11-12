@@ -1,3 +1,4 @@
+import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -105,7 +106,7 @@ export const Route = createFileRoute("/clients")({
     // Reservas recurrentes sin un paso extra.
     openRecurring: typeof search.openRecurring === "string" ? search.openRecurring : undefined,
   }),
-  component: ClientsPage,
+  component: ClientsPageGuarded,
 });
 
 const avatarTints = [
@@ -1388,6 +1389,13 @@ function ClientDetailModal({
       </div>
     </div>
   );
+}
+
+// Sin el permiso de esta sección (por ejemplo, una cuenta Profesional), no se muestra aunque entre por el link.
+function ClientsPageGuarded() {
+  const hasAccess = usePermGuard("clientes");
+  if (!hasAccess) return <AccessDenied />;
+  return <ClientsPage />;
 }
 
 function ClientsPage() {

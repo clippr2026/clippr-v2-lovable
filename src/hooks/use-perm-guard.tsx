@@ -14,7 +14,7 @@ const PERM_ROUTES: Array<{ key: PermKey; to: string }> = [
 ];
 
 function firstAllowedRoute(permissions: Record<PermKey, boolean>) {
-  return PERM_ROUTES.find((r) => permissions[r.key])?.to ?? "/agenda";
+  return PERM_ROUTES.find((r) => permissions[r.key])?.to ?? "/professionals";
 }
 
 export function usePermGuard(key: PermKey): boolean {
