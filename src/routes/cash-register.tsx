@@ -11846,7 +11846,9 @@ function UnifiedMovRow({
   onClick?: () => void;
   onShowNote?: (title: string, note: string) => void;
 }) {
-  const view = unifiedMovView(item, employees);
+  const senaProf = useSenaProfesional(item, employees);
+  const baseView = unifiedMovView(item, employees);
+  const view = senaProf && baseView.profesional === "—" ? { ...baseView, profesional: senaProf } : baseView;
   const tone = movTone(item);
   const sign = item.color === "rojo" ? "-" : item.color === "gris" ? "" : "+";
   const externo = item.kind === "gasto" && !expenseAffectsCaja(item.expense?.funds_source);
@@ -11924,6 +11926,38 @@ function movTone(item: UnifiedMov) {
   return { text: "text-emerald-300", chip: "bg-emerald-400/10 text-emerald-200 ring-emerald-300/25", border: "rgba(110,231,183,0.35)", glow: "rgba(16,185,129,0.10)" };
 }
 
+// Profesional de una seña: el movimiento solo guarda el id de la seña; el barbero está en su turno.
+const senaProfCache = new Map<string, string | null>();
+function useSenaProfesional(item: UnifiedMov, employees: ReturnType<typeof useCajaData>["employees"]): string | null {
+  const depositId = item.kind === "movimiento" ? ((item.movement as any)?.deposit_id as string | null | undefined) ?? null : null;
+  const [name, setName] = React.useState<string | null>(() => (depositId ? senaProfCache.get(depositId) ?? null : null));
+  React.useEffect(() => {
+    if (!depositId) return;
+    if (senaProfCache.has(depositId)) {
+      setName(senaProfCache.get(depositId) ?? null);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const { data: dep } = await (supabase.from("appointment_deposits" as any) as any)
+        .select("appointment_id")
+        .eq("id", depositId)
+        .maybeSingle();
+      let n: string | null = null;
+      if (dep?.appointment_id) {
+        const { data: ap } = await supabase.from("appointments").select("employee_id").eq("id", dep.appointment_id).maybeSingle();
+        n = employees.find((e) => e.id === ap?.employee_id)?.name ?? null;
+      }
+      senaProfCache.set(depositId, n);
+      if (!cancelled) setName(n);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [depositId, employees]);
+  return name;
+}
+
 function UnifiedMovCardMobile({
   item,
   employees,
@@ -11937,7 +11971,9 @@ function UnifiedMovCardMobile({
   onClick?: () => void;
   onShowNote?: (title: string, note: string) => void;
 }) {
-  const view = unifiedMovView(item, employees);
+  const senaProf = useSenaProfesional(item, employees);
+  const baseView = unifiedMovView(item, employees);
+  const view = senaProf && baseView.profesional === "—" ? { ...baseView, profesional: senaProf } : baseView;
   const tone = movTone(item);
   const sign = item.color === "rojo" ? "-" : item.color === "gris" ? "" : "+";
   const externo = item.kind === "gasto" && !expenseAffectsCaja(item.expense?.funds_source);
