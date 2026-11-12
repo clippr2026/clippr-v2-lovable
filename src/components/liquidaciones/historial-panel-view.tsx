@@ -18,6 +18,7 @@
 // descuento/promo/propina). Nunca inventa lo que falta.
 import * as React from "react";
 import { toast } from "sonner";
+import { ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import {
   useProfSettlementRuns,
@@ -153,7 +154,7 @@ export function HistorialPanelView({
           key={run.id}
           type="button"
           onClick={() => handleOpen(run)}
-          className="glass w-full rounded-2xl p-4 sm:p-5 text-left space-y-2 transition hover:bg-white/[0.04]"
+          className="w-full rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-left space-y-2 transition hover:bg-white/[0.05] sm:p-5"
         >
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="text-sm font-semibold text-foreground">Liquidación #{run.run_number}</div>
@@ -181,6 +182,7 @@ export function HistorialPanelView({
           if (!v) setOpenRun(null);
         }}
         lockOutside={false}
+        premium
         title={openRun ? `Liquidación #${openRun.run_number}` : ""}
       >
         {openRun && (
@@ -194,24 +196,31 @@ export function HistorialPanelView({
               hideServices
               paidAtDisplayOverride={RUN_PAID_AT_DISPLAY_OVERRIDES[openRun.id] ?? null}
             />
-            <div>
-              <div className="mb-2 text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">
-                Ventas incluidas
+            <details className="group rounded-2xl border border-white/10 bg-white/[0.03]">
+              <summary className="flex h-12 cursor-pointer list-none items-center justify-between gap-2 px-4 text-sm font-semibold text-white [&::-webkit-details-marker]:hidden">
+                <span>
+                  {loadingSales
+                    ? "Ventas incluidas"
+                    : `Ver ${sales?.length ?? 0} ${(sales?.length ?? 0) === 1 ? "servicio" : "servicios"}`}
+                </span>
+                <ChevronDown className="size-4 text-white/55 transition group-open:rotate-180" />
+              </summary>
+              <div className="px-3 pb-3">
+                {loadingSales ? (
+                  <div className="py-6 text-center text-sm text-white/45">Cargando…</div>
+                ) : !sales || sales.length === 0 ? (
+                  <div className="py-6 text-center text-sm text-white/45">
+                    Sin ventas reconstruibles para esta liquidación.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {sales.map((s) => (
+                      <VentaRow key={s.id} c={s} commissionsMap={employeeCommissionsMap} />
+                    ))}
+                  </div>
+                )}
               </div>
-              {loadingSales ? (
-                <div className="py-6 text-center text-sm text-white/45">Cargando…</div>
-              ) : !sales || sales.length === 0 ? (
-                <div className="py-6 text-center text-sm text-white/45">
-                  Sin ventas reconstruibles para esta liquidación.
-                </div>
-              ) : (
-                <div className="space-y-2">
-                  {sales.map((s) => (
-                    <VentaRow key={s.id} c={s} commissionsMap={employeeCommissionsMap} />
-                  ))}
-                </div>
-              )}
-            </div>
+            </details>
           </div>
         )}
       </AgendaCenteredModal>

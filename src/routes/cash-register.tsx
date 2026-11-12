@@ -5967,9 +5967,38 @@ function ProfesionalesTab({
                       const amountText = amount === 0 ? "—" : amount > 0 ? `-${money(amount)}` : `+${money(-amount)}`;
                       const settled = Boolean(p.settlement_run_id) && closedRunIds.has(p.settlement_run_id);
                       return (
+                        <React.Fragment key={p.id}>
                         <div
-                          key={p.id}
-                          className="grid grid-cols-2 items-center gap-x-3 gap-y-1 border-b border-white/[0.055] px-4 py-3 text-sm last:border-0 sm:grid-cols-[110px_90px_90px_minmax(110px,1fr)_100px_110px_minmax(120px,1fr)]"
+                          className="mb-2.5 rounded-2xl border border-violet-400/20 bg-white/[0.03] p-3.5 sm:hidden"
+                          style={{ backgroundImage: CLIPPR_CARD_GLOW }}
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="text-base font-semibold text-white">{fecha}</div>
+                            <span className={cn("rounded-full px-2.5 py-0.5 text-xs font-semibold ring-1", p.status === "a_tiempo" ? "bg-emerald-400/10 ring-emerald-300/25" : p.status === "tarde" ? "bg-amber-400/10 ring-amber-300/25" : "bg-rose-400/10 ring-rose-300/25", statusCls)}>
+                              {statusLabel}
+                            </span>
+                          </div>
+                          <div className="mt-2.5 grid grid-cols-2 gap-3">
+                            <div>
+                              <div className="text-xs text-white/50">Hora esperada</div>
+                              <div className="text-lg font-semibold tabular-nums text-white">{hhmm(p.expected_start_at)}</div>
+                            </div>
+                            <div>
+                              <div className="text-xs text-white/50">Hora registrada</div>
+                              <div className="text-lg font-semibold tabular-nums text-white">{hhmm(p.effective_clock_in_at)}</div>
+                            </div>
+                          </div>
+                          <div className="mt-2.5 flex items-center justify-between gap-2 border-t border-white/[0.06] pt-2.5 text-sm">
+                            <span className="text-white/60">Ajuste de puntualidad</span>
+                            <span className={cn("font-semibold tabular-nums", amount > 0 ? "text-rose-300" : amount < 0 ? "text-emerald-300" : "text-white/40")}>{amountText}</span>
+                          </div>
+                          <div className="mt-1.5 flex items-center justify-between gap-2 text-xs text-white/50">
+                            <span className={settled ? "text-white/55" : "text-violet-300"}>{settled ? "Liquidada" : "Pendiente"}</span>
+                            <span className="truncate">Confirmó {displayResponsable(p.confirmed_by_name)}{p.penalty_overridden ? " · ajustado" : ""}</span>
+                          </div>
+                        </div>
+                        <div
+                          className="hidden grid-cols-2 items-center gap-x-3 gap-y-1 border-b border-white/[0.055] px-4 py-3 text-sm last:border-0 sm:grid sm:grid-cols-[110px_90px_90px_minmax(110px,1fr)_100px_110px_minmax(120px,1fr)]"
                         >
                           <div className="text-white/70">{fecha}</div>
                           <div className="text-white/50">{hhmm(p.expected_start_at)}</div>
@@ -5982,6 +6011,7 @@ function ProfesionalesTab({
                           <div className={settled ? "text-white/45" : "text-violet-300"}>{settled ? "Liquidada" : "Pendiente"}</div>
                           <div className="truncate text-white/45">{displayResponsable(p.confirmed_by_name)}</div>
                         </div>
+                        </React.Fragment>
                       );
                     })}
                   </div>
