@@ -4304,7 +4304,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
               </div>
             </div>
 
-            <div className="relative mt-4 flex flex-wrap items-stretch gap-2.5">
+            <div className="relative mt-3 flex flex-nowrap items-stretch gap-2 sm:mt-4 sm:gap-2.5">
               {[
                 { key: "wa", label: "WhatsApp", icon: <WhatsAppIcon className="h-5 w-5" />, color: "#4ade80", href: whatsappHref, show: Boolean(whatsappHref) },
                 { key: "mail", label: "Email", icon: <Mail className="h-5 w-5" />, color: "#e5e7eb", href: email ? `mailto:${email}` : undefined, show: Boolean(email) },
@@ -4313,7 +4313,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
               ]
                 .filter((b) => b.show)
                 .map((b) => {
-                  const cls = "flex h-12 min-w-[112px] flex-1 items-center justify-center gap-2 rounded-full text-sm font-medium text-white/90 transition hover:brightness-125 active:scale-[0.98]";
+                  const cls = "flex h-11 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full px-1 text-[13px] font-medium text-white/90 transition hover:brightness-125 active:scale-[0.98] sm:h-12 sm:gap-2 sm:text-sm";
                   const st: React.CSSProperties = {
                     background: "linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02))",
                     boxShadow: "inset 0 0 0 1px rgba(167,139,250,0.35), 0 12px 24px -20px rgba(139,92,246,0.9)",
@@ -4444,7 +4444,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
           />
 
             {/* Horario y duración · profesional · fecha de creación (en un bloqueo: profesional · bloqueo creado · creado por) */}
-            <div className="grid grid-cols-1 gap-3 rounded-2xl border border-white/10 bg-white/[0.025] px-4 py-3 sm:grid-cols-3 sm:gap-0 sm:divide-x sm:divide-white/10">
+            <div className="grid grid-cols-2 gap-x-3 gap-y-2.5 rounded-2xl border border-white/10 bg-white/[0.025] px-4 py-2.5 sm:grid-cols-3 sm:gap-0 sm:py-3 sm:divide-x sm:divide-white/10">
               {!isBlocked && (
                 <div className="flex items-center gap-3 sm:pr-4">
                   <Clock3 className="h-5 w-5 shrink-0" style={{ color: meta.dot }} />
@@ -4462,7 +4462,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                 </div>
               </div>
               {appointment.created_at && (
-                <div className={cn("flex items-center gap-3", isBlocked ? "sm:px-4" : "sm:pl-4")}>
+                <div className={cn("flex items-center gap-3", isBlocked ? "sm:px-4" : "col-span-2 sm:col-span-1 sm:pl-4")}>
                   <CalendarIcon className="h-5 w-5 shrink-0" style={{ color: meta.dot }} />
                   <div className="min-w-0 leading-tight">
                     <div className="text-xs text-white/55">{isBlocked ? "Bloqueo creado" : "Reserva creada"}</div>
@@ -4476,7 +4476,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                 </div>
               )}
               {isBlocked && (
-                <div className="flex items-center gap-3 sm:pl-4">
+                <div className="col-span-2 flex items-center gap-3 sm:col-span-1 sm:pl-4">
                   <Users className="h-5 w-5 shrink-0" style={{ color: meta.dot }} />
                   <div className="min-w-0 leading-tight">
                     <div className="text-xs text-white/55">Creado por</div>
