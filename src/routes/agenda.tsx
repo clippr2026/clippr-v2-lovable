@@ -4228,13 +4228,6 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
     ? applyPromotionDiscount(promoBasePrice, promoSnapshot as unknown as Promotion)
     : null;
 
-  const clientInitials = (appointment.client_name || "?")
-    .trim()
-    .split(/\s+/)
-    .map((w) => w[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
   const durationMin = Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000));
   const isBlocked = appointment.status === "blocked";
   // En un bloqueo la nota se guarda como "Horario bloqueado: <motivo>": se muestra solo el motivo.
@@ -4282,14 +4275,15 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
             />
             <div className="relative flex items-center gap-4 pr-12">
               <div
-                className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl text-xl font-bold text-white sm:h-[72px] sm:w-[72px]"
+                className="grid h-16 w-16 shrink-0 place-items-center rounded-2xl sm:h-[72px] sm:w-[72px]"
                 style={{
-                  background: "linear-gradient(135deg, oklch(0.7 0.22 245), oklch(0.65 0.27 305))",
-                  boxShadow: `0 0 0 1.5px ${withAlpha(meta.dot, 0.8)}, 0 0 22px ${withAlpha(meta.dot, 0.4)}`,
+                  // Avatar genérico igual para todos los clientes: azul oscuro con un toque violeta, borde celeste fino y brillo suave.
+                  background: "linear-gradient(145deg, #0a1a3d 0%, #14204f 55%, #231650 100%)",
+                  boxShadow: "0 0 0 1px rgba(34,211,238,0.75), 0 0 20px rgba(34,211,238,0.32), inset 0 1px 0 rgba(255,255,255,0.08)",
                 }}
                 aria-hidden
               >
-                {appointment.status === "blocked" ? <CalendarOff className="h-7 w-7" /> : clientInitials}
+                <UserRound className="h-9 w-9 text-cyan-300 drop-shadow-[0_0_8px_rgba(34,211,238,0.55)] sm:h-10 sm:w-10" strokeWidth={1.75} />
               </div>
               <div className="min-w-0 flex-1 space-y-2">
                 <DialogPrimitive.Title className="truncate font-display text-[26px] font-semibold leading-tight tracking-tight sm:text-[30px]">
