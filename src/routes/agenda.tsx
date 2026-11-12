@@ -4216,6 +4216,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
     .join("")
     .toUpperCase();
   const durationMin = Math.max(1, Math.round((end.getTime() - start.getTime()) / 60000));
+  const isBlocked = appointment.status === "blocked";
   // Cambios sin guardar: el motivo de cancelación ya escrito. Con eso, Escape o un clic afuera no cierran.
   const pendingChanges = confirmCancel && cancelReason.trim().length > 0;
   const depositBadge =
@@ -4240,7 +4241,7 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
           }}
           className="fixed left-1/2 top-1/2 z-50 flex max-h-[92dvh] w-[calc(100vw-1.5rem)] -translate-x-1/2 -translate-y-1/2 flex-col overflow-y-auto rounded-[28px] border border-violet-400/45 bg-[#08070f] shadow-[0_0_0_1px_rgba(139,92,246,0.35),0_30px_90px_-20px_rgba(0,0,0,0.9),0_0_60px_-18px_rgba(139,92,246,0.55)] sm:w-[min(94vw,max(560px,48vw))] sm:max-w-[900px] [background-image:radial-gradient(120%_45%_at_85%_0%,rgba(79,125,255,0.20),transparent_60%),radial-gradient(110%_50%_at_0%_100%,rgba(139,92,246,0.22),transparent_62%)]"
         >
-          <div className="relative px-4 pb-3 pt-4 sm:px-6 sm:pt-5">
+          <div className={cn("relative px-4 pb-3 pt-4 sm:px-6 sm:pt-5", isBlocked && "h-14 pb-0")}>
             <button
               type="button"
               aria-label="Cerrar"
@@ -4249,6 +4250,10 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
             >
               <X className="h-5 w-5" />
             </button>
+            {isBlocked ? (
+              <DialogPrimitive.Title className="sr-only">Horario bloqueado</DialogPrimitive.Title>
+            ) : (
+              <>
             <div
               className="pointer-events-none absolute -top-24 left-1/2 h-40 w-72 -translate-x-1/2 rounded-full opacity-20 blur-3xl"
               style={{ background: meta.dot }}
@@ -4310,6 +4315,8 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                   );
                 })}
             </div>
+              </>
+            )}
           </div>
 
           <div className="flex flex-col gap-3.5 px-4 pb-5 pt-1 sm:px-6">
@@ -4359,7 +4366,15 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                   )}
                 </div>
 
-                <div className="hidden h-16 w-px shrink-0 bg-white/15 sm:block" aria-hidden />
+                {(isBlocked || !!appointment.service_price) && (
+                  <div className="hidden h-16 w-px shrink-0 bg-white/15 sm:block" aria-hidden />
+                )}
+                {isBlocked && (
+                  <div className="shrink-0 pr-1 text-right leading-tight">
+                    <div className="tabular-nums text-lg font-semibold text-white sm:text-xl">{fmtTime(start)} – {fmtTime(end)}</div>
+                    <div className="text-sm text-white/60">({durationMin} min)</div>
+                  </div>
+                )}
                 {appointment.service_price ? (
                   promoSnapshot ? (
                     <div className="shrink-0 text-right leading-none">
@@ -4412,16 +4427,18 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
             depositStatusHint={appointment.deposit_status}
           />
 
-            {/* Horario y duración · profesional · fecha de creación de la reserva */}
+            {/* Horario y duración · profesional · fecha de creación (en un bloqueo: profesional · bloqueo creado · creado por) */}
             <div className="grid grid-cols-1 gap-3 rounded-2xl border border-white/10 bg-white/[0.025] px-4 py-3 sm:grid-cols-3 sm:gap-0 sm:divide-x sm:divide-white/10">
-              <div className="flex items-center gap-3 sm:pr-4">
-                <Clock3 className="h-5 w-5 shrink-0" style={{ color: meta.dot }} />
-                <div className="min-w-0 leading-tight">
-                  <div className="tabular-nums text-[15px] font-semibold text-white">{fmtTime(start)} – {fmtTime(end)}</div>
-                  <div className="text-xs text-white/55">({durationMin} min)</div>
+              {!isBlocked && (
+                <div className="flex items-center gap-3 sm:pr-4">
+                  <Clock3 className="h-5 w-5 shrink-0" style={{ color: meta.dot }} />
+                  <div className="min-w-0 leading-tight">
+                    <div className="tabular-nums text-[15px] font-semibold text-white">{fmtTime(start)} – {fmtTime(end)}</div>
+                    <div className="text-xs text-white/55">({durationMin} min)</div>
+                  </div>
                 </div>
-              </div>
-              <div className="flex items-center gap-3 sm:px-4">
+              )}
+              <div className={cn("flex items-center gap-3", isBlocked ? "sm:pr-4" : "sm:px-4")}>
                 <UserRound className="h-5 w-5 shrink-0" style={{ color: meta.dot }} />
                 <div className="min-w-0 leading-tight">
                   <div className="text-xs text-white/55">Profesional</div>
@@ -4429,10 +4446,10 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                 </div>
               </div>
               {appointment.created_at && (
-                <div className="flex items-center gap-3 sm:pl-4">
+                <div className={cn("flex items-center gap-3", isBlocked ? "sm:px-4" : "sm:pl-4")}>
                   <CalendarIcon className="h-5 w-5 shrink-0" style={{ color: meta.dot }} />
                   <div className="min-w-0 leading-tight">
-                    <div className="text-xs text-white/55">Reserva creada</div>
+                    <div className="text-xs text-white/55">{isBlocked ? "Bloqueo creado" : "Reserva creada"}</div>
                     <div className="text-[15px] font-semibold text-white">
                       {new Date(appointment.created_at).toLocaleDateString("es-AR", { weekday: "short" }).replace(".", "").replace(/^./, (c) => c.toUpperCase())}{" "}
                       {new Date(appointment.created_at).toLocaleDateString("es-AR", { day: "2-digit", month: "2-digit" })}
@@ -4442,9 +4459,18 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                   </div>
                 </div>
               )}
+              {isBlocked && (
+                <div className="flex items-center gap-3 sm:pl-4">
+                  <Users className="h-5 w-5 shrink-0" style={{ color: meta.dot }} />
+                  <div className="min-w-0 leading-tight">
+                    <div className="text-xs text-white/55">Creado por</div>
+                    <div className="truncate text-[15px] font-semibold text-white">{appointment.created_by_name || "—"}</div>
+                  </div>
+                </div>
+              )}
             </div>
 
-          {appointmentProducts.length > 0 && (
+{appointmentProducts.length > 0 && (
             <div
               className="rounded-2xl border p-3.5"
               style={{
