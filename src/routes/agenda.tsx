@@ -3033,7 +3033,7 @@ const DayView = React.memo(function DayView({
   return (
     <>
       {closureBanner}
-      <section className="rounded-2xl p-2 sm:p-3 relative border border-white/10 shadow-[0_18px_60px_-34px_rgba(0,0,0,0.95)]" style={{ background: "#111323" }}>
+      <section className="rounded-2xl p-2 sm:p-3 relative border border-white/10 shadow-[0_18px_60px_-34px_rgba(0,0,0,0.95)]" style={{ background: "radial-gradient(120% 55% at 100% 0%, rgba(79,125,255,0.17), transparent 62%), radial-gradient(110% 50% at 0% 100%, rgba(139,92,246,0.15), transparent 65%), #111323" }}>
       {closure && (
         <div
           className="pointer-events-none absolute inset-0 z-20 rounded-2xl"
