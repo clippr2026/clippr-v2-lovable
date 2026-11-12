@@ -1,6 +1,6 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { Plus, X, Pencil, Coffee } from "lucide-react";
+import { Plus, X, Pencil } from "lucide-react";
 import { toast } from "sonner";
 import { DarkCalendar } from "@/components/agenda/dark-calendar";
 import { toDateKey, type SpecialDateMap, type DaySchedule } from "@/components/agenda/use-agenda-data";
@@ -182,17 +182,10 @@ function SpecialDayCards({
       </div>
 
       {allowBreak && state.available && (
-        <div
-          className="mt-3 rounded-2xl border border-cyan-300/25 bg-cyan-400/[0.05] p-4 shadow-[0_0_28px_-14px_rgba(34,211,238,0.55)] [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(34,211,238,0.14),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.10),transparent_65%)]"
-        >
-          <div className="flex items-center justify-between gap-2.5">
-            <div className="flex items-center gap-2.5 py-0.5">
-              <Toggle on={state.breakEnabled} onChange={(v) => onChange({ breakEnabled: v })} />
-              <span className="text-sm font-semibold">Horario de descanso</span>
-            </div>
-            <span className="grid h-9 w-9 place-items-center rounded-xl border border-cyan-300/30 bg-cyan-400/10 text-cyan-200">
-              <Coffee className="h-[18px] w-[18px]" />
-            </span>
+        <div className={"mt-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 " + CARD_GLOW}>
+          <div className="flex items-center gap-2.5 py-0.5">
+            <Toggle on={state.breakEnabled} onChange={(v) => onChange({ breakEnabled: v })} />
+            <span className="text-sm font-semibold">Descanso</span>
           </div>
           {state.breakEnabled && (
             <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-2">

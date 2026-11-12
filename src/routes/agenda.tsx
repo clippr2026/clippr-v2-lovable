@@ -181,6 +181,8 @@ const occupancyColor = (pct: number) =>
     : pct >= 50
       ? { fill: "#facc15", glow: "rgba(250,204,21,0.9)" }
       : { fill: "#ef4444", glow: "rgba(239,68,68,0.9)" };
+// Bloque de descanso en la grilla: celeste agua, para no confundirse con un estado de turno.
+const BREAK_META = { bg: "oklch(0.36 0.09 200 / 0.5)", border: "oklch(0.78 0.12 200)", dot: "oklch(0.88 0.1 200)" };
 const mixAlpha = (color: string, pct: number) => `color-mix(in srgb, ${color} ${pct}%, transparent)`;
 // Oscurece apenas el relleno; se aplica igual a tarjetas y turnos para que sigan coincidiendo.
 // Letras del turno en el calendario: la hora y PROMO van en el color del estado; el cliente en
@@ -2023,16 +2025,16 @@ function AgendaPage() {
         {breakModal ? (
           <MobileSafePortal>
           <div
-            className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+            className="fixed inset-0 z-[120] flex items-center justify-center bg-black/75 p-3"
             onClick={() => setBreakModal(null)}
           >
             <div
-              className="w-full max-w-sm rounded-2xl bg-[#15161c] ring-1 ring-white/10 p-5 shadow-2xl"
+              className="relative w-full max-w-md rounded-[28px] border border-violet-400/45 bg-[#08070f] p-5 shadow-[0_0_0_1px_rgba(139,92,246,0.35),0_30px_90px_-20px_rgba(0,0,0,0.9),0_0_60px_-18px_rgba(139,92,246,0.55)] [background-image:radial-gradient(120%_45%_at_85%_0%,rgba(79,125,255,0.20),transparent_60%),radial-gradient(110%_50%_at_0%_100%,rgba(139,92,246,0.22),transparent_62%)]"
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="text-lg font-semibold">Horario de descanso</div>
+                  <div className="font-display text-[22px] font-semibold leading-tight tracking-tight">Horario de descanso</div>
                 </div>
                 <button
                   type="button"
@@ -3436,20 +3438,19 @@ const DayView = React.memo(function DayView({
                       event.stopPropagation();
                       onBreakClick({ employeeId: e.id, startMin: b.startMin, endMin: b.endMin });
                     }}
-                    className="absolute inset-x-0.5 z-[1] flex cursor-grab flex-col items-center justify-center gap-0.5 overflow-hidden rounded-md px-1 text-center transition hover:z-10 hover:scale-[1.01] active:cursor-grabbing"
+                    className="absolute inset-x-0.5 z-[1] flex cursor-grab flex-col items-center justify-center gap-0.5 overflow-hidden rounded-[6px] px-1 text-center transition hover:z-10 hover:scale-[1.01] active:cursor-grabbing"
                     style={{
                       top: b.top,
                       height: b.height,
-                      border: "1px solid rgba(148,163,184,0.34)",
-                      background:
-                        "repeating-linear-gradient(135deg, rgba(148,163,184,0.12) 0, rgba(148,163,184,0.12) 8px, rgba(148,163,184,0.22) 8px, rgba(148,163,184,0.22) 16px)",
+                      ...statusNeonStyle(BREAK_META.dot, BREAK_META.border, BREAK_META.bg),
+                      background: `repeating-linear-gradient(135deg, rgba(255,255,255,0.03) 0, rgba(255,255,255,0.03) 8px, transparent 8px, transparent 16px), ${STATUS_DARKEN}, ${statusFade(BREAK_META.bg)}`,
                     }}
                     title="Arrastrar descanso"
                   >
-                    <span className="text-[10px] font-semibold uppercase tracking-wide leading-none text-slate-300/90">
+                    <span className="text-[11px] font-bold uppercase tracking-wide leading-none" style={{ color: BREAK_META.dot }}>
                       Descanso
                     </span>
-                    <span className="text-[10px] tabular-nums leading-none text-slate-400/85">
+                    <span className="text-[11px] tabular-nums leading-none" style={{ color: TURNO_SERVICE_COLOR }}>
                       {b.label}
                     </span>
                   </div>
