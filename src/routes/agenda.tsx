@@ -4470,15 +4470,6 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                   <div className="break-words font-display text-lg font-semibold leading-tight text-white sm:text-xl">
                     {appointment.service_name || "Servicio"}
                   </div>
-                  {depositBadge && (
-                    <div
-                      className="inline-flex max-w-full items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-0.5 text-xs font-semibold"
-                      style={{ color: depositBadge.color, background: depositBadge.bg, boxShadow: `inset 0 0 0 1.5px ${depositBadge.ring}` }}
-                    >
-                      <CreditCard className="h-3.5 w-3.5 shrink-0" />
-                      {depositBadge.label}
-                    </div>
-                  )}
                   {promoSnapshot && (
                     <div className="text-sm font-medium truncate" style={{ color: meta.dot }}>
                       {promoSnapshot.name}
