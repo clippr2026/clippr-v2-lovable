@@ -447,6 +447,8 @@ function AgendaPage() {
     x: number;
     y: number;
     restricted?: boolean;
+    // Por qué está restringido: el día entero no está disponible, o solo ese horario cae fuera del turno.
+    restrictedReason?: "day" | "hours";
   } | null>(null);
   const [blockDialog, setBlockDialog] = React.useState<{
     employeeId: string | null;
@@ -618,6 +620,7 @@ function AgendaPage() {
             x: event.clientX,
             y: event.clientY,
             restricted: true,
+            restrictedReason: resolvedDay && resolvedDay.enabled ? "hours" : "day",
           });
         } else {
           toast.error("Seleccioná un profesional para editar el horario especial de este día.");
@@ -1983,7 +1986,7 @@ function AgendaPage() {
             >
               {slotMenu.restricted && (
                 <div className="border-b border-white/10 px-3 py-2 text-[11px] font-medium text-amber-300/90">
-                  Profesional no disponible este día
+                  {slotMenu.restrictedReason === "hours" ? "Horario no disponible" : "Profesional no disponible este día"}
                 </div>
               )}
               {!slotMenu.restricted && (
