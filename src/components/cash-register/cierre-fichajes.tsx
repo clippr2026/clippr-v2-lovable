@@ -28,11 +28,11 @@ export function CierreFichajes({ businessId, fecha }: { businessId: string | nul
   if (!personas || personas.length === 0) return null;
 
   return (
-    <section className="space-y-3 rounded-2xl bg-white/[0.03] p-4 ring-1 ring-white/10">
-      <div className="text-sm font-semibold text-white">Fichajes del día</div>
-      <div className="grid gap-2 sm:grid-cols-2">
+    <section className="rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.12),transparent_65%)]">
+      <div className="mb-1 text-sm font-semibold text-white">Fichajes del día</div>
+      <div className="divide-y divide-white/[0.07]">
         {personas.map((p) => (
-          <div key={p.id} className="flex items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
+          <div key={p.id} className="flex items-center justify-between gap-2 py-2">
             <div className="min-w-0">
               <div className="truncate text-sm font-medium text-foreground">{p.name}</div>
               <div className="text-[11px] text-muted-foreground">

@@ -7505,79 +7505,37 @@ function CierreMovimientosDetalleList({
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-2">
-        {filtroChips.map((f) => (
-          <button
-            key={f.key}
-            type="button"
-            onClick={() => setFiltro(f.key)}
-            className={cn(
-              "rounded-full px-3 py-1.5 text-xs font-bold ring-1 transition",
-              filtro === f.key
-                ? "bg-[linear-gradient(135deg,rgba(59,130,246,0.25),rgba(139,92,246,0.25))] text-white ring-violet-200/30"
-                : "bg-white/[0.04] text-white/60 ring-white/10 hover:bg-white/[0.07]",
-            )}
-          >
-            {f.label}
-          </button>
-        ))}
+      {/* Tres selectores (tipo, medio de pago, profesional): se combinan igual que antes. */}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        <select value={filtro} onChange={(e) => setFiltro(e.target.value as DetalleFiltro)} aria-label="Tipo de movimiento" className="h-10 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 text-sm font-semibold text-white outline-none focus:border-violet-300/45">
+          {filtroChips.map((f) => (
+            <option key={f.key} value={f.key}>{f.key === "todos" ? "Todos los tipos" : f.label}</option>
+          ))}
+        </select>
+        <select value={medioFiltro} onChange={(e) => setMedioFiltro(e.target.value)} aria-label="Medio de pago" className="h-10 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 text-sm font-semibold text-white outline-none focus:border-violet-300/45">
+          <option value="todos">Todos los medios</option>
+          {ACTIVE_PAY_METHODS.map((m) => (
+            <option key={m.id} value={m.id}>{m.label}</option>
+          ))}
+        </select>
         {profesionales.length > 0 && (
-          <select
-            value={profesionalFiltro}
-            onChange={(e) => setProfesionalFiltro(e.target.value)}
-            className="rounded-full border border-white/[0.08] bg-black/40 px-3 py-1.5 text-xs font-semibold text-white/80 outline-none"
-          >
+          <select value={profesionalFiltro} onChange={(e) => setProfesionalFiltro(e.target.value)} aria-label="Profesional" className="col-span-2 h-10 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 text-sm font-semibold text-white outline-none focus:border-violet-300/45 sm:col-span-1">
             <option value="todos">Todos los profesionales</option>
             {profesionales.map((nombre) => (
-              <option key={nombre} value={nombre}>
-                {nombre}
-              </option>
+              <option key={nombre} value={nombre}>{nombre}</option>
             ))}
           </select>
         )}
-        {hayFiltrosActivos && (
-          <button
-            type="button"
-            onClick={restablecerFiltros}
-            className="rounded-full bg-rose-400/10 px-3 py-1.5 text-xs font-bold text-rose-300 ring-1 ring-rose-400/25 transition hover:bg-rose-400/15"
-          >
-            Restablecer filtros
-          </button>
-        )}
       </div>
-
-      {/* Filtro por medio de pago — combina con tipo de movimiento y
-          profesional, nunca los reemplaza (sección 1 del pedido). */}
-      <div className="mt-2 flex flex-wrap items-center gap-2">
-        <span className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/35">Medio de pago</span>
+      {hayFiltrosActivos && (
         <button
           type="button"
-          onClick={() => setMedioFiltro("todos")}
-          className={cn(
-            "rounded-full px-3 py-1.5 text-xs font-bold ring-1 transition",
-            medioFiltro === "todos"
-              ? "bg-white/15 text-white ring-white/30"
-              : "bg-white/[0.04] text-white/60 ring-white/10 hover:bg-white/[0.07]",
-          )}
+          onClick={restablecerFiltros}
+          className="mt-2 rounded-full bg-white/[0.06] px-3 py-1.5 text-xs font-semibold text-white/80 ring-1 ring-white/15 transition hover:bg-white/10"
         >
-          Todos los medios
+          Restablecer filtros
         </button>
-        {ACTIVE_PAY_METHODS.map((m) => (
-          <button
-            key={m.id}
-            type="button"
-            onClick={() => setMedioFiltro(m.id)}
-            className={cn(
-              "rounded-full px-3 py-1.5 text-xs font-bold ring-1 transition",
-              medioFiltro === m.id
-                ? cn(METODO_BADGE_CLASS[m.id], "ring-2")
-                : "bg-white/[0.04] text-white/60 ring-white/10 hover:bg-white/[0.07]",
-            )}
-          >
-            {m.label}
-          </button>
-        ))}
-      </div>
+      )}
 
       {(filtro === "todos" || filtro === "servicios") && (
         <div className="mt-4 overflow-hidden rounded-2xl border border-white/[0.075] bg-white/[0.03]">
@@ -8409,8 +8367,11 @@ function CierreRevisionDetalle({
           el detalle de la jornada — mismo orden que el detalle de un día
           cerrado. El efectivo contado y el saldo real son editables. */}
       <div className="grid gap-4 md:grid-cols-2">
-        <section className="space-y-3 rounded-2xl bg-white/[0.03] ring-1 ring-white/10 p-4">
-          <div className="text-xs font-bold uppercase tracking-[0.16em] text-emerald-200/80">Efectivo en caja</div>
+        <section className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3.5 [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.12),transparent_65%)]">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 text-sm font-semibold text-white"><Wallet className="size-4 text-amber-300" /> Efectivo en caja</div>
+            <span className={cn("text-xs font-semibold", diferencia === 0 ? "text-emerald-300" : "text-amber-300")}>{diferencia === 0 ? "Sin diferencia" : diferencia > 0 ? "Sobra" : "Falta"}</span>
+          </div>
           <div className="flex items-center justify-between gap-3">
             <span className="text-sm text-muted-foreground">Esperado</span>
             <span className="text-base font-semibold tabular-nums">
@@ -8418,7 +8379,7 @@ function CierreRevisionDetalle({
             </span>
           </div>
           <div>
-            <label className="text-xs text-muted-foreground">Contado — contá el efectivo e ingresá el monto real</label>
+            <label className="text-xs text-muted-foreground">Dinero contado</label>
             <div className="mt-1 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 focus-within:border-blue-300/40">
               <span className="text-muted-foreground/70">$</span>
               <input
@@ -8443,15 +8404,17 @@ function CierreRevisionDetalle({
               ${Math.round(Math.abs(diferencia)).toLocaleString("es-AR")}
             </span>
           </div>
-          <p className="text-xs text-muted-foreground">Si coincide con lo esperado, no se registra diferencia.</p>
         </section>
 
         {/* Dinero en cuenta — arranca en 0 después de cada cierre (por eso la
             recomendación de pasar el dinero a otra cuenta). Acá se deja
             constancia del saldo real al momento de cerrar; el ajuste nunca se
             mezcla con la diferencia de efectivo. */}
-        <section className="space-y-3 rounded-2xl bg-white/[0.03] ring-1 ring-white/10 p-4">
-          <div className="text-xs font-bold uppercase tracking-[0.16em] text-sky-200/80">Dinero en banco</div>
+        <section className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3.5 [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.12),transparent_65%)]">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex items-center gap-1.5 text-sm font-semibold text-white"><CreditCard className="size-4 text-sky-300" /> Dinero en banco</div>
+            <span className={cn("text-xs font-semibold", ajusteCuenta === 0 ? "text-emerald-300" : "text-amber-300")}>{ajusteCuenta === 0 ? "Sin diferencia" : ajusteCuenta > 0 ? "Sobra" : "Falta"}</span>
+          </div>
           <div className="flex items-center justify-between gap-3">
             <span className="text-sm text-muted-foreground">Saldo esperado</span>
             <span className="text-base font-semibold tabular-nums text-sky-300">
@@ -8466,7 +8429,7 @@ function CierreRevisionDetalle({
             </div>
           )}
           <div>
-            <label className="text-xs text-muted-foreground">Saldo real en cuenta — el que ves hoy en tu cuenta</label>
+            <label className="text-xs text-muted-foreground">Saldo real</label>
             <div className="mt-1 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 focus-within:border-blue-300/40">
               <span className="text-muted-foreground/70">$</span>
               <input
@@ -8491,11 +8454,10 @@ function CierreRevisionDetalle({
               ${Math.round(Math.abs(ajusteCuenta)).toLocaleString("es-AR")}
             </span>
           </div>
-          <p className="text-xs text-muted-foreground">Si coincide con lo esperado, no se registra ningún ajuste.</p>
-          <div className="rounded-xl bg-emerald-400/10 px-3 py-2 text-xs leading-snug text-emerald-100 ring-1 ring-emerald-300/30">
-            <strong>Recomendación:</strong> pasá este dinero a otra cuenta y dejá esta en $0. Así mañana arrancás de cero y
-            todo lo que entre es del día.
-          </div>
+          <details className="rounded-xl bg-emerald-400/10 px-3 py-2 text-xs leading-snug text-emerald-100 ring-1 ring-emerald-300/30">
+            <summary className="cursor-pointer font-semibold">Recomendación</summary>
+            <p className="mt-1.5">Pasá este dinero a otra cuenta y dejá esta en $0. Así mañana arrancás de cero y todo lo que entre es del día.</p>
+          </details>
         </section>
       </div>
 
