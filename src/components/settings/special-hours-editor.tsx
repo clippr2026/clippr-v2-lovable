@@ -219,28 +219,28 @@ export function SpecialDayEditor({
   // importar el z-index que tenga.
   return createPortal(
     <div
-      className="fixed inset-0 z-[120] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-[120] flex items-center justify-center bg-black/75 p-3"
       onClick={() => !saving && onCancel()}
     >
       <div
-        className="w-full max-w-sm rounded-2xl bg-[#15161c] ring-1 ring-white/10 p-5 shadow-2xl"
+        className="relative max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-[28px] border border-violet-400/45 bg-[#08070f] p-5 shadow-[0_0_0_1px_rgba(139,92,246,0.35),0_30px_90px_-20px_rgba(0,0,0,0.9),0_0_60px_-18px_rgba(139,92,246,0.55)] [background-image:radial-gradient(120%_45%_at_85%_0%,rgba(79,125,255,0.20),transparent_60%),radial-gradient(110%_50%_at_0%_100%,rgba(139,92,246,0.22),transparent_62%)]"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="text-lg font-semibold">Horario especial</div>
-        <p className="text-sm text-muted-foreground mt-1 capitalize">
+        <div className="font-display text-[22px] font-semibold leading-tight tracking-tight">Horario especial</div>
+        <p className="mt-1 text-sm capitalize text-white/60">
           {date.toLocaleDateString("es-AR", { weekday: "long", day: "2-digit", month: "2-digit" })}
         </p>
 
         {professionals && professionals.length > 0 && (
-          <label className="mt-4 block space-y-1.5">
-            <span className="text-[10px] font-semibold uppercase tracking-[0.18em] text-white/35">
+          <label className="mt-4 block space-y-2 rounded-2xl border border-white/10 bg-white/[0.03] p-4 [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.12),transparent_65%)]">
+            <span className="text-sm font-semibold text-white">
               Profesional
             </span>
             <select
               value={selectedEmployeeId ?? ""}
               onChange={(event) => onSelectEmployee?.(event.target.value)}
               disabled={saving}
-              className="h-10 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none transition focus:border-violet-300/45 disabled:opacity-50"
+              className="h-11 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none transition focus:border-violet-300/45 disabled:opacity-50"
             >
               <option value="">Seleccionar profesional</option>
               {professionals.map((employee) => (
@@ -252,7 +252,7 @@ export function SpecialDayEditor({
           </label>
         )}
 
-        <div className="mt-4">
+        <div className="mt-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4 [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.12),transparent_65%)]">
           <SpecialDayFields state={state} onChange={patch} allowBreak={allowBreak} closedLabel={closedLabel} />
         </div>
 
@@ -267,7 +267,7 @@ export function SpecialDayEditor({
             type="button"
             onClick={() => onBlock(state.breakStart, state.breakEnd)}
             disabled={saving}
-            className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-amber-500 px-3 text-sm font-semibold text-[#1a1300] shadow-md shadow-amber-500/25 transition hover:bg-amber-400 active:bg-amber-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#15161c] disabled:cursor-not-allowed disabled:opacity-50"
+            className="mt-4 inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-amber-500 px-3 text-sm font-semibold text-[#1a1300] shadow-md shadow-amber-500/25 transition hover:bg-amber-400 active:bg-amber-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#15161c] disabled:cursor-not-allowed disabled:opacity-50"
           >
             <XCircle className="h-4 w-4" />
             Bloquear horas
@@ -279,7 +279,7 @@ export function SpecialDayEditor({
             type="button"
             onClick={handleSave}
             disabled={saving}
-            className="h-11 flex-1 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 text-sm shadow-lg shadow-violet-500/20 disabled:opacity-50"
+            className="h-11 flex-1 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-white font-semibold px-4 text-sm shadow-lg shadow-violet-500/30 ring-1 ring-white/25 disabled:opacity-50"
           >
             {saving ? "Guardando…" : "Guardar"}
           </button>
@@ -287,7 +287,7 @@ export function SpecialDayEditor({
             type="button"
             onClick={onCancel}
             disabled={saving}
-            className="h-11 rounded-xl bg-white/5 ring-1 ring-white/10 px-4 text-sm text-muted-foreground hover:text-foreground disabled:opacity-50"
+            className="h-11 rounded-full bg-white/5 ring-1 ring-white/15 px-5 text-sm text-white/80 hover:text-white disabled:opacity-50"
           >
             Cancelar
           </button>

@@ -232,9 +232,9 @@ export function HorarioEspecialPanel({
     typeof document === "undefined"
       ? null
       : createPortal(
-          <div className={`fixed inset-0 ${z} flex items-center justify-center bg-black/60 backdrop-blur-sm p-4`} onClick={onClose}>
+          <div className={`fixed inset-0 ${z} flex items-center justify-center bg-black/75 p-3`} onClick={onClose}>
             <div
-              className="w-full max-w-sm max-h-[85dvh] overflow-y-auto rounded-2xl bg-[#15161c] ring-1 ring-white/10 p-5 shadow-2xl"
+              className="relative max-h-[92dvh] w-full max-w-md overflow-y-auto rounded-[28px] border border-violet-400/45 bg-[#08070f] p-5 shadow-[0_0_0_1px_rgba(139,92,246,0.35),0_30px_90px_-20px_rgba(0,0,0,0.9),0_0_60px_-18px_rgba(139,92,246,0.55)] [background-image:radial-gradient(120%_45%_at_85%_0%,rgba(79,125,255,0.20),transparent_60%),radial-gradient(110%_50%_at_0%_100%,rgba(139,92,246,0.22),transparent_62%)]"
               onClick={(e) => e.stopPropagation()}
             >
               {children}
@@ -329,7 +329,7 @@ export function HorarioEspecialPanel({
                   type="button"
                   onClick={() => setBlock(null)}
                   disabled={block.saving}
-                  className="h-11 flex-1 rounded-xl bg-white/5 px-4 text-sm text-muted-foreground ring-1 ring-white/10 hover:text-foreground disabled:opacity-50"
+                  className="h-11 flex-1 rounded-full bg-white/5 px-4 text-sm text-muted-foreground ring-1 ring-white/10 hover:text-foreground disabled:opacity-50"
                 >
                   Cancelar
                 </button>
@@ -337,7 +337,7 @@ export function HorarioEspecialPanel({
                   type="button"
                   onClick={saveBlock}
                   disabled={block.saving}
-                  className="h-11 flex-1 rounded-xl bg-amber-500 px-4 text-sm font-semibold text-[#1a1300] shadow-md shadow-amber-500/25 disabled:opacity-50"
+                  className="h-11 flex-1 rounded-full bg-amber-500 px-4 text-sm font-semibold text-[#1a1300] shadow-md shadow-amber-500/25 disabled:opacity-50"
                 >
                   {block.saving ? "Guardando…" : "Guardar bloqueo"}
                 </button>
@@ -360,14 +360,14 @@ export function HorarioEspecialPanel({
                 <button
                   type="button"
                   onClick={() => setOverrideConfirm(null)}
-                  className="h-11 flex-1 rounded-xl bg-white/5 px-4 text-sm text-muted-foreground ring-1 ring-white/10 hover:text-foreground"
+                  className="h-11 flex-1 rounded-full bg-white/5 px-4 text-sm text-muted-foreground ring-1 ring-white/10 hover:text-foreground"
                 >
                   Cancelar
                 </button>
                 <button
                   type="button"
                   onClick={() => save(overrideConfirm, true)}
-                  className="h-11 flex-1 rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 px-4 text-sm font-semibold text-white"
+                  className="h-11 flex-1 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 px-4 text-sm font-semibold text-white"
                 >
                   Habilitar igual
                 </button>
