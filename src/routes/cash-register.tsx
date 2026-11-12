@@ -1461,6 +1461,10 @@ function Money({ value, large = false }: { value: number; large?: boolean }) {
 // letra, porque escribir dispara el setState que causa ese re-render.
 // Con el componente fijo en el módulo, su identidad no cambia nunca y el
 // mismo <input> del DOM se reutiliza entre renders.
+// Luz de fondo de las tarjetas (estilo Clippr): celeste arriba a la derecha, violeta abajo a la izquierda.
+const CLIPPR_CARD_GLOW =
+  "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.14), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.12), transparent 65%)";
+
 const SearchBox = ({
   value,
   onChange,
@@ -1476,7 +1480,7 @@ const SearchBox = ({
       value={value}
       onChange={(event) => onChange(event.target.value)}
       placeholder={placeholder}
-      className="h-10 w-full rounded-2xl border border-white/[0.08] bg-[#060812]/72 pl-10 pr-4 text-base text-white outline-none backdrop-blur-xl placeholder:text-white/35 focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12"
+      className="h-11 w-full rounded-full border border-violet-400/25 bg-white/[0.04] pl-10 pr-4 text-base text-white outline-none placeholder:text-white/35 focus:border-violet-300/50 focus:ring-2 focus:ring-violet-400/15"
     />
   </div>
 );
@@ -1958,7 +1962,7 @@ function PreciosTab({
   // continua con líneas divisorias — SOLO mobile, la versión de escritorio
   // (ServiceRow/CatalogRow de arriba) no cambia.
   const ServiceRowMobile = ({ item }: { item: any }) => (
-    <div className="overflow-hidden rounded-2xl border border-white/[0.07] bg-white/[0.03]">
+    <div className="overflow-hidden rounded-2xl border border-violet-400/20 bg-white/[0.03]" style={{ backgroundImage: CLIPPR_CARD_GLOW }}>
       <div className="flex items-center gap-2.5 px-3 py-2.5 active:bg-white/[0.045]">
         <Thumb item={item} fallback="✂" />
         <div className="min-w-0 flex-1">
@@ -1983,7 +1987,7 @@ function PreciosTab({
   );
 
   const CatalogRowMobile = ({ item }: { item: any }) => (
-    <div className="flex items-center gap-2.5 rounded-2xl border border-white/[0.07] bg-white/[0.03] px-3 py-2.5 active:bg-white/[0.045]">
+    <div className="flex items-center gap-2.5 rounded-2xl border border-violet-400/20 bg-white/[0.03] px-3 py-2.5 active:bg-white/[0.045]" style={{ backgroundImage: CLIPPR_CARD_GLOW }}>
       <Thumb item={item} fallback="□" />
       <div className="min-w-0 flex-1">
         <div className="truncate text-sm font-bold text-white">
@@ -3088,7 +3092,8 @@ function InventarioTab({
                   return (
                     <div
                       key={`mobile-${id}`}
-                      className="flex min-w-0 items-center gap-3 rounded-2xl border border-white/[0.07] bg-white/[0.03] p-2.5"
+                      className="flex min-w-0 items-center gap-3 rounded-2xl border border-violet-400/20 bg-white/[0.03] p-2.5"
+                      style={{ backgroundImage: CLIPPR_CARD_GLOW }}
                     >
                       <Thumb item={item} />
                       <div className="min-w-0 flex-1">
@@ -6208,9 +6213,12 @@ function ProfesionalesTab({
           </div>
         ) : (
           <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
-            <div className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-emerald-400/25 bg-emerald-400/[0.07] px-4 py-3">
+            <div
+              className="mb-3 flex items-center justify-between gap-3 rounded-2xl border border-emerald-400/35 bg-emerald-400/[0.07] px-4 py-3"
+              style={{ backgroundImage: "radial-gradient(110% 120% at 100% 0%, rgba(16,185,129,.20), transparent 62%)", boxShadow: "0 0 30px -14px rgba(16,185,129,.55)" }}
+            >
               <div>
-                <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-emerald-200/70">
+                <div className="text-sm font-semibold text-white">
                   Total a pagar al equipo
                 </div>
                 <div className="mt-0.5 text-xl font-bold tabular-nums text-emerald-300">
@@ -6229,7 +6237,8 @@ function ProfesionalesTab({
                   onKeyDown={(e) => {
                     if (e.key === "Enter") selectEmployee(r.id);
                   }}
-                  className="flex cursor-pointer flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2xl border border-white/[0.07] bg-white/[0.025] px-4 py-3 transition hover:bg-white/[0.05]"
+                  className="flex cursor-pointer flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-2xl border border-violet-400/20 bg-white/[0.03] px-4 py-3 transition hover:bg-white/[0.05]"
+                  style={{ backgroundImage: CLIPPR_CARD_GLOW }}
                 >
                   <div className="min-w-[140px] flex-1">
                     <div className="truncate text-sm font-semibold text-white/90">{r.name}</div>
@@ -6247,7 +6256,7 @@ function ProfesionalesTab({
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="text-right">
-                      <div className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/38">A pagar</div>
+                      <div className="text-xs font-semibold text-white/55">A pagar</div>
                       <div
                         className={cn(
                           "text-base font-bold tabular-nums",
@@ -6265,7 +6274,7 @@ function ProfesionalesTab({
                           selectEmployee(r.id);
                           setLiquidarModalOpen(true);
                         }}
-                        className="rounded-xl bg-emerald-500 px-3 py-2 text-xs font-bold text-white shadow-[0_0_18px_rgba(16,185,129,0.28)] transition hover:brightness-110"
+                        className="h-10 rounded-full bg-emerald-500 px-5 text-sm font-bold text-white shadow-[0_0_18px_rgba(16,185,129,0.35)] transition hover:brightness-110"
                       >
                         Pagar
                       </button>
@@ -6281,6 +6290,7 @@ function ProfesionalesTab({
       {selectedRow && (
         <AgendaCenteredModal
           open={adelantoModalOpen}
+          premium
           onOpenChange={(v) => {
             if (!v) resetAdelantoForm();
           }}
@@ -6385,6 +6395,7 @@ function ProfesionalesTab({
       {selectedRow && (
         <AgendaCenteredModal
           open={periodInfoOpen}
+          premium
           onOpenChange={setPeriodInfoOpen}
           lockOutside={false}
           title="Liquidar hasta"
@@ -6528,6 +6539,7 @@ function ProfesionalesTab({
         return (
           <AgendaCenteredModal
             open={liquidarModalOpen}
+          premium
             onOpenChange={(v) => {
               if (!v) resetLiquidarForm();
             }}
@@ -6575,7 +6587,7 @@ function ProfesionalesTab({
                   están en las tarjetas de la pantalla principal, este
                   resumen solo agrega lo que se puede tocar en este
                   modal (adicionales/deducciones) y el total final. */}
-              <div className="space-y-1.5 rounded-2xl border border-white/[0.08] bg-black/25 p-3.5 text-sm">
+              <div className="space-y-1.5 rounded-2xl border border-white/10 bg-white/[0.03] p-3.5 text-sm" style={{ backgroundImage: CLIPPR_CARD_GLOW }}>
                 <div className="flex items-center justify-between">
                   <span className="text-white/50">Adicionales</span>
                   <span className="font-semibold text-emerald-300">
@@ -10001,7 +10013,7 @@ function CierresTab({
               // aparecen como "Cerrada" solo porque el día ya terminó (ver
               // sección 4 del pedido). Tocar uno abre la vista previa, no
               // CierreDetalleView (no hay snapshot guardado todavía).
-              <div className="overflow-hidden rounded-[28px] border border-white/[0.085] bg-black/25">
+              <div className="flex flex-col gap-2.5">
                 {historialRows.map((row) =>
                   row.kind === "pendiente" ? (
                     <button
@@ -10011,9 +10023,10 @@ function CierresTab({
                         setSubtab("dia");
                         setJumpToDate(row.date);
                       }}
-                      className="flex w-full items-center justify-between gap-3 border-b border-white/[0.055] px-5 py-4 text-left transition last:border-0 hover:bg-white/[0.035] active:bg-white/[0.05]"
+                      className="flex w-full items-center justify-between gap-3 rounded-2xl border border-amber-400/35 bg-white/[0.03] px-5 py-4 text-left transition hover:bg-white/[0.05] active:bg-white/[0.06]"
+                      style={{ backgroundImage: "radial-gradient(110% 120% at 100% 0%, rgba(251,191,36,.14), transparent 62%)" }}
                     >
-                      <span className="text-sm font-semibold text-white/85">{fechaDetalleLabel(row.date)}</span>
+                      <span className="text-sm font-semibold text-white">{fechaDetalleLabel(row.date)}</span>
                       <span className="rounded-full bg-amber-400/15 px-2.5 py-1 text-xs font-bold text-amber-300 ring-1 ring-amber-400/30">
                         Pendiente de revisión
                       </span>
@@ -10023,9 +10036,10 @@ function CierresTab({
                       key={row.cierre.id}
                       type="button"
                       onClick={() => setSelected(row.cierre)}
-                      className="flex w-full items-center justify-between gap-3 border-b border-white/[0.055] px-5 py-4 text-left transition last:border-0 hover:bg-white/[0.035] active:bg-white/[0.05]"
+                      className="flex w-full items-center justify-between gap-3 rounded-2xl border border-violet-400/20 bg-white/[0.03] px-5 py-4 text-left transition hover:bg-white/[0.05] active:bg-white/[0.06]"
+                      style={{ backgroundImage: CLIPPR_CARD_GLOW }}
                     >
-                      <span className="text-sm font-semibold text-white/85">{fechaDetalleLabel(row.cierre.fecha)}</span>
+                      <span className="text-sm font-semibold text-white">{fechaDetalleLabel(row.cierre.fecha)}</span>
                       <ChevronRight className="h-4 w-4 shrink-0 text-white/35" />
                     </button>
                   ),
