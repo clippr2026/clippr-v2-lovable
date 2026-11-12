@@ -76,21 +76,16 @@ export function StatCard({
     rose: "border-rose-400/18 bg-rose-400/[0.055] text-rose-300 shadow-[0_0_28px_rgba(251,113,133,0.10)]",
   }[tone];
 
-  const labelClass = {
-    neutral: "text-white/38",
-    violet: "text-violet-200/70",
-    green: "text-emerald-200/70",
-    rose: "text-rose-200/70",
-  }[tone];
+  const labelClass = "text-white/75";
 
   return (
     <div className={cn("rounded-2xl border px-3.5 py-2.5", toneClass, className)}>
-      <div className={cn("flex items-center gap-1 text-[10px] font-bold uppercase tracking-[0.16em]", labelClass)}>
+      <div className={cn("flex items-center gap-1 text-xs font-semibold", labelClass)}>
         <span>{label}</span>
         {info && <InfoPopover text={info} />}
       </div>
       {sublabel && (
-        <div className="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/30">{sublabel}</div>
+        <div className="text-[10px] font-medium text-white/40">{sublabel}</div>
       )}
       <div className="mt-0.5 text-lg font-bold tabular-nums">{value}</div>
     </div>

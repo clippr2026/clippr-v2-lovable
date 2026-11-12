@@ -5656,7 +5656,7 @@ function ProfesionalesTab({
                 arrancar con "Primera liquidación"/fechas sueltas antes
                 de elegir a alguien confunde más que ayuda. */}
             {selectedRow && (
-              <div className="inline-flex w-full items-center justify-between gap-2 rounded-2xl border border-violet-400/20 bg-white/[0.03] px-3.5 py-2.5 sm:w-auto" style={{ backgroundImage: CLIPPR_CARD_GLOW }}>
+              <div className="inline-flex w-full items-center justify-between gap-2 rounded-2xl border border-violet-400/20 bg-white/[0.03] px-3.5 py-1.5 sm:w-auto" style={{ backgroundImage: CLIPPR_CARD_GLOW }}>
                 <span className="flex shrink-0 items-center gap-1.5 text-xs font-semibold text-white/70">
                   <CalendarDays className="size-3.5" />
                   Período
@@ -5825,7 +5825,7 @@ function ProfesionalesTab({
               <button
                 type="button"
                 onClick={() => setAdelantoModalOpen(true)}
-                className="h-10 self-end rounded-full border border-rose-400/35 bg-rose-400/10 px-5 text-sm font-semibold text-rose-200 transition hover:bg-rose-400/15"
+                className="h-9 self-end rounded-full border border-rose-400/25 bg-rose-400/[0.06] px-4 text-sm font-medium text-rose-200/90 transition hover:bg-rose-400/10"
               >
                 + Registrar adelanto
               </button>
@@ -5840,7 +5840,7 @@ function ProfesionalesTab({
               onClick={() => setLiqDetalle(true)}
               className="flex h-12 w-full items-center justify-between rounded-full border border-violet-400/35 bg-violet-500/10 px-5 text-sm font-semibold text-white transition active:scale-[0.99]"
             >
-              <span>Movimientos, pagos y llegadas</span>
+              <span>Ver historial y movimientos</span>
               <ChevronRight className="size-4 text-white/60" />
             </button>
           </div>
