@@ -1,6 +1,7 @@
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
-import { ChevronRight, CheckCircle2, FileText, Layers } from "lucide-react";
+import { ChevronRight, CheckCircle2, FileText, Layers, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 
@@ -150,6 +151,7 @@ export function DepositPanel({
       if (error) throw error;
       if (!data?.ok) throw new Error(data?.error ?? "No se pudo completar la acción.");
       toast.success(okMsg);
+      setShowProof(false);
       setRejecting(false);
       setRecording(false);
       setNote("");
@@ -246,27 +248,16 @@ export function DepositPanel({
         <div className="space-y-2">
           <button
             type="button"
-            onClick={() => setShowProof((v) => !v)}
+            onClick={() => setShowProof(true)}
             className="flex h-11 w-full items-center justify-between gap-2 rounded-2xl px-4 text-[14px] font-semibold text-violet-200 transition hover:brightness-125 active:scale-[0.99]"
             style={{
               background: "rgba(139,92,246,0.14)",
               boxShadow: "inset 0 0 0 1px rgba(167,139,250,0.5), 0 10px 22px -18px rgba(139,92,246,0.9)",
             }}
           >
-            <span className="flex items-center gap-3"><FileText className="h-5 w-5" /> {showProof ? "Ocultar comprobante" : "Ver comprobante"}</span>
-            <ChevronRight className={`h-5 w-5 transition ${showProof ? "rotate-90" : ""}`} />
+            <span className="flex items-center gap-3"><FileText className="h-5 w-5" /> Ver comprobante</span>
+            <ChevronRight className="h-5 w-5" />
           </button>
-          {showProof && proof && (
-            <div className="overflow-hidden rounded-xl ring-1 ring-white/10">
-              {proof.mime === "application/pdf" ? (
-                <a href={`data:application/pdf;base64,${proof.data}`} download="comprobante.pdf" className="block p-3 text-xs text-violet-300 underline">
-                  Descargar comprobante (PDF)
-                </a>
-              ) : (
-                <img src={`data:${proof.mime};base64,${proof.data}`} alt="Comprobante de la seña" className="max-h-80 w-full object-contain bg-black/30" />
-              )}
-            </div>
-          )}
         </div>
       )}
 
@@ -283,7 +274,7 @@ export function DepositPanel({
           </div>
         )}
 
-      {(dep.status === "review" || dep.status === "pending") && !rejecting && (
+      {(dep.status === "review" || dep.status === "pending") && !rejecting && !dep.proof_path && (
         <div className="grid grid-cols-2 gap-2.5">
           <button
             type="button"
@@ -311,7 +302,7 @@ export function DepositPanel({
           </button>
         </div>
       )}
-      {rejecting && (
+      {rejecting && !dep.proof_path && (
         <div className="space-y-2">
           <textarea
             value={note}
@@ -327,6 +318,82 @@ export function DepositPanel({
             </Button>
           </div>
         </div>
+      )}
+
+      {showProof && dep.proof_path && typeof document !== "undefined" && createPortal(
+        <div className="fixed inset-0 z-[200] flex flex-col bg-[#08070f]">
+          <div className="flex items-center justify-between gap-3 px-4 pb-2 pt-[max(1rem,env(safe-area-inset-top))]">
+            <div className="text-lg font-semibold text-white">Comprobante de la seña</div>
+            <button
+              type="button"
+              onClick={() => { setShowProof(false); setRejecting(false); }}
+              aria-label="Cerrar"
+              className="grid h-11 w-11 place-items-center rounded-full text-white transition active:scale-95"
+              style={{ background: "rgba(255,255,255,0.06)", boxShadow: "inset 0 0 0 1.5px rgba(96,165,250,0.7), 0 0 16px rgba(96,165,250,0.35)" }}
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
+          <div className="flex min-h-0 flex-1 items-center justify-center overflow-auto px-3">
+            {!proof ? (
+              <div className="text-sm text-white/60">Cargando comprobante…</div>
+            ) : proof.mime === "application/pdf" ? (
+              <a href={`data:application/pdf;base64,${proof.data}`} download="comprobante.pdf" className="text-sm text-violet-300 underline">
+                Descargar comprobante (PDF)
+              </a>
+            ) : (
+              <img src={`data:${proof.mime};base64,${proof.data}`} alt="Comprobante de la seña" className="max-h-full max-w-full object-contain" />
+            )}
+          </div>
+          <div className="space-y-2.5 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 text-sm">
+{(dep.status === "review" || dep.status === "pending") && !rejecting && (
+        <div className="grid grid-cols-2 gap-2.5">
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => setRejecting(true)}
+            className="flex h-11 items-center justify-center rounded-2xl text-[14px] font-semibold text-white/85 transition hover:brightness-125 active:scale-[0.99] disabled:opacity-60"
+            style={{
+              background: "linear-gradient(180deg, rgba(255,255,255,0.07), rgba(255,255,255,0.02))",
+              boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.16)",
+            }}
+          >
+            Rechazar seña
+          </button>
+          <button
+            type="button"
+            disabled={busy}
+            onClick={() => run("review_deposit_v1", { p_deposit_id: dep.id, p_approve: true, p_amount: null, p_note: null }, "Seña aprobada")}
+            className="flex h-11 items-center justify-center gap-2 rounded-2xl text-[14px] font-bold text-white transition hover:brightness-110 active:scale-[0.99] disabled:opacity-60"
+            style={{
+              background: "linear-gradient(135deg, #7c5cff, #4f7dff)",
+              boxShadow: "0 0 24px rgba(99,102,241,.6), inset 0 0 0 1px rgba(255,255,255,.28)",
+            }}
+          >
+            <CheckCircle2 className="h-5 w-5" /> Aprobar seña
+          </button>
+        </div>
+      )}
+{rejecting && (
+        <div className="space-y-2">
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            rows={2}
+            placeholder="Motivo (lo ve el cliente)"
+            className="w-full resize-none rounded-lg bg-white/5 px-2.5 py-2 text-xs ring-1 ring-white/10 outline-none"
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <Button variant="secondary" className="h-9" onClick={() => setRejecting(false)}>Volver</Button>
+            <Button variant="destructive" className="h-9" disabled={busy || !note.trim()} onClick={() => run("review_deposit_v1", { p_deposit_id: dep.id, p_approve: false, p_amount: null, p_note: note.trim() }, "Comprobante rechazado")}>
+              Rechazar
+            </Button>
+          </div>
+        </div>
+      )}
+          </div>
+        </div>,
+        document.body,
       )}
 
       {dep.status === "to_decide" && (
