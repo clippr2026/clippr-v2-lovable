@@ -1355,10 +1355,26 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
     return endMin > startMin ? { startMin, endMin } : null;
   }, [agendaData.schedule, agendaData.employeeSchedules, agendaData.businessSpecialDates, agendaData.employeeSpecialDates, empId, timelineBaseDate]);
 
+  // El calendario muestra el horario configurado del profesional (por ejemplo 14:00 a 20:00);
+  // si hay un turno o descanso fuera de ese rango, se amplía para que no quede escondido.
+  const scheduleWindow = React.useMemo(() => {
+    const day = resolveDaySchedule(
+      agendaData.schedule,
+      agendaData.employeeSchedules,
+      agendaData.businessSpecialDates,
+      agendaData.employeeSpecialDates,
+      empId,
+      agendaRangeStart,
+    );
+    if (!day || day.enabled === false || !day.start || !day.end) return null;
+    const open = Math.round(parseScheduleTime(day.start) * 60);
+    const close = Math.round(parseScheduleTime(day.end) * 60);
+    return close > open ? { open, close } : null;
+  }, [agendaData.schedule, agendaData.employeeSchedules, agendaData.businessSpecialDates, agendaData.employeeSpecialDates, empId, agendaRangeStart]);
+
   const dayBounds = React.useMemo(() => {
     const mins = [
-      11 * 60,
-      20 * 60,
+      ...(scheduleWindow ? [scheduleWindow.open, scheduleWindow.close] : [11 * 60, 20 * 60]),
       ...agendaTurnos.flatMap((t) => {
         const start = minutesOfDayFromISO(t.starts_at);
         const end = t.ends_at
@@ -1374,7 +1390,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
       startHour: Math.max(0, minHour),
       endHour: Math.min(24, maxHour),
     };
-  }, [agendaTurnos, breakRange]);
+  }, [agendaTurnos, breakRange, scheduleWindow]);
 
   const timelineHours = React.useMemo(
     () => Array.from({ length: dayBounds.endHour - dayBounds.startHour + 1 }, (_, i) => dayBounds.startHour + i),
@@ -1546,6 +1562,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                 businessSpecialDates={agendaData.businessSpecialDates}
                 employeeSpecialDates={agendaData.employeeSpecialDates}
                 dateKey={from}
+                existingTurnos={turnos}
                 onChanged={() => agendaData.refresh()}
               />
             )}

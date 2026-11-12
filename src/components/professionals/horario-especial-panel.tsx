@@ -4,7 +4,7 @@ import { CalendarClock } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { SpecialDayEditor } from "@/components/settings/special-hours-editor";
+import { SpecialDayEditor, findScheduleConflict } from "@/components/settings/special-hours-editor";
 import {
   parseTime,
   resolveDaySchedule,
@@ -87,6 +87,7 @@ export function HorarioEspecialPanel({
   className,
   shortLabelOnMobile = false,
   fillOnMobile = false,
+  existingTurnos = [],
 }: {
   businessId: string | null;
   employeeId: string | null;
@@ -104,6 +105,8 @@ export function HorarioEspecialPanel({
   shortLabelOnMobile?: boolean;
   // En celular el botón se reparte el ancho de la fila con sus vecinos.
   fillOnMobile?: boolean;
+  /** Turnos del profesional (para avisar si el nuevo horario deja turnos afuera). */
+  existingTurnos?: Array<{ starts_at: string; ends_at?: string | null; status: string; client_name?: string | null }>;
 }) {
   const todayKey = toDateKey(new Date());
   const [editor, setEditor] = React.useState<EditorState | null>(null);
@@ -312,6 +315,9 @@ export function HorarioEspecialPanel({
           // Sin selector de profesional: el horario es siempre del profesional
           // que tiene la sesión abierta.
           onBlocks={saveBlocks}
+          checkConflict={(day) =>
+            findScheduleConflict(day, existingTurnos.filter((t) => toDateKey(new Date(t.starts_at)) === editor.dateKey))
+          }
           onSave={save}
           onCancel={() => {
             setOverrideConfirm(null);

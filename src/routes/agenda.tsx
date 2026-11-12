@@ -48,7 +48,7 @@ import {
   notifyRescheduleEmail,
 } from "@/components/agenda/use-agenda-data";
 import { AppointmentDialog } from "@/components/agenda/appointment-dialog";
-import { SpecialDayEditor } from "@/components/settings/special-hours-editor";
+import { SpecialDayEditor, findScheduleConflict } from "@/components/settings/special-hours-editor";
 import { AgendaCenteredModal, AgendaDrawer } from "@/components/agenda/agenda-drawer";
 import { DarkCalendar } from "@/components/agenda/dark-calendar";
 import { ClosuresModal } from "@/components/agenda/closures-button";
@@ -2192,6 +2192,17 @@ function AgendaPage() {
             onSelectEmployee={changeSpecialEmployee}
             onBlocks={saveBlocksFromSpecial}
             editBlock={specialEditor.editBlock ?? null}
+            checkConflict={(day) =>
+              findScheduleConflict(
+                day,
+                data.appointments.filter(
+                  (a) =>
+                    a.employee_id === specialEditor.employeeId &&
+                    toDateKey(new Date(a.starts_at)) === toDateKey(specialEditor.date) &&
+                    a.id !== specialEditor.editBlock?.id,
+                ),
+              )
+            }
             onSave={saveSpecialFromAgenda}
             onCancel={() => setSpecialEditor(null)}
           />

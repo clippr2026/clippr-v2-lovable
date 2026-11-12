@@ -219,6 +219,34 @@ function validateSpecial(state: SpecialFormState, allowBreak: boolean): string |
 }
 
 /**
+ * ¿Algún turno agendado queda fuera del horario nuevo? Devuelve el aviso (o null si no hay problema).
+ * Los cancelados y los bloqueos no cuentan: solo turnos reales.
+ */
+export function findScheduleConflict(
+  day: DaySchedule,
+  turnos: Array<{ starts_at: string; ends_at?: string | null; status: string; client_name?: string | null }>,
+): string | null {
+  const reales = turnos.filter((t) => !["cancelled", "blocked"].includes(t.status));
+  if (reales.length === 0) return null;
+  const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  const fuera = reales.filter((t) => {
+    if (!day.enabled) return true;
+    const a = new Date(t.starts_at);
+    const b = t.ends_at ? new Date(t.ends_at) : new Date(a.getTime() + 30 * 60_000);
+    const aMin = a.getHours() * 60 + a.getMinutes();
+    const bMin = b.getHours() * 60 + b.getMinutes() || 24 * 60;
+    return aMin < toMin(day.start) || bMin > toMin(day.end);
+  });
+  if (fuera.length === 0) return null;
+  fuera.sort((x, y) => new Date(x.starts_at).getTime() - new Date(y.starts_at).getTime());
+  const lista = fuera
+    .slice(0, 3)
+    .map((t) => `${hhmm(new Date(t.starts_at))}${t.client_name ? ` (${t.client_name})` : ""}`)
+    .join(", ");
+  return `Ya hay ${fuera.length === 1 ? "un turno agendado" : `${fuera.length} turnos agendados`} fuera del nuevo horario: ${lista}${fuera.length > 3 ? "…" : ""}. Reprogramá o cancelá ${fuera.length === 1 ? "el turno" : "los turnos"} antes de cambiar el horario.`;
+}
+
+/**
  * Editor de UNA fecha (modal autocontenido). Reutiliza EXACTAMENTE los mismos
  * campos que Configuración. La fecha es fija (no hay calendario); se precarga con
  * `value` (horario resuelto del día, incluido el descanso actual). Al guardar,
@@ -235,6 +263,7 @@ export function SpecialDayEditor({
   onSelectEmployee,
   onBlocks,
   editBlock,
+  checkConflict,
   onSave,
   onCancel,
 }: {
@@ -250,11 +279,17 @@ export function SpecialDayEditor({
   onBlocks?: (ranges: { start: string; end: string }[], label: string) => Promise<boolean>;
   /** Si se pasa, el editor abre con "Bloquear horas" activado y con los datos de ese bloqueo (se actualiza en vez de crear uno nuevo). */
   editBlock?: { start: string; end: string; label: string } | null;
+  /** Se llama antes de guardar: si devuelve un texto, no se guarda y se muestra ese aviso. */
+  checkConflict?: (day: DaySchedule) => string | null;
   onSave: (day: DaySchedule) => void;
   onCancel: () => void;
 }) {
   const [state, setState] = React.useState<SpecialFormState>(() => specialStateFromDay(value));
-  const patch = (p: Partial<SpecialFormState>) => setState((s) => ({ ...s, ...p }));
+  const [conflict, setConflict] = React.useState<string | null>(null);
+  const patch = (p: Partial<SpecialFormState>) => {
+    setConflict(null);
+    setState((s) => ({ ...s, ...p }));
+  };
 
   const [blockOn, setBlockOn] = React.useState(Boolean(editBlock));
   const [blocks, setBlocks] = React.useState<{ start: string; end: string }[]>(editBlock ? [{ start: editBlock.start, end: editBlock.end }] : []);
@@ -286,6 +321,12 @@ export function SpecialDayEditor({
     const err = validateSpecial(state, allowBreak);
     if (err) {
       toast.error(err);
+      return;
+    }
+    const aviso = checkConflict?.(buildSpecialDay(state, allowBreak)) ?? null;
+    if (aviso) {
+      setConflict(aviso);
+      toast.error(aviso, { duration: 9000 });
       return;
     }
     if (onBlocks && blockOn) {
@@ -409,6 +450,12 @@ export function SpecialDayEditor({
                 )}
               </div>
             )}
+          </div>
+        )}
+
+        {conflict && (
+          <div className="mt-3 rounded-2xl border border-amber-300/40 bg-amber-400/10 px-4 py-3 text-sm text-amber-100">
+            {conflict}
           </div>
         )}
 
