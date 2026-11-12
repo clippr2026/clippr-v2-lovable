@@ -1908,6 +1908,7 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
             }
           >
             <div className="space-y-3">
+              {/* Servicio y horario juntos, en una sola tarjeta con el color del estado. */}
               <div className="rounded-3xl p-4" style={statusNeonStyle(meta.dot, meta.border, meta.bg)}>
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0 break-words font-display text-lg font-semibold leading-tight text-white">{t.service_name ?? "Servicio"}</div>
@@ -1915,14 +1916,11 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                     <div className="shrink-0 text-lg font-semibold tabular-nums text-white">{fmtMoney(t.service_price)}</div>
                   ) : null}
                 </div>
-              </div>
-
-              <div className="space-y-2.5 rounded-2xl border border-white/10 bg-white/[0.025] px-4 py-3">
-                <div className="flex items-center gap-3">
+                <div className="mt-3 flex items-center gap-3 border-t pt-3" style={{ borderColor: "rgba(255,255,255,0.14)" }}>
                   <Clock className="h-5 w-5 shrink-0" style={{ color: meta.dot }} />
                   <div>
                     <div className="font-semibold tabular-nums text-white">{minToHHMM(minutesOfDayFromISO(t.starts_at))}hs – {minToHHMM(getTurnoEndMin(t))}hs</div>
-                    <div className="text-xs text-white/55">({mins} min)</div>
+                    <div className="text-xs text-white/60">({mins} min)</div>
                   </div>
                 </div>
               </div>
@@ -1959,7 +1957,8 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
                   <button
                     type="button"
                     onClick={() => { setCancelReason(""); setCancelingTurno(t); setDetalleTurno(null); }}
-                    className="inline-flex h-12 items-center justify-center gap-2 rounded-full bg-rose-500/10 text-sm font-bold text-rose-300 ring-1 ring-rose-400/60 transition hover:bg-rose-500/20"
+                    className="inline-flex h-12 items-center justify-center gap-2 rounded-full text-sm font-bold transition hover:brightness-125"
+                    style={{ background: "#202A3D", color: "#E2E8F0", boxShadow: "inset 0 0 0 1.5px #64748B" }}
                   >
                     <Trash2 className="h-4 w-4" />
                     Cancelar turno
