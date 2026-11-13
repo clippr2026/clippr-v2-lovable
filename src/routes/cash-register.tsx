@@ -8823,6 +8823,11 @@ function CierreCajaBtn({
   cajaRangeStartDate: string;
 }) {
   const [open, setOpen] = useState(false);
+  // Jornada a cerrar: por defecto la pendiente más vieja (fechaCierre), pero se puede
+  // elegir hoy aunque haya una anterior sin cerrar (cada cierre toma un solo día).
+  const [fechaElegida, setFechaElegida] = useState<string | null>(null);
+  const hoyKey = cajaDateKeyBA();
+  const fechaCierre = fechaElegida && fechaElegida >= cajaRangeStartDate ? fechaElegida : cajaRangeStartDate;
   const [obs, setObs] = useState("");
   // Señas por revisar de este día o anteriores: no se puede cerrar hasta revisarlas.
   const [senasBloquean, setSenasBloquean] = useState(false);
@@ -8858,9 +8863,9 @@ function CierreCajaBtn({
 
   useEffect(() => {
     setPresentismoPending(null);
-  }, [open, cajaRangeStartDate]);
+  }, [open, fechaCierre]);
 
-  // Vista previa propia, acotada EXACTAMENTE a cajaRangeStartDate — nunca
+  // Vista previa propia, acotada EXACTAMENTE a fechaCierre — nunca
   // los `paymentsToday`/`expensesToday` acumulados de la pantalla (esos
   // sí deben seguir incluyendo todo el backlog sin cerrar para "Efectivo/
   // Dinero esperado" en otras tarjetas, pero este modal cierra un día
@@ -8876,7 +8881,7 @@ function CierreCajaBtn({
     if (!open || !businessId) return;
     let cancelled = false;
     setLoadingPreview(true);
-    buildSingleDayCierrePreview(businessId, branchId, cajaRangeStartDate)
+    buildSingleDayCierrePreview(businessId, branchId, fechaCierre)
       .then((result) => {
         if (!cancelled) setPreview(result);
       })
@@ -8889,7 +8894,7 @@ function CierreCajaBtn({
     return () => {
       cancelled = true;
     };
-  }, [open, businessId, branchId, cajaRangeStartDate, refreshTick]);
+  }, [open, businessId, branchId, fechaCierre, refreshTick]);
 
   const expected = preview?.expected ?? { cashExpected: 0, cashOutflows: 0, cashInflows: 0, digitalExpected: 0, digitalOutflows: 0 };
 
@@ -8914,8 +8919,20 @@ function CierreCajaBtn({
   const ajusteCuenta = saldoRealNum - expected.digitalExpected;
   const obsRequeridaFalta = diferencia !== 0 && !obs.trim();
 
+  function elegirFecha(f: string) {
+    if (f === fechaCierre) return;
+    setFechaElegida(f);
+    setPreview(null);
+    setContadoTouched(false);
+    setSaldoRealTouched(false);
+    setObs("");
+    setConfirmStep(false);
+    setPrereqStep(false);
+  }
+
   function cerrarModal() {
     setOpen(false);
+    setFechaElegida(null);
     setConfirmStep(false);
     setPrereqStep(false);
     setContadoTouched(false);
@@ -8929,7 +8946,7 @@ function CierreCajaBtn({
       const result = await closeSingleDayCierre({
         businessId,
         branchId,
-        dateStr: cajaRangeStartDate,
+        dateStr: fechaCierre,
         closedBy: userEmail || "Caja",
         observacion: obs,
         efectivoContado: efectivoContadoNum,
@@ -8938,7 +8955,7 @@ function CierreCajaBtn({
       if (result.alreadyClosed) {
         toast.info("La caja ya está cerrada");
         cerrarModal();
-        onCajaCerrada(cajaRangeStartDate);
+        onCajaCerrada(fechaCierre);
         return;
       }
       if (!result.closed) {
@@ -8951,7 +8968,7 @@ function CierreCajaBtn({
       setEfectivoContado("");
       setSaldoReal("");
       setPreview(null);
-      onCajaCerrada(cajaRangeStartDate); // ← bloquea la pantalla solo si el cierre es de hoy
+      onCajaCerrada(fechaCierre); // ← bloquea la pantalla solo si el cierre es de hoy
     } catch (e) {
       toast.error(puntualidadMessage((e as Error).message));
     } finally {
@@ -8979,11 +8996,32 @@ function CierreCajaBtn({
                 <p className="text-xs text-muted-foreground mt-0.5">
                   Caja abierta desde {cajaAbiertaDesde}
                 </p>
-                {cajaRangeStartDate < cajaDateKeyBA() && (
-                  <p className="mt-1.5 text-xs font-medium text-amber-300">
-                    Estás cerrando la jornada pendiente del {fechaDDMMYYYY(cajaRangeStartDate)}. Después se cierra la de hoy.
-                  </p>
+                {cajaRangeStartDate < hoyKey && !confirmStep && !prereqStep && (
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    {[cajaRangeStartDate, hoyKey].map((f) => (
+                      <button
+                        key={f}
+                        type="button"
+                        onClick={() => elegirFecha(f)}
+                        className={cn(
+                          "rounded-full px-3 py-1 text-xs font-semibold ring-1 transition",
+                          fechaCierre === f ? "bg-violet-500/20 text-white ring-violet-300/50" : "bg-white/[0.04] text-white/55 ring-white/10",
+                        )}
+                      >
+                        {f === hoyKey ? `Hoy ${fechaDDMMYYYY(f).slice(0, 5)}` : `${fechaDDMMYYYY(f).slice(0, 5)} (pendiente)`}
+                      </button>
+                    ))}
+                  </div>
                 )}
+                {fechaCierre < hoyKey ? (
+                  <p className="mt-1.5 text-xs font-medium text-amber-300">
+                    Estás cerrando la jornada pendiente del {fechaDDMMYYYY(fechaCierre)}.
+                  </p>
+                ) : cajaRangeStartDate < hoyKey ? (
+                  <p className="mt-1.5 text-xs font-medium text-amber-300">
+                    Estás cerrando hoy. La jornada del {fechaDDMMYYYY(cajaRangeStartDate)} sigue pendiente.
+                  </p>
+                ) : null}
               </div>
               <button
                 type="button"
@@ -8999,7 +9037,7 @@ function CierreCajaBtn({
                 <div className="py-10 text-center text-sm text-muted-foreground">Calculando…</div>
               ) : confirmStep ? (
                 <CierreConfirmarStep
-                  fecha={cajaRangeStartDate}
+                  fecha={fechaCierre}
                   diferencia={diferencia}
                   ajusteCuenta={ajusteCuenta}
                   saving={saving}
@@ -9010,7 +9048,7 @@ function CierreCajaBtn({
                 <CierrePrerequisitosStep
                   businessId={businessId}
                   branchId={branchId}
-                  date={cajaRangeStartDate}
+                  date={fechaCierre}
                   userName={chargedByUsername(userEmail)}
                   onVolver={() => setPrereqStep(false)}
                   onContinue={() => {
@@ -9040,7 +9078,7 @@ function CierreCajaBtn({
                   />
                   <CierreSenasGate
                     businessId={businessId}
-                    fecha={cajaRangeStartDate}
+                    fecha={fechaCierre}
                     onBlockedChange={setSenasBloquean}
                     onChanged={() => setRefreshTick((t) => t + 1)}
                   />
