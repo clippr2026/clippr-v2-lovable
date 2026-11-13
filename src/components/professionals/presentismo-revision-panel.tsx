@@ -544,6 +544,48 @@ export function PresentismoRevisionPanel({
         const shownDiscount = live ? (live.ruleId && liveDecision === "aplicar" ? (live.discount ?? 0) : 0) : discount;
         const shownClockIn = live ? live.iso : effectiveClockIn;
 
+        const iconBtns = (
+          <>
+                {(() => {
+                  const f = fichajes.get(row.employeeId);
+                  return f && (f.inSelfiePath || f.outSelfiePath) ? (
+                    <button
+                      type="button"
+                      aria-label="Ver fotos"
+                      title="Ver fotos"
+                      onClick={() => setFotosDe(f)}
+                      className="inline-flex size-9 items-center justify-center rounded-full text-sky-200 ring-1 ring-white/10 hover:bg-white/5"
+                    >
+                      <Camera className="size-4" />
+                    </button>
+                  ) : null;
+                })()}
+                {/* Quien ya fichó (a tiempo o tarde) estuvo presente: solo se
+                    puede marcar ausente a quien no tiene fichaje. */}
+                {!status && (
+                  <button
+                    type="button"
+                    aria-label="Marcar ausente"
+                    title="Marcar ausente"
+                    onClick={() => startAction(row.employeeId, "mark_absent")}
+                    className="inline-flex size-9 items-center justify-center rounded-full text-rose-300/80 ring-1 ring-white/10 hover:bg-white/5"
+                  >
+                    <UserX className="size-4" />
+                  </button>
+                )}
+                <button
+                  type="button"
+                  aria-label="Editar hora"
+                  title="Editar hora"
+                  onClick={() => startAction(row.employeeId, "correct_time")}
+                  className="inline-flex size-9 items-center justify-center rounded-full text-white/70 ring-1 ring-white/10 hover:bg-white/5"
+                >
+                  <Pencil className="size-4" />
+                </button>
+          </>
+        );
+        const ses = sessionByEmp.get(row.employeeId);
+
         return (
           <div
             key={row.employeeId}
@@ -551,20 +593,28 @@ export function PresentismoRevisionPanel({
           >
             <div className="flex items-start justify-between gap-2">
               <div className="min-w-0 truncate text-[15px] font-semibold text-white">{row.name}</div>
-              {shownStatus ? (
-                <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ${STATUS_CLASS[shownStatus]}`}>
-                  {STATUS_LABEL[shownStatus]}
-                  {live ? " · sin guardar" : isConfirmed ? " · confirmado" : ""}
-                </span>
-              ) : (
-                <span className="shrink-0 text-xs text-white/45">Sin fichar</span>
-              )}
+              <div className="flex shrink-0 items-center gap-2">
+                {shownStatus ? (
+                  <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ${STATUS_CLASS[shownStatus]}`}>
+                    {STATUS_LABEL[shownStatus]}
+                    {live ? " · sin guardar" : isConfirmed ? " · confirmado" : ""}
+                  </span>
+                ) : (
+                  <span className="text-xs text-white/45">Sin fichar</span>
+                )}
+                {isConfirmed && iconBtns}
+              </div>
             </div>
             {(shownClockIn || bloqueado) && (
               <div className="mt-0.5 text-[13px] text-white/60">
                 {shownClockIn && (
                   <>
                     Entrada <span className="tabular-nums text-white/80">{horaCorta(shownClockIn)}</span>
+                    {ses?.clock_out_at && (
+                      <>
+                        {" · "}Salida <span className="tabular-nums text-white/80">{horaCorta(ses.clock_out_at)}</span>
+                      </>
+                    )}
                     {shownLate > 0 && <> · {shownLate} min tarde</>}
                   </>
                 )}
@@ -579,7 +629,7 @@ export function PresentismoRevisionPanel({
                 </span>
               </div>
             )}
-            <div className="mt-3 flex items-center gap-2">
+            <div className={cn("mt-3 flex items-center gap-2", isConfirmed && "hidden")}>
               {!isConfirmed && status && (
                 <button
                   type="button"
@@ -609,44 +659,11 @@ export function PresentismoRevisionPanel({
                   <UserX className="size-4" /> Desmarcar
                 </button>
               )}
-              <div className="ml-auto flex shrink-0 items-center gap-2">
-                {(() => {
-                  const f = fichajes.get(row.employeeId);
-                  return f && (f.inSelfiePath || f.outSelfiePath) ? (
-                    <button
-                      type="button"
-                      aria-label="Ver fotos"
-                      title="Ver fotos"
-                      onClick={() => setFotosDe(f)}
-                      className="inline-flex size-10 items-center justify-center rounded-full text-sky-200 ring-1 ring-white/10 hover:bg-white/5"
-                    >
-                      <Camera className="size-4" />
-                    </button>
-                  ) : null;
-                })()}
-                {/* Quien ya fichó (a tiempo o tarde) estuvo presente: solo se
-                    puede marcar ausente a quien no tiene fichaje. */}
-                {!status && (
-                  <button
-                    type="button"
-                    aria-label="Marcar ausente"
-                    title="Marcar ausente"
-                    onClick={() => startAction(row.employeeId, "mark_absent")}
-                    className="inline-flex size-10 items-center justify-center rounded-full text-rose-300/80 ring-1 ring-white/10 hover:bg-white/5"
-                  >
-                    <UserX className="size-4" />
-                  </button>
-                )}
-                <button
-                  type="button"
-                  aria-label="Editar hora"
-                  title="Editar hora"
-                  onClick={() => startAction(row.employeeId, "correct_time")}
-                  className="inline-flex size-10 items-center justify-center rounded-full text-white/70 ring-1 ring-white/10 hover:bg-white/5"
-                >
-                  <Pencil className="size-4" />
-                </button>
-              </div>
+              {!isConfirmed && (
+                <div className="ml-auto flex shrink-0 items-center gap-2">
+                  {iconBtns}
+                </div>
+              )}
             </div>
 
             {showSalida && !sessionByEmp.get(row.employeeId) && effectiveClockIn && status !== "ausente" && (
@@ -659,9 +676,9 @@ export function PresentismoRevisionPanel({
                 manual={{ businessId, branchId, employeeId: row.employeeId }}
               />
             )}
-            {showSalida && sessionByEmp.get(row.employeeId) && (
+            {showSalida && ses && !ses.clock_out_at && (
               <SalidaRow
-                session={sessionByEmp.get(row.employeeId)!}
+                session={ses}
                 defaultOut={defaultOut}
                 date={date}
                 editedBy={confirmedByName}
