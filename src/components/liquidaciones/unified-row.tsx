@@ -722,27 +722,31 @@ export function MovDayHeader({
     : null;
   const collapsible = !!onToggle;
   const Tag = collapsible ? "button" : "div";
+  const puntualidad =
+    p && (llegada || text) ? (
+      <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[13px]">
+        {llegada && <span className="text-white/60">Entrada {llegada}</span>}
+        <span className={cn("font-semibold", cls)}>{text}</span>
+        {p.penaltyOverridden && <span className="text-white/50">ajustado</span>}
+      </div>
+    ) : null;
   return (
     <Tag
       type={collapsible ? "button" : undefined}
       onClick={onToggle}
-      className={cn("w-full px-1 pb-0.5 pt-1.5 text-left", collapsible && "active:opacity-80")}
+      className={cn(
+        "flex w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3 text-left",
+        collapsible && "active:bg-white/[0.06]",
+      )}
+      style={{ backgroundImage: "radial-gradient(110% 120% at 100% 0%, rgba(79,125,255,.10), transparent 62%)" }}
     >
-      <div className="flex items-center gap-2.5">
-        {collapsible && (
-          <ChevronDown className={cn("size-4 shrink-0 text-white/55 transition-transform", !open && "-rotate-90")} />
-        )}
-        <span className="min-w-0 truncate rounded-full bg-white/[0.07] px-3 py-1 text-sm font-semibold text-white ring-1 ring-white/10">
-          {movDayLabel(dayKey)}
-        </span>
-        {p ? (
-          <span className="ml-auto flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[11px]">
-            {llegada && <span className="text-white/60">Entrada {llegada}</span>}
-            <span className={cn("font-semibold", cls)}>{text}</span>
-            {p.penaltyOverridden && <span className="text-white/50">ajustado</span>}
-          </span>
-        ) : null}
+      <div className="min-w-0">
+        <div className="text-[15px] font-semibold text-white">{movDayLabel(dayKey)}</div>
+        {puntualidad}
       </div>
+      {collapsible && (
+        <ChevronDown className={cn("size-5 shrink-0 text-white/55 transition-transform", !open && "-rotate-90")} />
+      )}
     </Tag>
   );
 }
