@@ -609,7 +609,7 @@ export function PresentismoRevisionPanel({
             {(shownClockIn || bloqueado) && (
               <div className="mt-1 text-[13px] text-white/60">
                 {isConfirmed && shownStatus && (
-                  <span className={`mr-2 inline-block rounded-full px-2.5 py-0.5 align-middle text-[11px] font-semibold ring-1 ${STATUS_CLASS[shownStatus]}`}>
+                  <span className={`mb-1.5 flex w-fit rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ${STATUS_CLASS[shownStatus]}`}>
                     {STATUS_LABEL[shownStatus]} · confirmado
                   </span>
                 )}
