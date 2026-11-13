@@ -7301,7 +7301,10 @@ function CierreMovimientosDetalleList({
   adelantos,
   onRowClick,
   ocultarFacturacion = false,
+  tarjetas = ocultarFacturacion,
 }: {
+  /** Gastos/retiros/adelantos como tarjetas (por defecto, igual que ocultarFacturacion). */
+  tarjetas?: boolean;
   /** En la revisión del cierre no se muestra "Facturación por profesional". */
   ocultarFacturacion?: boolean;
   cobros: any[];
@@ -8133,7 +8136,7 @@ function CierreMovimientosDetalleList({
               <p className="text-sm text-muted-foreground">Sin gastos.</p>
             ) : (
               gastos.map((g: any, idx: number) => (
-                ocultarFacturacion ? (
+                tarjetas ? (
                 <div key={`${g.id ?? idx}`} className={cn("rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5 text-sm")}>
                   <div className="flex items-start justify-between gap-2">
                     <span className="text-[12px] tabular-nums text-white/60">{g.hora ?? "—"}</span>
@@ -8195,7 +8198,7 @@ function CierreMovimientosDetalleList({
               [...retiros, ...ingresosManuales]
                 .sort((a, b) => (a.hora ?? "").localeCompare(b.hora ?? ""))
                 .map((m) => (
-                  ocultarFacturacion ? (
+                  tarjetas ? (
                   <div key={m.id} className={cn("rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5 text-sm")}>
                     <div className="flex items-start justify-between gap-2">
                       <span className="text-[12px] tabular-nums text-white/60">{m.hora ?? "—"}</span>
@@ -8258,7 +8261,7 @@ function CierreMovimientosDetalleList({
               <p className="text-sm text-muted-foreground">Sin adelantos.</p>
             ) : (
               adelantosVisibles.map((a) => (
-                ocultarFacturacion ? (
+                tarjetas ? (
                 <div key={a.id} className={cn("rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5 text-sm", !advanceAffectsCaja(a.origen) && "opacity-70")}>
                   <div className="flex items-start justify-between gap-2">
                     <span className="text-[12px] tabular-nums text-white/60">
@@ -9629,9 +9632,10 @@ function CierreDetalleView({
             </button>
           )}
 
-          <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 p-4">
+          <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 p-3">
             <div className="mb-3 text-sm font-semibold text-white/85">Detalle de la jornada</div>
             <CierreMovimientosDetalleList
+              tarjetas
               cobros={cobros}
               cobrosAnulados={cobrosAnulados}
               cobrosPendientes={(snapshot?.cobrosPendientesSnapshot ?? []) as any[]}
