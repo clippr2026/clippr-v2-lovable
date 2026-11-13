@@ -79,14 +79,21 @@ function PuntualidadHistorial({ employeeId }: { employeeId: string | null }) {
 
   // Día (hora Argentina) posterior al corte de la última liquidación pagada.
   const diaDe = (iso: string) => new Date(iso).toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" });
-  const visibles = verTodo || !desde ? rows : rows.filter((r) => diaDe(r.clock_in_at) > desde);
+  // Como mucho el mes en curso completo (aunque no se liquide hace tiempo); lo anterior, con "Ver historial".
+  const inicioMes = `${new Date().toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }).slice(0, 7)}-01`;
+  const visibles = verTodo
+    ? rows
+    : rows.filter((r) => {
+        const d = diaDe(r.clock_in_at);
+        return d >= inicioMes && (!desde || d > desde);
+      });
   const ocultas = rows.length - visibles.length;
 
   return (
     <div className="space-y-2 animate-fade-up">
       {visibles.length === 0 && (
         <div className="glass rounded-2xl p-6 text-center text-sm text-muted-foreground">
-          No hay fichadas desde la última liquidación.
+          No hay fichadas en este período.
         </div>
       )}
       {visibles.map((r) => {
