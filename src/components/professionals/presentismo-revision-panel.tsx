@@ -192,6 +192,8 @@ export function PresentismoRevisionPanel({
   // se muestran como ausentes de entrada; "Desmarcar" los saca de ahí solo en esta pantalla.
   const [bloqueadoIds, setBloqueadoIds] = React.useState<Set<string>>(new Set());
   const [desmarcadoIds, setDesmarcadoIds] = React.useState<Set<string>>(new Set());
+  // Profesionales con ventas ese día: si no ficharon, no se pueden marcar ausentes; hay que cargar su entrada y salida.
+  const [trabajoIds, setTrabajoIds] = React.useState<Set<string>>(new Set());
   // Fotos del fichaje de cada persona (solo lectura), para verlas junto a su entrada y salida.
   const [fichajes, setFichajes] = React.useState<Map<string, FichajeHoyPersona>>(new Map());
   const [fotosDe, setFotosDe] = React.useState<FichajeHoyPersona | null>(null);
@@ -283,6 +285,19 @@ export function PresentismoRevisionPanel({
         );
       }
       onScheduledIdsChange?.(built.map((r) => r.employeeId));
+      try {
+        const winV = dayWindowBA(date);
+        const { data: ventasDia } = await supabase
+          .from("payments" as any)
+          .select("employee_id")
+          .eq("business_id", businessId)
+          .not("status", "in", "(anulado,reembolsado)")
+          .gte("created_at", winV.start.toISOString())
+          .lt("created_at", winV.end.toISOString());
+        setTrabajoIds(new Set(((ventasDia ?? []) as any[]).map((v) => v.employee_id).filter(Boolean)));
+      } catch {
+        setTrabajoIds(new Set());
+      }
       try {
         const win = dayWindowBA(date);
         const [{ data: bloqs }, closing] = await Promise.all([
@@ -520,7 +535,8 @@ export function PresentismoRevisionPanel({
       {/* Primero los que falta confirmar; los ya confirmados quedan abajo. */}
       {(() => {
         const renderRow = (row: Row) => {
-        const bloqueado = bloqueadoIds.has(row.employeeId) && !desmarcadoIds.has(row.employeeId) && !row.confirmation && !row.preview?.status;
+        const trabajo = trabajoIds.has(row.employeeId) && !row.confirmation && !row.preview?.status;
+        const bloqueado = !trabajo && bloqueadoIds.has(row.employeeId) && !desmarcadoIds.has(row.employeeId) && !row.confirmation && !row.preview?.status;
         const status = bloqueado ? "ausente" : (row.confirmation?.status ?? row.preview?.status ?? null);
         const lateMinutes = row.confirmation?.lateMinutes ?? row.preview?.lateMinutes ?? 0;
         const discount = row.confirmation?.discountAmountApplied ?? row.preview?.discountAmountRequested ?? 0;
@@ -562,7 +578,7 @@ export function PresentismoRevisionPanel({
                 })()}
                 {/* Quien ya fichó (a tiempo o tarde) estuvo presente: solo se
                     puede marcar ausente a quien no tiene fichaje. */}
-                {!status && (
+                {!status && !trabajo && (
                   <button
                     type="button"
                     aria-label="Marcar ausente"
@@ -601,11 +617,14 @@ export function PresentismoRevisionPanel({
                       {live ? " · sin guardar" : ""}
                     </span>
                   ) : (
-                    <span className="text-xs text-white/45">Sin fichar</span>
+                    <span className={cn("text-xs", trabajo ? "font-medium text-amber-300" : "text-white/45")}>{trabajo ? "Trabajó" : "Sin fichar"}</span>
                   ))}
                 {isConfirmed && iconBtns}
               </div>
             </div>
+            {trabajo && !shownClockIn && (
+              <div className="mt-1 text-[13px] text-amber-200/80">Tuvo ventas este día: cargá su entrada y su salida para poder cerrar.</div>
+            )}
             {(shownClockIn || bloqueado) && (
               <div className="mt-1 text-[13px] text-white/60">
                 {isConfirmed && shownStatus && (
