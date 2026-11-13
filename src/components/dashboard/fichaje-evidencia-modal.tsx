@@ -1,6 +1,6 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { X } from "lucide-react";
+import { RotateCw, X } from "lucide-react";
 import { getFichajeSelfieUrl, type FichajeHoyPersona } from "@/lib/fichaje";
 
 const METHOD_LABEL: Record<string, string> = {
@@ -16,6 +16,8 @@ function horaCorta(iso: string) {
 function Foto({ titulo, hora, metodo, path }: { titulo: string; hora: string; metodo: string | null; path: string | null }) {
   const [url, setUrl] = React.useState<string | null>(null);
   const [loading, setLoading] = React.useState(Boolean(path));
+  // Algunos celulares guardan la selfie girada: se puede enderezar de a 90°.
+  const [giro, setGiro] = React.useState(0);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -38,9 +40,25 @@ function Foto({ titulo, hora, metodo, path }: { titulo: string; hora: string; me
         </span>
         {metodo && <span className="text-muted-foreground">{METHOD_LABEL[metodo] ?? metodo}</span>}
       </div>
-      <div className="grid aspect-square place-items-center overflow-hidden rounded-xl bg-black/40 ring-1 ring-white/10">
+      <div className="relative grid aspect-square place-items-center overflow-hidden rounded-xl bg-black/40 ring-1 ring-white/10">
         {url ? (
-          <img src={url} alt={`Selfie de ${titulo.toLowerCase()}`} className="size-full -scale-x-100 object-cover" />
+          <>
+            <img
+              src={url}
+              alt={`Selfie de ${titulo.toLowerCase()}`}
+              className="size-full object-cover transition-transform"
+              style={{ transform: `scaleX(-1) rotate(${giro}deg)` }}
+            />
+            <button
+              type="button"
+              aria-label="Girar foto"
+              title="Girar foto"
+              onClick={() => setGiro((g) => (g + 90) % 360)}
+              className="absolute bottom-2 right-2 grid size-9 place-items-center rounded-full bg-black/60 text-white ring-1 ring-white/20"
+            >
+              <RotateCw className="size-4" />
+            </button>
+          </>
         ) : (
           <span className="px-3 text-center text-xs text-muted-foreground">
             {loading ? "Cargando…" : path ? "No se pudo cargar la foto" : "Sin foto"}
