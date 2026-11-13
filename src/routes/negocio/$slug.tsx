@@ -1,3 +1,4 @@
+import { AppLocalInstalar } from "@/components/app-local-instalar";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { publicButtonStyle } from "@/lib/public-button";
 import { COVER_ASPECT_CLASS } from "@/lib/cover-frame";
@@ -1580,6 +1581,10 @@ function PublicProfilePage() {
           cuando el fondo del negocio es claro — mismo mecanismo que usa el
           resto de la página, sin necesitar lógica de color acá. El logo
           mantiene sus colores propios (no es texto, no lo toca esa regla). */}
+      {!isPreview && business.slug ? (
+        <AppLocalInstalar slug={business.slug} nombre={business.name} className="mx-auto max-w-6xl px-4 pb-6" />
+      ) : null}
+
       <footer className="mx-auto max-w-6xl px-4 pb-10 pt-2">
         <div className="flex items-center justify-center gap-2">
           <span className="text-sm font-medium text-white/60">Impulsado por</span>

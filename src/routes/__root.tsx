@@ -122,26 +122,34 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 // quienes usan Clippr para gestionar el local. Cada pantalla enlaza el manifiesto que le toca.
 function PwaLinks() {
   const pathname = useRouterState({ select: (st) => st.location.pathname });
-  const esAuro =
+  // Local de la página pública (/negocio/<slug>, /reservar/<slug>); /auro-stylo y /gestion son de Auro Stylo.
+  const match = pathname.match(/^\/(?:negocio|reservar)\/([a-z0-9-]{1,80})(?:\/|$)/i);
+  const slugPagina = match && !/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(match[1]) ? match[1].toLowerCase() : null;
+  const slugLocal =
     pathname.startsWith("/auro-stylo") ||
-    pathname.startsWith("/reservar/auro-stylo") ||
-    pathname.startsWith("/negocio/auro-stylo") ||
     // Página del turno del cliente (link del correo): hoy solo Auro Stylo usa Clippr para sus clientes.
-    pathname.startsWith("/gestion");
+    pathname.startsWith("/gestion")
+      ? "auro-stylo"
+      : slugPagina;
+  const nombre = slugLocal === "auro-stylo" ? "Auro Stylo" : null;
   return (
     <>
+      {/* El manifest y el ícono salen del local (foto de perfil ACTUAL, leída de la base). */}
       <link
         rel="manifest"
-        href={esAuro ? "/api/pwa-manifest?slug=auro-stylo&name=Auro%20Stylo" : "/manifest-clippr.webmanifest"}
+        href={
+          slugLocal
+            ? `/api/pwa-manifest?slug=${slugLocal}${nombre ? `&name=${encodeURIComponent(nombre)}` : ""}`
+            : "/manifest-clippr.webmanifest"
+        }
       />
-      {/* Auro: la foto de perfil ACTUAL del local (se lee de la base), no un archivo fijo. */}
       <link
         rel="apple-touch-icon"
-        href={esAuro ? "/api/pwa-icon?slug=auro-stylo&size=180" : "/pwa/clippr-apple-180.png"}
+        href={slugLocal ? `/api/pwa-icon?slug=${slugLocal}&size=180` : "/pwa/clippr-apple-180.png"}
       />
       <meta name="apple-mobile-web-app-capable" content="yes" />
       <meta name="mobile-web-app-capable" content="yes" />
-      <meta name="apple-mobile-web-app-title" content={esAuro ? "Auro Stylo" : "Clippr"} />
+      <meta name="apple-mobile-web-app-title" content={nombre ?? (slugLocal ? slugLocal : "Clippr")} />
       {/* "black": la barra de estado queda arriba, sin tapar el contenido de la app instalada. */}
       <meta name="apple-mobile-web-app-status-bar-style" content="black" />
     </>
