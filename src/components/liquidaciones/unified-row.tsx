@@ -709,7 +709,7 @@ export function MovDayHeader({
   const p = presentismo;
   const amount = p ? Number(p.discountAmountApplied ?? 0) : 0;
   const statusLabel = p ? (p.status === "a_tiempo" ? "A tiempo" : p.status === "tarde" ? "Tarde" : "Ausente") : "";
-  const montoText = amount > 0 ? `-${money(amount)}` : amount < 0 ? `+${money(-amount)}` : "";
+  const montoText = amount > 0 ? money(amount) : amount < 0 ? `+${money(-amount)}` : "";
   const text = [statusLabel, montoText].filter(Boolean).join(" ");
   const cls = p?.status === "ausente" ? "text-white/50" : p?.status === "tarde" ? "text-rose-300" : "text-emerald-300";
   const llegada = p?.effectiveClockInAt
