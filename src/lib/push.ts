@@ -1,8 +1,10 @@
 import { supabase } from "@/integrations/supabase/client";
 
-// Notificaciones push (PWA). La clave pública (VAPID) va en VITE_VAPID_PUBLIC_KEY; sin ella los avisos
-// no se ofrecen. El envío lo hace el servidor con la clave privada (nunca llega al navegador).
-const VAPID_PUBLIC_KEY = (import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined) ?? "";
+// Notificaciones push (PWA). El envío lo hace el servidor con la clave privada (nunca llega al navegador).
+// La clave pública es pública por diseño (viaja al navegador): va incluida acá como valor por defecto.
+const VAPID_PUBLIC_KEY =
+  (import.meta.env.VITE_VAPID_PUBLIC_KEY as string | undefined) ??
+  "BE3-3hG9suQnA55ywpRe1kbxxYlIq4oWkgA8zpRBuATHM__nvjnomDShRvYAnYNvoCK4-yCjrMosaJ8mWgxgG6E";
 
 export type PushApp = "clippr" | "auro";
 

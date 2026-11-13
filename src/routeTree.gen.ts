@@ -32,6 +32,7 @@ import { Route as SetPasswordRouteImport } from './routes/set-password'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ApiCleanupFichajeSelfiesRouteImport } from './routes/api/cleanup-fichaje-selfies'
 import { Route as ApiCleanupReceiptsRouteImport } from './routes/api/cleanup-receipts'
+import { Route as ApiPushTestRouteImport } from './routes/api/push-test'
 import { Route as ApiVersionRouteImport } from './routes/api/version'
 import { Route as FichajeKioscoBranchIdRouteImport } from './routes/fichaje-kiosco/$branchId'
 import { Route as FicharBranchIdRouteImport } from './routes/fichar/$branchId'
@@ -155,6 +156,11 @@ const ApiCleanupReceiptsRoute = ApiCleanupReceiptsRouteImport.update({
   path: '/api/cleanup-receipts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPushTestRoute = ApiPushTestRouteImport.update({
+  id: '/api/push-test',
+  path: '/api/push-test',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiVersionRoute = ApiVersionRouteImport.update({
   id: '/api/version',
   path: '/api/version',
@@ -205,6 +211,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/api/cleanup-fichaje-selfies': typeof ApiCleanupFichajeSelfiesRoute
   '/api/cleanup-receipts': typeof ApiCleanupReceiptsRoute
+  '/api/push-test': typeof ApiPushTestRoute
   '/api/version': typeof ApiVersionRoute
   '/fichaje-kiosco/$branchId': typeof FichajeKioscoBranchIdRoute
   '/fichar/$branchId': typeof FicharBranchIdRoute
@@ -235,6 +242,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/api/cleanup-fichaje-selfies': typeof ApiCleanupFichajeSelfiesRoute
   '/api/cleanup-receipts': typeof ApiCleanupReceiptsRoute
+  '/api/push-test': typeof ApiPushTestRoute
   '/api/version': typeof ApiVersionRoute
   '/fichaje-kiosco/$branchId': typeof FichajeKioscoBranchIdRoute
   '/fichar/$branchId': typeof FicharBranchIdRoute
@@ -266,6 +274,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/api/cleanup-fichaje-selfies': typeof ApiCleanupFichajeSelfiesRoute
   '/api/cleanup-receipts': typeof ApiCleanupReceiptsRoute
+  '/api/push-test': typeof ApiPushTestRoute
   '/api/version': typeof ApiVersionRoute
   '/fichaje-kiosco/$branchId': typeof FichajeKioscoBranchIdRoute
   '/fichar/$branchId': typeof FicharBranchIdRoute
@@ -298,6 +307,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/api/cleanup-fichaje-selfies'
     | '/api/cleanup-receipts'
+    | '/api/push-test'
     | '/api/version'
     | '/fichaje-kiosco/$branchId'
     | '/fichar/$branchId'
@@ -328,6 +338,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/api/cleanup-fichaje-selfies'
     | '/api/cleanup-receipts'
+    | '/api/push-test'
     | '/api/version'
     | '/fichaje-kiosco/$branchId'
     | '/fichar/$branchId'
@@ -358,6 +369,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/api/cleanup-fichaje-selfies'
     | '/api/cleanup-receipts'
+    | '/api/push-test'
     | '/api/version'
     | '/fichaje-kiosco/$branchId'
     | '/fichar/$branchId'
@@ -389,6 +401,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   ApiCleanupFichajeSelfiesRoute: typeof ApiCleanupFichajeSelfiesRoute
   ApiCleanupReceiptsRoute: typeof ApiCleanupReceiptsRoute
+  ApiPushTestRoute: typeof ApiPushTestRoute
   ApiVersionRoute: typeof ApiVersionRoute
   FichajeKioscoBranchIdRoute: typeof FichajeKioscoBranchIdRoute
   FicharBranchIdRoute: typeof FicharBranchIdRoute
@@ -559,6 +572,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCleanupReceiptsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/push-test': {
+      id: '/api/push-test'
+      path: '/api/push-test'
+      fullPath: '/api/push-test'
+      preLoaderRoute: typeof ApiPushTestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/version': {
       id: '/api/version'
       path: '/api/version'
@@ -622,6 +642,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   ApiCleanupFichajeSelfiesRoute: ApiCleanupFichajeSelfiesRoute,
   ApiCleanupReceiptsRoute: ApiCleanupReceiptsRoute,
+  ApiPushTestRoute: ApiPushTestRoute,
   ApiVersionRoute: ApiVersionRoute,
   FichajeKioscoBranchIdRoute: FichajeKioscoBranchIdRoute,
   FicharBranchIdRoute: FicharBranchIdRoute,

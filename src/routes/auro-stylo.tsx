@@ -1,6 +1,7 @@
 import * as React from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { MapPin, ArrowRight } from "lucide-react";
+import { PushAvisosButton } from "@/components/push-avisos-button";
 import auroStyloLogo from "@/assets/auro-stylo-logo.jpeg";
 import auroRecoletaPhoto from "@/assets/auro-recoleta.png";
 import auroMonserratPhoto from "@/assets/auro-monserrat.jpeg";
@@ -127,6 +128,11 @@ function AuroStyloBranchPage() {
               </div>
             </a>
           ))}
+        </div>
+
+        {/* Avisos de turnos y novedades al celular (app instalada) */}
+        <div className="mt-6 flex justify-center">
+          <PushAvisosButton app="auro" businessSlug="auro-stylo" />
         </div>
 
         {/* Footer discreto — sin ninguna mención a Clippr/AgendaPro */}

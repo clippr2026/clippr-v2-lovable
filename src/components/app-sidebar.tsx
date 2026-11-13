@@ -1,3 +1,4 @@
+import { PushAvisosButton } from "@/components/push-avisos-button";
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { Link, useRouterState } from "@tanstack/react-router";
@@ -349,6 +350,8 @@ function UserMenu() {
             </div>
           </div>
         </div>
+        <DropdownMenuSeparator className="my-2" />
+        <PushAvisosButton app="clippr" className="w-full" />
         <DropdownMenuSeparator className="my-2" />
         <DropdownMenuItem
           onClick={() => signOut()}
