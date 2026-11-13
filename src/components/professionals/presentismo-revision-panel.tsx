@@ -1,5 +1,6 @@
 import * as React from "react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { Camera, Check, Clock3, Loader2, Pencil, UserX, X } from "lucide-react";
 import { getFichajesDeFecha, type FichajeHoyPersona } from "@/lib/fichaje";
 import { FichajeEvidenciaModal } from "@/components/dashboard/fichaje-evidencia-modal";
@@ -125,15 +126,13 @@ function SalidaRow({
     );
   }
   return (
-    <div className="mt-2 flex flex-wrap items-center gap-2 rounded-lg bg-rose-400/[0.06] px-3 py-2 ring-1 ring-rose-400/20">
-      <span className="text-xs text-rose-200/90">
-        Entrada <span className="tabular-nums">{horaBA(session.clock_in_at)}</span> · falta la salida
-      </span>
+    <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-white/[0.06] pt-3">
+      <span className="w-full text-xs text-rose-300/90">Salida pendiente</span>
       <input
         type="time"
         value={time}
         onChange={(e) => setTime(e.target.value)}
-        className="h-9 w-[104px] rounded-lg border border-white/10 bg-white/[0.04] px-2 text-sm text-foreground"
+        className="h-10 min-w-0 flex-1 rounded-full border border-white/10 bg-white/[0.04] px-4 text-sm text-foreground"
       />
       <button
         type="button"
@@ -146,7 +145,7 @@ function SalidaRow({
           toast.success("Salida guardada");
           onSaved();
         }}
-        className="inline-flex h-9 items-center gap-1 rounded-lg bg-gradient-to-r from-sky-400 to-violet-500 px-3 text-xs font-semibold text-white disabled:opacity-50"
+        className="inline-flex h-10 shrink-0 items-center gap-1 rounded-full bg-violet-500/20 px-4 text-sm font-semibold text-violet-100 ring-1 ring-violet-400/40 hover:bg-violet-500/30 disabled:opacity-50"
       >
         {saving ? <Loader2 className="size-3.5 animate-spin" /> : null} Guardar salida
       </button>
@@ -530,88 +529,106 @@ export function PresentismoRevisionPanel({
         const shownClockIn = live ? live.iso : effectiveClockIn;
 
         return (
-          <div key={row.employeeId} className="rounded-xl bg-white/[0.03] px-3.5 py-3 ring-1 ring-white/5">
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="min-w-0">
-                <div className="text-sm font-semibold text-foreground">{row.name}</div>
-                <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-                  <span>Real <span className="tabular-nums text-foreground/80">{horaCorta(shownClockIn)}</span></span>
-                  {shownLate > 0 && <span>{shownLate} min tarde</span>}
-                  <span>Regla: {ruleLabel(shownRuleId)}</span>
-                  <span className={shownDiscount > 0 ? "text-rose-300" : shownDiscount < 0 ? "text-emerald-300" : ""}>
-                    Ajuste: {shownDiscount === 0 ? "$0" : shownDiscount > 0 ? `-${money(shownDiscount)}` : `+${money(Math.abs(shownDiscount))}`}
-                  </span>
-                </div>
-              </div>
-              <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
-                {shownStatus && (
-                  <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ${STATUS_CLASS[shownStatus]}`}>
-                    {STATUS_LABEL[shownStatus]}
-                    {live ? " · sin guardar" : isConfirmed ? " · confirmado" : ""}
-                  </span>
+          <div
+            key={row.employeeId}
+            className="rounded-2xl border border-white/10 bg-[#0b0a14] px-4 py-3.5 [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.10),transparent_62%)]"
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="min-w-0 truncate text-[15px] font-semibold text-white">{row.name}</div>
+              {shownStatus ? (
+                <span className={`shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ${STATUS_CLASS[shownStatus]}`}>
+                  {STATUS_LABEL[shownStatus]}
+                  {live ? " · sin guardar" : isConfirmed ? " · confirmado" : ""}
+                </span>
+              ) : (
+                <span className="shrink-0 text-xs text-white/45">Sin fichar</span>
+              )}
+            </div>
+            {(shownClockIn || bloqueado) && (
+              <div className="mt-0.5 text-[13px] text-white/60">
+                {shownClockIn && (
+                  <>
+                    Entrada <span className="tabular-nums text-white/80">{horaCorta(shownClockIn)}</span>
+                    {shownLate > 0 && <> · {shownLate} min tarde</>}
+                  </>
                 )}
+                {bloqueado && <>{shownClockIn ? " · " : ""}Día bloqueado</>}
+              </div>
+            )}
+            {(shownRuleId || shownDiscount !== 0) && (
+              <div className="mt-1 flex items-center justify-between gap-2 text-xs text-white/50">
+                <span className="min-w-0 truncate">Regla: {ruleLabel(shownRuleId)}</span>
+                <span className={cn("shrink-0 font-semibold tabular-nums", shownDiscount > 0 ? "text-rose-300" : shownDiscount < 0 ? "text-emerald-300" : "")}>
+                  {shownDiscount === 0 ? "$0" : shownDiscount > 0 ? `-${money(shownDiscount)}` : `+${money(Math.abs(shownDiscount))}`}
+                </span>
+              </div>
+            )}
+            <div className="mt-3 flex items-center gap-2">
+              {!isConfirmed && status && (
+                <button
+                  type="button"
+                  disabled={saving}
+                  onClick={() =>
+                    // Con una corrección o un ajuste de penalización abiertos,
+                    // Confirmar es lo que los guarda; si no, confirma directo.
+                    editingThis && (actionFor!.action === "correct_time" || actionFor!.action === "override_penalty")
+                      ? submitAction()
+                      : confirmDirect(
+                          row,
+                          status === "tarde" ? "confirm_late" : status === "ausente" ? "mark_absent" : "confirm_on_time",
+                          bloqueado ? "Día completo bloqueado en la agenda" : undefined,
+                        )
+                  }
+                  className="inline-flex h-10 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 px-4 text-sm font-semibold text-white disabled:opacity-50"
+                >
+                  <Check className="size-4" /> Confirmar
+                </button>
+              )}
+              {bloqueado && (
+                <button
+                  type="button"
+                  onClick={() => setDesmarcadoIds((cur) => new Set(cur).add(row.employeeId))}
+                  className="inline-flex h-10 items-center gap-1.5 rounded-full px-3.5 text-sm text-white/70 ring-1 ring-white/10 hover:bg-white/5"
+                >
+                  <UserX className="size-4" /> Desmarcar
+                </button>
+              )}
+              <div className="ml-auto flex shrink-0 items-center gap-2">
                 {(() => {
                   const f = fichajes.get(row.employeeId);
                   return f && (f.inSelfiePath || f.outSelfiePath) ? (
                     <button
                       type="button"
+                      aria-label="Ver fotos"
+                      title="Ver fotos"
                       onClick={() => setFotosDe(f)}
-                      className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-semibold text-sky-200 ring-1 ring-white/10 hover:bg-white/5"
+                      className="inline-flex size-10 items-center justify-center rounded-full text-sky-200 ring-1 ring-white/10 hover:bg-white/5"
                     >
-                      <Camera className="size-3.5" /> Ver fotos
+                      <Camera className="size-4" />
                     </button>
                   ) : null;
                 })()}
-                {!isConfirmed && status && (
-                  <button
-                    type="button"
-                    disabled={saving}
-                    onClick={() =>
-                      // Con una corrección o un ajuste de penalización abiertos,
-                      // Confirmar es lo que los guarda; si no, confirma directo.
-                      editingThis && (actionFor!.action === "correct_time" || actionFor!.action === "override_penalty")
-                        ? submitAction()
-                        : confirmDirect(
-                            row,
-                            status === "tarde" ? "confirm_late" : status === "ausente" ? "mark_absent" : "confirm_on_time",
-                            bloqueado ? "Día completo bloqueado en la agenda" : undefined,
-                          )
-                    }
-                    className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-sky-400 to-violet-500 px-2.5 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-                  >
-                    <Check className="size-3.5" /> Confirmar
-                  </button>
-                )}
-                {!isConfirmed && !status && (
-                  <span className="text-xs text-muted-foreground">Sin fichar</span>
-                )}
-                {bloqueado && <span className="text-xs text-muted-foreground">Día bloqueado</span>}
-                {bloqueado && (
-                  <button
-                    type="button"
-                    onClick={() => setDesmarcadoIds((cur) => new Set(cur).add(row.employeeId))}
-                    className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground ring-1 ring-white/10 hover:bg-white/5"
-                  >
-                    <UserX className="size-3.5" /> Desmarcar
-                  </button>
-                )}
                 {/* Quien ya fichó (a tiempo o tarde) estuvo presente: solo se
                     puede marcar ausente a quien no tiene fichaje. */}
                 {!status && (
                   <button
                     type="button"
+                    aria-label="Marcar ausente"
+                    title="Marcar ausente"
                     onClick={() => startAction(row.employeeId, "mark_absent")}
-                    className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground ring-1 ring-white/10 hover:bg-white/5"
+                    className="inline-flex size-10 items-center justify-center rounded-full text-rose-300/80 ring-1 ring-white/10 hover:bg-white/5"
                   >
-                    <UserX className="size-3.5" /> Ausente
+                    <UserX className="size-4" />
                   </button>
                 )}
                 <button
                   type="button"
+                  aria-label="Editar hora"
+                  title="Editar hora"
                   onClick={() => startAction(row.employeeId, "correct_time")}
-                  className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground ring-1 ring-white/10 hover:bg-white/5"
+                  className="inline-flex size-10 items-center justify-center rounded-full text-white/70 ring-1 ring-white/10 hover:bg-white/5"
                 >
-                  <Pencil className="size-3.5" /> Editar
+                  <Pencil className="size-4" />
                 </button>
               </div>
             </div>

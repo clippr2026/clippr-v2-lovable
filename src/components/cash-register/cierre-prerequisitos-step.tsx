@@ -65,31 +65,23 @@ export function CierrePrerequisitosStep({
     <div className="space-y-4">
       {/* Los paneles se montan siempre (cargan y reportan lo pendiente), pero
           se ocultan hasta saber si hay algo para mostrar. */}
-      <div className={decided === "mostrar" ? "space-y-4" : "hidden"}>
-        <div>
-          <p className="text-sm font-semibold text-white">Antes de cerrar la caja</p>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Confirmá la puntualidad de cada profesional y cargá las salidas que falten. Después se habilita "Continuar".
-          </p>
-        </div>
-        <div className="rounded-xl bg-white/[0.02] p-3.5 ring-1 ring-white/10">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <p className="text-sm font-semibold text-foreground">Entradas y salidas del día</p>
-            {pendientes > 0 ? (
-              <span className="rounded-full bg-rose-400/10 px-2 py-0.5 text-[10px] font-semibold text-rose-300 ring-1 ring-rose-400/25">
-                {sinResolver.length} sin resolver
-              </span>
-            ) : (
-              <span className="rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-300 ring-1 ring-emerald-400/25">
-                Todo confirmado
-              </span>
-            )}
+      <div className={decided === "mostrar" ? "space-y-4 pb-2" : "hidden"}>
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <p className="text-base font-semibold text-white">Validar personal</p>
+            <p className="mt-0.5 text-xs text-white/50">Confirmá puntualidad y salidas antes de continuar.</p>
           </div>
-          {sinResolver.length > 0 && (
-            <p className="mb-3 text-xs text-rose-200/80">
-              Falta resolver: {sinResolver.join(", ")}.
-            </p>
+          {pendientes > 0 ? (
+            <span className="shrink-0 rounded-full bg-rose-400/10 px-2.5 py-1 text-[11px] font-semibold text-rose-300 ring-1 ring-rose-400/25">
+              {sinResolver.length} pendientes
+            </span>
+          ) : (
+            <span className="shrink-0 rounded-full bg-emerald-400/10 px-2.5 py-1 text-[11px] font-semibold text-emerald-300 ring-1 ring-emerald-400/25">
+              Todo confirmado
+            </span>
           )}
+        </div>
+        <div className="space-y-2.5">
           {applies && profileId && (
             <PresentismoRevisionPanel
               businessId={businessId}
@@ -115,11 +107,11 @@ export function CierrePrerequisitosStep({
             />
           )}
         </div>
-        <div className="sticky bottom-0 -mx-5 -mb-5 flex gap-2 border-t border-white/10 bg-[#08070f]/95 px-5 py-3 backdrop-blur">
+        <div className="sticky bottom-0 -mx-5 -mb-5 flex gap-2 border-t border-white/10 bg-[#08070f]/95 px-5 py-2.5 backdrop-blur">
           <button
             type="button"
             onClick={onVolver}
-            className="h-12 flex-1 rounded-full border border-white/[0.12] bg-white/[0.04] px-4 text-sm font-semibold text-white/80 transition hover:bg-white/[0.08]"
+            className="h-11 flex-1 rounded-full border border-white/[0.12] bg-white/[0.04] px-4 text-sm font-semibold text-white/80 transition hover:bg-white/[0.08]"
           >
             Volver a revisar
           </button>
@@ -128,7 +120,7 @@ export function CierrePrerequisitosStep({
             onClick={onContinue}
             disabled={cargando || pendientes > 0}
             title={pendientes > 0 ? "Resolvé lo pendiente para continuar" : undefined}
-            className="h-12 flex-1 rounded-full bg-gradient-to-b from-blue-400 to-violet-500 px-4 text-sm font-bold text-white transition-all hover:brightness-105 disabled:opacity-50"
+            className="h-11 flex-1 rounded-full bg-gradient-to-b from-blue-400 to-violet-500 px-4 text-sm font-bold text-white transition-all hover:brightness-105 disabled:opacity-50"
           >
             Continuar
           </button>
