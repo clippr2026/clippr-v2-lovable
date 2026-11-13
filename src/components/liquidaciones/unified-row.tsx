@@ -597,19 +597,10 @@ export function VentaRow({
         <div className="flex items-center justify-between gap-2">
           <span className="min-w-0 text-[12px] tabular-nums text-white/60">{dateTime}</span>
           <div className="shrink-0 text-right">
-            {anulada ? (
-              <>
-                <div className="text-lg font-bold leading-none tabular-nums text-rose-300 line-through">{money(saleTotal)}</div>
-                <div className="mt-0.5 text-[11px] font-semibold text-rose-300">Venta anulada</div>
-              </>
-            ) : (
-              <>
-                <div className="text-lg font-bold leading-none tabular-nums text-violet-300">
-                  +{money(Number(c.pending_amount ?? c.amount ?? 0))}
-                </div>
-                <div className="mt-0.5 text-[11px] font-medium text-violet-200/70">Comisión{isRecovered ? " del cobro" : ""}</div>
-              </>
-            )}
+            <div className={cn("text-lg font-bold leading-none tabular-nums text-violet-300", anulada && "line-through opacity-60")}>
+              +{money(Number(c.pending_amount ?? c.amount ?? 0))}
+            </div>
+            <div className="mt-0.5 text-[11px] font-medium text-violet-200/70">Comisión{isRecovered ? " del cobro" : ""}</div>
           </div>
         </div>
         <div className="mt-2 min-w-0">
@@ -638,6 +629,11 @@ export function VentaRow({
             </span>
           )}
           <span className="rounded-full bg-white/[0.05] px-2 py-0.5 text-[12px] text-white/80 ring-1 ring-white/10">{method}</span>
+          {anulada && (
+            <span className="rounded-full bg-rose-400/10 px-2 py-0.5 text-[12px] font-semibold text-rose-300 ring-1 ring-rose-300/25">
+              Venta anulada
+            </span>
+          )}
           {hasTip && (
             <span className="rounded-full bg-emerald-400/10 px-2 py-0.5 text-[12px] font-semibold tabular-nums text-emerald-300 ring-1 ring-emerald-300/25">
               + propina {money(Number(sale.tip_amount))}
