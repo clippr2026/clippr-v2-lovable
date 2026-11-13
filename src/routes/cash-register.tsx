@@ -13307,7 +13307,7 @@ function FacturacionPanel({
           una sola fila desde sm. */}
       <div
         className={cn(
-          "grid grid-cols-2 gap-4",
+          "grid grid-cols-2 gap-3",
           // "Cobros por confirmar" (showPendientes) es condicional — la
           // cantidad de columnas en desktop sigue la cantidad real de
           // tarjetas visibles (Ingresos y Gastos son siempre fijas), para
@@ -13363,7 +13363,7 @@ function FacturacionPanel({
           Descuentan los adelantos a profesionales con origen "Caja del día"
           (ver computeExpectedCashAndDigital); los de "Fondos externos" no. El
           detalle de cada saldo muestra el adelanto como línea propia. */}
-      <div className="mt-3 grid grid-cols-2 gap-4">
+      <div className="-mt-3.5 grid grid-cols-2 gap-3">
         <FacturacionStatCard
           icon={Wallet}
           iconClass="text-amber-400"
@@ -13382,7 +13382,7 @@ function FacturacionPanel({
         />
       </div>
 
-      <div className="mt-3">
+      <div className="-mt-3">
         <SenasCajaCard businessId={data.businessId} branchId={data.activeBranchId} onChanged={() => void data.refresh()} />
       </div>
 
