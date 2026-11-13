@@ -183,6 +183,10 @@ export function PresentismoRevisionPanel({
   onPendingChange?: (pendingNames: string[]) => void;
 }) {
   const [rows, setRows] = React.useState<Row[] | null>(null);
+  // Profesionales con TODA su jornada bloqueada en la agenda (sin fichaje ni confirmación):
+  // se muestran como ausentes de entrada; "Desmarcar" los saca de ahí solo en esta pantalla.
+  const [bloqueadoIds, setBloqueadoIds] = React.useState<Set<string>>(new Set());
+  const [desmarcadoIds, setDesmarcadoIds] = React.useState<Set<string>>(new Set());
   // Fotos del fichaje de cada persona (solo lectura), para verlas junto a su entrada y salida.
   const [fichajes, setFichajes] = React.useState<Map<string, FichajeHoyPersona>>(new Map());
   const [fotosDe, setFotosDe] = React.useState<FichajeHoyPersona | null>(null);
@@ -264,6 +268,45 @@ export function PresentismoRevisionPanel({
         onSalidasPendingChange?.(built.filter((r) => map.get(r.employeeId) && !map.get(r.employeeId)!.clock_out_at).map((r) => r.name));
       }
       onScheduledIdsChange?.(built.map((r) => r.employeeId));
+      try {
+        const win = dayWindowBA(date);
+        const [{ data: bloqs }, closing] = await Promise.all([
+          supabase
+            .from("appointments")
+            .select("employee_id,starts_at,ends_at,duration_min")
+            .eq("business_id", businessId)
+            .eq("status", "blocked")
+            .gte("starts_at", win.start.toISOString())
+            .lt("starts_at", win.end.toISOString()),
+          fetchBusinessClosingTime(businessId, date),
+        ]);
+        const [ch, cm] = closing.split(":").map(Number);
+        const closeMs = win.start.getTime() + ((ch || 0) * 60 + (cm || 0)) * 60_000;
+        const tol = 15 * 60_000;
+        const ids = new Set<string>();
+        for (const r of built) {
+          if (!r.expectedStartAt || r.confirmation || r.preview?.status) continue;
+          const startMs = new Date(r.expectedStartAt).getTime();
+          const ranges = ((bloqs ?? []) as any[])
+            .filter((b) => b.employee_id === r.employeeId)
+            .map((b) => {
+              const st = new Date(b.starts_at).getTime();
+              const en = b.ends_at ? new Date(b.ends_at).getTime() : st + Number(b.duration_min ?? 30) * 60_000;
+              return { st, en };
+            })
+            .sort((a, b) => a.st - b.st);
+          if (ranges.length === 0) continue;
+          // Cubre de corrido desde el horario de entrada hasta el cierre (con 15 min de margen).
+          let cursor = startMs;
+          for (const g of ranges) {
+            if (g.st <= cursor + tol) cursor = Math.max(cursor, g.en);
+          }
+          if (cursor >= closeMs - tol) ids.add(r.employeeId);
+        }
+        setBloqueadoIds(ids);
+      } catch {
+        setBloqueadoIds(new Set());
+      }
       setRows(built);
       setRules((rulesRes.data ?? []) as unknown as LatenessRule[]);
       // Se reporta en CADA carga, no solo cuando queda todo confirmado —
@@ -416,7 +459,7 @@ export function PresentismoRevisionPanel({
   // Confirmar de un clic, sin abrir el recuadro: la base exige un motivo en
   // toda acción, así que se registra uno automático (queda en la auditoría,
   // junto con quién confirmó).
-  async function confirmDirect(row: Row, action: "confirm_on_time" | "confirm_late" | "mark_absent") {
+  async function confirmDirect(row: Row, action: "confirm_on_time" | "confirm_late" | "mark_absent", motivo?: string) {
     setSaving(true);
     try {
       await confirmAttendance({
@@ -427,7 +470,7 @@ export function PresentismoRevisionPanel({
         action,
         correctedClockInAt: null,
         overrideDiscountAmount: null,
-        reason: "Confirmado sin cambios",
+        reason: motivo ?? "Confirmado sin cambios",
         confirmedBy,
         confirmedByName,
       });
@@ -462,7 +505,8 @@ export function PresentismoRevisionPanel({
       {/* Primero los que falta confirmar; los ya confirmados quedan abajo. */}
       {(() => {
         const renderRow = (row: Row) => {
-        const status = row.confirmation?.status ?? row.preview?.status ?? null;
+        const bloqueado = bloqueadoIds.has(row.employeeId) && !desmarcadoIds.has(row.employeeId) && !row.confirmation && !row.preview?.status;
+        const status = bloqueado ? "ausente" : (row.confirmation?.status ?? row.preview?.status ?? null);
         const lateMinutes = row.confirmation?.lateMinutes ?? row.preview?.lateMinutes ?? 0;
         const discount = row.confirmation?.discountAmountApplied ?? row.preview?.discountAmountRequested ?? 0;
         const ruleId = row.confirmation?.ruleId ?? row.preview?.ruleId ?? null;
@@ -530,6 +574,7 @@ export function PresentismoRevisionPanel({
                         : confirmDirect(
                             row,
                             status === "tarde" ? "confirm_late" : status === "ausente" ? "mark_absent" : "confirm_on_time",
+                            bloqueado ? "Día completo bloqueado en la agenda" : undefined,
                           )
                     }
                     className="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-sky-400 to-violet-500 px-2.5 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
@@ -539,6 +584,16 @@ export function PresentismoRevisionPanel({
                 )}
                 {!isConfirmed && !status && (
                   <span className="text-xs text-muted-foreground">Sin fichar</span>
+                )}
+                {bloqueado && <span className="text-xs text-muted-foreground">Día bloqueado</span>}
+                {bloqueado && (
+                  <button
+                    type="button"
+                    onClick={() => setDesmarcadoIds((cur) => new Set(cur).add(row.employeeId))}
+                    className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs text-muted-foreground ring-1 ring-white/10 hover:bg-white/5"
+                  >
+                    <UserX className="size-3.5" /> Desmarcar
+                  </button>
                 )}
                 {/* Quien ya fichó (a tiempo o tarde) estuvo presente: solo se
                     puede marcar ausente a quien no tiene fichaje. */}
