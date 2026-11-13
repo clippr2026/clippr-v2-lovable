@@ -2464,6 +2464,43 @@ function LiquidacionesPanelView({
     };
   }, [businessId, empId]);
 
+  // Ventas anuladas/reembolsadas de este profesional: se muestran siempre en Movimientos
+  // (marcadas como anuladas), tengan o no un ajuste de comisión pendiente.
+  const [anuladasRows, setAnuladasRows] = useState<any[]>([]);
+  React.useEffect(() => {
+    if (!businessId || !empId) {
+      setAnuladasRows([]);
+      return;
+    }
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase
+        .from("payments" as any)
+        .select("id,client_name,service_name,total,amount,method,payment_method,created_at,discount,original_amount,tip_amount,items,observations,status,promotion_name,promotion_id")
+        .eq("business_id", businessId)
+        .eq("employee_id", empId)
+        .in("status", ["anulado", "reembolsado"])
+        .order("created_at", { ascending: false })
+        .limit(100);
+      if (cancelled) return;
+      setAnuladasRows(
+        ((data ?? []) as any[]).map((p) => ({
+          id: `anulada-${p.id}`,
+          sale_id: p.id,
+          professional_id: empId,
+          amount: 0,
+          pending_amount: 0,
+          created_at: p.created_at,
+          sale: p,
+          __anulada: true,
+        })),
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [businessId, empId]);
+
   const [detailRunId, setDetailRunId] = useState<string | null>(null);
   const [detailRows, setDetailRows] = useState<any[] | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
@@ -2633,7 +2670,8 @@ function LiquidacionesPanelView({
   // exactamente igual.
   const dayCollapse = useDayCollapse("panel");
   const unifiedMovimientos = React.useMemo(() => {
-    const ventaItems = ventaRows.map((c: any) => ({
+    const yaEnLista = new Set(ventaRows.map((c: any) => c.sale_id));
+    const ventaItems = [...ventaRows, ...anuladasRows.filter((c: any) => !yaEnLista.has(c.sale_id))].map((c: any) => ({
       kind: "venta" as const,
       at: resolveVentaDate(c) as string,
       commission: c,
@@ -2641,7 +2679,7 @@ function LiquidacionesPanelView({
     return [...ventaItems, ...movimientos].sort((a: any, b: any) =>
       String(b.at ?? "").localeCompare(String(a.at ?? "")),
     );
-  }, [ventaRows, movimientos]);
+  }, [ventaRows, anuladasRows, movimientos]);
 
   // Liquidaciones preparadas pero todavía sin ningún pago registrado — no
   // son un Movimiento (no hay plata que haya cambiado de mano todavía),

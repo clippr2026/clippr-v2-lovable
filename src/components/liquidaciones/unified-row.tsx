@@ -444,8 +444,9 @@ export function VentaRow({
   // criterio que el role="button" del bloque desktop de más abajo.
   const MobileTag = hasExpandableContent ? "button" : "div";
 
+  const anulada = Boolean(c.__anulada);
   return (
-    <div className="overflow-hidden rounded-2xl border border-violet-400/30 bg-[#0b0a14] bg-[radial-gradient(120%_100%_at_100%_0%,rgba(139,92,246,0.14),transparent_62%)] sm:border-white/[0.07] sm:bg-black/18 sm:bg-none">
+    <div className={cn("overflow-hidden rounded-2xl border border-violet-400/30 bg-[#0b0a14] bg-[radial-gradient(120%_100%_at_100%_0%,rgba(139,92,246,0.14),transparent_62%)] sm:border-white/[0.07] sm:bg-black/18 sm:bg-none", anulada && "border-rose-400/30 opacity-70")}>
       {/* Desktop — div con role="button", no <button> real: la celda de
           precio contiene su propio InfoPopover (un <button>), y un <button>
           no puede anidar otro <button> válidamente en HTML. */}
@@ -596,10 +597,19 @@ export function VentaRow({
         <div className="flex items-center justify-between gap-2">
           <span className="min-w-0 text-[12px] tabular-nums text-white/60">{dateTime}</span>
           <div className="shrink-0 text-right">
-            <div className="text-lg font-bold leading-none tabular-nums text-violet-300">
-              +{money(Number(c.pending_amount ?? c.amount ?? 0))}
-            </div>
-            <div className="mt-0.5 text-[11px] font-medium text-violet-200/70">Comisión{isRecovered ? " del cobro" : ""}</div>
+            {anulada ? (
+              <>
+                <div className="text-lg font-bold leading-none tabular-nums text-rose-300 line-through">{money(saleTotal)}</div>
+                <div className="mt-0.5 text-[11px] font-semibold text-rose-300">Venta anulada</div>
+              </>
+            ) : (
+              <>
+                <div className="text-lg font-bold leading-none tabular-nums text-violet-300">
+                  +{money(Number(c.pending_amount ?? c.amount ?? 0))}
+                </div>
+                <div className="mt-0.5 text-[11px] font-medium text-violet-200/70">Comisión{isRecovered ? " del cobro" : ""}</div>
+              </>
+            )}
           </div>
         </div>
         <div className="mt-2 min-w-0">
