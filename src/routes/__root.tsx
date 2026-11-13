@@ -142,7 +142,8 @@ function PwaLinks() {
       <meta name="apple-mobile-web-app-capable" content="yes" />
       <meta name="mobile-web-app-capable" content="yes" />
       <meta name="apple-mobile-web-app-title" content={esAuro ? "Auro Stylo" : "Clippr"} />
-      <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+      {/* "black": la barra de estado queda arriba, sin tapar el contenido de la app instalada. */}
+      <meta name="apple-mobile-web-app-status-bar-style" content="black" />
     </>
   );
 }
