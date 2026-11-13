@@ -7351,6 +7351,41 @@ function cierreTarjetaStyle(tono: "rose" | "amber" | "violet" | "emerald"): Reac
   };
 }
 
+// Desplegable de filtro estilo Clippr (reemplaza el <select> nativo, cuyo menú no se puede estilizar).
+function ClipprFiltroSelect({
+  value,
+  onChange,
+  options,
+  ariaLabel,
+}: {
+  value: string;
+  onChange: (v: string) => void;
+  options: Array<{ value: string; label: string }>;
+  ariaLabel: string;
+}) {
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger
+        aria-label={ariaLabel}
+        className="h-11 w-full rounded-full border border-white/10 bg-white/[0.04] px-4 text-sm font-semibold text-white focus:ring-0 focus:ring-offset-0 focus:border-violet-300/50 data-[state=open]:border-violet-300/60"
+      >
+        <SelectValue />
+      </SelectTrigger>
+      <SelectContent className="z-[300] rounded-2xl border border-violet-400/40 bg-[#0b0a14] p-1.5 text-white shadow-[0_20px_60px_-15px_rgba(0,0,0,0.9),0_0_40px_-18px_rgba(139,92,246,0.6)] [background-image:radial-gradient(120%_90%_at_100%_0%,rgba(79,125,255,0.14),transparent_62%)]">
+        {options.map((o) => (
+          <SelectItem
+            key={o.value}
+            value={o.value}
+            className="rounded-xl py-2.5 pl-3 pr-8 text-sm font-medium text-white/85 focus:bg-violet-500/20 focus:text-white data-[state=checked]:text-white"
+          >
+            {o.label}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 function CierreMovimientosDetalleList({
   cobros,
   cobrosAnulados,
@@ -7643,24 +7678,25 @@ function CierreMovimientosDetalleList({
     <div>
       {/* Tres selectores (tipo, medio de pago, profesional): se combinan igual que antes. */}
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-        <select value={filtro} onChange={(e) => setFiltro(e.target.value as DetalleFiltro)} aria-label="Tipo de movimiento" className="h-10 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 text-sm font-semibold text-white outline-none focus:border-violet-300/45">
-          {filtroChips.map((f) => (
-            <option key={f.key} value={f.key}>{f.key === "todos" ? "Todos los tipos" : f.label}</option>
-          ))}
-        </select>
-        <select value={medioFiltro} onChange={(e) => setMedioFiltro(e.target.value)} aria-label="Medio de pago" className="h-10 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 text-sm font-semibold text-white outline-none focus:border-violet-300/45">
-          <option value="todos">Todos los medios</option>
-          {ACTIVE_PAY_METHODS.map((m) => (
-            <option key={m.id} value={m.id}>{m.label}</option>
-          ))}
-        </select>
+        <ClipprFiltroSelect
+          ariaLabel="Tipo de movimiento"
+          value={filtro}
+          onChange={(v) => setFiltro(v as DetalleFiltro)}
+          options={filtroChips.map((f) => ({ value: f.key, label: f.key === "todos" ? "Todos los tipos" : f.label }))}
+        />
+        <ClipprFiltroSelect
+          ariaLabel="Medio de pago"
+          value={medioFiltro}
+          onChange={setMedioFiltro}
+          options={[{ value: "todos", label: "Todos los medios" }, ...ACTIVE_PAY_METHODS.map((m) => ({ value: m.id, label: m.label }))]}
+        />
         {profesionales.length > 0 && (
-          <select value={profesionalFiltro} onChange={(e) => setProfesionalFiltro(e.target.value)} aria-label="Profesional" className="h-10 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 text-sm font-semibold text-white outline-none focus:border-violet-300/45">
-            <option value="todos">Todos los profesionales</option>
-            {profesionales.map((nombre) => (
-              <option key={nombre} value={nombre}>{nombre}</option>
-            ))}
-          </select>
+          <ClipprFiltroSelect
+            ariaLabel="Profesional"
+            value={profesionalFiltro}
+            onChange={setProfesionalFiltro}
+            options={[{ value: "todos", label: "Todos los profesionales" }, ...profesionales.map((n) => ({ value: n, label: n }))]}
+          />
         )}
       </div>
       {hayFiltrosActivos && (
@@ -9553,12 +9589,12 @@ function CierreDetalleView({
           <button
             type="button"
             onClick={onVolver}
-            className="inline-flex items-center gap-1.5 rounded-xl border border-white/[0.08] bg-white/[0.04] px-3 py-1.5 text-xs font-bold text-white/70 transition hover:bg-white/[0.08] hover:text-white"
+            className="inline-flex h-10 items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.05] px-4 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08] hover:text-white"
           >
-            <ArrowLeft className="h-3.5 w-3.5" />
+            <ArrowLeft className="h-4 w-4" />
             Historial
           </button>
-          <div className="mt-2.5 text-lg font-extrabold text-white">{fechaDetalleLabel(fecha)}</div>
+          <div className="mt-3 text-xl font-semibold text-white">{fechaDetalleLabel(fecha)}</div>
         </div>
         {renderEstadoPill(cierre)}
       </div>
@@ -9581,8 +9617,8 @@ function CierreDetalleView({
         <div className="space-y-4">
           {/* Resumen del cierre arriba: efectivo, banco, observación y datos. */}
           <div className="grid gap-4 md:grid-cols-2">
-            <section className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 p-4">
-              <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-emerald-200/80">Efectivo en caja</div>
+            <section className="rounded-2xl border border-violet-400/30 bg-[#0b0a14] p-4 [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.12),transparent_65%)]">
+              <div className="mb-3 text-sm font-semibold text-white">Efectivo en caja</div>
               <dl className="space-y-2.5">
                 <div className="flex items-center justify-between gap-3">
                   <dt className="text-sm text-muted-foreground">Esperado</dt>
@@ -9614,8 +9650,8 @@ function CierreDetalleView({
 
             <CierreExtensionesNota businessId={businessId} branchId={branchId} fecha={fecha} />
 
-            <section className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 p-4">
-              <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-sky-200/80">Dinero en banco</div>
+            <section className="rounded-2xl border border-violet-400/30 bg-[#0b0a14] p-4 [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.12),transparent_65%)]">
+              <div className="mb-3 text-sm font-semibold text-white">Dinero en banco</div>
               <dl className="space-y-2.5">
                 <div className="flex items-center justify-between gap-3">
                   <dt className="text-sm text-muted-foreground">Saldo esperado</dt>
@@ -9647,13 +9683,13 @@ function CierreDetalleView({
           </div>
 
           {observacion && (
-            <div className="rounded-2xl bg-white/[0.03] ring-1 ring-white/10 px-4 py-3">
-              <div className="text-xs text-muted-foreground">Observación</div>
+            <div className="rounded-2xl border border-white/10 bg-[#0b0a14] px-4 py-3">
+              <div className="text-sm font-semibold text-white">Observación</div>
               <div className="mt-1 text-sm text-white/80">{observacion}</div>
             </div>
           )}
 
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-1.5 rounded-2xl bg-white/[0.02] ring-1 ring-white/[0.07] px-4 py-2.5 text-xs">
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-1.5 rounded-2xl border border-white/10 bg-[#0b0a14] px-4 py-3 text-xs">
             <span className="text-white/40">
               Tipo de cierre <span className="ml-1 font-semibold text-white/85">{tipoCierreLabel(cierre)}</span>
             </span>
@@ -9700,14 +9736,14 @@ function CierreDetalleView({
               type="button"
               disabled={reabriendo}
               onClick={onReabrir}
-              className="w-full rounded-2xl border border-white/[0.10] bg-white/[0.055] px-4 py-3 text-sm font-extrabold text-white transition hover:bg-white/[0.09] disabled:opacity-50"
+              className="h-12 w-full rounded-full border border-violet-400/50 bg-violet-500/20 px-4 text-sm font-bold text-violet-100 transition hover:bg-violet-500/30 disabled:opacity-50"
             >
               {reabriendo ? "Reabriendo…" : "Reabrir caja"}
             </button>
           )}
 
-          <div className="rounded-xl bg-white/[0.025] ring-1 ring-white/10 p-3">
-            <div className="mb-3 text-sm font-semibold text-white/85">Detalle de la jornada</div>
+          <div className="rounded-2xl border border-violet-400/30 bg-[#0b0a14] p-3 [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.12),transparent_62%)]">
+            <div className="mb-3 px-1 text-sm font-semibold text-white">Detalle de la jornada</div>
             <CierreMovimientosDetalleList
               tarjetas
               cobros={cobros}
@@ -9743,7 +9779,7 @@ function renderEstadoPill(c: any) {
   return (
     <span
       className={cn(
-        "rounded-full px-2.5 py-1 text-xs font-bold ring-1",
+        "rounded-full px-3 py-1 text-xs font-semibold ring-1",
         c?.estado === "reabierta"
           ? "bg-emerald-500/10 text-emerald-300 ring-emerald-400/25"
           : "bg-rose-500/10 text-rose-300 ring-rose-400/25",
