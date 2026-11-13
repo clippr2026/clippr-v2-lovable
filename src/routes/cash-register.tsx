@@ -8132,6 +8132,33 @@ function CierreMovimientosDetalleList({
               <p className="text-sm text-muted-foreground">Sin gastos.</p>
             ) : (
               gastos.map((g: any, idx: number) => (
+                ocultarFacturacion ? (
+                <div key={`${g.id ?? idx}`} className={cn("rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5 text-sm")}>
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-[12px] tabular-nums text-white/60">{g.hora ?? "—"}</span>
+                    <div className="shrink-0 text-right">
+                      <div className="text-lg font-bold leading-none tabular-nums text-rose-300">-{money(g.monto ?? 0)}</div>
+                      <div className="mt-0.5 text-[11px] font-medium text-rose-200/70">Gasto</div>
+                    </div>
+                  </div>
+                  <div className="mt-1 min-w-0">
+                    <div className="truncate text-[15px] font-semibold leading-tight text-white">{g.nombre ?? "Gasto"}</div>
+                    <div className="mt-0.5 truncate text-[13px] text-white/65">
+                      {expenseKindLabel(g.tipo, g.categoria)}{g.usuario ? ` · ${g.usuario}` : ""}
+                    </div>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <span className="rounded-full bg-white/[0.05] px-2.5 py-1 text-[12px] font-medium text-white/80 ring-1 ring-white/10">
+                      {paymentMethodLabel(g.metodo ?? "cash")}
+                    </span>
+                  </div>
+                  {!expenseAffectsCaja(g.origen) && (
+                    <div className="mt-2 border-t border-white/[0.06] pt-2 text-[12px] font-medium text-amber-300">
+                      Fondos externos — no incluido en el efectivo ni en el dinero en cuenta del cierre
+                    </div>
+                  )}
+                </div>
+                ) : (
                 <div key={`${g.id ?? idx}`} className="rounded-xl bg-black/22 px-3 py-2 text-xs">
                   <div className="flex items-center justify-between gap-3">
                     <span className="truncate font-semibold text-white">{g.nombre ?? "Gasto"}</span>
@@ -8147,6 +8174,7 @@ function CierreMovimientosDetalleList({
                     </div>
                   )}
                 </div>
+                )
               ))
             )}
           </div>
@@ -8165,6 +8193,40 @@ function CierreMovimientosDetalleList({
               [...retiros, ...ingresosManuales]
                 .sort((a, b) => (a.hora ?? "").localeCompare(b.hora ?? ""))
                 .map((m) => (
+                  ocultarFacturacion ? (
+                  <div key={m.id} className={cn("rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5 text-sm")}>
+                    <div className="flex items-start justify-between gap-2">
+                      <span className="text-[12px] tabular-nums text-white/60">{m.hora ?? "—"}</span>
+                      <div className="shrink-0 text-right">
+                        <div className={cn("text-lg font-bold leading-none tabular-nums", m.tipo === "retiro" ? "text-rose-300" : "text-emerald-300")}>
+                          {m.tipo === "retiro" ? "-" : "+"}
+                          {money(m.monto)}
+                        </div>
+                        <div className={cn("mt-0.5 text-[11px] font-medium", m.tipo === "retiro" ? "text-rose-200/70" : "text-emerald-200/70")}>
+                          {m.tipo === "retiro" ? "Retiro" : "Ingreso"}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-1 min-w-0">
+                      <div className="truncate text-[15px] font-semibold leading-tight text-white">
+                        {senaMovimientoInfo(m)?.etiqueta ?? (m.tipo === "retiro" ? "Retiro" : "Ingreso manual")}
+                      </div>
+                      {m.nota && (
+                        <div className="mt-0.5 truncate text-[13px] text-white/65">{m.nota.replace(/^Reembolso de seña – /, "")}</div>
+                      )}
+                    </div>
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <span className="rounded-full bg-white/[0.05] px-2.5 py-1 text-[12px] font-medium text-white/80 ring-1 ring-white/10">
+                        {paymentMethodLabel(m.metodo === "cuenta" ? "transfer" : "cash")}
+                      </span>
+                      {m.usuario && (
+                        <span className="rounded-full bg-white/[0.05] px-2.5 py-1 text-[12px] font-medium text-white/80 ring-1 ring-white/10">
+                          {m.usuario}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  ) : (
                   <div key={m.id} className="rounded-xl bg-black/22 px-3 py-2 text-xs">
                     <div className="flex items-center justify-between gap-3">
                       <span className="truncate font-semibold text-white">
@@ -8181,6 +8243,7 @@ function CierreMovimientosDetalleList({
                       {m.usuario ? ` · ${m.usuario}` : ""}
                     </div>
                   </div>
+                  )
                 ))
             )}
           </div>
@@ -8197,6 +8260,31 @@ function CierreMovimientosDetalleList({
               <p className="text-sm text-muted-foreground">Sin adelantos.</p>
             ) : (
               adelantosVisibles.map((a) => (
+                ocultarFacturacion ? (
+                <div key={a.id} className={cn("rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5 text-sm", !advanceAffectsCaja(a.origen) && "opacity-70")}>
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-[12px] tabular-nums text-white/60">
+                      {new Date(a.advancedAt).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: ARG_TIME_ZONE })}
+                    </span>
+                    <div className="shrink-0 text-right">
+                      <div className="text-lg font-bold leading-none tabular-nums text-rose-300">-{money(a.monto)}</div>
+                      <div className="mt-0.5 text-[11px] font-medium text-rose-200/70">Adelanto</div>
+                    </div>
+                  </div>
+                  <div className="mt-1 min-w-0">
+                    <div className="truncate text-[15px] font-semibold leading-tight text-white">{a.profesional}</div>
+                    <div className="mt-0.5 truncate text-[13px] text-white/65">{advanceOriginLabel(a.origen)}</div>
+                  </div>
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <span className="rounded-full bg-white/[0.05] px-2.5 py-1 text-[12px] font-medium text-white/80 ring-1 ring-white/10">
+                      {advanceMethodLabel(a.medio)}
+                    </span>
+                  </div>
+                  {!advanceAffectsCaja(a.origen) && (
+                    <div className="mt-2 border-t border-white/[0.06] pt-2 text-[12px] font-medium text-amber-300">No incluido en el cierre</div>
+                  )}
+                </div>
+                ) : (
                 <div key={a.id} className={cn("rounded-xl bg-black/22 px-3 py-2 text-xs", !advanceAffectsCaja(a.origen) && "opacity-70")}>
                   <div className="flex items-center justify-between gap-3">
                     <span className="truncate font-semibold text-white">Adelanto · {a.profesional}</span>
@@ -8209,6 +8297,7 @@ function CierreMovimientosDetalleList({
                     {!advanceAffectsCaja(a.origen) && " · no incluido en el cierre"}
                   </div>
                 </div>
+                )
               ))
             )}
           </div>
