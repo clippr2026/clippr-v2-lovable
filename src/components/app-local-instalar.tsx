@@ -167,7 +167,6 @@ export function AppLocalInstalar({
                   <Paso icono={<SquarePlus className="size-4" />}>
                     Elegí <b>Agregar a pantalla de inicio</b>.
                   </Paso>
-                  <Paso icono={<Download className="size-4" />}>Abrila desde el ícono y activá los avisos.</Paso>
                 </ol>
               </>
             )}
