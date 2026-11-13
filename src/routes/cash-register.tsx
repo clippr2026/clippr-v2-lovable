@@ -7913,6 +7913,7 @@ function CierreMovimientosDetalleList({
                         )}
                       </div>
                       {p.promocion && <div className="mt-2 border-t border-white/[0.06] pt-2 text-[12px] font-medium text-violet-300/90">{p.promocion}</div>}
+                      {p.usuario && <div className="mt-2 border-t border-white/[0.06] pt-2 text-[12px] text-white/50">{p.usuario} → Cobró</div>}
                     </div>
                   );
                 })}
@@ -8144,7 +8145,7 @@ function CierreMovimientosDetalleList({
                   <div className="mt-1 min-w-0">
                     <div className="truncate text-[15px] font-semibold leading-tight text-white">{g.nombre ?? "Gasto"}</div>
                     <div className="mt-0.5 truncate text-[13px] text-white/65">
-                      {expenseKindLabel(g.tipo, g.categoria)}{g.usuario ? ` · ${g.usuario}` : ""}
+                      {expenseKindLabel(g.tipo, g.categoria)}
                     </div>
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
@@ -8152,6 +8153,7 @@ function CierreMovimientosDetalleList({
                       {paymentMethodLabel(g.metodo ?? "cash")}
                     </span>
                   </div>
+                  {g.usuario && <div className="mt-2 border-t border-white/[0.06] pt-2 text-[12px] text-white/50">{g.usuario} → Cargó</div>}
                   {!expenseAffectsCaja(g.origen) && (
                     <div className="mt-2 border-t border-white/[0.06] pt-2 text-[12px] font-medium text-amber-300">
                       Fondos externos — no incluido en el efectivo ni en el dinero en cuenta del cierre
@@ -8219,12 +8221,8 @@ function CierreMovimientosDetalleList({
                       <span className="rounded-full bg-white/[0.05] px-2.5 py-1 text-[12px] font-medium text-white/80 ring-1 ring-white/10">
                         {paymentMethodLabel(m.metodo === "cuenta" ? "transfer" : "cash")}
                       </span>
-                      {m.usuario && (
-                        <span className="rounded-full bg-white/[0.05] px-2.5 py-1 text-[12px] font-medium text-white/80 ring-1 ring-white/10">
-                          {m.usuario}
-                        </span>
-                      )}
                     </div>
+                    {m.usuario && <div className="mt-2 border-t border-white/[0.06] pt-2 text-[12px] text-white/50">{m.usuario} → {m.tipo === "retiro" ? "Retiró" : "Ingresó"}</div>}
                   </div>
                   ) : (
                   <div key={m.id} className="rounded-xl bg-black/22 px-3 py-2 text-xs">
