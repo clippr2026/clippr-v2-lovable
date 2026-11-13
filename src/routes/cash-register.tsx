@@ -7875,35 +7875,56 @@ function CierreMovimientosDetalleList({
                     medioFiltro,
                   );
                   const montoMostrado = montoMedio * ratioServ;
+                  const fechaHora = p.fecha_hora ? new Date(p.fecha_hora) : null;
+                  const metodoTexto =
+                    medioFiltro !== "todos"
+                      ? paymentMethodLabel(medioFiltro)
+                      : Array.isArray(p.splits) && p.splits.length > 0
+                        ? p.splits.filter((sp: any) => Number(sp?.amount ?? 0) > 0).map((sp: any) => paymentMethodLabel(sp.method ?? "")).join(" + ")
+                        : paymentMethodLabel(p.metodo ?? "cash");
                   return (
                     <div
                       key={`${p.id ?? idx}`}
                       onClick={p.id && onRowClick ? () => onRowClick(p.id) : undefined}
                       className={cn(
-                        "rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5 text-sm",
-                        p.id && onRowClick && "cursor-pointer active:bg-black/30",
+                        "w-full rounded-2xl border px-3.5 py-2.5",
+                        p.id && onRowClick && "cursor-pointer active:brightness-125",
                       )}
+                      style={{
+                        borderColor: "rgba(110,231,183,0.35)",
+                        backgroundColor: "#0b0a14",
+                        backgroundImage: "radial-gradient(120% 100% at 100% 0%, rgba(16,185,129,0.10), transparent 62%)",
+                      }}
                     >
-                      {/* Misma tarjeta que los movimientos de Mi Panel: hora y monto arriba, cliente y servicio, chips. */}
-                      <div className="flex items-start justify-between gap-2">
-                        <span className="text-[12px] tabular-nums text-white/60">{p.hora ?? "—"}</span>
-                        <div className="shrink-0 text-right">
-                          <div className="text-lg font-bold leading-none tabular-nums text-emerald-300">{money(montoMostrado)}</div>
-                          <div className="mt-0.5 text-[11px] font-medium text-emerald-200/70">Cobrado</div>
+                      {/* Misma tarjeta que Movimientos de caja. */}
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex min-w-0 items-center gap-2">
+                          <span className="shrink-0 rounded-full bg-emerald-400/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-emerald-200 ring-1 ring-emerald-300/25">
+                            Ingreso
+                          </span>
+                          <span className="truncate text-[11px] tabular-nums text-white/45">
+                            {fechaHora ? `${formatArgFecha(fechaHora)} · ${formatArgHora(fechaHora)}` : (p.hora ?? "—")}
+                          </span>
                         </div>
+                        <span className="shrink-0 text-lg font-bold leading-none tabular-nums text-emerald-300">
+                          +{money(montoMostrado)}
+                        </span>
                       </div>
-                      <div className="mt-1 min-w-0">
+                      <div className="mt-2 min-w-0">
                         <div className="truncate text-[15px] font-semibold leading-tight text-white">{p.cliente ?? "Cliente"}</div>
-                        <div className="mt-0.5 truncate text-[13px] text-white/65">
-                          {p.profesional ? `${p.profesional} · ` : ""}{servicioNombre}
-                        </div>
+                        <div className="mt-0.5 truncate text-[13px] text-white/60">{servicioNombre}</div>
                       </div>
                       <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                        {medioFiltro === "todos" ? (
-                          <MetodoBadges metodo={p.metodo} splits={p.splits} />
-                        ) : (
-                          <MetodoBadge method={medioFiltro} amount={esSplitParcial ? montoMostrado : undefined} />
+                        {p.profesional && (
+                          <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-white/[0.05] px-2 py-0.5 text-[12px] text-white/75 ring-1 ring-white/10">
+                            <UserRound className="size-3 shrink-0 text-white/50" />
+                            <span className="truncate">{p.profesional}</span>
+                          </span>
                         )}
+                        <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-white/[0.05] px-2 py-0.5 text-[12px] text-white/75 ring-1 ring-white/10">
+                          <CreditCard className="size-3 shrink-0 text-white/50" />
+                          <span className="truncate">{metodoTexto}</span>
+                        </span>
                         {!esSplitParcial && descuento > 0 && (
                           <span className="rounded-full bg-white/[0.05] px-2 py-0.5 text-[12px] tabular-nums text-white/80 ring-1 ring-white/10">
                             <span className="text-white/40 line-through">{money(precioLista)}</span>
@@ -7915,8 +7936,10 @@ function CierreMovimientosDetalleList({
                           </span>
                         )}
                       </div>
-                      {p.promocion && <div className="mt-2 border-t border-white/[0.06] pt-2 text-[12px] font-medium text-violet-300/90">{p.promocion}</div>}
-                      {p.usuario && <div className="mt-2 border-t border-white/[0.06] pt-2 text-[12px] text-white/50">{p.usuario} → Cobró</div>}
+                      {p.promocion && <div className="mt-2 text-[12px] font-medium text-violet-300/90">{p.promocion}</div>}
+                      <div className="mt-2 border-t border-white/[0.06] pt-2 text-[12px] text-white/50">
+                        {p.usuario ?? "Recepción"} → Cobró
+                      </div>
                     </div>
                   );
                 })}
@@ -8674,6 +8697,7 @@ function CierreRevisionDetalle({
           payment={detailPayment}
           employees={employees}
           cajaAbierta={true}
+          soloAcciones
           onClose={closeDetail}
           onDeleted={() => {
             closeDetail();
@@ -9653,6 +9677,7 @@ function CierreDetalleView({
           payment={detailPayment}
           employees={employees}
           cajaAbierta={false}
+          soloAcciones
           onClose={closeDetail}
           onDeleted={() => {
             closeDetail();
@@ -10350,9 +10375,12 @@ function DetailModal({
   payment,
   employees,
   cajaAbierta = true,
+  soloAcciones = false,
   onClose,
   onDeleted,
 }: {
+  /** Solo las acciones Corregir/Anular (la tarjeta de origen ya muestra todo el detalle). */
+  soloAcciones?: boolean;
   payment: ReturnType<typeof useCajaData>["paymentsToday"][number];
   employees: ReturnType<typeof useCajaData>["employees"];
   // true (default) = día actual/pendiente de revisión, todavía sin cierre
@@ -10910,7 +10938,7 @@ function DetailModal({
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
           <div>
             <div className="flex items-center gap-2.5">
-              <h3 className="text-sm font-semibold">Detalle de venta</h3>
+              <h3 className="text-sm font-semibold">{soloAcciones ? "Venta" : "Detalle de venta"}</h3>
               <span className="text-[11px] font-mono text-primary/80 bg-primary/10 px-2 py-0.5 rounded-lg">
                 {ventaNum}
               </span>
@@ -10939,6 +10967,12 @@ function DetailModal({
             encadene el gesto hacia algún ancestro — mismo criterio que ya
             usan las listas scrolleables de Pago múltiple. */}
         <div className="px-5 py-1 max-h-[72vh] overflow-y-auto overscroll-contain">
+          {soloAcciones && (
+            <div className="py-2 text-sm text-white/70">
+              {payment.client_name ?? empName ?? "Cliente"} · <span className="font-semibold text-white">${totalCobrado.toLocaleString("es-AR")}</span>
+            </div>
+          )}
+          {!soloAcciones && (<>
           {/* Total + estado — el importe grande es el TOTAL EFECTIVAMENTE
               COBRADO al cliente (servicio - descuento + propina), no solo
               payment.total (que es pura facturación de servicios, sin
@@ -11162,6 +11196,8 @@ function DetailModal({
             <PaymentAuthorizationHistoryPanel paymentId={payment.id} />
           </div>
 
+          </>)}
+
           {/* Bloque: Restablecer venta — el "deshacer" de Anular venta, para
               una venta anulada por error. Misma contraseña que Anular (ver
               restore_payment_authorized, 20261025110000). No disponible
@@ -11197,7 +11233,7 @@ function DetailModal({
                     onClick={openCorrectForm}
                     className="rounded-lg bg-blue-500/10 hover:bg-blue-500/20 px-3 py-1.5 text-xs font-semibold text-blue-300 transition"
                   >
-                    Corregir cobro
+                    {soloAcciones ? "Corregir venta" : "Corregir cobro"}
                   </button>
                   <button
                     type="button"

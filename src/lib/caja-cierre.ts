@@ -832,7 +832,8 @@ export async function buildCierreSnapshotForDate(
   );
   const resolveUsuario = (rawId: string | null | undefined) => {
     if (!rawId) return null;
-    return profileNameById.get(rawId) ?? rawId;
+    // Un id sin perfil visible (ej. otra cuenta) nunca se muestra crudo.
+    return profileNameById.get(rawId) ?? (/^[0-9a-f]{8}-[0-9a-f-]{13,}$/i.test(rawId) ? "Recepción" : rawId);
   };
 
   // totalCobrado: pura facturación por servicios/productos, SIN propina —
