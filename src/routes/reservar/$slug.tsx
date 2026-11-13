@@ -2586,6 +2586,18 @@ function PublicBookingPage() {
                         </div>
 
                         <div className="space-y-2.5">
+                          {address || phoneDigits ? (
+                            <div className={cn("grid gap-2.5", address && phoneDigits ? "grid-cols-2" : "grid-cols-1")}>
+                              {address ? (
+                                <a
+                                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className={secondary}
+                                >
+                                  <MapPin className="h-4 w-4" style={{ color: accent }} /> Cómo llegar
+                                </a>
+                              ) : null}
                           {when && cb ? (
                             <div>
                               <button
@@ -2612,21 +2624,22 @@ function PublicBookingPage() {
                                       body: `Profesional: ${cb.professional}\nTotal: ${formatMoney(cb.total)}`,
                                       location: address ?? "",
                                     });
-                                    const opcion = "flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold transition hover:bg-white/[0.08]";
+                                    const opcion = "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold transition hover:brightness-125";
+                                    const calColor = (c: string): React.CSSProperties => ({ background: `${c}26`, border: `1.5px solid ${c}99`, boxShadow: `0 0 18px -8px ${c}` });
                                     return (
                                       <>
                                         {gcalHref ? (
-                                          <a href={gcalHref} target="_blank" rel="noreferrer" className={opcion}>
-                                            <CalendarPlus className="h-4 w-4" style={{ color: accent }} /> Google Calendar
+                                          <a href={gcalHref} target="_blank" rel="noreferrer" className={opcion} style={calColor("#4285F4")}>
+                                            <CalendarPlus className="h-4 w-4" /> Google Calendar
                                           </a>
                                         ) : null}
                                         {ics ? (
-                                          <a href={ics} className={opcion}>
-                                            <CalendarPlus className="h-4 w-4" style={{ color: accent }} /> iPhone / Apple Calendar
+                                          <a href={ics} className={opcion} style={calColor("#FF453A")}>
+                                            <CalendarPlus className="h-4 w-4" /> iPhone / Apple Calendar
                                           </a>
                                         ) : null}
-                                        <a href={`https://outlook.live.com/calendar/0/deeplink/compose?${outlookQ.toString()}`} target="_blank" rel="noreferrer" className={opcion}>
-                                          <CalendarPlus className="h-4 w-4" style={{ color: accent }} /> Outlook
+                                        <a href={`https://outlook.live.com/calendar/0/deeplink/compose?${outlookQ.toString()}`} target="_blank" rel="noreferrer" className={opcion} style={calColor("#0EA5E9")}>
+                                          <CalendarPlus className="h-4 w-4" /> Outlook
                                         </a>
                                       </>
                                     );
@@ -2635,18 +2648,6 @@ function PublicBookingPage() {
                               ) : null}
                             </div>
                           ) : null}
-                          {address || phoneDigits ? (
-                            <div className={cn("grid gap-2.5", address && phoneDigits ? "grid-cols-2" : "grid-cols-1")}>
-                              {address ? (
-                                <a
-                                  href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  className={secondary}
-                                >
-                                  <MapPin className="h-4 w-4" style={{ color: accent }} /> Cómo llegar
-                                </a>
-                              ) : null}
                               {phoneDigits ? (
                                 <a href={`https://wa.me/${phoneDigits}`} target="_blank" rel="noreferrer" className={secondary}>
                                   <MessageCircle className="h-4 w-4" style={{ color: accent }} /> WhatsApp

@@ -68,12 +68,24 @@ export function legibleAccent(accent: string, light: boolean): string {
 export function publicButtonStyle(accent: string, text: string): React.CSSProperties {
   const ratio = contrastRatio(text, accent);
   const fg = ratio != null && ratio < MIN_TEXT_CONTRAST ? contrastText(accent) : text;
+  // Un acento casi negro (o casi blanco) se perdería contra el fondo de la página: se le agrega un
+  // borde claro (u oscuro) bien visible para que el botón siempre se vea como botón.
+  const vsDark = contrastRatio(accent, "#0b0818");
+  const vsLight = contrastRatio(accent, "#ffffff");
+  const muyOscuro = vsDark != null && vsDark < 2.2;
+  const muyClaro = vsLight != null && vsLight < 1.6;
   return {
     background: `linear-gradient(180deg, color-mix(in oklch, ${accent} 94%, white) 0%, color-mix(in oklch, ${accent} 90%, black) 100%)`,
-    border: `1px solid color-mix(in oklch, ${accent} 55%, white)`,
+    border: muyOscuro
+      ? "1.5px solid rgba(255,255,255,0.5)"
+      : muyClaro
+        ? "1.5px solid rgba(0,0,0,0.35)"
+        : `1px solid color-mix(in oklch, ${accent} 55%, white)`,
     color: fg,
     WebkitTextFillColor: fg,
-    boxShadow: `0 0 26px -4px color-mix(in oklch, ${accent} 85%, transparent), inset 0 1px 0 rgba(255,255,255,0.3)`,
+    boxShadow: muyOscuro
+      ? "0 0 22px -4px rgba(255,255,255,0.35), inset 0 1px 0 rgba(255,255,255,0.25)"
+      : `0 0 26px -4px color-mix(in oklch, ${accent} 85%, transparent), inset 0 1px 0 rgba(255,255,255,0.3)`,
   };
 }
 
@@ -82,5 +94,7 @@ export function publicButtonStyle(accent: string, text: string): React.CSSProper
 export function accentFill(accent: string, text: string): React.CSSProperties {
   const ratio = contrastRatio(text, accent);
   const fg = ratio != null && ratio < MIN_TEXT_CONTRAST ? contrastText(accent) : text;
-  return { background: accent, color: fg, WebkitTextFillColor: fg };
+  const vsDark = contrastRatio(accent, "#0b0818");
+  const borde = vsDark != null && vsDark < 2.2 ? { boxShadow: "inset 0 0 0 1.5px rgba(255,255,255,0.5)" } : {};
+  return { background: accent, color: fg, WebkitTextFillColor: fg, ...borde };
 }

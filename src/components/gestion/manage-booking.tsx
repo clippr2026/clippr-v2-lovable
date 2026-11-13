@@ -118,6 +118,13 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
   const tz = data?.business.timezone || DEFAULT_TIMEZONE;
   const primaryBtn = { ...publicButtonStyle(accent, buttonText), display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "14px 18px", borderRadius: 14, fontSize: 15, fontWeight: 800, width: "100%", cursor: "pointer", textDecoration: "none", border: "none" } as React.CSSProperties;
   const ghostBtn: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "13px 16px", borderRadius: 14, border: `1px solid ${c.border}`, background: c.innerBg, color: c.text, fontSize: 14, fontWeight: 700, width: "100%", cursor: "pointer", textDecoration: "none" };
+  // Opciones de calendario con color propio (Google, Apple, Outlook): fondo suave, borde y letra legibles.
+  const calOpt = (color: string): React.CSSProperties => ({
+    ...ghostBtn,
+    background: `${color}26`,
+    border: `1.5px solid ${color}99`,
+    boxShadow: `0 0 18px -8px ${color}`,
+  });
 
   const fireEmail = (type: "reschedule" | "cancellation", previousStartIso?: string) => {
     if (!data) return;
@@ -365,18 +372,18 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
 
           {!depositFlow && active && !past && (
             <div style={{ display: "grid", gap: 10, marginTop: 14, gridTemplateColumns: mapsUrl && wa ? "1fr 1fr" : "1fr" }}>
+              {mapsUrl && <a href={mapsUrl} target="_blank" rel="noreferrer" style={ghostBtn}><MapPin size={17} /> Cómo llegar</a>}
+              {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={ghostBtn}><MessageCircle size={17} /> WhatsApp</a>}
               <button type="button" onClick={() => setCalOpen((v) => !v)} aria-expanded={calOpen} style={{ ...ghostBtn, gridColumn: "1 / -1", cursor: "pointer" }}>
                 <CalendarPlus size={17} /> Agregar al calendario
               </button>
               {calOpen && (
                 <div style={{ gridColumn: "1 / -1", display: "grid", gap: 8 }}>
-                  <a href={gcal} target="_blank" rel="noreferrer" style={ghostBtn}><CalendarPlus size={17} /> Google Calendar</a>
-                  <a href={icsHref} style={ghostBtn}><CalendarPlus size={17} /> iPhone / Apple Calendar</a>
-                  <a href={outlookHref} target="_blank" rel="noreferrer" style={ghostBtn}><CalendarPlus size={17} /> Outlook</a>
+                  <a href={gcal} target="_blank" rel="noreferrer" style={calOpt("#4285F4")}><CalendarPlus size={17} /> Google Calendar</a>
+                  <a href={icsHref} style={calOpt("#FF453A")}><CalendarPlus size={17} /> iPhone / Apple Calendar</a>
+                  <a href={outlookHref} target="_blank" rel="noreferrer" style={calOpt("#0EA5E9")}><CalendarPlus size={17} /> Outlook</a>
                 </div>
               )}
-              {mapsUrl && <a href={mapsUrl} target="_blank" rel="noreferrer" style={ghostBtn}><MapPin size={17} /> Cómo llegar</a>}
-              {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={ghostBtn}><MessageCircle size={17} /> WhatsApp</a>}
             </div>
           )}
           {!cancelled && !active && (
