@@ -10,6 +10,9 @@ export const Route = createFileRoute("/api/pwa-manifest")({
         const u = new URL(request.url);
         const slug = (u.searchParams.get("slug") ?? "").trim().toLowerCase();
         if (!/^[a-z0-9-]{1,80}$/.test(slug)) return new Response("Parámetros inválidos", { status: 400 });
+        // Página donde se agregó la app (solo del propio local): la app instalada abre ahí, no en otra pantalla.
+        const start = u.searchParams.get("start") ?? "";
+        const startPath = start === `/negocio/${slug}` ? start : null;
         let name = (u.searchParams.get("name") ?? "").slice(0, 40);
         if (!name) {
           // Sin nombre en el pedido: se lee el del local (vista pública), con el slug como último recurso.
@@ -29,7 +32,11 @@ export const Route = createFileRoute("/api/pwa-manifest")({
           short_name: name,
           description: `Reservá tu turno en ${name}.`,
           // Auro tiene su página propia (/auro-stylo); el resto de los locales arranca en su perfil público.
-          start_url: slug === "auro-stylo" ? `/auro-stylo?source=pwa` : `/negocio/${slug}?source=pwa`,
+          start_url: startPath
+            ? `${startPath}?source=pwa`
+            : slug === "auro-stylo"
+              ? `/auro-stylo?source=pwa`
+              : `/negocio/${slug}?source=pwa`,
           scope: "/",
           display: "standalone",
           orientation: "portrait",

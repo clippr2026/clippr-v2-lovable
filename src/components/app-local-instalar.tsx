@@ -69,7 +69,11 @@ export function AppLocalInstalar({
   React.useEffect(() => {
     document
       .querySelector('link[rel="manifest"]')
-      ?.setAttribute("href", `/api/pwa-manifest?slug=${slug}&name=${encodeURIComponent(nombre || slug)}`);
+      ?.setAttribute(
+        "href",
+        `/api/pwa-manifest?slug=${slug}&name=${encodeURIComponent(nombre || slug)}` +
+          (window.location.pathname.startsWith("/negocio/") ? `&start=${encodeURIComponent(`/negocio/${slug}`)}` : ""),
+      );
     document.querySelector('link[rel="apple-touch-icon"]')?.setAttribute("href", `/api/pwa-icon?slug=${slug}&size=180`);
     document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute("content", nombre || slug);
   }, [slug, nombre]);

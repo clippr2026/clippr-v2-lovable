@@ -139,7 +139,9 @@ function PwaLinks() {
         rel="manifest"
         href={
           slugLocal
-            ? `/api/pwa-manifest?slug=${slugLocal}${nombre ? `&name=${encodeURIComponent(nombre)}` : ""}`
+            ? `/api/pwa-manifest?slug=${slugLocal}${nombre ? `&name=${encodeURIComponent(nombre)}` : ""}${
+                slugPagina ? `&start=${encodeURIComponent(`/negocio/${slugPagina}`)}` : ""
+              }`
             : "/manifest-clippr.webmanifest"
         }
       />
