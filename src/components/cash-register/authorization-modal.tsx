@@ -2,19 +2,13 @@ import * as React from "react";
 import { createPortal } from "react-dom";
 import { Lock, Loader2, AlertTriangle, Eye, EyeOff } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 
 // Mismos topes que valida el body de void/correct/delete_payment_authorized
 // (20261025080000). Esto solo evita el viaje al servidor para el caso
 // común (texto largo pegado); el backend es quien de verdad lo hace cumplir.
 const REASON_MAX_LENGTH = 50;
-const AUTHORIZED_BY_MAX_LENGTH = 20;
-const PERFORMED_BY_MAX_LENGTH = 20;
-// El login de Caja suele ser compartido entre varias personas — auth.uid()
-// no alcanza para saber quién de verdad hizo el cambio (por eso "Modificado
-// por" caía siempre al genérico "Usuario", ver 20261025110000). Se guarda
-// el último nombre tipeado en localStorage para no tener que reescribirlo
-// en cada autorización — igual queda editable cada vez.
-const PERFORMED_BY_STORAGE_KEY = "clippr:caja-auth-performed-by";
+// Quién hace el cambio no se pregunta: se registra la cuenta que tiene la sesión abierta.
 
 /**
  * Modal compartido de contraseña de autorización — lo usan tanto "Corregir
@@ -55,22 +49,29 @@ export function AuthorizationModal({
   // Ojo para ver/ocultar la contraseña mientras se escribe.
   const [showPassword, setShowPassword] = React.useState(false);
   const [reason, setReason] = React.useState("");
-  const [authorizedByName, setAuthorizedByName] = React.useState("");
+  // Nombre de la cuenta con la sesión abierta (dueño/usuario): es quien queda registrado.
   const [performedByName, setPerformedByName] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
 
   React.useEffect(() => {
-    if (open) {
-      setPassword("");
-      setReason("");
-      setAuthorizedByName("");
-      setPerformedByName(
-        typeof window !== "undefined" ? (localStorage.getItem(PERFORMED_BY_STORAGE_KEY) ?? "") : "",
-      );
-      setError(null);
-      setSubmitting(false);
-    }
+    if (!open) return;
+    setPassword("");
+    setReason("");
+    setError(null);
+    setSubmitting(false);
+    let cancelled = false;
+    void (async () => {
+      const { data } = await supabase.auth.getUser();
+      const user = data.user;
+      if (!user) return;
+      const { data: prof } = await supabase.from("profiles").select("full_name").eq("id", user.id).maybeSingle();
+      const name = (prof?.full_name ?? "").trim() || (user.email ?? "").split("@")[0] || "Usuario";
+      if (!cancelled) setPerformedByName(name.slice(0, 20));
+    })();
+    return () => {
+      cancelled = true;
+    };
   }, [open]);
 
   if (!open || typeof document === "undefined") return null;
@@ -84,17 +85,10 @@ export function AuthorizationModal({
       setError("El motivo es obligatorio.");
       return;
     }
-    if (!performedByName.trim()) {
-      setError("Decí quién está haciendo este cambio.");
-      return;
-    }
     setSubmitting(true);
     setError(null);
     try {
-      await onSubmit(password, reason.trim(), authorizedByName.trim() || null, performedByName.trim());
-      if (typeof window !== "undefined") {
-        localStorage.setItem(PERFORMED_BY_STORAGE_KEY, performedByName.trim());
-      }
+      await onSubmit(password, reason.trim(), null, performedByName.trim() || null);
       setPassword("");
     } catch (e) {
       setError((e as Error).message || "No se pudo completar la operación");
@@ -103,33 +97,27 @@ export function AuthorizationModal({
     }
   }
 
+  const danger = tone === "danger";
   return createPortal(
     <div
-      className="fixed inset-0 z-[70] grid place-items-center bg-black/70 backdrop-blur-sm p-4"
+      className="fixed inset-0 z-[70] grid place-items-center bg-black/75 backdrop-blur-sm p-4"
       onClick={() => !submitting && onCancel()}
     >
       <div
-        className="w-full max-w-sm rounded-2xl bg-[oklch(0.11_0.04_275)] ring-1 ring-white/10 shadow-2xl overflow-hidden"
+        className="w-full max-w-sm overflow-hidden rounded-[28px] border border-violet-400/45 bg-[#08070f] shadow-[0_0_0_1px_rgba(139,92,246,0.35),0_30px_90px_-20px_rgba(0,0,0,0.9),0_0_60px_-18px_rgba(139,92,246,0.55)] [background-image:radial-gradient(120%_45%_at_85%_0%,rgba(79,125,255,0.20),transparent_60%),radial-gradient(110%_50%_at_0%_100%,rgba(139,92,246,0.22),transparent_62%)]"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="border-b border-white/10 px-5 py-4">
-          <h3
-            className={cn(
-              "flex items-center gap-2 text-sm font-semibold",
-              tone === "danger" ? "text-red-300" : "text-amber-200",
-            )}
-          >
+          <h3 className={cn("flex items-center gap-2 text-base font-semibold", danger ? "text-rose-300" : "text-white")}>
             <Lock className="size-4 shrink-0" />
             {title}
           </h3>
-          {description && <div className="mt-1 text-[11px] text-muted-foreground">{description}</div>}
+          {description && <div className="mt-1.5 text-xs leading-snug text-white/55">{description}</div>}
         </div>
 
-        <div className="px-5 py-4 space-y-3">
+        <div className="space-y-4 px-5 py-4">
           <div>
-            <label className="mb-1 block text-[11px] font-semibold tracking-[0.1em] text-muted-foreground/70">
-              CONTRASEÑA DE AUTORIZACIÓN
-            </label>
+            <label className="mb-1.5 block text-sm font-semibold text-white">Contraseña de autorización</label>
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
@@ -139,28 +127,26 @@ export function AuthorizationModal({
                 onKeyDown={(e) => {
                   if (e.key === "Enter") handleConfirm();
                 }}
-                className="h-10 w-full rounded-xl border border-white/10 bg-black/45 pl-3 pr-11 text-sm text-white outline-none focus:border-blue-300/50 focus:ring-2 focus:ring-blue-400/20"
+                className="h-11 w-full rounded-full border border-white/10 bg-white/[0.04] pl-4 pr-12 text-sm text-white outline-none focus:border-violet-300/50"
                 placeholder="••••••"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
                 aria-label={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
-                className="absolute inset-y-0 right-0 grid w-11 place-items-center text-muted-foreground transition hover:text-foreground"
+                className="absolute inset-y-0 right-0 grid w-12 place-items-center text-white/50 transition hover:text-white"
               >
                 {showPassword ? <EyeOff className="size-4" /> : <Eye className="size-4" />}
               </button>
             </div>
           </div>
           <div>
-            <div className="mb-1 flex items-center justify-between">
-              <label className="block text-[11px] font-semibold tracking-[0.1em] text-muted-foreground/70">
-                MOTIVO
-              </label>
+            <div className="mb-1.5 flex items-center justify-between">
+              <label className="block text-sm font-semibold text-white">Motivo</label>
               <span
                 className={cn(
-                  "text-[10px] tabular-nums",
-                  reason.length >= REASON_MAX_LENGTH ? "text-amber-300" : "text-muted-foreground/60",
+                  "text-[11px] tabular-nums",
+                  reason.length >= REASON_MAX_LENGTH ? "text-amber-300" : "text-white/40",
                 )}
               >
                 {reason.length}/{REASON_MAX_LENGTH}
@@ -171,70 +157,24 @@ export function AuthorizationModal({
               onChange={(e) => setReason(e.target.value.slice(0, REASON_MAX_LENGTH))}
               maxLength={REASON_MAX_LENGTH}
               rows={2}
-              className="w-full resize-none rounded-xl border border-white/10 bg-black/45 px-3 py-2 text-sm text-white outline-none focus:border-blue-300/50 focus:ring-2 focus:ring-blue-400/20"
+              className="w-full resize-none rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm text-white outline-none focus:border-violet-300/50"
               placeholder="Ej: se cobró de más por error de tipeo"
             />
           </div>
-          <div>
-            <div className="mb-1 flex items-center justify-between">
-              <label className="block text-[11px] font-semibold tracking-[0.1em] text-muted-foreground/70">
-                ¿QUIÉN HACE ESTE CAMBIO?
-              </label>
-              <span
-                className={cn(
-                  "text-[10px] tabular-nums",
-                  performedByName.length >= PERFORMED_BY_MAX_LENGTH ? "text-amber-300" : "text-muted-foreground/60",
-                )}
-              >
-                {performedByName.length}/{PERFORMED_BY_MAX_LENGTH}
-              </span>
-            </div>
-            <input
-              type="text"
-              value={performedByName}
-              onChange={(e) => setPerformedByName(e.target.value.slice(0, PERFORMED_BY_MAX_LENGTH))}
-              maxLength={PERFORMED_BY_MAX_LENGTH}
-              className="h-9 w-full rounded-xl border border-white/10 bg-black/45 px-3 text-sm text-white outline-none focus:border-blue-300/50 focus:ring-2 focus:ring-blue-400/20"
-              placeholder="Tu nombre"
-            />
-          </div>
-          <div>
-            <div className="mb-1 flex items-center justify-between">
-              <label className="block text-[11px] font-semibold tracking-[0.1em] text-muted-foreground/70">
-                ¿LO AUTORIZÓ OTRA PERSONA? (OPCIONAL)
-              </label>
-              <span
-                className={cn(
-                  "text-[10px] tabular-nums",
-                  authorizedByName.length >= AUTHORIZED_BY_MAX_LENGTH ? "text-amber-300" : "text-muted-foreground/60",
-                )}
-              >
-                {authorizedByName.length}/{AUTHORIZED_BY_MAX_LENGTH}
-              </span>
-            </div>
-            <input
-              type="text"
-              value={authorizedByName}
-              onChange={(e) => setAuthorizedByName(e.target.value.slice(0, AUTHORIZED_BY_MAX_LENGTH))}
-              maxLength={AUTHORIZED_BY_MAX_LENGTH}
-              className="h-9 w-full rounded-xl border border-white/10 bg-black/45 px-3 text-sm text-white outline-none focus:border-blue-300/50 focus:ring-2 focus:ring-blue-400/20"
-              placeholder="Vacío = lo autorizaste vos mismo"
-            />
-          </div>
           {error && (
-            <p className="flex items-start gap-1.5 text-[11px] font-semibold leading-snug text-red-300">
+            <p className="flex items-start gap-1.5 text-xs font-semibold leading-snug text-rose-300">
               <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
               <span>{error}</span>
             </p>
           )}
         </div>
 
-        <div className="flex items-center gap-2 border-t border-white/10 px-5 py-3">
+        <div className="flex items-center gap-2.5 border-t border-white/10 px-5 py-3.5">
           <button
             type="button"
             onClick={onCancel}
             disabled={submitting}
-            className="flex-1 rounded-xl bg-white/5 hover:bg-white/10 px-3 py-2 text-xs font-semibold transition disabled:opacity-50"
+            className="h-11 flex-1 rounded-full border border-white/[0.12] bg-white/[0.04] px-4 text-sm font-semibold text-white/80 transition hover:bg-white/[0.08] disabled:opacity-50"
           >
             Cancelar
           </button>
@@ -243,13 +183,13 @@ export function AuthorizationModal({
             onClick={handleConfirm}
             disabled={submitting}
             className={cn(
-              "flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl px-3 py-2 text-xs font-bold ring-1 transition disabled:opacity-50",
-              tone === "danger"
-                ? "bg-red-400/15 hover:bg-red-400/25 text-red-100 ring-red-400/30"
-                : "bg-amber-400/15 hover:bg-amber-400/25 text-amber-100 ring-amber-400/30",
+              "inline-flex h-11 flex-1 items-center justify-center gap-1.5 rounded-full border px-4 text-sm font-bold transition disabled:opacity-50",
+              danger
+                ? "border-rose-400/50 bg-rose-500/15 text-rose-100 hover:bg-rose-500/25"
+                : "border-violet-400/50 bg-violet-500/20 text-violet-100 hover:bg-violet-500/30",
             )}
           >
-            {submitting ? <Loader2 className="size-3.5 animate-spin" /> : null}
+            {submitting ? <Loader2 className="size-4 animate-spin" /> : null}
             {confirmLabel}
           </button>
         </div>
