@@ -162,7 +162,7 @@ export function AppLocalInstalar({
                 <p className="mt-1 text-sm text-white/60">Seguí estos pasos en Safari:</p>
                 <ol className="mt-4 space-y-3 text-sm">
                   <Paso icono={<Share className="size-4" />}>
-                    Tocá <b>Compartir</b> (el cuadrado con la flecha). Si no lo ves, tocá los <b>tres puntos (⋯)</b> de abajo y elegí <b>Compartir</b>.
+                    Tocá <b>Compartir</b>. Si no lo ves, tocá los <b>tres puntos (⋯)</b> y elegí <b>Compartir</b>.
                   </Paso>
                   <Paso icono={<SquarePlus className="size-4" />}>
                     Elegí <b>Agregar a pantalla de inicio</b>.
