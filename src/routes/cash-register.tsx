@@ -7580,7 +7580,7 @@ function CierreMovimientosDetalleList({
   return (
     <div>
       {/* Tres selectores (tipo, medio de pago, profesional): se combinan igual que antes. */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
         <select value={filtro} onChange={(e) => setFiltro(e.target.value as DetalleFiltro)} aria-label="Tipo de movimiento" className="h-10 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 text-sm font-semibold text-white outline-none focus:border-violet-300/45">
           {filtroChips.map((f) => (
             <option key={f.key} value={f.key}>{f.key === "todos" ? "Todos los tipos" : f.label}</option>
@@ -7593,7 +7593,7 @@ function CierreMovimientosDetalleList({
           ))}
         </select>
         {profesionales.length > 0 && (
-          <select value={profesionalFiltro} onChange={(e) => setProfesionalFiltro(e.target.value)} aria-label="Profesional" className="col-span-2 h-10 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 text-sm font-semibold text-white outline-none focus:border-violet-300/45 sm:col-span-1">
+          <select value={profesionalFiltro} onChange={(e) => setProfesionalFiltro(e.target.value)} aria-label="Profesional" className="h-10 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 text-sm font-semibold text-white outline-none focus:border-violet-300/45">
             <option value="todos">Todos los profesionales</option>
             {profesionales.map((nombre) => (
               <option key={nombre} value={nombre}>{nombre}</option>
