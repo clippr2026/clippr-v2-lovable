@@ -125,7 +125,9 @@ function PwaLinks() {
   const esAuro =
     pathname.startsWith("/auro-stylo") ||
     pathname.startsWith("/reservar/auro-stylo") ||
-    pathname.startsWith("/negocio/auro-stylo");
+    pathname.startsWith("/negocio/auro-stylo") ||
+    // Página del turno del cliente (link del correo): hoy solo Auro Stylo usa Clippr para sus clientes.
+    pathname.startsWith("/gestion");
   return (
     <>
       <link rel="manifest" href={esAuro ? "/manifest-auro.webmanifest" : "/manifest-clippr.webmanifest"} />
