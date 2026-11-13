@@ -542,15 +542,13 @@ export function VentaRow({
         className="w-full px-3.5 py-2.5 text-left sm:hidden"
       >
         <div className="flex items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="shrink-0 rounded-full bg-violet-400/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-violet-200 ring-1 ring-violet-300/25">
-              Comisión{isRecovered ? " del cobro" : ""}
-            </span>
-            <span className="truncate text-[11px] tabular-nums text-white/55">{dateTime}</span>
+          <span className="min-w-0 text-[12px] tabular-nums text-white/60">{dateTime}</span>
+          <div className="shrink-0 text-right">
+            <div className="text-lg font-bold leading-none tabular-nums text-violet-300">
+              +{money(Number(c.pending_amount ?? c.amount ?? 0))}
+            </div>
+            <div className="mt-0.5 text-[11px] font-medium text-violet-200/70">Comisión{isRecovered ? " del cobro" : ""}</div>
           </div>
-          <span className="shrink-0 text-lg font-bold leading-none tabular-nums text-violet-300">
-            +{money(Number(c.pending_amount ?? c.amount ?? 0))}
-          </span>
         </div>
         <div className="mt-2 min-w-0">
           <div className="truncate text-[15px] font-semibold leading-tight text-white">{sale.client_name ?? "Sin cliente"}</div>
@@ -973,11 +971,11 @@ export function MovRow({
         className="w-full px-3.5 py-2.5 text-left sm:hidden"
       >
         <div className="flex items-center justify-between gap-2">
-          <div className="flex min-w-0 items-center gap-2">
+          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
             <span className="shrink-0 rounded-full bg-white/[0.07] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white/85 ring-1 ring-white/15">
               {concepto}
             </span>
-            <span className="truncate text-[11px] tabular-nums text-white/55">{dateTime}</span>
+            <span className="text-[11px] tabular-nums text-white/55">{dateTime}</span>
           </div>
           <div className="flex shrink-0 items-center gap-1.5">
             <span className={cn("text-lg font-bold leading-none tabular-nums", (presentismoText ? presentismoClass : precioClass) ?? "text-white")}>
@@ -1022,7 +1020,7 @@ export function MovRow({
             {detalle && <div className="mt-0.5 truncate text-[12px] text-white/60">{detalle}</div>}
           </div>
         ) : null}
-        {medioText && (
+        {medioText && medioText !== "—" && (
           <div className="mt-2">
             <span className="rounded-full bg-white/[0.05] px-2 py-0.5 text-[12px] text-white/80 ring-1 ring-white/10">{medioText}</span>
           </div>
