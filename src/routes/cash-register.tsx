@@ -5831,12 +5831,23 @@ function ProfesionalesTab({
                   StatCard (compartido con Panel del profesional, que no
                   tiene botones) para no arriesgar su layout ahí. */}
               <div className={cn("rounded-2xl border border-rose-400/25 bg-rose-400/[0.055] px-3.5 py-2.5 text-rose-300 shadow-[0_0_28px_rgba(251,113,133,0.10)]", cantTarjetasCifras % 2 === 1 && "max-sm:col-span-2")} style={{ backgroundImage: "radial-gradient(110% 120% at 100% 0%, rgba(244,63,94,.14), transparent 62%)" }}>
-                <div className="flex items-center gap-1 text-xs font-semibold text-white/75">
-                  <span>Adelantos</span>
-                  <InfoPopover text={ADELANTOS_INFO_TEXT} />
-                </div>
-                <div className="mt-0.5 text-lg font-bold tabular-nums">
-                  {liquidarPendingAdvances > 0 ? `−${money(liquidarPendingAdvances)}` : money(0)}
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-1 text-xs font-semibold text-white/75">
+                      <span>Adelantos</span>
+                      <InfoPopover text={ADELANTOS_INFO_TEXT} />
+                    </div>
+                    <div className="mt-0.5 text-lg font-bold tabular-nums">
+                      {liquidarPendingAdvances > 0 ? `−${money(liquidarPendingAdvances)}` : money(0)}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setAdelantoModalOpen(true)}
+                    className="h-9 shrink-0 rounded-full border border-rose-400/40 bg-rose-400/10 px-3.5 text-sm font-semibold text-rose-100 transition hover:bg-rose-400/20"
+                  >
+                    + Registrar
+                  </button>
                 </div>
               </div>
             </div>
@@ -5866,13 +5877,6 @@ function ProfesionalesTab({
                   Pagar
                 </button>
               </div>
-              <button
-                type="button"
-                onClick={() => setAdelantoModalOpen(true)}
-                className="h-9 self-end rounded-full border border-rose-400/25 bg-rose-400/[0.06] px-4 text-sm font-medium text-rose-200/90 transition hover:bg-rose-400/10"
-              >
-                + Registrar adelanto
-              </button>
             </div>
           </div>
         )}
