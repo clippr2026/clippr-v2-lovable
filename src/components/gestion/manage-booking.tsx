@@ -84,6 +84,7 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
   const [state, setState] = React.useState<"loading" | "ready" | "missing">("loading");
   const [view, setView] = React.useState<"main" | "reschedule" | "cancel">("main");
   const [busy, setBusy] = React.useState(false);
+  const [calOpen, setCalOpen] = React.useState(false);
   const [notice, setNotice] = React.useState<{ kind: "ok" | "error"; text: string } | null>(null);
 
   const refresh = React.useCallback(async () => {
@@ -182,6 +183,23 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
   const waUrl = (verb: string) => (wa ? `https://wa.me/${wa}?text=${encodeURIComponent(waMsg(verb))}` : null);
   const mapsUrl = b.address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(b.address)}` : null;
   const gcal = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(`${a.service_name} · ${b.name}`)}&dates=${icsStamp(start)}/${icsStamp(end)}${b.address ? `&location=${encodeURIComponent(b.address)}` : ""}`;
+  const eventTitle = `${a.service_name} · ${b.name}`;
+  // iPhone/Apple: URL real (.ics inline) para que se abra directo "Agregar al calendario".
+  const icsHref = `/api/ics?${new URLSearchParams({
+    title: eventTitle,
+    start: start.toISOString(),
+    end: end.toISOString(),
+    location: b.address ?? "",
+    alarm: "60",
+  }).toString()}`;
+  const outlookHref = `https://outlook.live.com/calendar/0/deeplink/compose?${new URLSearchParams({
+    path: "/calendar/action/compose",
+    rru: "addevent",
+    subject: eventTitle,
+    startdt: start.toISOString(),
+    enddt: end.toISOString(),
+    location: b.address ?? "",
+  }).toString()}`;
 
   const depositPending = !!data.deposit && ["pending", "rejected", "review"].includes(data.deposit.status);
   const statusChip = cancelled
@@ -347,7 +365,16 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
 
           {!depositFlow && active && !past && (
             <div style={{ display: "grid", gap: 10, marginTop: 14, gridTemplateColumns: mapsUrl && wa ? "1fr 1fr" : "1fr" }}>
-              <a href={gcal} target="_blank" rel="noreferrer" style={{ ...ghostBtn, gridColumn: "1 / -1" }}><CalendarPlus size={17} /> Agregar al calendario</a>
+              <button type="button" onClick={() => setCalOpen((v) => !v)} aria-expanded={calOpen} style={{ ...ghostBtn, gridColumn: "1 / -1", cursor: "pointer" }}>
+                <CalendarPlus size={17} /> Agregar al calendario
+              </button>
+              {calOpen && (
+                <div style={{ gridColumn: "1 / -1", display: "grid", gap: 8 }}>
+                  <a href={gcal} target="_blank" rel="noreferrer" style={ghostBtn}><CalendarPlus size={17} /> Google Calendar</a>
+                  <a href={icsHref} style={ghostBtn}><CalendarPlus size={17} /> iPhone / Apple Calendar</a>
+                  <a href={outlookHref} target="_blank" rel="noreferrer" style={ghostBtn}><CalendarPlus size={17} /> Outlook</a>
+                </div>
+              )}
               {mapsUrl && <a href={mapsUrl} target="_blank" rel="noreferrer" style={ghostBtn}><MapPin size={17} /> Cómo llegar</a>}
               {wa && <a href={`https://wa.me/${wa}`} target="_blank" rel="noreferrer" style={ghostBtn}><MessageCircle size={17} /> WhatsApp</a>}
             </div>
