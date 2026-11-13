@@ -109,7 +109,7 @@ export function ReglasTardanzaSection() {
                   <div className="text-sm text-foreground">
                     Desde {r.min_minutes} min →{" "}
                     <span className="font-semibold">
-                      {r.discount_type === "percent" ? `−${r.discount_value} pts de comisión` : `$${r.discount_value.toLocaleString("es-AR")}`}
+                      {r.discount_type === "percent" ? `−${r.discount_value}%` : `$${r.discount_value.toLocaleString("es-AR")}`}
                     </span>
                   </div>
                 </div>
@@ -258,7 +258,7 @@ function PresentismoAjustesHistorial({ rules }: { rules: LatenessRule[] }) {
     if (!ruleId) return "—";
     const r = rules.find((x) => x.id === ruleId);
     if (!r) return "—";
-    return `Desde ${r.min_minutes} min → ${r.discount_type === "percent" ? `−${r.discount_value} pts de comisión` : money(Number(r.discount_value))}`;
+    return `Desde ${r.min_minutes} min → ${r.discount_type === "percent" ? `−${r.discount_value}%` : money(Number(r.discount_value))}`;
   }
 
   return (
