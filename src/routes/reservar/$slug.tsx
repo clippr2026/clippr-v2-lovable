@@ -377,6 +377,7 @@ function PublicBookingPage() {
   const [selectedProductIds, setSelectedProductIds] = React.useState<string[]>([]);
 
   const [step, setStep] = React.useState<BookingStep>("services");
+  const [calMenuOpen, setCalMenuOpen] = React.useState(false);
   const [selectedServiceIds, setSelectedServiceIds] = React.useState<string[]>([]);
   // Pestaña activa del paso "Servicios": null = "Todos", siempre primera y
   // seleccionada por defecto.
@@ -1181,8 +1182,8 @@ function PublicBookingPage() {
 
   // Arma un evento de calendario (.ics) con el turno confirmado y lo descarga; en el celular se abre
   // "Agregar al calendario". Lleva un recordatorio 1 hora antes.
-  function addToCalendar() {
-    if (!selectedSlot || !confirmedBooking) return;
+  function icsUrl(): string | null {
+    if (!selectedSlot || !confirmedBooking) return null;
     const start = selectedSlot.time;
     const end = new Date(start.getTime() + Math.max(15, confirmedBooking.duration || 30) * 60000);
     const place = branches.find((b) => b.id === selectedBranchId)?.address || business?.address || "";
@@ -1194,8 +1195,8 @@ function PublicBookingPage() {
       description: `Profesional: ${confirmedBooking.professional}\nTotal: ${formatMoney(confirmedBooking.total)}`,
       alarm: "60",
     });
-    // Se abre desde una URL real (text/calendar): en iPhone aparece directo "Agregar al calendario".
-    window.location.assign(`/api/ics?${q.toString()}`);
+    // URL real (text/calendar): en iPhone aparece directo "Agregar al calendario".
+    return `/api/ics?${q.toString()}`;
   }
 
   function nextFromServices() {
@@ -2586,14 +2587,53 @@ function PublicBookingPage() {
 
                         <div className="space-y-2.5">
                           {when && cb ? (
-                            <button
-                              type="button"
-                              onClick={addToCalendar}
-                              className="flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-sm font-bold uppercase tracking-wide transition hover:brightness-110"
-                              style={publicButtonStyle(accent, accentButtonText)}
-                            >
-                              <CalendarPlus className="h-4 w-4" /> Agregar al calendario
-                            </button>
+                            <div>
+                              <button
+                                type="button"
+                                onClick={() => setCalMenuOpen((v) => !v)}
+                                aria-expanded={calMenuOpen}
+                                className="flex w-full items-center justify-center gap-2 rounded-full py-3.5 text-sm font-bold uppercase tracking-wide transition hover:brightness-110"
+                                style={publicButtonStyle(accent, accentButtonText)}
+                              >
+                                <CalendarPlus className="h-4 w-4" /> Agregar al calendario
+                              </button>
+                              {calMenuOpen ? (
+                                <div className="mt-2.5 space-y-2 rounded-3xl border border-white/10 bg-white/[0.04] p-2.5">
+                                  {(() => {
+                                    const ics = icsUrl();
+                                    const f = (d: Date) => d.toISOString();
+                                    const end = new Date(when.getTime() + Math.max(15, cb.duration || 30) * 60000);
+                                    const outlookQ = new URLSearchParams({
+                                      path: "/calendar/action/compose",
+                                      rru: "addevent",
+                                      subject: `${cb.services} · ${business?.name ?? ""}`.trim(),
+                                      startdt: f(when),
+                                      enddt: f(end),
+                                      body: `Profesional: ${cb.professional}\nTotal: ${formatMoney(cb.total)}`,
+                                      location: address ?? "",
+                                    });
+                                    const opcion = "flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 text-sm font-semibold transition hover:bg-white/[0.08]";
+                                    return (
+                                      <>
+                                        {gcalHref ? (
+                                          <a href={gcalHref} target="_blank" rel="noreferrer" className={opcion}>
+                                            <CalendarPlus className="h-4 w-4" style={{ color: accent }} /> Google Calendar
+                                          </a>
+                                        ) : null}
+                                        {ics ? (
+                                          <a href={ics} className={opcion}>
+                                            <CalendarPlus className="h-4 w-4" style={{ color: accent }} /> iPhone / Apple Calendar
+                                          </a>
+                                        ) : null}
+                                        <a href={`https://outlook.live.com/calendar/0/deeplink/compose?${outlookQ.toString()}`} target="_blank" rel="noreferrer" className={opcion}>
+                                          <CalendarPlus className="h-4 w-4" style={{ color: accent }} /> Outlook
+                                        </a>
+                                      </>
+                                    );
+                                  })()}
+                                </div>
+                              ) : null}
+                            </div>
                           ) : null}
                           {address || phoneDigits ? (
                             <div className={cn("grid gap-2.5", address && phoneDigits ? "grid-cols-2" : "grid-cols-1")}>
@@ -2613,11 +2653,6 @@ function PublicBookingPage() {
                                 </a>
                               ) : null}
                             </div>
-                          ) : null}
-                          {gcalHref ? (
-                            <a href={gcalHref} target="_blank" rel="noreferrer" className="block text-center text-xs font-semibold text-white/55 hover:text-white">
-                              ¿Usás Google Calendar? Agregalo desde acá
-                            </a>
                           ) : null}
                         </div>
 
