@@ -191,7 +191,7 @@ import {
   type HistorialPresentismoRow,
 } from "@/lib/historial-movimientos";
 import { fetchAllRows } from "@/lib/supabase-paginate";
-import { displayResponsable, isRunEffectivelySettled } from "@/components/liquidaciones/movimiento-format";
+import { displayResponsable, isRunEffectivelySettled, realNote } from "@/components/liquidaciones/movimiento-format";
 import { HistorialPanelView } from "@/components/liquidaciones/historial-panel-view";
 import {
   PagoDetalleContent,
