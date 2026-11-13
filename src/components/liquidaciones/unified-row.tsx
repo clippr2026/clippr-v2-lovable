@@ -735,7 +735,7 @@ export function MovDayHeader({
         <span className="min-w-0 truncate rounded-full bg-white/[0.07] px-3 py-1 text-sm font-semibold text-white ring-1 ring-white/10">
           {movDayLabel(dayKey)}
         </span>
-        {p ? (
+        {p && p.status !== "ausente" ? (
           <span className="ml-auto flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[11px]">
             <span className="text-white/60">
               {llegada ? `Entrada ${llegada}` : "Puntualidad"}
@@ -743,13 +743,7 @@ export function MovDayHeader({
             </span>
             <span className={cn("font-semibold", cls)}>{text}</span>
           </span>
-        ) : (
-          typeof count === "number" && (
-            <span className="ml-auto shrink-0 text-xs text-white/65">
-              {count} {count === 1 ? "movimiento" : "movimientos"}
-            </span>
-          )
-        )}
+        ) : null}
       </div>
     </Tag>
   );
