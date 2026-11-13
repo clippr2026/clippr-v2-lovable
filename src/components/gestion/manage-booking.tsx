@@ -1,4 +1,5 @@
 import * as React from "react";
+import { AppLocalInstalar } from "@/components/app-local-instalar";
 import { DEFAULT_SENAS_MESSAGE } from "@/lib/senas-default-message";
 import { CalendarPlus, Check, ChevronLeft, ChevronRight, Clock, Copy, MapPin, MessageCircle, RefreshCw, Upload, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -383,6 +384,14 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
                   <a href={outlookHref} target="_blank" rel="noreferrer" style={calOpt("#0EA5E9")}><CalendarPlus size={17} /> Outlook</a>
                 </div>
               )}
+            </div>
+          )}
+          {!depositFlow && active && !past && b.slug && (
+            <div style={{ marginTop: 18 }}>
+              <p style={{ textAlign: "center", color: c.muted, fontSize: 13, margin: "0 0 10px" }}>
+                Instalá la app para ver tus turnos y recibir avisos.
+              </p>
+              <AppLocalInstalar slug={b.slug} nombre={b.name} />
             </div>
           )}
           {!cancelled && !active && (

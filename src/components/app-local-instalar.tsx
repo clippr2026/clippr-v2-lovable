@@ -56,11 +56,15 @@ export function AppLocalInstalar({
     };
   }, []);
 
-  // El iPhone toma el nombre de la app de esta etiqueta al "Agregar a pantalla de inicio".
+  // La app instalada es la de ESTE local: manifest, ícono y nombre se ajustan a su slug (por ejemplo en /gestion,
+  // que no lleva el slug en la URL). El iPhone lee estas etiquetas al "Agregar a pantalla de inicio".
   React.useEffect(() => {
-    if (!nombre) return;
-    document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute("content", nombre);
-  }, [nombre]);
+    document
+      .querySelector('link[rel="manifest"]')
+      ?.setAttribute("href", `/api/pwa-manifest?slug=${slug}&name=${encodeURIComponent(nombre || slug)}`);
+    document.querySelector('link[rel="apple-touch-icon"]')?.setAttribute("href", `/api/pwa-icon?slug=${slug}&size=180`);
+    document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute("content", nombre || slug);
+  }, [slug, nombre]);
 
   async function instalar() {
     if (evento) {
