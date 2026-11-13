@@ -56,6 +56,14 @@ export function AppLocalInstalar({
     };
   }, []);
 
+  // Link del correo ("Instalar la app" → ?instalar=1): se muestra la guía de una, sin otro toque.
+  const contenedor = React.useRef<HTMLDivElement>(null);
+  React.useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("instalar") !== "1") return;
+    contenedor.current?.scrollIntoView({ block: "center" });
+    if (esIphoneSinInstalar() || navegadorInterno()) setGuia(true);
+  }, []);
+
   // La app instalada es la de ESTE local: manifest, ícono y nombre se ajustan a su slug (por ejemplo en /gestion,
   // que no lleva el slug en la URL). El iPhone lee estas etiquetas al "Agregar a pantalla de inicio".
   React.useEffect(() => {
@@ -88,7 +96,7 @@ export function AppLocalInstalar({
   const puedeInstalar = !instalada && (Boolean(evento) || iphone || interno);
 
   return (
-    <div className={cn("flex flex-wrap items-center justify-center gap-3", className)}>
+    <div ref={contenedor} className={cn("flex flex-wrap items-center justify-center gap-3", className)}>
       {puedeInstalar ? (
         <button
           type="button"
