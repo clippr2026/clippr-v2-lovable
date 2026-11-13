@@ -796,6 +796,7 @@ export function MovDayHeader({
       <div className="min-w-0">
         <div className="text-[15px] font-semibold text-white">{movDayLabel(dayKey)}</div>
         {puntualidad}
+        {count === 0 && <div className="mt-0.5 text-[12px] text-white/40">Sin servicios ni movimientos</div>}
       </div>
       {collapsible && (
         <ChevronDown className={cn("size-5 shrink-0 text-white/55 transition-transform", !open && "-rotate-90")} />
@@ -829,28 +830,49 @@ export function renderCollapsibleDays(
     } else if (cur) counts.set(cur, (counts.get(cur) ?? 0) + 1);
   }
   const out: React.ReactNode[] = [];
-  let open = true;
   let firstDay = true;
+  let group: { key: string; header: React.ReactNode; items: React.ReactNode[]; open: boolean } | null = null;
+  const flush = () => {
+    if (!group) return;
+    const g = group;
+    out.push(
+      <div key={`grupo-${g.key}`} className="max-sm:pt-3 max-sm:first:pt-0">
+        {g.header}
+        {g.open && g.items.length > 0 && (
+          <div className="mt-2 max-sm:ml-4 max-sm:space-y-2.5 max-sm:border-l-2 max-sm:border-violet-400/25 max-sm:pl-3">{g.items}</div>
+        )}
+      </div>,
+    );
+    group = null;
+  };
   for (const e of entries) {
     if (e.kind === "dia") {
+      flush();
       const stored = collapse.state[`${collapse.scope}:${e.dayKey}`];
-      open = stored ?? firstDay;
+      const isOpen = stored ?? firstDay;
       firstDay = false;
-      const isOpen = open;
-      out.push(
-        <MovDayHeader
-          key={`dia-${e.dayKey}`}
-          dayKey={e.dayKey}
-          presentismo={e.presentismo}
-          count={counts.get(e.dayKey) ?? 0}
-          open={isOpen}
-          onToggle={() => collapse.toggle(e.dayKey, isOpen)}
-        />,
-      );
+      const n = counts.get(e.dayKey) ?? 0;
+      group = {
+        key: e.dayKey,
+        open: isOpen,
+        items: [],
+        header: (
+          <MovDayHeader
+            key={`dia-${e.dayKey}`}
+            dayKey={e.dayKey}
+            presentismo={e.presentismo}
+            count={n}
+            open={isOpen}
+            onToggle={n > 0 ? () => collapse.toggle(e.dayKey, isOpen) : undefined}
+          />
+        ),
+      };
       continue;
     }
-    if (open) out.push(renderItem(e));
+    if (group) group.items.push(renderItem(e));
+    else out.push(renderItem(e));
   }
+  flush();
   return out;
 }
 
