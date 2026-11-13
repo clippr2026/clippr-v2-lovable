@@ -5904,7 +5904,6 @@ function ProfesionalesTab({
             </button>
             <div className="min-w-0">
               <div className="truncate text-base font-semibold text-white">{selectedRow.name}</div>
-              <div className="text-xs text-white/50">Movimientos, pagos y llegadas</div>
             </div>
           </div>
         )}
