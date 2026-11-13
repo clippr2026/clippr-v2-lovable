@@ -8968,9 +8968,9 @@ function CierreCajaBtn({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="group inline-flex h-10 shrink-0 items-center justify-center gap-1.5 rounded-full border border-violet-300/40 bg-violet-500/10 px-3.5 text-sm font-semibold text-violet-100 shadow-[0_0_22px_-8px_rgba(139,92,246,0.6)] transition-all duration-200 hover:bg-violet-500/20 active:scale-[0.99]"
+        className="group inline-flex h-11 shrink-0 items-center justify-center gap-1.5 rounded-full bg-gradient-to-b from-blue-400 to-violet-500 px-4 text-sm font-bold text-white shadow-[0_8px_24px_-8px_rgba(139,92,246,0.8)] transition-all duration-200 hover:brightness-110 active:scale-[0.98]"
       >
-        <Wallet className="size-4 text-white/80 transition-transform group-hover:scale-110" />
+        <Wallet className="size-4 text-white transition-transform group-hover:scale-110" />
         Cerrar caja
       </button>
 
@@ -13307,7 +13307,7 @@ function FacturacionPanel({
           una sola fila desde sm. */}
       <div
         className={cn(
-          "grid grid-cols-2 gap-3",
+          "grid grid-cols-2 gap-4",
           // "Cobros por confirmar" (showPendientes) es condicional — la
           // cantidad de columnas en desktop sigue la cantidad real de
           // tarjetas visibles (Ingresos y Gastos son siempre fijas), para
@@ -13363,7 +13363,7 @@ function FacturacionPanel({
           Descuentan los adelantos a profesionales con origen "Caja del día"
           (ver computeExpectedCashAndDigital); los de "Fondos externos" no. El
           detalle de cada saldo muestra el adelanto como línea propia. */}
-      <div className="grid grid-cols-2 gap-3">
+      <div className="mt-3 grid grid-cols-2 gap-4">
         <FacturacionStatCard
           icon={Wallet}
           iconClass="text-amber-400"
@@ -13382,7 +13382,9 @@ function FacturacionPanel({
         />
       </div>
 
-      <SenasCajaCard businessId={data.businessId} branchId={data.activeBranchId} onChanged={() => void data.refresh()} />
+      <div className="mt-3">
+        <SenasCajaCard businessId={data.businessId} branchId={data.activeBranchId} onChanged={() => void data.refresh()} />
+      </div>
 
       {saldoDetalle && (
         <SaldoComposicionModal
