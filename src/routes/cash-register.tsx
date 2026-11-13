@@ -7613,8 +7613,12 @@ function CierreMovimientosDetalleList({
 
       {(filtro === "todos" || filtro === "servicios") && (
         <div className={cn("mt-4", !ocultarFacturacion && "overflow-hidden rounded-2xl border border-white/[0.075] bg-white/[0.03]")}>
-          <div className={cn("p-4 pb-0 text-xs font-bold uppercase tracking-[0.16em] text-white/45", ocultarFacturacion && "hidden")}>
-            {filtro === "todos" ? "Movimientos" : "Servicios"} ({serviciosFiltrados.length + otrosMovimientos.length})
+          <div className={cn("p-4 pb-0 text-xs font-bold uppercase tracking-[0.16em] text-white/45", ocultarFacturacion && "p-0 pb-3 text-sm font-semibold normal-case tracking-normal text-white/75")}>
+            {ocultarFacturacion
+              ? filtro === "todos"
+                ? `${serviciosFiltrados.length + otrosMovimientos.length} movimientos`
+                : `${serviciosFiltrados.length} ${serviciosFiltrados.length === 1 ? "servicio" : "servicios"}`
+              : `${filtro === "todos" ? "Movimientos" : "Servicios"} (${serviciosFiltrados.length + otrosMovimientos.length})`}
             {serviciosAnuladosFiltrados.length > 0 && (
               <span className="ml-2 normal-case tracking-normal text-rose-300/80">
                 + {serviciosAnuladosFiltrados.length} anulada{serviciosAnuladosFiltrados.length === 1 ? "" : "s"}
@@ -7995,9 +7999,9 @@ function CierreMovimientosDetalleList({
       )}
 
       {(filtro === "productos" || (filtro === "todos" && productosVisibles.length > 0)) && (
-        <div className={cn("mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4", filtro === "todos" && "lg:hidden")}>
-          <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
-            Catálogo ({productosVisibles.length})
+        <div className={cn(ocultarFacturacion ? "mt-3" : "mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4", filtro === "todos" && "lg:hidden")}>
+          <div className={cn("mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45", ocultarFacturacion && "text-sm font-semibold normal-case tracking-normal text-white/75")}>
+            {ocultarFacturacion ? `${productosVisibles.length} ${productosVisibles.length === 1 ? "producto" : "productos"}` : `Catálogo (${productosVisibles.length})`}
           </div>
           {/* Desktop/tablet ancho: mismo formato que la tabla de Servicios. */}
           <div className="hidden overflow-x-auto lg:block">
@@ -8125,9 +8129,9 @@ function CierreMovimientosDetalleList({
       )}
 
       {((filtro === "todos" && gastos.length > 0) || filtro === "gastos") && (
-        <div className={cn("mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4", filtro === "todos" && "lg:hidden")}>
-          <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
-            Gastos ({gastos.length})
+        <div className={cn(ocultarFacturacion ? "mt-3" : "mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4", filtro === "todos" && "lg:hidden")}>
+          <div className={cn("mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45", ocultarFacturacion && "text-sm font-semibold normal-case tracking-normal text-white/75")}>
+            {ocultarFacturacion ? `${gastos.length} ${gastos.length === 1 ? "gasto" : "gastos"}` : `Gastos (${gastos.length})`}
           </div>
           <div className="space-y-2">
             {gastos.length === 0 ? (
@@ -8156,9 +8160,9 @@ function CierreMovimientosDetalleList({
       )}
 
       {((filtro === "todos" && retiros.length + ingresosManuales.length > 0) || filtro === "retiros") && (
-        <div className={cn("mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4", filtro === "todos" && "lg:hidden")}>
-          <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
-            Retiros e ingresos manuales ({retiros.length + ingresosManuales.length})
+        <div className={cn(ocultarFacturacion ? "mt-3" : "mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4", filtro === "todos" && "lg:hidden")}>
+          <div className={cn("mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45", ocultarFacturacion && "text-sm font-semibold normal-case tracking-normal text-white/75")}>
+            {ocultarFacturacion ? `${retiros.length + ingresosManuales.length} retiros e ingresos` : `Retiros e ingresos manuales (${retiros.length + ingresosManuales.length})`}
           </div>
           <div className="space-y-2">
             {retiros.length + ingresosManuales.length === 0 ? (
@@ -8190,9 +8194,9 @@ function CierreMovimientosDetalleList({
       )}
 
       {adelantos && ((filtro === "todos" && adelantosVisibles.length > 0) || filtro === "adelantos") && (
-        <div className={cn("mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4", filtro === "todos" && "lg:hidden")}>
-          <div className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
-            Adelantos ({adelantosVisibles.length})
+        <div className={cn(ocultarFacturacion ? "mt-3" : "mt-4 rounded-2xl border border-white/[0.075] bg-white/[0.03] p-4", filtro === "todos" && "lg:hidden")}>
+          <div className={cn("mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/45", ocultarFacturacion && "text-sm font-semibold normal-case tracking-normal text-white/75")}>
+            {ocultarFacturacion ? `${adelantosVisibles.length} ${adelantosVisibles.length === 1 ? "adelanto" : "adelantos"}` : `Adelantos (${adelantosVisibles.length})`}
           </div>
           <div className="space-y-2">
             {adelantosVisibles.length === 0 ? (
