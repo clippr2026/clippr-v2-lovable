@@ -855,7 +855,7 @@ export function renderCollapsibleDays(
     if (e.kind === "dia") {
       flush();
       const stored = collapse.state[`${collapse.scope}:${e.dayKey}`];
-      const isOpen = stored ?? firstDay;
+      const isOpen = stored ?? false;
       firstDay = false;
       const n = counts.get(e.dayKey) ?? 0;
       group = {

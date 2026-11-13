@@ -35,14 +35,21 @@ export async function fetchVentasSinComision(
   }
   return pays
     .filter((p) => p.status !== "cobrado" || !conRegistro.has(p.id))
-    .map((p) => ({
+    .map((p) => {
+      // Precio de lista de respaldo (ventas sin original_amount): suma de los ítems guardados.
+      const sumaItems = Array.isArray(p.items)
+        ? p.items.reduce((acc: number, i: any) => acc + Number(i?.amount ?? 0), 0)
+        : 0;
+      return {
       id: `sin-comision-${p.id}`,
       sale_id: p.id,
       professional_id: employeeId,
       amount: 0,
       pending_amount: 0,
       created_at: p.created_at,
-      sale: p,
+      sale: { ...p, listPriceFallback: sumaItems > 0 ? sumaItems : null },
+      listPriceFallback: sumaItems > 0 ? sumaItems : null,
       __anulada: p.status !== "cobrado",
-    }));
+      };
+    });
 }

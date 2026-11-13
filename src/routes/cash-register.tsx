@@ -5669,7 +5669,7 @@ function ProfesionalesTab({
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             {/* Celular: en vez del desplegable, volver atrás a la lista del equipo. */}
             {selectedRow && (
-              <div className="flex items-center gap-3 sm:hidden">
+              <div className="flex items-center gap-3">
                 <button
                   type="button"
                   onClick={() => selectEmployee("")}
@@ -5684,7 +5684,7 @@ function ProfesionalesTab({
             <select
               value={selectedEmployeeId}
               onChange={(event) => selectEmployee(event.target.value)}
-              className="hidden h-10 w-full rounded-2xl border border-white/[0.09] bg-[#070A13]/80 px-3.5 text-base text-white outline-none backdrop-blur-xl focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12 sm:block sm:min-w-[230px] sm:w-auto sm:text-sm"
+              className="hidden h-10 w-full rounded-2xl border border-white/[0.09] bg-[#070A13]/80 px-3.5 text-base text-white outline-none backdrop-blur-xl focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12 sm:min-w-[230px] sm:w-auto sm:text-sm"
             >
               <option value="" disabled>
                 Seleccionar profesional
