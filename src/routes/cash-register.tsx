@@ -163,6 +163,7 @@ import {
   ChevronRight,
   HandCoins,
   Pencil,
+  Package,
 } from "lucide-react";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 import {
@@ -2019,11 +2020,11 @@ function PreciosTab({
           después de sacar los títulos con ícono de cada sección. En mobile
           usa un margen positivo (mt-3, ~16px sumado al mt-1 del wrapper)
           en vez de negativo, para separación real sin solapamiento. */}
-      <div className="mb-3 flex gap-2 sm:hidden">
+      <div className="mb-4 grid grid-cols-2 gap-3 sm:hidden">
         {(
           [
-            ["servicios", "Servicios", <Scissors key="i" className="size-4" />],
-            ["catalogo", "Catálogo", <span key="i" className="text-sm leading-none">▣</span>],
+            ["servicios", "Servicios", <Scissors key="i" className="size-5" />],
+            ["catalogo", "Catálogo", <Package key="i" className="size-5" />],
           ] as const
         ).map(([id, label, icon]) => (
           <button
@@ -2031,16 +2032,14 @@ function PreciosTab({
             type="button"
             onClick={() => setMobileSection(id)}
             className={cn(
-              "flex h-14 w-16 shrink-0 flex-col items-center justify-center gap-1 rounded-2xl border transition-all",
+              "flex h-14 items-center justify-center gap-2.5 rounded-full border text-base font-semibold transition-all",
               mobileSection === id
-                ? "border-violet-300/28 bg-violet-500/18 text-white ring-1 ring-violet-300/24"
-                : "border-white/[0.085] bg-black/25 text-white/50 active:bg-white/[0.045]",
+                ? "border-violet-300/50 bg-gradient-to-b from-sky-400/25 to-violet-500/35 text-white shadow-[0_0_18px_-6px_rgba(139,92,246,0.7)]"
+                : "border-white/10 bg-white/[0.04] text-white/60 active:bg-white/[0.08]",
             )}
           >
             {icon}
-            <span className="text-[9px] font-bold uppercase tracking-wide">
-              {label}
-            </span>
+            {label}
           </button>
         ))}
       </div>
