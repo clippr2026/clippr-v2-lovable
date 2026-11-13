@@ -7292,6 +7292,21 @@ function montoParaMedio(
   return { monto: m, propina: t, incluido: m > 0 || t > 0 };
 }
 
+// Estilo Clippr de las tarjetas del cierre: fondo oscuro, borde y luz del color del tipo.
+function cierreTarjetaStyle(tono: "rose" | "amber" | "violet" | "emerald"): React.CSSProperties {
+  const t = {
+    rose: ["rgba(251,113,133,0.35)", "rgba(244,63,94,0.10)"],
+    amber: ["rgba(251,191,36,0.4)", "rgba(245,158,11,0.10)"],
+    violet: ["rgba(167,139,250,0.4)", "rgba(139,92,246,0.12)"],
+    emerald: ["rgba(110,231,183,0.35)", "rgba(16,185,129,0.10)"],
+  }[tono];
+  return {
+    borderColor: t[0],
+    backgroundColor: "#0b0a14",
+    backgroundImage: `radial-gradient(120% 100% at 100% 0%, ${t[1]}, transparent 62%)`,
+  };
+}
+
 function CierreMovimientosDetalleList({
   cobros,
   cobrosAnulados,
@@ -8160,7 +8175,7 @@ function CierreMovimientosDetalleList({
             ) : (
               gastos.map((g: any, idx: number) => (
                 tarjetas ? (
-                <div key={`${g.id ?? idx}`} className={cn("rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5 text-sm")}>
+                <div key={`${g.id ?? idx}`} className="w-full rounded-2xl border px-3.5 py-2.5" style={cierreTarjetaStyle("rose")}>
                   <div className="flex items-start justify-between gap-2">
                     <span className="text-[12px] tabular-nums text-white/60">{g.hora ?? "—"}</span>
                     <div className="shrink-0 text-right">
@@ -8222,15 +8237,15 @@ function CierreMovimientosDetalleList({
                 .sort((a, b) => (a.hora ?? "").localeCompare(b.hora ?? ""))
                 .map((m) => (
                   tarjetas ? (
-                  <div key={m.id} className={cn("rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5 text-sm")}>
+                  <div key={m.id} className="w-full rounded-2xl border px-3.5 py-2.5" style={cierreTarjetaStyle(m.tipo === "retiro" ? "amber" : "emerald")}>
                     <div className="flex items-start justify-between gap-2">
                       <span className="text-[12px] tabular-nums text-white/60">{m.hora ?? "—"}</span>
                       <div className="shrink-0 text-right">
-                        <div className={cn("text-lg font-bold leading-none tabular-nums", m.tipo === "retiro" ? "text-rose-300" : "text-emerald-300")}>
+                        <div className={cn("text-lg font-bold leading-none tabular-nums", m.tipo === "retiro" ? "text-amber-300" : "text-emerald-300")}>
                           {m.tipo === "retiro" ? "-" : "+"}
                           {money(m.monto)}
                         </div>
-                        <div className={cn("mt-0.5 text-[11px] font-medium", m.tipo === "retiro" ? "text-rose-200/70" : "text-emerald-200/70")}>
+                        <div className={cn("mt-0.5 text-[11px] font-medium", m.tipo === "retiro" ? "text-amber-200/70" : "text-emerald-200/70")}>
                           {m.tipo === "retiro" ? "Retiro" : "Ingreso"}
                         </div>
                       </div>
@@ -8285,14 +8300,14 @@ function CierreMovimientosDetalleList({
             ) : (
               adelantosVisibles.map((a) => (
                 tarjetas ? (
-                <div key={a.id} className={cn("rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5 text-sm", !advanceAffectsCaja(a.origen) && "opacity-70")}>
+                <div key={a.id} className="w-full rounded-2xl border px-3.5 py-2.5" style={cierreTarjetaStyle("violet")}>
                   <div className="flex items-start justify-between gap-2">
                     <span className="text-[12px] tabular-nums text-white/60">
                       {new Date(a.advancedAt).toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit", hour12: false, timeZone: ARG_TIME_ZONE })}
                     </span>
                     <div className="shrink-0 text-right">
-                      <div className="text-lg font-bold leading-none tabular-nums text-rose-300">-{money(a.monto)}</div>
-                      <div className="mt-0.5 text-[11px] font-medium text-rose-200/70">Adelanto</div>
+                      <div className="text-lg font-bold leading-none tabular-nums text-violet-300">-{money(a.monto)}</div>
+                      <div className="mt-0.5 text-[11px] font-medium text-violet-200/70">Adelanto</div>
                     </div>
                   </div>
                   <div className="mt-1 min-w-0">
@@ -8300,9 +8315,11 @@ function CierreMovimientosDetalleList({
                     <div className="mt-0.5 truncate text-[13px] text-white/65">{advanceOriginLabel(a.origen)}</div>
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                    <span className="rounded-full bg-white/[0.05] px-2.5 py-1 text-[12px] font-medium text-white/80 ring-1 ring-white/10">
-                      {advanceMethodLabel(a.medio)}
-                    </span>
+                    {advanceMethodLabel(a.medio) !== "—" && (
+                      <span className="rounded-full bg-white/[0.05] px-2.5 py-1 text-[12px] font-medium text-white/80 ring-1 ring-white/10">
+                        {advanceMethodLabel(a.medio)}
+                      </span>
+                    )}
                   </div>
                   {!advanceAffectsCaja(a.origen) && (
                     <div className="mt-2 border-t border-white/[0.06] pt-2 text-[12px] font-medium text-amber-300">No incluido en el cierre</div>
@@ -8555,7 +8572,7 @@ function CierreRevisionDetalle({
           el detalle de la jornada — mismo orden que el detalle de un día
           cerrado. El efectivo contado y el saldo real son editables. */}
       <div className="grid gap-4 md:grid-cols-2">
-        <section className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3.5 [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.12),transparent_65%)]">
+        <section className="space-y-2 rounded-2xl border border-violet-400/30 bg-[#0b0a14] p-4 [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.12),transparent_65%)]">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5 text-sm font-semibold text-white"><Wallet className="size-4 text-amber-300" /> Efectivo en caja</div>
             <span className={cn("text-xs font-semibold", diferencia === 0 ? "text-emerald-300" : "text-amber-300")}>{diferencia === 0 ? "Sin diferencia" : diferencia > 0 ? "Sobra" : "Falta"}</span>
@@ -8568,7 +8585,7 @@ function CierreRevisionDetalle({
           </div>
           <div>
             <label className="text-xs text-muted-foreground">Dinero contado</label>
-            <div className="mt-1 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 focus-within:border-blue-300/40">
+            <div className="mt-1 flex h-11 items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 focus-within:border-violet-300/50">
               <span className="text-muted-foreground/70">$</span>
               <input
                 type="text"
@@ -8598,7 +8615,7 @@ function CierreRevisionDetalle({
             recomendación de pasar el dinero a otra cuenta). Acá se deja
             constancia del saldo real al momento de cerrar; el ajuste nunca se
             mezcla con la diferencia de efectivo. */}
-        <section className="space-y-2 rounded-2xl border border-white/10 bg-white/[0.03] p-3.5 [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.12),transparent_65%)]">
+        <section className="space-y-2 rounded-2xl border border-violet-400/30 bg-[#0b0a14] p-4 [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.12),transparent_65%)]">
           <div className="flex items-center justify-between gap-2">
             <div className="flex items-center gap-1.5 text-sm font-semibold text-white"><CreditCard className="size-4 text-sky-300" /> Dinero en banco</div>
             <span className={cn("text-xs font-semibold", ajusteCuenta === 0 ? "text-emerald-300" : "text-amber-300")}>{ajusteCuenta === 0 ? "Sin diferencia" : ajusteCuenta > 0 ? "Sobra" : "Falta"}</span>
@@ -8618,7 +8635,7 @@ function CierreRevisionDetalle({
           )}
           <div>
             <label className="text-xs text-muted-foreground">Saldo real</label>
-            <div className="mt-1 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 focus-within:border-blue-300/40">
+            <div className="mt-1 flex h-11 items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 focus-within:border-violet-300/50">
               <span className="text-muted-foreground/70">$</span>
               <input
                 type="text"
@@ -8642,7 +8659,7 @@ function CierreRevisionDetalle({
               ${Math.round(Math.abs(ajusteCuenta)).toLocaleString("es-AR")}
             </span>
           </div>
-          <details className="rounded-xl bg-emerald-400/10 px-3 py-2 text-xs leading-snug text-emerald-100 ring-1 ring-emerald-300/30">
+          <details className="rounded-2xl bg-emerald-400/10 px-4 py-2.5 text-xs leading-snug text-emerald-100 ring-1 ring-emerald-300/30">
             <summary className="cursor-pointer font-semibold">Recomendación</summary>
             <p className="mt-1.5">Pasá este dinero a otra cuenta y dejá esta en $0. Así mañana arrancás de cero y todo lo que entre es del día.</p>
           </details>
@@ -8663,7 +8680,7 @@ function CierreRevisionDetalle({
               : "Novedades del día, diferencias, etc."
           }
           className={cn(
-            "mt-1 w-full rounded-xl border px-3 py-2.5 text-sm outline-none resize-none bg-white/[0.03] focus:border-blue-300/40",
+            "mt-1 w-full rounded-2xl border px-4 py-3 text-sm outline-none resize-none bg-white/[0.04] focus:border-violet-300/50",
             diferencia !== 0 && !observacion.trim() ? "border-amber-400/40" : "border-white/10",
           )}
         />
@@ -8673,8 +8690,8 @@ function CierreRevisionDetalle({
           jornada: los adelantos de "Caja del día" son un egreso incluido en
           el efectivo/cuenta esperados de arriba; los de "Fondos externos"
           se listan aparte y NO entran en el cierre. */}
-      <details className="group rounded-xl bg-white/[0.025] ring-1 ring-white/10">
-        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 p-4 text-sm font-semibold text-white/85">
+      <details className="group rounded-2xl border border-violet-400/30 bg-[#0b0a14] [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.12),transparent_62%)]">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-2 p-4 text-sm font-semibold text-white">
           <span>Ver movimientos</span>
           <ChevronDown className="size-4 text-white/60 transition-transform group-open:rotate-180" />
         </summary>
@@ -9296,8 +9313,8 @@ function CerrarDiaAnteriorCard({
       )}
 
       {preview && !yaCerrado && (
-        <div className={cn("rounded-2xl border border-white/[0.07] bg-white/[0.03] p-4", !compact && "mt-4")}>
-          <p className="text-sm font-bold text-white">
+        <div className={cn("rounded-3xl border border-violet-400/40 bg-[#08070f] p-4 shadow-[0_0_50px_-20px_rgba(139,92,246,0.55)] [background-image:radial-gradient(120%_45%_at_85%_0%,rgba(79,125,255,0.16),transparent_60%),radial-gradient(110%_50%_at_0%_100%,rgba(139,92,246,0.18),transparent_62%)]", !compact && "mt-4")}>
+          <p className="text-base font-semibold text-white">
             {confirmStep ? "Confirmar cierre de caja" : "Revisar cierre"} — {fechaDDMMYYYY(selectedDate)}
           </p>
           <div className="mt-3">
@@ -9354,7 +9371,7 @@ function CerrarDiaAnteriorCard({
                   disabled={obsRequeridaFalta || senasBloquean}
                   title={senasBloquean ? "Revisá las señas pendientes antes de cerrar" : obsRequeridaFalta ? "Contá qué pasó con la diferencia antes de continuar" : undefined}
                   onClick={() => setPrereqStep(true)}
-                  className="mt-4 h-10 w-full rounded-xl border border-emerald-400/25 bg-emerald-400/10 px-4 text-sm font-extrabold text-emerald-300 transition hover:bg-emerald-400/15 disabled:opacity-50"
+                  className="mt-4 h-12 w-full rounded-full bg-gradient-to-b from-blue-400 to-violet-500 px-4 text-sm font-bold text-white transition-all hover:brightness-105 disabled:opacity-50"
                 >
                   {`Continuar — cierre del ${fechaDDMMYYYY(selectedDate)}`}
                 </button>
@@ -11475,7 +11492,7 @@ function RegistrarMovimientoModal({
         <div className="p-5 space-y-3">
           <div>
             <label className="text-xs text-muted-foreground">Monto</label>
-            <div className="mt-1 flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 focus-within:border-blue-300/40">
+            <div className="mt-1 flex h-11 items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 focus-within:border-violet-300/50">
               <span className="text-muted-foreground/70">$</span>
               <input
                 type="text"
