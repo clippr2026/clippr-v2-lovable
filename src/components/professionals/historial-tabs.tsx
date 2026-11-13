@@ -24,6 +24,28 @@ function fmtFecha(iso: string) {
 // jornada sigue siendo del dueño/admin, desde Equipo (JornadasHistorial).
 function PuntualidadHistorial({ employeeId }: { employeeId: string | null }) {
   const [rows, setRows] = React.useState<WorkSessionRow[] | null>(null);
+  // Por defecto solo se ve lo posterior a la última liquidación; "Ver historial" muestra el resto.
+  const [desde, setDesde] = React.useState<string | null>(null);
+  const [verTodo, setVerTodo] = React.useState(false);
+
+  React.useEffect(() => {
+    if (!employeeId) return;
+    let cancelled = false;
+    supabase
+      .from("settlement_runs" as any)
+      .select("cutoff_date")
+      .eq("professional_id", employeeId)
+      .eq("status", "pagada")
+      .order("cutoff_date", { ascending: false })
+      .limit(1)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setDesde(((data as any)?.cutoff_date as string | null) ?? null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [employeeId]);
 
   React.useEffect(() => {
     if (!employeeId) return;
@@ -55,9 +77,19 @@ function PuntualidadHistorial({ employeeId }: { employeeId: string | null }) {
     );
   }
 
+  // Día (hora Argentina) posterior al corte de la última liquidación pagada.
+  const diaDe = (iso: string) => new Date(iso).toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" });
+  const visibles = verTodo || !desde ? rows : rows.filter((r) => diaDe(r.clock_in_at) > desde);
+  const ocultas = rows.length - visibles.length;
+
   return (
     <div className="space-y-2 animate-fade-up">
-      {rows.map((r) => {
+      {visibles.length === 0 && (
+        <div className="glass rounded-2xl p-6 text-center text-sm text-muted-foreground">
+          No hay fichadas desde la última liquidación.
+        </div>
+      )}
+      {visibles.map((r) => {
         const late = Number(r.late_minutes ?? 0);
         return (
           <div
@@ -83,6 +115,15 @@ function PuntualidadHistorial({ employeeId }: { employeeId: string | null }) {
           </div>
         );
       })}
+      {ocultas > 0 && (
+        <button
+          type="button"
+          onClick={() => setVerTodo(true)}
+          className="h-11 w-full rounded-full border border-violet-400/35 bg-violet-500/10 text-sm font-semibold text-white transition active:scale-[0.99]"
+        >
+          Ver historial ({ocultas} {ocultas === 1 ? "día más" : "días más"})
+        </button>
+      )}
     </div>
   );
 }
