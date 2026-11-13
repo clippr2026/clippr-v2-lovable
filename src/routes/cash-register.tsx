@@ -5645,6 +5645,15 @@ function ProfesionalesTab({
     });
   }, [rows, allCommissions, allTips, allAdvances, allVentasAnuladas, allPresentismo, nowClock]);
 
+  // Cantidad de tarjetas de cifras visibles (en el celular van de a dos: si queda una sola
+  // en la última fila, ocupa todo el ancho).
+  const cantTarjetasCifras =
+    2 +
+    (hasPendingPreviousBalance ? 1 : 0) +
+    (liquidarNewTips > 0 ? 1 : 0) +
+    (liquidarPendingDeductionNet !== 0 ? 1 : 0) +
+    (liquidarPendingPresentismo !== 0 ? 1 : 0);
+
   return (
     <div className="-mt-5 h-auto overflow-visible pb-6 sm:h-[calc(100vh-270px)] sm:min-h-[470px] sm:overflow-hidden">
       {/* Mobile: un solo shadow liviano (mismo costo de paint que
@@ -5658,10 +5667,24 @@ function ProfesionalesTab({
       <section className="flex flex-col overflow-visible rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(10,14,26,0.96),rgba(4,6,14,0.985))] shadow-[0_24px_85px_-50px_rgba(139,92,246,0.42)] sm:h-full sm:overflow-hidden sm:shadow-[0_32px_100px_-58px_rgba(0,0,0,0.95),0_24px_85px_-62px_rgba(139,92,246,0.42)]">
         <div className={cn("flex flex-col gap-3 border-b border-white/[0.065] px-5 py-3.5 lg:flex-row lg:items-center lg:justify-between", (liqDetalle || !selectedRow) && "hidden", liqDetalle && selectedRow && "sm:flex")}>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            {/* Celular: en vez del desplegable, volver atrás a la lista del equipo. */}
+            {selectedRow && (
+              <div className="flex items-center gap-3 sm:hidden">
+                <button
+                  type="button"
+                  onClick={() => selectEmployee("")}
+                  aria-label="Volver al equipo"
+                  className="grid size-10 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.05] text-white transition active:scale-95"
+                >
+                  <ChevronLeft className="size-5" />
+                </button>
+                <div className="min-w-0 truncate text-base font-semibold text-white">{selectedRow.name}</div>
+              </div>
+            )}
             <select
               value={selectedEmployeeId}
               onChange={(event) => selectEmployee(event.target.value)}
-              className="h-10 w-full rounded-2xl border border-white/[0.09] bg-[#070A13]/80 px-3.5 text-base text-white outline-none backdrop-blur-xl focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12 sm:min-w-[230px] sm:w-auto sm:text-sm"
+              className="hidden h-10 w-full rounded-2xl border border-white/[0.09] bg-[#070A13]/80 px-3.5 text-base text-white outline-none backdrop-blur-xl focus:border-violet-300/35 focus:ring-2 focus:ring-violet-400/12 sm:block sm:min-w-[230px] sm:w-auto sm:text-sm"
             >
               <option value="" disabled>
                 Seleccionar profesional
@@ -5807,7 +5830,7 @@ function ProfesionalesTab({
                   junto a "Pagar" en la barra de Total a pagar. No se tocó
                   StatCard (compartido con Panel del profesional, que no
                   tiene botones) para no arriesgar su layout ahí. */}
-              <div className="rounded-2xl border border-rose-400/25 bg-rose-400/[0.055] px-3.5 py-2.5 text-rose-300 shadow-[0_0_28px_rgba(251,113,133,0.10)]" style={{ backgroundImage: "radial-gradient(110% 120% at 100% 0%, rgba(244,63,94,.14), transparent 62%)" }}>
+              <div className={cn("rounded-2xl border border-rose-400/25 bg-rose-400/[0.055] px-3.5 py-2.5 text-rose-300 shadow-[0_0_28px_rgba(251,113,133,0.10)]", cantTarjetasCifras % 2 === 1 && "max-sm:col-span-2")} style={{ backgroundImage: "radial-gradient(110% 120% at 100% 0%, rgba(244,63,94,.14), transparent 62%)" }}>
                 <div className="flex items-center gap-1 text-xs font-semibold text-white/75">
                   <span>Adelantos</span>
                   <InfoPopover text={ADELANTOS_INFO_TEXT} />
