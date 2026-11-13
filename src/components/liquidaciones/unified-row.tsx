@@ -11,6 +11,7 @@ import { createPortal } from "react-dom";
 import { ChevronDown, Info, Loader2, MoreHorizontal, Trash2, X } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { supabase } from "@/integrations/supabase/client";
 import { money, paymentMethodLabel, realNote } from "./movimiento-format";
 import { normalizeCierreMethodKey } from "@/lib/caja-cierre";
 import { resolveDisplayConcept, type EmployeeCommissionMap } from "@/lib/service-pricing";
@@ -267,6 +268,56 @@ function PaymentHistoryPanel({ paymentId }: { paymentId: string }) {
 // opcional: sin él, o sin sale.items (ventas viejas, o liquidaciones que
 // cayeron al fallback de snapshot sin items), se muestra service_name tal
 // cual guardado — nunca rompe, solo deja de filtrar.
+// Quién cobró una venta: payments.charged_by (id de perfil) → nombre. Las filas
+// de Liquidaciones/Mi Panel vienen de distintos orígenes y no todas traen ese
+// dato, así que se resuelve acá, en lote (una consulta por tanda de filas
+// visibles) y con caché. Un perfil que no se puede leer cae en "Recepción".
+const cobradorCache = new Map<string, string | null>();
+let cobradorPending = new Set<string>();
+let cobradorTimer: ReturnType<typeof setTimeout> | null = null;
+const cobradorListeners = new Set<() => void>();
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f-]{13,}$/i;
+
+async function flushCobradores() {
+  cobradorTimer = null;
+  const ids = Array.from(cobradorPending);
+  cobradorPending = new Set();
+  if (ids.length === 0) return;
+  try {
+    const { data: pays } = await supabase.from("payments" as any).select("id,charged_by").in("id", ids);
+    const byPay = new Map<string, string | null>((pays ?? []).map((p: any) => [p.id, p.charged_by ?? null]));
+    const profileIds = Array.from(new Set(Array.from(byPay.values()).filter((v): v is string => !!v && UUID_RE.test(v))));
+    const names = new Map<string, string>();
+    if (profileIds.length > 0) {
+      const { data: profs } = await supabase.from("profiles").select("id,full_name").in("id", profileIds);
+      (profs ?? []).forEach((pr: any) => pr.full_name && names.set(pr.id, pr.full_name));
+    }
+    for (const id of ids) {
+      const raw = byPay.get(id) ?? null;
+      cobradorCache.set(id, !raw ? null : names.get(raw) ?? (UUID_RE.test(raw) ? "Recepción" : raw));
+    }
+  } catch {
+    for (const id of ids) cobradorCache.set(id, null);
+  }
+  cobradorListeners.forEach((fn) => fn());
+}
+
+function useCobradoPor(saleId: string | null | undefined): string | null {
+  const [, force] = React.useReducer((n: number) => n + 1, 0);
+  React.useEffect(() => {
+    if (!saleId) return;
+    cobradorListeners.add(force);
+    if (!cobradorCache.has(saleId)) {
+      cobradorPending.add(saleId);
+      if (!cobradorTimer) cobradorTimer = setTimeout(flushCobradores, 40);
+    }
+    return () => {
+      cobradorListeners.delete(force);
+    };
+  }, [saleId]);
+  return saleId ? cobradorCache.get(saleId) ?? null : null;
+}
+
 export function VentaRow({
   c,
   commissionsMap,
@@ -289,6 +340,7 @@ export function VentaRow({
         };
   const [expanded, setExpanded] = React.useState(false);
   const sale = c.sale ?? {};
+  const cobradoPor = useCobradoPor(c.sale_id ?? sale.id ?? null);
   // resolveVentaDate: payments.created_at (== charged_at) siempre antes que
   // commission_records.created_at — ver comentario en historial-movimientos.ts.
   const saleDateRaw = resolveVentaDate(c);
@@ -587,7 +639,7 @@ export function VentaRow({
             </span>
           )}
         </div>
-        {(isRecovered || conceptSubtitle || hasExpandableContent) && (
+        {(isRecovered || conceptSubtitle || hasExpandableContent || cobradoPor) && (
           <div className="mt-2 flex items-center justify-between gap-2 border-t border-white/[0.06] pt-2">
             <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5">
               {isRecovered && (
@@ -608,6 +660,7 @@ export function VentaRow({
               {conceptSubtitle && (
                 <span className={cn("truncate text-[12px] font-medium", conceptSubtitleClass)}>{conceptSubtitle}</span>
               )}
+              {cobradoPor && <span className="truncate text-[12px] text-white/50">{cobradoPor} → Cobró</span>}
             </div>
             {hasExpandableContent && (
               <ChevronDown className={cn("size-4 shrink-0 text-white/40 transition-transform", expanded && "rotate-180")} />
