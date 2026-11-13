@@ -8979,21 +8979,6 @@ function CierreCajaBtn({
                 <p className="text-xs text-muted-foreground mt-0.5">
                   Caja abierta desde {cajaAbiertaDesde}
                 </p>
-                {/* Pasos del cierre: solo indica dónde estás, no cambia el flujo. */}
-                <div className="mt-2 flex items-center gap-1.5 text-[11px] font-semibold">
-                  {[
-                    { n: 1, label: "Caja", on: !prereqStep && !confirmStep },
-                    { n: 2, label: "Personal", on: prereqStep },
-                    { n: 3, label: "Confirmar", on: confirmStep },
-                  ].map((st, i) => (
-                    <React.Fragment key={st.n}>
-                      {i > 0 && <span className="h-px w-3 bg-white/20" />}
-                      <span className={cn("rounded-full px-2.5 py-1 ring-1", st.on ? "bg-violet-500/20 text-white ring-violet-300/50" : "bg-white/[0.04] text-white/45 ring-white/10")}>
-                        {st.n}. {st.label}
-                      </span>
-                    </React.Fragment>
-                  ))}
-                </div>
               </div>
               <button
                 type="button"
@@ -9004,7 +8989,7 @@ function CierreCajaBtn({
               </button>
             </div>
 
-            <div className="max-h-[75vh] overflow-y-auto p-5 space-y-4">
+            <div className="max-h-[75vh] overflow-x-hidden overflow-y-auto p-5 space-y-4">
               {!preview || loadingPreview ? (
                 <div className="py-10 text-center text-sm text-muted-foreground">Calculando…</div>
               ) : confirmStep ? (

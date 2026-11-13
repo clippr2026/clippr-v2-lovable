@@ -499,7 +499,7 @@ export function PresentismoRevisionPanel({
                   </span>
                 </div>
               </div>
-              <div className="flex shrink-0 items-center gap-2">
+              <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
                 {shownStatus && (
                   <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ${STATUS_CLASS[shownStatus]}`}>
                     {STATUS_LABEL[shownStatus]}
