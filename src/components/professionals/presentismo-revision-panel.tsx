@@ -373,7 +373,7 @@ export function PresentismoRevisionPanel({
     if (!ruleId) return "—";
     const r = rules.find((x) => x.id === ruleId);
     if (!r) return "—";
-    return `Desde ${r.min_minutes} min → ${r.discount_type === "percent" ? `−${r.discount_value} pts de comisión` : money(Number(r.discount_value))}`;
+    return `Desde ${r.min_minutes} min → ${r.discount_type === "percent" ? `−${r.discount_value}%` : money(Number(r.discount_value))}`;
   }
 
   function startAction(employeeId: string, action: AttendanceAction) {
@@ -592,21 +592,27 @@ export function PresentismoRevisionPanel({
             className="rounded-2xl border border-white/10 bg-[#0b0a14] px-4 py-3.5 [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.10),transparent_62%)]"
           >
             <div className="flex items-start justify-between gap-2">
-              <div className="min-w-0 truncate text-[15px] font-semibold text-white">{row.name}</div>
+              <div className="min-w-0 flex-1 truncate text-[15px] font-semibold text-white">{row.name}</div>
               <div className="flex shrink-0 items-center gap-2">
-                {shownStatus ? (
-                  <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ${STATUS_CLASS[shownStatus]}`}>
-                    {STATUS_LABEL[shownStatus]}
-                    {live ? " · sin guardar" : isConfirmed ? " · confirmado" : ""}
-                  </span>
-                ) : (
-                  <span className="text-xs text-white/45">Sin fichar</span>
-                )}
+                {!isConfirmed &&
+                  (shownStatus ? (
+                    <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1 ${STATUS_CLASS[shownStatus]}`}>
+                      {STATUS_LABEL[shownStatus]}
+                      {live ? " · sin guardar" : ""}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-white/45">Sin fichar</span>
+                  ))}
                 {isConfirmed && iconBtns}
               </div>
             </div>
             {(shownClockIn || bloqueado) && (
-              <div className="mt-0.5 text-[13px] text-white/60">
+              <div className="mt-1 text-[13px] text-white/60">
+                {isConfirmed && shownStatus && (
+                  <span className={`mr-2 inline-block rounded-full px-2.5 py-0.5 align-middle text-[11px] font-semibold ring-1 ${STATUS_CLASS[shownStatus]}`}>
+                    {STATUS_LABEL[shownStatus]} · confirmado
+                  </span>
+                )}
                 {shownClockIn && (
                   <>
                     Entrada <span className="tabular-nums text-white/80">{horaCorta(shownClockIn)}</span>
