@@ -2625,7 +2625,7 @@ function PublicBookingPage() {
                                       location: address ?? "",
                                     });
                                     const opcion = "flex w-full items-center gap-3 rounded-2xl px-4 py-3 text-sm font-semibold transition hover:brightness-125";
-                                    const calColor = (c: string): React.CSSProperties => ({ background: `${c}26`, border: `1.5px solid ${c}99`, boxShadow: `0 0 18px -8px ${c}` });
+                                    const calColor = (_unused?: string): React.CSSProperties => ({ background: `color-mix(in oklch, ${accent} 16%, transparent)`, border: `1.5px solid color-mix(in oklch, ${accent} 60%, transparent)` });
                                     return (
                                       <>
                                         {gcalHref ? (

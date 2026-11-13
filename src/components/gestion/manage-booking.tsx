@@ -118,12 +118,11 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
   const tz = data?.business.timezone || DEFAULT_TIMEZONE;
   const primaryBtn = { ...publicButtonStyle(accent, buttonText), display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "14px 18px", borderRadius: 14, fontSize: 15, fontWeight: 800, width: "100%", cursor: "pointer", textDecoration: "none", border: "none" } as React.CSSProperties;
   const ghostBtn: React.CSSProperties = { display: "flex", alignItems: "center", justifyContent: "center", gap: 8, padding: "13px 16px", borderRadius: 14, border: `1px solid ${c.border}`, background: c.innerBg, color: c.text, fontSize: 14, fontWeight: 700, width: "100%", cursor: "pointer", textDecoration: "none" };
-  // Opciones de calendario con color propio (Google, Apple, Outlook): fondo suave, borde y letra legibles.
-  const calOpt = (color: string): React.CSSProperties => ({
+  // Opciones de calendario: un solo color, el de la página (acento del negocio), fondo suave y borde.
+  const calOpt = (_unused?: string): React.CSSProperties => ({
     ...ghostBtn,
-    background: `${color}26`,
-    border: `1.5px solid ${color}99`,
-    boxShadow: `0 0 18px -8px ${color}`,
+    background: `color-mix(in oklch, ${accent} 16%, transparent)`,
+    border: `1.5px solid color-mix(in oklch, ${accent} 60%, transparent)`,
   });
 
   const fireEmail = (type: "reschedule" | "cancellation", previousStartIso?: string) => {
