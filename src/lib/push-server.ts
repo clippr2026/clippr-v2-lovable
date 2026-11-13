@@ -1,5 +1,8 @@
-import webpush from "web-push";
+import * as webpushModule from "web-push";
 import { createClient } from "@supabase/supabase-js";
+
+// web-push es CommonJS: según el entorno el módulo viene con o sin "default".
+const webpush: typeof import("web-push") = (webpushModule as any).default ?? webpushModule;
 
 // Envío de notificaciones push (solo servidor). Usa la clave privada VAPID (VAPID_PRIVATE_KEY, variable de
 // entorno de Vercel — nunca va en el repo ni llega al navegador) y la clave de servicio de Supabase para leer

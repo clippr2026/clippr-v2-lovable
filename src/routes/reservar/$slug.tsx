@@ -1185,40 +1185,17 @@ function PublicBookingPage() {
     if (!selectedSlot || !confirmedBooking) return;
     const start = selectedSlot.time;
     const end = new Date(start.getTime() + Math.max(15, confirmedBooking.duration || 30) * 60000);
-    const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}/, "");
-    const esc = (t: string) => t.replace(/\\/g, "\\\\").replace(/;/g, "\\;").replace(/,/g, "\\,").replace(/\r?\n/g, "\\n");
     const place = branches.find((b) => b.id === selectedBranchId)?.address || business?.address || "";
-    const lines = [
-      "BEGIN:VCALENDAR",
-      "VERSION:2.0",
-      "PRODID:-//Clippr//Reservas//ES",
-      "CALSCALE:GREGORIAN",
-      "METHOD:PUBLISH",
-      "BEGIN:VEVENT",
-      `UID:${fmt(start)}-${Math.random().toString(36).slice(2, 10)}@clippr`,
-      `DTSTAMP:${fmt(new Date())}`,
-      `DTSTART:${fmt(start)}`,
-      `DTEND:${fmt(end)}`,
-      `SUMMARY:${esc(`${confirmedBooking.services} · ${business?.name ?? ""}`.trim())}`,
-      ...(place ? [`LOCATION:${esc(place)}`] : []),
-      `DESCRIPTION:${esc(`Profesional: ${confirmedBooking.professional}\nTotal: ${formatMoney(confirmedBooking.total)}`)}`,
-      "BEGIN:VALARM",
-      "TRIGGER:-PT60M",
-      "ACTION:DISPLAY",
-      "DESCRIPTION:Recordatorio de tu turno",
-      "END:VALARM",
-      "END:VEVENT",
-      "END:VCALENDAR",
-    ];
-    const blob = new Blob([lines.join("\r\n")], { type: "text/calendar;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = "turno.ics";
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.setTimeout(() => URL.revokeObjectURL(url), 4000);
+    const q = new URLSearchParams({
+      title: `${confirmedBooking.services} · ${business?.name ?? ""}`.trim(),
+      start: start.toISOString(),
+      end: end.toISOString(),
+      location: place,
+      description: `Profesional: ${confirmedBooking.professional}\nTotal: ${formatMoney(confirmedBooking.total)}`,
+      alarm: "60",
+    });
+    // Se abre desde una URL real (text/calendar): en iPhone aparece directo "Agregar al calendario".
+    window.location.assign(`/api/ics?${q.toString()}`);
   }
 
   function nextFromServices() {

@@ -32,6 +32,7 @@ import { Route as SetPasswordRouteImport } from './routes/set-password'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ApiCleanupFichajeSelfiesRouteImport } from './routes/api/cleanup-fichaje-selfies'
 import { Route as ApiCleanupReceiptsRouteImport } from './routes/api/cleanup-receipts'
+import { Route as ApiIcsRouteImport } from './routes/api/ics'
 import { Route as ApiPushTestRouteImport } from './routes/api/push-test'
 import { Route as ApiVersionRouteImport } from './routes/api/version'
 import { Route as FichajeKioscoBranchIdRouteImport } from './routes/fichaje-kiosco/$branchId'
@@ -156,6 +157,11 @@ const ApiCleanupReceiptsRoute = ApiCleanupReceiptsRouteImport.update({
   path: '/api/cleanup-receipts',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiIcsRoute = ApiIcsRouteImport.update({
+  id: '/api/ics',
+  path: '/api/ics',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPushTestRoute = ApiPushTestRouteImport.update({
   id: '/api/push-test',
   path: '/api/push-test',
@@ -211,6 +217,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/api/cleanup-fichaje-selfies': typeof ApiCleanupFichajeSelfiesRoute
   '/api/cleanup-receipts': typeof ApiCleanupReceiptsRoute
+  '/api/ics': typeof ApiIcsRoute
   '/api/push-test': typeof ApiPushTestRoute
   '/api/version': typeof ApiVersionRoute
   '/fichaje-kiosco/$branchId': typeof FichajeKioscoBranchIdRoute
@@ -242,6 +249,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/api/cleanup-fichaje-selfies': typeof ApiCleanupFichajeSelfiesRoute
   '/api/cleanup-receipts': typeof ApiCleanupReceiptsRoute
+  '/api/ics': typeof ApiIcsRoute
   '/api/push-test': typeof ApiPushTestRoute
   '/api/version': typeof ApiVersionRoute
   '/fichaje-kiosco/$branchId': typeof FichajeKioscoBranchIdRoute
@@ -274,6 +282,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/api/cleanup-fichaje-selfies': typeof ApiCleanupFichajeSelfiesRoute
   '/api/cleanup-receipts': typeof ApiCleanupReceiptsRoute
+  '/api/ics': typeof ApiIcsRoute
   '/api/push-test': typeof ApiPushTestRoute
   '/api/version': typeof ApiVersionRoute
   '/fichaje-kiosco/$branchId': typeof FichajeKioscoBranchIdRoute
@@ -307,6 +316,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/api/cleanup-fichaje-selfies'
     | '/api/cleanup-receipts'
+    | '/api/ics'
     | '/api/push-test'
     | '/api/version'
     | '/fichaje-kiosco/$branchId'
@@ -338,6 +348,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/api/cleanup-fichaje-selfies'
     | '/api/cleanup-receipts'
+    | '/api/ics'
     | '/api/push-test'
     | '/api/version'
     | '/fichaje-kiosco/$branchId'
@@ -369,6 +380,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/api/cleanup-fichaje-selfies'
     | '/api/cleanup-receipts'
+    | '/api/ics'
     | '/api/push-test'
     | '/api/version'
     | '/fichaje-kiosco/$branchId'
@@ -401,6 +413,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   ApiCleanupFichajeSelfiesRoute: typeof ApiCleanupFichajeSelfiesRoute
   ApiCleanupReceiptsRoute: typeof ApiCleanupReceiptsRoute
+  ApiIcsRoute: typeof ApiIcsRoute
   ApiPushTestRoute: typeof ApiPushTestRoute
   ApiVersionRoute: typeof ApiVersionRoute
   FichajeKioscoBranchIdRoute: typeof FichajeKioscoBranchIdRoute
@@ -572,6 +585,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiCleanupReceiptsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/ics': {
+      id: '/api/ics'
+      path: '/api/ics'
+      fullPath: '/api/ics'
+      preLoaderRoute: typeof ApiIcsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/push-test': {
       id: '/api/push-test'
       path: '/api/push-test'
@@ -642,6 +662,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   ApiCleanupFichajeSelfiesRoute: ApiCleanupFichajeSelfiesRoute,
   ApiCleanupReceiptsRoute: ApiCleanupReceiptsRoute,
+  ApiIcsRoute: ApiIcsRoute,
   ApiPushTestRoute: ApiPushTestRoute,
   ApiVersionRoute: ApiVersionRoute,
   FichajeKioscoBranchIdRoute: FichajeKioscoBranchIdRoute,
