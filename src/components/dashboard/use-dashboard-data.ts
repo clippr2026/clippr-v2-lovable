@@ -131,6 +131,8 @@ async function loadDashboard(
     .from("payments")
     .select("id,total,method,created_at,appointment_id,client_name,service_name,items")
     .eq("business_id", businessId)
+    // Una venta anulada/reembolsada no cuenta como servicio realizado ni como ingreso.
+    .not("status", "in", "(anulado,reembolsado)")
     .gte("created_at", today.toISOString())
     .lte("created_at", todayEnd.toISOString());
   if (branchFilter) payQuery = payQuery.or(branchFilter);
@@ -139,6 +141,7 @@ async function loadDashboard(
     .from("payments")
     .select("id,total,created_at,appointment_id")
     .eq("business_id", businessId)
+    .not("status", "in", "(anulado,reembolsado)")
     .gte("created_at", yesterday.toISOString())
     .lte("created_at", yesterdayEnd.toISOString());
   if (branchFilter) payYestQuery = payYestQuery.or(branchFilter);
@@ -240,6 +243,7 @@ async function loadDashboard(
       .select("id,total,method,created_at,appointment_id,client_name,service_name,items")
       .eq("business_id", businessId)
       .eq("session_id", session.id)
+      .not("status", "in", "(anulado,reembolsado)")
       .gte("created_at", today.toISOString())
       .lte("created_at", todayEnd.toISOString());
     if (branchFilter) sessionPaymentsQuery = sessionPaymentsQuery.or(branchFilter);
@@ -273,6 +277,7 @@ async function loadDashboard(
     .from("payments")
     .select("total,created_at")
     .eq("business_id", businessId)
+    .not("status", "in", "(anulado,reembolsado)")
     .gte("created_at", w7start.toISOString())
     .lte("created_at", todayEnd.toISOString());
   if (branchFilter) w7payQuery = w7payQuery.or(branchFilter);
