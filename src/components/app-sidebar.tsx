@@ -626,7 +626,7 @@ type MobileNavEntry = {
 function MobileBottomNavSkeleton() {
   return (
     <nav
-      className="lg:hidden fixed inset-x-3 z-40 rounded-full border border-white/15 bg-[rgba(40,40,46,0.6)] backdrop-blur-2xl"
+      className="lg:hidden fixed inset-x-3 z-40 rounded-full border border-white/10 bg-[rgba(10,10,16,0.78)] backdrop-blur-2xl"
       style={{ bottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)" }}
     >
       <div className="grid h-[58px] grid-cols-7">
@@ -678,6 +678,7 @@ export function useMobileNavItems() {
 function MobileBottomNav() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const { loading, items, visible } = useMobileNavItems();
+  const compact = useCompactOnScroll();
 
   // Mientras se resuelve la sesión/rol (F5, primera carga), profile todavía
   // es null y el rol real no se conoce. Un skeleton neutro (mismo alto, sin
@@ -706,41 +707,25 @@ function MobileBottomNav() {
   return (
     <MobileFixedBottom>
     <nav
-      className="lg:hidden fixed inset-x-3 z-40 rounded-full border border-white/15 bg-[rgba(40,40,46,0.6)] shadow-[0_12px_32px_-8px_rgba(0,0,0,0.7),inset_0_1px_0_rgba(255,255,255,0.18)] backdrop-blur-2xl backdrop-saturate-150"
+      className="lg:hidden fixed z-40 overflow-hidden rounded-full border border-white/10 bg-[rgba(10,10,16,0.78)] shadow-[0_12px_32px_-8px_rgba(0,0,0,0.8),inset_0_1px_0_rgba(255,255,255,0.10)] backdrop-blur-2xl backdrop-saturate-150 transition-[left,right,bottom] duration-300 ease-out"
       style={{
         position: "fixed",
+        left: compact ? "22%" : "12px",
+        right: compact ? "22%" : "12px",
         bottom: "calc(env(safe-area-inset-bottom, 0px) + 8px)",
         transform: "translate3d(0, 0, 0)",
         WebkitTransform: "translate3d(0, 0, 0)",
         willChange: "transform",
       }}
     >
-      <div className="grid h-[58px] items-center px-1.5" style={{ gridTemplateColumns: `repeat(${barItems.length}, minmax(0, 1fr))` }}>
+      <div
+        className={cn("grid items-center px-1.5 transition-[height] duration-300 ease-out", compact ? "h-[44px]" : "h-[58px]")}
+        style={{ gridTemplateColumns: `repeat(${barItems.length}, minmax(0, 1fr))` }}
+      >
         {barItems.map((item) => {
           const active = pathname === item.to;
           const Icon = item.icon;
           const label = MOBILE_NAV_SHORT_LABEL[item.label] ?? item.label;
-          if (item.permKey === "dashboard") {
-            // Inicio: círculo con degradé dentro de la barra, en el medio.
-            return (
-              <Link
-                key={item.to}
-                to={item.to}
-                aria-label={item.label}
-                title={item.label}
-                className="flex items-center justify-center transition active:scale-[0.92]"
-              >
-                <span
-                  className={cn(
-                    "grid h-11 w-11 place-items-center rounded-full bg-gradient-to-b from-sky-400 to-violet-500 transition",
-                    active ? "shadow-[0_0_20px_rgba(139,92,246,0.85)] ring-2 ring-white/40" : "opacity-90 shadow-[0_0_10px_rgba(139,92,246,0.4)]",
-                  )}
-                >
-                  <Icon className="h-6 w-6 text-white" />
-                </span>
-              </Link>
-            );
-          }
           return (
             <Link
               key={item.to}
@@ -752,12 +737,15 @@ function MobileBottomNav() {
               {/* El ítem activo se marca con una pastilla más clara y su nombre, como en Instagram. */}
               <span
                 className={cn(
-                  "flex h-[46px] w-full flex-col items-center justify-center gap-0.5 rounded-full transition",
-                  active ? "bg-white/[0.18]" : "bg-transparent",
+                  "flex w-full flex-col items-center justify-center gap-0.5 rounded-full transition-all duration-300",
+                  compact ? "h-[34px]" : "h-[46px]",
+                  active ? "bg-white/[0.14]" : "bg-transparent",
                 )}
               >
-                <Icon className={cn("h-[22px] w-[22px] transition", active ? "text-white" : "text-white/80")} />
-                {active && <span className="max-w-full truncate px-0.5 text-[9px] font-semibold leading-none text-white">{label}</span>}
+                <Icon className={cn("transition-all", compact ? "h-[18px] w-[18px]" : "h-[22px] w-[22px]", active ? "text-white" : "text-white/70")} />
+                {active && !compact && (
+                  <span className="max-w-full truncate px-0.5 text-[9px] font-semibold leading-none text-white">{label}</span>
+                )}
               </span>
             </Link>
           );
@@ -766,6 +754,31 @@ function MobileBottomNav() {
     </nav>
     </MobileFixedBottom>
   );
+}
+
+// Al bajar con el dedo (scroll hacia abajo) la barra se achica; al subir o al estar
+// arriba de todo vuelve a su tamaño. Escucha el scroll de cualquier contenedor de la página.
+function useCompactOnScroll() {
+  const [compact, setCompact] = React.useState(false);
+  React.useEffect(() => {
+    const last = new WeakMap<EventTarget, number>();
+    function onScroll(e: Event) {
+      const t = e.target as Element | Document;
+      const el = t === document ? document.scrollingElement : (t as Element);
+      if (!el) return;
+      if (el !== document.scrollingElement && (el as Element).clientHeight < 300) return;
+      const y = (el as Element).scrollTop;
+      const prev = last.get(t) ?? y;
+      const delta = y - prev;
+      if (y <= 16) setCompact(false);
+      else if (delta > 8) setCompact(true);
+      else if (delta < -8) setCompact(false);
+      if (Math.abs(delta) > 8 || y <= 16) last.set(t, y);
+    }
+    document.addEventListener("scroll", onScroll, { capture: true, passive: true });
+    return () => document.removeEventListener("scroll", onScroll, { capture: true } as EventListenerOptions);
+  }, []);
+  return compact;
 }
 
 // Monta a sus hijos en document.body (solo en el cliente). Evita que un
