@@ -7612,8 +7612,8 @@ function CierreMovimientosDetalleList({
       )}
 
       {(filtro === "todos" || filtro === "servicios") && (
-        <div className="mt-4 overflow-hidden rounded-2xl border border-white/[0.075] bg-white/[0.03]">
-          <div className="p-4 pb-0 text-xs font-bold uppercase tracking-[0.16em] text-white/45">
+        <div className={cn("mt-4", !ocultarFacturacion && "overflow-hidden rounded-2xl border border-white/[0.075] bg-white/[0.03]")}>
+          <div className={cn("p-4 pb-0 text-xs font-bold uppercase tracking-[0.16em] text-white/45", ocultarFacturacion && "hidden")}>
             {filtro === "todos" ? "Movimientos" : "Servicios"} ({serviciosFiltrados.length + otrosMovimientos.length})
             {serviciosAnuladosFiltrados.length > 0 && (
               <span className="ml-2 normal-case tracking-normal text-rose-300/80">
@@ -7841,7 +7841,7 @@ function CierreMovimientosDetalleList({
               {/* Celular/tablet angosta: una tarjeta compacta por servicio,
                   con etiqueta + valor en cada campo (nunca un solo texto
                   corrido como antes). */}
-              <div className="space-y-2 p-4 lg:hidden">
+              <div className={cn("space-y-2.5 lg:hidden", ocultarFacturacion ? "p-0" : "p-4")}>
                 {serviciosFiltrados.map((p: any, idx: number) => {
                   const items: any[] = Array.isArray(p.items) ? p.items : [];
                   const servicioNombre =
@@ -7873,14 +7873,14 @@ function CierreMovimientosDetalleList({
                       key={`${p.id ?? idx}`}
                       onClick={p.id && onRowClick ? () => onRowClick(p.id) : undefined}
                       className={cn(
-                        "rounded-xl bg-black/22 px-3.5 py-3 text-xs",
+                        "rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5 text-sm",
                         p.id && onRowClick && "cursor-pointer active:bg-black/30",
                       )}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate font-semibold text-white">{p.cliente ?? "Cliente"}</div>
-                          <div className="mt-0.5 truncate text-white/50">
+                          <div className="truncate text-base font-semibold text-white">{p.cliente ?? "Cliente"}</div>
+                          <div className="mt-1 truncate text-[13px] text-white/60">
                             {p.hora ?? "—"}
                             {p.profesional ? ` · ${p.profesional}` : ""} · {servicioNombre}
                           </div>
@@ -7895,8 +7895,8 @@ function CierreMovimientosDetalleList({
                       {/* Resumen siempre visible: lo cobrado. El detalle (lista, descuento y propina) se despliega. */}
                       <details className="mt-2 rounded-lg bg-white/[0.03] px-2.5 py-2" onClick={(e) => e.stopPropagation()}>
                         <summary className="flex cursor-pointer list-none items-center justify-between gap-2">
-                          <span className="text-[10px] uppercase tracking-wide text-white/40">Cobrado · ver detalle</span>
-                          <span className="text-sm font-extrabold tabular-nums text-emerald-300">{money(montoMostrado)}</span>
+                          <span className="text-xs uppercase tracking-wide text-white/50">Cobrado · ver detalle</span>
+                          <span className="text-lg font-extrabold tabular-nums text-emerald-300">{money(montoMostrado)}</span>
                         </summary>
                         <div className="mt-2 grid grid-cols-3 gap-x-3 gap-y-1.5 border-t border-white/[0.06] pt-2">
                           <div>
@@ -7931,14 +7931,14 @@ function CierreMovimientosDetalleList({
                       key={`anulado-${p.id ?? idx}`}
                       onClick={p.id && onRowClick ? () => onRowClick(p.id) : undefined}
                       className={cn(
-                        "rounded-xl bg-black/22 px-3.5 py-3 text-xs opacity-60",
+                        "rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5 text-sm opacity-60",
                         p.id && onRowClick && "cursor-pointer active:opacity-80",
                       )}
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
-                          <div className="truncate font-semibold text-white">{p.cliente ?? "Cliente"}</div>
-                          <div className="mt-0.5 truncate text-white/50">
+                          <div className="truncate text-base font-semibold text-white">{p.cliente ?? "Cliente"}</div>
+                          <div className="mt-1 truncate text-[13px] text-white/60">
                             {p.hora ?? "—"}
                             {p.profesional ? ` · ${p.profesional}` : ""} · {servicioNombre}
                           </div>
@@ -7967,11 +7967,11 @@ function CierreMovimientosDetalleList({
                     <div
                       key={`pendiente-${p.id ?? idx}`}
                       onClick={p.id && onRowClick ? () => onRowClick(p.id) : undefined}
-                      className={cn("rounded-xl bg-black/22 px-3.5 py-3 text-xs", p.id && onRowClick && "cursor-pointer active:opacity-80")}
+                      className={cn("rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3.5 text-sm", p.id && onRowClick && "cursor-pointer active:opacity-80")}
                     >
                       <div className="min-w-0">
-                        <div className="truncate font-semibold text-white">{p.cliente ?? "Cliente"}</div>
-                        <div className="mt-0.5 truncate text-white/50">
+                        <div className="truncate text-base font-semibold text-white">{p.cliente ?? "Cliente"}</div>
+                        <div className="mt-1 truncate text-[13px] text-white/60">
                           {p.hora ?? "—"}
                           {p.profesional ? ` · ${p.profesional}` : ""} · {servicioNombre}
                         </div>
@@ -8567,7 +8567,7 @@ function CierreRevisionDetalle({
           <span>Ver movimientos</span>
           <ChevronDown className="size-4 text-white/60 transition-transform group-open:rotate-180" />
         </summary>
-        <div className="px-4 pb-4">
+        <div className="px-3 pb-4">
           <CierreMovimientosDetalleList
             cobros={snapshot.cobrosSnapshot}
             cobrosAnulados={snapshot.cobrosAnuladosSnapshot}
