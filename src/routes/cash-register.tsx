@@ -8825,9 +8825,8 @@ function CierreCajaBtn({
   const [open, setOpen] = useState(false);
   // Jornada a cerrar: por defecto la pendiente más vieja (fechaCierre), pero se puede
   // elegir hoy aunque haya una anterior sin cerrar (cada cierre toma un solo día).
-  const [fechaElegida, setFechaElegida] = useState<string | null>(null);
   const hoyKey = cajaDateKeyBA();
-  const fechaCierre = fechaElegida && fechaElegida >= cajaRangeStartDate ? fechaElegida : cajaRangeStartDate;
+  const fechaCierre = hoyKey;
   const [obs, setObs] = useState("");
   // Señas por revisar de este día o anteriores: no se puede cerrar hasta revisarlas.
   const [senasBloquean, setSenasBloquean] = useState(false);
@@ -8919,20 +8918,8 @@ function CierreCajaBtn({
   const ajusteCuenta = saldoRealNum - expected.digitalExpected;
   const obsRequeridaFalta = diferencia !== 0 && !obs.trim();
 
-  function elegirFecha(f: string) {
-    if (f === fechaCierre) return;
-    setFechaElegida(f);
-    setPreview(null);
-    setContadoTouched(false);
-    setSaldoRealTouched(false);
-    setObs("");
-    setConfirmStep(false);
-    setPrereqStep(false);
-  }
-
   function cerrarModal() {
     setOpen(false);
-    setFechaElegida(null);
     setConfirmStep(false);
     setPrereqStep(false);
     setContadoTouched(false);
@@ -8996,23 +8983,6 @@ function CierreCajaBtn({
                 <p className="text-xs text-muted-foreground mt-0.5">
                   Caja abierta desde {cajaAbiertaDesde}
                 </p>
-                {cajaRangeStartDate < hoyKey && !confirmStep && !prereqStep && (
-                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                    {[cajaRangeStartDate, hoyKey].map((f) => (
-                      <button
-                        key={f}
-                        type="button"
-                        onClick={() => elegirFecha(f)}
-                        className={cn(
-                          "rounded-full px-3 py-1 text-xs font-semibold ring-1 transition",
-                          fechaCierre === f ? "bg-violet-500/20 text-white ring-violet-300/50" : "bg-white/[0.04] text-white/55 ring-white/10",
-                        )}
-                      >
-                        {f === hoyKey ? `Hoy ${fechaDDMMYYYY(f).slice(0, 5)}` : `${fechaDDMMYYYY(f).slice(0, 5)} (pendiente)`}
-                      </button>
-                    ))}
-                  </div>
-                )}
                 {fechaCierre < hoyKey ? (
                   <p className="mt-1.5 text-xs font-medium text-amber-300">
                     Estás cerrando la jornada pendiente del {fechaDDMMYYYY(fechaCierre)}.
