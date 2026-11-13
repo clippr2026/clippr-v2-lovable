@@ -10555,9 +10555,9 @@ function DetailModal({
       : "—";
 
   const Row = ({ label, value }: { label: string; value: React.ReactNode }) => (
-    <div className="flex items-start justify-between gap-4 py-2.5 border-b border-white/5 last:border-0">
+    <div className="flex items-start justify-between gap-4 py-1.5 border-b border-white/5 last:border-0">
       <span className="text-xs text-muted-foreground shrink-0">{label}</span>
-      <span className="text-xs text-foreground text-right">{value ?? "—"}</span>
+      <span className="min-w-0 break-words text-xs text-foreground text-right">{value ?? "—"}</span>
     </div>
   );
 
@@ -10972,7 +10972,7 @@ function DetailModal({
             esto evita que llegar al principio/final de ESTE scroll
             encadene el gesto hacia algún ancestro — mismo criterio que ya
             usan las listas scrolleables de Pago múltiple. */}
-        <div className="px-5 py-1 max-h-[72vh] overflow-y-auto overscroll-contain">
+        <div className="px-5 py-1 max-h-[72vh] overflow-x-hidden overflow-y-auto overscroll-contain">
           {soloAcciones && (
             <div className="py-2 text-sm text-white/70">
               {payment.client_name ?? empName ?? "Cliente"} · <span className="font-semibold text-white">${totalCobrado.toLocaleString("es-AR")}</span>
@@ -11010,21 +11010,14 @@ function DetailModal({
           )}
 
           {/* Bloque: Quién */}
-          <div className="mt-2 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3 space-y-0">
-            <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">
-              Participantes
+          <div className="mt-2 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-2.5 space-y-0">
+            <p className="text-xs font-semibold text-white/80 mb-1">
+              Venta
             </p>
             <Row label="Cliente" value={payment.client_name ?? "—"} />
             <Row label="Profesional" value={empName ?? "—"} />
             <Row label="Cobrado por" value={chargedBy ?? "—"} />
             {sucursal && <Row label="Sucursal" value={sucursal} />}
-          </div>
-
-          {/* Bloque: Qué */}
-          <div className="mt-2 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3 space-y-0">
-            <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">
-              Detalle del servicio
-            </p>
             <Row
               label="Servicio / Producto"
               value={payment.service_name ?? "—"}
@@ -11032,10 +11025,12 @@ function DetailModal({
             {/* Desglose Servicio/Descuento/Propina/Total cobrado — las
                 filas de Descuento y Propina solo aparecen si hubo alguno de
                 los dos, para no ensuciar el detalle de un cobro simple. */}
-            <Row
-              label="Servicio"
-              value={`$${servicioAmount.toLocaleString("es-AR")}`}
-            />
+            {(discountAmount > 0 || tipAmount > 0 || (depositApplied ?? 0) > 0) && (
+              <Row
+                label="Servicio"
+                value={`$${servicioAmount.toLocaleString("es-AR")}`}
+              />
+            )}
             {discountAmount > 0 && (
               <Row
                 label="Descuento"
@@ -11097,16 +11092,16 @@ function DetailModal({
           </div>
 
           {/* Bloque: Cómo se cobró */}
-          <div className="mt-2 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3 space-y-0">
-            <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">
-              Método de cobro
+          <div className="mt-2 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-2.5 space-y-0">
+            <p className="text-xs font-semibold text-white/80 mb-1">
+              Cobro
             </p>
             <Row
-              label="💳 Método de pago"
+              label="Método de pago"
               value={PAY_METHOD_LABEL[method] ?? method}
             />
             <Row
-              label="📍 Origen del cobro"
+              label="Origen"
               value={<ChargeTypePill type={chargeType} />}
             />
             <Row label="Estado" value={<StatusPill status={status} />} />
@@ -11148,13 +11143,6 @@ function DetailModal({
                 />
               )
             )}
-          </div>
-
-          {/* Bloque: Trazabilidad */}
-          <div className="mt-2 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3 space-y-0">
-            <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">
-              Trazabilidad
-            </p>
             <Row
               label="Nº de venta"
               value={<span className="font-mono">{ventaNum}</span>}
@@ -11171,21 +11159,21 @@ function DetailModal({
           </div>
 
           {isPendingOrParcial && (
-            <div className="mt-2 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3">
-              <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">
+            <div className="mt-2 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-2.5">
+              <p className="text-xs font-semibold text-white/80 mb-1">
                 Historial de cobros
               </p>
               <VentaPendienteHistoryPanel paymentId={payment.id} />
             </div>
           )}
 
-          {obs && (
-            <div className="mt-2 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3">
-              <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">
+          {realNote(obs) && (
+            <div className="mt-2 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-2.5">
+              <p className="text-xs font-semibold text-white/80 mb-1">
                 Nota / Observaciones
               </p>
-              <p className="text-xs text-muted-foreground whitespace-pre-wrap">
-                {obs}
+              <p className="break-words text-xs text-muted-foreground whitespace-pre-wrap">
+                {realNote(obs)}
               </p>
             </div>
           )}
@@ -11195,8 +11183,8 @@ function DetailModal({
               otras ventas. Mismo componente que usa el Historial de
               actividad general de Configuración → Seguridad — nunca una
               segunda lista implementada aparte. */}
-          <div className="mt-2 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-3">
-            <p className="text-[10px] uppercase tracking-[0.16em] text-muted-foreground/60 mb-2">
+          <div className="mt-2 rounded-xl bg-white/[0.03] ring-1 ring-white/5 px-4 py-2.5">
+            <p className="text-xs font-semibold text-white/80 mb-1">
               Historial
             </p>
             <PaymentAuthorizationHistoryPanel paymentId={payment.id} />
