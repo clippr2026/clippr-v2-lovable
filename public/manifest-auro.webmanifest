@@ -1,0 +1,18 @@
+{
+  "id": "/auro-stylo?app=auro",
+  "name": "Auro Stylo",
+  "short_name": "Auro Stylo",
+  "description": "Reservá tu turno en Auro Stylo.",
+  "start_url": "/auro-stylo?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0b0a14",
+  "theme_color": "#0b0a14",
+  "lang": "es-AR",
+  "icons": [
+    { "src": "/pwa/auro-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/pwa/auro-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/pwa/auro-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

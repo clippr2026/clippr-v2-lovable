@@ -5,6 +5,7 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
@@ -105,7 +106,6 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
     ],
     links: [
       { rel: "icon", type: "image/webp", href: "/clippr-powered-logo.webp?v=2" },
-      { rel: "apple-touch-icon", href: "/clippr-powered-logo.webp?v=2" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
       { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" },
@@ -118,11 +118,32 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
   errorComponent: ErrorComponent,
 });
 
+// Dos apps instalables (PWA): la de los clientes de Auro Stylo (reservas, con su logo) y la de
+// quienes usan Clippr para gestionar el local. Cada pantalla enlaza el manifiesto que le toca.
+function PwaLinks() {
+  const pathname = useRouterState({ select: (st) => st.location.pathname });
+  const esAuro =
+    pathname.startsWith("/auro-stylo") ||
+    pathname.startsWith("/reservar/auro-stylo") ||
+    pathname.startsWith("/negocio/auro-stylo");
+  return (
+    <>
+      <link rel="manifest" href={esAuro ? "/manifest-auro.webmanifest" : "/manifest-clippr.webmanifest"} />
+      <link rel="apple-touch-icon" href={esAuro ? "/pwa/auro-apple-180.png" : "/pwa/clippr-apple-180.png"} />
+      <meta name="apple-mobile-web-app-capable" content="yes" />
+      <meta name="mobile-web-app-capable" content="yes" />
+      <meta name="apple-mobile-web-app-title" content={esAuro ? "Auro Stylo" : "Clippr"} />
+      <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    </>
+  );
+}
+
 function RootShell({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es">
       <head>
         <HeadContent />
+        <PwaLinks />
       </head>
       <body>
         {children}
@@ -141,6 +162,13 @@ function RootComponent() {
   // procesarse, reforzando la sensación de que "no respondió" al primer toque.
   React.useEffect(() => {
     document.addEventListener("touchstart", () => {}, { passive: true });
+  }, []);
+
+  // Service worker de las apps instalables (PWA) y de las notificaciones push.
+  React.useEffect(() => {
+    if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+      navigator.serviceWorker.register("/sw.js").catch(() => {});
+    }
   }, []);
 
   // iOS Safari/PWA: al volver de otra pestaña (o del selector de apps), la
