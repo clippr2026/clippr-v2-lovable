@@ -18,12 +18,13 @@ export const Route = createFileRoute("/api/pwa-icon")({
         if (!/^[a-z0-9-]{1,80}$/.test(slug) || !SIZES.has(size)) {
           return new Response("Parámetros inválidos", { status: 400 });
         }
-        const supabaseUrl = process.env.VITE_SUPABASE_URL;
-        const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-        if (!supabaseUrl || !key) return new Response("Servidor sin credenciales", { status: 500 });
+        // Solo lectura pública (vista de datos públicos del local): alcanza con la clave pública.
+        const supabaseUrl = process.env.VITE_SUPABASE_URL ?? import.meta.env.VITE_SUPABASE_URL;
+        const key = process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+        if (!supabaseUrl || !key) return new Response("Servidor sin configuración", { status: 500 });
 
-        const admin = createClient(supabaseUrl, key);
-        const { data } = await admin.from("businesses").select("avatar_url,logo_url").eq("slug", slug).maybeSingle();
+        const pub = createClient(supabaseUrl, key);
+        const { data } = await pub.from("public_booking_businesses").select("avatar_url,logo_url").eq("slug", slug).maybeSingle();
         const row = data as { avatar_url?: string | null; logo_url?: string | null } | null;
         const foto = row?.avatar_url || row?.logo_url;
         if (!foto) return new Response("Sin foto de perfil", { status: 404 });
