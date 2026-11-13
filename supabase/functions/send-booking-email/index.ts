@@ -295,6 +295,7 @@ Deno.serve(async (req: Request) => {
       time: booking.time || "-",
       total: Number(booking.total ?? 0),
       manageUrl,
+      installUrl: (biz?.slug as string | undefined) ? `${APP_ORIGIN}/negocio/${biz.slug}?instalar=1` : null,
       confirmUrl,
       calendarUrl,
       mapsUrl: (biz?.address as string)?.trim()

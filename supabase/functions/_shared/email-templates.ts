@@ -50,6 +50,8 @@ export type BookingEmailData = {
   calendarUrl?: string | null;
   /** Google Maps con la dirección del local (si el negocio tiene dirección). */
   mapsUrl?: string | null;
+  /** Perfil público del local con la guía de instalación de la app abierta (/negocio/<slug>?instalar=1). */
+  installUrl?: string | null;
   /** Chat de WhatsApp del negocio (si tiene teléfono). */
   whatsappUrl?: string | null;
   /** Página pública para volver a reservar. */
@@ -61,7 +63,7 @@ export type BookingEmailData = {
 };
 
 type Row = { label: string; value: string };
-type Btn = { label: string; url: string; variant: "primary" | "secondary"; icon?: "agregar" | "llegar" | "whatsapp" | "gestionar" | "confirmar" };
+type Btn = { label: string; url: string; variant: "primary" | "secondary"; icon?: "agregar" | "llegar" | "whatsapp" | "gestionar" | "confirmar" | "instalar" };
 
 export function clipprSender(businessName?: string | null): string {
   const name = (businessName ?? "").trim() || "Clippr";
@@ -339,6 +341,7 @@ function bookingButtons(d: BookingEmailData): Btn[] {
   if (d.mapsUrl) btns.push({ label: "Cómo llegar", url: d.mapsUrl, variant: "secondary", icon: "llegar" });
   if (d.whatsappUrl) btns.push({ label: "WhatsApp", url: d.whatsappUrl, variant: "secondary", icon: "whatsapp" });
   if (d.manageUrl) btns.push({ label: "Gestionar turno", url: d.manageUrl, variant: "secondary", icon: "gestionar" });
+  if (d.installUrl) btns.push({ label: "Instalar la app", url: d.installUrl, variant: "secondary", icon: "instalar" });
   return btns;
 }
 
@@ -445,7 +448,7 @@ export function buildBookingEmail(
         html: baseLayout({
           ...base,
           // A 2 horas ya venció el plazo de cancelar/reprogramar: sin el botón "Gestionar turno".
-          buttons: base.buttons.filter((b) => b.icon !== "gestionar"),
+          buttons: base.buttons.filter((b) => b.icon !== "gestionar" && b.icon !== "instalar"),
           preheader: `Te esperamos hoy a las ${d.time} en ${biz}.`,
           eyebrow: "⏰ En 2 horas",
           eyebrowColor: "#9a3412",
