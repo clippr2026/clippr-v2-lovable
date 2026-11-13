@@ -130,8 +130,15 @@ function PwaLinks() {
     pathname.startsWith("/gestion");
   return (
     <>
-      <link rel="manifest" href={esAuro ? "/manifest-auro.webmanifest" : "/manifest-clippr.webmanifest"} />
-      <link rel="apple-touch-icon" href={esAuro ? "/pwa/auro-apple-180.png" : "/pwa/clippr-apple-180.png"} />
+      <link
+        rel="manifest"
+        href={esAuro ? "/api/pwa-manifest?slug=auro-stylo&name=Auro%20Stylo" : "/manifest-clippr.webmanifest"}
+      />
+      {/* Auro: la foto de perfil ACTUAL del local (se lee de la base), no un archivo fijo. */}
+      <link
+        rel="apple-touch-icon"
+        href={esAuro ? "/api/pwa-icon?slug=auro-stylo&size=180" : "/pwa/clippr-apple-180.png"}
+      />
       <meta name="apple-mobile-web-app-capable" content="yes" />
       <meta name="mobile-web-app-capable" content="yes" />
       <meta name="apple-mobile-web-app-title" content={esAuro ? "Auro Stylo" : "Clippr"} />

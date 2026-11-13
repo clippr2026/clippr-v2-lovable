@@ -2,7 +2,8 @@ import * as React from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { MapPin, ArrowRight } from "lucide-react";
 import { PushAvisosButton } from "@/components/push-avisos-button";
-import auroStyloLogo from "@/assets/auro-stylo-logo.jpeg";
+import auroStyloLogo from "@/assets/auro-stylo-perfil.png";
+import { supabase } from "@/integrations/supabase/client";
 import auroRecoletaPhoto from "@/assets/auro-recoleta.png";
 import auroMonserratPhoto from "@/assets/auro-monserrat.jpeg";
 
@@ -48,6 +49,24 @@ const BRANCHES: Array<{
 ];
 
 function AuroStyloBranchPage() {
+  // Foto de perfil actual del local (la que se cambia desde Clippr); mientras carga o si falla, la copia incluida.
+  const [perfilUrl, setPerfilUrl] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    let cancelled = false;
+    void supabase
+      .from("public_booking_businesses")
+      .select("avatar_url,logo_url")
+      .eq("slug", "auro-stylo")
+      .maybeSingle()
+      .then(({ data }) => {
+        const row = data as { avatar_url?: string | null; logo_url?: string | null } | null;
+        if (!cancelled) setPerfilUrl(row?.avatar_url || row?.logo_url || null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return (
     <main className="relative min-h-dvh overflow-hidden bg-[#08070b] text-white">
       {/* Glow ambiental muy sutil, mismo criterio "premium" que el resto de
@@ -66,7 +85,7 @@ function AuroStyloBranchPage() {
         {/* Header */}
         <div className="flex flex-col items-center text-center">
           <img
-            src={auroStyloLogo}
+            src={perfilUrl ?? auroStyloLogo}
             alt="Auro Stylo"
             className="h-14 w-14 shrink-0 rounded-full object-cover sm:h-24 sm:w-24"
           />

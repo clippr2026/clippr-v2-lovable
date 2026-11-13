@@ -34,6 +34,8 @@ import { Route as ApiCleanupFichajeSelfiesRouteImport } from './routes/api/clean
 import { Route as ApiCleanupReceiptsRouteImport } from './routes/api/cleanup-receipts'
 import { Route as ApiIcsRouteImport } from './routes/api/ics'
 import { Route as ApiPushTestRouteImport } from './routes/api/push-test'
+import { Route as ApiPwaIconRouteImport } from './routes/api/pwa-icon'
+import { Route as ApiPwaManifestRouteImport } from './routes/api/pwa-manifest'
 import { Route as ApiVersionRouteImport } from './routes/api/version'
 import { Route as FichajeKioscoBranchIdRouteImport } from './routes/fichaje-kiosco/$branchId'
 import { Route as FicharBranchIdRouteImport } from './routes/fichar/$branchId'
@@ -167,6 +169,16 @@ const ApiPushTestRoute = ApiPushTestRouteImport.update({
   path: '/api/push-test',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPwaIconRoute = ApiPwaIconRouteImport.update({
+  id: '/api/pwa-icon',
+  path: '/api/pwa-icon',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiPwaManifestRoute = ApiPwaManifestRouteImport.update({
+  id: '/api/pwa-manifest',
+  path: '/api/pwa-manifest',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiVersionRoute = ApiVersionRouteImport.update({
   id: '/api/version',
   path: '/api/version',
@@ -219,6 +231,8 @@ export interface FileRoutesByFullPath {
   '/api/cleanup-receipts': typeof ApiCleanupReceiptsRoute
   '/api/ics': typeof ApiIcsRoute
   '/api/push-test': typeof ApiPushTestRoute
+  '/api/pwa-icon': typeof ApiPwaIconRoute
+  '/api/pwa-manifest': typeof ApiPwaManifestRoute
   '/api/version': typeof ApiVersionRoute
   '/fichaje-kiosco/$branchId': typeof FichajeKioscoBranchIdRoute
   '/fichar/$branchId': typeof FicharBranchIdRoute
@@ -251,6 +265,8 @@ export interface FileRoutesByTo {
   '/api/cleanup-receipts': typeof ApiCleanupReceiptsRoute
   '/api/ics': typeof ApiIcsRoute
   '/api/push-test': typeof ApiPushTestRoute
+  '/api/pwa-icon': typeof ApiPwaIconRoute
+  '/api/pwa-manifest': typeof ApiPwaManifestRoute
   '/api/version': typeof ApiVersionRoute
   '/fichaje-kiosco/$branchId': typeof FichajeKioscoBranchIdRoute
   '/fichar/$branchId': typeof FicharBranchIdRoute
@@ -284,6 +300,8 @@ export interface FileRoutesById {
   '/api/cleanup-receipts': typeof ApiCleanupReceiptsRoute
   '/api/ics': typeof ApiIcsRoute
   '/api/push-test': typeof ApiPushTestRoute
+  '/api/pwa-icon': typeof ApiPwaIconRoute
+  '/api/pwa-manifest': typeof ApiPwaManifestRoute
   '/api/version': typeof ApiVersionRoute
   '/fichaje-kiosco/$branchId': typeof FichajeKioscoBranchIdRoute
   '/fichar/$branchId': typeof FicharBranchIdRoute
@@ -318,6 +336,8 @@ export interface FileRouteTypes {
     | '/api/cleanup-receipts'
     | '/api/ics'
     | '/api/push-test'
+    | '/api/pwa-icon'
+    | '/api/pwa-manifest'
     | '/api/version'
     | '/fichaje-kiosco/$branchId'
     | '/fichar/$branchId'
@@ -350,6 +370,8 @@ export interface FileRouteTypes {
     | '/api/cleanup-receipts'
     | '/api/ics'
     | '/api/push-test'
+    | '/api/pwa-icon'
+    | '/api/pwa-manifest'
     | '/api/version'
     | '/fichaje-kiosco/$branchId'
     | '/fichar/$branchId'
@@ -382,6 +404,8 @@ export interface FileRouteTypes {
     | '/api/cleanup-receipts'
     | '/api/ics'
     | '/api/push-test'
+    | '/api/pwa-icon'
+    | '/api/pwa-manifest'
     | '/api/version'
     | '/fichaje-kiosco/$branchId'
     | '/fichar/$branchId'
@@ -415,6 +439,8 @@ export interface RootRouteChildren {
   ApiCleanupReceiptsRoute: typeof ApiCleanupReceiptsRoute
   ApiIcsRoute: typeof ApiIcsRoute
   ApiPushTestRoute: typeof ApiPushTestRoute
+  ApiPwaIconRoute: typeof ApiPwaIconRoute
+  ApiPwaManifestRoute: typeof ApiPwaManifestRoute
   ApiVersionRoute: typeof ApiVersionRoute
   FichajeKioscoBranchIdRoute: typeof FichajeKioscoBranchIdRoute
   FicharBranchIdRoute: typeof FicharBranchIdRoute
@@ -599,6 +625,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiPushTestRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/pwa-icon': {
+      id: '/api/pwa-icon'
+      path: '/api/pwa-icon'
+      fullPath: '/api/pwa-icon'
+      preLoaderRoute: typeof ApiPwaIconRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/pwa-manifest': {
+      id: '/api/pwa-manifest'
+      path: '/api/pwa-manifest'
+      fullPath: '/api/pwa-manifest'
+      preLoaderRoute: typeof ApiPwaManifestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/version': {
       id: '/api/version'
       path: '/api/version'
@@ -664,6 +704,8 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCleanupReceiptsRoute: ApiCleanupReceiptsRoute,
   ApiIcsRoute: ApiIcsRoute,
   ApiPushTestRoute: ApiPushTestRoute,
+  ApiPwaIconRoute: ApiPwaIconRoute,
+  ApiPwaManifestRoute: ApiPwaManifestRoute,
   ApiVersionRoute: ApiVersionRoute,
   FichajeKioscoBranchIdRoute: FichajeKioscoBranchIdRoute,
   FicharBranchIdRoute: FicharBranchIdRoute,
