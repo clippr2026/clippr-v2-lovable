@@ -666,7 +666,7 @@ export function PresentismoRevisionPanel({
               )}
             </div>
 
-            {showSalida && !sessionByEmp.get(row.employeeId) && effectiveClockIn && status !== "ausente" && (
+            {showSalida && isConfirmed && !sessionByEmp.get(row.employeeId) && effectiveClockIn && status !== "ausente" && (
               <SalidaRow
                 session={{ id: null, clock_in_at: effectiveClockIn, clock_out_at: null }}
                 defaultOut={defaultOut}
@@ -676,7 +676,8 @@ export function PresentismoRevisionPanel({
                 manual={{ businessId, branchId, employeeId: row.employeeId }}
               />
             )}
-            {showSalida && ses && !ses.clock_out_at && (
+            {/* Primero se confirma la entrada; recién después se pide la salida. */}
+            {showSalida && isConfirmed && ses && !ses.clock_out_at && (
               <SalidaRow
                 session={ses}
                 defaultOut={defaultOut}
