@@ -5635,7 +5635,7 @@ function ProfesionalesTab({
           "prende la luz" al cargar. Desktop no cambia (shadow doble original
           vía `sm:`). */}
       <section className="flex flex-col overflow-visible rounded-3xl border border-white/[0.085] bg-[linear-gradient(180deg,rgba(10,14,26,0.96),rgba(4,6,14,0.985))] shadow-[0_24px_85px_-50px_rgba(139,92,246,0.42)] sm:h-full sm:overflow-hidden sm:shadow-[0_32px_100px_-58px_rgba(0,0,0,0.95),0_24px_85px_-62px_rgba(139,92,246,0.42)]">
-        <div className={cn("flex flex-col gap-3 border-b border-white/[0.065] px-5 py-3.5 lg:flex-row lg:items-center lg:justify-between", liqDetalle && "hidden sm:flex")}>
+        <div className={cn("flex flex-col gap-3 border-b border-white/[0.065] px-5 py-3.5 lg:flex-row lg:items-center lg:justify-between", (liqDetalle || !selectedRow) && "hidden", liqDetalle && selectedRow && "sm:flex")}>
           <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
             <select
               value={selectedEmployeeId}
@@ -6291,7 +6291,6 @@ function ProfesionalesTab({
                   {money(overviewRows.reduce((sum, r) => sum + Math.max(r.total, 0), 0))}
                 </div>
               </div>
-              <div className="text-xs text-white/45">Elegí un profesional para ver el detalle</div>
             </div>
             <div className="flex flex-col gap-2">
               {overviewRows.map((r) => (
