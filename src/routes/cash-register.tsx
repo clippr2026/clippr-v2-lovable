@@ -7881,44 +7881,43 @@ function CierreMovimientosDetalleList({
                         p.id && onRowClick && "cursor-pointer active:bg-black/30",
                       )}
                     >
+                      {/* Misma tarjeta que los movimientos de Mi Panel: hora y monto arriba, cliente y servicio, chips. */}
                       <div className="flex items-start justify-between gap-2">
-                        <div className="min-w-0">
-                          <div className="truncate text-base font-semibold text-white">{p.cliente ?? "Cliente"}</div>
-                          <div className="mt-1 truncate text-[13px] text-white/60">
-                            {p.hora ?? "—"}
-                            {p.profesional ? ` · ${p.profesional}` : ""} · {servicioNombre}
-                          </div>
+                        <span className="text-[12px] tabular-nums text-white/60">{p.hora ?? "—"}</span>
+                        <div className="shrink-0 text-right">
+                          <div className="text-lg font-bold leading-none tabular-nums text-emerald-300">{money(montoMostrado)}</div>
+                          <div className="mt-0.5 text-[11px] font-medium text-emerald-200/70">Cobrado</div>
                         </div>
+                      </div>
+                      <div className="mt-1 min-w-0">
+                        <div className="truncate text-[15px] font-semibold leading-tight text-white">{p.cliente ?? "Cliente"}</div>
+                        <div className="mt-0.5 truncate text-[13px] text-white/65">
+                          {p.profesional ? `${p.profesional} · ` : ""}{servicioNombre}
+                        </div>
+                      </div>
+                      <div className="mt-2 flex flex-wrap items-center gap-1.5">
                         {medioFiltro === "todos" ? (
                           <MetodoBadges metodo={p.metodo} splits={p.splits} />
                         ) : (
                           <MetodoBadge method={medioFiltro} amount={esSplitParcial ? montoMostrado : undefined} />
                         )}
+                        {!esSplitParcial && descuento > 0 && (
+                          <span className="rounded-full bg-white/[0.05] px-2 py-0.5 text-[12px] tabular-nums text-white/80 ring-1 ring-white/10">
+                            <span className="text-white/40 line-through">{money(precioLista)}</span>
+                          </span>
+                        )}
+                        {!esSplitParcial && descuento > 0 && (
+                          <span className="rounded-full bg-amber-400/10 px-2 py-0.5 text-[12px] font-semibold tabular-nums text-amber-300 ring-1 ring-amber-300/25">
+                            -{money(descuento)}
+                          </span>
+                        )}
+                        {propinaMostrada > 0 && (
+                          <span className="rounded-full bg-emerald-400/10 px-2 py-0.5 text-[12px] font-semibold tabular-nums text-emerald-300 ring-1 ring-emerald-300/25">
+                            + propina {money(propinaMostrada)}
+                          </span>
+                        )}
                       </div>
-                      {p.promocion && <div className="mt-1 text-[11px] text-violet-300/80">Promo: {p.promocion}</div>}
-                      {/* Resumen siempre visible: lo cobrado. El detalle (lista, descuento y propina) se despliega. */}
-                      <details className="mt-2 rounded-lg bg-white/[0.03] px-2.5 py-2" onClick={(e) => e.stopPropagation()}>
-                        <summary className="flex cursor-pointer list-none items-center justify-between gap-2">
-                          <span className="text-xs uppercase tracking-wide text-white/50">Cobrado · ver detalle</span>
-                          <span className="text-lg font-extrabold tabular-nums text-emerald-300">{money(montoMostrado)}</span>
-                        </summary>
-                        <div className="mt-2 grid grid-cols-3 gap-x-3 gap-y-1.5 border-t border-white/[0.06] pt-2">
-                          <div>
-                            <div className="text-[10px] uppercase tracking-wide text-white/35">Lista</div>
-                            <div className={cn("tabular-nums", descuento > 0 ? "text-white/45 line-through decoration-white/20" : "text-white/60")}>
-                              {esSplitParcial ? "—" : money(precioLista)}
-                            </div>
-                          </div>
-                          <div>
-                            <div className="text-[10px] uppercase tracking-wide text-white/35">Descuento</div>
-                            <div className="tabular-nums text-amber-300/90">{esSplitParcial ? "—" : descuento > 0 ? `-${money(descuento)}` : "—"}</div>
-                          </div>
-                          <div>
-                            <div className="text-[10px] uppercase tracking-wide text-white/35">Propina</div>
-                            <div className="tabular-nums text-amber-200">{propinaMostrada > 0 ? money(propinaMostrada) : "—"}</div>
-                          </div>
-                        </div>
-                      </details>
+                      {p.promocion && <div className="mt-2 border-t border-white/[0.06] pt-2 text-[12px] font-medium text-violet-300/90">Promo: {p.promocion}</div>}
                     </div>
                   );
                 })}
