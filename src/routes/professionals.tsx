@@ -69,7 +69,8 @@ import {
   VentaRow,
   MovRow,
   UnifiedMovimientosHeader,
-  MovDayHeader,
+  useDayCollapse,
+  renderCollapsibleDays,
   withDayHeaders,
   StatCard,
 } from "@/components/liquidaciones/unified-row";
@@ -2630,6 +2631,7 @@ function LiquidacionesPanelView({
   // mismo criterio y mismo componente (<VentaRow>/<MovRow>) que Caja >
   // Liquidaciones, para que las dos pantallas se vean y se actualicen
   // exactamente igual.
+  const dayCollapse = useDayCollapse("panel");
   const unifiedMovimientos = React.useMemo(() => {
     const ventaItems = ventaRows.map((c: any) => ({
       kind: "venta" as const,
@@ -2961,8 +2963,7 @@ function LiquidacionesPanelView({
         <div className="flex flex-col gap-2">
           <div className="pt-1 text-base font-bold text-foreground">Movimientos recientes</div>
           <UnifiedMovimientosHeader />
-          {withDayHeaders(unifiedMovimientos).map((item: any) => {
-            if (item.kind === "dia") return <MovDayHeader key={`dia-${item.dayKey}`} dayKey={item.dayKey} presentismo={item.presentismo} />;
+          {renderCollapsibleDays(withDayHeaders(unifiedMovimientos), dayCollapse, (item: any) => {
             if (item.kind === "venta") {
               return (
                 <VentaRow
