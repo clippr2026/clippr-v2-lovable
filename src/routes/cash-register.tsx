@@ -1,6 +1,7 @@
 import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
 import { CierreSenasGate } from "@/components/senas/cierre-senas-gate";
 import { SenasCajaCard } from "@/components/senas/senas-caja-card";
+import { fetchVentasSinComision } from "@/lib/ventas-sin-comision";
 import { CierreExtensionesNota, SenasExtensionBanner } from "@/components/senas/senas-extension";
 import { senaMovimientoInfo, senaNotaVisible, senasOtroDiaAviso } from "@/lib/senas-contable";
 import { useDepositCredit } from "@/components/cash-register/deposit-charge-banner";
@@ -4943,6 +4944,25 @@ function ProfesionalesTab({
     return { porVenta, repartidos };
   }, [openPresentismo, detailRows, desglosesPenalizacion]);
 
+  // Ventas del profesional elegido sin comisión ni propina ($0) y anuladas, desde la última
+  // liquidación: así el período sin liquidar se ve completo, también con ventas de comisión $0.
+  const [ventasSinComision, setVentasSinComision] = React.useState<any[]>([]);
+  const sinComisionProfId = selectedRow?.id ?? null;
+  const sinComisionDesde = selectedRow?.periodStartAt ?? null;
+  React.useEffect(() => {
+    if (!businessId || !sinComisionProfId) {
+      setVentasSinComision([]);
+      return;
+    }
+    let cancelled = false;
+    void fetchVentasSinComision(businessId, sinComisionProfId, sinComisionDesde).then((rows) => {
+      if (!cancelled) setVentasSinComision(rows);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [businessId, sinComisionProfId, sinComisionDesde]);
+
   const historialItems = React.useMemo(
     () =>
       buildHistorialMovimientos(
@@ -4960,7 +4980,8 @@ function ProfesionalesTab({
   // ordenados por fecha — reemplaza las pestañas "Comisiones"/"Movimientos"
   // de antes, que mostraban las dos fuentes por separado.
   const unifiedMovimientos = React.useMemo(() => {
-    const ventaItems = (detailRows ?? []).map((c: any) => ({
+    const yaEnLista = new Set((detailRows ?? []).map((c: any) => c.sale_id));
+    const ventaItems = [...(detailRows ?? []), ...ventasSinComision.filter((c: any) => !yaEnLista.has(c.sale_id))].map((c: any) => ({
       kind: "venta" as const,
       at: resolveVentaDate(c) as string,
       commission: c,
@@ -4968,7 +4989,7 @@ function ProfesionalesTab({
     return [...ventaItems, ...historialItems].sort((a: any, b: any) =>
       String(b.at ?? "").localeCompare(String(a.at ?? "")),
     );
-  }, [detailRows, historialItems]);
+  }, [detailRows, ventasSinComision, historialItems]);
 
   // Este mapa solo sirve para recuperar el run dueño de un pago (período,
   // "Ver detalle"), no para agrupar la vista — eso lo hace historialItems.

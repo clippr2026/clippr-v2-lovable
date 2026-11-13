@@ -26,6 +26,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { registerPayment } from "@/components/cash-register/register-payment";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchVentasSinComision } from "@/lib/ventas-sin-comision";
 import {
   useProfessionals, useProfPayments,
   useProfTurnos,
@@ -2464,9 +2465,8 @@ function LiquidacionesPanelView({
     };
   }, [businessId, empId]);
 
-  // Ventas del profesional que no tienen comisión ni propina registrada (comisión $0) y ventas
-  // anuladas/reembolsadas: se muestran siempre en Movimientos, así ningún día queda "sin servicios"
-  // aunque haya habido ventas. Las que ya tienen comisión se ven por su fila de comisión.
+  // Ventas sin comisión ni propina ($0) y anuladas: se muestran siempre en Movimientos, así ningún
+  // día queda "sin servicios" aunque haya habido ventas (ver fetchVentasSinComision).
   const [anuladasRows, setAnuladasRows] = useState<any[]>([]);
   React.useEffect(() => {
     if (!businessId || !empId) {
@@ -2474,42 +2474,9 @@ function LiquidacionesPanelView({
       return;
     }
     let cancelled = false;
-    void (async () => {
-      const { data } = await supabase
-        .from("payments" as any)
-        .select("id,client_name,service_name,total,amount,method,payment_method,created_at,discount,original_amount,tip_amount,items,observations,status,promotion_name,promotion_id")
-        .eq("business_id", businessId)
-        .eq("employee_id", empId)
-        .in("status", ["cobrado", "anulado", "reembolsado"])
-        .order("created_at", { ascending: false })
-        .limit(300);
-      const pays = (data ?? []) as any[];
-      const ids = pays.map((p) => p.id);
-      const conRegistro = new Set<string>();
-      if (ids.length > 0) {
-        const [{ data: cr }, { data: tr }] = await Promise.all([
-          supabase.from("commission_records" as any).select("sale_id").in("sale_id", ids),
-          supabase.from("tip_records" as any).select("sale_id").in("sale_id", ids),
-        ]);
-        ((cr ?? []) as any[]).forEach((r) => conRegistro.add(r.sale_id));
-        ((tr ?? []) as any[]).forEach((r) => conRegistro.add(r.sale_id));
-      }
-      if (cancelled) return;
-      setAnuladasRows(
-        pays
-          .filter((p) => p.status !== "cobrado" || !conRegistro.has(p.id))
-          .map((p) => ({
-            id: `sin-comision-${p.id}`,
-            sale_id: p.id,
-            professional_id: empId,
-            amount: 0,
-            pending_amount: 0,
-            created_at: p.created_at,
-            sale: p,
-            __anulada: p.status !== "cobrado",
-          })),
-      );
-    })();
+    void fetchVentasSinComision(businessId, empId).then((rows) => {
+      if (!cancelled) setAnuladasRows(rows);
+    });
     return () => {
       cancelled = true;
     };

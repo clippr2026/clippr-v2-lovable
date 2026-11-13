@@ -739,7 +739,7 @@ function MobileBottomNav() {
                 className={cn(
                   "flex w-full flex-col items-center justify-center gap-0.5 rounded-full transition-all duration-300",
                   compact ? "h-[34px]" : "h-[46px]",
-                  active ? "bg-white/[0.14]" : "bg-transparent",
+                  active ? "bg-gradient-to-b from-sky-400/35 to-violet-500/45 shadow-[0_0_16px_rgba(139,92,246,0.55)] ring-1 ring-violet-300/40" : "bg-transparent",
                 )}
               >
                 <Icon className={cn("transition-all", compact ? "h-[18px] w-[18px]" : "h-[22px] w-[22px]", active ? "text-white" : "text-white/70")} />
