@@ -732,14 +732,14 @@ export function MovDayHeader({
         {collapsible && (
           <ChevronDown className={cn("size-4 shrink-0 text-white/55 transition-transform", !open && "-rotate-90")} />
         )}
-        <span className="shrink-0 rounded-full bg-white/[0.07] px-3 py-1 text-sm font-semibold text-white ring-1 ring-white/10">
+        <span className="min-w-0 truncate rounded-full bg-white/[0.07] px-3 py-1 text-sm font-semibold text-white ring-1 ring-white/10">
           {movDayLabel(dayKey)}
         </span>
         {p ? (
-          <span className="ml-auto flex min-w-0 shrink items-center gap-1.5 text-xs">
+          <span className="ml-auto flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[11px]">
             <span className="text-white/60">
               {llegada ? `Entrada ${llegada}` : "Puntualidad"}
-              {p.penaltyOverridden ? " (ajustado)" : ""}
+              {p.penaltyOverridden ? "*" : ""}
             </span>
             <span className={cn("font-semibold", cls)}>{text}</span>
           </span>
