@@ -6,7 +6,7 @@ import { getFichajesDeFecha, type FichajeHoyPersona } from "@/lib/fichaje";
 import { FichajeEvidenciaModal } from "@/components/dashboard/fichaje-evidencia-modal";
 import { supabase } from "@/integrations/supabase/client";
 import { puntualidadMessage } from "@/lib/puntualidad-text";
-import { dayWindowBA, fetchBusinessClosingTime, horaBA, saveSessionExit } from "@/lib/work-session-exit";
+import { dayWindowBA, fetchBusinessClosingTime, horaBA, saveManualSession, saveSessionExit } from "@/lib/work-session-exit";
 import { latenessMinutes, pickLatenessRule } from "@/lib/lateness-penalty";
 import {
   confirmAttendance,
@@ -102,12 +102,15 @@ function SalidaRow({
   date,
   editedBy,
   onSaved,
+  manual,
 }: {
-  session: { id: string; clock_in_at: string; clock_out_at: string | null };
+  session: { id: string | null; clock_in_at: string; clock_out_at: string | null };
   defaultOut: string;
   date: string;
   editedBy: string;
   onSaved: () => void;
+  // Entrada cargada a mano (sin jornada fichada): al guardar se crea la jornada con su salida.
+  manual?: { businessId: string; branchId: string; employeeId: string };
 }) {
   const [time, setTime] = React.useState(defaultOut);
   const [saving, setSaving] = React.useState(false);
@@ -139,7 +142,10 @@ function SalidaRow({
         disabled={saving}
         onClick={async () => {
           setSaving(true);
-          const r = await saveSessionExit({ sessionId: session.id, clockInAt: session.clock_in_at, date, hhmm: time, editedBy });
+          const r =
+            session.id || !manual
+              ? await saveSessionExit({ sessionId: session.id as string, clockInAt: session.clock_in_at, date, hhmm: time, editedBy })
+              : await saveManualSession({ ...manual, clockInAt: session.clock_in_at, date, hhmm: time, editedBy });
           setSaving(false);
           if (!r.ok) return toast.error(r.error);
           toast.success("Salida guardada");
@@ -264,7 +270,17 @@ export function PresentismoRevisionPanel({
         }
         setSessionByEmp(map);
         setDefaultOut(closing);
-        onSalidasPendingChange?.(built.filter((r) => map.get(r.employeeId) && !map.get(r.employeeId)!.clock_out_at).map((r) => r.name));
+        // Falta la salida de quien fichó entrada sin salida y de quien tiene la entrada cargada a mano (sin jornada).
+        const entradaDe = (r: Row) => r.confirmation?.effectiveClockInAt ?? r.preview?.effectiveClockInAt ?? null;
+        onSalidasPendingChange?.(
+          built
+            .filter((r) => {
+              const ses = map.get(r.employeeId);
+              if (ses) return !ses.clock_out_at;
+              return Boolean(entradaDe(r)) && (r.confirmation?.status ?? r.preview?.status) !== "ausente";
+            })
+            .map((r) => r.name),
+        );
       }
       onScheduledIdsChange?.(built.map((r) => r.employeeId));
       try {
@@ -633,6 +649,16 @@ export function PresentismoRevisionPanel({
               </div>
             </div>
 
+            {showSalida && !sessionByEmp.get(row.employeeId) && effectiveClockIn && status !== "ausente" && (
+              <SalidaRow
+                session={{ id: null, clock_in_at: effectiveClockIn, clock_out_at: null }}
+                defaultOut={defaultOut}
+                date={date}
+                editedBy={confirmedByName}
+                onSaved={load}
+                manual={{ businessId, branchId, employeeId: row.employeeId }}
+              />
+            )}
             {showSalida && sessionByEmp.get(row.employeeId) && (
               <SalidaRow
                 session={sessionByEmp.get(row.employeeId)!}

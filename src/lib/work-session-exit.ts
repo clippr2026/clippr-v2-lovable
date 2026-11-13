@@ -55,3 +55,37 @@ export async function saveSessionExit(args: {
   if (error) return { ok: false, error: "No se pudo guardar la salida: " + error.message };
   return { ok: true };
 }
+
+// Entrada cargada a mano (ej. "Editar" en Revisar cierre, sin fichaje real): no
+// existe la jornada, así que se crea ya con su salida. Queda marcada como
+// manual y con quién la cargó.
+export async function saveManualSession(args: {
+  businessId: string;
+  branchId: string;
+  employeeId: string;
+  clockInAt: string;
+  date: string;
+  hhmm: string;
+  editedBy: string;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  const minutes = parseTimeStrict(args.hhmm);
+  if (minutes === null) return { ok: false, error: "Ingresá una hora de salida válida" };
+  const out = zonedTimeToInstant(dayWindowBA(args.date).day, minutes, DEFAULT_TIMEZONE);
+  if (out.getTime() <= new Date(args.clockInAt).getTime()) {
+    return { ok: false, error: `La salida tiene que ser posterior a la entrada (${horaBA(args.clockInAt)}).` };
+  }
+  const now = new Date().toISOString();
+  const { error } = await supabase.from("work_sessions" as any).insert({
+    business_id: args.businessId,
+    branch_id: args.branchId,
+    employee_id: args.employeeId,
+    clock_in_at: args.clockInAt,
+    clock_out_at: out.toISOString(),
+    source: "manual",
+    edited_by: args.editedBy,
+    edited_at: now,
+    edit_reason: "Entrada y salida cargadas al cerrar la caja",
+  });
+  if (error) return { ok: false, error: "No se pudo guardar la salida: " + error.message };
+  return { ok: true };
+}
