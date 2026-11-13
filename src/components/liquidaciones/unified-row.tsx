@@ -735,13 +735,11 @@ export function MovDayHeader({
         <span className="min-w-0 truncate rounded-full bg-white/[0.07] px-3 py-1 text-sm font-semibold text-white ring-1 ring-white/10">
           {movDayLabel(dayKey)}
         </span>
-        {p && p.status !== "ausente" ? (
+        {p ? (
           <span className="ml-auto flex shrink-0 items-center gap-1.5 whitespace-nowrap text-[11px]">
-            <span className="text-white/60">
-              {llegada ? `Entrada ${llegada}` : "Puntualidad"}
-              {p.penaltyOverridden ? "*" : ""}
-            </span>
+            {llegada && <span className="text-white/60">Entrada {llegada}</span>}
             <span className={cn("font-semibold", cls)}>{text}</span>
+            {p.penaltyOverridden && <span className="text-white/50">ajustado</span>}
           </span>
         ) : null}
       </div>
