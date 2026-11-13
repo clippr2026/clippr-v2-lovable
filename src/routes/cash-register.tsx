@@ -8979,6 +8979,11 @@ function CierreCajaBtn({
                 <p className="text-xs text-muted-foreground mt-0.5">
                   Caja abierta desde {cajaAbiertaDesde}
                 </p>
+                {cajaRangeStartDate < cajaDateKeyBA() && (
+                  <p className="mt-1.5 text-xs font-medium text-amber-300">
+                    Estás cerrando la jornada pendiente del {fechaDDMMYYYY(cajaRangeStartDate)}. Después se cierra la de hoy.
+                  </p>
+                )}
               </div>
               <button
                 type="button"
