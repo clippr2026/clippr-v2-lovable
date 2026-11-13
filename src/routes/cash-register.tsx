@@ -1592,7 +1592,7 @@ function ResumenTab({
         {/* Vista única (ya no hay selector Facturación/Gastos): resumen +
             acciones de caja (FacturacionPanel) y debajo el historial
             unificado de movimientos. */}
-        <div className="relative z-10 space-y-4">
+        <div className="relative z-10 space-y-6">
           <FacturacionPanel
             data={data}
             equipoEnabled={equipoEnabled}
@@ -13240,7 +13240,7 @@ function FacturacionPanel({
       {/* Acciones de caja — las cuatro juntas, mismo tamaño: lo que entra
           (Nueva venta, Ingresar dinero) en verde y lo que sale (Nuevo gasto,
           Retirar dinero) en rojo. Cerrar caja queda aparte, más abajo. */}
-      <div className={`mt-3 space-y-2.5 ${cajaCerrada ? "hidden" : ""}`}>
+      <div className={`mt-4 space-y-3.5 ${cajaCerrada ? "hidden" : ""}`}>
         {/* Dos acciones principales: lo que entra (verde) y lo que sale (rojo). */}
         <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:justify-center">
           <button type="button" onClick={onNuevaVenta} className="inline-flex h-12 items-center justify-center gap-2 rounded-full px-4 text-sm font-semibold transition hover:brightness-125 active:scale-[0.99] sm:min-w-[190px]" style={{ background: "rgba(16,185,129,0.10)", color: "#4ade80", boxShadow: "inset 0 0 0 1.5px rgba(74,222,128,.7), 0 0 20px rgba(34,197,94,.22)" }}>
@@ -13319,7 +13319,7 @@ function FacturacionPanel({
           una sola fila desde sm. */}
       <div
         className={cn(
-          "grid grid-cols-2 gap-2",
+          "grid grid-cols-2 gap-3",
           // "Cobros por confirmar" (showPendientes) es condicional — la
           // cantidad de columnas en desktop sigue la cantidad real de
           // tarjetas visibles (Ingresos y Gastos son siempre fijas), para
@@ -13375,7 +13375,7 @@ function FacturacionPanel({
           Descuentan los adelantos a profesionales con origen "Caja del día"
           (ver computeExpectedCashAndDigital); los de "Fondos externos" no. El
           detalle de cada saldo muestra el adelanto como línea propia. */}
-      <div className="grid grid-cols-2 gap-2">
+      <div className="grid grid-cols-2 gap-3">
         <FacturacionStatCard
           icon={Wallet}
           iconClass="text-amber-400"
