@@ -137,7 +137,7 @@ export function AppLocalInstalar({
             {interno ? (
               <>
                 <p className="mt-2 text-sm text-white/70">
-                  Para instalar la app, ingresá desde {navegador}. Copiá el link y pegalo en {navegador}.
+                  Para instalar la app, ingresá desde {navegador}.
                 </p>
                 <button
                   type="button"
