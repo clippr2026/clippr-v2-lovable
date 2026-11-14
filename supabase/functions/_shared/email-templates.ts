@@ -50,7 +50,7 @@ export type BookingEmailData = {
   calendarUrl?: string | null;
   /** Google Maps con la dirección del local (si el negocio tiene dirección). */
   mapsUrl?: string | null;
-  /** Perfil público del local con la guía de instalación de la app abierta (/negocio/<slug>?instalar=1). */
+  /** Página del turno con la guía de instalación de la app abierta (/gestion?k=…&instalar=1). */
   installUrl?: string | null;
   /** Chat de WhatsApp del negocio (si tiene teléfono). */
   whatsappUrl?: string | null;

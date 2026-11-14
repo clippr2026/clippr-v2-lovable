@@ -76,3 +76,35 @@ export async function desactivarAvisos() {
   await supabase.rpc("unregister_push_subscription_v1" as any, { p_endpoint: sub.endpoint });
   await sub.unsubscribe();
 }
+
+// La app instalada desde el correo arranca con el link único del turno (?k=…) en su dirección de inicio.
+// Se guarda en el celular (solo dentro de la app instalada) y se saca de la barra. Después sirve para saber
+// de qué cliente es el celular al activar los avisos.
+const claveToken = (slug: string) => `clippr_push_k_${slug}`;
+
+export function guardarTokenDeInicio(slug: string) {
+  if (typeof window === "undefined") return;
+  try {
+    const url = new URL(window.location.href);
+    const k = url.searchParams.get("k");
+    const instalada =
+      window.matchMedia?.("(display-mode: standalone)").matches || (navigator as any).standalone === true;
+    if (k && instalada && /^[A-Za-z0-9_-]{8,128}$/.test(k)) {
+      window.localStorage.setItem(claveToken(slug), k);
+    }
+    if (k && instalada) {
+      url.searchParams.delete("k");
+      window.history.replaceState(null, "", url.pathname + url.search + url.hash);
+    }
+  } catch {
+    /* sin almacenamiento: la app sigue andando, solo sin avisos de turnos */
+  }
+}
+
+export function tokenGuardado(slug: string): string | null {
+  try {
+    return typeof window === "undefined" ? null : window.localStorage.getItem(claveToken(slug));
+  } catch {
+    return null;
+  }
+}

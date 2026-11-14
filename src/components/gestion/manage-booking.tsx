@@ -389,9 +389,9 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
           {!depositFlow && active && !past && b.slug && (
             <div style={{ marginTop: 18 }}>
               <p style={{ textAlign: "center", color: c.muted, fontSize: 13, margin: "0 0 10px" }}>
-                Instalá la app para ver tus turnos y recibir avisos.
+                Instalá la app para reservar más rápido y recibir avisos de tus turnos.
               </p>
-              <AppLocalInstalar slug={b.slug} nombre={b.name} />
+              <AppLocalInstalar slug={b.slug} nombre={b.name} token={token} />
             </div>
           )}
           {!cancelled && !active && (

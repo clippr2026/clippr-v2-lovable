@@ -1,7 +1,6 @@
 import * as React from "react";
 import { Copy, Download, Share, SquarePlus, X } from "lucide-react";
 import { toast } from "sonner";
-import { PushAvisosButton } from "@/components/push-avisos-button";
 import { esIphoneSinInstalar } from "@/lib/push";
 import { cn } from "@/lib/utils";
 
@@ -24,10 +23,13 @@ function navegadorInterno() {
 export function AppLocalInstalar({
   slug,
   nombre,
+  token,
   className,
 }: {
   slug: string;
   nombre: string;
+  /** Link único del turno (el del correo): queda guardado en la dirección de inicio de la app instalada. */
+  token?: string;
   className?: string;
 }) {
   const [evento, setEvento] = React.useState<InstallPromptEvent | null>(null);
@@ -74,11 +76,13 @@ export function AppLocalInstalar({
       ?.setAttribute(
         "href",
         `/api/pwa-manifest?slug=${slug}&name=${encodeURIComponent(nombre || slug)}` +
-          (window.location.pathname.startsWith("/negocio/") ? `&start=${encodeURIComponent(`/negocio/${slug}`)}` : ""),
+          (token || window.location.pathname.startsWith("/negocio/")
+            ? `&start=${encodeURIComponent(`/negocio/${slug}`)}${token ? `&k=${encodeURIComponent(token)}` : ""}`
+            : ""),
       );
     document.querySelector('link[rel="apple-touch-icon"]')?.setAttribute("href", `/api/pwa-icon?slug=${slug}&size=180`);
     document.querySelector('meta[name="apple-mobile-web-app-title"]')?.setAttribute("content", nombre || slug);
-  }, [slug, nombre]);
+  }, [slug, nombre, token]);
 
   async function instalar() {
     if (evento) {
@@ -119,7 +123,6 @@ export function AppLocalInstalar({
           Instalar app
         </button>
       ) : null}
-      <PushAvisosButton app="auro" businessSlug={slug} />
 
       {cartelUnToque ? (
         <div className="fixed inset-0 z-[300] flex items-end justify-center bg-black/60 px-4 pb-6 backdrop-blur-sm sm:items-center">

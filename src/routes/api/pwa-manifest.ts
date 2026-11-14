@@ -13,6 +13,9 @@ export const Route = createFileRoute("/api/pwa-manifest")({
         // Página donde se agregó la app (solo del propio local): la app instalada abre ahí, no en otra pantalla.
         const start = u.searchParams.get("start") ?? "";
         const startPath = start === `/negocio/${slug}` ? start : null;
+        // Link único del turno (viene del correo): viaja dentro de la dirección de inicio de la app instalada.
+        const k = u.searchParams.get("k") ?? "";
+        const kOk = startPath && /^[A-Za-z0-9_-]{8,128}$/.test(k) ? k : null;
         let name = (u.searchParams.get("name") ?? "").slice(0, 40);
         if (!name) {
           // Sin nombre en el pedido: se lee el del local (vista pública), con el slug como último recurso.
@@ -33,7 +36,7 @@ export const Route = createFileRoute("/api/pwa-manifest")({
           description: `Reservá tu turno en ${name}.`,
           // Auro tiene su página propia (/auro-stylo); el resto de los locales arranca en su perfil público.
           start_url: startPath
-            ? `${startPath}?source=pwa`
+            ? `${startPath}?${kOk ? `k=${kOk}&` : ""}source=pwa`
             : slug === "auro-stylo"
               ? `/auro-stylo?source=pwa`
               : `/negocio/${slug}?source=pwa`,

@@ -1,7 +1,6 @@
 import * as React from "react";
 import { createFileRoute } from "@tanstack/react-router";
 import { MapPin, ArrowRight } from "lucide-react";
-import { AppLocalInstalar } from "@/components/app-local-instalar";
 import auroStyloLogo from "@/assets/auro-stylo-perfil.png";
 import { supabase } from "@/integrations/supabase/client";
 import auroRecoletaPhoto from "@/assets/auro-recoleta.png";
@@ -147,11 +146,6 @@ function AuroStyloBranchPage() {
               </div>
             </a>
           ))}
-        </div>
-
-        {/* Avisos de turnos y novedades al celular (app instalada) */}
-        <div className="mt-6 flex justify-center">
-          <AppLocalInstalar slug="auro-stylo" nombre="Auro Stylo" />
         </div>
 
         {/* Footer discreto — sin ninguna mención a Clippr/AgendaPro */}
