@@ -88,6 +88,28 @@ export function DepositPanel({
   const [shareMethod, setShareMethod] = React.useState<"cash" | "transfer">("cash");
   // Reembolso: primero se elige de dónde sale la plata (caja o fondos externos).
   const [refunding, setRefunding] = React.useState(false);
+  // Monto realmente recibido al aprobar (el cliente puede mandar menos o más que la seña pedida).
+  const [recibido, setRecibido] = React.useState("");
+  React.useEffect(() => {
+    if (dep) setRecibido(String(Math.round(dep.amount)));
+  }, [dep?.id, dep?.amount]);
+  const recibidoNum = Number(recibido);
+  const montoValido = recibidoNum > 0;
+  // null = el monto pedido (sin cambios); si lo editó, se aprueba con el monto recibido.
+  const montoAprobado = dep && montoValido && Math.round(recibidoNum) !== Math.round(dep.amount) ? recibidoNum : null;
+  const campoMonto = dep ? (
+    <label className="block space-y-1">
+      <span className="text-xs text-white/60">Monto recibido ($) — seña pedida {money(dep.amount)}</span>
+      <input
+        type="number"
+        inputMode="decimal"
+        min={1}
+        value={recibido}
+        onChange={(e) => setRecibido(e.target.value)}
+        className="h-11 w-full rounded-xl bg-white/5 px-3 text-base font-semibold tabular-nums ring-1 ring-white/15 outline-none focus:ring-violet-400/60"
+      />
+    </label>
+  ) : null;
 
   const load = React.useCallback(async () => {
     // Todo en paralelo: la seña del turno y (solo si la Agenda no la trajo) la configuración de señas.
@@ -279,6 +301,7 @@ export function DepositPanel({
           </div>
         )}
 
+      {(dep.status === "review" || dep.status === "pending") && !rejecting && !dep.proof_path && campoMonto}
       {(dep.status === "review" || dep.status === "pending") && !rejecting && !dep.proof_path && (
         <div className="grid grid-cols-2 gap-2.5">
           <button
@@ -295,8 +318,8 @@ export function DepositPanel({
           </button>
           <button
             type="button"
-            disabled={busy}
-            onClick={() => run("review_deposit_v1", { p_deposit_id: dep.id, p_approve: true, p_amount: null, p_note: null }, "Seña aprobada")}
+            disabled={busy || !montoValido}
+            onClick={() => run("review_deposit_v1", { p_deposit_id: dep.id, p_approve: true, p_amount: montoAprobado, p_note: null }, "Seña aprobada")}
             className="flex h-11 items-center justify-center gap-2 rounded-2xl text-[14px] font-bold text-white transition hover:brightness-110 active:scale-[0.99] disabled:opacity-60"
             style={{
               background: "linear-gradient(135deg, #7c5cff, #4f7dff)",
@@ -351,6 +374,7 @@ export function DepositPanel({
             )}
           </div>
           <div className="space-y-2.5 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 text-sm">
+{(dep.status === "review" || dep.status === "pending") && !rejecting && campoMonto}
 {(dep.status === "review" || dep.status === "pending") && !rejecting && (
         <div className="grid grid-cols-2 gap-2.5">
           <button
@@ -367,8 +391,8 @@ export function DepositPanel({
           </button>
           <button
             type="button"
-            disabled={busy}
-            onClick={() => run("review_deposit_v1", { p_deposit_id: dep.id, p_approve: true, p_amount: null, p_note: null }, "Seña aprobada")}
+            disabled={busy || !montoValido}
+            onClick={() => run("review_deposit_v1", { p_deposit_id: dep.id, p_approve: true, p_amount: montoAprobado, p_note: null }, "Seña aprobada")}
             className="flex h-11 items-center justify-center gap-2 rounded-2xl text-[14px] font-bold text-white transition hover:brightness-110 active:scale-[0.99] disabled:opacity-60"
             style={{
               background: "linear-gradient(135deg, #7c5cff, #4f7dff)",
