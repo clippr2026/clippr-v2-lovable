@@ -52,6 +52,7 @@ import { DeudaClientesBanner } from "@/components/clients/deuda-clientes-banner"
 import { PAY_METHOD_LABEL, type PayMethod } from "@/components/cash-register/register-payment";
 import { cancelAppointment, checkOverlap, getMaxAdvanceDays, saveAppointment } from "@/components/agenda/use-agenda-data";
 import { computeRepeatDates, WEEKDAYS, type RepeatWeekday } from "@/lib/recurring-schedule";
+import { limpiarTelefono, telefonoValido } from "@/lib/contacto-valido";
 
 // "Reservas recurrentes" (ficha del cliente) — misma tabla que arma
 // appointment-dialog.tsx al confirmar "Repetir turno".
@@ -1576,6 +1577,9 @@ function ClientsPage() {
     if (!newClient.phone.trim()) {
       return toast.error("Ingresá el teléfono del cliente.");
     }
+    if (!telefonoValido(newClient.phone)) {
+      return toast.error("El teléfono debe tener solo números (entre 8 y 15 dígitos).");
+    }
 
     await saveClient.mutateAsync(newClient);
     toast.success("Cliente guardado");
@@ -1879,7 +1883,7 @@ function ClientsPage() {
                 Teléfono *
                 <input
                   value={newClient.phone}
-                  onChange={(e) => setNewClient((s) => ({ ...s, phone: e.target.value }))}
+                  onChange={(e) => setNewClient((s) => ({ ...s, phone: limpiarTelefono(e.target.value) }))}
                   className="mt-1 w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2.5 text-sm text-foreground"
                 />
               </label>

@@ -38,6 +38,7 @@ import {
 } from "./use-agenda-data";
 import { ServiceImage } from "@/components/ui/service-image";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { emailValido, limpiarTelefono, telefonoValido } from "@/lib/contacto-valido";
 import {
   type RepeatWeekday,
   type RepeatEndMode,
@@ -736,6 +737,8 @@ export function AppointmentDialog({
 
     const phone = clientPhone.trim();
     if (!phone) throw new Error("Ingresá el teléfono del cliente.");
+    if (!telefonoValido(phone)) throw new Error("El teléfono debe tener solo números (entre 8 y 15 dígitos).");
+    if (clientEmail.trim() && !emailValido(clientEmail)) throw new Error("El email no es válido (por ejemplo cliente@email.com).");
 
     // Chequeo defensivo final contra la lista ya cargada — nunca crear un
     // cliente duplicado para el mismo teléfono, aunque por alguna razón el
@@ -1205,7 +1208,7 @@ export function AppointmentDialog({
                         className="pl-8 h-9"
                         type="tel"
                         value={clientPhone}
-                        onChange={(e) => setClientPhone(e.target.value)}
+                        onChange={(e) => setClientPhone(limpiarTelefono(e.target.value))}
                         placeholder="Teléfono *"
                         autoFocus
                       />

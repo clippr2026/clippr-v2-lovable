@@ -5,6 +5,7 @@ import {
   useQueryClient,
   keepPreviousData,
 } from "@tanstack/react-query";
+import { telefonoValido } from "@/lib/contacto-valido";
 import { supabase } from "@/integrations/supabase/client";
 
 /**
@@ -615,6 +616,7 @@ async function saveClient(businessId: string, input: NewClientInput): Promise<vo
   const phone = input.phone.trim();
   const fullName = `${input.firstName.trim()} ${input.lastName.trim()}`.trim();
   const digits = phone.replace(/\D/g, "");
+  if (!telefonoValido(phone)) throw new Error("El teléfono debe tener solo números (entre 8 y 15 dígitos).");
 
   if (digits.length >= 6) {
     // Prefiltro por los últimos dígitos (acotado, no trae todos los
