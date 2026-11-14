@@ -247,7 +247,9 @@ Deno.serve(async (req: Request) => {
     if (manageToken && (type === "confirmation" || type === "deposit_reminder" || type === "deposit_rejected")) {
       let dep = (ctx?.deposit ?? null) as { status: string; amount: number; expires_at: string | null; note?: string | null } | null;
       if (type === "confirmation") {
-        await supabase.rpc("ensure_public_deposit_v1", { p_token: manageToken });
+        // Solo se LEE la seña: la crea únicamente la página de reservas (ensure_public_deposit_v1), que es la que le
+        // muestra el pago al cliente. Antes también se creaba acá y, si la página no la pedía, quedaba una seña que el
+        // cliente nunca vio ("seña pendiente" en la agenda con el cliente ya confirmado).
         const { data: fresh } = await supabase.rpc("get_booking_email_context_v1", { p_appointment_id: appt.id, p_token: null });
         dep = (fresh?.deposit ?? null) as typeof dep;
       }
