@@ -97,7 +97,8 @@ export function AppLocalInstalar({
     }
   }
 
-  const navegador = typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent) ? "Chrome" : "Safari";
+  const android = typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
+  const navegador = android ? "Chrome" : "Safari";
 
   const puedeInstalar = !instalada && (Boolean(evento) || iphone || interno);
 
@@ -139,10 +140,23 @@ export function AppLocalInstalar({
                 <p className="mt-2 text-sm text-white/70">
                   Para instalar la app, ingresá desde {navegador}.
                 </p>
+                {android ? (
+                  // Android: el link "intent" abre Chrome directo (si el navegador interno lo bloquea, cae al link normal).
+                  <a
+                    href={`intent://${window.location.host}${window.location.pathname}?instalar=1#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(window.location.href)};end`}
+                    className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-full bg-violet-500 text-sm font-semibold text-white"
+                  >
+                    <Download className="size-4" />
+                    Abrir en Chrome e instalar
+                  </a>
+                ) : null}
                 <button
                   type="button"
                   onClick={copiarLink}
-                  className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-full border border-violet-400/50 bg-violet-500/15 text-sm font-semibold text-violet-100"
+                  className={cn(
+                    "inline-flex h-11 w-full items-center justify-center gap-2 rounded-full border border-violet-400/50 bg-violet-500/15 text-sm font-semibold text-violet-100",
+                    android ? "mt-3" : "mt-5",
+                  )}
                 >
                   <Copy className="size-4" />
                   Copiar link para pegarlo en {navegador}
