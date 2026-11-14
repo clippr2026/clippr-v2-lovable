@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Copy, Download, ExternalLink, MoreHorizontal, Share, SquarePlus, X } from "lucide-react";
+import { Copy, Download, Share, SquarePlus, X } from "lucide-react";
 import { toast } from "sonner";
 import { PushAvisosButton } from "@/components/push-avisos-button";
 import { esIphoneSinInstalar } from "@/lib/push";
