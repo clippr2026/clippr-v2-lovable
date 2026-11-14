@@ -2661,7 +2661,7 @@ const DayView = React.memo(function DayView({
     newEnd.setHours(Math.floor(args.endMin / 60), args.endMin % 60, 0, 0);
 
     const conflict = data.appointments.find((o) => {
-      if (o.status === "cancelled") return false;
+      if (o.status === "cancelled" || o.status === "no_show") return false; // no ocupan el horario
       if (o.employee_id !== targetEmpId) return false;
       const oStart = new Date(o.starts_at);
       const oEnd = getApptEnd(o);
@@ -2853,7 +2853,7 @@ const DayView = React.memo(function DayView({
     //    the move is allowed. Touching endpoints (11:30 end vs 11:30 start) are OK.
     const conflict = data.appointments.find((o) => {
       if (o.id === apptId) return false; // never compare against itself
-      if (o.status === "cancelled") return false; // cancelled don't occupy
+      if (o.status === "cancelled" || o.status === "no_show") return false; // cancelled / no_show don't occupy
       const sameColumn = targetEmpId ? o.employee_id === targetEmpId : !o.employee_id;
       if (!sameColumn) return false;
       const oStart = new Date(o.starts_at);

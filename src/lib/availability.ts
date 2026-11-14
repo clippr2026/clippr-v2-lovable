@@ -564,7 +564,8 @@ export function buildSlots<T extends { id: string }>(
       // Turnos/bloqueos reales de este profesional, proyectados a minutos del
       // día calendario que se está evaluando (mismo espacio que open/close).
       const apptIntervals = appointments
-        .filter((appt) => appt.status !== "cancelled" && appt.employee_id === employee.id)
+        // "No asistió" libera el horario igual que una cancelación: el cliente no vino y el hueco se puede volver a reservar.
+        .filter((appt) => appt.status !== "cancelled" && appt.status !== "no_show" && appt.employee_id === employee.id)
         .map((appt) => {
           const apptStart = new Date(appt.starts_at);
           const apptEnd = appt.ends_at
