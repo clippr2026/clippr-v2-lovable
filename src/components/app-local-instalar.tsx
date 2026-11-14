@@ -91,11 +91,13 @@ export function AppLocalInstalar({
   async function copiarLink() {
     try {
       await navigator.clipboard.writeText(window.location.origin + window.location.pathname);
-      toast.success("Link copiado. Pegalo en Safari.");
+      toast.success(`Link copiado. Pegalo en ${navegador}.`);
     } catch {
       toast.error("No se pudo copiar el link");
     }
   }
+
+  const navegador = typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent) ? "Chrome" : "Safari";
 
   const puedeInstalar = !instalada && (Boolean(evento) || iphone || interno);
 
@@ -134,30 +136,18 @@ export function AppLocalInstalar({
             <h3 className="pr-8 text-lg font-bold">Instalá {nombre || "la app"} en tu celular</h3>
             {interno ? (
               <>
-                <p className="mt-1 text-sm text-white/60">
-                  Estás en el navegador de otra app (Instagram, etc.), que no permite instalar. Primero abrí el link en Safari:
+                <p className="mt-2 text-sm text-white/70">
+                  Para instalar la app, ingresá desde {navegador}. Copiá el link y pegalo en {navegador}.
                 </p>
-                <ol className="mt-4 space-y-3 text-sm">
-                  <Paso icono={<MoreHorizontal className="size-4" />}>
-                    Tocá los <b>tres puntos (⋯)</b> arriba a la derecha.
-                  </Paso>
-                  <Paso icono={<ExternalLink className="size-4" />}>
-                    Elegí <b>Abrir en navegador externo</b>.
-                  </Paso>
-                  <Paso icono={<Share className="size-4" />}>
-                    Ya en Safari: <b>Compartir</b> → <b>Agregar a pantalla de inicio</b>.
-                  </Paso>
-                </ol>
                 <button
                   type="button"
                   onClick={copiarLink}
-                  className="mt-4 inline-flex h-10 w-full items-center justify-center gap-2 rounded-full border border-violet-400/50 bg-violet-500/15 text-sm font-semibold text-violet-100"
+                  className="mt-5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-full border border-violet-400/50 bg-violet-500/15 text-sm font-semibold text-violet-100"
                 >
                   <Copy className="size-4" />
-                  Copiar link para pegarlo en Safari
+                  Copiar link para pegarlo en {navegador}
                 </button>
-              </>
-            ) : (
+              ) : (
               <>
                 <p className="mt-1 text-sm text-white/60">Seguí estos pasos en Safari:</p>
                 <ol className="mt-4 space-y-3 text-sm">
