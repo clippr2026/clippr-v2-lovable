@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { guardarTokenDeInicio } from "@/lib/push";
+import { PushAvisosButton } from "@/components/push-avisos-button";
 import { publicButtonStyle } from "@/lib/public-button";
 import { COVER_ASPECT_CLASS } from "@/lib/cover-frame";
 import { NeonFrame, neonPalette } from "@/components/neon-frame";
@@ -536,8 +537,12 @@ function PublicProfilePage() {
   const { slug } = Route.useParams();
 
   // App instalada desde el correo: guarda el link del turno que viaja en la dirección de inicio.
+  const [appInstalada, setAppInstalada] = React.useState(false);
   React.useEffect(() => {
     guardarTokenDeInicio(slug);
+    setAppInstalada(
+      window.matchMedia?.("(display-mode: standalone)").matches || (navigator as any).standalone === true,
+    );
   }, [slug]);
 
   const [loading, setLoading] = React.useState(true);
@@ -1586,6 +1591,12 @@ function PublicProfilePage() {
           cuando el fondo del negocio es claro — mismo mecanismo que usa el
           resto de la página, sin necesitar lógica de color acá. El logo
           mantiene sus colores propios (no es texto, no lo toca esa regla). */}
+      {!isPreview && appInstalada && business.slug ? (
+        <div className="mx-auto flex max-w-6xl justify-center px-4 pb-6">
+          <PushAvisosButton app="auro" businessSlug={business.slug} />
+        </div>
+      ) : null}
+
       <footer className="mx-auto max-w-6xl px-4 pb-10 pt-2">
         <div className="flex items-center justify-center gap-2">
           <span className="text-sm font-medium text-white/60">Impulsado por</span>

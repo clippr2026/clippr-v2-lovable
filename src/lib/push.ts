@@ -57,6 +57,19 @@ export async function activarAvisos(app: PushApp, opts?: { businessSlug?: string
       applicationServerKey: base64ToUint8Array(VAPID_PUBLIC_KEY) as BufferSource,
     }));
   const json = sub.toJSON();
+  // App instalada desde el correo: el celular se ata al cliente por el link único de su turno.
+  const token = app === "auro" && opts?.businessSlug ? tokenGuardado(opts.businessSlug) : null;
+  if (token) {
+    const { error: errorCliente } = await supabase.rpc("register_client_push_subscription_v1" as any, {
+      p_token: token,
+      p_endpoint: sub.endpoint,
+      p_p256dh: json.keys?.p256dh ?? "",
+      p_auth: json.keys?.auth ?? "",
+      p_user_agent: navigator.userAgent,
+    });
+    if (!errorCliente) return;
+    // Link vencido o inválido: se registra igual como celular del local, sin cliente.
+  }
   const { error } = await supabase.rpc("register_push_subscription_v1" as any, {
     p_app: app,
     p_endpoint: sub.endpoint,
