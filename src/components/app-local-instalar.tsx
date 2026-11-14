@@ -197,7 +197,8 @@ export function AppLocalInstalar({
                   <Copy className="size-4" />
                   Copiar link para pegarlo en {navegador}
                 </button>
-              ) : (
+              </>
+            ) : (
               <>
                 <p className="mt-1 text-sm text-white/60">Seguí estos pasos en Safari:</p>
                 <ol className="mt-4 space-y-3 text-sm">
