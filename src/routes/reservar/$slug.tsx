@@ -5,6 +5,7 @@ import { EntrySplash, normalizeEntryEffect, type EntryEffectKey } from "@/compon
 import { neonPalette } from "@/components/neon-frame";
 import * as React from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { emailValido, limpiarTelefono, telefonoValido } from "@/lib/contacto-valido";
 import { toast } from "sonner";
 import {
   CalendarDays,
@@ -1326,7 +1327,9 @@ function PublicBookingPage() {
     if (!clientFirstName.trim()) return toast.error("Ingresá tu nombre.");
     if (!clientLastName.trim()) return toast.error("Ingresá tu apellido.");
     if (!clientPhone.trim()) return toast.error("Ingresá tu teléfono.");
+    if (!telefonoValido(clientPhone)) return toast.error("Ingresá un teléfono válido, solo con números (por ejemplo 11 1234-5678).");
     if (!clientEmail.trim()) return toast.error("Ingresá tu email.");
+    if (!emailValido(clientEmail)) return toast.error("Ingresá un email válido (por ejemplo tu@email.com).");
     if (clientFields.fecha_nacimiento && !clientBirthDate) return toast.error("Ingresá tu fecha de nacimiento.");
     if (!sourceAlreadyKnown && !acquisitionSource) return toast.error("Contanos cómo nos conociste.");
     if (!sourceAlreadyKnown && acquisitionChannelRequiresText(acquisitionSource) && !acquisitionCustom.trim())
@@ -1501,10 +1504,23 @@ function PublicBookingPage() {
       // página del turno (misma identidad visual) para pagar y subir el comprobante.
       if (confirmationSnapshot.appointmentId) {
         try {
-          const { data: manageTok } = await (supabase.rpc as any)("public_booking_manage_token_v1", {
+          // v2 reconoce el turno por teléfono O correo (un cliente que ya existía puede tener guardado el teléfono
+          // en otro formato); si todavía no está en la base, se usa v1.
+          let manageTok: unknown = null;
+          const v2 = await (supabase.rpc as any)("public_booking_manage_token_v2", {
             p_appointment_id: confirmationSnapshot.appointmentId,
             p_phone: confirmationSnapshot.clientPhone,
+            p_email: confirmationSnapshot.clientEmail ?? null,
           });
+          if (v2.error) {
+            const v1 = await (supabase.rpc as any)("public_booking_manage_token_v1", {
+              p_appointment_id: confirmationSnapshot.appointmentId,
+              p_phone: confirmationSnapshot.clientPhone,
+            });
+            manageTok = v1.data;
+          } else {
+            manageTok = v2.data;
+          }
           if (manageTok) {
             confirmationSnapshot.manageToken = manageTok as string;
             const { data: dep } = await (supabase.rpc as any)("ensure_public_deposit_v1", { p_token: manageTok });
@@ -2462,8 +2478,8 @@ function PublicBookingPage() {
                   <div className="grid gap-4 sm:grid-cols-2">
                     <div className="space-y-2"><Label htmlFor="clientFirstName">Nombre *</Label><Input id="clientFirstName" value={clientFirstName} onChange={(event) => setClientFirstName(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" placeholder="Tu nombre" /></div>
                     <div className="space-y-2"><Label htmlFor="clientLastName">Apellido *</Label><Input id="clientLastName" value={clientLastName} onChange={(event) => setClientLastName(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" placeholder="Tu apellido" /></div>
-                    <div className="space-y-2"><Label htmlFor="clientPhone">Teléfono *</Label><Input id="clientPhone" value={clientPhone} onChange={(event) => setClientPhone(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" placeholder="11 1234-5678" /></div>
-                    <div className="space-y-2"><Label htmlFor="clientEmail">Email *</Label><Input id="clientEmail" type="email" value={clientEmail} onChange={(event) => setClientEmail(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" placeholder="tu@email.com" /></div>
+                    <div className="space-y-2"><Label htmlFor="clientPhone">Teléfono *</Label><Input id="clientPhone" type="tel" inputMode="tel" autoComplete="tel" value={clientPhone} onChange={(event) => setClientPhone(limpiarTelefono(event.target.value))} className="border-white/10 bg-white/[0.04] text-white" placeholder="11 1234-5678" /></div>
+                    <div className="space-y-2"><Label htmlFor="clientEmail">Email *</Label><Input id="clientEmail" type="email" inputMode="email" autoComplete="email" value={clientEmail} onChange={(event) => setClientEmail(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" placeholder="tu@email.com" /></div>
                     {clientFields.fecha_nacimiento ? <div className="space-y-2"><Label htmlFor="clientBirthDate">Fecha de nacimiento *</Label><Input id="clientBirthDate" type="date" value={clientBirthDate} onChange={(event) => setClientBirthDate(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" /></div> : null}
                   </div>
                   {!sourceAlreadyKnown ? (
