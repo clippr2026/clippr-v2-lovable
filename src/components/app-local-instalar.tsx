@@ -35,6 +35,7 @@ export function AppLocalInstalar({
   const [iphone, setIphone] = React.useState(false);
   const [guia, setGuia] = React.useState(false);
   const [interno, setInterno] = React.useState(false);
+  const [desdeLink, setDesdeLink] = React.useState(false);
 
   React.useEffect(() => {
     setInstalada(appInstalada());
@@ -61,6 +62,7 @@ export function AppLocalInstalar({
   React.useEffect(() => {
     if (new URLSearchParams(window.location.search).get("instalar") !== "1") return;
     contenedor.current?.scrollIntoView({ block: "center" });
+    setDesdeLink(true);
     if (esIphoneSinInstalar() || navegadorInterno()) setGuia(true);
   }, []);
 
@@ -100,6 +102,9 @@ export function AppLocalInstalar({
   const android = typeof navigator !== "undefined" && /Android/i.test(navigator.userAgent);
   const navegador = android ? "Chrome" : "Safari";
 
+  // Llegó desde "Instalar app" (correo o Instagram) en un navegador que puede instalar: un solo toque grande.
+  const cartelUnToque = desdeLink && Boolean(evento) && !instalada;
+
   const puedeInstalar = !instalada && (Boolean(evento) || iphone || interno);
 
   return (
@@ -115,6 +120,37 @@ export function AppLocalInstalar({
         </button>
       ) : null}
       <PushAvisosButton app="auro" businessSlug={slug} />
+
+      {cartelUnToque ? (
+        <div className="fixed inset-0 z-[300] flex items-end justify-center bg-black/60 px-4 pb-6 backdrop-blur-sm sm:items-center">
+          <div
+            className="relative w-full max-w-sm rounded-3xl border border-violet-400/40 bg-[#0b0a14] p-6 text-center text-white shadow-2xl"
+            style={{ boxShadow: "0 0 40px -10px rgba(139,92,246,0.55)" }}
+          >
+            <button
+              type="button"
+              aria-label="Cerrar"
+              onClick={() => setDesdeLink(false)}
+              className="absolute right-3 top-3 grid size-8 place-items-center rounded-full text-white/60 hover:bg-white/10"
+            >
+              <X className="size-4" />
+            </button>
+            <h3 className="text-lg font-bold">Instalá {nombre || "la app"}</h3>
+            <p className="mt-1 text-sm text-white/60">Tus turnos y avisos, a un toque desde la pantalla de inicio.</p>
+            <button
+              type="button"
+              onClick={async () => {
+                await instalar();
+                setDesdeLink(false);
+              }}
+              className="mt-5 inline-flex h-12 w-full items-center justify-center gap-2 rounded-full bg-violet-500 text-base font-semibold text-white"
+            >
+              <Download className="size-5" />
+              Instalar app
+            </button>
+          </div>
+        </div>
+      ) : null}
 
       {guia ? (
         <div
