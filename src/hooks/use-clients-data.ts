@@ -5,7 +5,7 @@ import {
   useQueryClient,
   keepPreviousData,
 } from "@tanstack/react-query";
-import { telefonoValido } from "@/lib/contacto-valido";
+import { claveTelefono, telefonoValido } from "@/lib/contacto-valido";
 import { supabase } from "@/integrations/supabase/client";
 
 /**
@@ -683,9 +683,11 @@ async function saveClient(businessId: string, input: NewClientInput): Promise<vo
       .from("clients")
       .select("id, phone")
       .eq("business_id", businessId)
-      .ilike("phone", `%${digits.slice(-8)}%`);
+      // Últimos 4 números: siguen juntos aunque el teléfono guardado tenga espacios o guiones ("5932-1511").
+      .ilike("phone", `%${digits.slice(-4)}%`);
     if (lookupError) throw new Error("Error al buscar cliente: " + lookupError.message);
-    const existing = (candidates ?? []).find((c) => (c.phone ?? "").replace(/\D/g, "") === digits);
+    const clave = claveTelefono(phone);
+    const existing = (candidates ?? []).find((c) => claveTelefono(c.phone) === clave);
     if (existing) return;
   }
 

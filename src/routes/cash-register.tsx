@@ -1,4 +1,5 @@
 import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
+import { claveTelefono } from "@/lib/contacto-valido";
 import { CierreSenasGate } from "@/components/senas/cierre-senas-gate";
 import { SenasCajaCard } from "@/components/senas/senas-caja-card";
 import { fetchVentasSinComision } from "@/lib/ventas-sin-comision";
@@ -16053,10 +16054,10 @@ export function NuevaVentaTab({
           .from("clients")
           .select("id, phone")
           .eq("business_id", data.businessId)
-          .ilike("phone", `%${digits.slice(-8)}%`);
-        const existing = (candidates ?? []).find(
-          (c) => (c.phone ?? "").replace(/\D/g, "") === digits,
-        );
+          // Últimos 4 números: siguen juntos aunque el teléfono guardado tenga espacios o guiones.
+          .ilike("phone", `%${digits.slice(-4)}%`);
+        const clave = claveTelefono(trimmedPhone);
+        const existing = (candidates ?? []).find((c) => claveTelefono(c.phone) === clave);
         if (existing) return existing.id;
       }
       const fullName = `${client.trim()} ${clientLastName.trim()}`.trim();

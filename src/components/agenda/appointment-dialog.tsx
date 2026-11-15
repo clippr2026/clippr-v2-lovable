@@ -39,7 +39,7 @@ import {
 import { ServiceImage } from "@/components/ui/service-image";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { EnviarAvisoCliente } from "@/components/agenda/enviar-aviso-cliente";
-import { emailValido, limpiarTelefono, telefonoValido } from "@/lib/contacto-valido";
+import { claveTelefono, emailValido, limpiarTelefono, telefonoValido } from "@/lib/contacto-valido";
 import {
   type RepeatWeekday,
   type RepeatEndMode,
@@ -541,9 +541,10 @@ export function AppointmentDialog({
   // tipeando (ej. "11" matchearía cualquier cliente cuyo número contenga "11").
   const MIN_PHONE_DIGITS_FOR_MATCH = 6;
   const matchedClient = React.useMemo(() => {
-    const digits = clientPhone.replace(/\D/g, "");
-    if (digits.length < MIN_PHONE_DIGITS_FOR_MATCH) return null;
-    return clients.find((c) => c.phone && c.phone.replace(/\D/g, "") === digits) ?? null;
+    const clave = claveTelefono(clientPhone);
+    if (clave.length < MIN_PHONE_DIGITS_FOR_MATCH) return null;
+    // Se compara sin +54, 9 ni 0 de adelante: el mismo número escrito distinto es el mismo cliente.
+    return clients.find((c) => c.phone && claveTelefono(c.phone) === clave) ?? null;
   }, [clients, clientPhone]);
 
   // Autocompleta nombre/apellido con lo que el cliente ya tenga guardado en
@@ -744,8 +745,8 @@ export function AppointmentDialog({
     // Chequeo defensivo final contra la lista ya cargada — nunca crear un
     // cliente duplicado para el mismo teléfono, aunque por alguna razón el
     // efecto de matching de arriba no haya alcanzado a correr todavía.
-    const digits = phone.replace(/\D/g, "");
-    const existing = clients.find((c) => c.phone && c.phone.replace(/\D/g, "") === digits);
+    const clave = claveTelefono(phone);
+    const existing = clave.length >= MIN_PHONE_DIGITS_FOR_MATCH ? clients.find((c) => c.phone && claveTelefono(c.phone) === clave) : undefined;
     if (existing) return existing.id;
 
     const fullName = `${clientFirstName.trim()} ${clientLastName.trim()}`.trim();

@@ -43,3 +43,16 @@ export function whatsappHref(telefono: string | null | undefined): string | null
   if (d.length === 10) return `https://wa.me/549${d}`;
   return `https://wa.me/${d}`;
 }
+
+/**
+ * Clave para comparar teléfonos sin importar cómo se escribieron: solo números, sin los ceros de adelante y, en los
+ * argentinos, sin el 54, el 549 ni el 9 inicial. "+54 9 11 5932-1511", "01159321511" y "1159321511" dan la misma clave.
+ * (Misma regla que la función _telefono_clave de la base de datos.)
+ */
+export function claveTelefono(telefono: string | null | undefined): string {
+  let d = (telefono ?? "").replace(/\D/g, "").replace(/^0+/, "");
+  if (d.startsWith("549") && d.length >= 12) d = d.slice(3);
+  else if (d.startsWith("54") && d.length >= 12) d = d.slice(2);
+  else if (d.startsWith("9") && d.length === 11) d = d.slice(1);
+  return d.replace(/^0+/, "");
+}
