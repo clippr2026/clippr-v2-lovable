@@ -38,6 +38,7 @@ import {
 } from "./use-agenda-data";
 import { ServiceImage } from "@/components/ui/service-image";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { EnviarAvisoCliente } from "@/components/agenda/enviar-aviso-cliente";
 import { emailValido, limpiarTelefono, telefonoValido } from "@/lib/contacto-valido";
 import {
   type RepeatWeekday,
@@ -1236,6 +1237,7 @@ export function AppointmentDialog({
                 )}
               </div>
             )}
+            {isEdit && clientId ? <EnviarAvisoCliente clientId={clientId} /> : null}
           </section>
 
           {/* Servicio (y Profesional, solo cuando hay más de uno para elegir) */}
