@@ -72,8 +72,8 @@ export function GrupoBadge({ grupo, className }: { grupo: ClientGrupo | null | u
   const info = grupoInfo(grupo);
   if (!info) return null;
   return (
-    <span className={cn("rounded-full px-2 py-0.5 text-[9px] font-bold tracking-[0.18em] ring-1", info.cls, className)}>
-      {info.corto}
+    <span className={cn("rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1", info.cls, className)}>
+      {info.corto.charAt(0) + info.corto.slice(1).toLowerCase()}
     </span>
   );
 }
@@ -97,8 +97,14 @@ export function GrupoHistorial({ clientId }: { clientId: string }) {
     return `${d}/${m}/${y}`;
   };
   return (
-    <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.18em] text-muted-foreground">Historial de grupos</div>
+    <div
+      className="mt-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4"
+      style={{
+        background:
+          "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.16), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.12), transparent 65%)",
+      }}
+    >
+      <div className="text-sm font-semibold text-white">Historial de grupos</div>
       <ol className="mt-2 space-y-1.5">
         {data.map((c, i) => {
           const anterior = data[i + 1];

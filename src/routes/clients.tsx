@@ -113,6 +113,10 @@ export const Route = createFileRoute("/clients")({
   component: ClientsPageGuarded,
 });
 
+// Estilo Clippr: luz suave de las tarjetas (celeste arriba a la derecha, violeta abajo a la izquierda).
+const CARD_LUZ =
+  "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.16), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.12), transparent 65%)";
+
 const avatarTints = [
   "from-sky-400/30 to-violet-600/10 text-sky-100 ring-violet-400/30",
   "from-rose-300/30 to-rose-600/10 text-rose-100 ring-rose-300/30",
@@ -265,20 +269,15 @@ function StatCard({
   return (
     <div
       className={cn(
-        "glass relative overflow-hidden rounded-2xl p-3 sm:p-3.5 group transition-all hover:-translate-y-0.5 hover:ring-white/20",
-        featured && "ring-1 ring-violet-400/30 shadow-[0_0_60px_-20px_rgba(139,92,246,0.45)]",
+        "relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] p-3 sm:p-3.5 group transition-all hover:-translate-y-0.5 hover:border-white/20",
+        featured && "border-violet-400/35",
         className,
       )}
+      style={{ background: CARD_LUZ }}
     >
-      <div
-        className={cn(
-          "pointer-events-none absolute -top-20 -right-16 h-40 w-40 rounded-full blur-3xl opacity-70",
-          glow,
-        )}
-      />
       <div className="relative flex flex-col gap-1.5">
         <div className="flex items-center justify-between gap-2">
-          <div className="text-[9px] sm:text-[10px] uppercase tracking-[0.12em] sm:tracking-[0.18em] leading-tight text-muted-foreground/90">
+          <div className="text-xs sm:text-sm font-semibold leading-tight text-white">
             {label}
           </div>
           {info && (
@@ -305,7 +304,7 @@ function StatCard({
         {link && (
           <button
             onClick={onLinkClick}
-            className="mt-0.5 inline-flex items-center gap-1 self-start text-[8px] sm:text-[10px] font-semibold uppercase tracking-[0.08em] sm:tracking-[0.2em] text-violet-300/90 hover:text-violet-200 transition-colors"
+            className="mt-0.5 inline-flex items-center gap-1 self-start text-[11px] sm:text-xs font-semibold text-violet-300 hover:text-violet-200 transition-colors"
           >
             {link} <ArrowRight className="h-3 w-3" />
           </button>
@@ -1653,14 +1652,14 @@ function ClientsPage() {
             <DeudaClientesBanner />
             <button
               onClick={() => setAcquisitionModalOpen(true)}
-              className="h-10 flex-1 sm:flex-none px-4 rounded-xl text-sm font-medium flex items-center justify-center gap-2 bg-white/5 ring-1 ring-white/10 hover:bg-white/10 transition"
+              className="h-11 flex-1 sm:flex-none px-5 rounded-full text-sm font-semibold flex items-center justify-center gap-2 bg-white/[0.04] border border-white/10 hover:bg-white/10 transition"
             >
               <Megaphone className="h-4 w-4 text-violet-300" />
               Cómo nos conocieron
             </button>
             <button
               onClick={() => setNewClientOpen(true)}
-              className="h-10 flex-1 sm:flex-none px-4 rounded-xl text-white font-medium text-sm flex items-center justify-center gap-2 hover:brightness-110 transition"
+              className="h-11 flex-1 sm:flex-none px-5 rounded-full text-white font-semibold text-sm flex items-center justify-center gap-2 hover:brightness-110 transition"
               style={{
                 background: "linear-gradient(135deg, oklch(0.65 0.24 255), oklch(0.65 0.28 305))",
               }}
@@ -1670,14 +1669,14 @@ function ClientsPage() {
             </button>
           </div>
         <div className="min-h-0 flex-1">
-          <div className="glass rounded-2xl p-3 sm:p-4 flex min-h-0 lg:h-full flex-col gap-3 sm:gap-4 lg:overflow-hidden">
+          <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 sm:p-4 flex min-h-0 lg:h-full flex-col gap-3 sm:gap-4 lg:overflow-hidden" style={{ background: CARD_LUZ }}>
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Buscar por nombre, teléfono, servicio…"
-                className="w-full rounded-xl bg-white/5 ring-1 ring-white/10 pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-violet-400/40"
+                className="h-11 w-full rounded-lg border border-white/10 bg-white/[0.04] pl-9 pr-3 text-sm focus:outline-none focus:border-violet-400/50"
               />
             </div>
             <div className="flex items-center justify-between text-xs text-muted-foreground">
@@ -1702,11 +1701,10 @@ function ClientsPage() {
                     key={c.id}
                     onClick={() => setSelected(c.id)}
                     className={cn(
-                      "w-full flex items-center gap-3 rounded-xl p-3 ring-1 transition text-left relative overflow-hidden",
-                      selected === c.id
-                        ? "bg-gradient-to-r from-sky-500/15 via-violet-500/8 to-transparent ring-violet-400/40"
-                        : "bg-white/[0.02] ring-white/5 hover:bg-white/5",
+                      "w-full flex items-center gap-3 rounded-2xl border p-3 transition text-left relative overflow-hidden",
+                      selected === c.id ? "border-violet-400/45" : "border-white/10 hover:border-white/20",
                     )}
+                    style={{ background: CARD_LUZ }}
                   >
                     <div
                       className={cn(
@@ -1718,7 +1716,7 @@ function ClientsPage() {
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
-                        <div className="font-medium truncate">{c.name}</div>
+                        <div className="text-sm font-semibold text-white truncate">{c.name}</div>
                         <div className="text-sm font-semibold tabular-nums">
                           ${c.spent.toLocaleString("es-AR")}
                         </div>
@@ -2024,15 +2022,22 @@ function ClientsPage() {
 
       {segmentModal && createPortal(
         <div
-          className="fixed inset-0 z-[300] flex items-start sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-[300] flex items-start sm:items-center justify-center bg-black/75 backdrop-blur-sm p-4"
           style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}
         >
-          <div className="flex w-full max-w-xl max-h-[calc(100dvh-2rem)] flex-col rounded-2xl bg-background ring-1 ring-white/10 shadow-2xl overflow-hidden">
+          <div
+            className="flex w-full max-w-xl max-h-[calc(100dvh-2rem)] flex-col rounded-[28px] border border-violet-400/45 bg-[#08070f] overflow-hidden"
+            style={{
+              boxShadow: "0 0 0 1px rgba(139,92,246,.35), 0 30px 90px -20px rgba(0,0,0,.9), 0 0 60px -18px rgba(139,92,246,.55)",
+              backgroundImage:
+                "radial-gradient(120% 45% at 85% 0%, rgba(79,125,255,.20), transparent 60%), radial-gradient(110% 50% at 0% 100%, rgba(139,92,246,.22), transparent 62%)",
+            }}
+          >
             <div className="shrink-0 flex items-center justify-between p-5 border-b border-white/5">
-              <div className="text-lg font-display font-semibold">{segmentModal.title}</div>
+              <div className="text-base font-semibold text-white">{segmentModal.title}</div>
               <button
                 onClick={() => setSegmentModal(null)}
-                className="rounded-full bg-white/5 px-3 py-1.5 text-sm"
+                className="h-10 rounded-full border border-white/10 bg-white/[0.04] px-5 text-sm font-semibold text-white"
               >
                 Cerrar
               </button>
@@ -2054,10 +2059,11 @@ function ClientsPage() {
                       setSelected(c.id);
                       setSegmentModal(null);
                     }}
-                    className="w-full flex items-center justify-between rounded-xl bg-white/5 ring-1 ring-white/10 p-3 text-left hover:bg-white/10"
+                    className="w-full flex items-center justify-between rounded-2xl border border-white/10 p-3 text-left hover:border-white/20"
+                    style={{ background: CARD_LUZ }}
                   >
                     <div>
-                      <div className="font-medium">{c.name}</div>
+                      <div className="text-sm font-semibold text-white">{c.name}</div>
                       <div className="text-xs text-muted-foreground">
                         {c.phone || "sin teléfono"} · {c.lastVisit || "sin visitas"}
                       </div>
