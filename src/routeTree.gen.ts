@@ -33,6 +33,7 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ApiCleanupFichajeSelfiesRouteImport } from './routes/api/cleanup-fichaje-selfies'
 import { Route as ApiCleanupReceiptsRouteImport } from './routes/api/cleanup-receipts'
 import { Route as ApiIcsRouteImport } from './routes/api/ics'
+import { Route as ApiPushClienteRouteImport } from './routes/api/push-cliente'
 import { Route as ApiPushTestRouteImport } from './routes/api/push-test'
 import { Route as ApiPwaIconRouteImport } from './routes/api/pwa-icon'
 import { Route as ApiPwaManifestRouteImport } from './routes/api/pwa-manifest'
@@ -164,6 +165,11 @@ const ApiIcsRoute = ApiIcsRouteImport.update({
   path: '/api/ics',
   getParentRoute: () => rootRouteImport,
 } as any)
+const ApiPushClienteRoute = ApiPushClienteRouteImport.update({
+  id: '/api/push-cliente',
+  path: '/api/push-cliente',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const ApiPushTestRoute = ApiPushTestRouteImport.update({
   id: '/api/push-test',
   path: '/api/push-test',
@@ -230,6 +236,7 @@ export interface FileRoutesByFullPath {
   '/api/cleanup-fichaje-selfies': typeof ApiCleanupFichajeSelfiesRoute
   '/api/cleanup-receipts': typeof ApiCleanupReceiptsRoute
   '/api/ics': typeof ApiIcsRoute
+  '/api/push-cliente': typeof ApiPushClienteRoute
   '/api/push-test': typeof ApiPushTestRoute
   '/api/pwa-icon': typeof ApiPwaIconRoute
   '/api/pwa-manifest': typeof ApiPwaManifestRoute
@@ -264,6 +271,7 @@ export interface FileRoutesByTo {
   '/api/cleanup-fichaje-selfies': typeof ApiCleanupFichajeSelfiesRoute
   '/api/cleanup-receipts': typeof ApiCleanupReceiptsRoute
   '/api/ics': typeof ApiIcsRoute
+  '/api/push-cliente': typeof ApiPushClienteRoute
   '/api/push-test': typeof ApiPushTestRoute
   '/api/pwa-icon': typeof ApiPwaIconRoute
   '/api/pwa-manifest': typeof ApiPwaManifestRoute
@@ -299,6 +307,7 @@ export interface FileRoutesById {
   '/api/cleanup-fichaje-selfies': typeof ApiCleanupFichajeSelfiesRoute
   '/api/cleanup-receipts': typeof ApiCleanupReceiptsRoute
   '/api/ics': typeof ApiIcsRoute
+  '/api/push-cliente': typeof ApiPushClienteRoute
   '/api/push-test': typeof ApiPushTestRoute
   '/api/pwa-icon': typeof ApiPwaIconRoute
   '/api/pwa-manifest': typeof ApiPwaManifestRoute
@@ -335,6 +344,7 @@ export interface FileRouteTypes {
     | '/api/cleanup-fichaje-selfies'
     | '/api/cleanup-receipts'
     | '/api/ics'
+    | '/api/push-cliente'
     | '/api/push-test'
     | '/api/pwa-icon'
     | '/api/pwa-manifest'
@@ -369,6 +379,7 @@ export interface FileRouteTypes {
     | '/api/cleanup-fichaje-selfies'
     | '/api/cleanup-receipts'
     | '/api/ics'
+    | '/api/push-cliente'
     | '/api/push-test'
     | '/api/pwa-icon'
     | '/api/pwa-manifest'
@@ -403,6 +414,7 @@ export interface FileRouteTypes {
     | '/api/cleanup-fichaje-selfies'
     | '/api/cleanup-receipts'
     | '/api/ics'
+    | '/api/push-cliente'
     | '/api/push-test'
     | '/api/pwa-icon'
     | '/api/pwa-manifest'
@@ -438,6 +450,7 @@ export interface RootRouteChildren {
   ApiCleanupFichajeSelfiesRoute: typeof ApiCleanupFichajeSelfiesRoute
   ApiCleanupReceiptsRoute: typeof ApiCleanupReceiptsRoute
   ApiIcsRoute: typeof ApiIcsRoute
+  ApiPushClienteRoute: typeof ApiPushClienteRoute
   ApiPushTestRoute: typeof ApiPushTestRoute
   ApiPwaIconRoute: typeof ApiPwaIconRoute
   ApiPwaManifestRoute: typeof ApiPwaManifestRoute
@@ -618,6 +631,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ApiIcsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/api/push-cliente': {
+      id: '/api/push-cliente'
+      path: '/api/push-cliente'
+      fullPath: '/api/push-cliente'
+      preLoaderRoute: typeof ApiPushClienteRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/api/push-test': {
       id: '/api/push-test'
       path: '/api/push-test'
@@ -703,6 +723,7 @@ const rootRouteChildren: RootRouteChildren = {
   ApiCleanupFichajeSelfiesRoute: ApiCleanupFichajeSelfiesRoute,
   ApiCleanupReceiptsRoute: ApiCleanupReceiptsRoute,
   ApiIcsRoute: ApiIcsRoute,
+  ApiPushClienteRoute: ApiPushClienteRoute,
   ApiPushTestRoute: ApiPushTestRoute,
   ApiPwaIconRoute: ApiPwaIconRoute,
   ApiPwaManifestRoute: ApiPwaManifestRoute,

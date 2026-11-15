@@ -2603,7 +2603,7 @@ function PublicBookingPage() {
 
                         <div className="space-y-2.5">
                           {address || phoneDigits ? (
-                            <div className={cn("grid gap-2.5", address && phoneDigits ? "grid-cols-2" : "grid-cols-1")}>
+                            <div className="grid grid-cols-1 gap-2.5">
                               {address ? (
                                 <a
                                   href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`}
