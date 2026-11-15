@@ -378,21 +378,6 @@ function formatPayMethodLabel(method?: string | null): string | null {
   return PAY_METHOD_LABEL[method as PayMethod] ?? method;
 }
 
-function getClientProfileText(c: Client | null) {
-  if (!c) return "Seleccioná un cliente para ver el perfil.";
-  if (c.status === "nuevo")
-    return "Cliente nuevo. Todavía no hay historial suficiente para perfilar su comportamiento.";
-  if (c.vipTag === "vip")
-    return "Es uno de los clientes más valiosos del negocio. Mantiene 4 visitas seguidas cada 15 días o menos.";
-  if (c.vipTag === "ex_vip")
-    return "Fue VIP, pero ya no mantiene la frecuencia de 4 visitas seguidas cada 15 días o menos. Conviene recuperarlo con prioridad.";
-  if (c.status === "perdido")
-    return "Hace demasiado tiempo que no vuelve. Conviene usar una acción puntual de reconquista, no un mensaje genérico.";
-  if (c.status === "inactivo")
-    return "Está perdiendo frecuencia. Es buen momento para contactarlo con una propuesta concreta.";
-  return "Cliente activo. Seguí acumulando historial para mejorar las recomendaciones.";
-}
-
 type ClientDetailPanelProps = {
   client: Client;
   onDelete: (client: Client) => void;
@@ -740,7 +725,6 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
   const ticket = client.visits ? Math.round(client.spent / client.visits) : 0;
   const since = formatClientSince(client.created_at);
   const birthday = formatBirthday(client.birth_date);
-  const profileText = getClientProfileText(client);
   const favoriteServices = client.favoriteServices;
   const hasNote = Boolean((client.notes ?? "").trim());
 
@@ -770,9 +754,6 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                   <GrupoBadge grupo={gruposFicha?.porCliente.get(client.id)?.grupo} />
                   <Rating value={client.rating} />
                 </div>
-                {profileText && (
-                  <div className="mt-1.5 max-w-md text-xs text-white/55">{profileText}</div>
-                )}
                 <div className="mt-2.5 inline-flex items-center gap-2 text-sm text-white/70">
                   <CalendarDays className="h-4 w-4 text-white/45" />
                   <span>
