@@ -1,4 +1,5 @@
 import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
+import { GRUPOS_CLIENTE, GrupoBadge, GrupoHistorial, grupoInfo, useClientGroups, type ClientGrupo } from "@/components/clientes/grupo-cliente";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -26,6 +27,7 @@ import {
   Star,
   Trash2,
   UserRound,
+  Users,
   CalendarDays,
   X,
 } from "lucide-react";
@@ -40,6 +42,7 @@ import {
   useClientSegmentSummary,
   useClientDetail,
   fetchClientsByStatus,
+  fetchAllClientRows,
   useDeleteClient,
   useSaveClient,
   useUpdateClientNotes,
@@ -414,6 +417,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
   profile,
   initialTab,
 }: ClientDetailPanelProps) {
+  const { data: gruposFicha } = useClientGroups(businessId);
   const [tab, setTab] = useState<"resumen" | "reservas">(initialTab ?? "resumen");
   // Reserva cobrada actualmente expandida (para ver el detalle del pago) —
   // una sola a la vez, se resetea al cambiar de cliente igual que el resto
@@ -763,7 +767,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                   {client.name}
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                  {client.vipTag ? vipTagBadge(client.vipTag) : statusBadge(client.status)}
+                  <GrupoBadge grupo={gruposFicha?.porCliente.get(client.id)?.grupo} />
                   <Rating value={client.rating} />
                 </div>
                 {profileText && (
@@ -775,6 +779,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                     Cliente desde <span className="font-semibold text-white capitalize">{since}</span>
                   </span>
                 </div>
+                <GrupoHistorial clientId={client.id} />
                 {client.acquisitionSource && (
                   <div className="mt-1.5 inline-flex items-start gap-2 text-sm text-white/70">
                     {(() => {
@@ -1475,6 +1480,7 @@ function ClientsPage() {
   } = useClientsPage(businessId, debouncedQuery, sort);
 
   const { data: summary } = useClientSegmentSummary(businessId);
+  const { data: grupos } = useClientGroups(businessId);
   const { data: currentDetail, isLoading: detailLoading } = useClientDetail(businessId, selected);
 
   const clients = useMemo<ClientListRow[]>(
@@ -1552,21 +1558,22 @@ function ClientsPage() {
     : [];
 
   const showGroup = useCallback(
-    async (title: string, status: ClientStatus) => {
+    async (title: string, grupo: ClientGrupo) => {
       setSegmentModal({ title, clients: [], loading: true });
       if (!businessId) {
         setSegmentModal({ title, clients: [], loading: false });
         return;
       }
       try {
-        const rows = await fetchClientsByStatus(businessId, status);
-        setSegmentModal({ title, clients: rows, loading: false });
+        const [rows, g] = await Promise.all([fetchAllClientRows(businessId), Promise.resolve(grupos?.porCliente)]);
+        const del = rows.filter((r) => g?.get(r.id)?.grupo === grupo);
+        setSegmentModal({ title, clients: del, loading: false });
       } catch (err) {
         toast.error(err instanceof Error ? err.message : "Error cargando clientes");
         setSegmentModal({ title, clients: [], loading: false });
       }
     },
-    [businessId],
+    [businessId, grupos],
   );
 
   // Flujo interno simplificado: el teléfono es el único dato obligatorio y
@@ -1645,64 +1652,22 @@ function ClientsPage() {
               completa (destacado, misma altura que el resto — ver StatCard
               featured). Desktop (sm+): sin cambios, grilla pareja de 5. */}
           <div className="grid shrink-0 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            <StatCard
-              label="VIP"
-              value={String(summary?.counts.vip ?? 0)}
-              caption={null}
-              icon={<Crown className="h-5 w-5 text-amber-200" />}
-              glow="bg-amber-500/25"
-              featured
-              info={CLIENT_METRIC_INFO.vip.title}
-              onInfoClick={() => setMetricInfo(CLIENT_METRIC_INFO.vip)}
-              link="Ver todos"
-              onLinkClick={() => showGroup("Clientes VIP", "vip")}
-            />
-            <StatCard
-              label="Activos"
-              value={String(summary?.counts.activo ?? 0)}
-              caption={null}
-              icon={<CheckCircle2 className="h-5 w-5 text-emerald-300" />}
-              glow="bg-emerald-500/20"
-              info={CLIENT_METRIC_INFO.activos.title}
-              onInfoClick={() => setMetricInfo(CLIENT_METRIC_INFO.activos)}
-              link="Ver todos"
-              onLinkClick={() => showGroup("Clientes activos", "activo")}
-            />
-            <StatCard
-              label="Nuevos"
-              value={String(summary?.counts.nuevo ?? 0)}
-              caption={null}
-              icon={<Sparkles className="h-5 w-5 text-violet-300" />}
-              glow="bg-violet-500/25"
-              info={CLIENT_METRIC_INFO.nuevos.title}
-              onInfoClick={() => setMetricInfo(CLIENT_METRIC_INFO.nuevos)}
-              link="Ver todos"
-              onLinkClick={() => showGroup("Clientes nuevos", "nuevo")}
-            />
-            <StatCard
-              label="Inactivos"
-              value={String(summary?.counts.inactivo ?? 0)}
-              caption={null}
-              icon={<PauseCircle className="h-5 w-5 text-amber-300" />}
-              glow="bg-amber-500/15"
-              info={CLIENT_METRIC_INFO.inactivos.title}
-              onInfoClick={() => setMetricInfo(CLIENT_METRIC_INFO.inactivos)}
-              link="Ver todos"
-              onLinkClick={() => showGroup("Clientes inactivos", "inactivo")}
-            />
-            <StatCard
-              label="Perdidos"
-              value={String(summary?.counts.perdido ?? 0)}
-              caption={null}
-              icon={<AlertTriangle className="h-5 w-5 text-rose-300" />}
-              glow="bg-rose-500/20"
-              featured
-              info={CLIENT_METRIC_INFO.perdidos.title}
-              onInfoClick={() => setMetricInfo(CLIENT_METRIC_INFO.perdidos)}
-              link="Reconquistar"
-              onLinkClick={() => showGroup("Clientes perdidos", "perdido")}
-              className="col-span-2 sm:col-span-1"
-            />
+            {GRUPOS_CLIENTE.map((g, i) => (
+              <StatCard
+                key={g.key}
+                label={g.label}
+                value={String(grupos?.counts[g.key] ?? 0)}
+                caption={null}
+                icon={g.key === "semanal" ? <Crown className="h-5 w-5 text-amber-200" /> : g.key === "perdido" ? <AlertTriangle className="h-5 w-5 text-rose-300" /> : <Users className="h-5 w-5 text-white/60" />}
+                glow={g.glow}
+                featured={g.key === "semanal" || g.key === "perdido"}
+                info={g.label}
+                onInfoClick={() => setMetricInfo({ title: g.label, description: g.regla, bullets: [] })}
+                link={g.key === "perdido" ? "Reconquistar" : "Ver todos"}
+                onLinkClick={() => showGroup(g.label, g.key)}
+                className={i === GRUPOS_CLIENTE.length - 1 ? "col-span-2 sm:col-span-1" : undefined}
+              />
+            ))}
           </div>
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
             <DeudaClientesBanner />
@@ -1782,7 +1747,7 @@ function ClientsPage() {
                         {c.visits} visitas · {c.lastVisit ?? "sin visitas"}
                       </div>
                       <div className="mt-1.5 flex items-center gap-1.5">
-                        {c.vipTag ? vipTagBadge(c.vipTag) : statusBadge(c.status)}
+                        <GrupoBadge grupo={grupos?.porCliente.get(c.id)?.grupo} />
                       </div>
                     </div>
                   </button>

@@ -421,6 +421,20 @@ export async function fetchClientsByStatus(
   return ((data ?? []) as RpcClientRow[]).map(rpcToListRow);
 }
 
+/** One-shot fetch of every client (sin filtrar por status) — la pantalla los reparte por grupo de frecuencia. */
+export async function fetchAllClientRows(businessId: string, limit = 5000): Promise<ClientListRow[]> {
+  const { data, error } = await supabase.rpc("clippr_clients_list", {
+    p_business_id: businessId,
+    p_search: "",
+    p_sort: "gasto",
+    p_status: null,
+    p_limit: limit,
+    p_offset: 0,
+  });
+  if (error) throw new Error("Error cargando clientes: " + error.message);
+  return ((data ?? []) as RpcClientRow[]).map(rpcToListRow);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // Segment counts (VIP/Nuevo/Activo/Inactivo/Perdido) computed server-side by the
 // clippr_clients_segment_counts RPC. No longer reads every client on the client.
