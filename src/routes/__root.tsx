@@ -122,6 +122,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
 // quienes usan Clippr para gestionar el local. Cada pantalla enlaza el manifiesto que le toca.
 function PwaLinks() {
   const pathname = useRouterState({ select: (st) => st.location.pathname });
+  const buscar = useRouterState({ select: (st) => st.location.searchStr });
+  // Página del turno abierta desde el correo (?k=): el manifiesto ya sale con el link del turno, porque iPhone lo lee
+  // una sola vez al cargar y lo que se cambie después no cuenta.
+  const linkTurno = pathname.startsWith("/gestion") ? new URLSearchParams(buscar).get("k") : null;
+  const linkTurnoOk = linkTurno && /^[0-9a-f-]{36}$/i.test(linkTurno) ? linkTurno : null;
   // Local de la página pública (/negocio/<slug>, /reservar/<slug>); /auro-stylo y /gestion son de Auro Stylo.
   const match = pathname.match(/^\/(?:negocio|reservar)\/([a-z0-9-]{1,80})(?:\/|$)/i);
   const slugPagina = match && !/^[0-9a-f]{8}-[0-9a-f]{4}-/i.test(match[1]) ? match[1].toLowerCase() : null;
@@ -138,7 +143,9 @@ function PwaLinks() {
       <link
         rel="manifest"
         href={
-          slugLocal
+          linkTurnoOk
+            ? `/api/pwa-manifest?k=${linkTurnoOk}`
+            : slugLocal
             ? `/api/pwa-manifest?slug=${slugLocal}${nombre ? `&name=${encodeURIComponent(nombre)}` : ""}${
                 slugPagina ? `&start=${encodeURIComponent(`/negocio/${slugPagina}`)}` : ""
               }`

@@ -8,15 +8,30 @@ export const Route = createFileRoute("/api/pwa-manifest")({
     handlers: {
       GET: async ({ request }) => {
         const u = new URL(request.url);
-        const slug = (u.searchParams.get("slug") ?? "").trim().toLowerCase();
+        let slug = (u.searchParams.get("slug") ?? "").trim().toLowerCase();
+        // Link único del turno (viene del correo): viaja dentro de la dirección de inicio de la app instalada.
+        const k = u.searchParams.get("k") ?? "";
+        const kValido = /^[A-Za-z0-9_-]{8,128}$/.test(k);
+        let nombreDelTurno = "";
+        if (kValido) {
+          // iPhone lee el manifiesto una sola vez, al cargar la página: el local se resuelve acá, por el link del turno.
+          const url = process.env.VITE_SUPABASE_URL ?? import.meta.env.VITE_SUPABASE_URL;
+          const key = process.env.VITE_SUPABASE_PUBLISHABLE_KEY ?? import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+          if (url && key && /^[0-9a-f-]{36}$/i.test(k)) {
+            const { data } = await createClient(url, key).rpc("get_public_booking_v2" as any, { p_token: k });
+            const biz = (data as { business?: { slug?: string; name?: string } } | null)?.business;
+            if (biz?.slug && /^[a-z0-9-]{1,80}$/i.test(biz.slug)) {
+              slug = biz.slug.toLowerCase();
+              nombreDelTurno = String(biz.name ?? "");
+            }
+          }
+        }
         if (!/^[a-z0-9-]{1,80}$/.test(slug)) return new Response("Parámetros inválidos", { status: 400 });
         // Página donde se agregó la app (solo del propio local): la app instalada abre ahí, no en otra pantalla.
         const start = u.searchParams.get("start") ?? "";
-        const startPath = start === `/negocio/${slug}` ? start : null;
-        // Link único del turno (viene del correo): viaja dentro de la dirección de inicio de la app instalada.
-        const k = u.searchParams.get("k") ?? "";
-        const kOk = startPath && /^[A-Za-z0-9_-]{8,128}$/.test(k) ? k : null;
-        let name = (u.searchParams.get("name") ?? "").slice(0, 40);
+        const startPath = start === `/negocio/${slug}` || nombreDelTurno ? `/negocio/${slug}` : null;
+        const kOk = startPath && kValido ? k : null;
+        let name = (u.searchParams.get("name") || nombreDelTurno).slice(0, 40);
         if (!name) {
           // Sin nombre en el pedido: se lee el del local (vista pública), con el slug como último recurso.
           const url = process.env.VITE_SUPABASE_URL ?? import.meta.env.VITE_SUPABASE_URL;
