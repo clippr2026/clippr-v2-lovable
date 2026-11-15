@@ -48,6 +48,7 @@ import {
   useSaveClient,
   useUpdateClientNotes,
   type Client,
+  type ClientPayment,
   type ClientListRow,
   type ClientStatus,
 } from "@/hooks/use-clients-data";
@@ -725,6 +726,23 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
 
   // Visitas = días distintos con pago (dos pagos el mismo día son una visita), igual que los grupos.
   const visitasDias = gruposFicha?.porCliente.get(client.id)?.dias_visitas ?? client.visits;
+
+  // Historial = turnos + ventas sin turno (servicios y productos). Una venta del mismo día que un turno va debajo de ese turno.
+  const timeline = useMemo(() => {
+    const dia = (iso: string) => new Date(iso).toLocaleDateString("es-AR", { timeZone: "America/Argentina/Buenos_Aires" });
+    const sueltas = client.history.filter((p) => !p.appointmentId);
+    const usadas = new Set<string>();
+    const items: Array<
+      | { tipo: "turno"; fecha: number; r: Client["reservations"][number]; ventas: ClientPayment[] }
+      | { tipo: "venta"; fecha: number; p: ClientPayment }
+    > = client.reservations.map((r) => {
+      const ventas = sueltas.filter((p) => !usadas.has(p.id) && dia(p.date) === dia(r.date));
+      ventas.forEach((p) => usadas.add(p.id));
+      return { tipo: "turno" as const, fecha: new Date(r.date).getTime(), r, ventas };
+    });
+    sueltas.filter((p) => !usadas.has(p.id)).forEach((p) => items.push({ tipo: "venta", fecha: new Date(p.date).getTime(), p }));
+    return items.sort((a, b) => b.fecha - a.fecha);
+  }, [client.history, client.reservations]);
   const ticket = visitasDias ? Math.round(client.spent / visitasDias) : 0;
   const since = formatClientSince(client.created_at);
   const birthday = formatBirthday(client.birth_date);
@@ -852,7 +870,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              {t}
+              {t === "reservas" ? "historial" : t}
             </button>
           ))}
         </div>
@@ -1030,12 +1048,38 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                 })}
               </div>
             )}
-            {client.reservations.length === 0 ? (
+            {timeline.length === 0 ? (
               <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-4 text-sm text-muted-foreground">
-                Sin turnos todavía.
+                Sin movimientos todavía.
               </div>
             ) : (
-              client.reservations.map((r) => {
+              timeline.map((it) => {
+                if (it.tipo === "venta") {
+                  const v = it.p;
+                  return (
+                    <div key={v.id} className="rounded-xl bg-white/5 ring-1 ring-white/10 p-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <div className="text-sm font-medium truncate">{v.service}</div>
+                            <span className="shrink-0 rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-white/70 ring-1 ring-white/10">
+                              {v.esProducto ? "Producto" : "Sin turno"}
+                            </span>
+                          </div>
+                          <div className="text-[11px] text-muted-foreground">
+                            {formatApptDateTime(v.date)}
+                            {v.employeeName ? ` · ${v.employeeName}` : ""}
+                          </div>
+                        </div>
+                        <div className="shrink-0 text-right">
+                          <div className="text-sm font-semibold tabular-nums">${v.amount.toLocaleString("es-AR")}</div>
+                          <div className="text-[11px] font-semibold text-emerald-300">Cobrado</div>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                }
+                const r = it.r;
                 // El detalle de pago solo existe (y solo se puede expandir)
                 // para turnos ya cobrados con un pago real vinculado — el
                 // resto de los estados no tiene nada más que mostrar que su
@@ -1086,6 +1130,21 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                         )}
                       </div>
                     </button>
+                    {it.ventas.length > 0 && (
+                      <div className="space-y-1.5 border-t border-white/10 bg-white/[0.02] px-3 py-2.5">
+                        {it.ventas.map((v) => (
+                          <div key={v.id} className="flex items-center justify-between gap-3 text-[11px]">
+                            <span className="min-w-0 truncate text-white/80">
+                              + {v.service}
+                              <span className="ml-2 rounded-full bg-white/5 px-1.5 py-0.5 text-[10px] font-semibold text-white/60 ring-1 ring-white/10">
+                                {v.esProducto ? "Producto" : "Sin turno"}
+                              </span>
+                            </span>
+                            <span className="shrink-0 tabular-nums text-white/80">${v.amount.toLocaleString("es-AR")}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     {isExpanded && r.payment && (
                       <div className="space-y-1 border-t border-white/10 bg-white/[0.02] px-3 py-2.5 text-[11px]">
                         <div className="flex items-center justify-between">

@@ -16,6 +16,10 @@ import { supabase } from "@/integrations/supabase/client";
 export type ClientPayment = {
   id: string;
   date: string;
+  /** Turno al que pertenece el cobro; null = venta sin turno (servicio o producto). */
+  appointmentId?: string | null;
+  /** Venta de solo productos del catálogo (todos los ítems son productos). */
+  esProducto?: boolean;
   service: string;
   amount: number;
   employeeName?: string | null;
@@ -467,6 +471,18 @@ export function useClientSegmentSummary(businessId: string | null) {
 // On-demand full enrichment for the selected client (detail panel).
 // ─────────────────────────────────────────────────────────────────────────────
 
+const PAYMENT_COLUMNS =
+  "id,client_id,client_name,service_name,employee_id,appointment_id,total,amount,method,payment_method,promotion_name,discount_type,discount_value,reference,created_at,items";
+
+/** Una venta es "solo producto" si todos sus ítems son del catálogo de productos (is_catalog = true). */
+function esVentaDeProducto(items: unknown): boolean {
+  return (
+    Array.isArray(items) &&
+    items.length > 0 &&
+    items.every((it) => Boolean((it as { is_catalog?: boolean } | null)?.is_catalog))
+  );
+}
+
 async function loadClientDetail(businessId: string, clientId: string): Promise<Client | null> {
   const { data: c, error } = await supabase
     .from("clients")
@@ -487,7 +503,7 @@ async function loadClientDetail(businessId: string, clientId: string): Promise<C
   // para la pestaña "Reservas" — antes esta función solo traía como máximo
   // 1 turno futuro no cancelado, así que un turno pendiente/pasado/cancelado
   // nunca aparecía en ningún lado de la ficha.
-  const [{ data: payments }, { data: appointments }, { data: employees }, statusRows] = await Promise.all([
+  const [{ data: paymentsById }, { data: appointments }, { data: employees }, statusRows, { data: paymentsByName }] = await Promise.all([
     supabase
       .from("payments")
       // splits (pago dividido en varios métodos) queda afuera: es una
@@ -496,9 +512,7 @@ async function loadClientDetail(businessId: string, clientId: string): Promise<C
       // seguro asumir que siempre está, y romper el select entero por eso
       // dejaría la ficha sin abrir. `method`/`payment_method` sí son parte
       // del insert principal, siempre presentes.
-      .select(
-        "id,client_id,client_name,service_name,employee_id,appointment_id,total,amount,method,payment_method,promotion_name,discount_type,discount_value,reference,created_at",
-      )
+      .select(PAYMENT_COLUMNS)
       .eq("business_id", businessId)
       .eq("client_id", clientId)
       .order("created_at", { ascending: false }),
@@ -510,16 +524,28 @@ async function loadClientDetail(businessId: string, clientId: string): Promise<C
       .order("starts_at", { ascending: false }),
     supabase.from("employees").select("id,full_name").eq("business_id", businessId),
     fetchStatusRows(businessId, { search: name, limit: 50 }),
+    // La mayoría de los cobros guardan solo el nombre (client_id vacío): la lista de Clientes ya los une por nombre.
+    supabase
+      .from("payments")
+      .select(PAYMENT_COLUMNS)
+      .eq("business_id", businessId)
+      .ilike("client_name", name.trim().replace(/[\\%_]/g, "\\$&"))
+      .order("created_at", { ascending: false }),
   ]);
+  const payments = Array.from(
+    new Map([...(paymentsById ?? []), ...(paymentsByName ?? [])].map((p) => [p.id, p] as const)).values(),
+  ).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
 
   const employeeNameById = new Map<string, string>();
   (employees ?? []).forEach((e) => {
     if (e.full_name) employeeNameById.set(e.id, e.full_name);
   });
 
-  const history: ClientPayment[] = (payments ?? []).map((p) => ({
+  const history: ClientPayment[] = payments.map((p) => ({
     id: p.id,
     date: p.created_at,
+    appointmentId: p.appointment_id ?? null,
+    esProducto: esVentaDeProducto(p.items),
     service: p.service_name || "Servicio",
     amount: Number(p.total ?? p.amount ?? 0),
     employeeName: p.employee_id ? employeeNameById.get(p.employee_id) ?? null : null,
@@ -535,6 +561,7 @@ async function loadClientDetail(businessId: string, clientId: string): Promise<C
   const spentLast12Months = history.filter((p) => new Date(p.date).getTime() >= last12Cutoff.getTime()).reduce((s, p) => s + p.amount, 0);
   const favMap = new Map<string, { count: number; amount: number }>();
   history.forEach((p) => {
+    if (p.esProducto) return; // servicios favoritos: los productos no cuentan
     const cur = favMap.get(p.service) ?? { count: 0, amount: 0 };
     favMap.set(p.service, { count: cur.count + 1, amount: cur.amount + p.amount });
   });
@@ -545,7 +572,7 @@ async function loadClientDetail(businessId: string, clientId: string): Promise<C
   // la ficha lo muestra al expandir la reserva cobrada, en vez de en una
   // pestaña "Pagos" separada que repetiría el mismo turno dos veces.
   const paymentByAppointmentId = new Map<string, ClientAppointmentPayment>();
-  (payments ?? []).forEach((p) => {
+  payments.forEach((p) => {
     if (!p.appointment_id) return;
     paymentByAppointmentId.set(p.appointment_id, {
       method: p.method ?? p.payment_method ?? null,
