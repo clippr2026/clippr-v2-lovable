@@ -755,8 +755,6 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
       <div
         className={cn(
           "relative px-6 py-5 border-b border-white/5",
-          client.status === "perdido" && "bg-rose-500/5",
-          client.status === "vip" && "bg-amber-400/5",
         )}
       >
         <div className="relative flex items-center gap-5">
@@ -767,14 +765,11 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
             <div className="flex items-start justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2 text-2xl font-display font-semibold leading-tight">
-                  {client.status === "perdido" && <AlertTriangle className="h-5 w-5 text-rose-300" />}
-                  {client.status === "vip" && <Crown className="h-5 w-5 text-amber-200" />}
                   {client.name}
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                   <GrupoBadge grupo={gruposFicha?.porCliente.get(client.id)?.grupo} />
                   {barberosFicha ? <EtiquetaBarbero info={barberosFicha.info.get(client.id)} nombres={barberosFicha.nombres} permitirVip={grupoPermiteVip(gruposFicha?.porCliente.get(client.id)?.grupo)} /> : null}
-                  <Rating value={client.rating} />
                 </div>
                 <div className="mt-2.5 inline-flex items-center gap-2 text-sm text-white/70">
                   <CalendarDays className="h-4 w-4 text-white/45" />
@@ -782,7 +777,6 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                     Cliente desde <span className="font-semibold text-white capitalize">{since}</span>
                   </span>
                 </div>
-                <GrupoHistorial clientId={client.id} />
                 {client.acquisitionSource && (
                   <div className="mt-1.5 inline-flex items-start gap-2 text-sm text-white/70">
                     {(() => {
@@ -918,6 +912,8 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                 <div className="mt-1 text-sm font-semibold">{client.lastVisit ?? "—"}</div>
               </div>
             </div>
+
+            <GrupoHistorial clientId={client.id} />
 
             {/* Servicios favoritos: lista con separadores, sin una caja por ítem */}
             <div>

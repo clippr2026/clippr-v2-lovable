@@ -101,7 +101,7 @@ export function GrupoHistorial({ clientId }: { clientId: string }) {
   };
   return (
     <div
-      className="mt-3 rounded-2xl border border-white/10 bg-white/[0.03] p-4"
+      className="rounded-2xl border border-white/10 bg-white/[0.03] p-4"
       style={{
         background:
           "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.16), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.12), transparent 65%)",
