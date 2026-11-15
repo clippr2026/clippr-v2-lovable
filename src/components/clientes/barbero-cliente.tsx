@@ -2,7 +2,8 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
 
-// Con qué barbero se atiende cada cliente, según sus turnos COBRADOS (los cancelados y los "no asistió" no cuentan).
+// Con qué barbero se atiende cada cliente, según sus turnos COBRADOS y las ventas de un servicio cargadas en caja sin turno
+// (los cancelados, los "no asistió" y las ventas de solo producto no cuentan).
 //   · 3 o más turnos y los últimos 3 con el mismo barbero → VIP de ese barbero.
 //   · 3 o más turnos y los últimos 3 con barberos distintos → con cualquiera.
 //   · 2 turnos: con el mismo barbero ("dos") o con dos distintos ("distintos").
@@ -18,7 +19,8 @@ export function useClientBarberos(businessId: string | null) {
     enabled: !!businessId,
     staleTime: 60_000,
     queryFn: async () => {
-      const turnos: Array<{ client_id: string; employee_id: string }> = [];
+      // Atenciones = turnos cobrados + ventas de un servicio cargadas en caja sin turno (las de solo producto no cuentan).
+      const atenciones: Array<{ client_id: string; employee_id: string; fecha: string }> = [];
       for (let desde = 0; ; desde += PAGINA) {
         const { data, error } = await supabase
           .from("appointments")
@@ -30,9 +32,49 @@ export function useClientBarberos(businessId: string | null) {
           .order("starts_at", { ascending: false })
           .range(desde, desde + PAGINA - 1);
         if (error) throw new Error("Error cargando turnos de los clientes: " + error.message);
-        turnos.push(...((data ?? []) as Array<{ client_id: string; employee_id: string }>));
+        ((data ?? []) as Array<{ client_id: string; employee_id: string; starts_at: string }>).forEach((t) =>
+          atenciones.push({ client_id: t.client_id, employee_id: t.employee_id, fecha: t.starts_at }),
+        );
         if ((data ?? []).length < PAGINA) break;
       }
+
+      // Ventas sin turno: van al cliente de la venta o, si no tiene, a las fichas con ese nombre (igual que los grupos).
+      const idsPorNombre = new Map<string, string[]>();
+      for (let desde = 0; ; desde += PAGINA) {
+        const { data, error } = await supabase
+          .from("clients")
+          .select("id,full_name")
+          .eq("business_id", businessId!)
+          .range(desde, desde + PAGINA - 1);
+        if (error) throw new Error("Error cargando clientes: " + error.message);
+        ((data ?? []) as Array<{ id: string; full_name: string | null }>).forEach((c) => {
+          const k = (c.full_name ?? "").trim().toLowerCase();
+          if (k) idsPorNombre.set(k, [...(idsPorNombre.get(k) ?? []), c.id]);
+        });
+        if ((data ?? []).length < PAGINA) break;
+      }
+      for (let desde = 0; ; desde += PAGINA) {
+        const { data, error } = await supabase
+          .from("payments")
+          .select("client_id,client_name,employee_id,created_at,items")
+          .eq("business_id", businessId!)
+          .is("appointment_id", null)
+          .not("employee_id", "is", null)
+          .order("created_at", { ascending: false })
+          .range(desde, desde + PAGINA - 1);
+        if (error) throw new Error("Error cargando ventas de los clientes: " + error.message);
+        (
+          (data ?? []) as Array<{ client_id: string | null; client_name: string | null; employee_id: string; created_at: string; items: unknown }>
+        ).forEach((v) => {
+          const soloProducto =
+            Array.isArray(v.items) && v.items.length > 0 && v.items.every((it) => Boolean((it as { is_catalog?: boolean } | null)?.is_catalog));
+          if (soloProducto) return;
+          const ids = v.client_id ? [v.client_id] : idsPorNombre.get((v.client_name ?? "").trim().toLowerCase()) ?? [];
+          ids.forEach((id) => atenciones.push({ client_id: id, employee_id: v.employee_id, fecha: v.created_at }));
+        });
+        if ((data ?? []).length < PAGINA) break;
+      }
+
       const { data: emps, error: errEmps } = await supabase
         .from("employees")
         .select("id,full_name")
@@ -43,9 +85,10 @@ export function useClientBarberos(businessId: string | null) {
         nombres.set(e.id, (e.full_name ?? "").trim().split(/\s+/)[0] || "Sin nombre"),
       );
 
-      // turnos ya vienen del más nuevo al más viejo
+      // de la más nueva a la más vieja
+      atenciones.sort((x, y) => (x.fecha < y.fecha ? 1 : x.fecha > y.fecha ? -1 : 0));
       const porCliente = new Map<string, string[]>();
-      for (const t of turnos) {
+      for (const t of atenciones) {
         const lista = porCliente.get(t.client_id) ?? [];
         lista.push(t.employee_id);
         porCliente.set(t.client_id, lista);
