@@ -107,24 +107,15 @@ export function GrupoHistorial({ clientId }: { clientId: string }) {
           "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.16), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.12), transparent 65%)",
       }}
     >
-      <div className="text-sm font-semibold text-white">Historial de grupos</div>
-      <ol className="mt-2 space-y-1.5">
-        {data.map((c, i) => {
-          const anterior = data[i + 1];
-          return (
-            <li key={`${c.fecha}-${c.grupo}`} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-white/70">
-              <span className="tabular-nums text-white/45">{fecha(c.fecha)}</span>
-              {anterior && c.grupo !== "sin_visitas" ? (
-                <span className="inline-flex items-center gap-1.5">
-                  <GrupoBadge grupo={anterior.grupo} /> <span className="text-white/35">→</span> <GrupoBadge grupo={c.grupo} />
-                </span>
-              ) : (
-                <GrupoBadge grupo={c.grupo} />
-              )}
-              <span className="text-white/45">{c.motivo}</span>
-            </li>
-          );
-        })}
+      <div className="text-sm font-semibold text-white">Cambios de grupo</div>
+      <ol className="mt-2 space-y-2">
+        {data.map((c) => (
+          <li key={`${c.fecha}-${c.grupo}`} className="flex items-center gap-2 text-sm text-white/70">
+            <span className="tabular-nums text-white/50">{fecha(c.fecha)}</span>
+            <span className="text-white/35">→</span>
+            <GrupoBadge grupo={c.grupo} />
+          </li>
+        ))}
       </ol>
     </div>
   );

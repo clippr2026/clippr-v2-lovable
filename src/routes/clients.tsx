@@ -759,7 +759,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
       >
         <div className="relative flex items-center gap-5">
           <div className="h-20 w-20 rounded-2xl grid place-items-center text-2xl font-display font-semibold bg-gradient-to-br from-sky-400/30 to-violet-600/10 ring-1 ring-violet-400/40 text-sky-100 shrink-0">
-            {client.name[0]?.toUpperCase()}
+            <UserRound className="h-9 w-9 text-sky-100/80" />
           </div>
           <div className="flex-1 min-w-0 space-y-2">
             <div className="flex items-start justify-between gap-3">
