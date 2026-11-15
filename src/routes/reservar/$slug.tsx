@@ -5,7 +5,7 @@ import { EntrySplash, normalizeEntryEffect, type EntryEffectKey } from "@/compon
 import { neonPalette } from "@/components/neon-frame";
 import * as React from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { emailValido, limpiarTelefono, telefonoValido } from "@/lib/contacto-valido";
+import { emailValido, limpiarTelefono, nombreValido, telefonoValido } from "@/lib/contacto-valido";
 import { toast } from "sonner";
 import {
   CalendarDays,
@@ -1325,7 +1325,9 @@ function PublicBookingPage() {
   async function submitBooking() {
     if (!business || selectedServices.length === 0 || !selectedSlot) return;
     if (!clientFirstName.trim()) return toast.error("Ingresá tu nombre.");
+    if (!nombreValido(clientFirstName)) return toast.error("Ingresá tu nombre real, solo con letras (hasta 40 caracteres).");
     if (!clientLastName.trim()) return toast.error("Ingresá tu apellido.");
+    if (!nombreValido(clientLastName)) return toast.error("Ingresá tu apellido real, solo con letras (hasta 40 caracteres).");
     if (!clientPhone.trim()) return toast.error("Ingresá tu teléfono.");
     if (!telefonoValido(clientPhone)) return toast.error("Ingresá un teléfono válido, solo con números (por ejemplo 11 1234-5678).");
     if (!clientEmail.trim()) return toast.error("Ingresá tu email.");
@@ -2476,10 +2478,10 @@ function PublicBookingPage() {
               {step === "details" ? (
                 <div className="mt-5 space-y-4">
                   <div className="grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2"><Label htmlFor="clientFirstName">Nombre *</Label><Input id="clientFirstName" value={clientFirstName} onChange={(event) => setClientFirstName(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" placeholder="Tu nombre" /></div>
-                    <div className="space-y-2"><Label htmlFor="clientLastName">Apellido *</Label><Input id="clientLastName" value={clientLastName} onChange={(event) => setClientLastName(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" placeholder="Tu apellido" /></div>
+                    <div className="space-y-2"><Label htmlFor="clientFirstName">Nombre *</Label><Input id="clientFirstName" maxLength={40} value={clientFirstName} onChange={(event) => setClientFirstName(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" placeholder="Tu nombre" /></div>
+                    <div className="space-y-2"><Label htmlFor="clientLastName">Apellido *</Label><Input id="clientLastName" maxLength={40} value={clientLastName} onChange={(event) => setClientLastName(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" placeholder="Tu apellido" /></div>
                     <div className="space-y-2"><Label htmlFor="clientPhone">Teléfono *</Label><Input id="clientPhone" type="tel" inputMode="tel" autoComplete="tel" value={clientPhone} onChange={(event) => setClientPhone(limpiarTelefono(event.target.value))} className="border-white/10 bg-white/[0.04] text-white" placeholder="11 1234-5678" /></div>
-                    <div className="space-y-2"><Label htmlFor="clientEmail">Email *</Label><Input id="clientEmail" type="email" inputMode="email" autoComplete="email" value={clientEmail} onChange={(event) => setClientEmail(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" placeholder="tu@email.com" /></div>
+                    <div className="space-y-2"><Label htmlFor="clientEmail">Email *</Label><Input id="clientEmail" maxLength={254} type="email" inputMode="email" autoComplete="email" value={clientEmail} onChange={(event) => setClientEmail(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" placeholder="tu@email.com" /></div>
                     {clientFields.fecha_nacimiento ? <div className="space-y-2"><Label htmlFor="clientBirthDate">Fecha de nacimiento *</Label><Input id="clientBirthDate" type="date" value={clientBirthDate} onChange={(event) => setClientBirthDate(event.target.value)} className="border-white/10 bg-white/[0.04] text-white" /></div> : null}
                   </div>
                   {!sourceAlreadyKnown ? (

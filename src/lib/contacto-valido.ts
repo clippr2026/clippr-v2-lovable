@@ -14,5 +14,11 @@ export function telefonoValido(valor: string): boolean {
 
 /** Correo válido: algo@dominio.ext, sin espacios. */
 export function emailValido(valor: string): boolean {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(valor.trim());
+  return valor.trim().length <= 254 && /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(valor.trim());
+}
+
+/** Nombre o apellido real: de 2 a 40 caracteres, con al menos 2 letras y sin números ni símbolos raros. */
+export function nombreValido(valor: string): boolean {
+  const v = valor.trim();
+  return v.length >= 2 && v.length <= 40 && /^[\p{L}][\p{L}\s'.-]*$/u.test(v) && (v.match(/\p{L}/gu)?.length ?? 0) >= 2;
 }
