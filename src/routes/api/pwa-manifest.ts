@@ -30,7 +30,8 @@ export const Route = createFileRoute("/api/pwa-manifest")({
         const icon = (size: number, maskable = false) =>
           `/api/pwa-icon?slug=${slug}&size=${size}${maskable ? "&maskable=1" : ""}`;
         const manifest = {
-          id: `/${slug}?app=local`,
+          // Con link de turno el id cambia: iPhone no reutiliza el manifiesto guardado de una instalación anterior.
+          id: `/${slug}?app=local${kOk ? `&t=${kOk.slice(0, 8)}` : ""}`,
           name,
           short_name: name,
           description: `Reservá tu turno en ${name}.`,

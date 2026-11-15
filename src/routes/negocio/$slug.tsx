@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { guardarTokenDeInicio } from "@/lib/push";
+import { guardarTokenDeInicio, tokenGuardado } from "@/lib/push";
 import { PushAvisosButton } from "@/components/push-avisos-button";
 import { publicButtonStyle } from "@/lib/public-button";
 import { COVER_ASPECT_CLASS } from "@/lib/cover-frame";
@@ -538,8 +538,10 @@ function PublicProfilePage() {
 
   // App instalada desde el correo: guarda el link del turno que viaja en la dirección de inicio.
   const [appInstalada, setAppInstalada] = React.useState(false);
+  const [vinculada, setVinculada] = React.useState(false);
   React.useEffect(() => {
     guardarTokenDeInicio(slug);
+    setVinculada(Boolean(tokenGuardado(slug)));
     setAppInstalada(
       window.matchMedia?.("(display-mode: standalone)").matches || (navigator as any).standalone === true,
     );
@@ -1593,7 +1595,12 @@ function PublicProfilePage() {
           mantiene sus colores propios (no es texto, no lo toca esa regla). */}
       {!isPreview && appInstalada && business.slug ? (
         <div className="mx-auto flex max-w-6xl justify-center px-4 pb-6">
-          <PushAvisosButton app="auro" businessSlug={business.slug} />
+          <div className="flex flex-col items-center gap-2">
+            <PushAvisosButton app="auro" businessSlug={business.slug} />
+            <span className="text-[11px] text-white/40">
+              {vinculada ? "Avisos de tu turno: vinculados" : "Avisos de tu turno: sin vincular"}
+            </span>
+          </div>
         </div>
       ) : null}
 
