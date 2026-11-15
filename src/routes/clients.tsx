@@ -2022,7 +2022,7 @@ function ClientsPage() {
         </div>
       )}
 
-      {segmentModal && (
+      {segmentModal && createPortal(
         <div
           className="fixed inset-0 z-[300] flex items-start sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4"
           style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}
@@ -2068,7 +2068,8 @@ function ClientsPage() {
               )}
             </div>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
       </div>
     </AppShell>
