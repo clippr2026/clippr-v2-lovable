@@ -1,4 +1,5 @@
 import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
+import { EtiquetaBarbero, barberoPrincipal, useClientBarberos } from "@/components/clientes/barbero-cliente";
 import { GRUPOS_CLIENTE, GrupoBadge, GrupoHistorial, grupoInfo, useClientGroups, type ClientGrupo } from "@/components/clientes/grupo-cliente";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -402,6 +403,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
   initialTab,
 }: ClientDetailPanelProps) {
   const { data: gruposFicha } = useClientGroups(businessId);
+  const { data: barberosFicha } = useClientBarberos(businessId);
   const [tab, setTab] = useState<"resumen" | "reservas">(initialTab ?? "resumen");
   // Reserva cobrada actualmente expandida (para ver el detalle del pago) —
   // una sola a la vez, se resetea al cambiar de cliente igual que el resto
@@ -751,6 +753,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                   <GrupoBadge grupo={gruposFicha?.porCliente.get(client.id)?.grupo} />
+                  {barberosFicha ? <EtiquetaBarbero info={barberosFicha.info.get(client.id)} nombres={barberosFicha.nombres} /> : null}
                   <Rating value={client.rating} />
                 </div>
                 <div className="mt-2.5 inline-flex items-center gap-2 text-sm text-white/70">
@@ -1461,6 +1464,8 @@ function ClientsPage() {
 
   const { data: summary } = useClientSegmentSummary(businessId);
   const { data: grupos } = useClientGroups(businessId);
+  const { data: barberos } = useClientBarberos(businessId);
+  const [filtroBarbero, setFiltroBarbero] = useState<string | null>(null);
   const { data: currentDetail, isLoading: detailLoading } = useClientDetail(businessId, selected);
 
   const clients = useMemo<ClientListRow[]>(
@@ -1539,6 +1544,7 @@ function ClientsPage() {
 
   const showGroup = useCallback(
     async (title: string, grupo: ClientGrupo) => {
+      setFiltroBarbero(null);
       setSegmentModal({ title, clients: [], loading: true });
       if (!businessId) {
         setSegmentModal({ title, clients: [], loading: false });
@@ -2042,6 +2048,32 @@ function ClientsPage() {
                 Cerrar
               </button>
             </div>
+            {(() => {
+              const cuenta = new Map<string, number>();
+              segmentModal.clients.forEach((c) => {
+                const b = barberoPrincipal(barberos?.info.get(c.id));
+                if (b) cuenta.set(b, (cuenta.get(b) ?? 0) + 1);
+              });
+              if (cuenta.size === 0) return null;
+              const orden = Array.from(cuenta.entries()).sort((x, y) => (x[0] === "cualquiera" ? 1 : y[0] === "cualquiera" ? -1 : y[1] - x[1]));
+              const chip = (activo: boolean) =>
+                cn(
+                  "shrink-0 rounded-full border px-3 py-1.5 text-xs font-semibold transition",
+                  activo ? "border-violet-400/60 bg-violet-500/20 text-white" : "border-white/10 bg-white/[0.04] text-white/70",
+                );
+              return (
+                <div className="shrink-0 flex gap-2 overflow-x-auto px-4 py-3 border-b border-white/5">
+                  <button type="button" onClick={() => setFiltroBarbero(null)} className={chip(filtroBarbero === null)}>
+                    Todos {segmentModal.clients.length}
+                  </button>
+                  {orden.map(([id, n]) => (
+                    <button key={id} type="button" onClick={() => setFiltroBarbero(filtroBarbero === id ? null : id)} className={chip(filtroBarbero === id)}>
+                      {id === "cualquiera" ? "Con cualquiera" : barberos?.nombres.get(id) ?? "Sin nombre"} {n}
+                    </button>
+                  ))}
+                </div>
+              );
+            })()}
             <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2">
               {segmentModal.loading ? (
                 <div className="p-8 text-center text-sm text-muted-foreground animate-pulse">
@@ -2052,7 +2084,9 @@ function ClientsPage() {
                   No hay clientes en este grupo.
                 </div>
               ) : (
-                segmentModal.clients.map((c) => (
+                segmentModal.clients
+                  .filter((c) => !filtroBarbero || barberoPrincipal(barberos?.info.get(c.id)) === filtroBarbero)
+                  .map((c) => (
                   <button
                     key={c.id}
                     onClick={() => {
@@ -2067,6 +2101,11 @@ function ClientsPage() {
                       <div className="truncate text-xs text-muted-foreground">
                         {c.phone || "sin teléfono"} · {c.lastVisit || "sin visitas"}
                       </div>
+                      {barberos ? (
+                        <div className="mt-1.5">
+                          <EtiquetaBarbero info={barberos.info.get(c.id)} nombres={barberos.nombres} />
+                        </div>
+                      ) : null}
                     </div>
                     <div className="shrink-0 pl-3 text-sm font-semibold">${c.spent.toLocaleString("es-AR")}</div>
                   </button>
