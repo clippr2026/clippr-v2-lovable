@@ -265,7 +265,8 @@ async function loadClients(businessId: string): Promise<Client[]> {
     const statusRow = statusRows.get(c.id);
     const lastVisit = formatLastVisit(statusRow?.last_visit ?? last);
     const visitsFinal = statusRow ? Number(statusRow.visits ?? 0) : visits;
-    const spentFinal = statusRow ? Number(statusRow.spent ?? 0) : spent;
+    // El gasto sale de los cobros ya unidos al cliente (por cliente, por turno o por nombre), no solo por nombre escrito.
+  const spentFinal = history.length > 0 ? spent : statusRow ? Number(statusRow.spent ?? 0) : spent;
     const vipTag: ClientVipTag = statusRow?.vip_tag ?? null;
     const status: ClientStatus = statusRow?.status ?? (visits === 0 ? "nuevo" : "activo");
 
@@ -532,8 +533,23 @@ async function loadClientDetail(businessId: string, clientId: string): Promise<C
       .ilike("client_name", name.trim().replace(/[\\%_]/g, "\\$&"))
       .order("created_at", { ascending: false }),
   ]);
+  // Cobros de los turnos de este cliente: su vínculo real, aunque el nombre escrito en la venta sea otro.
+  const apptIds = new Set((appointments ?? []).map((a) => a.id));
+  const { data: paymentsByAppt } = apptIds.size
+    ? await supabase.from("payments").select(PAYMENT_COLUMNS).eq("business_id", businessId).in("appointment_id", Array.from(apptIds))
+    : { data: [] as typeof paymentsById };
+  // Un cobro pertenece a este cliente si lo tiene como cliente (directo o por su turno); si no tiene cliente, por el nombre.
+  // Los que coinciden por nombre pero pertenecen a otro cliente (otro id o turno de otra ficha) se descartan.
   const payments = Array.from(
-    new Map([...(paymentsById ?? []), ...(paymentsByName ?? [])].map((p) => [p.id, p] as const)).values(),
+    new Map(
+      [...(paymentsById ?? []), ...(paymentsByAppt ?? []), ...(paymentsByName ?? [])]
+        .filter(
+          (p) =>
+            p.client_id === clientId ||
+            (p.appointment_id ? apptIds.has(p.appointment_id) : !p.client_id),
+        )
+        .map((p) => [p.id, p] as const),
+    ).values(),
   ).sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)));
 
   const employeeNameById = new Map<string, string>();

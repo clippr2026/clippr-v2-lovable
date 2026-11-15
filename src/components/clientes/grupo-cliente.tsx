@@ -49,7 +49,7 @@ export const grupoPermiteVip = (g: ClientGrupo | null | undefined) => g !== "nue
 
 export const grupoInfo = (g: ClientGrupo | null | undefined) => GRUPOS_CLIENTE.find((x) => x.key === g) ?? null;
 
-type GrupoRow = { client_id: string; grupo: ClientGrupo; cada_dias: number | string | null; ultima_visita: string | null; dias_visitas: number };
+type GrupoRow = { client_id: string; grupo: ClientGrupo; cada_dias: number | string | null; ultima_visita: string | null; dias_visitas: number; gasto: number | string | null };
 
 export function useClientGroups(businessId: string | null) {
   return useQuery({

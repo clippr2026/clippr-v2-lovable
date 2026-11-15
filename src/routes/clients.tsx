@@ -1787,7 +1787,7 @@ function ClientsPage() {
                       <div className="flex items-center justify-between gap-2">
                         <div className="text-sm font-semibold text-white truncate">{c.name}</div>
                         <div className="text-sm font-semibold tabular-nums">
-                          ${c.spent.toLocaleString("es-AR")}
+                          ${Number(grupos?.porCliente.get(c.id)?.gasto ?? c.spent).toLocaleString("es-AR")}
                         </div>
                       </div>
                       <div className="text-[11px] text-muted-foreground truncate">
@@ -2173,7 +2173,7 @@ function ClientsPage() {
                         </div>
                       ) : null}
                     </div>
-                    <div className="shrink-0 pl-3 text-sm font-semibold">${c.spent.toLocaleString("es-AR")}</div>
+                    <div className="shrink-0 pl-3 text-sm font-semibold">${Number(grupos?.porCliente.get(c.id)?.gasto ?? c.spent).toLocaleString("es-AR")}</div>
                   </button>
                 ))
               )}
