@@ -265,8 +265,7 @@ async function loadClients(businessId: string): Promise<Client[]> {
     const statusRow = statusRows.get(c.id);
     const lastVisit = formatLastVisit(statusRow?.last_visit ?? last);
     const visitsFinal = statusRow ? Number(statusRow.visits ?? 0) : visits;
-    // El gasto sale de los cobros ya unidos al cliente (por cliente, por turno o por nombre), no solo por nombre escrito.
-  const spentFinal = history.length > 0 ? spent : statusRow ? Number(statusRow.spent ?? 0) : spent;
+    const spentFinal = statusRow ? Number(statusRow.spent ?? 0) : spent;
     const vipTag: ClientVipTag = statusRow?.vip_tag ?? null;
     const status: ClientStatus = statusRow?.status ?? (visits === 0 ? "nuevo" : "activo");
 
@@ -632,7 +631,8 @@ async function loadClientDetail(businessId: string, clientId: string): Promise<C
   const statusRow = statusRows.get(clientId);
   const lastVisit = formatLastVisit(statusRow?.last_visit ?? lastDate);
   const visitsFinal = statusRow ? Number(statusRow.visits ?? 0) : visits;
-  const spentFinal = statusRow ? Number(statusRow.spent ?? 0) : spent;
+  // El gasto sale de los cobros ya unidos al cliente (por cliente, por turno o por nombre), no solo por nombre escrito.
+  const spentFinal = history.length > 0 ? spent : statusRow ? Number(statusRow.spent ?? 0) : spent;
   const vipTag: ClientVipTag = statusRow?.vip_tag ?? null;
   const status: ClientStatus = statusRow?.status ?? (visits === 0 ? "nuevo" : "activo");
 
