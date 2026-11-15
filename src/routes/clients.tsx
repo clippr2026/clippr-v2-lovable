@@ -2062,13 +2062,13 @@ function ClientsPage() {
                     className="w-full flex items-center justify-between rounded-2xl border border-white/10 p-3 text-left hover:border-white/20"
                     style={{ background: CARD_LUZ }}
                   >
-                    <div>
-                      <div className="text-sm font-semibold text-white">{c.name}</div>
-                      <div className="text-xs text-muted-foreground">
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate text-sm font-semibold text-white">{c.name}</div>
+                      <div className="truncate text-xs text-muted-foreground">
                         {c.phone || "sin teléfono"} · {c.lastVisit || "sin visitas"}
                       </div>
                     </div>
-                    <div className="text-sm font-semibold">${c.spent.toLocaleString("es-AR")}</div>
+                    <div className="shrink-0 pl-3 text-sm font-semibold">${c.spent.toLocaleString("es-AR")}</div>
                   </button>
                 ))
               )}
