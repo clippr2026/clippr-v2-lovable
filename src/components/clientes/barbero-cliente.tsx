@@ -90,7 +90,19 @@ export function barberoPrincipal(i: InfoBarbero | undefined): string | null {
   return i.tipo === "vip" || i.tipo === "dos" || i.tipo === "uno" ? i.empleados[0] : "cualquiera";
 }
 
-export function EtiquetaBarbero({ info, nombres, className }: { info: InfoBarbero | undefined; nombres: Map<string, string>; className?: string }) {
+export function EtiquetaBarbero({
+  info,
+  nombres,
+  permitirVip = true,
+  className,
+}: {
+  info: InfoBarbero | undefined;
+  nombres: Map<string, string>;
+  /** false en Nuevos, Una visita y Sin visitas: ahí un cliente de un solo barbero se muestra como "Con X", no como VIP. */
+  permitirVip?: boolean;
+  className?: string;
+}) {
+  if (info?.tipo === "vip" && !permitirVip) info = { tipo: "uno", empleados: info.empleados };
   const texto = etiquetaBarbero(info, nombres);
   if (!texto) return null;
   const vip = info?.tipo === "vip";

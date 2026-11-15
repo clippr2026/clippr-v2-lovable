@@ -1,6 +1,6 @@
 import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
 import { EtiquetaBarbero, barberoPrincipal, useClientBarberos } from "@/components/clientes/barbero-cliente";
-import { GRUPOS_CLIENTE, GrupoBadge, GrupoHistorial, grupoInfo, useClientGroups, type ClientGrupo } from "@/components/clientes/grupo-cliente";
+import { GRUPOS_CLIENTE, GrupoBadge, GrupoHistorial, grupoInfo, grupoPermiteVip, useClientGroups, type ClientGrupo } from "@/components/clientes/grupo-cliente";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -753,7 +753,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                   <GrupoBadge grupo={gruposFicha?.porCliente.get(client.id)?.grupo} />
-                  {barberosFicha ? <EtiquetaBarbero info={barberosFicha.info.get(client.id)} nombres={barberosFicha.nombres} /> : null}
+                  {barberosFicha ? <EtiquetaBarbero info={barberosFicha.info.get(client.id)} nombres={barberosFicha.nombres} permitirVip={grupoPermiteVip(gruposFicha?.porCliente.get(client.id)?.grupo)} /> : null}
                   <Rating value={client.rating} />
                 </div>
                 <div className="mt-2.5 inline-flex items-center gap-2 text-sm text-white/70">
@@ -2103,7 +2103,7 @@ function ClientsPage() {
                       </div>
                       {barberos ? (
                         <div className="mt-1.5">
-                          <EtiquetaBarbero info={barberos.info.get(c.id)} nombres={barberos.nombres} />
+                          <EtiquetaBarbero info={barberos.info.get(c.id)} nombres={barberos.nombres} permitirVip={grupoPermiteVip(grupos?.porCliente.get(c.id)?.grupo)} />
                         </div>
                       ) : null}
                     </div>

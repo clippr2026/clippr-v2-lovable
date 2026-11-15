@@ -44,6 +44,9 @@ export const GRUPOS_CLIENTE: Array<{
     regla: "Tenían 2 o más visitas y llevan sin venir más de 1,5 veces lo que suelen tardar (mínimo 30 días, máximo 120), sin turno por venir." },
 ];
 
+/** "VIP de un barbero" solo existe para quien ya tiene un ritmo de visitas: no en Nuevos, Una visita ni Sin visitas. */
+export const grupoPermiteVip = (g: ClientGrupo | null | undefined) => g !== "nuevo" && g !== "una_visita" && g !== "sin_visitas";
+
 export const grupoInfo = (g: ClientGrupo | null | undefined) => GRUPOS_CLIENTE.find((x) => x.key === g) ?? null;
 
 type GrupoRow = { client_id: string; grupo: ClientGrupo; cada_dias: number | string | null; ultima_visita: string | null };
