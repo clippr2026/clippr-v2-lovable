@@ -278,7 +278,7 @@ function StatCard({
       />
       <div className="relative flex flex-col gap-1.5">
         <div className="flex items-center justify-between gap-2">
-          <div className="text-[9px] sm:text-[10px] uppercase tracking-[0.18em] text-muted-foreground/90 truncate">
+          <div className="text-[9px] sm:text-[10px] uppercase tracking-[0.12em] sm:tracking-[0.18em] leading-tight text-muted-foreground/90">
             {label}
           </div>
           {info && (
@@ -305,7 +305,7 @@ function StatCard({
         {link && (
           <button
             onClick={onLinkClick}
-            className="mt-0.5 inline-flex items-center gap-1 self-start text-[9px] sm:text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-300/90 hover:text-violet-200 transition-colors"
+            className="mt-0.5 inline-flex items-center gap-1 self-start text-[8px] sm:text-[10px] font-semibold uppercase tracking-[0.08em] sm:tracking-[0.2em] text-violet-300/90 hover:text-violet-200 transition-colors"
           >
             {link} <ArrowRight className="h-3 w-3" />
           </button>
@@ -1632,8 +1632,8 @@ function ClientsPage() {
               Mobile: VIP+Activos / Nuevos+Inactivos / Perdidos a pantalla
               completa (destacado, misma altura que el resto — ver StatCard
               featured). Desktop (sm+): sin cambios, grilla pareja de 5. */}
-          <div className="grid shrink-0 grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
-            {GRUPOS_CLIENTE.map((g, i) => (
+          <div className="grid shrink-0 grid-cols-3 gap-2 sm:gap-3">
+            {GRUPOS_CLIENTE.map((g) => (
               <StatCard
                 key={g.key}
                 label={g.label}
@@ -1646,7 +1646,6 @@ function ClientsPage() {
                 onInfoClick={() => setMetricInfo({ title: g.label, description: g.regla, bullets: [] })}
                 link={g.key === "perdido" ? "Reconquistar" : "Ver todos"}
                 onLinkClick={() => showGroup(g.label, g.key)}
-                className={i === GRUPOS_CLIENTE.length - 1 ? "col-span-2 sm:col-span-1" : undefined}
               />
             ))}
           </div>

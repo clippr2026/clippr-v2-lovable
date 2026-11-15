@@ -30,7 +30,7 @@ export const GRUPOS_CLIENTE: Array<{
     regla: "Vinieron una sola vez y ya pasó el mes sin que volvieran. Si vuelven, pasan al grupo que les toque por el tiempo entre sus visitas." },
   { key: "sin_visitas", label: "Sin visitas", corto: "SIN VISITAS", cls: "bg-white/5 text-muted-foreground ring-white/10", glow: "bg-slate-500/20",
     regla: "Están cargados como clientes, pero todavía no tienen ninguna visita con pago registrado." },
-  { key: "semanal", label: "Semanal (VIP)", corto: "VIP · SEMANAL", cls: "bg-gradient-to-r from-amber-300/20 to-violet-400/15 text-amber-100 ring-amber-300/40", glow: "bg-amber-500/25",
+  { key: "semanal", label: "Semanal", corto: "SEMANAL", cls: "bg-gradient-to-r from-amber-300/20 to-violet-400/15 text-amber-100 ring-amber-300/40", glow: "bg-amber-500/25",
     regla: "Vuelven cada 10 días o menos, según sus últimas 3 visitas: una vez por semana." },
   { key: "quincenal", label: "Cada 2 semanas", corto: "CADA 2 SEMANAS", cls: "bg-violet-400/10 text-violet-300 ring-violet-400/30", glow: "bg-violet-500/25",
     regla: "Vuelven cada 11 a 17 días, según sus últimas 3 visitas." },
