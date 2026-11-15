@@ -2024,7 +2024,7 @@ function ClientsPage() {
 
       {segmentModal && (
         <div
-          className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-[300] flex items-start sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4"
           style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}
         >
           <div className="flex w-full max-w-xl max-h-[calc(100dvh-2rem)] flex-col rounded-2xl bg-background ring-1 ring-white/10 shadow-2xl overflow-hidden">
