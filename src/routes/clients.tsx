@@ -20,6 +20,7 @@ import {
   Mail,
   MoreHorizontal,
   Megaphone,
+  MessageCircle,
   PauseCircle,
   Phone,
   Plus,
@@ -57,7 +58,7 @@ import { DeudaClientesBanner } from "@/components/clients/deuda-clientes-banner"
 import { PAY_METHOD_LABEL, type PayMethod } from "@/components/cash-register/register-payment";
 import { cancelAppointment, checkOverlap, getMaxAdvanceDays, saveAppointment } from "@/components/agenda/use-agenda-data";
 import { computeRepeatDates, WEEKDAYS, type RepeatWeekday } from "@/lib/recurring-schedule";
-import { limpiarTelefono, telefonoValido } from "@/lib/contacto-valido";
+import { emailValido, limpiarTelefono, telefonoValido, whatsappHref } from "@/lib/contacto-valido";
 
 // "Reservas recurrentes" (ficha del cliente) — misma tabla que arma
 // appointment-dialog.tsx al confirmar "Repetir turno".
@@ -805,19 +806,41 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                   </div>
                 )}
                 {(client.phone || client.email) && (
-                  <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-white/70">
-                    {client.phone && (
-                      <span className="inline-flex items-center gap-1.5">
-                        <Phone className="h-3.5 w-3.5 text-white/45" />
-                        {client.phone}
-                      </span>
-                    )}
-                    {client.email && (
-                      <span className="inline-flex items-center gap-1.5 truncate">
-                        <Mail className="h-3.5 w-3.5 shrink-0 text-white/45" />
-                        <span className="truncate">{client.email}</span>
-                      </span>
-                    )}
+                  <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-white/70">
+                    {client.phone &&
+                      (whatsappHref(client.phone) ? (
+                        // Tocar el teléfono abre el chat de WhatsApp con el cliente.
+                        <a
+                          href={whatsappHref(client.phone)!}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex h-9 items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 font-semibold text-emerald-200 transition hover:bg-emerald-400/20"
+                        >
+                          <MessageCircle className="h-4 w-4" />
+                          {client.phone}
+                        </a>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5">
+                          <Phone className="h-3.5 w-3.5 text-white/45" />
+                          {client.phone}
+                        </span>
+                      ))}
+                    {client.email &&
+                      (emailValido(client.email) ? (
+                        // Tocar el correo abre un mensaje nuevo para el cliente.
+                        <a
+                          href={`mailto:${client.email.trim()}`}
+                          className="inline-flex h-9 max-w-full items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 font-semibold text-white/85 transition hover:bg-white/10"
+                        >
+                          <Mail className="h-4 w-4 shrink-0" />
+                          <span className="truncate">{client.email}</span>
+                        </a>
+                      ) : (
+                        <span className="inline-flex items-center gap-1.5 truncate">
+                          <Mail className="h-3.5 w-3.5 shrink-0 text-white/45" />
+                          <span className="truncate">{client.email}</span>
+                        </span>
+                      ))}
                   </div>
                 )}
                 {birthday && (
