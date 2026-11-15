@@ -1,4 +1,5 @@
 import * as React from "react";
+import { whatsappHref } from "@/lib/contacto-valido";
 import { createPortal } from "react-dom";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { AppShell } from "@/components/app-shell";
@@ -1510,7 +1511,7 @@ function GrowthContactsBlock({ contacts }: { contacts: RecommendationContact[] }
               <span className="shrink-0 text-xs text-white/45">{c.detail}</span>
               {c.phone ? (
                 <a
-                  href={`https://wa.me/${c.phone.replace(/\D/g, "")}`}
+                  href={whatsappHref(c.phone) ?? undefined}
                   target="_blank"
                   rel="noreferrer"
                   className="shrink-0 rounded-lg bg-emerald-500/15 px-2.5 py-1 text-xs font-semibold text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25"

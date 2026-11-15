@@ -1,4 +1,5 @@
 import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
+import { whatsappHref as armarWhatsappHref } from "@/lib/contacto-valido";
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import {
   createFileRoute,
@@ -4269,8 +4270,8 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
           : appointment.status === "in_service"
             ? "En servicio"
             : "Por confirmar";
-  const cleanPhone = phone ? phone.replace(/\D/g, "") : "";
-  const whatsappHref = cleanPhone ? `https://wa.me/${cleanPhone}` : undefined;
+  // WhatsApp necesita el código de país: sin él, un número como 1166429042 se leía como +1 (EE.UU.).
+  const whatsappHref = armarWhatsappHref(phone) ?? undefined;
   const noteText = clientNoteOnly(appointment.notes);
   const appointmentProducts = appointmentProductsFromNotes(appointment.notes);
   const productsSubtotal = appointmentProducts.reduce((sum, product) => {
