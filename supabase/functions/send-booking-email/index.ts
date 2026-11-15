@@ -125,6 +125,79 @@ function buildManageUrl(
   return `${APP_ORIGIN}/gestion?${q.toString()}`;
 }
 
+const VAPID_PUBLIC_KEY =
+  "BE3-3hG9suQnA55ywpRe1kbxxYlIq4oWkgA8zpRBuATHM__nvjnomDShRvYAnYNvoCK4-yCjrMosaJ8mWgxgG6E";
+
+/** Texto del aviso en el celular, según el tipo de correo. Sin tipo conocido no se manda nada. */
+function textoPush(type: string, d: { date: string; time: string; services: string; amount?: number }) {
+  const cuando = `${d.date}, ${d.time}`;
+  switch (type) {
+    case "confirmation":
+      return { title: "Turno agendado", body: `${d.services} · ${cuando}` };
+    case "reminder_1d":
+      return { title: "Mañana tenés turno", body: `${d.services} · ${d.time}` };
+    case "reminder_2h":
+      return { title: "Tu turno es en 2 horas", body: `${d.services} · ${d.time}` };
+    case "reschedule":
+      return { title: "Tu turno cambió", body: `Nuevo horario: ${cuando}` };
+    case "cancellation":
+      return { title: "Turno cancelado", body: `${d.services} · ${cuando}` };
+    case "deposit_reminder":
+      return { title: "Falta pagar la seña", body: `Para sostener tu turno del ${cuando}` };
+    case "deposit_rejected":
+      return { title: "Revisá tu comprobante", body: "No pudimos validar el pago de la seña." };
+    case "deposit_confirmed":
+      return { title: "Seña recibida, turno confirmado", body: cuando };
+    case "deposit_expired":
+      return { title: "Turno cancelado por falta de seña", body: cuando };
+    default:
+      return null;
+  }
+}
+
+/** Aviso push a los celulares del cliente del turno. Nunca rompe el envío del correo. */
+async function avisarPush(
+  supabase: ReturnType<typeof createClient>,
+  clientId: string | null,
+  type: string,
+  businessName: string,
+  url: string,
+  d: Parameters<typeof textoPush>[1],
+): Promise<{ sent: number; removed: number; failed: number } | null> {
+  try {
+    const privateKey = Deno.env.get("VAPID_PRIVATE_KEY");
+    const texto = textoPush(type, d);
+    if (!privateKey || !clientId || !texto) return null;
+    const { data: targets } = await supabase.rpc("get_client_push_targets_v1", { p_client_id: clientId });
+    const lista = (targets ?? []) as Array<{ id: string; endpoint: string; p256dh: string; auth: string }>;
+    if (!lista.length) return null;
+    // Carga tardía: si el módulo fallara, solo se pierde el aviso; el correo sale igual.
+    const { default: webpush } = await import("npm:web-push@3.6.7");
+    webpush.setVapidDetails(Deno.env.get("VAPID_SUBJECT") ?? "mailto:aurostyloadmi@gmail.com", VAPID_PUBLIC_KEY, privateKey);
+    const body = JSON.stringify({ title: `${businessName}: ${texto.title}`, body: texto.body, url, icon: "/pwa/auro-192.png" });
+    const out = { sent: 0, removed: 0, failed: 0 };
+    for (const t of lista) {
+      try {
+        await webpush.sendNotification({ endpoint: t.endpoint, keys: { p256dh: t.p256dh, auth: t.auth } }, body);
+        out.sent++;
+      } catch (e) {
+        const code = (e as { statusCode?: number }).statusCode;
+        if (code === 404 || code === 410) {
+          await supabase.rpc("delete_push_subscription_v1", { p_id: t.id });
+          out.removed++;
+        } else {
+          out.failed++;
+          console.error("push: error enviando", code, (e as Error).message);
+        }
+      }
+    }
+    return out;
+  } catch (e) {
+    console.error("push: no se pudo avisar", (e as Error).message);
+    return null;
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return json({ error: "Method not allowed" }, 405);
@@ -170,7 +243,6 @@ Deno.serve(async (req: Request) => {
       to = storedEmail || undefined;
     }
 
-    if (!to) return json({ ok: true, skipped: "sin email del cliente" });
 
     // Completa lo que no llegó en el pedido (recordatorios del programador).
     const tzRow = await supabase.from("businesses").select("timezone").eq("id", businessId).maybeSingle();
@@ -312,6 +384,17 @@ Deno.serve(async (req: Request) => {
     const email = buildBookingEmail(type, data);
     if (!email) return json({ error: `Tipo de correo desconocido: ${type}` }, 400);
 
+    // Mismo momento, también al celular del cliente (si instaló la app y activó los avisos).
+    const push = await avisarPush(
+      supabase,
+      (appt.client_id as string | null) ?? null,
+      type,
+      brand.name,
+      manageUrl,
+      { date: data.date, time: data.time, services: data.services },
+    );
+    if (!to) return json({ ok: true, skipped: "sin email del cliente", push });
+
     const resendRes = await fetch("https://api.resend.com/emails", {
       method: "POST",
       headers: { Authorization: `Bearer ${resendKey}`, "Content-Type": "application/json" },
@@ -340,7 +423,7 @@ Deno.serve(async (req: Request) => {
         p_starts_at: appt.starts_at,
       });
     }
-    return json({ ok: true, id: result?.id ?? null });
+    return json({ ok: true, id: result?.id ?? null, push });
   } catch (err) {
     console.error("send-booking-email error", err);
     return json({ error: (err as Error).message ?? "Error interno" }, 500);
