@@ -723,7 +723,9 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
     setIsEditingNote(false);
   }
 
-  const ticket = client.visits ? Math.round(client.spent / client.visits) : 0;
+  // Visitas = días distintos con pago (dos pagos el mismo día son una visita), igual que los grupos.
+  const visitasDias = gruposFicha?.porCliente.get(client.id)?.dias_visitas ?? client.visits;
+  const ticket = visitasDias ? Math.round(client.spent / visitasDias) : 0;
   const since = formatClientSince(client.created_at);
   const birthday = formatBirthday(client.birth_date);
   const favoriteServices = client.favoriteServices;
@@ -881,7 +883,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
               </div>
               <div className="px-3 py-3 sm:px-4">
                 <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Visitas</div>
-                <div className="mt-1 text-xl font-display tabular-nums">{client.visits}</div>
+                <div className="mt-1 text-xl font-display tabular-nums">{visitasDias}</div>
               </div>
               <div className="px-3 py-3 sm:px-4">
                 <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
@@ -1325,17 +1327,18 @@ function ClientDetailModal({
   if (!open) return null;
   if (typeof document === "undefined") return null;
 
-  return (
+  return createPortal(
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 p-0 sm:p-4"
+      className="fixed inset-0 z-[300] flex items-end sm:items-center justify-center bg-black/75 p-0 sm:p-4"
       onClick={onClose}
     >
       <div
-        className={cn(
-          "glass relative flex w-full sm:max-w-2xl max-h-[92dvh] flex-col overflow-hidden rounded-t-3xl sm:rounded-3xl",
-          client?.status === "perdido" && "ring-1 ring-rose-400/30",
-          client?.status === "vip" && "ring-1 ring-amber-300/30",
-        )}
+        className="relative flex w-full sm:max-w-2xl max-h-[92dvh] flex-col overflow-hidden rounded-t-[28px] sm:rounded-[28px] border border-violet-400/45 bg-[#08070f]"
+        style={{
+          boxShadow: "0 0 0 1px rgba(139,92,246,.35), 0 30px 90px -20px rgba(0,0,0,.9), 0 0 60px -18px rgba(139,92,246,.55)",
+          backgroundImage:
+            "radial-gradient(120% 45% at 85% 0%, rgba(79,125,255,.20), transparent 60%), radial-gradient(110% 50% at 0% 100%, rgba(139,92,246,.22), transparent 62%)",
+        }}
         onClick={(e) => e.stopPropagation()}
       >
         <button
@@ -1376,7 +1379,8 @@ function ClientDetailModal({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
@@ -1728,7 +1732,10 @@ function ClientsPage() {
                         </div>
                       </div>
                       <div className="text-[11px] text-muted-foreground truncate">
-                        {c.visits} visitas · {c.lastVisit ?? "sin visitas"}
+                        {(() => {
+                          const v = grupos?.porCliente.get(c.id)?.dias_visitas ?? c.visits;
+                          return `${v} ${v === 1 ? "visita" : "visitas"}`;
+                        })()} · {c.lastVisit ?? "sin visitas"}
                       </div>
                       <div className="mt-1.5 flex items-center gap-1.5">
                         <GrupoBadge grupo={grupos?.porCliente.get(c.id)?.grupo} />
