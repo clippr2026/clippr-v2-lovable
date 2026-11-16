@@ -755,17 +755,17 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
           "relative px-6 py-5 border-b border-white/5",
         )}
       >
-        <div className="relative flex items-center gap-5">
-          <div className="h-20 w-20 rounded-2xl grid place-items-center text-2xl font-display font-semibold bg-gradient-to-br from-sky-400/30 to-violet-600/10 ring-1 ring-violet-400/40 text-sky-100 shrink-0">
-            <UserRound className="h-9 w-9 text-sky-100/80" />
-          </div>
+        <div className="relative">
           <div className="flex-1 min-w-0 space-y-2">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <div className="flex items-center gap-2 text-2xl font-display font-semibold leading-tight">
-                  {client.name}
+                <div className="flex items-center gap-3 pr-10">
+                  <div className="h-12 w-12 rounded-2xl grid place-items-center bg-gradient-to-br from-sky-400/30 to-violet-600/10 ring-1 ring-violet-400/40 text-sky-100 shrink-0">
+                    <UserRound className="h-6 w-6 text-sky-100/80" />
+                  </div>
+                  <div className="min-w-0 text-xl font-display font-semibold leading-tight">{client.name}</div>
                 </div>
-                <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                <div className="mt-3 flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
                   <GrupoBadge grupo={gruposFicha?.porCliente.get(client.id)?.grupo} />
                   {client.origen && (
                     <span
@@ -779,16 +779,15 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                       {client.origen === "online" ? "Reserva online" : "Reserva manual"}
                     </span>
                   )}
-                  {barberosFicha ? <EtiquetaBarbero info={barberosFicha.info.get(client.id)} nombres={barberosFicha.nombres} permitirVip={grupoPermiteVip(gruposFicha?.porCliente.get(client.id)?.grupo)} /> : null}
                 </div>
-                <div className="mt-2.5 inline-flex items-center gap-2 text-sm text-white/70">
+                <div className="mt-4 flex items-center gap-2 text-sm text-white/70">
                   <CalendarDays className="h-4 w-4 text-white/45" />
                   <span>
                     Cliente desde <span className="font-semibold text-white capitalize">{since}</span>
                   </span>
                 </div>
                 {client.acquisitionSource && (
-                  <div className="mt-1.5 inline-flex items-start gap-2 text-sm text-white/70">
+                  <div className="mt-2 flex items-start gap-2 text-sm text-white/70">
                     {(() => {
                       const channel = ACQUISITION_CHANNELS.find((c) => c.id === client.acquisitionSource);
                       return channel ? (
@@ -815,7 +814,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                   </div>
                 )}
                 {(client.phone || client.email) && (
-                  <div className="mt-2 flex flex-wrap items-center gap-2 text-sm text-white/70">
+                  <div className="mt-4 flex flex-wrap items-center gap-2 text-sm text-white/70">
                     {client.phone &&
                       (whatsappHref(client.phone) ? (
                         // Tocar el teléfono abre el chat de WhatsApp con el cliente.
@@ -944,16 +943,16 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                 }
                 return (
                   <div className="space-y-2.5">
-                    <EtiquetaBarbero
-                      info={info}
-                      nombres={barberosFicha!.nombres}
-                      permitirVip={grupoPermiteVip(gruposFicha?.porCliente.get(client.id)?.grupo)}
-                    />
                     <div className="divide-y divide-white/[0.06]">
                       {info.conteo.map(([id, n]) => (
                         <div key={id} className="flex items-center justify-between gap-3 py-2">
                           <span className="truncate text-sm font-medium text-white/85">
                             {barberosFicha!.nombres.get(id) ?? "Sin nombre"}
+                            {info.tipo === "vip" && id === info.empleados[0] && grupoPermiteVip(gruposFicha?.porCliente.get(client.id)?.grupo) && (
+                              <span className="ml-2 rounded-full bg-amber-300/15 px-2 py-0.5 text-[10px] font-semibold text-amber-100 ring-1 ring-amber-300/40">
+                                VIP
+                              </span>
+                            )}
                           </span>
                           <span className="shrink-0 text-[11px] text-white/55">
                             {n} {n === 1 ? "atención" : "atenciones"}
