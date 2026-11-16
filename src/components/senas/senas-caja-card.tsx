@@ -94,12 +94,15 @@ export function SenasCajaCard({
   branchId,
   onChanged,
   hideWhenDisabled = false,
+  variant = "tarjeta",
 }: {
   businessId: string | null | undefined;
   branchId: string | null | undefined;
   onChanged?: () => void;
   /** Inicio: si las señas están desactivadas y no hay nada por revisar, la tarjeta no se muestra. */
   hideWhenDisabled?: boolean;
+  /** "avisos": en vez de la tarjeta, una notificación por cada cosa pendiente (mismo estilo que cajas pendientes y saldo pendiente). */
+  variant?: "tarjeta" | "avisos";
 }) {
   const pend = useSenasPendientes(businessId);
   const reemb = useReembolsosPorRevisar(businessId);
@@ -133,6 +136,51 @@ export function SenasCajaCard({
     setTick((t) => t + 1);
     onChanged?.();
   };
+
+  if (variant === "avisos") {
+    const aviso = (texto: string, monto: number, boton: string, onClick: () => void) => (
+      <div
+        className="flex items-center gap-3 rounded-[20px] border border-sky-400/45 bg-white/[0.03] p-4"
+        style={{
+          background: "radial-gradient(110% 90% at 100% 0%, rgba(56,189,248,.20), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(56,189,248,.10), transparent 65%)",
+          boxShadow: "0 0 26px -12px rgba(56,189,248,.55)",
+        }}
+      >
+        <HandCoins className="h-5 w-5 shrink-0 text-sky-300" />
+        <div className="min-w-0 flex-1">
+          <p className="text-sm font-semibold leading-tight text-white">{texto}</p>
+          <p className="mt-0.5 text-xs font-semibold tabular-nums text-sky-300">{money(monto)}</p>
+        </div>
+        <button
+          type="button"
+          onClick={onClick}
+          className="h-9 shrink-0 rounded-full border border-sky-400/50 bg-sky-400/15 px-5 text-sm font-semibold text-sky-100 transition hover:bg-sky-400/25"
+        >
+          {boton}
+        </button>
+      </div>
+    );
+    return (
+      <>
+        {pend.items.length > 0 &&
+          aviso(
+            pend.items.length === 1 ? "Tenés 1 seña por revisar" : `Tenés ${pend.items.length} señas por revisar`,
+            pendTotal,
+            "Revisar",
+            () => setOpen(true),
+          )}
+        {reemb.items.length > 0 &&
+          aviso(
+            reemb.items.length === 1 ? "Tenés 1 reembolso pendiente" : `Tenés ${reemb.items.length} reembolsos pendientes`,
+            reembTotal,
+            "Ver",
+            () => setOpenReemb(true),
+          )}
+        <ReembolsosModal open={openReemb} onClose={() => setOpenReemb(false)} items={reemb.items} />
+        <SenasPendientesModal open={open} onClose={() => setOpen(false)} items={pend.items} loading={pend.loading} onChanged={handleChanged} />
+      </>
+    );
+  }
 
   if (hideWhenDisabled && (enabled === null || (!enabled && pend.items.length === 0 && reemb.items.length === 0))) return null;
 

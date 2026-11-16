@@ -163,12 +163,6 @@ function DashboardContent({ businessId }: { businessId: string | null }) {
     <div className="dashboard-premium-shell space-y-3 animate-fade-in-safe">
       <CajaHoyCard caja={cajaHoy} data={data} userEmail={userEmail} />
       <SenasExtensionBanner businessId={businessId} branchId={activeBranchId} onClosed={() => void cajaHoy.refresh()} />
-      <SenasCajaCard
-        businessId={businessId}
-        branchId={activeBranchId}
-        onChanged={() => void cajaHoy.refresh()}
-        hideWhenDisabled
-      />
       <JornadaRecepcionCard businessId={businessId} branchId={fichajeBranchId} />
       <FichajeHoyCard
         fichaje={fichajeHoy}
@@ -260,6 +254,7 @@ function CajaHoyCard({
   // modal que Caja > Facturación, misma fuente (caja.todayExpectedFull):
   // un saldo negativo nunca queda sin explicación acá tampoco.
   const [saldoDetalle, setSaldoDetalle] = React.useState<"cash" | "digital" | null>(null);
+  const { businessId: bizId, activeBranchId } = useAuth();
 
   // Los 10 campos en `undefined` (no `null`, no omitidos): la ruta exige el
   // objeto `search` completo por tipos, pero `undefined` es la única forma
@@ -281,7 +276,7 @@ function CajaHoyCard({
   };
 
   return (
-    <div className="glass rounded-2xl p-4 sm:p-5 ring-1 ring-white/5">
+    <div className="flex flex-col gap-3">
       {/* Ninguna caja se cierra sola: este aviso solo lleva a la vista
           previa de Caja > Cierres (ver sección 2/4 del pedido) — nunca
           cierra nada desde Inicio. Lista TODAS las jornadas pendientes,
@@ -292,9 +287,10 @@ function CajaHoyCard({
           hacia arriba en cada carga). El aviso aparece solo cuando de verdad
           hay una caja pendiente; dentro de la misma sesión el hook recuerda
           el último valor (pendingCierresCache), así que no vuelve a parpadear. */}
+      <div className="flex flex-col gap-3 empty:hidden">
       {caja.pendingCierres.length > 0 ? (
         <div
-          className="mb-3 flex items-center gap-3 rounded-[20px] border border-amber-400/45 bg-white/[0.03] p-4"
+          className="flex items-center gap-3 rounded-[20px] border border-amber-400/45 bg-white/[0.03] p-4"
           style={{ background: "radial-gradient(110% 90% at 100% 0%, rgba(251,191,36,.20), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(251,191,36,.10), transparent 65%)", boxShadow: "0 0 26px -12px rgba(251,191,36,.55)" }}
         >
           <AlertTriangle className="h-4 w-4 shrink-0 text-amber-300" />
@@ -313,10 +309,12 @@ function CajaHoyCard({
         </div>
       ) : null}
 
-      <div className="mb-3 empty:hidden">
-        <DeudaClientesBanner />
+      <DeudaClientesBanner />
+
+      <SenasCajaCard businessId={bizId} branchId={activeBranchId} onChanged={() => void caja.refresh()} variant="avisos" />
       </div>
 
+      <div className="glass rounded-2xl p-4 sm:p-5 ring-1 ring-white/5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
           Caja de hoy
@@ -391,6 +389,7 @@ function CajaHoyCard({
           onClose={() => setSaldoDetalle(null)}
         />
       )}
+      </div>
     </div>
   );
 }

@@ -6,7 +6,6 @@ import { CartelAPagar, GastosAPagarLista, avisarCambioGastosAPagar } from "@/com
 import { NOMBRE_CLIENTE_GENERICO, obtenerClienteGenerico } from "@/lib/cliente-generico";
 import { claveTelefono } from "@/lib/contacto-valido";
 import { CierreSenasGate } from "@/components/senas/cierre-senas-gate";
-import { SenasCajaCard } from "@/components/senas/senas-caja-card";
 import { fetchVentasSinComision } from "@/lib/ventas-sin-comision";
 import { CierreExtensionesNota, SenasExtensionBanner } from "@/components/senas/senas-extension";
 import { senaMovimientoInfo, senaNotaVisible, senasOtroDiaAviso } from "@/lib/senas-contable";
@@ -13452,9 +13451,6 @@ function FacturacionPanel({
         />
       )}
 
-      <div>
-        <SenasCajaCard businessId={data.businessId} branchId={data.activeBranchId} onChanged={() => void data.refresh()} />
-      </div>
 
       {saldoDetalle && (
         <SaldoComposicionModal
