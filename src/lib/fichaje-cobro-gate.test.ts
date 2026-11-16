@@ -13,11 +13,16 @@ describe("Fichaje: cobrar servicios y cerrar la caja", () => {
     expect(src.indexOf("assertProfessionalClockedIn(input.businessId")).toBeLessThan(src.indexOf('supabase.rpc("register_sale"'));
   });
 
-  it("el bloqueo solo aplica a profesionales programados hoy y nunca frena por un error de consulta", () => {
+  it("en un local que usa el fichaje el bloqueo aplica siempre; si no, solo a los programados hoy; y nunca frena por un error de consulta", () => {
     const src = readSrc("src/lib/fichaje-cobro-gate.ts");
+    expect(src).toContain("usaFichaje");
     expect(src).toContain("getScheduledProfessionalsForDate");
+    expect(src).toMatch(/if \(error \|\| session\) return;/);
+    expect(src).toMatch(/if \(errorUso\) return;/);
     expect(src).toMatch(/catch \{\s*return;/);
     expect(src).toContain("todavía no fichó su jornada");
+    // el administrador general y el dueño que atienden no ficharon su propia jornada: no se les exige
+    expect(src).toContain("isAdminGeneralBarber");
   });
 
   it("el cierre de caja pide la salida de quien quedó sin fichar antes de la confirmación final", () => {
