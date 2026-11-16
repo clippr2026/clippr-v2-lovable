@@ -297,10 +297,35 @@ function StatCard({
           : { background: CARD_LUZ }
       }
     >
-      <div className="relative flex flex-col gap-1 sm:gap-1.5">
+      {centerLink && link && (
+        <div className="relative flex items-center justify-between gap-2">
+          <div>
+            <div className="text-[11px] sm:text-sm font-semibold leading-tight" style={{ color: rgb ? `rgb(${rgb})` : "#fff" }}>
+              {label}
+            </div>
+            <div className="mt-1 text-2xl sm:text-[2rem] font-display font-medium leading-none tracking-tight">{value}</div>
+          </div>
+          <button
+            onClick={onLinkClick}
+            className="absolute inset-x-0 mx-auto inline-flex w-fit items-center gap-0.5 whitespace-nowrap text-[11px] sm:text-xs font-semibold"
+            style={rgb ? { color: `rgb(${rgb})` } : undefined}
+          >
+            {link} <ArrowRight className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
+          </button>
+          <div className="shrink-0 opacity-80">{icon}</div>
+        </div>
+      )}
+      <div className={cn("relative flex flex-col gap-1 sm:gap-1.5", centerLink && link && "hidden")}>
         <div className="flex items-center justify-between gap-2">
           <div className="text-[11px] sm:text-sm font-semibold leading-tight whitespace-nowrap" style={{ color: rgb ? `rgb(${rgb})` : "#fff" }}>
-            {label}
+            {label === "2 meses o más" ? (
+              <>
+                <span className="sm:hidden">2 meses +</span>
+                <span className="hidden sm:inline">{label}</span>
+              </>
+            ) : (
+              label
+            )}
           </div>
           {info && (
             <button
