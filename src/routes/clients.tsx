@@ -948,11 +948,6 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                         <div key={id} className="flex items-center justify-between gap-3 py-2">
                           <span className="truncate text-sm font-medium text-white/85">
                             {barberosFicha!.nombres.get(id) ?? "Sin nombre"}
-                            {info.tipo === "vip" && id === info.empleados[0] && grupoPermiteVip(gruposFicha?.porCliente.get(client.id)?.grupo) && (
-                              <span className="ml-2 rounded-full bg-amber-300/15 px-2 py-0.5 text-[10px] font-semibold text-amber-100 ring-1 ring-amber-300/40">
-                                VIP
-                              </span>
-                            )}
                           </span>
                           <span className="shrink-0 text-[11px] text-white/55">
                             {n} {n === 1 ? "atención" : "atenciones"}

@@ -123,7 +123,7 @@ export function etiquetaBarbero(i: InfoBarbero | undefined, nombres: Map<string,
   const n = (id: string) => nombres.get(id) ?? "Sin nombre";
   switch (i.tipo) {
     case "vip":
-      return `VIP de ${n(i.empleados[0])}`;
+      return `Con ${n(i.empleados[0])}`;
     case "dos":
       return `Con ${n(i.empleados[0])} · 2 turnos`;
     case "distintos":
@@ -156,14 +156,11 @@ export function EtiquetaBarbero({
   if (info?.tipo === "vip" && !permitirVip) info = { tipo: "uno", empleados: info.empleados };
   const texto = etiquetaBarbero(info, nombres);
   if (!texto) return null;
-  const vip = info?.tipo === "vip";
   return (
     <span
       className={cn(
         "rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1",
-        vip
-          ? "bg-gradient-to-r from-amber-300/20 to-violet-400/15 text-amber-100 ring-amber-300/40"
-          : "bg-white/5 text-white/70 ring-white/10",
+        "bg-white/5 text-white/70 ring-white/10",
         className,
       )}
     >
