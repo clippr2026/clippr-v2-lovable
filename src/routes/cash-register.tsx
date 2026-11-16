@@ -17238,9 +17238,10 @@ export function NuevaVentaTab({
                   toast.error((e as Error).message);
                 }
               }}
-              className="mx-auto block px-2 py-2 text-sm font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+              className="mx-auto flex items-center justify-center gap-1.5 px-2 py-2.5 text-sm font-semibold text-violet-300 underline underline-offset-4 decoration-violet-300/40 transition-colors hover:text-violet-200 hover:decoration-violet-200"
             >
-              Continuar sin cliente <span className="text-white/45">(no recomendado)</span>
+              Continuar sin cliente <span className="font-normal text-white/45 no-underline">(no recomendado)</span>
+              <ArrowRight className="size-4 shrink-0" />
             </button>
           )}
           </div>
