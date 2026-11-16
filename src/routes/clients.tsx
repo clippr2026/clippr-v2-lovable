@@ -56,6 +56,7 @@ import { useAuth } from "@/hooks/use-auth";
 import { PAY_METHOD_LABEL, type PayMethod } from "@/components/cash-register/register-payment";
 import { cancelAppointment, checkOverlap, getMaxAdvanceDays, saveAppointment } from "@/components/agenda/use-agenda-data";
 import { computeRepeatDates, WEEKDAYS, type RepeatWeekday } from "@/lib/recurring-schedule";
+import { DeudaClienteTarjeta } from "@/components/clients/deuda-clientes-banner";
 import { WhatsAppIcon } from "@/components/icons/whatsapp-icon";
 import { emailValido, whatsappHref } from "@/lib/contacto-valido";
 
@@ -963,6 +964,8 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
             )}
             aria-hidden={tab !== "resumen"}
           >
+            <DeudaClienteTarjeta clientId={client.id} clientName={client.name} />
+
             {/* Métricas: tarjetas con luz, sin mayúsculas */}
             <div className="grid grid-cols-2 gap-2.5">
               {[

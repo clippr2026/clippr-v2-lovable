@@ -56,6 +56,9 @@ export async function searchPendingDebts(params: {
   branchId?: string | null;
   query?: string;
   employeeId?: string | null;
+  /** Solo las deudas de este cliente (por ficha, o por nombre si la venta no tiene ficha). */
+  clientId?: string | null;
+  clientName?: string | null;
   status?: "pendiente" | "parcial" | "todos";
   dateFrom?: string | null;
   dateTo?: string | null;
@@ -76,6 +79,12 @@ export async function searchPendingDebts(params: {
   }
   if (params.branchId) q = q.or(`branch_id.eq.${params.branchId},branch_id.is.null`);
   if (params.employeeId) q = q.eq("employee_id", params.employeeId);
+  if (params.clientId) {
+    const nombre = (params.clientName ?? "").replace(/[%,()"]/g, " ").trim();
+    q = nombre
+      ? q.or(`client_id.eq.${params.clientId},and(client_id.is.null,client_name.ilike.${nombre})`)
+      : q.eq("client_id", params.clientId);
+  }
   if (params.dateFrom) q = q.gte("created_at", params.dateFrom);
   if (params.dateTo) q = q.lte("created_at", params.dateTo);
   if (params.query?.trim()) {
@@ -488,6 +497,8 @@ export function CobrarPendienteModal({
   collectedByName,
   onClose,
   onCollected,
+  clientId,
+  clientName,
 }: {
   businessId: string;
   branchId: string | null;
@@ -496,6 +507,9 @@ export function CobrarPendienteModal({
   collectedByName?: string | null;
   onClose: () => void;
   onCollected: () => void;
+  /** Si se pasa, la lista muestra solo las deudas de ese cliente (ficha del cliente). */
+  clientId?: string | null;
+  clientName?: string | null;
 }) {
   const [query, setQuery] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<"todos" | "pendiente" | "parcial">("todos");
@@ -517,6 +531,8 @@ export function CobrarPendienteModal({
         branchId,
         query,
         employeeId: null,
+        clientId,
+        clientName,
         status: statusFilter,
       });
       setDebts(rows);
@@ -525,7 +541,7 @@ export function CobrarPendienteModal({
     } finally {
       setLoading(false);
     }
-  }, [businessId, branchId, query, statusFilter]);
+  }, [businessId, branchId, query, statusFilter, clientId, clientName]);
 
   // Debounced — mismo criterio que ClientAutocomplete (250ms).
   React.useEffect(() => {
@@ -562,6 +578,7 @@ export function CobrarPendienteModal({
             />
           ) : (
             <div className="space-y-3">
+              {!clientId && (
               <div className="relative w-full">
                 <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-white/38" />
                 <input
@@ -571,6 +588,7 @@ export function CobrarPendienteModal({
                   className="h-11 w-full rounded-lg border border-white/10 bg-white/[0.04] pl-10 pr-4 text-sm text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
                 />
               </div>
+              )}
 
               <div className="flex flex-wrap gap-1.5">
                 {(["todos", "pendiente", "parcial"] as const).map((s) => (
