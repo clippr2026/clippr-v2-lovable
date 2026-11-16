@@ -272,7 +272,7 @@ export function DepositPanel({
           <button
             type="button"
             onClick={() => setRecording(true)}
-            className="flex h-11 w-full items-center justify-center rounded-full border border-violet-400/50 bg-violet-500/15 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/25"
+            className="flex h-11 w-full items-center justify-center rounded-full border border-amber-300/55 bg-amber-400/10 text-sm font-semibold text-amber-100 transition hover:bg-amber-400/20"
           >
             Registrar seña recibida
           </button>
