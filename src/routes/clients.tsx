@@ -251,6 +251,7 @@ function StatCard({
   onLinkClick,
   icon,
   glow,
+  rgb,
   featured,
   info,
   onInfoClick,
@@ -263,6 +264,8 @@ function StatCard({
   onLinkClick?: () => void;
   icon: React.ReactNode;
   glow: string;
+  /** Color de la tarjeta ("r, g, b"); sin esto queda violeta como siempre. */
+  rgb?: string;
   featured?: boolean;
   info?: string;
   onInfoClick?: () => void;
@@ -275,11 +278,18 @@ function StatCard({
         featured && "border-violet-400/35",
         className,
       )}
-      style={{ background: CARD_LUZ }}
+      style={
+        rgb
+          ? {
+              background: `radial-gradient(110% 90% at 100% 0%, rgba(${rgb},.20), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(${rgb},.10), transparent 65%)`,
+              borderColor: `rgba(${rgb},.38)`,
+            }
+          : { background: CARD_LUZ }
+      }
     >
       <div className="relative flex flex-col gap-1.5">
         <div className="flex items-center justify-between gap-2">
-          <div className="text-xs sm:text-sm font-semibold leading-tight text-white">
+          <div className="text-xs sm:text-sm font-semibold leading-tight" style={{ color: rgb ? `rgb(${rgb})` : "#fff" }}>
             {label}
           </div>
           {info && (
@@ -307,6 +317,7 @@ function StatCard({
           <button
             onClick={onLinkClick}
             className="mt-0.5 inline-flex items-center gap-1 self-start text-[11px] sm:text-xs font-semibold text-violet-300 hover:text-violet-200 transition-colors"
+            style={rgb ? { color: `rgb(${rgb})` } : undefined}
           >
             {link} <ArrowRight className="h-3 w-3" />
           </button>
@@ -1674,8 +1685,9 @@ function ClientsPage() {
                 label={g.label}
                 value={String(grupos?.counts[g.key] ?? 0)}
                 caption={null}
-                icon={g.key === "semanal" ? <Crown className="h-5 w-5 text-amber-200" /> : g.key === "perdido" ? <AlertTriangle className="h-5 w-5 text-rose-300" /> : <Users className="h-5 w-5 text-white/60" />}
+                icon={g.key === "semanal" ? <Crown className="h-5 w-5" style={{ color: `rgb(${g.rgb})` }} /> : g.key === "perdido" ? <AlertTriangle className="h-5 w-5" style={{ color: `rgb(${g.rgb})` }} /> : <Users className="h-5 w-5" style={{ color: `rgba(${g.rgb},.8)` }} />}
                 glow={g.glow}
+                rgb={g.rgb}
                 featured={g.key === "semanal" || g.key === "perdido"}
                 info={g.label}
                 onInfoClick={() => setMetricInfo({ title: g.label, description: g.regla, bullets: [] })}
