@@ -72,7 +72,7 @@ function FormSenaRecibida({
 }) {
   const medio = (activo: boolean) =>
     `h-11 rounded-full border px-3 text-sm font-semibold transition ${
-      activo ? "border-violet-400/60 bg-violet-500/20 text-white" : "border-white/10 bg-white/[0.04] text-white/65 hover:bg-white/[0.08]"
+      activo ? "border-amber-300/60 bg-amber-400/15 text-amber-100" : "border-white/10 bg-white/[0.04] text-white/65 hover:bg-white/[0.08]"
     }`;
   return (
     <div className="space-y-3">

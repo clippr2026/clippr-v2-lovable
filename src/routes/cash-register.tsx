@@ -1,4 +1,5 @@
 import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
+import { VentanaClippr } from "@/components/clientes/ventana-clippr";
 import { CartelAPagar, GastosAPagarLista, avisarCambioGastosAPagar } from "@/components/cash-register/gastos-a-pagar";
 import { NOMBRE_CLIENTE_GENERICO, obtenerClienteGenerico } from "@/lib/cliente-generico";
 import { claveTelefono } from "@/lib/contacto-valido";
@@ -15599,6 +15600,7 @@ export function NuevaVentaTab({
     chargeAttemptKeyRef.current = null;
   }, [cart, method, client, clientId, tipAmountInput, splits, employeeId, priceOverrides]);
   const [newClientOpen, setNewClientOpen] = React.useState(false);
+  const [confirmSalir, setConfirmSalir] = React.useState(false);
   // Apellido del cliente nuevo — "client" guarda el nombre (o el nombre
   // completo, una vez elegido un cliente existente por el buscador). Flujo
   // interno simplificado: teléfono obligatorio y principal, nombre/apellido
@@ -18090,6 +18092,7 @@ export function NuevaVentaTab({
               </button>
             )
           ) : (
+            <>
             <button
               onClick={() => {
                 if (step > minStep) {
@@ -18103,12 +18106,8 @@ export function NuevaVentaTab({
                 const hasSaleData = Boolean(
                   employeeId || clientId || client.trim() || cartItems.length > 0,
                 );
-                if (
-                  hasSaleData &&
-                  !window.confirm(
-                    "¿Salir de Nueva venta? Se va a descartar lo que cargaste hasta ahora.",
-                  )
-                ) {
+                if (hasSaleData) {
+                  setConfirmSalir(true);
                   return;
                 }
                 onCancel?.();
@@ -18117,6 +18116,39 @@ export function NuevaVentaTab({
             >
               <ArrowLeft className="size-4" /> Volver
             </button>
+            {confirmSalir && (
+              <VentanaClippr
+                titulo="¿Salir de Nueva venta?"
+                onClose={() => setConfirmSalir(false)}
+                ancho="max-w-sm"
+                footer={
+                  <>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmSalir(false)}
+                      className="h-11 rounded-full border border-white/10 bg-white/[0.04] px-5 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08]"
+                    >
+                      Seguir cargando
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setConfirmSalir(false);
+                        onCancel?.();
+                      }}
+                      className="h-11 rounded-full border border-rose-400/60 bg-rose-500/15 px-5 text-sm font-semibold text-rose-200 transition hover:bg-rose-500/25"
+                    >
+                      Salir y descartar
+                    </button>
+                  </>
+                }
+              >
+                <p className="text-sm leading-relaxed text-white/75">
+                  Se va a descartar lo que cargaste hasta ahora: el profesional, el cliente y los servicios elegidos.
+                </p>
+              </VentanaClippr>
+            )}
+            </>
           )}
 
           {step < finalStep ? (
