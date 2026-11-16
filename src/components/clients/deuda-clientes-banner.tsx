@@ -1,5 +1,5 @@
 import * as React from "react";
-import { ChevronRight, Clock } from "lucide-react";
+import { Clock } from "lucide-react";
 import { useAuth } from "@/hooks/use-auth";
 import { supabase } from "@/integrations/supabase/client";
 import type { Employee } from "@/components/cash-register/use-caja-data";
@@ -59,18 +59,19 @@ export function DeudaClientesBanner() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex w-full shrink-0 items-center gap-2.5 rounded-2xl border border-rose-400/45 px-3.5 py-2.5 text-left transition hover:border-rose-400/70"
+        className="flex w-full shrink-0 items-center gap-3 rounded-[20px] border border-rose-400/45 p-4 text-left transition hover:border-rose-400/70"
         style={{ background: "radial-gradient(110% 90% at 100% 0%, rgba(244,63,94,.20), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(244,63,94,.10), transparent 65%)", boxShadow: "0 0 26px -12px rgba(244,63,94,.55)" }}
       >
         <Clock className="h-5 w-5 shrink-0 text-rose-300" />
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold leading-tight text-white">Clientes con saldo pendiente</span>
-          <span className="mt-0.5 block text-xs font-semibold text-rose-300">Tocá para cobrar</span>
+          <span className="mt-0.5 block text-xs font-semibold tabular-nums text-rose-300">
+            ${Math.round(summary.total).toLocaleString("es-AR")}
+          </span>
         </span>
-        <span className="shrink-0 text-base font-semibold tabular-nums text-white">
-          ${Math.round(summary.total).toLocaleString("es-AR")}
+        <span className="inline-flex h-9 shrink-0 items-center rounded-full border border-rose-400/50 bg-rose-400/15 px-5 text-sm font-semibold text-rose-100">
+          Cobrar
         </span>
-        <ChevronRight className="h-4 w-4 shrink-0 text-white/40" />
       </button>
 
       {open && (
