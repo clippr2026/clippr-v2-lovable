@@ -155,7 +155,7 @@ export function SenasCajaCard({
             className="flex min-h-[64px] flex-col items-start justify-center gap-0.5 rounded-2xl px-3.5 py-2 text-left transition hover:brightness-125"
             style={
               pend.items.length > 0
-                ? { background: "rgba(251,191,36,0.14)", color: "#fcd34d", boxShadow: "inset 0 0 0 1.5px rgba(251,191,36,0.6), 0 0 18px rgba(251,191,36,0.22)" }
+                ? { background: "rgba(56,189,248,0.14)", color: "#7dd3fc", boxShadow: "inset 0 0 0 1.5px rgba(56,189,248,0.55), 0 0 18px rgba(56,189,248,0.2)" }
                 : { background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.7)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.12)" }
             }
           >
@@ -169,7 +169,7 @@ export function SenasCajaCard({
             className="flex min-h-[64px] flex-col items-start justify-center gap-0.5 rounded-2xl px-3.5 py-2 text-left transition hover:brightness-125"
             style={
               reemb.items.length > 0
-                ? { background: "rgba(251,191,36,0.14)", color: "#fcd34d", boxShadow: "inset 0 0 0 1.5px rgba(251,191,36,0.6), 0 0 18px rgba(251,191,36,0.22)" }
+                ? { background: "rgba(56,189,248,0.14)", color: "#7dd3fc", boxShadow: "inset 0 0 0 1.5px rgba(56,189,248,0.55), 0 0 18px rgba(56,189,248,0.2)" }
                 : { background: "rgba(255,255,255,0.04)", color: "rgba(255,255,255,0.7)", boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.12)" }
             }
           >
