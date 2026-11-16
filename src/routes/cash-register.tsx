@@ -1,6 +1,7 @@
 import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
 import { confirmarClippr } from "@/components/ui/dialogos-clippr";
 import { VentanaClippr } from "@/components/clientes/ventana-clippr";
+import { SenasCajaCard } from "@/components/senas/senas-caja-card";
 import { CajaHoyBloque } from "@/components/caja/caja-hoy-bloque";
 import { CartelAPagar, GastosAPagarLista, avisarCambioGastosAPagar } from "@/components/cash-register/gastos-a-pagar";
 import { NOMBRE_CLIENTE_GENERICO, obtenerClienteGenerico } from "@/lib/cliente-generico";
@@ -13424,6 +13425,10 @@ function FacturacionPanel({
           (ventas con saldo) | Gastos — reemplaza el selector grande
           Facturación/Gastos de ResumenTab. 2 columnas en mobile (wrap),
           una sola fila desde sm. */}
+      <div className="flex flex-col gap-3 empty:hidden">
+        <SenasCajaCard businessId={data.businessId} branchId={data.activeBranchId} onChanged={() => void data.refresh()} variant="avisos" />
+      </div>
+
       <CajaHoyBloque
         ingresos={data.revHoy}
         egresos={data.totalGastos}
