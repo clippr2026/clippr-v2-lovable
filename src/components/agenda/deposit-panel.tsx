@@ -4,6 +4,7 @@ import { toast } from "sonner";
 import { ChevronRight, CheckCircle2, FileText, Layers, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
+import { DevolucionSenaForm } from "@/components/senas/devolucion-sena";
 
 type DepositRow = {
   id: string;
@@ -525,36 +526,20 @@ export function DepositPanel({
             </Button>
           </div>
           {refunding && (
-            <div className="space-y-2 rounded-xl bg-white/[0.04] p-2.5 ring-1 ring-white/10">
-              <div className="text-xs font-semibold">¿De dónde sale el reembolso?</div>
-              <div className="grid grid-cols-2 gap-2">
-                {(
-                  [
-                    ["caja", dep.method === "cash" ? "Efectivo en caja" : "Dinero en banco"],
-                    ["otros", "Fondos externos"],
-                  ] as const
-                ).map(([src, label]) => (
-                  <Button
-                    key={src}
-                    variant="secondary"
-                    className="h-9"
-                    disabled={busy}
-                    onClick={() => {
-                      setRefunding(false);
-                      void run(
-                        "decide_deposit_v1",
-                        { p_deposit_id: dep.id, p_action: "refund", p_prof_pct: null, p_local_pct: null, p_note: null, p_funds_source: src },
-                        "Seña reembolsada. Quedó como gasto de hoy.",
-                      );
-                    }}
-                  >
-                    {label}
-                  </Button>
-                ))}
-              </div>
-            </div>
+            <DevolucionSenaForm
+              monto={dep.paid_amount}
+              busy={busy}
+              onConfirm={(d) => {
+                setRefunding(false);
+                void run(
+                  "refund_deposit_v1",
+                  { p_deposit_id: dep.id, p_reason: d.motivo, p_funds_source: d.origen, p_method: d.medio },
+                  d.origen === "caja" ? "Seña devuelta. Quedó como gasto de hoy." : "Seña devuelta con fondos externos.",
+                );
+              }}
+            />
           )}
-          <div className="text-[11px] text-muted-foreground">El reembolso queda como gasto de hoy ("Reembolso de seña"). Retenerla no mueve plata.</div>
+          <div className="text-[11px] text-muted-foreground">La devolución es una salida aparte: el ingreso de la seña se conserva. Retenerla no mueve plata.</div>
         </div>
       )}
 

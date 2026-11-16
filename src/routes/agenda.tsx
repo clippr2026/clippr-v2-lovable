@@ -56,6 +56,7 @@ import { DarkCalendar } from "@/components/agenda/dark-calendar";
 import { ClosuresModal } from "@/components/agenda/closures-button";
 import { useClosures, type Closure } from "@/hooks/use-closures";
 import { Button } from "@/components/ui/button";
+import { DevolucionSenaForm, devolverSena, type DevolucionSena } from "@/components/senas/devolucion-sena";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 
@@ -1209,7 +1210,7 @@ function AgendaPage() {
   const onNoShowWithDeposit = async (
     a: Appointment,
     action: "keep" | "return",
-    fundsSource: "caja" | "otros" = "caja",
+    devolucion?: DevolucionSena,
   ) => {
     try {
       await setAppointmentStatus(a.id, "no_show");
@@ -1222,20 +1223,25 @@ function AgendaPage() {
         toast.info("Marcado como No asistió. Esta seña es de un registro anterior: resolvela desde Caja.");
         return;
       }
-      const { data: res, error } = await (supabase.rpc as any)("decide_deposit_v1", {
-        p_deposit_id: ledger.id,
-        p_action: action === "keep" ? "retain" : "refund",
-        p_prof_pct: null,
-        p_local_pct: null,
-        p_note: "No asistió",
-        p_funds_source: fundsSource,
-      });
-      if (error) throw error;
-      if (!res?.ok) throw new Error(res?.error ?? "No se pudo registrar la decisión de la seña.");
+      if (action === "return") {
+        if (!devolucion) throw new Error("Faltan los datos de la devolución.");
+        const r = await devolverSena(ledger.id, devolucion);
+        if (!r.ok) throw new Error(`Quedó marcado como No asistió, pero la seña no se devolvió: ${r.error} Resolvela desde el turno.`);
+      } else {
+        const { data: res, error } = await (supabase.rpc as any)("decide_deposit_v1", {
+          p_deposit_id: ledger.id,
+          p_action: "retain",
+          p_prof_pct: null,
+          p_local_pct: null,
+          p_note: "No asistió",
+        });
+        if (error) throw error;
+        if (!res?.ok) throw new Error(res?.error ?? "No se pudo registrar la decisión de la seña.");
+      }
       toast.success(
         action === "keep"
           ? "Marcado como No asistió. Seña retenida."
-          : "Marcado como No asistió. Seña reembolsada: quedó como gasto de hoy.",
+          : "Marcado como No asistió. Seña devuelta.",
       );
     } catch (e) {
       toast.error((e as Error).message);
@@ -1248,7 +1254,7 @@ function AgendaPage() {
     a: Appointment,
     action: "keep" | "return",
     reason: string,
-    fundsSource: "caja" | "otros" = "caja",
+    devolucion?: DevolucionSena,
   ) => {
     // Seña registrada en el sistema nuevo: se cancela el turno (la base la deja "a decidir")
     // y se aplica la decisión elegida. Por ahora no escribe en Caja.
@@ -1259,17 +1265,22 @@ function AgendaPage() {
     if (ledger?.id) {
       try {
         await cancelAppointment(a.id, { userId: profile?.id ?? null, name: profile?.full_name ?? null, role: profile?.role ?? null, reason, silent: isPastAppointment(a) });
-        const { data: res, error } = await (supabase.rpc as any)("decide_deposit_v1", {
-          p_deposit_id: ledger.id,
-          p_action: action === "keep" ? "retain" : "refund",
-          p_prof_pct: null,
-          p_local_pct: null,
-          p_note: reason || null,
-          p_funds_source: fundsSource,
-        });
-        if (error) throw error;
-        if (!res?.ok) throw new Error(res?.error ?? "No se pudo registrar la decisión de la seña.");
-        toast.success(action === "keep" ? "Turno cancelado. Seña retenida." : "Turno cancelado. Seña reembolsada: quedó como gasto de hoy.");
+        if (action === "return") {
+          if (!devolucion) throw new Error("Faltan los datos de la devolución.");
+          const r = await devolverSena(ledger.id, devolucion);
+          if (!r.ok) throw new Error(`El turno quedó cancelado, pero la seña no se devolvió: ${r.error} Resolvela desde el turno.`);
+        } else {
+          const { data: res, error } = await (supabase.rpc as any)("decide_deposit_v1", {
+            p_deposit_id: ledger.id,
+            p_action: "retain",
+            p_prof_pct: null,
+            p_local_pct: null,
+            p_note: reason || null,
+          });
+          if (error) throw error;
+          if (!res?.ok) throw new Error(res?.error ?? "No se pudo registrar la decisión de la seña.");
+        }
+        toast.success(action === "keep" ? "Turno cancelado. Seña retenida." : "Turno cancelado. Seña devuelta.");
       } catch (e) {
         toast.error((e as Error).message);
         return;
@@ -4204,8 +4215,8 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   onViewRecurring: (a: Appointment) => void;
   onChangeStatus: (a: Appointment, s: ApptStatus) => void;
   onMarkDeposit: (a: Appointment) => void;
-  onCancelWithDeposit: (a: Appointment, action: "keep" | "return", reason: string, fundsSource?: "caja" | "otros") => void;
-  onNoShowWithDeposit: (a: Appointment, action: "keep" | "return", fundsSource?: "caja" | "otros") => void;
+  onCancelWithDeposit: (a: Appointment, action: "keep" | "return", reason: string, devolucion?: DevolucionSena) => void;
+  onNoShowWithDeposit: (a: Appointment, action: "keep" | "return", devolucion?: DevolucionSena) => void;
   /** Configuración de señas ya cargada por la Agenda (evita volver a pedirla al abrir el turno). */
   senasConfigRaw?: Record<string, any> | null;
   onReleaseBlock: (a: Appointment) => void;
@@ -4746,32 +4757,14 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                           </Button>
                         </div>
                         {noShowRefundOrigin && (
-                          <div className="space-y-1.5 rounded-lg bg-white/[0.04] p-2 ring-1 ring-white/10">
-                            <div className="text-center text-[11px] text-muted-foreground">
-                              ¿De dónde sale el reembolso? Queda como gasto de hoy.
-                            </div>
-                            <div className="grid grid-cols-2 gap-2">
-                              {(
-                                [
-                                  ["caja", "De la caja"],
-                                  ["otros", "Fondos externos"],
-                                ] as const
-                              ).map(([src, label]) => (
-                                <Button
-                                  key={src}
-                                  variant="secondary"
-                                  className="h-9"
-                                  onClick={() => {
-                                    onNoShowWithDeposit(appointment, "return", src);
-                                    setNoShowRefundOrigin(false);
-                                    setNoShowAsk(false);
-                                  }}
-                                >
-                                  {label}
-                                </Button>
-                              ))}
-                            </div>
-                          </div>
+                          <DevolucionSenaForm
+                            monto={Number(appointment.deposit_paid) || null}
+                            onConfirm={(d) => {
+                              onNoShowWithDeposit(appointment, "return", d);
+                              setNoShowRefundOrigin(false);
+                              setNoShowAsk(false);
+                            }}
+                          />
                         )}
                         <button
                           type="button"
@@ -4921,34 +4914,16 @@ const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
                             </Button>
                           </div>
                           {refundOrigin && (
-                            <div className="space-y-1.5 rounded-lg bg-white/[0.04] p-2 ring-1 ring-white/10">
-                              <div className="text-center text-[11px] text-muted-foreground">
-                                ¿De dónde sale el reembolso? Queda como gasto de hoy.
-                              </div>
-                              <div className="grid grid-cols-2 gap-2">
-                                {(
-                                  [
-                                    ["caja", "De la caja"],
-                                    ["otros", "Fondos externos"],
-                                  ] as const
-                                ).map(([src, label]) => (
-                                  <Button
-                                    key={src}
-                                    variant="secondary"
-                                    className="h-9"
-                                    disabled={cancelReasonMissing}
-                                    onClick={() => {
-                                      onCancelWithDeposit(appointment, "return", cancelReason.trim(), src);
-                                      setRefundOrigin(false);
-                                      setConfirmCancel(false);
-                                      setCancelReason("");
-                                    }}
-                                  >
-                                    {label}
-                                  </Button>
-                                ))}
-                              </div>
-                            </div>
+                            <DevolucionSenaForm
+                              monto={Number(appointment.deposit_paid) || null}
+                              motivoExterno={cancelReason}
+                              onConfirm={(d) => {
+                                onCancelWithDeposit(appointment, "return", cancelReason.trim(), d);
+                                setRefundOrigin(false);
+                                setConfirmCancel(false);
+                                setCancelReason("");
+                              }}
+                            />
                           )}
                           <button
                             type="button"
