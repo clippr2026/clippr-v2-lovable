@@ -5,6 +5,8 @@ import { ChevronRight, CheckCircle2, FileText, Layers, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { DevolucionSenaForm } from "@/components/senas/devolucion-sena";
+import { AuthorizationModal } from "@/components/cash-register/authorization-modal";
+import { useAuth } from "@/hooks/use-auth";
 
 type DepositRow = {
   id: string;
@@ -155,6 +157,10 @@ export function DepositPanel({
   const [shareMethod, setShareMethod] = React.useState<"cash" | "transfer">("cash");
   // Reembolso: primero se elige de dónde sale la plata (caja o fondos externos).
   const [refunding, setRefunding] = React.useState(false);
+  // Revertir una aprobación hecha por error: pide la contraseña de autorización (la valida la base).
+  const [revirtiendo, setRevirtiendo] = React.useState(false);
+  const { profile } = useAuth();
+  const puedeRevertir = Boolean(profile?.role) && profile?.role !== "profesional";
   // Monto realmente recibido al aprobar (el cliente puede mandar menos o más que la seña pedida).
   const [recibido, setRecibido] = React.useState("");
   React.useEffect(() => {
@@ -483,6 +489,38 @@ export function DepositPanel({
         </div>,
         document.body,
       )}
+
+      {dep.status === "paid" && puedeRevertir && (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => setRevirtiendo(true)}
+          className="w-full text-center text-xs font-semibold text-white/50 underline-offset-2 transition hover:text-rose-200 hover:underline disabled:opacity-50"
+        >
+          ¿La aprobaste por error? Revertir aprobación
+        </button>
+      )}
+      <AuthorizationModal
+        open={revirtiendo}
+        tone="danger"
+        title="Revertir aprobación de seña"
+        description="Solo para una aprobación hecha por error. La seña vuelve a quedar por revisar y su ingreso se anula en los reportes. No devuelve plata: para eso está la devolución de seña."
+        confirmLabel="Revertir"
+        onCancel={() => setRevirtiendo(false)}
+        onSubmit={async (password, reason) => {
+          const { data, error } = await (supabase.rpc as any)("reverse_deposit_approval_v1", {
+            p_deposit_id: dep.id,
+            p_password: password,
+            p_reason: reason,
+          });
+          if (error) throw error;
+          if (!data?.ok) throw new Error(data?.error ?? "No se pudo revertir la aprobación.");
+          setRevirtiendo(false);
+          toast.success("Aprobación revertida. La seña quedó por revisar.");
+          await load();
+          onChanged();
+        }}
+      />
 
       {dep.status === "to_decide" && (
         <div className="space-y-2.5 rounded-xl bg-amber-300/10 p-3 ring-1 ring-amber-300/25">

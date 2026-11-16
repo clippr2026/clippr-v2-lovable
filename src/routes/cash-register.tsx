@@ -9,6 +9,7 @@ import { claveTelefono } from "@/lib/contacto-valido";
 import { CierreSenasGate } from "@/components/senas/cierre-senas-gate";
 import { fetchVentasSinComision } from "@/lib/ventas-sin-comision";
 import { CierreExtensionesNota, SenasExtensionBanner } from "@/components/senas/senas-extension";
+import { CierreAjustesNota, FueraDeJornadaDetalle, fechaAjusteLabel, useAjustesPosteriores } from "@/components/senas/ajustes-posteriores";
 import { senaMovimientoInfo, senaNotaVisible, senasOtroDiaAviso } from "@/lib/senas-contable";
 import { useDepositCredit } from "@/components/cash-register/deposit-charge-banner";
 import React from "react";
@@ -9726,6 +9727,7 @@ function CierreDetalleView({
             </section>
 
             <CierreExtensionesNota businessId={businessId} branchId={branchId} fecha={fecha} />
+            <CierreAjustesNota businessId={businessId} branchId={branchId} fecha={fecha} cuentaEsperada={cuentaEsperada} className="md:order-last md:col-span-2" />
 
             <section className="rounded-2xl border border-violet-400/30 bg-[#0b0a14] p-4 [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.12),transparent_65%)]">
               <div className="mb-3 text-sm font-semibold text-white">Dinero en banco</div>
@@ -10042,15 +10044,22 @@ function CierresTab({
   // estados"). Nunca se mezclan en `cierres` mismo: ese array sigue siendo
   // SOLO filas reales de caja_cierres (lo que usa latestCierre/CierreCajaBtn
   // para saber qué fila actualizar al cerrar).
-  type HistorialRow = { kind: "cierre"; cierre: any } | { kind: "pendiente"; date: string };
+  // Señas aprobadas fuera de la caja contada: marcan con "Ajuste posterior" el cierre de su día y, si ese día no hubo
+  // caja, aparecen como una fila propia "Fuera de jornada" (solo la seña). No son cierres ni crean cajas.
+  const { rows: ajustesPosteriores } = useAjustesPosteriores(businessId, activeBranchId);
+  const fechasConAjuste = React.useMemo(() => new Set(ajustesPosteriores.map((r) => r.fecha_bancaria)), [ajustesPosteriores]);
+  const [fueraDeJornadaSel, setFueraDeJornadaSel] = React.useState<string | null>(null);
+  type HistorialRow = { kind: "cierre"; cierre: any } | { kind: "pendiente"; date: string } | { kind: "fuera"; date: string };
   const historialRows = React.useMemo<HistorialRow[]>(() => {
+    const conFila = new Set<string>([...cierres.map((c) => String(c.fecha)), ...pendingCierres.map((p) => p.date)]);
     const rows: HistorialRow[] = [
       ...cierres.map((c): HistorialRow => ({ kind: "cierre", cierre: c })),
       ...pendingCierres.map((p): HistorialRow => ({ kind: "pendiente", date: p.date })),
+      ...[...fechasConAjuste].filter((f) => !conFila.has(f)).map((f): HistorialRow => ({ kind: "fuera", date: f })),
     ];
     const keyOf = (r: HistorialRow) => (r.kind === "cierre" ? String(r.cierre.fecha) : r.date);
     return rows.sort((a, b) => keyOf(b).localeCompare(keyOf(a)));
-  }, [cierres, pendingCierres]);
+  }, [cierres, pendingCierres, fechasConAjuste]);
 
   const latestCierre = cierres[0] ?? null;
   const latestEventos = latestCierre ? cierreEventos(latestCierre) : [];
@@ -10368,6 +10377,18 @@ function CierresTab({
                         Pendiente de revisión
                       </span>
                     </button>
+                  ) : row.kind === "fuera" ? (
+                    <button
+                      key={`fuera-${row.date}`}
+                      type="button"
+                      onClick={() => setFueraDeJornadaSel(row.date)}
+                      className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-5 py-4 text-left transition hover:bg-white/[0.05] active:bg-white/[0.06]"
+                    >
+                      <span className="text-sm font-semibold text-white">{fechaDetalleLabel(row.date)}</span>
+                      <span className="rounded-full bg-white/[0.06] px-2.5 py-1 text-xs font-bold text-white/75 ring-1 ring-white/15">
+                        Fuera de jornada
+                      </span>
+                    </button>
                   ) : (
                     <button
                       key={row.cierre.id}
@@ -10377,7 +10398,14 @@ function CierresTab({
                       style={{ backgroundImage: CLIPPR_CARD_GLOW }}
                     >
                       <span className="text-sm font-semibold text-white">{fechaDetalleLabel(row.cierre.fecha)}</span>
-                      <ChevronRight className="h-4 w-4 shrink-0 text-white/35" />
+                      <span className="flex shrink-0 items-center gap-2">
+                        {fechasConAjuste.has(String(row.cierre.fecha)) && (
+                          <span className="rounded-full bg-amber-400/15 px-2.5 py-1 text-xs font-bold text-amber-300 ring-1 ring-amber-400/30">
+                            Ajuste posterior
+                          </span>
+                        )}
+                        <ChevronRight className="h-4 w-4 shrink-0 text-white/35" />
+                      </span>
                     </button>
                   ),
                 )}
@@ -10386,6 +10414,15 @@ function CierresTab({
           </div>
         )}
       </section>
+
+      {fueraDeJornadaSel && (
+        <VentanaClippr
+          titulo={`Fuera de jornada · ${fechaAjusteLabel(fueraDeJornadaSel)}`}
+          onClose={() => setFueraDeJornadaSel(null)}
+        >
+          <FueraDeJornadaDetalle rows={ajustesPosteriores.filter((r) => r.fecha_bancaria === fueraDeJornadaSel)} />
+        </VentanaClippr>
+      )}
 
       {/* createPortal: sin esto, el <div className="relative z-10"> con el
           que <AppShell> envuelve la página atrapa este modal en su propio
