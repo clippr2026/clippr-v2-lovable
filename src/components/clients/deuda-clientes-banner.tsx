@@ -57,7 +57,7 @@ export function DeudaClientesBanner() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex w-full shrink-0 items-center sm:mr-auto sm:w-auto sm:min-w-[22rem] gap-2.5 rounded-2xl border border-violet-400/30 bg-white/[0.03] px-3.5 py-2.5 text-left [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,.14),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,.12),transparent_65%)] transition hover:border-violet-400/50"
+        className="flex w-full shrink-0 items-center gap-2.5 rounded-2xl border border-violet-400/30 bg-white/[0.03] px-3.5 py-2.5 text-left [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,.14),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,.12),transparent_65%)] transition hover:border-violet-400/50"
       >
         <Clock className="h-5 w-5 shrink-0 text-violet-300" />
         <span className="min-w-0 flex-1">

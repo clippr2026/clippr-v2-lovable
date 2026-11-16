@@ -1143,11 +1143,6 @@ function CashRegisterPage() {
         {tab !== "nueva" && tab !== "nuevo-gasto" && tab !== "gastos" && (
           <CartelAPagar businessId={data.businessId} onClick={() => setTab("gastos")} />
         )}
-        {tab === "resumen" && (
-          <div className="mt-2 flex">
-            <DeudaClientesBanner />
-          </div>
-        )}
         <div className="mt-1 sm:mt-3">
           {tab === "resumen" && (
             <ResumenTab
@@ -13429,6 +13424,9 @@ function FacturacionPanel({
           <button type="button" onClick={() => setMovType("retiro")} className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-4 text-sm font-medium text-white/85 transition hover:bg-white/[0.08] active:scale-[0.99] sm:min-w-[190px]">
             <Minus className="size-4 text-rose-300" /> Retirar dinero
           </button>
+          <div className="col-span-2 flex sm:col-auto">
+            <DeudaClientesBanner />
+          </div>
         </div>
       </div>
 
