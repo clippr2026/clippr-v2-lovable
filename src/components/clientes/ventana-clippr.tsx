@@ -1,6 +1,7 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import { ChevronLeft, X } from "lucide-react";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 
 // Ventana "estilo Clippr": centrada, fondo oscuro con luz violeta/celeste, siempre por encima de la barra de arriba (se dibuja
 // directo en <body>, así no queda tapada por ningún contenedor) y con una X para cerrarla.
@@ -22,6 +23,8 @@ export function VentanaClippr({
   ancho?: string;
   children: React.ReactNode;
 }) {
+  // La ventana solo existe mientras está abierta: se congela el fondo para que no se mueva por detrás.
+  useBodyScrollLock(true);
   React.useEffect(() => {
     const alTeclear = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();

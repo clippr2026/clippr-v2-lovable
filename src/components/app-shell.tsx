@@ -109,6 +109,7 @@ export function AppShell({
     <div className={containedScroll ? "flex flex-col h-dvh w-full overflow-hidden" : "flex flex-col min-h-dvh w-full"}>
       <AppSidebar />
       <main
+        data-app-scroll
         className={
           "clippr-app-main flex-1 min-w-0 w-full py-2 sm:py-3 lg:py-4 " +
           // Sin barra inferior (un solo ítem) no se reserva su espacio.

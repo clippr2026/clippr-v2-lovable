@@ -31,7 +31,27 @@ let savedStyles: {
   overflow: string;
 } | null = null;
 
+// Cuando la pantalla scrollea dentro de <main> (containedScroll) en vez de en el documento, bloquear el body no alcanza: el
+// contenedor sigue moviéndose por detrás del modal. Se congela también ese contenedor (queda en su posición actual).
+let savedAppScroll: Array<{ el: HTMLElement; overflowY: string }> = [];
+
+function lockAppScroll() {
+  savedAppScroll = Array.from(document.querySelectorAll<HTMLElement>("[data-app-scroll]")).map((el) => {
+    const previo = { el, overflowY: el.style.overflowY };
+    el.style.overflowY = "hidden";
+    return previo;
+  });
+}
+
+function unlockAppScroll() {
+  savedAppScroll.forEach(({ el, overflowY }) => {
+    el.style.overflowY = overflowY;
+  });
+  savedAppScroll = [];
+}
+
 function lockBody() {
+  lockAppScroll();
   const body = document.body;
   savedScrollY = window.scrollY;
   savedStyles = {
@@ -51,6 +71,7 @@ function lockBody() {
 }
 
 function unlockBody() {
+  unlockAppScroll();
   const body = document.body;
   if (savedStyles) {
     body.style.position = savedStyles.position;
