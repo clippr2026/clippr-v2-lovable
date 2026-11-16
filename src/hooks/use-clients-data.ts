@@ -71,6 +71,8 @@ export type Client = {
   phone?: string | null;
   email?: string | null;
   notes?: string | null;
+  /** Quién cargó la ficha: el cliente al reservar online, o la barbería (agenda, caja, Clientes). */
+  origen?: "online" | "manual" | null;
   birth_date?: string | null;
   created_at: string;
   visits: number;
@@ -487,7 +489,7 @@ async function loadClientDetail(businessId: string, clientId: string): Promise<C
   const { data: c, error } = await supabase
     .from("clients")
     .select(
-      "id,full_name,phone,email,notes,birth_date,created_at,acquisition_source,acquisition_source_custom,acquisition_captured_at",
+      "id,full_name,phone,email,notes,birth_date,created_at,acquisition_source,acquisition_source_custom,acquisition_captured_at,origen",
     )
     .eq("business_id", businessId)
     .eq("id", clientId)
@@ -638,6 +640,7 @@ async function loadClientDetail(businessId: string, clientId: string): Promise<C
 
   return {
     id: c.id, name, phone: c.phone, email: c.email, notes: c.notes, birth_date: c.birth_date, created_at: c.created_at,
+    origen: ((c as { origen?: string | null }).origen as "online" | "manual" | null | undefined) ?? null,
     visits: visitsFinal, spent: spentFinal, spentLast12Months, favoriteServices, nextAppointment,
     lastVisit: lastVisit.label, lastVisitDays: lastVisit.days, vipTag,
     status,

@@ -1,4 +1,6 @@
 import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
+import { CartelAPagar, GastosAPagarLista, avisarCambioGastosAPagar } from "@/components/cash-register/gastos-a-pagar";
+import { NOMBRE_CLIENTE_GENERICO, obtenerClienteGenerico } from "@/lib/cliente-generico";
 import { claveTelefono } from "@/lib/contacto-valido";
 import { CierreSenasGate } from "@/components/senas/cierre-senas-gate";
 import { SenasCajaCard } from "@/components/senas/senas-caja-card";
@@ -1135,6 +1137,9 @@ function CashRegisterPage() {
             }}
           />
         )}
+        {tab !== "nueva" && tab !== "nuevo-gasto" && tab !== "gastos" && (
+          <CartelAPagar businessId={data.businessId} onClick={() => setTab("gastos")} />
+        )}
         <div className="mt-1 sm:mt-3">
           {tab === "resumen" && (
             <ResumenTab
@@ -1230,7 +1235,14 @@ function CashRegisterPage() {
               cajaCerrada={cajaCerrada}
             />
           )}
-          {tab === "gastos" && <GastosTab businessId={data.businessId} />}
+          {tab === "gastos" && (
+            <div className="space-y-5">
+              <div className="mx-auto w-full max-w-3xl">
+                <GastosAPagarLista businessId={data.businessId} userEmail={session.user.email ?? null} />
+              </div>
+              <GastosTab businessId={data.businessId} />
+            </div>
+          )}
           {tab === "profesionales" && (
             <ProfesionalesTab
               businessId={data.businessId}
@@ -6951,7 +6963,10 @@ function NuevoGastoTab({
     source: ExpenseFundsSource;
     method: "efectivo" | "transferencia" | "";
     note: string;
-  }>({ kind: "", name: "", amount: "", source: "caja", method: "", note: "" });
+    later: boolean;
+    due: string;
+    supplier: string;
+  }>({ kind: "", name: "", amount: "", source: "caja", method: "", note: "", later: false, due: "", supplier: "" });
   const [saving, setSaving] = React.useState(false);
 
   async function saveGasto() {
@@ -6965,6 +6980,28 @@ function NuevoGastoTab({
     if (!name) return toast.error("Escribí el nombre del gasto.");
     if (!amount || amount <= 0)
       return toast.error("El monto debe ser mayor a 0.");
+    if (form.later) {
+      // Compra que se paga más adelante: se anota en "Gastos a pagar" y NO cuenta como gasto hasta que se pague.
+      if (!form.due) return toast.error("Elegí la fecha de vencimiento.");
+      setSaving(true);
+      const { error: errorAPagar } = await (supabase as any).from("payable_expenses").insert({
+        business_id: data.businessId,
+        branch_id: data.activeBranchId,
+        name,
+        amount,
+        kind: form.kind,
+        supplier: form.supplier.trim() || null,
+        due_date: form.due,
+        note: form.note.trim() || null,
+        created_by: userEmail ?? "Caja",
+      });
+      setSaving(false);
+      if (errorAPagar) return toast.error("Error guardando el gasto a pagar: " + errorAPagar.message);
+      toast.success("✓ Anotado en Gastos a pagar. No descuenta hasta que lo pagues.");
+      avisarCambioGastosAPagar();
+      onSaved();
+      return;
+    }
     if (!form.method) return toast.error("Elegí con qué medio se pagó: efectivo o transferencia.");
     setSaving(true);
     // El usuario que registra el gasto se guarda internamente (user_name/
@@ -7066,58 +7103,93 @@ function NuevoGastoTab({
 
           <div className="space-y-4 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4">
             <div>
-              <span className={labelCls}>1. ¿De dónde sale la plata?</span>
-              <div className="grid gap-2.5 sm:grid-cols-2">
+              <span className={labelCls}>¿De dónde sale la plata?</span>
+              <div className="grid gap-2.5 sm:grid-cols-3">
                 <button
                   type="button"
-                  onClick={() => setForm((f) => ({ ...f, source: "caja" }))}
-                  className={cn(optionBtn(form.source === "caja"), "text-left")}
-                  aria-pressed={form.source === "caja"}
+                  onClick={() => setForm((f) => ({ ...f, source: "caja", later: false }))}
+                  className={cn(optionBtn(!form.later && form.source === "caja"), "text-left")}
+                  aria-pressed={!form.later && form.source === "caja"}
                 >
                   <span className="block text-sm font-semibold">Caja del día</span>
                   <span className="mt-1 block text-xs font-normal leading-snug text-muted-foreground">
-                    Se paga con dinero de la jornada. Se descuenta de Efectivo en caja o Dinero en banco y se registra en el cierre.
+                    Se descuenta de Efectivo en caja o Dinero en banco y se registra en el cierre.
                   </span>
                 </button>
                 <button
                   type="button"
-                  onClick={() => setForm((f) => ({ ...f, source: "otros" }))}
-                  className={cn(optionBtn(form.source === "otros"), "text-left")}
-                  aria-pressed={form.source === "otros"}
+                  onClick={() => setForm((f) => ({ ...f, source: "otros", later: false }))}
+                  className={cn(optionBtn(!form.later && form.source === "otros"), "text-left")}
+                  aria-pressed={!form.later && form.source === "otros"}
                 >
                   <span className="block text-sm font-semibold">Fondos externos</span>
                   <span className="mt-1 block text-xs font-normal leading-snug text-muted-foreground">
-                    Se paga con dinero ajeno a la caja del día. Se registra el gasto, pero no descuenta de la recaudación ni entra en el cierre.
+                    Se registra el gasto, pero no descuenta de la recaudación ni entra en el cierre.
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, later: true }))}
+                  className={cn(optionBtn(form.later), "text-left")}
+                  aria-pressed={form.later}
+                >
+                  <span className="block text-sm font-semibold">Lo pago después</span>
+                  <span className="mt-1 block text-xs font-normal leading-snug text-muted-foreground">
+                    Queda en Gastos a pagar, con fecha de vencimiento, y no descuenta hasta que lo pagues.
                   </span>
                 </button>
               </div>
             </div>
 
-            <div>
-              <span className={labelCls}>2. ¿Con qué medio se pagó?</span>
-              <div className="grid grid-cols-2 gap-2.5">
-                {(["efectivo", "transferencia"] as const).map((m) => (
-                  <button
-                    key={m}
-                    type="button"
-                    onClick={() => setForm((f) => ({ ...f, method: m }))}
-                    className={optionBtn(form.method === m)}
-                    aria-pressed={form.method === m}
-                  >
-                    <span className="block text-center text-sm font-semibold">
-                      {m === "efectivo" ? "Efectivo" : "Transferencia"}
-                    </span>
-                  </button>
-                ))}
+            {form.later ? (
+              <div className="space-y-3">
+                <label className="block">
+                  <span className={labelCls}>Vence el</span>
+                  <input
+                    type="date"
+                    value={form.due}
+                    onChange={(e) => setForm((f) => ({ ...f, due: e.target.value }))}
+                    className={inputCls}
+                  />
+                </label>
+                <label className="block">
+                  <span className={labelCls}>Proveedor (opcional)</span>
+                  <input
+                    value={form.supplier}
+                    onChange={(e) => setForm((f) => ({ ...f, supplier: e.target.value }))}
+                    placeholder="A quién se lo comprás"
+                    maxLength={120}
+                    className={inputCls}
+                  />
+                </label>
               </div>
-              <p className="mt-1.5 text-xs text-muted-foreground">
-                {form.source === "caja"
-                  ? form.method === ""
-                    ? "Elegí un medio: según cuál sea, se descuenta de Efectivo en caja o de Dinero en banco."
-                    : `Se descuenta de ${form.method === "efectivo" ? "Efectivo en caja" : "Dinero en banco"}.`
-                  : "Elegí cómo se pagó. Con fondos externos el medio queda registrado en el gasto pero no mueve los saldos de la caja."}
-              </p>
-            </div>
+            ) : (
+              <div>
+                <span className={labelCls}>¿Con qué medio se pagó?</span>
+                <div className="grid grid-cols-2 gap-2.5">
+                  {(["efectivo", "transferencia"] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setForm((f) => ({ ...f, method: m }))}
+                      className={optionBtn(form.method === m)}
+                      aria-pressed={form.method === m}
+                    >
+                      <span className="block text-center text-sm font-semibold">
+                        {m === "efectivo" ? "Efectivo" : "Transferencia"}
+                      </span>
+                    </button>
+                  ))}
+                </div>
+                <p className="mt-1.5 text-xs text-muted-foreground">
+                  {form.source === "caja"
+                    ? form.method === ""
+                      ? "Elegí un medio: según cuál sea, se descuenta de Efectivo en caja o de Dinero en banco."
+                      : `Se descuenta de ${form.method === "efectivo" ? "Efectivo en caja" : "Dinero en banco"}.`
+                    : "Elegí cómo se pagó. Con fondos externos el medio queda registrado en el gasto pero no mueve los saldos de la caja."}
+                </p>
+              </div>
+            )}
           </div>
 
           <label className="block">
@@ -7150,7 +7222,7 @@ function NuevoGastoTab({
               ) : (
                 <Plus className="size-4" />
               )}
-              Registrar gasto
+              {form.later ? "Anotar para pagar después" : "Pagar"}
             </button>
           </div>
         </div>
@@ -17085,6 +17157,33 @@ export function NuevaVentaTab({
                 businessId={data.businessId}
               />
             </Card>
+          )}
+
+          {/* Cliente sin agendar — venta a alguien que no se agendó: sin nombre ni teléfono, va a la ficha genérica. */}
+          {!clientId && (
+            <button
+              type="button"
+              onClick={async () => {
+                if (!data.businessId) return;
+                try {
+                  const id = await obtenerClienteGenerico(data.businessId, data.activeBranchId);
+                  setClientId(id);
+                  setClient(NOMBRE_CLIENTE_GENERICO);
+                  setClientLastName("");
+                  setPhone("");
+                  setEmail("");
+                  setBirthDate("");
+                  setNewClientOpen(false);
+                  setClientSearch("");
+                } catch (e) {
+                  toast.error((e as Error).message);
+                }
+              }}
+              className="w-full inline-flex items-center justify-center gap-2 rounded-full px-4 py-3 text-sm font-semibold border border-violet-400/40 bg-violet-500/10 text-violet-100 hover:bg-violet-500/20 transition-colors"
+            >
+              <UserRound className="size-4" />
+              Cliente sin agendar
+            </button>
           )}
 
           {/* 4. Nuevo cliente — acción secundaria, oculta si ya hay cliente seleccionado */}

@@ -60,13 +60,20 @@ export function useClientGroups(businessId: string | null) {
       const { data, error } = await supabase.rpc("clippr_clientes_grupos_v1" as any, { p_business_id: businessId });
       if (error) throw new Error("Error cargando grupos de clientes: " + error.message);
       const rows = (data ?? []) as GrupoRow[];
+      // Fichas genéricas ("Sin agendar"): no se muestran en Clientes. Si la columna todavía no existe, no hay ninguna.
+      const { data: gen, error: errGen } = await supabase
+        .from("clients")
+        .select("id")
+        .eq("business_id", businessId!)
+        .eq("es_generico" as never, true as never);
+      const genericos = new Set<string>(errGen ? [] : ((gen ?? []) as unknown as Array<{ id: string }>).map((g) => g.id));
       const porCliente = new Map<string, GrupoRow>();
       const counts: Record<string, number> = {};
       for (const r of rows) {
         porCliente.set(r.client_id, r);
         counts[r.grupo] = (counts[r.grupo] ?? 0) + 1;
       }
-      return { porCliente, counts };
+      return { porCliente, counts, genericos };
     },
   });
 }

@@ -771,6 +771,18 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                 </div>
                 <div className="mt-3 flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                   <GrupoBadge grupo={gruposFicha?.porCliente.get(client.id)?.grupo} />
+                  {client.origen && (
+                    <span
+                      className={cn(
+                        "rounded-full px-2.5 py-0.5 text-[11px] font-semibold ring-1",
+                        client.origen === "online"
+                          ? "bg-sky-400/10 text-sky-200 ring-sky-400/30"
+                          : "bg-white/5 text-white/70 ring-white/10",
+                      )}
+                    >
+                      {client.origen === "online" ? "Reserva online" : "Reserva manual"}
+                    </span>
+                  )}
                   {barberosFicha ? <EtiquetaBarbero info={barberosFicha.info.get(client.id)} nombres={barberosFicha.nombres} permitirVip={grupoPermiteVip(gruposFicha?.porCliente.get(client.id)?.grupo)} /> : null}
                 </div>
                 <div className="mt-2.5 inline-flex items-center gap-2 text-sm text-white/70">
@@ -1559,7 +1571,8 @@ function ClientsPage() {
     () => (pageData?.pages ?? []).flatMap((p) => p.rows),
     [pageData],
   );
-  const total = pageData?.pages?.[0]?.total ?? 0;
+  const genericos = grupos?.genericos;
+  const total = Math.max(0, (pageData?.pages?.[0]?.total ?? 0) - (genericos?.size ?? 0));
 
   // Ya no se auto-selecciona el primer cliente de la lista al cargar: el
   // detalle ahora es un modal (ver ClientDetailModal más abajo), y un modal
@@ -1568,7 +1581,8 @@ function ClientsPage() {
   // era un panel siempre visible al lado de la lista en desktop.
 
   // Search + sorting (nombre/recientes/gasto) all happen server-side now.
-  const filtered = clients;
+  // La ficha genérica ("Sin agendar") junta ventas de personas que no se agendaron: no es un cliente.
+  const filtered = useMemo(() => (genericos && genericos.size > 0 ? clients.filter((c) => !genericos.has(c.id)) : clients), [clients, genericos]);
 
   const counts = useMemo(
     () => ({
