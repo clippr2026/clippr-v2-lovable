@@ -17159,33 +17159,6 @@ export function NuevaVentaTab({
             </Card>
           )}
 
-          {/* Cliente sin agendar — venta a alguien que no se agendó: sin nombre ni teléfono, va a la ficha genérica. */}
-          {!clientId && (
-            <button
-              type="button"
-              onClick={async () => {
-                if (!data.businessId) return;
-                try {
-                  const id = await obtenerClienteGenerico(data.businessId, data.activeBranchId);
-                  setClientId(id);
-                  setClient(NOMBRE_CLIENTE_GENERICO);
-                  setClientLastName("");
-                  setPhone("");
-                  setEmail("");
-                  setBirthDate("");
-                  setNewClientOpen(false);
-                  setClientSearch("");
-                } catch (e) {
-                  toast.error((e as Error).message);
-                }
-              }}
-              className="w-full inline-flex items-center justify-center gap-2 rounded-full px-4 py-3 text-sm font-semibold border border-violet-400/40 bg-violet-500/10 text-violet-100 hover:bg-violet-500/20 transition-colors"
-            >
-              <UserRound className="size-4" />
-              Cliente sin agendar
-            </button>
-          )}
-
           {/* 4. Nuevo cliente — acción secundaria, oculta si ya hay cliente seleccionado */}
           {!clientId && !newClientOpen && (
             <button
@@ -17242,6 +17215,32 @@ export function NuevaVentaTab({
                   />
                 </Card>
             )}
+          {/* Continuar sin cliente — venta a alguien que no se agendó: sin nombre ni teléfono, va a la ficha genérica "Sin agendar". */}
+          {!clientId && (
+            <button
+              type="button"
+              onClick={async () => {
+                if (!data.businessId) return;
+                try {
+                  const id = await obtenerClienteGenerico(data.businessId, data.activeBranchId);
+                  setClientId(id);
+                  setClient(NOMBRE_CLIENTE_GENERICO);
+                  setClientLastName("");
+                  setPhone("");
+                  setEmail("");
+                  setBirthDate("");
+                  setNewClientOpen(false);
+                  setClientSearch("");
+                  setStep(3);
+                } catch (e) {
+                  toast.error((e as Error).message);
+                }
+              }}
+              className="mx-auto block px-2 py-2 text-sm font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
+            >
+              Continuar sin cliente
+            </button>
+          )}
           </div>
         </div>
       )}
