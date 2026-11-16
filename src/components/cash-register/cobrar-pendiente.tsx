@@ -1,6 +1,5 @@
 import * as React from "react";
-import { createPortal } from "react-dom";
-import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
+import { VentanaClippr } from "@/components/clientes/ventana-clippr";
 import { toast } from "sonner";
 import { Search, X, Loader2, Check, Clock, ChevronRight, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -258,7 +257,7 @@ function StatusChip({ status }: { status: string }) {
   return (
     <span
       className={cn(
-        "shrink-0 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
+        "shrink-0 rounded-full px-2.5 py-0.5 text-[11px] font-semibold",
         isParcial ? "bg-amber-400/15 text-amber-200" : "bg-rose-400/15 text-rose-200",
       )}
     >
@@ -281,25 +280,22 @@ function DebtRow({
     <button
       type="button"
       onClick={onClick}
-      className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-3.5 py-3 text-left transition hover:border-amber-300/30 hover:bg-amber-400/[0.05]"
+      className="flex w-full items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.03] px-4 py-3.5 text-left transition hover:border-violet-400/40"
+      style={{ background: CARD_LUZ }}
     >
       <div className="min-w-0 flex-1 space-y-0.5">
-        <div className="flex items-center gap-2">
-          <span className="truncate text-sm font-bold text-white">
-            {debt.client_name || "Cliente del mostrador"}
-          </span>
-          <StatusChip status={debt.status} />
-        </div>
-        <p className="truncate text-xs text-white/55">{debt.service_name || "Venta"}</p>
-        <p className="text-[11px] text-white/35">
+        <p className="truncate text-sm font-semibold text-white">{debt.client_name || "Cliente del mostrador"}</p>
+        <p className="truncate text-xs text-white/60">{debt.service_name || "Venta"}</p>
+        <p className="text-[11px] text-white/45">
           {fmtDate(debt.created_at)} · {employeeName}
           {debt.collected_amount > 0 && <> · ya abonado {fmtMoney(debt.collected_amount)}</>}
         </p>
       </div>
-      <div className="flex shrink-0 items-center gap-1.5">
-        <span className="text-right text-base font-extrabold tabular-nums text-amber-200">
-          {fmtMoney(saldo)}
-        </span>
+      <div className="flex shrink-0 items-center gap-2">
+        <div className="flex flex-col items-end gap-1">
+          <span className="text-base font-semibold tabular-nums text-amber-200">{fmtMoney(saldo)}</span>
+          <StatusChip status={debt.status} />
+        </div>
         <ChevronRight className="size-4 text-white/30" />
       </div>
     </button>
@@ -381,8 +377,8 @@ function CollectForm({
         <ArrowLeft className="size-3.5" /> Volver a la lista
       </button>
 
-      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3 space-y-1">
-        <p className="text-sm font-bold text-white">{debt.client_name || "Cliente del mostrador"}</p>
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-1" style={{ background: CARD_LUZ }}>
+        <p className="text-sm font-semibold text-white">{debt.client_name || "Cliente del mostrador"}</p>
         <p className="text-xs text-white/55">{debt.service_name || "Venta"}</p>
         <p className="text-[11px] text-white/35">
           {fmtDate(debt.created_at)} · {employeeName}
@@ -404,7 +400,7 @@ function CollectForm({
       </div>
 
       <div>
-        <p className="mb-1.5 text-[11px] font-semibold tracking-[0.1em] text-white/50">IMPORTE A COBRAR</p>
+        <p className="mb-1.5 text-sm font-semibold text-white">Importe a cobrar</p>
         <div className="relative">
           <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-base font-bold text-white/55">
             $
@@ -413,7 +409,7 @@ function CollectForm({
             value={amount ? amount.toLocaleString("es-AR") : ""}
             onChange={(e) => setAmountStr(e.target.value.replace(/\D/g, "").slice(0, 9))}
             inputMode="numeric"
-            className="h-11 w-full rounded-xl border border-emerald-300/30 bg-black/45 pl-8 pr-20 text-left text-lg font-extrabold tabular-nums text-white outline-none focus:border-emerald-300/65 focus:ring-2 focus:ring-emerald-400/20"
+            className="h-11 w-full rounded-lg border border-emerald-300/30 bg-black/45 pl-8 pr-20 text-left text-lg font-extrabold tabular-nums text-white outline-none focus:border-emerald-300/65 focus:ring-2 focus:ring-emerald-400/20"
           />
           <button
             type="button"
@@ -431,7 +427,7 @@ function CollectForm({
       </div>
 
       <div>
-        <p className="mb-1.5 text-[11px] font-semibold tracking-[0.1em] text-white/50">MEDIO DE PAGO</p>
+        <p className="mb-1.5 text-sm font-semibold text-white">Medio de pago</p>
         <div className="grid grid-cols-3 gap-1.5">
           {ACTIVE_PAY_METHODS.map((m) => (
             <button
@@ -439,7 +435,7 @@ function CollectForm({
               type="button"
               onClick={() => setMethod(m.id)}
               className={cn(
-                "rounded-xl border px-2 py-2 text-xs font-semibold transition",
+                "h-11 rounded-full border px-2 text-sm font-semibold transition",
                 method === m.id
                   ? "border-blue-300/48 bg-blue-400/[0.14] text-white"
                   : "border-white/[0.08] bg-white/[0.02] text-muted-foreground hover:text-foreground",
@@ -452,12 +448,12 @@ function CollectForm({
       </div>
 
       <div>
-        <label className="text-[11px] text-white/50">Observación (opcional)</label>
+        <label className="text-sm font-semibold text-white">Observación (opcional)</label>
         <input
           value={observations}
           onChange={(e) => setObservations(e.target.value)}
           placeholder="Nota interna"
-          className="mt-1 w-full rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2 text-sm text-white outline-none focus:border-blue-300/40"
+          className="mt-1.5 h-11 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none focus:border-violet-400/50"
         />
       </div>
 
@@ -465,7 +461,7 @@ function CollectForm({
         type="button"
         onClick={handleConfirm}
         disabled={submitting || amount <= 0}
-        className="flex w-full items-center justify-center gap-2 rounded-2xl bg-[linear-gradient(135deg,#34D399,#10B981)] px-5 py-3 text-sm font-extrabold text-white shadow-[0_0_30px_rgba(16,185,129,0.25)] transition-all hover:brightness-110 disabled:opacity-40"
+        className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-[linear-gradient(135deg,#34D399,#10B981)] px-5 text-sm font-bold text-white shadow-[0_0_30px_rgba(16,185,129,0.25)] transition-all hover:brightness-110 disabled:opacity-40"
       >
         {submitting ? (
           <>
@@ -480,6 +476,9 @@ function CollectForm({
     </div>
   );
 }
+
+const CARD_LUZ =
+  "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.16), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.12), transparent 65%)";
 
 export function CobrarPendienteModal({
   businessId,
@@ -498,9 +497,7 @@ export function CobrarPendienteModal({
   onClose: () => void;
   onCollected: () => void;
 }) {
-  useBodyScrollLock(true);
   const [query, setQuery] = React.useState("");
-  const [employeeFilter, setEmployeeFilter] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<"todos" | "pendiente" | "parcial">("todos");
   const [debts, setDebts] = React.useState<PendingDebt[]>([]);
   const [loading, setLoading] = React.useState(true);
@@ -519,7 +516,7 @@ export function CobrarPendienteModal({
         businessId,
         branchId,
         query,
-        employeeId: employeeFilter || null,
+        employeeId: null,
         status: statusFilter,
       });
       setDebts(rows);
@@ -528,7 +525,7 @@ export function CobrarPendienteModal({
     } finally {
       setLoading(false);
     }
-  }, [businessId, branchId, query, employeeFilter, statusFilter]);
+  }, [businessId, branchId, query, statusFilter]);
 
   // Debounced — mismo criterio que ClientAutocomplete (250ms).
   React.useEffect(() => {
@@ -538,26 +535,16 @@ export function CobrarPendienteModal({
 
   if (typeof document === "undefined") return null;
 
-  return createPortal(
-    <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div
-        className="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-[oklch(0.11_0.04_275)] shadow-2xl ring-1 ring-white/10"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-          <h3 className="flex items-center gap-2 text-lg font-semibold text-white">
-            <Clock className="size-4 text-amber-300" /> Cobrar pendiente
-          </h3>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-lg bg-white/5 px-3 py-2 text-sm hover:bg-white/10"
-          >
-            <X className="size-4" />
-          </button>
-        </div>
-
-        <div className="min-h-0 flex-1 overflow-y-auto p-5">
+  return (
+    <VentanaClippr
+      titulo={
+        <span className="flex items-center gap-2">
+          <Clock className="size-4 text-amber-300" /> Cobrar pendiente
+        </span>
+      }
+      onClose={onClose}
+    >
+      <div>
           {selected ? (
             <CollectForm
               debt={selected}
@@ -581,7 +568,7 @@ export function CobrarPendienteModal({
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   placeholder="Buscar por cliente…"
-                  className="h-10 w-full rounded-2xl border border-white/[0.08] bg-[#060812]/72 pl-10 pr-4 text-sm text-white outline-none placeholder:text-white/35 focus:border-amber-300/35 focus:ring-2 focus:ring-amber-400/12"
+                  className="h-11 w-full rounded-lg border border-white/10 bg-white/[0.04] pl-10 pr-4 text-sm text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
                 />
               </div>
 
@@ -592,27 +579,15 @@ export function CobrarPendienteModal({
                     type="button"
                     onClick={() => setStatusFilter(s)}
                     className={cn(
-                      "rounded-full px-3 py-1 text-xs font-semibold transition",
+                      "h-9 rounded-full px-4 text-sm font-semibold transition",
                       statusFilter === s
                         ? "bg-amber-400/20 text-amber-100 ring-1 ring-amber-400/40"
-                        : "bg-white/[0.04] text-white/55 hover:bg-white/[0.08]",
+                        : "border border-white/10 bg-white/[0.04] text-white/60 hover:bg-white/[0.08]",
                     )}
                   >
                     {s === "todos" ? "Todos" : s === "pendiente" ? "Pendiente" : "Parcial"}
                   </button>
                 ))}
-                <select
-                  value={employeeFilter}
-                  onChange={(e) => setEmployeeFilter(e.target.value)}
-                  className="rounded-full bg-white/[0.04] px-3 py-1 text-xs font-semibold text-white/70 outline-none hover:bg-white/[0.08]"
-                >
-                  <option value="">Todos los profesionales</option>
-                  {employees.map((e) => (
-                    <option key={e.id} value={e.id}>
-                      {e.name}
-                    </option>
-                  ))}
-                </select>
               </div>
 
               {loading ? (
@@ -621,7 +596,7 @@ export function CobrarPendienteModal({
                 </div>
               ) : debts.length === 0 ? (
                 <div className="py-10 text-center text-sm text-white/40">
-                  No hay pagos pendientes {query || employeeFilter || statusFilter !== "todos" ? "con ese filtro" : ""}.
+                  No hay pagos pendientes {query || statusFilter !== "todos" ? "con ese filtro" : ""}.
                 </div>
               ) : (
                 <div className="space-y-2">
@@ -637,9 +612,7 @@ export function CobrarPendienteModal({
               )}
             </div>
           )}
-        </div>
       </div>
-    </div>,
-    document.body,
+    </VentanaClippr>
   );
 }
