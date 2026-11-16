@@ -24,8 +24,6 @@ import { SaldoComposicionModal } from "@/components/caja/saldo-composicion";
 import {
   TrendingUp,
   TrendingDown,
-  Scissors,
-  Package,
   XCircle,
   ChevronRight,
   AlertTriangle,
@@ -258,8 +256,6 @@ function CajaHoyCard({
   data: DashboardData;
   userEmail: string | null;
 }) {
-  const serviciosRealizados = data.topServices.reduce((s, item) => s + item.count, 0);
-  const productosVendidos = data.topCatalog.reduce((s, cat) => s + cat.count, 0);
   // Composición de "Efectivo en caja"/"Dinero en banco" — mismo
   // modal que Caja > Facturación, misma fuente (caja.todayExpectedFull):
   // un saldo negativo nunca queda sin explicación acá tampoco.
@@ -361,11 +357,6 @@ function CajaHoyCard({
             {fmtExpenseAR(caja.totalGastosHoy)}
           </div>
         </div>
-      </div>
-
-      <div className="mt-3 grid grid-cols-2 gap-2">
-        <MiniStat icon={Scissors} label="Servicios realizados" value={String(serviciosRealizados)} />
-        <MiniStat icon={Package} label="Productos vendidos" value={String(productosVendidos)} />
       </div>
 
       {/* Efectivo del día / Dinero en cuenta del día — ESTRICTAMENTE hoy

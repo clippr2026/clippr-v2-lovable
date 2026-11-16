@@ -1,5 +1,5 @@
 import * as React from "react";
-import { TrendingUp, TrendingDown, Scissors, Package, Wallet, CreditCard } from "lucide-react";
+import { TrendingUp, TrendingDown, Wallet, CreditCard } from "lucide-react";
 
 // "Caja de hoy": el mismo bloque que se ve en Inicio (Ingresos y Egresos, servicios realizados, productos vendidos, efectivo en
 // caja y dinero en banco), para que Caja muestre exactamente lo mismo.
@@ -46,8 +46,6 @@ function MiniStat({
 export function CajaHoyBloque({
   ingresos,
   egresos,
-  servicios,
-  productos,
   efectivo,
   banco,
   onEfectivo,
@@ -55,8 +53,6 @@ export function CajaHoyBloque({
 }: {
   ingresos: number;
   egresos: number;
-  servicios: number;
-  productos: number;
   efectivo: number;
   banco: number;
   onEfectivo: () => void;
@@ -82,10 +78,6 @@ export function CajaHoyBloque({
         </div>
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <MiniStat icon={Scissors} label="Servicios realizados" value={String(servicios)} />
-        <MiniStat icon={Package} label="Productos vendidos" value={String(productos)} />
-      </div>
-      <div className="mt-2 grid grid-cols-2 gap-2">
         <MiniStat icon={Wallet} label="Efectivo en caja" value={pesos(efectivo)} onClick={onEfectivo} />
         <MiniStat icon={CreditCard} label="Dinero en banco" value={pesos(banco)} onClick={onBanco} />
       </div>

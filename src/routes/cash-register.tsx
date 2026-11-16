@@ -13388,26 +13388,6 @@ function FacturacionPanel({
   // — mismo criterio que ya usa el bloque "Modo de aprobación" de
   // Liquidaciones, ningún flag nuevo.
   const showPendientes = data.approvalModeEnabled && equipoEnabled;
-  // Servicios realizados / productos vendidos de HOY (mismo criterio que Inicio): cada ítem de cada cobro del día.
-  const cuentaHoy = React.useMemo(() => {
-    let servicios = 0;
-    let productos = 0;
-    filterToDayBA(data.paymentsToday, (p) => p.created_at, cajaDateKeyBA()).forEach((p) => {
-      const items = Array.isArray((p as { items?: unknown }).items)
-        ? ((p as { items: Array<{ is_catalog?: boolean; qty?: number }> }).items)
-        : [];
-      if (items.length === 0) {
-        servicios += 1;
-        return;
-      }
-      items.forEach((it) => {
-        const q = Number(it?.qty ?? 1) || 1;
-        if (it?.is_catalog) productos += q;
-        else servicios += q;
-      });
-    });
-    return { servicios, productos };
-  }, [data.paymentsToday]);
 
   return (
     <>
@@ -13448,8 +13428,6 @@ function FacturacionPanel({
       <CajaHoyBloque
         ingresos={data.revHoy}
         egresos={data.totalGastos}
-        servicios={cuentaHoy.servicios}
-        productos={cuentaHoy.productos}
         efectivo={summary.todayCashExpected}
         banco={summary.todayDigitalExpected}
         onEfectivo={() => setSaldoDetalle("cash")}
