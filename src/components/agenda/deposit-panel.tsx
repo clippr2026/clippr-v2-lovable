@@ -48,6 +48,72 @@ type Dist = "local" | "professional" | "split" | "custom";
  * de un turno cancelado / que no asistió. Todo pasa por las funciones de la base
  * (permisos y reglas se validan allá).
  */
+// Estilo Clippr: luz suave de las tarjetas (celeste arriba a la derecha, violeta abajo a la izquierda).
+const LUZ_TARJETA =
+  "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.16), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.12), transparent 65%)";
+
+// Formulario para registrar una seña recibida: monto, medio (dos botones en vez de un menú del sistema) y píldoras para volver o guardar.
+function FormSenaRecibida({
+  amount,
+  setAmount,
+  method,
+  setMethod,
+  busy,
+  onVolver,
+  onGuardar,
+}: {
+  amount: string;
+  setAmount: (v: string) => void;
+  method: "cash" | "transfer";
+  setMethod: (m: "cash" | "transfer") => void;
+  busy: boolean;
+  onVolver: () => void;
+  onGuardar: () => void;
+}) {
+  const medio = (activo: boolean) =>
+    `h-11 rounded-full border px-3 text-sm font-semibold transition ${
+      activo ? "border-violet-400/60 bg-violet-500/20 text-white" : "border-white/10 bg-white/[0.04] text-white/65 hover:bg-white/[0.08]"
+    }`;
+  return (
+    <div className="space-y-3">
+      <input
+        type="number"
+        inputMode="decimal"
+        min={1}
+        value={amount}
+        onChange={(e) => setAmount(e.target.value)}
+        placeholder="Monto ($)"
+        className="h-11 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none placeholder:text-white/40 focus:border-violet-400/50"
+      />
+      <div className="grid grid-cols-2 gap-2">
+        <button type="button" className={medio(method === "cash")} aria-pressed={method === "cash"} onClick={() => setMethod("cash")}>
+          Efectivo
+        </button>
+        <button type="button" className={medio(method === "transfer")} aria-pressed={method === "transfer"} onClick={() => setMethod("transfer")}>
+          Transferencia
+        </button>
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          type="button"
+          onClick={onVolver}
+          className="h-11 rounded-full border border-white/10 bg-white/[0.04] text-sm font-semibold text-white/85 transition hover:bg-white/[0.08]"
+        >
+          Volver
+        </button>
+        <button
+          type="button"
+          disabled={busy || !(Number(amount) > 0)}
+          onClick={onGuardar}
+          className="h-11 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-sm font-semibold text-background transition hover:brightness-110 disabled:opacity-40"
+        >
+          Guardar
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export function DepositPanel({
   appointmentId,
   status,
@@ -198,38 +264,30 @@ export function DepositPanel({
   if (!dep) {
     if (!senasEnabled || isPast || !["pending", "confirmed"].includes(status)) return null;
     return (
-      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3.5 text-sm">
+      <div
+        className="rounded-2xl border border-white/10 p-4 text-sm"
+        style={{ background: LUZ_TARJETA }}
+      >
         {!recording ? (
-          <Button variant="secondary" className="h-9 w-full" onClick={() => setRecording(true)}>
+          <button
+            type="button"
+            onClick={() => setRecording(true)}
+            className="flex h-11 w-full items-center justify-center rounded-full border border-violet-400/50 bg-violet-500/15 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/25"
+          >
             Registrar seña recibida
-          </Button>
+          </button>
         ) : (
-          <div className="space-y-2">
-            <div className="font-semibold">Registrar seña recibida</div>
-            <div className="grid grid-cols-2 gap-2">
-              <input
-                type="number"
-                min={1}
-                value={amount}
-                onChange={(e) => setAmount(e.target.value)}
-                placeholder="Monto ($)"
-                className="rounded-lg bg-white/5 px-2.5 py-2 text-sm ring-1 ring-white/10 outline-none"
-              />
-              <select value={method} onChange={(e) => setMethod(e.target.value as "cash" | "transfer")} className="rounded-lg bg-white/5 px-2.5 py-2 text-sm ring-1 ring-white/10 outline-none">
-                <option value="cash">Efectivo</option>
-                <option value="transfer">Transferencia</option>
-              </select>
-            </div>
-            <div className="grid grid-cols-2 gap-2">
-              <Button variant="secondary" className="h-9" onClick={() => setRecording(false)}>Volver</Button>
-              <Button
-                className="h-9"
-                disabled={busy || !(Number(amount) > 0)}
-                onClick={() => run("record_deposit_received_v1", { p_appointment_id: appointmentId, p_amount: Number(amount), p_method: method, p_note: null }, "Seña registrada")}
-              >
-                Guardar
-              </Button>
-            </div>
+          <div className="space-y-3">
+            <div className="text-sm font-semibold text-white">Registrar seña recibida</div>
+            <FormSenaRecibida
+              amount={amount}
+              setAmount={setAmount}
+              method={method}
+              setMethod={setMethod}
+              busy={busy}
+              onVolver={() => setRecording(false)}
+              onGuardar={() => run("record_deposit_received_v1", { p_appointment_id: appointmentId, p_amount: Number(amount), p_method: method, p_note: null }, "Seña registrada")}
+            />
           </div>
         )}
       </div>
@@ -557,19 +615,15 @@ export function DepositPanel({
               Registrar seña recibida
             </button>
           ) : (
-            <div className="space-y-2">
-              <div className="grid grid-cols-2 gap-2">
-                <input type="number" min={1} value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Monto ($)" className="rounded-lg bg-white/5 px-2.5 py-2 text-sm ring-1 ring-white/10 outline-none" />
-                <select value={method} onChange={(e) => setMethod(e.target.value as "cash" | "transfer")} className="rounded-lg bg-white/5 px-2.5 py-2 text-sm ring-1 ring-white/10 outline-none">
-                  <option value="cash">Efectivo</option>
-                  <option value="transfer">Transferencia</option>
-                </select>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <Button variant="secondary" className="h-10" onClick={() => setRecording(false)}>Volver</Button>
-                <Button className="h-10" disabled={busy || !(Number(amount) > 0)} onClick={() => run("record_deposit_received_v1", { p_appointment_id: appointmentId, p_amount: Number(amount), p_method: method, p_note: null }, "Seña registrada")}>Guardar</Button>
-              </div>
-            </div>
+            <FormSenaRecibida
+              amount={amount}
+              setAmount={setAmount}
+              method={method}
+              setMethod={setMethod}
+              busy={busy}
+              onVolver={() => setRecording(false)}
+              onGuardar={() => run("record_deposit_received_v1", { p_appointment_id: appointmentId, p_amount: Number(amount), p_method: method, p_note: null }, "Seña registrada")}
+            />
           )}
         </div>
       )}
