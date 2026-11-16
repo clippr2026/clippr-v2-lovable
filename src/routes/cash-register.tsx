@@ -7042,18 +7042,18 @@ function NuevoGastoTab({
 
   const optionBtn = (active: boolean) =>
     cn(
-      "w-full rounded-xl border px-4 py-3 text-left transition",
+      "w-full rounded-2xl border px-4 py-3 text-left transition",
       active
-        ? "border-rose-300/60 bg-rose-400/10 text-foreground"
+        ? "border-violet-400/60 bg-violet-500/15 text-foreground"
         : "border-white/10 bg-white/[0.03] text-muted-foreground hover:bg-white/[0.06]",
     );
-  const labelCls = "mb-1.5 block text-xs font-semibold text-muted-foreground";
+  const labelCls = "mb-2 block text-sm font-semibold text-white";
   const inputCls =
-    "w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-blue-300/50";
+    "w-full rounded-lg border border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-violet-400/50";
 
   return (
     <div className="animate-fade-up">
-      <Card className="mx-auto w-full max-w-3xl p-3 md:p-3.5">
+      <Card className="mx-auto w-full max-w-3xl p-3 md:p-3.5" style={{ background: "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.16), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.12), transparent 65%)" }}>
         <div className="mb-4">
           <h3 className="text-lg font-semibold text-foreground">
             Nuevo gasto
@@ -7106,7 +7106,7 @@ function NuevoGastoTab({
             />
           </label>
 
-          <div className="space-y-4 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4">
+          <div className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4" style={{ background: "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.16), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.12), transparent 65%)" }}>
             <div>
               <span className={labelCls}>¿De dónde sale la plata?</span>
               <div className="grid gap-2.5 sm:grid-cols-3">
@@ -7154,7 +7154,7 @@ function NuevoGastoTab({
                     type="date"
                     value={form.due}
                     onChange={(e) => setForm((f) => ({ ...f, due: e.target.value }))}
-                    className={inputCls}
+                    className={cn(inputCls, "block min-w-0 max-w-full appearance-none")}
                   />
                 </label>
                 <label className="block">
@@ -7212,7 +7212,7 @@ function NuevoGastoTab({
             <button
               type="button"
               onClick={onCancel}
-              className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl border border-white/15 bg-white/[0.03] px-4 py-3 text-sm font-medium text-muted-foreground transition hover:bg-white/[0.07] hover:text-foreground"
+              className="flex-1 inline-flex h-12 items-center justify-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-4 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08]"
             >
               <ArrowLeft className="size-4" /> Atrás
             </button>
@@ -7220,7 +7220,7 @@ function NuevoGastoTab({
               type="button"
               onClick={saveGasto}
               disabled={saving}
-              className="flex-[2] inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-rose-500 to-red-600 px-5 py-3 text-sm font-semibold text-white transition hover:brightness-105 disabled:opacity-50"
+              className="flex-[2] inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 px-5 py-2 text-center text-sm font-semibold leading-tight text-background transition hover:brightness-110 disabled:opacity-50"
             >
               {saving ? (
                 <Loader2 className="size-4 animate-spin" />
