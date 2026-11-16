@@ -170,17 +170,18 @@ function Row({ item, onDone }: { item: SenaPendiente; onDone: () => void }) {
           ) : cajaDelEnvio === "cerrada" ? (
             <>
               Esta seña se envió el <strong>{fmtDayShort(item.proof_uploaded_at)}</strong>, pero esa caja{" "}
-              <strong>ya está cerrada</strong>. Al aprobarla, <strong>entra en la próxima caja abierta</strong>.
+              <strong>ya está cerrada</strong>. Al aprobarla, <strong>entra igual en la caja del {fmtDayShort(item.proof_uploaded_at)}</strong> como
+              ajuste aparte: el cierre original no se toca y queda una extensión para cerrar.
             </>
           ) : cajaDelEnvio === "sin_caja" ? (
             <>
               Esta seña se envió el <strong>{fmtDayShort(item.proof_uploaded_at)}</strong>, un día en que{" "}
-              <strong>no hubo caja</strong>. Al aprobarla, <strong>entra en la próxima caja abierta</strong>.
+              <strong>no hubo caja</strong>. Al aprobarla, <strong>entra en la caja de ese día</strong> y queda como caja pendiente de cierre.
             </>
           ) : (
             <>
               Esta seña se envió el <strong>{fmtDayShort(item.proof_uploaded_at)}</strong>. Al aprobarla entra en la caja de ese
-              día si no se cerró; si ya se cerró, pasa a la <strong>próxima caja abierta</strong>.
+              día; si ya se cerró, entra como ajuste aparte sin tocar el cierre.
             </>
           )}
         </div>
