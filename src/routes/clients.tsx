@@ -320,7 +320,7 @@ function StatCard({
           <div className="text-[11px] sm:text-sm font-semibold leading-tight whitespace-nowrap" style={{ color: rgb ? `rgb(${rgb})` : "#fff" }}>
             {label === "2 meses o más" ? (
               <>
-                <span className="sm:hidden">2 meses +</span>
+                <span className="sm:hidden">+ 2 meses</span>
                 <span className="hidden sm:inline">{label}</span>
               </>
             ) : (
