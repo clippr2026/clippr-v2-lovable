@@ -13438,8 +13438,8 @@ function FacturacionPanel({
 
       {summary.pendingCierres.length > 0 && (
         <div
-          className="flex items-center gap-3 rounded-[20px] border border-violet-400/30 bg-white/[0.03] p-4"
-          style={{ background: "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.14), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.12), transparent 65%)" }}
+          className="flex items-center gap-3 rounded-[20px] border border-amber-400/45 bg-white/[0.03] p-4"
+          style={{ background: "radial-gradient(110% 90% at 100% 0%, rgba(251,191,36,.20), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(251,191,36,.10), transparent 65%)", boxShadow: "0 0 26px -12px rgba(251,191,36,.55)" }}
         >
           <AlertTriangle className="h-4 w-4 shrink-0 text-amber-300" />
           <p className="min-w-0 flex-1 text-sm font-semibold text-white">
@@ -13450,7 +13450,7 @@ function FacturacionPanel({
           <button
             type="button"
             onClick={() => onRevisarCierre(summary.pendingCierres[0].date)}
-            className="h-9 shrink-0 rounded-full border border-violet-400/50 bg-violet-500/20 px-5 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/30"
+            className="h-9 shrink-0 rounded-full border border-amber-400/50 bg-amber-400/15 px-5 text-sm font-semibold text-amber-100 transition hover:bg-amber-400/25"
           >
             Cerrar
           </button>

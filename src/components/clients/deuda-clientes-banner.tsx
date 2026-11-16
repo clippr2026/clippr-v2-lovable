@@ -59,12 +59,13 @@ export function DeudaClientesBanner() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex w-full shrink-0 items-center gap-2.5 rounded-2xl border border-violet-400/30 bg-white/[0.03] px-3.5 py-2.5 text-left [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,.14),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,.12),transparent_65%)] transition hover:border-violet-400/50"
+        className="flex w-full shrink-0 items-center gap-2.5 rounded-2xl border border-rose-400/45 px-3.5 py-2.5 text-left transition hover:border-rose-400/70"
+        style={{ background: "radial-gradient(110% 90% at 100% 0%, rgba(244,63,94,.20), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(244,63,94,.10), transparent 65%)", boxShadow: "0 0 26px -12px rgba(244,63,94,.55)" }}
       >
-        <Clock className="h-5 w-5 shrink-0 text-violet-300" />
+        <Clock className="h-5 w-5 shrink-0 text-rose-300" />
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold leading-tight text-white">Clientes con saldo pendiente</span>
-          <span className="mt-0.5 block text-xs font-semibold text-violet-300">Tocá para cobrar</span>
+          <span className="mt-0.5 block text-xs font-semibold text-rose-300">Tocá para cobrar</span>
         </span>
         <span className="shrink-0 text-base font-semibold tabular-nums text-white">
           ${Math.round(summary.total).toLocaleString("es-AR")}

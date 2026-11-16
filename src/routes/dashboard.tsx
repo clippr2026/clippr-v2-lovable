@@ -296,29 +296,23 @@ function CajaHoyCard({
           hay una caja pendiente; dentro de la misma sesión el hook recuerda
           el último valor (pendingCierresCache), así que no vuelve a parpadear. */}
       {caja.pendingCierres.length > 0 ? (
-        <div className="mb-3 rounded-xl bg-amber-400/10 px-3 py-2.5 ring-1 ring-amber-400/25">
-          <div className="flex items-center gap-2 text-sm font-medium text-amber-200">
-            <AlertTriangle className="h-4 w-4 shrink-0" />
+        <div
+          className="mb-3 flex items-center gap-3 rounded-[20px] border border-amber-400/45 bg-white/[0.03] p-4"
+          style={{ background: "radial-gradient(110% 90% at 100% 0%, rgba(251,191,36,.20), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(251,191,36,.10), transparent 65%)", boxShadow: "0 0 26px -12px rgba(251,191,36,.55)" }}
+        >
+          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-300" />
+          <p className="min-w-0 flex-1 text-sm font-semibold text-white">
             {caja.pendingCierres.length === 1
               ? `Tenés una caja pendiente de revisión del ${fechaCortaLabel(caja.pendingCierres[0].date)}`
               : `Tenés ${caja.pendingCierres.length} cajas pendientes de revisión`}
-          </div>
-          <div className="mt-2 space-y-1.5">
-            {caja.pendingCierres.map((p) => (
-              <div key={p.date} className="flex items-center justify-between gap-3">
-                <span className="text-xs font-semibold text-amber-100/85">
-                  {fechaCortaLabel(p.date)}
-                </span>
-                <Link
-                  to="/cash-register"
-                  search={{ ...emptyCashRegisterSearch, pendingDate: p.date }}
-                  className="inline-flex items-center justify-center gap-1.5 rounded-lg bg-amber-400/20 px-3 py-1 text-[11px] font-semibold text-amber-100 ring-1 ring-amber-400/30 transition hover:bg-amber-400/30"
-                >
-                  Revisar cierre
-                </Link>
-              </div>
-            ))}
-          </div>
+          </p>
+          <Link
+            to="/cash-register"
+            search={{ ...emptyCashRegisterSearch, pendingDate: caja.pendingCierres[0].date }}
+            className="inline-flex h-9 shrink-0 items-center justify-center rounded-full border border-amber-400/50 bg-amber-400/15 px-5 text-sm font-semibold text-amber-100 transition hover:bg-amber-400/25"
+          >
+            Cerrar
+          </Link>
         </div>
       ) : null}
 
