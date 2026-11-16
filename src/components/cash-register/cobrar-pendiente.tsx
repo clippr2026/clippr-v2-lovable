@@ -1,5 +1,6 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { toast } from "sonner";
 import { Search, X, Loader2, Check, Clock, ChevronRight, ArrowLeft } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -497,6 +498,7 @@ export function CobrarPendienteModal({
   onClose: () => void;
   onCollected: () => void;
 }) {
+  useBodyScrollLock(true);
   const [query, setQuery] = React.useState("");
   const [employeeFilter, setEmployeeFilter] = React.useState("");
   const [statusFilter, setStatusFilter] = React.useState<"todos" | "pendiente" | "parcial">("todos");
