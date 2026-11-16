@@ -98,10 +98,18 @@ export function AuthorizationModal({
   }
 
   const danger = tone === "danger";
+  // Al cerrar se suelta el foco del campo: en iPhone, un teclado que queda abierto puede dejar desplazada la pantalla de
+  // abajo y sus botones no responden al volver.
+  const cancelar = () => {
+    (document.activeElement as HTMLElement | null)?.blur?.();
+    onCancel();
+  };
+  // El teclado se abre solo en computadora; en el celular se abre cuando se toca el campo.
+  const enfocarSolo = typeof window !== "undefined" && Boolean(window.matchMedia?.("(pointer: fine)").matches);
   return createPortal(
     <div
       className="fixed inset-0 z-[70] grid place-items-center bg-black/75 backdrop-blur-sm p-4"
-      onClick={() => !submitting && onCancel()}
+      onClick={() => !submitting && cancelar()}
     >
       <div
         className="w-full max-w-sm overflow-hidden rounded-[28px] border border-violet-400/45 bg-[#08070f] shadow-[0_0_0_1px_rgba(139,92,246,0.35),0_30px_90px_-20px_rgba(0,0,0,0.9),0_0_60px_-18px_rgba(139,92,246,0.55)] [background-image:radial-gradient(120%_45%_at_85%_0%,rgba(79,125,255,0.20),transparent_60%),radial-gradient(110%_50%_at_0%_100%,rgba(139,92,246,0.22),transparent_62%)]"
@@ -121,7 +129,7 @@ export function AuthorizationModal({
             <div className="relative">
               <input
                 type={showPassword ? "text" : "password"}
-                autoFocus
+                autoFocus={enfocarSolo}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 onKeyDown={(e) => {
@@ -172,7 +180,7 @@ export function AuthorizationModal({
         <div className="flex items-center gap-2.5 border-t border-white/10 px-5 py-3.5">
           <button
             type="button"
-            onClick={onCancel}
+            onClick={cancelar}
             disabled={submitting}
             className="h-11 flex-1 rounded-full border border-white/[0.12] bg-white/[0.04] px-4 text-sm font-semibold text-white/80 transition hover:bg-white/[0.08] disabled:opacity-50"
           >
