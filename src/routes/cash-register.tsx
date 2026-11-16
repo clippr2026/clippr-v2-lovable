@@ -13406,10 +13406,10 @@ function FacturacionPanel({
         </div>
         {/* Ingresar / retirar dinero: acciones secundarias, más chicas. */}
         <div className="flex justify-center gap-2">
-          <button type="button" onClick={() => setShowIngresoChoice(true)} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-3 text-xs font-medium text-white/75 transition hover:bg-white/[0.07] active:scale-[0.99] sm:max-w-[170px]">
+          <button type="button" onClick={() => setShowIngresoChoice(true)} className="inline-flex h-9 flex-none items-center justify-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-4 text-xs font-medium text-white/75 transition hover:bg-white/[0.07] active:scale-[0.99]">
             <Plus className="size-3.5 text-emerald-300" /> Ingresar dinero
           </button>
-          <button type="button" onClick={() => setMovType("retiro")} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-3 text-xs font-medium text-white/75 transition hover:bg-white/[0.07] active:scale-[0.99] sm:max-w-[170px]">
+          <button type="button" onClick={() => setMovType("retiro")} className="inline-flex h-9 flex-none items-center justify-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-4 text-xs font-medium text-white/75 transition hover:bg-white/[0.07] active:scale-[0.99]">
             <Minus className="size-3.5 text-rose-300" /> Retirar dinero
           </button>
         </div>

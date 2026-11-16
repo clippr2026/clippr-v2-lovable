@@ -34,7 +34,7 @@ function MiniStat({
       <button
         type="button"
         onClick={onClick}
-        className="w-full rounded-xl bg-white/[0.03] px-3 py-2.5 text-left ring-1 ring-white/8 transition hover:bg-white/[0.06]"
+        className="w-full rounded-xl px-3 py-2.5 text-left ring-1 transition hover:bg-white/[0.1] bg-white/[0.07] ring-white/20 [background-image:radial-gradient(120%_100%_at_100%_0%,rgba(255,255,255,.16),transparent_60%)] shadow-[0_0_22px_-10px_rgba(255,255,255,.45)]"
       >
         {content}
       </button>
