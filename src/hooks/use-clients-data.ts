@@ -158,6 +158,9 @@ async function loadClients(businessId: string): Promise<Client[]> {
       "id,full_name,phone,email,notes,birth_date,created_at,acquisition_source,acquisition_source_custom,acquisition_captured_at",
     )
     .eq("business_id", businessId)
+    // La ficha genérica ("Sin agendar") junta ventas de personas que no se agendaron: no es un cliente (ni en Cómo nos
+    // conocieron ni en el Asesor).
+    .eq("es_generico" as never, false as never)
     .order("full_name");
 
   if (error) throw new Error("Error cargando clientes: " + error.message);
