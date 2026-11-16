@@ -94,7 +94,14 @@ export function GrupoHistorial({ clientId }: { clientId: string }) {
       return ((data ?? []) as Cambio[]).slice().reverse();
     },
   });
-  if (isLoading || !data || data.length === 0) return null;
+  if (isLoading || !data) return null;
+  if (data.length === 0) {
+    return (
+      <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/60">
+        Todavía no hay cambios de grupo para este cliente.
+      </div>
+    );
+  }
   const fecha = (iso: string) => {
     const [y, m, d] = iso.slice(0, 10).split("-");
     return `${d}/${m}/${y}`;

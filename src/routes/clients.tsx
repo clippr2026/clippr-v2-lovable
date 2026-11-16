@@ -1,4 +1,5 @@
 import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
+import { VentanaClippr } from "@/components/clientes/ventana-clippr";
 import { EtiquetaBarbero, barberoPrincipal, useClientBarberos } from "@/components/clientes/barbero-cliente";
 import { GRUPOS_CLIENTE, GrupoBadge, GrupoHistorial, grupoInfo, grupoPermiteVip, useClientGroups, type ClientGrupo } from "@/components/clientes/grupo-cliente";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
@@ -387,7 +388,7 @@ type ClientDetailPanelProps = {
   savingNotes: boolean;
   businessId: string | null;
   profile: ReturnType<typeof useAuth>["profile"];
-  initialTab?: "resumen" | "reservas";
+  initialTab?: "resumen" | "reservas" | "grupos";
 };
 
 // Memoizado: el padre re-renderiza en cada tecla de búsqueda, cambio de orden,
@@ -406,7 +407,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
 }: ClientDetailPanelProps) {
   const { data: gruposFicha } = useClientGroups(businessId);
   const { data: barberosFicha } = useClientBarberos(businessId);
-  const [tab, setTab] = useState<"resumen" | "reservas">(initialTab ?? "resumen");
+  const [tab, setTab] = useState<"resumen" | "reservas" | "grupos">(initialTab ?? "resumen");
   // Reserva cobrada actualmente expandida (para ver el detalle del pago) —
   // una sola a la vez, se resetea al cambiar de cliente igual que el resto
   // del estado local del panel.
@@ -876,7 +877,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
 
       <div className="px-6 pt-3 shrink-0">
         <div className="inline-flex rounded-full bg-white/5 ring-1 ring-white/10 p-1">
-          {(["resumen", "reservas"] as const).map((t) => (
+          {(["resumen", "reservas", "grupos"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
@@ -887,7 +888,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                   : "text-muted-foreground hover:text-foreground",
               )}
             >
-              {t === "reservas" ? "historial" : t}
+              {t === "reservas" ? "historial" : t === "grupos" ? "cambios de grupo" : t}
             </button>
           ))}
         </div>
@@ -935,8 +936,6 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                 <div className="mt-1 text-sm font-semibold">{client.lastVisit ?? "—"}</div>
               </div>
             </div>
-
-            <GrupoHistorial clientId={client.id} />
 
             {/* Servicios favoritos: lista con separadores, sin una caja por ítem */}
             <div>
@@ -1021,6 +1020,12 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                 </>
               )}
             </div>
+          </div>
+          <div
+            className={cn("col-start-1 row-start-1", tab !== "grupos" && "invisible pointer-events-none")}
+            aria-hidden={tab !== "grupos"}
+          >
+            <GrupoHistorial clientId={client.id} />
           </div>
           <div
             className={cn(
@@ -1376,7 +1381,7 @@ type ClientDetailModalProps = {
   profile: ReturnType<typeof useAuth>["profile"];
   // "Ver recurrencia" desde el detalle del turno — fuerza la pestaña
   // "reservas" al abrir esta ficha puntual.
-  initialTab?: "resumen" | "reservas";
+  initialTab?: "resumen" | "reservas" | "grupos";
 };
 
 function ClientDetailModal({
@@ -1800,7 +1805,7 @@ function ClientsPage() {
                         avatarTints[i % avatarTints.length],
                       )}
                     >
-                      {c.name[0]?.toUpperCase()}
+                      <UserRound className="h-5 w-5 opacity-80" />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
@@ -1898,100 +1903,64 @@ function ClientsPage() {
         )}
 
       {newClientOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-          style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}
+        <VentanaClippr
+          titulo="Nuevo cliente"
+          onClose={() => setNewClientOpen(false)}
+          footer={
+            <button
+              onClick={handleCreateClient}
+              disabled={saveClient.isPending}
+              className="h-11 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 px-6 text-sm font-semibold text-background disabled:opacity-50"
+            >
+              Guardar cliente
+            </button>
+          }
         >
-          <div className="flex w-full max-w-lg max-h-[calc(100dvh-2rem)] flex-col rounded-2xl bg-background ring-1 ring-white/10 shadow-2xl overflow-hidden">
-            <div className="shrink-0 flex items-center justify-between p-5 border-b border-white/5">
-              <div className="text-lg font-display font-semibold uppercase tracking-wide">Cliente</div>
-              <button
-                onClick={() => setNewClientOpen(false)}
-                className="rounded-full bg-white/5 px-3 py-1.5 text-sm"
-              >
-                Cancelar
-              </button>
-            </div>
-            <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
-              <label className="block text-xs text-muted-foreground">
-                Teléfono *
-                <input
-                  value={newClient.phone}
-                  onChange={(e) => setNewClient((s) => ({ ...s, phone: limpiarTelefono(e.target.value) }))}
-                  className="mt-1 w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2.5 text-sm text-foreground"
-                />
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block text-xs text-muted-foreground">
-                  Nombre
-                  <input
-                    value={newClient.firstName}
-                    onChange={(e) => setNewClient((s) => ({ ...s, firstName: e.target.value }))}
-                    className="mt-1 w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2.5 text-sm text-foreground"
-                  />
-                </label>
-                <label className="block text-xs text-muted-foreground">
-                  Apellido
-                  <input
-                    value={newClient.lastName}
-                    onChange={(e) => setNewClient((s) => ({ ...s, lastName: e.target.value }))}
-                    className="mt-1 w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2.5 text-sm text-foreground"
-                  />
-                </label>
-              </div>
-            </div>
-            <div className="shrink-0 flex justify-end gap-2 p-5 border-t border-white/5">
-              <button
-                onClick={handleCreateClient}
-                disabled={saveClient.isPending}
-                className="rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-background px-4 py-2 text-sm font-semibold disabled:opacity-50"
-              >
-                Guardar cliente
-              </button>
-            </div>
+          <label className="block text-sm font-semibold text-white">
+            Teléfono *
+            <input
+              value={newClient.phone}
+              inputMode="tel"
+              onChange={(e) => setNewClient((s) => ({ ...s, phone: limpiarTelefono(e.target.value) }))}
+              className="mt-1.5 h-11 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none focus:border-violet-400/50"
+            />
+          </label>
+          <div className="grid grid-cols-2 gap-3">
+            <label className="block text-sm font-semibold text-white">
+              Nombre
+              <input
+                value={newClient.firstName}
+                onChange={(e) => setNewClient((s) => ({ ...s, firstName: e.target.value }))}
+                className="mt-1.5 h-11 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none focus:border-violet-400/50"
+              />
+            </label>
+            <label className="block text-sm font-semibold text-white">
+              Apellido
+              <input
+                value={newClient.lastName}
+                onChange={(e) => setNewClient((s) => ({ ...s, lastName: e.target.value }))}
+                className="mt-1.5 h-11 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none focus:border-violet-400/50"
+              />
+            </label>
           </div>
-        </div>
+        </VentanaClippr>
       )}
 
       {acquisitionModalOpen && (
-        <div
-          className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-          style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}
+        <VentanaClippr
+          titulo={acquisitionDrilldown ? acquisitionDrilldown.label : "Cómo nos conocieron"}
+          subtitulo={
+            acquisitionDrilldown
+              ? `${acquisitionDrilldownClients.length} cliente${acquisitionDrilldownClients.length === 1 ? "" : "s"} en el rango elegido.`
+              : "Origen de los clientes registrados en el rango elegido."
+          }
+          onVolver={acquisitionDrilldown ? () => setAcquisitionDrilldown(null) : undefined}
+          onClose={() => {
+            setAcquisitionModalOpen(false);
+            setAcquisitionDrilldown(null);
+          }}
         >
-          <div className="flex w-full max-w-lg max-h-[calc(100dvh-2rem)] flex-col rounded-2xl bg-background ring-1 ring-white/10 shadow-2xl overflow-hidden">
-            <div className="shrink-0 flex items-center justify-between p-5 border-b border-white/5">
-              <div className="flex items-center gap-2 min-w-0">
-                {acquisitionDrilldown && (
-                  <button
-                    onClick={() => setAcquisitionDrilldown(null)}
-                    aria-label="Volver"
-                    className="shrink-0 rounded-full p-1.5 hover:bg-white/5 transition"
-                  >
-                    <ChevronLeft className="h-4 w-4" />
-                  </button>
-                )}
-                <div className="min-w-0">
-                  <div className="text-lg font-display font-semibold truncate">
-                    {acquisitionDrilldown ? acquisitionDrilldown.label : "Cómo nos conocieron"}
-                  </div>
-                  <div className="text-xs text-muted-foreground">
-                    {acquisitionDrilldown
-                      ? `${acquisitionDrilldownClients.length} cliente${acquisitionDrilldownClients.length === 1 ? "" : "s"} en el rango elegido.`
-                      : "Origen de los clientes registrados en el rango elegido."}
-                  </div>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  setAcquisitionModalOpen(false);
-                  setAcquisitionDrilldown(null);
-                }}
-                className="shrink-0 rounded-full bg-white/5 px-3 py-1.5 text-sm"
-              >
-                Cerrar
-              </button>
-            </div>
-            <div ref={acquisitionScrollRef} className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
+          <div ref={acquisitionScrollRef} className="space-y-4">
               <DateRangePicker
                 from={acquisitionRange.from}
                 to={acquisitionRange.to}
@@ -2000,7 +1969,7 @@ function ClientsPage() {
               {acquisitionDrilldown ? (
                 <div className="space-y-1.5">
                   {acquisitionDrilldownClients.length === 0 ? (
-                    <div className="rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-4 text-sm text-muted-foreground text-center">
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-4 text-sm text-muted-foreground text-center">
                       No hay clientes en ese rango de fechas.
                     </div>
                   ) : (
@@ -2012,10 +1981,10 @@ function ClientsPage() {
                           setAcquisitionModalOpen(false);
                           setAcquisitionDrilldown(null);
                         }}
-                        className="w-full flex items-center justify-between gap-3 rounded-xl bg-white/[0.03] ring-1 ring-white/10 px-3 py-2.5 text-left hover:bg-white/[0.06] transition"
+                        className="w-full flex items-center justify-between gap-3 rounded-2xl border border-white/10 px-3 py-3 text-left hover:border-white/20 transition" style={{ background: CARD_LUZ }}
                       >
                         <div className="min-w-0">
-                          <div className="text-sm font-medium truncate">{c.name}</div>
+                          <div className="text-sm font-semibold text-white truncate">{c.name}</div>
                           <div className="text-[11px] text-muted-foreground">
                             Desde {formatClientSince(c.acquisitionCapturedAt ?? c.created_at)} · {c.visits} visita
                             {c.visits === 1 ? "" : "s"}
@@ -2034,7 +2003,7 @@ function ClientsPage() {
               ) : (
                 <div className="space-y-1.5">
                   {acquisitionStats.length === 0 ? (
-                    <div className="rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-4 text-sm text-muted-foreground text-center">
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-4 text-sm text-muted-foreground text-center">
                       No hay clientes registrados en ese rango de fechas.
                     </div>
                   ) : (
@@ -2044,9 +2013,9 @@ function ClientsPage() {
                         <button
                           key={stat.value}
                           onClick={() => setAcquisitionDrilldown({ key: stat.value, label: stat.label })}
-                          className="w-full flex items-center justify-between rounded-xl bg-white/[0.03] ring-1 ring-white/10 px-3 py-2.5 text-left hover:bg-white/[0.06] transition"
+                          className="w-full flex items-center justify-between rounded-2xl border border-white/10 px-3 py-3 text-left hover:border-white/20 transition" style={{ background: CARD_LUZ }}
                         >
-                          <div className="flex items-center gap-2 text-sm font-medium">
+                          <div className="flex items-center gap-2 text-sm font-semibold text-white">
                             {channel ? (
                               <AcquisitionChannelIcon channel={channel} className="h-4 w-4 shrink-0" />
                             ) : null}
@@ -2067,48 +2036,23 @@ function ClientsPage() {
                   )}
                 </div>
               )}
-            </div>
           </div>
-        </div>
+        </VentanaClippr>
       )}
 
       {metricInfo && (
-        <div
-          className="fixed inset-0 z-50 flex items-start sm:items-center justify-center bg-black/60 backdrop-blur-sm p-4"
-          style={{ paddingTop: "max(1rem, env(safe-area-inset-top))" }}
-        >
-          <div className="flex w-full max-w-md max-h-[calc(100dvh-2rem)] flex-col rounded-2xl bg-background ring-1 ring-white/10 shadow-2xl overflow-hidden">
-            <div className="shrink-0 flex items-center justify-between p-5 border-b border-white/5">
-              <div>
-                <div className="text-[10px] font-semibold uppercase tracking-[0.2em] text-violet-300">
-                  Información
+        <VentanaClippr titulo={metricInfo.title} onClose={() => setMetricInfo(null)} ancho="max-w-md">
+          <p className="text-sm leading-relaxed text-white/70">{metricInfo.description}</p>
+          {metricInfo.bullets.length > 0 && (
+            <div className="space-y-2">
+              {metricInfo.bullets.map((point) => (
+                <div key={point} className="rounded-2xl border border-white/10 px-3 py-2.5 text-sm text-white/80" style={{ background: CARD_LUZ }}>
+                  {point}
                 </div>
-                <div className="text-lg font-display font-semibold">{metricInfo.title}</div>
-              </div>
-              <button
-                onClick={() => setMetricInfo(null)}
-                className="rounded-full bg-white/5 px-3 py-1.5 text-sm"
-              >
-                Cerrar
-              </button>
+              ))}
             </div>
-            <div className="flex-1 min-h-0 overflow-y-auto p-5 space-y-4">
-              <p className="text-sm leading-relaxed text-muted-foreground">
-                {metricInfo.description}
-              </p>
-              <div className="space-y-2">
-                {metricInfo.bullets.map((point) => (
-                  <div
-                    key={point}
-                    className="rounded-xl bg-white/[0.04] ring-1 ring-white/10 px-3 py-2 text-sm text-white/78"
-                  >
-                    {point}
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
+          )}
+        </VentanaClippr>
       )}
 
       {segmentModal && createPortal(
