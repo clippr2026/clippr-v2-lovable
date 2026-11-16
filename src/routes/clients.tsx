@@ -284,7 +284,7 @@ function StatCard({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] p-3 sm:p-3.5 group transition-all hover:-translate-y-0.5 hover:border-white/20",
+        "relative overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] p-2 sm:p-3.5 group transition-all hover:-translate-y-0.5 hover:border-white/20",
         featured && "border-violet-400/35",
         className,
       )}
@@ -297,9 +297,9 @@ function StatCard({
           : { background: CARD_LUZ }
       }
     >
-      <div className="relative flex flex-col gap-1.5">
+      <div className="relative flex flex-col gap-1 sm:gap-1.5">
         <div className="flex items-center justify-between gap-2">
-          <div className="text-xs sm:text-sm font-semibold leading-tight" style={{ color: rgb ? `rgb(${rgb})` : "#fff" }}>
+          <div className="text-[11px] sm:text-sm font-semibold leading-tight whitespace-nowrap" style={{ color: rgb ? `rgb(${rgb})` : "#fff" }}>
             {label}
           </div>
           {info && (
@@ -317,22 +317,22 @@ function StatCard({
           )}
         </div>
         <div className="flex items-end justify-between gap-2">
-          <div className="text-3xl sm:text-[2rem] font-display font-medium leading-none tracking-tight">
+          <div className="text-2xl sm:text-[2rem] font-display font-medium leading-none tracking-tight">
             {value}
           </div>
-          <div className="text-lg sm:text-xl opacity-80 shrink-0">{icon}</div>
+          <div className="text-lg sm:text-xl opacity-80 shrink-0 [&_svg]:h-4 [&_svg]:w-4 sm:[&_svg]:h-5 sm:[&_svg]:w-5">{icon}</div>
         </div>
         {caption && <div className="text-[11px] text-muted-foreground leading-snug">{caption}</div>}
         {link && (
           <button
             onClick={onLinkClick}
             className={cn(
-              "inline-flex items-center gap-1 text-[11px] sm:text-xs font-semibold text-violet-300 hover:text-violet-200 transition-colors",
+              "inline-flex items-center gap-0.5 whitespace-nowrap text-[10px] sm:text-xs font-semibold text-violet-300 hover:text-violet-200 transition-colors",
               centerLink ? "mt-1 self-center" : "mt-0.5 self-start",
             )}
             style={rgb ? { color: `rgb(${rgb})` } : undefined}
           >
-            {link} <ArrowRight className="h-3 w-3" />
+            {link} <ArrowRight className="h-2.5 w-2.5 sm:h-3 sm:w-3" />
           </button>
         )}
       </div>
