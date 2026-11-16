@@ -8820,10 +8820,6 @@ function CierreRevisionDetalle({
               ${Math.round(Math.abs(ajusteCuenta)).toLocaleString("es-AR")}
             </span>
           </div>
-          <details className="rounded-2xl bg-emerald-400/10 px-4 py-2.5 text-xs leading-snug text-emerald-100 ring-1 ring-emerald-300/30">
-            <summary className="cursor-pointer font-semibold">Recomendación</summary>
-            <p className="mt-1.5">Pasá este dinero a otra cuenta y dejá esta en $0. Así mañana arrancás de cero y todo lo que entre es del día.</p>
-          </details>
         </section>
       </div>
 
