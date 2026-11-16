@@ -1,7 +1,7 @@
 import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
 import { confirmarClippr } from "@/components/ui/dialogos-clippr";
 import { VentanaClippr } from "@/components/clientes/ventana-clippr";
-import { DeudaClientesBanner } from "@/components/clients/deuda-clientes-banner";
+import { CajaHoyBloque } from "@/components/caja/caja-hoy-bloque";
 import { CartelAPagar, GastosAPagarLista, avisarCambioGastosAPagar } from "@/components/cash-register/gastos-a-pagar";
 import { NOMBRE_CLIENTE_GENERICO, obtenerClienteGenerico } from "@/lib/cliente-generico";
 import { claveTelefono } from "@/lib/contacto-valido";
@@ -13388,7 +13388,26 @@ function FacturacionPanel({
   // — mismo criterio que ya usa el bloque "Modo de aprobación" de
   // Liquidaciones, ningún flag nuevo.
   const showPendientes = data.approvalModeEnabled && equipoEnabled;
-  const [movimientosOpen, setMovimientosOpen] = React.useState(false);
+  // Servicios realizados / productos vendidos de HOY (mismo criterio que Inicio): cada ítem de cada cobro del día.
+  const cuentaHoy = React.useMemo(() => {
+    let servicios = 0;
+    let productos = 0;
+    filterToDayBA(data.paymentsToday, (p) => p.created_at, cajaDateKeyBA()).forEach((p) => {
+      const items = Array.isArray((p as { items?: unknown }).items)
+        ? ((p as { items: Array<{ is_catalog?: boolean; qty?: number }> }).items)
+        : [];
+      if (items.length === 0) {
+        servicios += 1;
+        return;
+      }
+      items.forEach((it) => {
+        const q = Number(it?.qty ?? 1) || 1;
+        if (it?.is_catalog) productos += q;
+        else servicios += q;
+      });
+    });
+    return { servicios, productos };
+  }, [data.paymentsToday]);
 
   return (
     <>
@@ -13405,28 +13424,14 @@ function FacturacionPanel({
             <Wallet className="size-4" /> Nuevo gasto
           </button>
         </div>
-        {/* Movimientos de dinero: en el celular van dentro de un desplegable. */}
-        <button
-          type="button"
-          onClick={() => setMovimientosOpen((v) => !v)}
-          aria-expanded={movimientosOpen}
-          className="flex h-11 w-full items-center justify-between rounded-2xl border border-white/10 bg-white/[0.03] px-4 text-sm font-medium text-white/85 sm:hidden"
-        >
-          <span className="inline-flex items-center gap-2">
-            <ArrowLeftRight className="size-4 text-white/60" /> Movimientos de dinero
-          </span>
-          <ChevronDown className={cn("size-4 text-white/60 transition-transform", movimientosOpen && "rotate-180")} />
-        </button>
-        <div className={cn("grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:justify-center", movimientosOpen ? "grid" : "hidden sm:flex")}>
-          <button type="button" onClick={() => setShowIngresoChoice(true)} className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-4 text-sm font-medium text-white/85 transition hover:bg-white/[0.08] active:scale-[0.99] sm:min-w-[190px]">
-            <Plus className="size-4 text-emerald-300" /> Ingresar dinero
+        {/* Ingresar / retirar dinero: acciones secundarias, más chicas. */}
+        <div className="flex justify-center gap-2">
+          <button type="button" onClick={() => setShowIngresoChoice(true)} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-3 text-xs font-medium text-white/75 transition hover:bg-white/[0.07] active:scale-[0.99] sm:max-w-[170px]">
+            <Plus className="size-3.5 text-emerald-300" /> Ingresar dinero
           </button>
-          <button type="button" onClick={() => setMovType("retiro")} className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-4 text-sm font-medium text-white/85 transition hover:bg-white/[0.08] active:scale-[0.99] sm:min-w-[190px]">
-            <Minus className="size-4 text-rose-300" /> Retirar dinero
+          <button type="button" onClick={() => setMovType("retiro")} className="inline-flex h-9 flex-1 items-center justify-center gap-1.5 rounded-full border border-white/10 bg-white/[0.03] px-3 text-xs font-medium text-white/75 transition hover:bg-white/[0.07] active:scale-[0.99] sm:max-w-[170px]">
+            <Minus className="size-3.5 text-rose-300" /> Retirar dinero
           </button>
-          <div className="col-span-2 flex sm:col-auto">
-            <DeudaClientesBanner />
-          </div>
         </div>
       </div>
 
@@ -13436,109 +13441,40 @@ function FacturacionPanel({
           queden sincronizadas en tiempo real sin un cálculo aparte. */}
       <SenasExtensionBanner businessId={data.businessId} branchId={data.activeBranchId} onClosed={() => void data.refresh()} />
 
-      {summary.pendingCierres.length > 0 && (
-        <div
-          className="flex items-center gap-3 rounded-[20px] border border-amber-400/45 bg-white/[0.03] p-4"
-          style={{ background: "radial-gradient(110% 90% at 100% 0%, rgba(251,191,36,.20), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(251,191,36,.10), transparent 65%)", boxShadow: "0 0 26px -12px rgba(251,191,36,.55)" }}
-        >
-          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-300" />
-          <p className="min-w-0 flex-1 text-sm font-semibold text-white">
-            {summary.pendingCierres.length === 1
-              ? `Tenés una caja pendiente de revisión del ${fechaDDMMYYYY(summary.pendingCierres[0].date)}`
-              : `Tenés ${summary.pendingCierres.length} cajas pendientes de revisión`}
-          </p>
-          <button
-            type="button"
-            onClick={() => onRevisarCierre()}
-            className="h-9 shrink-0 rounded-full border border-amber-400/50 bg-amber-400/15 px-5 text-sm font-semibold text-amber-100 transition hover:bg-amber-400/25"
-          >
-            Cerrar
-          </button>
-        </div>
-      )}
-
       {/* Ingresos | Pendientes (turnos sin cobrar) | Pendiente de cobro
           (ventas con saldo) | Gastos — reemplaza el selector grande
           Facturación/Gastos de ResumenTab. 2 columnas en mobile (wrap),
           una sola fila desde sm. */}
-      <div
-        className={cn(
-          "grid grid-cols-2 gap-3",
-          // "Cobros por confirmar" (showPendientes) es condicional — la
-          // cantidad de columnas en desktop sigue la cantidad real de
-          // tarjetas visibles (Ingresos y Gastos son siempre fijas), para
-          // que nunca quede un hueco vacío si no se muestra.
-          showPendientes ? "sm:grid-cols-3" : "sm:grid-cols-2",
-        )}
-      >
-        <FacturacionStatCard
-          icon={TrendingUp}
-          iconClass="text-emerald-400"
-          label="Ingresos"
-          value={data.revHoy}
-          loading={data.loading}
-        />
-        {/* "Cobros por confirmar": cobros que un profesional YA registró y
-            esperan que Caja los apruebe — nunca plata que deba un cliente.
-            Ícono/color (violeta) deliberadamente distinto de "Deudas de
-            clientes" (ámbar) para que no se confundan a simple vista.
-            Cuenta de registros (data.pendingCount), no un monto — "¿cuántos
-            cobros tengo para revisar?", no "¿cuánta plata es?". */}
-        {showPendientes && (
-          <FacturacionStatCard
-            icon={ClipboardList}
-            iconClass="text-violet-400"
-            label="Cobros por confirmar"
-            description="Cobros de profesionales"
-            value={data.pendingCount}
-            format="count"
-            loading={data.loading}
-            onClick={() => {
-              setCobrosPendientesOpen((v) => !v);
-              // Foco/scroll al bloque recién abierto — el usuario puede
-              // estar lejos (el botón queda arriba de todo Facturación).
-              requestAnimationFrame(() => {
-                cobrosPendientesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-              });
-            }}
-          />
-        )}
-        <FacturacionStatCard
-          icon={TrendingDown}
-          iconClass="text-rose-400"
-          label="Gastos"
-          value={data.totalGastos}
-          loading={data.loading}
-        />
-      </div>
+      <CajaHoyBloque
+        ingresos={data.revHoy}
+        egresos={data.totalGastos}
+        servicios={cuentaHoy.servicios}
+        productos={cuentaHoy.productos}
+        efectivo={summary.todayCashExpected}
+        banco={summary.todayDigitalExpected}
+        onEfectivo={() => setSaldoDetalle("cash")}
+        onBanco={() => setSaldoDetalle("digital")}
+      />
 
-      {/* Movimientos de hoy: Efectivo/Dinero en cuenta ESTRICTAMENTE de
-          hoy (summary.todayCashExpected/todayDigitalExpected) — misma
-          fuente que Inicio, nunca una query/cálculo aparte (antes este
-          panel llamaba a buildSingleDayCierrePreview por su cuenta).
-          Descuentan los adelantos a profesionales con origen "Caja del día"
-          (ver computeExpectedCashAndDigital); los de "Fondos externos" no. El
-          detalle de cada saldo muestra el adelanto como línea propia. */}
-      <div className="-mt-3.5 grid grid-cols-2 gap-3">
+      {showPendientes && (
         <FacturacionStatCard
-          icon={Wallet}
-          iconClass="text-amber-400"
-          label="Efectivo en caja"
-          value={summary.todayCashExpected}
-          loading={summary.loading}
-          onClick={() => setSaldoDetalle("cash")}
+          icon={ClipboardList}
+          iconClass="text-violet-400"
+          label="Cobros por confirmar"
+          description="Cobros de profesionales"
+          value={data.pendingCount}
+          format="count"
+          loading={data.loading}
+          onClick={() => {
+            setCobrosPendientesOpen((v) => !v);
+            requestAnimationFrame(() => {
+              cobrosPendientesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+            });
+          }}
         />
-        <FacturacionStatCard
-          icon={CreditCard}
-          iconClass="text-sky-400"
-          label="Dinero en banco"
-          value={summary.todayDigitalExpected}
-          loading={summary.loading}
-          onClick={() => setSaldoDetalle("digital")}
-        />
-      </div>
+      )}
 
-      <div className="-mt-3">
+      <div>
         <SenasCajaCard businessId={data.businessId} branchId={data.activeBranchId} onChanged={() => void data.refresh()} />
       </div>
 

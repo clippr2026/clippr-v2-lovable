@@ -19,6 +19,7 @@ import { SenasExtensionBanner } from "@/components/senas/senas-extension";
 import { NegocioHero } from "@/components/dashboard/negocio-hero";
 import { type FichajeHoyPersona } from "@/lib/fichaje";
 import { cajaDateKeyBA, dayBoundsBA } from "@/lib/caja-cierre";
+import { DeudaClientesBanner } from "@/components/clients/deuda-clientes-banner";
 import { SaldoComposicionModal } from "@/components/caja/saldo-composicion";
 import {
   TrendingUp,
@@ -315,6 +316,10 @@ function CajaHoyCard({
           </Link>
         </div>
       ) : null}
+
+      <div className="mb-3 empty:hidden">
+        <DeudaClientesBanner />
+      </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-2 text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
