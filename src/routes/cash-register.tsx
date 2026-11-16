@@ -1,4 +1,5 @@
 import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
+import { confirmarClippr } from "@/components/ui/dialogos-clippr";
 import { VentanaClippr } from "@/components/clientes/ventana-clippr";
 import { CartelAPagar, GastosAPagarLista, avisarCambioGastosAPagar } from "@/components/cash-register/gastos-a-pagar";
 import { NOMBRE_CLIENTE_GENERICO, obtenerClienteGenerico } from "@/lib/cliente-generico";
@@ -3888,9 +3889,12 @@ function ProfesionalesTab({
 
   async function handleDeleteAdvance(advanceId: string, amount: number) {
     if (deletingAdvanceId || !businessId) return;
-    const confirmed = window.confirm(
-      `¿Eliminar este adelanto de ${money(amount)}? No se puede deshacer.`,
-    );
+    const confirmed = await confirmarClippr({
+      titulo: `¿Eliminar este adelanto de ${money(amount)}?`,
+      texto: "No se puede deshacer.",
+      confirmar: "Eliminar",
+      destructivo: true,
+    });
     if (!confirmed) return;
     setDeletingAdvanceId(advanceId);
     try {
@@ -14025,7 +14029,7 @@ function History({
   // business_settings.schedule._pendingWalkInSales.
   async function handleRechazarPendiente(p: ReturnType<typeof useCajaData>["pendingCharges"][number]) {
     if (!data.businessId || rejectingId) return;
-    if (!window.confirm("¿Rechazar este cobro pendiente? No se va a cobrar.")) return;
+    if (!(await confirmarClippr({ titulo: "¿Rechazar este cobro pendiente?", texto: "No se va a cobrar.", confirmar: "Rechazar", destructivo: true }))) return;
     setRejectingId(p.id);
     try {
       const now = new Date();

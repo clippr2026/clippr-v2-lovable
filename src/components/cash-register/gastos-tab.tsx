@@ -1,4 +1,5 @@
 import * as React from "react";
+import { confirmarClippr } from "@/components/ui/dialogos-clippr";
 import { toast } from "sonner";
 import { Loader2, X, Plus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -91,7 +92,7 @@ export function GastosTab({ businessId, createOnly = false, onSaved, onCancel }:
   }
 
   async function remove(id: string) {
-    if (!confirm("¿Eliminar este gasto?")) return;
+    if (!(await confirmarClippr({ titulo: "¿Eliminar este gasto?", texto: "Se borra del registro de gastos.", confirmar: "Eliminar", destructivo: true }))) return;
     const { error } = await supabase.from("expenses").delete().eq("id", id);
     if (error) return toast.error("Error al eliminar: " + error.message);
     load();

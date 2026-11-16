@@ -1,4 +1,5 @@
 import * as React from "react";
+import { DialogosClippr } from "@/components/ui/dialogos-clippr";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import {
   Outlet,
@@ -235,6 +236,7 @@ function RootComponent() {
         {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
         <NeonSkinFlag />
         <Outlet />
+        <DialogosClippr />
         <Toaster position="top-right" visibleToasts={1} />
       </AuthProvider>
     </QueryClientProvider>

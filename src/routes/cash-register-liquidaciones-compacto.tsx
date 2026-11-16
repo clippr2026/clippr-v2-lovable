@@ -1,4 +1,5 @@
 import React from 'react';
+import { pedirTextoClippr } from "@/components/ui/dialogos-clippr";
 import { createFileRoute, useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -2150,7 +2151,14 @@ function CierresTab({ businessId, cajaCerrada, onCajaReopened }: {
   async function reabrirCaja(cierre: any) {
     if (!businessId || !cierre?.id || reopeningId) return;
 
-    const reason = window.prompt("Motivo de reapertura de caja (opcional)") ?? "";
+    // Cancelar la ventana cancela la reapertura (antes seguía igual, con el motivo vacío).
+    const reason = await pedirTextoClippr({
+      titulo: "Reabrir la caja",
+      texto: "Queda registrado quién y cuándo la reabrió. El motivo es opcional.",
+      placeholder: "Motivo de reapertura de caja (opcional)",
+      confirmar: "Reabrir caja",
+    });
+    if (reason === null) return;
     setReopeningId(cierre.id);
 
     try {

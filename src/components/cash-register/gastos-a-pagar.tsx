@@ -1,4 +1,5 @@
 import * as React from "react";
+import { confirmarClippr } from "@/components/ui/dialogos-clippr";
 import { toast } from "sonner";
 import { CalendarClock, Check, Loader2, Pencil, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -110,7 +111,7 @@ export function GastosAPagarLista({ businessId, userEmail, activeBranchId }: { b
   const total = filas.reduce((s, f) => s + f.amount, 0);
 
   async function borrar(f: GastoAPagar) {
-    if (!confirm(`¿Borrar "${f.name}" de los gastos a pagar? No se registra como gasto.`)) return;
+    if (!(await confirmarClippr({ titulo: "¿Borrar este gasto a pagar?", texto: `"${f.name}" sale de la lista. No se registra como gasto.`, confirmar: "Borrar", destructivo: true }))) return;
     const { error } = await sb.from("payable_expenses").delete().eq("id", f.id).eq("status", "pending");
     if (error) return toast.error("No se pudo borrar: " + error.message);
     toast.success("Borrado de los gastos a pagar");

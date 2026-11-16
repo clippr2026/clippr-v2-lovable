@@ -1,4 +1,5 @@
 import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
+import { confirmarClippr } from "@/components/ui/dialogos-clippr";
 import { VentanaClippr } from "@/components/clientes/ventana-clippr";
 import { EtiquetaBarbero, barberoPrincipal, useClientBarberos } from "@/components/clientes/barbero-cliente";
 import { GRUPOS_CLIENTE, GrupoBadge, GrupoHistorial, grupoInfo, grupoPermiteVip, useClientGroups, type ClientGrupo } from "@/components/clientes/grupo-cliente";
@@ -469,7 +470,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
   }, [businessId, recurringSeries.length, seriesEmployees.length]);
 
   async function handleFinalizeSeries(series: RecurringSeriesRow) {
-    if (!window.confirm("¿Detener las reservas futuras de esta recurrencia? No afecta turnos pasados ni ya cobrados.")) return;
+    if (!(await confirmarClippr({ titulo: "¿Detener las reservas futuras?", texto: "Se detienen las reservas futuras de esta recurrencia. No afecta turnos pasados ni ya cobrados.", confirmar: "Detener", destructivo: true }))) return;
     setFinalizingSeriesId(series.id);
     try {
       const nowIso = new Date().toISOString();
@@ -639,7 +640,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
         `se van a crear ${okDates.length} turno${okDates.length === 1 ? "" : "s"} nuevo${okDates.length === 1 ? "" : "s"}` +
         `${skipped > 0 ? ` (${skipped} fecha${skipped === 1 ? "" : "s"} no se pudo${skipped === 1 ? "" : "ieron"} generar por choque de horario)` : ""}. ` +
         `Las reservas pasadas, cobradas o completadas no se tocan. ¿Confirmás?`;
-      if (!window.confirm(confirmMsg)) {
+      if (!(await confirmarClippr({ titulo: "¿Reemplazar las reservas futuras?", texto: confirmMsg.replace(/\s*¿Confirmás\?$/, ""), confirmar: "Confirmar" }))) {
         setSavingSeriesEdit(false);
         return;
       }
@@ -1683,7 +1684,7 @@ function ClientsPage() {
 
   const handleDeleteClient = useCallback(
     async (client: Client) => {
-      if (!window.confirm(`¿Eliminar cliente ${client.name}?`)) return;
+      if (!(await confirmarClippr({ titulo: `¿Eliminar a ${client.name}?`, texto: "Se borra la ficha del cliente.", confirmar: "Eliminar", destructivo: true }))) return;
       await deleteClient.mutateAsync(client.id);
       toast.success("Cliente eliminado");
       setSelected((cur) => (cur === client.id ? null : cur));
