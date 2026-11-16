@@ -139,13 +139,14 @@ export function DeudaClienteTarjeta({ clientId, clientName }: { clientId: string
   return (
     <>
       <div
-        className="flex items-center gap-3 rounded-2xl border border-violet-400/30 bg-white/[0.03] p-4"
+        className="flex items-center gap-3 rounded-2xl border border-rose-400/45 bg-white/[0.03] p-4"
         style={{
           background:
-            "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.16), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.12), transparent 65%)",
+            "radial-gradient(110% 90% at 100% 0%, rgba(244,63,94,.20), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(244,63,94,.10), transparent 65%)",
+          boxShadow: "0 0 26px -12px rgba(244,63,94,.55)",
         }}
       >
-        <Clock className="h-5 w-5 shrink-0 text-violet-300" />
+        <Clock className="h-5 w-5 shrink-0 text-rose-300" />
         <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold text-white">Saldo pendiente</div>
           <div className="text-lg font-semibold tabular-nums text-white">${Math.round(saldo).toLocaleString("es-AR")}</div>
