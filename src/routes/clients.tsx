@@ -1115,7 +1115,12 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <div className="text-sm font-semibold text-white truncate">{v.service}</div>
+                            <div className="min-w-0">
+                              <div className="text-sm font-semibold text-white truncate">{v.service}</div>
+                              {v.productos?.map((n) => (
+                                <div key={n} className="text-xs text-white/60 truncate">{n}</div>
+                              ))}
+                            </div>
                             {v.esProducto && (
                               <span className="shrink-0 rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-white/70 ring-1 ring-white/10">
                                 Producto
@@ -1152,6 +1157,12 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                     <div className="flex w-full items-center justify-between gap-3 p-3.5">
                       <div className="min-w-0">
                         <div className="text-sm font-semibold text-white truncate">{r.service}</div>
+                        {client.history
+                          .filter((h) => h.appointmentId === r.id)
+                          .flatMap((h) => h.productos ?? [])
+                          .map((n, i) => (
+                            <div key={`${n}-${i}`} className="text-xs text-white/60 truncate">{n}</div>
+                          ))}
                         <div className="text-[11px] text-white/55">
                           {formatApptDateTime(r.date)}
                           {r.employeeName ? ` · ${r.employeeName}` : ""}

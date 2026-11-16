@@ -20,6 +20,8 @@ export type ClientPayment = {
   appointmentId?: string | null;
   /** Venta de solo productos del catálogo (todos los ítems son productos). */
   esProducto?: boolean;
+  /** Productos del catálogo incluidos en una venta con servicio (ej. "Cepita"): se muestran bajo el servicio. */
+  productos?: string[];
   service: string;
   amount: number;
   employeeName?: string | null;
@@ -488,6 +490,14 @@ function esVentaDeProducto(items: unknown): boolean {
   );
 }
 
+/** Nombres de los productos del catálogo de una venta que además tiene servicio ([] si es solo producto o no hay detalle). */
+function nombresProductos(items: unknown): string[] {
+  if (!Array.isArray(items)) return [];
+  const lista = items as Array<{ name?: string; is_catalog?: boolean } | null>;
+  if (!lista.some((it) => it && it.is_catalog === false)) return [];
+  return lista.filter((it) => it && it.is_catalog === true && it.name).map((it) => String(it!.name).trim());
+}
+
 /** Nombre de la venta sin los productos del catálogo ("Corte / Cepita" → "Corte"); null si no hay detalle por ítem. */
 function nombreSoloServicios(items: unknown): string | null {
   if (!Array.isArray(items)) return null;
@@ -575,6 +585,7 @@ async function loadClientDetail(businessId: string, clientId: string): Promise<C
     date: p.created_at,
     appointmentId: p.appointment_id ?? null,
     esProducto: esVentaDeProducto(p.items),
+    productos: nombresProductos(p.items),
     service: nombreSoloServicios(p.items) ?? (p.service_name || "Servicio"),
     amount: Number(p.total ?? p.amount ?? 0),
     employeeName: p.employee_id ? employeeNameById.get(p.employee_id) ?? null : null,
