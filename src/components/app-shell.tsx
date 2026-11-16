@@ -59,42 +59,60 @@ export function AppShell({
     return (
       <div className="min-h-dvh grid place-items-center bg-background">
         <style>{`
-          @keyframes clipprBootPulse {
-            0%, 100% { transform: scale(1) rotate(0deg); }
-            25% { transform: scale(1.02) rotate(-2deg); }
-            50% { transform: scale(1.05) rotate(0deg); }
-            75% { transform: scale(1.02) rotate(2deg); }
+          @keyframes clipprBootIn {
+            0% { opacity: 0; transform: scale(.6) translateY(10px); filter: blur(8px); }
+            60% { opacity: 1; transform: scale(1.06) translateY(0); filter: blur(0); }
+            100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0); }
+          }
+          @keyframes clipprBootFloat {
+            0%, 100% { transform: translateY(0) scale(1); }
+            50% { transform: translateY(-6px) scale(1.04); }
           }
           @keyframes clipprBootGlow {
-            0%, 100% { opacity: .28; transform: scale(.9); }
-            50% { opacity: .55; transform: scale(1.12); }
+            0%, 100% { opacity: .35; transform: scale(.85); }
+            50% { opacity: .8; transform: scale(1.2); }
           }
-          @keyframes clipprBootFadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
+          @keyframes clipprBootSweep {
+            0% { transform: translateX(-160%) rotate(18deg); opacity: 0; }
+            30% { opacity: .7; }
+            70% { opacity: .7; }
+            100% { transform: translateX(160%) rotate(18deg); opacity: 0; }
+          }
+          @keyframes clipprBootRing {
+            0% { transform: scale(.8); opacity: .7; }
+            100% { transform: scale(1.9); opacity: 0; }
           }
         `}</style>
-        <div
-          className="relative grid place-items-center"
-          style={{ animation: "clipprBootFadeIn 420ms ease-out" }}
-        >
-          {/* Glow violeta sutil — no debe leerse como un elemento aparte,
-              solo un halo detrás del logo. */}
+        <div className="relative grid place-items-center" style={{ animation: "clipprBootIn 700ms cubic-bezier(.2,.8,.2,1) both" }}>
           <div
-            className="pointer-events-none absolute h-28 w-28 rounded-full blur-3xl"
+            className="pointer-events-none absolute h-56 w-56 rounded-full blur-3xl"
             style={{
-              background: "radial-gradient(circle, oklch(0.65 0.24 290 / 0.35), transparent 70%)",
+              background: "radial-gradient(circle, oklch(0.65 0.24 290 / 0.55), oklch(0.7 0.18 230 / 0.25) 45%, transparent 70%)",
               animation: "clipprBootGlow 2.6s ease-in-out infinite",
             }}
           />
-          <img
-            src="/clippr-powered-logo.webp"
-            alt="Clippr"
-            loading="eager"
-            decoding="async"
-            className="relative z-10 h-16 w-16 rounded-2xl object-cover ring-1 ring-white/10"
-            style={{ animation: "clipprBootPulse 2.4s ease-in-out infinite" }}
-          />
+          {[0, 1].map((i) => (
+            <span
+              key={i}
+              aria-hidden
+              className="pointer-events-none absolute h-28 w-28 rounded-[2rem] border border-violet-400/50"
+              style={{ animation: `clipprBootRing 2.4s ease-out ${i * 1.2}s infinite` }}
+            />
+          ))}
+          <div className="relative h-28 w-28 overflow-hidden rounded-[2rem] ring-1 ring-white/10 shadow-[0_0_50px_-10px_rgba(139,92,246,0.7)]" style={{ animation: "clipprBootFloat 2.6s ease-in-out infinite" }}>
+            <img
+              src="/clippr-powered-logo.webp"
+              alt="Clippr"
+              loading="eager"
+              decoding="async"
+              className="relative z-10 h-full w-full object-cover"
+            />
+            <span
+              aria-hidden
+              className="pointer-events-none absolute inset-y-0 z-20 w-10 bg-white/50 blur-md"
+              style={{ animation: "clipprBootSweep 2.2s ease-in-out infinite" }}
+            />
+          </div>
         </div>
       </div>
     );
