@@ -13439,37 +13439,23 @@ function FacturacionPanel({
       <SenasExtensionBanner businessId={data.businessId} branchId={data.activeBranchId} onClosed={() => void data.refresh()} />
 
       {summary.pendingCierres.length > 0 && (
-        <div className="rounded-[20px] border border-violet-400/30 bg-white/[0.03] p-4" style={{ background: "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.14), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.12), transparent 65%)" }}>
-          <div className="flex items-start gap-2.5">
-            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" />
-            <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-white">
-                {summary.pendingCierres.length === 1
-                  ? `Tenés una caja pendiente de revisión del ${fechaDDMMYYYY(summary.pendingCierres[0].date)}`
-                  : `Tenés ${summary.pendingCierres.length} cajas pendientes de revisión`}
-              </p>
-              <p className="mt-1 text-xs text-white/60">
-                Ninguna se cierra sola — revisá cada una y confirmá el cierre a mano.
-              </p>
-              <div className="mt-3 space-y-1.5">
-                {summary.pendingCierres.map((p) => (
-                  <div
-                    key={p.date}
-                    className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.04] px-3 py-2"
-                  >
-                    <span className="text-sm font-semibold text-white/85">{fechaDDMMYYYY(p.date)}</span>
-                    <button
-                      type="button"
-                      onClick={() => onRevisarCierre(p.date)}
-                      className="h-9 rounded-full border border-violet-400/50 bg-violet-500/20 px-4 text-xs font-semibold text-violet-100 transition hover:bg-violet-500/30"
-                    >
-                      Revisar cierre
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
+        <div
+          className="flex items-center gap-3 rounded-[20px] border border-violet-400/30 bg-white/[0.03] p-4"
+          style={{ background: "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.14), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.12), transparent 65%)" }}
+        >
+          <AlertTriangle className="h-4 w-4 shrink-0 text-amber-300" />
+          <p className="min-w-0 flex-1 text-sm font-semibold text-white">
+            {summary.pendingCierres.length === 1
+              ? `Tenés una caja pendiente de revisión del ${fechaDDMMYYYY(summary.pendingCierres[0].date)}`
+              : `Tenés ${summary.pendingCierres.length} cajas pendientes de revisión`}
+          </p>
+          <button
+            type="button"
+            onClick={() => onRevisarCierre(summary.pendingCierres[0].date)}
+            className="h-9 shrink-0 rounded-full border border-violet-400/50 bg-violet-500/20 px-5 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/30"
+          >
+            Cerrar
+          </button>
         </div>
       )}
 
