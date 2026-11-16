@@ -116,6 +116,13 @@ export const Route = createFileRoute("/clients")({
 });
 
 // Estilo Clippr: luz suave de las tarjetas (celeste arriba a la derecha, violeta abajo a la izquierda).
+// Orden de las tarjetas de grupos: Semanal y los de una sola vez arriba, las frecuencias en el medio y Perdidos al final.
+const ORDEN_TARJETAS: ClientGrupo[] = [
+  "semanal", "nuevo", "una_visita", "sin_visitas",
+  "quincenal", "tres_semanas", "mensual", "dos_meses",
+  "perdido",
+];
+
 const CARD_LUZ =
   "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.16), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.12), transparent 65%)";
 
@@ -255,6 +262,7 @@ function StatCard({
   featured,
   info,
   onInfoClick,
+  centerLink,
   className,
 }: {
   label: string;
@@ -269,6 +277,8 @@ function StatCard({
   featured?: boolean;
   info?: string;
   onInfoClick?: () => void;
+  /** El link va centrado en la tarjeta (Perdidos). */
+  centerLink?: boolean;
   className?: string;
 }) {
   return (
@@ -316,7 +326,10 @@ function StatCard({
         {link && (
           <button
             onClick={onLinkClick}
-            className="mt-0.5 inline-flex items-center gap-1 self-start text-[11px] sm:text-xs font-semibold text-violet-300 hover:text-violet-200 transition-colors"
+            className={cn(
+              "inline-flex items-center gap-1 text-[11px] sm:text-xs font-semibold text-violet-300 hover:text-violet-200 transition-colors",
+              centerLink ? "mt-1 self-center" : "mt-0.5 self-start",
+            )}
             style={rgb ? { color: `rgb(${rgb})` } : undefined}
           >
             {link} <ArrowRight className="h-3 w-3" />
@@ -1696,10 +1709,12 @@ function ClientsPage() {
               Mobile: VIP+Activos / Nuevos+Inactivos / Perdidos a pantalla
               completa (destacado, misma altura que el resto — ver StatCard
               featured). Desktop (sm+): sin cambios, grilla pareja de 5. */}
-          <div className="grid shrink-0 grid-cols-3 gap-2 sm:gap-3">
-            {GRUPOS_CLIENTE.map((g) => (
+          <div className="grid shrink-0 grid-cols-4 gap-2 sm:gap-3">
+            {ORDEN_TARJETAS.map((k) => GRUPOS_CLIENTE.find((x) => x.key === k)!).map((g) => (
               <StatCard
                 key={g.key}
+                className={g.key === "perdido" ? "col-span-4" : undefined}
+                centerLink={g.key === "perdido"}
                 label={g.label}
                 value={String(grupos?.counts[g.key] ?? 0)}
                 caption={null}
