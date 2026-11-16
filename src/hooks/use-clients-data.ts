@@ -488,6 +488,15 @@ function esVentaDeProducto(items: unknown): boolean {
   );
 }
 
+/** Nombre de la venta sin los productos del catálogo ("Corte / Cepita" → "Corte"); null si no hay detalle por ítem. */
+function nombreSoloServicios(items: unknown): string | null {
+  if (!Array.isArray(items)) return null;
+  const nombres = (items as Array<{ name?: string; is_catalog?: boolean } | null>)
+    .filter((it) => it && it.is_catalog === false && it.name)
+    .map((it) => String(it!.name).trim());
+  return nombres.length > 0 ? nombres.join(" / ") : null;
+}
+
 async function loadClientDetail(businessId: string, clientId: string): Promise<Client | null> {
   const { data: c, error } = await supabase
     .from("clients")
@@ -566,7 +575,7 @@ async function loadClientDetail(businessId: string, clientId: string): Promise<C
     date: p.created_at,
     appointmentId: p.appointment_id ?? null,
     esProducto: esVentaDeProducto(p.items),
-    service: p.service_name || "Servicio",
+    service: nombreSoloServicios(p.items) ?? (p.service_name || "Servicio"),
     amount: Number(p.total ?? p.amount ?? 0),
     employeeName: p.employee_id ? employeeNameById.get(p.employee_id) ?? null : null,
     method: p.method ?? p.payment_method ?? null,

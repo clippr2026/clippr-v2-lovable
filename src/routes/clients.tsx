@@ -1116,18 +1116,23 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <div className="text-sm font-semibold text-white truncate">{v.service}</div>
-                            <span className="shrink-0 rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-white/70 ring-1 ring-white/10">
-                              {v.esProducto ? "Producto" : "Sin turno"}
-                            </span>
+                            {v.esProducto && (
+                              <span className="shrink-0 rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-white/70 ring-1 ring-white/10">
+                                Producto
+                              </span>
+                            )}
                           </div>
-                          <div className="text-[11px] text-muted-foreground">
+                          <div className="text-[11px] text-white/55">
                             {formatApptDateTime(v.date)}
                             {v.employeeName ? ` · ${v.employeeName}` : ""}
                           </div>
                         </div>
                         <div className="shrink-0 text-right">
-                          <div className="text-sm font-semibold tabular-nums">${v.amount.toLocaleString("es-AR")}</div>
+                          <div className="text-sm font-semibold tabular-nums text-white">${v.amount.toLocaleString("es-AR")}</div>
                           <div className="text-[11px] font-semibold text-emerald-300">Cobrado</div>
+                          {formatPayMethodLabel(v.method) && (
+                            <div className="text-[11px] text-white/55">{formatPayMethodLabel(v.method)}</div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1160,8 +1165,8 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                         )}
                         <div className={cn("text-[11px] font-semibold", APPT_STATUS_TONE[r.status] ?? "text-white/60")}>
                           {APPT_STATUS_LABEL[r.status] ?? r.status}
-                          {methodLabel ? ` · ${methodLabel}` : ""}
                         </div>
+                        {methodLabel && <div className="text-[11px] text-white/55">{methodLabel}</div>}
                       </div>
                     </div>
                     {it.ventas.length > 0 && (
@@ -1170,9 +1175,11 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                           <div key={v.id} className="flex items-center justify-between gap-3 text-[11px]">
                             <span className="min-w-0 truncate text-white/80">
                               + {v.service}
-                              <span className="ml-2 rounded-full bg-white/5 px-1.5 py-0.5 text-[10px] font-semibold text-white/60 ring-1 ring-white/10">
-                                {v.esProducto ? "Producto" : "Sin turno"}
-                              </span>
+                              {v.esProducto && (
+                                <span className="ml-2 rounded-full bg-white/5 px-1.5 py-0.5 text-[10px] font-semibold text-white/60 ring-1 ring-white/10">
+                                  Producto
+                                </span>
+                              )}
                             </span>
                             <span className="shrink-0 tabular-nums text-white/80">${v.amount.toLocaleString("es-AR")}</span>
                           </div>
