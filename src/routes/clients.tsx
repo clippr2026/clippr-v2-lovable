@@ -22,10 +22,8 @@ import {
   Mail,
   MoreHorizontal,
   Megaphone,
-  MessageCircle,
   PauseCircle,
   Phone,
-  Plus,
   Search,
   Sparkles,
   Star,
@@ -48,7 +46,6 @@ import {
   fetchClientsByStatus,
   fetchAllClientRows,
   useDeleteClient,
-  useSaveClient,
   useUpdateClientNotes,
   type Client,
   type ClientPayment,
@@ -56,11 +53,11 @@ import {
   type ClientStatus,
 } from "@/hooks/use-clients-data";
 import { useAuth } from "@/hooks/use-auth";
-import { DeudaClientesBanner } from "@/components/clients/deuda-clientes-banner";
 import { PAY_METHOD_LABEL, type PayMethod } from "@/components/cash-register/register-payment";
 import { cancelAppointment, checkOverlap, getMaxAdvanceDays, saveAppointment } from "@/components/agenda/use-agenda-data";
 import { computeRepeatDates, WEEKDAYS, type RepeatWeekday } from "@/lib/recurring-schedule";
-import { emailValido, limpiarTelefono, telefonoValido, whatsappHref } from "@/lib/contacto-valido";
+import { WhatsAppIcon } from "@/components/icons/whatsapp-icon";
+import { emailValido, whatsappHref } from "@/lib/contacto-valido";
 
 // "Reservas recurrentes" (ficha del cliente) — misma tabla que arma
 // appointment-dialog.tsx al confirmar "Repetir turno".
@@ -412,7 +409,6 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
   // Reserva cobrada actualmente expandida (para ver el detalle del pago) —
   // una sola a la vez, se resetea al cambiar de cliente igual que el resto
   // del estado local del panel.
-  const [expandedReservationId, setExpandedReservationId] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [noteDraft, setNoteDraft] = useState(client.notes ?? "");
   // El cuadro de escritura solo se muestra al crear la primera nota o
@@ -423,7 +419,6 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
     setNoteDraft(client.notes ?? "");
     setIsEditingNote(false);
     setMenuOpen(false);
-    setExpandedReservationId(null);
     if (initialTab) setTab(initialTab);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [client.id, client.notes]);
@@ -830,7 +825,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                           rel="noreferrer"
                           className="inline-flex h-9 items-center gap-1.5 rounded-full border border-emerald-400/30 bg-emerald-400/10 px-3 font-semibold text-emerald-200 transition hover:bg-emerald-400/20"
                         >
-                          <MessageCircle className="h-4 w-4" />
+                          <WhatsAppIcon className="h-4 w-4" />
                           {client.phone}
                         </a>
                       ) : (
@@ -888,20 +883,20 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
         </div>
       </div>
 
-      <div className="px-6 pt-3 shrink-0">
-        <div className="inline-flex rounded-full bg-white/5 ring-1 ring-white/10 p-1">
+      <div className="px-4 sm:px-6 pt-3 shrink-0">
+        <div className="grid grid-cols-3 rounded-full bg-white/[0.04] ring-1 ring-white/10 p-1">
           {(["resumen", "reservas", "grupos"] as const).map((t) => (
             <button
               key={t}
               onClick={() => setTab(t)}
               className={cn(
-                "rounded-full px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.18em] transition",
+                "h-9 rounded-full px-2 text-sm font-semibold transition",
                 tab === t
                   ? "bg-gradient-to-r from-sky-400 to-violet-500 text-background"
-                  : "text-muted-foreground hover:text-foreground",
+                  : "text-white/60 hover:text-white",
               )}
             >
-              {t === "reservas" ? "historial" : t === "grupos" ? "cambios de grupo" : t}
+              {t === "reservas" ? "Historial" : t === "grupos" ? "Grupos" : "Resumen"}
             </button>
           ))}
         </div>
@@ -920,43 +915,62 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
             )}
             aria-hidden={tab !== "resumen"}
           >
-            {/* Métricas: una sola banda integrada en vez de 4 cajas sueltas */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-white/[0.06] rounded-2xl bg-white/[0.025] ring-1 ring-white/[0.06] overflow-hidden">
-              <div className="px-3 py-3 sm:px-4">
-                <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                  Valor histórico
+            {/* Métricas: tarjetas con luz, sin mayúsculas */}
+            <div className="grid grid-cols-2 gap-2.5">
+              {[
+                { t: "Valor histórico", v: `$${client.spent.toLocaleString("es-AR")}` },
+                { t: "Visitas", v: String(visitasDias) },
+                { t: "Ticket promedio", v: `$${ticket.toLocaleString("es-AR")}` },
+                { t: "Última visita", v: client.lastVisit ?? "—" },
+              ].map((m) => (
+                <div
+                  key={m.t}
+                  className="rounded-2xl border border-white/10 bg-white/[0.03] px-3.5 py-3"
+                  style={{ background: CARD_LUZ }}
+                >
+                  <div className="text-sm font-semibold text-white">{m.t}</div>
+                  <div className="mt-1 text-xl font-display tabular-nums text-white">{m.v}</div>
                 </div>
-                <div className="mt-1 text-xl font-display tabular-nums">
-                  ${client.spent.toLocaleString("es-AR")}
-                </div>
-              </div>
-              <div className="px-3 py-3 sm:px-4">
-                <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">Visitas</div>
-                <div className="mt-1 text-xl font-display tabular-nums">{visitasDias}</div>
-              </div>
-              <div className="px-3 py-3 sm:px-4">
-                <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                  Ticket prom.
-                </div>
-                <div className="mt-1 text-xl font-display tabular-nums">
-                  ${ticket.toLocaleString("es-AR")}
-                </div>
-              </div>
-              <div className="px-3 py-3 sm:px-4">
-                <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                  Última visita
-                </div>
-                <div className="mt-1 text-sm font-semibold">{client.lastVisit ?? "—"}</div>
-              </div>
+              ))}
             </div>
 
-            {/* Servicios favoritos: lista con separadores, sin una caja por ítem */}
-            <div>
-              <div className="mb-2 text-[10px] uppercase tracking-[0.18em] text-muted-foreground">
-                Servicios favoritos
-              </div>
+            {/* Con quién se atiende */}
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4" style={{ background: CARD_LUZ }}>
+              <div className="mb-2 text-sm font-semibold text-white">Se atiende con</div>
+              {(() => {
+                const info = barberosFicha?.info.get(client.id);
+                if (!info?.conteo?.length) {
+                  return <div className="text-sm text-white/55">Todavía no tiene turnos cobrados con un barbero.</div>;
+                }
+                return (
+                  <div className="space-y-2.5">
+                    <EtiquetaBarbero
+                      info={info}
+                      nombres={barberosFicha!.nombres}
+                      permitirVip={grupoPermiteVip(gruposFicha?.porCliente.get(client.id)?.grupo)}
+                    />
+                    <div className="divide-y divide-white/[0.06]">
+                      {info.conteo.map(([id, n]) => (
+                        <div key={id} className="flex items-center justify-between gap-3 py-2">
+                          <span className="truncate text-sm font-medium text-white/85">
+                            {barberosFicha!.nombres.get(id) ?? "Sin nombre"}
+                          </span>
+                          <span className="shrink-0 text-[11px] text-white/55">
+                            {n} {n === 1 ? "atención" : "atenciones"}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Servicios favoritos */}
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4" style={{ background: CARD_LUZ }}>
+              <div className="mb-2 text-sm font-semibold text-white">Servicios favoritos</div>
               {favoriteServices.length === 0 ? (
-                <div className="text-sm text-muted-foreground">
+                <div className="text-sm text-white/55">
                   Todavía no hay servicios suficientes para detectar favoritos.
                 </div>
               ) : (
@@ -964,7 +978,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                   {favoriteServices.map((item) => (
                     <div key={item.service} className="flex items-center justify-between gap-3 py-2.5">
                       <span className="truncate text-sm font-medium text-white/85">{item.service}</span>
-                      <span className="shrink-0 text-[11px] text-muted-foreground">
+                      <span className="shrink-0 text-[11px] text-white/55">
                         {item.count} veces · ${item.amount.toLocaleString("es-AR")}
                       </span>
                     </div>
@@ -980,9 +994,9 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                 el texto (con Editar/eliminar); el cuadro de escritura solo
                 aparece para crearla o mientras se edita, nunca los dos a la
                 vez. */}
-            <div>
+            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4" style={{ background: CARD_LUZ }}>
               <div className="mb-2">
-                <span className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground">Notas</span>
+                <span className="text-sm font-semibold text-white">Notas</span>
               </div>
               {hasNote && !isEditingNote ? (
                 <div className="flex items-start justify-between gap-3 rounded-xl bg-white/[0.03] ring-1 ring-white/10 p-3">
@@ -990,7 +1004,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                   <div className="flex shrink-0 items-center gap-2">
                     <button
                       onClick={handleEditNote}
-                      className="text-[11px] font-semibold uppercase tracking-[0.1em] text-violet-300 hover:text-violet-200 transition"
+                      className="text-xs font-semibold text-violet-300 hover:text-violet-200 transition"
                     >
                       Editar nota
                     </button>
@@ -1017,7 +1031,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                       <button
                         onClick={handleCancelEditNote}
                         disabled={savingNotes}
-                        className="rounded-xl px-4 py-2 text-sm font-semibold text-muted-foreground hover:text-foreground transition disabled:opacity-50"
+                        className="h-10 rounded-full px-4 text-sm font-semibold text-white/60 hover:text-white transition disabled:opacity-50"
                       >
                         Cancelar
                       </button>
@@ -1025,7 +1039,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                     <button
                       onClick={handleSaveNote}
                       disabled={savingNotes}
-                      className="rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-background px-4 py-2 text-sm font-semibold disabled:opacity-50"
+                      className="h-10 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 text-background px-5 text-sm font-semibold disabled:opacity-50"
                     >
                       {savingNotes ? "Guardando…" : "Guardar nota"}
                     </button>
@@ -1049,9 +1063,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
           >
             {recurringSeries.length > 0 && (
               <div className="space-y-2">
-                <div className="text-[10px] uppercase tracking-[0.14em] text-muted-foreground">
-                  Reservas recurrentes
-                </div>
+                <div className="text-sm font-semibold text-white">Reservas recurrentes</div>
                 {recurringSeries.map((s) => {
                   const empName = s.employee_id ? seriesEmployees.find((e) => e.id === s.employee_id)?.name : null;
                   return (
@@ -1086,7 +1098,7 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
               </div>
             )}
             {timeline.length === 0 ? (
-              <div className="rounded-xl bg-white/5 ring-1 ring-white/10 p-4 text-sm text-muted-foreground">
+              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-4 text-sm text-white/55" style={{ background: CARD_LUZ }}>
                 Sin movimientos todavía.
               </div>
             ) : (
@@ -1094,11 +1106,11 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                 if (it.tipo === "venta") {
                   const v = it.p;
                   return (
-                    <div key={v.id} className="rounded-xl bg-white/5 ring-1 ring-white/10 p-3">
+                    <div key={v.id} className="rounded-2xl border border-white/10 bg-white/[0.03] p-3.5" style={{ background: CARD_LUZ }}>
                       <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <div className="text-sm font-medium truncate">{v.service}</div>
+                            <div className="text-sm font-semibold text-white truncate">{v.service}</div>
                             <span className="shrink-0 rounded-full bg-white/5 px-2 py-0.5 text-[10px] font-semibold text-white/70 ring-1 ring-white/10">
                               {v.esProducto ? "Producto" : "Sin turno"}
                             </span>
@@ -1117,58 +1129,38 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                   );
                 }
                 const r = it.r;
-                // El detalle de pago solo existe (y solo se puede expandir)
-                // para turnos ya cobrados con un pago real vinculado — el
-                // resto de los estados no tiene nada más que mostrar que su
-                // propio estado, ya visible en la fila.
-                const canExpand = r.status === "charged" && Boolean(r.payment);
-                const isExpanded = canExpand && expandedReservationId === r.id;
-                const discount = formatDiscountLabel(
-                  r.payment?.discountType ?? r.discountType,
-                  r.payment?.discountValue ?? r.discountValue,
-                );
-                const methodLabel = formatPayMethodLabel(r.payment?.method);
+                // Lo que se muestra es lo que de verdad se cobró (con descuento
+                // por efectivo, promo, etc.), no el precio de lista del turno.
+                const cobrado = r.status === "charged" && r.payment ? r.payment.amount : r.price;
+                const methodLabel = r.status === "charged" ? formatPayMethodLabel(r.payment?.method) : null;
                 return (
-                  <div key={r.id} className="rounded-xl bg-white/5 ring-1 ring-white/10 overflow-hidden">
-                    <button
-                      type="button"
-                      disabled={!canExpand}
-                      onClick={() => setExpandedReservationId((cur) => (cur === r.id ? null : r.id))}
-                      className={cn(
-                        "flex w-full items-center justify-between gap-3 p-3 text-left",
-                        canExpand && "cursor-pointer hover:bg-white/[0.04] transition-colors",
-                      )}
-                    >
+                  <div
+                    key={r.id}
+                    className="rounded-2xl border border-white/10 bg-white/[0.03] overflow-hidden"
+                    style={{ background: CARD_LUZ }}
+                  >
+                    <div className="flex w-full items-center justify-between gap-3 p-3.5">
                       <div className="min-w-0">
-                        <div className="text-sm font-medium truncate">{r.service}</div>
-                        <div className="text-[11px] text-muted-foreground">
+                        <div className="text-sm font-semibold text-white truncate">{r.service}</div>
+                        <div className="text-[11px] text-white/55">
                           {formatApptDateTime(r.date)}
                           {r.employeeName ? ` · ${r.employeeName}` : ""}
                         </div>
                       </div>
-                      <div className="shrink-0 flex items-center gap-2">
-                        <div className="text-right">
-                          {r.price != null && (
-                            <div className="text-sm font-semibold tabular-nums">
-                              ${r.price.toLocaleString("es-AR")}
-                            </div>
-                          )}
-                          <div className={cn("text-[11px] font-semibold", APPT_STATUS_TONE[r.status] ?? "text-white/60")}>
-                            {APPT_STATUS_LABEL[r.status] ?? r.status}
+                      <div className="shrink-0 text-right">
+                        {cobrado != null && (
+                          <div className="text-sm font-semibold tabular-nums text-white">
+                            ${cobrado.toLocaleString("es-AR")}
                           </div>
-                        </div>
-                        {canExpand && (
-                          <ChevronDown
-                            className={cn(
-                              "h-4 w-4 shrink-0 text-muted-foreground transition-transform",
-                              isExpanded && "rotate-180",
-                            )}
-                          />
                         )}
+                        <div className={cn("text-[11px] font-semibold", APPT_STATUS_TONE[r.status] ?? "text-white/60")}>
+                          {APPT_STATUS_LABEL[r.status] ?? r.status}
+                          {methodLabel ? ` · ${methodLabel}` : ""}
+                        </div>
                       </div>
-                    </button>
+                    </div>
                     {it.ventas.length > 0 && (
-                      <div className="space-y-1.5 border-t border-white/10 bg-white/[0.02] px-3 py-2.5">
+                      <div className="space-y-1.5 border-t border-white/10 bg-white/[0.02] px-3.5 py-2.5">
                         {it.ventas.map((v) => (
                           <div key={v.id} className="flex items-center justify-between gap-3 text-[11px]">
                             <span className="min-w-0 truncate text-white/80">
@@ -1180,39 +1172,6 @@ const ClientDetailPanel = memo(function ClientDetailPanel({
                             <span className="shrink-0 tabular-nums text-white/80">${v.amount.toLocaleString("es-AR")}</span>
                           </div>
                         ))}
-                      </div>
-                    )}
-                    {isExpanded && r.payment && (
-                      <div className="space-y-1 border-t border-white/10 bg-white/[0.02] px-3 py-2.5 text-[11px]">
-                        <div className="flex items-center justify-between">
-                          <span className="text-muted-foreground">Medio de pago</span>
-                          <span className="text-white/85">{methodLabel ?? "—"}</span>
-                        </div>
-                        <div className="flex items-center justify-between">
-                          <span className="text-muted-foreground">Importe final</span>
-                          <span className="font-semibold text-white/85 tabular-nums">
-                            ${r.payment.amount.toLocaleString("es-AR")}
-                          </span>
-                        </div>
-                        {(r.payment.promotionName || discount) && (
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="text-muted-foreground">Promo</span>
-                            <span className="truncate text-right text-violet-300/90">
-                              {r.payment.promotionName ?? "Promo"}
-                              {discount ? ` (${discount})` : ""}
-                            </span>
-                          </div>
-                        )}
-                        {r.payment.reference && (
-                          <div className="flex items-center justify-between gap-3">
-                            <span className="text-muted-foreground">Nº operación</span>
-                            <span className="truncate text-right text-white/85">{r.payment.reference}</span>
-                          </div>
-                        )}
-                        <div className="flex items-center justify-between">
-                          <span className="text-muted-foreground">Fecha de cobro</span>
-                          <span className="text-white/85">{new Date(r.payment.paidAt).toLocaleString("es-AR")}</span>
-                        </div>
                       </div>
                     )}
                   </div>
@@ -1491,7 +1450,6 @@ function ClientsPage() {
   const { businessId, profile } = useAuth();
   const navigate = useNavigate();
   const search = Route.useSearch();
-  const saveClient = useSaveClient(businessId);
   const deleteClient = useDeleteClient(businessId);
   const updateNotes = useUpdateClientNotes(businessId);
   // Deep link desde Agenda ("Ficha" de un turno): abre esa ficha puntual sin
@@ -1509,16 +1467,10 @@ function ClientsPage() {
   const [query, setQuery] = useState(() => search.q ?? "");
   const [sort, setSort] = useState<"gasto" | "recientes" | "nombre">("gasto");
   const [selected, setSelected] = useState<string | null>(() => deepLink.clientId ?? null);
-  const [newClientOpen, setNewClientOpen] = useState(false);
   const [segmentModal, setSegmentModal] = useState<{ title: string; clients: ClientListRow[]; loading?: boolean } | null>(
     null,
   );
   const [metricInfo, setMetricInfo] = useState<ClientMetricInfo | null>(null);
-  const [newClient, setNewClient] = useState({
-    firstName: "",
-    lastName: "",
-    phone: "",
-  });
   const [acquisitionModalOpen, setAcquisitionModalOpen] = useState(false);
   const [acquisitionRange, setAcquisitionRange] = useState<DateRange>(() => {
     const to = new Date();
@@ -1535,7 +1487,7 @@ function ClientsPage() {
   // scrolleado es lo que corre el header/botón Cerrar fuera de vista hasta
   // hacer scroll. Un solo lock combinado alcanza (el hook ya soporta que
   // más de un llamador lo pida a la vez, ver use-body-scroll-lock.ts).
-  useBodyScrollLock(newClientOpen || acquisitionModalOpen || Boolean(metricInfo) || Boolean(segmentModal));
+  useBodyScrollLock(acquisitionModalOpen || Boolean(metricInfo) || Boolean(segmentModal));
   const acquisitionScrollRef = useRef<HTMLDivElement | null>(null);
   useEffect(() => {
     acquisitionScrollRef.current?.scrollTo(0, 0);
@@ -1664,24 +1616,6 @@ function ClientsPage() {
     [businessId, grupos],
   );
 
-  // Flujo interno simplificado: el teléfono es el único dato obligatorio y
-  // el identificador principal. Nombre/Apellido son opcionales. Nunca se
-  // pide mail ni "cómo nos conoció" acá — eso sigue siendo exclusivo de la
-  // reserva pública, sin tocar.
-  async function handleCreateClient() {
-    if (!newClient.phone.trim()) {
-      return toast.error("Ingresá el teléfono del cliente.");
-    }
-    if (!telefonoValido(newClient.phone)) {
-      return toast.error("El teléfono debe tener solo números (entre 8 y 15 dígitos).");
-    }
-
-    await saveClient.mutateAsync(newClient);
-    toast.success("Cliente guardado");
-    setNewClient({ firstName: "", lastName: "", phone: "" });
-    setNewClientOpen(false);
-  }
-
   const handleDeleteClient = useCallback(
     async (client: Client) => {
       if (!(await confirmarClippr({ titulo: `¿Eliminar a ${client.name}?`, texto: "Se borra la ficha del cliente.", confirmar: "Eliminar", destructivo: true }))) return;
@@ -1757,23 +1691,12 @@ function ClientsPage() {
             ))}
           </div>
           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-            <DeudaClientesBanner />
             <button
               onClick={() => setAcquisitionModalOpen(true)}
               className="h-11 flex-1 sm:flex-none px-5 rounded-full text-sm font-semibold flex items-center justify-center gap-2 bg-white/[0.04] border border-white/10 hover:bg-white/10 transition"
             >
               <Megaphone className="h-4 w-4 text-violet-300" />
               Cómo nos conocieron
-            </button>
-            <button
-              onClick={() => setNewClientOpen(true)}
-              className="h-11 flex-1 sm:flex-none px-5 rounded-full text-white font-semibold text-sm flex items-center justify-center gap-2 hover:brightness-110 transition"
-              style={{
-                background: "linear-gradient(135deg, oklch(0.65 0.24 255), oklch(0.65 0.28 305))",
-              }}
-            >
-              <Plus className="h-4 w-4" />
-              Nuevo cliente
             </button>
           </div>
         <div className="min-h-0 flex-1">
@@ -1861,15 +1784,8 @@ function ClientsPage() {
                       <UserRound className="h-7 w-7 text-muted-foreground/50" />
                       <div className="text-sm font-medium text-white/80">Todavía no tenés clientes</div>
                       <div className="max-w-[220px] text-xs text-muted-foreground">
-                        Se van a ir sumando solos con las ventas, o agregá el primero a mano.
+                        Se van a ir sumando solos con las ventas y las reservas.
                       </div>
-                      <button
-                        onClick={() => setNewClientOpen(true)}
-                        className="mt-2 inline-flex items-center gap-1.5 rounded-xl bg-white/5 px-3 py-1.5 text-xs font-medium ring-1 ring-white/10 transition hover:bg-white/10"
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                        Agregar cliente
-                      </button>
                     </>
                   )}
                 </div>
@@ -1916,50 +1832,6 @@ function ClientsPage() {
           />,
           document.body,
         )}
-
-      {newClientOpen && (
-        <VentanaClippr
-          titulo="Nuevo cliente"
-          onClose={() => setNewClientOpen(false)}
-          footer={
-            <button
-              onClick={handleCreateClient}
-              disabled={saveClient.isPending}
-              className="h-11 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 px-6 text-sm font-semibold text-background disabled:opacity-50"
-            >
-              Guardar cliente
-            </button>
-          }
-        >
-          <label className="block text-sm font-semibold text-white">
-            Teléfono *
-            <input
-              value={newClient.phone}
-              inputMode="tel"
-              onChange={(e) => setNewClient((s) => ({ ...s, phone: limpiarTelefono(e.target.value) }))}
-              className="mt-1.5 h-11 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none focus:border-violet-400/50"
-            />
-          </label>
-          <div className="grid grid-cols-2 gap-3">
-            <label className="block text-sm font-semibold text-white">
-              Nombre
-              <input
-                value={newClient.firstName}
-                onChange={(e) => setNewClient((s) => ({ ...s, firstName: e.target.value }))}
-                className="mt-1.5 h-11 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none focus:border-violet-400/50"
-              />
-            </label>
-            <label className="block text-sm font-semibold text-white">
-              Apellido
-              <input
-                value={newClient.lastName}
-                onChange={(e) => setNewClient((s) => ({ ...s, lastName: e.target.value }))}
-                className="mt-1.5 h-11 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none focus:border-violet-400/50"
-              />
-            </label>
-          </div>
-        </VentanaClippr>
-      )}
 
       {acquisitionModalOpen && (
         <VentanaClippr

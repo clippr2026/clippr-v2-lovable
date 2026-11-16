@@ -1,6 +1,7 @@
 import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
 import { confirmarClippr } from "@/components/ui/dialogos-clippr";
 import { VentanaClippr } from "@/components/clientes/ventana-clippr";
+import { DeudaClientesBanner } from "@/components/clients/deuda-clientes-banner";
 import { CartelAPagar, GastosAPagarLista, avisarCambioGastosAPagar } from "@/components/cash-register/gastos-a-pagar";
 import { NOMBRE_CLIENTE_GENERICO, obtenerClienteGenerico } from "@/lib/cliente-generico";
 import { claveTelefono } from "@/lib/contacto-valido";
@@ -1141,6 +1142,11 @@ function CashRegisterPage() {
         )}
         {tab !== "nueva" && tab !== "nuevo-gasto" && tab !== "gastos" && (
           <CartelAPagar businessId={data.businessId} onClick={() => setTab("gastos")} />
+        )}
+        {tab === "resumen" && (
+          <div className="mt-2 flex">
+            <DeudaClientesBanner />
+          </div>
         )}
         <div className="mt-1 sm:mt-3">
           {tab === "resumen" && (
@@ -11128,6 +11134,19 @@ function DetailModal({
           </div>
         </div>
 
+        {!soloAcciones && (
+          <div className="mx-5 py-2 border-b border-white/5 flex items-center justify-between gap-3 flex-wrap">
+            <span className="font-display text-2xl font-semibold tabular-nums">
+              ${totalCobrado.toLocaleString("es-AR")}
+            </span>
+            <div className="flex gap-2 flex-wrap">
+              <StatusPill status={status} />
+              <ChargeTypePill type={chargeType} />
+            </div>
+          </div>
+
+        )}
+
         {/* overscroll-contain: aunque el body ya está bloqueado (arriba),
             esto evita que llegar al principio/final de ESTE scroll
             encadene el gesto hacia algún ancestro — mismo criterio que ya
@@ -11144,16 +11163,6 @@ function DetailModal({
               payment.total (que es pura facturación de servicios, sin
               propina — la base correcta de Facturación/comisión, pero no
               lo que el cliente pagó en mano). */}
-          <div className="py-2 border-b border-white/5 flex items-center justify-between gap-3 flex-wrap">
-            <span className="font-display text-2xl font-semibold tabular-nums">
-              ${totalCobrado.toLocaleString("es-AR")}
-            </span>
-            <div className="flex gap-2 flex-wrap">
-              <StatusPill status={status} />
-              <ChargeTypePill type={chargeType} />
-            </div>
-          </div>
-
           {/* Venta con saldo (pendiente/parcial): el importe grande de
               arriba es la venta COMPLETA, no lo que entró en caja hasta
               ahora — este desglose aclara cuánto se cobró de verdad y
@@ -11264,7 +11273,6 @@ function DetailModal({
               label="Origen"
               value={<ChargeTypePill type={chargeType} />}
             />
-            <Row label="Estado" value={<StatusPill status={status} />} />
             {comprobante && (
               <Row label="Referencia / Comprobante" value={comprobante} />
             )}
@@ -11307,15 +11315,19 @@ function DetailModal({
               label="Nº de venta"
               value={<span className="font-mono">{ventaNum}</span>}
             />
-            <Row label="Registrado" value={fmtDT(payment.created_at)} />
-            <Row
-              label="Cobrado"
-              value={fmtDT(
-                ((payment as Record<string, unknown>).charged_at as
-                  | string
-                  | null) ?? payment.created_at,
-              )}
-            />
+            {(() => {
+              const cobradoEn =
+                ((payment as Record<string, unknown>).charged_at as string | null) ?? payment.created_at;
+              const mismoMomento = Math.abs(new Date(cobradoEn).getTime() - new Date(payment.created_at).getTime()) < 60_000;
+              return mismoMomento ? (
+                <Row label="Registrado y cobrado" value={fmtDT(payment.created_at)} />
+              ) : (
+                <>
+                  <Row label="Registrado" value={fmtDT(payment.created_at)} />
+                  <Row label="Cobrado" value={fmtDT(cobradoEn)} />
+                </>
+              );
+            })()}
           </div>
 
           {isPendingOrParcial && (

@@ -9,7 +9,12 @@ import { cn } from "@/lib/utils";
 //   · 2 turnos: con el mismo barbero ("dos") o con dos distintos ("distintos").
 //   · 1 turno: con ese barbero ("uno").
 export type TipoBarbero = "vip" | "dos" | "distintos" | "uno" | "cualquiera";
-export type InfoBarbero = { tipo: TipoBarbero; empleados: string[] };
+export type InfoBarbero = {
+  tipo: TipoBarbero;
+  empleados: string[];
+  /** Cuántas atenciones tuvo con cada barbero (id, cantidad), de más a menos. */
+  conteo?: Array<[string, number]>;
+};
 
 const PAGINA = 1000;
 
@@ -95,14 +100,17 @@ export function useClientBarberos(businessId: string | null) {
       }
       const info = new Map<string, InfoBarbero>();
       porCliente.forEach((lista, id) => {
+        const cuenta = new Map<string, number>();
+        lista.forEach((e) => cuenta.set(e, (cuenta.get(e) ?? 0) + 1));
+        const conteo = Array.from(cuenta.entries()).sort((a, b) => b[1] - a[1]);
         const unicos = Array.from(new Set(lista));
         const ult3 = Array.from(new Set(lista.slice(0, 3)));
         if (lista.length >= 3) {
-          info.set(id, ult3.length === 1 ? { tipo: "vip", empleados: ult3 } : { tipo: "cualquiera", empleados: unicos });
+          info.set(id, ult3.length === 1 ? { tipo: "vip", empleados: ult3, conteo } : { tipo: "cualquiera", empleados: unicos, conteo });
         } else if (lista.length === 2) {
-          info.set(id, unicos.length === 1 ? { tipo: "dos", empleados: unicos } : { tipo: "distintos", empleados: unicos });
+          info.set(id, unicos.length === 1 ? { tipo: "dos", empleados: unicos, conteo } : { tipo: "distintos", empleados: unicos, conteo });
         } else {
-          info.set(id, { tipo: "uno", empleados: unicos });
+          info.set(id, { tipo: "uno", empleados: unicos, conteo });
         }
       });
       return { info, nombres };
