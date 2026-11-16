@@ -135,8 +135,8 @@ function Row({ item, onDone }: { item: SenaPendiente; onDone: () => void }) {
 
       {otherDay && item.proof_uploaded_at && (
         <div className="rounded-xl bg-sky-400/10 px-3 py-2 text-xs leading-snug text-sky-100 ring-1 ring-sky-300/30">
-          El ingreso fue el <strong>{fmtDayShort(item.proof_uploaded_at)}</strong>. Al aprobarla, la seña{" "}
-          <strong>entra en la caja de ese día</strong>.
+          El ingreso fue el <strong>{fmtDayShort(item.proof_uploaded_at)}</strong>. Al aprobarla, la seña entra en la caja de ese
+          día si todavía está abierta; si ya se cerró o ese día no hubo caja, pasa a la <strong>próxima caja abierta</strong>.
         </div>
       )}
 
