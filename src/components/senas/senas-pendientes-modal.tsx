@@ -162,26 +162,21 @@ function Row({ item, onDone }: { item: SenaPendiente; onDone: () => void }) {
 
       {otherDay && item.proof_uploaded_at && (
         <div className="rounded-xl bg-sky-400/10 px-3 py-2 text-xs leading-snug text-sky-100 ring-1 ring-sky-300/30">
-          {cajaDelEnvio === "abierta" ? (
+          El ingreso fue el <strong>{fmtDayShort(item.proof_uploaded_at)}</strong>. Al aprobarla, la seña{" "}
+          <strong>entra en la caja de ese día</strong>
+          {cajaDelEnvio === "cerrada" ? (
             <>
-              Esta seña se envió el <strong>{fmtDayShort(item.proof_uploaded_at)}</strong> y esa caja todavía{" "}
-              <strong>no se cerró</strong>. Al aprobarla, <strong>entra en la caja del {fmtDayShort(item.proof_uploaded_at)}</strong>.
-            </>
-          ) : cajaDelEnvio === "cerrada" ? (
-            <>
-              Esta seña se envió el <strong>{fmtDayShort(item.proof_uploaded_at)}</strong>, pero esa caja{" "}
-              <strong>ya está cerrada</strong>. Al aprobarla, <strong>entra igual en la caja del {fmtDayShort(item.proof_uploaded_at)}</strong> como
-              ajuste aparte: el cierre original no se toca y queda una extensión para cerrar.
+              . Esa caja ya está cerrada, así que se arma una <strong>extensión</strong> aparte: el cierre original no se toca.
             </>
           ) : cajaDelEnvio === "sin_caja" ? (
             <>
-              Esta seña se envió el <strong>{fmtDayShort(item.proof_uploaded_at)}</strong>, un día en que{" "}
-              <strong>no hubo caja</strong>. Al aprobarla, <strong>entra en la caja de ese día</strong> y queda como caja pendiente de cierre.
+              {" "}y queda como caja pendiente de cierre, porque ese día no hubo caja.
             </>
+          ) : cajaDelEnvio === "abierta" ? (
+            <>, que todavía no se cerró.</>
           ) : (
             <>
-              Esta seña se envió el <strong>{fmtDayShort(item.proof_uploaded_at)}</strong>. Al aprobarla entra en la caja de ese
-              día; si ya se cerró, entra como ajuste aparte sin tocar el cierre.
+              . Si esa caja ya se cerró, se arma una <strong>extensión</strong> aparte.
             </>
           )}
         </div>
