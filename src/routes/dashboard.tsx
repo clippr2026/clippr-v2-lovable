@@ -308,7 +308,7 @@ function CajaHoyCard({
           </p>
           <Link
             to="/cash-register"
-            search={{ ...emptyCashRegisterSearch, pendingDate: caja.pendingCierres[0].date }}
+            search={emptyCashRegisterSearch}
             className="inline-flex h-9 shrink-0 items-center justify-center rounded-full border border-amber-400/50 bg-amber-400/15 px-5 text-sm font-semibold text-amber-100 transition hover:bg-amber-400/25"
           >
             Cerrar

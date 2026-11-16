@@ -961,7 +961,7 @@ function CashRegisterPage() {
   // duplicar el salto a la vista previa: cambia a la pestaña Cierres y deja
   // que CierresTab (initialPendingDate) haga el resto.
   const goToPendingReview = React.useCallback(
-    (date: string) => {
+    (date?: string) => {
       setTab("cierres");
       navigate({ to: "/cash-register", search: { ...EMPTY_CASH_REGISTER_SEARCH, pendingDate: date } });
     },
@@ -1540,7 +1540,7 @@ function ResumenTab({
   cajaAbiertaDesde: string;
   cajaRangeStartDate: string;
   onCajaCerrada: (closedDate?: string) => void;
-  onRevisarCierre: (date: string) => void;
+  onRevisarCierre: (date?: string) => void;
 }) {
   // Historial de cobros: lo leemos desde appointments.cobro_events (Supabase)
   // para los turnos visibles, así "Envió a caja" / "Cobró" persiste tras
@@ -13340,7 +13340,7 @@ function FacturacionPanel({
   onCobrarPendiente: (
     appt: ReturnType<typeof useCajaData>["pendingCharges"][number],
   ) => void;
-  onRevisarCierre: (date: string) => void;
+  onRevisarCierre: (date?: string) => void;
   pendientesTheme?: {
     border: string;
     glow: string;
@@ -13449,7 +13449,7 @@ function FacturacionPanel({
           </p>
           <button
             type="button"
-            onClick={() => onRevisarCierre(summary.pendingCierres[0].date)}
+            onClick={() => onRevisarCierre()}
             className="h-9 shrink-0 rounded-full border border-amber-400/50 bg-amber-400/15 px-5 text-sm font-semibold text-amber-100 transition hover:bg-amber-400/25"
           >
             Cerrar
