@@ -580,10 +580,21 @@ async function loadClientDetail(businessId: string, clientId: string): Promise<C
   const last12Cutoff = new Date(); last12Cutoff.setMonth(last12Cutoff.getMonth() - 12);
   const spentLast12Months = history.filter((p) => new Date(p.date).getTime() >= last12Cutoff.getTime()).reduce((s, p) => s + p.amount, 0);
   const favMap = new Map<string, { count: number; amount: number }>();
-  history.forEach((p) => {
-    if (p.esProducto) return; // servicios favoritos: los productos no cuentan
-    const cur = favMap.get(p.service) ?? { count: 0, amount: 0 };
-    favMap.set(p.service, { count: cur.count + 1, amount: cur.amount + p.amount });
+  // Servicios favoritos: solo servicios. Los productos del catálogo (ej. una gaseosa) no cuentan, tampoco cuando van en la
+  // misma venta que el servicio ("Corte / Cepita" cuenta como "Corte").
+  payments.forEach((p, idx) => {
+    const h = history[idx];
+    if (h.esProducto) return;
+    const items = Array.isArray(p.items) ? (p.items as Array<{ name?: string; amount?: number; is_catalog?: boolean }>) : [];
+    const servicios = items.filter((it) => it && typeof it.is_catalog === "boolean" && !it.is_catalog && it.name);
+    const lineas =
+      servicios.length > 0
+        ? servicios.map((it) => ({ service: String(it.name).trim(), amount: Number(it.amount ?? 0) }))
+        : [{ service: h.service, amount: h.amount }];
+    lineas.forEach((l) => {
+      const cur = favMap.get(l.service) ?? { count: 0, amount: 0 };
+      favMap.set(l.service, { count: cur.count + 1, amount: cur.amount + l.amount });
+    });
   });
   const favoriteServices = Array.from(favMap.entries()).map(([service, v]) => ({ service, ...v }))
     .sort((a, b) => b.count - a.count || b.amount - a.amount).slice(0, 3);
