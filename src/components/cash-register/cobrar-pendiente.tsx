@@ -372,7 +372,7 @@ function CollectForm({
       <button
         type="button"
         onClick={onBack}
-        className="inline-flex items-center gap-1.5 text-xs font-semibold text-white/50 hover:text-white/80"
+        className="inline-flex h-9 items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3.5 text-sm font-semibold text-white/80 hover:bg-white/10"
       >
         <ArrowLeft className="size-3.5" /> Volver a la lista
       </button>
@@ -384,7 +384,7 @@ function CollectForm({
           {fmtDate(debt.created_at)} · {employeeName}
         </p>
         <div className="mt-1.5 flex items-center justify-between border-t border-white/10 pt-1.5 text-xs">
-          <span className="text-white/45">Total venta</span>
+          <span className="text-white/60">Total venta</span>
           <span className="font-semibold text-white">{fmtMoney(debt.total)}</span>
         </div>
         {debt.collected_amount > 0 && (
@@ -394,7 +394,7 @@ function CollectForm({
           </div>
         )}
         <div className="flex items-center justify-between text-xs">
-          <span className="text-white/45">Saldo pendiente</span>
+          <span className="text-white/60">Saldo pendiente</span>
           <span className="font-bold text-amber-200">{fmtMoney(saldo)}</span>
         </div>
       </div>
@@ -414,7 +414,7 @@ function CollectForm({
           <button
             type="button"
             onClick={() => setAmountStr(String(Math.round(saldo)))}
-            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-lg bg-white/[0.06] px-2 py-1 text-[10px] font-bold text-white/60 hover:bg-white/[0.1]"
+            className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full border border-white/10 bg-white/[0.06] px-3 py-1 text-xs font-semibold text-white/70 hover:bg-white/[0.1]"
           >
             TOTAL
           </button>
@@ -437,8 +437,8 @@ function CollectForm({
               className={cn(
                 "h-11 rounded-full border px-2 text-sm font-semibold transition",
                 method === m.id
-                  ? "border-blue-300/48 bg-blue-400/[0.14] text-white"
-                  : "border-white/[0.08] bg-white/[0.02] text-muted-foreground hover:text-foreground",
+                  ? "border-violet-400/50 bg-violet-500/20 text-violet-100"
+                  : "border-white/10 bg-white/[0.04] text-white/60 hover:bg-white/[0.08]",
               )}
             >
               {m.label}
