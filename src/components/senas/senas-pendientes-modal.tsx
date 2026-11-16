@@ -4,6 +4,8 @@ import { toast } from "sonner";
 import { CheckCircle2, ChevronRight, FileText, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import type { SenaPendiente } from "./use-senas-pendientes";
+import { useAuth } from "@/hooks/use-auth";
+import { isCajaCerradaRow } from "@/lib/caja-cierre";
 
 const money = (n: number) => `$${Math.round(Number(n) || 0).toLocaleString("es-AR")}`;
 
@@ -56,6 +58,31 @@ function Row({ item, onDone }: { item: SenaPendiente; onDone: () => void }) {
 
   // Comprobante enviado otro día: igual cuenta (ingreso y dinero) el día en que se aprueba; solo se avisa.
   const otherDay = Boolean(item.proof_uploaded_at && dayBA(item.proof_uploaded_at) !== dayBA(new Date()));
+
+  // ¿Cómo está la caja del día en que se envió el comprobante? Define dónde entra la seña al aprobarla.
+  const { businessId, activeBranchId } = useAuth();
+  const [cajaDelEnvio, setCajaDelEnvio] = React.useState<"abierta" | "cerrada" | "sin_caja" | null>(null);
+  React.useEffect(() => {
+    if (!otherDay || !item.proof_uploaded_at || !businessId) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        let q = (supabase.from("caja_cierres" as any) as any)
+          .select("estado,eventos")
+          .eq("business_id", businessId)
+          .eq("fecha", dayBA(item.proof_uploaded_at!));
+        if (activeBranchId) q = q.eq("branch_id", activeBranchId);
+        const { data } = await q.maybeSingle();
+        if (cancelled) return;
+        setCajaDelEnvio(!data ? "sin_caja" : isCajaCerradaRow(data) ? "cerrada" : "abierta");
+      } catch {
+        if (!cancelled) setCajaDelEnvio(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [otherDay, item.proof_uploaded_at, businessId, activeBranchId]);
 
   const review = async (approve: boolean) => {
     setBusy(true);
@@ -135,8 +162,27 @@ function Row({ item, onDone }: { item: SenaPendiente; onDone: () => void }) {
 
       {otherDay && item.proof_uploaded_at && (
         <div className="rounded-xl bg-sky-400/10 px-3 py-2 text-xs leading-snug text-sky-100 ring-1 ring-sky-300/30">
-          Este comprobante se envió el <strong>{fmtDayShort(item.proof_uploaded_at)}</strong>. Al aprobarlo entra en la
-          caja de ese día si sigue abierta; si ya se cerró o el local no abrió, pasa a la <strong>próxima caja abierta</strong>.
+          {cajaDelEnvio === "abierta" ? (
+            <>
+              Esta seña se envió el <strong>{fmtDayShort(item.proof_uploaded_at)}</strong> y esa caja todavía{" "}
+              <strong>no se cerró</strong>. Al aprobarla, <strong>entra en la caja del {fmtDayShort(item.proof_uploaded_at)}</strong>.
+            </>
+          ) : cajaDelEnvio === "cerrada" ? (
+            <>
+              Esta seña se envió el <strong>{fmtDayShort(item.proof_uploaded_at)}</strong>, pero esa caja{" "}
+              <strong>ya está cerrada</strong>. Al aprobarla, <strong>entra en la próxima caja abierta</strong>.
+            </>
+          ) : cajaDelEnvio === "sin_caja" ? (
+            <>
+              Esta seña se envió el <strong>{fmtDayShort(item.proof_uploaded_at)}</strong>, un día en que{" "}
+              <strong>no hubo caja</strong>. Al aprobarla, <strong>entra en la próxima caja abierta</strong>.
+            </>
+          ) : (
+            <>
+              Esta seña se envió el <strong>{fmtDayShort(item.proof_uploaded_at)}</strong>. Al aprobarla entra en la caja de ese
+              día si no se cerró; si ya se cerró, pasa a la <strong>próxima caja abierta</strong>.
+            </>
+          )}
         </div>
       )}
 
