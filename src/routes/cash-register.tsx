@@ -17139,10 +17139,11 @@ export function NuevaVentaTab({
 
           {/* 1 + 2. Buscador + resultados — solo visible si no hay cliente seleccionado */}
           {!clientId && (
-            <Card className="max-h-[300px] overflow-y-auto p-4 space-y-3 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
-              <p className="text-xs text-muted-foreground tracking-[0.15em] uppercase">
-                Buscar cliente existente
-              </p>
+            <div
+              className="max-h-[300px] overflow-y-auto rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-3 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]"
+              style={{ background: "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.16), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.12), transparent 65%)" }}
+            >
+              <p className="text-sm font-semibold text-white">Buscar cliente existente</p>
               <ClientAutocomplete
                 value={clientSearch}
                 onChange={setClientSearch}
@@ -17156,7 +17157,7 @@ export function NuevaVentaTab({
                 }}
                 businessId={data.businessId}
               />
-            </Card>
+            </div>
           )}
 
           {/* 4. Nuevo cliente — acción secundaria, oculta si ya hay cliente seleccionado */}
@@ -17169,7 +17170,7 @@ export function NuevaVentaTab({
                 setClientLastName("");
                 setClientId(null);
               }}
-              className="w-full inline-flex items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium border border-white/15 bg-white/[0.03] text-muted-foreground hover:text-foreground hover:bg-white/[0.07] hover:border-white/25 transition-colors"
+              className="w-full inline-flex h-12 items-center justify-center gap-2 rounded-full border border-white/15 bg-white/[0.04] px-4 text-sm font-semibold text-white hover:bg-white/[0.08] hover:border-white/25 transition-colors"
             >
               <Plus className="size-4" />
               Nuevo cliente
@@ -17186,10 +17187,11 @@ export function NuevaVentaTab({
               disponible para elegir un cliente existente en su lugar. */}
           {!clientId &&
             newClientOpen && (
-                <Card className="max-h-[340px] overflow-y-auto p-4 space-y-3 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]">
-                  <p className="text-xs text-muted-foreground tracking-[0.15em] uppercase">
-                    Nuevo cliente
-                  </p>
+                <div
+                  className="max-h-[340px] overflow-y-auto rounded-2xl border border-white/10 bg-white/[0.03] p-4 space-y-3 [scrollbar-width:thin] [scrollbar-color:rgba(139,92,246,0.35)_transparent]"
+                  style={{ background: "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.16), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.12), transparent 65%)" }}
+                >
+                  <p className="text-sm font-semibold text-white">Nuevo cliente</p>
                   <div className="grid grid-cols-2 gap-2">
                     <input
                       value={client}
@@ -17198,22 +17200,22 @@ export function NuevaVentaTab({
                         setClientId(null);
                       }}
                       placeholder="Nombre"
-                      className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-base outline-none focus:border-blue-300/40"
+                      className="h-11 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 text-base outline-none focus:border-violet-400/50"
                     />
                     <input
                       value={clientLastName}
                       onChange={(e) => setClientLastName(e.target.value)}
                       placeholder="Apellido"
-                      className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-base outline-none focus:border-blue-300/40"
+                      className="h-11 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 text-base outline-none focus:border-violet-400/50"
                     />
                   </div>
                   <input
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="Teléfono *"
-                    className="w-full bg-white/[0.03] border border-white/10 rounded-lg px-3 py-2.5 text-base outline-none focus:border-blue-300/40"
+                    className="h-11 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 text-base outline-none focus:border-violet-400/50"
                   />
-                </Card>
+                </div>
             )}
           {/* Continuar sin cliente — venta a alguien que no se agendó: sin nombre ni teléfono, va a la ficha genérica "Sin agendar". */}
           {!clientId && (
@@ -17238,7 +17240,7 @@ export function NuevaVentaTab({
               }}
               className="mx-auto block px-2 py-2 text-sm font-medium text-muted-foreground underline-offset-4 transition-colors hover:text-foreground hover:underline"
             >
-              Continuar sin cliente
+              Continuar sin cliente <span className="text-white/45">(no recomendado)</span>
             </button>
           )}
           </div>
