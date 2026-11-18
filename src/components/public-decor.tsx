@@ -124,7 +124,7 @@ export function PublicDecor({
           ))}
         </svg>
         {/* Pino con adornos (izquierda) y Papá Noel (derecha) */}
-        <svg className="pointer-events-none absolute bottom-2 left-2 z-[6] h-16 w-12 sm:h-28 sm:w-20" viewBox="0 0 52 80" aria-hidden>
+        <svg className="pointer-events-none absolute -left-1 bottom-2 z-[6] h-14 w-9 sm:-left-2 sm:h-24 sm:w-14" viewBox="0 0 52 80" aria-hidden>
           <path d="M26 8 L4 70 L48 70 Z" fill="#15803d" />
           <path d="M26 -2 L10 38 L42 38 Z" fill="#16a34a" />
           <path d={star(26, 3, 6)} fill="#facc15" />
@@ -134,7 +134,7 @@ export function PublicDecor({
           <circle cx="36" cy="62" r="2.6" fill="#ef4444" />
           <rect x="22" y="70" width="8" height="8" fill="#78350f" />
         </svg>
-        <div className="dc-anim pointer-events-none absolute bottom-1 right-2 z-[6] origin-bottom" style={{ animation: "dcBob 3.2s ease-in-out infinite" }}><Santa className="h-20 w-[4.5rem] sm:h-32 sm:w-28" /></div>
+        <div className="dc-anim pointer-events-none absolute bottom-[4.75rem] right-3 z-[6] origin-bottom sm:bottom-24 sm:right-6" style={{ animation: "dcBob 3.2s ease-in-out infinite" }}><Santa className="h-20 w-[4.5rem] sm:h-32 sm:w-28" /></div>
         <svg className={`${layer} bottom-0 h-20 sm:h-28`} viewBox="0 0 1200 120" preserveAspectRatio="xMidYMax slice" aria-hidden>
           <path
             d="M0 120 L0 100 C60 88 110 106 190 98 C280 88 330 108 430 100 C540 90 600 108 700 100 C800 92 880 110 980 100 C1070 90 1130 106 1200 96 L1200 120 Z"
