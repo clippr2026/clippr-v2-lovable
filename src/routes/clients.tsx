@@ -282,6 +282,19 @@ function StatCard({
   centerLink?: boolean;
   className?: string;
 }) {
+  const infoButton = info ? (
+    <button
+      type="button"
+      onClick={(event) => {
+        event.stopPropagation();
+        onInfoClick?.();
+      }}
+      className="relative z-10 inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-white/20 bg-white/[0.06] text-[11px] font-semibold leading-none text-white/70 transition hover:text-violet-200 focus-visible:outline-none"
+      aria-label={`Información sobre ${label}`}
+    >
+      i
+    </button>
+  ) : null;
   return (
     <div
       className={cn(
@@ -301,8 +314,9 @@ function StatCard({
       {centerLink && link && (
         <div className="relative flex items-center justify-between gap-2">
           <div>
-            <div className="text-[11px] sm:text-sm font-semibold leading-tight" style={{ color: rgb ? `rgb(${rgb})` : "#fff" }}>
+            <div className="flex items-center gap-1.5 text-[11px] sm:text-sm font-semibold leading-tight" style={{ color: rgb ? `rgb(${rgb})` : "#fff" }}>
               {label}
+              {infoButton}
             </div>
             <div className="mt-1 text-2xl sm:text-[2rem] font-display font-medium leading-none tracking-tight">{value}</div>
           </div>
@@ -328,19 +342,7 @@ function StatCard({
               label
             )}
           </div>
-          {info && (
-            <button
-              type="button"
-              onClick={(event) => {
-                event.stopPropagation();
-                onInfoClick?.();
-              }}
-              className="shrink-0 text-[10px] font-semibold text-muted-foreground/40 opacity-0 transition hover:text-violet-200 group-hover:opacity-100 focus-visible:opacity-100"
-              aria-label={`Información sobre ${label}`}
-            >
-              i
-            </button>
-          )}
+          {infoButton}
         </div>
         <div className="flex items-end justify-between gap-2">
           <div className="text-2xl sm:text-[2rem] font-display font-medium leading-none tracking-tight">
