@@ -140,8 +140,10 @@ export function PublicPagePreview({
     post();
   }, [post]);
 
+  const focusRef = React.useRef<{ section: { id: string; n: number } | null; at: number }>({ section: null, at: 0 });
   React.useEffect(() => {
     if (!focusSection || !ready) return;
+    focusRef.current = { section: focusSection, at: Date.now() };
     iframeRef.current?.contentWindow?.postMessage({ type: "clippr:preview-focus", section: focusSection.id }, window.location.origin);
   }, [focusSection, ready]);
 
@@ -154,6 +156,15 @@ export function PublicPagePreview({
       return;
     }
     iframeRef.current?.contentWindow?.postMessage({ type: "clippr:preview-refresh" }, window.location.origin);
+    // Lo que se acaba de cambiar (por ejemplo un beneficio activado) recién aparece con la actualización:
+    // se vuelve a señalar el lugar para que la vista previa quede ahí.
+    const f = focusRef.current;
+    if (f.section && Date.now() - f.at < 10000) {
+      const t = window.setTimeout(() => {
+        iframeRef.current?.contentWindow?.postMessage({ type: "clippr:preview-focus", section: f.section!.id }, window.location.origin);
+      }, 1200);
+      return () => window.clearTimeout(t);
+    }
   }, [refreshKey]);
 
   return (

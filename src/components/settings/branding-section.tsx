@@ -1413,7 +1413,10 @@ export function BrandingSection() {
                       />
                       <button
                         type="button"
-                        onClick={() => toggleBenefit(b.id)}
+                        onClick={() => {
+                          toggleBenefit(b.id);
+                          enfocar("beneficios");
+                        }}
                         className={cn(
                           "h-8 shrink-0 rounded-full border px-3 text-xs font-semibold transition",
                           b.active
@@ -1425,7 +1428,10 @@ export function BrandingSection() {
                       </button>
                       <button
                         type="button"
-                        onClick={() => removeBenefit(b.id)}
+                        onClick={() => {
+                          removeBenefit(b.id);
+                          enfocar("beneficios");
+                        }}
                         className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-white/60 transition hover:border-rose-400/40 hover:text-rose-300"
                         aria-label="Eliminar"
                       >
@@ -1454,7 +1460,10 @@ export function BrandingSection() {
                 />
                 <button
                   type="button"
-                  onClick={addBenefit}
+                  onClick={() => {
+                    addBenefit();
+                    enfocar("beneficios");
+                  }}
                   disabled={benefits.length >= 12}
                   className="h-11 shrink-0 rounded-full border border-violet-400/50 bg-violet-500/20 px-5 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/30 disabled:cursor-not-allowed disabled:opacity-40"
                 >
