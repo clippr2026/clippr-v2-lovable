@@ -1790,12 +1790,6 @@ function SaludSection({
               )}
             </div>
           )}
-          {score && analytics.slotsTo75 > 0 && (
-            <p className="mt-3 text-xs leading-relaxed text-white/60">
-              <b className="text-emerald-300">Oportunidad:</b> llegando al <b className="text-white">75%</b> de ocupación ({analytics.slotsTo75} turnos más) sumarías
-              aproximadamente <b className="text-emerald-300">{fmtAR(Math.round(analytics.potentialAt75))}</b> sin sumar personal.
-            </p>
-          )}
         </section>
 
         <section className={tarjeta}>
