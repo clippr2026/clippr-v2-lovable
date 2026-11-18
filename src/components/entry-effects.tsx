@@ -20,7 +20,6 @@ export const ENTRY_EFFECTS: { key: Exclude<EntryEffectKey, "none">; label: strin
   { key: "flotar", label: "Flotar" },
   { key: "elastico", label: "Elástico" },
   { key: "cortina", label: "Cortina" },
-  { key: "revelar", label: "Revelar" },
   { key: "brillo", label: "Brillo" },
   { key: "vibrar", label: "Vibrar" },
   { key: "oscilar", label: "Oscilar" },
