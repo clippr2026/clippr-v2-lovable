@@ -1805,7 +1805,7 @@ export function BrandingSection() {
                   return (
                     <div
                       key={item.id}
-                      className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3 transition"
+                      className="grid grid-cols-[minmax(0,1fr)] gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3 transition"
                     >
                       {/* Imagen a la izquierda; nombre y tipo (Futbolista,
                           etc.) apilados a la derecha, uno debajo del otro —
@@ -1892,42 +1892,6 @@ export function BrandingSection() {
                               </option>
                             ))}
                           </select>
-                          {/* Futbolista: además de su foto, el club con su escudo. Marca, Artista y el resto: solo una imagen. */}
-                          {item.category === "Futbolista" ? (
-                            <div className="flex items-center gap-2">
-                              <label
-                                className={cn(
-                                  "group relative grid h-10 w-10 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-lg border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07]",
-                                  uploadingFeaturedClubLogoId === item.id && "cursor-not-allowed opacity-50",
-                                )}
-                                title="Escudo del club"
-                              >
-                                {item.club_logo_url ? (
-                                  <img src={item.club_logo_url} alt={item.club_name || "Escudo del club"} className="h-full w-full object-contain" />
-                                ) : (
-                                  <ImageIcon className="h-4 w-4 text-white/45" />
-                                )}
-                                <input
-                                  type="file"
-                                  accept="image/*"
-                                  className="hidden"
-                                  disabled={uploadingFeaturedClubLogoId === item.id}
-                                  onChange={(e) => {
-                                    const f = e.target.files?.[0] ?? null;
-                                    e.target.value = "";
-                                    handleFeaturedClubLogoSelect(item.id, f);
-                                  }}
-                                />
-                              </label>
-                              <input
-                                value={item.club_name}
-                                onChange={(e) => updateFeaturedClient(item.id, { club_name: e.target.value })}
-                                placeholder="Club (ej: Manchester United)"
-                                maxLength={MAX_FEATURED_CLUB_NAME_LENGTH}
-                                className="h-10 min-w-0 flex-1 rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
-                              />
-                            </div>
-                          ) : null}
                         </div>
                       </div>
 

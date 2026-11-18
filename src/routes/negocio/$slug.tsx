@@ -236,7 +236,8 @@ function normalizeFeaturedClients(value: unknown): FeaturedClient[] {
         image_url: typeof row.image_url === "string" ? row.image_url : "",
         active: row.active !== false,
         order: Number.isFinite(Number(row.order)) ? Number(row.order) : index,
-        club_name: typeof row.club_name === "string" ? row.club_name.trim() : "",
+        // El club y su escudo ya no se muestran: todos los tipos llevan solo una imagen.
+        club_name: "",
         club_logo_url: typeof row.club_logo_url === "string" ? row.club_logo_url : "",
       };
     })
