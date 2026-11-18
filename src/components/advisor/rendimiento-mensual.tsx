@@ -98,30 +98,30 @@ function Kpi({
   );
 }
 
-// Explicación corta del margen, con un ícono de info que abre/cierra el texto.
-function MargenInfo() {
-  const [open, setOpen] = React.useState(false);
+// Explicación corta del margen: se muestra en línea debajo de la fila (un globito se cortaba contra el borde de la tarjeta).
+function MargenInfoButton({ open, onToggle }: { open: boolean; onToggle: () => void }) {
   return (
-    <div className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-label="Qué es el margen"
-        aria-expanded={open}
-        className="grid size-5 place-items-center rounded-full border border-white/15 text-white/55 transition hover:text-white"
-      >
-        <Info className="size-3" />
-      </button>
-      {open && (
-        <div className="absolute bottom-7 left-0 z-30 w-72 max-w-[80vw] rounded-xl border border-white/15 bg-[#12141f] p-3 text-xs leading-relaxed text-white/75 shadow-xl">
-          <b className="text-white">Margen</b> es el porcentaje de lo que facturás que te queda como ganancia, después de pagar
-          los gastos y a los profesionales. Es Ganancia ÷ Facturación: con 30%, de cada $100 que entran te quedan $30.
-          <div className="mt-2 text-white/55">
-            Referencia general: menos de 15% es ajustado, entre 15% y 30% es sano y más de 30% es muy bueno. Si todavía no
-            cargaste los gastos del mes, el margen se ve más alto de lo real.
-          </div>
-        </div>
-      )}
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-label="Qué es el margen"
+      aria-expanded={open}
+      className="grid size-5 place-items-center rounded-full border border-white/15 text-white/55 transition hover:text-white"
+    >
+      <Info className="size-3" />
+    </button>
+  );
+}
+
+function MargenInfoTexto() {
+  return (
+    <div className="mt-2 rounded-2xl border border-white/[0.08] bg-white/[0.03] px-3.5 py-3 text-xs leading-relaxed text-white/70">
+      <b className="text-white">Margen:</b> de cada $100 que facturás, cuánto te queda de ganancia después de pagar los gastos y a los
+      profesionales. Con 30%, de cada $100 te quedan $30.
+      <div className="mt-2 text-white/50">
+        Menos de 15% es ajustado, entre 15% y 30% es sano y más de 30% es muy bueno. Si todavía no cargaste los gastos del mes, el
+        margen se ve más alto de lo real.
+      </div>
     </div>
   );
 }
@@ -190,6 +190,28 @@ export function RendimientoMensual({ monthKey: controlledMonthKey }: Rendimiento
   const monthKey = controlledMonthKey ?? currentMonth;
   const isCurrentMonth = monthKey >= currentMonth;
   const [detalle, setDetalle] = React.useState<DetalleKind | null>(null);
+  const [margenInfo, setMargenInfo] = React.useState(false);
+  // Al cerrar un detalle se vuelve al mismo lugar de la pantalla donde se estaba.
+  const raiz = React.useRef<HTMLDivElement | null>(null);
+  const scrollGuardado = React.useRef<{ el: HTMLElement; top: number } | null>(null);
+  function abrirDetalle(k: DetalleKind) {
+    let el: HTMLElement | null = raiz.current;
+    while (el && el !== document.body) {
+      const ov = getComputedStyle(el).overflowY;
+      if ((ov === "auto" || ov === "scroll") && el.scrollHeight > el.clientHeight) break;
+      el = el.parentElement;
+    }
+    const cont = (el && el !== document.body ? el : (document.scrollingElement as HTMLElement | null)) ?? null;
+    scrollGuardado.current = cont ? { el: cont, top: cont.scrollTop } : null;
+    setDetalle(k);
+  }
+  function cerrarDetalle() {
+    setDetalle(null);
+    const g = scrollGuardado.current;
+    if (g) {
+      for (const ms of [0, 60, 250]) window.setTimeout(() => g.el.scrollTo({ top: g.top }), ms);
+    }
+  }
 
   const current = useMonthlyPerformance(businessId, activeBranchId, monthKey);
   // Mes en curso: se compara contra el MISMO período del mes anterior (del 1 al día de hoy),
@@ -225,11 +247,13 @@ export function RendimientoMensual({ monthKey: controlledMonthKey }: Rendimiento
     if (!ok) toast.error("El navegador bloqueó la ventana. Permití ventanas emergentes para exportar el PDF.");
   }
 
-  const totalMetodos = perf?.metodos.reduce((s, m) => s + m.monto, 0) ?? 0;
+  // "Seña" y "Sin cobrar" no son medios de pago: no se listan acá (lo sin cobrar ya tiene su aviso).
+  const metodosReales = perf?.metodos.filter((m) => m.key !== "sena" && m.key !== "sin_cobrar") ?? [];
+  const totalMetodos = metodosReales.reduce((s, m) => s + m.monto, 0);
   const maxGasto = perf ? Math.max(1, ...perf.gastosPorTipo.map((g) => g.total)) : 1;
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-4 sm:space-y-5">
+    <div ref={raiz} className="mx-auto w-full max-w-5xl space-y-4 sm:space-y-5">
       <div className="flex flex-wrap items-center justify-end gap-3">
         <button
           type="button"
@@ -274,7 +298,7 @@ export function RendimientoMensual({ monthKey: controlledMonthKey }: Rendimiento
               <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.03] px-3.5 py-2.5 text-sm">
                 <span className="flex items-center gap-2 text-white/60">
                   Margen
-                  <MargenInfo />
+                  <MargenInfoButton open={margenInfo} onToggle={() => setMargenInfo((v) => !v)} />
                 </span>
                 <span className="flex flex-wrap items-center justify-end gap-x-3 gap-y-0.5">
                   {canCompare && comparable!.margen != null ? (
@@ -295,6 +319,7 @@ export function RendimientoMensual({ monthKey: controlledMonthKey }: Rendimiento
                 </span>
               </div>
             )}
+            {margenInfo && <MargenInfoTexto />}
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
@@ -302,22 +327,22 @@ export function RendimientoMensual({ monthKey: controlledMonthKey }: Rendimiento
               label="Facturación"
               value={money(perf.facturacion)}
               sub={<DeltaValue pct={canCompare ? variationPct(perf.facturacion, comparable!.facturacion) : null} label={vsLabel} partialStart={prevIsStart} />}
-              onDetail={() => setDetalle("facturacion")}
+              onDetail={() => abrirDetalle("facturacion")}
             />
-            <Kpi label="Gastos" value={money(perf.gastosTotal)} onDetail={() => setDetalle("gastos")} />
-            <Kpi label="Pago a profesionales" value={money(perf.pagoProfesionales)} onDetail={() => setDetalle("profesionales")} />
+            <Kpi label="Gastos" value={money(perf.gastosTotal)} onDetail={() => abrirDetalle("gastos")} />
+            <Kpi label="Pago a profesionales" value={money(perf.pagoProfesionales)} onDetail={() => abrirDetalle("profesionales")} />
             <Kpi
               label="Ventas"
               value={perf.ventas.toLocaleString("es-AR")}
               sub={<DeltaValue pct={canCompare ? variationPct(perf.ventas, comparable!.ventas) : null} label={vsLabel} partialStart={prevIsStart} />}
-              onDetail={() => setDetalle("ventas")}
+              onDetail={() => abrirDetalle("ventas")}
             />
-            <Kpi label="Ticket promedio" value={money(perf.ticket)} onDetail={() => setDetalle("ticket")} />
-            <Kpi label="Clientes atendidos" value={perf.clientes.toLocaleString("es-AR")} onDetail={() => setDetalle("clientes")} />
+            <Kpi label="Ticket promedio" value={money(perf.ticket)} onDetail={() => abrirDetalle("ticket")} />
+            <Kpi label="Clientes atendidos" value={perf.clientes.toLocaleString("es-AR")} onDetail={() => abrirDetalle("clientes")} />
           </div>
           <DetalleSheet
             kind={detalle}
-            onClose={() => setDetalle(null)}
+            onClose={cerrarDetalle}
             monthKey={monthKey}
             perf={perf}
             prev={comparable}
@@ -334,7 +359,7 @@ export function RendimientoMensual({ monthKey: controlledMonthKey }: Rendimiento
           <div className="grid gap-4 lg:grid-cols-2">
             <Section title="Medios de pago">
               <div className="space-y-2.5">
-                {perf.metodos.map((m) => {
+                {metodosReales.map((m) => {
                   const pct = totalMetodos > 0 ? (m.monto / totalMetodos) * 100 : 0;
                   return (
                     <div key={m.key}>
@@ -369,59 +394,10 @@ export function RendimientoMensual({ monthKey: controlledMonthKey }: Rendimiento
                       </div>
                     </div>
                   ))}
-                  <div className="pt-1 text-[11px] text-white/40">
-                    Incluye {money(perf.gastosExternos)} de Fondos externos y {money(perf.gastosCaja)} de caja.
-                  </div>
                 </div>
               )}
             </Section>
           </div>
-
-          <Section title="Por profesional">
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[34rem] text-sm">
-                <thead>
-                  <tr className="text-left text-[10px] uppercase tracking-[0.12em] text-white/40">
-                    <th className="pb-2 pr-3 font-semibold">Profesional</th>
-                    <th className="pb-2 pr-3 text-right font-semibold">Facturación</th>
-                    <th className="pb-2 pr-3 text-right font-semibold">Ventas</th>
-                    <th className="pb-2 pr-3 text-right font-semibold">Comisión</th>
-                    <th className="pb-2 text-right font-semibold">Puntualidad</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {perf.profesionales.map((p) => (
-                    <tr key={p.id} className="border-t border-white/[0.06]">
-                      <td className="py-2 pr-3 font-semibold text-white">{p.name}</td>
-                      <td className="py-2 pr-3 text-right tabular-nums text-white">{money(p.facturacion)}</td>
-                      <td className="py-2 pr-3 text-right tabular-nums text-white/70">{p.ventas}</td>
-                      <td className="py-2 pr-3 text-right tabular-nums text-violet-300">{money(p.comision)}</td>
-                      <td className="py-2 text-right text-xs tabular-nums">
-                        {p.tardes + p.ausencias === 0 ? (
-                          <span className="text-emerald-300">Sin faltas</span>
-                        ) : (
-                          <span className="text-rose-300">
-                            {p.tardes > 0 ? `${p.tardes} tarde${p.tardes > 1 ? "s" : ""}` : ""}
-                            {p.tardes > 0 && p.ausencias > 0 ? " · " : ""}
-                            {p.ausencias > 0 ? `${p.ausencias} ausencia${p.ausencias > 1 ? "s" : ""}` : ""}
-                            {p.descuentoPuntualidad > 0 ? ` · ${money(-p.descuentoPuntualidad)}` : ""}
-                          </span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </Section>
-
-          <p className="px-1 text-[11px] leading-relaxed text-white/35">
-            La facturación cuenta lo vendido en el mes en que se hizo el servicio, aunque se cobre después: las ventas anuladas
-            quedan afuera. Los gastos incluyen Caja del día y Fondos externos. El pago a profesionales son las comisiones de las ventas
-            del mes (aunque se cobren después), neto de los descuentos de puntualidad. La facturación incluye los consumos de profesionales
-            (productos retirados del inventario y anotados como adelanto), que cuentan en el mes del retiro aunque se descuenten
-            después al liquidar. Las propinas no entran en la facturación.
-          </p>
         </>
       )}
     </div>

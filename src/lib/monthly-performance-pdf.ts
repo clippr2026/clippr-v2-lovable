@@ -12,6 +12,9 @@ const METHOD_LABEL: Record<string, string> = {
   mp: "Mercado Pago",
   qr: "QR",
   cuenta: "Cuenta",
+  debit: "Débito",
+  credit: "Crédito",
+  efectivo: "Efectivo",
   sin_cobrar: "Sin cobrar",
 };
 export const methodLabel = (key: string) =>
@@ -33,10 +36,11 @@ export function buildMonthlyPerformanceHtml(
   vsLabel = "vs mes anterior",
 ): string {
   const label = monthLabel(perf.monthKey);
-  const totalMetodos = perf.metodos.reduce((s, m) => s + m.monto, 0);
+  const metodosReales = perf.metodos.filter((m) => m.key !== "sena" && m.key !== "sin_cobrar");
+  const totalMetodos = metodosReales.reduce((s, m) => s + m.monto, 0);
   const row = (a: string, b: string, cls = "") => `<tr class="${cls}"><td>${a}</td><td class="r">${b}</td></tr>`;
 
-  const metodos = perf.metodos
+  const metodos = metodosReales
     .map((m) =>
       row(
         esc(methodLabel(m.key)),

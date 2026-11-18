@@ -407,24 +407,8 @@ function AdvisorContent({
           {/* Mismo fix que Salud del negocio: overflow-hidden contiene el
               glow decorativo (-inset-x-6) para que no fuerce scroll
               horizontal en toda la página. */}
-          <div className="relative overflow-hidden rounded-[1.7rem] border border-sky-300/[0.30] bg-white/[0.018] p-2.5 pt-14 shadow-[0_0_0_1px_rgba(56,189,248,0.16),0_24px_90px_-42px_rgba(14,165,233,0.9)] sm:p-3 sm:pt-16">
+          <div className="relative overflow-hidden rounded-[1.7rem] border border-sky-300/[0.30] bg-white/[0.018] p-2.5 pt-4 shadow-[0_0_0_1px_rgba(56,189,248,0.16),0_24px_90px_-42px_rgba(14,165,233,0.9)] sm:p-3 sm:pt-5">
             <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-sky-400/[0.16] blur-3xl" />
-            {/* Ver mismo comentario en Salud del negocio: "Cómo funciona"
-                una sola vez por sección, en la esquina superior derecha del
-                bloque completo — antes vivía adentro del bloque de
-                "Crecimiento mensual" y podía superponerse al porcentaje.
-                pt-14/16 + más margen del borde: mismo fix que Salud del
-                negocio (el botón quedaba dentro de la curva del borde
-                redondeado grande y se veía cortado/colgando). */}
-            <button
-              type="button"
-              onClick={() => setInfoModal(INFO_CONTENT.growth)}
-              className="absolute right-4 top-4 z-20 inline-flex h-6 shrink-0 items-center justify-center gap-1.5 rounded-full border border-sky-300/35 bg-sky-300/10 px-2 text-[11px] font-bold text-sky-200 transition hover:border-sky-200/55 hover:bg-sky-300/16 hover:text-white sm:right-5 sm:top-5 sm:h-7 sm:px-2.5"
-              aria-label="Cómo funciona crecimiento"
-            >
-              <CircleHelp className="h-3 w-3" />
-              <span className="hidden sm:inline">Cómo funciona</span>
-            </button>
             <MesSelector
               monthKey={selectedMonthKey}
               onMonthKeyChange={setSelectedMonthKey}

@@ -1,8 +1,9 @@
 import * as React from "react";
+import { X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useClientsData } from "@/hooks/use-clients-data";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { monthLabel, variationPct, type MonthlyPerformance } from "@/lib/monthly-performance";
 import {
@@ -681,9 +682,16 @@ export function DetalleSheet({
     <Sheet open={kind !== null} onOpenChange={(open) => !open && onClose()}>
       <SheetContent
         side="right"
+        hideClose
         className="w-full overflow-y-auto border-white/10 bg-[#0b0d17] p-4 text-white sm:max-w-2xl sm:p-6"
       >
-        <SheetHeader className="mb-4 text-left">
+        <SheetClose
+          aria-label="Cerrar"
+          className="absolute right-3 top-3 z-10 grid h-11 w-11 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-white/80 transition hover:bg-white/[0.12]"
+        >
+          <X className="h-5 w-5" />
+        </SheetClose>
+        <SheetHeader className="mb-4 pr-12 text-left">
           <SheetTitle className="text-xl text-white">{kind ? TITLES[kind] : ""}</SheetTitle>
           <SheetDescription className="text-white/50">{monthLabel(monthKey)} · detalle y estadísticas</SheetDescription>
         </SheetHeader>
