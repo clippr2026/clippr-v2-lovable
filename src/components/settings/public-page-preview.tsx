@@ -30,7 +30,10 @@ export function PublicPagePreview({
   onEditor,
   large = false,
   reserve = 170,
+  focusSection,
 }: {
+  /** Sección de la página donde se muestra el campo que se está escribiendo (n cambia en cada foco). */
+  focusSection?: { id: string; n: number } | null;
   slug: string;
   draft: PreviewDraft;
   refreshKey: number;
@@ -136,6 +139,11 @@ export function PublicPagePreview({
   React.useEffect(() => {
     post();
   }, [post]);
+
+  React.useEffect(() => {
+    if (!focusSection || !ready) return;
+    iframeRef.current?.contentWindow?.postMessage({ type: "clippr:preview-focus", section: focusSection.id }, window.location.origin);
+  }, [focusSection, ready]);
 
   // Cuando se guardan datos que no viajan en vivo (textos, beneficios...), la página
   // se actualiza sola por adentro, sin recargar ni mostrar la pantalla de carga.

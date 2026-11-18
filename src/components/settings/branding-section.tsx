@@ -418,6 +418,9 @@ export function BrandingSection() {
   const [effectNonce, setEffectNonce] = useState(0);
   const [showAdvancedColors, setShowAdvancedColors] = useState(false);
   const [benefits, setBenefits] = useState<Benefit[]>([]);
+  // Campo que se está escribiendo: la vista previa se desplaza hasta el lugar de la página donde se muestra.
+  const [focusSection, setFocusSection] = useState<{ id: string; n: number } | null>(null);
+  const enfocar = (id: string) => setFocusSection((f) => ({ id, n: (f?.n ?? 0) + 1 }));
   const [customBenefit, setCustomBenefit] = useState("");
 
   useEffect(() => {
@@ -1267,6 +1270,7 @@ export function BrandingSection() {
       refreshKey={previewKey}
       large
       reserve={200}
+      focusSection={focusSection}
       onClose={() => setEditorMode(false)}
     />
   ) : null;
@@ -1274,8 +1278,7 @@ export function BrandingSection() {
   const formContent = (
     <>
       <div
-        className="grid grid-cols-4 gap-1 rounded-2xl border border-white/10 p-1.5"
-        style={{ background: "linear-gradient(90deg, rgba(56,189,248,0.10), rgba(139,92,246,0.14))" }}
+        className="grid grid-cols-4 gap-1 rounded-full border border-white/10 bg-white/[0.04] p-1"
       >
         {(
           [
@@ -1290,10 +1293,10 @@ export function BrandingSection() {
             type="button"
             onClick={() => setActiveTab(id)}
             className={
-              "whitespace-nowrap rounded-xl px-1 py-2 text-xs font-semibold transition sm:text-sm " +
+              "h-10 whitespace-nowrap rounded-full px-1 text-xs font-semibold transition sm:text-sm " +
               (activeTab === id
-                ? "bg-gradient-to-r from-sky-400 to-violet-500 text-white shadow-[0_6px_18px_-6px_rgba(139,92,246,0.8)]"
-                : "text-muted-foreground hover:bg-white/[0.08] hover:text-foreground")
+                ? "bg-gradient-to-r from-sky-400 to-violet-500 text-background"
+                : "text-white/60 hover:text-white")
             }
           >
             {label}
@@ -1304,146 +1307,118 @@ export function BrandingSection() {
       {activeTab === "info" && (
         <>
 
-          <SectionCard label="Información del negocio">
-            <div className="divide-y divide-white/5">
+          <SectionCard clippr label="Información del negocio">
+            <div className="space-y-3.5">
               {infoRows.map((f) => {
                 const Icon = f.icon;
+                const seccion = ({ name: "hero", address: "mapa", phone: "contacto", email: "contacto", instagram: "contacto" } as Record<string, string>)[String(f.key)];
                 return (
-                  <div
-                    key={f.key}
-                    className="flex items-center gap-4 py-3 first:pt-0 last:pb-0"
-                  >
-                    <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
-                      <Icon className="h-4.5 w-4.5 text-muted-foreground" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm">{f.label}</div>
-                    </div>
-                    <div className="w-72 max-w-[55%]">
+                  <label key={f.key} className="flex items-start gap-3">
+                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.04] mt-6"><Icon className="h-4 w-4 text-white/70" /></span>
+                    <span className="min-w-0 flex-1">
+                      <span className="mb-1.5 block text-sm font-semibold text-white">{f.label}</span>
                       <input
                         type={f.type ?? "text"}
                         value={(data[f.key] as string) ?? ""}
                         onChange={set(f.key)}
-                        className="w-full rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+                        onFocus={() => seccion && enfocar(seccion)}
+                        className="h-11 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
                       />
-                    </div>
-                  </div>
+                    </span>
+                  </label>
                 );
               })}
-              <div className="flex items-center gap-4 py-3">
-                <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
-                  <CalendarDays className="h-4.5 w-4.5 text-muted-foreground" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm">
-                    Fecha de inicio del negocio
-                  </div>
-                </div>
-                <div className="w-72 max-w-[55%]">
+              <label className="flex items-start gap-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.04] mt-6"><CalendarDays className="h-4 w-4 text-white/70" /></span>
+                <span className="min-w-0 flex-1">
+                  <span className="mb-1.5 block text-sm font-semibold text-white">Fecha de inicio del negocio</span>
                   <input
                     type="date"
                     value={data.business_start_date}
-                    onChange={(e) =>
-                      setData((d) => ({
-                        ...d,
-                        business_start_date: e.target.value,
-                      }))
-                    }
-                    className="w-full rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40 [color-scheme:dark]"
+                    onChange={(e) => setData((d) => ({ ...d, business_start_date: e.target.value }))}
+                    onFocus={() => enfocar("hero")}
+                    className="h-11 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-violet-400/50 [color-scheme:dark]"
                   />
-                </div>
-              </div>
-              {/* Layout distinto al resto de las filas a propósito: acá el
-                  campo va DEBAJO del label (no al costado) y la URL
-                  completa queda como texto secundario chico debajo del
-                  campo — así se lee como "lo que escribo" + "cómo queda",
-                  no como dos datos separados compitiendo por espacio. */}
-              <div className="flex items-start gap-4 py-3">
-                <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
-                  <Globe className="h-4.5 w-4.5 text-muted-foreground" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm mb-1.5">URL pública</div>
+                </span>
+              </label>
+              {/* La URL no tiene un lugar en la página: se muestra abajo como texto chico, cómo va a quedar el link. */}
+              <label className="flex items-start gap-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.04] mt-6"><Globe className="h-4 w-4 text-white/70" /></span>
+                <span className="min-w-0 flex-1">
+                  <span className="mb-1.5 block text-sm font-semibold text-white">URL pública</span>
                   <input
                     type="text"
                     value={data.slug}
-                    onChange={(e) =>
-                      setData((d) => ({
-                        ...d,
-                        slug: slugifyLive(e.target.value),
-                      }))
-                    }
-                    onBlur={() =>
-                      setData((d) => ({ ...d, slug: slugify(d.slug) }))
-                    }
+                    onChange={(e) => setData((d) => ({ ...d, slug: slugifyLive(e.target.value) }))}
+                    onBlur={() => setData((d) => ({ ...d, slug: slugify(d.slug) }))}
                     placeholder="auro-styloff"
-                    className="w-full max-w-xs rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40"
+                    className="h-11 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
                   />
-                  <div className="mt-1.5 text-[11px] text-muted-foreground/55 break-all">
+                  <span className="mt-1.5 block break-all text-[11px] text-white/50">
                     {publicSiteOriginShort}/negocio/{slugify(data.slug) || slugify(data.name) || "tu-negocio"}
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-start gap-4 py-3 last:pb-0">
-                <div className="h-10 w-10 rounded-xl bg-white/5 ring-1 ring-white/10 grid place-items-center shrink-0">
-                  <FileText className="h-4.5 w-4.5 text-muted-foreground" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium text-sm">Descripción</div>
-                </div>
-                <textarea
-                  value={data.description}
-                  onChange={set("description")}
-                  rows={3}
-                  className="w-72 max-w-[55%] rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-primary/40"
-                />
-              </div>
+                  </span>
+                </span>
+              </label>
+              <label className="flex items-start gap-3">
+                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.04] mt-6"><FileText className="h-4 w-4 text-white/70" /></span>
+                <span className="min-w-0 flex-1">
+                  <span className="mb-1.5 block text-sm font-semibold text-white">Descripción</span>
+                  <textarea
+                    value={data.description}
+                    onChange={set("description")}
+                    onFocus={() => enfocar("acerca")}
+                    rows={4}
+                    className="w-full resize-none rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
+                  />
+                </span>
+              </label>
             </div>
           </SectionCard>
 
-          <SectionCard label="Beneficios del negocio">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between gap-3">
-                <span
-                  className={cn(
-                    "shrink-0 text-xs font-semibold",
-                    benefits.length >= 12 ? "text-violet-300" : "text-white/45",
-                  )}
-                >
-                  {benefits.length}/12
-                </span>
-              </div>
-
+          <SectionCard
+            clippr
+            label="Beneficios del negocio"
+            headerRight={
+              <span
+                className={cn(
+                  "rounded-full border px-2.5 py-0.5 text-xs font-semibold tabular-nums",
+                  benefits.length >= 12 ? "border-violet-400/50 bg-violet-500/20 text-violet-100" : "border-white/10 bg-white/[0.04] text-white/60",
+                )}
+              >
+                {benefits.length}/12
+              </span>
+            }
+          >
+            <div className="space-y-3">
               {benefits.length === 0 ? (
-                <div className="rounded-lg border border-dashed border-white/10 bg-white/[0.03] p-3 text-center text-xs text-muted-foreground">
+                <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.03] p-3 text-center text-sm text-white/55">
                   Todavía no cargaste beneficios.
                 </div>
               ) : (
-                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="space-y-2">
                   {benefits.map((b) => (
                     <div
                       key={b.id}
                       className={cn(
-                        "flex min-w-0 items-center gap-2 rounded-full border px-3 py-2 transition",
-                        b.active
-                          ? "border-emerald-500/25 bg-emerald-500/10"
-                          : "border-white/10 bg-white/[0.05] opacity-75",
+                        "flex min-w-0 items-center gap-2 rounded-full border py-1.5 pl-4 pr-2 transition",
+                        b.active ? "border-emerald-400/30 bg-emerald-400/[0.08]" : "border-white/10 bg-white/[0.04]",
                       )}
                     >
                       <input
                         value={b.label}
                         maxLength={35}
                         onChange={(e) => updateBenefit(b.id, e.target.value)}
-                        className="min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none"
+                        onFocus={() => enfocar("beneficios")}
+                        className={cn("h-8 min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none", b.active ? "text-white" : "text-white/55")}
                       />
                       <button
                         type="button"
                         onClick={() => toggleBenefit(b.id)}
                         className={cn(
-                          "shrink-0 rounded-full px-2 py-1 text-[10px] font-bold ring-1 transition",
+                          "h-8 shrink-0 rounded-full border px-3 text-xs font-semibold transition",
                           b.active
-                            ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30"
-                            : "bg-white/5 text-muted-foreground ring-white/10",
+                            ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-200"
+                            : "border-white/10 bg-white/[0.05] text-white/60",
                         )}
                       >
                         {b.active ? "Activo" : "Inactivo"}
@@ -1451,7 +1426,7 @@ export function BrandingSection() {
                       <button
                         type="button"
                         onClick={() => removeBenefit(b.id)}
-                        className="shrink-0 text-red-300 hover:text-red-200"
+                        className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-white/60 transition hover:border-rose-400/40 hover:text-rose-300"
                         aria-label="Eliminar"
                       >
                         <X className="h-3.5 w-3.5" />
@@ -1464,9 +1439,8 @@ export function BrandingSection() {
               <div className="flex gap-2">
                 <input
                   value={customBenefit}
-                  onChange={(e) =>
-                    setCustomBenefit(e.target.value.slice(0, 35))
-                  }
+                  onChange={(e) => setCustomBenefit(e.target.value.slice(0, 35))}
+                  onFocus={() => enfocar("beneficios")}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
@@ -1476,21 +1450,19 @@ export function BrandingSection() {
                   maxLength={35}
                   disabled={benefits.length >= 12}
                   placeholder="Agregar beneficio..."
-                  className="flex-1 rounded-full bg-white/5 ring-1 ring-white/10 px-4 py-2 text-sm focus:outline-none focus:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="h-11 min-w-0 flex-1 rounded-full border border-white/10 bg-white/[0.04] px-4 text-sm text-white outline-none placeholder:text-white/35 focus:border-violet-400/50 disabled:cursor-not-allowed disabled:opacity-40"
                 />
                 <button
                   type="button"
                   onClick={addBenefit}
                   disabled={benefits.length >= 12}
-                  className="rounded-full bg-white/8 px-4 py-2 text-sm font-semibold ring-1 ring-white/10 hover:bg-white/12 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="h-11 shrink-0 rounded-full border border-violet-400/50 bg-violet-500/20 px-5 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/30 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   Agregar
                 </button>
               </div>
               {benefits.length >= 12 ? (
-                <p className="text-xs font-medium text-violet-300">
-                  Has alcanzado el máximo de 12 beneficios.
-                </p>
+                <p className="text-xs font-medium text-violet-300">Llegaste al máximo de 12 beneficios.</p>
               ) : null}
             </div>
           </SectionCard>
@@ -1499,7 +1471,7 @@ export function BrandingSection() {
 
       {activeTab === "imagenes" && (
         <>
-          <SectionCard label="Imágenes" id="pagina-reservas-imagenes">
+          <SectionCard clippr label="Imágenes" id="pagina-reservas-imagenes">
             <div className="space-y-5">
               {/* Foto de perfil */}
               <div className="flex flex-col items-center border-b border-white/5 pb-5 last:border-b-0 last:pb-0">
@@ -1709,7 +1681,7 @@ export function BrandingSection() {
             </div>
           </SectionCard>
 
-          <SectionCard label="">
+          <SectionCard clippr label="">
             <div className="space-y-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
@@ -1922,7 +1894,7 @@ export function BrandingSection() {
       )}
 
       {activeTab === "efectos" && (
-        <SectionCard label="Efectos de entrada">
+        <SectionCard clippr label="Efectos de entrada">
           <p className="text-xs text-white/55">Tocá uno para elegirlo y verlo en la vista previa.</p>
           <div className="mt-3 grid grid-cols-2 gap-2">
             {ENTRY_EFFECTS.map((fx) => {
@@ -1964,7 +1936,7 @@ export function BrandingSection() {
 
       {activeTab === "colores" && (
         <>
-          <SectionCard label="Colores">
+          <SectionCard clippr label="Colores">
             <div>
               <h3 className="text-sm font-semibold">Fondo blanco o negro</h3>
               <div className="mt-3 grid max-w-sm grid-cols-2 gap-2 rounded-2xl border border-white/10 bg-white/5 p-1">

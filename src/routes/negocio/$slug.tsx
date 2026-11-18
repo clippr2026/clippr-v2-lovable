@@ -643,6 +643,26 @@ function PublicProfilePage() {
         setReloadTick((t) => t + 1);
         return;
       }
+      // El editor avisa qué campo se está escribiendo: la vista previa se desplaza hasta el lugar donde se muestra.
+      if (d && d.type === "clippr:preview-focus") {
+        const section = (d as { section?: string }).section;
+        if (section === "hero") {
+          window.scrollTo({ top: 0, behavior: "smooth" });
+          return;
+        }
+        const el = section ? (document.querySelector(`[data-preview-section="${section}"]`) as HTMLElement | null) : null;
+        if (el) {
+          el.scrollIntoView({ behavior: "smooth", block: "center" });
+          el.style.transition = "outline-color .3s";
+          el.style.outline = "2px solid rgba(139,92,246,.95)";
+          el.style.outlineOffset = "6px";
+          el.style.borderRadius = "20px";
+          window.setTimeout(() => {
+            el.style.outline = "2px solid transparent";
+          }, 1600);
+        }
+        return;
+      }
       if (!d || d.type !== "clippr:preview-draft" || !d.draft) return;
       const dr = d.draft;
       if (dr.colors && typeof dr.colors === "object") setColors(dr.colors as LandingColors);
@@ -1305,7 +1325,7 @@ function PublicProfilePage() {
 
           {(description || portfolio.length > 0) ? (
             <GlowCard>
-              <div className="p-5 sm:p-6">
+              <div className="p-5 sm:p-6" data-preview-section="acerca">
                 <div className="flex items-center gap-3">
                   <span className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/5" style={{ color: cAccent }}>
                     <Info className="h-5 w-5" />
@@ -1335,7 +1355,7 @@ function PublicProfilePage() {
 
           {business.address ? (
             <GlowCard className="overflow-hidden">
-              <div className="p-5 sm:p-6">
+              <div className="p-5 sm:p-6" data-preview-section="mapa">
                 <div className="flex items-center gap-3">
                   <span className="grid h-10 w-10 place-items-center rounded-2xl border border-white/10 bg-white/5" style={{ color: cAccent }}>
                     <MapPin className="h-5 w-5" />
@@ -1490,7 +1510,7 @@ function PublicProfilePage() {
 
 
       {additionalInfo.length > 0 ? (
-        <section className="mx-auto max-w-6xl px-4 pb-6">
+        <section className="mx-auto max-w-6xl px-4 pb-6" data-preview-section="beneficios">
           <GlowCard className="overflow-hidden">
             <div className="p-5 sm:p-6">
               <h2 className="text-2xl font-semibold">Beneficios del negocio</h2>
@@ -1530,7 +1550,7 @@ function PublicProfilePage() {
         </section>
       ) : null}
 
-      <section className="mx-auto max-w-6xl px-4 pb-6">
+      <section className="mx-auto max-w-6xl px-4 pb-6" data-preview-section="contacto">
         <GlowCard className="overflow-hidden">
           <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:p-6">
             <div className="flex items-center gap-3">

@@ -23,7 +23,10 @@ export function SectionCard({
   headerRight,
   children,
   id,
+  clippr = false,
 }: {
+  /** Estilo Clippr: tarjeta con luz y título en minúscula, blanco y semibold. */
+  clippr?: boolean;
   // Normalmente un string, pero acepta cualquier nodo (ej. ícono + texto
   // coloreados) para secciones que quieren reforzar su identidad visual.
   label: React.ReactNode;
@@ -34,10 +37,21 @@ export function SectionCard({
   id?: string;
 }) {
   return (
-    <div id={id} className="glass rounded-2xl p-4 ring-1 ring-white/5">
+    <div
+      id={id}
+      className={clippr ? "rounded-2xl border border-white/10 bg-white/[0.03] p-4" : "glass rounded-2xl p-4 ring-1 ring-white/5"}
+      style={
+        clippr
+          ? {
+              backgroundImage:
+                "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.16), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.12), transparent 65%)",
+            }
+          : undefined
+      }
+    >
       {label ? (
         <div className={cn("flex items-center justify-between gap-3", headerRight ? "mb-3" : "mb-4")}>
-          <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
+          <div className={clippr ? "text-sm font-semibold text-white" : "text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70"}>
             {label}
           </div>
           {headerRight}
