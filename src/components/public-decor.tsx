@@ -164,46 +164,23 @@ export function PublicDecor({
       [60, 50, 20], [170, 210, 14], [260, 90, 18], [380, 250, 12], [470, 40, 16], [600, 270, 20], [700, 70, 14],
       [820, 230, 18], [930, 60, 22], [1040, 200, 15], [1130, 90, 19], [1160, 250, 13], [540, 150, 11], [310, 160, 10],
     ];
+    // Fijas (sin movimiento) y por DETRÁS del contenido: nunca tapan textos ni botones.
     return (
-      <>
-        <style>{css}</style>
-        <svg className="pointer-events-none absolute inset-0 z-[5] h-full w-full" viewBox="0 0 1200 300" preserveAspectRatio="xMidYMid slice" aria-hidden>
-          {/* Puntitos de fondo */}
-          {Array.from({ length: 36 }).map((_, i) => (
-            <circle
-              key={`p${i}`}
-              className="dc-anim"
-              cx={(i * 131 + 40) % 1200}
-              cy={(i * 73 + 20) % 300}
-              r={1.6 + (i % 3) * 0.8}
-              fill="#ffffff"
-              style={{ animation: `dcTwinkle ${1.2 + (i % 5) * 0.4}s ease-in-out ${(i % 7) * 0.25}s infinite` }}
-            />
-          ))}
-          {/* Estrellas grandes con halo */}
-          {grandes.map(([x, y, r], i) => {
-            const c = colores[i % colores.length];
-            return (
-              <g key={i} className="dc-anim" style={{ transformOrigin: `${x}px ${y}px`, animation: `dcPulse ${1.8 + (i % 4) * 0.5}s ease-in-out ${i * 0.18}s infinite` }}>
-                <circle cx={x} cy={y} r={r * 2.1} fill={c} opacity=".16" />
-                <path d={star(x, y, r)} fill={c} style={{ filter: `drop-shadow(0 0 7px ${c})` }} />
-                <path d={star(x, y, r * 0.42)} fill="#ffffff" />
-              </g>
-            );
-          })}
-          {/* Estrella fugaz */}
-          <g className="dc-anim" style={{ animation: "dcShoot 6s ease-in 1s infinite" }}>
-            <line x1="1100" y1="20" x2="1180" y2="-10" stroke="url(#dcShootGrad)" strokeWidth="3" strokeLinecap="round" />
-            <circle cx="1100" cy="20" r="3.5" fill="#ffffff" style={{ filter: "drop-shadow(0 0 6px #ffffff)" }} />
-          </g>
-          <defs>
-            <linearGradient id="dcShootGrad" x1="0" y1="0" x2="1" y2="0">
-              <stop offset="0" stopColor="#ffffff" />
-              <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
-            </linearGradient>
-          </defs>
-        </svg>
-      </>
+      <svg className="pointer-events-none absolute inset-0 z-0 h-full w-full" viewBox="0 0 1200 300" preserveAspectRatio="xMidYMid slice" aria-hidden>
+        {Array.from({ length: 36 }).map((_, i) => (
+          <circle key={`p${i}`} cx={(i * 131 + 40) % 1200} cy={(i * 73 + 20) % 300} r={1.6 + (i % 3) * 0.8} fill="#ffffff" opacity={0.55 + (i % 4) * 0.1} />
+        ))}
+        {grandes.map(([x, y, r], i) => {
+          const c = colores[i % colores.length];
+          return (
+            <g key={i}>
+              <circle cx={x} cy={y} r={r * 2.1} fill={c} opacity=".14" />
+              <path d={star(x, y, r)} fill={c} style={{ filter: `drop-shadow(0 0 6px ${c})` }} />
+              <path d={star(x, y, r * 0.42)} fill="#ffffff" />
+            </g>
+          );
+        })}
+      </svg>
     );
   }
 
