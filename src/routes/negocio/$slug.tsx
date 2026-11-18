@@ -740,6 +740,16 @@ function PublicProfilePage() {
           setEffectRun((r) => r + 1);
         }, 1700);
       }
+      if (typeof dr.description === "string") setDescription(dr.description.trim());
+      if (Array.isArray(dr.additionalInfo)) setAdditionalInfo(normalizeAdditionalInfo(dr.additionalInfo));
+      if (Array.isArray(dr.portfolioUrls)) setPortfolioUrls(normalizePortfolio(dr.portfolioUrls));
+      if (Array.isArray(dr.portfolioPositions)) setPortfolioPositions(dr.portfolioPositions as string[]);
+      if (Array.isArray(dr.featuredClients)) setFeaturedClients(normalizeFeaturedClients(dr.featuredClients));
+      if (dr.featuredPositions && typeof dr.featuredPositions === "object") setFeaturedPositions(dr.featuredPositions as Record<string, string>);
+      if ("startDate" in dr) {
+        const sd = typeof dr.startDate === "string" && dr.startDate ? (dr.startDate as string) : null;
+        setHeaderStats((h) => ({ clientsAttended: h?.clientsAttended ?? 0, servicesCompleted: h?.servicesCompleted ?? 0, startDate: sd }));
+      }
       if (typeof dr.coverPosition === "string") setCoverPosition(dr.coverPosition);
       if (typeof dr.avatarPosition === "string") setAvatarPosition(dr.avatarPosition);
       setBusiness((b) =>
@@ -747,6 +757,10 @@ function PublicProfilePage() {
           ? {
               ...b,
               name: typeof dr.name === "string" && dr.name.trim() ? dr.name : b.name,
+              address: typeof dr.address === "string" ? dr.address.trim() || null : b.address,
+              phone: typeof dr.phone === "string" ? dr.phone.trim() || null : b.phone,
+              email: typeof dr.email === "string" ? dr.email.trim() || null : b.email,
+              instagram: typeof dr.instagram === "string" ? dr.instagram.trim() || null : b.instagram,
               cover_url: "coverUrl" in dr ? (dr.coverUrl || null) : b.cover_url,
               avatar_url: "avatarUrl" in dr ? (dr.avatarUrl || null) : b.avatar_url,
             }

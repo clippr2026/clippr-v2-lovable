@@ -486,9 +486,7 @@ export function BrandingSection() {
           ? (cfg.portfolio_urls as string[]).filter(Boolean).slice(0, 3)
           : [],
         featured_clients:
-          normalizedFeaturedClients.length > 0
-            ? normalizedFeaturedClients
-            : [makeEmptyFeaturedClient()],
+          normalizedFeaturedClients,
         avatar_position: (cfg.avatar_position as string) ?? "50% 50%",
         cover_position: (cfg.cover_position as string) ?? "50% 50%",
         portfolio_positions: Array.isArray(cfg.portfolio_positions)
@@ -826,7 +824,7 @@ export function BrandingSection() {
         .map((item, index) => ({ ...item, order: index }));
       return {
         ...d,
-        featured_clients: next.length > 0 ? next : [makeEmptyFeaturedClient()],
+        featured_clients: next,
       };
     });
   }
@@ -1023,12 +1021,13 @@ export function BrandingSection() {
         description: data.description,
         logo_url:
           logo_url || (existingBranding.logo_url as string | undefined) || "",
+        // Si se quitaron todas las imágenes / personas, se guarda la lista vacía (antes volvía a la anterior).
         portfolio_urls:
-          nextPortfolioUrls.length > 0
+          nextPortfolioUrls.length > 0 || data.portfolio_urls.length === 0
             ? nextPortfolioUrls
             : (existingBranding.portfolio_urls ?? []),
         featured_clients:
-          nextFeaturedClients.length > 0
+          nextFeaturedClients.length > 0 || data.featured_clients.length === 0
             ? nextFeaturedClients
             : (existingBranding.featured_clients ?? []),
         colors: {
@@ -1261,24 +1260,30 @@ export function BrandingSection() {
       coverUrl: data.cover_url,
       avatarUrl: data.avatar_url,
       name: data.name,
+      address: data.address,
+      phone: data.phone,
+      email: data.email,
+      instagram: data.instagram,
+      description: data.description,
+      startDate: data.business_start_date,
+      additionalInfo: benefits
+        .filter((b) => b.active && b.label.trim().length > 0)
+        .map((b) => b.label.trim())
+        .slice(0, 12),
+      portfolioUrls: data.portfolio_urls,
+      portfolioPositions: data.portfolio_positions,
+      featuredClients: data.featured_clients,
+      featuredPositions: data.featured_positions,
       effect: entryEffect,
       bg: bgStyle,
       decor,
       neon: neonKey,
       effectNonce,
     }),
-    [colors, theme, fontKey, entryEffect, bgStyle, decor, neonKey, effectNonce, data.cover_position, data.avatar_position, data.cover_url, data.avatar_url, data.name],
+    [colors, theme, fontKey, entryEffect, bgStyle, decor, neonKey, effectNonce, benefits, data.cover_position, data.avatar_position, data.cover_url, data.avatar_url, data.name, data.address, data.phone, data.email, data.instagram, data.description, data.business_start_date, data.portfolio_urls, data.portfolio_positions, data.featured_clients, data.featured_positions],
   );
-  // Lo que no viaja en vivo (textos, beneficios, portafolio...) se ve al recargar la
-  // vista, un poco después de que el autoguardado lo escriba.
-  const previewSig = JSON.stringify([
-    { ...data, cover_url: "", avatar_url: "", cover_position: "", avatar_position: "", name: "" },
-    benefits,
-  ]);
-  React.useEffect(() => {
-    const t = window.setTimeout(() => setPreviewKey((k) => k + 1), 2400);
-    return () => window.clearTimeout(t);
-  }, [previewSig]);
+  // Todo viaja en vivo como borrador (previewDraft): la vista previa NO se recarga desde la base mientras se edita,
+  // porque pisaría lo que todavía no se guardó. Lo guardado queda al apretar Guardar.
 
   if (loading)
     return (
@@ -1595,8 +1600,8 @@ export function BrandingSection() {
                   <div className="text-sm font-semibold text-white">Foto de perfil</div>
                   <span className="text-xs text-white/50">{avatarPreview ? "Cargada" : "Sin imagen"}</span>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <label className={cn("inline-flex h-10 cursor-pointer items-center gap-2 rounded-full border border-violet-400/50 bg-violet-500/20 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/30", uploadingAvatar && "pointer-events-none opacity-50")} onClick={() => enfocar("hero")}>
+                <div className="flex items-center gap-2">
+                  <label className={cn("inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full border border-violet-400/50 bg-violet-500/20 px-3.5 text-xs font-semibold text-violet-100 transition hover:bg-violet-500/30", uploadingAvatar && "pointer-events-none opacity-50")} onClick={() => enfocar("hero")}>
                     <ImageIcon className="h-4 w-4" />
                     {uploadingAvatar ? "Subiendo…" : avatarPreview ? "Cambiar imagen" : "Cargar imagen"}
                     <input
@@ -1613,10 +1618,7 @@ export function BrandingSection() {
                   </label>
                   {avatarPreview ? (
                     <>
-                      <button type="button" onClick={() => setData((d) => ({ ...d, avatar_position: "50% 50%" }))} className="inline-flex h-10 items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 text-sm font-semibold text-white/70 transition hover:bg-white/[0.08]">
-                        Centrar
-                      </button>
-                      <button type="button" onClick={removeAvatar} className="inline-flex h-10 items-center gap-2 rounded-full border border-rose-400/30 bg-rose-500/10 px-4 text-sm font-semibold text-rose-300 transition hover:bg-rose-500/20">
+                      <button type="button" onClick={removeAvatar} className="inline-flex h-9 items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/10 px-3.5 text-xs font-semibold text-rose-300 transition hover:bg-rose-500/20">
                         <X className="h-4 w-4" /> Quitar
                       </button>
                     </>
@@ -1630,8 +1632,8 @@ export function BrandingSection() {
                   <div className="text-sm font-semibold text-white">Portada</div>
                   <span className="text-xs text-white/50">{coverPreview ? "Cargada" : "Sin imagen"}</span>
                 </div>
-                <div className="flex flex-wrap gap-2">
-                  <label className={cn("inline-flex h-10 cursor-pointer items-center gap-2 rounded-full border border-violet-400/50 bg-violet-500/20 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/30", uploadingCover && "pointer-events-none opacity-50")} onClick={() => enfocar("hero")}>
+                <div className="flex items-center gap-2">
+                  <label className={cn("inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full border border-violet-400/50 bg-violet-500/20 px-3.5 text-xs font-semibold text-violet-100 transition hover:bg-violet-500/30", uploadingCover && "pointer-events-none opacity-50")} onClick={() => enfocar("hero")}>
                     <ImageIcon className="h-4 w-4" />
                     {uploadingCover ? "Subiendo…" : coverPreview ? "Cambiar imagen" : "Cargar imagen"}
                     <input
@@ -1648,10 +1650,7 @@ export function BrandingSection() {
                   </label>
                   {coverPreview ? (
                     <>
-                      <button type="button" onClick={() => setData((d) => ({ ...d, cover_position: "50% 50%" }))} className="inline-flex h-10 items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 text-sm font-semibold text-white/70 transition hover:bg-white/[0.08]">
-                        Centrar
-                      </button>
-                      <button type="button" onClick={removeCover} className="inline-flex h-10 items-center gap-2 rounded-full border border-rose-400/30 bg-rose-500/10 px-4 text-sm font-semibold text-rose-300 transition hover:bg-rose-500/20">
+                      <button type="button" onClick={removeCover} className="inline-flex h-9 items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/10 px-3.5 text-xs font-semibold text-rose-300 transition hover:bg-rose-500/20">
                         <X className="h-4 w-4" /> Quitar
                       </button>
                     </>
@@ -1667,9 +1666,9 @@ export function BrandingSection() {
                     const url = data.portfolio_urls[index];
                     const uploading = uploadingPortfolioIndex === index;
                     return (
-                      <div key={index} className="flex flex-wrap items-center gap-2">
-                        <span className="w-20 shrink-0 text-sm text-white/70">Imagen {index + 1}</span>
-                        <label className={cn("inline-flex h-10 cursor-pointer items-center gap-2 rounded-full border border-violet-400/50 bg-violet-500/20 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/30", uploading && "pointer-events-none opacity-50")} onClick={() => enfocar("acerca")}>
+                      <div key={index} className="flex items-center gap-2">
+                        <span className="w-16 shrink-0 text-sm text-white/70">Imagen {index + 1}</span>
+                        <label className={cn("inline-flex h-9 cursor-pointer items-center gap-1.5 rounded-full border border-violet-400/50 bg-violet-500/20 px-3.5 text-xs font-semibold text-violet-100 transition hover:bg-violet-500/30", uploading && "pointer-events-none opacity-50")} onClick={() => enfocar("acerca")}>
                           <ImageIcon className="h-4 w-4" />
                           {uploading ? "Subiendo…" : url ? "Cambiar" : "Cargar"}
                           <input
@@ -1685,7 +1684,7 @@ export function BrandingSection() {
                           />
                         </label>
                         {url && !uploading ? (
-                          <button type="button" onClick={() => removePortfolioImage(index)} className="inline-flex h-10 items-center gap-2 rounded-full border border-rose-400/30 bg-rose-500/10 px-4 text-sm font-semibold text-rose-300 transition hover:bg-rose-500/20" aria-label={`Quitar imagen ${index + 1}`}>
+                          <button type="button" onClick={() => removePortfolioImage(index)} className="inline-flex h-9 items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/10 px-3.5 text-xs font-semibold text-rose-300 transition hover:bg-rose-500/20" aria-label={`Quitar imagen ${index + 1}`}>
                             <X className="h-4 w-4" /> Quitar
                           </button>
                         ) : null}
@@ -1715,6 +1714,12 @@ export function BrandingSection() {
                   <Plus className="h-4 w-4" /> Agregar
                 </button>
               </div>
+
+              {data.featured_clients.length === 0 ? (
+                <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.03] p-4 text-center text-sm text-white/55">
+                  Todavía no agregaste a nadie. Tocá <span className="font-semibold text-white/80">Agregar</span> para sumar una persona, marca o equipo.
+                </div>
+              ) : null}
 
               <div className="space-y-2.5">
                 {data.featured_clients.map((item, index) => {
@@ -1791,19 +1796,24 @@ export function BrandingSection() {
                           />
                         </label>
 
-                        <div className="min-w-0 flex-1 space-y-2">
+                        <div className="min-w-0 flex-1 space-y-2.5">
+                          <label className="block space-y-1.5 text-sm font-semibold text-white">
+                            Nombre
                           <input
                             value={item.name}
                             onChange={(e) => updateFeaturedClient(item.id, { name: e.target.value })}
                             placeholder="Nombre: Nike, Duki, Boca Juniors..."
                             maxLength={MAX_FEATURED_CLIENT_NAME_LENGTH}
-                            className="h-10 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
+                            className="h-10 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm font-normal text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
                           />
+                          </label>
                           {/* El tipo se ve siempre, también cuando es Futbolista. */}
+                          <label className="block space-y-1.5 text-sm font-semibold text-white">
+                            Tipo
                           <select
                             value={item.category}
                             onChange={(e) => updateFeaturedClient(item.id, { category: e.target.value as FeaturedClientCategory })}
-                            className="h-10 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none focus:border-violet-400/50"
+                            className="h-10 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm font-normal text-white outline-none focus:border-violet-400/50"
                           >
                             {FEATURED_CLIENT_CATEGORIES.map((cat) => (
                               <option key={cat} value={cat}>
@@ -1811,6 +1821,7 @@ export function BrandingSection() {
                               </option>
                             ))}
                           </select>
+                          </label>
                         </div>
                       </div>
 
@@ -1840,6 +1851,9 @@ export function BrandingSection() {
                             </button>
                           );
                         })()}
+                        {!isFeaturedClientComplete(item) ? (
+                          <span className="min-w-0 flex-1 text-[11px] leading-snug text-amber-200/80">Cargá la imagen y el nombre para poder activarlo.</span>
+                        ) : null}
                         <button
                           type="button"
                           onClick={() => removeFeaturedClient(item.id)}

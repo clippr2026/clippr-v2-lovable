@@ -16,6 +16,19 @@ export type PreviewDraft = {
   decor: string;
   // Cada vez que sube, la vista previa reproduce el efecto (carga con el logo + animación de entrada).
   effectNonce: number;
+  // Todo lo que se escribe en el editor viaja en vivo, sin guardar: la vista previa muestra el borrador.
+  neon?: string;
+  address?: string;
+  phone?: string;
+  email?: string;
+  instagram?: string;
+  description?: string;
+  startDate?: string;
+  additionalInfo?: string[];
+  portfolioUrls?: string[];
+  portfolioPositions?: string[];
+  featuredClients?: unknown[];
+  featuredPositions?: Record<string, string>;
 };
 
 // Vista previa de la página pública, en vivo: el iframe carga la página real
