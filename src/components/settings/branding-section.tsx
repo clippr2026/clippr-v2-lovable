@@ -1727,12 +1727,6 @@ export function BrandingSection() {
                 </button>
               </div>
 
-              {data.featured_clients.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.03] p-4 text-center text-sm text-white/55">
-                  Todavía no agregaste a nadie. Tocá <span className="font-semibold text-white/80">Agregar</span> para sumar una persona, marca o equipo.
-                </div>
-              ) : null}
-
               <div className="space-y-2.5">
                 {data.featured_clients.map((item, index) => {
                   const uploading = uploadingFeaturedId === item.id;
