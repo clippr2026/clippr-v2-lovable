@@ -425,33 +425,50 @@ function AdvisorContent({
               <RendimientoMensual monthKey={selectedMonthKey} />
             </div>
             <div className="px-0.5 pb-1 pt-3 sm:px-1">
-              <GlassCard className="mx-auto max-w-5xl p-3 sm:p-4">
-                <div className="grid gap-2 sm:gap-2.5 md:grid-cols-3">
-                {/* Ocupación */}
-                <div className="rounded-2xl border border-white/[0.12] bg-white/[0.035] p-2.5 flex flex-col gap-1.5 sm:p-3 sm:gap-2">
-                  <div className="grid h-8 w-8 place-items-center rounded-xl bg-orange-400/10 ring-1 ring-orange-400/20 sm:h-9 sm:w-9">
-                    <ClipboardList className="h-4 w-4 text-orange-400" />
-                  </div>
-                  <div>
-                    <div className="text-sm text-muted-foreground">Ocupación · {analytics.analysisMonthLabel}</div>
-                    <div className="font-display text-2xl font-bold text-orange-300 mt-1 leading-none sm:text-3xl">
-                      {Math.round((analytics.current?.occupancy ?? 0) * animationProgress)}%
-                    </div>
-                  </div>
-                  {analytics.freeSlotsMonth > 0 && (
-                    <div className="rounded-xl border border-orange-300/15 bg-orange-300/[0.05] px-2.5 py-1 text-[11px] sm:px-3 sm:py-1.5">
-                      <div className="text-white/70">{analytics.freeSlotsMonth} turnos vacíos en los días trabajados</div>
-                      {analytics.slotsTo75 > 0 && (
-                        <div className="mt-0.5 text-white/45">
-                          Llegando al 75% de ocupación serían {analytics.slotsTo75} turnos más: +
-                          {fmtAR(Math.round(analytics.potentialAt75))}.
+              {(() => {
+                const occ = Math.round((analytics.current?.occupancy ?? 0) * animationProgress);
+                const tono = occ >= 70 ? "text-emerald-300" : occ >= 50 ? "text-amber-300" : "text-rose-300";
+                const barra = occ >= 70 ? "bg-emerald-400/80" : occ >= 50 ? "bg-amber-300/80" : "bg-rose-400/80";
+                return (
+                  <section className="mx-auto max-w-5xl rounded-2xl border border-white/10 bg-[#0b0a14] p-4 [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.12),transparent_65%)]">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2.5">
+                        <div className="grid size-9 place-items-center rounded-xl bg-orange-400/10 ring-1 ring-orange-400/20">
+                          <ClipboardList className="size-4 text-orange-300" />
                         </div>
-                      )}
+                        <div>
+                          <div className="text-sm font-semibold text-white">Ocupación</div>
+                          <div className="text-[11px] text-white/50">{analytics.analysisMonthLabel}</div>
+                        </div>
+                      </div>
+                      <div className={cn("font-display text-3xl font-semibold tabular-nums", tono)}>{occ}%</div>
                     </div>
-                  )}
-                </div>
-                </div>
-              </GlassCard>
+                    <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-white/[0.08]">
+                      <div className={cn("h-full rounded-full", barra)} style={{ width: `${Math.min(100, occ)}%` }} />
+                    </div>
+                    {analytics.freeSlotsMonth > 0 && (
+                      <dl className="mt-3 space-y-2 border-t border-white/[0.07] pt-3 text-sm">
+                        <div className="flex items-center justify-between gap-3">
+                          <dt className="text-white/60">Turnos vacíos en los días trabajados</dt>
+                          <dd className="font-semibold tabular-nums text-white">{analytics.freeSlotsMonth}</dd>
+                        </div>
+                        {analytics.slotsTo75 > 0 && (
+                          <div className="flex items-center justify-between gap-3">
+                            <dt className="text-white/60">Para llegar al 75% faltan</dt>
+                            <dd className="font-semibold tabular-nums text-white">{analytics.slotsTo75} turnos</dd>
+                          </div>
+                        )}
+                        {analytics.slotsTo75 > 0 && (
+                          <div className="flex items-center justify-between gap-3">
+                            <dt className="text-white/60">Serían de más</dt>
+                            <dd className="font-semibold tabular-nums text-emerald-300">+{fmtAR(Math.round(analytics.potentialAt75))}</dd>
+                          </div>
+                        )}
+                      </dl>
+                    )}
+                  </section>
+                );
+              })()}
             </div>
           </div>
           {/* /Evolución */}
