@@ -1734,7 +1734,7 @@ function SaludSection({
       <div className="relative grid gap-3 md:grid-cols-2">
         <section className={tarjeta}>
           <div className="text-sm font-semibold text-white">Estado actual</div>
-          <div className="text-[11px] text-white/50">Rentabilidad, clientes y ocupación de {analytics.analysisMonthLabel}</div>
+          <div className="text-[11px] text-white/50">Rentabilidad, clientes y ocupación</div>
           <div className="mt-4 flex items-center gap-4">
             <div className="relative grid shrink-0 place-items-center">
               <svg width="118" height="118" viewBox="0 0 200 200" className="-rotate-90">
