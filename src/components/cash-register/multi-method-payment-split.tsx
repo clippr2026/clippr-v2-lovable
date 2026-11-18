@@ -54,6 +54,8 @@ export function MultiMethodPaymentSplit({
   allowPartial?: boolean;
   className?: string;
 }) {
+  // Liquidaciones (allowPartial) usa el estilo Clippr, igual que su "Pago simple"; Nueva venta queda como estaba.
+  const clippr = allowPartial;
   const splitsTotal = splits.reduce((s, sp) => s + Number(sp.amount || 0), 0);
   const splitsRemaining = total - splitsTotal;
 
@@ -72,11 +74,17 @@ export function MultiMethodPaymentSplit({
   return (
     <div
       className={cn(
-        "rounded-2xl border border-blue-300/25 bg-[linear-gradient(135deg,rgba(37,99,235,0.14),rgba(8,11,20,0.96),rgba(2,4,12,0.98))] p-2.5 shadow-[0_0_40px_rgba(96,165,250,0.12),0_18px_55px_-34px_rgba(0,0,0,1)] space-y-1.5",
+        clippr
+          ? "space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3.5 [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,.12),transparent_65%)]"
+          : "rounded-2xl border border-blue-300/25 bg-[linear-gradient(135deg,rgba(37,99,235,0.14),rgba(8,11,20,0.96),rgba(2,4,12,0.98))] p-2.5 shadow-[0_0_40px_rgba(96,165,250,0.12),0_18px_55px_-34px_rgba(0,0,0,1)] space-y-1.5",
         className,
       )}
     >
-      <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70">PAGO MÚLTIPLE</p>
+      {clippr ? (
+        <p className="text-sm font-semibold text-white">Pago múltiple</p>
+      ) : (
+        <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70">PAGO MÚLTIPLE</p>
+      )}
       {/* max-h/overflow SOLO en las filas — antes envolvía también el
           botón "Agregar método de pago" y el renglón de estado, así que
           con pocas filas (que no llegan a llenar los 200px) quedaba un
@@ -96,11 +104,16 @@ export function MultiMethodPaymentSplit({
             largos como "Transferencia" entren completos sin cortarse. */}
         {splits.map((sp, idx) => {
           return (
-            <div key={idx} className="grid grid-cols-[1fr_92px_32px] gap-1 items-center">
+            <div key={idx} className={cn("grid items-center", clippr ? "grid-cols-[1fr_120px_40px] gap-2" : "grid-cols-[1fr_92px_32px] gap-1")}>
               <select
                 value={sp.method}
                 onChange={(e) => updateSplit(idx, "method", e.target.value)}
-                className="h-9 min-w-0 rounded-xl border border-blue-300/25 bg-black/45 px-2 text-sm font-semibold text-white outline-none focus:border-blue-300/55 focus:ring-2 focus:ring-blue-400/15"
+                className={cn(
+                  "min-w-0 text-white outline-none",
+                  clippr
+                    ? "h-11 rounded-lg border border-white/10 bg-white/[0.04] px-3 text-base focus:border-violet-400/50"
+                    : "h-9 rounded-xl border border-blue-300/25 bg-black/45 px-2 text-sm font-semibold focus:border-blue-300/55 focus:ring-2 focus:ring-blue-400/15",
+                )}
               >
                 {paymentOptions.map((o) => (
                   <option key={o.id} value={o.id}>
@@ -113,12 +126,22 @@ export function MultiMethodPaymentSplit({
                 onChange={(e) => updateSplit(idx, "amount", sanitizeAmountInput(e.target.value))}
                 inputMode="numeric"
                 placeholder="Monto"
-                className="h-9 w-full min-w-0 rounded-xl border border-blue-300/25 bg-black/45 px-2 text-right text-sm font-bold tabular-nums text-white outline-none placeholder:text-white/35 focus:border-blue-300/55 focus:ring-2 focus:ring-blue-400/15"
+                className={cn(
+                  "w-full min-w-0 text-right tabular-nums text-white outline-none placeholder:text-white/35",
+                  clippr
+                    ? "h-11 rounded-lg border border-white/10 bg-white/[0.04] px-3 text-base font-semibold focus:border-violet-400/50"
+                    : "h-9 rounded-xl border border-blue-300/25 bg-black/45 px-2 text-sm font-bold focus:border-blue-300/55 focus:ring-2 focus:ring-blue-400/15",
+                )}
               />
               <button
                 onClick={() => removeSplit(idx)}
                 disabled={splits.length <= 1}
-                className="h-9 w-8 shrink-0 rounded-xl border border-white/10 bg-black/35 grid place-items-center text-muted-foreground hover:border-rose-300/35 hover:text-rose-300 disabled:opacity-30 transition-colors"
+                className={cn(
+                  "shrink-0 grid place-items-center text-muted-foreground hover:border-rose-300/35 hover:text-rose-300 disabled:opacity-30 transition-colors",
+                  clippr
+                    ? "h-11 w-10 rounded-full border border-white/10 bg-white/[0.04]"
+                    : "h-9 w-8 rounded-xl border border-white/10 bg-black/35",
+                )}
                 type="button"
               >
                 <Trash2 className="size-3.5" />
@@ -132,7 +155,7 @@ export function MultiMethodPaymentSplit({
           <button
             onClick={addSplit}
             disabled={splits.length >= paymentOptions.length}
-            className="inline-flex items-center gap-2 rounded-xl border border-blue-300/20 bg-blue-400/10 px-3 py-1.5 text-xs font-semibold text-blue-100 hover:bg-blue-400/15 disabled:opacity-30 transition-colors"
+            className="inline-flex h-9 items-center gap-2 rounded-full border border-violet-400/40 bg-violet-500/15 px-4 text-xs font-semibold text-violet-100 hover:bg-violet-500/25 disabled:opacity-30 transition-colors"
             type="button"
           >
             <Plus className="size-3.5" /> Agregar método de pago

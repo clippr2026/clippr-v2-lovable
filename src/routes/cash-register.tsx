@@ -3657,7 +3657,10 @@ function SettlementItemsEditor({
   reasonPlaceholder,
   formatThousands,
   accentClass,
+  hideAddButton = false,
 }: {
+  /** El botón "agregar" lo dibuja quien usa el editor (así adicional y deducción van juntos). */
+  hideAddButton?: boolean;
   items: { id: string; amount: string; reason: string }[];
   onChange: (items: { id: string; amount: string; reason: string }[]) => void;
   addLabel: string;
@@ -3687,10 +3690,10 @@ function SettlementItemsEditor({
                 onChange={(e) => updateItem(item.id, { reason: e.target.value })}
                 placeholder={reasonPlaceholder}
                 maxLength={140}
-                className="h-8 min-w-0 flex-[2] rounded-lg border border-white/[0.08] bg-black/25 px-2.5 text-xs text-white outline-none placeholder:text-white/30 focus:border-white/25"
+                className="h-10 min-w-0 flex-[2] rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
               />
-              <div className="relative w-20 shrink-0">
-                <span className="pointer-events-none absolute left-2 top-1/2 -translate-y-1/2 text-xs text-white/45">
+              <div className="relative w-28 shrink-0">
+                <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-white/45">
                   $
                 </span>
                 <input
@@ -3699,7 +3702,7 @@ function SettlementItemsEditor({
                   value={formatThousands(item.amount)}
                   onChange={(e) => updateItem(item.id, { amount: e.target.value.replace(/\D/g, "") })}
                   placeholder="0"
-                  className="h-8 w-full rounded-lg border border-white/[0.08] bg-black/25 pl-4 pr-1.5 text-right text-xs font-bold tabular-nums text-white outline-none focus:border-white/25"
+                  className="h-10 w-full rounded-lg border border-white/10 bg-white/[0.04] pl-5 pr-2 text-right text-sm font-semibold tabular-nums text-white outline-none focus:border-violet-400/50"
                 />
               </div>
               <button
@@ -3714,16 +3717,18 @@ function SettlementItemsEditor({
           </div>
         );
       })}
-      <button
-        type="button"
-        onClick={addItem}
-        className={cn(
-          "inline-flex h-9 items-center gap-1.5 rounded-full border px-4 text-xs font-semibold transition",
-          accentClass,
-        )}
-      >
-        <Plus className="size-3.5" /> {addLabel}
-      </button>
+      {!hideAddButton && (
+        <button
+          type="button"
+          onClick={addItem}
+          className={cn(
+            "inline-flex h-9 items-center gap-1.5 rounded-full border px-4 text-xs font-semibold transition",
+            accentClass,
+          )}
+        >
+          <Plus className="size-3.5" /> {addLabel}
+        </button>
+      )}
     </div>
   );
 }
@@ -6699,6 +6704,7 @@ function ProfesionalesTab({
                 reasonPlaceholder="Ej. Feriado trabajado, bono o comisión adicional"
                 formatThousands={formatThousands}
                 accentClass="border-emerald-400/25 bg-emerald-400/10 text-emerald-200 hover:bg-emerald-400/15"
+                hideAddButton
               />
 
               <SettlementItemsEditor
@@ -6708,7 +6714,25 @@ function ProfesionalesTab({
                 reasonPlaceholder="Ej. Llegada tarde, adelanto o producto descontado"
                 formatThousands={formatThousands}
                 accentClass="border-rose-400/25 bg-rose-400/10 text-rose-200 hover:bg-rose-400/15"
+                hideAddButton
               />
+
+              <div className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  onClick={() => setAdjustmentItems((cur) => [...cur, { id: crypto.randomUUID(), amount: "", reason: "" }])}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-full border border-emerald-400/25 bg-emerald-400/10 px-4 text-xs font-semibold text-emerald-200 transition hover:bg-emerald-400/15"
+                >
+                  <Plus className="size-3.5" /> Agregar adicional
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDeductionItems((cur) => [...cur, { id: crypto.randomUUID(), amount: "", reason: "" }])}
+                  className="inline-flex h-9 items-center gap-1.5 rounded-full border border-rose-400/25 bg-rose-400/10 px-4 text-xs font-semibold text-rose-200 transition hover:bg-rose-400/15"
+                >
+                  <Plus className="size-3.5" /> Agregar deducción
+                </button>
+              </div>
 
               {/* Sin Comisiones pendientes/nuevas ni Adelantos acá — ya
                   están en las tarjetas de la pantalla principal, este
