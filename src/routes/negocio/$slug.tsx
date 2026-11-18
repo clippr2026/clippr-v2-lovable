@@ -588,7 +588,13 @@ function PublicProfilePage() {
   // Si ya llegó lo que se está editando, la carga de lo guardado no lo pisa.
   const draftVisualRecibido = React.useRef(false);
   React.useEffect(() => {
-    setIsPreview(new URLSearchParams(window.location.search).get("preview") === "1");
+    const esPreview = new URLSearchParams(window.location.search).get("preview") === "1";
+    setIsPreview(esPreview);
+    // En la vista previa, al llegar al final del scroll no se arrastra la pantalla de atrás.
+    if (esPreview) {
+      document.documentElement.style.overscrollBehavior = "contain";
+      document.body.style.overscrollBehavior = "contain";
+    }
   }, []);
   const [effectRun, setEffectRun] = React.useState(0);
   const [reloadTick, setReloadTick] = React.useState(0);
