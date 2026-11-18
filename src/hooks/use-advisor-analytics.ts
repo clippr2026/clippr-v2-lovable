@@ -79,6 +79,7 @@ export type AdvisorAnalytics = {
   current: AdvisorMonthSnapshot | null;
   previous: AdvisorMonthSnapshot | null;
   health: number | null;
+  healthParts: { key: string; label: string; pts: number; max: number }[];
   history: AdvisorMonthSnapshot[];
   radiografia: RadiografiaItem[];
   radar: RadarItem[];
@@ -465,6 +466,7 @@ export function useAdvisorAnalytics(
         current: null,
         previous: null,
         health: null,
+        healthParts: [],
         history: [],
         radiografia: [],
         radar: [],
@@ -526,6 +528,8 @@ export function useAdvisorAnalytics(
     // ticket + venta de productos. Todo derivado de datos reales del mes
     // actual vs el anterior. Si no hay datos suficientes, health queda null.
     let health: number | null = null;
+    // Cuánto aporta cada indicador al puntaje (para mostrarlo desglosado).
+    let healthParts: { key: string; label: string; pts: number; max: number }[] = [];
     if (current && current.hasData) {
       const occupancyScore = Math.round(clampPct(current.occupancy) * 0.25);
       const growthPct = previous?.hasData ? (pctDelta(current.revenue, previous.revenue) ?? 0) : 0;
@@ -541,6 +545,13 @@ export function useAdvisorAnalytics(
       // pueden medir: el puntaje se calcula con lo que sí se mide (ocupación, cancelaciones y la
       // base fija = 60 puntos) y se lleva a escala de 100, para no topar esos meses en 60.
       const hasComparison = Boolean(previous?.hasData);
+      healthParts = [
+        { key: "ocupacion", label: "Ocupación", pts: occupancyScore, max: 25 },
+        ...(hasComparison ? [{ key: "crecimiento", label: "Crecimiento de la facturación", pts: growthScore, max: 25 }] : []),
+        { key: "cancelaciones", label: "Cancelaciones", pts: cancelScore, max: 20 },
+        ...(hasComparison ? [{ key: "ticket", label: "Ticket promedio", pts: ticketScore, max: 15 }] : []),
+        { key: "base", label: "Base del negocio", pts: 15, max: 15 },
+      ];
       health = hasComparison
         ? Math.max(0, Math.min(100, occupancyScore + growthScore + cancelScore + ticketScore + 15))
         : Math.max(0, Math.min(100, Math.round(((occupancyScore + cancelScore + 15) / 60) * 100)));
@@ -719,6 +730,7 @@ export function useAdvisorAnalytics(
       current,
       previous,
       health,
+      healthParts,
       history,
       radiografia,
       radar,

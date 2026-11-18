@@ -474,79 +474,34 @@ function AdvisorContent({
           {/* /Evolución */}
 
           {/* ── SALUD DEL NEGOCIO ─────────────────────────────────── */}
-          {/* overflow-hidden (no visible): el glow decorativo de abajo usa
-              -inset-x-6, que sin clip podía sobresalir del ancho real de
-              la tarjeta y forzar scroll horizontal en toda la página. El
-              botón "?" ya no lo necesitaba (tiene margen propio de sobra,
-              ver pt-14/right-4/top-4 más abajo). */}
-          <div className="relative overflow-hidden rounded-[2rem] border border-emerald-300/[0.30] bg-white/[0.018] p-3 pt-14 shadow-[0_0_0_1px_rgba(16,185,129,0.16),0_30px_125px_-42px_rgba(45,212,191,1)] sm:p-4 sm:pt-16">
+          <div className="relative overflow-hidden rounded-[2rem] border border-emerald-300/[0.30] bg-white/[0.018] p-2.5 pt-4 shadow-[0_0_0_1px_rgba(16,185,129,0.16),0_30px_125px_-42px_rgba(45,212,191,1)] sm:p-3 sm:pt-5">
             <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-emerald-400/[0.16] blur-3xl" />
-            {/* "Cómo funciona" una sola vez por sección, en la esquina
-                superior derecha del bloque completo — antes vivía adentro
-                de la tarjeta "Estado actual" (absolute) y podía superponerse
-                al contenido en pantallas angostas. Acá nunca compite con el
-                dato principal porque no hay nada más en esta esquina.
-                pt-14/16 en el contenedor le reserva su propia fila arriba
-                (antes el botón flotaba con position:absolute sobre el
-                borde redondeado de 2rem con apenas 12px de margen — con un
-                radio tan grande, ese margen quedaba dentro de la curva y
-                el botón se veía "colgando" fuera del borde visible de la
-                tarjeta, como recortado). overflow-visible explícito: nunca
-                debe quedar tapado por el propio contenedor. */}
-            <button
-              type="button"
-              onClick={() => setInfoModal(INFO_CONTENT.health)}
-              className="absolute right-4 top-4 z-20 inline-flex h-6 shrink-0 items-center justify-center gap-1.5 rounded-full border border-emerald-300/30 bg-emerald-300/10 px-2 text-[11px] font-bold text-emerald-200 shadow-[0_0_22px_rgba(45,212,191,0.14)] transition hover:border-emerald-200/55 hover:bg-emerald-300/16 hover:text-white sm:right-5 sm:top-5 sm:h-7 sm:px-2.5"
-              aria-label="Cómo funciona estado actual"
-            >
-              <CircleHelp className="h-3 w-3" />
-              <span className="hidden sm:inline">Cómo funciona</span>
-            </button>
-            {/* Separador de sección */}
-            <div className="relative flex items-center gap-4 mb-3">
+            <div className="relative mb-3 flex items-center gap-4">
               <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
               <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">
                 Salud del negocio
               </span>
               <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
             </div>
-            <GlassCard className="relative overflow-hidden p-3.5 sm:p-6 border border-emerald-300/[0.32] bg-white/[0.052] shadow-[0_0_0_1px_rgba(45,212,191,0.16),0_35px_125px_-40px_rgba(45,212,191,1)]">
-              <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-              <div className="mb-3 sm:mb-4">
-                <h2 className="font-display text-xl sm:text-2xl font-bold tracking-tight">
-                  Estado actual
-                </h2>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Rentabilidad, clientes y ocupación de {analytics.analysisMonthLabel}.
-                </p>
-                {analytics.analysisNote && (
-                  <p className="mt-1.5 text-xs leading-snug text-amber-200/80">{analytics.analysisNote}</p>
-                )}
-              </div>
-
-              <div className="grid gap-3 sm:gap-5 md:grid-cols-[0.95fr_1.05fr] items-center">
-                {/* Left: circular gauge + bar */}
-                <div className="flex flex-col items-center gap-3 sm:gap-4">
-                  <div className="relative flex items-center justify-center">
-                    {/* SVG ring */}
-                    <svg width="200" height="200" viewBox="0 0 200 200" className="-rotate-90">
-                      {/* Track */}
-                      <circle
-                        cx="100"
-                        cy="100"
-                        r="84"
-                        fill="none"
-                        stroke="rgba(255,255,255,0.08)"
-                        strokeWidth="14"
-                      />
-                      {/* Progress */}
+            {analytics.analysisNote && (
+              <p className="relative mb-3 px-2 text-xs leading-snug text-amber-200/80">{analytics.analysisNote}</p>
+            )}
+            <div className="relative grid gap-3 md:grid-cols-2">
+              {/* Puntaje */}
+              <section className="rounded-2xl border border-white/10 bg-[#0b0a14] p-4 [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.12),transparent_65%)]">
+                <div className="text-sm font-semibold text-white">Estado actual</div>
+                <div className="text-[11px] text-white/50">Rentabilidad, clientes y ocupación de {analytics.analysisMonthLabel}</div>
+                <div className="mt-4 flex items-center gap-4">
+                  <div className="relative grid shrink-0 place-items-center">
+                    <svg width="118" height="118" viewBox="0 0 200 200" className="-rotate-90">
+                      <circle cx="100" cy="100" r="84" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="16" />
                       <circle
                         cx="100"
                         cy="100"
                         r="84"
                         fill="none"
                         stroke="url(#healthGrad)"
-                        strokeWidth="14"
+                        strokeWidth="16"
                         strokeLinecap="round"
                         strokeDasharray={`${2 * Math.PI * 84}`}
                         strokeDashoffset={`${2 * Math.PI * 84 * (1 - animatedHealth / 100)}`}
@@ -559,139 +514,93 @@ function AdvisorContent({
                         </linearGradient>
                       </defs>
                     </svg>
-                    {/* Center text */}
                     <div className="absolute flex flex-col items-center">
-                      <span
-                        className={cn(
-                          "font-display text-6xl font-bold leading-none",
-                          healthTone.text,
-                        )}
-                      >
-                        {animatedHealth}
+                      <span className={cn("font-display text-4xl font-semibold leading-none tabular-nums", healthTone.text)}>
+                        {analytics.health == null ? "—" : animatedHealth}
                       </span>
-                      <span className="text-sm text-muted-foreground mt-1">/100</span>
+                      <span className="mt-0.5 text-[11px] text-white/45">de 100</span>
                     </div>
                   </div>
-                  {/* Info below circle */}
-                  <div className="text-center">
-                    <div className="text-sm text-muted-foreground">Puntaje de salud</div>
-                    <div className={cn("mt-1 text-2xl font-bold", healthTone.text)}>
-                      {healthHeadline}
-                    </div>
-                    <div className="mx-auto mt-2 max-w-[310px] space-y-3 text-center sm:mt-3 sm:space-y-5">
-                      <p className="text-xs leading-relaxed text-muted-foreground">
-                        {analytics.health == null
-                          ? "Todavía no hay datos suficientes para calcular la salud del negocio."
-                          : analytics.health >= 80
-                            ? "Tu local está muy bien. Mantené el ritmo y seguí cuidando a tus clientes."
-                            : analytics.health >= 65
-                              ? "Vas bien. El próximo salto está en llenar la agenda y recuperar clientes, no en bajar precios."
-                              : analytics.health >= 50
-                                ? "Hay margen de mejora. Empezá por llenar la agenda y recuperar clientes."
-                                : "Hay varios indicadores para mejorar. Empezá por llenar la agenda y recuperar clientes."}
-                      </p>
-
-                      {analytics.health != null && (
-                        <>
-                          <div className="h-px bg-white/10" />
-                          <div>
-                            <div className="mb-1.5 flex items-center justify-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-300 sm:mb-2">
-                              <Brain className="h-3.5 w-3.5" /> Insight IA
-                            </div>
-                            <div className="space-y-1.5 text-xs leading-relaxed text-white/72">
-                              {analytics.slotsTo75 > 0 ? (
-                                <>
-                                  <p>La principal oportunidad detectada está en la ocupación.</p>
-                                  <p>
-                                    Tenés{" "}
-                                    <span className="font-semibold text-white">
-                                      {analytics.freeSlotsMonth} turnos sin ocupar
-                                    </span>{" "}
-                                    en los días trabajados de {analytics.analysisMonthLabel}.
-                                  </p>
-                                  <p>
-                                    Si alcanzás una ocupación del{" "}
-                                    <span className="font-semibold text-white">75%</span> (
-                                    {analytics.slotsTo75} turnos más), podrías generar aproximadamente{" "}
-                                    <span className="font-semibold text-emerald-300">
-                                      {fmtAR(Math.round(analytics.potentialAt75))}
-                                    </span>{" "}
-                                    adicionales sin incorporar más personal.
-                                  </p>
-                                </>
-                              ) : (
-                                <p>La agenda está bien aprovechada en {analytics.analysisMonthLabel}: la ocupación supera el 75%. Buen trabajo.</p>
-                              )}
-                            </div>
-                          </div>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  {/* Progress bar */}
-                  <div className="w-full h-1.5 overflow-hidden rounded-full bg-white/10 sm:h-2.5">
-                    <div
-                      className={cn(
-                        "h-full rounded-full bg-gradient-to-r transition-all duration-700",
-                        healthTone.bar,
-                      )}
-                      style={{ width: `${animatedHealth}%` }}
-                    />
-                  </div>
-                </div>
-
-                {/* Right: impact panel — en mobile pasa a lista compacta
-                    (sin la caja/borde propia, solo íconos+texto por fila);
-                    desktop conserva la tarjeta completa vía `sm:`. */}
-                <div className="rounded-2xl border-0 bg-transparent p-0 h-full shadow-none sm:border sm:border-emerald-300/[0.13] sm:bg-white/[0.035] sm:p-5 sm:shadow-[inset_0_1px_0_rgba(255,255,255,0.045)]">
-                  <div className="mb-2 flex items-center gap-2 text-base font-semibold sm:mb-4">
-                    <Activity className="h-4 w-4 text-emerald-300" /> Radar del local
-                  </div>
-                  <div className="space-y-1 sm:space-y-2">
-                    {analytics.radar.length === 0 ? (
-                      <p className="text-sm text-muted-foreground">
-                        Todavía no hay suficiente historial para generar el radar del local.
-                      </p>
-                    ) : (
-                      analytics.radar.map((item) => {
-                        const style = RADAR_STYLES[item.tone];
-                        const Icon =
-                          item.tone === "ok"
-                            ? TrendingUp
-                            : item.tone === "bad"
-                              ? Package
-                              : item.tone === "alert"
-                                ? Users
-                                : CalendarDays;
-                        return (
-                          <div
-                            key={item.key}
-                            className={cn(
-                              "flex items-center gap-2 rounded-lg border-0 px-0 py-1 sm:gap-3 sm:rounded-xl sm:border sm:px-3 sm:py-2",
-                              style.ring,
-                            )}
-                          >
-                            <span
-                              className={cn(
-                                "grid h-6 w-6 shrink-0 place-items-center rounded-lg sm:h-7 sm:w-7",
-                                style.bg,
-                              )}
-                            >
-                              <Icon className={cn("h-3.5 w-3.5 sm:h-4 sm:w-4", style.icon)} />
-                            </span>
-                            <span className="text-sm text-white/85">{item.label}</span>
-                          </div>
-                        );
-                      })
-                    )}
-                    <p className="pt-1 text-[11px] leading-relaxed text-white/40">
-                      La IA marca en verde lo que va bien y en naranja/rojo lo que te está costando
-                      plata. Empezá por lo rojo.
+                  <div className="min-w-0">
+                    <div className={cn("text-xl font-semibold leading-tight", healthTone.text)}>{healthHeadline}</div>
+                    <p className="mt-1 text-xs leading-relaxed text-white/60">
+                      {analytics.health == null
+                        ? "Todavía no hay datos suficientes para calcular la salud del negocio."
+                        : analytics.health >= 80
+                          ? "Tu local está muy bien. Mantené el ritmo y seguí cuidando a tus clientes."
+                          : analytics.health >= 65
+                            ? "Vas bien. El próximo salto está en llenar la agenda y recuperar clientes, no en bajar precios."
+                            : analytics.health >= 50
+                              ? "Hay margen de mejora. Empezá por llenar la agenda y recuperar clientes."
+                              : "Hay varios indicadores para mejorar. Empezá por llenar la agenda y recuperar clientes."}
                     </p>
                   </div>
                 </div>
-              </div>
-            </GlassCard>
+                {analytics.healthParts.length > 0 && (
+                  <div className="mt-4 space-y-2.5 border-t border-white/[0.07] pt-3">
+                    <div className="text-xs font-semibold text-white/80">Cómo se arma el puntaje</div>
+                    {analytics.healthParts.map((h) => (
+                      <div key={h.key}>
+                        <div className="flex items-baseline justify-between text-xs">
+                          <span className="text-white/65">{h.label}</span>
+                          <span className="tabular-nums text-white/85">
+                            {h.pts} <span className="text-white/40">/ {h.max}</span>
+                          </span>
+                        </div>
+                        <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/[0.08]">
+                          <div
+                            className={cn("h-full rounded-full", h.pts / h.max >= 0.7 ? "bg-emerald-400/80" : h.pts / h.max >= 0.4 ? "bg-amber-300/80" : "bg-rose-400/80")}
+                            style={{ width: `${Math.min(100, (h.pts / h.max) * 100)}%` }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {analytics.health != null && (
+                  <div className="mt-4 rounded-xl border border-emerald-300/20 bg-emerald-300/[0.05] px-3 py-2.5 text-xs leading-relaxed text-white/70">
+                    <div className="mb-1 flex items-center gap-1.5 font-semibold text-emerald-300">
+                      <Brain className="h-3.5 w-3.5" /> Insight IA
+                    </div>
+                    {analytics.slotsTo75 > 0 ? (
+                      <>
+                        La principal oportunidad está en la ocupación: llegando al <b className="text-white">75%</b> ({analytics.slotsTo75} turnos más)
+                        sumarías aproximadamente <b className="text-emerald-300">{fmtAR(Math.round(analytics.potentialAt75))}</b> sin sumar personal.
+                      </>
+                    ) : (
+                      <>La agenda está bien aprovechada en {analytics.analysisMonthLabel}: la ocupación supera el 75%. Buen trabajo.</>
+                    )}
+                  </div>
+                )}
+              </section>
+
+              {/* Radar */}
+              <section className="rounded-2xl border border-white/10 bg-[#0b0a14] p-4 [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.12),transparent_65%)]">
+                <div className="flex items-center gap-2 text-sm font-semibold text-white">
+                  <Activity className="h-4 w-4 text-emerald-300" /> Radar del local
+                </div>
+                <div className="text-[11px] text-white/50">Verde: va bien. Naranja o rojo: te está costando plata.</div>
+                <div className="mt-3 space-y-2">
+                  {analytics.radar.length === 0 ? (
+                    <p className="text-sm text-white/55">Todavía no hay suficiente historial para generar el radar del local.</p>
+                  ) : (
+                    analytics.radar.map((item) => {
+                      const style = RADAR_STYLES[item.tone];
+                      const Icon =
+                        item.tone === "ok" ? TrendingUp : item.tone === "bad" ? Package : item.tone === "alert" ? Users : CalendarDays;
+                      return (
+                        <div key={item.key} className={cn("flex items-center gap-3 rounded-xl border px-3 py-2.5", style.ring)}>
+                          <span className={cn("grid size-8 shrink-0 place-items-center rounded-lg", style.bg)}>
+                            <Icon className={cn("size-4", style.icon)} />
+                          </span>
+                          <span className="text-sm leading-snug text-white/85">{item.label}</span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </section>
+            </div>
           </div>
           {/* /Salud */}
 
