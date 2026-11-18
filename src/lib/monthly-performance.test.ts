@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  comparableUptoDay,
   computeMonthlyPerformance,
   isStartMonth,
   monthBounds,
@@ -349,15 +350,25 @@ describe("Rendimiento mensual", () => {
     expect(perf.facturacion).toBe(10000 + 20000 + 30000 + 3000);
   });
 
-  it("Evolución del negocio va primero y Salud del negocio segundo; con menos de 7 días se analiza el último mes completo", async () => {
+  it("Análisis conserva Evolución del negocio e Historial; Salud, Radar, clientes para recuperar y radiografía viven en el Gerente IA", async () => {
     const fs = await import("node:fs");
     const path = await import("node:path");
     const read = (rel: string) => fs.readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
     const advisor = read("src/routes/advisor.tsx");
-    expect(advisor.indexOf("EVOLUCIÓN DEL NEGOCIO")).toBeLessThan(advisor.indexOf("SALUD DEL NEGOCIO"));
+    const analisis = advisor.slice(advisor.indexOf('{advisorTab === "analisis" && ('), advisor.indexOf("{/* /Historial */}"));
+    expect(analisis).toContain("EVOLUCIÓN DEL NEGOCIO");
+    expect(analisis).toContain("HISTORIAL DE ANÁLISIS");
+    for (const movido of ["<SaludSection", "<RadarSection", "<ClientesPerdidosCard", "<RadiografiaSection"]) {
+      expect(analisis).not.toContain(movido);
+    }
+    const gerente = advisor.slice(advisor.indexOf("function GrowthManagerTab("));
+    for (const movido of ["<SaludSection", "<RadarSection", "<ClientesPerdidosCard", "<RadiografiaSection"]) {
+      expect(gerente).toContain(movido);
+    }
     const hook = read("src/hooks/use-advisor-analytics.ts");
     expect(hook).toContain("MIN_DAYS_TO_JUDGE = 7");
     expect(hook).toContain("vs el mismo período del mes anterior");
+    expect(hook).toContain("comparableUptoDay");
     // el mes elegido en Evolución del negocio manda sobre ocupación, salud y radiografía
     expect(advisor).toContain("useAdvisorAnalytics(businessId, selectedMonthKey)");
     expect(advisor).toContain("onMonthKeyChange={setSelectedMonthKey}");
@@ -372,7 +383,55 @@ describe("Rendimiento mensual", () => {
     expect(advisor).not.toContain('key: "rendimiento"');
     expect(advisor).toContain("<RendimientoMensual");
     expect(advisor.indexOf("<RendimientoMensual")).toBeGreaterThan(advisor.indexOf("EVOLUCIÓN DEL NEGOCIO"));
-    expect(advisor.indexOf("<RendimientoMensual")).toBeLessThan(advisor.indexOf("RADIOGRAFÍA DEL LOCAL"));
+    expect(advisor.indexOf("<RendimientoMensual")).toBeLessThan(advisor.indexOf("HISTORIAL DE ANÁLISIS"));
     expect(read("src/lib/monthly-performance-pdf.ts")).toContain("win.print()");
+  });
+
+  it("la devolución de una seña no es gasto: se informa aparte y no baja la ganancia", () => {
+    const raw = base({
+      payments: [pay({ id: "p1", total: 100000 })],
+      expenses: [
+        { id: "e1", amount: 10000, type: "variable", funds_source: "caja", date: "2026-10-10" },
+        { id: "e2", amount: 8000, type: "ocasional", funds_source: "caja", date: "2026-10-11", deposit_id: "dep-1" },
+      ],
+    });
+    const p = computeMonthlyPerformance("2026-10", raw);
+    expect(p.gastosTotal).toBe(10000);
+    expect(p.devolucionesSena).toBe(8000);
+    expect(p.ganancia).toBe(90000);
+  });
+
+  it("gastos sin cargar no se estiman: la ganancia usa solo lo registrado", () => {
+    const sinGastos = computeMonthlyPerformance("2026-11", base({ payments: [pay({ id: "p1", total: 50000, created_at: "2026-11-05T15:00:00Z" })] }));
+    expect(sinGastos.gastosTotal).toBe(0);
+    expect(sinGastos.ganancia).toBe(50000);
+    const conGastos = computeMonthlyPerformance(
+      "2026-11",
+      base({
+        payments: [pay({ id: "p1", total: 50000, created_at: "2026-11-05T15:00:00Z" })],
+        expenses: [{ id: "e1", amount: 20000, type: "fijo", funds_source: "caja", date: "2026-11-02" }],
+      }),
+    );
+    expect(conGastos.ganancia).toBe(30000); // al registrar el gasto se recalcula sola
+  });
+
+  it("comparaciones del mes en curso con días completos: hasta ayer, y nada el día 1", () => {
+    expect(comparableUptoDay(18)).toBe(17);
+    expect(comparableUptoDay(2)).toBe(1);
+    expect(comparableUptoDay(1)).toBeNull();
+  });
+
+  it("recortar al mismo día en ambos meses compara períodos equivalentes", () => {
+    const oct = base({
+      payments: [
+        pay({ id: "o1", total: 100, created_at: "2026-10-05T15:00:00Z" }),
+        pay({ id: "o2", total: 100, created_at: "2026-10-17T15:00:00Z" }),
+      ],
+    });
+    const nov = base({ payments: [pay({ id: "n1", total: 100, created_at: "2026-11-05T15:00:00Z" })] });
+    const a = computeMonthlyPerformance("2026-10", truncateRawToDay(oct, 16));
+    const b = computeMonthlyPerformance("2026-11", truncateRawToDay(nov, 16));
+    expect(a.facturacion).toBe(100); // el día 17 entero de octubre no se compara con un día 17 incompleto de noviembre
+    expect(b.facturacion).toBe(100);
   });
 });

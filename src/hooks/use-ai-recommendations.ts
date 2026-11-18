@@ -15,6 +15,8 @@
 
 import * as React from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/hooks/use-auth";
+import { fetchAllRows } from "@/lib/supabase-paginate";
 import { useClientsData } from "@/hooks/use-clients-data";
 import {
   runRecommendationEngine,
@@ -22,6 +24,7 @@ import {
   type EngineAppt,
   type EngineService,
   type EngineEmployee,
+  type EngineEmployeeLoad,
   type EngineMetrics,
   type Recommendation,
   type RecommendationStatus,
@@ -92,7 +95,12 @@ function asAchievement(state: AiRecommendationState, now: number): Recommendatio
   };
 }
 
-export function useAiRecommendations(businessId: string | null | undefined): UseAiRecommendationsResult {
+export function useAiRecommendations(
+  businessId: string | null | undefined,
+  // Ocupación de cada profesional (servicios vendidos ÷ SU capacidad). Sin esto no se evalúa "profesional con baja ocupación".
+  employeeLoad?: EngineEmployeeLoad[],
+): UseAiRecommendationsResult {
+  const { activeBranchId } = useAuth();
   const clientsQuery = useClientsData(businessId ?? null);
 
   const [appts, setAppts] = React.useState<EngineAppt[]>([]);
@@ -126,15 +134,33 @@ export function useAiRecommendations(businessId: string | null | undefined): Use
       const since = new Date();
       since.setDate(since.getDate() - 90);
       try {
-        const [apptRes, svcRes, empRes] = await Promise.all([
-          supabase
+        // branch_id = null nunca se excluye (mismo criterio que Caja y el Análisis).
+        const branchFilter = activeBranchId ? `branch_id.eq.${activeBranchId},branch_id.is.null` : null;
+        // Turnos paginados: una consulta sin .range() corta en silencio a las 1.000 filas y perdía los más viejos.
+        const apptsPromise = fetchAllRows<EngineAppt>((from, to) => {
+          let q = supabase
             .from("appointments")
             .select("id,client_id,client_name,service_name,service_price,starts_at,status,employee_id")
             .eq("business_id", businessId)
             .gte("starts_at", since.toISOString())
-            .order("starts_at", { ascending: false }),
+            .order("id", { ascending: true });
+          if (branchFilter) q = q.or(branchFilter);
+          return q.range(from, to) as any;
+        }).then(
+          (data) => ({
+            data: data.sort((a, b) => (a.starts_at < b.starts_at ? 1 : a.starts_at > b.starts_at ? -1 : 0)),
+            error: null as { message: string } | null,
+          }),
+          (error: Error) => ({ data: [] as EngineAppt[], error: { message: error.message } }),
+        );
+        const [apptRes, svcRes, empRes] = await Promise.all([
+          apptsPromise,
           supabase.from("services").select("id,name,price").eq("business_id", businessId),
-          supabase.from("employees").select("id,full_name").eq("business_id", businessId),
+          (() => {
+            let q = supabase.from("employees").select("id,full_name").eq("business_id", businessId);
+            if (branchFilter) q = q.or(branchFilter);
+            return q;
+          })(),
         ]);
         if (cancelled) return;
         fetchOkRef.current = !(apptRes.error || svcRes.error || empRes.error);
@@ -153,7 +179,7 @@ export function useAiRecommendations(businessId: string | null | undefined): Use
     return () => {
       cancelled = true;
     };
-  }, [businessId]);
+  }, [businessId, activeBranchId]);
 
   const clients = clientsQuery.data ?? [];
   const dataLoading = clientsQuery.isLoading || loadingExtra;
@@ -169,8 +195,8 @@ export function useAiRecommendations(businessId: string | null | undefined): Use
   }, [states]);
 
   const engineResult = React.useMemo(
-    () => runRecommendationEngine({ clients, appts, services, employees, lifecycle }),
-    [clients, appts, services, employees, lifecycle],
+    () => runRecommendationEngine({ clients, appts, services, employees, lifecycle, employeeLoad }),
+    [clients, appts, services, employees, lifecycle, employeeLoad],
   );
 
   const currentRecs = engineResult.recommendations;

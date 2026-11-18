@@ -7,6 +7,7 @@ import {
 } from "@tanstack/react-query";
 import { claveTelefono, telefonoValido } from "@/lib/contacto-valido";
 import { supabase } from "@/integrations/supabase/client";
+import { fetchAllRows } from "@/lib/supabase-paginate";
 
 /**
  * Clientes reales desde Supabase.
@@ -173,11 +174,19 @@ async function loadClients(businessId: string): Promise<Client[]> {
     { data: appointments, error: appointmentsError },
     statusRows,
   ] = await Promise.all([
-    supabase
-      .from("payments")
-      .select("id,client_id,client_name,service_name,total,amount,created_at")
-      .eq("business_id", businessId)
-      .order("created_at", { ascending: false }),
+    // Paginado: sin .range() la base corta en 1.000 filas y se perdían los cobros más viejos (visitas y gasto de cada cliente).
+    fetchAllRows<any>((from, to) =>
+      supabase
+        .from("payments")
+        .select("id,client_id,client_name,service_name,total,amount,created_at")
+        .eq("business_id", businessId)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: true })
+        .range(from, to) as any,
+    ).then(
+      (data) => ({ data, error: null as { message: string } | null }),
+      (error: Error) => ({ data: null as any[] | null, error: { message: error.message } }),
+    ),
     supabase
       .from("appointments")
       .select("id,client_id,client_name,service_name,starts_at,status")

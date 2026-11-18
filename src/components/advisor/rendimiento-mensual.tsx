@@ -7,6 +7,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { cajaDateKeyBA } from "@/lib/caja-cierre";
 import { cn } from "@/lib/utils";
 import {
+  comparableUptoDay,
   loadMonthlyPerformance,
   monthLabel,
   shiftMonth,
@@ -24,10 +25,11 @@ function useMonthlyPerformance(
   branchId: string | null,
   monthKey: string,
   uptoDay?: number,
+  enabled = true,
 ) {
   return useQuery({
     queryKey: ["monthly-performance", businessId, branchId, monthKey, uptoDay ?? "mes-completo"],
-    enabled: !!businessId,
+    enabled: !!businessId && enabled,
     staleTime: 60_000,
     queryFn: (): Promise<MonthlyPerformance> => loadMonthlyPerformance(businessId!, branchId, monthKey, uptoDay),
   });
@@ -205,15 +207,18 @@ export function RendimientoMensual({ monthKey: controlledMonthKey }: Rendimiento
   }
 
   const current = useMonthlyPerformance(businessId, activeBranchId, monthKey);
-  // Mes en curso: se compara contra el MISMO período del mes anterior (del 1 al día de hoy),
-  // no contra el mes completo, que daría una caída falsa de -90%.
+  // Mes en curso: se compara con DÍAS COMPLETOS (hasta ayer) en los dos meses; comparar el día de hoy a medias contra el
+  // mismo día entero del mes anterior exageraba las caídas. Mes cerrado: contra el mes anterior completo.
+  const compDay = isCurrentMonth ? comparableUptoDay(todayDay) : null;
+  const currentComparable = useMonthlyPerformance(businessId, activeBranchId, monthKey, compDay ?? undefined, isCurrentMonth && compDay != null);
   const previous = useMonthlyPerformance(
     businessId,
     activeBranchId,
     shiftMonth(monthKey, -1),
-    isCurrentMonth ? todayDay : undefined,
+    isCurrentMonth ? (compDay ?? undefined) : undefined,
+    !isCurrentMonth || compDay != null,
   );
-  const vsLabel = isCurrentMonth ? `vs del 1 al ${todayDay} del mes anterior` : "vs mes anterior";
+  const vsLabel = isCurrentMonth ? `vs del 1 al ${compDay ?? 0} del mes anterior (días completos)` : "vs mes anterior";
   const businessName = useQuery({
     queryKey: ["business-name", businessId],
     enabled: !!businessId,
@@ -225,11 +230,17 @@ export function RendimientoMensual({ monthKey: controlledMonthKey }: Rendimiento
   });
 
   const perf = current.data;
+  // Lo que se compara contra el mes anterior: el mes en curso hasta ayer, o el mes cerrado completo.
+  const perfCmp = isCurrentMonth ? currentComparable.data : current.data;
+  // Sin gastos fijos registrados en el mes, la rentabilidad es provisional (nunca se estiman ni se descuentan gastos).
+  const rentabilidadProvisional = Boolean(
+    current.data?.hasData && current.data.facturacion > 0 && !current.data.gastosPorTipo.some((g) => g.tipo === "Fijo" && g.total > 0),
+  );
   const prev = previous.data;
   // El mes anterior solo sirve de base si tuvo actividad durante todo el mes; si fue de
   // pruebas o arrancó a medias, no se compara (sería una variación sin sentido).
   const comparable = prev?.hasData && prev.representative ? prev : null;
-  const canCompare = comparable !== null;
+  const canCompare = comparable !== null && !!perfCmp;
   const prevIsStart = Boolean(prev?.hasData && prev.partialStart);
 
   function exportPdf() {
@@ -279,7 +290,7 @@ export function RendimientoMensual({ monthKey: controlledMonthKey }: Rendimiento
               {money(perf.ganancia)}
             </div>
             <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
-              <DeltaValue pct={canCompare ? variationPct(perf.ganancia, comparable!.ganancia) : null} label={vsLabel} partialStart={prevIsStart} />
+              <DeltaValue pct={canCompare ? variationPct(perfCmp!.ganancia, comparable!.ganancia) : null} label={vsLabel} partialStart={prevIsStart} />
             </div>
             {perf.margen != null && (
               <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.03] px-3.5 py-2.5 text-sm">
@@ -288,16 +299,16 @@ export function RendimientoMensual({ monthKey: controlledMonthKey }: Rendimiento
                   <MargenInfoButton open={margenInfo} onToggle={() => setMargenInfo((v) => !v)} />
                 </span>
                 <span className="flex flex-wrap items-center justify-end gap-x-3 gap-y-0.5">
-                  {canCompare && comparable!.margen != null ? (
+                  {canCompare && comparable!.margen != null && perfCmp!.margen != null ? (
                     <span
                       className={cn(
                         "inline-flex items-center gap-1 text-xs font-semibold",
-                        perf.margen - comparable!.margen >= 0 ? "text-emerald-300" : "text-rose-300",
+                        (perfCmp!.margen ?? 0) - comparable!.margen >= 0 ? "text-emerald-300" : "text-rose-300",
                       )}
                     >
-                      {perf.margen - comparable!.margen >= 0 ? <TrendingUp className="size-3.5" /> : <TrendingDown className="size-3.5" />}
-                      {perf.margen - comparable!.margen >= 0 ? "+" : "-"}
-                      {Math.abs(perf.margen - comparable!.margen).toFixed(1).replace(".", ",")} pts {vsLabel}
+                      {(perfCmp!.margen ?? 0) - comparable!.margen >= 0 ? <TrendingUp className="size-3.5" /> : <TrendingDown className="size-3.5" />}
+                      {(perfCmp!.margen ?? 0) - comparable!.margen >= 0 ? "+" : "-"}
+                      {Math.abs((perfCmp!.margen ?? 0) - comparable!.margen).toFixed(1).replace(".", ",")} pts {vsLabel}
                     </span>
                   ) : prevIsStart ? null : (
                     <span className="text-xs text-white/35">Sin mes anterior para comparar</span>
@@ -307,21 +318,32 @@ export function RendimientoMensual({ monthKey: controlledMonthKey }: Rendimiento
               </div>
             )}
             {margenInfo && <MargenInfoTexto />}
+            {rentabilidadProvisional && (
+              <div className="mt-2 rounded-xl border border-amber-400/25 bg-amber-400/[0.06] px-3.5 py-2.5 text-xs leading-relaxed text-amber-100/85">
+                <b>Rentabilidad provisional.</b> Todavía no hay gastos fijos registrados en {monthLabel(monthKey)}: la ganancia y el margen
+                se calculan con los gastos cargados hasta ahora y se actualizan solos cuando registres el resto.
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
             <Kpi
               label="Facturación"
               value={money(perf.facturacion)}
-              sub={<DeltaValue pct={canCompare ? variationPct(perf.facturacion, comparable!.facturacion) : null} label={vsLabel} partialStart={prevIsStart} />}
+              sub={<DeltaValue pct={canCompare ? variationPct(perfCmp!.facturacion, comparable!.facturacion) : null} label={vsLabel} partialStart={prevIsStart} />}
               onDetail={() => abrirDetalle("facturacion")}
             />
-            <Kpi label="Gastos" value={money(perf.gastosTotal)} onDetail={() => abrirDetalle("gastos")} />
+            <Kpi
+              label="Gastos"
+              value={money(perf.gastosTotal)}
+              sub={perf.devolucionesSena > 0 ? `No incluye ${money(perf.devolucionesSena)} de devoluciones de señas` : undefined}
+              onDetail={() => abrirDetalle("gastos")}
+            />
             <Kpi label="Pago a profesionales" value={money(perf.pagoProfesionales)} onDetail={() => abrirDetalle("profesionales")} />
             <Kpi
               label="Ventas"
               value={perf.ventas.toLocaleString("es-AR")}
-              sub={<DeltaValue pct={canCompare ? variationPct(perf.ventas, comparable!.ventas) : null} label={vsLabel} partialStart={prevIsStart} />}
+              sub={<DeltaValue pct={canCompare ? variationPct(perfCmp!.ventas, comparable!.ventas) : null} label={vsLabel} partialStart={prevIsStart} />}
               onDetail={() => abrirDetalle("ventas")}
             />
             <Kpi label="Ticket promedio" value={money(perf.ticket)} onDetail={() => abrirDetalle("ticket")} />

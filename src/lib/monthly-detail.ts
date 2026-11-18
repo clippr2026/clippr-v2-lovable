@@ -100,10 +100,10 @@ export async function fetchMonthlyDetailRaw(
     return q.range(from, to) as any;
   });
 
-  const expenses = await fetchAllRows<DetailExpense>((from, to) => {
+  const expensesAll = await fetchAllRows<DetailExpense & { deposit_id?: string | null }>((from, to) => {
     let q = supabase
       .from("expenses")
-      .select("id,name,amount,type,category,date,funds_source,payment_method")
+      .select("id,name,amount,type,category,date,funds_source,payment_method,deposit_id")
       .eq("business_id", businessId)
       .gte("date", firstDay)
       .lte("date", lastDay)
@@ -111,6 +111,9 @@ export async function fetchMonthlyDetailRaw(
     if (branchFilter) q = q.or(branchFilter);
     return q.range(from, to) as any;
   });
+
+  // Las devoluciones de señas no son gasto del negocio (ver monthly-performance).
+  const expenses = expensesAll.filter((e) => !e.deposit_id);
 
   const saleIds = payments.filter((p) => p.status !== "anulado" && p.status !== "reembolsado").map((p) => p.id);
   const commissions: DetailCommission[] = [];

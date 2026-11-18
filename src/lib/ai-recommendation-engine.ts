@@ -1,3 +1,5 @@
+import { esParaRecuperar } from "@/lib/client-recovery";
+
 // ════════════════════════════════════════════════════════════════════════════
 //  MOTOR DE RECOMENDACIONES DEL GERENTE IA
 //  ----------------------------------------------------------------------------
@@ -34,6 +36,8 @@ export type EngineClient = {
   spent: number;
   lastVisit?: string | null;
   lastVisitDays?: number | null;
+  /** Estado que calcula la base para el módulo Clientes (activo, inactivo, perdido, vip, nuevo). */
+  status?: string | null;
   history: EngineClientPayment[];
 };
 
@@ -50,6 +54,8 @@ export type EngineAppt = {
 
 export type EngineService = { id: string; name: string; price: number | null };
 export type EngineEmployee = { id: string; full_name: string };
+/** Ocupación de un profesional: servicios vendidos en el período contra SU capacidad (horario, descanso, bloqueos). */
+export type EngineEmployeeLoad = { id: string; name: string; used: number; capacity: number };
 
 /** Contexto del ciclo de vida que aporta el hook (viene de la base de datos). */
 export type LifecycleContext = Record<string, { firstSeenAt?: string | null }>;
@@ -59,6 +65,8 @@ export type EngineInput = {
   appts: EngineAppt[];
   services: EngineService[];
   employees: EngineEmployee[];
+  /** Ocupación real por profesional. Si falta, no se evalúa "profesional con baja ocupación" (no se adivina). */
+  employeeLoad?: EngineEmployeeLoad[];
   /** Persistencia: hace cuánto se ve cada recomendación. Opcional. */
   lifecycle?: LifecycleContext;
   /** Fecha de referencia (inyectable para tests). Default: ahora. */
@@ -247,6 +255,13 @@ function finalizeRecommendation(
 }
 
 // ─────────────────────────── Métricas de período ────────────────────────────
+// Definición única de "para recuperar" (la del módulo Clientes). Sin estado (datos viejos o tests) se usa la regla
+// anterior de 45 a 179 días, que coincide con inactivo + perdido recuperable.
+function paraRecuperar(c: EngineClient): boolean {
+  if (c.status != null) return esParaRecuperar({ status: c.status, visits: c.visits, lastVisitDays: c.lastVisitDays });
+  return c.visits >= 1 && (c.lastVisitDays ?? 0) >= 45 && (c.lastVisitDays ?? 0) < 180;
+}
+
 function computeMetrics(
   clients: EngineClient[],
   appts: EngineAppt[],
@@ -271,7 +286,8 @@ function computeMetrics(
     const inPrev = t >= cutPrev && t < cutCurrent;
     if (!inCurrent && !inPrev) continue;
 
-    if (a.status === "cancelled") {
+    // Cancelaciones y "No asistió": las dos dejan el turno vacío.
+    if (a.status === "cancelled" || a.status === "no_show") {
       if (inCurrent) cancellationsCurrent += 1;
       else cancellationsPrev += 1;
     }
@@ -293,9 +309,7 @@ function computeMetrics(
     }
   }
 
-  const inactiveCount = clients.filter(
-    (c) => c.visits >= 1 && (c.lastVisitDays ?? 0) >= 45 && (c.lastVisitDays ?? 0) < 180,
-  ).length;
+  const inactiveCount = clients.filter(paraRecuperar).length;
   const vipRiskCount = clients.filter(
     (c) => (c.visits >= 8 || c.spent >= 100_000) && (c.lastVisitDays ?? 0) >= 30,
   ).length;
@@ -394,7 +408,7 @@ export function runRecommendationEngine(input: EngineInput): EngineResult {
 
   // ── 2. Clientes inactivos (+45 días) ───────────────────────────────────────
   const inactivos = clients
-    .filter((c) => c.visits >= 1 && (c.lastVisitDays ?? 0) >= 45 && (c.lastVisitDays ?? 0) < 180)
+    .filter(paraRecuperar)
     .filter((c) => !vipRisk.some((v) => v.id === c.id))
     .sort((a, b) => b.spent - a.spent);
   if (inactivos.length > 0) {
@@ -479,45 +493,44 @@ export function runRecommendationEngine(input: EngineInput): EngineResult {
   }
 
   // ── 4. Profesional con baja ocupación ──────────────────────────────────────
-  if (employees.length >= 2 && done.length >= 12) {
-    const byEmp = new Map<string, number>();
-    done.forEach((a) => {
-      if (!a.employee_id) return;
-      byEmp.set(a.employee_id, (byEmp.get(a.employee_id) ?? 0) + 1);
-    });
-    if (byEmp.size >= 2) {
-      const counts = [...byEmp.entries()].map(([id, count]) => ({ id, count }));
-      const avg = counts.reduce((s, c) => s + c.count, 0) / counts.length;
-      const low = counts.reduce((m, c) => (c.count < m.count ? c : m));
-      if (low.count < avg * 0.6) {
-        const gap = Math.round((avg - low.count) * avgSvcPrice);
-        const occPct = Math.round((low.count / avg) * 100);
-        drafts.push({
-          key: "prof-baja-ocupacion",
-          title: `${empName(low.id)} está al ${occPct}% de la ocupación del equipo`,
-          description: `${empName(low.id)} atendió bastante menos que el promedio en los últimos 90 días. Sillón parado = plata parada.`,
-          urgencySignal: 0.4,
-          strategy: {
-            icon: "🪑",
-            tone: "warning",
-            category: "equipo",
-            problem: `${empName(low.id)} atendió bastante menos que el promedio del equipo en los últimos 90 días. Sillón parado = plata parada.`,
-            moneyLost: gap,
-            moneyRecoverable: Math.round(gap * 0.7),
-            action: `Dirigí demanda hacia ${empName(low.id)}: asignale los nuevos turnos y mostralo en tu perfil público.`,
-            steps: [
-              `Cuando entren reservas sin profesional elegido, asignáselas a ${empName(low.id)}.`,
-              `Pediles a tus clientes nuevos que prueben con ${empName(low.id)} destacando su especialidad.`,
-              `Dale a ${empName(low.id)} un horario propio en la promo del día flojo para que arranque su agenda.`,
-            ],
-            who: `${empName(low.id)} (profesional con menor ocupación)`,
-            contacts: [],
-            message: `¿Probaste cortarte con ${empName(low.id)}? Esta semana tiene los mejores horarios disponibles. Escribime y te reservo. ✂️`,
-            measure: `Turnos completados por ${empName(low.id)} el próximo mes vs los últimos 30 días.`,
-            basis: `Promedio del equipo: ${Math.round(avg)} turnos. ${empName(low.id)}: ${low.count}. Valorizado al precio medio de servicio.`,
-          },
-        });
-      }
+  // Se mide contra la capacidad REAL de cada profesional (sus horarios, descansos y bloqueos): quien trabaja menos horas
+  // no parece "bajo" por tener menos turnos. Sin esa información no se emite (no se adivina).
+  const load = (input.employeeLoad ?? []).filter((e) => e.capacity > 0);
+  if (load.length >= 2) {
+    const totalUsed = load.reduce((s, e) => s + e.used, 0);
+    const totalCap = load.reduce((s, e) => s + e.capacity, 0);
+    const teamPct = totalCap > 0 ? (totalUsed / totalCap) * 100 : 0;
+    const low = load.reduce((m, e) => (e.used / e.capacity < m.used / m.capacity ? e : m));
+    const lowPct = (low.used / low.capacity) * 100;
+    if (totalUsed >= 12 && lowPct < teamPct * 0.8) {
+      const freeLow = Math.max(0, Math.round((teamPct / 100) * low.capacity) - low.used);
+      const gap = Math.round(freeLow * avgSvcPrice);
+      const name = low.name;
+      drafts.push({
+        key: "prof-baja-ocupacion",
+        title: `${name} está al ${Math.round(lowPct)}% de su agenda (el equipo, ${Math.round(teamPct)}%)`,
+        description: `${name} ocupa menos de su horario que el resto del equipo. Sillón parado = plata parada.`,
+        urgencySignal: 0.4,
+        strategy: {
+          icon: "🪑",
+          tone: "warning",
+          category: "equipo",
+          problem: `${name} ocupó el ${Math.round(lowPct)}% de su horario; el equipo promedia ${Math.round(teamPct)}%. Sillón parado = plata parada.`,
+          moneyLost: gap,
+          moneyRecoverable: Math.round(gap * 0.7),
+          action: `Dirigí demanda hacia ${name}: asignale los nuevos turnos y mostralo en tu perfil público.`,
+          steps: [
+            `Cuando entren reservas sin profesional elegido, asignáselas a ${name}.`,
+            `Pediles a tus clientes nuevos que prueben con ${name} destacando su especialidad.`,
+            `Dale a ${name} un horario propio en la promo del día flojo para que arranque su agenda.`,
+          ],
+          who: `${name} (profesional con menor ocupación)`,
+          contacts: [],
+          message: `¿Probaste cortarte con ${name}? Esta semana tiene los mejores horarios disponibles. Escribime y te reservo. ✂️`,
+          measure: `Ocupación de ${name} el próximo mes vs hoy.`,
+          basis: `Servicios cobrados sobre el horario real de cada profesional. Equipo: ${Math.round(teamPct)}%. ${name}: ${low.used} de ${low.capacity} turnos. Valorizado al precio medio de servicio.`,
+        },
+      });
     }
   }
 
@@ -564,7 +577,7 @@ export function runRecommendationEngine(input: EngineInput): EngineResult {
   }
 
   // ── 6. Cancelaciones recurrentes ───────────────────────────────────────────
-  const cancels = appts.filter((a) => a.status === "cancelled" && a.client_name);
+  const cancels = appts.filter((a) => (a.status === "cancelled" || a.status === "no_show") && a.client_name);
   if (cancels.length >= 3) {
     const byClient = new Map<string, number>();
     cancels.forEach((a) => {
@@ -582,11 +595,11 @@ export function runRecommendationEngine(input: EngineInput): EngineResult {
           : 0;
       let title: string;
       if (trendPct > 10 && metrics.cancellationsPrev > 0) {
-        title = `Las cancelaciones aumentaron un ${trendPct}% este mes`;
+        title = `Las cancelaciones y no asistencias aumentaron un ${trendPct}% este mes`;
       } else if (repeat.length >= 2 && repeatShare >= 25) {
-        title = `${repeat.length} clientes concentran el ${repeatShare}% de tus cancelaciones`;
+        title = `${repeat.length} clientes concentran el ${repeatShare}% de tus cancelaciones y faltas`;
       } else {
-        title = `${cancels.length} cancelaciones te vaciaron turnos`;
+        title = `${cancels.length} cancelaciones y faltas te vaciaron turnos`;
       }
       drafts.push({
         key: "cancelaciones",
@@ -597,7 +610,7 @@ export function runRecommendationEngine(input: EngineInput): EngineResult {
           icon: "🚫",
           tone: "warning",
           category: "agenda",
-          problem: `Tuviste ${cancels.length} cancelaciones en los últimos 90 días${repeat.length > 0 ? ` y ${repeat.length} clientes cancelan de forma repetida` : ""}. Cada hueco que no se rellena es plata perdida.`,
+          problem: `Tuviste ${cancels.length} cancelaciones y faltas en los últimos 90 días${repeat.length > 0 ? ` y ${repeat.length} clientes cancelan de forma repetida` : ""}. Cada hueco que no se rellena es plata perdida.`,
           moneyLost: lost,
           moneyRecoverable: Math.round(lost * 0.5),
           action: "Implementá recordatorio + lista de espera para tapar los huecos al instante.",

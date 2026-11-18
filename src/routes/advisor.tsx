@@ -11,7 +11,8 @@ import { fmtAR, pctDelta } from "@/components/dashboard/use-dashboard-data";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useClientsData, type Client } from "@/hooks/use-clients-data";
-import { ADVISOR_MONTHS_SELECTABLE, useAdvisorAnalytics } from "@/hooks/use-advisor-analytics";
+import { ADVISOR_MONTHS_SELECTABLE, useAdvisorAnalytics, type AdvisorAnalytics } from "@/hooks/use-advisor-analytics";
+import type { HealthIndicator } from "@/lib/health-score";
 import { cajaDateKeyBA } from "@/lib/caja-cierre";
 import { shiftMonth } from "@/lib/monthly-performance";
 import { MesSelector, RendimientoMensual } from "@/components/advisor/rendimiento-mensual";
@@ -355,7 +356,12 @@ function AdvisorContent({
   const currentMonthKey = cajaDateKeyBA().slice(0, 7);
   const [selectedMonthKey, setSelectedMonthKey] = React.useState(currentMonthKey);
   const analytics = useAdvisorAnalytics(businessId, selectedMonthKey);
-  const aiRecs = useAiRecommendations(businessId);
+  // El Gerente IA mide la ocupación de cada profesional contra SU capacidad real (la del Análisis).
+  const employeeLoad = React.useMemo(
+    () => (analytics.current?.employeeLoad ?? []).map((e) => ({ id: e.id, name: e.name, used: e.used, capacity: e.capacity })),
+    [analytics.current?.employeeLoad],
+  );
+  const aiRecs = useAiRecommendations(businessId, employeeLoad);
 
   const healthTone = analytics.health != null ? getHealthTone(analytics.health) : getHealthTone(0);
   const healthHeadline =
@@ -399,7 +405,19 @@ function AdvisorContent({
         />
       )}
 
-      {advisorTab === "acciones" && <GrowthManagerTab data={aiRecs} />}
+      {advisorTab === "acciones" && (
+        <GrowthManagerTab
+          data={aiRecs}
+          analytics={analytics}
+          businessId={businessId}
+          selectedMonthKey={selectedMonthKey}
+          onMonthKeyChange={setSelectedMonthKey}
+          minMonthKey={shiftMonth(currentMonthKey, -(ADVISOR_MONTHS_SELECTABLE - 1))}
+          animatedHealth={animatedHealth}
+          healthTone={healthTone}
+          healthHeadline={healthHeadline}
+        />
+      )}
 
       {advisorTab === "analisis" && (
         <>
@@ -473,222 +491,6 @@ function AdvisorContent({
           </div>
           {/* /Evolución */}
 
-          {/* ── SALUD DEL NEGOCIO ─────────────────────────────────── */}
-          <div className="relative overflow-hidden rounded-[2rem] border border-emerald-300/[0.30] bg-white/[0.018] p-2.5 pt-4 shadow-[0_0_0_1px_rgba(16,185,129,0.16),0_30px_125px_-42px_rgba(45,212,191,1)] sm:p-3 sm:pt-5">
-            <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-emerald-400/[0.16] blur-3xl" />
-            <div className="relative mb-3 flex items-center gap-4">
-              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-              <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">
-                Salud del negocio
-              </span>
-              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-            </div>
-            {analytics.analysisNote && (
-              <p className="relative mb-3 px-2 text-xs leading-snug text-amber-200/80">{analytics.analysisNote}</p>
-            )}
-            <div className="relative grid gap-3 md:grid-cols-2">
-              {/* Puntaje */}
-              <section className="rounded-2xl border border-white/10 bg-[#0b0a14] p-4 [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.12),transparent_65%)]">
-                <div className="text-sm font-semibold text-white">Estado actual</div>
-                <div className="text-[11px] text-white/50">Rentabilidad, clientes y ocupación de {analytics.analysisMonthLabel}</div>
-                <div className="mt-4 flex items-center gap-4">
-                  <div className="relative grid shrink-0 place-items-center">
-                    <svg width="118" height="118" viewBox="0 0 200 200" className="-rotate-90">
-                      <circle cx="100" cy="100" r="84" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="16" />
-                      <circle
-                        cx="100"
-                        cy="100"
-                        r="84"
-                        fill="none"
-                        stroke="url(#healthGrad)"
-                        strokeWidth="16"
-                        strokeLinecap="round"
-                        strokeDasharray={`${2 * Math.PI * 84}`}
-                        strokeDashoffset={`${2 * Math.PI * 84 * (1 - animatedHealth / 100)}`}
-                        className="transition-all duration-700"
-                      />
-                      <defs>
-                        <linearGradient id="healthGrad" x1="0%" y1="0%" x2="100%" y2="0%">
-                          <stop offset="0%" stopColor="#4ade80" />
-                          <stop offset="100%" stopColor="#818cf8" />
-                        </linearGradient>
-                      </defs>
-                    </svg>
-                    <div className="absolute flex flex-col items-center">
-                      <span className={cn("font-display text-4xl font-semibold leading-none tabular-nums", healthTone.text)}>
-                        {analytics.health == null ? "—" : animatedHealth}
-                      </span>
-                      <span className="mt-0.5 text-[11px] text-white/45">de 100</span>
-                    </div>
-                  </div>
-                  <div className="min-w-0">
-                    <div className={cn("text-xl font-semibold leading-tight", healthTone.text)}>{healthHeadline}</div>
-                    <p className="mt-1 text-xs leading-relaxed text-white/60">
-                      {analytics.health == null
-                        ? "Todavía no hay datos suficientes para calcular la salud del negocio."
-                        : analytics.health >= 80
-                          ? "Tu local está muy bien. Mantené el ritmo y seguí cuidando a tus clientes."
-                          : analytics.health >= 65
-                            ? "Vas bien. El próximo salto está en llenar la agenda y recuperar clientes, no en bajar precios."
-                            : analytics.health >= 50
-                              ? "Hay margen de mejora. Empezá por llenar la agenda y recuperar clientes."
-                              : "Hay varios indicadores para mejorar. Empezá por llenar la agenda y recuperar clientes."}
-                    </p>
-                  </div>
-                </div>
-                {analytics.healthParts.length > 0 && (
-                  <div className="mt-4 space-y-2.5 border-t border-white/[0.07] pt-3">
-                    <div className="text-xs font-semibold text-white/80">Cómo se arma el puntaje</div>
-                    {analytics.healthParts.map((h) => (
-                      <div key={h.key}>
-                        <div className="flex items-baseline justify-between text-xs">
-                          <span className="text-white/65">{h.label}</span>
-                          <span className="tabular-nums text-white/85">
-                            {h.pts} <span className="text-white/40">/ {h.max}</span>
-                          </span>
-                        </div>
-                        <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/[0.08]">
-                          <div
-                            className={cn("h-full rounded-full", h.pts / h.max >= 0.7 ? "bg-emerald-400/80" : h.pts / h.max >= 0.4 ? "bg-amber-300/80" : "bg-rose-400/80")}
-                            style={{ width: `${Math.min(100, (h.pts / h.max) * 100)}%` }}
-                          />
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {analytics.health != null && (
-                  <div className="mt-4 rounded-xl border border-emerald-300/20 bg-emerald-300/[0.05] px-3 py-2.5 text-xs leading-relaxed text-white/70">
-                    <div className="mb-1 flex items-center gap-1.5 font-semibold text-emerald-300">
-                      <Brain className="h-3.5 w-3.5" /> Insight IA
-                    </div>
-                    {analytics.slotsTo75 > 0 ? (
-                      <>
-                        La principal oportunidad está en la ocupación: llegando al <b className="text-white">75%</b> ({analytics.slotsTo75} turnos más)
-                        sumarías aproximadamente <b className="text-emerald-300">{fmtAR(Math.round(analytics.potentialAt75))}</b> sin sumar personal.
-                      </>
-                    ) : (
-                      <>La agenda está bien aprovechada en {analytics.analysisMonthLabel}: la ocupación supera el 75%. Buen trabajo.</>
-                    )}
-                  </div>
-                )}
-              </section>
-
-              {/* Radar */}
-              <section className="rounded-2xl border border-white/10 bg-[#0b0a14] p-4 [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.12),transparent_65%)]">
-                <div className="flex items-center gap-2 text-sm font-semibold text-white">
-                  <Activity className="h-4 w-4 text-emerald-300" /> Radar del local
-                </div>
-                <div className="text-[11px] text-white/50">Verde: va bien. Naranja o rojo: te está costando plata.</div>
-                <div className="mt-3 space-y-2">
-                  {analytics.radar.length === 0 ? (
-                    <p className="text-sm text-white/55">Todavía no hay suficiente historial para generar el radar del local.</p>
-                  ) : (
-                    analytics.radar.map((item) => {
-                      const style = RADAR_STYLES[item.tone];
-                      const Icon =
-                        item.tone === "ok" ? TrendingUp : item.tone === "bad" ? Package : item.tone === "alert" ? Users : CalendarDays;
-                      return (
-                        <div key={item.key} className={cn("flex items-center gap-3 rounded-xl border px-3 py-2.5", style.ring)}>
-                          <span className={cn("grid size-8 shrink-0 place-items-center rounded-lg", style.bg)}>
-                            <Icon className={cn("size-4", style.icon)} />
-                          </span>
-                          <span className="text-sm leading-snug text-white/85">{item.label}</span>
-                        </div>
-                      );
-                    })
-                  )}
-                </div>
-              </section>
-            </div>
-          </div>
-          {/* /Salud */}
-
-          <ClientesPerdidosCard
-            businessId={businessId}
-            monthKey={selectedMonthKey}
-            monthLabel={analytics.analysisMonthLabel}
-            occupancy={analytics.current?.hasData ? analytics.current.occupancy : null}
-            ticket={analytics.current?.ticket ?? null}
-            employeeLoad={analytics.current?.employeeLoad}
-          />
-
-          {/* ── RADIOGRAFÍA DEL LOCAL ─────────────────────────────── */}
-          {/* overflow-hidden: mismo fix que Salud/Evolución — el glow
-              decorativo (-inset-x-6) podía sobresalir del ancho real y
-              forzar scroll horizontal en toda la página. */}
-          <div className="relative overflow-hidden rounded-[2rem] border border-fuchsia-300/[0.22] bg-white/[0.016] p-3 shadow-[0_0_0_1px_rgba(217,70,239,0.12),0_28px_110px_-50px_rgba(217,70,239,0.8)] sm:p-4">
-            <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-fuchsia-500/[0.12] blur-3xl" />
-            <div className="flex items-center gap-4 mb-3">
-              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-              <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">
-                Radiografía del local
-              </span>
-              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-            </div>
-            <GlassCard className="p-3.5 sm:p-6 border border-fuchsia-300/[0.2] bg-white/[0.05] shadow-[0_0_0_1px_rgba(217,70,239,0.1),0_35px_120px_-44px_rgba(217,70,239,0.7)]">
-              <h2 className="font-display text-xl sm:text-2xl font-bold tracking-tight">
-                Tu negocio de un vistazo
-              </h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Los números que un dueño de barbería o peluquería mira todos los días · {analytics.analysisMonthLabel}.
-              </p>
-              {/* grid-cols-2 desde mobile (antes era 1 sola columna hasta
-                  sm:, una tarjeta enorme abajo de otra) — en pantallas
-                  grandes sigue yendo a 4 columnas igual que siempre. */}
-              <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-5 sm:gap-3 lg:grid-cols-4">
-                {analytics.radiografia.map((item) => {
-                  const Icon =
-                    RADIOGRAFIA_ICONS[item.key as keyof typeof RADIOGRAFIA_ICONS] ?? Activity;
-                  return (
-                    <div
-                      key={item.key}
-                      className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-3 transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.045] sm:p-4"
-                    >
-                      <div
-                        className={cn(
-                          "grid h-8 w-8 place-items-center rounded-xl ring-1 sm:h-10 sm:w-10",
-                          item.tone === "good"
-                            ? "bg-emerald-400/10 ring-emerald-400/20 text-emerald-300"
-                            : item.tone === "warn"
-                              ? "bg-amber-400/10 ring-amber-400/20 text-amber-300"
-                              : item.tone === "bad"
-                                ? "bg-rose-400/10 ring-rose-400/20 text-rose-300"
-                                : "bg-white/[0.05] ring-white/10 text-white/75",
-                        )}
-                      >
-                        <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
-                      </div>
-                      <div
-                        className={cn(
-                          "mt-2 text-xl font-bold leading-none sm:mt-3 sm:text-2xl",
-                          item.tone === "good"
-                            ? "text-emerald-300"
-                            : item.tone === "warn"
-                              ? "text-amber-300"
-                              : item.tone === "bad"
-                                ? "text-rose-300"
-                                : "text-white",
-                        )}
-                      >
-                        {item.value}
-                      </div>
-                      <div className="mt-1 text-xs leading-snug text-muted-foreground sm:mt-1.5">
-                        {item.label}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              {!analytics.hasAnyData && (
-                <p className="mt-4 text-sm text-muted-foreground">
-                  Todavía no hay datos suficientes para generar este análisis. A medida que se
-                  registren turnos y cobros, esta radiografía se va a ir completando sola.
-                </p>
-              )}
-            </GlassCard>
-          </div>
-          {/* /Radiografía */}
 
           {/* ── HISTORIAL DE ANÁLISIS ─────────────────────────────── */}
           {/* overflow-hidden: mismo fix que las secciones anteriores. */}
@@ -734,8 +536,8 @@ function AdvisorContent({
                       // El mes en curso se compara contra el MISMO período del mes anterior.
                       const growthPct =
                         isMtd && analytics.mtd
-                          ? analytics.mtd.previousRevenue != null && analytics.mtd.previousRevenue > 0
-                            ? pctDelta(report.revenue, analytics.mtd.previousRevenue)
+                          ? analytics.mtd.currentRevenue != null && analytics.mtd.previousRevenue != null && analytics.mtd.previousRevenue > 0
+                            ? pctDelta(analytics.mtd.currentRevenue, analytics.mtd.previousRevenue)
                             : null
                           : prev?.hasData && prev.representative
                             ? pctDelta(report.revenue, prev.revenue)
@@ -779,7 +581,7 @@ function AdvisorContent({
                               <>
                                 {" "}
                                 ({growthPct >= 0 ? "+" : ""}
-                                {growthPct}% {isMtd && analytics.mtd ? `vs del 1 al ${analytics.mtd.upToDay} del mes anterior` : "vs mes anterior"})
+                                {growthPct}% {isMtd && analytics.mtd ? `vs del 1 al ${analytics.mtd.upToDay} del mes anterior (días completos)` : "vs mes anterior"})
                               </>
                             )}
                             . Utilidad: {fmtAR(report.profit)}.
@@ -1945,12 +1747,329 @@ function RecentAchievements({
   );
 }
 
+
+// ─────────────────────── Salud del negocio (Gerente IA) ───────────────────────
+const ESTADO_CHIP: Record<"provisional" | "insuficiente", { text: string; cls: string }> = {
+  provisional: { text: "Provisional", cls: "border-amber-300/30 bg-amber-300/10 text-amber-200" },
+  insuficiente: { text: "Datos insuficientes", cls: "border-white/15 bg-white/[0.05] text-white/55" },
+};
+
+function IndicadorSalud({ ind }: { ind: HealthIndicator }) {
+  const [open, setOpen] = React.useState(false);
+  const ratio = ind.pts != null ? ind.pts / ind.max : 0;
+  const barra = ratio >= 0.7 ? "bg-emerald-400/80" : ratio >= 0.4 ? "bg-amber-300/80" : "bg-rose-400/80";
+  const chip = ind.state === "calculado" ? null : ESTADO_CHIP[ind.state];
+  return (
+    <div className="rounded-xl border border-white/[0.08] bg-white/[0.03]">
+      <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className="w-full px-3 py-2.5 text-left">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-sm font-semibold text-white">{ind.label}</span>
+          <span className="shrink-0 text-xs tabular-nums text-white/85">
+            {ind.pts != null ? (
+              <>
+                {Math.round(ind.pts)} <span className="text-white/40">/ {ind.max}</span>
+              </>
+            ) : (
+              <span className="text-white/45">— / {ind.max}</span>
+            )}
+          </span>
+        </div>
+        <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/[0.08]">
+          {ind.pts != null && <div className={cn("h-full rounded-full", barra)} style={{ width: `${Math.min(100, ratio * 100)}%` }} />}
+        </div>
+        <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px] text-white/55">
+          <span className="min-w-0 truncate">{ind.valueText}</span>
+          {chip && <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold", chip.cls)}>{chip.text}</span>}
+        </div>
+      </button>
+      {open && (
+        <div className="space-y-2 border-t border-white/[0.07] px-3 py-3 text-xs leading-relaxed text-white/70">
+          {ind.warning && <p className="rounded-lg border border-amber-300/25 bg-amber-300/[0.06] px-2.5 py-2 text-amber-100/85">{ind.warning}</p>}
+          <p>
+            <b className="text-white">Por qué:</b> {ind.why}
+          </p>
+          <p>
+            <b className="text-white">Qué hacer:</b> {ind.tip}
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SaludSection({
+  analytics,
+  selectedMonthKey,
+  onMonthKeyChange,
+  minMonthKey,
+  animatedHealth,
+  healthTone,
+  healthHeadline,
+}: {
+  analytics: AdvisorAnalytics;
+  selectedMonthKey: string;
+  onMonthKeyChange: (k: string) => void;
+  minMonthKey: string;
+  animatedHealth: number;
+  healthTone: { text: string; bar: string };
+  healthHeadline: string;
+}) {
+  const score = analytics.healthScore;
+  const luz =
+    "[background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.12),transparent_65%)]";
+  const tarjeta = `rounded-2xl border border-white/10 bg-[#0b0a14] p-4 ${luz}`;
+  return (
+    <div className="relative overflow-hidden rounded-[2rem] border border-emerald-300/[0.30] bg-white/[0.018] p-2.5 pt-4 shadow-[0_0_0_1px_rgba(16,185,129,0.16),0_30px_125px_-42px_rgba(45,212,191,1)] sm:p-3 sm:pt-5">
+      <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-emerald-400/[0.16] blur-3xl" />
+      <div className="relative">
+        <MesSelector monthKey={selectedMonthKey} onMonthKeyChange={onMonthKeyChange} minMonthKey={minMonthKey} />
+      </div>
+      <div className="relative mb-3 flex items-center gap-4">
+        <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+        <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">
+          Salud del negocio
+        </span>
+        <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+      </div>
+      {analytics.analysisNote && <p className="relative mb-3 px-2 text-xs leading-snug text-amber-200/80">{analytics.analysisNote}</p>}
+      <div className="relative grid gap-3 md:grid-cols-2">
+        <section className={tarjeta}>
+          <div className="text-sm font-semibold text-white">Estado actual</div>
+          <div className="text-[11px] text-white/50">Rentabilidad, clientes y ocupación de {analytics.analysisMonthLabel}</div>
+          <div className="mt-4 flex items-center gap-4">
+            <div className="relative grid shrink-0 place-items-center">
+              <svg width="118" height="118" viewBox="0 0 200 200" className="-rotate-90">
+                <circle cx="100" cy="100" r="84" fill="none" stroke="rgba(255,255,255,0.08)" strokeWidth="16" />
+                <circle
+                  cx="100"
+                  cy="100"
+                  r="84"
+                  fill="none"
+                  stroke="url(#healthGrad)"
+                  strokeWidth="16"
+                  strokeLinecap="round"
+                  strokeDasharray={`${2 * Math.PI * 84}`}
+                  strokeDashoffset={`${2 * Math.PI * 84 * (1 - animatedHealth / 100)}`}
+                  className="transition-all duration-700"
+                />
+                <defs>
+                  <linearGradient id="healthGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#4ade80" />
+                    <stop offset="100%" stopColor="#818cf8" />
+                  </linearGradient>
+                </defs>
+              </svg>
+              <div className="absolute flex flex-col items-center">
+                <span className={cn("font-display text-4xl font-semibold leading-none tabular-nums", healthTone.text)}>
+                  {analytics.health == null ? "—" : animatedHealth}
+                </span>
+                <span className="mt-0.5 text-[11px] text-white/45">de 100</span>
+              </div>
+            </div>
+            <div className="min-w-0">
+              <div className={cn("text-xl font-semibold leading-tight", healthTone.text)}>{healthHeadline}</div>
+              <p className="mt-1 text-xs leading-relaxed text-white/60">
+                {analytics.health == null
+                  ? "Todavía no hay datos suficientes para calcular la salud del negocio."
+                  : analytics.health >= 80
+                    ? "Tu local está muy bien. Mantené el ritmo y seguí cuidando a tus clientes."
+                    : analytics.health >= 65
+                      ? "Vas bien. El próximo salto está en llenar la agenda y recuperar clientes, no en bajar precios."
+                      : analytics.health >= 50
+                        ? "Hay margen de mejora. Empezá por llenar la agenda y recuperar clientes."
+                        : "Hay varios indicadores para mejorar. Empezá por llenar la agenda y recuperar clientes."}
+              </p>
+            </div>
+          </div>
+          {score && (score.provisional || score.partial) && (
+            <div className="mt-3 flex flex-wrap gap-1.5 text-[11px]">
+              {score.provisional && <span className={cn("rounded-full border px-2.5 py-1 font-semibold", ESTADO_CHIP.provisional.cls)}>Puntaje provisional</span>}
+              {score.partial && (
+                <span className={cn("rounded-full border px-2.5 py-1 font-semibold", ESTADO_CHIP.insuficiente.cls)}>
+                  Calculado con {score.available} de 100 puntos posibles
+                </span>
+              )}
+            </div>
+          )}
+          {score && analytics.slotsTo75 > 0 && (
+            <p className="mt-3 text-xs leading-relaxed text-white/60">
+              <b className="text-emerald-300">Oportunidad:</b> llegando al <b className="text-white">75%</b> de ocupación ({analytics.slotsTo75} turnos más) sumarías
+              aproximadamente <b className="text-emerald-300">{fmtAR(Math.round(analytics.potentialAt75))}</b> sin sumar personal.
+            </p>
+          )}
+        </section>
+
+        <section className={tarjeta}>
+          <div className="text-sm font-semibold text-white">Cómo se arma el puntaje</div>
+          <div className="text-[11px] text-white/50">Tocá un indicador para ver por qué obtuvo esos puntos y qué hacer.</div>
+          <div className="mt-3 space-y-2">
+            {score ? (
+              score.indicators.map((ind) => <IndicadorSalud key={ind.key} ind={ind} />)
+            ) : (
+              <p className="text-sm text-white/55">Todavía no hay actividad suficiente para armar el puntaje.</p>
+            )}
+          </div>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+function RadarSection({ analytics }: { analytics: AdvisorAnalytics }) {
+  const luz =
+    "[background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.12),transparent_65%)]";
+  return (
+    <section className={`rounded-2xl border border-white/10 bg-[#0b0a14] p-4 ${luz}`}>
+      <div className="flex items-center gap-2 text-sm font-semibold text-white">
+        <Activity className="h-4 w-4 text-emerald-300" /> Radar del local
+      </div>
+      <div className="text-[11px] text-white/50">Verde: va bien. Naranja o rojo: te está costando plata.</div>
+      <div className="mt-3 space-y-2">
+        {analytics.radar.length === 0 ? (
+          <p className="text-sm text-white/55">Todavía no hay suficiente historial para generar el radar del local.</p>
+        ) : (
+          analytics.radar.map((item) => {
+            const style = RADAR_STYLES[item.tone];
+            const Icon = item.tone === "ok" ? TrendingUp : item.tone === "bad" ? Package : item.tone === "alert" ? Users : CalendarDays;
+            return (
+              <div key={item.key} className={cn("flex items-center gap-3 rounded-xl border px-3 py-2.5", style.ring)}>
+                <span className={cn("grid size-8 shrink-0 place-items-center rounded-lg", style.bg)}>
+                  <Icon className={cn("size-4", style.icon)} />
+                </span>
+                <span className="text-sm leading-snug text-white/85">{item.label}</span>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </section>
+  );
+}
+
+// Radiografía del equipo: solo lo que NO está ya en Salud, Radar o Análisis (clientes para recuperar, turnos vacíos).
+function RadiografiaSection({ analytics }: { analytics: AdvisorAnalytics }) {
+  const items = analytics.radiografia.filter((i) => i.key !== "recuperar" && i.key !== "turnos-vacios");
+  return (
+    <div className="relative overflow-hidden rounded-[2rem] border border-fuchsia-300/[0.22] bg-white/[0.016] p-3 shadow-[0_0_0_1px_rgba(217,70,239,0.12),0_28px_110px_-50px_rgba(217,70,239,0.8)] sm:p-4">
+      <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-fuchsia-500/[0.12] blur-3xl" />
+      <div className="flex items-center gap-4 mb-3">
+        <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+        <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">
+          Radiografía del equipo
+        </span>
+        <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+      </div>
+      <GlassCard className="p-3.5 sm:p-6 border border-fuchsia-300/[0.2] bg-white/[0.05] shadow-[0_0_0_1px_rgba(217,70,239,0.1),0_35px_120px_-44px_rgba(217,70,239,0.7)]">
+        <h2 className="font-display text-xl sm:text-2xl font-bold tracking-tight">
+          Equipo, servicios y clientes
+        </h2>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Quién rinde más, qué se vende y cuántos clientes fieles tenés · {analytics.analysisMonthLabel}.
+        </p>
+        {/* grid-cols-2 desde mobile (antes era 1 sola columna hasta
+            sm:, una tarjeta enorme abajo de otra) — en pantallas
+            grandes sigue yendo a 4 columnas igual que siempre. */}
+        <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-5 sm:gap-3 lg:grid-cols-4">
+          {items.map((item) => {
+            const Icon =
+              RADIOGRAFIA_ICONS[item.key as keyof typeof RADIOGRAFIA_ICONS] ?? Activity;
+            return (
+              <div
+                key={item.key}
+                className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-3 transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.045] sm:p-4"
+              >
+                <div
+                  className={cn(
+                    "grid h-8 w-8 place-items-center rounded-xl ring-1 sm:h-10 sm:w-10",
+                    item.tone === "good"
+                      ? "bg-emerald-400/10 ring-emerald-400/20 text-emerald-300"
+                      : item.tone === "warn"
+                        ? "bg-amber-400/10 ring-amber-400/20 text-amber-300"
+                        : item.tone === "bad"
+                          ? "bg-rose-400/10 ring-rose-400/20 text-rose-300"
+                          : "bg-white/[0.05] ring-white/10 text-white/75",
+                  )}
+                >
+                  <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
+                </div>
+                <div
+                  className={cn(
+                    "mt-2 text-xl font-bold leading-none sm:mt-3 sm:text-2xl",
+                    item.tone === "good"
+                      ? "text-emerald-300"
+                      : item.tone === "warn"
+                        ? "text-amber-300"
+                        : item.tone === "bad"
+                          ? "text-rose-300"
+                          : "text-white",
+                  )}
+                >
+                  {item.value}
+                </div>
+                <div className="mt-1 text-xs leading-snug text-muted-foreground sm:mt-1.5">
+                  {item.label}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        {!analytics.hasAnyData && (
+          <p className="mt-4 text-sm text-muted-foreground">
+            Todavía no hay datos suficientes para generar este análisis. A medida que se
+            registren turnos y cobros, esta radiografía se va a ir completando sola.
+          </p>
+        )}
+      </GlassCard>
+    </div>
+  );
+}
+
 // Cantidad de recomendaciones visibles de entrada. El Gerente IA no debe llenar
 // la pantalla: 1 prioridad ejecutiva + 3 recomendaciones compactas.
 const GROWTH_VISIBLE_LIMIT = 3;
 
-function GrowthManagerTab({ data }: { data: UseAiRecommendationsResult }) {
+type GrowthManagerTabProps = {
+  data: UseAiRecommendationsResult;
+  analytics: AdvisorAnalytics;
+  businessId: string | null | undefined;
+  selectedMonthKey: string;
+  onMonthKeyChange: (k: string) => void;
+  minMonthKey: string;
+  animatedHealth: number;
+  healthTone: { text: string; bar: string };
+  healthHeadline: string;
+};
+
+function GrowthManagerTab({ data, analytics, businessId, selectedMonthKey, onMonthKeyChange, minMonthKey, animatedHealth, healthTone, healthHeadline }: GrowthManagerTabProps) {
   const { ready, loading, recommendations, resolved, achievements, totalOpportunity } = data;
+  // Diagnóstico: salud + radar arriba; clientes para recuperar y radiografía del equipo al final. Nada se repite con Análisis.
+  const diagnostico = (
+    <>
+      <SaludSection
+        analytics={analytics}
+        selectedMonthKey={selectedMonthKey}
+        onMonthKeyChange={onMonthKeyChange}
+        minMonthKey={minMonthKey}
+        animatedHealth={animatedHealth}
+        healthTone={healthTone}
+        healthHeadline={healthHeadline}
+      />
+      <RadarSection analytics={analytics} />
+    </>
+  );
+  const detalleFinal = (
+    <>
+      <ClientesPerdidosCard
+        businessId={businessId}
+        monthKey={selectedMonthKey}
+        monthLabel={analytics.analysisMonthLabel}
+        occupancy={analytics.current?.hasData ? analytics.current.occupancy : null}
+        ticket={analytics.current?.ticket ?? null}
+        employeeLoad={analytics.current?.employeeLoad}
+      />
+      <RadiografiaSection analytics={analytics} />
+    </>
+  );
 
   if (loading && !ready) {
     return (
@@ -1966,6 +2085,7 @@ function GrowthManagerTab({ data }: { data: UseAiRecommendationsResult }) {
   if (!hero) {
     return (
       <div className="mt-6 space-y-8">
+        {diagnostico}
         <RecentAchievements resolved={resolved} achievements={achievements} />
         <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-8 text-center">
           <Brain className="mx-auto h-8 w-8 text-white/35" />
@@ -1979,6 +2099,7 @@ function GrowthManagerTab({ data }: { data: UseAiRecommendationsResult }) {
           </p>
         </div>
         <AchievementsHistory achievements={achievements} />
+        {detalleFinal}
         <ManagerFooter />
       </div>
     );
@@ -1986,6 +2107,7 @@ function GrowthManagerTab({ data }: { data: UseAiRecommendationsResult }) {
 
   return (
     <div className="mt-6 space-y-8">
+      {diagnostico}
       <ManagerHero rec={hero} totalOpportunity={totalOpportunity} />
 
       <RecentAchievements resolved={resolved} achievements={achievements} />
@@ -2006,6 +2128,8 @@ function GrowthManagerTab({ data }: { data: UseAiRecommendationsResult }) {
       )}
 
       <AchievementsHistory achievements={achievements} />
+
+      {detalleFinal}
 
       <div className="rounded-[24px] border border-violet-300/25 bg-violet-400/[0.055] p-5">
         <div className="flex flex-wrap items-center justify-between gap-4">

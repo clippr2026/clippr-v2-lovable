@@ -18,8 +18,10 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
 import { useClientsData } from "@/hooks/use-clients-data";
 import { cajaDateKeyBA } from "@/lib/caja-cierre";
-import { loadMonthlyPerformance, shiftMonth, type MonthlyPerformance } from "@/lib/monthly-performance";
+import { comparableUptoDay, loadMonthlyPerformance, shiftMonth, type MonthlyPerformance } from "@/lib/monthly-performance";
 import { fetchAllRows } from "@/lib/supabase-paginate";
+import { computeHealthScore, computeRetention, type HealthScore, type VisitDay } from "@/lib/health-score";
+import { countRecovery, type RecoveryCounts } from "@/lib/client-recovery";
 import {
   computeCapacity,
   parseCapacityContext,
@@ -33,6 +35,8 @@ const MONTHS_OF_HISTORY = 6;
 // Cuántos meses se pueden elegir en el selector del Asesor (el actual + los 5 anteriores).
 export const ADVISOR_MONTHS_SELECTABLE = MONTHS_OF_HISTORY;
 const MIN_DAYS_TO_JUDGE = 7;
+// Debajo de este % de la facturación en productos, el Radar lo marca como oportunidad (valor a ajustar con el negocio).
+const PRODUCT_TARGET_PCT = 5;
 
 export type AdvisorMonthSnapshot = {
   monthKey: string; // "2026-06"
@@ -44,6 +48,8 @@ export type AdvisorMonthSnapshot = {
   ticket: number;
   occupancy: number;
   cancellations: number;
+  // Turnos en que el cliente no vino ("No asistió").
+  noShows: number;
   doneCount: number;
   // Turnos sin ocupar en los días que se trabajó (capacidad − turnos usados).
   freeSlots: number;
@@ -56,7 +62,7 @@ export type AdvisorMonthSnapshot = {
   totalSlots: number;
   usedSlots: number;
   // Ocupación de cada profesional activo: servicios vendidos contra SU capacidad.
-  employeeLoad: Array<{ name: string; used: number; capacity: number }>;
+  employeeLoad: Array<{ id: string; name: string; used: number; capacity: number }>;
   hasData: boolean;
 };
 
@@ -78,8 +84,11 @@ export type AdvisorAnalytics = {
   hasAnyData: boolean;
   current: AdvisorMonthSnapshot | null;
   previous: AdvisorMonthSnapshot | null;
+  // Puntaje 0-100 (null si todavía no hay datos suficientes) y su detalle por indicador.
   health: number | null;
-  healthParts: { key: string; label: string; pts: number; max: number }[];
+  healthScore: HealthScore | null;
+  // Clientes para recuperar con la definición única (la misma del módulo Clientes).
+  recovery: RecoveryCounts;
   history: AdvisorMonthSnapshot[];
   radiografia: RadiografiaItem[];
   radar: RadarItem[];
@@ -87,7 +96,9 @@ export type AdvisorAnalytics = {
   // Lo que se facturaría de más si la ocupación llegara al 75% (turnos que faltan × ticket).
   potentialAt75: number;
   slotsTo75: number;
+  // Venta de productos: % de la facturación y % de las ventas que llevan algún producto.
   productSharePct: number | null;
+  productAttachPct: number | null;
   // Mes que está analizando "Salud del negocio" y la Radiografía. Con menos de 7 días del
   // mes en curso es el último mes completo (3 días no alcanzan para juzgar la salud).
   analysisMonthLabel: string;
@@ -95,7 +106,7 @@ export type AdvisorAnalytics = {
   // Texto de la comparación: "vs mes anterior" o "vs el mismo período del mes anterior".
   vsLabel: string;
   // Mes en curso (si está en curso): facturación del mismo período del mes anterior.
-  mtd: { monthKey: string; previousRevenue: number | null; upToDay: number } | null;
+  mtd: { monthKey: string; currentRevenue: number | null; previousRevenue: number | null; upToDay: number } | null;
 };
 
 type RawPayment = {
@@ -144,7 +155,7 @@ function pctDelta(now: number, prev: number): number | null {
   return Math.round(((now - prev) / prev) * 100);
 }
 
-async function loadAdvisorAnalytics(businessId: string): Promise<{
+async function loadAdvisorAnalytics(businessId: string, branchId: string | null): Promise<{
   payments: RawPayment[];
   appts: RawAppt[];
   expenses: RawExpense[];
@@ -154,52 +165,54 @@ async function loadAdvisorAnalytics(businessId: string): Promise<{
 }> {
   const sinceDate = `${shiftMonth(cajaDateKeyBA().slice(0, 7), -MONTHS_OF_HISTORY)}-01`;
   const sinceIso = new Date(`${sinceDate}T00:00:00-03:00`).toISOString();
+  // branch_id = null nunca se excluye (mismo criterio que Caja y el Rendimiento mensual).
+  const branchFilter = branchId ? `branch_id.eq.${branchId},branch_id.is.null` : null;
 
   // Cobros: sin anulados/reembolsados (la caja tampoco los cuenta) y paginados — una
   // consulta sin .range() corta en silencio a las 1.000 filas.
-  const paymentsPromise = fetchAllRows<RawPayment>(
-    (from, to) =>
-      supabase
-        .from("payments")
-        .select("id,total,amount,service_name,client_name,client_id,created_at,items,employee_id")
-        .eq("business_id", businessId)
-        .gte("created_at", sinceIso)
-        .not("status", "in", "(anulado,reembolsado)")
-        .order("id", { ascending: true })
-        .range(from, to) as any,
-  ).then(
+  const paymentsPromise = fetchAllRows<RawPayment>((from, to) => {
+    let q = supabase
+      .from("payments")
+      .select("id,total,amount,service_name,client_name,client_id,created_at,items,employee_id")
+      .eq("business_id", businessId)
+      .gte("created_at", sinceIso)
+      .not("status", "in", "(anulado,reembolsado)")
+      .order("id", { ascending: true });
+    if (branchFilter) q = q.or(branchFilter);
+    return q.range(from, to) as any;
+  }).then(
     (data) => ({ data, error: null as { message: string } | null }),
     (error: Error) => ({ data: [] as RawPayment[], error: { message: error.message } }),
   );
   const apptsPromise = (async () => {
     try {
       return {
-        data: await fetchAllRows<RawAppt>(
-          (from, to) =>
-            supabase
-              .from("appointments")
-              .select("id,status,starts_at,ends_at,service_name,service_price,employee_id,recurring_series_id")
-              .eq("business_id", businessId)
-              .gte("starts_at", sinceIso)
-              .order("id", { ascending: true })
-              .range(from, to) as any,
-        ),
+        data: await fetchAllRows<RawAppt>((from, to) => {
+          let q = supabase
+            .from("appointments")
+            .select("id,status,starts_at,ends_at,service_name,service_price,employee_id,recurring_series_id")
+            .eq("business_id", businessId)
+            .gte("starts_at", sinceIso)
+            .order("id", { ascending: true });
+          if (branchFilter) q = q.or(branchFilter);
+          return q.range(from, to) as any;
+        }),
         error: null as { message: string } | null,
       };
     } catch (e) {
       // recurring_series_id puede no existir todavía (columna nueva) — reintenta sin ella.
       try {
         return {
-          data: await fetchAllRows<RawAppt>(
-            (from, to) =>
-              supabase
-                .from("appointments")
-                .select("id,status,starts_at,ends_at,service_name,service_price,employee_id")
-                .eq("business_id", businessId)
-                .gte("starts_at", sinceIso)
-                .order("id", { ascending: true })
-                .range(from, to) as any,
-          ),
+          data: await fetchAllRows<RawAppt>((from, to) => {
+            let q = supabase
+              .from("appointments")
+              .select("id,status,starts_at,ends_at,service_name,service_price,employee_id")
+              .eq("business_id", businessId)
+              .gte("starts_at", sinceIso)
+              .order("id", { ascending: true });
+            if (branchFilter) q = q.or(branchFilter);
+            return q.range(from, to) as any;
+          }),
           error: null as { message: string } | null,
         };
       } catch (e2) {
@@ -207,16 +220,16 @@ async function loadAdvisorAnalytics(businessId: string): Promise<{
       }
     }
   })();
-  const expensesPromise = fetchAllRows<RawExpense & { id: string }>(
-    (from, to) =>
-      supabase
-        .from("expenses")
-        .select("id,amount,date")
-        .eq("business_id", businessId)
-        .gte("date", sinceDate)
-        .order("id", { ascending: true })
-        .range(from, to) as any,
-  ).then(
+  const expensesPromise = fetchAllRows<RawExpense & { id: string }>((from, to) => {
+    let q = supabase
+      .from("expenses")
+      .select("id,amount,date")
+      .eq("business_id", businessId)
+      .gte("date", sinceDate)
+      .order("id", { ascending: true });
+    if (branchFilter) q = q.or(branchFilter);
+    return q.range(from, to) as any;
+  }).then(
     (data) => ({ data, error: null as { message: string } | null }),
     (error: Error) => ({ data: [] as RawExpense[], error: { message: error.message } }),
   );
@@ -231,7 +244,12 @@ async function loadAdvisorAnalytics(businessId: string): Promise<{
     paymentsPromise,
     apptsPromise,
     expensesPromise,
-    supabase.from("employees").select("id,full_name,is_active").eq("business_id", businessId),
+    // Solo los profesionales de la sucursal elegida (los sin sucursal asignada no se excluyen).
+    (() => {
+      let q = supabase.from("employees").select("id,full_name,is_active").eq("business_id", businessId);
+      if (branchFilter) q = q.or(branchFilter);
+      return q;
+    })(),
     supabase
       .from("price_catalog")
       .select("id,name,price,duration_min")
@@ -289,6 +307,7 @@ function buildMonthSnapshot(
   const ticket = perf ? perf.ticket : monthPayments.length > 0 ? Math.round(revenue / monthPayments.length) : 0;
 
   const cancellations = monthAppts.filter((a) => a.status === "cancelled").length;
+  const noShows = monthAppts.filter((a) => a.status === "no_show").length;
   const doneCount = monthAppts.filter((a) => DONE_STATUSES.includes(a.status)).length;
   // Bloqueos de agenda (horarios que el profesional no estaba disponible): se restan de la capacidad.
   const baParts = (iso: string) => {
@@ -310,6 +329,7 @@ function buildMonthSnapshot(
   // llegada): un turno agendado que nunca se cobró no ocupó la silla. Los bloqueos de agenda
   // se restan de la capacidad.
   const activeEmployees = capacityData.employees.filter((e) => e.is_active !== false);
+  const activeIds = new Set(activeEmployees.map((e) => e.id));
   const soldByEmployee = new Map<string, Array<{ name: string; qty: number }>>();
   const usedByEmployee = new Map<string, number>();
   let servicesSold = 0;
@@ -319,6 +339,9 @@ function buildMonthSnapshot(
       ? lines.map((it) => ({ name: String(it.name ?? "").trim(), qty: Number(it.qty ?? 1) > 0 ? Number(it.qty ?? 1) : 1 }))
       : [{ name: (p.service_name ?? "").trim(), qty: 1 }];
     const qtyTotal = entries.reduce((s, e) => s + e.qty, 0);
+    // Solo cuenta lo vendido por los profesionales que están en la capacidad (activos y de esta sucursal):
+    // lo de profesionales dados de baja o sin profesional inflaba la ocupación.
+    if (!p.employee_id || !activeIds.has(p.employee_id)) continue;
     servicesSold += qtyTotal;
     if (p.employee_id) {
       const list = soldByEmployee.get(p.employee_id) ?? [];
@@ -348,6 +371,7 @@ function buildMonthSnapshot(
     slotMinutesByEmployee,
   });
   const employeeLoad = activeEmployees.map((e) => ({
+    id: e.id,
     name: e.full_name,
     used: usedByEmployee.get(e.id) ?? 0,
     capacity: computeCapacity({
@@ -374,6 +398,7 @@ function buildMonthSnapshot(
     ticket,
     occupancy,
     cancellations,
+    noShows,
     doneCount,
     freeSlots,
     representative: perf ? perf.representative : true,
@@ -386,10 +411,10 @@ function buildMonthSnapshot(
   };
 }
 
-function useAdvisorAnalyticsQuery(businessId: string | null | undefined) {
+function useAdvisorAnalyticsQuery(businessId: string | null | undefined, branchId: string | null | undefined) {
   return useQuery({
-    queryKey: ["advisor-analytics", businessId],
-    queryFn: () => loadAdvisorAnalytics(businessId!),
+    queryKey: ["advisor-analytics", businessId, branchId ?? null],
+    queryFn: () => loadAdvisorAnalytics(businessId!, branchId ?? null),
     enabled: !!businessId,
     staleTime: 60_000,
   });
@@ -404,7 +429,7 @@ export function useAdvisorAnalytics(
 ): AdvisorAnalytics {
   const { activeBranchId } = useAuth();
   const clientsQuery = useClientsData(businessId ?? null);
-  const dataQuery = useAdvisorAnalyticsQuery(businessId);
+  const dataQuery = useAdvisorAnalyticsQuery(businessId, activeBranchId);
 
   // Los 6 meses de historial, en hora de Argentina (el más reciente primero).
   const currentMonth = cajaDateKeyBA().slice(0, 7);
@@ -430,10 +455,18 @@ export function useAdvisorAnalytics(
   // Mes en curso: se compara contra el MISMO período del mes anterior (del 1 al día de hoy);
   // 3 días contra un mes entero daría siempre "-98%". Un mes cerrado, contra el mes anterior
   // completo. (La del mes en curso también la usan los informes mensuales.)
+  const compDay = comparableUptoDay(todayDay);
   const samePeriodQuery = useQuery({
-    queryKey: ["monthly-performance", businessId, activeBranchId, monthKeys[1], todayDay],
-    queryFn: () => loadMonthlyPerformance(businessId!, activeBranchId, monthKeys[1], todayDay),
-    enabled: !!businessId,
+    queryKey: ["monthly-performance", businessId, activeBranchId, monthKeys[1], compDay],
+    queryFn: () => loadMonthlyPerformance(businessId!, activeBranchId, monthKeys[1], compDay ?? undefined),
+    enabled: !!businessId && compDay != null,
+    staleTime: 60_000,
+  });
+  // El mes en curso hasta ayer: contra esto se compara el mes anterior hasta el mismo día (días completos).
+  const currentComparableQuery = useQuery({
+    queryKey: ["monthly-performance", businessId, activeBranchId, monthKeys[0], compDay],
+    queryFn: () => loadMonthlyPerformance(businessId!, activeBranchId, monthKeys[0], compDay ?? undefined),
+    enabled: !!businessId && compDay != null && isCurrentMonth,
     staleTime: 60_000,
   });
   const prevFullQuery = useQuery({
@@ -443,7 +476,7 @@ export function useAdvisorAnalytics(
     staleTime: 60_000,
   });
   const comparisonPerf = isCurrentMonth ? samePeriodQuery.data : prevFullQuery.data;
-  const perfSignature = `${perfQueries.map((q) => `${q.status}:${q.dataUpdatedAt}`).join("|")}#${samePeriodQuery.dataUpdatedAt}#${prevFullQuery.dataUpdatedAt}#${selectedKey}`;
+  const perfSignature = `${perfQueries.map((q) => `${q.status}:${q.dataUpdatedAt}`).join("|")}#${samePeriodQuery.dataUpdatedAt}#${currentComparableQuery.dataUpdatedAt}#${prevFullQuery.dataUpdatedAt}#${selectedKey}`;
 
   return React.useMemo(() => {
     const data = dataQuery.data;
@@ -453,6 +486,7 @@ export function useAdvisorAnalytics(
       clientsQuery.isLoading ||
       perfQueries.some((q) => q.isLoading) ||
       samePeriodQuery.isLoading ||
+      currentComparableQuery.isLoading ||
       (!isCurrentMonth && prevFullQuery.isLoading);
     const perfByMonth = new Map<string, MonthlyPerformance>();
     perfQueries.forEach((q, i) => {
@@ -466,7 +500,8 @@ export function useAdvisorAnalytics(
         current: null,
         previous: null,
         health: null,
-        healthParts: [],
+        healthScore: null,
+        recovery: { inactivo: 0, recuperable: 0, no_volvio: 0, archivado: 0, paraRecuperar: 0 },
         history: [],
         radiografia: [],
         radar: [],
@@ -474,6 +509,7 @@ export function useAdvisorAnalytics(
         potentialAt75: 0,
         slotsTo75: 0,
         productSharePct: null,
+        productAttachPct: null,
         analysisMonthLabel: monthLabelOf(selectedKey),
         analysisNote: null,
         vsLabel: "vs mes anterior",
@@ -503,7 +539,7 @@ export function useAdvisorAnalytics(
           expenses,
           capacityData,
           comparisonPerf,
-          isCurrentMonth ? todayDay : undefined,
+          isCurrentMonth ? (compDay ?? undefined) : undefined,
         );
     const vsLabel = isCurrentMonth ? "vs el mismo período del mes anterior" : "vs mes anterior";
     const notes: string[] = [];
@@ -524,43 +560,60 @@ export function useAdvisorAnalytics(
     const analysisNote = notes.length > 0 ? notes.join(" ") : null;
     const hasAnyData = history.some((h) => h.hasData);
 
-    // ── Puntaje de salud (0-100): ocupación + crecimiento + cancelaciones +
-    // ticket + venta de productos. Todo derivado de datos reales del mes
-    // actual vs el anterior. Si no hay datos suficientes, health queda null.
-    let health: number | null = null;
-    // Cuánto aporta cada indicador al puntaje (para mostrarlo desglosado).
-    let healthParts: { key: string; label: string; pts: number; max: number }[] = [];
-    if (current && current.hasData) {
-      const occupancyScore = Math.round(clampPct(current.occupancy) * 0.25);
-      const growthPct = previous?.hasData ? (pctDelta(current.revenue, previous.revenue) ?? 0) : 0;
-      const growthScore = Math.round(saturate01(Math.max(0, growthPct), 25) * 25);
-      const cancelRate =
-        current.doneCount + current.cancellations > 0
-          ? current.cancellations / (current.doneCount + current.cancellations)
-          : 0;
-      const cancelScore = Math.round((1 - clampPct(cancelRate * 100) / 100) * 20);
-      const ticketPct = previous?.hasData ? (pctDelta(current.ticket, previous.ticket) ?? 0) : 0;
-      const ticketScore = Math.round(saturate01(Math.max(0, ticketPct), 20) * 15);
-      // Sin mes comparable (p. ej. el primero tras el mes de arranque) crecimiento y ticket no se
-      // pueden medir: el puntaje se calcula con lo que sí se mide (ocupación, cancelaciones y la
-      // base fija = 60 puntos) y se lleva a escala de 100, para no topar esos meses en 60.
-      const hasComparison = Boolean(previous?.hasData);
-      healthParts = [
-        { key: "ocupacion", label: "Ocupación", pts: occupancyScore, max: 25 },
-        ...(hasComparison ? [{ key: "crecimiento", label: "Crecimiento de la facturación", pts: growthScore, max: 25 }] : []),
-        { key: "cancelaciones", label: "Cancelaciones", pts: cancelScore, max: 20 },
-        ...(hasComparison ? [{ key: "ticket", label: "Ticket promedio", pts: ticketScore, max: 15 }] : []),
-        { key: "base", label: "Base del negocio", pts: 15, max: 15 },
-      ];
-      health = hasComparison
-        ? Math.max(0, Math.min(100, occupancyScore + growthScore + cancelScore + ticketScore + 15))
-        : Math.max(0, Math.min(100, Math.round(((occupancyScore + cancelScore + 15) / 60) * 100)));
+    // ── Puntaje de salud (0-100): seis indicadores (ver src/lib/health-score.ts), todos con datos reales y contra
+    // períodos equivalentes (días completos). Lo que no se puede medir queda como "datos insuficientes" y lo que
+    // depende de datos por registrar (gastos fijos) como "provisional": nunca se estima ni se penaliza.
+    const currentPerf = perfByMonth.get(analysisKey);
+    const currentComparable = isCurrentMonth ? currentComparableQuery.data : currentPerf;
+    const base = comparisonSparse || !comparisonPerf || !comparisonPerf.hasData ? null : comparisonPerf;
+    const growthPct =
+      currentComparable && base && base.facturacion > 0
+        ? ((currentComparable.facturacion - base.facturacion) / base.facturacion) * 100
+        : null;
+    const ticketPct =
+      currentComparable && base && base.ticket > 0 ? ((currentComparable.ticket - base.ticket) / base.ticket) * 100 : null;
+
+    // Retención: clientes vistos hace 45 a 75 días que volvieron. Solo clientes reales (sin la ficha "Sin agendar").
+    const validIds = new Set(clients.map((c) => c.id));
+    const validNames = new Set(clients.map((c) => c.name.trim().toLowerCase()));
+    const visitDays: VisitDay[] = [];
+    for (const p of payments) {
+      const nameKey = (p.client_name ?? "").trim().toLowerCase();
+      const clientKey = p.client_id && validIds.has(p.client_id) ? p.client_id : validNames.has(nameKey) ? nameKey : null;
+      if (!clientKey) continue;
+      visitDays.push({ clientKey, dayKey: new Date(p.created_at).toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }) });
     }
+    const [ay, am] = analysisKey.split("-").map(Number);
+    const lastDayOfAnalysis = new Date(ay, am, 0).getDate();
+    const cutDay = isCurrentMonth ? (compDay ?? 0) : lastDayOfAnalysis;
+    const retCut = cutDay > 0 ? `${analysisKey}-${String(cutDay).padStart(2, "0")}` : `${shiftMonth(analysisKey, -1)}-28`;
+    const retencion = computeRetention(visitDays, retCut);
+
+    const healthScore: HealthScore | null =
+      current && current.hasData && currentPerf
+        ? computeHealthScore({
+            facturacion: currentPerf.facturacion,
+            margen: currentPerf.margen,
+            gastosTotal: currentPerf.gastosTotal,
+            gastosFijosCargados: currentPerf.gastosPorTipo.some((g) => g.tipo === "Fijo" && g.total > 0) ? 1 : 0,
+            ocupacion: current.totalSlots > 0 ? current.occupancy : null,
+            totalSlots: current.totalSlots,
+            retencionGrupo: retencion.grupo,
+            retencionVolvieron: retencion.volvieron,
+            crecimientoPct: growthPct,
+            ticketPct,
+            turnosHechos: current.doneCount,
+            turnosCancelados: current.cancellations,
+            turnosNoAsistio: current.noShows,
+          })
+        : null;
+    const health = healthScore?.total ?? null;
 
     // ── Radiografía del local ──────────────────────────────────────────────
-    const inactiveClients = clients.filter(
-      (c) => c.visits >= 1 && (c.lastVisitDays ?? 0) >= 45,
-    ).length;
+    // Definición única (la del módulo Clientes): inactivos + perdidos recuperables + los que no volvieron. Quien ya
+    // tiene un turno reservado figura como activo y no se cuenta.
+    const recovery = countRecovery(clients);
+    const inactiveClients = recovery.paraRecuperar;
     const vipCount = clients.filter((c) => c.vipTag === "vip").length;
 
     // Ocupación de cada profesional: servicios realmente vendidos ÷ SU capacidad (horario,
@@ -606,27 +659,28 @@ export function useAdvisorAnalytics(
 
     const products = catalog.filter((c) => c.duration_min == null);
     const productNames = new Set(products.map((p) => p.name.trim().toLowerCase()));
+    // Venta de productos: % de la facturación del mes que vino de productos, y % de las ventas que llevan algún
+    // producto. (Antes era "% de clientes que compraron", que se leía como porcentaje de la facturación.)
     let productSharePct: number | null = null;
+    let productAttachPct: number | null = null;
     if (productNames.size > 0) {
-      const payersThisMonth = new Set(
-        payments
-          .filter((p) => monthKeyOf(p.created_at) === analysisKey)
-          .map((p) => p.client_id || p.client_name)
-          .filter(Boolean),
-      );
-      const buyersThisMonth = new Set(
-        payments
-          .filter(
-            (p) =>
-              monthKeyOf(p.created_at) === analysisKey &&
-              (productNames.has((p.service_name ?? "").trim().toLowerCase()) ||
-                (Array.isArray(p.items) && p.items.some((it) => it?.is_catalog))),
-          )
-          .map((p) => p.client_id || p.client_name)
-          .filter(Boolean),
-      );
-      productSharePct =
-        payersThisMonth.size > 0 ? Math.round((buyersThisMonth.size / payersThisMonth.size) * 100) : 0;
+      let prodRev = 0;
+      let totRev = 0;
+      let withProd = 0;
+      let nPays = 0;
+      for (const p of payments) {
+        if (monthKeyOf(p.created_at) !== analysisKey) continue;
+        nPays += 1;
+        const total = Number(p.total ?? p.amount ?? 0);
+        totRev += total;
+        const items = Array.isArray(p.items) ? p.items : [];
+        let prod = items.filter((it) => it?.is_catalog).reduce((sum, it) => sum + Number(it.amount ?? 0), 0);
+        if (prod === 0 && productNames.has((p.service_name ?? "").trim().toLowerCase())) prod = total;
+        if (prod > 0) withProd += 1;
+        prodRev += prod;
+      }
+      productSharePct = totRev > 0 ? Math.round((prodRev / totRev) * 1000) / 10 : null;
+      productAttachPct = nPays > 0 ? Math.round((withProd / nPays) * 100) : null;
     }
 
     const freeSlotsMonth = current ? current.freeSlots : 0;
@@ -675,8 +729,8 @@ export function useAdvisorAnalytics(
       {
         key: "productos",
         label: "Venta de productos",
-        value: productSharePct != null ? `${productSharePct}%` : "—",
-        tone: productSharePct == null ? "neutral" : productSharePct >= 15 ? "good" : "bad",
+        value: productSharePct != null ? `${String(productSharePct).replace(".", ",")}% de la facturación` : "—",
+        tone: productSharePct == null ? "neutral" : productSharePct >= PRODUCT_TARGET_PCT ? "good" : "warn",
       },
       {
         key: "vip",
@@ -688,16 +742,18 @@ export function useAdvisorAnalytics(
 
     // ── Radar del local (bullets dinámicos) ────────────────────────────────
     const radar: RadarItem[] = [];
-    if (previous?.hasData && current) {
-      const profitPct = pctDelta(current.profit, previous.profit);
+    // Contra el período equivalente (días completos), igual que el puntaje.
+    const rentabilidadProvisional = healthScore?.indicators.find((x) => x.key === "rentabilidad")?.state === "provisional";
+    if (base && currentComparable) {
+      const profitPct = pctDelta(currentComparable.ganancia, base.ganancia);
       if (profitPct != null) {
         radar.push({
           key: "utilidad",
           tone: profitPct >= 0 ? "ok" : "bad",
-          label: `Utilidad ${profitPct >= 0 ? "creciendo" : "cayendo"} (${profitPct >= 0 ? "+" : ""}${profitPct}% ${vsLabel})`,
+          label: `Ganancia ${profitPct >= 0 ? "creciendo" : "cayendo"} (${profitPct >= 0 ? "+" : ""}${profitPct}% ${vsLabel})${rentabilidadProvisional ? " · provisional: faltan gastos del mes" : ""}`,
         });
       }
-      const clientsPct = pctDelta(current.clientsServed, previous.clientsServed);
+      const clientsPct = pctDelta(currentComparable.clientes, base.clientes);
       if (clientsPct != null) {
         radar.push({
           key: "clientes",
@@ -713,24 +769,14 @@ export function useAdvisorAnalytics(
         label: `${inactiveClients} clientes para recuperar`,
       });
     }
-    if (productSharePct != null && productSharePct < 15) {
-      radar.push({ key: "productos", tone: "bad", label: `Venta de productos baja (${productSharePct}%)` });
-    }
-    if (freeSlotsMonth > 0 && current) {
-      radar.push({
-        key: "turnos",
-        tone: "warn",
-        label: `${freeSlotsMonth} turnos sin ocupar en los días trabajados`,
-      });
-    }
-
     return {
       loading,
       hasAnyData,
       current,
       previous,
       health,
-      healthParts,
+      healthScore,
+      recovery,
       history,
       radiografia,
       radar,
@@ -738,6 +784,7 @@ export function useAdvisorAnalytics(
       potentialAt75,
       slotsTo75,
       productSharePct,
+      productAttachPct,
       analysisMonthLabel: monthLabelOf(analysisKey),
       analysisNote,
       vsLabel,
@@ -745,7 +792,8 @@ export function useAdvisorAnalytics(
         history[0]?.hasData
           ? {
               monthKey: monthKeys[0],
-              upToDay: todayDay,
+              upToDay: compDay ?? 0,
+              currentRevenue: currentComparableQuery.data ? currentComparableQuery.data.facturacion : null,
               previousRevenue:
                 samePeriodQuery.data && samePeriodQuery.data.representative ? samePeriodQuery.data.facturacion : null,
             }
@@ -753,15 +801,4 @@ export function useAdvisorAnalytics(
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataQuery.data, dataQuery.isLoading, clientsQuery.data, clientsQuery.isLoading, monthKeys, perfSignature]);
-}
-
-function clampPct(n: number): number {
-  return Math.max(0, Math.min(100, n));
-}
-
-// Curva de retornos decrecientes: sube rápido al principio y se satura,
-// para que un +200% puntual no rompa la escala del puntaje.
-function saturate01(value: number, half: number): number {
-  if (value <= 0) return 0;
-  return value / (value + half);
 }

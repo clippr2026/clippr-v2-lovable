@@ -45,6 +45,8 @@ export type MonthlyExpenseRow = {
   type: string | null;
   funds_source: string | null;
   date?: string | null;
+  // Si el gasto es la devolución de una seña (el ingreso original de esa seña nunca fue una venta del mes).
+  deposit_id?: string | null;
 };
 export type MonthlyConsumoRow = {
   id: string;
@@ -101,6 +103,8 @@ export type MonthlyPerformance = {
   gastosTotal: number;
   gastosCaja: number;
   gastosExternos: number;
+  // Devoluciones de señas: no se cuentan como gasto (la seña devuelta nunca entró como venta); se informan aparte.
+  devolucionesSena: number;
   gastosPorTipo: { tipo: string; total: number }[];
   // Productos que los profesionales retiraron "a cuenta" (se les descuenta al liquidar).
   consumosProfesionales: number;
@@ -278,8 +282,13 @@ export function computeMonthlyPerformance(monthKey: string, raw: MonthlyRawData)
   let gastosTotal = 0;
   let gastosExternos = 0;
   const porTipo = new Map<string, number>();
+  let devolucionesSena = 0;
   for (const e of raw.expenses) {
     const amount = Number(e.amount ?? 0);
+    if (e.deposit_id) {
+      devolucionesSena += amount;
+      continue;
+    }
     gastosTotal += amount;
     if (e.funds_source === "otros") gastosExternos += amount;
     const tipo = EXPENSE_TYPE_LABEL[String(e.type ?? "")] ?? "Sin clasificar";
@@ -371,6 +380,7 @@ export function computeMonthlyPerformance(monthKey: string, raw: MonthlyRawData)
     gastosTotal,
     gastosCaja,
     gastosExternos,
+    devolucionesSena,
     gastosPorTipo: [...porTipo.entries()].map(([tipo, total]) => ({ tipo, total })).sort((a, b) => b.total - a.total),
     ganancia,
     margen,
@@ -402,6 +412,12 @@ export function isStartMonth(monthKey: string, startDate: string | null): boolea
   return Number(startDate.slice(8, 10)) > START_MONTH_GRACE_DAYS;
 }
 
+
+// Comparaciones del mes en curso: se hacen con DÍAS COMPLETOS (hasta ayer) en ambos meses. Comparar "hasta hoy" con el
+// día de hoy a medias contra el mismo día entero del mes anterior exageraba las caídas. null si todavía no terminó ningún día.
+export function comparableUptoDay(todayDay: number): number | null {
+  return todayDay > 1 ? todayDay - 1 : null;
+}
 
 // Variación porcentual contra el mes anterior (null si no hay base para comparar).
 export function variationPct(current: number, previous: number): number | null {
@@ -450,7 +466,7 @@ export async function fetchMonthlyRawData(
   const expenses = await fetchAllRows<MonthlyExpenseRow>((from, to) => {
     let q = supabase
       .from("expenses")
-      .select("id,amount,type,funds_source,date")
+      .select("id,amount,type,funds_source,date,deposit_id")
       .eq("business_id", businessId)
       .gte("date", firstDay)
       .lte("date", lastDay)
