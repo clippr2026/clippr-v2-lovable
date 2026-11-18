@@ -83,7 +83,7 @@ export function AppShell({
             100% { transform: scale(1.9); opacity: 0; }
           }
         `}</style>
-        <div className="relative grid place-items-center" style={{ animation: "clipprBootIn 700ms cubic-bezier(.2,.8,.2,1) both" }}>
+        <div className="relative grid place-items-center" style={{ animation: "clipprBootIn 380ms cubic-bezier(.2,.8,.2,1) both" }}>
           <div
             className="pointer-events-none absolute h-56 w-56 rounded-full blur-3xl"
             style={{

@@ -138,13 +138,29 @@ async function resolveBusinessId(user: User): Promise<{ businessId: string | nul
   const uid = user.id;
   const email = user.email ?? null;
 
-  let profile: Profile | null = null;
-  try {
-    const { data } = await supabase.from("profiles").select("*").eq("id", uid).maybeSingle();
-    profile = data as Profile | null;
-  } catch (e) {
-    console.warn("[AUTH] profile fetch:", (e as Error).message);
-  }
+  // Las lecturas que no dependen una de otra salen todas juntas (antes eran 4 viajes seguidos a la base: perfil,
+  // equipo por uid, equipo por correo y negocio). El resultado y las reglas son los mismos de siempre.
+  const TM_COLS_PRE = "id, email, role, permissions, status, business_id, full_name, professional_id";
+  const settle = async <T,>(p: PromiseLike<T>): Promise<T | null> => {
+    try {
+      return await p;
+    } catch {
+      return null;
+    }
+  };
+  const [profRes, byUidRes, byEmailRes, ownerIdRes, ownerEmailRes, userIdRes] = await Promise.all([
+    settle(supabase.from("profiles").select("*").eq("id", uid).maybeSingle()),
+    settle(supabase.from("team_members").select(TM_COLS_PRE).eq("auth_user_id", uid).maybeSingle()),
+    email
+      ? settle(supabase.from("team_members").select(TM_COLS_PRE).ilike("email", email).order("created_at", { ascending: true }).limit(1))
+      : Promise.resolve(null),
+    settle(supabase.from("businesses").select("id").eq("owner_id", uid).maybeSingle()),
+    email ? settle(supabase.from("businesses").select("id").eq("owner_email", email).maybeSingle()) : Promise.resolve(null),
+    settle(supabase.from("businesses").select("id").eq("user_id", uid).maybeSingle()),
+  ]);
+
+  let profile: Profile | null = (profRes?.data as Profile | null) ?? null;
+  if (!profRes) console.warn("[AUTH] profile fetch: sin respuesta");
 
   // ¿Este usuario es un miembro del equipo invitado? Si lo es, hereda el negocio
   // del que lo invitó y NO debemos crearle un negocio nuevo.
@@ -162,11 +178,7 @@ async function resolveBusinessId(user: User): Promise<{ businessId: string | nul
   let teamMember: TeamMemberRow | null = null;
   try {
     // 1) Por auth_user_id (enlace ya realizado en un login anterior).
-    const { data: byUid } = await supabase
-      .from("team_members")
-      .select(TM_COLS)
-      .eq("auth_user_id", uid)
-      .maybeSingle();
+    const byUid = byUidRes?.data ?? null;
     teamMember = (byUid as TeamMemberRow | null) ?? null;
 
     // 2) Fallback por email. Cubre al invitado cuyo auth_user_id todavía no fue
@@ -174,12 +186,7 @@ async function resolveBusinessId(user: User): Promise<{ businessId: string | nul
     //    falló, o entró directo por la pantalla de login. Sin este fallback el
     //    usuario cae en la rama "crear negocio" y ve un negocio vacío fantasma.
     if (!teamMember && email) {
-      const { data: byEmail } = await supabase
-        .from("team_members")
-        .select(TM_COLS)
-        .ilike("email", email)
-        .order("created_at", { ascending: true })
-        .limit(1);
+      const byEmail = (byEmailRes?.data ?? null) as unknown[] | null;
       const row = (byEmail?.[0] as TeamMemberRow | undefined) ?? null;
       if (row) {
         teamMember = row;
@@ -230,19 +237,10 @@ async function resolveBusinessId(user: User): Promise<{ businessId: string | nul
   // que un dueño nunca quede bloqueado. Solo se busca si no es miembro activo.
   let ownedBizId: string | null = null;
   if (!memberActive) {
-    const searches: Array<{ col: string; val: string | null }> = [
-      { col: "owner_id", val: uid },
-      { col: "owner_email", val: email },
-      { col: "user_id", val: uid },
-    ];
-    for (const s of searches) {
-      if (ownedBizId || !s.val) continue;
-      try {
-        const { data } = await supabase.from("businesses").select("id").eq(s.col, s.val).maybeSingle();
-        if (data?.id) ownedBizId = data.id;
-      } catch {
-        /* columna puede no existir */
-      }
+    // Mismo orden de prioridad de siempre: owner_id, luego owner_email, luego user_id.
+    for (const r of [ownerIdRes, ownerEmailRes, userIdRes]) {
+      const id = (r?.data as { id?: string } | null)?.id;
+      if (!ownedBizId && id) ownedBizId = id;
     }
   }
 
