@@ -1741,76 +1741,52 @@ export function BrandingSection() {
                   return (
                     <div
                       key={item.id}
-                      className="grid grid-cols-[minmax(0,1fr)] gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3.5 transition"
+                      className="flex items-center gap-2.5 rounded-2xl border border-white/10 bg-white/[0.03] p-3 transition"
                       style={{
                         backgroundImage:
                           "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.14), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.10), transparent 65%)",
                       }}
                     >
-                      {/* Imagen a la izquierda; nombre y tipo (Futbolista,
-                          etc.) apilados a la derecha, uno debajo del otro —
-                          no lado a lado. Activo/Inactivo y Eliminar quedan a
-                          la derecha del todo. */}
-                      <div className="flex items-center gap-3">
-                        <div className="flex shrink-0 flex-col gap-0.5">
-                          <button
-                            type="button"
-                            onClick={() => moveFeaturedClient(item.id, -1)}
-                            disabled={isFirst}
-                            className="rounded-md p-0.5 text-white/35 transition hover:bg-white/5 hover:text-white/60 disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:bg-transparent"
-                            aria-label="Mover arriba"
-                            title="Mover arriba"
-                          >
-                            <ChevronUp className="h-4 w-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => moveFeaturedClient(item.id, 1)}
-                            disabled={isLast}
-                            className="rounded-md p-0.5 text-white/35 transition hover:bg-white/5 hover:text-white/60 disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:bg-transparent"
-                            aria-label="Mover abajo"
-                            title="Mover abajo"
-                          >
-                            <ChevronDown className="h-4 w-4" />
-                          </button>
-                        </div>
-
-                        <div className="min-w-0 flex-1 space-y-2">
-                          <input
-                            value={item.name}
-                            onChange={(e) => updateFeaturedClient(item.id, { name: e.target.value })}
-                            onFocus={() => enfocar("confian")}
-                            placeholder="Nombre: Nike, Duki, Boca Juniors..."
-                            maxLength={MAX_FEATURED_CLIENT_NAME_LENGTH}
-                            aria-label="Nombre"
-                            className="h-10 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
-                          />
-                        </div>
+                      {/* Flechas para ordenar: en el medio de la tarjeta, a la izquierda. */}
+                      <div className="flex shrink-0 flex-col gap-1">
+                        <button
+                          type="button"
+                          onClick={() => moveFeaturedClient(item.id, -1)}
+                          disabled={isFirst}
+                          className="grid h-8 w-8 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-white/70 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:bg-white/[0.04]"
+                          aria-label="Mover arriba"
+                          title="Mover arriba"
+                        >
+                          <ChevronUp className="h-4 w-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => moveFeaturedClient(item.id, 1)}
+                          disabled={isLast}
+                          className="grid h-8 w-8 place-items-center rounded-full border border-white/10 bg-white/[0.04] text-white/70 transition hover:bg-white/10 disabled:cursor-not-allowed disabled:opacity-25 disabled:hover:bg-white/[0.04]"
+                          aria-label="Mover abajo"
+                          title="Mover abajo"
+                        >
+                          <ChevronDown className="h-4 w-4" />
+                        </button>
                       </div>
 
-                      <label className={cn("inline-flex h-10 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-violet-400/50 bg-violet-500/20 px-4 text-xs font-semibold text-violet-100 transition hover:bg-violet-500/30", uploading && "pointer-events-none opacity-50")} onClick={() => enfocar("confian")}>
-                        <ImageIcon className="h-4 w-4" />
-                        {uploading ? "Subiendo…" : item.image_url ? "Cambiar imagen" : "Cargar imagen"}
+                      <div className="grid min-w-0 flex-1 gap-2.5">
                         <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          disabled={uploading}
-                          onChange={(e) => {
-                            const f = e.target.files?.[0] ?? null;
-                            e.target.value = "";
-                            handleFeaturedImageSelect(item.id, f);
-                          }}
+                          value={item.name}
+                          onChange={(e) => updateFeaturedClient(item.id, { name: e.target.value })}
+                          onFocus={() => enfocar("confian")}
+                          placeholder="Nombre: Nike, Duki, Boca Juniors..."
+                          maxLength={MAX_FEATURED_CLIENT_NAME_LENGTH}
+                          aria-label="Nombre"
+                          className="h-10 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
                         />
-                      </label>
-
-                      <div className="flex items-center gap-2">
                         <select
                           value={item.category}
                           onChange={(e) => updateFeaturedClient(item.id, { category: e.target.value as FeaturedClientCategory })}
                           onFocus={() => enfocar("confian")}
                           aria-label="Tipo"
-                          className="h-10 min-w-0 flex-1 rounded-full border border-white/10 bg-white/[0.04] px-4 text-sm font-semibold text-white outline-none focus:border-violet-400/50"
+                          className="h-10 w-full rounded-full border border-white/10 bg-white/[0.04] px-4 text-sm font-semibold text-white outline-none focus:border-violet-400/50"
                         >
                           {FEATURED_CLIENT_CATEGORIES.map((cat) => (
                             <option key={cat} value={cat}>
@@ -1818,48 +1794,70 @@ export function BrandingSection() {
                             </option>
                           ))}
                         </select>
-                        {(() => {
-                          const complete = isFeaturedClientComplete(item);
-                          const canToggle = item.active || complete;
-                          return (
-                            <button
-                              type="button"
-                              disabled={!canToggle}
-                              onClick={() => {
-                                if (!canToggle) return;
-                                updateFeaturedClient(item.id, { active: !item.active });
-                                enfocar("confian");
+                        <div className="flex items-center gap-2">
+                          <label
+                            className={cn(
+                              "inline-flex h-10 min-w-0 flex-1 cursor-pointer items-center justify-center gap-1.5 rounded-full border border-violet-400/50 bg-violet-500/20 px-3 text-xs font-semibold text-violet-100 transition hover:bg-violet-500/30",
+                              uploading && "pointer-events-none opacity-50",
+                            )}
+                            onClick={() => enfocar("confian")}
+                          >
+                            <ImageIcon className="h-4 w-4 shrink-0" />
+                            <span className="truncate">{uploading ? "Subiendo…" : item.image_url ? "Cambiar imagen" : "Cargar imagen"}</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              disabled={uploading}
+                              onChange={(e) => {
+                                const f = e.target.files?.[0] ?? null;
+                                e.target.value = "";
+                                handleFeaturedImageSelect(item.id, f);
                               }}
-                              title={!canToggle ? "Cargá imagen y nombre para poder activarlo" : undefined}
-                              className={cn(
-                                "h-10 shrink-0 whitespace-nowrap rounded-full px-4 text-xs font-semibold ring-1 transition",
-                                item.active
-                                  ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30"
-                                  : canToggle
-                                    ? "bg-white/5 text-white/60 ring-white/10"
-                                    : "cursor-not-allowed bg-white/5 text-white/30 ring-white/5",
-                              )}
-                            >
-                              {item.active ? "Activo" : "Inactivo"}
-                            </button>
-                          );
-                        })()}
-                        <button
-                          type="button"
-                          onClick={() => {
-                            removeFeaturedClient(item.id);
-                            enfocar("confian");
-                          }}
-                          className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/5 text-red-300 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-200"
-                          aria-label="Eliminar de Confían en nosotros"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                            />
+                          </label>
+                          {(() => {
+                            const complete = isFeaturedClientComplete(item);
+                            const canToggle = item.active || complete;
+                            return (
+                              <button
+                                type="button"
+                                disabled={!canToggle}
+                                onClick={() => {
+                                  if (!canToggle) return;
+                                  updateFeaturedClient(item.id, { active: !item.active });
+                                  enfocar("confian");
+                                }}
+                                title={!canToggle ? "Cargá imagen y nombre para poder activarlo" : undefined}
+                                className={cn(
+                                  "h-10 shrink-0 whitespace-nowrap rounded-full px-4 text-xs font-semibold ring-1 transition",
+                                  item.active
+                                    ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30"
+                                    : canToggle
+                                      ? "bg-white/5 text-white/60 ring-white/10"
+                                      : "cursor-not-allowed bg-white/5 text-white/30 ring-white/5",
+                                )}
+                              >
+                                {item.active ? "Activo" : "Inactivo"}
+                              </button>
+                            );
+                          })()}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              removeFeaturedClient(item.id);
+                              enfocar("confian");
+                            }}
+                            className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/5 text-red-300 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-200"
+                            aria-label="Eliminar de Confían en nosotros"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                        {!isFeaturedClientComplete(item) ? (
+                          <p className="text-[11px] leading-snug text-amber-200/80">Cargá la imagen y el nombre para poder activarlo.</p>
+                        ) : null}
                       </div>
-                      {!isFeaturedClientComplete(item) ? (
-                        <p className="text-[11px] leading-snug text-amber-200/80">Cargá la imagen y el nombre para poder activarlo.</p>
-                      ) : null}
-
                     </div>
                   );
                 })}
