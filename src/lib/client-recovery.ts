@@ -1,4 +1,6 @@
-// Definición única de "clientes para recuperar". Sale del estado que ya calcula la base para el módulo Clientes
+// Definición única de "clientes para recuperar": son los del grupo Perdidos de la pantalla Clientes (campo `grupo`).
+// Si no llega el grupo, se usa el estado viejo:
+// Sale del estado que ya calcula la base para el módulo Clientes
 // (activo hasta 45 días, inactivo de 46 a 59, perdido desde 60), así Clientes, Radar y Gerente IA cuentan lo mismo.
 //
 //   · inactivo     → 46 a 59 días sin volver y sin turno reservado.
@@ -11,6 +13,8 @@ export const RECOVERY_ARCHIVE_DAYS = 180;
 export type RecoveryGroup = "inactivo" | "recuperable" | "no_volvio" | "archivado";
 
 export type RecoveryInput = {
+  /** Grupo de Clientes. Cuando viene, manda: solo "perdido" es para recuperar. */
+  grupo?: string | null;
   status?: string | null;
   visits: number;
   lastVisitDays?: number | null;
@@ -18,6 +22,7 @@ export type RecoveryInput = {
 
 export function classifyRecovery(c: RecoveryInput): RecoveryGroup | null {
   if (c.visits < 1) return null;
+  if (c.grupo != null) return c.grupo === "perdido" ? (c.visits >= 2 ? "recuperable" : "no_volvio") : null;
   if (c.status === "inactivo") return "inactivo";
   if (c.status === "perdido") {
     if ((c.lastVisitDays ?? 0) >= RECOVERY_ARCHIVE_DAYS) return "archivado";

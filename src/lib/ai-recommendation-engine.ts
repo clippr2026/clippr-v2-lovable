@@ -38,6 +38,8 @@ export type EngineClient = {
   lastVisitDays?: number | null;
   /** Estado que calcula la base para el módulo Clientes (activo, inactivo, perdido, vip, nuevo). */
   status?: string | null;
+  /** Grupo de la pantalla Clientes (perdido, semanal, una_visita…). Si viene, "para recuperar" = Perdidos. */
+  grupo?: string | null;
   history: EngineClientPayment[];
 };
 
@@ -258,6 +260,7 @@ function finalizeRecommendation(
 // Definición única de "para recuperar" (la del módulo Clientes). Sin estado (datos viejos o tests) se usa la regla
 // anterior de 45 a 179 días, que coincide con inactivo + perdido recuperable.
 function paraRecuperar(c: EngineClient): boolean {
+  if (c.grupo != null) return esParaRecuperar({ grupo: c.grupo, visits: c.visits });
   if (c.status != null) return esParaRecuperar({ status: c.status, visits: c.visits, lastVisitDays: c.lastVisitDays });
   return c.visits >= 1 && (c.lastVisitDays ?? 0) >= 45 && (c.lastVisitDays ?? 0) < 180;
 }
@@ -406,7 +409,7 @@ export function runRecommendationEngine(input: EngineInput): EngineResult {
     });
   }
 
-  // ── 2. Clientes inactivos (+45 días) ───────────────────────────────────────
+  // ── 2. Clientes perdidos (grupo Perdidos de Clientes) ───────────────────────────────────────
   const inactivos = clients
     .filter(paraRecuperar)
     .filter((c) => !vipRisk.some((v) => v.id === c.id))
@@ -417,13 +420,13 @@ export function runRecommendationEngine(input: EngineInput): EngineResult {
     drafts.push({
       key: "inactivos-45",
       title: `${inactivos.length} clientes dejaron de venir`,
-      description: `${inactivos.length} clientes que ya te conocían no vuelven hace más de 45 días. Cada semana que pasa es más difícil recuperarlos.`,
+      description: `${inactivos.length} clientes que ya te conocían dejaron de venir y ya figuran como Perdidos en Clientes. Cada semana que pasa es más difícil recuperarlos.`,
       urgencySignal: clamp01(0.35 + inactivos.length / 40),
       strategy: {
         icon: "🔁",
         tone: "client",
         category: "recuperacion",
-        problem: `${inactivos.length} clientes que ya te conocían no vuelven hace más de 45 días. Cada semana que pasa es más difícil recuperarlos.`,
+        problem: `${inactivos.length} clientes que ya te conocían dejaron de venir y ya figuran como Perdidos en Clientes. Cada semana que pasa es más difícil recuperarlos.`,
         moneyLost: lost,
         moneyRecoverable: recoverable,
         action: `Lanzá una campaña de reactivación a estos ${inactivos.length} clientes con un motivo concreto para volver esta semana.`,

@@ -86,6 +86,8 @@ export type Client = {
   lastVisit?: string | null;
   lastVisitDays?: number | null;
   status: ClientStatus;
+  /** Grupo de Clientes (semanal, nuevo, una_visita, perdido…): la misma base de las tarjetas de la pantalla Clientes. */
+  grupo?: string | null;
   vipTag: ClientVipTag;
   rating: number;
   history: ClientPayment[];
@@ -173,6 +175,7 @@ async function loadClients(businessId: string): Promise<Client[]> {
     { data: payments, error: paymentsError },
     { data: appointments, error: appointmentsError },
     statusRows,
+    grupoRows,
   ] = await Promise.all([
     // Paginado: sin .range() la base corta en 1.000 filas y se perdían los cobros más viejos (visitas y gasto de cada cliente).
     fetchAllRows<any>((from, to) =>
@@ -195,6 +198,11 @@ async function loadClients(businessId: string): Promise<Client[]> {
       .neq("status", "cancelled")
       .order("starts_at", { ascending: true }),
     fetchStatusRows(businessId, { limit: Math.max(rawClients.length, 1) }),
+    // Grupo de cada cliente (la misma base de las tarjetas de Clientes). Si falla, el resto de la ficha sigue igual.
+    Promise.resolve(supabase.rpc("clippr_clientes_grupos_v1" as any, { p_business_id: businessId })).then(
+      ({ data }) => new Map(((data ?? []) as Array<{ client_id: string; grupo: string }>).map((g) => [g.client_id, g.grupo])),
+      () => new Map<string, string>(),
+    ),
   ]);
 
   if (paymentsError)
@@ -302,6 +310,7 @@ async function loadClients(businessId: string): Promise<Client[]> {
       lastVisitDays: lastVisit.days,
       vipTag,
       status,
+      grupo: grupoRows.get(c.id) ?? null,
       rating: computeRating(visitsFinal, spentFinal, lastVisit.days),
       history,
       // Listado masivo: no carga el historial completo de turnos (sería
