@@ -689,6 +689,21 @@ export function useAdvisorAnalytics(
     const slotsTo75 = current ? Math.max(0, Math.ceil(current.totalSlots * 0.75) - current.usedSlots) : 0;
     const potentialAt75 = current ? slotsTo75 * current.ticket : 0;
 
+    // Día más tranquilo: el día de la semana que menos factura por jornada trabajada en el mes analizado.
+    const diaStats = new Map<number, { dates: Set<string>; revenue: number }>();
+    for (const p of payments) {
+      if (monthKeyOf(p.created_at) !== analysisKey) continue;
+      const fecha = new Date(p.created_at).toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" });
+      const dow = new Date(`${fecha}T12:00:00`).getDay();
+      const e = diaStats.get(dow) ?? { dates: new Set<string>(), revenue: 0 };
+      e.dates.add(fecha);
+      e.revenue += Number(p.total ?? p.amount ?? 0);
+      diaStats.set(dow, e);
+    }
+    const DIAS_SEMANA = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+    const diasPromedio = Array.from(diaStats.entries()).map(([dow, e]) => ({ dow, avg: e.revenue / e.dates.size }));
+    const diaTranquilo = diasPromedio.length >= 2 ? diasPromedio.reduce((m, v) => (v.avg < m.avg ? v : m)) : null;
+
     const radiografia: RadiografiaItem[] = [
       {
         key: "recuperar",
@@ -731,6 +746,12 @@ export function useAdvisorAnalytics(
         label: "Venta de productos",
         value: productSharePct != null ? `${String(productSharePct).replace(".", ",")}% de la facturación` : "—",
         tone: productSharePct == null ? "neutral" : productSharePct >= PRODUCT_TARGET_PCT ? "good" : "warn",
+      },
+      {
+        key: "dia-tranquilo",
+        label: "Día más tranquilo",
+        value: diaTranquilo ? DIAS_SEMANA[diaTranquilo.dow] : "—",
+        tone: diaTranquilo ? "warn" : "neutral",
       },
       {
         key: "vip",

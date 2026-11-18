@@ -449,52 +449,6 @@ export function runRecommendationEngine(input: EngineInput): EngineResult {
     });
   }
 
-  // ── 3. Día muerto (el día que menos factura) ───────────────────────────────
-  if (done.length >= 10) {
-    const weeks = 90 / 7;
-    const byDow = Array.from({ length: 7 }, () => ({ revenue: 0, count: 0 }));
-    done.forEach((a) => {
-      const d = new Date(a.starts_at).getDay();
-      byDow[d].revenue += Number(a.service_price ?? avgTicket);
-      byDow[d].count += 1;
-    });
-    const active = byDow
-      .map((v, dow) => ({ dow, perWeek: v.revenue / weeks, count: v.count }))
-      .filter((v) => v.count > 0);
-    if (active.length >= 2) {
-      const best = active.reduce((m, v) => (v.perWeek > m.perWeek ? v : m));
-      const worst = active.reduce((m, v) => (v.perWeek < m.perWeek ? v : m));
-      const gapMonthly = Math.round((best.perWeek - worst.perWeek) * 4);
-      if (gapMonthly > avgTicket) {
-        drafts.push({
-          key: "dia-muerto",
-          title: `El ${DOW_LABELS[worst.dow]} factura ${fmtARS(gapMonthly)} menos que tu mejor día`,
-          description: `Los ${DOW_LABELS[worst.dow]} facturás muy por debajo del ${DOW_LABELS[best.dow]}. Es agenda vacía que ya estás pagando igual (alquiler, sillón, tu tiempo).`,
-          urgencySignal: 0.45,
-          strategy: {
-            icon: "📉",
-            tone: "warning",
-            category: "agenda",
-            problem: `Los ${DOW_LABELS[worst.dow]} facturás muy por debajo de tu mejor día (${DOW_LABELS[best.dow]}). Es agenda vacía que ya estás pagando igual (alquiler, sillón, tu tiempo).`,
-            moneyLost: gapMonthly,
-            moneyRecoverable: Math.round(gapMonthly * 0.5),
-            action: `Convertí el ${DOW_LABELS[worst.dow]} en tu día de ofertas: promo fija + difusión el día anterior.`,
-            steps: [
-              `Creá una promo exclusiva del ${DOW_LABELS[worst.dow]} (ej: corte + barba a precio especial, o 2x1 con un amigo).`,
-              `Publicá los turnos libres del ${DOW_LABELS[worst.dow]} en Instagram y estados de WhatsApp el ${DOW_LABELS[(worst.dow + 6) % 7]}.`,
-              "Ofrecé ese día a clientes que siempre piden horarios saturados como alternativa cómoda.",
-            ],
-            who: "Clientes activos + seguidores de Instagram/WhatsApp",
-            contacts: [],
-            message: `🔥 Promo de los ${DOW_LABELS[worst.dow]}: corte + barba a precio especial, solo con turno previo. Quedan pocos lugares, escribime y te reservo. ✂️`,
-            measure: `Facturación del ${DOW_LABELS[worst.dow]} en las próximas 3 semanas vs hoy.`,
-            basis: `Diferencia real ${DOW_LABELS[best.dow]} vs ${DOW_LABELS[worst.dow]}, proyectada a un mes.`,
-          },
-        });
-      }
-    }
-  }
-
   // ── 4. Profesional con baja ocupación ──────────────────────────────────────
   // Se mide contra la capacidad REAL de cada profesional (sus horarios, descansos y bloqueos): quien trabaja menos horas
   // no parece "bajo" por tener menos turnos. Sin esa información no se emite (no se adivina).
