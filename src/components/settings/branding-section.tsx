@@ -2095,14 +2095,6 @@ export function BrandingSection() {
             >
               {editorPanelOpen ? "Ocultar configuración" : "Mostrar configuración"}
             </button>
-            <button
-              type="button"
-              disabled={saving || !dirty}
-              onClick={() => void save(true)}
-              className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/40 disabled:hover:bg-white/10"
-            >
-              {saving ? "Guardando…" : "Guardar"}
-            </button>
           </div>
         </header>
         <div className="flex min-h-0 flex-1">
