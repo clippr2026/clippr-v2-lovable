@@ -31,7 +31,7 @@ export const GRUPOS_CLIENTE: Array<{
     regla: "Vinieron una sola vez hace menos de 30 días, o tienen un turno por venir. Al volver, pasan al grupo de su frecuencia." },
   { key: "una_visita", label: "Una visita", corto: "UNA VISITA", cls: "bg-fuchsia-400/10 text-fuchsia-300 ring-fuchsia-400/30", glow: "bg-fuchsia-500/20",
     rgb: "232, 121, 249",
-    regla: "Vinieron una sola vez y pasaron entre 30 y 59 días sin volver: es la lista para invitarlos a reservar. A los 60 días pasan a Perdidos. Si vuelven, pasan al grupo que les toque por el tiempo entre sus visitas." },
+    regla: "Vinieron una sola vez y pasaron entre 30 y 59 días sin volver: es la lista para invitarlos a reservar. Si no vuelven, a los 60 días de su primera visita pasan a Perdidos. Si vuelven, pasan al grupo que les toque por el tiempo entre sus visitas." },
   { key: "sin_visitas", label: "Sin visitas", corto: "SIN VISITAS", cls: "bg-white/5 text-muted-foreground ring-white/10", glow: "bg-slate-500/20",
     rgb: "148, 163, 184",
     regla: "Están cargados como clientes, pero todavía no tienen ninguna visita con pago registrado." },
@@ -52,7 +52,7 @@ export const GRUPOS_CLIENTE: Array<{
     regla: "Tardan más de 45 días en volver. Incluye a quien vuelve después de varios meses en su segunda visita." },
   { key: "perdido", label: "Perdidos", corto: "PERDIDO", cls: "bg-rose-400/10 text-rose-300 ring-rose-400/30", glow: "bg-rose-500/20",
     rgb: "251, 113, 133",
-    regla: "Dejaron de venir. Si tenían 2 o más visitas: llevan más de 1,5 veces lo que suelen tardar (mínimo 30 días, máximo 120). Si vinieron una sola vez: pasaron 60 días desde esa visita sin volver. Sin turno por venir." },
+    regla: "Llevan sin venir más de 1,5 veces lo que suelen tardar entre visitas, o vinieron una sola vez y no volvieron en 60 días. Si tienen un turno por venir, no figuran acá." },
 ];
 
 /** "VIP de un barbero" solo existe para quien ya tiene un ritmo de visitas: no en Nuevos, Una visita ni Sin visitas. */
