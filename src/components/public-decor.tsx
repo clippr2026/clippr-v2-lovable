@@ -159,28 +159,23 @@ export function PublicDecor({
 
   if (decor === "estrellas") {
     const colores = ["#ffffff", accent, primary, secondary];
-    // [x, y, radio] en un lienzo de 1200 x 300 que cubre todo el encabezado.
-    const grandes: [number, number, number][] = [
-      [60, 50, 20], [170, 210, 14], [260, 90, 18], [380, 250, 12], [470, 40, 16], [600, 270, 20], [700, 70, 14],
-      [820, 230, 18], [930, 60, 22], [1040, 200, 15], [1130, 90, 19], [1160, 250, 13], [540, 150, 11], [310, 160, 10],
+    // [izquierda %, arriba %, tamaño px]: solo zonas libres del encabezado (a la derecha del logo, bordes y franja superior),
+    // lejos del nombre y de "años de experiencia". Fijas, sin movimiento.
+    const lugares: [number, number, number][] = [
+      [46, 57, 14], [58, 63, 9], [70, 56, 12], [82, 64, 16], [92, 58, 10], [52, 70, 8], [66, 71, 11], [90, 70, 8],
+      [2, 3, 10], [96, 4, 13], [50, 2, 8], [30, 3, 7], [75, 3, 9], [1, 60, 9], [3, 40, 7], [97, 40, 8],
     ];
-    // Fijas (sin movimiento) y por DETRÁS del contenido: nunca tapan textos ni botones.
     return (
-      <svg className="pointer-events-none absolute inset-0 z-0 h-full w-full" viewBox="0 0 1200 300" preserveAspectRatio="xMidYMid slice" aria-hidden>
-        {Array.from({ length: 36 }).map((_, i) => (
-          <circle key={`p${i}`} cx={(i * 131 + 40) % 1200} cy={(i * 73 + 20) % 300} r={1.6 + (i % 3) * 0.8} fill="#ffffff" opacity={0.55 + (i % 4) * 0.1} />
-        ))}
-        {grandes.map(([x, y, r], i) => {
+      <div className="pointer-events-none absolute inset-0 z-0" aria-hidden>
+        {lugares.map(([x, y, t], i) => {
           const c = colores[i % colores.length];
           return (
-            <g key={i}>
-              <circle cx={x} cy={y} r={r * 2.1} fill={c} opacity=".14" />
-              <path d={star(x, y, r)} fill={c} style={{ filter: `drop-shadow(0 0 6px ${c})` }} />
-              <path d={star(x, y, r * 0.42)} fill="#ffffff" />
-            </g>
+            <svg key={i} viewBox="0 0 24 24" width={t} height={t} className="absolute" style={{ left: `${x}%`, top: `${y}%`, filter: `drop-shadow(0 0 3px ${c})` }}>
+              <path d="M12 1.5l3.1 6.9 7.4.8-5.5 5 1.6 7.4L12 17.8 5.4 21.6 7 14.2l-5.5-5 7.4-.8z" fill={c} />
+            </svg>
           );
         })}
-      </svg>
+      </div>
     );
   }
 
