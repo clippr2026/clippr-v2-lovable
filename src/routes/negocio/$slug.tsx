@@ -433,6 +433,8 @@ function FeaturedClientCard({
     >
       <button
         type="button"
+        data-pos-kind="featured"
+        data-pos-id={item.id}
         onClick={() => item.image_url && onZoom(item)}
         disabled={!item.image_url}
         className={
@@ -642,7 +644,7 @@ function PublicProfilePage() {
     const dragCss = document.createElement("style");
     dragCss.textContent = "[data-pos-kind]{cursor:grab;touch-action:none;user-select:none}[data-pos-kind]:active{cursor:grabbing}[data-pos-kind] img{transform:none !important;-webkit-user-drag:none}";
     document.head.appendChild(dragCss);
-    type PosDrag = { host: HTMLElement; img: HTMLImageElement; kind: string; index: number | null; sx: number; sy: number; px: number; py: number; nx: number; ny: number; moved: boolean };
+    type PosDrag = { host: HTMLElement; img: HTMLImageElement; kind: string; index: number | string | null; sx: number; sy: number; px: number; py: number; nx: number; ny: number; moved: boolean };
     let drag: PosDrag | null = null;
     let suppressClick = false;
     const clamp = (v: number) => Math.max(0, Math.min(100, v));
@@ -654,7 +656,8 @@ function PublicProfilePage() {
       const px = parseFloat(parts[0]) || 50;
       const py = parseFloat(parts[1] ?? parts[0]) || 50;
       const idx = host.getAttribute("data-pos-index");
-      drag = { host, img, kind: host.getAttribute("data-pos-kind") || "", index: idx === null ? null : Number(idx), sx: ev.clientX, sy: ev.clientY, px, py, nx: px, ny: py, moved: false };
+      const pid = host.getAttribute("data-pos-id");
+      drag = { host, img, kind: host.getAttribute("data-pos-kind") || "", index: pid !== null ? pid : idx === null ? null : Number(idx), sx: ev.clientX, sy: ev.clientY, px, py, nx: px, ny: py, moved: false };
       host.setPointerCapture?.(ev.pointerId);
     }
     function onMove(ev: PointerEvent) {

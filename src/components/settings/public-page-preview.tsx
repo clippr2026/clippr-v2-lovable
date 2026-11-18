@@ -47,7 +47,7 @@ export function PublicPagePreview({
   onPosition,
 }: {
   /** Se llama cuando se arrastra una imagen en la vista previa (portada, perfil o portafolio). */
-  onPosition?: (kind: string, index: number | null, position: string) => void;
+  onPosition?: (kind: string, index: number | string | null, position: string) => void;
   /** Sección de la página donde se muestra el campo que se está escribiendo (n cambia en cada foco). */
   focusSection?: { id: string; n: number } | null;
   slug: string;
@@ -70,7 +70,7 @@ export function PublicPagePreview({
     function onMessage(e: MessageEvent) {
       if (e.origin !== window.location.origin) return;
       if (e.source !== iframeRef.current?.contentWindow) return;
-      const d = e.data as { type?: string; kind?: string; index?: number | null; position?: string } | null;
+      const d = e.data as { type?: string; kind?: string; index?: number | string | null; position?: string } | null;
       if (d?.type === "clippr:preview-ready") setReady(true);
       if (d?.type === "clippr:preview-position" && typeof d.kind === "string" && typeof d.position === "string") {
         onPositionRef.current?.(d.kind, d.index ?? null, d.position);

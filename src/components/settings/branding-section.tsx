@@ -422,10 +422,12 @@ export function BrandingSection() {
   const [focusSection, setFocusSection] = useState<{ id: string; n: number } | null>(null);
   const enfocar = (id: string) => setFocusSection((f) => ({ id, n: (f?.n ?? 0) + 1 }));
   // Una imagen se arrastró en la vista previa: se guarda su nuevo encuadre.
-  const moverImagen = (kind: string, index: number | null, position: string) => {
+  const moverImagen = (kind: string, index: number | string | null, position: string) => {
     if (kind === "cover") setData((d) => ({ ...d, cover_position: position }));
     else if (kind === "avatar") setData((d) => ({ ...d, avatar_position: position }));
-    else if (kind === "portfolio" && index !== null) {
+    else if (kind === "featured" && typeof index === "string") {
+      setData((d) => ({ ...d, featured_positions: { ...d.featured_positions, [index]: position } }));
+    } else if (kind === "portfolio" && typeof index === "number") {
       setData((d) => {
         const next = [...d.portfolio_positions];
         while (next.length <= index) next.push("50% 50%");
@@ -1772,43 +1774,6 @@ export function BrandingSection() {
                             <ChevronDown className="h-4 w-4" />
                           </button>
                         </div>
-                        <label
-                          className={cn(
-                            "group relative grid h-14 w-14 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-2xl border border-violet-400/40 bg-white/[0.04] transition hover:bg-white/[0.07]",
-                            uploading && "cursor-not-allowed opacity-50",
-                          )}
-                        >
-                          {item.image_url ? (
-                            <img
-                              src={item.image_url}
-                              alt={item.name || "Confían en nosotros"}
-                              className="h-full w-full object-cover"
-                            />
-                          ) : (
-                            <ImageIcon className="h-5 w-5 text-white/45" />
-                          )}
-                          <div className="absolute inset-0 grid place-items-center bg-black/35 opacity-0 transition group-hover:opacity-100">
-                            <span className="rounded-full bg-white/90 px-2 py-1 text-[10px] font-bold text-black">
-                              {uploading ? "Subiendo" : "Cargar"}
-                            </span>
-                          </div>
-                          {!item.image_url ? (
-                            <span className="absolute bottom-1 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/70 ring-1 ring-white/10">
-                              Cargar
-                            </span>
-                          ) : null}
-                          <input
-                            type="file"
-                            accept="image/*"
-                            className="hidden"
-                            disabled={uploading}
-                            onChange={(e) => {
-                              const f = e.target.files?.[0] ?? null;
-                              e.target.value = "";
-                              handleFeaturedImageSelect(item.id, f);
-                            }}
-                          />
-                        </label>
 
                         <div className="min-w-0 flex-1 space-y-2">
                           <input
@@ -1822,6 +1787,22 @@ export function BrandingSection() {
                           />
                         </div>
                       </div>
+
+                      <label className={cn("inline-flex h-10 shrink-0 cursor-pointer items-center gap-1.5 rounded-full border border-violet-400/50 bg-violet-500/20 px-4 text-xs font-semibold text-violet-100 transition hover:bg-violet-500/30", uploading && "pointer-events-none opacity-50")} onClick={() => enfocar("confian")}>
+                        <ImageIcon className="h-4 w-4" />
+                        {uploading ? "Subiendo…" : item.image_url ? "Cambiar imagen" : "Cargar imagen"}
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          disabled={uploading}
+                          onChange={(e) => {
+                            const f = e.target.files?.[0] ?? null;
+                            e.target.value = "";
+                            handleFeaturedImageSelect(item.id, f);
+                          }}
+                        />
+                      </label>
 
                       <div className="flex items-center gap-2">
                         <select
