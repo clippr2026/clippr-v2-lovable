@@ -428,11 +428,11 @@ export function runRecommendationEngine(input: EngineInput): EngineResult {
         moneyRecoverable: recoverable,
         action: `Lanzá una campaña de reactivación a estos ${inactivos.length} clientes con un motivo concreto para volver esta semana.`,
         steps: [
-          "Mandá el mensaje de abajo por WhatsApp a la lista de clientes inactivos.",
+          "Mandá el mensaje de abajo por WhatsApp a la lista de clientes perdidos.",
           "Dales un motivo con fecha límite: un beneficio que vence el domingo.",
           "Si en 3 días no responden, mandá un segundo mensaje corto recordando el beneficio.",
         ],
-        who: `${inactivos.length} clientes inactivos (45+ días)`,
+        who: `${inactivos.length} clientes perdidos (45+ días)`,
         contacts: inactivos.slice(0, 8).map((c) => ({
           name: c.name,
           phone: c.phone,

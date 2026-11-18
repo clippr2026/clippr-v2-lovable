@@ -119,10 +119,12 @@ export function computeHealthScore(i: HealthInput): HealthScore {
       });
     } else {
       const pts = 25 * clamp(i.ocupacion / 75);
+      const usados = Math.round((i.ocupacion / 100) * i.totalSlots);
+      const faltan = Math.max(0, Math.ceil(i.totalSlots * 0.75) - usados);
       indicators.push({
         key: "ocupacion", label: "Ocupación de agenda", max: 25, pts: r1(pts), state: "calculado", valueText: `Ocupación ${pctTxt(i.ocupacion)}`,
-        why: `Ocupás el ${pctTxt(i.ocupacion)} de los turnos disponibles; con 75% o más se logran los 25 puntos.`,
-        tip: i.ocupacion >= 75 ? "Tu agenda está bien aprovechada." : "Llená los turnos vacíos: promociones en los días flojos y recordatorios a clientes inactivos.",
+        why: `Ocupás el ${pctTxt(i.ocupacion)} de los turnos disponibles (${usados} de ${i.totalSlots}); con 75% o más${faltan > 0 ? ` (${faltan} turnos más)` : ""} se logran los 25 puntos.`,
+        tip: i.ocupacion >= 75 ? "Tu agenda está bien aprovechada." : "Llená los turnos vacíos: promociones en los días flojos y recordatorios a clientes perdidos.",
       });
     }
   }

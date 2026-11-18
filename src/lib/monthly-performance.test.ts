@@ -304,8 +304,6 @@ describe("Rendimiento mensual", () => {
     expect(comp).toContain("prev.representative");
     expect(hook).not.toContain("días hábiles");
     expect(comp).toContain("Mes anterior de arranque: no se compara");
-    expect(read("src/routes/advisor.tsx")).toContain("Mes de arranque");
-    expect(read("src/routes/advisor.tsx")).toContain("prev.representative");
   });
 
   it("truncateRawToDay recorta el mes a los días 1..N en hora de Argentina para comparar el mes en curso contra el mismo período", () => {
@@ -350,14 +348,14 @@ describe("Rendimiento mensual", () => {
     expect(perf.facturacion).toBe(10000 + 20000 + 30000 + 3000);
   });
 
-  it("Análisis conserva Evolución del negocio e Historial; Salud, Radar, clientes para recuperar y radiografía viven en el Gerente IA", async () => {
+  it("Análisis conserva Evolución del negocio (sin historial de informes); Salud, Radar, clientes para recuperar y radiografía viven en el Gerente IA", async () => {
     const fs = await import("node:fs");
     const path = await import("node:path");
     const read = (rel: string) => fs.readFileSync(path.resolve(__dirname, "../../", rel), "utf8");
     const advisor = read("src/routes/advisor.tsx");
     const analisis = advisor.slice(advisor.indexOf('{advisorTab === "analisis" && ('), advisor.indexOf("{/* /Historial */}"));
     expect(analisis).toContain("EVOLUCIÓN DEL NEGOCIO");
-    expect(analisis).toContain("HISTORIAL DE ANÁLISIS");
+    expect(analisis).not.toContain("HISTORIAL DE ANÁLISIS");
     for (const movido of ["<SaludSection", "<RadarSection", "<ClientesPerdidosCard", "<RadiografiaSection"]) {
       expect(analisis).not.toContain(movido);
     }
@@ -383,8 +381,7 @@ describe("Rendimiento mensual", () => {
     expect(advisor).not.toContain('key: "rendimiento"');
     expect(advisor).toContain("<RendimientoMensual");
     expect(advisor.indexOf("<RendimientoMensual")).toBeGreaterThan(advisor.indexOf("EVOLUCIÓN DEL NEGOCIO"));
-    expect(advisor.indexOf("<RendimientoMensual")).toBeLessThan(advisor.indexOf("HISTORIAL DE ANÁLISIS"));
-    expect(read("src/lib/monthly-performance-pdf.ts")).toContain("win.print()");
+        expect(read("src/lib/monthly-performance-pdf.ts")).toContain("win.print()");
   });
 
   it("la devolución de una seña no es gasto: se informa aparte y no baja la ganancia", () => {

@@ -492,107 +492,6 @@ function AdvisorContent({
           {/* /Evolución */}
 
 
-          {/* ── HISTORIAL DE ANÁLISIS ─────────────────────────────── */}
-          {/* overflow-hidden: mismo fix que las secciones anteriores. */}
-          <div className="relative overflow-hidden rounded-[2rem] border border-violet-300/[0.13] bg-white/[0.014] p-3 shadow-[0_0_0_1px_rgba(139,92,246,0.05),0_24px_90px_-52px_rgba(124,58,237,0.55)] sm:p-4">
-            <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-violet-500/[0.06] blur-3xl" />
-            <div className="flex items-center gap-4 mb-3">
-              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-              <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">
-                Historial de análisis
-              </span>
-              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
-            </div>
-            <GlassCard className="relative overflow-hidden p-3.5 sm:p-6 border border-violet-300/[0.16] bg-white/[0.045] shadow-[0_0_0_1px_rgba(139,92,246,0.06),0_30px_100px_-52px_rgba(124,58,237,0.7)]">
-              <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-              <div className="flex flex-wrap items-start justify-between gap-4 mb-3 sm:mb-5">
-                <div>
-                  <h2 className="font-display text-xl sm:text-2xl font-bold tracking-tight">
-                    Informes mensuales
-                  </h2>
-                  <p className="mt-2 text-sm text-muted-foreground">
-                    Se calculan solos a partir de tus turnos y cobros reales, sin que tengas que
-                    tocar nada.
-                  </p>
-                </div>
-              </div>
-
-              {analytics.history.filter((h) => h.hasData).length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  Todavía no hay historial suficiente para generar informes mensuales. Van a ir
-                  apareciendo acá a medida que registres turnos y cobros.
-                </p>
-              ) : (
-                <div className="grid gap-2.5 sm:gap-3 md:grid-cols-3">
-                  {analytics.history
-                    .filter((h) => h.hasData)
-                    .slice(0, 3)
-                    .map((report, index) => {
-                      const isPrimary = index === 0;
-                      const health = report.monthLabel === analytics.analysisMonthLabel ? analytics.health : null;
-                      const isMtd = report.monthKey === analytics.mtd?.monthKey;
-                      const tone = getHealthTone(health ?? 50);
-                      const prev = analytics.history[analytics.history.indexOf(report) + 1];
-                      // El mes en curso se compara contra el MISMO período del mes anterior.
-                      const growthPct =
-                        isMtd && analytics.mtd
-                          ? analytics.mtd.currentRevenue != null && analytics.mtd.previousRevenue != null && analytics.mtd.previousRevenue > 0
-                            ? pctDelta(analytics.mtd.currentRevenue, analytics.mtd.previousRevenue)
-                            : null
-                          : prev?.hasData && prev.representative
-                            ? pctDelta(report.revenue, prev.revenue)
-                            : null;
-                      return (
-                        <div
-                          key={report.monthKey}
-                          className={cn(
-                            "relative flex flex-col rounded-2xl border p-3 transition-all sm:p-4",
-                            isPrimary
-                              ? "border-emerald-300/25 bg-emerald-300/[0.05] shadow-[0_0_0_1px_rgba(16,185,129,0.05),0_22px_70px_-46px_rgba(45,212,191,0.7)]"
-                              : "border-white/10 bg-white/[0.026] hover:border-white/20",
-                          )}
-                        >
-                          {isPrimary && (
-                            <div className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-emerald-300/45 to-transparent" />
-                          )}
-                          {/* Mes + Score */}
-                          <div className="flex items-start justify-between gap-2">
-                            <p className="text-sm font-semibold text-white">{report.monthLabel}</p>
-                            {health != null && (
-                              <span className={cn("text-xs font-bold tabular-nums", tone.text)}>
-                                {health}/100
-                              </span>
-                            )}
-                          </div>
-                          {/* Estado del mes */}
-                          <p className="mt-1 text-[11px] font-bold uppercase tracking-[0.14em] text-white/55">
-                            {isPrimary && isMtd
-                              ? "Mes en curso"
-                              : report.partialStart
-                                ? "Mes de arranque"
-                                : growthPct != null && growthPct >= 0
-                                  ? "Creciendo"
-                                  : "Informe guardado"}
-                          </p>
-                          {/* Resumen con datos reales */}
-                          <p className="mt-3 flex-1 text-xs leading-relaxed text-white/72">
-                            Facturación: {fmtAR(report.revenue)}
-                            {growthPct != null && (
-                              <>
-                                {" "}
-                                ({growthPct >= 0 ? "+" : ""}
-                                {growthPct}% {isMtd && analytics.mtd ? `vs del 1 al ${analytics.mtd.upToDay} del mes anterior (días completos)` : "vs mes anterior"})
-                              </>
-                            )}
-                            . Utilidad: {fmtAR(report.profit)}.
-                          </p>
-                        </div>
-                      );
-                    })}
-                </div>
-              )}
-            </GlassCard>
-          </div>
           {/* /Historial */}
 
           {infoModal ? <InfoModal content={infoModal} onClose={() => setInfoModal(null)} /> : null}
@@ -2797,7 +2696,7 @@ function LabRecuperar({ data }: { data: LabData }) {
   const pool = data.inact46.count + data.lost76.count;
   if (pool === 0) {
     return (
-      <LabEmpty text="¡Buenas noticias! No detectamos clientes inactivos ni perdidos para recuperar. Tu base está viniendo seguido." />
+      <LabEmpty text="¡Buenas noticias! No detectamos clientes perdidos para recuperar. Tu base está viniendo seguido." />
     );
   }
 
