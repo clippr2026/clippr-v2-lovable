@@ -339,7 +339,7 @@ function FacturacionView({ d, perf, prev, vsLabel }: ViewProps) {
       </Block>
 
       <Block title="Por medio de pago">
-        <Bars rows={perf.metodos.map((m) => ({ label: methodLabel(m.key), value: m.monto }))} sub={sharePct} color="bg-teal-400/70" />
+        <Bars rows={perf.metodos.filter((m) => m.key !== "sena" && m.key !== "sin_cobrar").map((m) => ({ label: methodLabel(m.key), value: m.monto }))} sub={sharePct} color="bg-teal-400/70" />
       </Block>
     </div>
   );

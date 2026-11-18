@@ -13,7 +13,7 @@ import {
   variationPct,
   type MonthlyPerformance,
 } from "@/lib/monthly-performance";
-import { methodLabel, printMonthlyPerformance } from "@/lib/monthly-performance-pdf";
+import { printMonthlyPerformance } from "@/lib/monthly-performance-pdf";
 import { DetalleSheet, type DetalleKind } from "@/components/advisor/rendimiento-detalle";
 
 const money = (n: number) => `${n < 0 ? "-" : ""}$${Math.abs(Math.round(n)).toLocaleString("es-AR")}`;
@@ -164,15 +164,6 @@ export function MesSelector({
   );
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-4 sm:p-5">
-      <h3 className="mb-3 text-xs font-bold uppercase tracking-[0.16em] text-white/50">{title}</h3>
-      {children}
-    </section>
-  );
-}
-
 type RendimientoMensualProps = {
   // Mes elegido ("2026-10"). Si se pasa, el selector es controlado desde afuera para que
   // el resto de la pantalla (ocupación, salud, radiografía) siga el mismo mes.
@@ -247,10 +238,6 @@ export function RendimientoMensual({ monthKey: controlledMonthKey }: Rendimiento
     if (!ok) toast.error("El navegador bloqueó la ventana. Permití ventanas emergentes para exportar el PDF.");
   }
 
-  // "Seña" y "Sin cobrar" no son medios de pago: no se listan acá (lo sin cobrar ya tiene su aviso).
-  const metodosReales = perf?.metodos.filter((m) => m.key !== "sena" && m.key !== "sin_cobrar") ?? [];
-  const totalMetodos = metodosReales.reduce((s, m) => s + m.monto, 0);
-  const maxGasto = perf ? Math.max(1, ...perf.gastosPorTipo.map((g) => g.total)) : 1;
 
   return (
     <div ref={raiz} className="mx-auto w-full max-w-5xl space-y-4 sm:space-y-5">
@@ -355,49 +342,6 @@ export function RendimientoMensual({ monthKey: controlledMonthKey }: Rendimiento
               cobren, siguen contando en este mes.
             </div>
           )}
-
-          <div className="grid gap-4 lg:grid-cols-2">
-            <Section title="Medios de pago">
-              <div className="space-y-2.5">
-                {metodosReales.map((m) => {
-                  const pct = totalMetodos > 0 ? (m.monto / totalMetodos) * 100 : 0;
-                  return (
-                    <div key={m.key}>
-                      <div className="flex items-baseline justify-between text-sm">
-                        <span className="text-white/80">{methodLabel(m.key)}</span>
-                        <span className="tabular-nums text-white">
-                          {money(m.monto)} <span className="text-xs text-white/40">({Math.round(pct)}%)</span>
-                        </span>
-                      </div>
-                      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
-                        <div className="h-full rounded-full bg-cyan-300/70" style={{ width: `${pct}%` }} />
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </Section>
-
-            <Section title="Gastos por tipo">
-              {perf.gastosPorTipo.length === 0 ? (
-                <p className="text-sm text-white/45">Sin gastos en el mes.</p>
-              ) : (
-                <div className="space-y-2.5">
-                  {perf.gastosPorTipo.map((g) => (
-                    <div key={g.tipo}>
-                      <div className="flex items-baseline justify-between text-sm">
-                        <span className="text-white/80">{g.tipo}</span>
-                        <span className="tabular-nums text-white">{money(g.total)}</span>
-                      </div>
-                      <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-white/[0.06]">
-                        <div className="h-full rounded-full bg-rose-300/65" style={{ width: `${(g.total / maxGasto) * 100}%` }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </Section>
-          </div>
         </>
       )}
     </div>
