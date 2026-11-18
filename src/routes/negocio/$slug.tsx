@@ -1535,7 +1535,7 @@ function PublicProfilePage() {
                   : "linear-gradient(120deg, color-mix(in oklch, var(--c-primary) 10%, transparent) 0%, transparent 60%)",
               }}
             />
-            <div className="relative px-4 py-3.5 sm:px-5 sm:py-4">
+            <div className="relative px-4 py-3.5 sm:px-5 sm:py-4" data-preview-section="confian">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
                   <Crown className="h-[15px] w-[15px] shrink-0" strokeWidth={1.75} style={{ color: cPrimary }} />

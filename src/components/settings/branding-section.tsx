@@ -1618,7 +1618,10 @@ export function BrandingSection() {
                   </label>
                   {avatarPreview ? (
                     <>
-                      <button type="button" onClick={removeAvatar} className="inline-flex h-9 items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/10 px-3.5 text-xs font-semibold text-rose-300 transition hover:bg-rose-500/20">
+                      <button type="button" onClick={() => {
+                        removeAvatar();
+                        enfocar("hero");
+                      }} className="inline-flex h-9 items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/10 px-3.5 text-xs font-semibold text-rose-300 transition hover:bg-rose-500/20">
                         <X className="h-4 w-4" /> Quitar
                       </button>
                     </>
@@ -1650,7 +1653,10 @@ export function BrandingSection() {
                   </label>
                   {coverPreview ? (
                     <>
-                      <button type="button" onClick={removeCover} className="inline-flex h-9 items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/10 px-3.5 text-xs font-semibold text-rose-300 transition hover:bg-rose-500/20">
+                      <button type="button" onClick={() => {
+                        removeCover();
+                        enfocar("hero");
+                      }} className="inline-flex h-9 items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/10 px-3.5 text-xs font-semibold text-rose-300 transition hover:bg-rose-500/20">
                         <X className="h-4 w-4" /> Quitar
                       </button>
                     </>
@@ -1684,7 +1690,10 @@ export function BrandingSection() {
                           />
                         </label>
                         {url && !uploading ? (
-                          <button type="button" onClick={() => removePortfolioImage(index)} className="inline-flex h-9 items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/10 px-3.5 text-xs font-semibold text-rose-300 transition hover:bg-rose-500/20" aria-label={`Quitar imagen ${index + 1}`}>
+                          <button type="button" onClick={() => {
+                            removePortfolioImage(index);
+                            enfocar("acerca");
+                          }} className="inline-flex h-9 items-center gap-1.5 rounded-full border border-rose-400/30 bg-rose-500/10 px-3.5 text-xs font-semibold text-rose-300 transition hover:bg-rose-500/20" aria-label={`Quitar imagen ${index + 1}`}>
                             <X className="h-4 w-4" /> Quitar
                           </button>
                         ) : null}
@@ -1708,7 +1717,10 @@ export function BrandingSection() {
                 </div>
                 <button
                   type="button"
-                  onClick={addFeaturedClient}
+                  onClick={() => {
+                    addFeaturedClient();
+                    enfocar("confian");
+                  }}
                   className="inline-flex h-10 shrink-0 items-center justify-center gap-2 self-start rounded-full border border-violet-400/50 bg-violet-500/20 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/30"
                 >
                   <Plus className="h-4 w-4" /> Agregar
@@ -1796,72 +1808,72 @@ export function BrandingSection() {
                           />
                         </label>
 
-                        <div className="min-w-0 flex-1 space-y-2.5">
-                          <label className="block space-y-1.5 text-sm font-semibold text-white">
-                            Nombre
+                        <div className="min-w-0 flex-1 space-y-2">
                           <input
                             value={item.name}
                             onChange={(e) => updateFeaturedClient(item.id, { name: e.target.value })}
+                            onFocus={() => enfocar("confian")}
                             placeholder="Nombre: Nike, Duki, Boca Juniors..."
                             maxLength={MAX_FEATURED_CLIENT_NAME_LENGTH}
-                            className="h-10 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm font-normal text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
+                            aria-label="Nombre"
+                            className="h-10 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
                           />
-                          </label>
-                          {/* El tipo se ve siempre, también cuando es Futbolista. */}
-                          <label className="block space-y-1.5 text-sm font-semibold text-white">
-                            Tipo
-                          <select
-                            value={item.category}
-                            onChange={(e) => updateFeaturedClient(item.id, { category: e.target.value as FeaturedClientCategory })}
-                            className="h-10 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm font-normal text-white outline-none focus:border-violet-400/50"
-                          >
-                            {FEATURED_CLIENT_CATEGORIES.map((cat) => (
-                              <option key={cat} value={cat}>
-                                {cat}
-                              </option>
-                            ))}
-                          </select>
-                          </label>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between gap-2 border-t border-white/[0.07] pt-2.5">
-                        {(() => {
-                          const complete = isFeaturedClientComplete(item);
-                          const canToggle = item.active || complete;
-                          return (
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={item.category}
+                              onChange={(e) => updateFeaturedClient(item.id, { category: e.target.value as FeaturedClientCategory })}
+                              onFocus={() => enfocar("confian")}
+                              aria-label="Tipo"
+                              className="h-9 min-w-0 flex-1 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 text-sm text-white outline-none focus:border-violet-400/50"
+                            >
+                              {FEATURED_CLIENT_CATEGORIES.map((cat) => (
+                                <option key={cat} value={cat}>
+                                  {cat}
+                                </option>
+                              ))}
+                            </select>
+                            {(() => {
+                              const complete = isFeaturedClientComplete(item);
+                              const canToggle = item.active || complete;
+                              return (
+                                <button
+                                  type="button"
+                                  disabled={!canToggle}
+                                  onClick={() => {
+                                    if (!canToggle) return;
+                                    updateFeaturedClient(item.id, { active: !item.active });
+                                    enfocar("confian");
+                                  }}
+                                  title={!canToggle ? "Cargá imagen y nombre para poder activarlo" : undefined}
+                                  className={cn(
+                                    "h-9 shrink-0 whitespace-nowrap rounded-full px-3.5 text-xs font-semibold ring-1 transition",
+                                    item.active
+                                      ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30"
+                                      : canToggle
+                                        ? "bg-white/5 text-white/60 ring-white/10"
+                                        : "cursor-not-allowed bg-white/5 text-white/30 ring-white/5",
+                                  )}
+                                >
+                                  {item.active ? "Activo" : "Inactivo"}
+                                </button>
+                              );
+                            })()}
                             <button
                               type="button"
-                              disabled={!canToggle}
                               onClick={() => {
-                                if (!canToggle) return;
-                                updateFeaturedClient(item.id, { active: !item.active });
+                                removeFeaturedClient(item.id);
+                                enfocar("confian");
                               }}
-                              title={!canToggle ? "Cargá imagen y nombre para poder activarlo" : undefined}
-                              className={cn(
-                                "h-9 whitespace-nowrap rounded-full px-4 text-xs font-semibold ring-1 transition",
-                                item.active
-                                  ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30"
-                                  : canToggle
-                                    ? "bg-white/5 text-white/60 ring-white/10"
-                                    : "cursor-not-allowed bg-white/5 text-white/30 ring-white/5",
-                              )}
+                              className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/5 text-red-300 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-200"
+                              aria-label="Eliminar de Confían en nosotros"
                             >
-                              {item.active ? "Activo" : "Inactivo"}
+                              <Trash2 className="h-4 w-4" />
                             </button>
-                          );
-                        })()}
-                        {!isFeaturedClientComplete(item) ? (
-                          <span className="min-w-0 flex-1 text-[11px] leading-snug text-amber-200/80">Cargá la imagen y el nombre para poder activarlo.</span>
-                        ) : null}
-                        <button
-                          type="button"
-                          onClick={() => removeFeaturedClient(item.id)}
-                          className="grid h-9 w-9 place-items-center rounded-full bg-white/5 text-red-300 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-200"
-                          aria-label="Eliminar de Confían en nosotros"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                          </div>
+                          {!isFeaturedClientComplete(item) ? (
+                            <p className="text-[11px] leading-snug text-amber-200/80">Cargá la imagen y el nombre para poder activarlo.</p>
+                          ) : null}
+                        </div>
                       </div>
                     </div>
                   );
