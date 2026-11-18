@@ -107,6 +107,7 @@ export function PublicHero(p: PublicHeroProps) {
               />
             ) : null}
             <div
+              data-pos-kind="cover"
               className={`relative ${COVER_ASPECT_CLASS} overflow-hidden rounded-[2rem] border border-white/20`}
               style={{
                 ...(p.entryEffect !== "zoom" ? coverFxStyle(p.entryEffect, p.playFx) : {}),
@@ -136,7 +137,7 @@ export function PublicHero(p: PublicHeroProps) {
               {p.bubble}
               <div key={`avatar-${p.effectRun}`} className="fx-anim" style={avatarFxStyle(p.entryEffect, p.playFx)}>
                 <NeonFrame plain={!logoNeon} colors={neonPalette(p.primary)} mode={p.entryEffect === "neon" && p.playFx ? "intro" : "static"}>
-                  <div className={"grid shrink-0 place-items-center text-3xl font-bold text-zinc-950 " + "h-28 w-28 sm:h-32 sm:w-32"}>
+                  <div data-pos-kind="avatar" className={"grid shrink-0 place-items-center text-3xl font-bold text-zinc-950 " + "h-28 w-28 sm:h-32 sm:w-32"}>
                     {p.avatarUrl ? (
                       <img
                         loading="lazy"

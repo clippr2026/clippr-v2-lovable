@@ -31,7 +31,10 @@ export function PublicPagePreview({
   large = false,
   reserve = 170,
   focusSection,
+  onPosition,
 }: {
+  /** Se llama cuando se arrastra una imagen en la vista previa (portada, perfil o portafolio). */
+  onPosition?: (kind: string, index: number | null, position: string) => void;
   /** Sección de la página donde se muestra el campo que se está escribiendo (n cambia en cada foco). */
   focusSection?: { id: string; n: number } | null;
   slug: string;
@@ -48,11 +51,16 @@ export function PublicPagePreview({
   const boxRef = React.useRef<HTMLDivElement | null>(null);
   const iframeRef = React.useRef<HTMLIFrameElement | null>(null);
   const [ready, setReady] = React.useState(false);
+  const onPositionRef = React.useRef(onPosition);
+  onPositionRef.current = onPosition;
   React.useEffect(() => {
     function onMessage(e: MessageEvent) {
       if (e.origin !== window.location.origin) return;
-      if (e.source === iframeRef.current?.contentWindow && (e.data as { type?: string } | null)?.type === "clippr:preview-ready") {
-        setReady(true);
+      if (e.source !== iframeRef.current?.contentWindow) return;
+      const d = e.data as { type?: string; kind?: string; index?: number | null; position?: string } | null;
+      if (d?.type === "clippr:preview-ready") setReady(true);
+      if (d?.type === "clippr:preview-position" && typeof d.kind === "string" && typeof d.position === "string") {
+        onPositionRef.current?.(d.kind, d.index ?? null, d.position);
       }
     }
     window.addEventListener("message", onMessage);

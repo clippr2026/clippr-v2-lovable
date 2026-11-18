@@ -637,6 +637,64 @@ function PublicProfilePage() {
     const hideScroll = document.createElement("style");
     hideScroll.textContent = "html,body,*{scrollbar-width:none !important}html::-webkit-scrollbar,body::-webkit-scrollbar,*::-webkit-scrollbar{display:none !important;width:0 !important;height:0 !important}";
     document.head.appendChild(hideScroll);
+    // Ajuste de imágenes arrastrándolas en la vista previa (portada, foto de perfil y portafolio):
+    // se mueve el encuadre (object-position) y el nuevo valor se le avisa al editor.
+    const dragCss = document.createElement("style");
+    dragCss.textContent = "[data-pos-kind]{cursor:grab;touch-action:none;user-select:none}[data-pos-kind]:active{cursor:grabbing}[data-pos-kind] img{transform:none !important;-webkit-user-drag:none}";
+    document.head.appendChild(dragCss);
+    type PosDrag = { host: HTMLElement; img: HTMLImageElement; kind: string; index: number | null; sx: number; sy: number; px: number; py: number; nx: number; ny: number; moved: boolean };
+    let drag: PosDrag | null = null;
+    let suppressClick = false;
+    const clamp = (v: number) => Math.max(0, Math.min(100, v));
+    function onDown(ev: PointerEvent) {
+      const host = (ev.target as HTMLElement | null)?.closest?.("[data-pos-kind]") as HTMLElement | null;
+      const img = host?.querySelector("img") as HTMLImageElement | null;
+      if (!host || !img || !img.naturalWidth) return;
+      const parts = (getComputedStyle(img).objectPosition || "50% 50%").split(" ");
+      const px = parseFloat(parts[0]) || 50;
+      const py = parseFloat(parts[1] ?? parts[0]) || 50;
+      const idx = host.getAttribute("data-pos-index");
+      drag = { host, img, kind: host.getAttribute("data-pos-kind") || "", index: idx === null ? null : Number(idx), sx: ev.clientX, sy: ev.clientY, px, py, nx: px, ny: py, moved: false };
+      host.setPointerCapture?.(ev.pointerId);
+    }
+    function onMove(ev: PointerEvent) {
+      if (!drag) return;
+      const { img } = drag;
+      const cw = img.clientWidth;
+      const ch = img.clientHeight;
+      const scale = Math.max(cw / img.naturalWidth, ch / img.naturalHeight);
+      const ox = img.naturalWidth * scale - cw;
+      const oy = img.naturalHeight * scale - ch;
+      const dx = ev.clientX - drag.sx;
+      const dy = ev.clientY - drag.sy;
+      if (Math.abs(dx) + Math.abs(dy) > 3) drag.moved = true;
+      drag.nx = ox > 1 ? clamp(drag.px - (dx / ox) * 100) : drag.px;
+      drag.ny = oy > 1 ? clamp(drag.py - (dy / oy) * 100) : drag.py;
+      img.style.objectPosition = `${drag.nx.toFixed(1)}% ${drag.ny.toFixed(1)}%`;
+    }
+    function onUp() {
+      if (!drag) return;
+      if (drag.moved) {
+        suppressClick = true;
+        window.setTimeout(() => (suppressClick = false), 0);
+        window.parent.postMessage(
+          { type: "clippr:preview-position", kind: drag.kind, index: drag.index, position: `${drag.nx.toFixed(1)}% ${drag.ny.toFixed(1)}%` },
+          window.location.origin,
+        );
+      }
+      drag = null;
+    }
+    function onClickCapture(ev: MouseEvent) {
+      if (suppressClick) {
+        ev.preventDefault();
+        ev.stopPropagation();
+      }
+    }
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("pointermove", onMove);
+    document.addEventListener("pointerup", onUp);
+    document.addEventListener("pointercancel", onUp);
+    document.addEventListener("click", onClickCapture, true);
     function onMessage(e: MessageEvent) {
       if (e.origin !== window.location.origin) return;
       const d = e.data as { type?: string; draft?: Record<string, any> } | null;
@@ -698,7 +756,13 @@ function PublicProfilePage() {
     window.addEventListener("message", onMessage);
     return () => {
       window.removeEventListener("message", onMessage);
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("pointermove", onMove);
+      document.removeEventListener("pointerup", onUp);
+      document.removeEventListener("pointercancel", onUp);
+      document.removeEventListener("click", onClickCapture, true);
       hideScroll.remove();
+      dragCss.remove();
     };
   }, []);
 
@@ -1342,6 +1406,8 @@ function PublicProfilePage() {
                       <button
                         key={`${src}-${i}`}
                         type="button"
+                        data-pos-kind="portfolio"
+                        data-pos-index={i}
                         onClick={() => openPortfolio(i)}
                         className="group aspect-[4/3] overflow-hidden rounded-3xl border border-white/10 bg-white/[0.03] text-left transition hover:scale-[1.015] hover:border-white/20"
                       >

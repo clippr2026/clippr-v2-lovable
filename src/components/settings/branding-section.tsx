@@ -423,6 +423,19 @@ export function BrandingSection() {
   // Campo que se está escribiendo: la vista previa se desplaza hasta el lugar de la página donde se muestra.
   const [focusSection, setFocusSection] = useState<{ id: string; n: number } | null>(null);
   const enfocar = (id: string) => setFocusSection((f) => ({ id, n: (f?.n ?? 0) + 1 }));
+  // Una imagen se arrastró en la vista previa: se guarda su nuevo encuadre.
+  const moverImagen = (kind: string, index: number | null, position: string) => {
+    if (kind === "cover") setData((d) => ({ ...d, cover_position: position }));
+    else if (kind === "avatar") setData((d) => ({ ...d, avatar_position: position }));
+    else if (kind === "portfolio" && index !== null) {
+      setData((d) => {
+        const next = [...d.portfolio_positions];
+        while (next.length <= index) next.push("50% 50%");
+        next[index] = position;
+        return { ...d, portfolio_positions: next };
+      });
+    }
+  };
   const [customBenefit, setCustomBenefit] = useState("");
 
   useEffect(() => {
@@ -1348,6 +1361,7 @@ export function BrandingSection() {
       refreshKey={previewKey}
       large
       reserve={330}
+      onPosition={moverImagen}
       onEditor={() => setEditorMode(true)}
     />
   ) : null;
@@ -1359,6 +1373,7 @@ export function BrandingSection() {
       large
       reserve={200}
       focusSection={focusSection}
+      onPosition={moverImagen}
       onClose={() => setEditorMode(false)}
     />
   ) : null;
@@ -1570,36 +1585,20 @@ export function BrandingSection() {
         <>
           <SectionCard clippr label="Imágenes" id="pagina-reservas-imagenes">
             <div className="space-y-5">
+              <p className="text-xs leading-snug text-white/55">
+                Cargá las imágenes acá y mirá cómo quedan en la vista previa. Para ajustar el encuadre, arrastrá la imagen en la vista previa.
+              </p>
+
               {/* Foto de perfil */}
-              <div className="flex flex-col items-center border-b border-white/5 pb-5 last:border-b-0 last:pb-0">
-                <div className="mb-3 text-sm font-medium">Foto de perfil</div>
-                <div className="relative">
-                  <label
-                    className={cn(
-                      "group relative grid h-20 w-20 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-full border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07]",
-                      uploadingAvatar && "cursor-not-allowed opacity-50",
-                    )}
-                  >
-                    {avatarPreview ? (
-                      <img
-                        src={avatarPreview}
-                        alt="Foto de perfil"
-                        className="h-full w-full object-cover"
-                        style={{ objectPosition: data.avatar_position }}
-                      />
-                    ) : (
-                      <UserIcon className="h-6 w-6 text-white/45" />
-                    )}
-                    <div className="absolute inset-0 grid place-items-center bg-black/35 opacity-0 transition group-hover:opacity-100">
-                      <span className="rounded-full bg-white/90 px-2 py-1 text-[10px] font-bold text-black">
-                        {uploadingAvatar ? "Subiendo" : "Cargar"}
-                      </span>
-                    </div>
-                    {!avatarPreview ? (
-                      <span className="absolute bottom-1 rounded-full bg-white/10 px-2 py-0.5 text-[10px] font-semibold text-white/70 ring-1 ring-white/10">
-                        Cargar
-                      </span>
-                    ) : null}
+              <div className="space-y-2.5 rounded-2xl border border-white/10 bg-white/[0.03] p-3.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-sm font-semibold text-white">Foto de perfil</div>
+                  <span className="text-xs text-white/50">{avatarPreview ? "Cargada" : "Sin imagen"}</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <label className={cn("inline-flex h-10 cursor-pointer items-center gap-2 rounded-full border border-violet-400/50 bg-violet-500/20 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/30", uploadingAvatar && "pointer-events-none opacity-50")} onClick={() => enfocar("hero")}>
+                    <ImageIcon className="h-4 w-4" />
+                    {uploadingAvatar ? "Subiendo…" : avatarPreview ? "Cambiar imagen" : "Cargar imagen"}
                     <input
                       type="file"
                       accept="image/*"
@@ -1613,140 +1612,66 @@ export function BrandingSection() {
                     />
                   </label>
                   {avatarPreview ? (
-                    <button
-                      type="button"
-                      onClick={removeAvatar}
-                      className="absolute -right-1 -top-1 grid h-6 w-6 place-items-center rounded-full bg-zinc-900 text-red-300 ring-1 ring-white/15 transition hover:bg-red-500/20 hover:text-red-200"
-                      aria-label="Eliminar foto de perfil"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
+                    <>
+                      <button type="button" onClick={() => setData((d) => ({ ...d, avatar_position: "50% 50%" }))} className="inline-flex h-10 items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 text-sm font-semibold text-white/70 transition hover:bg-white/[0.08]">
+                        Centrar
+                      </button>
+                      <button type="button" onClick={removeAvatar} className="inline-flex h-10 items-center gap-2 rounded-full border border-rose-400/30 bg-rose-500/10 px-4 text-sm font-semibold text-rose-300 transition hover:bg-rose-500/20">
+                        <X className="h-4 w-4" /> Quitar
+                      </button>
+                    </>
                   ) : null}
                 </div>
               </div>
 
-              {/* Portada — misma proporción que en la página pública e Inicio;
-                  se ajusta arrastrando la imagen y el encuadre queda igual en los tres. */}
-              <div className="flex flex-col items-center border-b border-white/5 pb-5 last:border-b-0 last:pb-0">
-                <div className="mb-1 text-sm font-medium">Portada</div>
-                <p className="mb-3 text-xs text-muted-foreground">
-                  {coverPreview ? "Arrastrá la imagen para ajustarla." : "Cargá una imagen para la portada."}
-                </p>
-                <div className="w-full max-w-2xl">
-                  <CoverAdjuster
-                    src={coverPreview}
-                    position={data.cover_position}
-                    onChange={(next) => setData((d) => ({ ...d, cover_position: next }))}
-                    uploading={uploadingCover}
-                  />
-                  <div className="mt-3 flex flex-wrap items-center justify-center gap-2">
-                    <label
-                      className={cn(
-                        "inline-flex cursor-pointer items-center gap-1.5 rounded-lg bg-white/5 px-3 py-1.5 text-xs font-semibold ring-1 ring-white/10 transition hover:bg-white/10",
-                        uploadingCover && "pointer-events-none opacity-50",
-                      )}
-                    >
-                      <ImageIcon className="h-3.5 w-3.5" />
-                      {uploadingCover ? "Subiendo…" : coverPreview ? "Cambiar imagen" : "Cargar imagen"}
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        disabled={uploadingCover}
-                        onChange={(e) => {
-                          const f = e.target.files?.[0] ?? null;
-                          e.target.value = "";
-                          handleCoverSelect(f);
-                        }}
-                      />
-                    </label>
-                    {coverPreview ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => setData((d) => ({ ...d, cover_position: "50% 50%" }))}
-                          className="rounded-lg bg-white/5 px-3 py-1.5 text-xs text-muted-foreground ring-1 ring-white/10 transition hover:bg-white/10 hover:text-foreground"
-                        >
-                          Centrar
-                        </button>
-                        <button
-                          type="button"
-                          onClick={removeCover}
-                          className="inline-flex items-center gap-1.5 rounded-lg bg-rose-500/10 px-3 py-1.5 text-xs text-rose-300 ring-1 ring-rose-500/25 transition hover:bg-rose-500/20"
-                        >
-                          <X className="h-3.5 w-3.5" /> Quitar
-                        </button>
-                      </>
-                    ) : null}
-                  </div>
+              {/* Portada */}
+              <div className="space-y-2.5 rounded-2xl border border-white/10 bg-white/[0.03] p-3.5">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-sm font-semibold text-white">Portada</div>
+                  <span className="text-xs text-white/50">{coverPreview ? "Cargada" : "Sin imagen"}</span>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <label className={cn("inline-flex h-10 cursor-pointer items-center gap-2 rounded-full border border-violet-400/50 bg-violet-500/20 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/30", uploadingCover && "pointer-events-none opacity-50")} onClick={() => enfocar("hero")}>
+                    <ImageIcon className="h-4 w-4" />
+                    {uploadingCover ? "Subiendo…" : coverPreview ? "Cambiar imagen" : "Cargar imagen"}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      disabled={uploadingCover}
+                      onChange={(e) => {
+                        const f = e.target.files?.[0] ?? null;
+                        e.target.value = "";
+                        handleCoverSelect(f);
+                      }}
+                    />
+                  </label>
+                  {coverPreview ? (
+                    <>
+                      <button type="button" onClick={() => setData((d) => ({ ...d, cover_position: "50% 50%" }))} className="inline-flex h-10 items-center gap-2 rounded-full border border-white/10 bg-white/[0.04] px-4 text-sm font-semibold text-white/70 transition hover:bg-white/[0.08]">
+                        Centrar
+                      </button>
+                      <button type="button" onClick={removeCover} className="inline-flex h-10 items-center gap-2 rounded-full border border-rose-400/30 bg-rose-500/10 px-4 text-sm font-semibold text-rose-300 transition hover:bg-rose-500/20">
+                        <X className="h-4 w-4" /> Quitar
+                      </button>
+                    </>
+                  ) : null}
                 </div>
               </div>
 
-              {/* Portafolio */}
-              <div>
-                <div className="mb-1 text-center text-sm font-medium">
-                  Portafolio
-                </div>
-                <p className="mb-3 text-center text-xs text-muted-foreground">
-                  Tocá una imagen para cargarla o reemplazarla.
-                </p>
-
-                {/* A diferencia de la página pública (que en mobile pasa a
-                    1 columna), acá siempre son 3 en una misma fila — así se
-                    ven/administran las 3 juntas sin scrollear. Lo que sí
-                    tiene que coincidir sí o sí con la pública es la tarjeta
-                    en sí: aspect-[4/3] / rounded-3xl / object-cover +
-                    objectPosition (ver src/routes/negocio/$slug.tsx) — el
-                    encuadre/recorte de cada miniatura es el mismo cálculo,
-                    solo cambia cuántas entran por fila.
-                    max-w-[686px]: en desktop, Configuración comparte fila con
-                    un menú angosto (260px) y le sobra mucho más ancho que a
-                    la página pública, donde esa misma tarjeta comparte fila
-                    con el panel de reserva (360px) — sin este tope las 3
-                    miniaturas se ven más grandes acá que publicadas. 686px es
-                    el ancho real que le queda a esa tarjeta en la página
-                    pública en pantallas grandes (max-w-6xl 1152 − px-4 32 −
-                    sidebar 360 − gap-6 24 − borde 2 − p-6 48). */}
-                <div className="mx-auto grid max-w-[686px] grid-cols-3 gap-2 sm:gap-3">
+              {/* Portafolio: tres imágenes */}
+              <div className="space-y-2.5 rounded-2xl border border-white/10 bg-white/[0.03] p-3.5">
+                <div className="text-sm font-semibold text-white">Portafolio</div>
+                <div className="space-y-2">
                   {[0, 1, 2].map((index) => {
                     const url = data.portfolio_urls[index];
                     const uploading = uploadingPortfolioIndex === index;
                     return (
-                      <div key={index} className="relative">
-                        {/* block, no grid/place-items-center: la pública usa
-                            un <button> (bloque simple) para el mismo marco
-                            aspect-[4/3] — acá era un <label> con display:grid
-                            + place-items-center, que en algunos motores
-                            (WebKit/Safari) resuelve el tamaño de un <img>
-                            h-full/w-full contra un grid de auto-sizing de
-                            forma distinta al bloque simple, dando una altura
-                            y un recorte ligeramente distintos al publicado.
-                            El ícono de placeholder y el spinner ya no
-                            dependen de ese centrado del padre: se superponen
-                            con absolute inset-0 propio. */}
-                        <label
-                          className={cn(
-                            "group relative block aspect-[4/3] w-full cursor-pointer overflow-hidden rounded-3xl border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07]",
-                            uploading && "cursor-not-allowed",
-                          )}
-                        >
-                          {url ? (
-                            <img
-                              src={url}
-                              alt={`Imagen ${index + 1}`}
-                              className="h-full w-full object-cover"
-                              style={{ objectPosition: data.portfolio_positions[index] || "50% 50%" }}
-                            />
-                          ) : (
-                            <div className="absolute inset-0 grid place-items-center">
-                              <ImageIcon className="h-6 w-6 text-white/45" />
-                            </div>
-                          )}
-                          {uploading ? (
-                            <div className="absolute inset-0 grid place-items-center bg-black/45">
-                              <Loader2 className="h-5 w-5 animate-spin text-white" />
-                            </div>
-                          ) : null}
+                      <div key={index} className="flex flex-wrap items-center gap-2">
+                        <span className="w-20 shrink-0 text-sm text-white/70">Imagen {index + 1}</span>
+                        <label className={cn("inline-flex h-10 cursor-pointer items-center gap-2 rounded-full border border-violet-400/50 bg-violet-500/20 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/30", uploading && "pointer-events-none opacity-50")} onClick={() => enfocar("acerca")}>
+                          <ImageIcon className="h-4 w-4" />
+                          {uploading ? "Subiendo…" : url ? "Cambiar" : "Cargar"}
                           <input
                             type="file"
                             accept="image/*"
@@ -1759,15 +1684,9 @@ export function BrandingSection() {
                             }}
                           />
                         </label>
-
                         {url && !uploading ? (
-                          <button
-                            type="button"
-                            onClick={() => removePortfolioImage(index)}
-                            className="absolute -right-1 -top-1 grid h-6 w-6 place-items-center rounded-full bg-zinc-900 text-red-300 ring-1 ring-white/15 transition hover:bg-red-500/20 hover:text-red-200"
-                            aria-label={`Eliminar imagen ${index + 1}`}
-                          >
-                            <X className="h-3.5 w-3.5" />
+                          <button type="button" onClick={() => removePortfolioImage(index)} className="inline-flex h-10 items-center gap-2 rounded-full border border-rose-400/30 bg-rose-500/10 px-4 text-sm font-semibold text-rose-300 transition hover:bg-rose-500/20" aria-label={`Quitar imagen ${index + 1}`}>
+                            <X className="h-4 w-4" /> Quitar
                           </button>
                         ) : null}
                       </div>
