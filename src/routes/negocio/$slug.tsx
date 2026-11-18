@@ -585,6 +585,8 @@ function PublicProfilePage() {
   const [employeeOverrides, setEmployeeOverrides] = React.useState<EmployeeServiceOverrideMap>({});
   // Se detecta después de montar (no al inicializar) para que el HTML del servidor y el del cliente coincidan.
   const [isPreview, setIsPreview] = React.useState(false);
+  // Si ya llegó lo que se está editando, la carga de lo guardado no lo pisa.
+  const draftVisualRecibido = React.useRef(false);
   React.useEffect(() => {
     setIsPreview(new URLSearchParams(window.location.search).get("preview") === "1");
   }, []);
@@ -727,6 +729,7 @@ function PublicProfilePage() {
       }
       if (!d || d.type !== "clippr:preview-draft" || !d.draft) return;
       const dr = d.draft;
+      draftVisualRecibido.current = true;
       if (dr.colors && typeof dr.colors === "object") setColors(dr.colors as LandingColors);
       if (dr.theme) setTheme(dr.theme === "light" ? "light" : "dark");
       if ("font" in dr) setFontKey(typeof dr.font === "string" ? dr.font : null);
@@ -833,7 +836,7 @@ function PublicProfilePage() {
         const { data: st } = await supabase.from("public_booking_settings").select("schedule").eq("business_id", row.id).maybeSingle();
         if (cancelled) return;
         const b = (st as any)?.schedule?._branding;
-        if (b && typeof b === "object") {
+        if (b && typeof b === "object" && !draftVisualRecibido.current) {
           setEntryEffect(normalizeEntryEffect(b.entry_effect));
           setBgStyle(normalizePublicBg(b.bg_style));
           setDecor(normalizePublicDecor(b.decor));
@@ -1108,13 +1111,15 @@ function PublicProfilePage() {
               : {},
           );
           setAdditionalInfo(normalizeAdditionalInfo(branding.additional_info));
-          setColors((branding.colors && typeof branding.colors === "object" ? branding.colors : {}) as LandingColors);
-          setFontKey(typeof branding.font === "string" ? branding.font : null);
-          setEntryEffect(normalizeEntryEffect(branding.entry_effect));
-          setBgStyle(normalizePublicBg(branding.bg_style));
-          setDecor(normalizePublicDecor(branding.decor));
-          setNeonKey(normalizePublicNeon(branding.neon));
-          setTheme(branding.theme === "light" ? "light" : "dark");
+          if (!draftVisualRecibido.current) {
+            setColors((branding.colors && typeof branding.colors === "object" ? branding.colors : {}) as LandingColors);
+            setFontKey(typeof branding.font === "string" ? branding.font : null);
+            setEntryEffect(normalizeEntryEffect(branding.entry_effect));
+            setBgStyle(normalizePublicBg(branding.bg_style));
+            setDecor(normalizePublicDecor(branding.decor));
+            setNeonKey(normalizePublicNeon(branding.neon));
+            setTheme(branding.theme === "light" ? "light" : "dark");
+          }
         }
       } catch {
         if (!cancelled) setBusiness(null);
