@@ -18,6 +18,9 @@ export type CashRegisterSearch = {
   // directo la pestaña Cierres con esa fecha ya seleccionada y su vista
   // previa calculada, sin que el usuario tenga que buscarla a mano.
   pendingDate?: string;
+  // Pestaña de Caja a abrir (hoy solo "cierres"): lo usa el aviso de cajas pendientes de Inicio para llevar
+  // al Historial de cierres sin elegir una fecha puntual.
+  tab?: string;
 };
 
 // Una URL como .../cash-register?appointmentId=null&clientName=null&...
@@ -52,6 +55,7 @@ export const EMPTY_CASH_REGISTER_SEARCH: Required<CashRegisterSearch> = {
   totalPrice: undefined as unknown as string,
   chargeStep: undefined as unknown as string,
   pendingDate: undefined as unknown as string,
+  tab: undefined as unknown as string,
 };
 
 export type SearchPendingCharge = {

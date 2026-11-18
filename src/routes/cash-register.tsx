@@ -782,6 +782,7 @@ export const Route = createFileRoute("/cash-register")({
     totalPrice: cleanSearchParam(search.totalPrice),
     chargeStep: cleanSearchParam(search.chargeStep),
     pendingDate: cleanSearchParam(search.pendingDate),
+    tab: cleanSearchParam(search.tab),
   }),
   head: () => ({
     meta: [
@@ -919,7 +920,7 @@ function CashRegisterPage() {
   const [tab, setTab] = useState<Tab>(
     search.depositAppointmentId || search.appointmentId
       ? "nueva"
-      : search.pendingDate
+      : search.pendingDate || search.tab === "cierres"
         ? "cierres"
         : "resumen",
   );
