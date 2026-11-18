@@ -356,11 +356,11 @@ describe("Rendimiento mensual", () => {
     const analisis = advisor.slice(advisor.indexOf('{advisorTab === "analisis" && ('), advisor.indexOf("{/* /Historial */}"));
     expect(analisis).toContain("EVOLUCIÓN DEL NEGOCIO");
     expect(analisis).not.toContain("HISTORIAL DE ANÁLISIS");
-    for (const movido of ["<SaludSection", "<RadarSection", "<ClientesPerdidosCard", "<RadiografiaSection"]) {
+    for (const movido of ["<SaludSection", "<ClientesPerdidosCard", "<RadiografiaSection"]) {
       expect(analisis).not.toContain(movido);
     }
     const gerente = advisor.slice(advisor.indexOf("function GrowthManagerTab("));
-    for (const movido of ["<SaludSection", "<RadarSection", "<ClientesPerdidosCard", "<RadiografiaSection"]) {
+    for (const movido of ["<SaludSection", "<ClientesPerdidosCard", "<RadiografiaSection"]) {
       expect(gerente).toContain(movido);
     }
     const hook = read("src/hooks/use-advisor-analytics.ts");

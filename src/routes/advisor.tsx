@@ -1808,37 +1808,6 @@ function SaludSection({
   );
 }
 
-function RadarSection({ analytics }: { analytics: AdvisorAnalytics }) {
-  const luz =
-    "[background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.12),transparent_65%)]";
-  return (
-    <section className={`rounded-2xl border border-white/10 bg-[#0b0a14] p-4 ${luz}`}>
-      <div className="flex items-center gap-2 text-sm font-semibold text-white">
-        <Activity className="h-4 w-4 text-emerald-300" /> Radar del local
-      </div>
-      <div className="text-[11px] text-white/50">Verde: va bien. Naranja o rojo: te está costando plata.</div>
-      <div className="mt-3 space-y-2">
-        {analytics.radar.length === 0 ? (
-          <p className="text-sm text-white/55">Todavía no hay suficiente historial para generar el radar del local.</p>
-        ) : (
-          analytics.radar.map((item) => {
-            const style = RADAR_STYLES[item.tone];
-            const Icon = item.tone === "ok" ? TrendingUp : item.tone === "bad" ? Package : item.tone === "alert" ? Users : CalendarDays;
-            return (
-              <div key={item.key} className={cn("flex items-center gap-3 rounded-xl border px-3 py-2.5", style.ring)}>
-                <span className={cn("grid size-8 shrink-0 place-items-center rounded-lg", style.bg)}>
-                  <Icon className={cn("size-4", style.icon)} />
-                </span>
-                <span className="text-sm leading-snug text-white/85">{item.label}</span>
-              </div>
-            );
-          })
-        )}
-      </div>
-    </section>
-  );
-}
-
 // Radiografía del equipo: solo lo que NO está ya en Salud, Radar o Análisis (clientes para recuperar, turnos vacíos).
 function RadiografiaSection({ analytics }: { analytics: AdvisorAnalytics }) {
   const items = analytics.radiografia.filter((i) => i.key !== "recuperar" && i.key !== "turnos-vacios");
@@ -1947,7 +1916,6 @@ function GrowthManagerTab({ data, analytics, businessId, selectedMonthKey, onMon
         healthTone={healthTone}
         healthHeadline={healthHeadline}
       />
-      <RadarSection analytics={analytics} />
     </>
   );
   const detalleFinal = (
