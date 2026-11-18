@@ -1739,14 +1739,18 @@ export function BrandingSection() {
                   return (
                     <div
                       key={item.id}
-                      className="grid grid-cols-[minmax(0,1fr)] gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3 transition"
+                      className="grid grid-cols-[minmax(0,1fr)] gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3.5 transition"
+                      style={{
+                        backgroundImage:
+                          "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.14), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.10), transparent 65%)",
+                      }}
                     >
                       {/* Imagen a la izquierda; nombre y tipo (Futbolista,
                           etc.) apilados a la derecha, uno debajo del otro —
                           no lado a lado. Activo/Inactivo y Eliminar quedan a
                           la derecha del todo. */}
-                      <div className="flex items-start gap-3">
-                        <div className="mt-3.5 flex shrink-0 flex-col gap-0.5">
+                      <div className="flex items-center gap-3">
+                        <div className="flex shrink-0 flex-col gap-0.5">
                           <button
                             type="button"
                             onClick={() => moveFeaturedClient(item.id, -1)}
@@ -1770,7 +1774,7 @@ export function BrandingSection() {
                         </div>
                         <label
                           className={cn(
-                            "group relative grid h-14 w-14 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-2xl border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07]",
+                            "group relative grid h-14 w-14 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-2xl border border-violet-400/40 bg-white/[0.04] transition hover:bg-white/[0.07]",
                             uploading && "cursor-not-allowed opacity-50",
                           )}
                         >
@@ -1825,7 +1829,7 @@ export function BrandingSection() {
                           onChange={(e) => updateFeaturedClient(item.id, { category: e.target.value as FeaturedClientCategory })}
                           onFocus={() => enfocar("confian")}
                           aria-label="Tipo"
-                          className="h-9 min-w-0 flex-1 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 text-sm text-white outline-none focus:border-violet-400/50"
+                          className="h-10 min-w-0 flex-1 rounded-full border border-white/10 bg-white/[0.04] px-4 text-sm font-semibold text-white outline-none focus:border-violet-400/50"
                         >
                           {FEATURED_CLIENT_CATEGORIES.map((cat) => (
                             <option key={cat} value={cat}>
@@ -1847,7 +1851,7 @@ export function BrandingSection() {
                               }}
                               title={!canToggle ? "Cargá imagen y nombre para poder activarlo" : undefined}
                               className={cn(
-                                "h-9 shrink-0 whitespace-nowrap rounded-full px-3.5 text-xs font-semibold ring-1 transition",
+                                "h-10 shrink-0 whitespace-nowrap rounded-full px-4 text-xs font-semibold ring-1 transition",
                                 item.active
                                   ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30"
                                   : canToggle
@@ -1865,7 +1869,7 @@ export function BrandingSection() {
                             removeFeaturedClient(item.id);
                             enfocar("confian");
                           }}
-                          className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/5 text-red-300 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-200"
+                          className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-white/5 text-red-300 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-200"
                           aria-label="Eliminar de Confían en nosotros"
                         >
                           <Trash2 className="h-4 w-4" />
