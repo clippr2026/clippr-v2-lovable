@@ -2278,18 +2278,11 @@ export function BrandingSection() {
             </button>
             <button
               type="button"
-              disabled={saving}
+              disabled={saving || !dirty}
               onClick={() => void save(true)}
-              className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-400 disabled:opacity-60"
+              className="rounded-lg bg-emerald-500 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/40 disabled:hover:bg-white/10"
             >
               {saving ? "Guardando…" : "Guardar"}
-            </button>
-            <button
-              type="button"
-              onClick={() => setEditorMode(false)}
-              className="rounded-lg bg-gradient-to-r from-sky-400 to-violet-500 px-3 py-1.5 text-xs font-semibold text-white"
-            >
-              Salir del editor
             </button>
           </div>
         </header>
@@ -2306,9 +2299,9 @@ export function BrandingSection() {
               <div className="sticky -bottom-4 -mx-4 -mb-4 border-t border-violet-400/20 bg-background/90 p-3 backdrop-blur">
                 <button
                   type="button"
-                  disabled={saving}
+                  disabled={saving || !dirty}
                   onClick={() => void save(true)}
-                  className="w-full rounded-xl bg-emerald-500 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:opacity-60"
+                  className="w-full rounded-full bg-emerald-500 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-400 disabled:cursor-not-allowed disabled:bg-white/10 disabled:text-white/40 disabled:hover:bg-white/10"
                 >
                   {saving ? "Guardando…" : "Guardar"}
                 </button>
