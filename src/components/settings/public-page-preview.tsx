@@ -114,6 +114,10 @@ export function PublicPagePreview({
   const post = React.useCallback(() => {
     iframeRef.current?.contentWindow?.postMessage({ type: "clippr:preview-draft", draft }, window.location.origin);
   }, [draft]);
+  // Al cargar, la página puede no estar lista para escuchar: se reenvía lo que se está editando cuando avisa que ya cargó.
+  React.useEffect(() => {
+    if (ready) post();
+  }, [ready, post]);
 
   // Móvil: celular (390 px de ancho real) dentro de un marco con notch, centrado.
   // Web: ventana de navegador (1100 px de ancho real) achicada para entrar.
