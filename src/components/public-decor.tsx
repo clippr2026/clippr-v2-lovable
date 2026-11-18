@@ -32,6 +32,29 @@ function star(cx: number, cy: number, r: number) {
   return `M${cx} ${cy - r} L${cx + k} ${cy - k} L${cx + r} ${cy} L${cx + k} ${cy + k} L${cx} ${cy + r} L${cx - k} ${cy + k} L${cx - r} ${cy} L${cx - k} ${cy - k} Z`;
 }
 
+// Papá Noel (busto) para el dibujo de Navidad.
+function Santa({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 120 134" aria-hidden>
+      <path d="M12 134 C12 100 34 86 60 86 C86 86 108 100 108 134 Z" fill="#dc2626" />
+      <rect x="52" y="86" width="16" height="48" fill="#ffffff" />
+      <rect x="28" y="110" width="64" height="9" rx="2" fill="#111827" />
+      <rect x="51" y="107" width="18" height="15" rx="3" fill="#facc15" />
+      <path d="M24 58 C20 94 42 108 60 108 C78 108 100 94 96 58 C86 66 74 68 60 68 C46 68 34 66 24 58 Z" fill="#ffffff" />
+      <ellipse cx="60" cy="54" rx="25" ry="22" fill="#fcd5b5" />
+      <circle cx="42" cy="58" r="4.5" fill="#f87171" opacity=".45" />
+      <circle cx="78" cy="58" r="4.5" fill="#f87171" opacity=".45" />
+      <circle cx="50" cy="52" r="2.8" fill="#1f2937" />
+      <circle cx="70" cy="52" r="2.8" fill="#1f2937" />
+      <path d="M36 64 C44 56 54 62 60 66 C66 62 76 56 84 64 C82 76 68 76 60 70 C52 76 38 76 36 64 Z" fill="#ffffff" />
+      <circle cx="60" cy="59" r="5.5" fill="#f9a8a8" />
+      <path d="M32 40 C32 12 58 0 90 8 C100 12 102 26 94 40 Z" fill="#dc2626" />
+      <rect x="27" y="35" width="68" height="13" rx="6.5" fill="#ffffff" />
+      <circle cx="98" cy="9" r="8.5" fill="#ffffff" />
+    </svg>
+  );
+}
+
 export function PublicDecor({
   decor,
   primary,
@@ -51,6 +74,10 @@ export function PublicDecor({
   const css = `
     @keyframes dcTwinkle { 0%,100% { opacity: .35; } 50% { opacity: 1; } }
     @keyframes dcFall { from { transform: translateY(-10px); } to { transform: translateY(14px); } }
+    @keyframes dcSnow { 0% { transform: translateY(-20px); opacity: 0; } 15% { opacity: .95; } 100% { transform: translateY(300px); opacity: 0; } }
+    @keyframes dcBob { 0%,100% { transform: rotate(-3deg) translateY(0); } 50% { transform: rotate(3deg) translateY(-4px); } }
+    @keyframes dcShoot { 0% { transform: translate(0,0); opacity: 0; } 8% { opacity: 1; } 40% { transform: translate(-520px,260px); opacity: 0; } 100% { transform: translate(-520px,260px); opacity: 0; } }
+    @keyframes dcPulse { 0%,100% { transform: scale(.85); opacity: .55; } 50% { transform: scale(1.15); opacity: 1; } }
     @media (prefers-reduced-motion: reduce) { .dc-anim { animation: none !important; } }
   `;
 
@@ -82,15 +109,32 @@ export function PublicDecor({
             );
           })}
         </svg>
-        {/* Pinos y nieve abajo */}
-        {(["left-2", "right-2"] as const).map((side, i) => (
-          <svg key={side} className={`pointer-events-none absolute bottom-2 ${side} h-14 w-10 sm:h-24 sm:w-16`} viewBox="0 0 52 80" aria-hidden>
-            <path d={`M26 ${i ? 14 : 6} L4 ${i ? 70 : 72} L48 ${i ? 70 : 72} Z`} fill="#15803d" />
-            <path d={`M26 ${i ? 2 : -4} L10 ${i ? 38 : 40} L42 ${i ? 38 : 40} Z`} fill="#16a34a" />
-            <path d={star(26, i ? 6 : 2, 6)} fill="#facc15" />
-            <rect x="22" y="70" width="8" height="8" fill="#78350f" />
-          </svg>
-        ))}
+        {/* Nieve cayendo por todo el encabezado */}
+        <svg className="pointer-events-none absolute inset-0 z-[5] h-full w-full" viewBox="0 0 1200 300" preserveAspectRatio="xMidYMin slice" aria-hidden>
+          {Array.from({ length: 30 }).map((_, i) => (
+            <circle
+              key={i}
+              className="dc-anim"
+              cx={(i * 197) % 1200}
+              cy={0}
+              r={2 + (i % 4)}
+              fill="#ffffff"
+              style={{ animation: `dcSnow ${5 + (i % 6)}s linear ${(i % 9) * 0.7}s infinite` }}
+            />
+          ))}
+        </svg>
+        {/* Pino con adornos (izquierda) y Papá Noel (derecha) */}
+        <svg className="pointer-events-none absolute bottom-2 left-2 z-[6] h-16 w-12 sm:h-28 sm:w-20" viewBox="0 0 52 80" aria-hidden>
+          <path d="M26 8 L4 70 L48 70 Z" fill="#15803d" />
+          <path d="M26 -2 L10 38 L42 38 Z" fill="#16a34a" />
+          <path d={star(26, 3, 6)} fill="#facc15" />
+          <circle cx="20" cy="30" r="2.6" fill="#ef4444" />
+          <circle cx="32" cy="46" r="2.6" fill="#38bdf8" />
+          <circle cx="16" cy="58" r="2.6" fill="#facc15" />
+          <circle cx="36" cy="62" r="2.6" fill="#ef4444" />
+          <rect x="22" y="70" width="8" height="8" fill="#78350f" />
+        </svg>
+        <div className="dc-anim pointer-events-none absolute bottom-1 right-2 z-[6] origin-bottom" style={{ animation: "dcBob 3.2s ease-in-out infinite" }}><Santa className="h-20 w-[4.5rem] sm:h-32 sm:w-28" /></div>
         <svg className={`${layer} bottom-0 h-20 sm:h-28`} viewBox="0 0 1200 120" preserveAspectRatio="xMidYMax slice" aria-hidden>
           <path
             d="M0 120 L0 100 C60 88 110 106 190 98 C280 88 330 108 430 100 C540 90 600 108 700 100 C800 92 880 110 980 100 C1070 90 1130 106 1200 96 L1200 120 Z"
@@ -114,30 +158,50 @@ export function PublicDecor({
   }
 
   if (decor === "estrellas") {
+    const colores = ["#ffffff", accent, primary, secondary];
+    // [x, y, radio] en un lienzo de 1200 x 300 que cubre todo el encabezado.
+    const grandes: [number, number, number][] = [
+      [60, 50, 20], [170, 210, 14], [260, 90, 18], [380, 250, 12], [470, 40, 16], [600, 270, 20], [700, 70, 14],
+      [820, 230, 18], [930, 60, 22], [1040, 200, 15], [1130, 90, 19], [1160, 250, 13], [540, 150, 11], [310, 160, 10],
+    ];
     return (
       <>
         <style>{css}</style>
-        <svg className={`${layer} bottom-0 h-16 sm:h-24`} viewBox="0 0 1200 100" preserveAspectRatio="xMidYMax slice" aria-hidden>
-          {STARS.map(([x, y, r], i) => (
-            <path
-              key={i}
+        <svg className="pointer-events-none absolute inset-0 z-[5] h-full w-full" viewBox="0 0 1200 300" preserveAspectRatio="xMidYMid slice" aria-hidden>
+          {/* Puntitos de fondo */}
+          {Array.from({ length: 36 }).map((_, i) => (
+            <circle
+              key={`p${i}`}
               className="dc-anim"
-              d={star(x, y, r)}
-              fill={[primary, secondary, accent][i % 3]}
-              style={{ animation: `dcTwinkle ${1.4 + (i % 4) * 0.4}s ease-in-out ${i * 0.15}s infinite`, filter: `drop-shadow(0 0 5px ${[primary, secondary, accent][i % 3]})` }}
+              cx={(i * 131 + 40) % 1200}
+              cy={(i * 73 + 20) % 300}
+              r={1.6 + (i % 3) * 0.8}
+              fill="#ffffff"
+              style={{ animation: `dcTwinkle ${1.2 + (i % 5) * 0.4}s ease-in-out ${(i % 7) * 0.25}s infinite` }}
             />
           ))}
-        </svg>
-        <svg className={`${layer} top-0 h-10 sm:h-14`} viewBox="0 0 1200 60" preserveAspectRatio="xMidYMin slice" aria-hidden>
-          {STARS.slice(0, 6).map(([x, , r], i) => (
-            <path
-              key={i}
-              className="dc-anim"
-              d={star(x + 40, 18 + (i % 3) * 10, r * 0.7)}
-              fill={[accent, primary, secondary][i % 3]}
-              style={{ animation: `dcTwinkle ${1.6 + (i % 3) * 0.5}s ease-in-out ${i * 0.2}s infinite` }}
-            />
-          ))}
+          {/* Estrellas grandes con halo */}
+          {grandes.map(([x, y, r], i) => {
+            const c = colores[i % colores.length];
+            return (
+              <g key={i} className="dc-anim" style={{ transformOrigin: `${x}px ${y}px`, animation: `dcPulse ${1.8 + (i % 4) * 0.5}s ease-in-out ${i * 0.18}s infinite` }}>
+                <circle cx={x} cy={y} r={r * 2.1} fill={c} opacity=".16" />
+                <path d={star(x, y, r)} fill={c} style={{ filter: `drop-shadow(0 0 7px ${c})` }} />
+                <path d={star(x, y, r * 0.42)} fill="#ffffff" />
+              </g>
+            );
+          })}
+          {/* Estrella fugaz */}
+          <g className="dc-anim" style={{ animation: "dcShoot 6s ease-in 1s infinite" }}>
+            <line x1="1100" y1="20" x2="1180" y2="-10" stroke="url(#dcShootGrad)" strokeWidth="3" strokeLinecap="round" />
+            <circle cx="1100" cy="20" r="3.5" fill="#ffffff" style={{ filter: "drop-shadow(0 0 6px #ffffff)" }} />
+          </g>
+          <defs>
+            <linearGradient id="dcShootGrad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" stopColor="#ffffff" />
+              <stop offset="1" stopColor="#ffffff" stopOpacity="0" />
+            </linearGradient>
+          </defs>
         </svg>
       </>
     );
