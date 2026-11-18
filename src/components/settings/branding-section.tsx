@@ -1782,8 +1782,8 @@ export function BrandingSection() {
             <div className="space-y-3">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <div className="text-sm font-medium">Confían en nosotros</div>
-                  <p className="mt-1 text-xs text-muted-foreground">
+                  <div className="text-sm font-semibold text-white">Confían en nosotros</div>
+                  <p className="mt-1 text-xs leading-snug text-white/55">
                     Logos o fotos de personas, marcas o equipos que querés
                     mostrar en tu página pública.
                   </p>
@@ -1791,13 +1791,13 @@ export function BrandingSection() {
                 <button
                   type="button"
                   onClick={addFeaturedClient}
-                  className="inline-flex items-center justify-center gap-2 rounded-full bg-white/5 px-3 py-2 text-sm ring-1 ring-white/10 transition hover:bg-white/10"
+                  className="inline-flex h-10 shrink-0 items-center justify-center gap-2 self-start rounded-full border border-violet-400/50 bg-violet-500/20 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/30"
                 >
                   <Plus className="h-4 w-4" /> Agregar
                 </button>
               </div>
 
-              <div className="space-y-1.5">
+              <div className="space-y-2.5">
                 {data.featured_clients.map((item, index) => {
                   const uploading = uploadingFeaturedId === item.id;
                   const isFirst = index === 0;
@@ -1805,7 +1805,7 @@ export function BrandingSection() {
                   return (
                     <div
                       key={item.id}
-                      className="grid gap-2.5 rounded-2xl border border-white/10 bg-white/[0.03] p-2.5 transition"
+                      className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.04] p-3 transition"
                     >
                       {/* Imagen a la izquierda; nombre y tipo (Futbolista,
                           etc.) apilados a la derecha, uno debajo del otro —
@@ -1872,62 +1872,19 @@ export function BrandingSection() {
                           />
                         </label>
 
-                        <div className="min-w-0 flex-1 space-y-1.5">
+                        <div className="min-w-0 flex-1 space-y-2">
                           <input
                             value={item.name}
-                            onChange={(e) =>
-                              updateFeaturedClient(item.id, {
-                                name: e.target.value,
-                              })
-                            }
+                            onChange={(e) => updateFeaturedClient(item.id, { name: e.target.value })}
                             placeholder="Nombre: Nike, Duki, Boca Juniors..."
                             maxLength={MAX_FEATURED_CLIENT_NAME_LENGTH}
-                            className="w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-1.5 text-sm focus:outline-none focus:ring-primary/40"
+                            className="h-10 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
                           />
-
-                          {item.category === "Futbolista" ? (
-                          <div className="flex items-center gap-1.5">
-                            <label
-                              className={cn(
-                                "group relative grid h-8 w-8 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-lg border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07]",
-                                uploadingFeaturedClubLogoId === item.id && "cursor-not-allowed opacity-50",
-                              )}
-                              title="Escudo del club"
-                            >
-                              {item.club_logo_url ? (
-                                <img src={item.club_logo_url} alt={item.club_name || "Escudo del club"} className="h-full w-full object-contain" />
-                              ) : (
-                                <ImageIcon className="h-3.5 w-3.5 text-white/45" />
-                              )}
-                              <input
-                                type="file"
-                                accept="image/*"
-                                className="hidden"
-                                disabled={uploadingFeaturedClubLogoId === item.id}
-                                onChange={(e) => {
-                                  const f = e.target.files?.[0] ?? null;
-                                  e.target.value = "";
-                                  handleFeaturedClubLogoSelect(item.id, f);
-                                }}
-                              />
-                            </label>
-                            <input
-                              value={item.club_name}
-                              onChange={(e) => updateFeaturedClient(item.id, { club_name: e.target.value })}
-                              placeholder="Club (ej: Manchester United)"
-                              maxLength={MAX_FEATURED_CLUB_NAME_LENGTH}
-                              className="min-w-0 flex-1 rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-1.5 text-sm focus:outline-none focus:ring-primary/40"
-                            />
-                          </div>
-                          ) : (
+                          {/* El tipo se ve siempre, también cuando es Futbolista. */}
                           <select
                             value={item.category}
-                            onChange={(e) =>
-                              updateFeaturedClient(item.id, {
-                                category: e.target.value as FeaturedClientCategory,
-                              })
-                            }
-                            className="w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-1.5 text-sm focus:outline-none focus:ring-primary/40"
+                            onChange={(e) => updateFeaturedClient(item.id, { category: e.target.value as FeaturedClientCategory })}
+                            className="h-10 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none focus:border-violet-400/50"
                           >
                             {FEATURED_CLIENT_CATEGORIES.map((cat) => (
                               <option key={cat} value={cat}>
@@ -1935,51 +1892,79 @@ export function BrandingSection() {
                               </option>
                             ))}
                           </select>
-                          )}
-                        </div>
-
-                        <div className="flex shrink-0 flex-col items-end gap-1.5">
-                          {(() => {
-                            const complete = isFeaturedClientComplete(item);
-                            const canToggle = item.active || complete;
-                            return (
-                              <button
-                                type="button"
-                                disabled={!canToggle}
-                                onClick={() => {
-                                  if (!canToggle) return;
-                                  updateFeaturedClient(item.id, {
-                                    active: !item.active,
-                                  });
-                                }}
-                                title={
-                                  !canToggle
-                                    ? "Cargá imagen y nombre para poder activarlo"
-                                    : undefined
-                                }
+                          {/* Futbolista: además de su foto, el club con su escudo. Marca, Artista y el resto: solo una imagen. */}
+                          {item.category === "Futbolista" ? (
+                            <div className="flex items-center gap-2">
+                              <label
                                 className={cn(
-                                  "whitespace-nowrap rounded-full px-2.5 py-2 text-xs ring-1 transition",
-                                  item.active
-                                    ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30"
-                                    : canToggle
-                                      ? "bg-white/5 text-muted-foreground ring-white/10"
-                                      : "cursor-not-allowed bg-white/5 text-muted-foreground/40 ring-white/5",
+                                  "group relative grid h-10 w-10 shrink-0 cursor-pointer place-items-center overflow-hidden rounded-lg border border-white/10 bg-white/[0.04] transition hover:bg-white/[0.07]",
+                                  uploadingFeaturedClubLogoId === item.id && "cursor-not-allowed opacity-50",
                                 )}
+                                title="Escudo del club"
                               >
-                                {item.active ? "Activo" : "Inactivo"}
-                              </button>
-                            );
-                          })()}
-
-                          <button
-                            type="button"
-                            onClick={() => removeFeaturedClient(item.id)}
-                            className="rounded-full bg-white/5 p-2 text-red-300 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-200"
-                            aria-label="Eliminar de Confían en nosotros"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </button>
+                                {item.club_logo_url ? (
+                                  <img src={item.club_logo_url} alt={item.club_name || "Escudo del club"} className="h-full w-full object-contain" />
+                                ) : (
+                                  <ImageIcon className="h-4 w-4 text-white/45" />
+                                )}
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  disabled={uploadingFeaturedClubLogoId === item.id}
+                                  onChange={(e) => {
+                                    const f = e.target.files?.[0] ?? null;
+                                    e.target.value = "";
+                                    handleFeaturedClubLogoSelect(item.id, f);
+                                  }}
+                                />
+                              </label>
+                              <input
+                                value={item.club_name}
+                                onChange={(e) => updateFeaturedClient(item.id, { club_name: e.target.value })}
+                                placeholder="Club (ej: Manchester United)"
+                                maxLength={MAX_FEATURED_CLUB_NAME_LENGTH}
+                                className="h-10 min-w-0 flex-1 rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
+                              />
+                            </div>
+                          ) : null}
                         </div>
+                      </div>
+
+                      <div className="flex items-center justify-between gap-2 border-t border-white/[0.07] pt-2.5">
+                        {(() => {
+                          const complete = isFeaturedClientComplete(item);
+                          const canToggle = item.active || complete;
+                          return (
+                            <button
+                              type="button"
+                              disabled={!canToggle}
+                              onClick={() => {
+                                if (!canToggle) return;
+                                updateFeaturedClient(item.id, { active: !item.active });
+                              }}
+                              title={!canToggle ? "Cargá imagen y nombre para poder activarlo" : undefined}
+                              className={cn(
+                                "h-9 whitespace-nowrap rounded-full px-4 text-xs font-semibold ring-1 transition",
+                                item.active
+                                  ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30"
+                                  : canToggle
+                                    ? "bg-white/5 text-white/60 ring-white/10"
+                                    : "cursor-not-allowed bg-white/5 text-white/30 ring-white/5",
+                              )}
+                            >
+                              {item.active ? "Activo" : "Inactivo"}
+                            </button>
+                          );
+                        })()}
+                        <button
+                          type="button"
+                          onClick={() => removeFeaturedClient(item.id)}
+                          className="grid h-9 w-9 place-items-center rounded-full bg-white/5 text-red-300 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-200"
+                          aria-label="Eliminar de Confían en nosotros"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
                       </div>
                     </div>
                   );
