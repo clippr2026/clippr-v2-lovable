@@ -14,6 +14,8 @@ import {
   MapPin,
   Phone,
   Globe,
+  Redo2,
+  Undo2,
   X,
   FileText,
   Image as ImageIcon,
@@ -1124,6 +1126,92 @@ export function BrandingSection() {
     setDirty(true);
   }, [data, logoFile, colors, theme, fontKey, entryEffect, bgStyle, decor, neonKey, benefits, loading, businessId]);
 
+
+  // Deshacer / rehacer: cada cambio (textos, beneficios, imágenes, colores, efectos) deja un punto al que se puede
+  // volver. Los cambios seguidos (por ejemplo, escribir) se juntan en uno solo. Al deshacer, el autoguardado
+  // vuelve a guardar la versión anterior.
+  type Snap = {
+    data: BrandingData;
+    colors: typeof colors;
+    theme: LandingTheme;
+    fontKey: string;
+    entryEffect: EntryEffectKey;
+    bgStyle: PublicBgKey;
+    decor: PublicDecorKey;
+    neonKey: PublicNeonKey;
+    benefits: Benefit[];
+  };
+  const histRef = React.useRef<{ past: Snap[]; future: Snap[]; current: Snap | null; skip: boolean; timer?: number }>({
+    past: [],
+    future: [],
+    current: null,
+    skip: false,
+  });
+  const [histTick, setHistTick] = useState(0);
+  const snapNow = (): Snap => ({ data, colors, theme, fontKey, entryEffect, bgStyle, decor, neonKey, benefits });
+  const confirmarCambio = (snap: Snap) => {
+    const h = histRef.current;
+    window.clearTimeout(h.timer);
+    h.timer = undefined;
+    if (!h.current || JSON.stringify(snap) === JSON.stringify(h.current)) return;
+    h.past.push(h.current);
+    if (h.past.length > 60) h.past.shift();
+    h.current = snap;
+    h.future = [];
+    setHistTick((t) => t + 1);
+  };
+  React.useEffect(() => {
+    if (!realDataLoadedRef.current) return;
+    const h = histRef.current;
+    const snap = snapNow();
+    if (!h.current) {
+      h.current = snap;
+      return;
+    }
+    if (h.skip) {
+      h.skip = false;
+      h.current = snap;
+      return;
+    }
+    window.clearTimeout(h.timer);
+    h.timer = window.setTimeout(() => confirmarCambio(snap), 700);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data, colors, theme, fontKey, entryEffect, bgStyle, decor, neonKey, benefits, loading, businessId]);
+  const aplicarSnap = (sn: Snap) => {
+    histRef.current.skip = true;
+    setData(sn.data);
+    setColors(sn.colors);
+    setTheme(sn.theme);
+    setFontKey(sn.fontKey);
+    setEntryEffect(sn.entryEffect);
+    setBgStyle(sn.bgStyle);
+    setDecor(sn.decor);
+    setNeonKey(sn.neonKey);
+    setBenefits(sn.benefits);
+  };
+  const deshacer = () => {
+    const h = histRef.current;
+    if (h.timer) confirmarCambio(snapNow());
+    const prev = h.past.pop();
+    if (!prev || !h.current) return;
+    h.future.push(h.current);
+    h.current = prev;
+    aplicarSnap(prev);
+    setHistTick((t) => t + 1);
+  };
+  const rehacer = () => {
+    const h = histRef.current;
+    const next = h.future.pop();
+    if (!next || !h.current) return;
+    h.past.push(h.current);
+    h.current = next;
+    aplicarSnap(next);
+    setHistTick((t) => t + 1);
+  };
+  void histTick;
+  const puedeDeshacer = histRef.current.past.length > 0 || Boolean(histRef.current.timer);
+  const puedeRehacer = histRef.current.future.length > 0;
+
   // Vista previa en vivo (panel al costado en pantallas grandes, cajón en las chicas).
   const [previewOpen, setPreviewOpen] = useState(false);
   // Editor a pantalla completa: la vista previa ocupa casi todo y la configuración queda en una columna angosta (que se puede ocultar).
@@ -2176,6 +2264,26 @@ export function BrandingSection() {
         <header className="flex items-center justify-between gap-3 border-b border-white/10 px-4 py-2.5">
           <div className="text-sm font-semibold">Editor de la página pública</div>
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={deshacer}
+              disabled={!puedeDeshacer}
+              aria-label="Deshacer el último cambio"
+              title="Deshacer el último cambio"
+              className="grid h-8 w-8 place-items-center rounded-full bg-white/5 ring-1 ring-white/10 transition hover:bg-white/10 disabled:opacity-35"
+            >
+              <Undo2 className="h-4 w-4" />
+            </button>
+            <button
+              type="button"
+              onClick={rehacer}
+              disabled={!puedeRehacer}
+              aria-label="Rehacer el cambio deshecho"
+              title="Rehacer"
+              className="grid h-8 w-8 place-items-center rounded-full bg-white/5 ring-1 ring-white/10 transition hover:bg-white/10 disabled:opacity-35"
+            >
+              <Redo2 className="h-4 w-4" />
+            </button>
             <button
               type="button"
               onClick={() => setEditorPanelOpen((v) => !v)}
