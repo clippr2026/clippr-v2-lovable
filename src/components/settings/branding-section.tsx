@@ -61,8 +61,7 @@ type FeaturedClientCategory =
   | "Equipo de fútbol"
   | "Influencer"
   | "Empresa"
-  | "Celebridad"
-  | "Otro";
+  | "Celebridad";
 
 type FeaturedClient = {
   id: string;
@@ -84,7 +83,6 @@ const FEATURED_CLIENT_CATEGORIES: FeaturedClientCategory[] = [
   "Influencer",
   "Empresa",
   "Celebridad",
-  "Otro",
 ];
 
 // La tarjeta en la página pública muestra hasta 3 por fila (ver
@@ -177,7 +175,7 @@ function normalizeFeaturedClients(value: unknown): FeaturedClient[] {
         row.category as FeaturedClientCategory,
       )
         ? (row.category as FeaturedClientCategory)
-        : "Otro";
+        : "Marca"; // "Otro" ya no existe: lo que tenía ese tipo pasa a Marca
       return {
         id:
           typeof row.id === "string" && row.id
@@ -1818,63 +1816,65 @@ export function BrandingSection() {
                             aria-label="Nombre"
                             className="h-10 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
                           />
-                          <div className="flex items-center gap-2">
-                            <select
-                              value={item.category}
-                              onChange={(e) => updateFeaturedClient(item.id, { category: e.target.value as FeaturedClientCategory })}
-                              onFocus={() => enfocar("confian")}
-                              aria-label="Tipo"
-                              className="h-9 min-w-0 flex-1 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 text-sm text-white outline-none focus:border-violet-400/50"
-                            >
-                              {FEATURED_CLIENT_CATEGORIES.map((cat) => (
-                                <option key={cat} value={cat}>
-                                  {cat}
-                                </option>
-                              ))}
-                            </select>
-                            {(() => {
-                              const complete = isFeaturedClientComplete(item);
-                              const canToggle = item.active || complete;
-                              return (
-                                <button
-                                  type="button"
-                                  disabled={!canToggle}
-                                  onClick={() => {
-                                    if (!canToggle) return;
-                                    updateFeaturedClient(item.id, { active: !item.active });
-                                    enfocar("confian");
-                                  }}
-                                  title={!canToggle ? "Cargá imagen y nombre para poder activarlo" : undefined}
-                                  className={cn(
-                                    "h-9 shrink-0 whitespace-nowrap rounded-full px-3.5 text-xs font-semibold ring-1 transition",
-                                    item.active
-                                      ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30"
-                                      : canToggle
-                                        ? "bg-white/5 text-white/60 ring-white/10"
-                                        : "cursor-not-allowed bg-white/5 text-white/30 ring-white/5",
-                                  )}
-                                >
-                                  {item.active ? "Activo" : "Inactivo"}
-                                </button>
-                              );
-                            })()}
-                            <button
-                              type="button"
-                              onClick={() => {
-                                removeFeaturedClient(item.id);
-                                enfocar("confian");
-                              }}
-                              className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/5 text-red-300 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-200"
-                              aria-label="Eliminar de Confían en nosotros"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </div>
-                          {!isFeaturedClientComplete(item) ? (
-                            <p className="text-[11px] leading-snug text-amber-200/80">Cargá la imagen y el nombre para poder activarlo.</p>
-                          ) : null}
                         </div>
                       </div>
+
+                      <div className="flex items-center gap-2">
+                        <select
+                          value={item.category}
+                          onChange={(e) => updateFeaturedClient(item.id, { category: e.target.value as FeaturedClientCategory })}
+                          onFocus={() => enfocar("confian")}
+                          aria-label="Tipo"
+                          className="h-9 min-w-0 flex-1 rounded-lg border border-white/10 bg-white/[0.04] px-2.5 text-sm text-white outline-none focus:border-violet-400/50"
+                        >
+                          {FEATURED_CLIENT_CATEGORIES.map((cat) => (
+                            <option key={cat} value={cat}>
+                              {cat}
+                            </option>
+                          ))}
+                        </select>
+                        {(() => {
+                          const complete = isFeaturedClientComplete(item);
+                          const canToggle = item.active || complete;
+                          return (
+                            <button
+                              type="button"
+                              disabled={!canToggle}
+                              onClick={() => {
+                                if (!canToggle) return;
+                                updateFeaturedClient(item.id, { active: !item.active });
+                                enfocar("confian");
+                              }}
+                              title={!canToggle ? "Cargá imagen y nombre para poder activarlo" : undefined}
+                              className={cn(
+                                "h-9 shrink-0 whitespace-nowrap rounded-full px-3.5 text-xs font-semibold ring-1 transition",
+                                item.active
+                                  ? "bg-emerald-500/15 text-emerald-300 ring-emerald-500/30"
+                                  : canToggle
+                                    ? "bg-white/5 text-white/60 ring-white/10"
+                                    : "cursor-not-allowed bg-white/5 text-white/30 ring-white/5",
+                              )}
+                            >
+                              {item.active ? "Activo" : "Inactivo"}
+                            </button>
+                          );
+                        })()}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            removeFeaturedClient(item.id);
+                            enfocar("confian");
+                          }}
+                          className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-white/5 text-red-300 ring-1 ring-white/10 transition hover:bg-red-500/10 hover:text-red-200"
+                          aria-label="Eliminar de Confían en nosotros"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      </div>
+                      {!isFeaturedClientComplete(item) ? (
+                        <p className="text-[11px] leading-snug text-amber-200/80">Cargá la imagen y el nombre para poder activarlo.</p>
+                      ) : null}
+
                     </div>
                   );
                 })}
