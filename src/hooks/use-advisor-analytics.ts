@@ -717,6 +717,51 @@ export function useAdvisorAnalytics(
     const diaTranquilo = diasPromedio.length >= 2 ? diasPromedio.reduce((m, v) => (v.avg < m.avg ? v : m)) : null;
     const diaRentable = diasPromedio.length >= 2 ? diasPromedio.reduce((m, v) => (v.avg > m.avg ? v : m)) : null;
 
+    // Horario más y menos pedido: cobros por hora del día en el mes analizado. El menos pedido se busca solo entre la
+    // primera y la última hora con ventas, así una hora en que el local está cerrado no cuenta.
+    const cobrosPorHora = new Map<number, number>();
+    const gastoPorCliente = new Map<string, { name: string; total: number; visitas: number }>();
+    const ingresoPorProfesional = new Map<string, number>();
+    for (const p of payments) {
+      if (monthKeyOf(p.created_at) !== analysisKey) continue;
+      const hora = Number(
+        new Date(p.created_at).toLocaleString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }).slice(11, 13),
+      );
+      cobrosPorHora.set(hora, (cobrosPorHora.get(hora) ?? 0) + 1);
+      const monto = Number(p.total ?? p.amount ?? 0);
+      const nombre = (p.client_name ?? "").trim();
+      const claveCliente = p.client_id ?? nombre.toLowerCase();
+      if (claveCliente) {
+        const e = gastoPorCliente.get(claveCliente) ?? { name: nombre || "Cliente", total: 0, visitas: 0 };
+        e.total += monto;
+        e.visitas += 1;
+        gastoPorCliente.set(claveCliente, e);
+      }
+      if (p.employee_id) ingresoPorProfesional.set(p.employee_id, (ingresoPorProfesional.get(p.employee_id) ?? 0) + monto);
+    }
+    const horasConVentas = [...cobrosPorHora.keys()];
+    const horaDesde = horasConVentas.length > 0 ? Math.min(...horasConVentas) : 0;
+    const horaHasta = horasConVentas.length > 0 ? Math.max(...horasConVentas) : 0;
+    let horaTop: { hora: number; n: number } | null = null;
+    let horaBottom: { hora: number; n: number } | null = null;
+    if (horaHasta > horaDesde) {
+      for (let h = horaDesde; h <= horaHasta; h += 1) {
+        const n = cobrosPorHora.get(h) ?? 0;
+        if (!horaTop || n > horaTop.n) horaTop = { hora: h, n };
+        if (!horaBottom || n < horaBottom.n) horaBottom = { hora: h, n };
+      }
+    }
+    const franja = (h: number) => `${h} a ${h + 1} h`;
+    const clienteTop = [...gastoPorCliente.values()].sort((a, b) => b.total - a.total)[0] ?? null;
+    const empleadoNombres = new Map(data.employees.map((e) => [e.id, e.full_name]));
+    const profesionalTop =
+      [...ingresoPorProfesional.entries()]
+        .filter(([id]) => empleadoNombres.has(id))
+        .sort((a, b) => b[1] - a[1])[0] ?? null;
+    const nuevosCount = clients.filter((c) => c.grupo === "nuevo").length;
+    const turnosCancelados = (current?.cancellations ?? 0) + (current?.noShows ?? 0);
+    const turnosTotales = turnosCancelados + (current?.doneCount ?? 0);
+
     const radiografia: RadiografiaItem[] = [
       {
         key: "recuperar",
@@ -771,6 +816,47 @@ export function useAdvisorAnalytics(
         value: diaTranquilo ? DIAS_SEMANA[diaTranquilo.dow] : "—",
         detail: diaTranquilo ? `${fmtMoney(diaTranquilo.avg)} por día` : undefined,
         tone: diaTranquilo ? "warn" : "neutral",
+      },
+      {
+        key: "hora-top",
+        label: "Horario más pedido",
+        value: horaTop ? franja(horaTop.hora) : "—",
+        detail: horaTop ? `${horaTop.n} cobros en el mes` : undefined,
+        tone: horaTop ? "good" : "neutral",
+      },
+      {
+        key: "hora-bottom",
+        label: "Horario menos pedido",
+        value: horaBottom ? franja(horaBottom.hora) : "—",
+        detail: horaBottom ? `${horaBottom.n} cobros en el mes` : undefined,
+        tone: horaBottom ? "warn" : "neutral",
+      },
+      {
+        key: "prof-factura",
+        label: "Profesional que más facturó",
+        value: profesionalTop ? (empleadoNombres.get(profesionalTop[0]) ?? "—") : "—",
+        detail: profesionalTop ? `${fmtMoney(profesionalTop[1])} en el mes` : undefined,
+        tone: profesionalTop ? "good" : "neutral",
+      },
+      {
+        key: "cliente-top",
+        label: "Cliente que más gastó",
+        value: clienteTop ? clienteTop.name : "—",
+        detail: clienteTop ? `${fmtMoney(clienteTop.total)} · ${clienteTop.visitas} visita${clienteTop.visitas === 1 ? "" : "s"}` : undefined,
+        tone: clienteTop ? "good" : "neutral",
+      },
+      {
+        key: "clientes-nuevos",
+        label: "Clientes nuevos (últimos 30 días)",
+        value: String(nuevosCount),
+        tone: nuevosCount > 0 ? "good" : "neutral",
+      },
+      {
+        key: "cancelaciones",
+        label: "Cancelaciones y no asistencias",
+        value: String(turnosCancelados),
+        detail: turnosTotales > 0 ? `${Math.round((turnosCancelados / turnosTotales) * 100)}% de los turnos` : undefined,
+        tone: turnosCancelados === 0 ? "good" : turnosTotales > 0 && turnosCancelados / turnosTotales >= 0.15 ? "bad" : "warn",
       },
       {
         key: "productos",
