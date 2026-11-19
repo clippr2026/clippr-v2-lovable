@@ -211,18 +211,18 @@ function AdvisorRoute() {
   return (
     <AppShell>
       <div className="app-premium-shell">
-        <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />
+        <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] [-webkit-mask-image:linear-gradient(#000_55%,transparent)] [mask-image:linear-gradient(#000_55%,transparent)]" />
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <Topbar title="Asesor IA" subtitle="Análisis diario y crecimiento del negocio" />
           {introDone && (
             <div className="relative flex w-full items-center justify-end sm:w-auto">
-              <div className="pointer-events-none absolute -inset-3 rounded-[30px] bg-gradient-to-r from-cyan-500/15 via-violet-500/12 to-emerald-500/12 blur-2xl" />
+              <div className="pointer-events-none absolute -inset-3 rounded-[30px] bg-gradient-to-r from-cyan-500/15 via-violet-500/12 to-emerald-500/12 [-webkit-mask-image:radial-gradient(closest-side,#000,transparent)] [mask-image:radial-gradient(closest-side,#000,transparent)]" />
               {/* Mobile: grid de 3 columnas iguales — así "Simuladores" (el
                   label más largo) ya no fuerza un botón más ancho que
                   "Análisis"/"Gerente IA" y desalinea el grupo. Desktop
                   (sm+) vuelve a la fila flex de ancho automático de
                   siempre. */}
-              <div className="relative grid grid-cols-3 max-w-full items-center gap-2 rounded-[24px] border border-white/12 bg-[#070b18]/75 p-2 shadow-[0_18px_65px_rgba(14,165,233,0.16),inset_0_1px_0_rgba(255,255,255,0.08)] backdrop-blur-2xl sm:flex sm:overflow-x-auto">
+              <div className="relative grid grid-cols-3 max-w-full items-center gap-2 rounded-[24px] border border-white/12 bg-[#070b18]/75 p-2 shadow-[0_18px_65px_rgba(14,165,233,0.16),inset_0_1px_0_rgba(255,255,255,0.08)] sm:flex sm:overflow-x-auto">
                 {(
                   [
                     {
@@ -317,7 +317,7 @@ function AdvisorContent({
   setIntroDone: (v: boolean) => void;
 }) {
   const { businessId } = useAuth();
-  const animationProgress = useResultAnimation(true);
+  const animationProgress = useResultAnimation(introDone);
   const finishIntro = React.useCallback(() => setIntroDone(true), [setIntroDone]);
   const [infoModal, setInfoModal] = React.useState<InfoModalContent | null>(null);
   // Mes elegido en Evolución del negocio: manda sobre las tres tarjetas grandes (Evolución,
@@ -392,7 +392,7 @@ function AdvisorContent({
               glow decorativo (-inset-x-6) para que no fuerce scroll
               horizontal en toda la página. */}
           <div className="relative overflow-hidden rounded-[1.7rem] border border-sky-300/[0.30] bg-white/[0.018] p-2.5 pt-4 shadow-[0_0_0_1px_rgba(56,189,248,0.16),0_24px_90px_-42px_rgba(14,165,233,0.9)] sm:p-3 sm:pt-5">
-            <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-sky-400/[0.16] blur-3xl" />
+            <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-sky-400/[0.16] [-webkit-mask-image:radial-gradient(closest-side,#000,transparent)] [mask-image:radial-gradient(closest-side,#000,transparent)]" />
             <MesSelector
               monthKey={selectedMonthKey}
               onMonthKeyChange={setSelectedMonthKey}
@@ -510,7 +510,7 @@ function AdvisorIntro({
       >
         <div className="flex flex-col items-center text-center">
           <div className="relative mb-3 h-16 w-16 sm:h-20 sm:w-20">
-            <div className="absolute inset-0 scale-[1.5] rounded-full bg-violet-500/25 blur-2xl" />
+            <div className="absolute inset-0 scale-[1.5] rounded-full bg-violet-500/25 [-webkit-mask-image:radial-gradient(closest-side,#000,transparent)] [mask-image:radial-gradient(closest-side,#000,transparent)]" />
             <div className="relative grid h-full w-full place-items-center rounded-[1.6rem] border border-violet-300/30 bg-violet-400/10">
               <Brain className="h-8 w-8 text-violet-200 sm:h-10 sm:w-10" />
             </div>
@@ -732,8 +732,8 @@ function InfoModal({ content, onClose }: { content: InfoModalContent; onClose: (
         className="relative flex max-h-[calc(100dvh-max(1rem,env(safe-area-inset-top,0px))-max(1rem,env(safe-area-inset-bottom,0px)))] w-full max-w-2xl flex-col overflow-hidden rounded-[2rem] border border-white/12 bg-[#080713]/96 shadow-[0_0_0_1px_rgba(255,255,255,0.04),0_38px_130px_-58px_rgba(124,58,237,0.95)]"
         onClick={(event) => event.stopPropagation()}
       >
-        <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-violet-400/16 blur-3xl" />
-        <div className="pointer-events-none absolute -left-24 bottom-0 h-56 w-56 rounded-full bg-emerald-400/12 blur-3xl" />
+        <div className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-violet-400/16 [-webkit-mask-image:radial-gradient(closest-side,#000,transparent)] [mask-image:radial-gradient(closest-side,#000,transparent)]" />
+        <div className="pointer-events-none absolute -left-24 bottom-0 h-56 w-56 rounded-full bg-emerald-400/12 [-webkit-mask-image:radial-gradient(closest-side,#000,transparent)] [mask-image:radial-gradient(closest-side,#000,transparent)]" />
         {/* Solo esta barra chica (título + X) queda fija — el resto,
             incluida la descripción, es parte del mismo scroll interno de
             abajo. Antes el título Y la descripción completa vivían en el
@@ -1069,7 +1069,7 @@ function SaludSection({
   const tarjeta = `rounded-2xl border border-white/10 bg-[#0b0a14] p-4 ${luz}`;
   return (
     <div className="relative overflow-hidden rounded-[2rem] border border-emerald-300/[0.30] bg-white/[0.018] p-2.5 pt-4 shadow-[0_0_0_1px_rgba(16,185,129,0.16),0_30px_125px_-42px_rgba(45,212,191,1)] sm:p-3 sm:pt-5">
-      <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-emerald-400/[0.16] blur-3xl" />
+      <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-emerald-400/[0.16] [-webkit-mask-image:radial-gradient(closest-side,#000,transparent)] [mask-image:radial-gradient(closest-side,#000,transparent)]" />
       <div className="relative">
         <MesSelector monthKey={selectedMonthKey} onMonthKeyChange={onMonthKeyChange} minMonthKey={minMonthKey} />
       </div>
@@ -1148,7 +1148,7 @@ function SaludSection({
 
         <section className={tarjeta}>
           <div className="text-sm font-semibold text-white">Cómo se arma el puntaje</div>
-          <div className="text-[11px] text-white/50">Tocá cada tarjeta para ver el resultado, los datos que se usaron y el siguiente umbral.</div>
+          <div className="text-[11px] text-white/50">Tocá cada tarjeta para ver los datos que se usaron y el máximo de puntos.</div>
           <div className="mt-3 space-y-2">
             {score ? (
               score.indicators.map((ind) => <IndicadorSalud key={ind.key} ind={ind} />)
@@ -1158,35 +1158,6 @@ function SaludSection({
           </div>
         </section>
       </div>
-
-      {analytics.evolucion && (
-        <section className={cn(tarjeta, "relative mt-3")}>
-          <div className="text-sm font-semibold text-white">Evolución del negocio</div>
-          <div className="text-[11px] text-white/50">{analytics.analysisMonthLabel} {analytics.vsLabel}</div>
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            {(
-              [
-                { label: "Facturación", d: analytics.evolucion.facturacion, fmt: (n: number) => fmtAR(n) },
-                { label: "Servicios realizados", d: analytics.evolucion.servicios, fmt: (n: number) => n.toLocaleString("es-AR") },
-                { label: "Ticket promedio", d: analytics.evolucion.ticket, fmt: (n: number) => fmtAR(n) },
-              ] as const
-            ).map((t) => (
-              <div key={t.label} className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 py-2.5">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/45">{t.label}</div>
-                <div className="mt-1 font-display text-base font-semibold tabular-nums text-white sm:text-lg">{t.fmt(t.d.valor)}</div>
-                <div
-                  className={cn(
-                    "mt-0.5 text-[11px] font-semibold tabular-nums",
-                    t.d.pct == null ? "text-white/40" : t.d.pct >= 0 ? "text-emerald-300" : "text-rose-300",
-                  )}
-                >
-                  {t.d.pct == null ? "Sin período comparable" : `${t.d.pct >= 0 ? "+" : ""}${t.d.pct}%`}
-                </div>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
     </div>
   );
 }
@@ -1196,7 +1167,7 @@ function RadiografiaSection({ analytics }: { analytics: AdvisorAnalytics }) {
   const items = analytics.radiografia.filter((i) => i.key !== "recuperar" && i.key !== "turnos-vacios");
   return (
     <div className="relative overflow-hidden rounded-[2rem] border border-fuchsia-300/[0.22] bg-white/[0.016] p-3 shadow-[0_0_0_1px_rgba(217,70,239,0.12),0_28px_110px_-50px_rgba(217,70,239,0.8)] sm:p-4">
-      <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-fuchsia-500/[0.12] blur-3xl" />
+      <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-fuchsia-500/[0.12] [-webkit-mask-image:radial-gradient(closest-side,#000,transparent)] [mask-image:radial-gradient(closest-side,#000,transparent)]" />
       <div className="flex items-center gap-4 mb-3">
         <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
         <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">
@@ -1872,7 +1843,7 @@ function LabPrecios({ data }: { data: LabData }) {
       </div>
 
       <div className="relative overflow-hidden rounded-[20px] border border-cyan-300/20 bg-gradient-to-br from-cyan-400/[0.10] via-white/[0.035] to-emerald-400/[0.06] px-4 py-3 shadow-[0_18px_60px_-48px_rgba(34,211,238,0.95)]">
-        <div className="pointer-events-none absolute -right-12 -top-20 h-44 w-44 rounded-full bg-cyan-400/18 blur-3xl" />
+        <div className="pointer-events-none absolute -right-12 -top-20 h-44 w-44 rounded-full bg-cyan-400/18 [-webkit-mask-image:radial-gradient(closest-side,#000,transparent)] [mask-image:radial-gradient(closest-side,#000,transparent)]" />
         <div className="relative flex items-center justify-between gap-4">
           <div className="min-w-0">
             <div className="mb-1 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.16em] text-cyan-100/80">
@@ -2348,8 +2319,8 @@ function LaboratorioDecisiones(props: SimuladorProps) {
   return (
     <div className="space-y-4">
       {/* Encabezado del laboratorio · franja compacta */}
-      <div className="relative overflow-hidden rounded-2xl border border-white/12 bg-[#070b18]/80 px-4 py-2.5 shadow-[0_20px_70px_-50px_rgba(56,189,248,0.7)] backdrop-blur-2xl">
-        <div className="pointer-events-none absolute -top-16 left-1/4 h-40 w-40 rounded-full bg-cyan-500/15 blur-3xl" />
+      <div className="relative overflow-hidden rounded-2xl border border-white/12 bg-[#070b18]/80 px-4 py-2.5 shadow-[0_20px_70px_-50px_rgba(56,189,248,0.7)]">
+        <div className="pointer-events-none absolute -top-16 left-1/4 h-40 w-40 rounded-full bg-cyan-500/15 [-webkit-mask-image:radial-gradient(closest-side,#000,transparent)] [mask-image:radial-gradient(closest-side,#000,transparent)]" />
         <div className="relative flex items-center gap-3">
           <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/10 text-xl ring-1 ring-white/15">
             🧪
@@ -2416,8 +2387,8 @@ function LaboratorioDecisiones(props: SimuladorProps) {
       </div>
 
       {/* Simulador activo */}
-      <div className="relative overflow-hidden rounded-[24px] border border-white/12 bg-[#080b16]/80 p-3 shadow-[0_24px_80px_-50px_rgba(56,189,248,0.6)] backdrop-blur-2xl sm:p-5">
-        <div className="pointer-events-none absolute -top-24 right-0 h-56 w-56 rounded-full bg-gradient-to-br from-cyan-500/15 to-transparent blur-3xl" />
+      <div className="relative overflow-hidden rounded-[24px] border border-white/12 bg-[#080b16]/80 p-3 shadow-[0_24px_80px_-50px_rgba(56,189,248,0.6)] sm:p-5">
+        <div className="pointer-events-none absolute -top-24 right-0 h-56 w-56 rounded-full bg-gradient-to-br from-cyan-500/15 to-transparent [-webkit-mask-image:radial-gradient(closest-side,#000,transparent)] [mask-image:radial-gradient(closest-side,#000,transparent)]" />
         <div className="relative">
           {sim === "precios" && <LabPrecios data={data} />}
           {sim === "recuperar" && <LabRecuperar data={data} />}

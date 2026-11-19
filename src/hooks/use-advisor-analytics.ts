@@ -116,13 +116,6 @@ export type AdvisorAnalytics = {
   // Puntaje 0-100 (null si todavía no hay datos suficientes) y su detalle por indicador.
   health: number | null;
   healthScore: HealthScore | null;
-  // Evolución del negocio: facturación, servicios realizados y ticket promedio con su variación contra el período
-  // comparable (pct = null si no hay base comparable).
-  evolucion: {
-    facturacion: { valor: number; pct: number | null };
-    servicios: { valor: number; pct: number | null };
-    ticket: { valor: number; pct: number | null };
-  } | null;
   // Clientes para recuperar con la definición única (la misma del módulo Clientes).
   recovery: RecoveryCounts;
   history: AdvisorMonthSnapshot[];
@@ -566,7 +559,6 @@ export function useAdvisorAnalytics(
         previous: null,
         health: null,
         healthScore: null,
-        evolucion: null,
         recovery: { inactivo: 0, recuperable: 0, no_volvio: 0, archivado: 0, paraRecuperar: 0 },
         history: [],
         radiografia: [],
@@ -976,14 +968,6 @@ export function useAdvisorAnalytics(
       previous,
       health,
       healthScore,
-      evolucion:
-        current && current.hasData
-          ? {
-              facturacion: { valor: current.revenue, pct: previous?.hasData ? pctDelta(current.revenue, previous.revenue) : null },
-              servicios: { valor: current.usedSlots, pct: previous?.hasData ? pctDelta(current.usedSlots, previous.usedSlots) : null },
-              ticket: { valor: current.ticket, pct: previous?.hasData ? pctDelta(current.ticket, previous.ticket) : null },
-            }
-          : null,
       recovery,
       history,
       radiografia,
