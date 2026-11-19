@@ -759,13 +759,6 @@ export function useAdvisorAnalytics(
         tone: topProfitService ? "good" : "neutral",
       },
       {
-        key: "productos",
-        label: "Venta de productos",
-        value: productSharePct != null ? fmtMoney(productRevenue) : "—",
-        detail: productSharePct != null ? `${String(productSharePct).replace(".", ",")}% de la facturación` : undefined,
-        tone: productSharePct == null ? "neutral" : productSharePct >= PRODUCT_TARGET_PCT ? "good" : "warn",
-      },
-      {
         key: "dia-rentable",
         label: "Día más rentable",
         value: diaRentable ? DIAS_SEMANA[diaRentable.dow] : "—",
@@ -778,6 +771,13 @@ export function useAdvisorAnalytics(
         value: diaTranquilo ? DIAS_SEMANA[diaTranquilo.dow] : "—",
         detail: diaTranquilo ? `${fmtMoney(diaTranquilo.avg)} por día` : undefined,
         tone: diaTranquilo ? "warn" : "neutral",
+      },
+      {
+        key: "productos",
+        label: "Venta de productos",
+        value: productSharePct != null ? fmtMoney(productRevenue) : "—",
+        detail: productSharePct != null ? `${String(productSharePct).replace(".", ",")}% de la facturación` : undefined,
+        tone: productSharePct == null ? "neutral" : productSharePct >= PRODUCT_TARGET_PCT ? "good" : "warn",
       },
       {
         key: "vip",
