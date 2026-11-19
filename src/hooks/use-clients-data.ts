@@ -324,12 +324,14 @@ async function loadClients(businessId: string): Promise<Client[]> {
   });
 }
 
-export function useClientsData(businessId: string | null) {
+// staleTime: por defecto 0 (Clientes siempre pide datos frescos). El Asesor IA lo usa en varios lugares a la vez y
+// trae TODO el historial de cobros, así que pasa un staleTime corto para no repetir la carga completa en cada montaje.
+export function useClientsData(businessId: string | null, opts?: { staleTime?: number }) {
   return useQuery({
     queryKey: ["clients", businessId],
     queryFn: () => loadClients(businessId!),
     enabled: !!businessId,
-    staleTime: 0,
+    staleTime: opts?.staleTime ?? 0,
   });
 }
 

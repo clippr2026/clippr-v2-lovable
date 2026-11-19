@@ -656,7 +656,7 @@ export function DetalleSheet({
   vsLabel: string;
 }) {
   const { businessId, activeBranchId } = useAuth();
-  const clientsQuery = useClientsData(businessId ?? null);
+  const clientsQuery = useClientsData(businessId ?? null, { staleTime: 60_000 });
   const raw = useQuery({
     queryKey: ["monthly-detail", businessId, activeBranchId, monthKey],
     enabled: !!businessId && kind !== null,

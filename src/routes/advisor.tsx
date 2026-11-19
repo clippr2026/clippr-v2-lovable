@@ -2105,7 +2105,7 @@ function useLabData(
   fallbackTicket: number,
   fallbackClients: number,
 ): LabData {
-  const clientsQuery = useClientsData(businessId ?? null);
+  const clientsQuery = useClientsData(businessId ?? null, { staleTime: 60_000 });
   const { servicios, loading: loadingServices } = useServicesData(businessId);
   const [appts, setAppts] = React.useState<
     { starts_at: string; status: string; client_id: string | null }[]

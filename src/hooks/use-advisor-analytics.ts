@@ -440,7 +440,7 @@ export function useAdvisorAnalytics(
   selectedMonthKey?: string,
 ): AdvisorAnalytics {
   const { activeBranchId } = useAuth();
-  const clientsQuery = useClientsData(businessId ?? null);
+  const clientsQuery = useClientsData(businessId ?? null, { staleTime: 60_000 });
   const dataQuery = useAdvisorAnalyticsQuery(businessId, activeBranchId);
 
   // Los 6 meses de historial, en hora de Argentina (el más reciente primero).

@@ -101,7 +101,7 @@ export function useAiRecommendations(
   employeeLoad?: EngineEmployeeLoad[],
 ): UseAiRecommendationsResult {
   const { activeBranchId } = useAuth();
-  const clientsQuery = useClientsData(businessId ?? null);
+  const clientsQuery = useClientsData(businessId ?? null, { staleTime: 60_000 });
 
   const [appts, setAppts] = React.useState<EngineAppt[]>([]);
   const [services, setServices] = React.useState<EngineService[]>([]);
