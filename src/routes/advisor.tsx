@@ -1871,6 +1871,9 @@ function RadiografiaSection({ analytics }: { analytics: AdvisorAnalytics }) {
                 >
                   {item.value}
                 </div>
+                {item.detail && (
+                  <div className="mt-1 text-xs font-semibold text-white/70 sm:text-sm">{item.detail}</div>
+                )}
                 <div className="mt-1 text-xs leading-snug text-muted-foreground sm:mt-1.5">
                   {item.label}
                 </div>

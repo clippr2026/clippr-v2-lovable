@@ -171,7 +171,9 @@ export type CapacityInput = {
   slotMinutesByEmployee: Record<string, number>;
 };
 
-export type CapacityResult = { totalSlots: number; workedDays: number };
+// openDatesByDow: cuántas fechas del período se trabajó, por día de la semana (0 = domingo). Un día de la
+// semana sin fechas es un día que el local está cerrado.
+export type CapacityResult = { totalSlots: number; workedDays: number; openDatesByDow: Record<number, number> };
 
 // Capacidad total: para cada profesional y cada día 1..cutoffDay, turnos = minutos de
 // atención ÷ minutos por turno (hacia abajo).
@@ -195,5 +197,10 @@ export function computeCapacity({ ctx, employeeIds, monthKey, cutoffDay, fromDay
       totalSlots += Math.floor(minutes / slot);
     }
   }
-  return { totalSlots, workedDays: workedDates.size };
+  const openDatesByDow: Record<number, number> = {};
+  for (const d of workedDates) {
+    const dow = new Date(y, m - 1, d, 12, 0, 0).getDay();
+    openDatesByDow[dow] = (openDatesByDow[dow] ?? 0) + 1;
+  }
+  return { totalSlots, workedDays: workedDates.size, openDatesByDow };
 }

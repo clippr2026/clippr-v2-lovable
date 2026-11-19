@@ -63,6 +63,8 @@ export type AdvisorMonthSnapshot = {
   usedSlots: number;
   // Ocupación de cada profesional activo: servicios vendidos contra SU capacidad.
   employeeLoad: Array<{ id: string; name: string; used: number; capacity: number }>;
+  // Fechas trabajadas del período por día de la semana (0 = domingo): los días cerrados no figuran.
+  openDatesByDow: Record<number, number>;
   hasData: boolean;
 };
 
@@ -70,6 +72,8 @@ export type RadiografiaItem = {
   key: string;
   label: string;
   value: string;
+  // Dato que acompaña al valor principal (porcentaje, cantidad o monto).
+  detail?: string;
   tone: "good" | "warn" | "bad" | "neutral";
 };
 
@@ -139,6 +143,10 @@ type RawCatalogItem = { id: string; name: string; price: number | null; duration
 
 // El mes de un movimiento se decide en hora de Argentina, nunca en la del dispositivo
 // (un cobro de las 23:30 del último día del mes no puede caer en el mes siguiente).
+function fmtMoney(n: number): string {
+  return `$${Math.round(n).toLocaleString("es-AR")}`;
+}
+
 function monthKeyOf(iso: string): string {
   return new Date(iso).toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }).slice(0, 7);
 }
@@ -361,7 +369,7 @@ function buildMonthSnapshot(
   }
   // En el mes de arranque la agenda cuenta desde el día en que el negocio empezó.
   const fromDay = perf?.startDate && perf.startDate.slice(0, 7) === monthKey ? Number(perf.startDate.slice(8, 10)) : 1;
-  const { totalSlots } = computeCapacity({
+  const { totalSlots, openDatesByDow } = computeCapacity({
     ctx: capacityData.ctx,
     employeeIds: activeEmployees.map((e) => e.id),
     monthKey,
@@ -407,6 +415,7 @@ function buildMonthSnapshot(
     totalSlots,
     usedSlots: used,
     employeeLoad,
+    openDatesByDow,
     hasData: monthPayments.length > 0 || monthAppts.length > 0,
   };
 }
@@ -662,6 +671,7 @@ export function useAdvisorAnalytics(
     // Venta de productos: % de la facturación del mes que vino de productos, y % de las ventas que llevan algún
     // producto. (Antes era "% de clientes que compraron", que se leía como porcentaje de la facturación.)
     let productSharePct: number | null = null;
+    let productRevenue = 0;
     let productAttachPct: number | null = null;
     if (productNames.size > 0) {
       let prodRev = 0;
@@ -679,6 +689,7 @@ export function useAdvisorAnalytics(
         if (prod > 0) withProd += 1;
         prodRev += prod;
       }
+      productRevenue = prodRev;
       productSharePct = totRev > 0 ? Math.round((prodRev / totRev) * 1000) / 10 : null;
       productAttachPct = nPays > 0 ? Math.round((withProd / nPays) * 100) : null;
     }
@@ -689,19 +700,20 @@ export function useAdvisorAnalytics(
     const slotsTo75 = current ? Math.max(0, Math.ceil(current.totalSlots * 0.75) - current.usedSlots) : 0;
     const potentialAt75 = current ? slotsTo75 * current.ticket : 0;
 
-    // Día más tranquilo: el día de la semana que menos factura por jornada trabajada en el mes analizado.
-    const diaStats = new Map<number, { dates: Set<string>; revenue: number }>();
+    // Día más tranquilo: entre los días de la semana que el local abre (según los horarios), el que menos factura
+    // por jornada. Lo cobrado un día cerrado (una seña, una venta suelta) no cuenta ni hace que ese día califique.
+    const openDatesByDow = current?.openDatesByDow ?? {};
+    const ingresoPorDow = new Map<number, number>();
     for (const p of payments) {
       if (monthKeyOf(p.created_at) !== analysisKey) continue;
       const fecha = new Date(p.created_at).toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" });
       const dow = new Date(`${fecha}T12:00:00`).getDay();
-      const e = diaStats.get(dow) ?? { dates: new Set<string>(), revenue: 0 };
-      e.dates.add(fecha);
-      e.revenue += Number(p.total ?? p.amount ?? 0);
-      diaStats.set(dow, e);
+      ingresoPorDow.set(dow, (ingresoPorDow.get(dow) ?? 0) + Number(p.total ?? p.amount ?? 0));
     }
     const DIAS_SEMANA = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
-    const diasPromedio = Array.from(diaStats.entries()).map(([dow, e]) => ({ dow, avg: e.revenue / e.dates.size }));
+    const diasPromedio = Object.entries(openDatesByDow)
+      .filter(([, fechas]) => fechas > 0)
+      .map(([dow, fechas]) => ({ dow: Number(dow), avg: (ingresoPorDow.get(Number(dow)) ?? 0) / fechas }));
     const diaTranquilo = diasPromedio.length >= 2 ? diasPromedio.reduce((m, v) => (v.avg < m.avg ? v : m)) : null;
 
     const radiografia: RadiografiaItem[] = [
@@ -721,36 +733,42 @@ export function useAdvisorAnalytics(
         key: "prof-top",
         label: "Profesional con mayor ocupación",
         value: topEmployee ? topEmployee.name : "—",
+        detail: topEmployee ? `${Math.round(topEmployee.count * 100)}% de ocupación` : undefined,
         tone: topEmployee ? "good" : "neutral",
       },
       {
         key: "prof-bottom",
         label: "Profesional con menor ocupación",
         value: bottomEmployee ? bottomEmployee.name : "—",
+        detail: bottomEmployee ? `${Math.round(bottomEmployee.count * 100)}% de ocupación` : undefined,
         tone: bottomEmployee ? "warn" : "neutral",
       },
       {
         key: "servicio-top",
         label: "Servicio más vendido",
         value: topSoldService ? topSoldService[0] : "—",
+        detail: topSoldService ? `${topSoldService[1].count} ventas` : undefined,
         tone: topSoldService ? "neutral" : "neutral",
       },
       {
         key: "servicio-rentable",
         label: "Servicio más rentable",
         value: topProfitService ? topProfitService[0] : "—",
+        detail: topProfitService ? `${fmtMoney(topProfitService[1].revenue)} facturados` : undefined,
         tone: topProfitService ? "good" : "neutral",
       },
       {
         key: "productos",
         label: "Venta de productos",
-        value: productSharePct != null ? `${String(productSharePct).replace(".", ",")}% de la facturación` : "—",
+        value: productSharePct != null ? fmtMoney(productRevenue) : "—",
+        detail: productSharePct != null ? `${String(productSharePct).replace(".", ",")}% de la facturación` : undefined,
         tone: productSharePct == null ? "neutral" : productSharePct >= PRODUCT_TARGET_PCT ? "good" : "warn",
       },
       {
         key: "dia-tranquilo",
         label: "Día más tranquilo",
         value: diaTranquilo ? DIAS_SEMANA[diaTranquilo.dow] : "—",
+        detail: diaTranquilo ? `${fmtMoney(diaTranquilo.avg)} por día` : undefined,
         tone: diaTranquilo ? "warn" : "neutral",
       },
       {
