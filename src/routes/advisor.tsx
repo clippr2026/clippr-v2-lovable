@@ -1038,13 +1038,8 @@ function IndicadorSalud({ ind }: { ind: HealthIndicator }) {
             {ind.pts != null ? `${ind.pts} de ${ind.max}${ind.evaluable < ind.max ? ` (se pudieron evaluar ${ind.evaluable})` : ""}` : "todavía no se puede evaluar"}
           </p>
           <p>
-            <b className="text-white">Escala:</b> {ind.escala}
+            <b className="text-white">Máximo:</b> {ind.escala}
           </p>
-          {ind.siguiente && (
-            <p>
-              <b className="text-white">Siguiente umbral:</b> {ind.siguiente}
-            </p>
-          )}
         </div>
       )}
     </div>

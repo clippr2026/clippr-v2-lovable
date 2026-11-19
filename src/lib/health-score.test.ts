@@ -17,8 +17,8 @@ const base: HealthInput = {
   facturacion: 6_000_000,
   ganancia: 2_100_000,
   margen: 35,
-  minutosRealizados: 7_500,
-  minutosDisponibles: 10_000,
+  turnosRealizados: 750,
+  turnosDisponibles: 1_000,
   turnosCancelados: 10,
   turnosNoAsistio: 5,
   nuevosElegibles: 100,
@@ -71,13 +71,13 @@ describe("puntaje de salud — total", () => {
     expect(s.partial).toBe(false);
   });
   it("el total es la suma de los puntos que se ven en las tarjetas (sin desajuste por redondeo)", () => {
-    const s = computeHealthScore({ ...base, margen: 22.4, nuevosVolvieron: 53, habitualesAlDia: 71, minutosRealizados: 5_333 });
+    const s = computeHealthScore({ ...base, margen: 22.4, nuevosVolvieron: 53, habitualesAlDia: 71, turnosRealizados: 533 });
     const visibles = s.indicators.reduce((acc, x) => acc + (x.pts ?? 0), 0);
     expect(s.total).toBe(visibles);
     for (const x of s.indicators) expect(Number.isInteger(x.pts)).toBe(true);
   });
   it("un negocio sin resultados da 0", () => {
-    const s = computeHealthScore({ ...base, margen: -5, ganancia: -300_000, minutosRealizados: 0, nuevosVolvieron: 0, habitualesAlDia: 0 });
+    const s = computeHealthScore({ ...base, margen: -5, ganancia: -300_000, turnosRealizados: 0, nuevosVolvieron: 0, habitualesAlDia: 0 });
     expect(s.total).toBe(0);
   });
   it("sin actividad no hay puntaje", () => {
@@ -104,23 +104,25 @@ describe("puntaje de salud — resultado parcial", () => {
     expect(s.scaled).toBe(100);
   });
   it("sin horarios cargados la ocupación queda sin evaluar", () => {
-    const s = computeHealthScore({ ...base, minutosDisponibles: 0 });
+    const s = computeHealthScore({ ...base, turnosDisponibles: 0 });
     expect(get(s, "ocupacion").state).toBe("insuficiente");
     expect(get(s, "ocupacion").pts).toBeNull();
     expect(s.available).toBe(75);
   });
   it("con muy pocos puntos evaluables no da puntaje", () => {
-    const s = computeHealthScore({ ...base, facturacion: 0, margen: null, ganancia: null, minutosDisponibles: 0, nuevosElegibles: 2, habituales: 2 });
+    const s = computeHealthScore({ ...base, facturacion: 0, margen: null, ganancia: null, turnosDisponibles: 0, nuevosElegibles: 2, habituales: 2 });
     expect(s.total).toBeNull();
   });
-  it("cada indicador informa período, datos usados y siguiente umbral", () => {
-    const s = computeHealthScore({ ...base, margen: 12, ganancia: 700_000, minutosRealizados: 4_000 });
+  it("cada indicador informa período, datos usados y el máximo", () => {
+    const s = computeHealthScore({ ...base, margen: 12, ganancia: 700_000, turnosRealizados: 400 });
     for (const x of s.indicators) {
       expect(x.period.length).toBeGreaterThan(0);
       expect(x.datos.length).toBeGreaterThan(0);
     }
-    expect(get(s, "rentabilidad").siguiente).toMatch(/20%/);
-    expect(get(s, "ocupacion").siguiente).toMatch(/50%/);
+    expect(get(s, "rentabilidad").escala).toBe("45 puntos con 35% de margen o más.");
+    expect(get(s, "ocupacion").escala).toBe("25 puntos con 75% de ocupación o más.");
+    expect(get(s, "retencion").escala).toMatch(/20 puntos con 70% o más.*10 puntos con 85% o más/);
+    expect(get(s, "ocupacion").datos.join(" ")).toMatch(/Turnos realizados: 400.*Turnos disponibles: 1\.000/);
     expect(get(s, "ocupacion").datos.join(" ")).toMatch(/Cancelaciones: 10/);
   });
 });

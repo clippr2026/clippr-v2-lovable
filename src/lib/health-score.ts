@@ -31,10 +31,8 @@ export type HealthIndicator = {
   period: string;
   /** Datos que se usaron, uno por línea. */
   datos: string[];
-  /** Escala completa: con qué resultado se obtiene cada puntaje (0, intermedio y máximo). */
+  /** Con qué resultado se logra el máximo de puntos. */
   escala: string;
-  /** Próximo umbral para sumar puntos (null si ya está en el máximo). */
-  siguiente: string | null;
 };
 
 export type HealthScore = {
@@ -61,17 +59,11 @@ const lin = (x: number, x0: number, x1: number) => clamp((x - x0) / (x1 - x0));
 const pctTxt = (n: number) => `${Math.round(n)}%`;
 const pctTxt1 = (n: number) => `${(Math.round(n * 10) / 10).toString().replace(".", ",")}%`;
 const money = (n: number) => `${n < 0 ? "-" : ""}$${Math.abs(Math.round(n)).toLocaleString("es-AR")}`;
-const mins = (n: number) => {
-  const h = Math.floor(n / 60);
-  const m = Math.round(n % 60);
-  return h > 0 ? `${h.toLocaleString("es-AR")} h${m > 0 ? ` ${m} min` : ""}` : `${m} min`;
-};
 
 // ─────────────────────────── Escalas ───────────────────────────
-const ESCALA_RENTABILIDAD = "0 puntos con 0% de margen o menos · 25 puntos con 20% · 45 puntos con 35% o más.";
-const ESCALA_RETENCION =
-  "Nuevos: 0 puntos con 20% o menos · 10 con 45% · 20 con 70% o más. Habituales: 0 puntos con 40% o menos · 5 con 62,5% · 10 con 85% o más.";
-const ESCALA_OCUPACION = "0 puntos con 20% de ocupación o menos · 15 puntos con 50% · 25 puntos con 75% o más.";
+const ESCALA_RENTABILIDAD = "45 puntos con 35% de margen o más.";
+const ESCALA_RETENCION = "Nuevos: 20 puntos con 70% o más. Habituales: 10 puntos con 85% o más.";
+const ESCALA_OCUPACION = "25 puntos con 75% de ocupación o más.";
 export const pointsRentabilidad = (margen: number) =>
   margen <= 0 ? 0 : margen <= 20 ? 25 * (margen / 20) : 25 + 20 * lin(margen, 20, 35);
 export const pointsNuevos = (rate: number) => 20 * lin(rate, 20, 70);
@@ -92,9 +84,9 @@ export type HealthInput = {
   ganancia: number | null;
   margen: number | null;
 
-  /** Ocupación real: minutos de servicios realizados contra minutos en que se podía atender. */
-  minutosRealizados: number;
-  minutosDisponibles: number;
+  /** Ocupación real: turnos realizados contra turnos disponibles (la duración del turno es la de cada profesional). */
+  turnosRealizados: number;
+  turnosDisponibles: number;
   turnosCancelados: number;
   turnosNoAsistio: number;
 
@@ -122,7 +114,6 @@ export function computeHealthScore(i: HealthInput): HealthScore {
         period: i.periodoLabel,
         escala: ESCALA_RENTABILIDAD,
         datos: [],
-        siguiente: null,
       });
     } else {
       const margen = i.margen;
@@ -138,7 +129,6 @@ export function computeHealthScore(i: HealthInput): HealthScore {
           `Ganancia operativa: ${money(i.ganancia)}`,
           `Margen: ${pctTxt1(margen)}`,
         ],
-        siguiente: margen < 20 ? "Con 20% de margen sumás 25 puntos." : margen < 35 ? "Con 35% de margen o más sumás los 45 puntos." : null,
       });
     }
   }
@@ -158,19 +148,11 @@ export function computeHealthScore(i: HealthInput): HealthScore {
     const datos: string[] = [
       nuevosOk
         ? `Nuevos: ${i.nuevosVolvieron} de ${i.nuevosElegibles} volvieron dentro de 45 días (${pctTxt(rateNuevos as number)}) → ${ptsNuevos} de 20 puntos`
-        : `Nuevos: ${i.nuevosElegibles} clientes con 45 días completos para volver; hacen falta al menos ${RETENTION_MIN_COHORT} para medirlo`,
+        : `Nuevos: ${i.nuevosElegibles} clientes con 45 días para volver; hacen falta al menos ${RETENTION_MIN_COHORT} para medirlo`,
       habitualesOk
         ? `Habituales: ${i.habitualesAlDia} de ${i.habituales} siguen viniendo dentro de su frecuencia (${pctTxt(rateHab as number)}) → ${ptsHab} de 10 puntos`
         : `Habituales: ${i.habituales} clientes con 3 visitas o más; hacen falta al menos ${RETENTION_MIN_COHORT} para medirlo`,
-      `Nuevos: primeras visitas del ${i.nuevosDesde} al ${i.nuevosHasta} (cada una ya tuvo 45 días completos para volver); cuenta el segundo servicio en otro día.`,
-      "Habituales: clientes con 3 visitas o más. Su frecuencia esperada es su ritmo habitual entre visitas (el de Clientes); siguen al día mientras no pasen 1,5 veces ese ritmo sin venir (entre 30 y 120 días).",
     ];
-    const siguientes: string[] = [];
-    if (rateNuevos != null && rateNuevos < 45) siguientes.push("Nuevos: con 45% que vuelven sumás 10 de 20 puntos");
-    else if (rateNuevos != null && rateNuevos < 70) siguientes.push("Nuevos: con 70% o más que vuelven sumás los 20 puntos");
-    if (rateHab != null && rateHab < 62.5) siguientes.push("Habituales: con 62,5% al día sumás 5 de 10 puntos");
-    else if (rateHab != null && rateHab < 85) siguientes.push("Habituales: con 85% o más al día sumás los 10 puntos");
-
     indicators.push({
       key: "retencion", label: "Retención de clientes", max: nominal, evaluable, pts,
       state: evaluable === 0 ? "insuficiente" : evaluable < nominal ? "parcial" : "calculado",
@@ -185,14 +167,13 @@ export function computeHealthScore(i: HealthInput): HealthScore {
       period: `Nuevos: primeras visitas del ${i.nuevosDesde} al ${i.nuevosHasta} · Habituales: hoy`,
       escala: ESCALA_RETENCION,
       datos,
-      siguiente: siguientes.length > 0 ? siguientes.join(". ") + "." : null,
     });
   }
 
   // 3. Ocupación real de agenda (25)
   {
     const nominal = 25;
-    if (i.minutosDisponibles <= 0) {
+    if (i.turnosDisponibles <= 0) {
       indicators.push({
         key: "ocupacion", label: "Ocupación real de agenda", max: nominal, evaluable: 0, pts: null, state: "insuficiente",
         valueText: "Sin horarios cargados",
@@ -200,10 +181,9 @@ export function computeHealthScore(i: HealthInput): HealthScore {
         period: i.periodoLabel,
         escala: ESCALA_OCUPACION,
         datos: [],
-        siguiente: null,
       });
     } else {
-      const pct = (i.minutosRealizados / i.minutosDisponibles) * 100;
+      const pct = (i.turnosRealizados / i.turnosDisponibles) * 100;
       const pts = Math.round(pointsOcupacion(pct));
       indicators.push({
         key: "ocupacion", label: "Ocupación real de agenda", max: nominal, evaluable: nominal, pts, state: "calculado",
@@ -212,13 +192,12 @@ export function computeHealthScore(i: HealthInput): HealthScore {
         period: i.periodoLabel,
         escala: ESCALA_OCUPACION,
         datos: [
-          `Minutos realizados: ${i.minutosRealizados.toLocaleString("es-AR")} (${mins(i.minutosRealizados)})`,
-          `Minutos disponibles: ${Math.round(i.minutosDisponibles).toLocaleString("es-AR")} (${mins(i.minutosDisponibles)}), sin descansos, cierres ni horarios en que el profesional no trabajaba`,
+          `Turnos realizados: ${i.turnosRealizados.toLocaleString("es-AR")}`,
+          `Turnos disponibles: ${i.turnosDisponibles.toLocaleString("es-AR")}`,
           `Ocupación: ${pctTxt1(Math.min(100, pct))}`,
           `Cancelaciones: ${i.turnosCancelados}`,
           `No asistió: ${i.turnosNoAsistio}`,
         ],
-        siguiente: pct < 20 ? "Con 20% de ocupación empezás a sumar puntos." : pct < 50 ? "Con 50% de ocupación sumás 15 puntos." : pct < 75 ? "Con 75% de ocupación o más sumás los 25 puntos." : null,
       });
     }
   }
