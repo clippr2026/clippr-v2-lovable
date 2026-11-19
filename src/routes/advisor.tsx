@@ -345,7 +345,7 @@ function AdvisorContent({
   const animatedHealth = Math.round((analytics.health ?? 0) * animationProgress);
   const animatedProfit = Math.round((analytics.current?.profit ?? 0) * animationProgress);
 
-  if (!introDone) return <AdvisorIntro ready={!analytics.loading} onDone={finishIntro} />;
+  if (!introDone) return <AdvisorIntro ready={!analytics.loading} counts={analytics.dataCounts} onDone={finishIntro} />;
 
   return (
     <div className="space-y-5 sm:space-y-7 max-w-5xl mx-auto w-full">
@@ -441,83 +441,131 @@ function useResultAnimation(enabled = false) {
   return progress;
 }
 
-// Presentación al entrar al Asesor IA (una vez por día, se puede saltear). Los pasos avanzan de a uno y la pantalla
-// no se cierra hasta que los datos reales terminaron de cargar.
+// Presentación al entrar al Asesor IA (una vez por día, se puede saltear): una red neuronal que se enciende y
+// contadores que suben hasta la cantidad REAL de ventas, clientes y turnos analizados. No se cierra hasta que
+// los datos terminaron de cargar.
 const INTRO_SEEN_KEY = "clippr_advisor_intro_seen";
 
-function AdvisorIntro({ ready, onDone }: { ready: boolean; onDone: () => void }) {
-  const pasos = [
-    { label: "Ventas del mes", icon: DollarSign },
-    { label: "Clientes y su frecuencia", icon: Users },
-    { label: "Agenda y ocupación", icon: CalendarDays },
-    { label: "Equipo y horarios", icon: Clock },
-  ];
-  const [paso, setPaso] = React.useState(0);
-
+function useCountUp(target: number, active: boolean, durationMs = 1400) {
+  const [value, setValue] = React.useState(0);
   React.useEffect(() => {
-    const id = window.setInterval(() => setPaso((p) => Math.min(p + 1, pasos.length)), 650);
-    return () => window.clearInterval(id);
-  }, [pasos.length]);
+    if (!active) return;
+    let frame = 0;
+    const startedAt = performance.now();
+    const tick = (now: number) => {
+      const raw = Math.min((now - startedAt) / durationMs, 1);
+      setValue(Math.round(target * (1 - Math.pow(1 - raw, 3))));
+      if (raw < 1) frame = window.requestAnimationFrame(tick);
+    };
+    frame = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(frame);
+  }, [target, active, durationMs]);
+  return value;
+}
 
-  const terminado = paso >= pasos.length && ready;
+const INTRO_NODES: Array<[number, number]> = [
+  [40, 60], [120, 30], [200, 70], [280, 40], [350, 80],
+  [70, 140], [160, 120], [240, 150], [320, 130],
+  [30, 210], [110, 200], [190, 230], [270, 210], [360, 220],
+];
+const INTRO_LINKS: Array<[number, number]> = [
+  [0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [1, 6], [2, 6], [2, 7], [3, 7], [4, 8], [5, 6], [6, 7], [7, 8],
+  [5, 9], [5, 10], [6, 10], [6, 11], [7, 11], [7, 12], [8, 12], [8, 13], [9, 10], [10, 11], [11, 12], [12, 13],
+];
+
+function AdvisorIntro({
+  ready,
+  counts,
+  onDone,
+}: {
+  ready: boolean;
+  counts: { payments: number; appts: number; clients: number };
+  onDone: () => void;
+}) {
+  const [minTime, setMinTime] = React.useState(false);
   React.useEffect(() => {
-    if (!terminado) return;
-    const id = window.setTimeout(onDone, 500);
+    const id = window.setTimeout(() => setMinTime(true), 2600);
     return () => window.clearTimeout(id);
-  }, [terminado, onDone]);
+  }, []);
+
+  const listo = ready && minTime;
+  const ventas = useCountUp(counts.payments, ready);
+  const clientes = useCountUp(counts.clients, ready);
+  const turnos = useCountUp(counts.appts, ready);
+
+  React.useEffect(() => {
+    if (!listo) return;
+    const id = window.setTimeout(onDone, 700);
+    return () => window.clearTimeout(id);
+  }, [listo, onDone]);
+
+  const frase = !ready ? "Leyendo tus datos…" : !minTime ? "Cruzando ventas, clientes y agenda…" : "Listo. Armando tu panel…";
 
   return (
     <div className="relative -mt-2 flex h-[calc(100svh-164px-env(safe-area-inset-bottom))] min-h-[420px] flex-col items-center justify-center overflow-hidden px-4 py-4 sm:h-[calc(100svh-128px)] sm:min-h-[560px]">
+      <style>{`
+        @keyframes advisorNode { 0%,100% { opacity:.25; r:3 } 50% { opacity:1; r:5 } }
+        @keyframes advisorLink { 0% { stroke-dashoffset: 120 } 100% { stroke-dashoffset: 0 } }
+        @keyframes advisorScan { 0% { transform: translateY(-10%); opacity:0 } 15% { opacity:.9 } 85% { opacity:.9 } 100% { transform: translateY(110%); opacity:0 } }
+      `}</style>
       <div className="pointer-events-none absolute -left-28 top-4 h-72 w-72 rounded-full bg-violet-500/20 blur-3xl" />
       <div className="pointer-events-none absolute -right-28 top-8 h-72 w-72 rounded-full bg-sky-500/16 blur-3xl" />
-      <div className="pointer-events-none absolute left-1/2 top-24 h-80 w-80 -translate-x-1/2 rounded-full bg-fuchsia-500/10 blur-3xl" />
 
       <div className="relative z-10 flex w-full max-w-md flex-col items-center text-center">
-        <div className="relative grid h-24 w-24 place-items-center">
-          <span className="absolute inset-0 animate-ping rounded-full bg-violet-400/15" />
-          <span className="absolute inset-2 rounded-full bg-violet-500/15 blur-xl" />
-          <div className="relative grid h-20 w-20 place-items-center rounded-3xl border border-violet-300/30 bg-violet-400/10 shadow-[0_0_60px_-10px_rgba(139,92,246,0.9)]">
-            <Brain className="h-10 w-10 animate-pulse text-violet-200" />
-          </div>
+        <div className="relative h-56 w-full max-w-[380px] overflow-hidden rounded-3xl border border-violet-300/20 bg-[#080a16]/80">
+          <svg viewBox="0 0 400 260" className="absolute inset-0 h-full w-full">
+            {INTRO_LINKS.map(([from, to], i) => (
+              <line
+                key={`${from}-${to}`}
+                x1={INTRO_NODES[from][0]}
+                y1={INTRO_NODES[from][1]}
+                x2={INTRO_NODES[to][0]}
+                y2={INTRO_NODES[to][1]}
+                stroke="rgb(167 139 250)"
+                strokeOpacity="0.55"
+                strokeWidth="1.2"
+                strokeDasharray="120"
+                style={{ animation: `advisorLink 1.2s ease-out ${i * 60}ms both` }}
+              />
+            ))}
+            {INTRO_NODES.map(([x, y], i) => (
+              <circle
+                key={i}
+                cx={x}
+                cy={y}
+                r="4"
+                fill="rgb(196 181 253)"
+                style={{ animation: `advisorNode 1.8s ease-in-out ${i * 130}ms infinite` }}
+              />
+            ))}
+          </svg>
+          <div
+            className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-transparent via-violet-300/25 to-transparent"
+            style={{ animation: "advisorScan 2.4s linear infinite" }}
+          />
         </div>
 
         <h1 className="mt-6 font-display text-3xl font-black tracking-tight text-white sm:text-4xl">Asesor IA</h1>
-        <p className="mt-2 max-w-sm text-sm leading-relaxed text-white/60 sm:text-base">
-          Analiza tus ventas, clientes y agenda para decirte dónde está tu plata y qué hacer con tu negocio.
-        </p>
+        <p className="mt-2 h-5 text-sm font-semibold text-violet-200/80">{frase}</p>
 
-        <div className="mt-8 w-full space-y-2.5 text-left">
-          {pasos.map((item, i) => {
-            const Icon = item.icon;
-            const hecho = paso > i;
-            const actual = paso === i;
-            return (
-              <div
-                key={item.label}
-                className={cn(
-                  "flex items-center gap-3 rounded-2xl border px-4 py-3 transition-all duration-500",
-                  hecho
-                    ? "border-emerald-300/25 bg-emerald-400/[0.07] text-emerald-100"
-                    : actual
-                      ? "border-violet-300/35 bg-violet-400/[0.09] text-white"
-                      : "border-white/8 bg-white/[0.02] text-white/35",
-                )}
-              >
-                <Icon className="h-4 w-4 shrink-0" />
-                <span className="flex-1 text-sm font-semibold">
-                  {item.label}
-                  {actual ? "…" : ""}
-                </span>
-                {hecho ? <CheckCircle2 className="h-4 w-4 text-emerald-300" /> : actual ? <Loader2 className="h-4 w-4 animate-spin text-violet-200" /> : null}
-              </div>
-            );
-          })}
+        <div className="mt-6 grid w-full grid-cols-3 gap-2">
+          {[
+            { label: "Ventas", value: ventas },
+            { label: "Clientes", value: clientes },
+            { label: "Turnos", value: turnos },
+          ].map((item) => (
+            <div key={item.label} className="rounded-2xl border border-white/10 bg-white/[0.035] px-2 py-3">
+              <div className="font-display text-2xl font-black tabular-nums text-white">{item.value.toLocaleString("es-AR")}</div>
+              <div className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/45">{item.label}</div>
+            </div>
+          ))}
         </div>
+        <p className="mt-2 text-[11px] text-white/40">analizados en tu negocio</p>
 
         <button
           type="button"
           onClick={onDone}
-          className="mt-6 text-xs font-semibold text-white/40 underline-offset-4 hover:text-white/70 hover:underline"
+          className="mt-5 text-xs font-semibold text-white/40 underline-offset-4 hover:text-white/70 hover:underline"
         >
           Saltar
         </button>
@@ -1034,9 +1082,8 @@ function SaludSection({
               </p>
             </div>
           </div>
-          {score && (score.provisional || score.partial) && (
+          {score && score.partial && (
             <div className="mt-3 flex flex-wrap gap-1.5 text-[11px]">
-              {score.provisional && <span className={cn("rounded-full border px-2.5 py-1 font-semibold", ESTADO_CHIP.provisional.cls)}>Puntaje provisional</span>}
               {score.partial && (
                 <span className={cn("rounded-full border px-2.5 py-1 font-semibold", ESTADO_CHIP.insuficiente.cls)}>
                   Calculado con {score.available} de 100 puntos posibles

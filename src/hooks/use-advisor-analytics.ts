@@ -87,6 +87,8 @@ export type RadarItem = {
 
 export type AdvisorAnalytics = {
   loading: boolean;
+  // Cantidad de datos reales analizados (para la presentación del Asesor).
+  dataCounts: { payments: number; appts: number; clients: number };
   hasAnyData: boolean;
   current: AdvisorMonthSnapshot | null;
   previous: AdvisorMonthSnapshot | null;
@@ -508,6 +510,7 @@ export function useAdvisorAnalytics(
     if (!data) {
       return {
         loading,
+        dataCounts: { payments: 0, appts: 0, clients: 0 },
         hasAnyData: false,
         current: null,
         previous: null,
@@ -918,6 +921,7 @@ export function useAdvisorAnalytics(
     }
     return {
       loading,
+      dataCounts: { payments: payments.length, appts: appts.length, clients: clients.length },
       hasAnyData,
       current,
       previous,
