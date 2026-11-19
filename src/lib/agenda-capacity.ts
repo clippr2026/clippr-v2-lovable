@@ -158,6 +158,29 @@ export function slotMinutesForEmployee(
   return DEFAULT_SLOT_MINUTES;
 }
 
+// Minutos de servicios realizados por un profesional: cada servicio con su duración (la propia del profesional si la
+// tiene configurada). Si el servicio no está en el catálogo, se usa la duración típica del profesional (`fallback`).
+export function soldMinutesForEmployee(
+  employeeId: string,
+  sold: SoldServiceLine[],
+  catalog: CatalogService[],
+  overrides: EmployeeServiceOverrideMap,
+  fallback: number,
+): number {
+  const byName = new Map<string, CatalogService>();
+  for (const c of catalog) if (c.duration_min != null) byName.set(c.name.trim().toLowerCase(), c);
+  let minutes = 0;
+  for (const line of sold) {
+    const q = Number.isFinite(line.qty) && line.qty > 0 ? line.qty : 1;
+    const svc = byName.get(line.name.trim().toLowerCase());
+    const dur = svc
+      ? resolveServicePricing({ id: svc.id, price: svc.price, duration_min: svc.duration_min }, employeeId, overrides).duration_min
+      : fallback;
+    minutes += (Number.isFinite(dur) && dur > 0 ? dur : fallback) * q;
+  }
+  return minutes;
+}
+
 export type CapacityInput = {
   ctx: CapacityContext;
   employeeIds: string[];
@@ -179,6 +202,8 @@ export type CapacityResult = {
   openDatesByDow: Record<number, number>;
   // Horas del día (0-23) en que algún profesional atiende, según los horarios (sin contar descansos).
   openHours: number[];
+  // Minutos en que los profesionales estaban disponibles para atender (sin descansos, cierres ni bloqueos).
+  availableMinutes: number;
 };
 
 // Capacidad total: para cada profesional y cada día 1..cutoffDay, turnos = minutos de
@@ -190,6 +215,7 @@ export function computeCapacity({ ctx, employeeIds, monthKey, cutoffDay, fromDay
   let totalSlots = 0;
   const workedDates = new Set<number>();
   const openHours = new Set<number>();
+  let availableMinutes = 0;
   for (const empId of employeeIds) {
     const slot = Math.max(10, slotMinutesByEmployee[empId] ?? DEFAULT_SLOT_MINUTES);
     for (let d = Math.max(1, fromDay ?? 1); d <= until; d += 1) {
@@ -201,6 +227,7 @@ export function computeCapacity({ ctx, employeeIds, monthKey, cutoffDay, fromDay
       const minutes = dayWorkMinutes(day, dayBlocks);
       if (minutes <= 0) continue;
       workedDates.add(d);
+      availableMinutes += minutes;
       const desde = day ? parseTimeStrict(day.start) : null;
       const hasta = day ? parseTimeStrict(day.end) : null;
       if (desde != null && hasta != null) {
@@ -214,5 +241,5 @@ export function computeCapacity({ ctx, employeeIds, monthKey, cutoffDay, fromDay
     const dow = new Date(y, m - 1, d, 12, 0, 0).getDay();
     openDatesByDow[dow] = (openDatesByDow[dow] ?? 0) + 1;
   }
-  return { totalSlots, workedDays: workedDates.size, openDatesByDow, openHours: [...openHours].sort((a, b) => a - b) };
+  return { totalSlots, workedDays: workedDates.size, openDatesByDow, openHours: [...openHours].sort((a, b) => a - b), availableMinutes };
 }

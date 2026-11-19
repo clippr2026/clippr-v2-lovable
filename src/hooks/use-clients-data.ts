@@ -81,6 +81,9 @@ export type Client = {
   visits: number;
   spent: number;
   spentLast12Months: number;
+  /** Fecha de la primera visita y de la primera visita en otro día (para medir cuántos nuevos vuelven). */
+  firstVisitAt?: string | null;
+  secondVisitAt?: string | null;
   favoriteServices: ClientFavoriteService[];
   nextAppointment?: ClientAppointment | null;
   lastVisit?: string | null;
@@ -278,6 +281,12 @@ async function loadClients(businessId: string): Promise<Client[]> {
       .sort((a, b) => b.count - a.count || b.amount - a.amount)
       .slice(0, 3);
 
+    // Primera visita y primera vuelta (en otro día: dos cobros seguidos del mismo día son una sola visita).
+    const ascendentes = [...history].sort((a, b) => a.date.localeCompare(b.date));
+    const diaBA = (iso: string) => new Date(iso).toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" });
+    const firstVisitAt = ascendentes[0]?.date ?? null;
+    const secondVisitAt = firstVisitAt ? ascendentes.find((p) => diaBA(p.date) > diaBA(firstVisitAt))?.date ?? null : null;
+
     const nextAppointment =
       appointmentsByClientId.get(c.id) ?? appointmentsByName.get(name.trim().toLowerCase()) ?? null;
     const last = history[0]?.date ?? null;
@@ -304,6 +313,8 @@ async function loadClients(businessId: string): Promise<Client[]> {
       visits: visitsFinal,
       spent: spentFinal,
       spentLast12Months,
+      firstVisitAt,
+      secondVisitAt,
       favoriteServices,
       nextAppointment,
       lastVisit: lastVisit.label,

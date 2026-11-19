@@ -20,10 +20,12 @@ import { useClientsData } from "@/hooks/use-clients-data";
 import { cajaDateKeyBA } from "@/lib/caja-cierre";
 import { comparableUptoDay, loadMonthlyPerformance, shiftMonth, type MonthlyPerformance } from "@/lib/monthly-performance";
 import { fetchAllRows } from "@/lib/supabase-paginate";
-import { computeHealthScore, computeRetention, type HealthScore, type VisitDay } from "@/lib/health-score";
+import { computeHabitualRetention, computeHealthScore, computeNewClientRetention, type HealthScore } from "@/lib/health-score";
 import { countRecovery, type RecoveryCounts } from "@/lib/client-recovery";
 import {
   computeCapacity,
+  soldMinutesForEmployee,
+  DEFAULT_SLOT_MINUTES,
   parseCapacityContext,
   slotMinutesForEmployee,
   type CapacityContext,
@@ -61,6 +63,9 @@ export type AdvisorMonthSnapshot = {
   // Capacidad total del período (turnos que entran en los horarios) y turnos usados.
   totalSlots: number;
   usedSlots: number;
+  // Ocupación real en minutos: servicios realizados contra el tiempo en que se podía atender.
+  minutesDone: number;
+  minutesAvailable: number;
   // Ocupación de cada profesional activo: servicios vendidos contra SU capacidad.
   employeeLoad: Array<{ id: string; name: string; used: number; capacity: number }>;
   // Fechas trabajadas del período por día de la semana (0 = domingo): los días cerrados no figuran.
@@ -111,6 +116,13 @@ export type AdvisorAnalytics = {
   // Puntaje 0-100 (null si todavía no hay datos suficientes) y su detalle por indicador.
   health: number | null;
   healthScore: HealthScore | null;
+  // Evolución del negocio: facturación, servicios realizados y ticket promedio con su variación contra el período
+  // comparable (pct = null si no hay base comparable).
+  evolucion: {
+    facturacion: { valor: number; pct: number | null };
+    servicios: { valor: number; pct: number | null };
+    ticket: { valor: number; pct: number | null };
+  } | null;
   // Clientes para recuperar con la definición única (la misma del módulo Clientes).
   recovery: RecoveryCounts;
   history: AdvisorMonthSnapshot[];
@@ -363,6 +375,7 @@ function buildMonthSnapshot(
   const activeIds = new Set(activeEmployees.map((e) => e.id));
   const soldByEmployee = new Map<string, Array<{ name: string; qty: number }>>();
   const usedByEmployee = new Map<string, number>();
+  const soldLinesByEmployee = new Map<string, Array<{ name: string; qty: number }>>();
   let servicesSold = 0;
   for (const p of monthPayments) {
     const lines = Array.isArray(p.items) ? p.items.filter((it) => it && !it.is_catalog) : [];
@@ -379,6 +392,9 @@ function buildMonthSnapshot(
       list.push(...entries.filter((e) => e.name));
       soldByEmployee.set(p.employee_id, list);
       usedByEmployee.set(p.employee_id, (usedByEmployee.get(p.employee_id) ?? 0) + qtyTotal);
+      const todas = soldLinesByEmployee.get(p.employee_id) ?? [];
+      todas.push(...entries);
+      soldLinesByEmployee.set(p.employee_id, todas);
     }
   }
   const slotMinutesByEmployee: Record<string, number> = {};
@@ -392,7 +408,7 @@ function buildMonthSnapshot(
   }
   // En el mes de arranque la agenda cuenta desde el día en que el negocio empezó.
   const fromDay = perf?.startDate && perf.startDate.slice(0, 7) === monthKey ? Number(perf.startDate.slice(8, 10)) : 1;
-  const { totalSlots, openDatesByDow, openHours } = computeCapacity({
+  const { totalSlots, openDatesByDow, openHours, availableMinutes } = computeCapacity({
     ctx: capacityData.ctx,
     employeeIds: activeEmployees.map((e) => e.id),
     monthKey,
@@ -416,6 +432,18 @@ function buildMonthSnapshot(
     }).totalSlots,
   }));
   const used = servicesSold;
+  // Minutos realizados: cada servicio con su duración (la del profesional si la tiene); si falta en el catálogo, la
+  // duración típica del profesional.
+  let minutesDone = 0;
+  for (const e of activeEmployees) {
+    minutesDone += soldMinutesForEmployee(
+      e.id,
+      soldLinesByEmployee.get(e.id) ?? [],
+      capacityData.catalog,
+      capacityData.ctx.serviceOverrides,
+      slotMinutesByEmployee[e.id] ?? DEFAULT_SLOT_MINUTES,
+    );
+  }
   const occupancy = totalSlots > 0 ? Math.min(100, Math.round((used / totalSlots) * 100)) : 0;
   const freeSlots = Math.max(0, totalSlots - used);
 
@@ -440,6 +468,8 @@ function buildMonthSnapshot(
     employeeLoad,
     openDatesByDow,
     openHours,
+    minutesDone,
+    minutesAvailable: availableMinutes,
     hasData: monthPayments.length > 0 || monthAppts.length > 0,
   };
 }
@@ -536,6 +566,7 @@ export function useAdvisorAnalytics(
         previous: null,
         health: null,
         healthScore: null,
+        evolucion: null,
         recovery: { inactivo: 0, recuperable: 0, no_volvio: 0, archivado: 0, paraRecuperar: 0 },
         history: [],
         radiografia: [],
@@ -608,41 +639,38 @@ export function useAdvisorAnalytics(
     const ticketPct =
       currentComparable && base && base.ticket > 0 ? ((currentComparable.ticket - base.ticket) / base.ticket) * 100 : null;
 
-    // Retención: clientes vistos hace 45 a 75 días que volvieron. Solo clientes reales (sin la ficha "Sin agendar").
-    const validIds = new Set(clients.map((c) => c.id));
-    const validNames = new Set(clients.map((c) => c.name.trim().toLowerCase()));
-    const visitDays: VisitDay[] = [];
-    for (const p of payments) {
-      const nameKey = (p.client_name ?? "").trim().toLowerCase();
-      const clientKey = p.client_id && validIds.has(p.client_id) ? p.client_id : validNames.has(nameKey) ? nameKey : null;
-      if (!clientKey) continue;
-      visitDays.push({ clientKey, dayKey: new Date(p.created_at).toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }) });
-    }
+    // Retención: nuevos que vuelven por un segundo servicio dentro de 45 días (solo primeras visitas con 45 días completos
+    // para volver) y habituales que siguen al día. Solo clientes reales (sin la ficha "Sin agendar").
     const [ay, am] = analysisKey.split("-").map(Number);
     const lastDayOfAnalysis = new Date(ay, am, 0).getDate();
     const cutDay = isCurrentMonth ? (compDay ?? 0) : lastDayOfAnalysis;
     const retCut = cutDay > 0 ? `${analysisKey}-${String(cutDay).padStart(2, "0")}` : `${shiftMonth(analysisKey, -1)}-28`;
-    const retencion = computeRetention(visitDays, retCut);
+    const nuevos = computeNewClientRetention(clients, retCut);
+    const habituales = computeHabitualRetention(clients);
 
     const healthScore: HealthScore | null =
       current && current.hasData && currentPerf
         ? computeHealthScore({
+            periodoLabel: monthLabelOf(analysisKey),
+            periodoCerrado: !isCurrentMonth,
+            hayActividad: current.hasData,
             facturacion: currentPerf.facturacion,
+            ganancia: currentPerf.ganancia,
             margen: currentPerf.margen,
-            gastosTotal: currentPerf.gastosTotal,
-            gastosFijosCargados: currentPerf.gastosPorTipo.some((g) => g.tipo === "Fijo" && g.total > 0) ? 1 : 0,
-            ocupacion: current.totalSlots > 0 ? current.occupancy : null,
-            totalSlots: current.totalSlots,
-            retencionGrupo: retencion.grupo,
-            retencionVolvieron: retencion.volvieron,
-            crecimientoPct: growthPct,
-            ticketPct,
-            turnosHechos: current.doneCount,
+            minutosRealizados: current.minutesDone,
+            minutosDisponibles: current.minutesAvailable,
             turnosCancelados: current.cancellations,
             turnosNoAsistio: current.noShows,
+            nuevosElegibles: nuevos.elegibles,
+            nuevosVolvieron: nuevos.volvieron,
+            nuevosDesde: nuevos.desde,
+            nuevosHasta: nuevos.hasta,
+            habituales: habituales.habituales,
+            habitualesAlDia: habituales.alDia,
           })
         : null;
-    const health = healthScore?.total ?? null;
+    // 0-100 para el color y el aro (igual al total salvo que el resultado sea parcial).
+    const health = healthScore?.scaled ?? null;
 
     // ── Radiografía del local ──────────────────────────────────────────────
     // Definición única (la del módulo Clientes): inactivos + perdidos recuperables + los que no volvieron. Quien ya
@@ -913,14 +941,13 @@ export function useAdvisorAnalytics(
     // ── Radar del local (bullets dinámicos) ────────────────────────────────
     const radar: RadarItem[] = [];
     // Contra el período equivalente (días completos), igual que el puntaje.
-    const rentabilidadProvisional = healthScore?.indicators.find((x) => x.key === "rentabilidad")?.state === "provisional";
     if (base && currentComparable) {
       const profitPct = pctDelta(currentComparable.ganancia, base.ganancia);
       if (profitPct != null) {
         radar.push({
           key: "utilidad",
           tone: profitPct >= 0 ? "ok" : "bad",
-          label: `Ganancia ${profitPct >= 0 ? "creciendo" : "cayendo"} (${profitPct >= 0 ? "+" : ""}${profitPct}% ${vsLabel})${rentabilidadProvisional ? " · provisional: faltan gastos del mes" : ""}`,
+          label: `Ganancia ${profitPct >= 0 ? "creciendo" : "cayendo"} (${profitPct >= 0 ? "+" : ""}${profitPct}% ${vsLabel})`,
         });
       }
       const clientsPct = pctDelta(currentComparable.clientes, base.clientes);
@@ -947,6 +974,14 @@ export function useAdvisorAnalytics(
       previous,
       health,
       healthScore,
+      evolucion:
+        current && current.hasData
+          ? {
+              facturacion: { valor: current.revenue, pct: previous?.hasData ? pctDelta(current.revenue, previous.revenue) : null },
+              servicios: { valor: current.usedSlots, pct: previous?.hasData ? pctDelta(current.usedSlots, previous.usedSlots) : null },
+              ticket: { valor: current.ticket, pct: previous?.hasData ? pctDelta(current.ticket, previous.ticket) : null },
+            }
+          : null,
       recovery,
       history,
       radiografia,

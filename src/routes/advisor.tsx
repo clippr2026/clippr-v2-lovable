@@ -988,8 +988,8 @@ const PRIORITY_META: Record<
 
 
 // ─────────────────────── Salud del negocio (Gerente IA) ───────────────────────
-const ESTADO_CHIP: Record<"provisional" | "insuficiente", { text: string; cls: string }> = {
-  provisional: { text: "Provisional", cls: "border-amber-300/30 bg-amber-300/10 text-amber-200" },
+const ESTADO_CHIP: Record<"parcial" | "insuficiente", { text: string; cls: string }> = {
+  parcial: { text: "Parcial", cls: "border-amber-300/30 bg-amber-300/10 text-amber-200" },
   insuficiente: { text: "Datos insuficientes", cls: "border-white/15 bg-white/[0.05] text-white/55" },
 };
 
@@ -997,7 +997,7 @@ function IndicadorSalud({ ind }: { ind: HealthIndicator }) {
   const [open, setOpen] = React.useState(false);
   const ratio = ind.pts != null ? ind.pts / ind.max : 0;
   const barra = ratio >= 0.7 ? "bg-emerald-400/80" : ratio >= 0.4 ? "bg-amber-300/80" : "bg-rose-400/80";
-  const chip = ind.state === "calculado" || ind.state === "provisional" ? null : ESTADO_CHIP[ind.state];
+  const chip = ind.state === "calculado" ? null : ESTADO_CHIP[ind.state];
   return (
     <div className="rounded-xl border border-white/[0.08] bg-white/[0.03]">
       <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className="w-full px-3 py-2.5 text-left">
@@ -1006,7 +1006,7 @@ function IndicadorSalud({ ind }: { ind: HealthIndicator }) {
           <span className="shrink-0 text-xs tabular-nums text-white/85">
             {ind.pts != null ? (
               <>
-                {Math.round(ind.pts)} <span className="text-white/40">/ {ind.max}</span>
+                {ind.pts} <span className="text-white/40">/ {ind.max}</span>
               </>
             ) : (
               <span className="text-white/45">— / {ind.max}</span>
@@ -1023,13 +1023,31 @@ function IndicadorSalud({ ind }: { ind: HealthIndicator }) {
       </button>
       {open && (
         <div className="space-y-2 border-t border-white/[0.07] px-3 py-3 text-xs leading-relaxed text-white/70">
-          {ind.warning && <p className="rounded-lg border border-amber-300/25 bg-amber-300/[0.06] px-2.5 py-2 text-amber-100/85">{ind.warning}</p>}
           <p>
-            <b className="text-white">Por qué:</b> {ind.why}
+            <b className="text-white">Resultado:</b> {ind.why}
           </p>
           <p>
-            <b className="text-white">Qué hacer:</b> {ind.tip}
+            <b className="text-white">Período:</b> {ind.period}
           </p>
+          {ind.datos.length > 0 && (
+            <div>
+              <b className="text-white">Datos que se usaron:</b>
+              <ul className="mt-1 list-disc space-y-0.5 pl-4">
+                {ind.datos.map((d) => (
+                  <li key={d}>{d}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          <p>
+            <b className="text-white">Puntos obtenidos:</b>{" "}
+            {ind.pts != null ? `${ind.pts} de ${ind.max}${ind.evaluable < ind.max ? ` (se pudieron evaluar ${ind.evaluable})` : ""}` : "todavía no se puede evaluar"}
+          </p>
+          {ind.siguiente && (
+            <p>
+              <b className="text-white">Siguiente umbral:</b> {ind.siguiente}
+            </p>
+          )}
         </div>
       )}
     </div>
@@ -1100,16 +1118,21 @@ function SaludSection({
               </svg>
               <div className="absolute flex flex-col items-center">
                 <span className={cn("font-display text-4xl font-semibold leading-none tabular-nums", healthTone.text)}>
-                  {analytics.health == null ? "—" : animatedHealth}
+                  {score?.total == null ? "—" : Math.round(score.total * (analytics.health ? animatedHealth / analytics.health : 1))}
                 </span>
-                <span className="mt-0.5 text-[11px] text-white/45">de 100</span>
+                <span className="mt-0.5 text-[11px] text-white/45">de {score?.partial ? score.available : 100}</span>
               </div>
             </div>
             <div className="min-w-0">
               <div className={cn("text-xl font-semibold leading-tight", healthTone.text)}>{healthHeadline}</div>
+              {score?.requiereAtencion && (
+                <span className="mt-1 inline-block rounded-full border border-rose-300/30 bg-rose-400/10 px-2.5 py-0.5 text-[11px] font-semibold text-rose-200">
+                  Requiere atención
+                </span>
+              )}
               <p className="mt-1 text-xs leading-relaxed text-white/60">
                 {analytics.health == null
-                  ? "Todavía no hay datos suficientes para calcular la salud del negocio."
+                  ? "Todavía no hay datos para calcular la salud del negocio."
                   : analytics.health >= 80
                     ? "Tu local está muy bien. Mantené el ritmo y seguí cuidando a tus clientes."
                     : analytics.health >= 65
@@ -1123,8 +1146,8 @@ function SaludSection({
           {score && score.partial && (
             <div className="mt-3 flex flex-wrap gap-1.5 text-[11px]">
               {score.partial && (
-                <span className={cn("rounded-full border px-2.5 py-1 font-semibold", ESTADO_CHIP.insuficiente.cls)}>
-                  Calculado con {score.available} de 100 puntos posibles
+                <span className={cn("rounded-full border px-2.5 py-1 font-semibold", ESTADO_CHIP.parcial.cls)}>
+                  Resultado parcial: se pudieron evaluar {score.available} de 100 puntos
                 </span>
               )}
             </div>
@@ -1133,16 +1156,45 @@ function SaludSection({
 
         <section className={tarjeta}>
           <div className="text-sm font-semibold text-white">Cómo se arma el puntaje</div>
-          <div className="text-[11px] text-white/50">Tocá un indicador para ver por qué obtuvo esos puntos y qué hacer.</div>
+          <div className="text-[11px] text-white/50">Tocá cada tarjeta para ver el resultado, los datos que se usaron y el siguiente umbral.</div>
           <div className="mt-3 space-y-2">
             {score ? (
               score.indicators.map((ind) => <IndicadorSalud key={ind.key} ind={ind} />)
             ) : (
-              <p className="text-sm text-white/55">Todavía no hay actividad suficiente para armar el puntaje.</p>
+              <p className="text-sm text-white/55">Todavía no hay datos para calcular la salud del negocio.</p>
             )}
           </div>
         </section>
       </div>
+
+      {analytics.evolucion && (
+        <section className={cn(tarjeta, "relative mt-3")}>
+          <div className="text-sm font-semibold text-white">Evolución del negocio</div>
+          <div className="text-[11px] text-white/50">{analytics.analysisMonthLabel} {analytics.vsLabel}</div>
+          <div className="mt-3 grid grid-cols-3 gap-2">
+            {(
+              [
+                { label: "Facturación", d: analytics.evolucion.facturacion, fmt: (n: number) => fmtAR(n) },
+                { label: "Servicios realizados", d: analytics.evolucion.servicios, fmt: (n: number) => n.toLocaleString("es-AR") },
+                { label: "Ticket promedio", d: analytics.evolucion.ticket, fmt: (n: number) => fmtAR(n) },
+              ] as const
+            ).map((t) => (
+              <div key={t.label} className="rounded-xl border border-white/[0.08] bg-white/[0.03] px-2.5 py-2.5">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-white/45">{t.label}</div>
+                <div className="mt-1 font-display text-base font-semibold tabular-nums text-white sm:text-lg">{t.fmt(t.d.valor)}</div>
+                <div
+                  className={cn(
+                    "mt-0.5 text-[11px] font-semibold tabular-nums",
+                    t.d.pct == null ? "text-white/40" : t.d.pct >= 0 ? "text-emerald-300" : "text-rose-300",
+                  )}
+                >
+                  {t.d.pct == null ? "Sin período comparable" : `${t.d.pct >= 0 ? "+" : ""}${t.d.pct}%`}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

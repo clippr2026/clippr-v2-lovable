@@ -1,239 +1,280 @@
-// Puntaje de salud del negocio (0 a 100). Mide la salud económica y comercial con seis indicadores y NO regala puntos:
-// cada uno se gana según resultados reales contra un objetivo.
+// Puntaje de salud del negocio (0 a 100) con tres indicadores. Todos se ganan según resultados reales contra umbrales
+// fijos: no se regalan puntos y los puntos suben de forma gradual entre un umbral y el siguiente.
 //
-//   Rentabilidad y margen ........ 25   (margen de 0% a 35%)
-//   Ocupación de agenda .......... 25   (ocupación hasta 75%)
-//   Retención de clientes ........ 20   (de 40% a 85% de clientes que vuelven)
-//   Crecimiento de facturación ... 15   (de -15% a +15% contra el período equivalente)
-//   Cancelaciones y no asistencias 10   (de 5% a 25% de turnos que no se hacen)
-//   Ticket promedio ..............  5   (de -5% a +5% contra el período equivalente)
+//   Rentabilidad operativa ..... 45   margen: 0 pts con 0% o menos · 25 pts con 20% · 45 pts con 35% o más
+//   Retención de clientes ...... 30
+//       Nuevos que vuelven ..... 20   0 pts con 20% o menos · 10 pts con 45% · 20 pts con 70% o más
+//       Habituales al día ...... 10   0 pts con 40% o menos · 5 pts con 62,5% · 10 pts con 85% o más
+//   Ocupación real de agenda ... 25   0 pts con 20% o menos · 15 pts con 50% · 25 pts con 75% o más
 //
-// Cada indicador tiene un estado:
-//   · calculado    → hay datos completos.
-//   · provisional  → se calculó con lo registrado, pero falta confirmar algo (p. ej. gastos fijos del mes sin cargar).
-//                    Cuenta en el puntaje: nunca se estima ni se descuenta nada por lo que falta registrar.
-//   · insuficiente → todavía no hay datos para medirlo: no suma ni resta; el puntaje se reparte sobre el resto.
-export type IndicatorState = "calculado" | "provisional" | "insuficiente";
+// Redondeo en un solo lugar: cada indicador redondea sus puntos a enteros y el total es la suma de lo que se ve.
+// Cuando a un indicador (o a la mitad de la retención) le faltan datos, ese tramo no suma ni resta: el resultado se
+// marca como parcial y se informa cuántos puntos se pudieron evaluar.
+
+export type IndicatorState = "calculado" | "parcial" | "insuficiente";
 
 export type HealthIndicator = {
-  key: "rentabilidad" | "ocupacion" | "retencion" | "crecimiento" | "cancelaciones" | "ticket";
+  key: "rentabilidad" | "retencion" | "ocupacion";
   label: string;
+  /** Puntos máximos del indicador. */
   max: number;
-  /** Puntos ganados. null cuando no hay datos suficientes. */
+  /** Puntos que se pudieron evaluar (igual a `max` salvo que falten datos de una parte). */
+  evaluable: number;
+  /** Puntos ganados, enteros. null cuando no hay datos suficientes. */
   pts: number | null;
   state: IndicatorState;
   /** El dato medido, listo para mostrar ("Margen 36%"). */
   valueText: string;
-  /** Por qué obtuvo esos puntos. */
+  /** Resultado: por qué obtuvo esos puntos. */
   why: string;
-  /** Qué puede hacer para mejorarlo. */
-  tip: string;
-  /** Advertencia informativa (p. ej. rentabilidad provisional). */
-  warning?: string;
+  /** Período que se midió. */
+  period: string;
+  /** Datos que se usaron, uno por línea. */
+  datos: string[];
+  /** Próximo umbral para sumar puntos (null si ya está en el máximo). */
+  siguiente: string | null;
 };
 
 export type HealthScore = {
-  /** 0 a 100 calculado sobre los indicadores medibles; null si no alcanzan los datos. */
+  /** Suma de los puntos visibles de las tarjetas; null si no hay datos para calcular la salud. */
   total: number | null;
-  earned: number;
-  /** Puntos máximos de los indicadores que se pudieron medir. */
+  /** Total llevado a 100 (solo difiere de `total` cuando el resultado es parcial). Sirve para el color y el aro. */
+  scaled: number | null;
+  /** Puntos que se pudieron evaluar (100 si no falta ningún dato). */
   available: number;
   indicators: HealthIndicator[];
-  provisional: boolean;
-  /** Algún indicador no se pudo medir todavía. */
+  /** Falta algún dato: el resultado es parcial. */
   partial: boolean;
+  /** Período cerrado con pérdida operativa. */
+  requiereAtencion: boolean;
 };
 
-export const HEALTH_MIN_AVAILABLE = 40;
-export const RETENTION_MIN_COHORT = 30;
-export const CANCEL_MIN_APPOINTMENTS = 20;
+export const HEALTH_MIN_AVAILABLE = 25;
+/** Mínimo de clientes para medir cada parte de la retención. */
+export const RETENTION_MIN_COHORT = 10;
 
 const clamp = (n: number, lo = 0, hi = 1) => Math.max(lo, Math.min(hi, n));
 /** 0 en x0, 1 en x1, lineal entre medio. */
 const lin = (x: number, x0: number, x1: number) => clamp((x - x0) / (x1 - x0));
-const r1 = (n: number) => Math.round(n * 10) / 10;
 const pctTxt = (n: number) => `${Math.round(n)}%`;
-const signed = (n: number) => `${n >= 0 ? "+" : "-"}${Math.abs(Math.round(n * 10) / 10).toFixed(1).replace(".", ",")}%`;
+const pctTxt1 = (n: number) => `${(Math.round(n * 10) / 10).toString().replace(".", ",")}%`;
+const money = (n: number) => `${n < 0 ? "-" : ""}$${Math.abs(Math.round(n)).toLocaleString("es-AR")}`;
+const mins = (n: number) => {
+  const h = Math.floor(n / 60);
+  const m = Math.round(n % 60);
+  return h > 0 ? `${h.toLocaleString("es-AR")} h${m > 0 ? ` ${m} min` : ""}` : `${m} min`;
+};
+
+// ─────────────────────────── Escalas ───────────────────────────
+export const pointsRentabilidad = (margen: number) =>
+  margen <= 0 ? 0 : margen <= 20 ? 25 * (margen / 20) : 25 + 20 * lin(margen, 20, 35);
+export const pointsNuevos = (rate: number) => 20 * lin(rate, 20, 70);
+export const pointsHabituales = (rate: number) => 10 * lin(rate, 40, 85);
+export const pointsOcupacion = (pct: number) =>
+  pct <= 20 ? 0 : pct <= 50 ? 15 * ((pct - 20) / 30) : 15 + 10 * lin(pct, 50, 75);
 
 export type HealthInput = {
-  /** Ventas del período (para saber si hay actividad). */
+  /** Período que se mide, listo para mostrar ("noviembre de 2026"). */
+  periodoLabel: string;
+  /** El período ya terminó (mes cerrado). */
+  periodoCerrado: boolean;
+  /** Hubo actividad (cobros o turnos) en el período. */
+  hayActividad: boolean;
+
+  /** Ganancia operativa: lo cobrado y consumos − gastos − pago a profesionales (comisiones contadas una sola vez). */
   facturacion: number;
+  ganancia: number | null;
   margen: number | null;
-  gastosTotal: number;
-  /** Cantidad de gastos fijos registrados en el período. */
-  gastosFijosCargados: number;
-  /** El dueño confirmó que los gastos del mes están completos (opcional, a futuro). */
-  gastosConfirmados?: boolean;
 
-  ocupacion: number | null;
-  totalSlots: number;
-
-  /** Retención: clientes del grupo de referencia y cuántos volvieron. */
-  retencionGrupo: number;
-  retencionVolvieron: number;
-
-  /** Variación contra el período equivalente (días completos). null si no hay base comparable. */
-  crecimientoPct: number | null;
-  ticketPct: number | null;
-
-  turnosHechos: number;
+  /** Ocupación real: minutos de servicios realizados contra minutos en que se podía atender. */
+  minutosRealizados: number;
+  minutosDisponibles: number;
   turnosCancelados: number;
   turnosNoAsistio: number;
+
+  /** Clientes nuevos con 45 días completos para volver, y cuántos tuvieron un segundo servicio dentro de esos 45 días. */
+  nuevosElegibles: number;
+  nuevosVolvieron: number;
+  nuevosDesde: string;
+  nuevosHasta: string;
+  /** Clientes habituales (3 visitas o más) y cuántos siguen viniendo dentro de su frecuencia esperada. */
+  habituales: number;
+  habitualesAlDia: number;
 };
 
 export function computeHealthScore(i: HealthInput): HealthScore {
   const indicators: HealthIndicator[] = [];
 
-  // 1. Rentabilidad y margen
+  // 1. Rentabilidad operativa (45)
   {
-    const hayVentas = i.facturacion > 0 && i.margen != null;
-    if (!hayVentas) {
+    const nominal = 45;
+    if (!(i.facturacion > 0) || i.margen == null || i.ganancia == null) {
       indicators.push({
-        key: "rentabilidad", label: "Rentabilidad y margen", max: 25, pts: null, state: "insuficiente", valueText: "Sin ventas para medir",
-        why: "Todavía no hay ventas suficientes para calcular el margen.",
-        tip: "Se calcula solo cuando haya ventas registradas.",
+        key: "rentabilidad", label: "Rentabilidad operativa", max: nominal, evaluable: 0, pts: null, state: "insuficiente",
+        valueText: "Sin ventas para medir",
+        why: "Todavía no hay ventas suficientes para calcular la ganancia y el margen.",
+        period: i.periodoLabel,
+        datos: [],
+        siguiente: null,
       });
     } else {
-      const margen = i.margen as number;
-      const pts = 25 * lin(margen, 0, 35);
-      const provisional = !i.gastosConfirmados && i.gastosFijosCargados === 0;
+      const margen = i.margen;
+      const pts = Math.round(pointsRentabilidad(margen));
       indicators.push({
-        key: "rentabilidad", label: "Rentabilidad y margen", max: 25, pts: r1(pts), state: provisional ? "provisional" : "calculado",
-        valueText: `Margen ${pctTxt(margen)}`,
-        why: `El margen es ${pctTxt(margen)}; con 35% o más se logran los 25 puntos.`,
-        tip: margen >= 35 ? "Mantené el control de gastos y el precio de tus servicios." : "Revisá tus gastos y el precio de los servicios que más vendés: cada punto de margen suma.",
-
+        key: "rentabilidad", label: "Rentabilidad operativa", max: nominal, evaluable: nominal, pts, state: "calculado",
+        valueText: `Ganancia ${money(i.ganancia)} · margen ${pctTxt(margen)}`,
+        why: `El margen es ${pctTxt1(margen)} y suma ${pts} de ${nominal} puntos.`,
+        period: i.periodoLabel,
+        datos: [
+          `Facturación: ${money(i.facturacion)}`,
+          `Ganancia operativa: ${money(i.ganancia)} (ya descontados gastos y pago a profesionales, sin repetir comisiones)`,
+          `Margen: ${pctTxt1(margen)}`,
+        ],
+        siguiente: margen < 20 ? "Con 20% de margen sumás 25 puntos." : margen < 35 ? "Con 35% de margen o más sumás los 45 puntos." : null,
       });
     }
   }
 
-  // 2. Ocupación
+  // 2. Retención de clientes (30 = 20 nuevos + 10 habituales)
   {
-    if (i.ocupacion == null || i.totalSlots <= 0) {
+    const nominal = 30;
+    const nuevosOk = i.nuevosElegibles >= RETENTION_MIN_COHORT;
+    const habitualesOk = i.habituales >= RETENTION_MIN_COHORT;
+    const rateNuevos = nuevosOk ? (i.nuevosVolvieron / i.nuevosElegibles) * 100 : null;
+    const rateHab = habitualesOk ? (i.habitualesAlDia / i.habituales) * 100 : null;
+    const ptsNuevos = rateNuevos != null ? Math.round(pointsNuevos(rateNuevos)) : null;
+    const ptsHab = rateHab != null ? Math.round(pointsHabituales(rateHab)) : null;
+    const evaluable = (ptsNuevos != null ? 20 : 0) + (ptsHab != null ? 10 : 0);
+    const pts = evaluable > 0 ? (ptsNuevos ?? 0) + (ptsHab ?? 0) : null;
+
+    const datos: string[] = [
+      nuevosOk
+        ? `Nuevos: ${i.nuevosVolvieron} de ${i.nuevosElegibles} volvieron dentro de 45 días (${pctTxt(rateNuevos as number)}) → ${ptsNuevos} de 20 puntos`
+        : `Nuevos: ${i.nuevosElegibles} clientes con 45 días completos para volver; hacen falta al menos ${RETENTION_MIN_COHORT} para medirlo`,
+      habitualesOk
+        ? `Habituales: ${i.habitualesAlDia} de ${i.habituales} siguen viniendo dentro de su frecuencia (${pctTxt(rateHab as number)}) → ${ptsHab} de 10 puntos`
+        : `Habituales: ${i.habituales} clientes con 3 visitas o más; hacen falta al menos ${RETENTION_MIN_COHORT} para medirlo`,
+      `Nuevos: primeras visitas del ${i.nuevosDesde} al ${i.nuevosHasta} (cada una ya tuvo 45 días completos para volver); cuenta el segundo servicio en otro día.`,
+      "Habituales: clientes con 3 visitas o más. Su frecuencia esperada es su ritmo habitual entre visitas (el de Clientes); siguen al día mientras no pasen 1,5 veces ese ritmo sin venir (entre 30 y 120 días).",
+    ];
+    const siguientes: string[] = [];
+    if (rateNuevos != null && rateNuevos < 45) siguientes.push("Nuevos: con 45% que vuelven sumás 10 de 20 puntos");
+    else if (rateNuevos != null && rateNuevos < 70) siguientes.push("Nuevos: con 70% o más que vuelven sumás los 20 puntos");
+    if (rateHab != null && rateHab < 62.5) siguientes.push("Habituales: con 62,5% al día sumás 5 de 10 puntos");
+    else if (rateHab != null && rateHab < 85) siguientes.push("Habituales: con 85% o más al día sumás los 10 puntos");
+
+    indicators.push({
+      key: "retencion", label: "Retención de clientes", max: nominal, evaluable, pts,
+      state: evaluable === 0 ? "insuficiente" : evaluable < nominal ? "parcial" : "calculado",
+      valueText:
+        evaluable === 0
+          ? "Pocos clientes para medir"
+          : `Nuevos ${rateNuevos != null ? pctTxt(rateNuevos) : "—"} · habituales ${rateHab != null ? pctTxt(rateHab) : "—"}`,
+      why:
+        evaluable === 0
+          ? "Todavía no hay suficientes clientes para medir la retención."
+          : `Suma ${pts} de ${evaluable} puntos evaluados${evaluable < nominal ? ` (se pudieron evaluar ${evaluable} de ${nominal})` : ""}.`,
+      period: `Nuevos: primeras visitas del ${i.nuevosDesde} al ${i.nuevosHasta} · Habituales: hoy`,
+      datos,
+      siguiente: siguientes.length > 0 ? siguientes.join(". ") + "." : null,
+    });
+  }
+
+  // 3. Ocupación real de agenda (25)
+  {
+    const nominal = 25;
+    if (i.minutosDisponibles <= 0) {
       indicators.push({
-        key: "ocupacion", label: "Ocupación de agenda", max: 25, pts: null, state: "insuficiente", valueText: "Sin horarios cargados",
+        key: "ocupacion", label: "Ocupación real de agenda", max: nominal, evaluable: 0, pts: null, state: "insuficiente",
+        valueText: "Sin horarios cargados",
         why: "No hay horarios de atención suficientes para medir la ocupación.",
-        tip: "Cargá los horarios de tus profesionales en Configuración.",
+        period: i.periodoLabel,
+        datos: [],
+        siguiente: null,
       });
     } else {
-      const pts = 25 * clamp(i.ocupacion / 75);
+      const pct = (i.minutosRealizados / i.minutosDisponibles) * 100;
+      const pts = Math.round(pointsOcupacion(pct));
       indicators.push({
-        key: "ocupacion", label: "Ocupación de agenda", max: 25, pts: r1(pts), state: "calculado", valueText: `Ocupación ${pctTxt(i.ocupacion)}`,
-        why: `Ocupás el ${pctTxt(i.ocupacion)} de los turnos disponibles; con 75% o más se logran los 25 puntos.`,
-        tip: i.ocupacion >= 75 ? "Tu agenda está bien aprovechada." : "Llená los turnos vacíos: promociones en los días flojos y recordatorios a clientes perdidos.",
-      });
-    }
-  }
-
-  // 3. Retención
-  {
-    if (i.retencionGrupo < RETENTION_MIN_COHORT) {
-      indicators.push({
-        key: "retencion", label: "Retención de clientes", max: 20, pts: null, state: "insuficiente",
-        valueText: `Pocos clientes para medir (${i.retencionGrupo})`,
-        why: `Hacen falta al menos ${RETENTION_MIN_COHORT} clientes con más de 45 días de antigüedad para medir cuántos vuelven.`,
-        tip: "Se va a calcular solo a medida que sumes clientes.",
-      });
-    } else {
-      const rate = (i.retencionVolvieron / i.retencionGrupo) * 100;
-      const pts = 20 * lin(rate, 40, 85);
-      indicators.push({
-        key: "retencion", label: "Retención de clientes", max: 20, pts: r1(pts), state: "calculado",
-        valueText: `Vuelven ${pctTxt(rate)} (${i.retencionVolvieron} de ${i.retencionGrupo})`,
-        why: `De ${i.retencionGrupo} clientes que vinieron hace 45 a 75 días, ${i.retencionVolvieron} volvieron (${pctTxt(rate)}). Con 85% o más se logran los 20 puntos.`,
-        tip: rate >= 85 ? "Tus clientes vuelven: seguí cuidándolos." : "Escribile a quienes no volvieron y agendá la próxima visita antes de que se vayan.",
-      });
-    }
-  }
-
-  // 4. Crecimiento de facturación
-  {
-    if (i.crecimientoPct == null) {
-      indicators.push({
-        key: "crecimiento", label: "Crecimiento de facturación", max: 15, pts: null, state: "insuficiente", valueText: "Sin período anterior comparable",
-        why: "No hay un período anterior equivalente con el que comparar.",
-        tip: "Se calcula cuando haya un mes anterior completo de actividad.",
-      });
-    } else {
-      const pts = 15 * lin(i.crecimientoPct, -15, 15);
-      indicators.push({
-        key: "crecimiento", label: "Crecimiento de facturación", max: 15, pts: r1(pts), state: "calculado", valueText: `${signed(i.crecimientoPct)} vs período equivalente`,
-        why: `La facturación varió ${signed(i.crecimientoPct)} contra el mismo período del mes anterior (días completos). Con +15% o más se logran los 15 puntos.`,
-        tip: i.crecimientoPct >= 15 ? "Estás creciendo bien." : "Sumá clientes nuevos y recuperá a los que no vuelven.",
-      });
-    }
-  }
-
-  // 5. Cancelaciones y no asistencias
-  {
-    const total = i.turnosHechos + i.turnosCancelados + i.turnosNoAsistio;
-    if (total < CANCEL_MIN_APPOINTMENTS) {
-      indicators.push({
-        key: "cancelaciones", label: "Cancelaciones y no asistencias", max: 10, pts: null, state: "insuficiente", valueText: `Pocos turnos (${total})`,
-        why: `Hacen falta al menos ${CANCEL_MIN_APPOINTMENTS} turnos cerrados para medirlo.`,
-        tip: "Se va a calcular solo a medida que se cierren turnos.",
-      });
-    } else {
-      const rate = ((i.turnosCancelados + i.turnosNoAsistio) / total) * 100;
-      const pts = 10 * (1 - lin(rate, 5, 25));
-      indicators.push({
-        key: "cancelaciones", label: "Cancelaciones y no asistencias", max: 10, pts: r1(pts), state: "calculado",
-        valueText: `${pctTxt(rate)} de turnos no realizados`,
-        why: `De ${total} turnos, ${i.turnosCancelados} se cancelaron y ${i.turnosNoAsistio} no asistieron (${pctTxt(rate)}). Con 5% o menos se logran los 10 puntos.`,
-        tip: rate <= 5 ? "Muy pocas faltas: bien." : "Pedí seña en los turnos con más faltas y mandá recordatorios el día anterior.",
-      });
-    }
-  }
-
-  // 6. Ticket promedio
-  {
-    if (i.ticketPct == null) {
-      indicators.push({
-        key: "ticket", label: "Ticket promedio", max: 5, pts: null, state: "insuficiente", valueText: "Sin período anterior comparable",
-        why: "No hay un período anterior equivalente con el que comparar.",
-        tip: "Se calcula cuando haya un mes anterior completo de actividad.",
-      });
-    } else {
-      const pts = 5 * lin(i.ticketPct, -5, 5);
-      indicators.push({
-        key: "ticket", label: "Ticket promedio", max: 5, pts: r1(pts), state: "calculado", valueText: `${signed(i.ticketPct)} vs período equivalente`,
-        why: `El ticket promedio varió ${signed(i.ticketPct)} contra el mismo período del mes anterior. Con +5% o más se logran los 5 puntos.`,
-        tip: i.ticketPct >= 5 ? "Tu ticket sube: bien." : "Ofrecé combos (corte + barba) y productos al cobrar.",
+        key: "ocupacion", label: "Ocupación real de agenda", max: nominal, evaluable: nominal, pts, state: "calculado",
+        valueText: `Ocupación ${pctTxt(Math.min(100, pct))}`,
+        why: `Ocupás el ${pctTxt1(Math.min(100, pct))} del tiempo disponible y suma ${pts} de ${nominal} puntos.`,
+        period: i.periodoLabel,
+        datos: [
+          `Minutos realizados: ${i.minutosRealizados.toLocaleString("es-AR")} (${mins(i.minutosRealizados)})`,
+          `Minutos disponibles: ${Math.round(i.minutosDisponibles).toLocaleString("es-AR")} (${mins(i.minutosDisponibles)}), sin descansos, cierres ni horarios en que el profesional no trabajaba`,
+          `Ocupación: ${pctTxt1(Math.min(100, pct))}`,
+          `Cancelaciones: ${i.turnosCancelados}`,
+          `No asistió: ${i.turnosNoAsistio}`,
+        ],
+        siguiente: pct < 20 ? "Con 20% de ocupación empezás a sumar puntos." : pct < 50 ? "Con 50% de ocupación sumás 15 puntos." : pct < 75 ? "Con 75% de ocupación o más sumás los 25 puntos." : null,
       });
     }
   }
 
   const medibles = indicators.filter((x) => x.pts != null);
-  const available = medibles.reduce((s, x) => s + x.max, 0);
-  const earned = r1(medibles.reduce((s, x) => s + (x.pts as number), 0));
-  const total = available >= HEALTH_MIN_AVAILABLE ? Math.round((earned / available) * 100) : null;
+  const available = indicators.reduce((s, x) => s + x.evaluable, 0);
+  const earned = medibles.reduce((s, x) => s + (x.pts as number), 0);
+  const partial = available < 100;
+  const hayDatos = i.hayActividad && available >= HEALTH_MIN_AVAILABLE;
+  const perdida = i.periodoCerrado && i.ganancia != null && i.ganancia < 0;
   return {
-    total,
-    earned,
+    total: hayDatos ? earned : null,
+    scaled: hayDatos ? Math.round((earned / available) * 100) : null,
     available,
     indicators,
-    provisional: indicators.some((x) => x.state === "provisional"),
-    partial: indicators.some((x) => x.state === "insuficiente"),
+    partial: hayDatos && partial,
+    requiereAtencion: hayDatos && perdida,
   };
 }
 
 // ─────────────────────────── Retención ───────────────────────────
-// Clientes vistos hace 45 a 75 días (a contar desde `cutKey`, inclusive) y cuántos volvieron en los últimos 45.
-export type VisitDay = { clientKey: string; dayKey: string };
-
 const toDay = (key: string) => Date.UTC(Number(key.slice(0, 4)), Number(key.slice(5, 7)) - 1, Number(key.slice(8, 10))) / 86_400_000;
+const dayKeyOf = (iso: string) =>
+  new Date(iso).toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" });
+const fmtDM = (dayKey: string) => `${dayKey.slice(8, 10)}/${dayKey.slice(5, 7)}`;
+const addDays = (key: string, n: number) => new Date((toDay(key) + n) * 86_400_000).toISOString().slice(0, 10);
 
-export function computeRetention(visits: VisitDay[], cutKey: string): { grupo: number; volvieron: number } {
-  const cut = toDay(cutKey);
-  const grupo = new Set<string>();
-  const volvieron = new Set<string>();
-  for (const v of visits) {
-    const d = toDay(v.dayKey);
-    if (d > cut - 75 && d <= cut - 45) grupo.add(v.clientKey);
+export const NEW_CLIENT_WINDOW_DAYS = 45;
+/** Ancho del grupo de primeras visitas que se mide (cada una con sus 45 días completos). */
+export const NEW_CLIENT_COHORT_DAYS = 90;
+
+export type RetentionClient = {
+  firstVisitAt?: string | null;
+  secondVisitAt?: string | null;
+  visits: number;
+  grupo?: string | null;
+};
+
+// Nuevos: primeras visitas que ya tuvieron 45 días completos para volver (hasta `cutKey`) y que caen en los 90 días
+// anteriores a ese límite. Volvió = tuvo otro servicio, en otro día, dentro de los 45 días de la primera visita.
+export function computeNewClientRetention(clients: RetentionClient[], cutKey: string) {
+  const hasta = addDays(cutKey, -NEW_CLIENT_WINDOW_DAYS);
+  const desde = addDays(hasta, -(NEW_CLIENT_COHORT_DAYS - 1));
+  let elegibles = 0;
+  let volvieron = 0;
+  for (const c of clients) {
+    if (!c.firstVisitAt) continue;
+    const f = dayKeyOf(c.firstVisitAt);
+    if (f < desde || f > hasta) continue;
+    elegibles += 1;
+    if (c.secondVisitAt) {
+      const gap = toDay(dayKeyOf(c.secondVisitAt)) - toDay(f);
+      if (gap >= 1 && gap <= NEW_CLIENT_WINDOW_DAYS) volvieron += 1;
+    }
   }
-  for (const v of visits) {
-    const d = toDay(v.dayKey);
-    if (d > cut - 45 && d <= cut && grupo.has(v.clientKey)) volvieron.add(v.clientKey);
+  return { elegibles, volvieron, desde: fmtDM(desde), hasta: fmtDM(hasta) };
+}
+
+// Habituales: 3 visitas o más. "Al día" = no figuran como Perdidos en Clientes (que pasan a Perdidos cuando superan 1,5
+// veces su ritmo habitual entre visitas, con un mínimo de 30 y un máximo de 120 días).
+export function computeHabitualRetention(clients: RetentionClient[]) {
+  let habituales = 0;
+  let alDia = 0;
+  for (const c of clients) {
+    if (c.visits < 3) continue;
+    habituales += 1;
+    if (c.grupo && c.grupo !== "perdido") alDia += 1;
   }
-  return { grupo: grupo.size, volvieron: volvieron.size };
+  return { habituales, alDia };
 }
