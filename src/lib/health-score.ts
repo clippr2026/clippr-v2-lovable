@@ -31,6 +31,8 @@ export type HealthIndicator = {
   period: string;
   /** Datos que se usaron, uno por línea. */
   datos: string[];
+  /** Escala completa: con qué resultado se obtiene cada puntaje (0, intermedio y máximo). */
+  escala: string;
   /** Próximo umbral para sumar puntos (null si ya está en el máximo). */
   siguiente: string | null;
 };
@@ -66,6 +68,10 @@ const mins = (n: number) => {
 };
 
 // ─────────────────────────── Escalas ───────────────────────────
+const ESCALA_RENTABILIDAD = "0 puntos con 0% de margen o menos · 25 puntos con 20% · 45 puntos con 35% o más.";
+const ESCALA_RETENCION =
+  "Nuevos: 0 puntos con 20% o menos · 10 con 45% · 20 con 70% o más. Habituales: 0 puntos con 40% o menos · 5 con 62,5% · 10 con 85% o más.";
+const ESCALA_OCUPACION = "0 puntos con 20% de ocupación o menos · 15 puntos con 50% · 25 puntos con 75% o más.";
 export const pointsRentabilidad = (margen: number) =>
   margen <= 0 ? 0 : margen <= 20 ? 25 * (margen / 20) : 25 + 20 * lin(margen, 20, 35);
 export const pointsNuevos = (rate: number) => 20 * lin(rate, 20, 70);
@@ -114,6 +120,7 @@ export function computeHealthScore(i: HealthInput): HealthScore {
         valueText: "Sin ventas para medir",
         why: "Todavía no hay ventas suficientes para calcular la ganancia y el margen.",
         period: i.periodoLabel,
+        escala: ESCALA_RENTABILIDAD,
         datos: [],
         siguiente: null,
       });
@@ -125,9 +132,10 @@ export function computeHealthScore(i: HealthInput): HealthScore {
         valueText: `Ganancia ${money(i.ganancia)} · margen ${pctTxt(margen)}`,
         why: `El margen es ${pctTxt1(margen)} y suma ${pts} de ${nominal} puntos.`,
         period: i.periodoLabel,
+        escala: ESCALA_RENTABILIDAD,
         datos: [
           `Facturación: ${money(i.facturacion)}`,
-          `Ganancia operativa: ${money(i.ganancia)} (ya descontados gastos y pago a profesionales, sin repetir comisiones)`,
+          `Ganancia operativa: ${money(i.ganancia)}`,
           `Margen: ${pctTxt1(margen)}`,
         ],
         siguiente: margen < 20 ? "Con 20% de margen sumás 25 puntos." : margen < 35 ? "Con 35% de margen o más sumás los 45 puntos." : null,
@@ -175,6 +183,7 @@ export function computeHealthScore(i: HealthInput): HealthScore {
           ? "Todavía no hay suficientes clientes para medir la retención."
           : `Suma ${pts} de ${evaluable} puntos evaluados${evaluable < nominal ? ` (se pudieron evaluar ${evaluable} de ${nominal})` : ""}.`,
       period: `Nuevos: primeras visitas del ${i.nuevosDesde} al ${i.nuevosHasta} · Habituales: hoy`,
+      escala: ESCALA_RETENCION,
       datos,
       siguiente: siguientes.length > 0 ? siguientes.join(". ") + "." : null,
     });
@@ -189,6 +198,7 @@ export function computeHealthScore(i: HealthInput): HealthScore {
         valueText: "Sin horarios cargados",
         why: "No hay horarios de atención suficientes para medir la ocupación.",
         period: i.periodoLabel,
+        escala: ESCALA_OCUPACION,
         datos: [],
         siguiente: null,
       });
@@ -200,6 +210,7 @@ export function computeHealthScore(i: HealthInput): HealthScore {
         valueText: `Ocupación ${pctTxt(Math.min(100, pct))}`,
         why: `Ocupás el ${pctTxt1(Math.min(100, pct))} del tiempo disponible y suma ${pts} de ${nominal} puntos.`,
         period: i.periodoLabel,
+        escala: ESCALA_OCUPACION,
         datos: [
           `Minutos realizados: ${i.minutosRealizados.toLocaleString("es-AR")} (${mins(i.minutosRealizados)})`,
           `Minutos disponibles: ${Math.round(i.minutosDisponibles).toLocaleString("es-AR")} (${mins(i.minutosDisponibles)}), sin descansos, cierres ni horarios en que el profesional no trabajaba`,

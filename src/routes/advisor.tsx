@@ -1023,12 +1023,6 @@ function IndicadorSalud({ ind }: { ind: HealthIndicator }) {
       </button>
       {open && (
         <div className="space-y-2 border-t border-white/[0.07] px-3 py-3 text-xs leading-relaxed text-white/70">
-          <p>
-            <b className="text-white">Resultado:</b> {ind.why}
-          </p>
-          <p>
-            <b className="text-white">Período:</b> {ind.period}
-          </p>
           {ind.datos.length > 0 && (
             <div>
               <b className="text-white">Datos que se usaron:</b>
@@ -1042,6 +1036,9 @@ function IndicadorSalud({ ind }: { ind: HealthIndicator }) {
           <p>
             <b className="text-white">Puntos obtenidos:</b>{" "}
             {ind.pts != null ? `${ind.pts} de ${ind.max}${ind.evaluable < ind.max ? ` (se pudieron evaluar ${ind.evaluable})` : ""}` : "todavía no se puede evaluar"}
+          </p>
+          <p>
+            <b className="text-white">Escala:</b> {ind.escala}
           </p>
           {ind.siguiente && (
             <p>
