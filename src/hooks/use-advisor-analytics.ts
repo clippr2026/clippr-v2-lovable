@@ -724,13 +724,18 @@ export function useAdvisorAnalytics(
     const turnosPorHora = new Map<number, number>();
     const gastoPorCliente = new Map<string, { name: string; total: number; visitas: number }>();
     const ingresoPorProfesional = new Map<string, number>();
+    const idsClientes = new Set(clients.map((c) => c.id));
     for (const p of payments) {
       if (monthKeyOf(p.created_at) !== analysisKey) continue;
       const monto = Number(p.total ?? p.amount ?? 0);
       const nombre = (p.client_name ?? "").trim();
       const claveCliente = p.client_id ?? nombre.toLowerCase();
       // Ventas por orden de llegada (sin ficha ni nombre real, "sin turno"): no son un cliente.
-      const anonimo = !p.client_id && (nombre === "" || nombre.toLowerCase() === "sin turno");
+      // La ficha genérica ("Sin agendar") no está entre los clientes: sus ventas tampoco cuentan como un cliente.
+      const anonimo =
+        nombre === "" ||
+        nombre.toLowerCase() === "sin turno" ||
+        (!!p.client_id && !idsClientes.has(p.client_id));
       if (claveCliente && !anonimo) {
         const e = gastoPorCliente.get(claveCliente) ?? { name: nombre || "Cliente", total: 0, visitas: 0 };
         e.total += monto;
