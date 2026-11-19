@@ -173,7 +173,13 @@ export type CapacityInput = {
 
 // openDatesByDow: cuántas fechas del período se trabajó, por día de la semana (0 = domingo). Un día de la
 // semana sin fechas es un día que el local está cerrado.
-export type CapacityResult = { totalSlots: number; workedDays: number; openDatesByDow: Record<number, number> };
+export type CapacityResult = {
+  totalSlots: number;
+  workedDays: number;
+  openDatesByDow: Record<number, number>;
+  // Horas del día (0-23) en que algún profesional atiende, según los horarios (sin contar descansos).
+  openHours: number[];
+};
 
 // Capacidad total: para cada profesional y cada día 1..cutoffDay, turnos = minutos de
 // atención ÷ minutos por turno (hacia abajo).
@@ -183,6 +189,7 @@ export function computeCapacity({ ctx, employeeIds, monthKey, cutoffDay, fromDay
   const until = Math.min(Math.max(cutoffDay, 0), lastDay);
   let totalSlots = 0;
   const workedDates = new Set<number>();
+  const openHours = new Set<number>();
   for (const empId of employeeIds) {
     const slot = Math.max(10, slotMinutesByEmployee[empId] ?? DEFAULT_SLOT_MINUTES);
     for (let d = Math.max(1, fromDay ?? 1); d <= until; d += 1) {
@@ -194,6 +201,11 @@ export function computeCapacity({ ctx, employeeIds, monthKey, cutoffDay, fromDay
       const minutes = dayWorkMinutes(day, dayBlocks);
       if (minutes <= 0) continue;
       workedDates.add(d);
+      const desde = day ? parseTimeStrict(day.start) : null;
+      const hasta = day ? parseTimeStrict(day.end) : null;
+      if (desde != null && hasta != null) {
+        for (let h = Math.floor(desde / 60); h * 60 < hasta && h < 24; h += 1) openHours.add(h);
+      }
       totalSlots += Math.floor(minutes / slot);
     }
   }
@@ -202,5 +214,5 @@ export function computeCapacity({ ctx, employeeIds, monthKey, cutoffDay, fromDay
     const dow = new Date(y, m - 1, d, 12, 0, 0).getDay();
     openDatesByDow[dow] = (openDatesByDow[dow] ?? 0) + 1;
   }
-  return { totalSlots, workedDays: workedDates.size, openDatesByDow };
+  return { totalSlots, workedDays: workedDates.size, openDatesByDow, openHours: [...openHours].sort((a, b) => a - b) };
 }

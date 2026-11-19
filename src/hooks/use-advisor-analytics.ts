@@ -65,6 +65,8 @@ export type AdvisorMonthSnapshot = {
   employeeLoad: Array<{ id: string; name: string; used: number; capacity: number }>;
   // Fechas trabajadas del período por día de la semana (0 = domingo): los días cerrados no figuran.
   openDatesByDow: Record<number, number>;
+  // Horas del día en que el local atiende.
+  openHours: number[];
   hasData: boolean;
 };
 
@@ -369,7 +371,7 @@ function buildMonthSnapshot(
   }
   // En el mes de arranque la agenda cuenta desde el día en que el negocio empezó.
   const fromDay = perf?.startDate && perf.startDate.slice(0, 7) === monthKey ? Number(perf.startDate.slice(8, 10)) : 1;
-  const { totalSlots, openDatesByDow } = computeCapacity({
+  const { totalSlots, openDatesByDow, openHours } = computeCapacity({
     ctx: capacityData.ctx,
     employeeIds: activeEmployees.map((e) => e.id),
     monthKey,
@@ -416,6 +418,7 @@ function buildMonthSnapshot(
     usedSlots: used,
     employeeLoad,
     openDatesByDow,
+    openHours,
     hasData: monthPayments.length > 0 || monthAppts.length > 0,
   };
 }
@@ -717,8 +720,7 @@ export function useAdvisorAnalytics(
     const diaTranquilo = diasPromedio.length >= 2 ? diasPromedio.reduce((m, v) => (v.avg < m.avg ? v : m)) : null;
     const diaRentable = diasPromedio.length >= 2 ? diasPromedio.reduce((m, v) => (v.avg > m.avg ? v : m)) : null;
 
-    // Horario más y menos pedido: cobros por hora del día en el mes analizado. El menos pedido se busca solo entre la
-    // primera y la última hora con ventas, así una hora en que el local está cerrado no cuenta.
+    // Horario más y menos pedido: cobros por hora del día en el mes analizado.
     const cobrosPorHora = new Map<number, number>();
     const gastoPorCliente = new Map<string, { name: string; total: number; visitas: number }>();
     const ingresoPorProfesional = new Map<string, number>();
@@ -739,13 +741,13 @@ export function useAdvisorAnalytics(
       }
       if (p.employee_id) ingresoPorProfesional.set(p.employee_id, (ingresoPorProfesional.get(p.employee_id) ?? 0) + monto);
     }
-    const horasConVentas = [...cobrosPorHora.keys()];
-    const horaDesde = horasConVentas.length > 0 ? Math.min(...horasConVentas) : 0;
-    const horaHasta = horasConVentas.length > 0 ? Math.max(...horasConVentas) : 0;
+    // Solo cuentan las horas en que el local atiende (según los horarios): un cobro cargado fuera de horario no
+    // define ningún horario "pedido".
+    const horasAbiertas = current?.openHours ?? [];
     let horaTop: { hora: number; n: number } | null = null;
     let horaBottom: { hora: number; n: number } | null = null;
-    if (horaHasta > horaDesde) {
-      for (let h = horaDesde; h <= horaHasta; h += 1) {
+    if (horasAbiertas.length >= 2) {
+      for (const h of horasAbiertas) {
         const n = cobrosPorHora.get(h) ?? 0;
         if (!horaTop || n > horaTop.n) horaTop = { hora: h, n };
         if (!horaBottom || n < horaBottom.n) horaBottom = { hora: h, n };
