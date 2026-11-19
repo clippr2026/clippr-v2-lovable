@@ -531,7 +531,7 @@ function AdvisorIntro({
           <div className="mb-1.5 flex justify-center text-sm font-semibold text-white">{pct}%</div>
           <div className="h-2.5 overflow-hidden rounded-full bg-white/10 ring-1 ring-white/10">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-sky-400 via-violet-500 to-fuchsia-500 shadow-[0_0_24px_rgba(139,92,246,.65)] transition-all duration-700"
+              className="h-full rounded-full bg-gradient-to-r from-sky-400 via-violet-500 to-fuchsia-500 shadow-[0_0_24px_rgba(139,92,246,.65)]"
               style={{ width: `${pct}%` }}
             />
           </div>
