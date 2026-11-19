@@ -192,6 +192,8 @@ function AdvisorRoute() {
   const [advisorTab, setAdvisorTab] = React.useState<"acciones" | "analisis" | "simuladores">(
     "analisis",
   );
+  // La presentación aparece cada vez que se entra al Asesor IA; mientras dura, no se muestran las pestañas.
+  const [introDone, setIntroDone] = React.useState(false);
   React.useEffect(() => {
     if (!loading && !session) navigate({ to: "/login", replace: true });
   }, [loading, session, navigate]);
@@ -212,7 +214,7 @@ function AdvisorRoute() {
         <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <Topbar title="Asesor IA" subtitle="Análisis diario y crecimiento del negocio" />
-          {true && (
+          {introDone && (
             <div className="relative flex w-full items-center justify-end sm:w-auto">
               <div className="pointer-events-none absolute -inset-3 rounded-[30px] bg-gradient-to-r from-cyan-500/15 via-violet-500/12 to-emerald-500/12 blur-2xl" />
               {/* Mobile: grid de 3 columnas iguales — así "Simuladores" (el
@@ -295,6 +297,8 @@ function AdvisorRoute() {
         <AdvisorContent
           advisorTab={advisorTab}
           setAdvisorTab={setAdvisorTab}
+          introDone={introDone}
+          setIntroDone={setIntroDone}
         />
       </div>
     </AppShell>
@@ -304,20 +308,27 @@ function AdvisorRoute() {
 function AdvisorContent({
   advisorTab,
   setAdvisorTab: _setAdvisorTab,
+  introDone,
+  setIntroDone,
 }: {
   advisorTab: "acciones" | "analisis" | "simuladores";
   setAdvisorTab: (t: "acciones" | "analisis" | "simuladores") => void;
+  introDone: boolean;
+  setIntroDone: (v: boolean) => void;
 }) {
   const { businessId } = useAuth();
   const animationProgress = useResultAnimation(true);
-  const [introDone, setIntroDone] = React.useState(false);
-  const finishIntro = React.useCallback(() => setIntroDone(true), []);
+  const finishIntro = React.useCallback(() => setIntroDone(true), [setIntroDone]);
   const [infoModal, setInfoModal] = React.useState<InfoModalContent | null>(null);
   // Mes elegido en Evolución del negocio: manda sobre las tres tarjetas grandes (Evolución,
   // Salud del negocio y Radiografía del local) — al cambiarlo cambian todos sus datos.
   const currentMonthKey = cajaDateKeyBA().slice(0, 7);
   const [selectedMonthKey, setSelectedMonthKey] = React.useState(currentMonthKey);
   const analytics = useAdvisorAnalytics(businessId, selectedMonthKey);
+  // Si falla la carga, se salta la presentación y se muestran las pestañas con el aviso de error.
+  React.useEffect(() => {
+    if (analytics.entry.error) setIntroDone(true);
+  }, [analytics.entry.error, setIntroDone]);
   const healthTone = analytics.health != null ? getHealthTone(analytics.health) : getHealthTone(0);
   const healthHeadline =
     analytics.health == null
@@ -442,7 +453,7 @@ function useResultAnimation(enabled = false) {
   return progress;
 }
 
-// Presentación al entrar al Asesor IA (se puede saltear): un avance por porcentaje en estilo Clippr. Cada paso se
+// Presentación al entrar al Asesor IA: un avance por porcentaje en estilo Clippr. Cada paso se
 // tilda cuando llegan sus datos reales (con un mínimo de tiempo para que se vea), y la pantalla no se cierra hasta que
 // terminó la carga.
 function AdvisorIntro({
@@ -459,20 +470,21 @@ function AdvisorIntro({
     { label: "Armando tu panel", icon: Brain, ok: loaded.ventas && loaded.clientes && loaded.turnos },
   ];
 
-  // Tiempo mínimo por paso: aunque los datos lleguen enseguida, cada uno se ve tildarse.
-  const [transcurrido, setTranscurrido] = React.useState(0);
+  // Porcentaje gradual (de a 1%): avanza solo hasta donde lo permiten los datos ya cargados — cada paso sin sus
+  // datos frena la barra un poco antes del siguiente tramo — y llega a 100% cuando terminó la carga real.
+  const [pct, setPct] = React.useState(0);
+  let permitidos = 0;
+  while (permitidos < pasos.length && pasos[permitidos].ok) permitidos += 1;
+  const tope = permitidos >= pasos.length ? 100 : Math.min(99, permitidos * 25 + 22);
   React.useEffect(() => {
-    const inicio = performance.now();
-    const id = window.setInterval(() => setTranscurrido(performance.now() - inicio), 120);
-    return () => window.clearInterval(id);
-  }, []);
+    if (pct >= tope) return;
+    const id = window.setTimeout(() => setPct((p) => Math.min(p + 1, tope)), 26);
+    return () => window.clearTimeout(id);
+  }, [pct, tope]);
 
-  const listos = pasos.map((p, i) => p.ok && transcurrido >= (i + 1) * 650);
-  let hechos = 0;
-  while (hechos < pasos.length && listos[hechos]) hechos += 1;
+  const hechos = pasos.filter((p, i) => p.ok && pct >= (i + 1) * 25).length;
   const total = pasos.length;
-  const pct = Math.round((hechos / total) * 100);
-  const terminado = hechos >= total;
+  const terminado = pct >= 100;
 
   React.useEffect(() => {
     if (!terminado) return;
@@ -557,15 +569,6 @@ function AdvisorIntro({
           })}
         </div>
 
-        <div className="mt-4 flex justify-center">
-          <button
-            type="button"
-            onClick={onDone}
-            className="h-10 rounded-full border border-white/12 bg-white/[0.04] px-5 text-xs font-semibold text-white/60 hover:text-white"
-          >
-            Saltar
-          </button>
-        </div>
       </div>
     </div>
   );
