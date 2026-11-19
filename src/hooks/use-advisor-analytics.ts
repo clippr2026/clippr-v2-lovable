@@ -720,16 +720,12 @@ export function useAdvisorAnalytics(
     const diaTranquilo = diasPromedio.length >= 2 ? diasPromedio.reduce((m, v) => (v.avg < m.avg ? v : m)) : null;
     const diaRentable = diasPromedio.length >= 2 ? diasPromedio.reduce((m, v) => (v.avg > m.avg ? v : m)) : null;
 
-    // Horario más y menos pedido: cobros por hora del día en el mes analizado.
-    const cobrosPorHora = new Map<number, number>();
+    // Horario más y menos pedido: turnos atendidos por hora de inicio en el mes analizado.
+    const turnosPorHora = new Map<number, number>();
     const gastoPorCliente = new Map<string, { name: string; total: number; visitas: number }>();
     const ingresoPorProfesional = new Map<string, number>();
     for (const p of payments) {
       if (monthKeyOf(p.created_at) !== analysisKey) continue;
-      const hora = Number(
-        new Date(p.created_at).toLocaleString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }).slice(11, 13),
-      );
-      cobrosPorHora.set(hora, (cobrosPorHora.get(hora) ?? 0) + 1);
       const monto = Number(p.total ?? p.amount ?? 0);
       const nombre = (p.client_name ?? "").trim();
       const claveCliente = p.client_id ?? nombre.toLowerCase();
@@ -741,6 +737,15 @@ export function useAdvisorAnalytics(
       }
       if (p.employee_id) ingresoPorProfesional.set(p.employee_id, (ingresoPorProfesional.get(p.employee_id) ?? 0) + monto);
     }
+    // Por hora de INICIO de los turnos atendidos del mes (no por la hora del cobro): un turno de las 11 que termina a las
+    // 12:15 cuenta a las 11.
+    for (const a of data.appts) {
+      if (!DONE_STATUSES.includes(a.status) || monthKeyOf(a.starts_at) !== analysisKey) continue;
+      const hora = Number(
+        new Date(a.starts_at).toLocaleString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }).slice(11, 13),
+      );
+      turnosPorHora.set(hora, (turnosPorHora.get(hora) ?? 0) + 1);
+    }
     // Solo cuentan las horas en que el local atiende (según los horarios): un cobro cargado fuera de horario no
     // define ningún horario "pedido".
     const horasAbiertas = current?.openHours ?? [];
@@ -748,7 +753,7 @@ export function useAdvisorAnalytics(
     let horaBottom: { hora: number; n: number } | null = null;
     if (horasAbiertas.length >= 2) {
       for (const h of horasAbiertas) {
-        const n = cobrosPorHora.get(h) ?? 0;
+        const n = turnosPorHora.get(h) ?? 0;
         if (!horaTop || n > horaTop.n) horaTop = { hora: h, n };
         if (!horaBottom || n < horaBottom.n) horaBottom = { hora: h, n };
       }
@@ -823,14 +828,14 @@ export function useAdvisorAnalytics(
         key: "hora-top",
         label: "Horario más pedido",
         value: horaTop ? franja(horaTop.hora) : "—",
-        detail: horaTop ? `${horaTop.n} cobros en el mes` : undefined,
+        detail: horaTop ? `${horaTop.n} turnos en el mes` : undefined,
         tone: horaTop ? "good" : "neutral",
       },
       {
         key: "hora-bottom",
         label: "Horario menos pedido",
         value: horaBottom ? franja(horaBottom.hora) : "—",
-        detail: horaBottom ? `${horaBottom.n} cobros en el mes` : undefined,
+        detail: horaBottom ? `${horaBottom.n} turnos en el mes` : undefined,
         tone: horaBottom ? "warn" : "neutral",
       },
       {
