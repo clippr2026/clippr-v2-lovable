@@ -715,6 +715,7 @@ export function useAdvisorAnalytics(
       .filter(([, fechas]) => fechas > 0)
       .map(([dow, fechas]) => ({ dow: Number(dow), avg: (ingresoPorDow.get(Number(dow)) ?? 0) / fechas }));
     const diaTranquilo = diasPromedio.length >= 2 ? diasPromedio.reduce((m, v) => (v.avg < m.avg ? v : m)) : null;
+    const diaRentable = diasPromedio.length >= 2 ? diasPromedio.reduce((m, v) => (v.avg > m.avg ? v : m)) : null;
 
     const radiografia: RadiografiaItem[] = [
       {
@@ -763,6 +764,13 @@ export function useAdvisorAnalytics(
         value: productSharePct != null ? fmtMoney(productRevenue) : "—",
         detail: productSharePct != null ? `${String(productSharePct).replace(".", ",")}% de la facturación` : undefined,
         tone: productSharePct == null ? "neutral" : productSharePct >= PRODUCT_TARGET_PCT ? "good" : "warn",
+      },
+      {
+        key: "dia-rentable",
+        label: "Día más rentable",
+        value: diaRentable ? DIAS_SEMANA[diaRentable.dow] : "—",
+        detail: diaRentable ? `${fmtMoney(diaRentable.avg)} por día` : undefined,
+        tone: diaRentable ? "good" : "neutral",
       },
       {
         key: "dia-tranquilo",

@@ -140,6 +140,7 @@ const RADIOGRAFIA_ICONS: Record<string, React.ComponentType<{ className?: string
   "turnos-vacios": CalendarDays,
   "prof-top": TrendingUp,
   "prof-bottom": TrendingDown,
+  "dia-rentable": CalendarDays,
   "dia-tranquilo": CalendarDays,
   "servicio-top": Scissors,
   "servicio-rentable": Gem,
