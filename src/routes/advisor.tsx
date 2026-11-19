@@ -17,7 +17,6 @@ import { cajaDateKeyBA } from "@/lib/caja-cierre";
 import { shiftMonth } from "@/lib/monthly-performance";
 import { MesSelector, RendimientoMensual } from "@/components/advisor/rendimiento-mensual";
 import { ClientesPerdidosCard } from "@/components/advisor/clientes-perdidos-card";
-import { useAiRecommendations, type RecommendationAchievement, type UseAiRecommendationsResult } from "@/hooks/use-ai-recommendations";
 import { MEASURABLE_CHANNELS } from "@/lib/acquisition-channels";
 import { AcquisitionChannelIcon } from "@/components/acquisition-channel-icon";
 import { DateRangePicker, type DateRange } from "@/components/date-range-picker";
@@ -193,13 +192,6 @@ function AdvisorRoute() {
   const [advisorTab, setAdvisorTab] = React.useState<"acciones" | "analisis" | "simuladores">(
     "analisis",
   );
-  const [analysisStarted, setAnalysisStarted] = React.useState(() => {
-    if (typeof window === "undefined") return false;
-    const today = new Date().toISOString().slice(0, 10);
-    return localStorage.getItem("clippr_advisor_last_daily_analysis") === today;
-  });
-  const [isAnalyzing, setIsAnalyzing] = React.useState(false);
-
   React.useEffect(() => {
     if (!loading && !session) navigate({ to: "/login", replace: true });
   }, [loading, session, navigate]);
@@ -220,7 +212,7 @@ function AdvisorRoute() {
         <div className="pointer-events-none absolute left-1/2 top-[-120px] z-[-1] h-[620px] w-screen -translate-x-1/2 bg-[radial-gradient(circle_at_17%_4%,rgb(139_92_246_/_0.34),transparent_38%),radial-gradient(circle_at_76%_0%,rgb(79_125_255_/_0.30),transparent_36%),radial-gradient(circle_at_46%_96%,rgb(255_123_229_/_0.14),transparent_50%)] blur-[16px]" />
         <div className="flex items-center justify-between gap-4 flex-wrap">
           <Topbar title="Asesor IA" subtitle="Análisis diario y crecimiento del negocio" />
-          {analysisStarted && !isAnalyzing && (
+          {true && (
             <div className="relative flex w-full items-center justify-end sm:w-auto">
               <div className="pointer-events-none absolute -inset-3 rounded-[30px] bg-gradient-to-r from-cyan-500/15 via-violet-500/12 to-emerald-500/12 blur-2xl" />
               {/* Mobile: grid de 3 columnas iguales — así "Simuladores" (el
@@ -303,10 +295,6 @@ function AdvisorRoute() {
         <AdvisorContent
           advisorTab={advisorTab}
           setAdvisorTab={setAdvisorTab}
-          analysisStarted={analysisStarted}
-          setAnalysisStarted={setAnalysisStarted}
-          isAnalyzing={isAnalyzing}
-          setIsAnalyzing={setIsAnalyzing}
         />
       </div>
     </AppShell>
@@ -316,63 +304,18 @@ function AdvisorRoute() {
 function AdvisorContent({
   advisorTab,
   setAdvisorTab: _setAdvisorTab,
-  analysisStarted,
-  setAnalysisStarted,
-  isAnalyzing,
-  setIsAnalyzing,
 }: {
   advisorTab: "acciones" | "analisis" | "simuladores";
   setAdvisorTab: (t: "acciones" | "analisis" | "simuladores") => void;
-  analysisStarted: boolean;
-  setAnalysisStarted: (v: boolean) => void;
-  isAnalyzing: boolean;
-  setIsAnalyzing: (v: boolean) => void;
 }) {
   const { businessId } = useAuth();
-  const [shouldAnimateResults, setShouldAnimateResults] = React.useState(false);
-  const animationProgress = useResultAnimation(shouldAnimateResults);
+  const animationProgress = useResultAnimation(true);
   const [infoModal, setInfoModal] = React.useState<InfoModalContent | null>(null);
-  const todayKey = getTodayKey();
-
-  const [analysisStep, setAnalysisStep] = React.useState(0);
-
-  React.useEffect(() => {
-    if (!isAnalyzing) return;
-
-    const steps = ["Ventas", "Clientes", "Agenda", "Generando recomendaciones"];
-
-    let index = 0;
-    setAnalysisStep(0);
-
-    const interval = window.setInterval(() => {
-      index += 1;
-      setAnalysisStep(index);
-
-      if (index >= steps.length) {
-        window.clearInterval(interval);
-        localStorage.setItem("clippr_advisor_last_daily_analysis", todayKey);
-        setTimeout(() => {
-          setShouldAnimateResults(true);
-          setIsAnalyzing(false);
-        }, 800);
-      }
-    }, 1400);
-
-    return () => window.clearInterval(interval);
-  }, [isAnalyzing, todayKey]);
-
   // Mes elegido en Evolución del negocio: manda sobre las tres tarjetas grandes (Evolución,
   // Salud del negocio y Radiografía del local) — al cambiarlo cambian todos sus datos.
   const currentMonthKey = cajaDateKeyBA().slice(0, 7);
   const [selectedMonthKey, setSelectedMonthKey] = React.useState(currentMonthKey);
   const analytics = useAdvisorAnalytics(businessId, selectedMonthKey);
-  // El Gerente IA mide la ocupación de cada profesional contra SU capacidad real (la del Análisis).
-  const employeeLoad = React.useMemo(
-    () => (analytics.current?.employeeLoad ?? []).map((e) => ({ id: e.id, name: e.name, used: e.used, capacity: e.capacity })),
-    [analytics.current?.employeeLoad],
-  );
-  const aiRecs = useAiRecommendations(businessId, employeeLoad);
-
   const healthTone = analytics.health != null ? getHealthTone(analytics.health) : getHealthTone(0);
   const healthHeadline =
     analytics.health == null
@@ -387,23 +330,10 @@ function AdvisorContent({
   const animatedHealth = Math.round((analytics.health ?? 0) * animationProgress);
   const animatedProfit = Math.round((analytics.current?.profit ?? 0) * animationProgress);
 
-  if (!analysisStarted) {
-    return (
-      <StartAnalysis
-        onStart={() => {
-          setAnalysisStarted(true);
-          setIsAnalyzing(true);
-        }}
-      />
-    );
-  }
-
-  if (isAnalyzing) {
-    return <AnalysisLoader step={analysisStep} />;
-  }
-
   return (
     <div className="space-y-5 sm:space-y-7 max-w-5xl mx-auto w-full">
+      {advisorTab !== "simuladores" && <AiBriefing analytics={analytics} />}
+
       {advisorTab === "simuladores" && (
         <SimuladoresTab
           servicios={analytics.current?.doneCount ?? 0}
@@ -417,7 +347,6 @@ function AdvisorContent({
 
       {advisorTab === "acciones" && (
         <GrowthManagerTab
-          data={aiRecs}
           analytics={analytics}
           businessId={businessId}
           selectedMonthKey={selectedMonthKey}
@@ -543,197 +472,107 @@ function useResultAnimation(enabled = false) {
   return progress;
 }
 
-function StartAnalysis({ onStart }: { onStart: () => void }) {
-  return (
-    // Mobile: la portada no debe scrollear — cabe entera en una pantalla.
-    // El alto se calcula restando el chrome real de arriba (Topbar, ~90px)
-    // y de abajo (nav inferior fijo de AppShell: 4rem + safe-area-inset) al
-    // svh; el -164px de antes (128px fijo) se quedaba corto y sobraba
-    // contenido. Todos los tamaños/espaciados de acá abajo se achican solo
-    // en mobile (clases base) y vuelven a los valores originales en sm+, que
-    // no tiene esta restricción y queda intacto.
-    <div className="relative -mt-2 flex h-[calc(100svh-164px-env(safe-area-inset-bottom))] min-h-[420px] flex-col items-center justify-center overflow-hidden px-4 py-4 sm:h-[calc(100svh-128px)] sm:min-h-[560px]">
-      <div className="pointer-events-none absolute -left-28 top-4 h-72 w-72 rounded-full bg-violet-500/18 blur-3xl" />
-      <div className="pointer-events-none absolute -right-28 top-8 h-72 w-72 rounded-full bg-sky-500/14 blur-3xl" />
-      <div className="pointer-events-none absolute left-1/2 top-20 h-80 w-80 -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
+// Presentación del Gerente IA al entrar: los pasos reflejan la carga REAL de datos (ventas, clientes, agenda) y
+// el resumen sale de los números reales del mes, escrito en vivo. Una vez por día; después aparece directo.
+function AiBriefing({ analytics }: { analytics: AdvisorAnalytics }) {
+  const todayKey = getTodayKey();
+  const alreadySeen = React.useMemo(() => {
+    try {
+      return localStorage.getItem("clippr_advisor_briefing_seen") === todayKey;
+    } catch {
+      return false;
+    }
+  }, [todayKey]);
+  const [typed, setTyped] = React.useState(0);
 
-      <div className="relative z-10 flex w-full max-w-4xl flex-col items-center">
-        <div className="relative mb-3 sm:mb-7">
-          <div className="absolute inset-0 scale-[1.75] rounded-full bg-gradient-to-br from-primary/28 via-violet-500/18 to-sky-500/18 blur-3xl" />
-          <div className="absolute inset-0 scale-[1.24] rounded-[2rem] border border-white/10 bg-white/[0.018] backdrop-blur-xl" />
-          <div className="relative grid h-20 w-20 place-items-center rounded-[2rem] border border-white/12 bg-gradient-to-br from-white/[0.12] via-white/[0.045] to-white/[0.02] shadow-[0_0_90px_-22px_oklch(0.65_0.28_290/0.9)] sm:h-36 sm:w-36">
-            <Brain className="h-10 w-10 text-primary drop-shadow-[0_0_24px_oklch(0.65_0.28_290/0.6)] sm:h-20 sm:w-20" />
-          </div>
-          <div
-            className="absolute inset-0 rounded-[2rem] ring-1 ring-primary/20 animate-ping"
-            style={{ animationDuration: "3s" }}
-          />
-        </div>
+  const c = analytics.current;
+  const radiografia = (key: string) => analytics.radiografia.find((i) => i.key === key);
+  const lines = React.useMemo(() => {
+    if (!c?.hasData) return [] as string[];
+    const out: string[] = [
+      `${analytics.analysisMonthLabel}: facturaste ${fmtAR(c.revenue)} con un ticket promedio de ${fmtAR(c.ticket)} y una ocupación del ${c.occupancy}%.`,
+    ];
+    const rentable = radiografia("dia-rentable");
+    const tranquilo = radiografia("dia-tranquilo");
+    if (rentable && rentable.value !== "—" && tranquilo && tranquilo.value !== "—") {
+      out.push(`Tu mejor día es el ${rentable.value} y el más tranquilo el ${tranquilo.value}.`);
+    }
+    const horario = radiografia("hora-top");
+    if (horario && horario.value !== "—") out.push(`El horario con más turnos es de ${horario.value}.`);
+    return out;
+  }, [c, analytics.analysisMonthLabel, analytics.radiografia]);
 
-        <div className="mb-3 inline-flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3.5 py-2 shadow-[0_18px_55px_-32px_rgba(0,0,0,0.9)] backdrop-blur-xl sm:mb-7 sm:gap-3 sm:px-5 sm:py-3">
-          <span className="h-2.5 w-2.5 rounded-full bg-emerald-400 shadow-[0_0_16px_rgba(52,211,153,0.75)] sm:h-3 sm:w-3" />
-          <span className="text-sm font-semibold text-foreground sm:text-base">Asesor IA listo</span>
-        </div>
+  const fullText = lines.join(" ");
+  const ready = !analytics.loading;
 
-        <div className="max-w-3xl text-center">
-          <h1 className="font-display text-2xl font-bold leading-[1.1] tracking-tight text-white sm:text-6xl sm:leading-[1.08]">
-            Descubrí cómo hacer
-            <br className="hidden sm:block" /> crecer tu negocio
-          </h1>
-          <p className="mx-auto mt-2 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:mt-6 sm:text-xl">
-            Analizamos tu barbería y te mostramos oportunidades concretas para crecer.
-          </p>
-        </div>
+  React.useEffect(() => {
+    if (!ready || !fullText) return;
+    if (alreadySeen) {
+      setTyped(fullText.length);
+      return;
+    }
+    setTyped(0);
+    const id = window.setInterval(() => {
+      setTyped((t) => {
+        if (t >= fullText.length) {
+          window.clearInterval(id);
+          try {
+            localStorage.setItem("clippr_advisor_briefing_seen", todayKey);
+          } catch {
+            /* sin almacenamiento: se muestra igual */
+          }
+          return t;
+        }
+        return t + 2;
+      });
+    }, 22);
+    return () => window.clearInterval(id);
+  }, [ready, fullText, alreadySeen, todayKey]);
 
-        <button
-          type="button"
-          onClick={onStart}
-          className="group relative mt-4 inline-flex h-12 w-full max-w-[360px] items-center justify-center gap-3 overflow-hidden rounded-2xl bg-gradient-to-r from-primary via-violet-500 to-accent px-6 text-base font-bold text-white shadow-[0_22px_60px_-18px_oklch(0.65_0.28_290/0.9)] transition duration-300 hover:-translate-y-0.5 hover:brightness-110 hover:shadow-[0_28px_75px_-18px_oklch(0.65_0.28_290/1)] sm:mt-10 sm:h-16 sm:min-w-[380px] sm:gap-4 sm:px-8 sm:text-lg"
-        >
-          <span className="absolute inset-0 -translate-x-full bg-gradient-to-r from-transparent via-white/20 to-transparent transition-transform duration-700 group-hover:translate-x-full" />
-          <Brain className="relative h-5 w-5 sm:h-6 sm:w-6" />
-          <span className="relative">Analizar mi negocio</span>
-          <ArrowRight className="relative h-5 w-5 transition-transform duration-300 group-hover:translate-x-1 sm:h-6 sm:w-6" />
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function AnalysisLoader({ step }: { step: number }) {
-  const steps = [
+  const pasos = [
     { label: "Ventas", icon: DollarSign },
     { label: "Clientes", icon: Users },
     { label: "Agenda", icon: CalendarDays },
-    { label: "Generando recomendaciones", icon: Brain },
   ];
 
-  const safeStep = Math.min(Math.max(0, step), steps.length);
-  const pct = Math.round((safeStep / steps.length) * 100);
-
   return (
-    // Mobile: igual que StartAnalysis, esta pantalla tampoco debe scrollear.
-    // Se achica todo (ícono, márgenes, tarjetas de paso, padding) en mobile
-    // vía clases base, y sm: restaura los valores originales sin cambios.
-    <div className="relative flex min-h-[50vh] flex-col items-center justify-center overflow-hidden px-4 py-3 sm:min-h-[68vh] sm:py-6">
-      <div className="pointer-events-none absolute -left-32 top-10 h-72 w-72 rounded-full bg-violet-500/16 blur-3xl" />
-      <div className="pointer-events-none absolute -right-32 top-16 h-72 w-72 rounded-full bg-sky-500/14 blur-3xl" />
-      <div className="pointer-events-none absolute left-1/2 top-24 h-80 w-80 -translate-x-1/2 rounded-full bg-primary/10 blur-3xl" />
-
-      <div className="relative z-10 w-full max-w-2xl rounded-[2rem] border border-white/10 bg-white/[0.035] p-3.5 shadow-[0_28px_90px_-40px_rgba(0,0,0,0.95)] backdrop-blur-xl sm:p-6">
-        {/* Header */}
-        <div className="flex flex-col items-center text-center mb-3 sm:mb-5">
-          <div className="relative mb-2 sm:mb-4">
-            <div className="absolute inset-0 scale-[1.65] rounded-full bg-gradient-to-br from-primary/25 to-accent/20 blur-3xl" />
-            <div className="relative grid h-14 w-14 place-items-center rounded-[1.75rem] border border-white/12 bg-gradient-to-br from-white/[0.12] to-white/[0.03] shadow-[0_0_70px_-20px_oklch(0.65_0.28_290/0.8)] sm:h-20 sm:w-20">
-              <Brain className="h-7 w-7 text-primary sm:h-10 sm:w-10" />
+    <div className="relative overflow-hidden rounded-[22px] border border-violet-300/25 bg-violet-400/[0.06] p-4 sm:p-5">
+      <div className="pointer-events-none absolute -left-10 -top-10 h-32 w-32 rounded-full bg-violet-500/20 blur-3xl" />
+      <div className="relative flex items-start gap-3">
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-400/12 ring-1 ring-violet-300/25">
+          <Brain className={cn("h-5 w-5 text-violet-200", !ready && "animate-pulse")} />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="text-[11px] font-black uppercase tracking-[0.16em] text-violet-200/70">Gerente IA</div>
+          {!ready ? (
+            <div className="mt-2 flex flex-wrap gap-2">
+              {pasos.map((paso, i) => {
+                const Icon = paso.icon;
+                return (
+                  <span
+                    key={paso.label}
+                    className="inline-flex animate-pulse items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-white/70"
+                    style={{ animationDelay: `${i * 180}ms` }}
+                  >
+                    <Icon className="h-3.5 w-3.5" />
+                    Leyendo {paso.label.toLowerCase()}…
+                  </span>
+                );
+              })}
             </div>
-            <svg
-              className="absolute inset-0 h-14 w-14 animate-spin sm:h-20 sm:w-20"
-              style={{ animationDuration: "3s" }}
-              viewBox="0 0 96 96"
-              fill="none"
-              width="80"
-              height="80"
-            >
-              <circle
-                cx="48"
-                cy="48"
-                r="46"
-                stroke="url(#spinGradPremium)"
-                strokeWidth="2"
-                strokeDasharray="72 220"
-                strokeLinecap="round"
-              />
-              <defs>
-                <linearGradient
-                  id="spinGradPremium"
-                  x1="0"
-                  y1="0"
-                  x2="96"
-                  y2="96"
-                  gradientUnits="userSpaceOnUse"
-                >
-                  <stop offset="0%" stopColor="oklch(0.65 0.28 290)" />
-                  <stop offset="55%" stopColor="oklch(0.72 0.2 245)" />
-                  <stop offset="100%" stopColor="transparent" />
-                </linearGradient>
-              </defs>
-            </svg>
-          </div>
-          <h2 className="font-display text-lg font-bold tracking-tight sm:text-2xl">Analizando tu negocio</h2>
-          <p className="mt-1 text-xs text-muted-foreground max-w-md sm:mt-2 sm:text-sm">
-            Preparando tu diagnóstico...
-          </p>
-        </div>
-
-        {/* Progress bar premium */}
-        <div className="mb-3 sm:mb-5">
-          <div className="flex justify-center text-xs text-muted-foreground mb-1.5 sm:mb-2">
-            <span className="font-semibold text-foreground">{pct}%</span>
-          </div>
-          <div className="h-2 rounded-full bg-white/10 overflow-hidden ring-1 ring-white/10 sm:h-2.5">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-primary via-violet-500 to-accent shadow-[0_0_24px_oklch(0.65_0.28_290/0.65)] transition-all duration-700"
-              style={{ width: `${pct}%` }}
-            />
-          </div>
-        </div>
-
-        {/* Steps */}
-        <div className="space-y-1.5 sm:space-y-2.5">
-          {steps.map((item, index) => {
-            const done = index < safeStep;
-            const current = index === safeStep;
-            const pending = index > safeStep;
-            const Icon = item.icon;
-            return (
-              <div
-                key={item.label}
-                className={cn(
-                  "flex items-center gap-2 rounded-2xl border px-3 py-2 transition-all duration-500 sm:gap-3 sm:px-4 sm:py-3",
-                  done &&
-                    "border-emerald-400/25 bg-emerald-400/[0.06] shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]",
-                  current &&
-                    "border-primary/35 bg-primary/[0.075] ring-1 ring-primary/20 shadow-[0_0_32px_-20px_oklch(0.65_0.28_290/0.9)]",
-                  pending && "border-white/8 bg-white/[0.02] opacity-50",
-                )}
-              >
-                <div className="shrink-0 w-6 h-6 flex items-center justify-center sm:w-7 sm:h-7">
-                  {done && <CheckCircle2 className="h-4 w-4 text-emerald-400 sm:h-5 sm:w-5" />}
-                  {current && <Loader2 className="h-4 w-4 animate-spin text-primary sm:h-5 sm:w-5" />}
-                  {pending && <div className="h-3.5 w-3.5 rounded-full border-2 border-white/15 sm:h-4 sm:w-4" />}
-                </div>
-                <span
-                  className={cn(
-                    "grid h-7 w-7 shrink-0 place-items-center rounded-xl ring-1 sm:h-8 sm:w-8",
-                    done && "bg-emerald-400/10 ring-emerald-400/20 text-emerald-300",
-                    current && "bg-primary/10 ring-primary/20 text-primary",
-                    pending && "bg-white/[0.04] ring-white/10 text-muted-foreground",
-                  )}
-                >
-                  <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-                </span>
-                <span
-                  className={cn(
-                    "text-xs font-medium flex-1 sm:text-sm",
-                    done && "text-emerald-300",
-                    current && "text-white",
-                    pending && "text-muted-foreground",
-                  )}
-                >
-                  {item.label}
-                  {current ? "..." : ""}
-                </span>
-              </div>
-            );
-          })}
+          ) : fullText ? (
+            <p className="mt-1.5 text-sm leading-relaxed text-white/85 sm:text-[15px]">
+              {fullText.slice(0, typed)}
+              {typed < fullText.length ? <span className="ml-0.5 inline-block h-4 w-[2px] translate-y-0.5 animate-pulse bg-violet-300" /> : null}
+            </p>
+          ) : (
+            <p className="mt-1.5 text-sm text-white/60">Todavía no hay actividad suficiente este mes para armar un resumen.</p>
+          )}
         </div>
       </div>
     </div>
   );
 }
-
 
 function getTodayKey() {
   const date = new Date();
@@ -783,20 +622,6 @@ function GlassCard({ className, children }: { className?: string; children: Reac
   );
 }
 
-function Badge({
-  icon: Icon,
-  children,
-}: {
-  icon: React.ComponentType<{ className?: string }>;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="inline-flex items-center gap-2 rounded-full bg-primary/10 px-3 py-1 text-xs font-medium text-primary ring-1 ring-primary/20">
-      <Icon className="h-3.5 w-3.5" />
-      {children}
-    </div>
-  );
-}
 
 
 function InfoModal({ content, onClose }: { content: InfoModalContent; onClose: () => void }) {
@@ -1098,118 +923,10 @@ function useServicesData(businessId: string | null | undefined) {
   return { servicios, loading };
 }
 
-const PRESETS = [500, 1000, 2000, 5000];
 
 
-function GrowthContactsBlock({ contacts }: { contacts: RecommendationContact[] }) {
-  const [open, setOpen] = React.useState(false);
-  if (contacts.length === 0) return null;
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center justify-between gap-2 text-left"
-      >
-        <span className="text-[11px] font-bold uppercase tracking-wider text-white/45">
-          Clientes afectados
-        </span>
-        <span className="flex items-center gap-2 text-xs font-semibold text-cyan-300">
-          <span className="grid h-6 min-w-[24px] place-items-center rounded-full bg-white/8 px-1.5 text-sm font-bold text-white/85 ring-1 ring-white/10">
-            {contacts.length}
-          </span>
-          <span className="inline-flex items-center gap-1">
-            {open ? "Ver menos" : "Ver todos"}
-            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} />
-          </span>
-        </span>
-      </button>
-      {open ? (
-        <div className="mt-3 space-y-1.5">
-          {contacts.map((c, i) => (
-            <div key={i} className="flex items-center justify-between gap-2 text-sm">
-              <span className="min-w-0 truncate font-medium text-white/90">{c.name}</span>
-              <span className="shrink-0 text-xs text-white/45">{c.detail}</span>
-              {c.phone ? (
-                <a
-                  href={whatsappHref(c.phone) ?? undefined}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="shrink-0 rounded-lg bg-emerald-500/15 px-2.5 py-1 text-xs font-semibold text-emerald-300 ring-1 ring-emerald-500/30 hover:bg-emerald-500/25"
-                >
-                  WhatsApp
-                </a>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </div>
-  );
-}
 
-function GrowthMessageBlock({ message }: { message: string }) {
-  const [copied, setCopied] = React.useState(false);
-  const [open, setOpen] = React.useState(false);
-  return (
-    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-      <div className="flex items-center justify-between gap-2">
-        <button
-          type="button"
-          onClick={() => setOpen((v) => !v)}
-          className="flex items-center gap-2 text-left"
-        >
-          <span className="text-sm">💬</span>
-          <span className="text-[11px] font-bold uppercase tracking-wider text-white/45">
-            Mensaje listo
-          </span>
-          <ChevronDown
-            className={cn("h-3.5 w-3.5 text-white/40 transition-transform", open && "rotate-180")}
-          />
-        </button>
-        <button
-          type="button"
-          onClick={() => {
-            try {
-              navigator.clipboard?.writeText(message);
-              setCopied(true);
-              setTimeout(() => setCopied(false), 1500);
-            } catch {
-              /* ignore */
-            }
-          }}
-          className="rounded-lg bg-white/8 px-2.5 py-1 text-xs font-semibold text-white/80 ring-1 ring-white/10 hover:bg-white/15"
-        >
-          {copied ? "¡Copiado!" : "Copiar"}
-        </button>
-      </div>
-      {open ? <p className="mt-2 text-sm leading-relaxed text-white/80">{message}</p> : null}
-    </div>
-  );
-}
 
-const GROWTH_TONES: Record<RecommendationTone, { ring: string; glow: string; chip: string }> = {
-  money: {
-    ring: "ring-amber-300/25",
-    glow: "from-amber-500/20 via-orange-500/10 to-transparent",
-    chip: "bg-amber-400/15 text-amber-200 ring-amber-300/30",
-  },
-  warning: {
-    ring: "ring-rose-300/25",
-    glow: "from-rose-500/20 via-red-500/10 to-transparent",
-    chip: "bg-rose-400/15 text-rose-200 ring-rose-300/30",
-  },
-  growth: {
-    ring: "ring-emerald-300/25",
-    glow: "from-emerald-500/20 via-teal-500/10 to-transparent",
-    chip: "bg-emerald-400/15 text-emerald-200 ring-emerald-300/30",
-  },
-  client: {
-    ring: "ring-cyan-300/25",
-    glow: "from-cyan-500/20 via-blue-500/10 to-transparent",
-    chip: "bg-cyan-400/15 text-cyan-200 ring-cyan-300/30",
-  },
-};
 
 const PRIORITY_META: Record<
   RecommendationPriority,
@@ -1224,439 +941,12 @@ const PRIORITY_META: Record<
   },
 };
 
-function getDaysSince(dateIso: string | null) {
-  if (!dateIso) return 0;
-  const diff = Date.now() - new Date(dateIso).getTime();
-  return Math.max(0, Math.floor(diff / 86_400_000));
-}
 
-function ResolvedRecommendationCard({ achievement }: { achievement: RecommendationAchievement }) {
-  const days = achievement.daysSince;
-  return (
-    <div className="relative overflow-hidden rounded-[26px] border border-emerald-300/20 bg-emerald-500/[0.055] p-5 ring-1 ring-emerald-300/20 backdrop-blur-2xl sm:p-4">
-      <div className="pointer-events-none absolute -top-24 right-0 h-56 w-56 rounded-full bg-emerald-400/15 blur-3xl" />
-      <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-400/15 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-200 ring-1 ring-emerald-300/30">
-            <CheckCircle2 className="h-3.5 w-3.5" /> Objetivo logrado
-          </span>
-          <h3 className="mt-3 text-xl font-extrabold leading-tight text-white">
-            {achievement.title}
-          </h3>
-          <p className="mt-1.5 text-sm leading-relaxed text-white/70">{achievement.message}</p>
-          <p className="mt-1 text-xs text-white/45">
-            La movemos automáticamente al historial del Gerente IA apenas se detecta el objetivo logrado.
-          </p>
-        </div>
-        <div className="shrink-0 text-left sm:text-right">
-          {achievement.moneyRecoverable > 0 ? (
-            <>
-              <div className="text-[11px] font-bold uppercase tracking-wider text-white/40">
-                Impacto recuperado
-              </div>
-              <div className="mt-1 text-2xl font-black text-emerald-200">
-                {fmtAR(achievement.moneyRecoverable)}
-              </div>
-            </>
-          ) : null}
-          <div className="mt-2 text-xs font-semibold text-emerald-200/75">
-            {days === 0 ? "Logrado hoy" : `Logrado hace ${days} ${days === 1 ? "día" : "días"}`}
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
 
-function AchievementsHistory({ achievements }: { achievements: RecommendationAchievement[] }) {
-  const [open, setOpen] = React.useState(false);
-  if (achievements.length === 0) return null;
-  const visible = open ? achievements : achievements.slice(0, 4);
-  return (
-    <section className="space-y-3">
-      <div className="flex items-center gap-2.5">
-        <span className="grid h-9 w-9 place-items-center rounded-xl bg-emerald-500/12 text-emerald-200 ring-1 ring-emerald-400/25">
-          <Sparkles className="h-4 w-4" />
-        </span>
-        <div>
-          <h2 className="font-display text-xl font-bold tracking-tight text-white sm:text-2xl">
-            Historial de logros IA
-          </h2>
-          <p className="text-xs text-white/45">La evolución de tu negocio gracias al Gerente IA</p>
-        </div>
-      </div>
-      <div className="rounded-2xl border border-white/8 bg-white/[0.02] p-4">
-        <ul className="space-y-2.5">
-          {visible.map((a) => (
-            <li key={a.key} className="flex items-start gap-3">
-              <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-emerald-500/15 text-emerald-300 ring-1 ring-emerald-400/30">
-                <CheckCircle2 className="h-3.5 w-3.5" />
-              </span>
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-white/90">{a.title}</p>
-                <p className="text-[13px] leading-relaxed text-white/55">{a.message}</p>
-              </div>
-              {a.moneyRecoverable > 0 ? (
-                <span className="ml-auto shrink-0 text-xs font-bold text-emerald-200/80">
-                  {fmtAR(a.moneyRecoverable)}
-                </span>
-              ) : null}
-            </li>
-          ))}
-        </ul>
-        {achievements.length > 4 ? (
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            className="mt-3 inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-200/80 hover:text-emerald-200"
-          >
-            {open ? "Ver menos" : `Ver los ${achievements.length} logros`}
-            <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", open && "rotate-180")} />
-          </button>
-        ) : null}
-      </div>
-    </section>
-  );
-}
 
-function GrowthRecCard({ rec, hero = false }: { rec: Recommendation; hero?: boolean }) {
-  const s = rec.strategy;
-  const t = GROWTH_TONES[s.tone];
-  const pm = PRIORITY_META[rec.priority];
-  const [open, setOpen] = React.useState(false);
 
-  return (
-    <article
-      className={cn(
-        "group relative overflow-hidden rounded-[28px] border border-white/10 bg-[#070b18]/76 p-5 shadow-[0_24px_80px_-58px_rgba(124,58,237,0.72)] ring-1 backdrop-blur-2xl transition duration-300 hover:-translate-y-0.5 hover:bg-[#080b18]/90 sm:p-6",
-        t.ring,
-        hero && "ring-2",
-      )}
-    >
-      <div
-        className={cn(
-          "pointer-events-none absolute -top-28 right-0 h-56 w-56 rounded-full bg-gradient-to-br blur-3xl opacity-80",
-          t.glow,
-        )}
-      />
-      <div className="relative">
-        <div className="flex flex-wrap items-center gap-2">
-          <span
-            className={cn(
-              "inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] ring-1",
-              pm.chip,
-            )}
-          >
-            <span className="h-1.5 w-1.5 rounded-full bg-current" /> {pm.label}
-          </span>
-          <span
-            className={cn(
-              "rounded-full px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] ring-1",
-              t.chip,
-            )}
-          >
-            {s.category}
-          </span>
-        </div>
 
-        <div className="mt-4 flex items-start gap-3">
-          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-white/[0.07] text-2xl ring-1 ring-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.08)]">
-            {s.icon}
-          </span>
-          <div className="min-w-0">
-            <h3
-              className={cn(
-                "font-display font-extrabold leading-[1.08] tracking-[-0.035em] text-white",
-                hero ? "text-3xl sm:text-4xl" : "text-xl sm:text-2xl",
-              )}
-            >
-              {rec.title}
-            </h3>
-            <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-white/55">
-              {rec.description}
-            </p>
-          </div>
-        </div>
 
-        {rec.key !== "corte-mas-barba" && (
-        <div
-          className={cn(
-            "mt-5 rounded-2xl border p-4",
-            s.moneyRecoverable > 0
-              ? "border-emerald-400/25 bg-emerald-500/[0.075]"
-              : "border-white/10 bg-white/[0.035]",
-          )}
-        >
-          <div className="text-[11px] font-black uppercase tracking-[0.14em] text-white/45">
-            {s.moneyRecoverable > 0 ? "Podés recuperar" : "Oportunidad"}
-          </div>
-          <div
-            className={cn(
-              "mt-1 font-display text-3xl font-black tracking-[-0.04em]",
-              s.moneyRecoverable > 0 ? "text-emerald-200" : "text-white/85",
-            )}
-          >
-            {s.moneyRecoverable > 0 ? fmtAR(s.moneyRecoverable) : "Sin monto directo"}
-          </div>
-          {s.moneyRecoverable > 0 ? (
-            <div className="mt-0.5 text-xs font-semibold text-emerald-200/55">por mes</div>
-          ) : null}
-        </div>
-        )}
-
-        <div className="mt-4 flex items-center justify-between gap-3">
-          <span className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-white/60">
-            <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400" />
-            <span className="truncate">
-              {s.steps.length}{" "}
-              {s.steps.length === 1 ? "acción recomendada" : "acciones recomendadas"}
-            </span>
-          </span>
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-full bg-white/[0.10] px-4 py-2 text-sm font-black text-white ring-1 ring-white/15 transition hover:bg-white/[0.16]"
-          >
-            {open ? "Ocultar" : "Ver estrategia"}
-            <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
-          </button>
-        </div>
-
-        {open ? (
-          <div className="mt-5 space-y-3 border-t border-white/[0.08] pt-5">
-            <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.055] to-white/[0.02] p-4">
-              <div className="text-[11px] font-black uppercase tracking-[0.14em] text-white/45">
-                Estrategia recomendada
-              </div>
-              <p className="mt-1.5 text-base font-bold leading-snug text-white/90">{s.action}</p>
-              <ol className="mt-3 space-y-2">
-                {s.steps.map((step, i) => (
-                  <li key={i} className="flex gap-2.5 text-sm leading-relaxed text-white/68">
-                    <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/10 text-[11px] font-bold text-white/80">
-                      {i + 1}
-                    </span>
-                    <span>{step}</span>
-                  </li>
-                ))}
-              </ol>
-            </div>
-            <GrowthContactsBlock contacts={s.contacts} />
-            <GrowthMessageBlock message={s.message} />
-            <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3.5">
-              <div className="text-[11px] font-black uppercase tracking-[0.14em] text-white/45">
-                Cómo medir si funcionó
-              </div>
-              <p className="mt-1 text-sm leading-relaxed text-white/60">{s.measure}</p>
-            </div>
-          </div>
-        ) : null}
-      </div>
-    </article>
-  );
-}
-
-function ManagerTrendSparkline() {
-  return (
-    <svg
-      viewBox="0 0 320 120"
-      className="h-28 w-full max-w-[360px] overflow-visible"
-      aria-hidden="true"
-    >
-      <defs>
-        <linearGradient id="clippr-manager-line" x1="0" x2="1" y1="0" y2="0">
-          <stop offset="0%" stopColor="rgb(124 58 237)" />
-          <stop offset="55%" stopColor="rgb(168 85 247)" />
-          <stop offset="100%" stopColor="rgb(94 234 212)" />
-        </linearGradient>
-        <filter id="clippr-manager-glow" x="-20%" y="-80%" width="140%" height="260%">
-          <feGaussianBlur stdDeviation="4" result="blur" />
-          <feMerge>
-            <feMergeNode in="blur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-      </defs>
-      <path
-        d="M8 94 C36 84 42 65 66 68 S100 88 124 64 S157 28 184 42 S220 74 244 48 S286 40 312 18"
-        fill="none"
-        stroke="url(#clippr-manager-line)"
-        strokeWidth="5"
-        strokeLinecap="round"
-        filter="url(#clippr-manager-glow)"
-      />
-      <circle
-        cx="312"
-        cy="18"
-        r="7"
-        fill="rgb(94 234 212)"
-        className="drop-shadow-[0_0_14px_rgba(94,234,212,0.8)]"
-      />
-    </svg>
-  );
-}
-
-function ManagerHero({ rec, totalOpportunity }: { rec: Recommendation; totalOpportunity: number }) {
-  const s = rec.strategy;
-  const amount = s.moneyRecoverable > 0 ? s.moneyRecoverable : totalOpportunity;
-  const keyMetric = s.moneyLost > 0 ? fmtAR(s.moneyLost) : rec.score;
-  const keyLabel = s.moneyLost > 0 ? "pérdida estimada detectada" : "score de prioridad";
-  // "Ver estrategia" apuntaba con scrollIntoView a un id
-  // (`strategy-${rec.key}`) que solo existía para las recomendaciones
-  // secundarias — la principal (esta, la que muestra ManagerHero) nunca
-  // tuvo ese id ni tampoco el detalle expandible (pasos, clientes,
-  // mensaje) en ningún lado de la página, así que el botón no hacía
-  // nada. Ahora el detalle se expande acá mismo, con el mismo contenido
-  // que ya usa GrowthRecCard para las demás recomendaciones.
-  const [open, setOpen] = React.useState(false);
-
-  return (
-    <section className="relative overflow-hidden rounded-[34px] border border-violet-300/20 bg-[#090b18]/82 p-6 shadow-[0_36px_120px_-58px_rgba(139,92,246,0.95)] ring-1 ring-white/10 backdrop-blur-2xl sm:p-8 lg:p-10">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_14%_10%,rgba(168,85,247,0.22),transparent_38%),radial-gradient(circle_at_92%_12%,rgba(20,184,166,0.20),transparent_35%),linear-gradient(135deg,rgba(168,85,247,0.12),transparent_42%,rgba(14,165,233,0.08))]" />
-      <div className="relative grid gap-8 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
-        <div>
-          <div className="inline-flex items-center gap-2 rounded-full bg-violet-500/12 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-violet-200 ring-1 ring-violet-300/25">
-            <Brain className="h-3.5 w-3.5" /> Tu prioridad hoy
-          </div>
-          <h2 className="mt-5 max-w-2xl font-display text-4xl font-black leading-[0.98] tracking-[-0.055em] text-white sm:text-5xl">
-            {rec.title}
-          </h2>
-          <p className="mt-4 max-w-xl text-base leading-relaxed text-white/68">{rec.description}</p>
-          <div className="mt-6">
-            <div className="text-[12px] font-black uppercase tracking-[0.18em] text-emerald-200/70">
-              Podés recuperar
-            </div>
-            <div className="mt-1 bg-gradient-to-r from-emerald-300 via-teal-200 to-cyan-200 bg-clip-text font-display text-5xl font-black tracking-[-0.06em] text-transparent sm:text-6xl">
-              {fmtAR(amount)}
-            </div>
-            <div className="mt-1 text-sm font-semibold text-white/50">
-              este mes si ejecutás la estrategia principal
-            </div>
-          </div>
-        </div>
-
-        {/* Botón + detalle desplegable ahora viven pegados a la tarjeta de
-            "pérdida estimada" que los origina (antes el botón quedaba en
-            la columna de texto, arriba del gráfico y del monto — se veía
-            desconectado de lo que en realidad controla). Orden: gráfico →
-            pérdida estimada → Ver estrategia → Estrategia recomendada. */}
-        <div className="space-y-4">
-          <div className="relative min-h-[220px] overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.045] p-5 ring-1 ring-white/8">
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_70%_22%,rgba(168,85,247,0.22),transparent_42%)]" />
-            <div className="relative flex h-full flex-col justify-between gap-6">
-              <ManagerTrendSparkline />
-              {/* w-full sin tope fijo en mobile (el max-w-[330px] recién
-                  entra desde sm, con más aire): antes el monto grande y su
-                  etiqueta iban siempre en fila (flex items-end), y en
-                  pantallas angostas eso se salía del ancho de la tarjeta —
-                  como la sección padre tiene overflow-hidden, no se veía
-                  como scroll sino como texto cortado/ilegible. En mobile
-                  pasan a columna. */}
-              <div className="ml-auto w-full rounded-3xl border border-fuchsia-300/28 bg-fuchsia-500/[0.09] p-5 ring-1 ring-fuchsia-300/20 sm:max-w-[330px]">
-                <div className="flex flex-col items-start gap-1 sm:flex-row sm:items-end sm:gap-4">
-                  <div className="font-display text-4xl font-black tracking-[-0.06em] text-white sm:text-5xl">
-                    {keyMetric}
-                  </div>
-                  <div className="text-sm font-semibold leading-snug text-white/70 sm:pb-1">
-                    {keyLabel}
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setOpen((v) => !v)}
-            className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-violet-500 to-fuchsia-500 px-6 py-3 text-sm font-black text-white shadow-[0_18px_45px_-22px_rgba(168,85,247,0.9)] ring-1 ring-white/15 transition hover:brightness-110"
-          >
-            {open ? "Ocultar estrategia" : "Ver estrategia"}
-            <ChevronDown className={cn("h-4 w-4 transition-transform", open && "rotate-180")} />
-          </button>
-
-          {open ? (
-            <div className="relative space-y-3">
-              <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.055] to-white/[0.02] p-4">
-                <div className="text-[11px] font-black uppercase tracking-[0.14em] text-white/45">
-                  Estrategia recomendada
-                </div>
-                <p className="mt-1.5 text-base font-bold leading-snug text-white/90">{s.action}</p>
-                <ol className="mt-3 space-y-2">
-                  {s.steps.map((step, i) => (
-                    <li key={i} className="flex gap-2.5 text-sm leading-relaxed text-white/68">
-                      <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-white/10 text-[11px] font-bold text-white/80">
-                        {i + 1}
-                      </span>
-                      <span>{step}</span>
-                    </li>
-                  ))}
-                </ol>
-              </div>
-              <GrowthContactsBlock contacts={s.contacts} />
-              <GrowthMessageBlock message={s.message} />
-              <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3.5">
-                <div className="text-[11px] font-black uppercase tracking-[0.14em] text-white/45">
-                  Cómo medir si funcionó
-                </div>
-                <p className="mt-1 text-sm leading-relaxed text-white/60">{s.measure}</p>
-              </div>
-            </div>
-          ) : null}
-        </div>
-      </div>
-    </section>
-  );
-}
-
-function RecentAchievements({
-  resolved,
-  achievements,
-}: {
-  resolved: RecommendationAchievement[];
-  achievements: RecommendationAchievement[];
-}) {
-  const recent = [...resolved, ...achievements].slice(0, 4);
-  if (recent.length === 0) return null;
-  return (
-    <section className="space-y-4">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="font-display text-2xl font-black tracking-[-0.035em] text-white">
-            Logros recientes
-          </h2>
-          <p className="mt-1 text-sm text-white/48">
-            Problemas que ya mejoraron y dejaron impacto positivo.
-          </p>
-        </div>
-        {achievements.length > 4 ? (
-          <button className="text-sm font-bold text-violet-200 hover:text-white">
-            Ver historial completo →
-          </button>
-        ) : null}
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {recent.map((a) => (
-          <div
-            key={a.key}
-            className="rounded-2xl border border-white/10 bg-white/[0.035] p-4 ring-1 ring-white/8 backdrop-blur-xl"
-          >
-            <div className="grid h-10 w-10 place-items-center rounded-2xl bg-emerald-500/16 text-emerald-200 ring-1 ring-emerald-400/25">
-              <CheckCircle2 className="h-5 w-5" />
-            </div>
-            <h3 className="mt-3 line-clamp-2 text-sm font-black leading-snug text-white/90">
-              {a.title}
-            </h3>
-            <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-white/52">{a.message}</p>
-            <span className="mt-3 inline-flex rounded-full bg-white/[0.06] px-2.5 py-1 text-[11px] font-bold text-white/55 ring-1 ring-white/10">
-              {a.daysSince === 0
-                ? "Logrado hoy"
-                : `Hace ${a.daysSince} ${a.daysSince === 1 ? "día" : "días"}`}
-            </span>
-          </div>
-        ))}
-      </div>
-    </section>
-  );
-}
 
 
 // ─────────────────────── Salud del negocio (Gerente IA) ───────────────────────
@@ -1902,7 +1192,6 @@ function RadiografiaSection({ analytics }: { analytics: AdvisorAnalytics }) {
 }
 
 type GrowthManagerTabProps = {
-  data: UseAiRecommendationsResult;
   analytics: AdvisorAnalytics;
   businessId: string | null | undefined;
   selectedMonthKey: string;
@@ -1913,8 +1202,7 @@ type GrowthManagerTabProps = {
   healthHeadline: string;
 };
 
-function GrowthManagerTab({ data, analytics, businessId, selectedMonthKey, onMonthKeyChange, minMonthKey, animatedHealth, healthTone, healthHeadline }: GrowthManagerTabProps) {
-  const { ready, loading, recommendations, resolved, achievements, totalOpportunity } = data;
+function GrowthManagerTab({ analytics, businessId, selectedMonthKey, onMonthKeyChange, minMonthKey, animatedHealth, healthTone, healthHeadline }: GrowthManagerTabProps) {
   // Diagnóstico: salud + radar arriba; clientes para recuperar y radiografía del equipo al final. Nada se repite con Análisis.
   const diagnostico = (
     <>
@@ -1943,7 +1231,7 @@ function GrowthManagerTab({ data, analytics, businessId, selectedMonthKey, onMon
     </>
   );
 
-  if (loading && !ready) {
+  if (analytics.loading) {
     return (
       <div className="grid place-items-center py-24">
         <ClipprLoader size="screen" delayMs={130} />
@@ -1951,54 +1239,11 @@ function GrowthManagerTab({ data, analytics, businessId, selectedMonthKey, onMon
     );
   }
 
-  const hero = recommendations[0] ?? null;
-
-  if (!hero) {
-    return (
-      <div className="mt-6 space-y-8">
-        {diagnostico}
-        <RecentAchievements resolved={resolved} achievements={achievements} />
-        <div className="rounded-[28px] border border-white/10 bg-white/[0.03] p-8 text-center">
-          <Brain className="mx-auto h-8 w-8 text-white/35" />
-          <p className="mt-3 text-base font-semibold text-white/80">
-            Todavía no hay suficientes datos para generar recomendaciones.
-          </p>
-          <p className="mx-auto mt-1 max-w-md text-sm leading-relaxed text-white/50">
-            A medida que se registren turnos, cobros y clientes en Clippr, el Gerente IA va a ir
-            detectando oportunidades reales acá. Si ya tenés actividad cargada y no ves nada, es
-            buena señal: no se detectó ningún problema urgente hoy.
-          </p>
-        </div>
-        <AchievementsHistory achievements={achievements} />
-        {detalleFinal}
-      </div>
-    );
-  }
-
   return (
     <div className="mt-6 space-y-8">
       {diagnostico}
-      <RecentAchievements resolved={resolved} achievements={achievements} />
-
-      <AchievementsHistory achievements={achievements} />
 
       {detalleFinal}
-
-      <div className="rounded-[24px] border border-violet-300/25 bg-violet-400/[0.055] p-5">
-        <div className="flex flex-wrap items-center justify-between gap-4">
-          <div className="flex items-center gap-4">
-            <div className="grid h-14 w-14 place-items-center rounded-2xl bg-violet-400/10 ring-1 ring-violet-300/25">
-              <Brain className="h-8 w-8 text-violet-300" />
-            </div>
-            <div>
-              <div className="font-bold text-violet-200">El Asesor IA aprende de tu negocio</div>
-              <div className="mt-1 text-sm text-white/60">
-                Las recomendaciones se recalculan solas a medida que cambian tus datos reales.
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
     </div>
   );
 }
@@ -2012,7 +1257,6 @@ function GrowthManagerTab({ data, analytics, businessId, selectedMonthKey, onMon
 
 const LAB_MARGIN = 0.45; // utilidad estimada sobre facturación (editable conceptualmente)
 const LAB_PRODUCT_MARGIN = 0.55; // los productos suelen dejar más margen
-const LAB_TURNOS_POR_HORA = 1.3; // ~45 min por servicio promedio
 
 type LabBucket = { count: number; value: number; ticket: number };
 
@@ -2492,9 +1736,6 @@ function LabSignals({ items }: { items: LabSignal[] }) {
 
 // ── Simuladores ────────────────────────────────────────────────────────────
 
-function clampScore01(n: number) {
-  return Math.max(1, Math.min(100, Math.round(n)));
-}
 
 // ── SUBIR PRECIOS ──────────────────────────────────────────────────────────
 function LabPrecios({ data }: { data: LabData }) {
