@@ -729,7 +729,9 @@ export function useAdvisorAnalytics(
       const monto = Number(p.total ?? p.amount ?? 0);
       const nombre = (p.client_name ?? "").trim();
       const claveCliente = p.client_id ?? nombre.toLowerCase();
-      if (claveCliente) {
+      // Ventas por orden de llegada (sin ficha ni nombre real, "sin turno"): no son un cliente.
+      const anonimo = !p.client_id && (nombre === "" || nombre.toLowerCase() === "sin turno");
+      if (claveCliente && !anonimo) {
         const e = gastoPorCliente.get(claveCliente) ?? { name: nombre || "Cliente", total: 0, visitas: 0 };
         e.total += monto;
         e.visitas += 1;
