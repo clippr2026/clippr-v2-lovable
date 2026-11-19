@@ -102,9 +102,7 @@ export function computeHealthScore(i: HealthInput): HealthScore {
         valueText: `Margen ${pctTxt(margen)}`,
         why: `El margen es ${pctTxt(margen)}; con 35% o más se logran los 25 puntos.`,
         tip: margen >= 35 ? "Mantené el control de gastos y el precio de tus servicios." : "Revisá tus gastos y el precio de los servicios que más vendés: cada punto de margen suma.",
-        warning: provisional
-          ? "Rentabilidad provisional: todavía no hay gastos fijos registrados este mes. Se calculó con los gastos cargados y se actualiza sola cuando los registres."
-          : undefined,
+
       });
     }
   }

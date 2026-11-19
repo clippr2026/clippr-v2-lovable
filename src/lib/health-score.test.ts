@@ -26,7 +26,7 @@ describe("puntaje de salud", () => {
     const con = computeHealthScore(base);
     const sin = computeHealthScore({ ...base, gastosFijosCargados: 0 });
     expect(get(sin, "rentabilidad").state).toBe("provisional");
-    expect(get(sin, "rentabilidad").warning).toMatch(/provisional/i);
+    expect(get(sin, "rentabilidad").warning).toBeUndefined(); // ya no se muestra el aviso de provisional
     expect(get(sin, "rentabilidad").pts).toBe(get(con, "rentabilidad").pts); // mismos puntos: ni tope ni estimación
     expect(sin.total).toBe(con.total);
     expect(sin.provisional).toBe(true);
