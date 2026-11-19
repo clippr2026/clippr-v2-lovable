@@ -216,7 +216,7 @@ const ROW_PX = 88;
 const AGENDA_ROW_PX = 94;
 // Alto de la ventana de la grilla en desktop/tablet: se mantiene igual que antes (11 bloques de 64 px).
 const AGENDA_WINDOW_ROW_PX = 64;
-const AGENDA_HEADER_PX = 58;
+const AGENDA_HEADER_PX = 78;
 const AGENDA_VISIBLE_ROWS = 11;
 const AGENDA_SLOT_OPTIONS = [20, 30, 40, 45, 50, 60] as const;
 const AGENDA_SLOT_STORAGE_KEY = "clippr-agenda-slot-minutes";
@@ -3331,6 +3331,16 @@ const DayView = React.memo(function DayView({
                 : occupiedMinutes > 0
                   ? 100
                   : 0;
+            // Ocupación atendida del profesional: servicios cobrados hoy (con o sin turno) sobre su horario disponible, con
+            // tope de 100%.
+            const servedMin = servedMinutes.data?.get(e.id) ?? 0;
+            const atendidaPct = !hasSchedule
+              ? null
+              : availableMinutes > 0
+                ? Math.min(100, Math.round((servedMin / availableMinutes) * 100))
+                : servedMin > 0
+                  ? 100
+                  : 0;
             const initials = (e.full_name || e.name || "?")
               .split(/\s+/)
               .map((s) => s[0])
@@ -3367,15 +3377,29 @@ const DayView = React.memo(function DayView({
                   <div className="text-[15px] font-semibold truncate leading-none">
                     {e.full_name ?? e.name}
                   </div>
-                  <div className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1 leading-none whitespace-nowrap">
-                    {occupancyPct === null ? "Sin horario" : `Ocupación ${occupancyPct}%`}
-                  </div>
-                  {occupancyPct !== null && (
-                    <div className="mt-1.5 h-1 w-full overflow-hidden rounded-full bg-white/10">
-                      <div
-                        className="h-full rounded-full transition-[width] duration-500"
-                        style={{ width: `${occupancyPct}%`, background: occupancyColor(occupancyPct).fill, boxShadow: `0 0 8px ${occupancyColor(occupancyPct).glow}` }}
-                      />
+                  {occupancyPct === null ? (
+                    <div className="mt-1 text-xs leading-none text-muted-foreground">Sin horario</div>
+                  ) : (
+                    <div className="mt-1.5 space-y-1">
+                      {(
+                        [
+                          ["Agendada", occupancyPct],
+                          ["Atendida", atendidaPct ?? 0],
+                        ] as const
+                      ).map(([nombre, valor]) => (
+                        <div key={nombre}>
+                          <div className="flex items-center justify-between text-[10px] leading-none text-muted-foreground">
+                            <span>{nombre}</span>
+                            <span className="font-semibold tabular-nums text-white/80">{valor}%</span>
+                          </div>
+                          <div className="mt-0.5 h-[3px] w-full overflow-hidden rounded-full bg-white/10">
+                            <div
+                              className="h-full rounded-full transition-[width] duration-500"
+                              style={{ width: `${valor}%`, background: occupancyColor(valor).fill, boxShadow: `0 0 6px ${occupancyColor(valor).glow}` }}
+                            />
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   )}
                 </div>
