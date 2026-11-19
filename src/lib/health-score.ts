@@ -5,7 +5,7 @@
 //   Retención de clientes ...... 30
 //       Nuevos que vuelven ..... 20   0 pts con 20% o menos · 10 pts con 45% · 20 pts con 70% o más
 //       Habituales al día ...... 10   0 pts con 40% o menos · 5 pts con 62,5% · 10 pts con 85% o más
-//   Ocupación real de agenda ... 25   0 pts con 20% o menos · 15 pts con 50% · 25 pts con 75% o más
+//   Ocupación real de agenda ... 25   0 pts con 20% o menos · 15 pts con 50% · 25 pts con 80% o más
 //
 // Redondeo en un solo lugar: cada indicador redondea sus puntos a enteros y el total es la suma de lo que se ve.
 // Cuando a un indicador (o a la mitad de la retención) le faltan datos, ese tramo no suma ni resta: el resultado se
@@ -63,13 +63,13 @@ const money = (n: number) => `${n < 0 ? "-" : ""}$${Math.abs(Math.round(n)).toLo
 // ─────────────────────────── Escalas ───────────────────────────
 const ESCALA_RENTABILIDAD = "45 puntos con 35% de margen o más.";
 const ESCALA_RETENCION = "Nuevos: 20 puntos con 70% o más. Habituales: 10 puntos con 85% o más.";
-const ESCALA_OCUPACION = "25 puntos con 75% de ocupación o más.";
+const ESCALA_OCUPACION = "25 puntos con 80% de ocupación o más.";
 export const pointsRentabilidad = (margen: number) =>
   margen <= 0 ? 0 : margen <= 20 ? 25 * (margen / 20) : 25 + 20 * lin(margen, 20, 35);
 export const pointsNuevos = (rate: number) => 20 * lin(rate, 20, 70);
 export const pointsHabituales = (rate: number) => 10 * lin(rate, 40, 85);
 export const pointsOcupacion = (pct: number) =>
-  pct <= 20 ? 0 : pct <= 50 ? 15 * ((pct - 20) / 30) : 15 + 10 * lin(pct, 50, 75);
+  pct <= 20 ? 0 : pct <= 50 ? 15 * ((pct - 20) / 30) : 15 + 10 * lin(pct, 50, 80);
 
 export type HealthInput = {
   /** Período que se mide, listo para mostrar ("noviembre de 2026"). */

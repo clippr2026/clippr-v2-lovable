@@ -19,7 +19,7 @@ const base: HealthInput = {
   pagoProfesionales: 3_100_000,
   ganancia: 2_100_000,
   margen: 35,
-  turnosRealizados: 750,
+  turnosRealizados: 800,
   turnosDisponibles: 1_000,
   turnosCancelados: 10,
   turnosNoAsistio: 5,
@@ -53,11 +53,12 @@ describe("puntaje de salud — escalas", () => {
     expect(pointsHabituales(62.5)).toBeCloseTo(5);
     expect(pointsHabituales(85)).toBeCloseTo(10);
   });
-  it("ocupación: 0 con 20%, 15 con 50%, 25 con 75% o más", () => {
+  it("ocupación: 0 con 20%, 15 con 50%, 25 con 80% o más", () => {
     expect(pointsOcupacion(10)).toBe(0);
     expect(pointsOcupacion(35)).toBeCloseTo(7.5);
     expect(pointsOcupacion(50)).toBeCloseTo(15);
-    expect(pointsOcupacion(75)).toBeCloseTo(25);
+    expect(pointsOcupacion(65)).toBeCloseTo(20);
+    expect(pointsOcupacion(80)).toBeCloseTo(25);
     expect(pointsOcupacion(100)).toBeCloseTo(25);
   });
 });
@@ -122,7 +123,7 @@ describe("puntaje de salud — resultado parcial", () => {
       expect(x.datos.length).toBeGreaterThan(0);
     }
     expect(get(s, "rentabilidad").escala).toBe("45 puntos con 35% de margen o más.");
-    expect(get(s, "ocupacion").escala).toBe("25 puntos con 75% de ocupación o más.");
+    expect(get(s, "ocupacion").escala).toBe("25 puntos con 80% de ocupación o más.");
     expect(get(s, "retencion").escala).toMatch(/20 puntos con 70% o más.*10 puntos con 85% o más/);
     expect(get(s, "ocupacion").datos.join(" ")).toMatch(/Turnos realizados: 400.*Turnos disponibles: 1\.000/);
     expect(get(s, "ocupacion").datos.join(" ")).toMatch(/Cancelaciones: 10/);
