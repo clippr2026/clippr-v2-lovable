@@ -2,8 +2,16 @@ import * as React from "react";
 import { Brain, DoorOpen } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { fmtAR } from "@/components/dashboard/use-dashboard-data";
+import { evaluarDecisiones, type DecisionEstado } from "@/lib/decisiones-negocio";
 
 const BA = "America/Argentina/Buenos_Aires";
+
+const CHIP_DECISION: Record<DecisionEstado, string> = {
+  si: "border-emerald-300/35 bg-emerald-400/10 text-emerald-200",
+  cerca: "border-amber-300/35 bg-amber-300/10 text-amber-200",
+  no: "border-white/15 bg-white/[0.05] text-white/65",
+  info: "border-sky-300/30 bg-sky-400/10 text-sky-200",
+};
 const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
 
 type Fila = { occurred_at: string; preferencia: "cualquiera" | "especifico" | null; requested_employee_id: string | null };
@@ -191,6 +199,24 @@ export function ClientesPerdidosCard({
             </ul>
           </>
         )}
+
+        <div className="mt-3 space-y-2">
+          {evaluarDecisiones({
+            ocupacion: occupancy,
+            profesionales: employeeLoad ?? [],
+            seFueronPorLugar: generales.length,
+            masPedido: pedidos[0] ? { name: pedidos[0][0], n: pedidos[0][1] } : null,
+            franjaConMasCasos: total > 0 && dias[0] && horas[0] ? { dia: DIAS[dias[0][0]], hora: horas[0][0] } : null,
+          }).map((d) => (
+            <div key={d.clave} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm font-semibold text-white">{d.titulo}</span>
+                <span className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${CHIP_DECISION[d.estado]}`}>{d.respuesta}</span>
+              </div>
+              <p className="mt-1.5 text-xs leading-relaxed text-white/65">{d.detalle}</p>
+            </div>
+          ))}
+        </div>
 
         <div className="mt-3 rounded-xl bg-emerald-400/[0.07] p-3 ring-1 ring-emerald-300/20">
           <div className="mb-1 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-300">
