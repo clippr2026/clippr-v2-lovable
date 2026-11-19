@@ -63,7 +63,7 @@ const money = (n: number) => `${n < 0 ? "-" : ""}$${Math.abs(Math.round(n)).toLo
 // ─────────────────────────── Escalas ───────────────────────────
 const ESCALA_RENTABILIDAD = "45 puntos con 35% de margen o más.";
 const ESCALA_RETENCION = "Nuevos: 20 puntos con 70% o más. Habituales: 10 puntos con 85% o más.";
-const ESCALA_OCUPACION = "25 puntos con 80% de ocupación o más.";
+const ESCALA_OCUPACION = "25 puntos con 80% de ocupación atendida o más (la agendada no suma puntos).";
 export const pointsRentabilidad = (margen: number) =>
   margen <= 0 ? 0 : margen <= 20 ? 25 * (margen / 20) : 25 + 20 * lin(margen, 20, 35);
 export const pointsNuevos = (rate: number) => 20 * lin(rate, 20, 70);

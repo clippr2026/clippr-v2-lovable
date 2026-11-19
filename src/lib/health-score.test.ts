@@ -124,7 +124,7 @@ describe("puntaje de salud — resultado parcial", () => {
       expect(x.datos.length).toBeGreaterThan(0);
     }
     expect(get(s, "rentabilidad").escala).toBe("45 puntos con 35% de margen o más.");
-    expect(get(s, "ocupacion").escala).toBe("25 puntos con 80% de ocupación o más.");
+    expect(get(s, "ocupacion").escala).toBe("25 puntos con 80% de ocupación atendida o más (la agendada no suma puntos).");
     expect(get(s, "retencion").escala).toMatch(/20 puntos con 70% o más.*10 puntos con 85% o más/);
     expect(get(s, "ocupacion").datos.join(" ")).toMatch(/Turnos realizados: 400.*Turnos disponibles: 1\.000/);
     expect(get(s, "ocupacion").datos.join(" ")).toMatch(/Cancelaciones: 10/);
