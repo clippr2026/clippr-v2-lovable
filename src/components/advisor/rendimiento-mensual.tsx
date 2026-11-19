@@ -232,10 +232,7 @@ export function RendimientoMensual({ monthKey: controlledMonthKey }: Rendimiento
   const perf = current.data;
   // Lo que se compara contra el mes anterior: el mes en curso hasta ayer, o el mes cerrado completo.
   const perfCmp = isCurrentMonth ? currentComparable.data : current.data;
-  // Sin gastos fijos registrados en el mes, la rentabilidad es provisional (nunca se estiman ni se descuentan gastos).
-  const rentabilidadProvisional = Boolean(
-    current.data?.hasData && current.data.facturacion > 0 && !current.data.gastosPorTipo.some((g) => g.tipo === "Fijo" && g.total > 0),
-  );
+
   const prev = previous.data;
   // El mes anterior solo sirve de base si tuvo actividad durante todo el mes; si fue de
   // pruebas o arrancó a medias, no se compara (sería una variación sin sentido).
@@ -252,17 +249,6 @@ export function RendimientoMensual({ monthKey: controlledMonthKey }: Rendimiento
 
   return (
     <div ref={raiz} className="mx-auto w-full max-w-5xl space-y-4 sm:space-y-5">
-      <div className="flex flex-wrap items-center justify-end gap-3">
-        <button
-          type="button"
-          onClick={exportPdf}
-          disabled={!perf?.hasData}
-          className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3.5 py-2 text-sm font-semibold text-white/85 transition hover:bg-white/[0.09] disabled:opacity-40"
-        >
-          <Download className="size-4" />
-          Exportar PDF
-        </button>
-      </div>
 
       {current.isLoading || !perf ? (
         <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] px-4 py-16 text-center text-sm text-white/45">
@@ -281,13 +267,6 @@ export function RendimientoMensual({ monthKey: controlledMonthKey }: Rendimiento
           {/* Ganancia — el número principal del mes */}
           <div className="relative overflow-hidden rounded-[1.75rem] border border-emerald-300/25 bg-white/[0.025] p-5 shadow-[0_0_0_1px_rgba(16,185,129,0.12),0_30px_100px_-50px_rgba(45,212,191,0.9)] sm:p-6">
             <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-200/80">Ganancia del mes</div>
-            {rentabilidadProvisional ? (
-              // Los gastos fijos que faltan cargar no se toman como $0: sin ellos no hay ganancia ni margen confiables.
-              <div className="mt-2 rounded-2xl border border-amber-400/25 bg-amber-400/[0.06] px-4 py-4 text-base font-semibold leading-snug text-amber-100">
-                Cargá tus gastos fijos para calcular la rentabilidad.
-              </div>
-            ) : (
-              <>
             <div
               className={cn(
                 "mt-1 font-display text-4xl font-semibold tabular-nums sm:text-5xl",
@@ -323,8 +302,6 @@ export function RendimientoMensual({ monthKey: controlledMonthKey }: Rendimiento
                   <b className="tabular-nums text-white">{perf.margen < 0 ? "−" : ""}{pctText(perf.margen)}</b>
                 </span>
               </div>
-            )}
-              </>
             )}
             {margenInfo && <MargenInfoTexto />}
           </div>
@@ -369,6 +346,17 @@ export function RendimientoMensual({ monthKey: controlledMonthKey }: Rendimiento
           )}
         </>
       )}
+      <div className="flex flex-wrap items-center justify-end gap-3">
+        <button
+          type="button"
+          onClick={exportPdf}
+          disabled={!perf?.hasData}
+          className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3.5 py-2 text-sm font-semibold text-white/85 transition hover:bg-white/[0.09] disabled:opacity-40"
+        >
+          <Download className="size-4" />
+          Exportar PDF
+        </button>
+      </div>
     </div>
   );
 }
