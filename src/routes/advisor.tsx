@@ -959,7 +959,7 @@ function IndicadorSalud({ ind }: { ind: HealthIndicator }) {
   const [open, setOpen] = React.useState(false);
   const ratio = ind.pts != null ? ind.pts / ind.max : 0;
   const barra = ratio >= 0.7 ? "bg-emerald-400/80" : ratio >= 0.4 ? "bg-amber-300/80" : "bg-rose-400/80";
-  const chip = ind.state === "calculado" ? null : ESTADO_CHIP[ind.state];
+  const chip = ind.state === "calculado" || ind.state === "provisional" ? null : ESTADO_CHIP[ind.state];
   return (
     <div className="rounded-xl border border-white/[0.08] bg-white/[0.03]">
       <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className="w-full px-3 py-2.5 text-left">
