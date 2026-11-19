@@ -248,12 +248,12 @@ export function computeCapacity({ ctx, employeeIds, monthKey, cutoffDay, fromDay
 export function dailySlotsForEmployee(
   { ctx, monthKey, cutoffDay, fromDay, blocks = [], slotMinutesByEmployee }: Omit<CapacityInput, "employeeIds">,
   empId: string,
-): Array<{ dateKey: string; slots: number }> {
+): Array<{ dateKey: string; slots: number; minutes: number }> {
   const [y, m] = monthKey.split("-").map(Number);
   const lastDay = new Date(y, m, 0).getDate();
   const until = Math.min(Math.max(cutoffDay, 0), lastDay);
   const slot = Math.max(10, slotMinutesByEmployee[empId] ?? DEFAULT_SLOT_MINUTES);
-  const out: Array<{ dateKey: string; slots: number }> = [];
+  const out: Array<{ dateKey: string; slots: number; minutes: number }> = [];
   for (let d = Math.max(1, fromDay ?? 1); d <= until; d += 1) {
     const date = new Date(y, m - 1, d, 12, 0, 0);
     const day = resolveDaySchedule(ctx.businessSchedule, ctx.employeeSchedules, ctx.businessSpecial, ctx.employeeSpecial, empId, date);
@@ -261,7 +261,7 @@ export function dailySlotsForEmployee(
     const dayBlocks = blocks.filter((b) => b.employeeId === empId && b.dateKey === dateKey);
     const minutes = dayWorkMinutes(day, dayBlocks);
     if (minutes <= 0) continue;
-    out.push({ dateKey, slots: Math.floor(minutes / slot) });
+    out.push({ dateKey, slots: Math.floor(minutes / slot), minutes });
   }
   return out;
 }

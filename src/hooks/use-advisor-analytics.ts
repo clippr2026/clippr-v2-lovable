@@ -67,6 +67,8 @@ export type AdvisorMonthSnapshot = {
   // Ocupación real en minutos: servicios realizados contra el tiempo en que se podía atender.
   minutesDone: number;
   minutesAvailable: number;
+  /** Ocupación agendada (tiempo reservado sobre el disponible, con tope por profesional y día); null sin horarios. */
+  agendadaPct: number | null;
   // Ocupación de cada profesional activo: servicios vendidos contra SU capacidad.
   employeeLoad: Array<{ id: string; name: string; used: number; capacity: number; daysWorked: number; daysFull: number }>;
   // Fechas trabajadas del período por día de la semana (0 = domingo): los días cerrados no figuran.
@@ -417,16 +419,51 @@ function buildMonthSnapshot(
   // Un día cuenta como "lleno" cuando el profesional atendió el 90% o más de sus turnos de ese día (con o sin turno
   // sacado: sale de los cobros). Sirve para ver picos que el promedio del mes esconde.
   const DIA_LLENO = 0.9;
+  // Tiempo reservado por profesional y día (turnos válidos: los cancelados liberan el horario; los que no asistieron
+  // sí ocupan). Se une el rango para no contar dos veces un minuto superpuesto.
+  const reservadoPorDia = new Map<string, Array<[number, number]>>();
+  for (const a of appts) {
+    if (!a.employee_id || !a.ends_at || !["pending", "confirmed", "completed", "charged", "no_show"].includes(a.status)) continue;
+    const dia = baParts(a.starts_at).dateKey;
+    if (dia.slice(0, 7) !== monthKey) continue;
+    const k = `${a.employee_id}|${dia}`;
+    const lista = reservadoPorDia.get(k) ?? [];
+    lista.push([new Date(a.starts_at).getTime(), new Date(a.ends_at).getTime()]);
+    reservadoPorDia.set(k, lista);
+  }
+  const minutosUnidos = (rangos: Array<[number, number]>) => {
+    const orden = [...rangos].sort((x, y) => x[0] - y[0]);
+    let total = 0;
+    let fin = -Infinity;
+    for (const [ini, f] of orden) {
+      const desde = Math.max(ini, fin);
+      if (f > desde) total += f - desde;
+      fin = Math.max(fin, f);
+    }
+    return total / 60_000;
+  };
+  // Los topes se aplican por profesional y por día ANTES de sumar el local: lo que un profesional atiende o reserva de
+  // más no tapa los huecos de otro (ver src/lib/ocupacion.ts).
+  let usedCappedTotal = 0;
+  let reservadoTope = 0;
+  let disponibleMinutos = 0;
   const employeeLoad = activeEmployees.map((e) => {
     const porDia = dailySlotsForEmployee(
       { ctx: capacityData.ctx, monthKey, cutoffDay, fromDay, blocks, slotMinutesByEmployee },
       e.id,
     );
+    let usedCapped = 0;
+    for (const d of porDia) {
+      usedCapped += Math.min(usedByEmployeeDay.get(`${e.id}|${d.dateKey}`) ?? 0, d.slots);
+      reservadoTope += Math.min(minutosUnidos(reservadoPorDia.get(`${e.id}|${d.dateKey}`) ?? []), d.minutes);
+      disponibleMinutos += d.minutes;
+    }
+    usedCappedTotal += usedCapped;
     const daysFull = porDia.filter((d) => d.slots > 0 && (usedByEmployeeDay.get(`${e.id}|${d.dateKey}`) ?? 0) / d.slots >= DIA_LLENO).length;
     return {
       id: e.id,
       name: e.full_name,
-      used: usedByEmployee.get(e.id) ?? 0,
+      used: usedCapped,
       capacity: computeCapacity({
         ctx: capacityData.ctx,
         employeeIds: [e.id],
@@ -440,7 +477,8 @@ function buildMonthSnapshot(
       daysFull,
     };
   });
-  const used = servicesSold;
+  const used = usedCappedTotal;
+  const agendadaPct = disponibleMinutos > 0 ? Math.min(100, Math.round((reservadoTope / disponibleMinutos) * 100)) : null;
   // Minutos realizados: cada servicio con su duración (la del profesional si la tiene); si falta en el catálogo, la
   // duración típica del profesional.
   let minutesDone = 0;
@@ -474,6 +512,7 @@ function buildMonthSnapshot(
     startDate: perf ? perf.startDate : null,
     totalSlots,
     usedSlots: used,
+    agendadaPct,
     employeeLoad,
     openDatesByDow,
     openHours,
@@ -669,6 +708,7 @@ export function useAdvisorAnalytics(
             margen: currentPerf.margen,
             turnosRealizados: current.usedSlots,
             turnosDisponibles: current.totalSlots,
+            ocupacionAgendada: current.agendadaPct,
             turnosCancelados: current.cancellations,
             turnosNoAsistio: current.noShows,
             nuevosElegibles: nuevos.elegibles,

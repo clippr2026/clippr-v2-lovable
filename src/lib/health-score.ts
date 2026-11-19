@@ -5,7 +5,7 @@
 //   Retención de clientes ...... 30
 //       Nuevos que vuelven ..... 20   0 pts con 20% o menos · 10 pts con 45% · 20 pts con 70% o más
 //       Habituales al día ...... 10   0 pts con 40% o menos · 5 pts con 62,5% · 10 pts con 85% o más
-//   Ocupación real de agenda ... 25   0 pts con 20% o menos · 15 pts con 50% · 25 pts con 80% o más
+//   Ocupación atendida ......... 25   0 pts con 20% o menos · 15 pts con 50% · 25 pts con 80% o más
 //
 // Redondeo en un solo lugar: cada indicador redondea sus puntos a enteros y el total es la suma de lo que se ve.
 // Cuando a un indicador (o a la mitad de la retención) le faltan datos, ese tramo no suma ni resta: el resultado se
@@ -90,6 +90,8 @@ export type HealthInput = {
   /** Ocupación real: turnos realizados contra turnos disponibles (la duración del turno es la de cada profesional). */
   turnosRealizados: number;
   turnosDisponibles: number;
+  /** Ocupación agendada (tiempo reservado sobre el disponible), solo informativa. */
+  ocupacionAgendada: number | null;
   turnosCancelados: number;
   turnosNoAsistio: number;
 
@@ -180,7 +182,7 @@ export function computeHealthScore(i: HealthInput): HealthScore {
     const nominal = 25;
     if (i.turnosDisponibles <= 0) {
       indicators.push({
-        key: "ocupacion", label: "Ocupación real de agenda", max: nominal, evaluable: 0, pts: null, state: "insuficiente",
+        key: "ocupacion", label: "Ocupación atendida", max: nominal, evaluable: 0, pts: null, state: "insuficiente",
         valueText: "Sin horarios cargados",
         why: "No hay horarios de atención suficientes para medir la ocupación.",
         period: i.periodoLabel,
@@ -191,7 +193,7 @@ export function computeHealthScore(i: HealthInput): HealthScore {
       const pct = (i.turnosRealizados / i.turnosDisponibles) * 100;
       const pts = Math.round(pointsOcupacion(pct));
       indicators.push({
-        key: "ocupacion", label: "Ocupación real de agenda", max: nominal, evaluable: nominal, pts, state: "calculado",
+        key: "ocupacion", label: "Ocupación atendida", max: nominal, evaluable: nominal, pts, state: "calculado",
         valueText: `Ocupación ${pctTxt(Math.min(100, pct))}`,
         why: `Ocupás el ${pctTxt1(Math.min(100, pct))} del tiempo disponible y suma ${pts} de ${nominal} puntos.`,
         period: i.periodoLabel,
@@ -199,7 +201,8 @@ export function computeHealthScore(i: HealthInput): HealthScore {
         datos: [
           `Turnos realizados: ${i.turnosRealizados.toLocaleString("es-AR")}`,
           `Turnos disponibles: ${i.turnosDisponibles.toLocaleString("es-AR")}`,
-          `Ocupación: ${pctTxt1(Math.min(100, pct))}`,
+          `Ocupación atendida: ${pctTxt1(Math.min(100, pct))}`,
+          ...(i.ocupacionAgendada != null ? [`Ocupación agendada: ${i.ocupacionAgendada}%`] : []),
           `Cancelaciones: ${i.turnosCancelados}`,
           `No asistió: ${i.turnosNoAsistio}`,
         ],

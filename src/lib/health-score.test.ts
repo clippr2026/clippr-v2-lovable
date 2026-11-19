@@ -21,6 +21,7 @@ const base: HealthInput = {
   margen: 35,
   turnosRealizados: 800,
   turnosDisponibles: 1_000,
+  ocupacionAgendada: 60,
   turnosCancelados: 10,
   turnosNoAsistio: 5,
   nuevosElegibles: 100,

@@ -1,3 +1,5 @@
+import { ocupacionLocal, OCUPACION_AGENDADA_TEXTO, OCUPACION_ATENDIDA_TEXTO, OCUPACION_EJEMPLO, type OcupacionLocal } from "@/lib/ocupacion";
+import { useServedMinutesByEmployee } from "@/components/agenda/use-served-minutes";
 import { AccessDenied, usePermGuard } from "@/hooks/use-perm-guard";
 import { WhatsAppIcon } from "@/components/icons/whatsapp-icon";
 import { whatsappHref as armarWhatsappHref } from "@/lib/contacto-valido";
@@ -350,7 +352,8 @@ function AgendaPage() {
   const [profFilterId, setProfFilterId] = React.useState<string | null>(null);
   const [profFilterOpen, setProfFilterOpen] = React.useState(false);
   // Ocupación de todo el local en el día (la calcula la grilla del día).
-  const [localOccupancy, setLocalOccupancy] = React.useState<number | null>(null);
+  const [localOccupancy, setLocalOccupancy] = React.useState<OcupacionLocal | null>(null);
+  const [ocupacionInfoOpen, setOcupacionInfoOpen] = React.useState(false);
   const profFilterKey = data.businessId
     ? `agenda_prof_filter_${data.businessId}_${data.activeBranchId ?? "none"}`
     : null;
@@ -1627,18 +1630,43 @@ function AgendaPage() {
 
           {/* Status counts (clickable filters) — pushed right, solo desktop/tablet */}
           <div className="hidden sm:flex items-center gap-1.5 shrink-0 ml-auto">
-            {/* Ocupación de todo el local en el día */}
+            {/* Ocupación de todo el local en el día: agendada y atendida, con un solo ⓘ que explica las dos */}
             {localOccupancy !== null && (
-              <div
-                className="mr-1.5 flex shrink-0 items-center gap-2 rounded-xl bg-white/[0.04] px-3 py-1 text-sm font-medium text-foreground ring-1 ring-white/15"
-                title="Ocupación del local: minutos con turno sobre los minutos disponibles de todos los profesionales"
-              >
-                <span
-                  className="h-2.5 w-2.5 rounded-full"
-                  style={{ background: occupancyColor(localOccupancy).fill }}
-                />
-                <span className="opacity-85">Ocupación</span>
-                <span className="text-lg font-bold leading-none tabular-nums">{localOccupancy}%</span>
+              <div className="relative mr-1.5 flex shrink-0 items-center gap-1.5">
+                {(
+                  [
+                    ["Agendada", localOccupancy.agendada, OCUPACION_AGENDADA_TEXTO],
+                    ["Atendida", localOccupancy.atendida, OCUPACION_ATENDIDA_TEXTO],
+                  ] as const
+                ).map(([nombre, valor, ayuda]) =>
+                  valor == null ? null : (
+                    <div
+                      key={nombre}
+                      className="flex shrink-0 items-center gap-2 rounded-xl bg-white/[0.04] px-3 py-1 text-sm font-medium text-foreground ring-1 ring-white/15"
+                      title={ayuda}
+                    >
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: occupancyColor(valor).fill }} />
+                      <span className="opacity-85">{nombre}</span>
+                      <span className="text-lg font-bold leading-none tabular-nums">{valor}%</span>
+                    </div>
+                  ),
+                )}
+                <button
+                  type="button"
+                  aria-label="Qué significan las ocupaciones"
+                  aria-expanded={ocupacionInfoOpen}
+                  onClick={() => setOcupacionInfoOpen((v) => !v)}
+                  className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-white/20 text-[12px] font-bold text-white/70 hover:text-white"
+                >
+                  i
+                </button>
+                {ocupacionInfoOpen && (
+                  <div className="absolute right-0 top-9 z-50 w-[320px] rounded-2xl border border-violet-400/40 bg-[#08070f] p-3.5 text-xs leading-relaxed text-white/80 shadow-[0_20px_60px_-20px_rgba(0,0,0,.9)]">
+                    <p>{OCUPACION_AGENDADA_TEXTO}</p>
+                    <p className="mt-2">{OCUPACION_ATENDIDA_TEXTO}</p>
+                    <p className="mt-2 text-white/60">{OCUPACION_EJEMPLO}</p>
+                  </div>
+                )}
               </div>
             )}
             {STATUS_FILTERS.map(([k, label, color, ring, bg]) => (
@@ -1825,19 +1853,50 @@ function AgendaPage() {
           ))}
         </div>
 
-        {/* Ocupación de todo el local: línea fina entre los estados y el calendario (celular) */}
+        {/* Ocupación de todo el local: dos líneas finas entre los estados y el calendario (celular) */}
         {localOccupancy !== null && (
-          <div className="mb-2.5 px-1 sm:hidden" title="Ocupación del local">
-            <div className="mb-1 flex items-center justify-between text-[11px] font-medium text-white/65">
-              <span>Ocupación del local</span>
-              <span className="font-bold tabular-nums text-white">{localOccupancy}%</span>
+          <div className="mb-2.5 px-1 sm:hidden">
+            <div className="flex items-start gap-2">
+              <div className="min-w-0 flex-1 space-y-1.5">
+                {(
+                  [
+                    ["Ocupación agendada", localOccupancy.agendada],
+                    ["Ocupación atendida", localOccupancy.atendida],
+                  ] as const
+                ).map(([nombre, valor]) =>
+                  valor == null ? null : (
+                    <div key={nombre}>
+                      <div className="mb-1 flex items-center justify-between text-[11px] font-medium text-white/65">
+                        <span>{nombre}</span>
+                        <span className="font-bold tabular-nums text-white">{valor}%</span>
+                      </div>
+                      <div className="h-1 w-full overflow-hidden rounded-full bg-white/10">
+                        <div
+                          className="h-full rounded-full transition-[width] duration-500"
+                          style={{ width: `${valor}%`, background: occupancyColor(valor).fill, boxShadow: `0 0 8px ${occupancyColor(valor).glow}` }}
+                        />
+                      </div>
+                    </div>
+                  ),
+                )}
+              </div>
+              <button
+                type="button"
+                aria-label="Qué significan las ocupaciones"
+                aria-expanded={ocupacionInfoOpen}
+                onClick={() => setOcupacionInfoOpen((v) => !v)}
+                className="mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full border border-white/20 text-[12px] font-bold text-white/70"
+              >
+                i
+              </button>
             </div>
-            <div className="h-1 w-full overflow-hidden rounded-full bg-white/10">
-              <div
-                className="h-full rounded-full transition-[width] duration-500"
-                style={{ width: `${localOccupancy}%`, background: occupancyColor(localOccupancy).fill, boxShadow: `0 0 8px ${occupancyColor(localOccupancy).glow}` }}
-              />
-            </div>
+            {ocupacionInfoOpen && (
+              <div className="mt-2 rounded-2xl border border-violet-400/40 bg-[#08070f] p-3 text-xs leading-relaxed text-white/80">
+                <p>{OCUPACION_AGENDADA_TEXTO}</p>
+                <p className="mt-2">{OCUPACION_ATENDIDA_TEXTO}</p>
+                <p className="mt-2 text-white/60">{OCUPACION_EJEMPLO}</p>
+              </div>
+            )}
           </div>
         )}
 
@@ -2439,7 +2498,7 @@ const DayView = React.memo(function DayView({
   onCobrar: (a: Appointment) => void;
   onBreakClick: (item: { employeeId: string; startMin: number; endMin: number }) => void;
   // Avisa a la página el % de ocupación de todo el local (null si no hay horario ese día).
-  onLocalOccupancy?: (pct: number | null) => void;
+  onLocalOccupancy?: (ocupacion: OcupacionLocal | null) => void;
 }) {
   const [now, setNow] = React.useState(() => new Date());
   const [hoverTime, setHoverTime] = React.useState<{
@@ -3101,14 +3160,23 @@ const DayView = React.memo(function DayView({
     ],
   );
 
-  // Ocupación de TODO el local: misma cuenta que la de cada profesional (turnos reservados, incluidos
-  // los que no asistieron, sobre minutos disponibles sin descansos ni bloqueos), sumada entre todos
-  // los que trabajan ese día. Los cancelados liberan el horario y no cuentan.
+  // Minutos de servicios atendidos y cobrados hoy por profesional (con turno o por orden de llegada).
+  const servedMinutes = useServedMinutesByEmployee(
+    data.businessId,
+    data.activeBranchId,
+    toDateKey(date),
+    data.services as Array<{ name: string; duration_min?: number | null }>,
+    data.appointments as never,
+  );
+
+  // Ocupación de TODO el local en dos medidas (ver src/lib/ocupacion.ts): agendada (tiempo reservado, incluidos los
+  // que no asistieron; los cancelados liberan el horario) y atendida (servicios cobrados). Ambas sobre el horario
+  // disponible sin descansos ni bloqueos, de los profesionales que se están viendo (respeta el filtro), con el tope
+  // de 100% por profesional antes de sumar.
   const localOccupancyPct = React.useMemo(() => {
     if (closure) return null;
-    let occupied = 0;
-    let available = 0;
-    for (const emp of allEmployees) {
+    const filas = [];
+    for (const emp of employees) {
       const win = effectiveWindowFor(emp.id);
       const working = win.closeMin - win.openMin;
       if (working <= 0) continue;
@@ -3120,12 +3188,15 @@ const DayView = React.memo(function DayView({
         unionRangeMinutes(
           mine.filter((a) => a.status === "pending" || a.status === "confirmed" || a.status === "completed" || a.status === "charged" || a.status === "no_show").map(range),
         ) / 60_000;
-      available += Math.max(0, working - breakMin - blocked);
-      occupied += busy;
+      filas.push({
+        disponible: Math.max(0, working - breakMin - blocked),
+        agendado: busy,
+        atendido: servedMinutes.data?.get(emp.id) ?? 0,
+      });
     }
-    if (available <= 0) return occupied > 0 ? 100 : null;
-    return Math.min(100, Math.round((occupied / available) * 100));
-  }, [closure, allEmployees, effectiveWindowFor, visibleDayAppts]);
+    const r = ocupacionLocal(filas);
+    return r.agendada == null ? null : r;
+  }, [closure, employees, effectiveWindowFor, visibleDayAppts, servedMinutes.data]);
   React.useEffect(() => {
     onLocalOccupancy?.(localOccupancyPct);
   }, [localOccupancyPct, onLocalOccupancy]);
