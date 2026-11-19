@@ -102,7 +102,7 @@ export const Route = createFileRoute("/clients")({
   // Agenda con la misma fecha al cerrar esa ficha puntual.
   validateSearch: (
     search: Record<string, unknown>,
-  ): { clientId?: string; agendaDate?: string; q?: string; openRecurring?: string } => ({
+  ): { clientId?: string; agendaDate?: string; q?: string; openRecurring?: string; grupo?: string } => ({
     clientId: typeof search.clientId === "string" ? search.clientId : undefined,
     agendaDate: typeof search.agendaDate === "string" ? search.agendaDate : undefined,
     // Fallback cuando el turno de origen no tenía client_id: solo precarga
@@ -112,6 +112,8 @@ export const Route = createFileRoute("/clients")({
     // ficha directo en la pestaña "reservas" para ver la sección de
     // Reservas recurrentes sin un paso extra.
     openRecurring: typeof search.openRecurring === "string" ? search.openRecurring : undefined,
+    // Abre directo el listado de un grupo (desde el Asesor IA): una_visita, perdido, etc.
+    grupo: typeof search.grupo === "string" ? search.grupo : undefined,
   }),
   component: ClientsPageGuarded,
 });
@@ -1681,6 +1683,16 @@ function ClientsPage() {
     },
     [businessId, grupos],
   );
+
+  // Deep link desde el Asesor IA: /clients?grupo=una_visita abre el listado de ese grupo apenas cargan los grupos.
+  const grupoDeepLinkHecho = useRef(false);
+  useEffect(() => {
+    if (grupoDeepLinkHecho.current || !search.grupo || !grupos) return;
+    const g = GRUPOS_CLIENTE.find((x) => x.key === search.grupo);
+    grupoDeepLinkHecho.current = true;
+    if (g) void showGroup(g.label, g.key);
+    navigate({ to: "/clients", search: {} as never, replace: true });
+  }, [search.grupo, grupos, showGroup, navigate]);
 
   const handleDeleteClient = useCallback(
     async (client: Client) => {

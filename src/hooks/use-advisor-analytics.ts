@@ -85,7 +85,23 @@ export type RadarItem = {
   label: string;
 };
 
+// Estado de la entrada al Asesor: qué datos ya llegaron, si falló la carga y qué le falta al negocio.
+export type AdvisorEntryState = {
+  ventas: "loading" | "ready";
+  clientes: "loading" | "ready";
+  turnos: "loading" | "ready";
+  error: boolean;
+  retry: () => void;
+  // La carga terminó y la sucursal no tiene cobros ni turnos.
+  emptyBranch: boolean;
+  // Clientes por grupo de Clientes (nuevo, una_visita, perdido, …).
+  grupoCounts: Record<string, number>;
+  // Todavía no hay gastos fijos cargados en el mes analizado (no se toman como $0).
+  fixedExpensesMissing: boolean;
+};
+
 export type AdvisorAnalytics = {
+  entry: AdvisorEntryState;
   loading: boolean;
   // Cantidad de datos reales analizados (para la presentación del Asesor).
   dataCounts: { payments: number; appts: number; clients: number };
@@ -269,9 +285,12 @@ async function loadAdvisorAnalytics(businessId: string, branchId: string | null)
       .eq("active", true),
   ]);
 
+  // Sin cobros o turnos no hay análisis: se informa el error en vez de mostrar "sin movimientos".
+  if (payRes.error) throw new Error(payRes.error.message);
+  if (apptRes.error) throw new Error(apptRes.error.message);
   return {
-    payments: payRes.error ? [] : ((payRes.data ?? []) as RawPayment[]),
-    appts: apptRes.error ? [] : ((apptRes.data ?? []) as RawAppt[]),
+    payments: (payRes.data ?? []) as RawPayment[],
+    appts: (apptRes.data ?? []) as RawAppt[],
     expenses: expRes.error ? [] : ((expRes.data ?? []) as RawExpense[]),
     employees: empRes.error ? [] : ((empRes.data ?? []) as RawEmployee[]),
     catalog: catRes.error ? [] : ((catRes.data ?? []) as RawCatalogItem[]),
@@ -431,6 +450,7 @@ function useAdvisorAnalyticsQuery(businessId: string | null | undefined, branchI
     queryFn: () => loadAdvisorAnalytics(businessId!, branchId ?? null),
     enabled: !!businessId,
     staleTime: 60_000,
+    retry: 1,
   });
 }
 
@@ -492,7 +512,7 @@ export function useAdvisorAnalytics(
   const comparisonPerf = isCurrentMonth ? samePeriodQuery.data : prevFullQuery.data;
   const perfSignature = `${perfQueries.map((q) => `${q.status}:${q.dataUpdatedAt}`).join("|")}#${samePeriodQuery.dataUpdatedAt}#${currentComparableQuery.dataUpdatedAt}#${prevFullQuery.dataUpdatedAt}#${selectedKey}`;
 
-  return React.useMemo(() => {
+  const base = React.useMemo((): Omit<AdvisorAnalytics, "entry"> => {
     const data = dataQuery.data;
     const clients = clientsQuery.data ?? [];
     const loading =
@@ -952,4 +972,30 @@ export function useAdvisorAnalytics(
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataQuery.data, dataQuery.isLoading, clientsQuery.data, clientsQuery.isLoading, monthKeys, perfSignature]);
+
+  const analysisPerf = perfQueries[monthKeys.indexOf(selectedKey)]?.data;
+  const refetchData = dataQuery.refetch;
+  const refetchClients = clientsQuery.refetch;
+  return React.useMemo((): AdvisorAnalytics => {
+    const grupoCounts: Record<string, number> = {};
+    for (const c of clientsQuery.data ?? []) {
+      if (c.grupo) grupoCounts[c.grupo] = (grupoCounts[c.grupo] ?? 0) + 1;
+    }
+    return {
+      ...base,
+      entry: {
+        ventas: dataQuery.isLoading ? "loading" : "ready",
+        turnos: dataQuery.isLoading ? "loading" : "ready",
+        clientes: clientsQuery.isLoading ? "loading" : "ready",
+        error: dataQuery.isError || clientsQuery.isError,
+        retry: () => {
+          void refetchData();
+          void refetchClients();
+        },
+        emptyBranch: !!dataQuery.data && dataQuery.data.payments.length === 0 && dataQuery.data.appts.length === 0,
+        grupoCounts,
+        fixedExpensesMissing: !!analysisPerf && analysisPerf.hasData && !analysisPerf.gastosPorTipo.some((g) => g.tipo === "Fijo" && g.total > 0),
+      },
+    };
+  }, [base, dataQuery.isLoading, dataQuery.isError, dataQuery.data, clientsQuery.isLoading, clientsQuery.isError, clientsQuery.data, analysisPerf, refetchData, refetchClients]);
 }

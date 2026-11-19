@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useClientsData, type Client } from "@/hooks/use-clients-data";
 import { ADVISOR_MONTHS_SELECTABLE, useAdvisorAnalytics, type AdvisorAnalytics } from "@/hooks/use-advisor-analytics";
 import type { HealthIndicator } from "@/lib/health-score";
+import { buildEntryRecommendation } from "@/lib/advisor-entry";
 import { cajaDateKeyBA } from "@/lib/caja-cierre";
 import { shiftMonth } from "@/lib/monthly-performance";
 import { MesSelector, RendimientoMensual } from "@/components/advisor/rendimiento-mensual";
@@ -310,9 +311,6 @@ function AdvisorContent({
 }) {
   const { businessId } = useAuth();
   const animationProgress = useResultAnimation(true);
-  // La presentación aparece cada vez que se entra al Asesor IA (no al cambiar de pestaña adentro).
-  const [introDone, setIntroDone] = React.useState(false);
-  const finishIntro = React.useCallback(() => setIntroDone(true), []);
   const [infoModal, setInfoModal] = React.useState<InfoModalContent | null>(null);
   // Mes elegido en Evolución del negocio: manda sobre las tres tarjetas grandes (Evolución,
   // Salud del negocio y Radiografía del local) — al cambiarlo cambian todos sus datos.
@@ -332,8 +330,6 @@ function AdvisorContent({
             : "Necesita atención";
   const animatedHealth = Math.round((analytics.health ?? 0) * animationProgress);
   const animatedProfit = Math.round((analytics.current?.profit ?? 0) * animationProgress);
-
-  if (!introDone) return <AdvisorIntro ready={!analytics.loading} counts={analytics.dataCounts} onDone={finishIntro} />;
 
   return (
     <div className="space-y-5 sm:space-y-7 max-w-5xl mx-auto w-full">
@@ -363,6 +359,7 @@ function AdvisorContent({
 
       {advisorTab === "analisis" && (
         <>
+          <AdvisorEntry analytics={analytics} />
           {/* ── EVOLUCIÓN DEL NEGOCIO ─────────────────────────────── */}
           {/* Mismo fix que Salud del negocio: overflow-hidden contiene el
               glow decorativo (-inset-x-6) para que no fuerce scroll
@@ -429,132 +426,154 @@ function useResultAnimation(enabled = false) {
   return progress;
 }
 
-// Presentación al entrar al Asesor IA (se puede saltear): una red neuronal que se enciende y
-// contadores que suben hasta la cantidad REAL de ventas, clientes y turnos analizados. No se cierra hasta que
-// los datos terminaron de cargar.
-function useCountUp(target: number, active: boolean, durationMs = 1400) {
-  const [value, setValue] = React.useState(0);
-  React.useEffect(() => {
-    if (!active) return;
-    let frame = 0;
-    const startedAt = performance.now();
-    const tick = (now: number) => {
-      const raw = Math.min((now - startedAt) / durationMs, 1);
-      setValue(Math.round(target * (1 - Math.pow(1 - raw, 3))));
-      if (raw < 1) frame = window.requestAnimationFrame(tick);
-    };
-    frame = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(frame);
-  }, [target, active, durationMs]);
-  return value;
+// Entrada del Asesor IA (pestaña Análisis): mientras carga, el asesor "revisa el negocio" y cada dato aparece cuando
+// llega de verdad; al terminar, en el mismo lugar, da la recomendación principal con su porqué y un botón para actuar.
+const ENTRY_NODES: Array<[number, number]> = [
+  [20, 34], [70, 14], [120, 40], [170, 16], [220, 38], [270, 18], [320, 36],
+  [45, 72], [100, 64], [155, 78], [210, 62], [265, 76], [305, 66],
+];
+const ENTRY_LINKS: Array<[number, number]> = [
+  [0, 1], [1, 2], [2, 3], [3, 4], [4, 5], [5, 6], [0, 7], [1, 8], [2, 8], [2, 9], [3, 9], [4, 10], [5, 11], [6, 12],
+  [7, 8], [8, 9], [9, 10], [10, 11], [11, 12],
+];
+
+function EntryMetric({ label, value }: { label: string; value: number | null }) {
+  return (
+    <div className="rounded-2xl border border-white/10 bg-white/[0.035] px-2 py-2.5 text-center">
+      <div className="font-display text-xl font-black tabular-nums text-white">
+        {value == null ? <span className="text-white/30">—</span> : value.toLocaleString("es-AR")}
+      </div>
+      <div className="mt-0.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-white/45">{label}</div>
+    </div>
+  );
 }
 
-const INTRO_NODES: Array<[number, number]> = [
-  [40, 60], [120, 30], [200, 70], [280, 40], [350, 80],
-  [70, 140], [160, 120], [240, 150], [320, 130],
-  [30, 210], [110, 200], [190, 230], [270, 210], [360, 220],
-];
-const INTRO_LINKS: Array<[number, number]> = [
-  [0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [1, 6], [2, 6], [2, 7], [3, 7], [4, 8], [5, 6], [6, 7], [7, 8],
-  [5, 9], [5, 10], [6, 10], [6, 11], [7, 11], [7, 12], [8, 12], [8, 13], [9, 10], [10, 11], [11, 12], [12, 13],
-];
+function AdvisorEntry({ analytics }: { analytics: AdvisorAnalytics }) {
+  const navigate = useNavigate();
+  const { entry } = analytics;
+  const cargando = entry.ventas === "loading" || entry.clientes === "loading" || entry.turnos === "loading";
 
-function AdvisorIntro({
-  ready,
-  counts,
-  onDone,
-}: {
-  ready: boolean;
-  counts: { payments: number; appts: number; clients: number };
-  onDone: () => void;
-}) {
-  const [minTime, setMinTime] = React.useState(false);
-  React.useEffect(() => {
-    const id = window.setTimeout(() => setMinTime(true), 2600);
-    return () => window.clearTimeout(id);
-  }, []);
+  const radiografia = (key: string) => analytics.radiografia.find((i) => i.key === key);
+  const recomendacion = React.useMemo(() => {
+    const dia = (key: string) => {
+      const item = radiografia(key);
+      const promedio = Number((item?.detail ?? "").replace(/[^0-9]/g, ""));
+      return item && item.value !== "—" && promedio > 0 ? { dia: item.value, promedio } : null;
+    };
+    return buildEntryRecommendation({
+      grupoCounts: entry.grupoCounts,
+      occupancy: analytics.current?.hasData ? analytics.current.occupancy : null,
+      diaTranquilo: dia("dia-tranquilo"),
+      diaRentable: dia("dia-rentable"),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [entry.grupoCounts, analytics.current, analytics.radiografia]);
 
-  const listo = ready && minTime;
-  const ventas = useCountUp(counts.payments, ready);
-  const clientes = useCountUp(counts.clients, ready);
-  const turnos = useCountUp(counts.appts, ready);
+  const marco =
+    "relative overflow-hidden rounded-[22px] border p-4 sm:p-5 animate-in fade-in slide-in-from-bottom-1 duration-300";
 
-  React.useEffect(() => {
-    if (!listo) return;
-    const id = window.setTimeout(onDone, 700);
-    return () => window.clearTimeout(id);
-  }, [listo, onDone]);
+  if (entry.error) {
+    return (
+      <div className={cn(marco, "border-rose-400/30 bg-rose-400/[0.07]")}>
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="h-5 w-5 shrink-0 text-rose-300" />
+            <p className="text-sm font-semibold text-rose-100">No pude cargar el análisis</p>
+          </div>
+          <button
+            type="button"
+            onClick={entry.retry}
+            className="rounded-full bg-white/10 px-4 py-2 text-xs font-bold text-white ring-1 ring-white/15 hover:bg-white/15"
+          >
+            Reintentar
+          </button>
+        </div>
+      </div>
+    );
+  }
 
-  const frase = !ready ? "Leyendo tus datos…" : !minTime ? "Cruzando ventas, clientes y agenda…" : "Listo. Armando tu panel…";
-
-  return (
-    <div className="relative -mt-2 flex h-[calc(100svh-164px-env(safe-area-inset-bottom))] min-h-[420px] flex-col items-center justify-center overflow-hidden px-4 py-4 sm:h-[calc(100svh-128px)] sm:min-h-[560px]">
-      <style>{`
-        @keyframes advisorNode { 0%,100% { opacity:.25; r:3 } 50% { opacity:1; r:5 } }
-        @keyframes advisorLink { 0% { stroke-dashoffset: 120 } 100% { stroke-dashoffset: 0 } }
-        @keyframes advisorScan { 0% { transform: translateY(-10%); opacity:0 } 15% { opacity:.9 } 85% { opacity:.9 } 100% { transform: translateY(110%); opacity:0 } }
-      `}</style>
-      <div className="pointer-events-none absolute -left-28 top-4 h-72 w-72 rounded-full bg-violet-500/20 blur-3xl" />
-      <div className="pointer-events-none absolute -right-28 top-8 h-72 w-72 rounded-full bg-sky-500/16 blur-3xl" />
-
-      <div className="relative z-10 flex w-full max-w-md flex-col items-center text-center">
-        <div className="relative h-56 w-full max-w-[380px] overflow-hidden rounded-3xl border border-violet-300/20 bg-[#080a16]/80">
-          <svg viewBox="0 0 400 260" className="absolute inset-0 h-full w-full">
-            {INTRO_LINKS.map(([from, to], i) => (
+  if (cargando) {
+    return (
+      <div className={cn(marco, "border-violet-300/25 bg-violet-400/[0.05]")}>
+        <style>{`
+          @keyframes entryPulse { 0% { stroke-dashoffset: 60; opacity: .15 } 50% { opacity: 1 } 100% { stroke-dashoffset: -60; opacity: .15 } }
+          @keyframes entryNode { 0%,100% { opacity: .3 } 50% { opacity: 1 } }
+        `}</style>
+        <svg viewBox="0 0 340 92" className="h-20 w-full sm:h-24" aria-hidden>
+          <defs>
+            <linearGradient id="entryGrad" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0%" stopColor="rgb(56 189 248)" />
+              <stop offset="100%" stopColor="rgb(167 139 250)" />
+            </linearGradient>
+          </defs>
+          {ENTRY_LINKS.map(([from, to], i) => (
+            <g key={`${from}-${to}`}>
+              <line x1={ENTRY_NODES[from][0]} y1={ENTRY_NODES[from][1]} x2={ENTRY_NODES[to][0]} y2={ENTRY_NODES[to][1]} stroke="rgb(129 140 248)" strokeOpacity="0.22" strokeWidth="1" />
               <line
-                key={`${from}-${to}`}
-                x1={INTRO_NODES[from][0]}
-                y1={INTRO_NODES[from][1]}
-                x2={INTRO_NODES[to][0]}
-                y2={INTRO_NODES[to][1]}
-                stroke="rgb(167 139 250)"
-                strokeOpacity="0.55"
-                strokeWidth="1.2"
-                strokeDasharray="120"
-                style={{ animation: `advisorLink 1.2s ease-out ${i * 60}ms both` }}
+                x1={ENTRY_NODES[from][0]}
+                y1={ENTRY_NODES[from][1]}
+                x2={ENTRY_NODES[to][0]}
+                y2={ENTRY_NODES[to][1]}
+                stroke="url(#entryGrad)"
+                strokeWidth="1.6"
+                strokeDasharray="14 46"
+                style={{ animation: `entryPulse 2.2s ease-in-out ${(i % 7) * 220}ms infinite` }}
               />
-            ))}
-            {INTRO_NODES.map(([x, y], i) => (
-              <circle
-                key={i}
-                cx={x}
-                cy={y}
-                r="4"
-                fill="rgb(196 181 253)"
-                style={{ animation: `advisorNode 1.8s ease-in-out ${i * 130}ms infinite` }}
-              />
-            ))}
-          </svg>
-          <div
-            className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-transparent via-violet-300/25 to-transparent"
-            style={{ animation: "advisorScan 2.4s linear infinite" }}
-          />
-        </div>
-
-        <h1 className="mt-6 font-display text-3xl font-black tracking-tight text-white sm:text-4xl">Asesor IA</h1>
-        <p className="mt-2 h-5 text-sm font-semibold text-violet-200/80">{frase}</p>
-
-        <div className="mt-6 grid w-full grid-cols-3 gap-2">
-          {[
-            { label: "Ventas", value: ventas },
-            { label: "Clientes", value: clientes },
-            { label: "Turnos", value: turnos },
-          ].map((item) => (
-            <div key={item.label} className="rounded-2xl border border-white/10 bg-white/[0.035] px-2 py-3">
-              <div className="font-display text-2xl font-black tabular-nums text-white">{item.value.toLocaleString("es-AR")}</div>
-              <div className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/45">{item.label}</div>
-            </div>
+            </g>
           ))}
+          {ENTRY_NODES.map(([x, y], i) => (
+            <circle key={i} cx={x} cy={y} r="3" fill={i % 2 ? "rgb(167 139 250)" : "rgb(56 189 248)"} style={{ animation: `entryNode 2s ease-in-out ${(i % 6) * 260}ms infinite` }} />
+          ))}
+        </svg>
+        <p className="mt-2 text-base font-bold text-white">Estoy analizando tus datos</p>
+        <p className="text-sm text-white/55">Revisando tus ventas, turnos y clientes…</p>
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          <EntryMetric label="Ventas" value={entry.ventas === "ready" ? analytics.dataCounts.payments : null} />
+          <EntryMetric label="Clientes" value={entry.clientes === "ready" ? analytics.dataCounts.clients : null} />
+          <EntryMetric label="Turnos" value={entry.turnos === "ready" ? analytics.dataCounts.appts : null} />
         </div>
-        <p className="mt-2 text-[11px] text-white/40">analizados en tu negocio</p>
+      </div>
+    );
+  }
 
-        <button
-          type="button"
-          onClick={onDone}
-          className="mt-5 text-xs font-semibold text-white/40 underline-offset-4 hover:text-white/70 hover:underline"
-        >
-          Saltar
-        </button>
+  if (entry.emptyBranch) {
+    return (
+      <div className={cn(marco, "border-white/12 bg-white/[0.035]")}>
+        <div className="flex items-center gap-3">
+          <Brain className="h-5 w-5 shrink-0 text-white/50" />
+          <p className="text-sm font-semibold text-white/80">Todavía no tengo movimientos para analizar en esta sucursal</p>
+        </div>
+      </div>
+    );
+  }
+
+  const accion = recomendacion.action;
+  return (
+    <div className={cn(marco, "border-violet-300/30 bg-violet-400/[0.07]")}>
+      <div className="pointer-events-none absolute -left-10 -top-10 h-32 w-32 rounded-full bg-violet-500/20 blur-3xl" />
+      <div className="relative flex items-start gap-3">
+        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-400/12 ring-1 ring-violet-300/25">
+          <Brain className="h-5 w-5 text-violet-200" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <p className="text-[11px] font-black uppercase tracking-[0.16em] text-violet-200/70">Por dónde empezar</p>
+          <p className="mt-1 text-lg font-bold leading-snug text-white sm:text-xl">{recomendacion.title}</p>
+          <p className="mt-1.5 text-sm leading-relaxed text-white/65">{recomendacion.body}</p>
+          {accion && (
+            <button
+              type="button"
+              onClick={() =>
+                accion.kind === "clientes"
+                  ? navigate({ to: "/clients", search: { grupo: accion.grupo } as never })
+                  : navigate({ to: "/agenda" })
+              }
+              className="mt-3 inline-flex items-center gap-1.5 rounded-full bg-gradient-to-r from-violet-500 to-fuchsia-500 px-4 py-2 text-sm font-bold text-white shadow-lg shadow-violet-500/25"
+            >
+              {accion.label}
+              <ArrowRight className="h-4 w-4" />
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );

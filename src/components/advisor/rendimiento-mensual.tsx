@@ -281,6 +281,13 @@ export function RendimientoMensual({ monthKey: controlledMonthKey }: Rendimiento
           {/* Ganancia — el número principal del mes */}
           <div className="relative overflow-hidden rounded-[1.75rem] border border-emerald-300/25 bg-white/[0.025] p-5 shadow-[0_0_0_1px_rgba(16,185,129,0.12),0_30px_100px_-50px_rgba(45,212,191,0.9)] sm:p-6">
             <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-200/80">Ganancia del mes</div>
+            {rentabilidadProvisional ? (
+              // Los gastos fijos que faltan cargar no se toman como $0: sin ellos no hay ganancia ni margen confiables.
+              <div className="mt-2 rounded-2xl border border-amber-400/25 bg-amber-400/[0.06] px-4 py-4 text-base font-semibold leading-snug text-amber-100">
+                Cargá tus gastos fijos para calcular la rentabilidad.
+              </div>
+            ) : (
+              <>
             <div
               className={cn(
                 "mt-1 font-display text-4xl font-semibold tabular-nums sm:text-5xl",
@@ -317,13 +324,9 @@ export function RendimientoMensual({ monthKey: controlledMonthKey }: Rendimiento
                 </span>
               </div>
             )}
-            {margenInfo && <MargenInfoTexto />}
-            {rentabilidadProvisional && (
-              <div className="mt-2 rounded-xl border border-amber-400/25 bg-amber-400/[0.06] px-3.5 py-2.5 text-xs leading-relaxed text-amber-100/85">
-                <b>Rentabilidad provisional.</b> Todavía no hay gastos fijos registrados en {monthLabel(monthKey)}: la ganancia y el margen
-                se calculan con los gastos cargados hasta ahora y se actualizan solos cuando registres el resto.
-              </div>
+              </>
             )}
+            {margenInfo && <MargenInfoTexto />}
           </div>
 
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
