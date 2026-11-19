@@ -1967,8 +1967,6 @@ function GrowthManagerTab({ data, analytics, businessId, selectedMonthKey, onMon
   return (
     <div className="mt-6 space-y-8">
       {diagnostico}
-      <ManagerHero rec={hero} totalOpportunity={totalOpportunity} />
-
       <RecentAchievements resolved={resolved} achievements={achievements} />
 
       <AchievementsHistory achievements={achievements} />
