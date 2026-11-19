@@ -40,7 +40,15 @@ describe("decisiones del negocio", () => {
       masPedido: { name: "Alan", n: 4 },
     });
     expect(get(d, "precios").estado).toBe("si");
-    expect(get(d, "precios").detalle).toContain("Alan");
+    expect(get(d, "precios").respuesta).toBe("Sí, a Alan");
+    expect(get(d, "precios").detalle).toContain("Alan está al 90%");
+    expect(get(d, "precios").detalle).toContain("4 clientes lo pidieron");
+    expect(get(d, "precios").detalle).toContain("Con el resto todavía no");
+  });
+  it("un profesional al 80% o más recomienda subir su precio aunque el local tenga lugar, sin que lo hayan pedido", () => {
+    const d = evaluarDecisiones({ ...base, ocupacion: 55, profesionales: [{ name: "Alan", used: 82, capacity: 100 }, { name: "Franco", used: 30, capacity: 100 }] });
+    expect(get(d, "precios").respuesta).toBe("Sí, a Alan");
+    expect(get(evaluarDecisiones({ ...base, ocupacion: 55, profesionales: [{ name: "Alan", used: 82, capacity: 100 }, { name: "Franco", used: 30, capacity: 100 }] }), "contratar").estado).toBe("no");
   });
   it("horarios: marca el desparejo entre profesionales y la franja con más casos", () => {
     const h = get(evaluarDecisiones(base), "horarios");

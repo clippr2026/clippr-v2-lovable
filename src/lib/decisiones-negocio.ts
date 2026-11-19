@@ -37,7 +37,6 @@ export function evaluarDecisiones(i: DecisionesInput): Decision[] {
   const profs = i.profesionales
     .map((p) => ({ name: p.name, pct: pct(p.used, p.capacity) }))
     .filter((p): p is { name: string; pct: number } => p.pct != null);
-  const masPedidoPct = i.masPedido ? profs.find((p) => p.name === i.masPedido!.name)?.pct ?? null : null;
 
   // 1) ¿Contratar un profesional?
   let contratar: Decision;
@@ -89,10 +88,19 @@ export function evaluarDecisiones(i: DecisionesInput): Decision[] {
       clave: "precios", titulo: "¿Subir precios?", estado: "si", respuesta: "Sí",
       detalle: `Con la agenda al ${ocup}% la demanda supera tu lugar: un aumento chico (5% a 10%) casi no espanta clientes.`,
     };
-  } else if (i.masPedido && i.masPedido.n >= 3 && masPedidoPct != null && masPedidoPct >= OCUPACION_LLENA) {
+  } else if (profs.some((p) => p.pct >= OCUPACION_LLENA)) {
+    // Un profesional sin lugar puede subir su precio aunque el local en conjunto tenga lugar.
+    const llenos = profs.filter((p) => p.pct >= OCUPACION_LLENA).sort((a, b) => b.pct - a.pct);
+    const nombres = llenos.map((p) => p.name).join(" y ");
+    const detalleLlenos = llenos.map((p) => `${p.name} está al ${p.pct}%`).join(" y ");
+    const pedidos =
+      i.masPedido && i.masPedido.n >= 1 && llenos.some((p) => p.name === i.masPedido!.name)
+        ? ` Además ${i.masPedido.n} ${i.masPedido.n === 1 ? "cliente lo pidió y se fue" : "clientes lo pidieron y se fueron"}.`
+        : "";
+    const resto = profs.length > llenos.length ? " Con el resto todavía no: tienen lugar libre." : "";
     precios = {
-      clave: "precios", titulo: "¿Subir precios?", estado: "si", respuesta: "Sí, a uno",
-      detalle: `${i.masPedido.name} está al ${masPedidoPct}% y ${i.masPedido.n} clientes lo pidieron y se fueron: conviene subir el precio de sus servicios.`,
+      clave: "precios", titulo: "¿Subir precios?", estado: "si", respuesta: `Sí, a ${nombres}`,
+      detalle: `${detalleLlenos}: casi no ${llenos.length === 1 ? "le" : "les"} queda lugar.${pedidos} Conviene subir el precio de ${llenos.length === 1 ? "sus" : "sus"} servicios entre 5% y 10%.${resto}`,
     };
   } else if (ocup >= OCUPACION_CERCA) {
     precios = {
