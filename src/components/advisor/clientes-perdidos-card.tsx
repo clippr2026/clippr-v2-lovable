@@ -15,7 +15,7 @@ const CHIP_DECISION: Record<DecisionEstado, string> = {
 const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
 
 type Fila = { occurred_at: string; preferencia: "cualquiera" | "especifico" | null; requested_employee_id: string | null };
-type Carga = { name: string; used: number; capacity: number };
+type Carga = { name: string; used: number; capacity: number; daysWorked?: number; daysFull?: number };
 
 /** Límites [desde, hasta) de un mes "2026-11" en hora de Buenos Aires. */
 function rangoMes(monthKey: string) {

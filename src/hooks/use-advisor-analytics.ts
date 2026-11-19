@@ -24,6 +24,7 @@ import { computeHabitualRetention, computeHealthScore, computeNewClientRetention
 import { countRecovery, type RecoveryCounts } from "@/lib/client-recovery";
 import {
   computeCapacity,
+  dailySlotsForEmployee,
   soldMinutesForEmployee,
   DEFAULT_SLOT_MINUTES,
   parseCapacityContext,
@@ -67,7 +68,7 @@ export type AdvisorMonthSnapshot = {
   minutesDone: number;
   minutesAvailable: number;
   // Ocupación de cada profesional activo: servicios vendidos contra SU capacidad.
-  employeeLoad: Array<{ id: string; name: string; used: number; capacity: number }>;
+  employeeLoad: Array<{ id: string; name: string; used: number; capacity: number; daysWorked: number; daysFull: number }>;
   // Fechas trabajadas del período por día de la semana (0 = domingo): los días cerrados no figuran.
   openDatesByDow: Record<number, number>;
   // Horas del día en que el local atiende.
@@ -369,6 +370,7 @@ function buildMonthSnapshot(
   const soldByEmployee = new Map<string, Array<{ name: string; qty: number }>>();
   const usedByEmployee = new Map<string, number>();
   const soldLinesByEmployee = new Map<string, Array<{ name: string; qty: number }>>();
+  const usedByEmployeeDay = new Map<string, number>();
   let servicesSold = 0;
   for (const p of monthPayments) {
     const lines = Array.isArray(p.items) ? p.items.filter((it) => it && !it.is_catalog) : [];
@@ -385,6 +387,8 @@ function buildMonthSnapshot(
       list.push(...entries.filter((e) => e.name));
       soldByEmployee.set(p.employee_id, list);
       usedByEmployee.set(p.employee_id, (usedByEmployee.get(p.employee_id) ?? 0) + qtyTotal);
+      const diaKey = `${p.employee_id}|${new Date(p.created_at).toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" })}`;
+      usedByEmployeeDay.set(diaKey, (usedByEmployeeDay.get(diaKey) ?? 0) + qtyTotal);
       const todas = soldLinesByEmployee.get(p.employee_id) ?? [];
       todas.push(...entries);
       soldLinesByEmployee.set(p.employee_id, todas);
@@ -410,20 +414,32 @@ function buildMonthSnapshot(
     blocks,
     slotMinutesByEmployee,
   });
-  const employeeLoad = activeEmployees.map((e) => ({
-    id: e.id,
-    name: e.full_name,
-    used: usedByEmployee.get(e.id) ?? 0,
-    capacity: computeCapacity({
-      ctx: capacityData.ctx,
-      employeeIds: [e.id],
-      monthKey,
-      cutoffDay,
-      fromDay,
-      blocks,
-      slotMinutesByEmployee,
-    }).totalSlots,
-  }));
+  // Un día cuenta como "lleno" cuando el profesional atendió el 90% o más de sus turnos de ese día (con o sin turno
+  // sacado: sale de los cobros). Sirve para ver picos que el promedio del mes esconde.
+  const DIA_LLENO = 0.9;
+  const employeeLoad = activeEmployees.map((e) => {
+    const porDia = dailySlotsForEmployee(
+      { ctx: capacityData.ctx, monthKey, cutoffDay, fromDay, blocks, slotMinutesByEmployee },
+      e.id,
+    );
+    const daysFull = porDia.filter((d) => d.slots > 0 && (usedByEmployeeDay.get(`${e.id}|${d.dateKey}`) ?? 0) / d.slots >= DIA_LLENO).length;
+    return {
+      id: e.id,
+      name: e.full_name,
+      used: usedByEmployee.get(e.id) ?? 0,
+      capacity: computeCapacity({
+        ctx: capacityData.ctx,
+        employeeIds: [e.id],
+        monthKey,
+        cutoffDay,
+        fromDay,
+        blocks,
+        slotMinutesByEmployee,
+      }).totalSlots,
+      daysWorked: porDia.length,
+      daysFull,
+    };
+  });
   const used = servicesSold;
   // Minutos realizados: cada servicio con su duración (la del profesional si la tiene); si falta en el catálogo, la
   // duración típica del profesional.
