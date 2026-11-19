@@ -84,6 +84,14 @@ describe("decisiones del negocio", () => {
     expect(h.detalle).toContain("Franco está al 35% y Alan al 56%");
     expect(h.detalle).toContain("miércoles de 19 a 20 hs");
   });
+  it("clientes que se van por el precio: se avisa y, si son 3 o más, un sí pasa a con cuidado", () => {
+    const poco = evaluarDecisiones({ ...base, ocupacion: 85, seFueronPorPrecio: 1 });
+    expect(get(poco, "precios").estado).toBe("si");
+    expect(get(poco, "precios").detalle).toContain("1 cliente se fue por el precio");
+    const mucho = evaluarDecisiones({ ...base, ocupacion: 85, seFueronPorPrecio: 3 });
+    expect(get(mucho, "precios").estado).toBe("cerca");
+    expect(get(mucho, "precios").respuesta).toBe("Con cuidado");
+  });
   it("sin horarios cargados no inventa una respuesta", () => {
     const d = evaluarDecisiones({ ...base, ocupacion: null });
     expect(get(d, "contratar").respuesta).toBe("Sin datos");

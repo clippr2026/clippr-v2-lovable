@@ -1,6 +1,6 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
-import { ChevronLeft, DoorOpen, UserRound, Users, X } from "lucide-react";
+import { ChevronLeft, CircleDollarSign, DoorOpen, UserRound, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -66,7 +66,7 @@ export function ClientesNoAtendidosButton({
     setEligiendo(false);
   };
 
-  const registrar = async (profesional: Profesional | null) => {
+  const registrar = async (profesional: Profesional | null, porPrecio = false) => {
     if (!businessId || guardando.current) return;
     guardando.current = true;
     setSaving(true);
@@ -74,13 +74,13 @@ export function ClientesNoAtendidosButton({
       business_id: businessId,
       branch_id: branchId ?? null,
       created_by_name: createdByName ?? null,
-      preferencia: profesional ? "especifico" : "cualquiera",
+      preferencia: porPrecio ? "precio" : profesional ? "especifico" : "cualquiera",
       requested_employee_id: profesional?.id ?? null,
     });
     guardando.current = false;
     setSaving(false);
     if (error) return toast.error("No se pudo registrar. Probá de nuevo.");
-    toast.success(profesional ? `Registrado: quería a ${profesional.full_name}.` : "Registrado.");
+    toast.success(porPrecio ? "Registrado: se fue por el precio." : profesional ? `Registrado: quería a ${profesional.full_name}.` : "Registrado.");
     setCountHoy((n) => n + 1);
     setOpen(false);
     setEligiendo(false);
@@ -153,6 +153,16 @@ export function ClientesNoAtendidosButton({
                     >
                       <UserRound className="h-5 w-5 shrink-0 text-violet-200" />
                       Sí, uno en especial
+                    </button>
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={() => registrar(null, true)}
+                      className="flex h-14 items-center gap-3 rounded-2xl bg-amber-500/15 px-4 text-left text-[15px] font-semibold text-amber-50 ring-1 ring-amber-300/45 transition hover:bg-amber-500/25 active:scale-[0.99] disabled:opacity-60"
+                      style={{ boxShadow: "0 0 22px -10px rgba(245,158,11,0.8)" }}
+                    >
+                      <CircleDollarSign className="h-5 w-5 shrink-0 text-amber-200" />
+                      Se fue por el precio
                     </button>
                   </div>
                 </>

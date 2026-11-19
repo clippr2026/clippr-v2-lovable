@@ -14,7 +14,7 @@ const CHIP_DECISION: Record<DecisionEstado, string> = {
 };
 const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
 
-type Fila = { occurred_at: string; preferencia: "cualquiera" | "especifico" | null; requested_employee_id: string | null };
+type Fila = { occurred_at: string; preferencia: "cualquiera" | "especifico" | "precio" | null; requested_employee_id: string | null };
 type Carga = { name: string; used: number; capacity: number; daysWorked?: number; daysFull?: number };
 
 /** Límites [desde, hasta) de un mes "2026-11" en hora de Buenos Aires. */
@@ -83,7 +83,8 @@ export function ClientesPerdidosCard({
   const total = filas.length;
   // Sin dato (registros anteriores a la pregunta) cuenta como falta de lugar general:
   // así se cargaban antes ("se fue porque estaban todos ocupados").
-  const generales = filas.filter((f) => f.preferencia !== "especifico");
+  const porPrecio = filas.filter((f) => f.preferencia === "precio");
+  const generales = filas.filter((f) => f.preferencia !== "especifico" && f.preferencia !== "precio");
   const especificos = filas.filter((f) => f.preferencia === "especifico");
   const enBA = (f: Fila) => new Date(new Date(f.occurred_at).toLocaleString("en-US", { timeZone: BA }));
   const dias = ranking(filas.map((f) => enBA(f).getDay()));
@@ -171,6 +172,10 @@ export function ClientesPerdidosCard({
                 <div className="text-xl font-bold tabular-nums text-violet-100">{especificos.length}</div>
                 <div className="text-[11px] leading-tight text-white/60">querían a un profesional en especial</div>
               </div>
+              <div className="col-span-2 rounded-xl bg-amber-400/10 p-2.5 ring-1 ring-amber-300/25">
+                <div className="text-xl font-bold tabular-nums text-amber-100">{porPrecio.length}</div>
+                <div className="text-[11px] leading-tight text-white/60">se fueron por el precio</div>
+              </div>
             </div>
             <ul className="mt-3 space-y-1 text-sm text-white/75">
               {dias.length > 0 && (
@@ -205,6 +210,7 @@ export function ClientesPerdidosCard({
             ocupacion: occupancy,
             profesionales: employeeLoad ?? [],
             seFueronPorLugar: generales.length,
+            seFueronPorPrecio: porPrecio.length,
             masPedido: pedidos[0] ? { name: pedidos[0][0], n: pedidos[0][1] } : null,
             franjaConMasCasos: total > 0 && dias[0] && horas[0] ? { dia: DIAS[dias[0][0]], hora: horas[0][0] } : null,
           }).map((d) => (

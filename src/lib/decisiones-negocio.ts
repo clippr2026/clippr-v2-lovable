@@ -20,6 +20,8 @@ export type DecisionesInput = {
   profesionales: Array<{ name: string; used: number; capacity: number; daysWorked?: number; daysFull?: number }>;
   /** Clientes que se fueron aceptando a cualquiera (falta de lugar general). */
   seFueronPorLugar: number;
+  /** Clientes que se fueron por el precio (botón "Se fue" de la Agenda). */
+  seFueronPorPrecio?: number;
   /** Profesional más pedido por clientes que se fueron (cantidad y nombre). */
   masPedido: { name: string; n: number } | null;
   /** Día de la semana y hora con más clientes que se fueron (ej. "miércoles", 19). */
@@ -133,6 +135,16 @@ export function evaluarDecisiones(i: DecisionesInput): Decision[] {
       clave: "precios", titulo: "¿Subir precios?", estado: "no", respuesta: "Todavía no",
       detalle: `Con la agenda al ${ocup}% hay lugar libre: subir precios puede espantar clientes. Primero llená la agenda; con ${OCUPACION_LLENA}% o más sí.`,
     };
+  }
+
+  // Si hay clientes que se van por el precio, subirlo tiene un costo: se avisa y un "Sí" pasa a "con cuidado".
+  const porPrecio = i.seFueronPorPrecio ?? 0;
+  if (porPrecio >= 1) {
+    const aviso = ` Ojo: ${porPrecio} ${porPrecio === 1 ? "cliente se fue" : "clientes se fueron"} por el precio este mes.`;
+    precios = { ...precios, detalle: precios.detalle + aviso };
+    if (porPrecio >= 3 && precios.estado === "si") {
+      precios = { ...precios, estado: "cerca", respuesta: "Con cuidado" };
+    }
   }
 
   return [contratar, horarios, precios];
