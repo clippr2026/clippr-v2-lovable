@@ -332,18 +332,15 @@ function AdvisorContent({
   const animatedHealth = Math.round((analytics.health ?? 0) * animationProgress);
   const animatedProfit = Math.round((analytics.current?.profit ?? 0) * animationProgress);
 
-  const cargandoEntrada =
-    analytics.entry.ventas === "loading" || analytics.entry.clientes === "loading" || analytics.entry.turnos === "loading";
   // La presentación aparece cada vez que se entra al Asesor IA (no al cambiar de pestaña adentro). Si la carga falla,
   // se pasa directo al aviso con Reintentar.
   if (!introDone && !analytics.entry.error) {
     return (
       <AdvisorIntro
-        ready={!cargandoEntrada}
-        counts={{
-          payments: analytics.entry.ventas === "ready" ? analytics.dataCounts.payments : null,
-          clients: analytics.entry.clientes === "ready" ? analytics.dataCounts.clients : null,
-          appts: analytics.entry.turnos === "ready" ? analytics.dataCounts.appts : null,
+        loaded={{
+          ventas: analytics.entry.ventas === "ready",
+          clientes: analytics.entry.clientes === "ready",
+          turnos: analytics.entry.turnos === "ready",
         }}
         onDone={finishIntro}
       />
@@ -445,132 +442,130 @@ function useResultAnimation(enabled = false) {
   return progress;
 }
 
-// Presentación al entrar al Asesor IA (se puede saltear): una red neuronal que se enciende y
-// contadores que suben hasta la cantidad REAL de ventas, clientes y turnos analizados. No se cierra hasta que
-// los datos terminaron de cargar.
-function useCountUp(target: number | null, active: boolean, durationMs = 1400) {
-  const [value, setValue] = React.useState(0);
-  React.useEffect(() => {
-    if (!active || target == null) return;
-    let frame = 0;
-    const startedAt = performance.now();
-    const tick = (now: number) => {
-      const raw = Math.min((now - startedAt) / durationMs, 1);
-      setValue(Math.round(target * (1 - Math.pow(1 - raw, 3))));
-      if (raw < 1) frame = window.requestAnimationFrame(tick);
-    };
-    frame = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(frame);
-  }, [target, active, durationMs]);
-  return value;
-}
-
-const INTRO_NODES: Array<[number, number]> = [
-  [40, 60], [120, 30], [200, 70], [280, 40], [350, 80],
-  [70, 140], [160, 120], [240, 150], [320, 130],
-  [30, 210], [110, 200], [190, 230], [270, 210], [360, 220],
-];
-const INTRO_LINKS: Array<[number, number]> = [
-  [0, 1], [1, 2], [2, 3], [3, 4], [0, 5], [1, 6], [2, 6], [2, 7], [3, 7], [4, 8], [5, 6], [6, 7], [7, 8],
-  [5, 9], [5, 10], [6, 10], [6, 11], [7, 11], [7, 12], [8, 12], [8, 13], [9, 10], [10, 11], [11, 12], [12, 13],
-];
-
+// Presentación al entrar al Asesor IA (se puede saltear): un avance por porcentaje en estilo Clippr. Cada paso se
+// tilda cuando llegan sus datos reales (con un mínimo de tiempo para que se vea), y la pantalla no se cierra hasta que
+// terminó la carga.
 function AdvisorIntro({
-  ready,
-  counts,
+  loaded,
   onDone,
 }: {
-  ready: boolean;
-  counts: { payments: number | null; appts: number | null; clients: number | null };
+  loaded: { ventas: boolean; clientes: boolean; turnos: boolean };
   onDone: () => void;
 }) {
-  const [minTime, setMinTime] = React.useState(false);
+  const pasos = [
+    { label: "Ventas", icon: DollarSign, ok: loaded.ventas },
+    { label: "Clientes", icon: Users, ok: loaded.clientes },
+    { label: "Agenda", icon: CalendarDays, ok: loaded.turnos },
+    { label: "Armando tu panel", icon: Brain, ok: loaded.ventas && loaded.clientes && loaded.turnos },
+  ];
+
+  // Tiempo mínimo por paso: aunque los datos lleguen enseguida, cada uno se ve tildarse.
+  const [transcurrido, setTranscurrido] = React.useState(0);
   React.useEffect(() => {
-    const id = window.setTimeout(() => setMinTime(true), 2600);
-    return () => window.clearTimeout(id);
+    const inicio = performance.now();
+    const id = window.setInterval(() => setTranscurrido(performance.now() - inicio), 120);
+    return () => window.clearInterval(id);
   }, []);
 
-  const listo = ready && minTime;
-  const ventas = useCountUp(counts.payments, counts.payments != null);
-  const clientes = useCountUp(counts.clients, counts.clients != null);
-  const turnos = useCountUp(counts.appts, counts.appts != null);
+  const listos = pasos.map((p, i) => p.ok && transcurrido >= (i + 1) * 650);
+  let hechos = 0;
+  while (hechos < pasos.length && listos[hechos]) hechos += 1;
+  const total = pasos.length;
+  const pct = Math.round((hechos / total) * 100);
+  const terminado = hechos >= total;
 
   React.useEffect(() => {
-    if (!listo) return;
-    const id = window.setTimeout(onDone, 700);
+    if (!terminado) return;
+    const id = window.setTimeout(onDone, 600);
     return () => window.clearTimeout(id);
-  }, [listo, onDone]);
+  }, [terminado, onDone]);
 
-  const frase = !ready ? "Leyendo tus datos…" : !minTime ? "Cruzando ventas, clientes y agenda…" : "Listo. Armando tu panel…";
+  const luz =
+    "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.16), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.12), transparent 65%)";
 
   return (
-    <div className="relative -mt-2 flex h-[calc(100svh-164px-env(safe-area-inset-bottom))] min-h-[420px] flex-col items-center justify-center overflow-hidden px-4 py-4 sm:h-[calc(100svh-128px)] sm:min-h-[560px]">
-      <style>{`
-        @keyframes advisorNode { 0%,100% { opacity:.25; r:3 } 50% { opacity:1; r:5 } }
-        @keyframes advisorLink { 0% { stroke-dashoffset: 120 } 100% { stroke-dashoffset: 0 } }
-        @keyframes advisorScan { 0% { transform: translateY(-10%); opacity:0 } 15% { opacity:.9 } 85% { opacity:.9 } 100% { transform: translateY(110%); opacity:0 } }
-      `}</style>
-      <div className="pointer-events-none absolute -left-28 top-4 h-72 w-72 rounded-full bg-violet-500/20 blur-3xl" />
-      <div className="pointer-events-none absolute -right-28 top-8 h-72 w-72 rounded-full bg-sky-500/16 blur-3xl" />
-
-      <div className="relative z-10 flex w-full max-w-md flex-col items-center text-center">
-        <div className="relative h-56 w-full max-w-[380px] overflow-hidden rounded-3xl border border-violet-300/20 bg-[#080a16]/80">
-          <svg viewBox="0 0 400 260" className="absolute inset-0 h-full w-full">
-            {INTRO_LINKS.map(([from, to], i) => (
-              <line
-                key={`${from}-${to}`}
-                x1={INTRO_NODES[from][0]}
-                y1={INTRO_NODES[from][1]}
-                x2={INTRO_NODES[to][0]}
-                y2={INTRO_NODES[to][1]}
-                stroke="rgb(167 139 250)"
-                strokeOpacity="0.55"
-                strokeWidth="1.2"
-                strokeDasharray="120"
-                style={{ animation: `advisorLink 1.2s ease-out ${i * 60}ms both` }}
-              />
-            ))}
-            {INTRO_NODES.map(([x, y], i) => (
-              <circle
-                key={i}
-                cx={x}
-                cy={y}
-                r="4"
-                fill="rgb(196 181 253)"
-                style={{ animation: `advisorNode 1.8s ease-in-out ${i * 130}ms infinite` }}
-              />
-            ))}
-          </svg>
-          <div
-            className="pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b from-transparent via-violet-300/25 to-transparent"
-            style={{ animation: "advisorScan 2.4s linear infinite" }}
-          />
-        </div>
-
-        <h1 className="mt-6 font-display text-3xl font-black tracking-tight text-white sm:text-4xl">Asesor IA</h1>
-        <p className="mt-2 h-5 text-sm font-semibold text-violet-200/80">{frase}</p>
-
-        <div className="mt-6 grid w-full grid-cols-3 gap-2">
-          {[
-            { label: "Ventas", value: counts.payments == null ? null : ventas },
-            { label: "Clientes", value: counts.clients == null ? null : clientes },
-            { label: "Turnos", value: counts.appts == null ? null : turnos },
-          ].map((item) => (
-            <div key={item.label} className="rounded-2xl border border-white/10 bg-white/[0.035] px-2 py-3">
-              <div className="font-display text-2xl font-black tabular-nums text-white">{item.value == null ? <span className="text-white/30">—</span> : item.value.toLocaleString("es-AR")}</div>
-              <div className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-white/45">{item.label}</div>
+    <div className="relative flex min-h-[calc(100svh-164px-env(safe-area-inset-bottom))] items-center justify-center px-1 py-3 sm:min-h-[68vh]">
+      <div
+        className="relative w-full max-w-md overflow-hidden rounded-[28px] border border-violet-400/45 bg-[#08070f] p-4 sm:p-6"
+        style={{
+          boxShadow:
+            "0 0 0 1px rgba(139,92,246,.35), 0 30px 90px -20px rgba(0,0,0,.9), 0 0 60px -18px rgba(139,92,246,.55)",
+          backgroundImage:
+            "radial-gradient(120% 45% at 85% 0%, rgba(79,125,255,.20), transparent 60%), radial-gradient(110% 50% at 0% 100%, rgba(139,92,246,.22), transparent 62%)",
+        }}
+      >
+        <div className="flex flex-col items-center text-center">
+          <div className="relative mb-3 h-16 w-16 sm:h-20 sm:w-20">
+            <div className="absolute inset-0 scale-[1.5] rounded-full bg-violet-500/25 blur-2xl" />
+            <div className="relative grid h-full w-full place-items-center rounded-[1.6rem] border border-violet-300/30 bg-violet-400/10">
+              <Brain className="h-8 w-8 text-violet-200 sm:h-10 sm:w-10" />
             </div>
-          ))}
+            <svg className="absolute inset-0 h-full w-full animate-spin" style={{ animationDuration: "3s" }} viewBox="0 0 96 96" fill="none">
+              <circle cx="48" cy="48" r="46" stroke="url(#introRing)" strokeWidth="2" strokeDasharray="72 220" strokeLinecap="round" />
+              <defs>
+                <linearGradient id="introRing" x1="0" y1="0" x2="96" y2="96" gradientUnits="userSpaceOnUse">
+                  <stop offset="0%" stopColor="rgb(167 139 250)" />
+                  <stop offset="55%" stopColor="rgb(56 189 248)" />
+                  <stop offset="100%" stopColor="transparent" />
+                </linearGradient>
+              </defs>
+            </svg>
+          </div>
+          <h2 className="font-display text-xl font-bold tracking-tight text-white sm:text-2xl">Analizando tu negocio</h2>
+          <p className="mt-1 text-sm text-white/55">Preparando tu diagnóstico…</p>
         </div>
-        <p className="mt-2 text-[11px] text-white/40">analizados en tu negocio</p>
 
-        <button
-          type="button"
-          onClick={onDone}
-          className="mt-5 text-xs font-semibold text-white/40 underline-offset-4 hover:text-white/70 hover:underline"
-        >
-          Saltar
-        </button>
+        <div className="mt-5">
+          <div className="mb-1.5 flex justify-center text-sm font-semibold text-white">{pct}%</div>
+          <div className="h-2.5 overflow-hidden rounded-full bg-white/10 ring-1 ring-white/10">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-sky-400 via-violet-500 to-fuchsia-500 shadow-[0_0_24px_rgba(139,92,246,.65)] transition-all duration-700"
+              style={{ width: `${pct}%` }}
+            />
+          </div>
+        </div>
+
+        <div className="mt-4 space-y-2">
+          {pasos.map((item, i) => {
+            const Icon = item.icon;
+            const hecho = i < hechos;
+            const actual = i === hechos;
+            return (
+              <div
+                key={item.label}
+                className={cn(
+                  "flex items-center gap-3 rounded-2xl border px-3.5 py-2.5 transition-all duration-500",
+                  hecho ? "border-emerald-400/25" : actual ? "border-violet-300/40" : "border-white/10 opacity-55",
+                )}
+                style={{ backgroundImage: luz, backgroundColor: "rgba(255,255,255,0.03)" }}
+              >
+                <span
+                  className={cn(
+                    "grid h-8 w-8 shrink-0 place-items-center rounded-xl ring-1",
+                    hecho ? "bg-emerald-400/10 text-emerald-300 ring-emerald-400/20" : actual ? "bg-violet-400/10 text-violet-200 ring-violet-300/25" : "bg-white/[0.04] text-white/45 ring-white/10",
+                  )}
+                >
+                  <Icon className="h-4 w-4" />
+                </span>
+                <span className={cn("flex-1 text-sm font-semibold", hecho ? "text-emerald-300" : actual ? "text-white" : "text-white/50")}>
+                  {item.label}
+                  {actual ? "…" : ""}
+                </span>
+                {hecho ? <CheckCircle2 className="h-5 w-5 text-emerald-400" /> : actual ? <Loader2 className="h-5 w-5 animate-spin text-violet-200" /> : null}
+              </div>
+            );
+          })}
+        </div>
+
+        <div className="mt-4 flex justify-center">
+          <button
+            type="button"
+            onClick={onDone}
+            className="h-10 rounded-full border border-white/12 bg-white/[0.04] px-5 text-xs font-semibold text-white/60 hover:text-white"
+          >
+            Saltar
+          </button>
+        </div>
       </div>
     </div>
   );
