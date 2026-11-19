@@ -1963,7 +1963,6 @@ function GrowthManagerTab({ data, analytics, businessId, selectedMonthKey, onMon
         </div>
         <AchievementsHistory achievements={achievements} />
         {detalleFinal}
-        <ManagerFooter />
       </div>
     );
   }
@@ -1992,42 +1991,7 @@ function GrowthManagerTab({ data, analytics, businessId, selectedMonthKey, onMon
           </div>
         </div>
       </div>
-
-      <ManagerFooter />
     </div>
-  );
-}
-
-function ManagerFooter() {
-  const updated = new Date().toLocaleTimeString("es-AR", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-  return (
-    <footer className="relative overflow-hidden rounded-[28px] border border-white/10 bg-white/[0.035] p-5 ring-1 ring-white/8 backdrop-blur-xl sm:p-6">
-      <div className="pointer-events-none absolute -left-16 -top-16 h-40 w-40 rounded-full bg-violet-500/15 blur-3xl" />
-      <div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex items-center gap-4">
-          <span className="grid h-12 w-12 shrink-0 place-items-center rounded-2xl bg-violet-500/12 text-2xl ring-1 ring-violet-300/20">
-            🧠
-          </span>
-          <div>
-            <p className="font-display text-base font-black tracking-tight text-white">
-              El Gerente IA aprende de tu negocio todos los días
-            </p>
-            <p className="mt-1 text-sm text-white/52">
-              Analiza tus datos, detecta oportunidades y prioriza automáticamente las acciones con
-              mayor impacto económico.
-            </p>
-          </div>
-        </div>
-        <div className="shrink-0 text-sm font-semibold text-white/52">
-          Última actualización: Hoy {updated}{" "}
-          <span className="ml-2 inline-block h-2 w-2 rounded-full bg-emerald-400" />
-        </div>
-      </div>
-    </footer>
   );
 }
 
