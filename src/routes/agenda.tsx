@@ -1635,8 +1635,8 @@ function AgendaPage() {
               <div className="relative mr-1.5 flex shrink-0 items-center gap-1.5">
                 {(
                   [
-                    ["Agendada", localOccupancy.agendada, OCUPACION_AGENDADA_TEXTO],
-                    ["Atendida", localOccupancy.atendida, OCUPACION_ATENDIDA_TEXTO],
+                    ["Agendado", localOccupancy.agendada, OCUPACION_AGENDADA_TEXTO],
+                    ["Atendido", localOccupancy.atendida, OCUPACION_ATENDIDA_TEXTO],
                   ] as const
                 ).map(([nombre, valor, ayuda]) =>
                   valor == null ? null : (
@@ -3383,8 +3383,8 @@ const DayView = React.memo(function DayView({
                     <div className="mt-1.5 space-y-1">
                       {(
                         [
-                          ["Agendada", occupancyPct],
-                          ["Atendida", atendidaPct ?? 0],
+                          ["Agendado", occupancyPct],
+                          ["Atendido", atendidaPct ?? 0],
                         ] as const
                       ).map(([nombre, valor]) => (
                         <div key={nombre}>
