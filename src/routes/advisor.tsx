@@ -1369,6 +1369,7 @@ function GrowthRecCard({ rec, hero = false }: { rec: Recommendation; hero?: bool
           </div>
         </div>
 
+        {rec.key !== "corte-mas-barba" && (
         <div
           className={cn(
             "mt-5 rounded-2xl border p-4",
@@ -1392,6 +1393,7 @@ function GrowthRecCard({ rec, hero = false }: { rec: Recommendation; hero?: bool
             <div className="mt-0.5 text-xs font-semibold text-emerald-200/55">por mes</div>
           ) : null}
         </div>
+        )}
 
         <div className="mt-4 flex items-center justify-between gap-3">
           <span className="inline-flex min-w-0 items-center gap-2 text-sm font-semibold text-white/60">
