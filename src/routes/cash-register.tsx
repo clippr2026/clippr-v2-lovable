@@ -5492,6 +5492,8 @@ function ProfesionalesTab({
   // Comisiones/adelantos recalculados en vivo para el corte elegido —
   // selectedRow.newCommissions/pendingAdvances siempre reflejan "ahora",
   // acá se vuelve a filtrar por fecha para poder liquidar "hasta tal día".
+  // Las ventas pendientes/parciales no suman: su comisión recién entra cuando se cobra
+  // (igual que prepare_settlement_run).
   const liquidarNewCommissions = React.useMemo(() => {
     if (!selectedRow) return 0;
     const periodStartAt = selectedRow.periodStartAt;
@@ -5502,7 +5504,9 @@ function ProfesionalesTab({
           !c.settlement_run_id &&
           (!periodStartAt || String(c.created_at ?? "") > periodStartAt) &&
           isWithinCutoff(c.created_at, liquidarCutoffAt) &&
-          Number(c.pending_amount ?? 0) > 0,
+          Number(c.pending_amount ?? 0) > 0 &&
+          c.payment_status !== "pendiente" &&
+          c.payment_status !== "parcial",
       )
       .reduce((sum: number, c: any) => sum + Number(c.pending_amount ?? 0), 0);
   }, [allCommissions, selectedRow, liquidarCutoffAt]);
@@ -5522,7 +5526,9 @@ function ProfesionalesTab({
           !t.settlement_run_id &&
           (!periodStartAt || String(t.created_at ?? "") > periodStartAt) &&
           isWithinCutoff(t.created_at, liquidarCutoffAt) &&
-          Number(t.pending_amount ?? 0) > 0,
+          Number(t.pending_amount ?? 0) > 0 &&
+          t.payment_status !== "pendiente" &&
+          t.payment_status !== "parcial",
       )
       .reduce((sum: number, t: any) => sum + Number(t.pending_amount ?? 0), 0);
   }, [allTips, selectedRow, liquidarCutoffAt]);
