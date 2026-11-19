@@ -1,5 +1,6 @@
 import * as React from "react";
 import { AppLocalInstalar } from "@/components/app-local-instalar";
+import { INSTALAR_APP_ACTIVO } from "@/lib/feature-flags";
 import { DEFAULT_SENAS_MESSAGE } from "@/lib/senas-default-message";
 import { CalendarPlus, Check, ChevronLeft, ChevronRight, Clock, Copy, MapPin, MessageCircle, RefreshCw, Upload, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
@@ -386,7 +387,7 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
               )}
             </div>
           )}
-          {!depositFlow && active && !past && b.slug && (
+          {INSTALAR_APP_ACTIVO && !depositFlow && active && !past && b.slug && (
             <div style={{ marginTop: 18 }}>
               <p style={{ textAlign: "center", color: c.muted, fontSize: 13, margin: "0 0 10px" }}>
                 Instalá la app para reservar más rápido y recibir avisos de tus turnos.

@@ -369,8 +369,8 @@ Deno.serve(async (req: Request) => {
       time: booking.time || "-",
       total: Number(booking.total ?? 0),
       manageUrl,
-      // La app solo se instala desde el correo: el link del turno viaja con la app para saber de qué cliente es.
-      installUrl: manageToken ? `${APP_ORIGIN}/gestion?k=${manageToken}&instalar=1` : null,
+      // Preparado pero apagado: se enciende con la variable INSTALAR_APP_EN_MAILS=1 de la función.
+      installUrl: manageToken && Deno.env.get("INSTALAR_APP_EN_MAILS") === "1" ? `${APP_ORIGIN}/gestion?k=${manageToken}&instalar=1` : null,
       confirmUrl,
       calendarUrl,
       mapsUrl: (biz?.address as string)?.trim()
