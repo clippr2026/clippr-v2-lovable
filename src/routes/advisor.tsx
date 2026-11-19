@@ -310,21 +310,9 @@ function AdvisorContent({
 }) {
   const { businessId } = useAuth();
   const animationProgress = useResultAnimation(true);
-  const [introDone, setIntroDone] = React.useState(() => {
-    try {
-      return localStorage.getItem(INTRO_SEEN_KEY) === getTodayKey();
-    } catch {
-      return false;
-    }
-  });
-  const finishIntro = React.useCallback(() => {
-    try {
-      localStorage.setItem(INTRO_SEEN_KEY, getTodayKey());
-    } catch {
-      /* sin almacenamiento: se muestra igual */
-    }
-    setIntroDone(true);
-  }, []);
+  // La presentación aparece cada vez que se entra al Asesor IA (no al cambiar de pestaña adentro).
+  const [introDone, setIntroDone] = React.useState(false);
+  const finishIntro = React.useCallback(() => setIntroDone(true), []);
   const [infoModal, setInfoModal] = React.useState<InfoModalContent | null>(null);
   // Mes elegido en Evolución del negocio: manda sobre las tres tarjetas grandes (Evolución,
   // Salud del negocio y Radiografía del local) — al cambiarlo cambian todos sus datos.
@@ -441,11 +429,9 @@ function useResultAnimation(enabled = false) {
   return progress;
 }
 
-// Presentación al entrar al Asesor IA (una vez por día, se puede saltear): una red neuronal que se enciende y
+// Presentación al entrar al Asesor IA (se puede saltear): una red neuronal que se enciende y
 // contadores que suben hasta la cantidad REAL de ventas, clientes y turnos analizados. No se cierra hasta que
 // los datos terminaron de cargar.
-const INTRO_SEEN_KEY = "clippr_advisor_intro_seen";
-
 function useCountUp(target: number, active: boolean, durationMs = 1400) {
   const [value, setValue] = React.useState(0);
   React.useEffect(() => {
