@@ -478,9 +478,11 @@ function AdvisorIntro({
   const tope = permitidos >= pasos.length ? 100 : Math.min(99, permitidos * 25 + 22);
   React.useEffect(() => {
     if (pct >= tope) return;
-    const id = window.setTimeout(() => setPct((p) => Math.min(p + 1, tope)), 26);
+    // Rápido mientras los datos ya llegaron (como cuando entrás por segunda vez); lento solo mientras se espera.
+    const demora = pct < permitidos * 25 ? 7 : 30;
+    const id = window.setTimeout(() => setPct((p) => Math.min(p + 1, tope)), demora);
     return () => window.clearTimeout(id);
-  }, [pct, tope]);
+  }, [pct, tope, permitidos]);
 
   const hechos = pasos.filter((p, i) => p.ok && pct >= (i + 1) * 25).length;
   const total = pasos.length;
