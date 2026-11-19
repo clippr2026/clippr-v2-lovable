@@ -251,7 +251,8 @@ describe("Rendimiento mensual", () => {
     expect(hook).not.toContain("0.21");
     const advisor = read("src/routes/advisor.tsx");
     expect(advisor).not.toContain("0.21");
-    expect(advisor).toContain("analytics.potentialAt75");
+    // La tarjeta Ocupación ya no se muestra en Análisis (el cálculo del potencial sigue en el hook).
+    expect(advisor).not.toContain("analytics.potentialAt75");
   });
 
   it("el mes de arranque se detecta por la fecha de la primera venta: si empezó pasado el día 5, ese mes no sirve de base", () => {
