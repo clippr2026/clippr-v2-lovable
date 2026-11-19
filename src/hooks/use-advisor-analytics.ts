@@ -655,6 +655,8 @@ export function useAdvisorAnalytics(
             periodoCerrado: !isCurrentMonth,
             hayActividad: current.hasData,
             facturacion: currentPerf.facturacion,
+            gastos: currentPerf.gastosTotal,
+            pagoProfesionales: currentPerf.pagoProfesionales,
             ganancia: currentPerf.ganancia,
             margen: currentPerf.margen,
             turnosRealizados: current.usedSlots,

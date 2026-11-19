@@ -15,6 +15,8 @@ const base: HealthInput = {
   periodoCerrado: false,
   hayActividad: true,
   facturacion: 6_000_000,
+  gastos: 800_000,
+  pagoProfesionales: 3_100_000,
   ganancia: 2_100_000,
   margen: 35,
   turnosRealizados: 750,

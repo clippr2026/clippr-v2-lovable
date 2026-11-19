@@ -81,6 +81,9 @@ export type HealthInput = {
 
   /** Ganancia operativa: lo cobrado y consumos − gastos − pago a profesionales (comisiones contadas una sola vez). */
   facturacion: number;
+  /** Gastos del período y pago a profesionales (lo que se descuenta de la facturación para llegar a la ganancia). */
+  gastos: number;
+  pagoProfesionales: number;
   ganancia: number | null;
   margen: number | null;
 
@@ -126,6 +129,8 @@ export function computeHealthScore(i: HealthInput): HealthScore {
         escala: ESCALA_RENTABILIDAD,
         datos: [
           `Facturación: ${money(i.facturacion)}`,
+          `Gastos: ${money(i.gastos)}`,
+          `Pago a profesionales: ${money(i.pagoProfesionales)}`,
           `Ganancia operativa: ${money(i.ganancia)}`,
           `Margen: ${pctTxt1(margen)}`,
         ],
