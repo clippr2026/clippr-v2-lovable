@@ -1889,10 +1889,6 @@ function RadiografiaSection({ analytics }: { analytics: AdvisorAnalytics }) {
   );
 }
 
-// Cantidad de recomendaciones visibles de entrada. El Gerente IA no debe llenar
-// la pantalla: 1 prioridad ejecutiva + 3 recomendaciones compactas.
-const GROWTH_VISIBLE_LIMIT = 3;
-
 type GrowthManagerTabProps = {
   data: UseAiRecommendationsResult;
   analytics: AdvisorAnalytics;
@@ -1944,7 +1940,6 @@ function GrowthManagerTab({ data, analytics, businessId, selectedMonthKey, onMon
   }
 
   const hero = recommendations[0] ?? null;
-  const secondary = recommendations.slice(1, 1 + GROWTH_VISIBLE_LIMIT);
 
   if (!hero) {
     return (
@@ -1975,21 +1970,6 @@ function GrowthManagerTab({ data, analytics, businessId, selectedMonthKey, onMon
       <ManagerHero rec={hero} totalOpportunity={totalOpportunity} />
 
       <RecentAchievements resolved={resolved} achievements={achievements} />
-
-      {secondary.length > 0 && (
-        <section className="space-y-4">
-          <div className="flex items-center gap-2">
-            <h2 className="text-xl font-bold text-white">Próximas prioridades</h2>
-          </div>
-          <div className="grid gap-4 lg:grid-cols-3">
-            {secondary.map((rec) => (
-              <div key={rec.key} id={`strategy-${rec.key}`}>
-                <GrowthRecCard rec={rec} />
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
 
       <AchievementsHistory achievements={achievements} />
 
