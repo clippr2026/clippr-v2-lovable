@@ -310,6 +310,21 @@ function AdvisorContent({
 }) {
   const { businessId } = useAuth();
   const animationProgress = useResultAnimation(true);
+  const [introDone, setIntroDone] = React.useState(() => {
+    try {
+      return localStorage.getItem(INTRO_SEEN_KEY) === getTodayKey();
+    } catch {
+      return false;
+    }
+  });
+  const finishIntro = React.useCallback(() => {
+    try {
+      localStorage.setItem(INTRO_SEEN_KEY, getTodayKey());
+    } catch {
+      /* sin almacenamiento: se muestra igual */
+    }
+    setIntroDone(true);
+  }, []);
   const [infoModal, setInfoModal] = React.useState<InfoModalContent | null>(null);
   // Mes elegido en Evolución del negocio: manda sobre las tres tarjetas grandes (Evolución,
   // Salud del negocio y Radiografía del local) — al cambiarlo cambian todos sus datos.
@@ -330,10 +345,10 @@ function AdvisorContent({
   const animatedHealth = Math.round((analytics.health ?? 0) * animationProgress);
   const animatedProfit = Math.round((analytics.current?.profit ?? 0) * animationProgress);
 
+  if (!introDone) return <AdvisorIntro ready={!analytics.loading} onDone={finishIntro} />;
+
   return (
     <div className="space-y-5 sm:space-y-7 max-w-5xl mx-auto w-full">
-      {advisorTab !== "simuladores" && <AiBriefing analytics={analytics} />}
-
       {advisorTab === "simuladores" && (
         <SimuladoresTab
           servicios={analytics.current?.doneCount ?? 0}
@@ -472,103 +487,86 @@ function useResultAnimation(enabled = false) {
   return progress;
 }
 
-// Presentación del Gerente IA al entrar: los pasos reflejan la carga REAL de datos (ventas, clientes, agenda) y
-// el resumen sale de los números reales del mes, escrito en vivo. Una vez por día; después aparece directo.
-function AiBriefing({ analytics }: { analytics: AdvisorAnalytics }) {
-  const todayKey = getTodayKey();
-  const alreadySeen = React.useMemo(() => {
-    try {
-      return localStorage.getItem("clippr_advisor_briefing_seen") === todayKey;
-    } catch {
-      return false;
-    }
-  }, [todayKey]);
-  const [typed, setTyped] = React.useState(0);
+// Presentación al entrar al Asesor IA (una vez por día, se puede saltear). Los pasos avanzan de a uno y la pantalla
+// no se cierra hasta que los datos reales terminaron de cargar.
+const INTRO_SEEN_KEY = "clippr_advisor_intro_seen";
 
-  const c = analytics.current;
-  const radiografia = (key: string) => analytics.radiografia.find((i) => i.key === key);
-  const lines = React.useMemo(() => {
-    if (!c?.hasData) return [] as string[];
-    const out: string[] = [
-      `${analytics.analysisMonthLabel}: facturaste ${fmtAR(c.revenue)} con un ticket promedio de ${fmtAR(c.ticket)} y una ocupación del ${c.occupancy}%.`,
-    ];
-    const rentable = radiografia("dia-rentable");
-    const tranquilo = radiografia("dia-tranquilo");
-    if (rentable && rentable.value !== "—" && tranquilo && tranquilo.value !== "—") {
-      out.push(`Tu mejor día es el ${rentable.value} y el más tranquilo el ${tranquilo.value}.`);
-    }
-    const horario = radiografia("hora-top");
-    if (horario && horario.value !== "—") out.push(`El horario con más turnos es de ${horario.value}.`);
-    return out;
-  }, [c, analytics.analysisMonthLabel, analytics.radiografia]);
-
-  const fullText = lines.join(" ");
-  const ready = !analytics.loading;
+function AdvisorIntro({ ready, onDone }: { ready: boolean; onDone: () => void }) {
+  const pasos = [
+    { label: "Ventas del mes", icon: DollarSign },
+    { label: "Clientes y su frecuencia", icon: Users },
+    { label: "Agenda y ocupación", icon: CalendarDays },
+    { label: "Equipo y horarios", icon: Clock },
+  ];
+  const [paso, setPaso] = React.useState(0);
 
   React.useEffect(() => {
-    if (!ready || !fullText) return;
-    if (alreadySeen) {
-      setTyped(fullText.length);
-      return;
-    }
-    setTyped(0);
-    const id = window.setInterval(() => {
-      setTyped((t) => {
-        if (t >= fullText.length) {
-          window.clearInterval(id);
-          try {
-            localStorage.setItem("clippr_advisor_briefing_seen", todayKey);
-          } catch {
-            /* sin almacenamiento: se muestra igual */
-          }
-          return t;
-        }
-        return t + 2;
-      });
-    }, 22);
+    const id = window.setInterval(() => setPaso((p) => Math.min(p + 1, pasos.length)), 650);
     return () => window.clearInterval(id);
-  }, [ready, fullText, alreadySeen, todayKey]);
+  }, [pasos.length]);
 
-  const pasos = [
-    { label: "Ventas", icon: DollarSign },
-    { label: "Clientes", icon: Users },
-    { label: "Agenda", icon: CalendarDays },
-  ];
+  const terminado = paso >= pasos.length && ready;
+  React.useEffect(() => {
+    if (!terminado) return;
+    const id = window.setTimeout(onDone, 500);
+    return () => window.clearTimeout(id);
+  }, [terminado, onDone]);
 
   return (
-    <div className="relative overflow-hidden rounded-[22px] border border-violet-300/25 bg-violet-400/[0.06] p-4 sm:p-5">
-      <div className="pointer-events-none absolute -left-10 -top-10 h-32 w-32 rounded-full bg-violet-500/20 blur-3xl" />
-      <div className="relative flex items-start gap-3">
-        <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-400/12 ring-1 ring-violet-300/25">
-          <Brain className={cn("h-5 w-5 text-violet-200", !ready && "animate-pulse")} />
+    <div className="relative -mt-2 flex h-[calc(100svh-164px-env(safe-area-inset-bottom))] min-h-[420px] flex-col items-center justify-center overflow-hidden px-4 py-4 sm:h-[calc(100svh-128px)] sm:min-h-[560px]">
+      <div className="pointer-events-none absolute -left-28 top-4 h-72 w-72 rounded-full bg-violet-500/20 blur-3xl" />
+      <div className="pointer-events-none absolute -right-28 top-8 h-72 w-72 rounded-full bg-sky-500/16 blur-3xl" />
+      <div className="pointer-events-none absolute left-1/2 top-24 h-80 w-80 -translate-x-1/2 rounded-full bg-fuchsia-500/10 blur-3xl" />
+
+      <div className="relative z-10 flex w-full max-w-md flex-col items-center text-center">
+        <div className="relative grid h-24 w-24 place-items-center">
+          <span className="absolute inset-0 animate-ping rounded-full bg-violet-400/15" />
+          <span className="absolute inset-2 rounded-full bg-violet-500/15 blur-xl" />
+          <div className="relative grid h-20 w-20 place-items-center rounded-3xl border border-violet-300/30 bg-violet-400/10 shadow-[0_0_60px_-10px_rgba(139,92,246,0.9)]">
+            <Brain className="h-10 w-10 animate-pulse text-violet-200" />
+          </div>
         </div>
-        <div className="min-w-0 flex-1">
-          <div className="text-[11px] font-black uppercase tracking-[0.16em] text-violet-200/70">Gerente IA</div>
-          {!ready ? (
-            <div className="mt-2 flex flex-wrap gap-2">
-              {pasos.map((paso, i) => {
-                const Icon = paso.icon;
-                return (
-                  <span
-                    key={paso.label}
-                    className="inline-flex animate-pulse items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-xs font-semibold text-white/70"
-                    style={{ animationDelay: `${i * 180}ms` }}
-                  >
-                    <Icon className="h-3.5 w-3.5" />
-                    Leyendo {paso.label.toLowerCase()}…
-                  </span>
-                );
-              })}
-            </div>
-          ) : fullText ? (
-            <p className="mt-1.5 text-sm leading-relaxed text-white/85 sm:text-[15px]">
-              {fullText.slice(0, typed)}
-              {typed < fullText.length ? <span className="ml-0.5 inline-block h-4 w-[2px] translate-y-0.5 animate-pulse bg-violet-300" /> : null}
-            </p>
-          ) : (
-            <p className="mt-1.5 text-sm text-white/60">Todavía no hay actividad suficiente este mes para armar un resumen.</p>
-          )}
+
+        <h1 className="mt-6 font-display text-3xl font-black tracking-tight text-white sm:text-4xl">Asesor IA</h1>
+        <p className="mt-2 max-w-sm text-sm leading-relaxed text-white/60 sm:text-base">
+          Analiza tus ventas, clientes y agenda para decirte dónde está tu plata y qué hacer con tu negocio.
+        </p>
+
+        <div className="mt-8 w-full space-y-2.5 text-left">
+          {pasos.map((item, i) => {
+            const Icon = item.icon;
+            const hecho = paso > i;
+            const actual = paso === i;
+            return (
+              <div
+                key={item.label}
+                className={cn(
+                  "flex items-center gap-3 rounded-2xl border px-4 py-3 transition-all duration-500",
+                  hecho
+                    ? "border-emerald-300/25 bg-emerald-400/[0.07] text-emerald-100"
+                    : actual
+                      ? "border-violet-300/35 bg-violet-400/[0.09] text-white"
+                      : "border-white/8 bg-white/[0.02] text-white/35",
+                )}
+              >
+                <Icon className="h-4 w-4 shrink-0" />
+                <span className="flex-1 text-sm font-semibold">
+                  {item.label}
+                  {actual ? "…" : ""}
+                </span>
+                {hecho ? <CheckCircle2 className="h-4 w-4 text-emerald-300" /> : actual ? <Loader2 className="h-4 w-4 animate-spin text-violet-200" /> : null}
+              </div>
+            );
+          })}
         </div>
+
+        <button
+          type="button"
+          onClick={onDone}
+          className="mt-6 text-xs font-semibold text-white/40 underline-offset-4 hover:text-white/70 hover:underline"
+        >
+          Saltar
+        </button>
       </div>
     </div>
   );
