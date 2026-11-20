@@ -2,20 +2,16 @@ import * as React from "react";
 import { DoorOpen } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { fmtAR } from "@/components/dashboard/use-dashboard-data";
-import { evaluarDecisiones, type DecisionEstado, type FranjaOcupacion, type FranjaDiaOcupacion } from "@/lib/decisiones-negocio";
+import type { FranjaOcupacion } from "@/lib/decisiones-negocio";
 
 const BA = "America/Argentina/Buenos_Aires";
 
-const CHIP_DECISION: Record<DecisionEstado, string> = {
-  si: "border-emerald-300/35 bg-emerald-400/10 text-emerald-200",
-  cerca: "border-amber-300/35 bg-amber-300/10 text-amber-200",
-  no: "border-white/15 bg-white/[0.05] text-white/65",
-  info: "border-sky-300/30 bg-sky-400/10 text-sky-200",
-};
+// Mismo semáforo que la Agenda: rojo hasta 49%, amarillo de 50 a 69 y verde desde 70.
+const colorOcupacion = (pct: number) => (pct >= 70 ? "#22c55e" : pct >= 50 ? "#facc15" : "#ef4444");
+const ORDEN_SEMANA = [1, 2, 3, 4, 5, 6, 0];
 const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
 
 type Fila = { occurred_at: string; preferencia: "cualquiera" | "especifico" | "precio" | null; requested_employee_id: string | null };
-type Carga = { name: string; used: number; capacity: number; daysWorked?: number; daysFull?: number };
 
 /** Límites [desde, hasta) de un mes "2026-11" en hora de Buenos Aires. */
 function rangoMes(monthKey: string) {
@@ -42,21 +38,20 @@ export function ClientesPerdidosCard({
   monthKey,
   monthLabel,
   occupancy,
+  agendada,
   ticket,
-  employeeLoad,
   franjas,
-  franjasDia,
 }: {
   businessId: string | null | undefined;
   monthKey: string;
   monthLabel: string;
+  /** Ocupación atendida del mes (0-100). */
   occupancy: number | null;
+  /** Ocupación agendada del mes (0-100). */
+  agendada: number | null;
   ticket: number | null;
-  /** Ocupación de cada profesional en el mes (servicios vendidos contra su capacidad). */
-  employeeLoad?: Carga[];
   /** Ocupación agendada y atendida por franja (día de la semana y hora) del mes. */
   franjas?: FranjaOcupacion[];
-  franjasDia?: FranjaDiaOcupacion[];
 }) {
   const [filas, setFilas] = React.useState<Fila[] | null>(null);
   const [nombres, setNombres] = React.useState<Map<string, string>>(new Map());
@@ -100,6 +95,17 @@ export function ClientesPerdidosCard({
     ([id, n]) => [nombres.get(id) ?? "Profesional", n] as [string, number],
   );
   const perdido = ticket && total > 0 ? Math.round(ticket * total) : 0;
+  // Ocupación promedio de cada día de la semana en que se abre (lunes a domingo, solo los días con horario).
+  const porDia = ORDEN_SEMANA.map((dow) => {
+    const fs = (franjas ?? []).filter((f) => f.dow === dow && f.disponible > 0);
+    const disponible = fs.reduce((n, f) => n + f.disponible, 0);
+    if (disponible <= 0) return null;
+    return {
+      dow,
+      agendado: Math.min(100, Math.round((fs.reduce((n, f) => n + f.agendado, 0) / disponible) * 100)),
+      atendido: Math.min(100, Math.round((fs.reduce((n, f) => n + f.atendido, 0) / disponible) * 100)),
+    };
+  }).filter((d): d is { dow: number; agendado: number; atendido: number } => d != null);
   return (
     <div className="relative overflow-hidden rounded-[2rem] border border-rose-300/[0.22] bg-white/[0.016] p-3 shadow-[0_0_0_1px_rgba(244,63,94,0.1),0_28px_110px_-50px_rgba(244,63,94,0.7)] sm:p-4">
       <div className="mb-3 flex items-center gap-3">
@@ -164,29 +170,55 @@ export function ClientesPerdidosCard({
           </ul>
         )}
 
-        <div className="mt-3 space-y-2">
-          {evaluarDecisiones({
-            ocupacion: occupancy,
-            profesionales: employeeLoad ?? [],
-            seFueronPorLugarFranjas: generales.map((f) => ({
-              dow: enBA(f).getDay(),
-              hour: enBA(f).getHours(),
-              dateKey: new Date(f.occurred_at).toLocaleDateString("sv-SE", { timeZone: BA }),
-            })),
-            franjas,
-            franjasDia,
-            seFueronPorPrecio: porPrecio.length,
-            masPedido: pedidos[0] ? { name: pedidos[0][0], n: pedidos[0][1] } : null,
-            franjaConMasCasos: total > 0 && dias[0] && horas[0] ? { dia: DIAS[dias[0][0]], hora: horas[0][0] } : null,
-          }).map((d) => (
-            <div key={d.clave} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-sm font-semibold text-white">{d.titulo}</span>
-                <span className={`shrink-0 rounded-full border px-2.5 py-0.5 text-[11px] font-bold ${CHIP_DECISION[d.estado]}`}>{d.respuesta}</span>
+        {/* Ocupación del mes (promedio) y de cada día abierto: agendado = reservas, atendido = servicios cobrados */}
+        <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-sm font-semibold text-white">Ocupación del mes</span>
+            <span className="text-[10px] text-white/45">promedio por día abierto</span>
+          </div>
+          <div className="mt-2 grid grid-cols-2 gap-2">
+            {(
+              [
+                ["Agendado", agendada],
+                ["Atendido", occupancy],
+              ] as const
+            ).map(([nombre, valor]) => (
+              <div key={nombre} className="rounded-lg bg-white/[0.04] p-2 ring-1 ring-white/10">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-[11px] text-white/60">{nombre}</span>
+                  <span className="text-lg font-bold tabular-nums text-white">{valor == null ? "—" : `${valor}%`}</span>
+                </div>
+                <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-white/10">
+                  <div className="h-full rounded-full" style={{ width: `${valor ?? 0}%`, background: colorOcupacion(valor ?? 0) }} />
+                </div>
               </div>
-              <p className="mt-1.5 text-xs leading-relaxed text-white/65">{d.detalle}</p>
+            ))}
+          </div>
+          {porDia.length > 0 && (
+            <div className="mt-3 space-y-1.5">
+              {porDia.map((d) => (
+                <div key={d.dow} className="grid grid-cols-[5.2rem_1fr_1fr] items-center gap-2 text-[11px]">
+                  <span className="font-semibold capitalize text-white/80">{DIAS[d.dow]}</span>
+                  {(
+                    [
+                      ["Agendado", d.agendado],
+                      ["Atendido", d.atendido],
+                    ] as const
+                  ).map(([nombre, valor]) => (
+                    <div key={nombre}>
+                      <div className="flex items-center justify-between text-white/55">
+                        <span>{nombre}</span>
+                        <span className="font-semibold tabular-nums text-white">{valor}%</span>
+                      </div>
+                      <div className="mt-0.5 h-[3px] w-full overflow-hidden rounded-full bg-white/10">
+                        <div className="h-full rounded-full" style={{ width: `${valor}%`, background: colorOcupacion(valor) }} />
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       </div>
     </div>
