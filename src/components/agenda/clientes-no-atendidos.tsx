@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { ChevronLeft, CircleDollarSign, DoorOpen, UserRound, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 
 const BA = "America/Argentina/Buenos_Aires";
 
@@ -45,6 +46,8 @@ export function ClientesNoAtendidosButton({
   const guardando = React.useRef(false);
   const tabla = () => supabase.from("clientes_no_atendidos" as any) as any;
   const activos = employees.filter((e) => e.is_active !== false);
+  // Con la ventana abierta, la Agenda de atrás no se desplaza.
+  useBodyScrollLock(open);
 
   React.useEffect(() => {
     if (!businessId) return setCountHoy(0);
