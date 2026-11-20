@@ -11845,6 +11845,8 @@ type VentaPendienteGroup = {
   // hoy sin cobrar nada, o negativo si hoy se revirtió más de lo que se
   // cobró hoy mismo).
   collectedTodayAmount: number;
+  // Algún cobro de hoy entró por Fondos externos (no pasó por la caja).
+  externo?: boolean;
   // Quién hizo el último cobro de HOY (o quién cargó la venta, si hoy no
   // hubo ningún cobro) — para la columna "Quién".
   lastActorLabel: string;
@@ -11980,6 +11982,7 @@ function buildUnifiedMovements(
       ventaGroups.set(c.payment_id, g);
     }
     g.collectedTodayAmount += amount;
+    if ((c as { funds_source?: string | null }).funds_source === "externo") g.externo = true;
     g.lastActorLabel = `${c.collected_by_name || "—"} → ${amount < 0 ? "Revirtió" : "Cobró"}`;
     if (Number.isFinite(ts) && ts > g.ts) g.ts = ts;
   }
@@ -12634,6 +12637,11 @@ function VentaPendienteRow({
           <CreditCard className="size-3 shrink-0 text-white/50" />
           <span className="truncate">{paymentMethodLabel(g.method ?? "")}</span>
         </span>
+        {g.externo && (
+          <span className="ml-1 inline-flex items-center rounded-full bg-violet-500/15 px-2 py-0.5 font-semibold text-violet-200 ring-1 ring-violet-300/25">
+            Fondos externos
+          </span>
+        )}
       </div>
       <div className="min-w-0 truncate text-white/55">{g.lastActorLabel}</div>
       <div className={cn("text-right text-base font-bold tabular-nums", sign ? tone.text : "text-white/40")}>
@@ -12696,6 +12704,11 @@ function VentaPendienteCardMobile({
           <span className="inline-flex max-w-full items-center gap-1 rounded-full bg-white/[0.05] px-2 py-0.5 text-[12px] text-white/75 ring-1 ring-white/10">
             <UserRound className="size-3 shrink-0 text-white/50" />
             <span className="truncate">{empName}</span>
+          </span>
+        )}
+        {g.externo && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/15 px-2 py-0.5 text-[12px] font-semibold text-violet-200 ring-1 ring-violet-300/25">
+            Fondos externos
           </span>
         )}
         <span className="inline-flex items-center gap-1 rounded-full bg-white/[0.05] px-2 py-0.5 text-[12px] tabular-nums text-white/75 ring-1 ring-white/10">
