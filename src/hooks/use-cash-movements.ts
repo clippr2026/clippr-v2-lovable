@@ -80,7 +80,8 @@ export function useCashMovements(
     // horas, arrastrando o dejando afuera adelantos/movimientos
     // manuales justo en el borde de la medianoche.
     const dayStart = dayBoundsBA(rangeStartDate).start.toISOString();
-    const dayEnd = new Date().toISOString();
+    // Sin tope superior: un tope con new Date() del dispositivo dejaba afuera un movimiento recién
+    // registrado si el reloj de la PC estaba atrasado respecto del servidor (aparecía recién al recargar).
     const branchFilter = branchId ? `branch_id.eq.${branchId},branch_id.is.null` : null;
 
     let movQuery = supabase
@@ -89,8 +90,7 @@ export function useCashMovements(
       .eq("business_id", businessId)
       // Seña de un día cuya caja ya estaba cerrada: va por la extensión, no por la caja abierta.
       .eq("extension_pendiente", false)
-      .gte("created_at", dayStart)
-      .lte("created_at", dayEnd);
+      .gte("created_at", dayStart);
     if (branchFilter) movQuery = movQuery.or(branchFilter);
 
     // professional_advances no tiene branch_id (ver uso en cash-register.tsx
@@ -100,8 +100,7 @@ export function useCashMovements(
       .from("professional_advances" as any)
       .select("*") // incluye funds_source; con select * no falla si la columna todavía no existe
       .eq("business_id", businessId)
-      .gte("advanced_at", dayStart)
-      .lte("advanced_at", dayEnd);
+      .gte("advanced_at", dayStart);
 
     // Pagos de liquidación de la caja: falla en silencio (queda vacío) si la
     // columna funds_source todavía no existe en esa base.
@@ -110,8 +109,7 @@ export function useCashMovements(
       .select("id,amount,payment_method,paid_at")
       .eq("business_id", businessId)
       .eq("funds_source", "caja")
-      .gte("paid_at", dayStart)
-      .lte("paid_at", dayEnd);
+      .gte("paid_at", dayStart);
 
     const [movRes, advRes, settleRes] = await Promise.allSettled([
       movQuery.order("created_at", { ascending: false }),
