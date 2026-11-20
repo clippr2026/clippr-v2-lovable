@@ -56,6 +56,9 @@ export function useCashMovements(
   const [advances, setAdvances] = React.useState<ProfessionalAdvance[]>([]);
   const [settlementOutflows, setSettlementOutflows] = React.useState<SettlementOutflow[]>([]);
   const [loading, setLoading] = React.useState(true);
+  // Solo la primera carga muestra "Cargando": las siguientes (cambio de período, refresh tras
+  // registrar algo) refrescan en silencio, sin tapar la lista que ya se ve.
+  const hasLoadedRef = React.useRef(false);
 
   const load = React.useCallback(async (): Promise<{
     movements: CashMovement[];
@@ -69,7 +72,7 @@ export function useCashMovements(
       setLoading(false);
       return { movements: [], advances: [], settlementOutflows: [] };
     }
-    setLoading(true);
+    if (!hasLoadedRef.current) setLoading(true);
 
     // Huso horario de Buenos Aires EXPLÍCITO (dayBoundsBA), nunca el huso
     // local del dispositivo/proceso que ejecuta esto — mismo criterio que
@@ -128,6 +131,7 @@ export function useCashMovements(
     setMovements(freshMovements);
     setAdvances(freshAdvances);
     setSettlementOutflows(freshSettlement);
+    hasLoadedRef.current = true;
     setLoading(false);
     return { movements: freshMovements, advances: freshAdvances, settlementOutflows: freshSettlement };
   }, [businessId, branchId, rangeStartDate]);

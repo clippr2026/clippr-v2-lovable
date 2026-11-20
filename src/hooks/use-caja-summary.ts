@@ -271,18 +271,21 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     // mostrarse "cerrada" (caja_cierres de la fecha de hoy, estado 'cerrada',
     // misma sucursal). Best-effort: si falla, se queda como estaba — nunca
     // rompe el resto de la carga.
-    try {
-      let todayCierreQuery = supabase
-        .from("caja_cierres" as any)
-        .select("estado,eventos")
-        .eq("business_id", businessId)
-        .eq("fecha", cajaDateKeyBA());
-      if (branchId) todayCierreQuery = todayCierreQuery.eq("branch_id", branchId);
-      const { data: todayCierre } = await todayCierreQuery.maybeSingle();
-      if (keyMatches()) setCajaCerradaHoy(isCajaCerradaRow(todayCierre));
-    } catch (e) {
-      console.warn("[CajaSummary] no se pudo leer el cierre de hoy:", (e as Error).message);
-    }
+    // Sin await: solo actualiza un estado, no hace falta frenar la carga de pagos/gastos por esto.
+    void (async () => {
+      try {
+        let todayCierreQuery = supabase
+          .from("caja_cierres" as any)
+          .select("estado,eventos")
+          .eq("business_id", businessId)
+          .eq("fecha", cajaDateKeyBA());
+        if (branchId) todayCierreQuery = todayCierreQuery.eq("branch_id", branchId);
+        const { data: todayCierre } = await todayCierreQuery.maybeSingle();
+        if (keyMatches()) setCajaCerradaHoy(isCajaCerradaRow(todayCierre));
+      } catch (e) {
+        console.warn("[CajaSummary] no se pudo leer el cierre de hoy:", (e as Error).message);
+      }
+    })();
 
     // branch_id = null nunca se excluye (.or en vez de .eq) — mismo criterio
     // que use-caja-data.ts/use-dashboard-data.ts: una fila real (vieja, o
