@@ -90,11 +90,8 @@ export function ClientesPerdidosCard({
         <h2 className={TITULO_CLIPPR}>Clientes que se fueron</h2>
       </div>
       <div className={`${TARJETA_CLIPPR} sm:p-5`}>
-        <p className="text-sm font-semibold text-white">{monthLabel}</p>
-        <p className="text-xs text-white/55">Entraron al local y se fueron sin atenderse</p>
-
         {/* Dos cifras destacadas: cuántos se fueron y cuánto se dejó de vender (estimado, no es plata garantizada). */}
-        <div className="mt-2.5 grid grid-cols-2 gap-2">
+        <div className="grid grid-cols-2 gap-2">
           <div className="rounded-xl bg-rose-500/10 p-2.5 ring-1 ring-rose-300/25">
             <div className="font-display text-3xl font-bold tabular-nums leading-none text-rose-200">{total}</div>
             <div className="mt-1 text-[11px] leading-tight text-white/60">{total === 1 ? "cliente se fue" : "clientes se fueron"}</div>
