@@ -194,8 +194,9 @@ function AdvisorRoute() {
   const [advisorTab, setAdvisorTab] = React.useState<"acciones" | "analisis" | "simuladores">(
     "analisis",
   );
-  // La presentación aparece cada vez que se entra al Asesor IA; mientras dura, no se muestran las pestañas.
-  const [introDone, setIntroDone] = React.useState(false);
+  // El análisis se inicia una vez por día; las demás veces que se entra, el Asesor abre normal. Mientras no se haga,
+  // no se muestran las pestañas.
+  const [introDone, setIntroDone] = React.useState(analisisHechoHoy);
   React.useEffect(() => {
     if (!loading && !session) navigate({ to: "/login", replace: true });
   }, [loading, session, navigate]);
@@ -320,7 +321,11 @@ function AdvisorContent({
 }) {
   const { businessId } = useAuth();
   const animationProgress = useResultAnimation(introDone);
-  const finishIntro = React.useCallback(() => setIntroDone(true), [setIntroDone]);
+  const [iniciado, setIniciado] = React.useState(false);
+  const finishIntro = React.useCallback(() => {
+    guardarAnalisisHoy();
+    setIntroDone(true);
+  }, [setIntroDone]);
   const [infoModal, setInfoModal] = React.useState<InfoModalContent | null>(null);
   // Mes elegido en Evolución del negocio: manda sobre las tres tarjetas grandes (Evolución,
   // Salud del negocio y Radiografía del local) — al cambiarlo cambian todos sus datos.
@@ -345,8 +350,11 @@ function AdvisorContent({
   const animatedHealth = Math.round((analytics.health ?? 0) * animationProgress);
   const animatedProfit = Math.round((analytics.current?.profit ?? 0) * animationProgress);
 
-  // La presentación aparece cada vez que se entra al Asesor IA (no al cambiar de pestaña adentro). Si la carga falla,
-  // se pasa directo al aviso con Reintentar.
+  // La primera vez de cada día se pide "Iniciar análisis" y corre la presentación; después abre normal. Si la carga
+  // falla, se pasa directo al aviso con Reintentar.
+  if (!introDone && !analytics.entry.error && !iniciado) {
+    return <AdvisorInicio onStart={() => setIniciado(true)} />;
+  }
   if (!introDone && !analytics.entry.error) {
     return (
       <AdvisorIntro
@@ -453,6 +461,47 @@ function useResultAnimation(enabled = false) {
   }, [enabled]);
 
   return progress;
+}
+
+// Análisis diario: se inicia una vez por día (día de Buenos Aires); el resto de las entradas abren normal.
+const ANALISIS_DIA_KEY = "clippr_advisor_analisis_dia";
+function analisisHechoHoy(): boolean {
+  try {
+    return localStorage.getItem(ANALISIS_DIA_KEY) === cajaDateKeyBA();
+  } catch {
+    return false;
+  }
+}
+function guardarAnalisisHoy() {
+  try {
+    localStorage.setItem(ANALISIS_DIA_KEY, cajaDateKeyBA());
+  } catch {
+    /* sin almacenamiento: se vuelve a pedir */
+  }
+}
+
+// Pantalla de inicio del análisis diario (estilo Clippr).
+function AdvisorInicio({ onStart }: { onStart: () => void }) {
+  return (
+    <div className="relative flex min-h-[calc(100svh-164px-env(safe-area-inset-bottom))] items-center justify-center px-1 py-3 sm:min-h-[68vh]">
+      <div className={cn(VENTANA_CLIPPR, "w-full max-w-md p-5 text-center sm:p-6")}>
+        <div className="mx-auto grid h-16 w-16 place-items-center rounded-[1.6rem] border border-violet-300/30 bg-violet-400/10">
+          <Brain className="h-8 w-8 text-violet-200" />
+        </div>
+        <h1 className="mt-4 font-display text-2xl font-bold tracking-tight text-white">Análisis diario</h1>
+        <p className="mx-auto mt-2 max-w-xs text-sm leading-relaxed text-white/60">
+          El Asesor IA revisa tus ventas, clientes y agenda para decirte cómo está tu negocio hoy.
+        </p>
+        <button
+          type="button"
+          onClick={onStart}
+          className="mt-6 inline-flex h-12 w-full items-center justify-center rounded-full bg-gradient-to-r from-sky-400 via-violet-500 to-fuchsia-500 text-base font-bold text-white shadow-[0_0_30px_-8px_rgba(139,92,246,0.9)] transition active:scale-[0.99]"
+        >
+          Iniciar análisis
+        </button>
+      </div>
+    </div>
+  );
 }
 
 // Presentación al entrar al Asesor IA: un avance por porcentaje en estilo Clippr. Cada paso se
