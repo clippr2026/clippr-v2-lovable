@@ -123,13 +123,30 @@ export function ClientesPerdidosCard({
         </div>
 
         {total > 0 && (
-          <ul className="mt-2.5 space-y-0.5 text-[13px] leading-snug text-white/70">
-            {dias.length > 0 && (
-              <li>
-                Días con más casos:{" "}
-                <span className="font-semibold text-white">{dias.slice(0, 2).map(([d, n]) => `${DIAS[d]} (${n})`).join(", ")}</span>
-              </li>
-            )}
+          <div className="mt-2.5 space-y-2">
+            {(
+              [
+                ["Días con más casos", dias.slice(0, 3).map(([d, n]) => [DIAS[d], n] as const)],
+                ["Horarios con más casos", horas.slice(0, 3).map(([h, n]) => [`${h} a ${h + 1} hs`, n] as const)],
+                ["Profesional más pedido", pedidos.slice(0, 3).map(([nombre, n]) => [nombre, n] as const)],
+              ] as const
+            )
+              .filter(([, items]) => items.length > 0)
+              .map(([titulo, items]) => (
+                <div key={titulo} className="rounded-xl bg-white/[0.03] px-3 py-2 ring-1 ring-white/10">
+                  <div className="text-[11px] font-semibold text-white/55">{titulo}</div>
+                  <div className="mt-1.5 flex flex-wrap gap-1.5">
+                    {items.map(([nombre, n]) => (
+                      <span key={nombre} className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-2.5 py-1 text-xs font-semibold capitalize text-white ring-1 ring-white/10">
+                        {nombre}
+                        <span className="rounded-full bg-rose-500/25 px-1.5 text-[11px] tabular-nums text-rose-100">{n}</span>
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+          </div>
+        )}
             {horas.length > 0 && (
               <li>
                 Horarios con más casos:{" "}
