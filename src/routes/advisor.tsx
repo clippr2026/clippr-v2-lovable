@@ -1767,21 +1767,12 @@ function LabPrecios({ data, ocupacionAtendida, seFueronPorPrecio }: { data: LabD
     <div className="space-y-3">
       {/* 1. Simular: servicio, aumento y nuevo precio */}
       <div className={TARJETA_CLIPPR}>
-        <label className="block text-sm font-semibold text-white" htmlFor="sim-servicio">
-          Servicio
-        </label>
-        <select
-          id="sim-servicio"
-          value={svc?.id ?? ""}
-          onChange={(e) => setSvcId(e.target.value)}
-          className="mt-1.5 h-11 w-full rounded-xl border border-white/12 bg-white/[0.05] px-3 text-sm font-semibold text-white outline-none focus:border-violet-300/50"
-        >
-          {services.map((s) => (
-            <option key={s.id} value={s.id} className="bg-[#0b0a14] text-white">
-              {s.nombre}
-            </option>
-          ))}
-        </select>
+        <span className="block text-sm font-semibold text-white">Servicio</span>
+        <SelectorServicio
+          opciones={services.map((x) => ({ id: x.id, nombre: x.nombre }))}
+          valor={svc?.id ?? ""}
+          onChange={setSvcId}
+        />
 
         <div className="mt-4 flex items-baseline justify-between gap-3">
           <span className="text-sm font-semibold text-white">Aumento de precio</span>
@@ -1925,6 +1916,65 @@ function LabEmpty({ text }: { text: string }) {
   return (
     <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-6 text-center text-sm text-white/60">
       {text}
+    </div>
+  );
+}
+
+// Desplegable de servicios en estilo Clippr (el nativo del celular abre una ventana blanca que no combina).
+function SelectorServicio({
+  opciones,
+  valor,
+  onChange,
+}: {
+  opciones: Array<{ id: string; nombre: string }>;
+  valor: string;
+  onChange: (id: string) => void;
+}) {
+  const [abierto, setAbierto] = React.useState(false);
+  const actual = opciones.find((o) => o.id === valor) ?? opciones[0];
+  return (
+    <div className="relative mt-1.5">
+      <button
+        type="button"
+        aria-haspopup="listbox"
+        aria-expanded={abierto}
+        onClick={() => setAbierto((v) => !v)}
+        className="flex h-11 w-full touch-manipulation items-center justify-between gap-2 rounded-xl border border-violet-300/30 bg-white/[0.05] px-3 text-left text-sm font-semibold text-white"
+      >
+        <span className="truncate">{actual?.nombre ?? "—"}</span>
+        <ChevronDown className={cn("h-4 w-4 shrink-0 text-white/60 transition-transform", abierto && "rotate-180")} />
+      </button>
+      {abierto && (
+        <>
+          <div className="fixed inset-0 z-40" aria-hidden onClick={() => setAbierto(false)} />
+          <ul
+            role="listbox"
+            className="absolute left-0 right-0 top-12 z-50 max-h-64 overflow-y-auto rounded-2xl border border-violet-400/45 bg-[#08070f] p-1.5 shadow-[0_0_0_1px_rgba(139,92,246,0.3),0_24px_60px_-12px_rgba(0,0,0,0.9),0_0_40px_-14px_rgba(139,92,246,0.6)] [background-image:radial-gradient(120%_60%_at_85%_0%,rgba(79,125,255,0.18),transparent_60%),radial-gradient(110%_60%_at_0%_100%,rgba(139,92,246,0.2),transparent_62%)]"
+          >
+            {opciones.map((o) => {
+              const activo = o.id === (actual?.id ?? "");
+              return (
+                <li key={o.id} role="option" aria-selected={activo}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      onChange(o.id);
+                      setAbierto(false);
+                    }}
+                    className={cn(
+                      "flex min-h-11 w-full touch-manipulation items-center gap-2 rounded-xl px-3 text-left text-sm font-semibold",
+                      activo ? "bg-violet-500/20 text-white" : "text-white/75",
+                    )}
+                  >
+                    <CheckCircle2 className={cn("h-4 w-4 shrink-0", activo ? "text-emerald-300" : "text-transparent")} />
+                    <span className="min-w-0">{o.nombre}</span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        </>
+      )}
     </div>
   );
 }
