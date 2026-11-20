@@ -54,6 +54,7 @@ describe("proyección del próximo mes", () => {
     expect(p.escenarios[0]).toMatchObject({ perdidaPct: 0, ventas: 100, difFacturacion: 100_000, difGanancia: 50_000 });
     // perdiendo 5%: 95 × 21.000 = 1.995.000 → -5.000 contra no subir
     expect(p.escenarios[1].difFacturacion).toBe(-5_000);
+    expect(p.escenarios[1].enClientes).toBe(false);
     expect(p.escenarios[2].difFacturacion).toBeLessThan(0);
   });
   it("no se compara contra diciembre (mes de alta demanda)", () => {
@@ -77,5 +78,20 @@ describe("la ocupación siempre se nombra entre los factores", () => {
     expect(f(55)).toContain("quienes lo hacen están al 55%");
     expect(f(80)).toContain("demanda alta: quienes lo hacen están al 80%");
     expect(f(30)).toContain("quienes lo hacen tienen lugar (30%)");
+  });
+});
+
+describe("proyección con pocas ventas", () => {
+  it("con 2 ventas muestra clientes de a uno, no porcentajes que dan lo mismo", () => {
+    const p = proyectarMes({ precioActual: 17500, aumento: 1000, ventasBase: 2, comision: 0.44 });
+    expect(p.escenarios.map((e) => e.perdidaVentas)).toEqual([0, 1, 2]);
+    expect(p.escenarios.every((e) => e.enClientes)).toBe(true);
+    expect(p.escenarios[1].ventas).toBe(1);
+    expect(p.escenarios[1].difFacturacion).toBe(-16_500); // 1 × 18.500 − 2 × 17.500
+    expect(p.escenarios[2].ventas).toBe(0);
+  });
+  it("con una sola venta no repite escenarios", () => {
+    const p = proyectarMes({ precioActual: 17500, aumento: 1000, ventasBase: 1, comision: null });
+    expect(p.escenarios.map((e) => e.perdidaVentas)).toEqual([0, 1]);
   });
 });

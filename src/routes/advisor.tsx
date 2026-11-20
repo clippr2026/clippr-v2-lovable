@@ -1887,7 +1887,11 @@ function LabPrecios({
                 <div key={e.perdidaPct} className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.04] px-3 py-2 ring-1 ring-white/10">
                   <div className="min-w-0">
                     <div className="text-xs font-semibold text-white">
-                      {e.perdidaPct === 0 ? "Si todos siguen viniendo" : `Si se pierde el ${e.perdidaPct}% de las ventas`}
+                      {e.perdidaVentas === 0
+                        ? "Si todos siguen viniendo"
+                        : e.enClientes
+                          ? `Si se ${e.perdidaVentas === 1 ? "va 1 cliente" : `van ${e.perdidaVentas} clientes`}`
+                          : `Si se pierde el ${e.perdidaPct}% de las ventas (${e.perdidaVentas})`}
                     </div>
                     <div className="text-[11px] text-white/50">
                       {e.ventas} ventas · {fmtAR(e.facturacion)}

@@ -35,6 +35,9 @@ export type SimuladorResultado = {
   pocosDatos: boolean;
 };
 
+/** Con menos ventas que esto, la proyección se muestra en clientes (de a uno) y no en porcentaje. */
+export const POCAS_VENTAS_ESCENARIO = 20;
+
 /** Comisión de referencia cuando no hay comisiones registradas del servicio. */
 export const COMISION_REFERENCIA = 0.55;
 
@@ -91,8 +94,12 @@ export function simularPrecio(i: SimuladorInput): SimuladorResultado {
 }
 
 export type EscenarioMes = {
-  /** Ventas que se pierden respecto del mes base (0, 5% o 10%). */
+  /** Ventas que se pierden respecto del mes base: 0, 5% y 10% (o 0, 1 y 2 ventas si hay pocas). */
   perdidaPct: number;
+  /** Ventas perdidas en este escenario. */
+  perdidaVentas: number;
+  /** true cuando son pocas ventas y el escenario se cuenta en clientes y no en porcentaje. */
+  enClientes: boolean;
   ventas: number;
   facturacion: number;
   /** Cuánto más (o menos) factura respecto de no subir el precio. */
@@ -112,11 +119,18 @@ export function proyectarMes(i: { precioActual: number; aumento: number; ventasB
   const c = Math.min(1, Math.max(0, i.comision ?? COMISION_REFERENCIA));
   const precioNuevo = i.precioActual + i.aumento;
   const base = i.ventasBase * i.precioActual;
-  const escenarios = [0, 5, 10].map((perdidaPct): EscenarioMes => {
-    const ventas = Math.round(i.ventasBase * (1 - perdidaPct / 100));
+  // Con pocas ventas un porcentaje no tiene sentido (5% de 2 ventas es 0,1): se cuentan clientes, de a uno.
+  const enClientes = i.ventasBase < POCAS_VENTAS_ESCENARIO;
+  const perdidas = enClientes
+    ? [...new Set([0, 1, 2].map((n) => Math.min(n, i.ventasBase)))]
+    : [0, Math.round(i.ventasBase * 0.05), Math.round(i.ventasBase * 0.1)];
+  const escenarios = perdidas.map((perdidaVentas): EscenarioMes => {
+    const ventas = i.ventasBase - perdidaVentas;
     const facturacion = ventas * precioNuevo;
     return {
-      perdidaPct,
+      perdidaPct: enClientes ? (i.ventasBase > 0 ? (perdidaVentas / i.ventasBase) * 100 : 0) : perdidaVentas === 0 ? 0 : Math.round((perdidaVentas / i.ventasBase) * 100),
+      perdidaVentas,
+      enClientes,
       ventas,
       facturacion,
       difFacturacion: Math.round(facturacion - base),
