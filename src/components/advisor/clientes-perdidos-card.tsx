@@ -123,16 +123,21 @@ export function ClientesPerdidosCard({
           <div className="mt-3 divide-y divide-white/10 rounded-xl bg-white/[0.03] ring-1 ring-white/10">
             {(
               [
-                ["Días", dias.slice(0, 3).map(([d, n]) => `${DIAS[d]} (${n})`).join(" · ")],
-                ["Horarios", horas.slice(0, 3).map(([h, n]) => `${h} a ${h + 1} hs (${n})`).join(" · ")],
-                ["Profesional pedido", pedidos.slice(0, 3).map(([nombre, n]) => `${nombre} (${n})`).join(" · ")],
-              ] as const
+                ["Días", dias.slice(0, 3).map(([d, n]) => [DIAS[d], n] as [string, number])],
+                ["Horarios", horas.slice(0, 3).map(([h, n]) => [`${h} a ${h + 1} hs`, n] as [string, number])],
+                ["Profesional pedido", pedidos.slice(0, 3)],
+              ] as Array<readonly [string, Array<[string, number]>]>
             )
-              .filter(([, texto]) => texto.length > 0)
-              .map(([titulo, texto]) => (
+              .filter(([, items]) => items.length > 0)
+              .map(([titulo, items]) => (
                 <div key={titulo} className="px-3.5 py-2.5">
-                  <div className="text-sm text-white/55">{titulo}</div>
-                  <div className="text-base font-semibold capitalize text-white">{texto}</div>
+                  <div className="mb-1 text-sm text-white/55">{titulo}</div>
+                  {items.map(([nombre, n]) => (
+                    <div key={nombre} className="flex items-baseline justify-between gap-3 py-0.5">
+                      <span className="text-base font-semibold text-white first-letter:uppercase">{nombre}</span>
+                      <span className="shrink-0 text-base font-bold tabular-nums text-white/80">{n}</span>
+                    </div>
+                  ))}
                 </div>
               ))}
           </div>
