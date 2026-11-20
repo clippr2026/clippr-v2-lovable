@@ -1773,14 +1773,15 @@ function LabPrecios({
     sinAumento ? "border-white/15 bg-white/[0.05] text-white/60" : r.riesgo === "Alto" ? "border-rose-300/35 bg-rose-400/10 text-rose-200" : r.riesgo === "Medio" ? "border-amber-300/35 bg-amber-300/10 text-amber-200" : "border-emerald-300/35 bg-emerald-400/10 text-emerald-200";
   const nivel: keyof typeof nivelMeta =
     r.riesgo === "Alto" ? "alto_riesgo" : r.riesgo === "Medio" ? (pct <= 12 ? "evaluar" : "progresivo") : "recomendado";
-  const verdict =
-    sinAumento
-      ? "Elegí un aumento con el control de arriba para ver cuánto podrías ganar y qué riesgo tendría."
+  const verdict = sinAumento
+    ? "Elegí un aumento para ver cuánto podrías ganar y qué riesgo tendría."
+    : mensual === 0
+      ? `No hay ventas de ${svc?.nombre} en los últimos 30 días: la estimación no es confiable.`
       : r.riesgo === "Alto"
-      ? `Subir ${fmtAR(aumento)} es un ${pct.toFixed(0)}% sobre ${svc?.nombre}. ${r.factores.slice(1).length > 0 ? `Pesa: ${r.factores.slice(1).join(", ")}. ` : ""}Mejor un aumento menor o en dos etapas.`
-      : mensual === 0
-        ? `No hay ventas cobradas de ${svc?.nombre} en los últimos 30 días para proyectar el impacto. La estimación no es confiable.`
-        : `Con ${mensual} ventas en los últimos 30 días, subir ${fmtAR(aumento)} suma hasta ${fmtAR(facturacion)} si todos siguen viniendo. ${perdibles > 0 ? `Dejaría de convenir si se pierden más de ${perdibles} ventas al mes.` : "Con tan pocas ventas no hay margen para perder clientes: si se va uno, el aumento ya no conviene."} Depende de cuántos clientes sigan comprando al nuevo precio.`;
+        ? `Un ${pct.toFixed(0)}% de aumento es mucho de una vez. Mejor un aumento menor o en dos etapas.`
+        : perdibles > 0
+          ? `Con ${mensual} ventas al mes, el aumento sigue conviniendo si no se pierden más de ${perdibles}.`
+          : `Con ${mensual} ${mensual === 1 ? "venta" : "ventas"} al mes, si se va un solo cliente el aumento ya no conviene.`;
 
   // Proyección del próximo mes con las mismas ventas del MES ANTERIOR completo. Si ese mes fue diciembre (alta demanda),
   // no se compara.
@@ -1794,22 +1795,23 @@ function LabPrecios({
   const meta = nivelMeta[nivel];
   const VeredictoIcon = meta.icon;
 
+  const sinVentas = mensual === 0;
   return (
     <div className="space-y-3">
-      {/* 1. Simular: servicio, aumento y nuevo precio */}
+      {/* 1. Simular: servicio, aumento y precio nuevo */}
       <div className={TARJETA_CLIPPR}>
-        <span className="block text-sm font-semibold text-white">Servicio</span>
+        <span className="block text-sm font-semibold text-white/70">Servicio</span>
         <SelectorServicio
           opciones={services.map((x) => ({ id: x.id, nombre: x.nombre }))}
           valor={svc?.id ?? ""}
           onChange={setSvcId}
         />
 
-        <div className="mt-4 flex items-baseline justify-between gap-3">
-          <span className="text-sm font-semibold text-white">Aumento de precio</span>
+        <div className="mt-4 flex items-end justify-between gap-3">
+          <span className="text-sm font-semibold text-white/70">Aumento</span>
           <span className="text-right leading-none">
-            <span className="block text-2xl font-extrabold text-cyan-200">+{fmtAR(aumento)}</span>
-            <span className="mt-1 block text-sm font-bold text-cyan-100/80">+{pct.toFixed(1).replace(".", ",")}%</span>
+            <span className="text-3xl font-extrabold text-cyan-200">+{fmtAR(aumento)}</span>
+            <span className="ml-2 text-base font-bold text-cyan-100/80">{pct.toFixed(1).replace(".", ",")}%</span>
           </span>
         </div>
         <input
@@ -1820,110 +1822,86 @@ function LabPrecios({
           value={aumento}
           onChange={(e) => setAumento(Number(e.target.value))}
           aria-label="Aumento de precio"
-          className="mt-2 h-2 w-full accent-cyan-400"
+          className="mt-3 h-2 w-full accent-cyan-400"
         />
-        <div className="mt-1 flex justify-between text-[11px] font-semibold text-white/45">
-          <span>Sin aumento</span>
-          <span>+{fmtAR(maxAumento)}</span>
-        </div>
 
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <div className="rounded-xl bg-white/[0.04] p-2.5 ring-1 ring-white/10">
-            <div className="text-[11px] text-white/55">Precio actual</div>
-            <div className="mt-0.5 text-lg font-bold tabular-nums text-white">{fmtAR(precioActual)}</div>
+        <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl bg-white/[0.04] px-4 py-3 ring-1 ring-white/10">
+          <div>
+            <div className="text-sm text-white/60">Precio actual</div>
+            <div className="text-xl font-bold tabular-nums text-white">{fmtAR(precioActual)}</div>
           </div>
-          <div className="rounded-xl bg-emerald-400/10 p-2.5 ring-1 ring-emerald-300/25">
-            <div className="text-[11px] text-emerald-100/70">Nuevo precio ({pct.toFixed(1).replace(".", ",")}% más)</div>
-            <div className="mt-0.5 text-lg font-bold tabular-nums text-emerald-200">{fmtAR(precioNuevo)}</div>
+          <ArrowRight className="h-5 w-5 shrink-0 text-white/40" />
+          <div className="text-right">
+            <div className="text-sm text-emerald-100/70">Precio nuevo</div>
+            <div className="text-xl font-bold tabular-nums text-emerald-300">{fmtAR(precioNuevo)}</div>
           </div>
         </div>
       </div>
 
-      {/* 2. Resultado: una sola tarjeta con la parte económica */}
+      {/* 2. Resultado: lo que ganás por mes y el riesgo */}
       <div className={cn(TARJETA_CLIPPR, "border-cyan-300/25 shadow-[0_0_40px_-18px_rgba(34,211,238,0.6)]")}>
         <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-semibold text-white">Resultado estimado</span>
-          <span className={cn("rounded-full border px-2.5 py-0.5 text-[11px] font-bold", riesgoChip)}>{sinAumento ? "Sin aumento" : `Riesgo ${riesgoLabel.toLowerCase()}`}</span>
+          <span className="text-base font-semibold text-white">Resultado</span>
+          <span className={cn("rounded-full border px-3 py-1 text-sm font-bold", riesgoChip)}>{sinAumento ? "Sin aumento" : `Riesgo ${riesgoLabel.toLowerCase()}`}</span>
         </div>
-        <div className="mt-2.5 text-[11px] text-white/55">Facturación adicional mensual</div>
-        <div className="text-3xl font-extrabold tabular-nums leading-tight text-cyan-200">+{fmtAR(facturacion)}</div>
-        <div className="mt-2 flex items-baseline justify-between gap-3 border-t border-white/10 pt-2">
-          <span className="text-xs text-white/60">Ganancia adicional</span>
-          <span className="text-lg font-bold tabular-nums text-emerald-300">+{fmtAR(utilidad)}</span>
+        <div className="mt-3 text-sm text-white/60">Facturás de más por mes</div>
+        <div className="text-4xl font-extrabold tabular-nums leading-tight text-cyan-200">+{fmtAR(facturacion)}</div>
+        <div className="mt-3 flex items-baseline justify-between gap-3 border-t border-white/10 pt-3">
+          <span className="text-sm text-white/60">Te queda de ganancia</span>
+          <span className="text-xl font-bold tabular-nums text-emerald-300">+{fmtAR(utilidad)}</span>
         </div>
-        <div className="mt-2 flex items-baseline justify-between gap-3 border-t border-white/10 pt-2">
-          <span className="text-xs text-white/60">Punto de equilibrio</span>
-          <span className="text-right text-sm font-semibold tabular-nums text-white">
-            {mensual === 0 ? "sin ventas para calcular" : perdibles === 0 ? "sin margen: pocas ventas" : `hasta ${perdibles} ${perdibles === 1 ? "venta" : "ventas"} menos al mes (${r.puntoEquilibrioPct.toFixed(1).replace(".", ",")}%)`}
-          </span>
-        </div>
-        <p className="mt-2 text-[11px] leading-snug text-white/40">
-          Facturación y ganancia suponen que todos los clientes siguen viniendo. El riesgo es una estimación orientativa: Clippr no sabe cuántos clientes se irían.
-        </p>
       </div>
 
-      {/* Proyección del próximo mes: mismas ventas y pagos del mes anterior completo */}
+      {/* 3. Próximo mes: qué pasa si se van clientes */}
       <div className={TARJETA_CLIPPR}>
-        <div className="flex items-center justify-between gap-2">
-          <span className="text-sm font-semibold text-white">Próximo mes</span>
-          <span className="text-[11px] text-white/45">base: {monthLabelES(mesAnteriorKey)}</span>
-        </div>
+        <div className="text-base font-semibold text-white">Si se van clientes</div>
         {!baseValida ? (
-          <p className="mt-2 text-xs leading-relaxed text-white/60">
-            No se compara contra diciembre: es un mes de alta demanda y no representa un mes normal.
-          </p>
+          <p className="mt-2 text-sm leading-relaxed text-white/60">No se compara contra diciembre: es un mes de alta demanda.</p>
         ) : proyeccion == null ? (
-          <p className="mt-2 text-xs leading-relaxed text-white/60">
-            No hay ventas cobradas de {svc?.nombre} en {monthLabelES(mesAnteriorKey)} para proyectar.
+          <p className="mt-2 text-sm leading-relaxed text-white/60">
+            No hay ventas de {svc?.nombre} en {monthLabelES(mesAnteriorKey)} para proyectar.
           </p>
         ) : (
           <>
-            <p className="mt-1.5 text-xs text-white/55">
-              Con las mismas {proyeccion.sinAumento.ventas} ventas de {monthLabelES(mesAnteriorKey)}: sin aumento facturarías{" "}
-              {fmtAR(proyeccion.sinAumento.facturacion)}.
-            </p>
-            <div className="mt-2 space-y-1.5">
+            <p className="mt-1 text-sm text-white/55">Con las {proyeccion.sinAumento.ventas} ventas de {monthLabelES(mesAnteriorKey)}, contra no subir.</p>
+            <div className="mt-3 space-y-2">
               {proyeccion.escenarios.map((e) => (
-                <div key={e.perdidaPct} className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.04] px-3 py-2 ring-1 ring-white/10">
-                  <div className="min-w-0">
-                    <div className="text-xs font-semibold text-white">
-                      {e.perdidaVentas === 0
-                        ? "Si todos siguen viniendo"
-                        : e.enClientes
-                          ? `Si se ${e.perdidaVentas === 1 ? "va 1 cliente" : `van ${e.perdidaVentas} clientes`}`
-                          : `Si se pierde el ${e.perdidaPct}% de las ventas (${e.perdidaVentas})`}
-                    </div>
-                    <div className="text-[11px] text-white/50">
-                      {e.ventas} ventas · {fmtAR(e.facturacion)}
-                    </div>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <div className={cn("text-sm font-bold tabular-nums", e.difFacturacion >= 0 ? "text-emerald-300" : "text-rose-300")}>
+                <div key={e.perdidaVentas} className="flex items-center justify-between gap-3 rounded-2xl bg-white/[0.04] px-4 py-3 ring-1 ring-white/10">
+                  <span className="text-sm font-semibold text-white">
+                    {e.perdidaVentas === 0
+                      ? "Nadie se va"
+                      : e.enClientes
+                        ? e.perdidaVentas === 1
+                          ? "Se va 1 cliente"
+                          : `Se van ${e.perdidaVentas} clientes`
+                        : `Se va el ${e.perdidaPct}% (${e.perdidaVentas})`}
+                  </span>
+                  <span className="text-right">
+                    <span className={cn("block text-lg font-bold tabular-nums", e.difFacturacion >= 0 ? "text-emerald-300" : "text-rose-300")}>
                       {e.difFacturacion >= 0 ? "+" : "-"}
                       {fmtAR(Math.abs(e.difFacturacion))}
-                    </div>
-                    <div className={cn("text-[11px] tabular-nums", e.difGanancia >= 0 ? "text-emerald-200/80" : "text-rose-200/80")}>
+                    </span>
+                    <span className={cn("block text-sm tabular-nums", e.difGanancia >= 0 ? "text-emerald-200/80" : "text-rose-200/80")}>
                       ganancia {e.difGanancia >= 0 ? "+" : "-"}
                       {fmtAR(Math.abs(e.difGanancia))}
-                    </div>
-                  </div>
+                    </span>
+                  </span>
                 </div>
               ))}
             </div>
-            <p className="mt-2 text-[11px] leading-snug text-white/40">Diferencia contra no subir el precio, con la comisión real de ese mes.</p>
           </>
         )}
       </div>
 
-      {/* 3. Veredicto breve */}
-      <div className={cn("rounded-2xl border px-3.5 py-3", meta.cls)}>
+      {/* 4. Veredicto breve */}
+      <div className={cn("rounded-2xl border px-4 py-3.5", meta.cls)}>
         <div className="flex items-center justify-between gap-2">
-          <span className="flex items-center gap-2 text-sm font-semibold text-white">
-            <VeredictoIcon className={cn("h-4 w-4", meta.titleCls)} /> Veredicto del Asesor
+          <span className="flex items-center gap-2 text-base font-semibold text-white">
+            <VeredictoIcon className={cn("h-5 w-5", meta.titleCls)} /> Veredicto
           </span>
-          <span className={cn("rounded-full bg-white/10 px-2.5 py-0.5 text-[11px] font-bold", meta.titleCls)}>{meta.label}</span>
+          <span className={cn("rounded-full bg-white/10 px-3 py-1 text-sm font-bold", meta.titleCls)}>{meta.label}</span>
         </div>
-        <p className="mt-2 text-xs leading-relaxed text-white/80">{verdict}</p>
+        <p className="mt-2 text-sm leading-relaxed text-white/85">{verdict}</p>
       </div>
     </div>
   );
