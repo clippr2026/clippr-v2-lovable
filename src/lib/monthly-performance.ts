@@ -451,46 +451,40 @@ export async function fetchMonthlyRawData(
     return q.range(from, to) as any;
   });
 
-  // Cobros de las ventas pendientes/parcial de ESTE mes, se hayan cobrado cuando se hayan cobrado.
+  // Todo lo que depende de los cobros del mes se pide EN PARALELO (antes eran ocho pedidos uno detrás de otro, y en el
+  // celular con datos cada ida y vuelta suma).
   const pendientesIds = payments.filter((p) => p.status === "pendiente" || p.status === "parcial").map((p) => p.id);
-  const collections: MonthlyCollectionRow[] = [];
-  for (let i = 0; i < pendientesIds.length; i += IN_CHUNK) {
-    const { data } = await supabase
-      .from("payment_collections")
-      .select("id,payment_id,amount,method")
-      .eq("business_id", businessId)
-      .in("payment_id", pendientesIds.slice(i, i + IN_CHUNK));
-    collections.push(...((data ?? []) as any[]));
-  }
-
-  const expenses = await fetchAllRows<MonthlyExpenseRow>((from, to) => {
-    let q = supabase
-      .from("expenses")
-      .select("id,amount,type,funds_source,date,deposit_id")
-      .eq("business_id", businessId)
-      .gte("date", firstDay)
-      .lte("date", lastDay)
-      .order("id", { ascending: true });
-    if (branchFilter) q = q.or(branchFilter);
-    return q.range(from, to) as any;
-  });
-
-  // Comisiones de las ventas del mes.
   const ventaIds = payments.map((p) => p.id);
-  const commissions: MonthlyCommissionRow[] = [];
-  for (let i = 0; i < ventaIds.length; i += IN_CHUNK) {
-    const { data } = await supabase
-      .from("commission_records" as any)
-      .select("sale_id,professional_id,amount")
-      .eq("business_id", businessId)
-      .in("sale_id", ventaIds.slice(i, i + IN_CHUNK));
-    commissions.push(...((data ?? []) as any[]));
-  }
 
-  // Puntualidad y nombres: si estas tablas no existen/fallan, el resto igual se muestra.
-  let attendance: MonthlyAttendanceRow[] = [];
-  try {
-    attendance = await fetchAllRows<MonthlyAttendanceRow>((from, to) =>
+  const pedirPorLotes = async <T,>(ids: string[], pedir: (lote: string[]) => PromiseLike<{ data: unknown }>): Promise<T[]> => {
+    const lotes: string[][] = [];
+    for (let i = 0; i < ids.length; i += IN_CHUNK) lotes.push(ids.slice(i, i + IN_CHUNK));
+    const respuestas = await Promise.all(lotes.map((l) => pedir(l)));
+    return respuestas.flatMap((r) => ((r.data ?? []) as T[]));
+  };
+
+  const [collections, expenses, commissions, attendance, consumos, employeesRes, startDate] = await Promise.all([
+    // Cobros de las ventas pendientes/parcial de ESTE mes, se hayan cobrado cuando se hayan cobrado.
+    pedirPorLotes<MonthlyCollectionRow>(pendientesIds, (lote) =>
+      supabase.from("payment_collections").select("id,payment_id,amount,method").eq("business_id", businessId).in("payment_id", lote),
+    ),
+    fetchAllRows<MonthlyExpenseRow>((from, to) => {
+      let q = supabase
+        .from("expenses")
+        .select("id,amount,type,funds_source,date,deposit_id")
+        .eq("business_id", businessId)
+        .gte("date", firstDay)
+        .lte("date", lastDay)
+        .order("id", { ascending: true });
+      if (branchFilter) q = q.or(branchFilter);
+      return q.range(from, to) as any;
+    }),
+    // Comisiones de las ventas del mes.
+    pedirPorLotes<MonthlyCommissionRow>(ventaIds, (lote) =>
+      supabase.from("commission_records" as any).select("sale_id,professional_id,amount").eq("business_id", businessId).in("sale_id", lote) as any,
+    ),
+    // Puntualidad y retiros de stock: si estas tablas no existen/fallan, el resto igual se muestra.
+    fetchAllRows<MonthlyAttendanceRow>((from, to) =>
       supabase
         .from("attendance_confirmations" as any)
         .select("employee_id,status,discount_amount_applied,date")
@@ -499,15 +493,8 @@ export async function fetchMonthlyRawData(
         .lte("date", lastDay)
         .order("id", { ascending: true })
         .range(from, to) as any,
-    );
-  } catch {
-    attendance = [];
-  }
-
-  // Retiros de stock a cuenta del profesional (Inventario → "Anotar como adelanto").
-  let consumos: MonthlyConsumoRow[] = [];
-  try {
-    consumos = await fetchAllRows<MonthlyConsumoRow>((from, to) =>
+    ).catch(() => [] as MonthlyAttendanceRow[]),
+    fetchAllRows<MonthlyConsumoRow>((from, to) =>
       supabase
         .from("professional_advances" as any)
         .select("id,amount,professional_id,advanced_at")
@@ -517,14 +504,11 @@ export async function fetchMonthlyRawData(
         .ilike("note", "Retiro de stock:%")
         .order("id", { ascending: true })
         .range(from, to) as any,
-    );
-  } catch {
-    consumos = [];
-  }
-
-  const { data: employees } = await supabase.from("employees").select("id,full_name").eq("business_id", businessId);
-
-  const startDate = await fetchBusinessStartDateCached(businessId);
+    ).catch(() => [] as MonthlyConsumoRow[]),
+    supabase.from("employees").select("id,full_name").eq("business_id", businessId),
+    fetchBusinessStartDateCached(businessId),
+  ]);
+  const employees = employeesRes.data;
 
   return {
     payments,

@@ -610,15 +610,18 @@ export function useAdvisorAnalytics(
     () => Array.from({ length: MONTHS_OF_HISTORY }, (_, i) => shiftMonth(currentMonth, -i)),
     [currentMonth],
   );
-  // Misma consulta (y misma caché) que el Rendimiento mensual.
-  const perfQueries = useQueries({
-    queries: monthKeys.map((mk) => ({
-      queryKey: ["monthly-performance", businessId, activeBranchId, mk, "mes-completo"],
-      queryFn: () => loadMonthlyPerformance(businessId!, activeBranchId, mk),
-      enabled: !!businessId,
-      staleTime: 60_000,
-    })),
+  // Misma consulta (y misma caché) que el Rendimiento mensual. Los dos meses que se miran primero (el actual y el
+  // anterior) se piden antes; los meses más viejos esperan a que terminen, para no competir por la red.
+  const consultaMes = (mk: string, habilitado: boolean) => ({
+    queryKey: ["monthly-performance", businessId, activeBranchId, mk, "mes-completo"],
+    queryFn: () => loadMonthlyPerformance(businessId!, activeBranchId, mk),
+    enabled: !!businessId && habilitado,
+    staleTime: 60_000,
   });
+  const primerosMeses = useQueries({ queries: monthKeys.slice(0, 2).map((mk) => consultaMes(mk, true)) });
+  const primerosListos = primerosMeses.every((q) => !q.isLoading);
+  const restoMeses = useQueries({ queries: monthKeys.slice(2).map((mk) => consultaMes(mk, primerosListos)) });
+  const perfQueries = [...primerosMeses, ...restoMeses];
   // Mes que se analiza: el elegido (por defecto el mes en curso).
   const todayDay = Number(cajaDateKeyBA().slice(8, 10));
   const selectedKey = selectedMonthKey && monthKeys.includes(selectedMonthKey) ? selectedMonthKey : monthKeys[0];

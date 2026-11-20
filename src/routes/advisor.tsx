@@ -1214,9 +1214,6 @@ function RadiografiaSection({ analytics }: { analytics: AdvisorAnalytics }) {
     <div className={VENTANA_CLIPPR}>
       <div className={cn(TARJETA_CLIPPR, "p-3.5 sm:p-5")}>
         <h2 className={TITULO_CLIPPR}>Equipo, servicios y clientes</h2>
-        <p className="mt-1 text-xs text-white/55">
-          Quién rinde más, qué se vende y cuántos clientes fieles tenés · {analytics.analysisMonthLabel}.
-        </p>
         {/* grid-cols-2 desde mobile (antes era 1 sola columna hasta
             sm:, una tarjeta enorme abajo de otra) — en pantallas
             grandes sigue yendo a 4 columnas igual que siempre. */}
