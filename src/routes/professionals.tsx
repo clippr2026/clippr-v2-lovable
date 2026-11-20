@@ -1,4 +1,4 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import React, { useMemo, useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { AppShell } from "@/components/app-shell";
@@ -82,7 +82,9 @@ import { AgendaCenteredModal } from "@/components/agenda/agenda-drawer";
 import { SlotScaleSelect, readStoredSlotMinutes, SLOT_STORAGE_KEY, type SlotMinutes } from "@/components/agenda/slot-scale-select";
 import { HorarioEspecialPanel } from "@/components/professionals/horario-especial-panel";
 import type { EmployeeCommissionMap } from "@/lib/service-pricing";
-import { cancelAppointment } from "@/components/agenda/use-agenda-data";
+import { cancelAppointment, type Appointment as AgendaAppointment } from "@/components/agenda/use-agenda-data";
+import { crearAccionesTurno } from "@/components/agenda/appointment-actions";
+import { AppointmentDetailDialog } from "@/routes/agenda";
 import { useAgendaData } from "@/components/agenda/use-agenda-data";
 import { resolveDaySchedule } from "@/lib/availability";
 import { getPublicVisibility, normalizePublicBooleanMap } from "@/components/settings/shared";
@@ -1079,6 +1081,36 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
   const agendaRangeStart = React.useMemo(() => new Date(`${from}T00:00:00`), [from]);
   const agendaRangeEnd = React.useMemo(() => new Date(`${from}T23:59:59`), [from]);
   const agendaData = useAgendaData(agendaRangeStart, agendaRangeEnd);
+  // Panel de detalle del turno: el mismo de la Agenda (AppointmentDetailDialog) con las mismas acciones.
+  const navegarTurno = useNavigate();
+  const { activeBranchId: ramaActiva, session: sesionActiva } = useAuth();
+  const [editAppt, setEditAppt] = useState<AgendaAppointment | null>(null);
+  const [senasConfigRaw, setSenasConfigRaw] = useState<Record<string, any> | null>(null);
+  useEffect(() => {
+    if (!businessId) return;
+    supabase
+      .from("business_settings")
+      .select("senas_config")
+      .eq("business_id", businessId)
+      .maybeSingle()
+      .then(({ data: bs }) => setSenasConfigRaw((bs?.senas_config as Record<string, any> | null) ?? null));
+  }, [businessId]);
+  const accionesTurno = crearAccionesTurno({
+    userId: sesionActiva?.user.id,
+    profile: profile as never,
+    activeBranchId: ramaActiva,
+    refresh: () => { agendaData.refresh(); refetch(); },
+    onClose: () => setDetalleTurno(null),
+    onStatusApplied: () => {},
+    navigate: (o) => navegarTurno({ to: o.to as never, search: o.search as never }),
+    calcDeposit: (price) => {
+      const c = senasConfigRaw as { amount_type?: string; amount_value?: number } | null;
+      if (!c) return 0;
+      return c.amount_type === "fixed" ? Number(c.amount_value ?? 0) : Math.round((price * Number(c.amount_value ?? 0)) / 100);
+    },
+    isPast: (a) => new Date(a.ends_at ?? new Date(new Date(a.starts_at).getTime() + Number(a.duration_min ?? 30) * 60_000)).getTime() < Date.now(),
+    hasStarted: (a) => new Date(a.starts_at).getTime() <= Date.now(),
+  });
   const lockedEmployees = React.useMemo(
     () => agendaData.employees.filter((e) => e.id === empId),
     [agendaData.employees, empId],
@@ -1880,6 +1912,45 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
       )}
 
       {detalleTurno && (() => {
+        const agendaAppt = agendaData.appointments.find((x) => x.id === detalleTurno.id);
+        if (agendaAppt) {
+          return (
+            <AppointmentDetailDialog
+              open
+              onOpenChange={(v) => { if (!v) setDetalleTurno(null); }}
+              appointment={agendaAppt}
+              now={new Date()}
+              employees={agendaData.employees}
+              clients={agendaData.clients}
+              services={agendaData.services}
+              employeeServiceOverrides={agendaData.employeeServiceOverrides}
+              onEdit={(a) => { setDetalleTurno(null); setEditAppt(a); }}
+              onCancel={(a, reason) => { void accionesTurno.cambiarEstado(a, "cancelled", reason).then(() => setDetalleTurno(null)); }}
+              onCobrar={(a) => {
+                const turno = turnos.find((x) => x.id === a.id);
+                if (!turno) return;
+                setCobroTurno(turno);
+                setDetalleTurno(null);
+              }}
+              onFicha={(a) => {
+                setDetalleTurno(null);
+                navegarTurno({ to: "/clients" as never, search: (a.client_id ? { clientId: a.client_id } : a.client_name ? { q: a.client_name } : {}) as never });
+              }}
+              onViewRecurring={(a) => {
+                if (!a.client_id || !a.recurring_series_id) return;
+                setDetalleTurno(null);
+                navegarTurno({ to: "/clients" as never, search: { clientId: a.client_id, openRecurring: a.recurring_series_id } as never });
+              }}
+              onChangeStatus={(a, s) => { void accionesTurno.cambiarEstado(a, s); }}
+              onMarkDeposit={accionesTurno.pedirSena}
+              onCancelWithDeposit={accionesTurno.cancelarConSena}
+              onNoShowWithDeposit={accionesTurno.noAsistioConSena}
+              onDepositChanged={() => { agendaData.refresh(); refetch(); }}
+              onReleaseBlock={() => {}}
+              senasConfigRaw={senasConfigRaw}
+            />
+          );
+        }
         const t = detalleTurno;
         const meta = getAgendaMeta(t);
         const acc = getTurnoAcciones(t);
@@ -2049,6 +2120,29 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
           createdByName={profile?.email ?? null}
           createdByRole="profesional"
           onSaved={() => { setAddTurnoOpen(false); setManualTurnoStartsAt(null); refetch(); }}
+          schedule={agendaData.schedule}
+          employeeSchedules={agendaData.employeeSchedules}
+          businessSpecialDates={agendaData.businessSpecialDates}
+          employeeSpecialDates={agendaData.employeeSpecialDates}
+          employeeServiceOverrides={agendaData.employeeServiceOverrides}
+          promotions={agendaData.promotions}
+          presentation="modal"
+        />
+      )}
+
+      {editAppt && businessId && empId && (
+        <AppointmentDialog
+          open
+          onOpenChange={(open) => { if (!open) setEditAppt(null); }}
+          appointment={editAppt}
+          defaultEmployeeId={empId}
+          employees={lockedEmployees}
+          services={agendaData.services}
+          clients={agendaData.clients}
+          businessId={businessId}
+          createdByName={profile?.email ?? null}
+          createdByRole="profesional"
+          onSaved={() => { setEditAppt(null); agendaData.refresh(); refetch(); }}
           schedule={agendaData.schedule}
           employeeSchedules={agendaData.employeeSchedules}
           businessSpecialDates={agendaData.businessSpecialDates}

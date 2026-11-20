@@ -4270,7 +4270,7 @@ function withAlpha(color: string, a: number): string {
   return color.replace(/\)\s*$/, ` / ${a})`);
 }
 
-const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
+export const AppointmentDetailDialog = React.memo(function AppointmentDetailDialog({
   open,
   onOpenChange,
   appointment,
