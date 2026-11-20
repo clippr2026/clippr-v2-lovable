@@ -14,6 +14,7 @@ import {
   filterToDayBA,
   computeExpectedCashAndDigital,
   isCountableCajaPayment,
+  isVoidedPaymentStatus,
   collectionPaymentIdSet,
   isCajaCerradaRow,
   type PendingCierre,
@@ -67,6 +68,10 @@ const pendingCierresCache = new Map<string, PendingCierre[]>();
 function pendingCierresCacheKey(businessId: string | null, branchId: string | null) {
   return `${businessId ?? ""}:${branchId ?? ""}`;
 }
+
+// Un cobro parcial de una venta que después se anuló no es plata real: no suma en la caja.
+// (Sigue en la lista de movimientos, rotulado "Anulada".)
+const cobroVigente = (c: PaymentCollectionRow) => !isVoidedPaymentStatus(c.payments?.status);
 
 export type CajaSummary = {
   loading: boolean;
@@ -428,7 +433,7 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
       expenses: expensesList,
       advances: freshMovements.advances,
       cashMovements: freshMovements.movements,
-      collections: collectionsList,
+      collections: collectionsList.filter(cobroVigente),
       settlementOutflows: freshMovements.settlementOutflows,
     });
 
@@ -612,7 +617,7 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
       (s, p) => s + (isCountableCajaPayment(p.status) && !viaCobrosHoy.has(p.id) ? saleIngreso(p) : 0),
       0,
     ) +
-    collectionsStrictlyToday.reduce((s, c) => s + Number(c.amount ?? 0), 0) +
+    collectionsStrictlyToday.filter(cobroVigente).reduce((s, c) => s + Number(c.amount ?? 0), 0) +
     // Señas aprobadas hoy, menos las devueltas hoy.
     senasIngresosDesdeMovimientos(filterToDayBA(movementsForPeriod, (m) => m.created_at, todayKeyBA)).neto;
   // Mismo criterio que revHoy — una venta anulada/reembolsada no es un
@@ -634,7 +639,7 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     expenses: expensesStrictlyToday,
     advances: advancesStrictlyToday,
     cashMovements: movementsStrictlyToday,
-    collections: collectionsStrictlyToday,
+    collections: collectionsStrictlyToday.filter(cobroVigente),
     settlementOutflows: filterToDayBA(settlementForPeriod, (x) => x.paid_at, todayKeyBA),
   });
 
