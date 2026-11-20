@@ -44,3 +44,21 @@ describe("simulador de precios", () => {
     expect(r.riesgo).not.toBe("Bajo");
   });
 });
+
+import { mesBaseValido, proyectarMes } from "./simulador-precios";
+
+describe("proyección del próximo mes", () => {
+  it("mismas ventas del mes anterior: sin aumento vs con aumento, y escenarios con pérdida de clientes", () => {
+    const p = proyectarMes({ precioActual: 20000, aumento: 1000, ventasBase: 100, comision: 0.5 });
+    expect(p.sinAumento).toEqual({ ventas: 100, facturacion: 2_000_000 });
+    expect(p.escenarios[0]).toMatchObject({ perdidaPct: 0, ventas: 100, difFacturacion: 100_000, difGanancia: 50_000 });
+    // perdiendo 5%: 95 × 21.000 = 1.995.000 → -5.000 contra no subir
+    expect(p.escenarios[1].difFacturacion).toBe(-5_000);
+    expect(p.escenarios[2].difFacturacion).toBeLessThan(0);
+  });
+  it("no se compara contra diciembre (mes de alta demanda)", () => {
+    expect(mesBaseValido("2026-12")).toBe(false);
+    expect(mesBaseValido("2026-11")).toBe(true);
+    expect(mesBaseValido("2027-01")).toBe(true);
+  });
+});

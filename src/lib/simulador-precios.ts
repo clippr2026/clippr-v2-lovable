@@ -82,3 +82,44 @@ export function simularPrecio(i: SimuladorInput): SimuladorResultado {
   if (i.seFueronPorPrecio >= 1 && riesgo === "Bajo") riesgo = "Medio";
   return { precioNuevo, pctAumento, facturacionAdicional, gananciaAdicional, comisionReal, comisionUsada, puntoEquilibrio, puntoEquilibrioPct, riesgo, factores, pocosDatos };
 }
+
+export type EscenarioMes = {
+  /** Ventas que se pierden respecto del mes base (0, 5% o 10%). */
+  perdidaPct: number;
+  ventas: number;
+  facturacion: number;
+  /** Cuánto más (o menos) factura respecto de no subir el precio. */
+  difFacturacion: number;
+  /** Cuánto más (o menos) queda después de la comisión respecto de no subir el precio. */
+  difGanancia: number;
+};
+
+/**
+ * Proyección del próximo mes con las mismas ventas del mes anterior completo. `perdidaPct` son los escenarios en los que
+ * se van clientes. Compara siempre contra no subir el precio (mismas ventas × precio actual).
+ */
+export function proyectarMes(i: { precioActual: number; aumento: number; ventasBase: number; comision: number | null }): {
+  sinAumento: { ventas: number; facturacion: number };
+  escenarios: EscenarioMes[];
+} {
+  const c = Math.min(1, Math.max(0, i.comision ?? COMISION_REFERENCIA));
+  const precioNuevo = i.precioActual + i.aumento;
+  const base = i.ventasBase * i.precioActual;
+  const escenarios = [0, 5, 10].map((perdidaPct): EscenarioMes => {
+    const ventas = Math.round(i.ventasBase * (1 - perdidaPct / 100));
+    const facturacion = ventas * precioNuevo;
+    return {
+      perdidaPct,
+      ventas,
+      facturacion,
+      difFacturacion: Math.round(facturacion - base),
+      difGanancia: Math.round((facturacion - base) * (1 - c)),
+    };
+  });
+  return { sinAumento: { ventas: i.ventasBase, facturacion: Math.round(base) }, escenarios };
+}
+
+/** El mes anterior no se usa de base cuando fue diciembre: es un mes de alta demanda y no representa un mes normal. */
+export function mesBaseValido(mesAnteriorKey: string): boolean {
+  return mesAnteriorKey.slice(5, 7) !== "12";
+}

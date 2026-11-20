@@ -14,10 +14,10 @@ import { useClientsData, type Client } from "@/hooks/use-clients-data";
 import { ADVISOR_MONTHS_SELECTABLE, useAdvisorAnalytics, type AdvisorAnalytics } from "@/hooks/use-advisor-analytics";
 import type { HealthIndicator } from "@/lib/health-score";
 import { cajaDateKeyBA } from "@/lib/caja-cierre";
-import { shiftMonth } from "@/lib/monthly-performance";
+import { monthBounds, monthLabel as monthLabelES, shiftMonth } from "@/lib/monthly-performance";
 import { MesSelector, RendimientoMensual } from "@/components/advisor/rendimiento-mensual";
 import { ClientesPerdidosCard } from "@/components/advisor/clientes-perdidos-card";
-import { simularPrecio } from "@/lib/simulador-precios";
+import { mesBaseValido, proyectarMes, simularPrecio } from "@/lib/simulador-precios";
 import { OcupacionMesCard } from "@/components/advisor/ocupacion-mes-card";
 import { TARJETA_CLIPPR, TITULO_CLIPPR, VENTANA_CLIPPR } from "@/components/advisor/estilo-clippr";
 import { MEASURABLE_CHANNELS } from "@/lib/acquisition-channels";
@@ -944,6 +944,9 @@ type ServicioReal = {
   mensual: number; // ventas cobradas del servicio en los últimos 30 días
   /** Comisión efectiva (0 a 1) de las ventas de los últimos 30 días; null si no hay comisiones registradas. */
   comision: number | null;
+  /** Ventas cobradas y comisión efectiva del MES ANTERIOR completo (base de la proyección del próximo mes). */
+  ventasMesAnt: number;
+  comisionMesAnt: number | null;
 };
 
 function useServicesData(businessId: string | null | undefined) {
@@ -971,11 +974,15 @@ function useServicesData(businessId: string | null | undefined) {
 
         if (cancelled) return;
 
-        // Ventas COBRADAS de los últimos 30 días por servicio (no turnos agendados) y la comisión real de esas ventas.
-        const desde = new Date(Date.now() - 30 * 86_400_000).toISOString();
+        // Ventas COBRADAS por servicio y la comisión real de esas ventas: últimos 30 días (para el resultado) y mes anterior
+        // completo (base de la proyección del próximo mes). Se baja una sola vez la ventana que cubre a las dos.
+        const mesAnt = shiftMonth(cajaDateKeyBA().slice(0, 7), -1);
+        const limitesAnt = monthBounds(mesAnt);
+        const desde30 = new Date(Date.now() - 30 * 86_400_000);
+        const desde = new Date(Math.min(desde30.getTime(), limitesAnt.start.getTime())).toISOString();
         const { data: ventas } = await supabase
           .from("payments")
-          .select("id,total,amount,items,service_name")
+          .select("id,total,amount,items,service_name,created_at")
           .eq("business_id", businessId)
           .gte("created_at", desde)
           .not("status", "in", "(anulado,reembolsado,pendiente)");
@@ -991,25 +998,33 @@ function useServicesData(businessId: string | null | undefined) {
         const comisionPorVenta = new Map<string, number>();
         for (const r of respuestas) for (const c of ((r.data ?? []) as any[])) comisionPorVenta.set(c.sale_id, (comisionPorVenta.get(c.sale_id) ?? 0) + Number(c.amount ?? 0));
 
-        const countMap: Record<string, number> = {};
-        const ingresoMap: Record<string, number> = {};
-        const comisionMap: Record<string, number> = {};
-        for (const v of (ventas ?? []) as any[]) {
-          const lineas = Array.isArray(v.items) ? v.items.filter((it: any) => it && !it.is_catalog) : [];
-          const entradas = lineas.length > 0
-            ? lineas.map((it: any) => ({ name: String(it.name ?? ""), qty: Number(it.qty ?? 1) > 0 ? Number(it.qty ?? 1) : 1 }))
-            : [{ name: String(v.service_name ?? ""), qty: 1 }];
-          const total = Number(v.total ?? v.amount ?? 0);
-          const comision = comisionPorVenta.get(v.id) ?? 0;
-          // Ventas con varios servicios: la comisión se reparte en partes iguales entre sus líneas.
-          for (const e of entradas) {
-            const key = e.name.toLowerCase().trim();
-            if (!key) continue;
-            countMap[key] = (countMap[key] ?? 0) + e.qty;
-            ingresoMap[key] = (ingresoMap[key] ?? 0) + total / entradas.length;
-            comisionMap[key] = (comisionMap[key] ?? 0) + comision / entradas.length;
+        const agregar = (incluir: (creado: number) => boolean) => {
+          const cuenta: Record<string, number> = {};
+          const ingreso: Record<string, number> = {};
+          const comision: Record<string, number> = {};
+          for (const v of (ventas ?? []) as any[]) {
+            if (!incluir(new Date(v.created_at).getTime())) continue;
+            const lineas = Array.isArray(v.items) ? v.items.filter((it: any) => it && !it.is_catalog) : [];
+            const entradas = lineas.length > 0
+              ? lineas.map((it: any) => ({ name: String(it.name ?? ""), qty: Number(it.qty ?? 1) > 0 ? Number(it.qty ?? 1) : 1 }))
+              : [{ name: String(v.service_name ?? ""), qty: 1 }];
+            const total = Number(v.total ?? v.amount ?? 0);
+            const com = comisionPorVenta.get(v.id) ?? 0;
+            // Ventas con varios servicios: la comisión se reparte en partes iguales entre sus líneas.
+            for (const e of entradas) {
+              const key = e.name.toLowerCase().trim();
+              if (!key) continue;
+              cuenta[key] = (cuenta[key] ?? 0) + e.qty;
+              ingreso[key] = (ingreso[key] ?? 0) + total / entradas.length;
+              comision[key] = (comision[key] ?? 0) + com / entradas.length;
+            }
           }
-        }
+          return { cuenta, ingreso, comision };
+        };
+        const tasa = (g: ReturnType<typeof agregar>, key: string) =>
+          (g.ingreso[key] ?? 0) > 0 && (g.comision[key] ?? 0) > 0 ? Math.min(1, g.comision[key] / g.ingreso[key]) : null;
+        const g30 = agregar((t) => t >= desde30.getTime());
+        const gAnt = agregar((t) => t >= limitesAnt.start.getTime() && t <= limitesAnt.end.getTime());
 
         const mapped: ServicioReal[] = (catalog ?? []).map((s) => {
           const key = (s.name ?? "").toLowerCase().trim();
@@ -1017,8 +1032,10 @@ function useServicesData(businessId: string | null | undefined) {
             id: s.id,
             nombre: s.name,
             precio: Number(s.price ?? 0),
-            mensual: countMap[key] ?? 0,
-            comision: (ingresoMap[key] ?? 0) > 0 && (comisionMap[key] ?? 0) > 0 ? Math.min(1, comisionMap[key] / ingresoMap[key]) : null,
+            mensual: g30.cuenta[key] ?? 0,
+            comision: tasa(g30, key),
+            ventasMesAnt: gAnt.cuenta[key] ?? 0,
+            comisionMesAnt: tasa(gAnt, key),
           };
         });
 
@@ -1760,6 +1777,14 @@ function LabPrecios({ data, ocupacionAtendida, seFueronPorPrecio }: { data: LabD
         ? `No hay ventas cobradas de ${svc?.nombre} en los últimos 30 días para proyectar el impacto. La estimación no es confiable.`
         : `Con ${mensual} ventas en los últimos 30 días, subir ${fmtAR(aumento)} suma hasta ${fmtAR(facturacion)} si todos siguen viniendo. Dejaría de convenir si se pierden más de ${perdibles} ventas al mes. ${r.factores.length > 1 ? `Riesgo ${riesgoLabel.toLowerCase()} por: ${r.factores.join(", ")}.` : "Depende de cuántos clientes sigan comprando al nuevo precio."}`;
 
+  // Proyección del próximo mes con las mismas ventas del MES ANTERIOR completo. Si ese mes fue diciembre (alta demanda),
+  // no se compara.
+  const mesAnteriorKey = shiftMonth(cajaDateKeyBA().slice(0, 7), -1);
+  const baseValida = mesBaseValido(mesAnteriorKey);
+  const proyeccion =
+    baseValida && (svc?.ventasMesAnt ?? 0) > 0
+      ? proyectarMes({ precioActual, aumento, ventasBase: svc?.ventasMesAnt ?? 0, comision: svc?.comisionMesAnt ?? null })
+      : null;
   const maxAumento = Math.max(5000, Math.round(precioActual));
   const meta = nivelMeta[nivel];
   const VeredictoIcon = meta.icon;
@@ -1836,6 +1861,55 @@ function LabPrecios({ data, ocupacionAtendida, seFueronPorPrecio }: { data: LabD
         <p className="mt-2 text-[11px] leading-snug text-white/40">
           Facturación y ganancia suponen que todos los clientes siguen viniendo. El riesgo es una estimación orientativa: Clippr no sabe cuántos clientes se irían.
         </p>
+      </div>
+
+      {/* Proyección del próximo mes: mismas ventas y pagos del mes anterior completo */}
+      <div className={TARJETA_CLIPPR}>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-sm font-semibold text-white">Próximo mes</span>
+          <span className="text-[11px] text-white/45">base: {monthLabelES(mesAnteriorKey)}</span>
+        </div>
+        {!baseValida ? (
+          <p className="mt-2 text-xs leading-relaxed text-white/60">
+            No se compara contra diciembre: es un mes de alta demanda y no representa un mes normal.
+          </p>
+        ) : proyeccion == null ? (
+          <p className="mt-2 text-xs leading-relaxed text-white/60">
+            No hay ventas cobradas de {svc?.nombre} en {monthLabelES(mesAnteriorKey)} para proyectar.
+          </p>
+        ) : (
+          <>
+            <p className="mt-1.5 text-xs text-white/55">
+              Con las mismas {proyeccion.sinAumento.ventas} ventas de {monthLabelES(mesAnteriorKey)}: sin aumento facturarías{" "}
+              {fmtAR(proyeccion.sinAumento.facturacion)}.
+            </p>
+            <div className="mt-2 space-y-1.5">
+              {proyeccion.escenarios.map((e) => (
+                <div key={e.perdidaPct} className="flex items-center justify-between gap-3 rounded-xl bg-white/[0.04] px-3 py-2 ring-1 ring-white/10">
+                  <div className="min-w-0">
+                    <div className="text-xs font-semibold text-white">
+                      {e.perdidaPct === 0 ? "Si todos siguen viniendo" : `Si se pierde el ${e.perdidaPct}% de las ventas`}
+                    </div>
+                    <div className="text-[11px] text-white/50">
+                      {e.ventas} ventas · {fmtAR(e.facturacion)}
+                    </div>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <div className={cn("text-sm font-bold tabular-nums", e.difFacturacion >= 0 ? "text-emerald-300" : "text-rose-300")}>
+                      {e.difFacturacion >= 0 ? "+" : "-"}
+                      {fmtAR(Math.abs(e.difFacturacion))}
+                    </div>
+                    <div className={cn("text-[11px] tabular-nums", e.difGanancia >= 0 ? "text-emerald-200/80" : "text-rose-200/80")}>
+                      ganancia {e.difGanancia >= 0 ? "+" : "-"}
+                      {fmtAR(Math.abs(e.difGanancia))}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <p className="mt-2 text-[11px] leading-snug text-white/40">Diferencia contra no subir el precio, con la comisión real de ese mes.</p>
+          </>
+        )}
       </div>
 
       {/* 3. Gerente IA: veredicto breve */}
