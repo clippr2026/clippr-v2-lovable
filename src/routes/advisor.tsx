@@ -1077,8 +1077,8 @@ function IndicadorSalud({ ind }: { ind: HealthIndicator }) {
     <div className="rounded-xl border border-white/[0.08] bg-white/[0.03]">
       <button type="button" onClick={() => setOpen((v) => !v)} aria-expanded={open} className="w-full px-3 py-2.5 text-left">
         <div className="flex items-center justify-between gap-3">
-          <span className="text-sm font-semibold text-white">{ind.label}</span>
-          <span className="shrink-0 text-xs tabular-nums text-white/85">
+          <span className="text-base font-semibold text-white">{ind.label}</span>
+          <span className="shrink-0 text-sm tabular-nums text-white/85">
             {ind.pts != null ? (
               <>
                 {ind.pts} <span className="text-white/40">/ {ind.max}</span>
@@ -1091,13 +1091,13 @@ function IndicadorSalud({ ind }: { ind: HealthIndicator }) {
         <div className="mt-1.5 h-1.5 overflow-hidden rounded-full bg-white/[0.08]">
           {ind.pts != null && <div className={cn("h-full rounded-full", barra)} style={{ width: `${Math.min(100, ratio * 100)}%` }} />}
         </div>
-        <div className="mt-1.5 flex items-center justify-between gap-2 text-[11px] text-white/55">
+        <div className="mt-1.5 flex items-center justify-between gap-2 text-sm text-white/65">
           <span className="min-w-0 truncate">{ind.valueText}</span>
           {chip && <span className={cn("shrink-0 rounded-full border px-2 py-0.5 text-[10px] font-semibold", chip.cls)}>{chip.text}</span>}
         </div>
       </button>
       {open && (
-        <div className="space-y-2 border-t border-white/[0.07] px-3 py-3 text-xs leading-relaxed text-white/70">
+        <div className="space-y-2 border-t border-white/[0.07] px-3 py-3 text-sm leading-relaxed text-white/75">
           {ind.datos.length > 0 && (
             <div>
               <b className="text-white">Datos que se usaron:</b>
@@ -1140,8 +1140,6 @@ function SaludSection({
       {analytics.analysisNote && <p className="relative mb-3 px-2 text-xs leading-snug text-amber-200/80">{analytics.analysisNote}</p>}
       <div className="relative grid gap-3 md:grid-cols-2">
         <section className={tarjeta}>
-          <div className="text-sm font-semibold text-white">Estado actual</div>
-          <div className="text-[11px] text-white/50">Rentabilidad, clientes y ocupación</div>
           <div className="mt-4 flex items-center gap-4">
             <div className="relative grid shrink-0 place-items-center">
               <svg width="118" height="118" viewBox="0 0 200 200" className="-rotate-90">
@@ -1196,8 +1194,7 @@ function SaludSection({
         </section>
 
         <section className={tarjeta}>
-          <div className="text-sm font-semibold text-white">Cómo se arma el puntaje</div>
-          <div className="text-[11px] text-white/50">Tocá cada tarjeta para ver los datos que se usaron y el máximo de puntos.</div>
+          <div className="text-base font-semibold text-white">Cómo se arma el puntaje</div>
           <div className="mt-3 space-y-2">
             {score ? (
               score.indicators.map((ind) => <IndicadorSalud key={ind.key} ind={ind} />)
@@ -1213,65 +1210,36 @@ function SaludSection({
 
 // Radiografía del equipo: solo lo que NO está ya en Salud, Radar o Análisis (clientes para recuperar, turnos vacíos).
 function RadiografiaSection({ analytics }: { analytics: AdvisorAnalytics }) {
-  const items = analytics.radiografia.filter((i) => i.key !== "recuperar" && i.key !== "turnos-vacios" && i.key !== "prof-top" && i.key !== "prof-bottom");
+  // Lista simple: un dato por fila. Sin cancelaciones (ya están en el detalle de Ocupación) ni ocupación por profesional.
+  const items = analytics.radiografia.filter(
+    (i) => !["recuperar", "turnos-vacios", "prof-top", "prof-bottom", "cancelaciones"].includes(i.key),
+  );
+  const colorValor = (tone: string) =>
+    tone === "good" ? "text-emerald-300" : tone === "warn" ? "text-amber-300" : tone === "bad" ? "text-rose-300" : "text-white";
   return (
     <div className={VENTANA_CLIPPR}>
-      <div className={cn(TARJETA_CLIPPR, "p-3.5 sm:p-5")}>
-        <h2 className={TITULO_CLIPPR}>Equipo, servicios y clientes</h2>
-        {/* grid-cols-2 desde mobile (antes era 1 sola columna hasta
-            sm:, una tarjeta enorme abajo de otra) — en pantallas
-            grandes sigue yendo a 4 columnas igual que siempre. */}
-        <div className="mt-3 grid grid-cols-2 gap-2 sm:mt-5 sm:gap-3 lg:grid-cols-4">
-          {items.map((item) => {
-            const Icon =
-              RADIOGRAFIA_ICONS[item.key as keyof typeof RADIOGRAFIA_ICONS] ?? Activity;
-            return (
-              <div
-                key={item.key}
-                className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-3 transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.045] sm:p-4"
-              >
-                <div
-                  className={cn(
-                    "grid h-8 w-8 place-items-center rounded-xl ring-1 sm:h-10 sm:w-10",
-                    item.tone === "good"
-                      ? "bg-emerald-400/10 ring-emerald-400/20 text-emerald-300"
-                      : item.tone === "warn"
-                        ? "bg-amber-400/10 ring-amber-400/20 text-amber-300"
-                        : item.tone === "bad"
-                          ? "bg-rose-400/10 ring-rose-400/20 text-rose-300"
-                          : "bg-white/[0.05] ring-white/10 text-white/75",
-                  )}
-                >
-                  <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
-                </div>
-                <div
-                  className={cn(
-                    "mt-2 text-xl font-bold leading-none sm:mt-3 sm:text-2xl",
-                    item.tone === "good"
-                      ? "text-emerald-300"
-                      : item.tone === "warn"
-                        ? "text-amber-300"
-                        : item.tone === "bad"
-                          ? "text-rose-300"
-                          : "text-white",
-                  )}
-                >
+      <h2 className={cn(TITULO_CLIPPR, "mb-2.5 px-1")}>Equipo, servicios y clientes</h2>
+      <div className={cn(TARJETA_CLIPPR, "divide-y divide-white/10 !p-0")}>
+        {items.map((item) => {
+          const Icon = RADIOGRAFIA_ICONS[item.key as keyof typeof RADIOGRAFIA_ICONS] ?? Activity;
+          return (
+            <div key={item.key} className="flex items-center gap-3 px-3.5 py-3">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/[0.06] ring-1 ring-white/10">
+                <Icon className={cn("h-4 w-4", colorValor(item.tone))} />
+              </span>
+              <div className="min-w-0 flex-1">
+                <div className="text-sm text-white/60">{item.label}</div>
+                <div className={cn("truncate text-base font-bold", colorValor(item.tone))}>
                   {item.value}
-                </div>
-                {item.detail && (
-                  <div className="mt-1 text-xs font-semibold text-white/70 sm:text-sm">{item.detail}</div>
-                )}
-                <div className="mt-1 text-xs leading-snug text-muted-foreground sm:mt-1.5">
-                  {item.label}
+                  {item.detail && <span className="ml-2 text-sm font-semibold text-white/70">{item.detail}</span>}
                 </div>
               </div>
-            );
-          })}
-        </div>
+            </div>
+          );
+        })}
         {!analytics.hasAnyData && (
-          <p className="mt-4 text-sm text-muted-foreground">
-            Todavía no hay datos suficientes para generar este análisis. A medida que se
-            registren turnos y cobros, esta radiografía se va a ir completando sola.
+          <p className="px-3.5 py-3 text-sm text-white/60">
+            Todavía no hay datos suficientes. A medida que se registren turnos y cobros, esto se completa solo.
           </p>
         )}
       </div>
@@ -1307,7 +1275,6 @@ function GrowthManagerTab({ onOpenSimulador, analytics, businessId, selectedMont
     <>
       <RadiografiaSection analytics={analytics} />
       <OcupacionMesCard
-        monthLabel={analytics.analysisMonthLabel}
         agendada={analytics.current?.agendadaPct ?? null}
         atendida={analytics.current?.hasData ? analytics.current.occupancy : null}
         franjas={analytics.current?.franjas}

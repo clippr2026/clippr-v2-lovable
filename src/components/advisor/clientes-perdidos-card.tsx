@@ -92,59 +92,51 @@ export function ClientesPerdidosCard({
       <div className={`${TARJETA_CLIPPR} sm:p-5`}>
         {/* Dos cifras destacadas: cuántos se fueron y cuánto se dejó de vender (estimado, no es plata garantizada). */}
         <div className="grid grid-cols-2 gap-2">
-          <div className="rounded-xl bg-rose-500/10 p-2.5 ring-1 ring-rose-300/25">
-            <div className="font-display text-3xl font-bold tabular-nums leading-none text-rose-200">{total}</div>
-            <div className="mt-1 text-[11px] leading-tight text-white/60">{total === 1 ? "cliente se fue" : "clientes se fueron"}</div>
+          <div className="rounded-xl bg-rose-500/10 p-3 ring-1 ring-rose-300/25">
+            <div className="font-display text-4xl font-bold tabular-nums leading-none text-rose-200">{total}</div>
+            <div className="mt-1.5 text-sm text-white/65">{total === 1 ? "cliente se fue" : "clientes se fueron"}</div>
           </div>
-          <div className="rounded-xl bg-rose-500/[0.06] p-2.5 ring-1 ring-rose-300/20">
+          <div className="rounded-xl bg-rose-500/[0.06] p-3 ring-1 ring-rose-300/20">
             <div className="font-display text-2xl font-bold tabular-nums leading-none text-rose-100">{perdido > 0 ? fmtAR(perdido) : "—"}</div>
-            <div className="mt-1 text-[11px] leading-tight text-white/60">venta potencial perdida</div>
-            <div className="mt-0.5 text-[10px] leading-tight text-white/40">Estimado con el ticket promedio; no es facturación garantizada.</div>
+            <div className="mt-1.5 text-sm text-white/65">venta perdida (estimada)</div>
           </div>
         </div>
 
-        {/* Motivos, en tarjetas compactas */}
-        <div className="mt-2 grid grid-cols-3 gap-2">
-          <div className="rounded-xl bg-white/[0.04] p-2 text-center ring-1 ring-white/10">
-            <div className="text-lg font-bold tabular-nums text-white">{generales.length}</div>
-            <div className="text-[10px] font-semibold uppercase tracking-wide text-white/55">Sin lugar</div>
-          </div>
-          <div className="rounded-xl bg-violet-500/10 p-2 text-center ring-1 ring-violet-300/25">
-            <div className="text-lg font-bold tabular-nums text-violet-100">{especificos.length}</div>
-            <div className="text-[10px] font-semibold uppercase tracking-wide text-white/55">Profesional</div>
-          </div>
-          <div className="rounded-xl bg-amber-400/10 p-2 text-center ring-1 ring-amber-300/25">
-            <div className="text-lg font-bold tabular-nums text-amber-100">{porPrecio.length}</div>
-            <div className="text-[10px] font-semibold uppercase tracking-wide text-white/55">Precio</div>
-          </div>
+        {/* Por qué se fueron */}
+        <div className="mt-3 divide-y divide-white/10 rounded-xl bg-white/[0.03] ring-1 ring-white/10">
+          {(
+            [
+              ["Sin lugar", generales.length, "text-white"],
+              ["Querían un profesional", especificos.length, "text-violet-100"],
+              ["Por el precio", porPrecio.length, "text-amber-100"],
+            ] as const
+          ).map(([nombre, n, color]) => (
+            <div key={nombre} className="flex items-center justify-between gap-3 px-3.5 py-2.5">
+              <span className="text-sm text-white/70">{nombre}</span>
+              <span className={`text-xl font-bold tabular-nums ${color}`}>{n}</span>
+            </div>
+          ))}
         </div>
 
+        {/* Cuándo se fueron: una sola fila de cada cosa, con lo más repetido */}
         {total > 0 && (
-          <div className="mt-2.5 space-y-2">
+          <div className="mt-3 divide-y divide-white/10 rounded-xl bg-white/[0.03] ring-1 ring-white/10">
             {(
               [
-                ["Días con más casos", dias.slice(0, 3).map(([d, n]) => [DIAS[d], n] as const)],
-                ["Horarios con más casos", horas.slice(0, 3).map(([h, n]) => [`${h} a ${h + 1} hs`, n] as const)],
-                ["Profesional más pedido", pedidos.slice(0, 3).map(([nombre, n]) => [nombre, n] as const)],
+                ["Días", dias.slice(0, 3).map(([d, n]) => `${DIAS[d]} (${n})`).join(" · ")],
+                ["Horarios", horas.slice(0, 3).map(([h, n]) => `${h} a ${h + 1} hs (${n})`).join(" · ")],
+                ["Profesional pedido", pedidos.slice(0, 3).map(([nombre, n]) => `${nombre} (${n})`).join(" · ")],
               ] as const
             )
-              .filter(([, items]) => items.length > 0)
-              .map(([titulo, items]) => (
-                <div key={titulo} className="rounded-xl bg-white/[0.03] px-3 py-2 ring-1 ring-white/10">
-                  <div className="text-[11px] font-semibold text-white/55">{titulo}</div>
-                  <div className="mt-1.5 flex flex-wrap gap-1.5">
-                    {items.map(([nombre, n]) => (
-                      <span key={nombre} className="inline-flex items-center gap-1.5 rounded-full bg-white/[0.06] px-2.5 py-1 text-xs font-semibold capitalize text-white ring-1 ring-white/10">
-                        {nombre}
-                        <span className="rounded-full bg-rose-500/25 px-1.5 text-[11px] tabular-nums text-rose-100">{n}</span>
-                      </span>
-                    ))}
-                  </div>
+              .filter(([, texto]) => texto.length > 0)
+              .map(([titulo, texto]) => (
+                <div key={titulo} className="px-3.5 py-2.5">
+                  <div className="text-sm text-white/55">{titulo}</div>
+                  <div className="text-base font-semibold capitalize text-white">{texto}</div>
                 </div>
               ))}
           </div>
         )}
-
       </div>
     </div>
   );
