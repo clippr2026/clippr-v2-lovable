@@ -361,6 +361,7 @@ function AdvisorContent({
           ticket={analytics.current?.ticket ?? 0}
           clientes={analytics.current?.clientsServed ?? 0}
           ocupacionAtendida={analytics.current?.hasData ? analytics.current.occupancy : null}
+          cargaProfesionales={analytics.current?.employeeLoad ?? []}
           onBack={() => setVerSimulador(false)}
         />
       )}
@@ -918,6 +919,8 @@ type ServicioReal = {
   /** Ventas cobradas y comisión efectiva del MES ANTERIOR completo (base de la proyección del próximo mes). */
   ventasMesAnt: number;
   comisionMesAnt: number | null;
+  /** Ventas de los últimos 30 días del servicio, por profesional (id → cantidad). */
+  porProfesional: Record<string, number>;
 };
 
 function useServicesData(businessId: string | null | undefined) {
@@ -953,7 +956,7 @@ function useServicesData(businessId: string | null | undefined) {
         const desde = new Date(Math.min(desde30.getTime(), limitesAnt.start.getTime())).toISOString();
         const { data: ventas } = await supabase
           .from("payments")
-          .select("id,total,amount,items,service_name,created_at")
+          .select("id,total,amount,items,service_name,created_at,employee_id")
           .eq("business_id", businessId)
           .gte("created_at", desde)
           .not("status", "in", "(anulado,reembolsado,pendiente)");
@@ -973,6 +976,7 @@ function useServicesData(businessId: string | null | undefined) {
           const cuenta: Record<string, number> = {};
           const ingreso: Record<string, number> = {};
           const comision: Record<string, number> = {};
+          const prof: Record<string, Record<string, number>> = {};
           for (const v of (ventas ?? []) as any[]) {
             if (!incluir(new Date(v.created_at).getTime())) continue;
             const lineas = Array.isArray(v.items) ? v.items.filter((it: any) => it && !it.is_catalog) : [];
@@ -988,9 +992,13 @@ function useServicesData(businessId: string | null | undefined) {
               cuenta[key] = (cuenta[key] ?? 0) + e.qty;
               ingreso[key] = (ingreso[key] ?? 0) + total / entradas.length;
               comision[key] = (comision[key] ?? 0) + com / entradas.length;
+              if (v.employee_id) {
+                prof[key] = prof[key] ?? {};
+                prof[key][v.employee_id] = (prof[key][v.employee_id] ?? 0) + e.qty;
+              }
             }
           }
-          return { cuenta, ingreso, comision };
+          return { cuenta, ingreso, comision, prof };
         };
         const tasa = (g: ReturnType<typeof agregar>, key: string) =>
           (g.ingreso[key] ?? 0) > 0 && (g.comision[key] ?? 0) > 0 ? Math.min(1, g.comision[key] / g.ingreso[key]) : null;
@@ -1007,6 +1015,7 @@ function useServicesData(businessId: string | null | undefined) {
             comision: tasa(g30, key),
             ventasMesAnt: gAnt.cuenta[key] ?? 0,
             comisionMesAnt: tasa(gAnt, key),
+            porProfesional: g30.prof[key] ?? {},
           };
         });
 
@@ -1712,7 +1721,17 @@ function LabSignals({ items }: { items: LabSignal[] }) {
 
 
 // ── SUBIR PRECIOS ──────────────────────────────────────────────────────────
-function LabPrecios({ data, ocupacionAtendida, seFueronPorPrecio }: { data: LabData; ocupacionAtendida: number | null; seFueronPorPrecio: number }) {
+function LabPrecios({
+  data,
+  ocupacionLocal,
+  cargaProfesionales,
+  seFueronPorPrecio,
+}: {
+  data: LabData;
+  ocupacionLocal: number | null;
+  cargaProfesionales: Array<{ id: string; used: number; capacity: number }>;
+  seFueronPorPrecio: number;
+}) {
   const services = data.services.length > 0 ? data.services : [];
   const [svcId, setSvcId] = React.useState<string | null>(null);
   const svc = services.find((s) => s.id === svcId) ?? services[0] ?? null;
@@ -1727,6 +1746,18 @@ function LabPrecios({ data, ocupacionAtendida, seFueronPorPrecio }: { data: LabD
 
   const precioActual = svc?.precio ?? 0;
   const mensual = svc?.mensual ?? 0;
+  // Ocupación de quienes hacen ESTE servicio: la ocupación atendida de cada profesional, ponderada por cuánto lo vende
+  // (lo que limita al servicio es el lugar que tienen ellos, no el del local entero). Sin ventas por profesional, se
+  // usa la del local.
+  let sumaPeso = 0;
+  let sumaOcup = 0;
+  for (const [empId, ventasEmp] of Object.entries(svc?.porProfesional ?? {})) {
+    const c = cargaProfesionales.find((x) => x.id === empId);
+    if (!c || c.capacity <= 0) continue;
+    sumaPeso += ventasEmp;
+    sumaOcup += ventasEmp * Math.min(100, (c.used / c.capacity) * 100);
+  }
+  const ocupacionAtendida = sumaPeso > 0 ? Math.round(sumaOcup / sumaPeso) : ocupacionLocal;
   const r = simularPrecio({
     precioActual,
     aumento,
@@ -1984,12 +2015,14 @@ function SimuladorPrecios({
   ticket,
   clientes,
   ocupacionAtendida,
+  cargaProfesionales,
   onBack,
 }: {
   businessId: string | null | undefined;
   ticket: number;
   clientes: number;
   ocupacionAtendida: number | null;
+  cargaProfesionales: Array<{ id: string; used: number; capacity: number }>;
   onBack: () => void;
 }) {
   const data = useLabData(businessId, ticket, clientes);
@@ -2025,7 +2058,7 @@ function SimuladorPrecios({
           </span>
           <h2 className={TITULO_CLIPPR}>Simulador de precios</h2>
         </div>
-        <LabPrecios data={data} ocupacionAtendida={ocupacionAtendida} seFueronPorPrecio={seFueronPorPrecio} />
+        <LabPrecios data={data} ocupacionLocal={ocupacionAtendida} cargaProfesionales={cargaProfesionales} seFueronPorPrecio={seFueronPorPrecio} />
       </div>
     </div>
   );

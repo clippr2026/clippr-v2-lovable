@@ -8,7 +8,7 @@ export type SimuladorInput = {
   ventas30: number;
   /** Comisión efectiva del servicio (0 a 1), de las comisiones reales; null si no hay datos. */
   comision: number | null;
-  /** Ocupación atendida del local en el mes (0-100), null si no se sabe. */
+  /** Ocupación atendida de los profesionales que hacen este servicio (0-100), null si no se sabe. */
   ocupacionAtendida: number | null;
   /** Clientes que se fueron por el precio en los últimos 30 días. */
   seFueronPorPrecio: number;
@@ -66,13 +66,13 @@ export function simularPrecio(i: SimuladorInput): SimuladorResultado {
   if (i.ocupacionAtendida != null) {
     if (i.ocupacionAtendida >= 70) {
       pts -= 1;
-      factores.push(`demanda alta (${i.ocupacionAtendida}% atendida)`);
+      factores.push(`demanda alta: quienes lo hacen están al ${i.ocupacionAtendida}%`);
     } else if (i.ocupacionAtendida < 40) {
       pts += 1;
-      factores.push(`agenda con lugar (${i.ocupacionAtendida}% atendida)`);
+      factores.push(`quienes lo hacen tienen lugar (${i.ocupacionAtendida}%)`);
     } else {
       // Ocupación media: no suma ni resta riesgo, pero se nombra para que se vea que se tuvo en cuenta.
-      factores.push(`ocupación media (${i.ocupacionAtendida}% atendida)`);
+      factores.push(`quienes lo hacen están al ${i.ocupacionAtendida}%`);
     }
   }
   const pocosDatos = i.ventas30 < 10;

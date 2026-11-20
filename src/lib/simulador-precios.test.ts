@@ -74,8 +74,8 @@ describe("sin aumento", () => {
 describe("la ocupación siempre se nombra entre los factores", () => {
   it("media, alta y baja", () => {
     const f = (o: number) => simularPrecio({ precioActual: 21900, aumento: 1000, ventas30: 258, comision: 0.5, ocupacionAtendida: o, seFueronPorPrecio: 0 }).factores.join("|");
-    expect(f(55)).toContain("ocupación media (55% atendida)");
-    expect(f(80)).toContain("demanda alta (80% atendida)");
-    expect(f(30)).toContain("agenda con lugar (30% atendida)");
+    expect(f(55)).toContain("quienes lo hacen están al 55%");
+    expect(f(80)).toContain("demanda alta: quienes lo hacen están al 80%");
+    expect(f(30)).toContain("quienes lo hacen tienen lugar (30%)");
   });
 });
