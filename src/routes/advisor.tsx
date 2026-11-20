@@ -375,6 +375,14 @@ function AdvisorContent({
 
   return (
     <div className="space-y-5 sm:space-y-7 max-w-5xl mx-auto w-full">
+      {/* Un solo selector de mes para Análisis y Gerente IA (el simulador no depende del mes). */}
+      {!(advisorTab === "acciones" && verSimulador) && (
+        <MesSelector
+          monthKey={selectedMonthKey}
+          onMonthKeyChange={setSelectedMonthKey}
+          minMonthKey={shiftMonth(currentMonthKey, -(ADVISOR_MONTHS_SELECTABLE - 1))}
+        />
+      )}
       {advisorTab === "acciones" && verSimulador && (
         <SimuladorPrecios
           businessId={businessId}
@@ -407,11 +415,6 @@ function AdvisorContent({
               horizontal en toda la página. */}
           <div className="relative overflow-hidden rounded-[1.7rem] border border-sky-300/[0.30] bg-white/[0.018] p-2.5 pt-4 shadow-[0_0_0_1px_rgba(56,189,248,0.16),0_24px_90px_-42px_rgba(14,165,233,0.9)] sm:p-3 sm:pt-5">
             <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-sky-400/[0.16] [-webkit-mask-image:radial-gradient(closest-side,#000,transparent)] [mask-image:radial-gradient(closest-side,#000,transparent)]" />
-            <MesSelector
-              monthKey={selectedMonthKey}
-              onMonthKeyChange={setSelectedMonthKey}
-              minMonthKey={shiftMonth(currentMonthKey, -(ADVISOR_MONTHS_SELECTABLE - 1))}
-            />
             <div className="flex items-center gap-4 mb-3">
               <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
               <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">
@@ -1097,19 +1100,11 @@ function IndicadorSalud({ ind }: { ind: HealthIndicator }) {
 
 function SaludSection({
   analytics,
-  selectedMonthKey,
-  onMonthKeyChange,
-  minMonthKey,
-  onOpenSimulador,
   animatedHealth,
   healthTone,
   healthHeadline,
 }: {
   analytics: AdvisorAnalytics;
-  selectedMonthKey: string;
-  onMonthKeyChange: (k: string) => void;
-  minMonthKey: string;
-  onOpenSimulador: () => void;
   animatedHealth: number;
   healthTone: { text: string; bar: string };
   healthHeadline: string;
@@ -1117,19 +1112,6 @@ function SaludSection({
   const score = analytics.healthScore;
   const tarjeta = `${TARJETA_CLIPPR} p-4`;
   return (
-    <div className="space-y-3">
-    <MesSelector monthKey={selectedMonthKey} onMonthKeyChange={onMonthKeyChange} minMonthKey={minMonthKey} />
-    <button
-      type="button"
-      onClick={onOpenSimulador}
-      className="flex h-12 w-full items-center gap-3 rounded-full border border-violet-400/45 bg-[#08070f] px-4 text-left shadow-[0_0_0_1px_rgba(139,92,246,0.25),0_0_30px_-12px_rgba(139,92,246,0.7)] transition active:scale-[0.99] [background-image:radial-gradient(120%_120%_at_85%_0%,rgba(79,125,255,0.18),transparent_60%),radial-gradient(110%_120%_at_0%_100%,rgba(139,92,246,0.2),transparent_62%)]"
-    >
-      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-emerald-400/15 text-emerald-300 ring-1 ring-emerald-300/30">
-        <DollarSign className="h-4 w-4" />
-      </span>
-      <span className="flex-1 text-sm font-semibold text-white">Simulador de precios</span>
-      <ArrowRight className="h-4 w-4 text-white/60" />
-    </button>
     <div className={VENTANA_CLIPPR}>
       <h2 className={cn(TITULO_CLIPPR, "relative mb-3 mt-1 text-center")}>Salud del negocio</h2>
       {analytics.analysisNote && <p className="relative mb-3 px-2 text-xs leading-snug text-amber-200/80">{analytics.analysisNote}</p>}
@@ -1203,13 +1185,12 @@ function SaludSection({
         </section>
       </div>
     </div>
-    </div>
   );
 }
 
 // Radiografía del equipo: solo lo que NO está ya en Salud, Radar o Análisis (clientes para recuperar, turnos vacíos).
 function RadiografiaSection({ analytics }: { analytics: AdvisorAnalytics }) {
-  const items = analytics.radiografia.filter((i) => i.key !== "recuperar" && i.key !== "turnos-vacios");
+  const items = analytics.radiografia.filter((i) => i.key !== "recuperar" && i.key !== "turnos-vacios" && i.key !== "prof-top" && i.key !== "prof-bottom");
   return (
     <div className={VENTANA_CLIPPR}>
       <div className={cn(TARJETA_CLIPPR, "p-3.5 sm:p-5")}>
@@ -1293,10 +1274,6 @@ function GrowthManagerTab({ onOpenSimulador, analytics, businessId, selectedMont
     <>
       <SaludSection
         analytics={analytics}
-        selectedMonthKey={selectedMonthKey}
-        onMonthKeyChange={onMonthKeyChange}
-        minMonthKey={minMonthKey}
-        onOpenSimulador={onOpenSimulador}
         animatedHealth={animatedHealth}
         healthTone={healthTone}
         healthHeadline={healthHeadline}
@@ -1305,19 +1282,19 @@ function GrowthManagerTab({ onOpenSimulador, analytics, businessId, selectedMont
   );
   const detalleFinal = (
     <>
-      <ClientesPerdidosCard
-        businessId={businessId}
-        monthKey={selectedMonthKey}
-        monthLabel={analytics.analysisMonthLabel}
-        ticket={analytics.current?.ticket ?? null}
-      />
+      <RadiografiaSection analytics={analytics} />
       <OcupacionMesCard
         monthLabel={analytics.analysisMonthLabel}
         agendada={analytics.current?.agendadaPct ?? null}
         atendida={analytics.current?.hasData ? analytics.current.occupancy : null}
         franjas={analytics.current?.franjas}
       />
-      <RadiografiaSection analytics={analytics} />
+      <ClientesPerdidosCard
+        businessId={businessId}
+        monthKey={selectedMonthKey}
+        monthLabel={analytics.analysisMonthLabel}
+        ticket={analytics.current?.ticket ?? null}
+      />
     </>
   );
 
@@ -1334,6 +1311,18 @@ function GrowthManagerTab({ onOpenSimulador, analytics, businessId, selectedMont
       {diagnostico}
 
       {detalleFinal}
+
+      <button
+        type="button"
+        onClick={onOpenSimulador}
+        className="flex h-12 w-full items-center gap-3 rounded-full border border-violet-400/45 bg-[#08070f] px-4 text-left shadow-[0_0_0_1px_rgba(139,92,246,0.25),0_0_30px_-12px_rgba(139,92,246,0.7)] transition active:scale-[0.99] [background-image:radial-gradient(120%_120%_at_85%_0%,rgba(79,125,255,0.18),transparent_60%),radial-gradient(110%_120%_at_0%_100%,rgba(139,92,246,0.2),transparent_62%)]"
+      >
+        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-emerald-400/15 text-emerald-300 ring-1 ring-emerald-300/30">
+          <DollarSign className="h-4 w-4" />
+        </span>
+        <span className="flex-1 text-sm font-semibold text-white">Simulador de precios</span>
+        <ArrowRight className="h-4 w-4 text-white/60" />
+      </button>
     </div>
   );
 }
