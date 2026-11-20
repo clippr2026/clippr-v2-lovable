@@ -42,6 +42,7 @@ import {
   DollarSign,
   TrendingDown,
   ChevronDown,
+  ChevronLeft,
   ArrowRight,
   Activity,
   CalendarDays,
@@ -62,6 +63,10 @@ export const Route = createFileRoute("/advisor")({
       { title: "Asesor IA — Clippr" },
       { name: "description", content: "Análisis inteligente para mejorar el negocio." },
     ],
+  }),
+  // Accesos guardados a la antigua pestaña Simuladores (?tab=simuladores) abren el Simulador de precios.
+  validateSearch: (search: Record<string, unknown>): { tab?: string } => ({
+    tab: typeof search.tab === "string" ? search.tab : undefined,
   }),
   component: AdvisorRoute,
 });
@@ -191,9 +196,11 @@ function AdvisorRoute() {
   const hasAccess = usePermGuard("dashboard");
   const { loading, session } = useAuth();
   const navigate = useNavigate();
-  const [advisorTab, setAdvisorTab] = React.useState<"acciones" | "analisis" | "simuladores">(
-    "analisis",
-  );
+  const search = Route.useSearch();
+  const vieneDeSimuladores = search.tab === "simuladores";
+  const [advisorTab, setAdvisorTab] = React.useState<"acciones" | "analisis">(vieneDeSimuladores ? "acciones" : "analisis");
+  // Simulador de precios abierto dentro de Gerente IA (el mes y la sucursal que se miraban se conservan).
+  const [verSimulador, setVerSimulador] = React.useState(vieneDeSimuladores);
   // El análisis se inicia una vez por día; las demás veces que se entra, el Asesor abre normal. Mientras no se haga,
   // no se muestran las pestañas.
   const [introDone, setIntroDone] = React.useState(analisisHechoHoy);
@@ -225,7 +232,7 @@ function AdvisorRoute() {
                   "Análisis"/"Gerente IA" y desalinea el grupo. Desktop
                   (sm+) vuelve a la fila flex de ancho automático de
                   siempre. */}
-              <div className="relative grid grid-cols-3 max-w-full items-center gap-2 rounded-[24px] border border-white/12 bg-[#070b18]/75 p-2 shadow-[0_18px_65px_rgba(14,165,233,0.16),inset_0_1px_0_rgba(255,255,255,0.08)] sm:flex sm:overflow-x-auto">
+              <div className="relative grid grid-cols-2 max-w-full items-center gap-2 rounded-[24px] border border-white/12 bg-[#070b18]/75 p-2 shadow-[0_18px_65px_rgba(14,165,233,0.16),inset_0_1px_0_rgba(255,255,255,0.08)] sm:flex sm:overflow-x-auto [&>button]:sm:flex-1">
                 {(
                   [
                     {
@@ -243,14 +250,6 @@ function AdvisorRoute() {
                       active:
                         "from-fuchsia-400/25 via-violet-500/18 to-indigo-500/20 text-fuchsia-100 ring-fuchsia-300/35 shadow-fuchsia-500/20",
                       idle: "hover:text-fuchsia-100 hover:ring-fuchsia-300/20 hover:bg-fuchsia-400/8",
-                    },
-                    {
-                      key: "simuladores",
-                      icon: DollarSign,
-                      label: "Simuladores",
-                      active:
-                        "from-emerald-400/25 via-teal-500/18 to-cyan-500/20 text-emerald-100 ring-emerald-300/35 shadow-emerald-500/20",
-                      idle: "hover:text-emerald-100 hover:ring-emerald-300/20 hover:bg-emerald-400/8",
                     },
                   ] as const
                 ).map((t) => {
@@ -302,6 +301,8 @@ function AdvisorRoute() {
           setAdvisorTab={setAdvisorTab}
           introDone={introDone}
           setIntroDone={setIntroDone}
+          verSimulador={verSimulador}
+          setVerSimulador={setVerSimulador}
         />
       </div>
     </AppShell>
@@ -313,9 +314,13 @@ function AdvisorContent({
   setAdvisorTab: _setAdvisorTab,
   introDone,
   setIntroDone,
+  verSimulador,
+  setVerSimulador,
 }: {
-  advisorTab: "acciones" | "analisis" | "simuladores";
-  setAdvisorTab: (t: "acciones" | "analisis" | "simuladores") => void;
+  advisorTab: "acciones" | "analisis";
+  setAdvisorTab: (t: "acciones" | "analisis") => void;
+  verSimulador: boolean;
+  setVerSimulador: (v: boolean) => void;
   introDone: boolean;
   setIntroDone: (v: boolean) => void;
 }) {
@@ -370,19 +375,18 @@ function AdvisorContent({
 
   return (
     <div className="space-y-5 sm:space-y-7 max-w-5xl mx-auto w-full">
-      {advisorTab === "simuladores" && (
-        <SimuladoresTab
-          servicios={analytics.current?.doneCount ?? 0}
-          facturacion={analytics.current?.revenue ?? 0}
+      {advisorTab === "acciones" && verSimulador && (
+        <SimuladorPrecios
+          businessId={businessId}
           ticket={analytics.current?.ticket ?? 0}
           clientes={analytics.current?.clientsServed ?? 0}
-          ocupacion={analytics.current?.occupancy ?? 0}
-          businessId={businessId}
+          onBack={() => setVerSimulador(false)}
         />
       )}
 
-      {advisorTab === "acciones" && (
+      {advisorTab === "acciones" && !verSimulador && (
         <GrowthManagerTab
+          onOpenSimulador={() => setVerSimulador(true)}
           analytics={analytics}
           businessId={businessId}
           selectedMonthKey={selectedMonthKey}
@@ -900,12 +904,6 @@ function InfoModal({ content, onClose }: { content: InfoModalContent; onClose: (
   );
 }
 
-// ─── SIMULADORES TAB ─────────────────────────────────────────────────────────
-
-function SimuladoresTab(props: SimuladorProps) {
-  return <LaboratorioDecisiones {...props} />;
-}
-
 // ─── SIMULADOR DE PRECIOS ────────────────────────────────────────────────────
 
 type SimuladorProps = {
@@ -1102,6 +1100,7 @@ function SaludSection({
   selectedMonthKey,
   onMonthKeyChange,
   minMonthKey,
+  onOpenSimulador,
   animatedHealth,
   healthTone,
   healthHeadline,
@@ -1110,6 +1109,7 @@ function SaludSection({
   selectedMonthKey: string;
   onMonthKeyChange: (k: string) => void;
   minMonthKey: string;
+  onOpenSimulador: () => void;
   animatedHealth: number;
   healthTone: { text: string; bar: string };
   healthHeadline: string;
@@ -1119,6 +1119,17 @@ function SaludSection({
   return (
     <div className="space-y-3">
     <MesSelector monthKey={selectedMonthKey} onMonthKeyChange={onMonthKeyChange} minMonthKey={minMonthKey} />
+    <button
+      type="button"
+      onClick={onOpenSimulador}
+      className="flex h-12 w-full items-center gap-3 rounded-full border border-violet-400/45 bg-[#08070f] px-4 text-left shadow-[0_0_0_1px_rgba(139,92,246,0.25),0_0_30px_-12px_rgba(139,92,246,0.7)] transition active:scale-[0.99] [background-image:radial-gradient(120%_120%_at_85%_0%,rgba(79,125,255,0.18),transparent_60%),radial-gradient(110%_120%_at_0%_100%,rgba(139,92,246,0.2),transparent_62%)]"
+    >
+      <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-emerald-400/15 text-emerald-300 ring-1 ring-emerald-300/30">
+        <DollarSign className="h-4 w-4" />
+      </span>
+      <span className="flex-1 text-sm font-semibold text-white">Simulador de precios</span>
+      <ArrowRight className="h-4 w-4 text-white/60" />
+    </button>
     <div className={VENTANA_CLIPPR}>
       <h2 className={cn(TITULO_CLIPPR, "relative mb-3 mt-1 text-center")}>Salud del negocio</h2>
       {analytics.analysisNote && <p className="relative mb-3 px-2 text-xs leading-snug text-amber-200/80">{analytics.analysisNote}</p>}
@@ -1268,6 +1279,7 @@ function RadiografiaSection({ analytics }: { analytics: AdvisorAnalytics }) {
 }
 
 type GrowthManagerTabProps = {
+  onOpenSimulador: () => void;
   analytics: AdvisorAnalytics;
   businessId: string | null | undefined;
   selectedMonthKey: string;
@@ -1278,7 +1290,7 @@ type GrowthManagerTabProps = {
   healthHeadline: string;
 };
 
-function GrowthManagerTab({ analytics, businessId, selectedMonthKey, onMonthKeyChange, minMonthKey, animatedHealth, healthTone, healthHeadline }: GrowthManagerTabProps) {
+function GrowthManagerTab({ onOpenSimulador, analytics, businessId, selectedMonthKey, onMonthKeyChange, minMonthKey, animatedHealth, healthTone, healthHeadline }: GrowthManagerTabProps) {
   // Diagnóstico: salud + radar arriba; clientes para recuperar y radiografía del equipo al final. Nada se repite con Análisis.
   const diagnostico = (
     <>
@@ -1287,6 +1299,7 @@ function GrowthManagerTab({ analytics, businessId, selectedMonthKey, onMonthKeyC
         selectedMonthKey={selectedMonthKey}
         onMonthKeyChange={onMonthKeyChange}
         minMonthKey={minMonthKey}
+        onOpenSimulador={onOpenSimulador}
         animatedHealth={animatedHealth}
         healthTone={healthTone}
         healthHeadline={healthHeadline}
@@ -1929,388 +1942,12 @@ function LabPrecios({ data }: { data: LabData }) {
 }
 
 // ── RECUPERAR CLIENTES ─────────────────────────────────────────────────────
-function LabRecuperar({ data }: { data: LabData }) {
-  const [pct, setPct] = React.useState(25);
-  if (data.loading) return <LabSkeleton />;
-
-  const pool = data.inact46.count + data.lost76.count;
-  if (pool === 0) {
-    return (
-      <LabEmpty text="¡Buenas noticias! No detectamos clientes perdidos para recuperar. Tu base está viniendo seguido." />
-    );
-  }
-
-  const recuperados = Math.round((pool * pct) / 100);
-  const totalValue = data.inact46.value + data.lost76.value;
-  const ticketProm = pool > 0 ? Math.round(totalValue / pool) : data.avgTicket;
-  const facturacion = recuperados * ticketProm;
-  const utilidad = Math.round(facturacion * LAB_MARGIN);
-  const nivel: keyof typeof nivelMeta = pct <= 25 ? "recomendado" : pct <= 45 ? "progresivo" : "evaluar";
-
-  return (
-    <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-2">
-        <div className="rounded-2xl border border-amber-300/15 bg-amber-400/[0.05] px-3.5 py-3">
-          <div className="text-3xl font-extrabold tabular-nums text-amber-200">{data.inact46.count}</div>
-          <div className="mt-0.5 text-[11px] text-white/50">Clientes inactivos</div>
-          <div className="text-[10px] text-white/35">46 a 75 días sin venir</div>
-        </div>
-        <div className="rounded-2xl border border-rose-300/15 bg-rose-500/[0.05] px-3.5 py-3">
-          <div className="text-3xl font-extrabold tabular-nums text-rose-300">{data.lost76.count}</div>
-          <div className="mt-0.5 text-[11px] text-white/50">Clientes perdidos</div>
-          <div className="text-[10px] text-white/35">76 días o más</div>
-        </div>
-      </div>
-
-      <div className="rounded-[18px] border border-white/10 bg-white/[0.03] px-4 py-3">
-        <div className="mb-1.5 flex items-end justify-between gap-4">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-white/40">
-            ¿Qué porcentaje recuperar?
-          </span>
-          <span className="text-2xl font-extrabold leading-none text-cyan-200">{pct}%</span>
-        </div>
-        <input
-          type="range"
-          min={5}
-          max={60}
-          step={5}
-          value={pct}
-          onChange={(e) => setPct(Number(e.target.value))}
-          className="h-2 w-full accent-cyan-400"
-        />
-        <div className="mt-1 flex justify-between text-[9px] font-semibold text-white/32">
-          <span>5%</span>
-          <span>60%</span>
-        </div>
-      </div>
-
-      <LabVerdict
-        nivel={nivel}
-        text={`Recuperar el ${pct}% son ${recuperados} cliente${recuperados === 1 ? "" : "s"} (${fmtAR(facturacion)} estimados). Es realista con una campaña de WhatsApp con beneficio por tiempo limitado. Arrancá por los que más gastaban.`}
-      />
-
-      <LabImpact
-        facturacion={facturacion}
-        utilidad={utilidad}
-        extra={{ label: "Clientes recuperados", value: `+${recuperados}` }}
-      />
-    </div>
-  );
-}
 
 // ── VENTA DE PRODUCTOS ─────────────────────────────────────────────────────
 const PRODUCT_TARGETS = [6, 10, 15, 20, 25];
 
-function LabProductos({ data }: { data: LabData }) {
-  // Hooks SIEMPRE antes de cualquier return condicional (regla de hooks).
-  const [target, setTarget] = React.useState<number | null>(null);
-
-  if (data.loading) return <LabSkeleton />;
-  if (!data.sellsProducts) {
-    return (
-      <LabEmpty text="Todavía no cargaste productos en el catálogo. Cargalos en Configuración (shampoo, cera, after, etc.) para medir y simular la venta de productos." />
-    );
-  }
-  if (data.productBuyerPct === null) {
-    return (
-      <LabEmpty text="Todavía no podemos leer ventas con productos para medir cuántos clientes compran. Registrá cobros que incluyan productos y este simulador se activa con tu dato real." />
-    );
-  }
-
-  const actual = data.productBuyerPct;
-  const opciones = PRODUCT_TARGETS.filter((t) => t > actual);
-  // Default vivo: hasta que el usuario elija, refleja el primer objetivo sobre el % real.
-  const defaultTarget = opciones[0] ?? actual + 5;
-  const effectiveTarget = Math.max(target ?? defaultTarget, actual);
-
-  const base = data.payingClients > 0 ? data.payingClients : data.monthlyClients;
-  const extraClients = Math.max(0, Math.round((base * (effectiveTarget - actual)) / 100));
-  const price = data.productAvgPrice;
-  const facturacion = extraClients * price;
-  const utilidad = Math.round(facturacion * LAB_PRODUCT_MARGIN);
-  const salto = effectiveTarget - actual;
-  const nivel: keyof typeof nivelMeta = salto <= 5 ? "recomendado" : salto <= 12 ? "progresivo" : "evaluar";
-
-  const segmentos = [
-    { label: "Clientes activos", n: data.segActivos },
-    { label: "Clientes VIP", n: data.segVip },
-    { label: "Clientes nuevos", n: data.segNuevos },
-  ].sort((a, b) => b.n - a.n);
-  const oportunidad = segmentos[0];
-
-  return (
-    <div className="space-y-3">
-      <div className="relative overflow-hidden rounded-[18px] border border-cyan-300/15 bg-cyan-400/[0.04] px-4 py-3">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-cyan-100/55">
-              Hoy compra productos
-            </p>
-            <p className="mt-0.5 text-xs text-white/45">
-              Sobre {base} clientes que te compraron en los últimos 90 días.
-            </p>
-          </div>
-          <span className="text-3xl font-extrabold leading-none text-cyan-200">{actual}%</span>
-        </div>
-      </div>
-
-      <div className="rounded-[18px] border border-white/10 bg-white/[0.03] px-4 py-3">
-        <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-white/40">
-          ¿A qué porcentaje querés llegar?
-        </div>
-        {opciones.length > 0 ? (
-          <LabChips
-            options={opciones.map((t) => ({ key: String(t), label: `${t}%` }))}
-            value={String(effectiveTarget)}
-            onChange={(k) => setTarget(Number(k))}
-          />
-        ) : (
-          <p className="text-xs text-white/55">
-            Ya estás en {actual}%, un nivel muy alto de venta de productos. Mantené el ritmo.
-          </p>
-        )}
-      </div>
-
-      <div className="rounded-2xl border border-violet-300/15 bg-violet-400/[0.05] px-3.5 py-2.5">
-        <span className="text-[10px] font-bold uppercase tracking-wider text-violet-200/70">
-          Mayor oportunidad
-        </span>
-        <p className="mt-0.5 text-sm font-bold text-white/85">
-          {oportunidad.label} <span className="text-white/45">· {oportunidad.n} clientes</span>
-        </p>
-      </div>
-
-      <LabVerdict
-        nivel={nivel}
-        text={`Pasar del ${actual}% al ${effectiveTarget}% son ${extraClients} ventas extra de producto por mes (${fmtAR(facturacion)}). Se logra ofreciendo el producto en el sillón al terminar el corte: "esto es lo que te puse, ¿te lo llevás?". Empezá por ${oportunidad.label.toLowerCase()}.`}
-      />
-
-      <LabImpact
-        facturacion={facturacion}
-        utilidad={utilidad}
-        extra={{ label: "Compradores extra / mes", value: `+${extraClients}` }}
-      />
-    </div>
-  );
-}
 
 // ── FIDELIZACIÓN ───────────────────────────────────────────────────────────
-function LabPublicidad({ data }: { data: LabData }) {
-  const [channel, setChannel] = React.useState<string>(MEASURABLE_CHANNELS[0].id);
-  const [investment, setInvestment] = React.useState(100_000);
-  const [projection, setProjection] = React.useState(100_000);
-  const [range, setRange] = React.useState<DateRange>(() => {
-    const to = new Date();
-    const from = new Date();
-    from.setMonth(from.getMonth() - 1);
-    return { from: from.toISOString().slice(0, 10), to: to.toISOString().slice(0, 10) };
-  });
-
-  if (data.loading) return <LabSkeleton />;
-
-  const hasAnyChannelData = data.clients.some((c) => c.acquisitionSource);
-  if (!hasAnyChannelData) {
-    return (
-      <LabEmpty text="Todavía no hay clientes con canal de origen registrado. En cuanto empiecen a reservar desde la página pública respondiendo '¿Cómo nos conociste?', este simulador se activa con tus datos reales." />
-    );
-  }
-
-  const rangeStart = new Date(`${range.from}T00:00:00`).getTime();
-  const rangeEnd = new Date(`${range.to}T23:59:59`).getTime();
-  const sixMonthsAgo = Date.now() - 182 * 86_400_000;
-
-  function statsFor(chan: string, sinceMs: number, untilMs: number = Date.now()) {
-    const list = data.clients.filter((c) => {
-      if (c.acquisitionSource !== chan || !c.acquisitionCapturedAt) return false;
-      const t = new Date(c.acquisitionCapturedAt).getTime();
-      return !Number.isNaN(t) && t >= sinceMs && t <= untilMs;
-    });
-    const clientes = list.length;
-    const facturacion = list.reduce((s, c) => s + c.spent, 0);
-    const avgVisitas = clientes > 0 ? list.reduce((s, c) => s + c.visits, 0) / clientes : 0;
-    return { clientes, facturacion, avgVisitas };
-  }
-
-  // Métricas reales del canal elegido, dentro del rango de inversión cargado.
-  const sel = statsFor(channel, rangeStart, rangeEnd);
-  const costoPorCliente = sel.clientes > 0 ? Math.round(investment / sel.clientes) : 0;
-  const ganancia = Math.round(sel.facturacion * LAB_MARGIN) - investment;
-  const roi = investment > 0 ? ganancia / investment : 0;
-
-  // Proyección: extrapola el costo por cliente real a una inversión futura.
-  const avgRevenuePerClient = sel.clientes > 0 ? sel.facturacion / sel.clientes : 0;
-  const clientesProyectados = costoPorCliente > 0 ? Math.round(projection / costoPorCliente) : 0;
-  const facturacionProyectada = Math.round(clientesProyectados * avgRevenuePerClient);
-  const gananciaProyectada = Math.round(facturacionProyectada * LAB_MARGIN) - projection;
-
-  const riesgo: "Bajo" | "Medio" | "Alto" =
-    sel.clientes < 3 || roi < 0 ? "Alto" : sel.clientes < 8 || roi < 0.5 ? "Medio" : "Bajo";
-  const riesgoTone = riesgo === "Alto" ? "alert" : riesgo === "Medio" ? "neutral" : "good";
-
-  const nivel: keyof typeof nivelMeta =
-    sel.clientes < 3
-      ? "alto_riesgo"
-      : roi >= 1
-        ? "recomendado"
-        : roi >= 0.3
-          ? "progresivo"
-          : roi >= 0
-            ? "evaluar"
-            : "no_recomendado";
-
-  const channelLabel = MEASURABLE_CHANNELS.find((c) => c.id === channel)?.label ?? channel;
-
-  // Comparación entre canales medibles (ventana fija de 6 meses) — solo con
-  // datos reales de clientes/facturación/recurrencia; no inventa inversión
-  // para canales donde el usuario no la cargó.
-  const comparison = MEASURABLE_CHANNELS.map((c) => ({ ...c, ...statsFor(c.id, sixMonthsAgo) })).filter(
-    (c) => c.clientes > 0,
-  );
-  const bestValue = [...comparison].sort(
-    (a, b) => b.facturacion / b.clientes - a.facturacion / a.clientes,
-  )[0];
-  const bestRetention = [...comparison].sort((a, b) => b.avgVisitas - a.avgVisitas)[0];
-
-  const verdictText =
-    sel.clientes === 0
-      ? `No detectamos clientes que hayan llegado por ${channelLabel} entre ${range.from} y ${range.to}. Probá otro canal o ampliá el rango de fechas.`
-      : `Con ${fmtAR(investment)} invertidos en ${channelLabel} conseguiste ${sel.clientes} cliente${sel.clientes === 1 ? "" : "s"} a ${fmtAR(costoPorCliente)} cada uno, con una ganancia estimada de ${fmtAR(ganancia)} (ROI ${Math.round(roi * 100)}%). Si invertís ${fmtAR(projection)} más, estimamos ~${clientesProyectados} clientes nuevos.${
-          bestValue && bestRetention
-            ? ` En los últimos 6 meses, ${bestValue.label} trajo el mayor valor promedio por cliente (${fmtAR(Math.round(bestValue.facturacion / bestValue.clientes))}) y ${bestRetention.label} la mayor recurrencia (${bestRetention.avgVisitas.toFixed(1)} visitas promedio).`
-            : ""
-        }`;
-
-  return (
-    <div className="space-y-3">
-      <div className="rounded-[18px] border border-white/10 bg-white/[0.025] px-4 py-3">
-        <h3 className="text-base font-extrabold tracking-[-0.02em] text-white sm:text-lg">
-          Publicidad: ¿dónde conviene invertir el próximo peso?
-        </h3>
-        <p className="mt-0.5 text-xs text-white/50">
-          Elegí un canal pago y cargá cuánto invertiste para ver el costo por cliente y el ROI real.
-        </p>
-      </div>
-
-      <div className="rounded-[18px] border border-white/10 bg-white/[0.03] px-4 py-3">
-        <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-white/40">
-          Canal publicitario
-        </div>
-        <LabChips
-          options={MEASURABLE_CHANNELS.map((c) => ({ key: c.id, label: c.label }))}
-          value={channel}
-          onChange={setChannel}
-        />
-      </div>
-
-      <div className="rounded-[18px] border border-white/10 bg-white/[0.03] px-4 py-3">
-        <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-white/40">
-          Rango de fechas de la inversión
-        </div>
-        <DateRangePicker from={range.from} to={range.to} onChange={setRange} />
-      </div>
-
-      <div className="rounded-[18px] border border-white/10 bg-white/[0.03] px-4 py-3">
-        <div className="mb-1.5 flex items-end justify-between gap-4">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-white/40">
-            ¿Cuánto invertiste en {channelLabel} en ese período?
-          </span>
-          <span className="text-2xl font-extrabold leading-none text-cyan-200">{fmtDemandARS(investment)}</span>
-        </div>
-        <input
-          type="range"
-          min={10_000}
-          max={1_000_000}
-          step={10_000}
-          value={investment}
-          onChange={(e) => setInvestment(Number(e.target.value))}
-          className="h-2 w-full accent-cyan-400"
-        />
-        <div className="mt-1 flex justify-between text-[9px] font-semibold text-white/32">
-          <span>$10.000</span>
-          <span>$1.000.000</span>
-        </div>
-      </div>
-
-      <LabSignals
-        items={[
-          { label: "Clientes obtenidos", value: sel.clientes, tone: "good" },
-          { label: "Costo por cliente", value: fmtDemandARS(costoPorCliente) },
-          { label: "Facturación generada", value: fmtDemandARS(sel.facturacion) },
-          { label: "Riesgo", value: riesgo, tone: riesgoTone },
-        ]}
-      />
-
-      <LabImpact
-        facturacion={sel.facturacion}
-        utilidad={ganancia}
-        extra={{ label: "ROI", value: `${Math.round(roi * 100)}%` }}
-      />
-
-      <div className="rounded-[18px] border border-white/10 bg-white/[0.03] px-4 py-3">
-        <div className="mb-1.5 flex items-end justify-between gap-4">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-white/40">
-            Simular nueva inversión en {channelLabel}
-          </span>
-          <span className="text-2xl font-extrabold leading-none text-cyan-200">{fmtDemandARS(projection)}</span>
-        </div>
-        <input
-          type="range"
-          min={10_000}
-          max={1_000_000}
-          step={10_000}
-          value={projection}
-          onChange={(e) => setProjection(Number(e.target.value))}
-          className="h-2 w-full accent-cyan-400"
-        />
-        <div className="mt-1 flex justify-between text-[9px] font-semibold text-white/32">
-          <span>$10.000</span>
-          <span>$1.000.000</span>
-        </div>
-      </div>
-
-      <LabScenario
-        currentLabel="Clientes con la inversión actual"
-        currentValue={sel.clientes}
-        projectedLabel="Clientes proyectados"
-        projectedValue={`~${clientesProyectados}`}
-      />
-
-      {clientesProyectados > 0 ? (
-        <LabSignals
-          items={[
-            { label: "Facturación esperada", value: fmtDemandARS(facturacionProyectada), tone: "good" },
-            { label: "Ganancia esperada", value: fmtDemandARS(gananciaProyectada), tone: gananciaProyectada >= 0 ? "good" : "alert" },
-          ]}
-        />
-      ) : null}
-
-      {comparison.length > 1 ? (
-        <div className="rounded-[18px] border border-white/10 bg-white/[0.025] px-4 py-3">
-          <div className="mb-2 text-[10px] font-bold uppercase tracking-wider text-white/40">
-            Canales medibles · últimos 6 meses
-          </div>
-          <div className="space-y-1.5">
-            {comparison
-              .sort((a, b) => b.clientes - a.clientes)
-              .map((c) => (
-                <div key={c.id} className="flex items-center justify-between text-sm">
-                  <span className="flex items-center gap-1.5 font-semibold text-white/80">
-                    <AcquisitionChannelIcon channel={c} className="h-3.5 w-3.5 shrink-0" />
-                    {c.label}
-                  </span>
-                  <span className="text-white/50">
-                    {c.clientes} cliente{c.clientes === 1 ? "" : "s"} · {fmtDemandARS(Math.round(c.facturacion / c.clientes))} prom.
-                  </span>
-                </div>
-              ))}
-          </div>
-        </div>
-      ) : null}
-
-      <LabVerdict nivel={nivel} text={verdictText} />
-    </div>
-  );
-}
 
 function LabSkeleton() {
   return (
@@ -2330,99 +1967,35 @@ function LabEmpty({ text }: { text: string }) {
   );
 }
 
-const LAB_SIMS = [
-  { key: "precios", icon: DollarSign, l1: "Subir", l2: "Precios", label: "Subir precios" },
-  { key: "recuperar", icon: Users, l1: "Recuperar", l2: "Clientes", label: "Recuperar clientes" },
-  { key: "productos", icon: Package, l1: "Venta de", l2: "Productos", label: "Venta de productos" },
-  { key: "publicidad", icon: Megaphone, l1: "Publicidad", l2: "", label: "Publicidad" },
-] as const;
-
-function LaboratorioDecisiones(props: SimuladorProps) {
-  const data = useLabData(props.businessId, props.ticket, props.clientes);
-  const [sim, setSim] = React.useState<(typeof LAB_SIMS)[number]["key"]>("precios");
-  const [infoOpen, setInfoOpen] = React.useState(false);
-
-  const sims = LAB_SIMS;
-
+function SimuladorPrecios({
+  businessId,
+  ticket,
+  clientes,
+  onBack,
+}: {
+  businessId: string | null | undefined;
+  ticket: number;
+  clientes: number;
+  onBack: () => void;
+}) {
+  const data = useLabData(businessId, ticket, clientes);
   return (
-    <div className="space-y-4">
-      {/* Encabezado del laboratorio · franja compacta */}
-      <div className="relative overflow-hidden rounded-2xl border border-white/12 bg-[#070b18]/80 px-4 py-2.5 shadow-[0_20px_70px_-50px_rgba(56,189,248,0.7)]">
-        <div className="pointer-events-none absolute -top-16 left-1/4 h-40 w-40 rounded-full bg-cyan-500/15 [-webkit-mask-image:radial-gradient(closest-side,#000,transparent)] [mask-image:radial-gradient(closest-side,#000,transparent)]" />
-        <div className="relative flex items-center gap-3">
-          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-white/10 text-xl ring-1 ring-white/15">
-            🧪
+    <div className="space-y-3">
+      <button
+        type="button"
+        onClick={onBack}
+        className="inline-flex h-10 items-center gap-1.5 rounded-full border border-white/12 bg-white/[0.04] px-4 text-sm font-semibold text-white/80 transition hover:text-white"
+      >
+        <ChevronLeft className="h-4 w-4" /> Volver
+      </button>
+      <div className={VENTANA_CLIPPR}>
+        <div className="mb-3 flex items-center gap-2 px-1">
+          <span className="grid h-7 w-7 place-items-center rounded-full bg-emerald-400/15 text-emerald-300 ring-1 ring-emerald-300/30">
+            <DollarSign className="h-4 w-4" />
           </span>
-          <div className="min-w-0 flex-1">
-            <h2 className="line-clamp-2 text-lg font-extrabold tracking-[-0.02em] text-white sm:text-xl">
-              Gerente IA · ¿conviene hacerlo en tu negocio?
-            </h2>
-            <p className="line-clamp-2 text-xs text-white/55">
-              Analizo tus datos reales y te digo si conviene tomar la decisión.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setInfoOpen(true)}
-            title="Los simuladores usan tus datos reales (servicios, clientes, agenda y horarios). Las proyecciones son estimaciones con supuestos conservadores."
-            aria-label="Cómo funcionan los simuladores"
-            className="inline-flex h-9 shrink-0 items-center gap-2 rounded-full border border-cyan-300/20 bg-cyan-400/[0.08] px-3 text-xs font-bold text-cyan-100 shadow-[0_0_24px_-12px_rgba(34,211,238,0.7)] transition hover:border-cyan-200/35 hover:bg-cyan-400/[0.13] hover:text-white"
-          >
-            <CircleHelp className="h-4 w-4" />
-            <span className="hidden sm:inline">Cómo funciona</span>
-          </button>
+          <h2 className={TITULO_CLIPPR}>Simulador de precios</h2>
         </div>
-      </div>
-
-      {infoOpen && (
-        <InfoModal content={INFO_CONTENT.simuladores} onClose={() => setInfoOpen(false)} />
-      )}
-
-      {/* Selector de simuladores · solo título */}
-      <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
-        {sims.map((s) => (
-          <button
-            key={s.key}
-            type="button"
-            onClick={() => setSim(s.key)}
-            className={cn(
-              // min-h subido y padding/ícono/tipografía ajustados para que
-              // las etiquetas de 2 líneas (ej. "Sumar" / "Profesional")
-              // entren sin desbordar en el grid de 3 columnas de mobile —
-              // mismo concepto de botón (ícono + texto en fila), solo el
-              // ajuste interno. truncate como garantía final: nunca se sale
-              // del botón aunque una palabra puntual no entre entera.
-              "group flex min-h-[60px] items-center gap-1.5 rounded-2xl border px-2 py-2 text-left transition-all",
-              sim === s.key
-                ? "border-cyan-300/40 bg-cyan-400/[0.1] opacity-100 shadow-[0_0_30px_-10px_rgba(34,211,238,0.6)]"
-                : "border-white/10 bg-white/[0.03] opacity-55 hover:border-white/20 hover:bg-white/[0.05] hover:opacity-100",
-            )}
-          >
-            <span
-              className={cn(
-                "grid h-7 w-7 shrink-0 place-items-center rounded-xl ring-1 text-white",
-                sim === s.key ? "bg-white/15 ring-white/20" : "bg-white/[0.06] ring-white/10",
-              )}
-            >
-              {React.createElement(s.icon, { className: "h-3.5 w-3.5" })}
-            </span>
-            <span className="min-w-0 flex-1 leading-[1.2]">
-              <span className="block truncate text-[11px] font-bold text-white sm:text-[13px]">{s.l1}</span>
-              {s.l2 ? <span className="block truncate text-[11px] font-bold text-white sm:text-[13px]">{s.l2}</span> : null}
-            </span>
-          </button>
-        ))}
-      </div>
-
-      {/* Simulador activo */}
-      <div className="relative overflow-hidden rounded-[24px] border border-white/12 bg-[#080b16]/80 p-3 shadow-[0_24px_80px_-50px_rgba(56,189,248,0.6)] sm:p-5">
-        <div className="pointer-events-none absolute -top-24 right-0 h-56 w-56 rounded-full bg-gradient-to-br from-cyan-500/15 to-transparent [-webkit-mask-image:radial-gradient(closest-side,#000,transparent)] [mask-image:radial-gradient(closest-side,#000,transparent)]" />
-        <div className="relative">
-          {sim === "precios" && <LabPrecios data={data} />}
-          {sim === "recuperar" && <LabRecuperar data={data} />}
-          {sim === "productos" && <LabProductos data={data} />}
-          {sim === "publicidad" && <LabPublicidad data={data} />}
-        </div>
+        <LabPrecios data={data} />
       </div>
     </div>
   );
