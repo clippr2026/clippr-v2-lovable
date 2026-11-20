@@ -17,6 +17,7 @@ import { cajaDateKeyBA } from "@/lib/caja-cierre";
 import { shiftMonth } from "@/lib/monthly-performance";
 import { MesSelector, RendimientoMensual } from "@/components/advisor/rendimiento-mensual";
 import { ClientesPerdidosCard } from "@/components/advisor/clientes-perdidos-card";
+import { simularPrecio } from "@/lib/simulador-precios";
 import { OcupacionMesCard } from "@/components/advisor/ocupacion-mes-card";
 import { TARJETA_CLIPPR, TITULO_CLIPPR, VENTANA_CLIPPR } from "@/components/advisor/estilo-clippr";
 import { MEASURABLE_CHANNELS } from "@/lib/acquisition-channels";
@@ -388,6 +389,7 @@ function AdvisorContent({
           businessId={businessId}
           ticket={analytics.current?.ticket ?? 0}
           clientes={analytics.current?.clientsServed ?? 0}
+          ocupacionAtendida={analytics.current?.hasData ? analytics.current.occupancy : null}
           onBack={() => setVerSimulador(false)}
         />
       )}
@@ -939,7 +941,9 @@ type ServicioReal = {
   id: string;
   nombre: string;
   precio: number;
-  mensual: number; // estimated from appointments (or 0 if unavailable)
+  mensual: number; // ventas cobradas del servicio en los últimos 30 días
+  /** Comisión efectiva (0 a 1) de las ventas de los últimos 30 días; null si no hay comisiones registradas. */
+  comision: number | null;
 };
 
 function useServicesData(businessId: string | null | undefined) {
@@ -967,34 +971,56 @@ function useServicesData(businessId: string | null | undefined) {
 
         if (cancelled) return;
 
-        // Load current month appointments to estimate monthly count per service
-        const now = new Date();
-        const from = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-        const to = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString();
-
-        const { data: appts } = await supabase
-          .from("appointments")
-          .select("service_name,status")
+        // Ventas COBRADAS de los últimos 30 días por servicio (no turnos agendados) y la comisión real de esas ventas.
+        const desde = new Date(Date.now() - 30 * 86_400_000).toISOString();
+        const { data: ventas } = await supabase
+          .from("payments")
+          .select("id,total,amount,items,service_name")
           .eq("business_id", businessId)
-          .gte("starts_at", from)
-          .lte("starts_at", to)
-          .not("status", "in", "(cancelled,blocked)");
-
+          .gte("created_at", desde)
+          .not("status", "in", "(anulado,reembolsado,pendiente)");
         if (cancelled) return;
 
-        // Count appointments per service name (case-insensitive match)
+        const ids = (ventas ?? []).map((v) => v.id as string);
+        const lotes: string[][] = [];
+        for (let k = 0; k < ids.length; k += 150) lotes.push(ids.slice(k, k + 150));
+        const respuestas = await Promise.all(
+          lotes.map((l) => supabase.from("commission_records" as any).select("sale_id,amount").in("sale_id", l)),
+        );
+        if (cancelled) return;
+        const comisionPorVenta = new Map<string, number>();
+        for (const r of respuestas) for (const c of ((r.data ?? []) as any[])) comisionPorVenta.set(c.sale_id, (comisionPorVenta.get(c.sale_id) ?? 0) + Number(c.amount ?? 0));
+
         const countMap: Record<string, number> = {};
-        for (const a of appts ?? []) {
-          const key = (a.service_name ?? "").toLowerCase().trim();
-          countMap[key] = (countMap[key] ?? 0) + 1;
+        const ingresoMap: Record<string, number> = {};
+        const comisionMap: Record<string, number> = {};
+        for (const v of (ventas ?? []) as any[]) {
+          const lineas = Array.isArray(v.items) ? v.items.filter((it: any) => it && !it.is_catalog) : [];
+          const entradas = lineas.length > 0
+            ? lineas.map((it: any) => ({ name: String(it.name ?? ""), qty: Number(it.qty ?? 1) > 0 ? Number(it.qty ?? 1) : 1 }))
+            : [{ name: String(v.service_name ?? ""), qty: 1 }];
+          const total = Number(v.total ?? v.amount ?? 0);
+          const comision = comisionPorVenta.get(v.id) ?? 0;
+          // Ventas con varios servicios: la comisión se reparte en partes iguales entre sus líneas.
+          for (const e of entradas) {
+            const key = e.name.toLowerCase().trim();
+            if (!key) continue;
+            countMap[key] = (countMap[key] ?? 0) + e.qty;
+            ingresoMap[key] = (ingresoMap[key] ?? 0) + total / entradas.length;
+            comisionMap[key] = (comisionMap[key] ?? 0) + comision / entradas.length;
+          }
         }
 
-        const mapped: ServicioReal[] = (catalog ?? []).map((s) => ({
-          id: s.id,
-          nombre: s.name,
-          precio: Number(s.price ?? 0),
-          mensual: countMap[(s.name ?? "").toLowerCase().trim()] ?? 0,
-        }));
+        const mapped: ServicioReal[] = (catalog ?? []).map((s) => {
+          const key = (s.name ?? "").toLowerCase().trim();
+          return {
+            id: s.id,
+            nombre: s.name,
+            precio: Number(s.price ?? 0),
+            mensual: countMap[key] ?? 0,
+            comision: (ingresoMap[key] ?? 0) > 0 && (comisionMap[key] ?? 0) > 0 ? Math.min(1, comisionMap[key] / ingresoMap[key]) : null,
+          };
+        });
 
         setServicios(mapped);
       } catch {
@@ -1334,7 +1360,6 @@ function GrowthManagerTab({ onOpenSimulador, analytics, businessId, selectedMont
 //  horarios) + supuestos claros y editables. No toca el resto de la app.
 // ══════════════════════════════════════════════════════════════════════════
 
-const LAB_MARGIN = 0.45; // utilidad estimada sobre facturación (editable conceptualmente)
 const LAB_PRODUCT_MARGIN = 0.55; // los productos suelen dejar más margen
 
 type LabBucket = { count: number; value: number; ticket: number };
@@ -1699,7 +1724,7 @@ function LabSignals({ items }: { items: LabSignal[] }) {
 
 
 // ── SUBIR PRECIOS ──────────────────────────────────────────────────────────
-function LabPrecios({ data }: { data: LabData }) {
+function LabPrecios({ data, ocupacionAtendida, seFueronPorPrecio }: { data: LabData; ocupacionAtendida: number | null; seFueronPorPrecio: number }) {
   const services = data.services.length > 0 ? data.services : [];
   const [svcId, setSvcId] = React.useState<string | null>(null);
   const svc = services.find((s) => s.id === svcId) ?? services[0] ?? null;
@@ -1714,25 +1739,26 @@ function LabPrecios({ data }: { data: LabData }) {
 
   const precioActual = svc?.precio ?? 0;
   const mensual = svc?.mensual ?? 0;
-  const precioNuevo = precioActual + aumento;
-  const diferenciaMensual = mensual * aumento;
-  const pct = precioActual > 0 ? (aumento / precioActual) * 100 : 0;
-  const perdibles =
-    precioNuevo > 0 ? Math.max(0, mensual - Math.ceil((mensual * precioActual) / precioNuevo)) : 0;
-  const perdiblesShare = mensual > 0 ? (perdibles / mensual) * 100 : 0;
-  const facturacion = Math.max(0, diferenciaMensual);
-  const utilidad = Math.round(facturacion * LAB_MARGIN);
-  const riesgoLabel = pct > 30 ? "Alto" : pct > 20 ? "Medio" : "Bajo";
+  const r = simularPrecio({
+    precioActual,
+    aumento,
+    ventas30: mensual,
+    comision: svc?.comision ?? null,
+    ocupacionAtendida,
+    seFueronPorPrecio,
+  });
+  const { precioNuevo, pctAumento: pct, facturacionAdicional: facturacion, gananciaAdicional: utilidad, puntoEquilibrio: perdibles } = r;
+  const riesgoLabel = r.riesgo;
   const riesgoChip =
-    pct > 30 ? "border-rose-300/35 bg-rose-400/10 text-rose-200" : pct > 20 ? "border-amber-300/35 bg-amber-300/10 text-amber-200" : "border-emerald-300/35 bg-emerald-400/10 text-emerald-200";
+    r.riesgo === "Alto" ? "border-rose-300/35 bg-rose-400/10 text-rose-200" : r.riesgo === "Medio" ? "border-amber-300/35 bg-amber-300/10 text-amber-200" : "border-emerald-300/35 bg-emerald-400/10 text-emerald-200";
   const nivel: keyof typeof nivelMeta =
-    pct > 30 ? "alto_riesgo" : pct <= 12 ? "recomendado" : pct <= 20 ? "progresivo" : "evaluar";
+    r.riesgo === "Alto" ? "alto_riesgo" : r.riesgo === "Medio" ? (pct <= 12 ? "evaluar" : "progresivo") : "recomendado";
   const verdict =
-    pct > 30
-      ? `Subir ${fmtAR(aumento)} es un ${pct.toFixed(0)}% de golpe sobre ${svc?.nombre}. Mejor un aumento menor o en dos etapas: el riesgo de perder clientes supera lo que ganás.`
+    r.riesgo === "Alto"
+      ? `Subir ${fmtAR(aumento)} es un ${pct.toFixed(0)}% sobre ${svc?.nombre}. ${r.factores.slice(1).length > 0 ? `Pesa: ${r.factores.slice(1).join(", ")}. ` : ""}Mejor un aumento menor o en dos etapas.`
       : mensual === 0
-        ? `Todavía no tengo ventas registradas de ${svc?.nombre} este mes para proyectar el impacto con precisión. La estimación es conservadora.`
-        : `Con ${mensual} ventas al mes, subir ${fmtAR(aumento)} suma hasta ${fmtAR(facturacion)} si todos siguen viniendo. Dejaría de convenir si se pierden más de ${perdibles} ventas al mes. Depende de cuántos clientes sigan comprando al nuevo precio.`;
+        ? `No hay ventas cobradas de ${svc?.nombre} en los últimos 30 días para proyectar el impacto. La estimación no es confiable.`
+        : `Con ${mensual} ventas en los últimos 30 días, subir ${fmtAR(aumento)} suma hasta ${fmtAR(facturacion)} si todos siguen viniendo. Dejaría de convenir si se pierden más de ${perdibles} ventas al mes. ${r.factores.length > 1 ? `Riesgo ${riesgoLabel.toLowerCase()} por: ${r.factores.join(", ")}.` : "Depende de cuántos clientes sigan comprando al nuevo precio."}`;
 
   const maxAumento = Math.max(5000, Math.round(precioActual));
   const meta = nivelMeta[nivel];
@@ -1798,17 +1824,17 @@ function LabPrecios({ data }: { data: LabData }) {
         <div className="mt-2.5 text-[11px] text-white/55">Facturación adicional mensual</div>
         <div className="text-3xl font-extrabold tabular-nums leading-tight text-cyan-200">+{fmtAR(facturacion)}</div>
         <div className="mt-2 flex items-baseline justify-between gap-3 border-t border-white/10 pt-2">
-          <span className="text-xs text-white/60">Ganancia adicional estimada</span>
+          <span className="text-xs text-white/60">Ganancia adicional{r.comisionReal ? ` (comisión ${Math.round(r.comisionUsada * 100)}%)` : " (comisión de referencia)"}</span>
           <span className="text-lg font-bold tabular-nums text-emerald-300">+{fmtAR(utilidad)}</span>
         </div>
         <div className="mt-2 flex items-baseline justify-between gap-3 border-t border-white/10 pt-2">
           <span className="text-xs text-white/60">Punto de equilibrio</span>
           <span className="text-right text-sm font-semibold tabular-nums text-white">
-            {mensual > 0 ? `hasta ${perdibles} ${perdibles === 1 ? "venta" : "ventas"} menos al mes` : "sin ventas para calcular"}
+            {mensual > 0 ? `hasta ${perdibles} ${perdibles === 1 ? "venta" : "ventas"} menos al mes (${r.puntoEquilibrioPct.toFixed(1).replace(".", ",")}%)` : "sin ventas para calcular"}
           </span>
         </div>
         <p className="mt-2 text-[11px] leading-snug text-white/40">
-          Suponen que todos los clientes siguen viniendo. El riesgo es una referencia según el tamaño del aumento.
+          Facturación y ganancia suponen que todos los clientes siguen viniendo. El riesgo es una estimación orientativa: Clippr no sabe cuántos clientes se irían.
         </p>
       </div>
 
@@ -1856,14 +1882,32 @@ function SimuladorPrecios({
   businessId,
   ticket,
   clientes,
+  ocupacionAtendida,
   onBack,
 }: {
   businessId: string | null | undefined;
   ticket: number;
   clientes: number;
+  ocupacionAtendida: number | null;
   onBack: () => void;
 }) {
   const data = useLabData(businessId, ticket, clientes);
+  // Clientes que se fueron por el precio en los últimos 30 días (botón "Se fue" de la Agenda).
+  const [seFueronPorPrecio, setSeFueronPorPrecio] = React.useState(0);
+  React.useEffect(() => {
+    if (!businessId) return;
+    let cancelled = false;
+    void ((supabase.from("clientes_no_atendidos" as any) as any)
+      .select("id", { count: "exact", head: true })
+      .eq("business_id", businessId)
+      .eq("preferencia", "precio")
+      .gte("occurred_at", new Date(Date.now() - 30 * 86_400_000).toISOString()) as PromiseLike<{ count: number | null; error: unknown }>).then(({ count, error }) => {
+      if (!cancelled && !error) setSeFueronPorPrecio(count ?? 0);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [businessId]);
   return (
     <div className="space-y-3 pb-28">
       <button
@@ -1880,7 +1924,7 @@ function SimuladorPrecios({
           </span>
           <h2 className={TITULO_CLIPPR}>Simulador de precios</h2>
         </div>
-        <LabPrecios data={data} />
+        <LabPrecios data={data} ocupacionAtendida={ocupacionAtendida} seFueronPorPrecio={seFueronPorPrecio} />
       </div>
     </div>
   );
