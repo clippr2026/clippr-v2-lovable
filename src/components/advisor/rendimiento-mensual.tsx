@@ -47,12 +47,8 @@ function DeltaValue({
   /** En los gastos, subir es malo: la flecha hacia arriba va en rojo. */
   masEsMalo?: boolean;
 }) {
-  if (pct == null)
-    return (
-      <span className="text-sm text-white/45">
-        {partialStart ? "Mes anterior de arranque: no se compara" : "Sin mes anterior"}
-      </span>
-    );
+  // Sin mes anterior que se pueda comparar (por ejemplo, fue el mes de arranque): no se muestra nada.
+  if (pct == null) return null;
   const good = masEsMalo ? pct <= 0 : pct >= 0;
   const Icon = pct >= 0 ? TrendingUp : TrendingDown;
   return (
