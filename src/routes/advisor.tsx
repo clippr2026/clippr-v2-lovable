@@ -1665,127 +1665,9 @@ function useLabData(
 
 // ── Bloques visuales compartidos ───────────────────────────────────────────
 
-function LabScenario({
-  currentLabel,
-  currentValue,
-  projectedLabel,
-  projectedValue,
-}: {
-  currentLabel: string;
-  currentValue: React.ReactNode;
-  projectedLabel: string;
-  projectedValue: React.ReactNode;
-}) {
-  return (
-    <div className="grid grid-cols-[1fr_auto_1fr] items-stretch gap-2">
-      <div className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
-        <div className="text-[10px] font-bold uppercase tracking-wider text-white/40">
-          {currentLabel}
-        </div>
-        <div className="mt-0.5 text-lg font-bold leading-none text-white/85">{currentValue}</div>
-      </div>
-      <div className="grid place-items-center text-white/25">
-        <ArrowRight className="h-4 w-4" />
-      </div>
-      <div className="rounded-2xl border border-emerald-300/25 bg-emerald-400/[0.07] px-3 py-2.5">
-        <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-200/70">
-          {projectedLabel}
-        </div>
-        <div className="mt-0.5 text-lg font-bold leading-none text-emerald-200">{projectedValue}</div>
-      </div>
-    </div>
-  );
-}
 
-function LabImpact({
-  facturacion,
-  utilidad,
-  extra,
-}: {
-  facturacion: number;
-  utilidad: number;
-  extra?: { label: string; value: string };
-}) {
-  return (
-    <div className={cn("grid gap-2", extra ? "sm:grid-cols-3" : "sm:grid-cols-2")}>
-      <div className="rounded-2xl border border-sky-300/20 bg-sky-400/[0.06] px-3.5 py-3">
-        <div className="text-[10px] font-bold uppercase tracking-wider text-sky-200/70">
-          Facturación adicional
-        </div>
-        <div className="mt-0.5 text-xl font-extrabold text-sky-200">+{fmtAR(facturacion)}</div>
-      </div>
-      <div className="rounded-2xl border border-emerald-300/25 bg-emerald-400/[0.08] px-3.5 py-3">
-        <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-200/80">
-          Ganancia estimada
-        </div>
-        <div className="mt-0.5 text-xl font-extrabold text-emerald-200">+{fmtAR(utilidad)}</div>
-      </div>
-      {extra ? (
-        <div className="rounded-2xl border border-violet-300/20 bg-violet-400/[0.06] px-3.5 py-3">
-          <div className="text-[10px] font-bold uppercase tracking-wider text-violet-200/70">
-            {extra.label}
-          </div>
-          <div className="mt-0.5 text-xl font-extrabold text-violet-200">{extra.value}</div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
 
-function LabVerdict({ nivel, text }: { nivel: keyof typeof nivelMeta; text: string }) {
-  const meta = nivelMeta[nivel];
-  const title = nivel === "alto_riesgo" ? "Revisar antes de aplicar" : nivel === "evaluar" ? "Conviene probar con cuidado" : "Recomendado por IA";
-  const Icon = meta.icon;
-  return (
-    <div className={cn("rounded-[20px] border px-3.5 py-3", meta.cls)}>
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex items-center gap-2.5">
-          <span className="grid h-8 w-8 place-items-center rounded-xl bg-white/10 ring-1 ring-white/15">
-            <Icon className={cn("h-4 w-4", meta.titleCls)} />
-          </span>
-          <div>
-            <p className="text-[9px] font-bold uppercase tracking-[0.2em] text-white/45">
-              Veredicto del Gerente IA
-            </p>
-            <p className={cn("text-sm font-extrabold", meta.titleCls)}>{title}</p>
-          </div>
-        </div>
-        <span className={cn("rounded-full px-2.5 py-0.5 text-[10px] font-bold", meta.titleCls, "bg-white/8")}>{meta.label}</span>
-      </div>
-      <p className="mt-2 text-xs leading-relaxed text-white/80">{text}</p>
-    </div>
-  );
-}
 
-function LabChips({
-  options,
-  value,
-  onChange,
-}: {
-  options: { key: string; label: string }[];
-  value: string;
-  onChange: (k: string) => void;
-}) {
-  return (
-    <div className="flex flex-wrap gap-1.5">
-      {options.map((o) => (
-        <button
-          key={o.key}
-          type="button"
-          onClick={() => onChange(o.key)}
-          className={cn(
-            "rounded-xl border px-3 py-1 text-xs font-semibold transition-all",
-            value === o.key
-              ? "border-cyan-300/40 bg-cyan-400/15 text-cyan-100 shadow-[0_0_18px_-10px_rgba(34,211,238,0.65)]"
-              : "border-white/10 bg-white/[0.03] text-white/55 hover:text-white hover:border-white/20",
-          )}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
-}
 
 // ── Señales del simulador (compartidas) ─────────────────────────────
 
@@ -1841,7 +1723,8 @@ function LabPrecios({ data }: { data: LabData }) {
   const facturacion = Math.max(0, diferenciaMensual);
   const utilidad = Math.round(facturacion * LAB_MARGIN);
   const riesgoLabel = pct > 30 ? "Alto" : pct > 20 ? "Medio" : "Bajo";
-  const riesgoCls = pct > 30 ? "text-rose-200" : pct > 20 ? "text-amber-200" : "text-emerald-200";
+  const riesgoChip =
+    pct > 30 ? "border-rose-300/35 bg-rose-400/10 text-rose-200" : pct > 20 ? "border-amber-300/35 bg-amber-300/10 text-amber-200" : "border-emerald-300/35 bg-emerald-400/10 text-emerald-200";
   const nivel: keyof typeof nivelMeta =
     pct > 30 ? "alto_riesgo" : pct <= 12 ? "recomendado" : pct <= 20 ? "progresivo" : "evaluar";
   const verdict =
@@ -1849,80 +1732,96 @@ function LabPrecios({ data }: { data: LabData }) {
       ? `Subir ${fmtAR(aumento)} es un ${pct.toFixed(0)}% de golpe sobre ${svc?.nombre}. Mejor un aumento menor o en dos etapas: el riesgo de perder clientes supera lo que ganás.`
       : mensual === 0
         ? `Todavía no tengo ventas registradas de ${svc?.nombre} este mes para proyectar el impacto con precisión. La estimación es conservadora.`
-        : `Sobre ${mensual} ventas mensuales, subir ${fmtAR(aumento)} suma ${fmtAR(facturacion)} de facturación con riesgo ${riesgoLabel.toLowerCase()}. Podés resignar hasta ${perdibles} cliente${perdibles === 1 ? "" : "s"}/mes y aún así mantenerte arriba.`;
+        : `Con ${mensual} ventas al mes, subir ${fmtAR(aumento)} suma hasta ${fmtAR(facturacion)} si todos siguen viniendo. Dejaría de convenir si se pierden más de ${perdibles} ventas al mes. Depende de cuántos clientes sigan comprando al nuevo precio.`;
+
+  const maxAumento = Math.max(5000, Math.round(precioActual));
+  const meta = nivelMeta[nivel];
+  const VeredictoIcon = meta.icon;
 
   return (
     <div className="space-y-3">
-      <div className="rounded-[18px] border border-cyan-300/15 bg-cyan-400/[0.035] px-3 py-2.5">
-        <div className="mb-1.5 flex items-center justify-between gap-3">
-          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-cyan-100/55">
-            Elegí el servicio
-          </p>
-          <span className="hidden rounded-full border border-white/10 bg-white/[0.045] px-2.5 py-0.5 text-[10px] font-bold text-white/42 sm:inline-flex">
-            {services.length} servicios
-          </span>
-        </div>
-        <LabChips
-          options={services.map((s) => ({ key: s.id, label: s.nombre }))}
+      {/* 1. Simular: servicio, aumento y nuevo precio */}
+      <div className={TARJETA_CLIPPR}>
+        <label className="block text-sm font-semibold text-white" htmlFor="sim-servicio">
+          Servicio
+        </label>
+        <select
+          id="sim-servicio"
           value={svc?.id ?? ""}
-          onChange={setSvcId}
-        />
-      </div>
+          onChange={(e) => setSvcId(e.target.value)}
+          className="mt-1.5 h-11 w-full rounded-xl border border-white/12 bg-white/[0.05] px-3 text-sm font-semibold text-white outline-none focus:border-violet-300/50"
+        >
+          {services.map((s) => (
+            <option key={s.id} value={s.id} className="bg-[#0b0a14] text-white">
+              {s.nombre}
+            </option>
+          ))}
+        </select>
 
-      <div className="relative overflow-hidden rounded-[20px] border border-cyan-300/20 bg-gradient-to-br from-cyan-400/[0.10] via-white/[0.035] to-emerald-400/[0.06] px-4 py-3 shadow-[0_18px_60px_-48px_rgba(34,211,238,0.95)]">
-        <div className="pointer-events-none absolute -right-12 -top-20 h-44 w-44 rounded-full bg-cyan-400/18 [-webkit-mask-image:radial-gradient(closest-side,#000,transparent)] [mask-image:radial-gradient(closest-side,#000,transparent)]" />
-        <div className="relative flex items-center justify-between gap-4">
-          <div className="min-w-0">
-            <div className="mb-1 inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.055] px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.16em] text-cyan-100/80">
-              <Sparkles className="h-3 w-3" /> Resultado estimado
-            </div>
-            <h3 className="max-w-2xl text-lg font-extrabold tracking-[-0.03em] text-white sm:text-xl">
-              Si aumentás {fmtAR(aumento)}, podrías generar {fmtAR(facturacion)} más por mes.
-            </h3>
-            <p className="mt-1 max-w-2xl truncate text-xs text-white/58">
-              {svc?.nombre} · precio actual {fmtAR(precioActual)} · riesgo{" "}
-              <span className={cn("font-bold", riesgoCls)}>{riesgoLabel.toLowerCase()}</span>
-            </p>
-          </div>
-          <div className="shrink-0 rounded-2xl border border-white/12 bg-white/[0.055] px-4 py-2 text-center shadow-[inset_0_1px_0_rgba(255,255,255,0.06)]">
-            <p className="text-[9px] font-bold uppercase tracking-wider text-white/42">Riesgo</p>
-            <p className={cn("mt-0.5 text-lg font-extrabold leading-none", riesgoCls)}>{riesgoLabel}</p>
-          </div>
-        </div>
-      </div>
-
-      <div className="rounded-[18px] border border-white/10 bg-white/[0.03] px-4 py-3">
-        <div className="mb-1.5 flex items-end justify-between gap-4">
-          <span className="text-[10px] font-bold uppercase tracking-wider text-white/40">
-            Aumento seleccionado
-          </span>
+        <div className="mt-4 flex items-baseline justify-between gap-3">
+          <span className="text-sm font-semibold text-white">Aumento de precio</span>
           <span className="text-2xl font-extrabold leading-none text-cyan-200">+{fmtAR(aumento)}</span>
         </div>
         <input
           type="range"
           min={0}
-          max={Math.max(5000, Math.round(precioActual))}
+          max={maxAumento}
           step={100}
           value={aumento}
           onChange={(e) => setAumento(Number(e.target.value))}
-          className="h-2 w-full accent-cyan-400"
+          aria-label="Aumento de precio"
+          className="mt-2 h-2 w-full accent-cyan-400"
         />
-        <div className="mt-1 flex justify-between text-[9px] font-semibold text-white/32">
-          <span>$0</span>
-          <span>+{fmtAR(Math.max(5000, Math.round(precioActual)))}</span>
+        <div className="mt-1 flex justify-between text-[11px] font-semibold text-white/45">
+          <span>Sin aumento</span>
+          <span>+{fmtAR(maxAumento)}</span>
+        </div>
+
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <div className="rounded-xl bg-white/[0.04] p-2.5 ring-1 ring-white/10">
+            <div className="text-[11px] text-white/55">Precio actual</div>
+            <div className="mt-0.5 text-lg font-bold tabular-nums text-white">{fmtAR(precioActual)}</div>
+          </div>
+          <div className="rounded-xl bg-emerald-400/10 p-2.5 ring-1 ring-emerald-300/25">
+            <div className="text-[11px] text-emerald-100/70">Nuevo precio</div>
+            <div className="mt-0.5 text-lg font-bold tabular-nums text-emerald-200">{fmtAR(precioNuevo)}</div>
+          </div>
         </div>
       </div>
 
-      <LabVerdict nivel={nivel} text={verdict} />
+      {/* 2. Resultado: una sola tarjeta con la parte económica */}
+      <div className={cn(TARJETA_CLIPPR, "border-cyan-300/25 shadow-[0_0_40px_-18px_rgba(34,211,238,0.6)]")}>
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-sm font-semibold text-white">Resultado estimado</span>
+          <span className={cn("rounded-full border px-2.5 py-0.5 text-[11px] font-bold", riesgoChip)}>Riesgo {riesgoLabel.toLowerCase()}</span>
+        </div>
+        <div className="mt-2.5 text-[11px] text-white/55">Facturación adicional mensual</div>
+        <div className="text-3xl font-extrabold tabular-nums leading-tight text-cyan-200">+{fmtAR(facturacion)}</div>
+        <div className="mt-2 flex items-baseline justify-between gap-3 border-t border-white/10 pt-2">
+          <span className="text-xs text-white/60">Ganancia adicional estimada</span>
+          <span className="text-lg font-bold tabular-nums text-emerald-300">+{fmtAR(utilidad)}</span>
+        </div>
+        <div className="mt-2 flex items-baseline justify-between gap-3 border-t border-white/10 pt-2">
+          <span className="text-xs text-white/60">Punto de equilibrio</span>
+          <span className="text-right text-sm font-semibold tabular-nums text-white">
+            {mensual > 0 ? `hasta ${perdibles} ${perdibles === 1 ? "venta" : "ventas"} menos al mes` : "sin ventas para calcular"}
+          </span>
+        </div>
+        <p className="mt-2 text-[11px] leading-snug text-white/40">
+          Suponen que todos los clientes siguen viniendo. El riesgo es una referencia según el tamaño del aumento.
+        </p>
+      </div>
 
-      <LabImpact facturacion={facturacion} utilidad={utilidad} />
-
-      <LabScenario
-        currentLabel="Precio actual"
-        currentValue={fmtAR(precioActual)}
-        projectedLabel="Precio sugerido"
-        projectedValue={fmtAR(precioNuevo)}
-      />
+      {/* 3. Gerente IA: veredicto breve */}
+      <div className={cn("rounded-2xl border px-3.5 py-3", meta.cls)}>
+        <div className="flex items-center justify-between gap-2">
+          <span className="flex items-center gap-2 text-sm font-semibold text-white">
+            <VeredictoIcon className={cn("h-4 w-4", meta.titleCls)} /> Veredicto del Gerente IA
+          </span>
+          <span className={cn("rounded-full bg-white/10 px-2.5 py-0.5 text-[11px] font-bold", meta.titleCls)}>{meta.label}</span>
+        </div>
+        <p className="mt-2 text-xs leading-relaxed text-white/80">{verdict}</p>
+      </div>
     </div>
   );
 }
@@ -1966,7 +1865,7 @@ function SimuladorPrecios({
 }) {
   const data = useLabData(businessId, ticket, clientes);
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 pb-28">
       <button
         type="button"
         onClick={onBack}
