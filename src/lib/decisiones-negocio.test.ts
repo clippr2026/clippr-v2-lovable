@@ -19,7 +19,7 @@ const casos = (n: number, dow = 4, hour = 18) => Array.from({ length: n }, () =>
 
 describe("¿Necesitás más capacidad de atención?", () => {
   it("el título cambió", () => {
-    expect(get(evaluarDecisiones(base), "contratar").titulo).toBe("¿Necesitás más capacidad de atención?");
+    expect(get(evaluarDecisiones(base), "contratar").titulo).toBe("¿Conviene contratar?");
   });
   it("con la agenda al 47% en el mes pero una franja llena donde se fueron clientes: reforzar esa franja, no descartar", () => {
     const d = evaluarDecisiones({ ...base, seFueronPorLugarFranjas: casos(3), franjas: [franjaJueves18(540, 300)] });
@@ -27,7 +27,7 @@ describe("¿Necesitás más capacidad de atención?", () => {
     expect(c.estado).toBe("si");
     expect(c.respuesta).toBe("Reforzá una franja");
     expect(c.detalle).toContain("jueves de 18 a 19 hs");
-    expect(c.detalle).toContain("90% agendada y 50% atendida");
+    expect(c.detalle).toContain("90% agendada, 50% atendida");
     expect(c.detalle).toContain("no hace falta sumar a alguien fijo");
   });
   it("lo atendido (clientes sin turno) también hace que una franja cuente como llena", () => {
@@ -41,13 +41,13 @@ describe("¿Necesitás más capacidad de atención?", () => {
       seFueronPorLugarFranjas: [...casos(2, 4, 18), ...casos(2, 3, 19), ...casos(2, 5, 17)],
       franjas: [franjaJueves18(560, 0), { dow: 3, hour: 19, disponible: 600, agendado: 560, atendido: 0 }, { dow: 5, hour: 17, disponible: 600, agendado: 560, atendido: 0 }],
     });
-    expect(get(d, "contratar").respuesta).toBe("Sí, sumar capacidad");
+    expect(get(d, "contratar").respuesta).toBe("Sí, contratar");
   });
   it("clientes que se fueron en una franja con tiempo libre: revisar los horarios, no contratar", () => {
     const c = get(evaluarDecisiones({ ...base, seFueronPorLugarFranjas: casos(3), franjas: [franjaJueves18(150, 90)] }), "contratar");
     expect(c.estado).toBe("info");
     expect(c.respuesta).toBe("Revisá horarios");
-    expect(c.detalle).toContain("Había tiempo libre");
+    expect(c.detalle).toContain("Había lugar");
   });
   it("con pocos clientes que se fueron avisa que son pocos datos", () => {
     expect(get(evaluarDecisiones({ ...base, seFueronPorLugarFranjas: casos(1) }), "contratar").respuesta).toBe("Pocos datos");
@@ -83,8 +83,8 @@ describe("¿Subir precios?", () => {
     const p = get(d, "precios");
     expect(p.respuesta).toBe("Sí, a Alan");
     expect(p.detalle).toContain("Alan tuvo la agenda llena 9 de 20 días");
-    expect(p.detalle).toContain("4 clientes lo pidieron");
-    expect(p.detalle).toContain("Con el resto todavía no");
+    expect(p.detalle).toContain("4 clientes lo pidieron y se fueron");
+    expect(p.detalle).toContain("Con el resto todavía no.");
   });
   it("franjas llenas con clientes que se fueron: probar en horarios pico", () => {
     const p = get(evaluarDecisiones({ ...base, seFueronPorLugarFranjas: casos(2), franjas: [franjaJueves18(540, 0)] }), "precios");
@@ -98,7 +98,7 @@ describe("¿Subir precios?", () => {
     const sub = { ...base, profesionales: [{ name: "Alan", used: 60, capacity: 100, daysWorked: 20, daysFull: 9 }] };
     const uno = get(evaluarDecisiones({ ...sub, seFueronPorPrecio: 1 }), "precios");
     expect(uno.estado).toBe("si");
-    expect(uno.detalle).toContain("1 cliente se fue por el precio");
+    expect(uno.detalle).toContain("1 cliente se fue por el precio.");
     const tres = get(evaluarDecisiones({ ...sub, seFueronPorPrecio: 3 }), "precios");
     expect(tres.estado).toBe("cerca");
     expect(tres.respuesta).toBe("Con cuidado");

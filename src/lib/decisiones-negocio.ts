@@ -87,43 +87,42 @@ export function evaluarDecisiones(i: DecisionesInput): Decision[] {
   const diasTotales = profs.reduce((n, p) => n + p.dias, 0);
   const llenosTotales = profs.reduce((n, p) => n + p.llenos, 0);
   const fracLocal = diasTotales >= DIAS_MINIMOS ? llenosTotales / diasTotales : null;
-  const ocupTexto = i.ocupacion != null ? ` El promedio del mes es ${i.ocupacion}%, pero eso no decide: importa lo que pasa en cada horario.` : "";
 
   // 1) ¿Necesitás más capacidad de atención?
-  const titulo1 = "¿Necesitás más capacidad de atención?";
+  const titulo1 = "¿Conviene contratar?";
   let contratar: Decision;
   if (fuertesLlenas.length >= FRANJAS_PARA_CAPACIDAD || (fuertesLlenas.length >= 2 && casosLugar >= 6)) {
     const lista = fuertesLlenas.slice(0, 3).map((f) => `${franjaTexto(f.dow, f.hour)} (${f.casos})`).join(", ");
     contratar = {
-      clave: "contratar", titulo: titulo1, estado: "si", respuesta: "Sí, sumar capacidad",
-      detalle: `Se fueron clientes por falta de lugar en varios horarios que estaban llenos: ${lista}. Se repite en más de un día y horario, así que conviene sumar a alguien o ampliar horarios.${ocupTexto}`,
+      clave: "contratar", titulo: titulo1, estado: "si", respuesta: "Sí, contratar",
+      detalle: `Se van clientes por falta de lugar en varios horarios llenos (${lista}). Conviene sumar a alguien.`,
     };
   } else if (fuertesLlenas.length >= 1) {
     const f = fuertesLlenas[0];
     contratar = {
       clave: "contratar", titulo: titulo1, estado: "si", respuesta: "Reforzá una franja",
-      detalle: `${franjaTexto(f.dow, f.hour)}: ${f.casos} ${plural(f.casos, "cliente se fue", "clientes se fueron")} y esa franja estaba al ${f.agendadaPct}% agendada y ${f.atendidaPct}% atendida. Es un horario puntual: alcanza con ampliar o reforzar esa franja, no hace falta sumar a alguien fijo todavía.${ocupTexto}`,
+      detalle: `${franjaTexto(f.dow, f.hour)} se llena (${f.agendadaPct}% agendada, ${f.atendidaPct}% atendida) y ${f.casos === 1 ? "se fue 1 cliente" : `se fueron ${f.casos}`}: reforzá ese horario, no hace falta sumar a alguien fijo.`,
     };
   } else if (franjasConCasos.some((f) => f.casos >= MIN_CASOS_FRANJA)) {
     const f = fuertes[0];
     contratar = {
       clave: "contratar", titulo: titulo1, estado: "info", respuesta: "Revisá horarios",
-      detalle: `${franjaTexto(f.dow, f.hour)}: ${f.casos} clientes se fueron aunque esa franja estaba al ${f.agendadaPct}% agendada y ${f.atendidaPct}% atendida. Había tiempo libre: revisá si los turnos se ofrecen en ese horario, si hay bloqueos o si la duración de los turnos deja huecos.`,
+      detalle: `${franjaTexto(f.dow, f.hour)}: se fueron ${f.casos} con la agenda al ${f.agendadaPct}% agendada y ${f.atendidaPct}% atendida. Había lugar: revisá turnos y bloqueos en ese horario.`,
     };
   } else if ((fracLocal ?? 0) >= DIAS_LLENOS_TOPE) {
     contratar = {
       clave: "contratar", titulo: titulo1, estado: "cerca", respuesta: "Cerca",
-      detalle: `El ${Math.round((fracLocal as number) * 100)}% de los días de tus profesionales estuvo lleno (${llenosTotales} de ${diasTotales}), aunque casi no hay clientes registrados que se hayan ido. Si empiezan a irse por falta de lugar, es momento de sumar capacidad.${ocupTexto}`,
+      detalle: `${llenosTotales} de ${diasTotales} días estuvieron llenos. Si empiezan a irse clientes por falta de lugar, conviene contratar.`,
     };
   } else if (casosLugar < 3) {
     contratar = {
       clave: "contratar", titulo: titulo1, estado: "no", respuesta: "Pocos datos",
-      detalle: `Solo ${casosLugar} ${plural(casosLugar, "cliente se fue", "clientes se fueron")} por falta de lugar: es poco para concluir. Seguí registrando con el botón "Se fue" y el Asesor va a cruzarlos con la ocupación de cada horario.${ocupTexto}`,
+      detalle: `${casosLugar === 1 ? "Se fue 1 cliente" : `Se fueron ${casosLugar} clientes`} por falta de lugar: son pocos datos. Seguí registrando.`,
     };
   } else {
     contratar = {
       clave: "contratar", titulo: titulo1, estado: "no", respuesta: "Todavía no",
-      detalle: `Los ${casosLugar} clientes que se fueron por falta de lugar están repartidos en horarios que no estaban llenos. No hay una franja que muestre falta de capacidad.${ocupTexto}`,
+      detalle: `Los clientes que se fueron por lugar estaban en horarios que no estaban llenos: no hay falta de capacidad.`,
     };
   }
 
@@ -134,17 +133,17 @@ export function evaluarDecisiones(i: DecisionesInput): Decision[] {
     const alto = orden[0];
     const bajo = orden[orden.length - 1];
     if (alto.pct - bajo.pct >= 20) {
-      partes.push(`${bajo.name} está al ${bajo.pct}% y ${alto.name} al ${alto.pct}%: hay lugar libre en la agenda de ${bajo.name} para absorber a quienes se van.`);
+      partes.push(`${bajo.name} está al ${bajo.pct}% y ${alto.name} al ${alto.pct}%: hay lugar en ${bajo.name}.`);
     } else {
-      partes.push(`La ocupación está pareja entre profesionales (de ${bajo.pct}% a ${alto.pct}%).`);
+      partes.push(`Ocupación pareja entre profesionales (${bajo.pct}% a ${alto.pct}%).`);
     }
   }
   if (i.franjaConMasCasos) {
-    partes.push(`La franja con más clientes que se fueron es ${i.franjaConMasCasos.dia} de ${i.franjaConMasCasos.hora} a ${i.franjaConMasCasos.hora + 1} hs.`);
+    partes.push(`Más clientes se fueron el ${i.franjaConMasCasos.dia} de ${i.franjaConMasCasos.hora} a ${i.franjaConMasCasos.hora + 1} hs.`);
   }
   const horarios: Decision = {
-    clave: "horarios", titulo: "Entender los horarios", estado: "info", respuesta: "Mirá esto",
-    detalle: partes.length > 0 ? partes.join(" ") : "Todavía no hay datos suficientes para marcar un horario con problemas.",
+    clave: "horarios", titulo: "¿Entender los horarios?", estado: "info", respuesta: "Mirá esto",
+    detalle: partes.length > 0 ? partes.join(" ") : "Todavía no hay datos para marcar un horario con problemas.",
   };
 
   // 3) ¿Subir precios?
@@ -152,37 +151,37 @@ export function evaluarDecisiones(i: DecisionesInput): Decision[] {
   const profesLlenos = profs.filter(profLleno).sort((a, b) => (fracLlenos(b) ?? 0) - (fracLlenos(a) ?? 0));
   if (profesLlenos.length > 0) {
     const nombres = profesLlenos.map((p) => p.name).join(" y ");
-    const detalleLlenos = profesLlenos.map((p) => `${p.name} tuvo la agenda llena ${p.llenos} de ${p.dias} días (promedio del mes ${p.pct}%)`).join(" y ");
+    const detalleLlenos = profesLlenos.map((p) => `${p.name} tuvo la agenda llena ${p.llenos} de ${p.dias} días`).join(" y ");
     const pedidos =
       i.masPedido && profesLlenos.some((p) => p.name === i.masPedido!.name)
-        ? ` Además ${i.masPedido.n} ${i.masPedido.n === 1 ? "cliente lo pidió y se fue" : "clientes lo pidieron y se fueron"}.`
+        ? ` y ${i.masPedido.n} ${i.masPedido.n === 1 ? "cliente lo pidió" : "clientes lo pidieron"} y se fueron`
         : "";
-    const resto = profs.length > profesLlenos.length ? " Con el resto todavía no: tienen lugar libre." : "";
+    const resto = profs.length > profesLlenos.length ? " Con el resto todavía no." : "";
     precios = {
       clave: "precios", titulo: "¿Subir precios?", estado: "si", respuesta: `Sí, a ${nombres}`,
-      detalle: `${detalleLlenos}: casi no ${profesLlenos.length === 1 ? "le" : "les"} queda lugar.${pedidos} Conviene subir el precio de sus servicios entre 5% y 10%.${resto}`,
+      detalle: `${detalleLlenos}${pedidos}: conviene subir sus precios entre 5% y 10%.${resto}`,
     };
   } else if (fuertesLlenas.length >= 1) {
     const lista = fuertesLlenas.slice(0, 2).map((f) => franjaTexto(f.dow, f.hour)).join(" y ");
     precios = {
       clave: "precios", titulo: "¿Subir precios?", estado: "cerca", respuesta: "Probá en horarios pico",
-      detalle: `${lista} se llena y se van clientes: ahí la demanda supera tu lugar. Podés probar un aumento chico (5% a 10%) o un precio distinto en esos horarios y ver cómo responden.`,
+      detalle: `${lista} se llena y se van clientes: probá un aumento chico (5% a 10%) en esos horarios.`,
     };
   } else if (franjasLlenasConAlgunCaso.length >= 1) {
     precios = {
       clave: "precios", titulo: "¿Subir precios?", estado: "cerca", respuesta: "Cerca",
-      detalle: "Hay horarios llenos donde se fue algún cliente, pero todavía son pocos casos. Seguí registrando antes de mover los precios.",
+      detalle: "Hay horarios llenos con algún cliente que se fue, pero son pocos casos. Seguí registrando.",
     };
   } else {
     precios = {
       clave: "precios", titulo: "¿Subir precios?", estado: "no", respuesta: "Todavía no",
-      detalle: "No hay horarios llenos con clientes que se vayan: subir los precios ahora puede espantar clientes. Primero conviene llenar la agenda.",
+      detalle: "No hay horarios llenos con clientes que se vayan: subir precios ahora puede espantar clientes.",
     };
   }
   // Si hay clientes que se van por el precio, subirlo tiene un costo: se avisa y un "Sí" pasa a "con cuidado".
   const porPrecio = i.seFueronPorPrecio ?? 0;
   if (porPrecio >= 1) {
-    const aviso = ` Ojo: ${porPrecio} ${porPrecio === 1 ? "cliente se fue" : "clientes se fueron"} por el precio este mes.`;
+    const aviso = ` Ojo: ${porPrecio === 1 ? "1 cliente se fue" : `${porPrecio} clientes se fueron`} por el precio.`;
     precios = { ...precios, detalle: precios.detalle + aviso };
     if (porPrecio >= 3 && precios.estado === "si") {
       precios = { ...precios, estado: "cerca", respuesta: "Con cuidado" };
