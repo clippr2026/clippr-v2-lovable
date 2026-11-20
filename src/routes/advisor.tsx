@@ -1848,7 +1848,7 @@ function LabPrecios({
         <div className="mt-2.5 text-[11px] text-white/55">Facturación adicional mensual</div>
         <div className="text-3xl font-extrabold tabular-nums leading-tight text-cyan-200">+{fmtAR(facturacion)}</div>
         <div className="mt-2 flex items-baseline justify-between gap-3 border-t border-white/10 pt-2">
-          <span className="text-xs text-white/60">Ganancia adicional{r.comisionReal ? ` (comisión ${Math.round(r.comisionUsada * 100)}%)` : " (comisión de referencia)"}</span>
+          <span className="text-xs text-white/60">Ganancia adicional</span>
           <span className="text-lg font-bold tabular-nums text-emerald-300">+{fmtAR(utilidad)}</span>
         </div>
         <div className="mt-2 flex items-baseline justify-between gap-3 border-t border-white/10 pt-2">
