@@ -70,6 +70,9 @@ export function simularPrecio(i: SimuladorInput): SimuladorResultado {
     } else if (i.ocupacionAtendida < 40) {
       pts += 1;
       factores.push(`agenda con lugar (${i.ocupacionAtendida}% atendida)`);
+    } else {
+      // Ocupación media: no suma ni resta riesgo, pero se nombra para que se vea que se tuvo en cuenta.
+      factores.push(`ocupación media (${i.ocupacionAtendida}% atendida)`);
     }
   }
   const pocosDatos = i.ventas30 < 10;
