@@ -1730,7 +1730,7 @@ function LabPrecios({
   data: LabData;
   ocupacionLocal: number | null;
   cargaProfesionales: Array<{ id: string; used: number; capacity: number }>;
-  seFueronPorPrecio: number;
+  seFueronPorPrecio: Record<string, number>;
 }) {
   const services = data.services.length > 0 ? data.services : [];
   const [svcId, setSvcId] = React.useState<string | null>(null);
@@ -1764,7 +1764,7 @@ function LabPrecios({
     ventas30: mensual,
     comision: svc?.comision ?? null,
     ocupacionAtendida,
-    seFueronPorPrecio,
+    seFueronPorPrecio: seFueronPorPrecio[(svc?.nombre ?? "").toLowerCase().trim()] ?? 0,
   });
   const { precioNuevo, pctAumento: pct, facturacionAdicional: facturacion, gananciaAdicional: utilidad, puntoEquilibrio: perdibles } = r;
   const riesgoLabel = r.riesgo;
@@ -2026,17 +2026,24 @@ function SimuladorPrecios({
   onBack: () => void;
 }) {
   const data = useLabData(businessId, ticket, clientes);
-  // Clientes que se fueron por el precio en los últimos 30 días (botón "Se fue" de la Agenda).
-  const [seFueronPorPrecio, setSeFueronPorPrecio] = React.useState(0);
+  // Clientes que se fueron por el precio en los últimos 30 días, por servicio (botón "Se fue" de la Agenda). Los registros
+  // sin servicio (anteriores a esa pregunta) no se cuentan contra ninguno.
+  const [seFueronPorPrecio, setSeFueronPorPrecio] = React.useState<Record<string, number>>({});
   React.useEffect(() => {
     if (!businessId) return;
     let cancelled = false;
     void ((supabase.from("clientes_no_atendidos" as any) as any)
-      .select("id", { count: "exact", head: true })
+      .select("servicio")
       .eq("business_id", businessId)
       .eq("preferencia", "precio")
-      .gte("occurred_at", new Date(Date.now() - 30 * 86_400_000).toISOString()) as PromiseLike<{ count: number | null; error: unknown }>).then(({ count, error }) => {
-      if (!cancelled && !error) setSeFueronPorPrecio(count ?? 0);
+      .gte("occurred_at", new Date(Date.now() - 30 * 86_400_000).toISOString()) as PromiseLike<{ data: Array<{ servicio: string | null }> | null; error: unknown }>).then(({ data: filas, error }) => {
+      if (cancelled || error) return;
+      const cuenta: Record<string, number> = {};
+      for (const f of filas ?? []) {
+        const k = (f.servicio ?? "").toLowerCase().trim();
+        if (k) cuenta[k] = (cuenta[k] ?? 0) + 1;
+      }
+      setSeFueronPorPrecio(cuenta);
     });
     return () => {
       cancelled = true;

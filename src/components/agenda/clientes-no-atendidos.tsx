@@ -27,6 +27,7 @@ export function ClientesNoAtendidosButton({
   branchId,
   createdByName,
   employees,
+  servicios = [],
   className = "",
 }: {
   businessId: string | null | undefined;
@@ -34,11 +35,14 @@ export function ClientesNoAtendidosButton({
   createdByName?: string | null;
   /** Profesionales de la sucursal elegida (los inactivos no se ofrecen). */
   employees: Profesional[];
+  /** Servicios del catálogo (para registrar por cuál se fue por el precio). */
+  servicios?: Array<{ id: string; name: string }>;
   /** Clases extra para el botón de la Agenda (por ejemplo, para que ocupe el ancho que sobra). */
   className?: string;
 }) {
   const [open, setOpen] = React.useState(false);
   const [eligiendo, setEligiendo] = React.useState(false);
+  const [eligiendoServicio, setEligiendoServicio] = React.useState(false);
   const [countHoy, setCountHoy] = React.useState(0);
   const [saving, setSaving] = React.useState(false);
   const [tick, setTick] = React.useState(0);
@@ -67,9 +71,10 @@ export function ClientesNoAtendidosButton({
     if (guardando.current) return;
     setOpen(false);
     setEligiendo(false);
+    setEligiendoServicio(false);
   };
 
-  const registrar = async (profesional: Profesional | null, porPrecio = false) => {
+  const registrar = async (profesional: Profesional | null, porPrecio = false, servicio: string | null = null) => {
     if (!businessId || guardando.current) return;
     guardando.current = true;
     setSaving(true);
@@ -78,15 +83,17 @@ export function ClientesNoAtendidosButton({
       branch_id: branchId ?? null,
       created_by_name: createdByName ?? null,
       preferencia: porPrecio ? "precio" : profesional ? "especifico" : "cualquiera",
+      servicio: porPrecio ? servicio : null,
       requested_employee_id: profesional?.id ?? null,
     });
     guardando.current = false;
     setSaving(false);
     if (error) return toast.error("No se pudo registrar. Probá de nuevo.");
-    toast.success(porPrecio ? "Registrado: se fue por el precio." : profesional ? `Registrado: quería a ${profesional.full_name}.` : "Registrado.");
+    toast.success(porPrecio ? `Registrado: se fue por el precio${servicio ? ` de ${servicio}` : ""}.` : profesional ? `Registrado: quería a ${profesional.full_name}.` : "Registrado.");
     setCountHoy((n) => n + 1);
     setOpen(false);
     setEligiendo(false);
+    setEligiendoServicio(false);
     setTick((t) => t + 1);
   };
 
@@ -96,6 +103,7 @@ export function ClientesNoAtendidosButton({
         type="button"
         onClick={() => {
           setEligiendo(false);
+          setEligiendoServicio(false);
           setOpen(true);
         }}
         className={`inline-flex items-center justify-center gap-1.5 rounded-xl px-3.5 py-2 text-xs font-semibold text-white transition hover:brightness-125 active:translate-y-px active:brightness-95 ${className}`}
@@ -126,7 +134,28 @@ export function ClientesNoAtendidosButton({
                 </button>
               </div>
 
-              {!eligiendo ? (
+              {eligiendoServicio ? (
+                <>
+                  <button type="button" onClick={() => setEligiendoServicio(false)} disabled={saving} className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-white/60 hover:text-white">
+                    <ChevronLeft className="h-3.5 w-3.5" /> Volver
+                  </button>
+                  <p className="mt-2 text-sm font-semibold text-white">¿Por qué servicio se fue?</p>
+                  <p className="text-xs text-white/50">Tocá uno y queda registrado.</p>
+                  <div className="mt-3 grid max-h-[50vh] gap-2 overflow-y-auto">
+                    {servicios.map((sv) => (
+                      <button
+                        key={sv.id}
+                        type="button"
+                        disabled={saving}
+                        onClick={() => registrar(null, true, sv.name)}
+                        className="flex min-h-12 items-center rounded-2xl bg-amber-500/10 px-4 text-left text-sm font-semibold text-amber-50 ring-1 ring-amber-300/35 transition active:scale-[0.99] hover:bg-amber-500/20 disabled:opacity-50"
+                      >
+                        {sv.name}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              ) : !eligiendo ? (
                 <>
                   <p className="mt-2 text-[13px] leading-snug text-white/60">
                     Registrá los clientes que se van sin atenderse. Combinando estos datos con la ocupación de la agenda, Clippr te ayuda a decidir
@@ -160,7 +189,7 @@ export function ClientesNoAtendidosButton({
                     <button
                       type="button"
                       disabled={saving}
-                      onClick={() => registrar(null, true)}
+                      onClick={() => (servicios.length > 0 ? setEligiendoServicio(true) : registrar(null, true))}
                       className="flex h-14 items-center gap-3 rounded-2xl bg-amber-500/15 px-4 text-left text-[15px] font-semibold text-amber-50 ring-1 ring-amber-300/45 transition hover:bg-amber-500/25 active:scale-[0.99] disabled:opacity-60"
                       style={{ boxShadow: "0 0 22px -10px rgba(245,158,11,0.8)" }}
                     >

@@ -352,6 +352,11 @@ function AgendaPage() {
   const [profFilterId, setProfFilterId] = React.useState<string | null>(null);
   const [profFilterOpen, setProfFilterOpen] = React.useState(false);
   // Ocupación de todo el local en el día (la calcula la grilla del día).
+  // Servicios del catálogo (no productos) para registrar por cuál se fue un cliente por el precio.
+  const serviciosSeFue = React.useMemo(
+    () => (data.services as Array<{ id: string; name: string; duration?: number | null; active?: boolean }>).filter((x) => x.active !== false && x.duration != null).map((x) => ({ id: x.id, name: x.name })),
+    [data.services],
+  );
   const [localOccupancy, setLocalOccupancy] = React.useState<OcupacionLocal | null>(null);
   const [ocupacionInfoOpen, setOcupacionInfoOpen] = React.useState(false);
   const profFilterKey = data.businessId
@@ -1691,6 +1696,7 @@ function AgendaPage() {
               branchId={data.activeBranchId}
               createdByName={(profile as any)?.full_name ?? null}
               employees={data.employees}
+              servicios={serviciosSeFue}
               className="hidden shrink-0 sm:inline-flex !px-3 !py-1"
             />
           </div>
@@ -1829,6 +1835,7 @@ function AgendaPage() {
             branchId={data.activeBranchId}
             createdByName={(profile as any)?.full_name ?? null}
             employees={data.employees}
+            servicios={serviciosSeFue}
             className="flex-1 justify-center"
           />
         </div>
