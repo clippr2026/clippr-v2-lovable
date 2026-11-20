@@ -6389,18 +6389,30 @@ function ProfesionalesTab({
                       {money(Math.max(r.total, 0))}
                     </div>
                   </div>
-                  <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-white/55">
-                    <span>Comisiones {money(r.commissions)}</span>
-                    {r.tips > 0 && <span>Propinas {money(r.tips)}</span>}
-                    {r.advances > 0 && <span className="text-rose-300/90">Adelantos −{money(r.advances)}</span>}
-                    {r.presentismo !== 0 && (
-                      <span className={r.presentismo > 0 ? "text-rose-300/90" : "text-emerald-300/90"}>
-                        Puntualidad {r.presentismo > 0 ? "−" : "+"}
-                        {money(Math.abs(r.presentismo))}
-                      </span>
-                    )}
+                  <div className="mt-2.5 divide-y divide-white/[0.07] rounded-xl bg-white/[0.03] px-3 ring-1 ring-white/[0.07]">
+                    {(
+                      [
+                        ["Comisiones", money(r.commissions), "text-white"],
+                        ...(r.tips > 0 ? [["Propinas", money(r.tips), "text-white"]] : []),
+                        ...(r.advances > 0 ? [["Adelantos", `−${money(r.advances)}`, "text-rose-300"]] : []),
+                        ...(r.presentismo !== 0
+                          ? [
+                              [
+                                "Puntualidad",
+                                `${r.presentismo > 0 ? "−" : "+"}${money(Math.abs(r.presentismo))}`,
+                                r.presentismo > 0 ? "text-rose-300" : "text-emerald-300",
+                              ],
+                            ]
+                          : []),
+                      ] as Array<[string, string, string]>
+                    ).map(([nombre, monto, color]) => (
+                      <div key={nombre} className="flex items-center justify-between gap-3 py-2 text-sm">
+                        <span className="text-white/60">{nombre}</span>
+                        <span className={cn("font-semibold tabular-nums", color)}>{monto}</span>
+                      </div>
+                    ))}
                   </div>
-                  <div className="mt-2.5 flex items-center justify-between gap-3">
+                  <div className="mt-3 flex items-center justify-between gap-3">
                     <span className="inline-flex items-center gap-1 text-sm font-medium text-white/65">
                       Ver detalle <ChevronRight className="size-4" />
                     </span>
