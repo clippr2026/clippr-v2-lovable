@@ -46,6 +46,9 @@ export const FRANJA_LLENA = 0.85;
 export const MIN_CASOS_FRANJA = 2;
 /** Clientes que se fueron por falta de lugar a partir de los cuales hay una señal para contratar. */
 export const MIN_CASOS_CONTRATAR = 3;
+/** Contratar además pide ocupación alta en los días en que se fueron o en el local. */
+export const OCUPACION_DIAS_CONTRATAR = 70;
+export const OCUPACION_LOCAL_CONTRATAR = 60;
 /** Proporción de días llenos de un profesional (90% de sus turnos) a partir de la cual no le queda lugar. */
 export const DIAS_LLENOS_TOPE = 0.4;
 /** Días trabajados mínimos para fiarse de la proporción de días llenos. */
@@ -110,10 +113,22 @@ export function evaluarDecisiones(i: DecisionesInput): Decision[] {
   let contratar: Decision;
   const diasTexto = listaDias(diasConSenal.length > 0 ? diasConSenal : [...casosPorDia.keys()].slice(0, 3));
   const queOcup = ocup ? `${ocup} y ` : "";
-  if (casosLugar >= MIN_CASOS_CONTRATAR && (franjasFuertes.length > 0 || diasConSenal.length > 0)) {
+  // Ocupación de los días en que se fueron clientes (agendada o atendida, la mayor), sobre todo su horario disponible.
+  const diasOcup = diasConSenal.length > 0 ? diasConSenal : [...casosPorDia.keys()];
+  const franjasDeEsosDias = franjas.filter((f) => diasOcup.includes(f.dow));
+  const dispDias = franjasDeEsosDias.reduce((n, f) => n + f.disponible, 0);
+  const ocupDiasPct = dispDias > 0 ? Math.round((Math.max(franjasDeEsosDias.reduce((n, f) => n + f.agendado, 0), franjasDeEsosDias.reduce((n, f) => n + f.atendido, 0)) / dispDias) * 100) : null;
+  // Contratar pide que la ocupación acompañe: con la agenda a medias, primero se refuerza el horario.
+  const ocupacionAcompana = (ocupDiasPct ?? -1) >= OCUPACION_DIAS_CONTRATAR || (i.ocupacion ?? 0) >= OCUPACION_LOCAL_CONTRATAR;
+  if (casosLugar >= MIN_CASOS_CONTRATAR && (franjasFuertes.length > 0 || diasConSenal.length > 0) && ocupacionAcompana) {
     contratar = {
       clave: "contratar", titulo: t1, estado: "si", respuesta: "Sí",
       detalle: `Sí, porque ${queOcup}se fueron ${clientes(casosLugar)} por falta de lugar${diasTexto ? `, sobre todo ${diasTexto}` : ""}. Conviene contratar${diasTexto ? ` para ${diasTexto}` : ""}.${fuertesLlenas.length > 0 ? " Esos horarios están llenos." : ""}`,
+    };
+  } else if (casosLugar >= MIN_CASOS_CONTRATAR && (franjasFuertes.length > 0 || diasConSenal.length > 0)) {
+    contratar = {
+      clave: "contratar", titulo: t1, estado: "cerca", respuesta: "Cerca",
+      detalle: `Cerca: se fueron ${clientes(casosLugar)} por falta de lugar${diasTexto ? `, sobre todo ${diasTexto}` : ""}, pero ${ocup || "la ocupación es baja"}${ocupDiasPct != null ? ` (${diasTexto} ${ocupDiasPct}%)` : ""}. Antes de contratar, reforzá ese horario.`,
     };
   } else if (casosLugar >= MIN_CASOS_CONTRATAR) {
     contratar = {
@@ -163,17 +178,9 @@ export function evaluarDecisiones(i: DecisionesInput): Decision[] {
       detalle: horarioPartes.join(" "),
     };
   } else {
-    const otras: string[] = [];
-    if (profs.length >= 2) {
-      const orden = [...profs].sort((a, b) => b.pct - a.pct);
-      const alto = orden[0];
-      const bajo = orden[orden.length - 1];
-      if (alto.pct - bajo.pct >= 20) otras.push(`${bajo.name} está al ${bajo.pct}% y ${alto.name} al ${alto.pct}%: hay lugar en ${bajo.name}.`);
-    }
-    if (i.franjaConMasCasos) otras.push(`Más clientes se fueron el ${i.franjaConMasCasos.dia} de ${i.franjaConMasCasos.hora} a ${i.franjaConMasCasos.hora + 1} hs.`);
     horarios = {
       clave: "horarios", titulo: t2, estado: "no", respuesta: "No",
-      detalle: `No hace falta abrir antes ni cerrar más tarde: la primera y la última hora no se llenan. ${otras.join(" ")}`.trim(),
+      detalle: "No hace falta abrir antes ni cerrar más tarde: la primera y la última hora no se llenan.",
     };
   }
 

@@ -24,7 +24,7 @@ describe("¿Conviene contratar?", () => {
     expect(c.respuesta).toBe("No");
     expect(c.detalle).toBe("No, porque la ocupación es 47% y no hay clientes que se hayan ido por falta de lugar.");
   });
-  it("con 3 o más clientes que se fueron concentrados en días: Sí, para esos días", () => {
+  it("con 3 o más clientes que se fueron en días con ocupación alta: Sí, para esos días", () => {
     const c = get(
       evaluarDecisiones({ ...base, seFueronPorLugarFranjas: [...casos(2, 4, 18), ...casos(1, 5, 19)], franjas: [franja(4, 18, 540), franja(5, 19, 100)] }),
       "contratar",
@@ -34,9 +34,25 @@ describe("¿Conviene contratar?", () => {
     expect(c.detalle).toContain("Conviene contratar para jueves");
   });
   it("recomienda contratar para varios días: jueves, viernes y sábado", () => {
-    const c = get(evaluarDecisiones({ ...base, seFueronPorLugarFranjas: [...casos(2, 4, 18), ...casos(2, 5, 19), ...casos(2, 6, 17)] }), "contratar");
+    const c = get(
+      evaluarDecisiones({
+        ...base,
+        ocupacion: 62,
+        seFueronPorLugarFranjas: [...casos(2, 4, 18), ...casos(2, 5, 19), ...casos(2, 6, 17)],
+      }),
+      "contratar",
+    );
     expect(c.respuesta).toBe("Sí");
     expect(c.detalle).toContain("jueves, viernes y sábado");
+  });
+  it("con la ocupación baja (48%) y los días con casos a medias, no dice Sí: primero reforzar el horario", () => {
+    const c = get(
+      evaluarDecisiones({ ...base, ocupacion: 48, seFueronPorLugarFranjas: casos(3), franjas: [franja(4, 18, 330, 250), franja(4, 19, 200, 100)] }),
+      "contratar",
+    );
+    expect(c.respuesta).toBe("Cerca");
+    expect(c.detalle).toContain("pero la ocupación es 48%");
+    expect(c.detalle).toContain("Antes de contratar, reforzá ese horario");
   });
   it("3 clientes sin repetirse en el mismo día u horario: Cerca", () => {
     const c = get(evaluarDecisiones({ ...base, seFueronPorLugarFranjas: [{ dow: 1, hour: 12 }, { dow: 3, hour: 15 }, { dow: 5, hour: 19 }] }), "contratar");
@@ -93,7 +109,7 @@ describe("¿Entender los horarios?", () => {
   it("sin señales no hace falta cambiar el horario", () => {
     const h = get(evaluarDecisiones({ ...base, franjas: [franja(5, 11, 100), franja(5, 20, 100)] }), "horarios");
     expect(h.respuesta).toBe("No");
-    expect(h.detalle).toContain("No hace falta abrir antes ni cerrar más tarde");
+    expect(h.detalle).toBe("No hace falta abrir antes ni cerrar más tarde: la primera y la última hora no se llenan.");
   });
 });
 
