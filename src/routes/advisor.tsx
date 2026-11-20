@@ -1220,10 +1220,8 @@ function RadiografiaSection({ analytics }: { analytics: AdvisorAnalytics }) {
               </span>
               <div className="min-w-0 flex-1">
                 <div className="text-sm text-white/60">{item.label}</div>
-                <div className={cn("truncate text-base font-bold", colorValor(item.tone))}>
-                  {item.value}
-                  {item.detail && <span className="ml-2 text-sm font-semibold text-white/70">{item.detail}</span>}
-                </div>
+                <div className={cn("break-words text-base font-bold leading-snug", colorValor(item.tone))}>{item.value}</div>
+                {item.detail && <div className="break-words text-sm font-semibold leading-snug text-white/70">{item.detail}</div>}
               </div>
             </div>
           );
