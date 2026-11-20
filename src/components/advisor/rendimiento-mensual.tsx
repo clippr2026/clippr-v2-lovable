@@ -327,11 +327,13 @@ export function RendimientoMensual({ monthKey: controlledMonthKey }: Rendimiento
           />
 
           {canCompare && (
-            <p className="px-1 text-sm text-white/50">Los porcentajes comparan {vsLabel.replace(/^vs /, "con ")}.</p>
+            <p className="px-1 text-sm text-white/50">{isCurrentMonth
+                ? `Los porcentajes comparan el período del 1 al ${compDay ?? 0} de este mes con el mismo período del mes anterior.`
+                : "Los porcentajes comparan con el mes anterior completo."}</p>
           )}
           {perf.pendienteDeCobro > 0 && (
             <div className="rounded-xl border border-amber-400/25 bg-amber-400/[0.06] px-4 py-3 text-sm leading-relaxed text-amber-100/90">
-              Incluye <b>{money(perf.pendienteDeCobro)}</b> de ventas todavía sin cobrar.
+              Incluye <b>{money(perf.pendienteDeCobro)}</b> en ventas pendientes de cobro. Una vez cobradas, se registrarán como ingresos de este mes.
             </div>
           )}
         </>
