@@ -1117,10 +1117,9 @@ function SaludSection({
   const score = analytics.healthScore;
   const tarjeta = `${TARJETA_CLIPPR} p-4`;
   return (
+    <div className="space-y-3">
+    <MesSelector monthKey={selectedMonthKey} onMonthKeyChange={onMonthKeyChange} minMonthKey={minMonthKey} />
     <div className={VENTANA_CLIPPR}>
-      <div className="relative">
-        <MesSelector monthKey={selectedMonthKey} onMonthKeyChange={onMonthKeyChange} minMonthKey={minMonthKey} />
-      </div>
       <h2 className={cn(TITULO_CLIPPR, "relative mb-3 mt-1 text-center")}>Salud del negocio</h2>
       {analytics.analysisNote && <p className="relative mb-3 px-2 text-xs leading-snug text-amber-200/80">{analytics.analysisNote}</p>}
       <div className="relative grid gap-3 md:grid-cols-2">
@@ -1192,6 +1191,7 @@ function SaludSection({
           </div>
         </section>
       </div>
+    </div>
     </div>
   );
 }
