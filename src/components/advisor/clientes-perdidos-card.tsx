@@ -2,13 +2,10 @@ import * as React from "react";
 import { DoorOpen } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { fmtAR } from "@/components/dashboard/use-dashboard-data";
-import type { FranjaOcupacion } from "@/lib/decisiones-negocio";
+import { TARJETA_CLIPPR, TITULO_CLIPPR, VENTANA_CLIPPR } from "@/components/advisor/estilo-clippr";
 
 const BA = "America/Argentina/Buenos_Aires";
 
-// Mismo semáforo que la Agenda: rojo hasta 49%, amarillo de 50 a 69 y verde desde 70.
-const colorOcupacion = (pct: number) => (pct >= 70 ? "#22c55e" : pct >= 50 ? "#facc15" : "#ef4444");
-const ORDEN_SEMANA = [1, 2, 3, 4, 5, 6, 0];
 const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
 
 type Fila = { occurred_at: string; preferencia: "cualquiera" | "especifico" | "precio" | null; requested_employee_id: string | null };
@@ -37,21 +34,12 @@ export function ClientesPerdidosCard({
   businessId,
   monthKey,
   monthLabel,
-  occupancy,
-  agendada,
   ticket,
-  franjas,
 }: {
   businessId: string | null | undefined;
   monthKey: string;
   monthLabel: string;
-  /** Ocupación atendida del mes (0-100). */
-  occupancy: number | null;
-  /** Ocupación agendada del mes (0-100). */
-  agendada: number | null;
   ticket: number | null;
-  /** Ocupación agendada y atendida por franja (día de la semana y hora) del mes. */
-  franjas?: FranjaOcupacion[];
 }) {
   const [filas, setFilas] = React.useState<Fila[] | null>(null);
   const [nombres, setNombres] = React.useState<Map<string, string>>(new Map());
@@ -95,26 +83,13 @@ export function ClientesPerdidosCard({
     ([id, n]) => [nombres.get(id) ?? "Profesional", n] as [string, number],
   );
   const perdido = ticket && total > 0 ? Math.round(ticket * total) : 0;
-  // Ocupación promedio de cada día de la semana en que se abre (lunes a domingo, solo los días con horario).
-  const porDia = ORDEN_SEMANA.map((dow) => {
-    const fs = (franjas ?? []).filter((f) => f.dow === dow && f.disponible > 0);
-    const disponible = fs.reduce((n, f) => n + f.disponible, 0);
-    if (disponible <= 0) return null;
-    return {
-      dow,
-      agendado: Math.min(100, Math.round((fs.reduce((n, f) => n + f.agendado, 0) / disponible) * 100)),
-      atendido: Math.min(100, Math.round((fs.reduce((n, f) => n + f.atendido, 0) / disponible) * 100)),
-    };
-  }).filter((d): d is { dow: number; agendado: number; atendido: number } => d != null);
   return (
-    <div className="relative overflow-hidden rounded-[2rem] border border-rose-300/[0.22] bg-white/[0.016] p-3 shadow-[0_0_0_1px_rgba(244,63,94,0.1),0_28px_110px_-50px_rgba(244,63,94,0.7)] sm:p-4">
-      <div className="mb-3 flex items-center gap-3">
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">
-          <DoorOpen className="h-3.5 w-3.5 text-rose-300" /> Clientes que se fueron
-        </span>
-        <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
+    <div className={VENTANA_CLIPPR}>
+      <div className="mb-2.5 flex items-center gap-2 px-1">
+        <DoorOpen className="h-4 w-4 text-rose-300" />
+        <h2 className={TITULO_CLIPPR}>Clientes que se fueron</h2>
       </div>
-      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 sm:p-5">
+      <div className={`${TARJETA_CLIPPR} sm:p-5`}>
         <p className="text-sm font-semibold text-white">{monthLabel}</p>
         <p className="text-xs text-white/55">Entraron al local y se fueron sin atenderse</p>
 
@@ -170,56 +145,6 @@ export function ClientesPerdidosCard({
           </ul>
         )}
 
-        {/* Ocupación del mes (promedio) y de cada día abierto: agendado = reservas, atendido = servicios cobrados */}
-        <div className="mt-3 rounded-xl border border-white/10 bg-white/[0.03] p-3">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-sm font-semibold text-white">Ocupación del mes</span>
-            <span className="text-[10px] text-white/45">promedio por día abierto</span>
-          </div>
-          <div className="mt-2 grid grid-cols-2 gap-2">
-            {(
-              [
-                ["Agendado", agendada],
-                ["Atendido", occupancy],
-              ] as const
-            ).map(([nombre, valor]) => (
-              <div key={nombre} className="rounded-lg bg-white/[0.04] p-2 ring-1 ring-white/10">
-                <div className="flex items-baseline justify-between">
-                  <span className="text-[11px] text-white/60">{nombre}</span>
-                  <span className="text-lg font-bold tabular-nums text-white">{valor == null ? "—" : `${valor}%`}</span>
-                </div>
-                <div className="mt-1 h-1 w-full overflow-hidden rounded-full bg-white/10">
-                  <div className="h-full rounded-full" style={{ width: `${valor ?? 0}%`, background: colorOcupacion(valor ?? 0) }} />
-                </div>
-              </div>
-            ))}
-          </div>
-          {porDia.length > 0 && (
-            <div className="mt-3 space-y-1.5">
-              {porDia.map((d) => (
-                <div key={d.dow} className="grid grid-cols-[5.2rem_1fr_1fr] items-center gap-2 text-[11px]">
-                  <span className="font-semibold capitalize text-white/80">{DIAS[d.dow]}</span>
-                  {(
-                    [
-                      ["Agendado", d.agendado],
-                      ["Atendido", d.atendido],
-                    ] as const
-                  ).map(([nombre, valor]) => (
-                    <div key={nombre}>
-                      <div className="flex items-center justify-between text-white/55">
-                        <span>{nombre}</span>
-                        <span className="font-semibold tabular-nums text-white">{valor}%</span>
-                      </div>
-                      <div className="mt-0.5 h-[3px] w-full overflow-hidden rounded-full bg-white/10">
-                        <div className="h-full rounded-full" style={{ width: `${valor}%`, background: colorOcupacion(valor) }} />
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );

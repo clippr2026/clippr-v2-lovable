@@ -17,6 +17,8 @@ import { cajaDateKeyBA } from "@/lib/caja-cierre";
 import { shiftMonth } from "@/lib/monthly-performance";
 import { MesSelector, RendimientoMensual } from "@/components/advisor/rendimiento-mensual";
 import { ClientesPerdidosCard } from "@/components/advisor/clientes-perdidos-card";
+import { OcupacionMesCard } from "@/components/advisor/ocupacion-mes-card";
+import { TARJETA_CLIPPR, TITULO_CLIPPR, VENTANA_CLIPPR } from "@/components/advisor/estilo-clippr";
 import { MEASURABLE_CHANNELS } from "@/lib/acquisition-channels";
 import { AcquisitionChannelIcon } from "@/components/acquisition-channel-icon";
 import { DateRangePicker, type DateRange } from "@/components/date-range-picker";
@@ -1064,22 +1066,13 @@ function SaludSection({
   healthHeadline: string;
 }) {
   const score = analytics.healthScore;
-  const luz =
-    "[background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.16),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.12),transparent_65%)]";
-  const tarjeta = `rounded-2xl border border-white/10 bg-[#0b0a14] p-4 ${luz}`;
+  const tarjeta = `${TARJETA_CLIPPR} p-4`;
   return (
-    <div className="relative overflow-hidden rounded-[2rem] border border-emerald-300/[0.30] bg-white/[0.018] p-2.5 pt-4 shadow-[0_0_0_1px_rgba(16,185,129,0.16),0_30px_125px_-42px_rgba(45,212,191,1)] sm:p-3 sm:pt-5">
-      <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-emerald-400/[0.16] [-webkit-mask-image:radial-gradient(closest-side,#000,transparent)] [mask-image:radial-gradient(closest-side,#000,transparent)]" />
+    <div className={VENTANA_CLIPPR}>
       <div className="relative">
         <MesSelector monthKey={selectedMonthKey} onMonthKeyChange={onMonthKeyChange} minMonthKey={minMonthKey} />
       </div>
-      <div className="relative mb-3 flex items-center gap-4">
-        <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-        <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">
-          Salud del negocio
-        </span>
-        <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-      </div>
+      <h2 className={cn(TITULO_CLIPPR, "relative mb-3 mt-1 text-center")}>Salud del negocio</h2>
       {analytics.analysisNote && <p className="relative mb-3 px-2 text-xs leading-snug text-amber-200/80">{analytics.analysisNote}</p>}
       <div className="relative grid gap-3 md:grid-cols-2">
         <section className={tarjeta}>
@@ -1158,20 +1151,10 @@ function SaludSection({
 function RadiografiaSection({ analytics }: { analytics: AdvisorAnalytics }) {
   const items = analytics.radiografia.filter((i) => i.key !== "recuperar" && i.key !== "turnos-vacios");
   return (
-    <div className="relative overflow-hidden rounded-[2rem] border border-fuchsia-300/[0.22] bg-white/[0.016] p-3 shadow-[0_0_0_1px_rgba(217,70,239,0.12),0_28px_110px_-50px_rgba(217,70,239,0.8)] sm:p-4">
-      <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-fuchsia-500/[0.12] [-webkit-mask-image:radial-gradient(closest-side,#000,transparent)] [mask-image:radial-gradient(closest-side,#000,transparent)]" />
-      <div className="flex items-center gap-4 mb-3">
-        <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-        <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">
-          Radiografía del equipo
-        </span>
-        <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-      </div>
-      <GlassCard className="p-3.5 sm:p-6 border border-fuchsia-300/[0.2] bg-white/[0.05] shadow-[0_0_0_1px_rgba(217,70,239,0.1),0_35px_120px_-44px_rgba(217,70,239,0.7)]">
-        <h2 className="font-display text-xl sm:text-2xl font-bold tracking-tight">
-          Equipo, servicios y clientes
-        </h2>
-        <p className="mt-1 text-sm text-muted-foreground">
+    <div className={VENTANA_CLIPPR}>
+      <div className={cn(TARJETA_CLIPPR, "p-3.5 sm:p-5")}>
+        <h2 className={TITULO_CLIPPR}>Equipo, servicios y clientes</h2>
+        <p className="mt-1 text-xs text-white/55">
           Quién rinde más, qué se vende y cuántos clientes fieles tenés · {analytics.analysisMonthLabel}.
         </p>
         {/* grid-cols-2 desde mobile (antes era 1 sola columna hasta
@@ -1230,7 +1213,7 @@ function RadiografiaSection({ analytics }: { analytics: AdvisorAnalytics }) {
             registren turnos y cobros, esta radiografía se va a ir completando sola.
           </p>
         )}
-      </GlassCard>
+      </div>
     </div>
   );
 }
@@ -1267,9 +1250,12 @@ function GrowthManagerTab({ analytics, businessId, selectedMonthKey, onMonthKeyC
         businessId={businessId}
         monthKey={selectedMonthKey}
         monthLabel={analytics.analysisMonthLabel}
-        occupancy={analytics.current?.hasData ? analytics.current.occupancy : null}
         ticket={analytics.current?.ticket ?? null}
+      />
+      <OcupacionMesCard
+        monthLabel={analytics.analysisMonthLabel}
         agendada={analytics.current?.agendadaPct ?? null}
+        atendida={analytics.current?.hasData ? analytics.current.occupancy : null}
         franjas={analytics.current?.franjas}
       />
       <RadiografiaSection analytics={analytics} />
