@@ -59,10 +59,10 @@ export function evaluarDecisiones(i: DecisionesInput): Decision[] {
   // 1) ¿Contratar un profesional?
   let contratar: Decision;
   if (ocup == null) {
-    contratar = { clave: "contratar", titulo: "¿Contratar un profesional?", estado: "info", respuesta: "Sin datos", detalle: "Cargá los horarios de tus profesionales para medir si te queda lugar." };
+    contratar = { clave: "contratar", titulo: "¿Necesitás más capacidad de atención?", estado: "info", respuesta: "Sin datos", detalle: "Cargá los horarios de tus profesionales para medir si te queda lugar." };
   } else if (ocup >= OCUPACION_LLENA || (fracLocal ?? 0) >= DIAS_LLENOS_TOPE) {
     contratar = {
-      clave: "contratar", titulo: "¿Contratar un profesional?", estado: "si", respuesta: "Sí",
+      clave: "contratar", titulo: "¿Necesitás más capacidad de atención?", estado: "si", respuesta: "Sí",
       detalle:
         (fracLocal ?? 0) >= DIAS_LLENOS_TOPE && ocup < OCUPACION_LLENA
           ? `Aunque el promedio del mes es ${ocup}%, el ${Math.round((fracLocal as number) * 100)}% de los días de tus profesionales estuvo lleno (${llenosTotales} de ${diasTotales}): en los días fuertes ya no queda lugar. Cada cliente que se va sin atender es plata que perdés.`
@@ -70,12 +70,12 @@ export function evaluarDecisiones(i: DecisionesInput): Decision[] {
     };
   } else if ((ocup >= OCUPACION_CERCA || (fracLocal ?? 0) >= DIAS_LLENOS_CERCA) && i.seFueronPorLugar >= 4) {
     contratar = {
-      clave: "contratar", titulo: "¿Contratar un profesional?", estado: "cerca", respuesta: "Cerca",
+      clave: "contratar", titulo: "¿Necesitás más capacidad de atención?", estado: "cerca", respuesta: "Cerca",
       detalle: `Agenda al ${ocup}%${fracLocal != null ? ` (${llenosTotales} de ${diasTotales} días llenos)` : ""} y ${i.seFueronPorLugar} clientes se fueron por falta de lugar. Si se sostiene el mes que viene, es momento de sumar a alguien.`,
     };
   } else {
     contratar = {
-      clave: "contratar", titulo: "¿Contratar un profesional?", estado: "no", respuesta: "Todavía no",
+      clave: "contratar", titulo: "¿Necesitás más capacidad de atención?", estado: "no", respuesta: "Todavía no",
       detalle: `Tu agenda está al ${ocup}%: tenés lugar de sobra. Antes de sumar a alguien conviene llenar lo que ya tenés. Con ${OCUPACION_LLENA}% o más sí.`,
     };
   }

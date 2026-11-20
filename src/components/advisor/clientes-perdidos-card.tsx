@@ -148,61 +148,60 @@ export function ClientesPerdidosCard({
         </span>
         <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
       </div>
-      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3.5 sm:p-5">
-        <p className="text-sm text-muted-foreground">Entraron al local y se fueron sin atenderse · {monthLabel}</p>
-        <div className="mt-3 grid grid-cols-2 gap-2.5">
-          <div className="rounded-xl bg-rose-500/10 p-3 text-center ring-1 ring-rose-300/25">
-            <div className="font-display text-3xl font-bold tabular-nums text-rose-200">{total}</div>
-            <div className="text-xs text-white/60">{total === 1 ? "cliente se fue" : "clientes se fueron"}</div>
+      <div className="rounded-2xl border border-white/10 bg-white/[0.04] p-3 sm:p-5">
+        <p className="text-sm font-semibold text-white">{monthLabel}</p>
+        <p className="text-xs text-white/55">Entraron al local y se fueron sin atenderse</p>
+
+        {/* Dos cifras destacadas: cuántos se fueron y cuánto se dejó de vender (estimado, no es plata garantizada). */}
+        <div className="mt-2.5 grid grid-cols-2 gap-2">
+          <div className="rounded-xl bg-rose-500/10 p-2.5 ring-1 ring-rose-300/25">
+            <div className="font-display text-3xl font-bold tabular-nums leading-none text-rose-200">{total}</div>
+            <div className="mt-1 text-[11px] leading-tight text-white/60">{total === 1 ? "cliente se fue" : "clientes se fueron"}</div>
           </div>
-          <div className="rounded-xl bg-white/[0.04] p-3 text-center ring-1 ring-white/10">
-            <div className="font-display text-3xl font-bold tabular-nums text-white">{occupancy == null ? "—" : `${ocup}%`}</div>
-            <div className="text-xs text-white/60">agenda ocupada</div>
+          <div className="rounded-xl bg-rose-500/[0.06] p-2.5 ring-1 ring-rose-300/20">
+            <div className="font-display text-2xl font-bold tabular-nums leading-none text-rose-100">{perdido > 0 ? fmtAR(perdido) : "—"}</div>
+            <div className="mt-1 text-[11px] leading-tight text-white/60">venta potencial perdida</div>
+            <div className="mt-0.5 text-[10px] leading-tight text-white/40">Estimado con el ticket promedio; no es facturación garantizada.</div>
+          </div>
+        </div>
+
+        {/* Motivos, en tarjetas compactas */}
+        <div className="mt-2 grid grid-cols-3 gap-2">
+          <div className="rounded-xl bg-white/[0.04] p-2 text-center ring-1 ring-white/10">
+            <div className="text-lg font-bold tabular-nums text-white">{generales.length}</div>
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-white/55">Sin lugar</div>
+          </div>
+          <div className="rounded-xl bg-violet-500/10 p-2 text-center ring-1 ring-violet-300/25">
+            <div className="text-lg font-bold tabular-nums text-violet-100">{especificos.length}</div>
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-white/55">Profesional</div>
+          </div>
+          <div className="rounded-xl bg-amber-400/10 p-2 text-center ring-1 ring-amber-300/25">
+            <div className="text-lg font-bold tabular-nums text-amber-100">{porPrecio.length}</div>
+            <div className="text-[10px] font-semibold uppercase tracking-wide text-white/55">Precio</div>
           </div>
         </div>
 
         {total > 0 && (
-          <>
-            <div className="mt-2.5 grid grid-cols-2 gap-2.5">
-              <div className="rounded-xl bg-white/[0.04] p-2.5 ring-1 ring-white/10">
-                <div className="text-xl font-bold tabular-nums text-white">{generales.length}</div>
-                <div className="text-[11px] leading-tight text-white/60">por falta de lugar (aceptaban a cualquiera)</div>
-              </div>
-              <div className="rounded-xl bg-violet-500/10 p-2.5 ring-1 ring-violet-300/25">
-                <div className="text-xl font-bold tabular-nums text-violet-100">{especificos.length}</div>
-                <div className="text-[11px] leading-tight text-white/60">querían a un profesional en especial</div>
-              </div>
-              <div className="col-span-2 rounded-xl bg-amber-400/10 p-2.5 ring-1 ring-amber-300/25">
-                <div className="text-xl font-bold tabular-nums text-amber-100">{porPrecio.length}</div>
-                <div className="text-[11px] leading-tight text-white/60">se fueron por el precio</div>
-              </div>
-            </div>
-            <ul className="mt-3 space-y-1 text-sm text-white/75">
-              {dias.length > 0 && (
-                <li>
-                  Días con más casos:{" "}
-                  <span className="font-semibold text-white">{dias.slice(0, 2).map(([d, n]) => `${DIAS[d]} (${n})`).join(", ")}</span>
-                </li>
-              )}
-              {horas.length > 0 && (
-                <li>
-                  Horarios con más casos:{" "}
-                  <span className="font-semibold text-white">{horas.slice(0, 2).map(([h, n]) => `${h} a ${h + 1} hs (${n})`).join(", ")}</span>
-                </li>
-              )}
-              {pedidos.length > 0 && (
-                <li>
-                  Más pedidos:{" "}
-                  <span className="font-semibold text-violet-100">{pedidos.slice(0, 3).map(([nombre, n]) => `${nombre} (${n})`).join(", ")}</span>
-                </li>
-              )}
-              {perdido > 0 && (
-                <li>
-                  Se dejó de cobrar aprox. <span className="font-semibold text-rose-200">{fmtAR(perdido)}</span> (a ticket promedio)
-                </li>
-              )}
-            </ul>
-          </>
+          <ul className="mt-2.5 space-y-0.5 text-[13px] leading-snug text-white/70">
+            {dias.length > 0 && (
+              <li>
+                Días con más casos:{" "}
+                <span className="font-semibold text-white">{dias.slice(0, 2).map(([d, n]) => `${DIAS[d]} (${n})`).join(", ")}</span>
+              </li>
+            )}
+            {horas.length > 0 && (
+              <li>
+                Horarios con más casos:{" "}
+                <span className="font-semibold text-white">{horas.slice(0, 2).map(([h, n]) => `${h} a ${h + 1} hs (${n})`).join(", ")}</span>
+              </li>
+            )}
+            {pedidos.length > 0 && (
+              <li>
+                Profesional más pedido:{" "}
+                <span className="font-semibold text-violet-100">{pedidos.slice(0, 3).map(([nombre, n]) => `${nombre} (${n})`).join(", ")}</span>
+              </li>
+            )}
+          </ul>
         )}
 
         <div className="mt-3 space-y-2">
