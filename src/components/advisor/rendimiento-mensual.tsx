@@ -329,7 +329,7 @@ export function RendimientoMensual({ monthKey: controlledMonthKey }: Rendimiento
           {canCompare && (
             <p className="px-1 text-sm text-white/50">{isCurrentMonth
                 ? `Los porcentajes comparan el período del 1 al ${compDay ?? 0} de este mes con el mismo período del mes anterior.`
-                : "Los porcentajes comparan con el mes anterior completo."}</p>
+                : "Los porcentajes comparan con el mes anterior."}</p>
           )}
           {perf.pendienteDeCobro > 0 && (
             <div className="rounded-xl border border-amber-400/25 bg-amber-400/[0.06] px-4 py-3 text-sm leading-relaxed text-amber-100/90">
