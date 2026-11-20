@@ -1780,7 +1780,7 @@ function LabPrecios({
       ? `Subir ${fmtAR(aumento)} es un ${pct.toFixed(0)}% sobre ${svc?.nombre}. ${r.factores.slice(1).length > 0 ? `Pesa: ${r.factores.slice(1).join(", ")}. ` : ""}Mejor un aumento menor o en dos etapas.`
       : mensual === 0
         ? `No hay ventas cobradas de ${svc?.nombre} en los últimos 30 días para proyectar el impacto. La estimación no es confiable.`
-        : `Con ${mensual} ventas en los últimos 30 días, subir ${fmtAR(aumento)} suma hasta ${fmtAR(facturacion)} si todos siguen viniendo. ${perdibles > 0 ? `Dejaría de convenir si se pierden más de ${perdibles} ventas al mes.` : "Con tan pocas ventas no hay margen para perder clientes: si se va uno, el aumento ya no conviene."} ${r.factores.length > 1 ? `Riesgo ${riesgoLabel.toLowerCase()} por: ${r.factores.join(", ")}.` : "Depende de cuántos clientes sigan comprando al nuevo precio."}`;
+        : `Con ${mensual} ventas en los últimos 30 días, subir ${fmtAR(aumento)} suma hasta ${fmtAR(facturacion)} si todos siguen viniendo. ${perdibles > 0 ? `Dejaría de convenir si se pierden más de ${perdibles} ventas al mes.` : "Con tan pocas ventas no hay margen para perder clientes: si se va uno, el aumento ya no conviene."} Depende de cuántos clientes sigan comprando al nuevo precio.`;
 
   // Proyección del próximo mes con las mismas ventas del MES ANTERIOR completo. Si ese mes fue diciembre (alta demanda),
   // no se compara.
