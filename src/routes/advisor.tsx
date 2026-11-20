@@ -1780,7 +1780,7 @@ function LabPrecios({
       ? `Subir ${fmtAR(aumento)} es un ${pct.toFixed(0)}% sobre ${svc?.nombre}. ${r.factores.slice(1).length > 0 ? `Pesa: ${r.factores.slice(1).join(", ")}. ` : ""}Mejor un aumento menor o en dos etapas.`
       : mensual === 0
         ? `No hay ventas cobradas de ${svc?.nombre} en los últimos 30 días para proyectar el impacto. La estimación no es confiable.`
-        : `Con ${mensual} ventas en los últimos 30 días, subir ${fmtAR(aumento)} suma hasta ${fmtAR(facturacion)} si todos siguen viniendo. Dejaría de convenir si se pierden más de ${perdibles} ventas al mes. ${r.factores.length > 1 ? `Riesgo ${riesgoLabel.toLowerCase()} por: ${r.factores.join(", ")}.` : "Depende de cuántos clientes sigan comprando al nuevo precio."}`;
+        : `Con ${mensual} ventas en los últimos 30 días, subir ${fmtAR(aumento)} suma hasta ${fmtAR(facturacion)} si todos siguen viniendo. ${perdibles > 0 ? `Dejaría de convenir si se pierden más de ${perdibles} ventas al mes.` : "Con tan pocas ventas no hay margen para perder clientes: si se va uno, el aumento ya no conviene."} ${r.factores.length > 1 ? `Riesgo ${riesgoLabel.toLowerCase()} por: ${r.factores.join(", ")}.` : "Depende de cuántos clientes sigan comprando al nuevo precio."}`;
 
   // Proyección del próximo mes con las mismas ventas del MES ANTERIOR completo. Si ese mes fue diciembre (alta demanda),
   // no se compara.
@@ -1854,7 +1854,7 @@ function LabPrecios({
         <div className="mt-2 flex items-baseline justify-between gap-3 border-t border-white/10 pt-2">
           <span className="text-xs text-white/60">Punto de equilibrio</span>
           <span className="text-right text-sm font-semibold tabular-nums text-white">
-            {mensual > 0 ? `hasta ${perdibles} ${perdibles === 1 ? "venta" : "ventas"} menos al mes (${r.puntoEquilibrioPct.toFixed(1).replace(".", ",")}%)` : "sin ventas para calcular"}
+            {mensual === 0 ? "sin ventas para calcular" : perdibles === 0 ? "sin margen: pocas ventas" : `hasta ${perdibles} ${perdibles === 1 ? "venta" : "ventas"} menos al mes (${r.puntoEquilibrioPct.toFixed(1).replace(".", ",")}%)`}
           </span>
         </div>
         <p className="mt-2 text-[11px] leading-snug text-white/40">
