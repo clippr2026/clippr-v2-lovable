@@ -147,20 +147,6 @@ export function ClientesPerdidosCard({
               ))}
           </div>
         )}
-            {horas.length > 0 && (
-              <li>
-                Horarios con más casos:{" "}
-                <span className="font-semibold text-white">{horas.slice(0, 2).map(([h, n]) => `${h} a ${h + 1} hs (${n})`).join(", ")}</span>
-              </li>
-            )}
-            {pedidos.length > 0 && (
-              <li>
-                Profesional más pedido:{" "}
-                <span className="font-semibold text-violet-100">{pedidos.slice(0, 3).map(([nombre, n]) => `${nombre} (${n})`).join(", ")}</span>
-              </li>
-            )}
-          </ul>
-        )}
 
       </div>
     </div>
