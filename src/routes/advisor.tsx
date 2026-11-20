@@ -1811,7 +1811,10 @@ function LabPrecios({ data, ocupacionAtendida, seFueronPorPrecio }: { data: LabD
 
         <div className="mt-4 flex items-baseline justify-between gap-3">
           <span className="text-sm font-semibold text-white">Aumento de precio</span>
-          <span className="text-2xl font-extrabold leading-none text-cyan-200">+{fmtAR(aumento)}</span>
+          <span className="text-right leading-none">
+            <span className="block text-2xl font-extrabold text-cyan-200">+{fmtAR(aumento)}</span>
+            <span className="mt-1 block text-sm font-bold text-cyan-100/80">+{pct.toFixed(1).replace(".", ",")}%</span>
+          </span>
         </div>
         <input
           type="range"
@@ -1834,7 +1837,7 @@ function LabPrecios({ data, ocupacionAtendida, seFueronPorPrecio }: { data: LabD
             <div className="mt-0.5 text-lg font-bold tabular-nums text-white">{fmtAR(precioActual)}</div>
           </div>
           <div className="rounded-xl bg-emerald-400/10 p-2.5 ring-1 ring-emerald-300/25">
-            <div className="text-[11px] text-emerald-100/70">Nuevo precio</div>
+            <div className="text-[11px] text-emerald-100/70">Nuevo precio ({pct.toFixed(1).replace(".", ",")}% más)</div>
             <div className="mt-0.5 text-lg font-bold tabular-nums text-emerald-200">{fmtAR(precioNuevo)}</div>
           </div>
         </div>
