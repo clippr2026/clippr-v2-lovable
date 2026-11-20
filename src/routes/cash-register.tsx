@@ -12493,6 +12493,8 @@ function VentaPendienteBadge({ status }: { status: string }) {
     pendiente: { label: "Pendiente", cls: "bg-amber-400/15 text-amber-200 ring-amber-400/25" },
     parcial: { label: "Parcialmente pagado", cls: "bg-sky-400/15 text-sky-200 ring-sky-400/25" },
     cobrado: { label: "Pagado", cls: "bg-emerald-400/15 text-emerald-200 ring-emerald-400/25" },
+    anulado: { label: "Anulada", cls: "bg-white/[0.08] text-white/60 ring-white/15" },
+    reembolsado: { label: "Reembolsada", cls: "bg-white/[0.08] text-white/60 ring-white/15" },
   };
   const v = map[status] ?? map.pendiente;
   return (
