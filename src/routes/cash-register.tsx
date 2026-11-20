@@ -13058,7 +13058,7 @@ function MovimientosUnificados({
           <div className="min-w-0">
             <h3 className="text-base font-semibold text-white">Movimientos de caja</h3>
             <div className="text-xs text-white/50">
-              {all.length === 1 ? "1 movimiento hoy" : `${all.length} movimientos hoy`}
+              {loading ? "Cargando…" : all.length === 1 ? "1 movimiento hoy" : `${all.length} movimientos hoy`}
             </div>
           </div>
           {headerAction}
@@ -13513,6 +13513,7 @@ function FacturacionPanel({
         egresos={data.totalGastos}
         efectivo={summary.todayCashExpected}
         banco={summary.todayDigitalExpected}
+        loading={data.loading || summary.loading}
         onEfectivo={() => setSaldoDetalle("cash")}
         onBanco={() => setSaldoDetalle("digital")}
       />

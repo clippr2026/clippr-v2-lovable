@@ -4,6 +4,7 @@ import { TrendingUp, TrendingDown, Wallet, CreditCard } from "lucide-react";
 // "Caja de hoy": el mismo bloque que se ve en Inicio (Ingresos y Egresos, servicios realizados, productos vendidos, efectivo en
 // caja y dinero en banco), para que Caja muestre exactamente lo mismo.
 const pesos = (n: number) => `$${Math.round(n || 0).toLocaleString("es-AR")}`;
+const CARGANDO = "···";
 const egreso = (n: number) => {
   const abs = Math.abs(Math.round(n || 0));
   return abs > 0 ? `-$${abs.toLocaleString("es-AR")}` : "$0";
@@ -48,6 +49,7 @@ export function CajaHoyBloque({
   egresos,
   efectivo,
   banco,
+  loading = false,
   onEfectivo,
   onBanco,
 }: {
@@ -55,11 +57,13 @@ export function CajaHoyBloque({
   egresos: number;
   efectivo: number;
   banco: number;
+  // Mientras carga se muestra un marcador en vez de $0 (un $0 falso parece un dato real).
+  loading?: boolean;
   onEfectivo: () => void;
   onBanco: () => void;
 }) {
   return (
-    <div className="glass rounded-2xl p-4 sm:p-5 ring-1 ring-white/5">
+    <div className={`glass rounded-2xl p-4 sm:p-5 ring-1 ring-white/5 ${loading ? "animate-pulse" : ""}`}>
       <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">Caja de hoy</div>
       <div className="mt-2 grid grid-cols-2 gap-3">
         <div>
@@ -67,19 +71,19 @@ export function CajaHoyBloque({
             <TrendingUp className="h-3.5 w-3.5 text-blue-400" />
             <span className="text-xs">Ingresos</span>
           </div>
-          <div className="mt-0.5 text-xl sm:text-2xl font-display font-semibold tracking-tight">{pesos(ingresos)}</div>
+          <div className="mt-0.5 text-xl sm:text-2xl font-display font-semibold tracking-tight">{loading ? CARGANDO : pesos(ingresos)}</div>
         </div>
         <div>
           <div className="flex items-center gap-1.5 text-muted-foreground">
             <TrendingDown className="h-3.5 w-3.5 text-rose-400" />
             <span className="text-xs">Egresos</span>
           </div>
-          <div className="mt-0.5 text-xl sm:text-2xl font-display font-semibold tracking-tight">{egreso(egresos)}</div>
+          <div className="mt-0.5 text-xl sm:text-2xl font-display font-semibold tracking-tight">{loading ? CARGANDO : egreso(egresos)}</div>
         </div>
       </div>
       <div className="mt-3 grid grid-cols-2 gap-2">
-        <MiniStat icon={Wallet} label="Efectivo en caja" value={pesos(efectivo)} onClick={onEfectivo} />
-        <MiniStat icon={CreditCard} label="Dinero en banco" value={pesos(banco)} onClick={onBanco} />
+        <MiniStat icon={Wallet} label="Efectivo en caja" value={loading ? CARGANDO : pesos(efectivo)} onClick={onEfectivo} />
+        <MiniStat icon={CreditCard} label="Dinero en banco" value={loading ? CARGANDO : pesos(banco)} onClick={onBanco} />
       </div>
     </div>
   );
