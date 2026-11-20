@@ -46,17 +46,18 @@ function DeltaValue({
 }) {
   if (pct == null)
     return (
-      <span className="text-xs text-white/35">
-        {partialStart ? "Mes anterior de arranque: no se compara" : "Sin mes anterior para comparar"}
+      <span className="text-sm text-white/45">
+        {partialStart ? "Mes anterior de arranque: no se compara" : "Sin mes anterior"}
       </span>
     );
   const good = pct >= 0;
   const Icon = pct >= 0 ? TrendingUp : TrendingDown;
   return (
-    <span className={cn("inline-flex items-center gap-1 text-xs font-semibold", good ? "text-emerald-300" : "text-rose-300")}>
-      <Icon className="size-3.5" />
+    <span className={cn("inline-flex items-center gap-1 text-sm font-semibold", good ? "text-emerald-300" : "text-rose-300")}>
+      <Icon className="size-4" />
       {pct >= 0 ? "+" : "-"}
-      {pctText(pct)} {label}
+      {pctText(pct)}
+      {label ? ` ${label}` : ""}
     </span>
   );
 }
@@ -75,25 +76,25 @@ function Kpi({
   onDetail?: () => void;
 }) {
   return (
-    <div className="rounded-2xl border border-white/[0.08] bg-white/[0.03] p-3.5 sm:p-4">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-white/45">{label}</div>
+    <div className="rounded-2xl border border-white/10 bg-white/[0.03] p-3.5 [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(79,125,255,0.14),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.1),transparent_65%)]">
+      <div className="text-sm text-white/60">{label}</div>
       <div
         className={cn(
-          "mt-1 font-display text-xl font-semibold tabular-nums sm:text-2xl",
+          "mt-0.5 font-display text-2xl font-semibold tabular-nums",
           tone === "pos" ? "text-emerald-300" : tone === "neg" ? "text-rose-300" : "text-white",
         )}
       >
         {value}
       </div>
-      {sub && <div className="mt-0.5 text-[11px] text-white/45">{sub}</div>}
+      {sub && <div className="mt-0.5 text-sm text-white/55">{sub}</div>}
       {onDetail && (
         <button
           type="button"
           onClick={onDetail}
-          className="mt-2 inline-flex items-center gap-1 text-[11px] font-semibold text-sky-300 transition hover:text-sky-200"
+          className="mt-2 inline-flex touch-manipulation items-center gap-1 text-sm font-semibold text-sky-300"
         >
           Ver detalles
-          <ChevronRight className="size-3" />
+          <ChevronRight className="size-4" />
         </button>
       )}
     </div>
@@ -117,7 +118,7 @@ function MargenInfoButton({ open, onToggle }: { open: boolean; onToggle: () => v
 
 function MargenInfoTexto() {
   return (
-    <div className="mt-2 rounded-2xl border border-white/[0.08] bg-white/[0.03] px-3.5 py-3 text-xs leading-relaxed text-white/70">
+    <div className="mt-2 rounded-2xl border border-white/10 bg-white/[0.03] px-3.5 py-3 text-sm leading-relaxed text-white/75">
       <b className="text-white">Margen:</b> de cada $100 que facturás, cuánto te queda de ganancia después de pagar los gastos y a los
       profesionales. Con 30%, de cada $100 te quedan $30.
       <div className="mt-2 text-white/50">
@@ -265,65 +266,52 @@ export function RendimientoMensual({ monthKey: controlledMonthKey }: Rendimiento
       ) : (
         <>
           {/* Ganancia — el número principal del mes */}
-          <div className="relative overflow-hidden rounded-[1.75rem] border border-emerald-300/25 bg-white/[0.025] p-5 shadow-[0_0_0_1px_rgba(16,185,129,0.12),0_30px_100px_-50px_rgba(45,212,191,0.9)] sm:p-6">
-            <div className="text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-200/80">Ganancia del mes</div>
-            <div
-              className={cn(
-                "mt-1 font-display text-4xl font-semibold tabular-nums sm:text-5xl",
-                perf.ganancia >= 0 ? "text-emerald-300" : "text-rose-300",
-              )}
-            >
+          <div className="relative overflow-hidden rounded-2xl border border-emerald-300/25 bg-white/[0.03] p-4 shadow-[0_0_40px_-20px_rgba(45,212,191,0.8)] [background-image:radial-gradient(110%_90%_at_100%_0%,rgba(16,185,129,0.14),transparent_62%),radial-gradient(90%_80%_at_0%_100%,rgba(139,92,246,0.1),transparent_65%)]">
+            <div className="text-sm text-white/60">Ganancia del mes</div>
+            <div className={cn("font-display text-4xl font-semibold tabular-nums", perf.ganancia >= 0 ? "text-emerald-300" : "text-rose-300")}>
               {money(perf.ganancia)}
             </div>
-            <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
-              <DeltaValue pct={canCompare ? variationPct(perfCmp!.ganancia, comparable!.ganancia) : null} label={vsLabel} partialStart={prevIsStart} />
+            <div className="mt-1">
+              <DeltaValue pct={canCompare ? variationPct(perfCmp!.ganancia, comparable!.ganancia) : null} label="" partialStart={prevIsStart} />
             </div>
             {perf.margen != null && (
-              <div className="mt-4 flex items-center justify-between gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.03] px-3.5 py-2.5 text-sm">
-                <span className="flex items-center gap-2 text-white/60">
+              <div className="mt-3 flex items-center justify-between gap-3 rounded-xl bg-white/[0.04] px-3.5 py-2.5 ring-1 ring-white/10">
+                <span className="flex items-center gap-2 text-sm text-white/70">
                   Margen
                   <MargenInfoButton open={margenInfo} onToggle={() => setMargenInfo((v) => !v)} />
                 </span>
-                <span className="flex flex-wrap items-center justify-end gap-x-3 gap-y-0.5">
-                  {canCompare && comparable!.margen != null && perfCmp!.margen != null ? (
-                    <span
-                      className={cn(
-                        "inline-flex items-center gap-1 text-xs font-semibold",
-                        (perfCmp!.margen ?? 0) - comparable!.margen >= 0 ? "text-emerald-300" : "text-rose-300",
-                      )}
-                    >
-                      {(perfCmp!.margen ?? 0) - comparable!.margen >= 0 ? <TrendingUp className="size-3.5" /> : <TrendingDown className="size-3.5" />}
+                <span className="flex items-center gap-3">
+                  {canCompare && comparable!.margen != null && perfCmp!.margen != null && (
+                    <span className={cn("text-sm font-semibold", (perfCmp!.margen ?? 0) - comparable!.margen >= 0 ? "text-emerald-300" : "text-rose-300")}>
                       {(perfCmp!.margen ?? 0) - comparable!.margen >= 0 ? "+" : "-"}
-                      {Math.abs((perfCmp!.margen ?? 0) - comparable!.margen).toFixed(1).replace(".", ",")} pts {vsLabel}
+                      {Math.abs((perfCmp!.margen ?? 0) - comparable!.margen).toFixed(1).replace(".", ",")} pts
                     </span>
-                  ) : prevIsStart ? null : (
-                    <span className="text-xs text-white/35">Sin mes anterior para comparar</span>
                   )}
-                  <b className="tabular-nums text-white">{perf.margen < 0 ? "−" : ""}{pctText(perf.margen)}</b>
+                  <b className="text-xl tabular-nums text-white">{perf.margen < 0 ? "−" : ""}{pctText(perf.margen)}</b>
                 </span>
               </div>
             )}
             {margenInfo && <MargenInfoTexto />}
           </div>
 
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3">
             <Kpi
               label="Facturación"
               value={money(perf.facturacion)}
-              sub={<DeltaValue pct={canCompare ? variationPct(perfCmp!.facturacion, comparable!.facturacion) : null} label={vsLabel} partialStart={prevIsStart} />}
+              sub={<DeltaValue pct={canCompare ? variationPct(perfCmp!.facturacion, comparable!.facturacion) : null} label="" partialStart={prevIsStart} />}
               onDetail={() => abrirDetalle("facturacion")}
             />
             <Kpi
               label="Gastos"
               value={money(perf.gastosTotal)}
-              sub={perf.devolucionesSena > 0 ? `No incluye ${money(perf.devolucionesSena)} de devoluciones de señas` : undefined}
+              sub={perf.devolucionesSena > 0 ? `Sin ${money(perf.devolucionesSena)} de señas devueltas` : undefined}
               onDetail={() => abrirDetalle("gastos")}
             />
-            <Kpi label="Pago a profesionales" value={money(perf.pagoProfesionales)} onDetail={() => abrirDetalle("profesionales")} />
+            <Kpi label="A profesionales" value={money(perf.pagoProfesionales)} onDetail={() => abrirDetalle("profesionales")} />
             <Kpi
               label="Ventas"
               value={perf.ventas.toLocaleString("es-AR")}
-              sub={<DeltaValue pct={canCompare ? variationPct(perfCmp!.ventas, comparable!.ventas) : null} label={vsLabel} partialStart={prevIsStart} />}
+              sub={<DeltaValue pct={canCompare ? variationPct(perfCmp!.ventas, comparable!.ventas) : null} label="" partialStart={prevIsStart} />}
               onDetail={() => abrirDetalle("ventas")}
             />
             <Kpi label="Ticket promedio" value={money(perf.ticket)} onDetail={() => abrirDetalle("ticket")} />
@@ -338,10 +326,12 @@ export function RendimientoMensual({ monthKey: controlledMonthKey }: Rendimiento
             vsLabel={vsLabel}
           />
 
+          {canCompare && (
+            <p className="px-1 text-sm text-white/50">Los porcentajes comparan {vsLabel.replace(/^vs /, "con ")}.</p>
+          )}
           {perf.pendienteDeCobro > 0 && (
-            <div className="rounded-xl border border-amber-400/25 bg-amber-400/[0.06] px-4 py-2.5 text-xs text-amber-100/85">
-              La facturación incluye <b>{money(perf.pendienteDeCobro)}</b> de ventas de este mes todavía sin cobrar. Cuando se
-              cobren, siguen contando en este mes.
+            <div className="rounded-xl border border-amber-400/25 bg-amber-400/[0.06] px-4 py-3 text-sm leading-relaxed text-amber-100/90">
+              Incluye <b>{money(perf.pendienteDeCobro)}</b> de ventas todavía sin cobrar.
             </div>
           )}
         </>
@@ -351,7 +341,7 @@ export function RendimientoMensual({ monthKey: controlledMonthKey }: Rendimiento
           type="button"
           onClick={exportPdf}
           disabled={!perf?.hasData}
-          className="inline-flex items-center gap-2 rounded-xl border border-white/10 bg-white/[0.05] px-3.5 py-2 text-sm font-semibold text-white/85 transition hover:bg-white/[0.09] disabled:opacity-40"
+          className="inline-flex h-11 touch-manipulation items-center gap-2 rounded-full border border-white/12 bg-white/[0.05] px-5 text-sm font-semibold text-white/85 disabled:opacity-40"
         >
           <Download className="size-4" />
           Exportar PDF

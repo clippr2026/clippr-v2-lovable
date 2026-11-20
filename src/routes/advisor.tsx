@@ -387,18 +387,9 @@ function AdvisorContent({
           {/* Mismo fix que Salud del negocio: overflow-hidden contiene el
               glow decorativo (-inset-x-6) para que no fuerce scroll
               horizontal en toda la página. */}
-          <div className="relative overflow-hidden rounded-[1.7rem] border border-sky-300/[0.30] bg-white/[0.018] p-2.5 pt-4 shadow-[0_0_0_1px_rgba(56,189,248,0.16),0_24px_90px_-42px_rgba(14,165,233,0.9)] sm:p-3 sm:pt-5">
-            <div className="pointer-events-none absolute -inset-x-6 -top-8 h-24 rounded-full bg-sky-400/[0.16] [-webkit-mask-image:radial-gradient(closest-side,#000,transparent)] [mask-image:radial-gradient(closest-side,#000,transparent)]" />
-            <div className="flex items-center gap-4 mb-3">
-              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/25 to-transparent" />
-              <span className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-1.5 text-[11px] font-semibold uppercase tracking-[0.25em] text-white/60">
-                Evolución del negocio
-              </span>
-              <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
-            </div>
-            <div className="px-0.5 pb-1 pt-1 sm:px-1">
-              <RendimientoMensual monthKey={selectedMonthKey} />
-            </div>
+          <div className={VENTANA_CLIPPR}>
+            <h2 className={cn(TITULO_CLIPPR, "mb-2.5 px-1")}>Evolución del negocio</h2>
+            <RendimientoMensual monthKey={selectedMonthKey} />
           </div>
           {/* /Evolución */}
 
