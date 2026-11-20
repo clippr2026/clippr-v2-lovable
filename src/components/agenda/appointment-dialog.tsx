@@ -39,6 +39,7 @@ import {
 import { ServiceImage } from "@/components/ui/service-image";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { EnviarAvisoCliente } from "@/components/agenda/enviar-aviso-cliente";
+import { confirmarClippr } from "@/components/ui/dialogos-clippr";
 import { claveTelefono, emailValido, limpiarTelefono, telefonoValido } from "@/lib/contacto-valido";
 import {
   type RepeatWeekday,
@@ -971,6 +972,23 @@ export function AppointmentDialog({
             if (isSeries) {
               failedDates.push({ date, reason });
               continue;
+            }
+            // El turno nuevo empieza ANTES que el otro y solo lo pisa al final: se ofrece acortar la duración para que
+            // termine cuando empieza el otro (en vez de obligar a mover el otro turno o cambiar la duración a mano).
+            const conflictStart = new Date(conflict.starts_at);
+            const huecoMin = Math.floor((conflictStart.getTime() - date.getTime()) / 60_000);
+            if (!isSeries && conflictStart.getTime() > date.getTime() && huecoMin >= 15) {
+              setBusy(false);
+              const acortar = await confirmarClippr({
+                titulo: "Ese horario se pisa con otro turno",
+                texto: `${conflict.client_name ? `${conflict.client_name} tiene` : "Hay"} un turno a las ${conflictTime}. ¿Acortás este turno a ${huecoMin} min para que termine justo cuando empieza ese?`,
+                confirmar: "Acortar duración",
+              });
+              if (acortar) {
+                setDuration(huecoMin);
+                toast.success(`Duración ajustada a ${huecoMin} min. Tocá Guardar para confirmar.`);
+              }
+              return;
             }
             toast.error(`Este profesional ya tiene un turno en ese horario (${conflictTime}${conflict.client_name ? ` · ${conflict.client_name}` : ""}).`);
             setBusy(false);
