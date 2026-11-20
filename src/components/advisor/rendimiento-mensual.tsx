@@ -39,10 +39,13 @@ function DeltaValue({
   pct,
   label = "vs mes anterior",
   partialStart = false,
+  masEsMalo = false,
 }: {
   pct: number | null;
   label?: string;
   partialStart?: boolean;
+  /** En los gastos, subir es malo: la flecha hacia arriba va en rojo. */
+  masEsMalo?: boolean;
 }) {
   if (pct == null)
     return (
@@ -50,7 +53,7 @@ function DeltaValue({
         {partialStart ? "Mes anterior de arranque: no se compara" : "Sin mes anterior"}
       </span>
     );
-  const good = pct >= 0;
+  const good = masEsMalo ? pct <= 0 : pct >= 0;
   const Icon = pct >= 0 ? TrendingUp : TrendingDown;
   return (
     <span className={cn("inline-flex items-center gap-1 text-sm font-semibold", good ? "text-emerald-300" : "text-rose-300")}>
@@ -304,7 +307,12 @@ export function RendimientoMensual({ monthKey: controlledMonthKey }: Rendimiento
             <Kpi
               label="Gastos"
               value={money(perf.gastosTotal)}
-              sub={perf.devolucionesSena > 0 ? `Sin ${money(perf.devolucionesSena)} de señas devueltas` : undefined}
+              sub={
+                <>
+                  <DeltaValue pct={canCompare ? variationPct(perfCmp!.gastosTotal, comparable!.gastosTotal) : null} label="" partialStart={prevIsStart} masEsMalo />
+                  {perf.devolucionesSena > 0 && <div className="mt-0.5">Sin {money(perf.devolucionesSena)} de señas devueltas</div>}
+                </>
+              }
               onDetail={() => abrirDetalle("gastos")}
             />
             <Kpi label="A profesionales" value={money(perf.pagoProfesionales)} onDetail={() => abrirDetalle("profesionales")} />
