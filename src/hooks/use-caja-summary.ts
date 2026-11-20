@@ -69,9 +69,9 @@ function pendingCierresCacheKey(businessId: string | null, branchId: string | nu
   return `${businessId ?? ""}:${branchId ?? ""}`;
 }
 
-// Un cobro parcial de una venta que después se anuló no es plata real: no suma en la caja.
+// Un cobro parcial de una venta que después se anuló, o uno de fondos externos, no es plata de la caja: no suma.
 // (Sigue en la lista de movimientos, rotulado "Anulada".)
-const cobroVigente = (c: PaymentCollectionRow) => !isVoidedPaymentStatus(c.payments?.status);
+const cobroVigente = (c: PaymentCollectionRow) => !isVoidedPaymentStatus(c.payments?.status) && c.funds_source !== "externo";
 
 export type CajaSummary = {
   loading: boolean;
@@ -314,7 +314,7 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
     let collQuery = supabase
       .from("payment_collections")
       .select(
-        "id,payment_id,amount,method,branch_id,collected_at,collected_by_name,payments(client_name,service_name,employee_id,total,amount,collected_amount,status,created_at)",
+        "id,payment_id,amount,method,branch_id,collected_at,collected_by_name,funds_source,payments(client_name,service_name,employee_id,total,amount,collected_amount,status,created_at)",
       )
       .eq("business_id", businessId)
       .gte("collected_at", dayStart.toISOString())
@@ -400,6 +400,7 @@ export function useCajaSummary(businessId: string | null, branchId: string | nul
         branch_id: (row.branch_id as string | null) ?? null,
         collected_at: String(row.collected_at),
         collected_by_name: (row.collected_by_name as string | null) ?? null,
+        funds_source: (row.funds_source as string | null) ?? null,
         payments: Array.isArray(row.payments) ? (row.payments[0] ?? null) : (row.payments as PaymentCollectionRow["payments"]) ?? null,
       }),
     );

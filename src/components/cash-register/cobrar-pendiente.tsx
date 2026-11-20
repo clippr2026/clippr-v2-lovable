@@ -188,6 +188,8 @@ export async function collectPendingPayment(input: {
   observations?: string | null;
   receiptPath?: string | null;
   idempotencyKey?: string | null;
+  // 'externo': cuenta como venta pero no suma al efectivo ni al dinero en cuenta de la caja.
+  fundsSource?: "caja" | "externo";
 }): Promise<{
   payment_collection_id: string;
   payment_id: string;
@@ -206,6 +208,7 @@ export async function collectPendingPayment(input: {
     p_observations: input.observations ?? null,
     p_collected_by_name: input.collectedByName ?? null,
     p_idempotency_key: input.idempotencyKey ?? null,
+    p_funds_source: input.fundsSource ?? "caja",
   });
   if (error) throw new Error(error.message || "No se pudo registrar el cobro");
   const row = Array.isArray(data) ? data[0] : data;
@@ -333,6 +336,7 @@ function CollectForm({
   const saldo = Math.max(0, debt.total - debt.collected_amount);
   const [amountStr, setAmountStr] = React.useState(String(Math.round(saldo)));
   const [method, setMethod] = React.useState<PayMethod>("cash");
+  const [fundsSource, setFundsSource] = React.useState<"caja" | "externo">("caja");
   const [observations, setObservations] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
   const idempotencyKeyRef = React.useRef<string>(crypto.randomUUID());
@@ -362,6 +366,7 @@ function CollectForm({
         observations: observations.trim() || null,
         receiptPath: null,
         idempotencyKey: idempotencyKeyRef.current,
+        fundsSource,
       });
       toast.success(
         result.new_status === "cobrado"
@@ -454,6 +459,35 @@ function CollectForm({
             </button>
           ))}
         </div>
+      </div>
+
+      <div>
+        <p className="mb-1.5 text-sm font-semibold text-white">Dinero en</p>
+        <div className="grid grid-cols-2 gap-1.5">
+          {(
+            [
+              ["caja", "Caja"],
+              ["externo", "Fondos externos"],
+            ] as const
+          ).map(([id, label]) => (
+            <button
+              key={id}
+              type="button"
+              onClick={() => setFundsSource(id)}
+              className={cn(
+                "h-11 rounded-full border px-2 text-sm font-semibold transition",
+                fundsSource === id
+                  ? "border-violet-400/50 bg-violet-500/20 text-violet-100"
+                  : "border-white/10 bg-white/[0.04] text-white/60 hover:bg-white/[0.08]",
+              )}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+        {fundsSource === "externo" && (
+          <p className="mt-1.5 text-xs text-white/55">Cuenta como venta, pero no suma al efectivo ni al dinero en cuenta de la caja.</p>
+        )}
       </div>
 
       <div>

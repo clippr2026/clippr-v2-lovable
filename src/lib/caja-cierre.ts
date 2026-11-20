@@ -772,7 +772,7 @@ export async function buildCierreSnapshotForDate(
   // solo entra lo que se cobró (ver isCountableCajaPayment).
   let collQuery = supabase
     .from("payment_collections")
-    .select("id,payment_id,amount,method,collected_at,payments(status)")
+    .select("id,payment_id,amount,method,collected_at,funds_source,payments(status)")
     .eq("business_id", businessId)
     .gte("collected_at", dayStart.toISOString())
     .lte("collected_at", dayEnd.toISOString());
@@ -810,10 +810,14 @@ export async function buildCierreSnapshotForDate(
   // Solo las ventas que de verdad entraron a caja suman en el cierre: una
   // venta 'pendiente'/'parcial' se muestra aparte, con su estado.
   const pagosPendientes = allPayments.filter((p) => !isCountableCajaPayment(p.status));
-  // Un cobro parcial de una venta anulada no es plata real: no suma en el cierre.
+  // Un cobro parcial de una venta anulada, o uno de fondos externos, no es plata de la caja: no suma en el cierre.
   const collections = (
     collRes.status === "fulfilled" && !collRes.value.error ? ((collRes.value.data ?? []) as any[]) : []
-  ).filter((c) => !isVoidedPaymentStatus(Array.isArray(c.payments) ? c.payments[0]?.status : c.payments?.status));
+  ).filter(
+    (c) =>
+      c.funds_source !== "externo" &&
+      !isVoidedPaymentStatus(Array.isArray(c.payments) ? c.payments[0]?.status : c.payments?.status),
+  );
   const viaCobros = collectionPaymentIdSet(collections);
   const payments = allPayments.filter((p) => isCountableCajaPayment(p.status) && !viaCobros.has(String(p.id)));
   const expenses =

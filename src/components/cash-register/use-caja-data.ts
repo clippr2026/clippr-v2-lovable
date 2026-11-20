@@ -255,6 +255,8 @@ export type PaymentCollectionRow = {
   branch_id: string | null;
   collected_at: string;
   collected_by_name?: string | null;
+  // 'externo': cobro que no pasó por la caja (no suma al efectivo ni al dinero en cuenta).
+  funds_source?: string | null;
   // Snapshot de la venta original (embed vía FK) — incluye total/
   // collected_amount/status para poder armar la fila agrupada "venta +
   // cobros de hoy" sin una segunda consulta, aunque la venta sea de un día
