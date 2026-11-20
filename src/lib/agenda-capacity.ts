@@ -92,12 +92,12 @@ function cutInterval(intervals: Array<[number, number]>, s: number, e: number): 
   return out;
 }
 
-// Minutos efectivos de atención de un día ya resuelto: horario − descansos − bloqueos.
-export function dayWorkMinutes(day: DaySchedule | null, blocks: ReadonlyArray<{ startMin: number; endMin: number }> = []): number {
-  if (!day || day.enabled === false) return 0;
+// Tramos (minutos desde las 00:00) en que se atiende un día ya resuelto: horario − descansos − bloqueos.
+export function dayWorkIntervals(day: DaySchedule | null, blocks: ReadonlyArray<{ startMin: number; endMin: number }> = []): Array<[number, number]> {
+  if (!day || day.enabled === false) return [];
   const open = parseTimeStrict(day.start);
   const close = parseTimeStrict(day.end);
-  if (open === null || close === null || close <= open) return 0;
+  if (open === null || close === null || close <= open) return [];
   const breaks =
     day.breaks && day.breaks.length > 0
       ? day.breaks
@@ -114,7 +114,12 @@ export function dayWorkMinutes(day: DaySchedule | null, blocks: ReadonlyArray<{ 
   for (const bl of blocks) {
     if (bl.endMin > bl.startMin) intervals = cutInterval(intervals, bl.startMin, bl.endMin);
   }
-  return Math.max(0, intervals.reduce((s, [a, b]) => s + (b - a), 0));
+  return intervals;
+}
+
+// Minutos efectivos de atención de un día ya resuelto: horario − descansos − bloqueos.
+export function dayWorkMinutes(day: DaySchedule | null, blocks: ReadonlyArray<{ startMin: number; endMin: number }> = []): number {
+  return Math.max(0, dayWorkIntervals(day, blocks).reduce((s, [a, b]) => s + (b - a), 0));
 }
 
 export type SoldServiceLine = { name: string; qty: number };
@@ -248,20 +253,21 @@ export function computeCapacity({ ctx, employeeIds, monthKey, cutoffDay, fromDay
 export function dailySlotsForEmployee(
   { ctx, monthKey, cutoffDay, fromDay, blocks = [], slotMinutesByEmployee }: Omit<CapacityInput, "employeeIds">,
   empId: string,
-): Array<{ dateKey: string; slots: number; minutes: number }> {
+): Array<{ dateKey: string; slots: number; minutes: number; intervals: Array<[number, number]> }> {
   const [y, m] = monthKey.split("-").map(Number);
   const lastDay = new Date(y, m, 0).getDate();
   const until = Math.min(Math.max(cutoffDay, 0), lastDay);
   const slot = Math.max(10, slotMinutesByEmployee[empId] ?? DEFAULT_SLOT_MINUTES);
-  const out: Array<{ dateKey: string; slots: number; minutes: number }> = [];
+  const out: Array<{ dateKey: string; slots: number; minutes: number; intervals: Array<[number, number]> }> = [];
   for (let d = Math.max(1, fromDay ?? 1); d <= until; d += 1) {
     const date = new Date(y, m - 1, d, 12, 0, 0);
     const day = resolveDaySchedule(ctx.businessSchedule, ctx.employeeSchedules, ctx.businessSpecial, ctx.employeeSpecial, empId, date);
     const dateKey = `${monthKey}-${String(d).padStart(2, "0")}`;
     const dayBlocks = blocks.filter((b) => b.employeeId === empId && b.dateKey === dateKey);
-    const minutes = dayWorkMinutes(day, dayBlocks);
+    const intervals = dayWorkIntervals(day, dayBlocks);
+    const minutes = Math.max(0, intervals.reduce((acc, [a, b]) => acc + (b - a), 0));
     if (minutes <= 0) continue;
-    out.push({ dateKey, slots: Math.floor(minutes / slot), minutes });
+    out.push({ dateKey, slots: Math.floor(minutes / slot), minutes, intervals });
   }
   return out;
 }

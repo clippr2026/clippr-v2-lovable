@@ -41,6 +41,8 @@ const MIN_DAYS_TO_JUDGE = 7;
 // Debajo de este % de la facturación en productos, el Radar lo marca como oportunidad (valor a ajustar con el negocio).
 const PRODUCT_TARGET_PCT = 5;
 
+export type Franja = { dow: number; hour: number; disponible: number; agendado: number; atendido: number };
+
 export type AdvisorMonthSnapshot = {
   monthKey: string; // "2026-06"
   monthLabel: string; // "Junio 2026"
@@ -69,6 +71,8 @@ export type AdvisorMonthSnapshot = {
   minutesAvailable: number;
   /** Ocupación agendada (tiempo reservado sobre el disponible, con tope por profesional y día); null sin horarios. */
   agendadaPct: number | null;
+  /** Ocupación por franja (día de la semana y hora): minutos disponibles, reservados y atendidos, con tope por profesional y hora. */
+  franjas: Franja[];
   // Ocupación de cada profesional activo: servicios vendidos contra SU capacidad.
   employeeLoad: Array<{ id: string; name: string; used: number; capacity: number; daysWorked: number; daysFull: number }>;
   // Fechas trabajadas del período por día de la semana (0 = domingo): los días cerrados no figuran.
@@ -373,6 +377,7 @@ function buildMonthSnapshot(
   const usedByEmployee = new Map<string, number>();
   const soldLinesByEmployee = new Map<string, Array<{ name: string; qty: number }>>();
   const usedByEmployeeDay = new Map<string, number>();
+  const cobrosPorProfesional: Array<{ empId: string; dateKey: string; endMin: number; entries: Array<{ name: string; qty: number }> }> = [];
   let servicesSold = 0;
   for (const p of monthPayments) {
     const lines = Array.isArray(p.items) ? p.items.filter((it) => it && !it.is_catalog) : [];
@@ -391,6 +396,8 @@ function buildMonthSnapshot(
       usedByEmployee.set(p.employee_id, (usedByEmployee.get(p.employee_id) ?? 0) + qtyTotal);
       const diaKey = `${p.employee_id}|${new Date(p.created_at).toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" })}`;
       usedByEmployeeDay.set(diaKey, (usedByEmployeeDay.get(diaKey) ?? 0) + qtyTotal);
+      const parteCobro = baParts(p.created_at);
+      cobrosPorProfesional.push({ empId: p.employee_id, dateKey: parteCobro.dateKey, endMin: parteCobro.min, entries: entries.filter((e) => e.name) });
       const todas = soldLinesByEmployee.get(p.employee_id) ?? [];
       todas.push(...entries);
       soldLinesByEmployee.set(p.employee_id, todas);
@@ -444,6 +451,7 @@ function buildMonthSnapshot(
   };
   // Los topes se aplican por profesional y por día ANTES de sumar el local: lo que un profesional atiende o reserva de
   // más no tapa los huecos de otro (ver src/lib/ocupacion.ts).
+  const franjasMapa = new Map<string, Franja>();
   let usedCappedTotal = 0;
   let reservadoTope = 0;
   let disponibleMinutos = 0;
@@ -452,6 +460,47 @@ function buildMonthSnapshot(
       { ctx: capacityData.ctx, monthKey, cutoffDay, fromDay, blocks, slotMinutesByEmployee },
       e.id,
     );
+    // Ocupación por franja (día de la semana × hora) de este profesional.
+    const cobrosEmp = cobrosPorProfesional.filter((c) => c.empId === e.id);
+    for (const d of porDia) {
+      const horaDisponible = new Array<number>(24).fill(0);
+      const horaReservado = new Array<number>(24).fill(0);
+      const horaAtendido = new Array<number>(24).fill(0);
+      const repartir = (acum: number[], ini: number, fin: number) => {
+        for (let h = Math.floor(Math.max(0, ini) / 60); h < 24 && h * 60 < fin; h += 1) {
+          const solape = Math.min(fin, (h + 1) * 60) - Math.max(ini, h * 60);
+          if (solape > 0) acum[h] += solape;
+        }
+      };
+      for (const [a, b] of d.intervals) repartir(horaDisponible, a, b);
+      // Reservas del día (rangos unidos, en minutos desde las 00:00).
+      const rangos = (reservadoPorDia.get(`${e.id}|${d.dateKey}`) ?? [])
+        .map(([ini, fin]) => [baParts(new Date(ini).toISOString()).min, Math.min(1440, baParts(new Date(fin).toISOString()).min || 1440)] as [number, number])
+        .filter(([ini, fin]) => fin > ini)
+        .sort((x, y) => x[0] - y[0]);
+      let finPrevio = -Infinity;
+      for (const [ini, fin] of rangos) {
+        const desde = Math.max(ini, finPrevio);
+        if (fin > desde) repartir(horaReservado, desde, fin);
+        finPrevio = Math.max(finPrevio, fin);
+      }
+      // Servicios cobrados: cada uno ocupó su duración hasta el momento del cobro.
+      for (const c of cobrosEmp) {
+        if (c.dateKey !== d.dateKey) continue;
+        const dur = soldMinutesForEmployee(e.id, c.entries, capacityData.catalog, capacityData.ctx.serviceOverrides, slotMinutesByEmployee[e.id] ?? DEFAULT_SLOT_MINUTES);
+        repartir(horaAtendido, c.endMin - dur, c.endMin);
+      }
+      const dow = new Date(`${d.dateKey}T12:00:00`).getDay();
+      for (let h = 0; h < 24; h += 1) {
+        if (horaDisponible[h] <= 0) continue;
+        const k = `${dow}|${h}`;
+        const f = franjasMapa.get(k) ?? { dow, hour: h, disponible: 0, agendado: 0, atendido: 0 };
+        f.disponible += horaDisponible[h];
+        f.agendado += Math.min(horaReservado[h], horaDisponible[h]);
+        f.atendido += Math.min(horaAtendido[h], horaDisponible[h]);
+        franjasMapa.set(k, f);
+      }
+    }
     let usedCapped = 0;
     for (const d of porDia) {
       usedCapped += Math.min(usedByEmployeeDay.get(`${e.id}|${d.dateKey}`) ?? 0, d.slots);
@@ -513,6 +562,7 @@ function buildMonthSnapshot(
     totalSlots,
     usedSlots: used,
     agendadaPct,
+    franjas: [...franjasMapa.values()],
     employeeLoad,
     openDatesByDow,
     openHours,

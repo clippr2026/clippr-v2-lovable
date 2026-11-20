@@ -1,56 +1,76 @@
 import { describe, expect, it } from "vitest";
-import { evaluarDecisiones } from "./decisiones-negocio";
+import { evaluarDecisiones, type DecisionesInput } from "./decisiones-negocio";
 
-const base = {
+const profes = [
+  { name: "Alan", used: 56, capacity: 100 },
+  { name: "Franco", used: 35, capacity: 100 },
+];
+const base: DecisionesInput = {
   ocupacion: 47,
-  profesionales: [
-    { name: "Alan", used: 56, capacity: 100 },
-    { name: "Franco", used: 35, capacity: 100 },
-  ],
-  seFueronPorLugar: 1,
+  profesionales: profes,
+  seFueronPorLugarFranjas: [],
   masPedido: null,
-  franjaConMasCasos: { dia: "miércoles", hora: 19 },
+  franjaConMasCasos: { dia: "jueves", hora: 18 },
 };
 const get = (d: ReturnType<typeof evaluarDecisiones>, k: string) => d.find((x) => x.clave === k)!;
+// jueves = 4. Franja de 18 a 19 hs con 600 minutos disponibles en el mes.
+const franjaJueves18 = (agendado: number, atendido: number) => ({ dow: 4, hour: 18, disponible: 600, agendado, atendido });
+const casos = (n: number, dow = 4, hour = 18) => Array.from({ length: n }, () => ({ dow, hour }));
 
-describe("decisiones del negocio", () => {
-  it("con la agenda al 47% no hay que contratar ni subir precios todavía", () => {
-    const d = evaluarDecisiones(base);
+describe("¿Necesitás más capacidad de atención?", () => {
+  it("el título cambió", () => {
+    expect(get(evaluarDecisiones(base), "contratar").titulo).toBe("¿Necesitás más capacidad de atención?");
+  });
+  it("con la agenda al 47% en el mes pero una franja llena donde se fueron clientes: reforzar esa franja, no descartar", () => {
+    const d = evaluarDecisiones({ ...base, seFueronPorLugarFranjas: casos(3), franjas: [franjaJueves18(540, 300)] });
+    const c = get(d, "contratar");
+    expect(c.estado).toBe("si");
+    expect(c.respuesta).toBe("Reforzá una franja");
+    expect(c.detalle).toContain("jueves de 18 a 19 hs");
+    expect(c.detalle).toContain("90% agendada y 50% atendida");
+    expect(c.detalle).toContain("no hace falta sumar a alguien fijo");
+  });
+  it("lo atendido (clientes sin turno) también hace que una franja cuente como llena", () => {
+    const c = get(evaluarDecisiones({ ...base, seFueronPorLugarFranjas: casos(2), franjas: [franjaJueves18(100, 540)] }), "contratar");
+    expect(c.estado).toBe("si");
+    expect(c.detalle).toContain("90% atendida");
+  });
+  it("si se repite en varias franjas llenas: sumar capacidad", () => {
+    const d = evaluarDecisiones({
+      ...base,
+      seFueronPorLugarFranjas: [...casos(2, 4, 18), ...casos(2, 3, 19), ...casos(2, 5, 17)],
+      franjas: [franjaJueves18(560, 0), { dow: 3, hour: 19, disponible: 600, agendado: 560, atendido: 0 }, { dow: 5, hour: 17, disponible: 600, agendado: 560, atendido: 0 }],
+    });
+    expect(get(d, "contratar").respuesta).toBe("Sí, sumar capacidad");
+  });
+  it("clientes que se fueron en una franja con tiempo libre: revisar los horarios, no contratar", () => {
+    const c = get(evaluarDecisiones({ ...base, seFueronPorLugarFranjas: casos(3), franjas: [franjaJueves18(150, 90)] }), "contratar");
+    expect(c.estado).toBe("info");
+    expect(c.respuesta).toBe("Revisá horarios");
+    expect(c.detalle).toContain("Había tiempo libre");
+  });
+  it("con pocos clientes que se fueron avisa que son pocos datos", () => {
+    expect(get(evaluarDecisiones({ ...base, seFueronPorLugarFranjas: casos(1) }), "contratar").respuesta).toBe("Pocos datos");
+  });
+  it("muchos días llenos sin clientes que se fueron: cerca, sin un porcentaje fijo", () => {
+    const d = evaluarDecisiones({
+      ...base,
+      profesionales: [
+        { name: "Alan", used: 60, capacity: 100, daysWorked: 20, daysFull: 10 },
+        { name: "Franco", used: 56, capacity: 100, daysWorked: 20, daysFull: 8 },
+      ],
+    });
+    expect(get(d, "contratar").estado).toBe("cerca");
+  });
+  it("la ocupación alta del mes por sí sola ya no decide", () => {
+    const d = evaluarDecisiones({ ...base, ocupacion: 92 });
     expect(get(d, "contratar").estado).toBe("no");
     expect(get(d, "precios").estado).toBe("no");
   });
-  it("con 80% o más: sí a contratar y sí a subir precios", () => {
-    const d = evaluarDecisiones({ ...base, ocupacion: 85 });
-    expect(get(d, "contratar").estado).toBe("si");
-    expect(get(d, "precios").estado).toBe("si");
-  });
-  it("entre 65% y 79% con clientes que se fueron por lugar: contratar está cerca", () => {
-    const d = evaluarDecisiones({ ...base, ocupacion: 72, seFueronPorLugar: 5 });
-    expect(get(d, "contratar").estado).toBe("cerca");
-    expect(get(d, "precios").estado).toBe("cerca");
-  });
-  it("entre 65% y 79% sin clientes que se van por lugar: todavía no contratar", () => {
-    expect(get(evaluarDecisiones({ ...base, ocupacion: 72, seFueronPorLugar: 1 }), "contratar").estado).toBe("no");
-  });
-  it("un profesional al 80% con clientes que lo piden: subir el precio de ese profesional", () => {
-    const d = evaluarDecisiones({
-      ...base,
-      ocupacion: 60,
-      profesionales: [{ name: "Alan", used: 90, capacity: 100 }, { name: "Franco", used: 30, capacity: 100 }],
-      masPedido: { name: "Alan", n: 4 },
-    });
-    expect(get(d, "precios").estado).toBe("si");
-    expect(get(d, "precios").respuesta).toBe("Sí, a Alan");
-    expect(get(d, "precios").detalle).toContain("Alan está al 90%");
-    expect(get(d, "precios").detalle).toContain("4 clientes lo pidieron");
-    expect(get(d, "precios").detalle).toContain("Con el resto todavía no");
-  });
-  it("un profesional al 80% o más recomienda subir su precio aunque el local tenga lugar, sin que lo hayan pedido", () => {
-    const d = evaluarDecisiones({ ...base, ocupacion: 55, profesionales: [{ name: "Alan", used: 82, capacity: 100 }, { name: "Franco", used: 30, capacity: 100 }] });
-    expect(get(d, "precios").respuesta).toBe("Sí, a Alan");
-    expect(get(evaluarDecisiones({ ...base, ocupacion: 55, profesionales: [{ name: "Alan", used: 82, capacity: 100 }, { name: "Franco", used: 30, capacity: 100 }] }), "contratar").estado).toBe("no");
-  });
-  it("un profesional lleno en muchos días pide subir su precio aunque el promedio del mes sea bajo", () => {
+});
+
+describe("¿Subir precios?", () => {
+  it("un profesional lleno muchos días pide subir su precio aunque el promedio del mes sea bajo", () => {
     const d = evaluarDecisiones({
       ...base,
       ocupacion: 55,
@@ -58,43 +78,41 @@ describe("decisiones del negocio", () => {
         { name: "Alan", used: 60, capacity: 100, daysWorked: 20, daysFull: 9 },
         { name: "Franco", used: 30, capacity: 100, daysWorked: 20, daysFull: 1 },
       ],
+      masPedido: { name: "Alan", n: 4 },
     });
-    expect(get(d, "precios").respuesta).toBe("Sí, a Alan");
-    expect(get(d, "precios").detalle).toContain("Alan tuvo la agenda llena 9 de 20 días");
-    expect(get(d, "precios").detalle).toContain("promedio del mes 60%");
+    const p = get(d, "precios");
+    expect(p.respuesta).toBe("Sí, a Alan");
+    expect(p.detalle).toContain("Alan tuvo la agenda llena 9 de 20 días");
+    expect(p.detalle).toContain("4 clientes lo pidieron");
+    expect(p.detalle).toContain("Con el resto todavía no");
   });
-  it("si muchos días del local estuvieron llenos, contratar es sí aunque el promedio sea bajo", () => {
-    const d = evaluarDecisiones({
-      ...base,
-      ocupacion: 58,
-      profesionales: [
-        { name: "Alan", used: 60, capacity: 100, daysWorked: 20, daysFull: 10 },
-        { name: "Franco", used: 56, capacity: 100, daysWorked: 20, daysFull: 8 },
-      ],
-    });
-    expect(get(d, "contratar").estado).toBe("si");
-    expect(get(d, "contratar").detalle).toContain("18 de 40");
+  it("franjas llenas con clientes que se fueron: probar en horarios pico", () => {
+    const p = get(evaluarDecisiones({ ...base, seFueronPorLugarFranjas: casos(2), franjas: [franjaJueves18(540, 0)] }), "precios");
+    expect(p.respuesta).toBe("Probá en horarios pico");
+    expect(p.detalle).toContain("jueves de 18 a 19 hs");
   });
-  it("con pocos días trabajados no se fía de la proporción de días llenos", () => {
-    const d = evaluarDecisiones({ ...base, ocupacion: 55, profesionales: [{ name: "Alan", used: 60, capacity: 100, daysWorked: 4, daysFull: 4 }] });
-    expect(get(d, "precios").estado).toBe("no");
-  });
-  it("horarios: marca el desparejo entre profesionales y la franja con más casos", () => {
-    const h = get(evaluarDecisiones(base), "horarios");
-    expect(h.detalle).toContain("Franco está al 35% y Alan al 56%");
-    expect(h.detalle).toContain("miércoles de 19 a 20 hs");
+  it("sin horarios llenos con clientes que se van: todavía no", () => {
+    expect(get(evaluarDecisiones(base), "precios").respuesta).toBe("Todavía no");
   });
   it("clientes que se van por el precio: se avisa y, si son 3 o más, un sí pasa a con cuidado", () => {
-    const poco = evaluarDecisiones({ ...base, ocupacion: 85, seFueronPorPrecio: 1 });
-    expect(get(poco, "precios").estado).toBe("si");
-    expect(get(poco, "precios").detalle).toContain("1 cliente se fue por el precio");
-    const mucho = evaluarDecisiones({ ...base, ocupacion: 85, seFueronPorPrecio: 3 });
-    expect(get(mucho, "precios").estado).toBe("cerca");
-    expect(get(mucho, "precios").respuesta).toBe("Con cuidado");
+    const sub = { ...base, profesionales: [{ name: "Alan", used: 60, capacity: 100, daysWorked: 20, daysFull: 9 }] };
+    const uno = get(evaluarDecisiones({ ...sub, seFueronPorPrecio: 1 }), "precios");
+    expect(uno.estado).toBe("si");
+    expect(uno.detalle).toContain("1 cliente se fue por el precio");
+    const tres = get(evaluarDecisiones({ ...sub, seFueronPorPrecio: 3 }), "precios");
+    expect(tres.estado).toBe("cerca");
+    expect(tres.respuesta).toBe("Con cuidado");
   });
-  it("sin horarios cargados no inventa una respuesta", () => {
-    const d = evaluarDecisiones({ ...base, ocupacion: null });
-    expect(get(d, "contratar").respuesta).toBe("Sin datos");
-    expect(get(d, "precios").respuesta).toBe("Sin datos");
+  it("con pocos días trabajados no se fía de la proporción de días llenos", () => {
+    const d = evaluarDecisiones({ ...base, profesionales: [{ name: "Alan", used: 60, capacity: 100, daysWorked: 4, daysFull: 4 }] });
+    expect(get(d, "precios").estado).toBe("no");
+  });
+});
+
+describe("Entender los horarios", () => {
+  it("marca el desparejo entre profesionales y la franja con más casos", () => {
+    const h = get(evaluarDecisiones(base), "horarios");
+    expect(h.detalle).toContain("Franco está al 35% y Alan al 56%");
+    expect(h.detalle).toContain("jueves de 18 a 19 hs");
   });
 });

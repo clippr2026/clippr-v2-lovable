@@ -1,5 +1,7 @@
-// Asesor IA: tres decisiones del dueño (contratar, entender horarios, subir precios) con una respuesta clara y su
-// porqué, a partir de la ocupación real de la agenda, la de cada profesional y los clientes que se fueron sin atender.
+// Asesor IA: decisiones del dueño (más capacidad de atención, entender los horarios, subir precios) con una respuesta
+// clara y su porqué. Cruza los clientes que se fueron sin atender con la ocupación AGENDADA y la ATENDIDA de cada franja
+// (día de la semana y hora), en vez de apoyarse en el promedio del mes o en un porcentaje fijo: un local puede estar al
+// 47% en el mes y no tener lugar los jueves a las 18 hs.
 
 export type DecisionEstado = "si" | "cerca" | "no" | "info";
 
@@ -12,36 +14,66 @@ export type Decision = {
   detalle: string;
 };
 
+/** Ocupación de una franja (día de la semana 0-6 y hora 0-23), en minutos y con tope por profesional y hora. */
+export type FranjaOcupacion = { dow: number; hour: number; disponible: number; agendado: number; atendido: number };
+
 export type DecisionesInput = {
-  /** Ocupación de la agenda del mes (0-100), null si no hay horarios cargados. */
+  /** Ocupación atendida del mes (0-100), null si no hay horarios cargados. Solo contexto: no decide por sí sola. */
   ocupacion: number | null;
-  /** Ocupación de cada profesional: servicios realizados contra su capacidad. */
   /** daysWorked/daysFull: días trabajados y días con 90% o más de los turnos atendidos (con o sin turno sacado). */
   profesionales: Array<{ name: string; used: number; capacity: number; daysWorked?: number; daysFull?: number }>;
-  /** Clientes que se fueron aceptando a cualquiera (falta de lugar general). */
-  seFueronPorLugar: number;
+  /** Clientes que se fueron aceptando a cualquiera (falta de lugar), con el día y la hora en que se fueron. */
+  seFueronPorLugarFranjas: Array<{ dow: number; hour: number }>;
   /** Clientes que se fueron por el precio (botón "Se fue" de la Agenda). */
   seFueronPorPrecio?: number;
   /** Profesional más pedido por clientes que se fueron (cantidad y nombre). */
   masPedido: { name: string; n: number } | null;
   /** Día de la semana y hora con más clientes que se fueron (ej. "miércoles", 19). */
   franjaConMasCasos: { dia: string; hora: number } | null;
+  /** Ocupación por franja del mes. Sin esto solo se usan los días llenos de cada profesional. */
+  franjas?: FranjaOcupacion[];
 };
 
-/** Ocupación a partir de la cual se considera que no queda lugar (la misma que el verde de la agenda). */
-export const OCUPACION_LLENA = 80;
-/** Desde acá empieza a acercarse a un tope. */
-export const OCUPACION_CERCA = 65;
-/** Proporción de días llenos a partir de la cual no queda lugar (aunque el promedio del mes sea más bajo). */
+const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
+/** Una franja está llena cuando lo agendado o lo atendido ocupa esta parte de su tiempo disponible. */
+export const FRANJA_LLENA = 0.85;
+/** Clientes que tienen que haberse ido en la misma franja para tomarla como una señal. */
+export const MIN_CASOS_FRANJA = 2;
+/** Franjas distintas con casos en horario lleno para hablar de falta de capacidad general. */
+export const FRANJAS_PARA_CAPACIDAD = 3;
+/** Proporción de días llenos de un profesional (90% de sus turnos) a partir de la cual no le queda lugar. */
 export const DIAS_LLENOS_TOPE = 0.4;
-export const DIAS_LLENOS_CERCA = 0.25;
 /** Días trabajados mínimos para fiarse de la proporción de días llenos. */
 export const DIAS_MINIMOS = 8;
 
-const pct = (used: number, capacity: number) => (capacity > 0 ? Math.round((used / capacity) * 100) : null);
+const franjaTexto = (dow: number, hour: number) => `${DIAS[dow]} de ${hour} a ${hour + 1} hs`;
+const pct = (num: number, den: number) => (den > 0 ? Math.round((num / den) * 100) : null);
+const plural = (n: number, uno: string, varios: string) => (n === 1 ? uno : varios);
+
+type FranjaConCasos = FranjaOcupacion & { casos: number; agendadaPct: number; atendidaPct: number; llena: boolean };
 
 export function evaluarDecisiones(i: DecisionesInput): Decision[] {
-  const ocup = i.ocupacion;
+  const franjaPorClave = new Map((i.franjas ?? []).map((f) => [`${f.dow}|${f.hour}`, f]));
+  const casosPorFranja = new Map<string, { dow: number; hour: number; casos: number }>();
+  for (const c of i.seFueronPorLugarFranjas) {
+    const k = `${c.dow}|${c.hour}`;
+    const e = casosPorFranja.get(k) ?? { dow: c.dow, hour: c.hour, casos: 0 };
+    e.casos += 1;
+    casosPorFranja.set(k, e);
+  }
+  const franjasConCasos: FranjaConCasos[] = [];
+  for (const c of casosPorFranja.values()) {
+    const f = franjaPorClave.get(`${c.dow}|${c.hour}`);
+    if (!f || f.disponible <= 0) continue;
+    const agendadaPct = pct(f.agendado, f.disponible) ?? 0;
+    const atendidaPct = pct(f.atendido, f.disponible) ?? 0;
+    franjasConCasos.push({ ...f, casos: c.casos, agendadaPct, atendidaPct, llena: Math.max(agendadaPct, atendidaPct) >= FRANJA_LLENA * 100 });
+  }
+  const fuertes = franjasConCasos.filter((f) => f.casos >= MIN_CASOS_FRANJA).sort((a, b) => b.casos - a.casos);
+  const fuertesLlenas = fuertes.filter((f) => f.llena);
+  const franjasLlenasConAlgunCaso = franjasConCasos.filter((f) => f.llena);
+  const casosLugar = i.seFueronPorLugarFranjas.length;
+
   const profs = i.profesionales
     .map((p) => ({
       name: p.name,
@@ -51,32 +83,47 @@ export function evaluarDecisiones(i: DecisionesInput): Decision[] {
     }))
     .filter((p): p is { name: string; pct: number; llenos: number; dias: number } => p.pct != null);
   const fracLlenos = (p: { llenos: number; dias: number }) => (p.dias >= DIAS_MINIMOS ? p.llenos / p.dias : null);
-  const sinLugar = (p: { pct: number; llenos: number; dias: number }) => p.pct >= OCUPACION_LLENA || (fracLlenos(p) ?? 0) >= DIAS_LLENOS_TOPE;
+  const profLleno = (p: { llenos: number; dias: number }) => (fracLlenos(p) ?? 0) >= DIAS_LLENOS_TOPE;
   const diasTotales = profs.reduce((n, p) => n + p.dias, 0);
   const llenosTotales = profs.reduce((n, p) => n + p.llenos, 0);
   const fracLocal = diasTotales >= DIAS_MINIMOS ? llenosTotales / diasTotales : null;
+  const ocupTexto = i.ocupacion != null ? ` El promedio del mes es ${i.ocupacion}%, pero eso no decide: importa lo que pasa en cada horario.` : "";
 
-  // 1) ¿Contratar un profesional?
+  // 1) ¿Necesitás más capacidad de atención?
+  const titulo1 = "¿Necesitás más capacidad de atención?";
   let contratar: Decision;
-  if (ocup == null) {
-    contratar = { clave: "contratar", titulo: "¿Necesitás más capacidad de atención?", estado: "info", respuesta: "Sin datos", detalle: "Cargá los horarios de tus profesionales para medir si te queda lugar." };
-  } else if (ocup >= OCUPACION_LLENA || (fracLocal ?? 0) >= DIAS_LLENOS_TOPE) {
+  if (fuertesLlenas.length >= FRANJAS_PARA_CAPACIDAD || (fuertesLlenas.length >= 2 && casosLugar >= 6)) {
+    const lista = fuertesLlenas.slice(0, 3).map((f) => `${franjaTexto(f.dow, f.hour)} (${f.casos})`).join(", ");
     contratar = {
-      clave: "contratar", titulo: "¿Necesitás más capacidad de atención?", estado: "si", respuesta: "Sí",
-      detalle:
-        (fracLocal ?? 0) >= DIAS_LLENOS_TOPE && ocup < OCUPACION_LLENA
-          ? `Aunque el promedio del mes es ${ocup}%, el ${Math.round((fracLocal as number) * 100)}% de los días de tus profesionales estuvo lleno (${llenosTotales} de ${diasTotales}): en los días fuertes ya no queda lugar. Cada cliente que se va sin atender es plata que perdés.`
-          : `Tu agenda está al ${ocup}%: ya no queda lugar. Cada cliente que se va sin atender es plata que perdés.`,
+      clave: "contratar", titulo: titulo1, estado: "si", respuesta: "Sí, sumar capacidad",
+      detalle: `Se fueron clientes por falta de lugar en varios horarios que estaban llenos: ${lista}. Se repite en más de un día y horario, así que conviene sumar a alguien o ampliar horarios.${ocupTexto}`,
     };
-  } else if ((ocup >= OCUPACION_CERCA || (fracLocal ?? 0) >= DIAS_LLENOS_CERCA) && i.seFueronPorLugar >= 4) {
+  } else if (fuertesLlenas.length >= 1) {
+    const f = fuertesLlenas[0];
     contratar = {
-      clave: "contratar", titulo: "¿Necesitás más capacidad de atención?", estado: "cerca", respuesta: "Cerca",
-      detalle: `Agenda al ${ocup}%${fracLocal != null ? ` (${llenosTotales} de ${diasTotales} días llenos)` : ""} y ${i.seFueronPorLugar} clientes se fueron por falta de lugar. Si se sostiene el mes que viene, es momento de sumar a alguien.`,
+      clave: "contratar", titulo: titulo1, estado: "si", respuesta: "Reforzá una franja",
+      detalle: `${franjaTexto(f.dow, f.hour)}: ${f.casos} ${plural(f.casos, "cliente se fue", "clientes se fueron")} y esa franja estaba al ${f.agendadaPct}% agendada y ${f.atendidaPct}% atendida. Es un horario puntual: alcanza con ampliar o reforzar esa franja, no hace falta sumar a alguien fijo todavía.${ocupTexto}`,
+    };
+  } else if (franjasConCasos.some((f) => f.casos >= MIN_CASOS_FRANJA)) {
+    const f = fuertes[0];
+    contratar = {
+      clave: "contratar", titulo: titulo1, estado: "info", respuesta: "Revisá horarios",
+      detalle: `${franjaTexto(f.dow, f.hour)}: ${f.casos} clientes se fueron aunque esa franja estaba al ${f.agendadaPct}% agendada y ${f.atendidaPct}% atendida. Había tiempo libre: revisá si los turnos se ofrecen en ese horario, si hay bloqueos o si la duración de los turnos deja huecos.`,
+    };
+  } else if ((fracLocal ?? 0) >= DIAS_LLENOS_TOPE) {
+    contratar = {
+      clave: "contratar", titulo: titulo1, estado: "cerca", respuesta: "Cerca",
+      detalle: `El ${Math.round((fracLocal as number) * 100)}% de los días de tus profesionales estuvo lleno (${llenosTotales} de ${diasTotales}), aunque casi no hay clientes registrados que se hayan ido. Si empiezan a irse por falta de lugar, es momento de sumar capacidad.${ocupTexto}`,
+    };
+  } else if (casosLugar < 3) {
+    contratar = {
+      clave: "contratar", titulo: titulo1, estado: "no", respuesta: "Pocos datos",
+      detalle: `Solo ${casosLugar} ${plural(casosLugar, "cliente se fue", "clientes se fueron")} por falta de lugar: es poco para concluir. Seguí registrando con el botón "Se fue" y el Asesor va a cruzarlos con la ocupación de cada horario.${ocupTexto}`,
     };
   } else {
     contratar = {
-      clave: "contratar", titulo: "¿Necesitás más capacidad de atención?", estado: "no", respuesta: "Todavía no",
-      detalle: `Tu agenda está al ${ocup}%: tenés lugar de sobra. Antes de sumar a alguien conviene llenar lo que ya tenés. Con ${OCUPACION_LLENA}% o más sí.`,
+      clave: "contratar", titulo: titulo1, estado: "no", respuesta: "Todavía no",
+      detalle: `Los ${casosLugar} clientes que se fueron por falta de lugar están repartidos en horarios que no estaban llenos. No hay una franja que muestre falta de capacidad.${ocupTexto}`,
     };
   }
 
@@ -102,41 +149,36 @@ export function evaluarDecisiones(i: DecisionesInput): Decision[] {
 
   // 3) ¿Subir precios?
   let precios: Decision;
-  if (ocup == null) {
-    precios = { clave: "precios", titulo: "¿Subir precios?", estado: "info", respuesta: "Sin datos", detalle: "Cargá los horarios de tus profesionales para medir la demanda." };
-  } else if (ocup >= OCUPACION_LLENA) {
-    precios = {
-      clave: "precios", titulo: "¿Subir precios?", estado: "si", respuesta: "Sí",
-      detalle: `Con la agenda al ${ocup}% la demanda supera tu lugar: un aumento chico (5% a 10%) casi no espanta clientes.`,
-    };
-  } else if (profs.some(sinLugar)) {
-    // Un profesional sin lugar puede subir su precio aunque el local en conjunto tenga lugar.
-    const llenos = profs.filter(sinLugar).sort((a, b) => (fracLlenos(b) ?? b.pct / 100) - (fracLlenos(a) ?? a.pct / 100));
-    const nombres = llenos.map((p) => p.name).join(" y ");
-    const detalleLlenos = llenos
-      .map((p) => (p.dias >= DIAS_MINIMOS && p.llenos / p.dias >= DIAS_LLENOS_TOPE ? `${p.name} tuvo la agenda llena ${p.llenos} de ${p.dias} días (promedio del mes ${p.pct}%)` : `${p.name} está al ${p.pct}%`))
-      .join(" y ");
+  const profesLlenos = profs.filter(profLleno).sort((a, b) => (fracLlenos(b) ?? 0) - (fracLlenos(a) ?? 0));
+  if (profesLlenos.length > 0) {
+    const nombres = profesLlenos.map((p) => p.name).join(" y ");
+    const detalleLlenos = profesLlenos.map((p) => `${p.name} tuvo la agenda llena ${p.llenos} de ${p.dias} días (promedio del mes ${p.pct}%)`).join(" y ");
     const pedidos =
-      i.masPedido && i.masPedido.n >= 1 && llenos.some((p) => p.name === i.masPedido!.name)
+      i.masPedido && profesLlenos.some((p) => p.name === i.masPedido!.name)
         ? ` Además ${i.masPedido.n} ${i.masPedido.n === 1 ? "cliente lo pidió y se fue" : "clientes lo pidieron y se fueron"}.`
         : "";
-    const resto = profs.length > llenos.length ? " Con el resto todavía no: tienen lugar libre." : "";
+    const resto = profs.length > profesLlenos.length ? " Con el resto todavía no: tienen lugar libre." : "";
     precios = {
       clave: "precios", titulo: "¿Subir precios?", estado: "si", respuesta: `Sí, a ${nombres}`,
-      detalle: `${detalleLlenos}: casi no ${llenos.length === 1 ? "le" : "les"} queda lugar.${pedidos} Conviene subir el precio de ${llenos.length === 1 ? "sus" : "sus"} servicios entre 5% y 10%.${resto}`,
+      detalle: `${detalleLlenos}: casi no ${profesLlenos.length === 1 ? "le" : "les"} queda lugar.${pedidos} Conviene subir el precio de sus servicios entre 5% y 10%.${resto}`,
     };
-  } else if (ocup >= OCUPACION_CERCA) {
+  } else if (fuertesLlenas.length >= 1) {
+    const lista = fuertesLlenas.slice(0, 2).map((f) => franjaTexto(f.dow, f.hour)).join(" y ");
+    precios = {
+      clave: "precios", titulo: "¿Subir precios?", estado: "cerca", respuesta: "Probá en horarios pico",
+      detalle: `${lista} se llena y se van clientes: ahí la demanda supera tu lugar. Podés probar un aumento chico (5% a 10%) o un precio distinto en esos horarios y ver cómo responden.`,
+    };
+  } else if (franjasLlenasConAlgunCaso.length >= 1) {
     precios = {
       clave: "precios", titulo: "¿Subir precios?", estado: "cerca", respuesta: "Cerca",
-      detalle: `Agenda al ${ocup}%. Podés probar un aumento chico en los servicios que más se piden y mirar cómo responden los clientes.`,
+      detalle: "Hay horarios llenos donde se fue algún cliente, pero todavía son pocos casos. Seguí registrando antes de mover los precios.",
     };
   } else {
     precios = {
       clave: "precios", titulo: "¿Subir precios?", estado: "no", respuesta: "Todavía no",
-      detalle: `Con la agenda al ${ocup}% hay lugar libre: subir precios puede espantar clientes. Primero llená la agenda; con ${OCUPACION_LLENA}% o más sí.`,
+      detalle: "No hay horarios llenos con clientes que se vayan: subir los precios ahora puede espantar clientes. Primero conviene llenar la agenda.",
     };
   }
-
   // Si hay clientes que se van por el precio, subirlo tiene un costo: se avisa y un "Sí" pasa a "con cuidado".
   const porPrecio = i.seFueronPorPrecio ?? 0;
   if (porPrecio >= 1) {

@@ -1270,6 +1270,7 @@ function GrowthManagerTab({ analytics, businessId, selectedMonthKey, onMonthKeyC
         occupancy={analytics.current?.hasData ? analytics.current.occupancy : null}
         ticket={analytics.current?.ticket ?? null}
         employeeLoad={analytics.current?.employeeLoad}
+        franjas={analytics.current?.franjas}
       />
       <RadiografiaSection analytics={analytics} />
     </>

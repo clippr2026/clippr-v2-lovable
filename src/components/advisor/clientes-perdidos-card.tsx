@@ -1,8 +1,8 @@
 import * as React from "react";
-import { Brain, DoorOpen } from "lucide-react";
+import { DoorOpen } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { fmtAR } from "@/components/dashboard/use-dashboard-data";
-import { evaluarDecisiones, type DecisionEstado } from "@/lib/decisiones-negocio";
+import { evaluarDecisiones, type DecisionEstado, type FranjaOcupacion } from "@/lib/decisiones-negocio";
 
 const BA = "America/Argentina/Buenos_Aires";
 
@@ -44,6 +44,7 @@ export function ClientesPerdidosCard({
   occupancy,
   ticket,
   employeeLoad,
+  franjas,
 }: {
   businessId: string | null | undefined;
   monthKey: string;
@@ -52,6 +53,8 @@ export function ClientesPerdidosCard({
   ticket: number | null;
   /** Ocupación de cada profesional en el mes (servicios vendidos contra su capacidad). */
   employeeLoad?: Carga[];
+  /** Ocupación agendada y atendida por franja (día de la semana y hora) del mes. */
+  franjas?: FranjaOcupacion[];
 }) {
   const [filas, setFilas] = React.useState<Fila[] | null>(null);
   const [nombres, setNombres] = React.useState<Map<string, string>>(new Map());
@@ -95,51 +98,6 @@ export function ClientesPerdidosCard({
     ([id, n]) => [nombres.get(id) ?? "Profesional", n] as [string, number],
   );
   const perdido = ticket && total > 0 ? Math.round(ticket * total) : 0;
-  const ocup = occupancy ?? 0;
-
-  const consejos: string[] = [];
-  if (total === 0) {
-    consejos.push("Todavía no hay clientes registrados en este mes. Cada vez que alguien se vaya sin atenderse, tocá “Se fue” en la Agenda.");
-  } else if (total < 4) {
-    consejos.push("Son pocos registros para sacar conclusiones. Seguí cargándolos y a fin de mes vas a tener un número confiable.");
-  } else {
-    // 1) Falta de lugar general: habla de la capacidad del local.
-    if (generales.length >= 4) {
-      const concentrado = !!diaGen && !!horaGen && (diaGen[1] >= generales.length / 2 || horaGen[1] >= generales.length / 2);
-      if (ocup >= 75) {
-        consejos.push(
-          `Falta de lugar: ${generales.length} clientes aceptaban a cualquiera y se fueron, con la agenda al ${ocup}%. Hay más demanda que lugar: es buen momento para sumar un profesional o evaluar un aumento de precios.`,
-        );
-      } else if (concentrado && diaGen && horaGen) {
-        consejos.push(
-          `Falta de lugar en momentos puntuales: ${generales.length} clientes aceptaban a cualquiera y se fueron, sobre todo los ${DIAS[diaGen[0]]} cerca de las ${horaGen[0]} hs. La agenda del mes está al ${ocup}%, así que no hace falta sumar a alguien fijo: alcanza con reforzar o ampliar esa franja.`,
-        );
-      } else {
-        consejos.push(
-          `${generales.length} clientes aceptaban a cualquiera y se fueron, pero la agenda del mes está al ${ocup}%: no es falta de capacidad, son picos. Antes de sumar gente, ofreceles un turno para más tarde.`,
-        );
-      }
-    }
-    // 2) Demanda por un profesional: habla de esa persona, no del local.
-    if (especificos.length >= 3 && pedidos[0]) {
-      const [nombre, n] = pedidos[0];
-      const carga = employeeLoad?.find((c) => c.name === nombre);
-      const pct = carga && carga.capacity > 0 ? Math.round((carga.used / carga.capacity) * 100) : null;
-      if (pct != null && pct >= 75) {
-        consejos.push(
-          `Demanda por ${nombre}: ${n} clientes lo pidieron y se fueron, y su agenda está al ${pct}%. No se arregla sumando otro profesional: conviene ampliarle el horario o subir el precio de sus servicios.`,
-        );
-      } else {
-        consejos.push(
-          `Demanda por ${nombre}: ${n} clientes lo pidieron y se fueron${pct != null ? `, aunque su agenda del mes está al ${pct}%` : ""}. No es falta de capacidad del local: conviene ofrecerles turno con ${nombre} en otro horario y no sumar gente por este motivo.`,
-        );
-      }
-    }
-    if (consejos.length === 0) {
-      consejos.push("Los casos están repartidos entre falta de lugar y pedidos por un profesional. Todavía no hay un patrón claro: seguí registrando.");
-    }
-  }
-
   return (
     <div className="relative overflow-hidden rounded-[2rem] border border-rose-300/[0.22] bg-white/[0.016] p-3 shadow-[0_0_0_1px_rgba(244,63,94,0.1),0_28px_110px_-50px_rgba(244,63,94,0.7)] sm:p-4">
       <div className="mb-3 flex items-center gap-3">
@@ -208,7 +166,8 @@ export function ClientesPerdidosCard({
           {evaluarDecisiones({
             ocupacion: occupancy,
             profesionales: employeeLoad ?? [],
-            seFueronPorLugar: generales.length,
+            seFueronPorLugarFranjas: generales.map((f) => ({ dow: enBA(f).getDay(), hour: enBA(f).getHours() })),
+            franjas,
             seFueronPorPrecio: porPrecio.length,
             masPedido: pedidos[0] ? { name: pedidos[0][0], n: pedidos[0][1] } : null,
             franjaConMasCasos: total > 0 && dias[0] && horas[0] ? { dia: DIAS[dias[0][0]], hora: horas[0][0] } : null,
@@ -221,17 +180,6 @@ export function ClientesPerdidosCard({
               <p className="mt-1.5 text-xs leading-relaxed text-white/65">{d.detalle}</p>
             </div>
           ))}
-        </div>
-
-        <div className="mt-3 rounded-xl bg-emerald-400/[0.07] p-3 ring-1 ring-emerald-300/20">
-          <div className="mb-1 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.18em] text-emerald-300">
-            <Brain className="h-3.5 w-3.5" /> Qué conviene hacer
-          </div>
-          <div className="space-y-2 text-sm leading-snug text-white/80">
-            {consejos.map((c) => (
-              <p key={c}>{c}</p>
-            ))}
-          </div>
         </div>
       </div>
     </div>
