@@ -1948,6 +1948,8 @@ function TurnosView({ businessId, empId, fromDate, toDate, approvalMode, approva
               onDepositChanged={() => { agendaData.refresh(); refetch(); }}
               onReleaseBlock={() => {}}
               senasConfigRaw={senasConfigRaw}
+              ocultarFicha
+              ocultarEmail
             />
           );
         }
