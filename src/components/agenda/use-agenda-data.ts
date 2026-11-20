@@ -29,6 +29,27 @@ import {
 import { appendHistorialCobro } from "@/lib/cobro-historial";
 
 /**
+ * Anular una venta no cambia el estado del turno (queda "charged"), pero un turno cuya venta
+ * se anuló ya no está cobrado: se muestra como pendiente de cobro (amarillo), no verde.
+ */
+async function sinCobroAnulado(lista: Appointment[]): Promise<Appointment[]> {
+  const ids = lista.filter((a) => a.status === "charged").map((a) => a.id);
+  if (ids.length === 0) return lista;
+  const { data, error } = await supabase.from("payments").select("appointment_id,status").in("appointment_id", ids);
+  if (error || !data) return lista;
+  const conVenta = new Set<string>();
+  const anulados = new Set<string>();
+  for (const p of data as Array<{ appointment_id: string | null; status: string | null }>) {
+    if (!p.appointment_id) continue;
+    if (p.status === "anulado" || p.status === "reembolsado") anulados.add(p.appointment_id);
+    else conVenta.add(p.appointment_id);
+  }
+  return lista.map((a) =>
+    a.status === "charged" && anulados.has(a.id) && !conVenta.has(a.id) ? { ...a, status: "completed" as ApptStatus } : a,
+  );
+}
+
+/**
  * Datos de la Agenda. Carga turnos (appointments) del rango visible,
  * más empleados, servicios y clientes del business para los pickers.
  *
@@ -539,13 +560,11 @@ export function useAgendaData(rangeStart: Date, rangeEnd: Date) {
         .gte("starts_at", startIso)
         .lte("starts_at", endIso)
         .order("starts_at");
-      setAppointments(!retry.error ? ((retry.data ?? []) as Appointment[]) : []);
+      setAppointments(!retry.error ? await sinCobroAnulado((retry.data ?? []) as Appointment[]) : []);
     } else {
-      setAppointments(
-        aRes.status === "fulfilled" && !aRes.value.error
-          ? ((aRes.value.data ?? []) as Appointment[])
-          : [],
-      );
+      const lista =
+        aRes.status === "fulfilled" && !aRes.value.error ? ((aRes.value.data ?? []) as Appointment[]) : [];
+      setAppointments(await sinCobroAnulado(lista));
     }
     setEmployees(
       eRes.status === "fulfilled" && !eRes.value.error
