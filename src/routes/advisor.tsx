@@ -1117,22 +1117,14 @@ function SaludSection({
             </div>
             <div className="min-w-0">
               <div className={cn("text-xl font-semibold leading-tight", healthTone.text)}>{healthHeadline}</div>
+              {analytics.health == null && (
+                <p className="mt-1 text-xs leading-relaxed text-white/60">Todavía no hay datos para calcular la salud del negocio.</p>
+              )}
               {score?.requiereAtencion && (
                 <span className="mt-1 inline-block rounded-full border border-rose-300/30 bg-rose-400/10 px-2.5 py-0.5 text-[11px] font-semibold text-rose-200">
                   Requiere atención
                 </span>
               )}
-              <p className="mt-1 text-xs leading-relaxed text-white/60">
-                {analytics.health == null
-                  ? "Todavía no hay datos para calcular la salud del negocio."
-                  : analytics.health >= 80
-                    ? "Tu local está muy bien. Mantené el ritmo y seguí cuidando a tus clientes."
-                    : analytics.health >= 65
-                      ? "Vas bien. El próximo salto está en llenar la agenda y recuperar clientes, no en bajar precios."
-                      : analytics.health >= 50
-                        ? "Hay margen de mejora. Empezá por llenar la agenda y recuperar clientes."
-                        : "Hay varios indicadores para mejorar. Empezá por llenar la agenda y recuperar clientes."}
-              </p>
             </div>
           </div>
           {score && score.partial && (
