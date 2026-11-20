@@ -30,7 +30,7 @@ import { appendHistorialCobro } from "@/lib/cobro-historial";
 
 /**
  * Anular una venta no cambia el estado del turno (queda "charged"), pero un turno cuya venta
- * se anuló ya no está cobrado: se muestra como pendiente de cobro (amarillo), no verde.
+ * se anuló ya no está cobrado: se muestra como "Por confirmar" (celeste), no verde.
  */
 async function sinCobroAnulado(lista: Appointment[]): Promise<Appointment[]> {
   const ids = lista.filter((a) => a.status === "charged").map((a) => a.id);
@@ -45,7 +45,7 @@ async function sinCobroAnulado(lista: Appointment[]): Promise<Appointment[]> {
     else conVenta.add(p.appointment_id);
   }
   return lista.map((a) =>
-    a.status === "charged" && anulados.has(a.id) && !conVenta.has(a.id) ? { ...a, status: "completed" as ApptStatus } : a,
+    a.status === "charged" && anulados.has(a.id) && !conVenta.has(a.id) ? { ...a, status: "pending" as ApptStatus } : a,
   );
 }
 
