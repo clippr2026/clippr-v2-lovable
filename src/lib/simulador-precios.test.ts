@@ -62,3 +62,11 @@ describe("proyección del próximo mes", () => {
     expect(mesBaseValido("2027-01")).toBe(true);
   });
 });
+
+describe("sin aumento", () => {
+  it("con aumento $0 no hay riesgo, aunque se hayan ido clientes por el precio", () => {
+    const r = simularPrecio({ precioActual: 21900, aumento: 0, ventas30: 258, comision: 0.5, ocupacionAtendida: 47, seFueronPorPrecio: 2 });
+    expect(r.riesgo).toBe("Sin aumento");
+    expect(r.facturacionAdicional).toBe(0);
+  });
+});

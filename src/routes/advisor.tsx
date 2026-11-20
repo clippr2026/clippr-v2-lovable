@@ -1766,12 +1766,15 @@ function LabPrecios({ data, ocupacionAtendida, seFueronPorPrecio }: { data: LabD
   });
   const { precioNuevo, pctAumento: pct, facturacionAdicional: facturacion, gananciaAdicional: utilidad, puntoEquilibrio: perdibles } = r;
   const riesgoLabel = r.riesgo;
+  const sinAumento = r.riesgo === "Sin aumento";
   const riesgoChip =
-    r.riesgo === "Alto" ? "border-rose-300/35 bg-rose-400/10 text-rose-200" : r.riesgo === "Medio" ? "border-amber-300/35 bg-amber-300/10 text-amber-200" : "border-emerald-300/35 bg-emerald-400/10 text-emerald-200";
+    sinAumento ? "border-white/15 bg-white/[0.05] text-white/60" : r.riesgo === "Alto" ? "border-rose-300/35 bg-rose-400/10 text-rose-200" : r.riesgo === "Medio" ? "border-amber-300/35 bg-amber-300/10 text-amber-200" : "border-emerald-300/35 bg-emerald-400/10 text-emerald-200";
   const nivel: keyof typeof nivelMeta =
     r.riesgo === "Alto" ? "alto_riesgo" : r.riesgo === "Medio" ? (pct <= 12 ? "evaluar" : "progresivo") : "recomendado";
   const verdict =
-    r.riesgo === "Alto"
+    sinAumento
+      ? "Elegí un aumento con el control de arriba para ver cuánto podrías ganar y qué riesgo tendría."
+      : r.riesgo === "Alto"
       ? `Subir ${fmtAR(aumento)} es un ${pct.toFixed(0)}% sobre ${svc?.nombre}. ${r.factores.slice(1).length > 0 ? `Pesa: ${r.factores.slice(1).join(", ")}. ` : ""}Mejor un aumento menor o en dos etapas.`
       : mensual === 0
         ? `No hay ventas cobradas de ${svc?.nombre} en los últimos 30 días para proyectar el impacto. La estimación no es confiable.`
@@ -1847,7 +1850,7 @@ function LabPrecios({ data, ocupacionAtendida, seFueronPorPrecio }: { data: LabD
       <div className={cn(TARJETA_CLIPPR, "border-cyan-300/25 shadow-[0_0_40px_-18px_rgba(34,211,238,0.6)]")}>
         <div className="flex items-center justify-between gap-2">
           <span className="text-sm font-semibold text-white">Resultado estimado</span>
-          <span className={cn("rounded-full border px-2.5 py-0.5 text-[11px] font-bold", riesgoChip)}>Riesgo {riesgoLabel.toLowerCase()}</span>
+          <span className={cn("rounded-full border px-2.5 py-0.5 text-[11px] font-bold", riesgoChip)}>{sinAumento ? "Sin aumento" : `Riesgo ${riesgoLabel.toLowerCase()}`}</span>
         </div>
         <div className="mt-2.5 text-[11px] text-white/55">Facturación adicional mensual</div>
         <div className="text-3xl font-extrabold tabular-nums leading-tight text-cyan-200">+{fmtAR(facturacion)}</div>

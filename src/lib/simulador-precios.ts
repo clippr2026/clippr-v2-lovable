@@ -14,7 +14,7 @@ export type SimuladorInput = {
   seFueronPorPrecio: number;
 };
 
-export type NivelRiesgo = "Bajo" | "Medio" | "Alto";
+export type NivelRiesgo = "Sin aumento" | "Bajo" | "Medio" | "Alto";
 
 export type SimuladorResultado = {
   precioNuevo: number;
@@ -76,6 +76,10 @@ export function simularPrecio(i: SimuladorInput): SimuladorResultado {
   if (pocosDatos) {
     pts += 1;
     factores.push("pocas ventas para estimar");
+  }
+  // Sin aumento no hay nada que arriesgar.
+  if (i.aumento <= 0) {
+    return { precioNuevo, pctAumento, facturacionAdicional, gananciaAdicional, comisionReal, comisionUsada, puntoEquilibrio, puntoEquilibrioPct, riesgo: "Sin aumento", factores: [], pocosDatos };
   }
   let riesgo: NivelRiesgo = pts <= 1 ? "Bajo" : pts <= 3 ? "Medio" : "Alto";
   // Un cliente que ya se fue por el precio es una señal real: nunca queda en riesgo bajo.

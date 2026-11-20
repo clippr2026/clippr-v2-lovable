@@ -323,6 +323,7 @@ function buildMonthSnapshot(
   capacityData: CapacityData,
   perf: MonthlyPerformance | undefined,
   uptoDay?: number,
+  opts: { franjas?: boolean; soloHasData?: boolean } = {},
 ): AdvisorMonthSnapshot {
   // Día de corte: el mes en curso solo llega hasta hoy; un mes cerrado, hasta su último día.
   const todayKeyBA = cajaDateKeyBA();
@@ -337,6 +338,11 @@ function buildMonthSnapshot(
     Number(new Date(iso).toLocaleDateString("sv-SE", { timeZone: "America/Argentina/Buenos_Aires" }).slice(8, 10));
 
   const monthPayments = payments.filter((p) => monthKeyOf(p.created_at) === monthKey && dayOf(p.created_at) <= cutoffDay);
+  // Meses que solo hacen falta para saber si tuvieron actividad: no se arma el resto (es la parte más pesada).
+  if (opts.soloHasData) {
+    const hayTurnos = appts.some((a) => monthKeyOf(a.starts_at) === monthKey && dayOf(a.starts_at) <= cutoffDay);
+    return { monthKey, monthLabel: monthLabelOf(monthKey), hasData: monthPayments.length > 0 || hayTurnos } as AdvisorMonthSnapshot;
+  }
   const monthAppts = appts.filter((a) => monthKeyOf(a.starts_at) === monthKey && dayOf(a.starts_at) <= cutoffDay);
   const monthExpenses = expenses.filter(
     (e) => e.date && e.date.slice(0, 7) === monthKey && Number(e.date.slice(8, 10)) <= cutoffDay,
@@ -465,8 +471,8 @@ function buildMonthSnapshot(
       e.id,
     );
     // Ocupación por franja (día de la semana × hora) de este profesional.
-    const cobrosEmp = cobrosPorProfesional.filter((c) => c.empId === e.id);
-    for (const d of porDia) {
+    const cobrosEmp = opts.franjas ? cobrosPorProfesional.filter((c) => c.empId === e.id) : [];
+    for (const d of opts.franjas ? porDia : []) {
       const horaDisponible = new Array<number>(24).fill(0);
       const horaReservado = new Array<number>(24).fill(0);
       const horaAtendido = new Array<number>(24).fill(0);
@@ -618,14 +624,13 @@ export function useAdvisorAnalytics(
     enabled: !!businessId && habilitado,
     staleTime: 60_000,
   });
-  const primerosMeses = useQueries({ queries: monthKeys.slice(0, 2).map((mk) => consultaMes(mk, true)) });
-  const primerosListos = primerosMeses.every((q) => !q.isLoading);
-  const restoMeses = useQueries({ queries: monthKeys.slice(2).map((mk) => consultaMes(mk, primerosListos)) });
-  const perfQueries = [...primerosMeses, ...restoMeses];
-  // Mes que se analiza: el elegido (por defecto el mes en curso).
-  const todayDay = Number(cajaDateKeyBA().slice(8, 10));
+  // Mes que se analiza: el elegido (por defecto el mes en curso). Solo se pide el rendimiento de ese mes; el anterior y el
+  // período equivalente se piden más abajo. Los demás meses del historial no hacen falta para ningún cálculo.
   const selectedKey = selectedMonthKey && monthKeys.includes(selectedMonthKey) ? selectedMonthKey : monthKeys[0];
   const analysisIdx = monthKeys.indexOf(selectedKey);
+  const perfQueries = useQueries({ queries: [consultaMes(selectedKey, true)] });
+  // Mes que se analiza: el elegido (por defecto el mes en curso).
+  const todayDay = Number(cajaDateKeyBA().slice(8, 10));
   const isCurrentMonth = analysisIdx === 0;
   const prevKey = shiftMonth(selectedKey, -1);
   // Mes en curso: se compara contra el MISMO período del mes anterior (del 1 al día de hoy);
@@ -665,9 +670,7 @@ export function useAdvisorAnalytics(
       currentComparableQuery.isLoading ||
       (!isCurrentMonth && prevFullQuery.isLoading);
     const perfByMonth = new Map<string, MonthlyPerformance>();
-    perfQueries.forEach((q, i) => {
-      if (q.data) perfByMonth.set(monthKeys[i], q.data);
-    });
+    if (perfQueries[0]?.data) perfByMonth.set(selectedKey, perfQueries[0].data);
 
     if (!data) {
       return {
@@ -697,8 +700,12 @@ export function useAdvisorAnalytics(
     const { payments, appts, expenses, employees, catalog, schedule } = data;
     const capacityData: CapacityData = { employees, catalog, ctx: parseCapacityContext(schedule) };
 
-    const history = monthKeys.map((mk) =>
-      buildMonthSnapshot(mk, payments, appts, expenses, capacityData, perfByMonth.get(mk)),
+    // Solo el mes elegido se arma completo (con la ocupación por franja); los otros meses del historial, apenas con su
+    // actividad.
+    const history = monthKeys.map((mk, idx) =>
+      idx === analysisIdx
+        ? buildMonthSnapshot(mk, payments, appts, expenses, capacityData, perfByMonth.get(mk), undefined, { franjas: true })
+        : buildMonthSnapshot(mk, payments, appts, expenses, capacityData, undefined, undefined, { soloHasData: true }),
     );
     const analysisKey = selectedKey;
     const current = history[analysisIdx] ?? null;
@@ -1114,7 +1121,7 @@ export function useAdvisorAnalytics(
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dataQuery.data, dataQuery.isLoading, clientsQuery.data, clientsQuery.isLoading, monthKeys, perfSignature]);
 
-  const analysisPerf = perfQueries[monthKeys.indexOf(selectedKey)]?.data;
+  const analysisPerf = perfQueries[0]?.data;
   const refetchData = dataQuery.refetch;
   const refetchClients = clientsQuery.refetch;
   return React.useMemo((): AdvisorAnalytics => {
