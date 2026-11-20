@@ -42,6 +42,8 @@ const MIN_DAYS_TO_JUDGE = 7;
 const PRODUCT_TARGET_PCT = 5;
 
 export type Franja = { dow: number; hour: number; disponible: number; agendado: number; atendido: number };
+/** Lo mismo que Franja pero para un día puntual (dateKey = "2026-11-19"). */
+export type FranjaDia = { dateKey: string; hour: number; disponible: number; agendado: number; atendido: number };
 
 export type AdvisorMonthSnapshot = {
   monthKey: string; // "2026-06"
@@ -73,6 +75,7 @@ export type AdvisorMonthSnapshot = {
   agendadaPct: number | null;
   /** Ocupación por franja (día de la semana y hora): minutos disponibles, reservados y atendidos, con tope por profesional y hora. */
   franjas: Franja[];
+  franjasDia: FranjaDia[];
   // Ocupación de cada profesional activo: servicios vendidos contra SU capacidad.
   employeeLoad: Array<{ id: string; name: string; used: number; capacity: number; daysWorked: number; daysFull: number }>;
   // Fechas trabajadas del período por día de la semana (0 = domingo): los días cerrados no figuran.
@@ -452,6 +455,7 @@ function buildMonthSnapshot(
   // Los topes se aplican por profesional y por día ANTES de sumar el local: lo que un profesional atiende o reserva de
   // más no tapa los huecos de otro (ver src/lib/ocupacion.ts).
   const franjasMapa = new Map<string, Franja>();
+  const franjasDiaMapa = new Map<string, FranjaDia>();
   let usedCappedTotal = 0;
   let reservadoTope = 0;
   let disponibleMinutos = 0;
@@ -499,6 +503,12 @@ function buildMonthSnapshot(
         f.agendado += Math.min(horaReservado[h], horaDisponible[h]);
         f.atendido += Math.min(horaAtendido[h], horaDisponible[h]);
         franjasMapa.set(k, f);
+        const kd = `${d.dateKey}|${h}`;
+        const fd = franjasDiaMapa.get(kd) ?? { dateKey: d.dateKey, hour: h, disponible: 0, agendado: 0, atendido: 0 };
+        fd.disponible += horaDisponible[h];
+        fd.agendado += Math.min(horaReservado[h], horaDisponible[h]);
+        fd.atendido += Math.min(horaAtendido[h], horaDisponible[h]);
+        franjasDiaMapa.set(kd, fd);
       }
     }
     let usedCapped = 0;
@@ -563,6 +573,7 @@ function buildMonthSnapshot(
     usedSlots: used,
     agendadaPct,
     franjas: [...franjasMapa.values()],
+    franjasDia: [...franjasDiaMapa.values()],
     employeeLoad,
     openDatesByDow,
     openHours,

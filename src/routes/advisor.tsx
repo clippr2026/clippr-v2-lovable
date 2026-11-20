@@ -1271,6 +1271,7 @@ function GrowthManagerTab({ analytics, businessId, selectedMonthKey, onMonthKeyC
         ticket={analytics.current?.ticket ?? null}
         employeeLoad={analytics.current?.employeeLoad}
         franjas={analytics.current?.franjas}
+        franjasDia={analytics.current?.franjasDia}
       />
       <RadiografiaSection analytics={analytics} />
     </>

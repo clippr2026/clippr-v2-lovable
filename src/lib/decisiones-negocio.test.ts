@@ -43,11 +43,26 @@ describe("¿Necesitás más capacidad de atención?", () => {
     });
     expect(get(d, "contratar").respuesta).toBe("Sí, contratar");
   });
-  it("clientes que se fueron en una franja con tiempo libre: revisar los horarios, no contratar", () => {
-    const c = get(evaluarDecisiones({ ...base, seFueronPorLugarFranjas: casos(3), franjas: [franjaJueves18(150, 90)] }), "contratar");
-    expect(c.estado).toBe("info");
-    expect(c.respuesta).toBe("Revisá horarios");
-    expect(c.detalle).toContain("Había lugar");
+  it("si se fueron por falta de lugar, nunca dice que había lugar: la franja promedia bajo pero se llena en días puntuales", () => {
+    const c = get(evaluarDecisiones({ ...base, seFueronPorLugarFranjas: casos(3), franjas: [franjaJueves18(450, 330)] }), "contratar");
+    expect(c.estado).toBe("si");
+    expect(c.respuesta).toBe("Reforzá una franja");
+    expect(c.detalle).not.toContain("Había lugar");
+    expect(c.detalle).toContain("Se llena en días puntuales");
+  });
+  it("mira el momento exacto en que se fue el cliente: si ese día el horario estaba lleno, la franja cuenta como llena", () => {
+    const d = evaluarDecisiones({
+      ...base,
+      seFueronPorLugarFranjas: [{ dow: 4, hour: 18, dateKey: "2026-11-05" }, { dow: 4, hour: 18, dateKey: "2026-11-12" }],
+      franjas: [franjaJueves18(150, 90)], // promedio del mes bajo
+      franjasDia: [
+        { dateKey: "2026-11-05", hour: 18, disponible: 120, agendado: 120, atendido: 60 },
+        { dateKey: "2026-11-12", hour: 18, disponible: 120, agendado: 110, atendido: 100 },
+      ],
+    });
+    const c = get(d, "contratar");
+    expect(c.estado).toBe("si");
+    expect(c.detalle).toContain("se llena los días en que se fueron");
   });
   it("con pocos clientes que se fueron avisa que son pocos datos", () => {
     expect(get(evaluarDecisiones({ ...base, seFueronPorLugarFranjas: casos(1) }), "contratar").respuesta).toBe("Pocos datos");

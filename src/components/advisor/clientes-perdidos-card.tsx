@@ -2,7 +2,7 @@ import * as React from "react";
 import { DoorOpen } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { fmtAR } from "@/components/dashboard/use-dashboard-data";
-import { evaluarDecisiones, type DecisionEstado, type FranjaOcupacion } from "@/lib/decisiones-negocio";
+import { evaluarDecisiones, type DecisionEstado, type FranjaOcupacion, type FranjaDiaOcupacion } from "@/lib/decisiones-negocio";
 
 const BA = "America/Argentina/Buenos_Aires";
 
@@ -45,6 +45,7 @@ export function ClientesPerdidosCard({
   ticket,
   employeeLoad,
   franjas,
+  franjasDia,
 }: {
   businessId: string | null | undefined;
   monthKey: string;
@@ -55,6 +56,7 @@ export function ClientesPerdidosCard({
   employeeLoad?: Carga[];
   /** Ocupación agendada y atendida por franja (día de la semana y hora) del mes. */
   franjas?: FranjaOcupacion[];
+  franjasDia?: FranjaDiaOcupacion[];
 }) {
   const [filas, setFilas] = React.useState<Fila[] | null>(null);
   const [nombres, setNombres] = React.useState<Map<string, string>>(new Map());
@@ -166,8 +168,13 @@ export function ClientesPerdidosCard({
           {evaluarDecisiones({
             ocupacion: occupancy,
             profesionales: employeeLoad ?? [],
-            seFueronPorLugarFranjas: generales.map((f) => ({ dow: enBA(f).getDay(), hour: enBA(f).getHours() })),
+            seFueronPorLugarFranjas: generales.map((f) => ({
+              dow: enBA(f).getDay(),
+              hour: enBA(f).getHours(),
+              dateKey: new Date(f.occurred_at).toLocaleDateString("sv-SE", { timeZone: BA }),
+            })),
             franjas,
+            franjasDia,
             seFueronPorPrecio: porPrecio.length,
             masPedido: pedidos[0] ? { name: pedidos[0][0], n: pedidos[0][1] } : null,
             franjaConMasCasos: total > 0 && dias[0] && horas[0] ? { dia: DIAS[dias[0][0]], hora: horas[0][0] } : null,

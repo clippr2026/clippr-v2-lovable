@@ -16,6 +16,8 @@ export type Decision = {
 
 /** Ocupación de una franja (día de la semana 0-6 y hora 0-23), en minutos y con tope por profesional y hora. */
 export type FranjaOcupacion = { dow: number; hour: number; disponible: number; agendado: number; atendido: number };
+/** Ocupación de una hora de un día puntual. */
+export type FranjaDiaOcupacion = { dateKey: string; hour: number; disponible: number; agendado: number; atendido: number };
 
 export type DecisionesInput = {
   /** Ocupación atendida del mes (0-100), null si no hay horarios cargados. Solo contexto: no decide por sí sola. */
@@ -23,7 +25,7 @@ export type DecisionesInput = {
   /** daysWorked/daysFull: días trabajados y días con 90% o más de los turnos atendidos (con o sin turno sacado). */
   profesionales: Array<{ name: string; used: number; capacity: number; daysWorked?: number; daysFull?: number }>;
   /** Clientes que se fueron aceptando a cualquiera (falta de lugar), con el día y la hora en que se fueron. */
-  seFueronPorLugarFranjas: Array<{ dow: number; hour: number }>;
+  seFueronPorLugarFranjas: Array<{ dow: number; hour: number; dateKey?: string }>;
   /** Clientes que se fueron por el precio (botón "Se fue" de la Agenda). */
   seFueronPorPrecio?: number;
   /** Profesional más pedido por clientes que se fueron (cantidad y nombre). */
@@ -32,6 +34,8 @@ export type DecisionesInput = {
   franjaConMasCasos: { dia: string; hora: number } | null;
   /** Ocupación por franja del mes. Sin esto solo se usan los días llenos de cada profesional. */
   franjas?: FranjaOcupacion[];
+  /** Ocupación hora por hora de cada día del mes: sirve para ver cómo estaba el horario justo cuando se fue el cliente. */
+  franjasDia?: FranjaDiaOcupacion[];
 };
 
 const DIAS = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
@@ -50,7 +54,7 @@ const franjaTexto = (dow: number, hour: number) => `${DIAS[dow]} de ${hour} a ${
 const pct = (num: number, den: number) => (den > 0 ? Math.round((num / den) * 100) : null);
 const plural = (n: number, uno: string, varios: string) => (n === 1 ? uno : varios);
 
-type FranjaConCasos = FranjaOcupacion & { casos: number; agendadaPct: number; atendidaPct: number; llena: boolean };
+type FranjaConCasos = FranjaOcupacion & { casos: number; agendadaPct: number; atendidaPct: number; llena: boolean; llenosEnElMomento: number };
 
 export function evaluarDecisiones(i: DecisionesInput): Decision[] {
   const franjaPorClave = new Map((i.franjas ?? []).map((f) => [`${f.dow}|${f.hour}`, f]));
@@ -61,13 +65,31 @@ export function evaluarDecisiones(i: DecisionesInput): Decision[] {
     e.casos += 1;
     casosPorFranja.set(k, e);
   }
+  const franjaDiaPorClave = new Map((i.franjasDia ?? []).map((f) => [`${f.dateKey}|${f.hour}`, f]));
+  const llenaEnElMomento = (c: { dateKey?: string; hour: number }) => {
+    const f = c.dateKey ? franjaDiaPorClave.get(`${c.dateKey}|${c.hour}`) : undefined;
+    if (!f || f.disponible <= 0) return null;
+    return Math.max(f.agendado, f.atendido) / f.disponible >= FRANJA_LLENA;
+  };
   const franjasConCasos: FranjaConCasos[] = [];
   for (const c of casosPorFranja.values()) {
     const f = franjaPorClave.get(`${c.dow}|${c.hour}`);
     if (!f || f.disponible <= 0) continue;
     const agendadaPct = pct(f.agendado, f.disponible) ?? 0;
     const atendidaPct = pct(f.atendido, f.disponible) ?? 0;
-    franjasConCasos.push({ ...f, casos: c.casos, agendadaPct, atendidaPct, llena: Math.max(agendadaPct, atendidaPct) >= FRANJA_LLENA * 100 });
+    // Si el cliente se fue por falta de lugar, ese día el horario estaba lleno para él: se mira el momento exacto,
+    // no solo el promedio del mes de esa franja (que mezcla días llenos y días flojos).
+    const momentos = i.seFueronPorLugarFranjas.filter((x) => x.dow === c.dow && x.hour === c.hour).map(llenaEnElMomento);
+    const llenosEnElMomento = momentos.filter((m) => m === true).length;
+    const promedioLleno = Math.max(agendadaPct, atendidaPct) >= FRANJA_LLENA * 100;
+    franjasConCasos.push({
+      ...f,
+      casos: c.casos,
+      agendadaPct,
+      atendidaPct,
+      llenosEnElMomento,
+      llena: promedioLleno || llenosEnElMomento * 2 >= c.casos,
+    });
   }
   const fuertes = franjasConCasos.filter((f) => f.casos >= MIN_CASOS_FRANJA).sort((a, b) => b.casos - a.casos);
   const fuertesLlenas = fuertes.filter((f) => f.llena);
@@ -101,13 +123,13 @@ export function evaluarDecisiones(i: DecisionesInput): Decision[] {
     const f = fuertesLlenas[0];
     contratar = {
       clave: "contratar", titulo: titulo1, estado: "si", respuesta: "Reforzá una franja",
-      detalle: `${franjaTexto(f.dow, f.hour)} se llena (${f.agendadaPct}% agendada, ${f.atendidaPct}% atendida) y ${f.casos === 1 ? "se fue 1 cliente" : `se fueron ${f.casos}`}: reforzá ese horario, no hace falta sumar a alguien fijo.`,
+      detalle: `${franjaTexto(f.dow, f.hour)} se llena${f.llenosEnElMomento > 0 ? " los días en que se fueron" : ""} y ${f.casos === 1 ? "se fue 1 cliente" : `se fueron ${f.casos}`} (en el mes esa franja está al ${f.agendadaPct}% agendada, ${f.atendidaPct}% atendida): reforzá ese horario, no hace falta sumar a alguien fijo.`,
     };
   } else if (franjasConCasos.some((f) => f.casos >= MIN_CASOS_FRANJA)) {
     const f = fuertes[0];
     contratar = {
-      clave: "contratar", titulo: titulo1, estado: "info", respuesta: "Revisá horarios",
-      detalle: `${franjaTexto(f.dow, f.hour)}: se fueron ${f.casos} con la agenda al ${f.agendadaPct}% agendada y ${f.atendidaPct}% atendida. Había lugar: revisá turnos y bloqueos en ese horario.`,
+      clave: "contratar", titulo: titulo1, estado: "si", respuesta: "Reforzá una franja",
+      detalle: `${franjaTexto(f.dow, f.hour)}: se fueron ${f.casos} por falta de lugar, aunque en el mes esa franja promedia ${f.agendadaPct}% agendada y ${f.atendidaPct}% atendida. Se llena en días puntuales: reforzá ese horario antes de contratar.`,
     };
   } else if ((fracLocal ?? 0) >= DIAS_LLENOS_TOPE) {
     contratar = {
