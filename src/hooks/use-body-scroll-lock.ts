@@ -62,6 +62,9 @@ function lockBody() {
     width: body.style.width,
     overflow: body.style.overflow,
   };
+  // Sin el rebote de iPhone: tirar hacia abajo/arriba de la ventana no mueve la pantalla de atrás.
+  document.documentElement.style.overscrollBehavior = "none";
+  body.style.overscrollBehavior = "none";
   body.style.position = "fixed";
   body.style.top = `-${savedScrollY}px`;
   body.style.left = "0";
@@ -73,6 +76,8 @@ function lockBody() {
 function unlockBody() {
   unlockAppScroll();
   const body = document.body;
+  document.documentElement.style.overscrollBehavior = "";
+  body.style.overscrollBehavior = "";
   if (savedStyles) {
     body.style.position = savedStyles.position;
     body.style.top = savedStyles.top;
