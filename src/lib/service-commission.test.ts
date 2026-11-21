@@ -1,0 +1,25 @@
+import { describe, expect, it } from "vitest";
+import { computeCommissionAmount, resolveServiceCommission } from "@/lib/service-pricing";
+
+const map = {
+  "*": { s1: { enabled: true, mode: "percent" as const, value: "40" } },
+  e1: { s1: { enabled: true, mode: "percent" as const, value: "60" } },
+};
+
+describe("comisión del servicio", () => {
+  it("el profesional con comisión propia en el servicio usa la suya", () => {
+    expect(resolveServiceCommission("s1", "e1", map)?.value).toBe("60");
+  });
+  it("sin comisión propia usa la del servicio", () => {
+    expect(resolveServiceCommission("s1", "e2", map)?.value).toBe("40");
+  });
+  it("servicio sin comisión propia ni del servicio cae al % general del profesional", () => {
+    expect(resolveServiceCommission("s2", "e2", map)).toBeNull();
+    const r = computeCommissionAmount([{ serviceId: "s2", amount: 1000 } as any], "e2", map, { commissionPct: 50 });
+    expect(r.pctAmount).toBe(500);
+  });
+  it("calcula con la del servicio", () => {
+    const r = computeCommissionAmount([{ serviceId: "s1", amount: 1000 } as any], "e2", map, { commissionPct: 50 });
+    expect(r.pctAmount).toBe(400);
+  });
+});

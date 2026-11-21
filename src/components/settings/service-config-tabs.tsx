@@ -126,12 +126,15 @@ export function ServiceProfessionalsTab({ serviceId, listPrice }: { serviceId: s
   const [draft, setDraft] = React.useState<Record<string, StaffDraft>>({});
   const [ready, setReady] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
+  const [serviceComm, setServiceComm] = React.useState("");
 
   React.useEffect(() => {
     if (!businessId || loading) return;
     let cancelled = false;
     void readBusinessSchedule(businessId).then((schedule) => {
       if (cancelled) return;
+      const star = (schedule._employeeCommissions ?? {})["*"]?.[serviceId];
+      setServiceComm(star && String(star.value ?? "").trim() ? (star.mode === "fixed" ? `$${star.value}` : `${star.value}%`) : "");
       const overrides = (schedule._employeeServiceOverrides ?? {}) as Record<string, Record<string, ServiceOverrideConfig>>;
       const commissions = (schedule._employeeCommissions ?? {}) as Record<string, Record<string, { mode?: string; value?: string }>>;
       const next: Record<string, StaffDraft> = {};
@@ -204,7 +207,7 @@ export function ServiceProfessionalsTab({ serviceId, listPrice }: { serviceId: s
 
   return (
     <div className="space-y-3">
-      <p className="text-base text-white/65">Elegí quiénes hacen este servicio, cuánto cobra cada uno y su comisión.</p>
+      <p className="text-base text-white/65">Elegí quiénes hacen este servicio, cuánto cobra cada uno y su comisión. La comisión del servicio se pone en Datos; acá la cambiás solo para quien sea distinto.</p>
       {employees.map((e) => {
         const d = draft[e.id];
         if (!d) return null;
@@ -240,27 +243,11 @@ export function ServiceProfessionalsTab({ serviceId, listPrice }: { serviceId: s
                     </div>
                   ) : null}
                 </div>
+                {!e.commissionEnabled ? (
+                  <p className="text-base text-amber-200">Este profesional no genera comisión (apagado en Equipo).</p>
+                ) : null}
                 <div>
-                  <div className="mb-1.5 flex items-center justify-between gap-2">
-                    <span className="text-base font-semibold text-white">Comisión general</span>
-                    <span className="text-base text-white/60">en todos sus servicios</span>
-                  </div>
-                  <div className="relative">
-                    <input
-                      inputMode="decimal"
-                      value={d.generalPct}
-                      onChange={(ev) => update(e.id, { generalPct: ev.target.value.replace(/[^\d.,]/g, "") })}
-                      placeholder="Ej: 50"
-                      className={cn(inputCls, "pr-9")}
-                    />
-                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-base text-white/50">%</span>
-                  </div>
-                  {!e.commissionEnabled ? (
-                    <p className="mt-1.5 text-base text-amber-200">Este profesional no genera comisión (apagado en Equipo).</p>
-                  ) : null}
-                </div>
-                <div>
-                  <div className="mb-1.5 text-base font-semibold text-white">Comisión solo en este servicio</div>
+                  <div className="mb-1.5 text-base font-semibold text-white">Comisión en este servicio</div>
                   <div className="grid grid-cols-[110px_minmax(0,1fr)] gap-2">
                     <SelectClippr
                       opciones={[
@@ -274,12 +261,18 @@ export function ServiceProfessionalsTab({ serviceId, listPrice }: { serviceId: s
                       inputMode="decimal"
                       value={d.commValue}
                       onChange={(ev) => update(e.id, { commValue: ev.target.value.replace(/[^\d.,]/g, "") })}
-                      placeholder={d.generalPct.trim() ? `Vacío = ${d.generalPct}%` : "Vacío = sin comisión"}
+                      placeholder={serviceComm ? `Vacío = ${serviceComm}` : "Vacío = la del servicio"}
                       className={inputCls}
                     />
                   </div>
                   <p className="mt-1.5 text-base text-white/55">
-                    {d.commValue.trim() ? "Se usa esta en este servicio." : d.generalPct.trim() ? `Usa la general: ${d.generalPct}%.` : "Sin comisión general ni propia: no gana comisión acá."}
+                    {d.commValue.trim()
+                      ? "Se usa esta para este profesional."
+                      : serviceComm
+                        ? `Usa la comisión del servicio: ${serviceComm}.`
+                        : d.generalPct.trim()
+                          ? `El servicio no tiene comisión: usa la general del profesional (${d.generalPct}%).`
+                          : "Sin comisión del servicio ni general: no gana comisión acá."}
                   </p>
                 </div>
               </div>

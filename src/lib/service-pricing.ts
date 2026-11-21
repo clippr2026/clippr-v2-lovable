@@ -170,15 +170,21 @@ export type EmployeeCommissionMap = Record<string, Record<string, CommissionConf
 // mismo criterio que isServiceOfferedByEmployee, aunque en la práctica la UI
 // de Equipo no expone ese switch para comisión de servicios (ver comentario
 // en equipo-section.tsx: siempre queda enabled:true al guardar).
+export const SERVICE_COMMISSION_KEY = "*";
+
 export function resolveServiceCommission(
   serviceId: string | null | undefined,
   employeeId: string | null | undefined,
   commissionsMap: EmployeeCommissionMap | null | undefined,
 ): CommissionConfig | null {
   if (!serviceId || !employeeId) return null;
-  const cfg = commissionsMap?.[employeeId]?.[serviceId];
-  if (!cfg || cfg.enabled === false) return null;
-  return cfg;
+  const own = commissionsMap?.[employeeId]?.[serviceId];
+  if (own) return own.enabled === false ? null : own;
+  // Comisión del servicio (Servicios > Datos), guardada bajo la clave "*": rige para todos los profesionales
+  // que no tengan una propia en ese servicio.
+  const forService = commissionsMap?.[SERVICE_COMMISSION_KEY]?.[serviceId];
+  if (!forService || forService.enabled === false) return null;
+  return forService;
 }
 
 // ────────────────── Concepto visible en Liquidaciones (varios ítems) ───────

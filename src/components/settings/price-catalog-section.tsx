@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, useLayoutEffect } from "react";
 import { createPortal } from "react-dom";
 import { ElegirImagen } from "@/components/ui/elegir-imagen";
+import { SelectClippr } from "@/components/ui/select-clippr";
+import { SERVICE_COMMISSION_KEY } from "@/lib/service-pricing";
 import { ServiceProfessionalsTab, ServiceScheduleTab, ServicePromoTab } from "@/components/settings/service-config-tabs";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
@@ -72,6 +74,9 @@ type PriceForm = {
   // Imagen general (catálogo y servicios)
   image: string;
   imagePosition: string;
+  // Comisión de este servicio (vacío = cada profesional usa su comisión general).
+  commissionMode: "percent" | "fixed";
+  commissionValue: string;
 };
 
 const emptyPriceForm = (
@@ -95,6 +100,8 @@ const emptyPriceForm = (
   miniDesc: "",
   image: "",
   imagePosition: "50% 50%",
+  commissionMode: "percent",
+  commissionValue: "",
 });
 
 const defaultServiceCategories: string[] = [];
@@ -184,6 +191,8 @@ function rowToForm(row: PriceRow, isService: boolean): PriceForm {
     bookingOffer: "none",
     miniDesc: "",
     image: "",
+    commissionMode: "percent",
+    commissionValue: "",
     imagePosition: "50% 50%",
   };
 }
@@ -892,6 +901,30 @@ function PriceEditorModal({
                 </div>
               </SectionCard>
 
+              <SectionCard label="Comisión">
+                <p className="mb-3 text-base text-white/65">
+                  Lo que gana el profesional por este servicio. Vacío = cada uno usa su comisión general. Después podés cambiarla
+                  para cada profesional en la pestaña Profesionales.
+                </p>
+                <div className="grid grid-cols-[110px_minmax(0,1fr)] gap-2">
+                  <SelectClippr
+                    opciones={[
+                      { id: "percent", label: "%" },
+                      { id: "fixed", label: "$ fijo" },
+                    ]}
+                    valor={form.commissionMode}
+                    onChange={(v) => setForm({ ...form, commissionMode: v === "fixed" ? "fixed" : "percent" })}
+                  />
+                  <input
+                    inputMode="decimal"
+                    value={form.commissionValue}
+                    onChange={(e) => setForm({ ...form, commissionValue: e.target.value.replace(/[^\d.,]/g, "") })}
+                    placeholder="Ej: 50"
+                    className="h-12 w-full min-w-0 rounded-xl border border-white/10 bg-black/30 px-3 text-base font-semibold text-white placeholder:text-white/35 focus:border-violet-400/50 focus:outline-none"
+                  />
+                </div>
+              </SectionCard>
+
               <SectionCard label="Imagen del servicio">
                 <ImagenCampo
                   image={form.image}
@@ -1166,6 +1199,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   const [imagePositionMap, setImagePositionMap] = useState<Record<string, string>>({});
   // Descripción de cada servicio (se guarda en business_settings.schedule._serviceDescriptions).
   const [descriptionMap, setDescriptionMap] = useState<Record<string, string>>({});
+  // Comisión de cada servicio (se guarda en _employeeCommissions["*"], ver SERVICE_COMMISSION_KEY).
+  const [serviceCommissionMap, setServiceCommissionMap] = useState<Record<string, { mode: "percent" | "fixed"; value: string }>>({});
   // `ready` se setea UNA sola vez, con el primer (y único) fetch combinado de
   // items + categorías. A diferencia del esquema anterior (loading +
   // categoriesLoading + initialCategoryReady derivados en cada render), acá
@@ -1356,6 +1391,13 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         if (pid.trim() && typeof value === "string" && value.trim()) descMapLoaded[pid] = value;
       }
 
+      const commStar = ((schedule._employeeCommissions ?? {}) as Record<string, any>)[SERVICE_COMMISSION_KEY] ?? {};
+      const commLoaded: Record<string, { mode: "percent" | "fixed"; value: string }> = {};
+      for (const [pid, c] of Object.entries(commStar as Record<string, any>)) {
+        if (pid.trim() && c && c.enabled !== false && String(c.value ?? "").trim() !== "")
+          commLoaded[pid] = { mode: c.mode === "fixed" ? "fixed" : "percent", value: String(c.value) };
+      }
+
       let nextBookingConfig = bookingConfig;
       if (!isService) {
         const bp = (schedule._bookingProducts ?? {}) as Record<string, unknown>;
@@ -1416,6 +1458,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       setImageMap(imgMap);
       setImagePositionMap(posMap);
       setDescriptionMap(descMapLoaded);
+      setServiceCommissionMap(commLoaded);
       setItemOrderMap(nextItemOrderMap);
       setCat(resolvedCat);
       setReady(true);
@@ -1632,6 +1675,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   const imageMapRef = useRef(imageMap);
   const imagePositionMapRef = useRef(imagePositionMap);
   const descriptionMapRef = useRef(descriptionMap);
+  const serviceCommissionMapRef = useRef(serviceCommissionMap);
   const itemOrderRef = useRef(itemOrderMap);
   useEffect(() => {
     bookingConfigRef.current = bookingConfig;
@@ -1651,6 +1695,9 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   useEffect(() => {
     descriptionMapRef.current = descriptionMap;
   }, [descriptionMap]);
+  useEffect(() => {
+    serviceCommissionMapRef.current = serviceCommissionMap;
+  }, [serviceCommissionMap]);
   useEffect(() => {
     pendingItemsRef.current = pendingItems;
   }, [pendingItems]);
@@ -1678,6 +1725,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         const nextImageMap = { ...imageMapRef.current };
         const nextImagePositionMap = { ...imagePositionMapRef.current };
         const nextDescriptionMap = { ...descriptionMapRef.current };
+        const nextCommissionMap = { ...serviceCommissionMapRef.current };
         const tempIdToReal: Record<string, string> = {};
 
         // Flush deletes — baja lógica (deleted_at), nunca DELETE físico: ver
@@ -1696,6 +1744,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           delete nextImageMap[id];
           delete nextImagePositionMap[id];
           delete nextDescriptionMap[id];
+          delete nextCommissionMap[id];
         }
 
         // Flush upserts
@@ -1725,6 +1774,10 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
               if (nextDescriptionMap[tempId]) {
                 nextDescriptionMap[realId] = nextDescriptionMap[tempId];
                 delete nextDescriptionMap[tempId];
+              }
+              if (nextCommissionMap[tempId]) {
+                nextCommissionMap[realId] = nextCommissionMap[tempId];
+                delete nextCommissionMap[tempId];
               }
             } else {
               const realId = String(inserted.id);
@@ -1827,6 +1880,20 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
           return merged;
         };
 
+        const mergeServiceCommissions = (
+          existingSchedule: Record<string, unknown>,
+        ): Record<string, unknown> => {
+          const all = { ...((existingSchedule._employeeCommissions ?? {}) as Record<string, Record<string, unknown>>) };
+          const star = { ...(all[SERVICE_COMMISSION_KEY] ?? {}) };
+          for (const id of ownImageIds()) {
+            const c = nextCommissionMap[id];
+            if (c && c.value.trim()) star[id] = { enabled: true, mode: c.mode, value: c.value.trim() };
+            else delete star[id];
+          }
+          all[SERVICE_COMMISSION_KEY] = star;
+          return all;
+        };
+
         const mergeServiceDescriptions = (
           existingSchedule: Record<string, unknown>,
         ): Record<string, string> => {
@@ -1922,6 +1989,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         setImagePositionMap(nextImagePositionMap);
         descriptionMapRef.current = nextDescriptionMap;
         setDescriptionMap(nextDescriptionMap);
+        serviceCommissionMapRef.current = nextCommissionMap;
+        setServiceCommissionMap(nextCommissionMap);
 
         if (isService && businessId) {
           serviceReservableMapRef.current = nextServiceReservableMap;
@@ -1945,6 +2014,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                 _catalogImagePositions: mergeCatalogImagePositions(existingSchedule),
                 _catalogImageOffsets: mergeCatalogImageOffsets(existingSchedule),
                 _serviceDescriptions: mergeServiceDescriptions(existingSchedule),
+                _employeeCommissions: mergeServiceCommissions(existingSchedule),
                 _serviceCategories: mergeServiceCategories(existingSchedule),
                 _serviceCashDiscounts: mergeServiceCashDiscounts(existingSchedule),
                 _publicVisibility: {
@@ -2148,6 +2218,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       image: imageMap[row.id] ?? "",
       imagePosition: imagePositionMap[row.id] ?? "50% 50%",
       description: isService ? descriptionMap[row.id] ?? "" : "",
+      commissionMode: serviceCommissionMap[row.id]?.mode ?? "percent",
+      commissionValue: serviceCommissionMap[row.id]?.value ?? "",
     });
     setModalOpen(true);
   }
@@ -2229,13 +2301,20 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         else delete next[editing.id];
         return next;
       });
-      if (isService)
+      if (isService) {
         setDescriptionMap((current) => {
           const next = { ...current };
           if (form.description.trim()) next[editing.id] = form.description.trim();
           else delete next[editing.id];
           return next;
         });
+        setServiceCommissionMap((current) => {
+          const next = { ...current };
+          if (form.commissionValue.trim()) next[editing.id] = { mode: form.commissionMode, value: form.commissionValue.trim() };
+          else delete next[editing.id];
+          return next;
+        });
+      }
       // Update existing row locally
       setRows((prev) =>
         prev.map((r) =>
@@ -2268,6 +2347,9 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         }));
       if (isService && form.description.trim()) {
         setDescriptionMap((current) => ({ ...current, [tempId]: form.description.trim() }));
+      }
+      if (isService && form.commissionValue.trim()) {
+        setServiceCommissionMap((current) => ({ ...current, [tempId]: { mode: form.commissionMode, value: form.commissionValue.trim() } }));
       }
       if (form.image) {
         setImageMap((current) => ({ ...current, [tempId]: form.image }));
