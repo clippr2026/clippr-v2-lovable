@@ -2108,17 +2108,30 @@ export function BrandingSection() {
           Vista previa
         </button>
         {/* Montada desde antes (invisible): así la página ya está cargada cuando se toca Vista previa. */}
-        {precargarPreview || previewOpen ? (
-          <div
-            className={
-              "fixed inset-0 z-[10040] overflow-y-auto overscroll-contain bg-black/80 p-3 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] " +
-              (previewOpen ? "" : "pointer-events-none invisible")
-            }
-            aria-hidden={!previewOpen}
-          >
-            <div className="mx-auto max-w-md">{previewPanel}</div>
-          </div>
-        ) : null}
+        {/* En portal (fuera de la pantalla): así cubre todo, incluido el encabezado, y el botón Cerrar siempre se ve. */}
+        {(precargarPreview || previewOpen) && typeof document !== "undefined"
+          ? createPortal(
+              <div
+                className={
+                  "fixed inset-0 z-[10040] overflow-y-auto overscroll-contain bg-black/90 p-3 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))] " +
+                  (previewOpen ? "" : "pointer-events-none invisible")
+                }
+                aria-hidden={!previewOpen}
+              >
+                <div className="mx-auto max-w-md">{previewPanel}</div>
+                {previewOpen ? (
+                  <button
+                    type="button"
+                    onClick={() => setPreviewOpen(false)}
+                    className="fixed bottom-[calc(1.5rem+env(safe-area-inset-bottom))] left-1/2 z-[10060] -translate-x-1/2 rounded-full border border-violet-400/50 bg-[#08070f] px-8 py-3.5 text-base font-semibold text-white shadow-[0_0_30px_-8px_rgba(139,92,246,0.8)]"
+                  >
+                    Cerrar vista previa
+                  </button>
+                ) : null}
+              </div>,
+              document.body,
+            )
+          : null}
       </>
     ) : null}
     </div>
