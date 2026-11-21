@@ -533,13 +533,6 @@ function TicketView({ d, perf, prev, vsLabel }: ViewProps) {
       <Block title="Por medio de pago">
         <Bars rows={t.porMedio.map((r) => ({ ...r, label: methodLabel(r.label) }))} sub={(r) => `${r.count} ventas`} color="bg-teal-400/70" />
       </Block>
-      <Block title="Con promoción vs sin promoción" hint="Una promo baja el ticket de esa venta.">
-        <Bars
-          rows={[cmp("Sin promoción", t.sinPromo), cmp("Con promoción", t.conPromo)].filter((r) => (r.count ?? 0) > 0)}
-          sub={(r) => `${r.count} ventas`}
-          color="bg-amber-400/70"
-        />
-      </Block>
       <Block title="Con turno vs por orden de llegada">
         <Bars
           rows={[cmp("Con turno agendado", t.conTurno), cmp("Por orden de llegada", t.sinTurno)].filter((r) => (r.count ?? 0) > 0)}
