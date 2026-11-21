@@ -17590,15 +17590,6 @@ export function NuevaVentaTab({
                             <Pencil className="size-3.5" />
                           </button>
                         )}
-                        {(priceOverrides[cartItems[0].svc.id] != null || (priceDiscounts[cartItems[0].svc.id] ?? 0) > 0) && (
-                          <button
-                            type="button"
-                            onClick={() => revertPrice(cartItems[0].svc.id)}
-                            className="text-[10px] font-medium text-amber-300/80 underline underline-offset-2 hover:text-amber-200"
-                          >
-                            Quitar cambio
-                          </button>
-                        )}
                       </>
                     )}
                   </span>
@@ -17669,15 +17660,6 @@ export function NuevaVentaTab({
                                   className="grid size-5 place-items-center rounded-md text-white/45 transition hover:bg-white/10 hover:text-white"
                                 >
                                   <Pencil className="size-3" />
-                                </button>
-                              )}
-                              {(priceOverrides[svc.id] != null || (priceDiscounts[svc.id] ?? 0) > 0) && (
-                                <button
-                                  type="button"
-                                  onClick={() => revertPrice(svc.id)}
-                                  className="text-[10px] font-medium text-amber-300/80 underline underline-offset-2 hover:text-amber-200"
-                                >
-                                  Quitar
                                 </button>
                               )}
                             </>
