@@ -544,18 +544,18 @@ function TicketView({ d, perf, prev, vsLabel }: ViewProps) {
   );
 }
 
-function ClientesView({ d, perf, prev, vsLabel }: ViewProps) {
+function ClientesView({ d, perf, prev, vsLabel, prevDet }: ViewProps) {
   const c = d.clientes;
   const tn = c.turnos;
   return (
     <div className="space-y-5">
       <StatGrid>
         <Stat label="Clientes atendidos" value={int(c.atendidos)} sub={<Delta cur={perf.clientes} prev={prev?.clientes ?? null} label={vsLabel} />} />
-        <Stat label="Nuevos del mes" value={int(c.nuevos)} />
-        <Stat label="Recurrentes" value={int(c.recurrentes)} />
-        <Stat label="VIP atendidos" value={int(c.vip)} />
-        <Stat label="Sin ficha de cliente" value={int(c.sinFicha)} />
-        <Stat label="Por orden de llegada" value={int(c.ventasSinTurno)} />
+        <Stat label="Nuevos del mes" value={int(c.nuevos)} sub={<Delta cur={c.nuevos} prev={prevDet?.clientes.nuevos ?? null} label={vsLabel} />} />
+        <Stat label="Recurrentes" value={int(c.recurrentes)} sub={<Delta cur={c.recurrentes} prev={prevDet?.clientes.recurrentes ?? null} label={vsLabel} />} />
+        <Stat label="VIP atendidos" value={int(c.vip)} sub={<Delta cur={c.vip} prev={prevDet?.clientes.vip ?? null} label={vsLabel} />} />
+        <Stat label="Sin ficha de cliente" value={int(c.sinFicha)} sub={<Delta cur={c.sinFicha} prev={prevDet?.clientes.sinFicha ?? null} label={vsLabel} lowerIsBetter />} />
+        <Stat label="Por orden de llegada" value={int(c.ventasSinTurno)} sub={<Delta cur={c.ventasSinTurno} prev={prevDet?.clientes.ventasSinTurno ?? null} label={vsLabel} />} />
       </StatGrid>
 
       <Block title="Clasificación de los clientes atendidos" hint="Según su estado actual en Clientes.">
@@ -626,7 +626,7 @@ export function DetalleSheet({
   // Mes anterior (recortado al mismo día cuando se mira el mes en curso): para comparar Servicios, Productos y Descuentos.
   const prevRaw = useQuery({
     queryKey: ["monthly-detail", businessId, activeBranchId, prev?.monthKey ?? "", "prev", compDay ?? 0],
-    enabled: !!businessId && kind === "facturacion" && !!prev,
+    enabled: !!businessId && (kind === "facturacion" || kind === "clientes") && !!prev,
     staleTime: 60_000,
     queryFn: () => fetchMonthlyDetailRaw(businessId!, activeBranchId, prev!.monthKey),
   });
@@ -637,8 +637,15 @@ export function DetalleSheet({
     const raw = compDay
       ? { ...prevRaw.data, payments: prevRaw.data.payments.filter((p) => diaAR(p.created_at) <= compDay) }
       : prevRaw.data;
-    return computeMonthlyDetail(prev.monthKey, raw, prev, []);
-  }, [prevRaw.data, prev, compDay]);
+    const clients = (clientsQuery.data ?? []).map((c) => ({
+      id: c.id,
+      name: c.name,
+      created_at: c.created_at,
+      status: c.status,
+      vipTag: c.vipTag,
+    }));
+    return computeMonthlyDetail(prev.monthKey, raw, prev, clients);
+  }, [prevRaw.data, prev, compDay, clientsQuery.data]);
 
   const detail = React.useMemo(() => {
     if (!raw.data) return null;
