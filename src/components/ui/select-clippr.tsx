@@ -9,11 +9,14 @@ export function SelectClippr({
   valor,
   onChange,
   className,
+  pill = false,
 }: {
   opciones: Array<{ id: string; label: string }>;
   valor: string;
   onChange: (id: string) => void;
   className?: string;
+  // Forma de píldora (pago): borde celeste y fondo negro, igual que los campos de monto.
+  pill?: boolean;
 }) {
   const [abierto, setAbierto] = React.useState(false);
   const [pos, setPos] = React.useState<{ left: number; width: number; top?: number; bottom?: number } | null>(null);
@@ -51,7 +54,12 @@ export function SelectClippr({
         aria-haspopup="listbox"
         aria-expanded={abierto}
         onClick={() => (abierto ? setAbierto(false) : abrir())}
-        className="flex h-12 w-full touch-manipulation items-center justify-between gap-1.5 rounded-xl border border-white/10 bg-white/[0.04] pl-3 pr-2.5 text-left text-[15px] font-semibold text-white outline-none focus:border-violet-400/50"
+        className={cn(
+          "flex h-12 w-full touch-manipulation items-center justify-between gap-1.5 text-left text-[15px] font-semibold text-white outline-none",
+          pill
+            ? "rounded-full border border-blue-300/25 bg-black/45 pl-4 pr-3 focus:border-blue-300/55"
+            : "rounded-xl border border-white/10 bg-white/[0.04] pl-3 pr-2.5 focus:border-violet-400/50",
+        )}
       >
         <span className="truncate">{actual?.label ?? "—"}</span>
         <ChevronDown className={cn("h-4 w-4 shrink-0 text-white/60 transition-transform", abierto && "rotate-180")} />

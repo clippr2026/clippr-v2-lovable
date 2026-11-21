@@ -15612,6 +15612,8 @@ export function NuevaVentaTab({
   const { profile: authProfile } = useAuth();
   const canEditPrice = !lockedEmployeeId && turnoChargeMode !== "manual" && authProfile?.role !== "profesional";
   const [priceOverrides, setPriceOverrides] = React.useState<Record<string, number>>({});
+  // Lápiz del precio: bajar el precio de un servicio funciona como descuento (por unidad, por servicio).
+  const [priceDiscounts, setPriceDiscounts] = React.useState<Record<string, number>>({});
   const [priceEditId, setPriceEditId] = React.useState<string | null>(null);
   const [priceEditValue, setPriceEditValue] = React.useState("");
   const [splits, setSplits] = React.useState<MultiSplit[]>([
@@ -15907,6 +15909,23 @@ export function NuevaVentaTab({
     const n = Math.round(Number(priceEditValue.replace(/[^0-9.]/g, "")) || 0);
     setPriceEditId(null);
     if (n <= 0) return;
+    const item = cartItems.find((c) => c.svc.id === id);
+    const unit = item ? Math.round(cartUnitPrice(item.svc)) : 0;
+    if (item && !selectedPromotion && unit > 0 && n < unit) {
+      // Un precio menor es un descuento: el precio original queda tachado.
+      setPriceDiscounts((prev) => ({ ...prev, [id]: unit - n }));
+      setPriceOverrides((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+      return;
+    }
+    setPriceDiscounts((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
     const original = Math.round(Number(servicesWithSynthetic.find((x) => x.id === id)?.price ?? 0));
     setPriceOverrides((prev) => {
       const next = { ...prev };
@@ -15915,12 +15934,18 @@ export function NuevaVentaTab({
       return next;
     });
   };
-  const revertPrice = (id: string) =>
+  const revertPrice = (id: string) => {
+    setPriceDiscounts((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
     setPriceOverrides((prev) => {
       const next = { ...prev };
       delete next[id];
       return next;
     });
+  };
   const nadaAbonado = received !== "" && (Number(received) || 0) === 0;
   const isCashMethod = method === "cash" && !nadaAbonado && !isSinCargo;
   const cartUnitPrice = (svc: (typeof cartItems)[number]["svc"]) =>
@@ -15995,13 +16020,14 @@ export function NuevaVentaTab({
   // "total" ya es el precio con el método actual resuelto (efectivo si
   // corresponde) — un % manual se calcula sobre ESE monto, nunca sobre el
   // precio de lista, mismo criterio que el descuento de una promoción.
+  const lapizDiscount = cartItems.reduce((acc, { svc, qty }) => acc + (priceDiscounts[svc.id] ?? 0) * qty, 0);
   const manualDiscountValue = Math.max(
     0,
     Math.min(
       total,
-      manualDiscountMode === "percent"
+      (manualDiscountMode === "percent"
         ? (total * (Number(manualDiscountAmount) || 0)) / 100
-        : Number(manualDiscountAmount) || 0,
+        : Number(manualDiscountAmount) || 0) + lapizDiscount,
     ),
   );
   const discountAmount = isSinCargo ? total : selectedPromotion ? promoDiscountAmount : manualDiscountValue;
@@ -17527,7 +17553,14 @@ export function NuevaVentaTab({
                     ) : (
                       <>
                         <span className="tabular-nums">
-                          {listTotal !== total && priceOverrides[cartItems[0].svc.id] == null ? (
+                          {(priceDiscounts[cartItems[0].svc.id] ?? 0) > 0 ? (
+                            <>
+                              <span className="text-white/30 line-through">${Math.round(total).toLocaleString("es-AR")}</span>{" "}
+                              <span className="font-bold text-emerald-300">
+                                ${Math.round(total - manualDiscountValue).toLocaleString("es-AR")}
+                              </span>
+                            </>
+                          ) : listTotal !== total && priceOverrides[cartItems[0].svc.id] == null ? (
                             <>
                               <span className="text-white/30 line-through">
                                 ${Math.round(listTotal).toLocaleString("es-AR")}
@@ -17553,7 +17586,7 @@ export function NuevaVentaTab({
                             <Pencil className="size-3.5" />
                           </button>
                         )}
-                        {priceOverrides[cartItems[0].svc.id] != null && (
+                        {(priceOverrides[cartItems[0].svc.id] != null || (priceDiscounts[cartItems[0].svc.id] ?? 0) > 0) && (
                           <button
                             type="button"
                             onClick={() => revertPrice(cartItems[0].svc.id)}
@@ -17600,7 +17633,16 @@ export function NuevaVentaTab({
                             />
                           ) : (
                             <>
-                              {showCashPrice ? (
+                              {(priceDiscounts[svc.id] ?? 0) > 0 ? (
+                                <span className="whitespace-nowrap text-xs">
+                                  <span className="text-white/30 line-through">
+                                    ${Math.round(cartUnitPrice(svc) * qty).toLocaleString("es-AR")}
+                                  </span>{" "}
+                                  <span className="font-semibold text-emerald-300">
+                                    ${Math.round((cartUnitPrice(svc) - priceDiscounts[svc.id]) * qty).toLocaleString("es-AR")}
+                                  </span>
+                                </span>
+                              ) : showCashPrice ? (
                                 <span className="whitespace-nowrap text-xs">
                                   <span className="text-white/30 line-through">
                                     ${Math.round(Number(svc.price) * qty).toLocaleString("es-AR")}
@@ -17625,7 +17667,7 @@ export function NuevaVentaTab({
                                   <Pencil className="size-3" />
                                 </button>
                               )}
-                              {priceOverrides[svc.id] != null && (
+                              {(priceOverrides[svc.id] != null || (priceDiscounts[svc.id] ?? 0) > 0) && (
                                 <button
                                   type="button"
                                   onClick={() => revertPrice(svc.id)}
@@ -17690,63 +17732,12 @@ export function NuevaVentaTab({
                 descuento activo (promoción O manual), la propina siempre
                 aparte. Los campos quedan colapsados hasta tocar el botón —
                 nunca abiertos por default. */}
-            <div className="border-t border-white/10 pt-1.5">
-              {/* Descuento/Propina: el botón SE CONVIERTE en un input al
-                  tocarlo, sin panel desplegable debajo — una sola fila
-                  compacta en los dos estados. Sin promoción/% en la UI
-                  (simplificado a pedido): el input es siempre un monto $
-                  fijo, aplicado sobre "total" (precio ya resuelto según
-                  método de pago). Vacío o $0 vuelve a verse como el botón
-                  original. manualDiscountMode se queda fijo en "fixed" (ya
-                  no hay toggle %) y promotionId solo puede venir prellenado
-                  de un turno con promo asociada — si eso pasa, el botón
-                  queda de solo lectura con el nombre de esa promo en vez de
-                  ser editable, un toque más la limpia y vuelve a manual. */}
-              <div className="grid grid-cols-1 gap-1.5">
-                {discountPanelOpen ? (
-                  <div className="flex items-center gap-1 rounded-xl border border-violet-300/35 bg-violet-400/10 px-2.5 py-2">
-                    <Tag className="size-3.5 shrink-0 text-violet-200" />
-                    <span className="shrink-0 text-xs font-semibold text-violet-200/70">$</span>
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      autoFocus
-                      value={manualDiscountAmount}
-                      onChange={(e) => {
-                        setPromotionId("");
-                        setManualDiscountAmount(e.target.value);
-                      }}
-                      onBlur={() => setDiscountPanelOpen(false)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
-                      }}
-                      placeholder="0"
-                      className="min-w-0 flex-1 bg-transparent text-right text-xs font-bold text-white outline-none"
-                    />
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => (selectedPromotion ? setPromotionId("") : setDiscountPanelOpen(true))}
-                    className={cn(
-                      "flex items-center justify-between gap-2 rounded-xl border px-3 py-2 text-left text-xs font-semibold transition",
-                      discountAmount > 0
-                        ? "border-violet-300/35 bg-violet-400/10 text-violet-200"
-                        : "border-white/10 bg-white/[0.03] text-muted-foreground hover:text-foreground",
-                    )}
-                  >
-                    <span className="flex min-w-0 items-center gap-1.5">
-                      <Tag className="size-3.5 shrink-0" />
-                      <span className="truncate">{discountAmount > 0 ? discountLabel : "Descuento"}</span>
-                    </span>
-                    {discountAmount > 0 && (
-                      <span className="shrink-0">-${Math.round(discountAmount).toLocaleString("es-AR")}</span>
-                    )}
-                  </button>
-                )}
-
+            {selectedPromotion && discountAmount > 0 && (
+              <div className="flex items-center justify-between gap-2 border-t border-white/10 pt-1.5 text-sm">
+                <span className="min-w-0 truncate text-white/70">{selectedPromotion.name}</span>
+                <span className="shrink-0 font-semibold tabular-nums text-violet-200">−${Math.round(discountAmount).toLocaleString("es-AR")}</span>
               </div>
-            </div>
+            )}
           </Card>
           </div>
 
@@ -17833,21 +17824,29 @@ export function NuevaVentaTab({
                   deja todo como deuda ($0 recibido); Sin cargo es cortesía/
                   garantía (sin cobro, deuda ni comisión). El pago parcial no
                   tiene botón: se detecta solo al tipear un monto menor. */}
-              {!isManualFlow && !isSinCargo && (
+              {!isManualFlow && (
                 <div className="space-y-2 rounded-3xl border border-white/10 bg-[radial-gradient(120%_100%_at_0%_0%,rgba(59,130,246,0.10),transparent_60%)] p-2.5">
                   <div className="grid grid-cols-2 gap-2">
-                    <select
-                      value={method}
-                      onChange={(e) => elegirMedio(e.target.value as PayMethod)}
-                      aria-label="Método de pago"
-                      className="h-12 min-w-0 rounded-full border border-blue-300/25 bg-black/45 px-4 text-base font-semibold text-white outline-none focus:border-blue-300/55 focus:ring-2 focus:ring-blue-400/15"
-                    >
-                      {paymentOptions.map((o) => (
-                        <option key={o.id} value={o.id}>
-                          {o.label}
-                        </option>
-                      ))}
-                    </select>
+                    <SelectClippr
+                      pill
+                      opciones={[...paymentOptions.map((o) => ({ id: o.id as string, label: o.label })), { id: "cortesia", label: "Cortesía" }]}
+                      valor={isSinCargo ? "cortesia" : method}
+                      onChange={(v) => {
+                        if (v === "cortesia") {
+                          setSinCargoReason("");
+                          setPendienteBtn(false);
+                          setReceived("");
+                          setTipAmountInput("");
+                          setPromotionId("");
+                          setPaymentMode("simple");
+                        } else {
+                          elegirMedio(v as PayMethod);
+                        }
+                      }}
+                    />
+                    {isSinCargo ? (
+                      <div className="flex h-12 items-center justify-end rounded-full border border-emerald-300/30 bg-emerald-400/10 px-4 text-base font-bold text-emerald-200">$0</div>
+                    ) : (
                     <input
                       value={received ? Number(received).toLocaleString("es-AR") : ""}
                       onChange={(e) => {
@@ -17867,7 +17866,9 @@ export function NuevaVentaTab({
                           : "border-blue-300/25 focus:border-blue-300/55 focus:ring-blue-400/15",
                       )}
                     />
+                    )}
                   </div>
+                  {!isSinCargo && (
                   <div className="flex items-center justify-between gap-2 rounded-full border border-blue-300/20 bg-black/35 py-1.5 pl-2.5 pr-4">
                     <button
                       type="button"
@@ -17895,36 +17896,10 @@ export function NuevaVentaTab({
                       <span className="whitespace-nowrap text-base font-semibold text-emerald-300">Pago completo ✓</span>
                     )}
                   </div>
+                  )}
                 </div>
               )}
 
-              {!isManualFlow && (
-                <div className="mt-1.5 grid grid-cols-1 gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (isSinCargo) {
-                        setSinCargoReason(null);
-                        return;
-                      }
-                      setSinCargoReason("");
-                      setPendienteBtn(false);
-                      setReceived("");
-                      setTipAmountInput("");
-                      setPromotionId("");
-                      setPaymentMode("simple");
-                    }}
-                    className={cn(
-                      "flex items-center justify-center gap-2 rounded-xl border px-3 py-2 text-xs font-bold transition",
-                      isSinCargo
-                        ? "border-emerald-300/60 bg-emerald-400/15 text-emerald-100"
-                        : "border-white/10 bg-white/[0.03] text-white/70 hover:bg-white/[0.07]",
-                    )}
-                  >
-                    <Gift className="size-3.5" /> Cortesía
-                  </button>
-                </div>
-              )}
               {isSinCargo && (
                 <p className="mt-1.5 flex items-start gap-1.5 text-[11px] font-semibold leading-snug text-emerald-200/85">
                   <Gift className="mt-0.5 size-3.5 shrink-0" />

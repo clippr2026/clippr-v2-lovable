@@ -106,25 +106,12 @@ export function MultiMethodPaymentSplit({
         {splits.map((sp, idx) => {
           return (
             <div key={idx} className={cn("grid items-center", clippr ? (splits.length > 1 ? "grid-cols-[1fr_120px_48px] gap-2" : "grid-cols-[1fr_1fr] gap-2") : "grid-cols-[1fr_92px_32px] gap-1")}>
-              {clippr ? (
-                <SelectClippr
-                  opciones={paymentOptions.map((o) => ({ id: o.id, label: o.label }))}
-                  valor={sp.method}
-                  onChange={(v) => updateSplit(idx, "method", v)}
-                />
-              ) : (
-              <select
-                value={sp.method}
-                onChange={(e) => updateSplit(idx, "method", e.target.value)}
-                className="min-w-0 h-9 rounded-xl border border-blue-300/25 bg-black/45 px-2 text-sm font-semibold text-white outline-none focus:border-blue-300/55 focus:ring-2 focus:ring-blue-400/15"
-              >
-                {paymentOptions.map((o) => (
-                  <option key={o.id} value={o.id}>
-                    {o.label}
-                  </option>
-                ))}
-              </select>
-              )}
+              <SelectClippr
+                pill={!clippr}
+                opciones={paymentOptions.map((o) => ({ id: o.id, label: o.label }))}
+                valor={sp.method}
+                onChange={(v) => updateSplit(idx, "method", v)}
+              />
               <input
                 value={formatThousands(sp.amount)}
                 onChange={(e) => updateSplit(idx, "amount", sanitizeAmountInput(e.target.value))}
