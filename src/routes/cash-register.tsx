@@ -188,6 +188,7 @@ import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { AgendaCenteredModal } from "@/components/agenda/agenda-drawer";
 import { fetchSettlementRunServices, fetchSettlementRunSales, resolveOperativeDates, fetchVentasAnuladas } from "@/hooks/use-professionals-data";
 import { MultiMethodPaymentSplit, type MultiSplit } from "@/components/cash-register/multi-method-payment-split";
+import { SelectClippr } from "@/components/ui/select-clippr";
 import {
   buildHistorialMovimientos,
   computeLiquidacionSummary,
@@ -6891,40 +6892,26 @@ function ProfesionalesTab({
                       const isCashOverpay = simpleDiff < 0 && paymentForm.method === "cash";
                       return (
                         <div className="space-y-3 rounded-2xl border border-white/10 bg-white/[0.03] p-3.5" style={{ backgroundImage: CLIPPR_CARD_GLOW }}>
-                          <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
-                            <label className="block space-y-1.5 text-base font-semibold text-white">
-                              Monto
-                              <div className="relative">
-                                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-white/45">
-                                  $
-                                </span>
-                                <input
-                                  type="text"
-                                  inputMode="numeric"
-                                  value={formatThousands(paymentForm.amount)}
-                                  onChange={(event) => {
-                                    setPaymentAmountTouched(true);
-                                    setPaymentForm((form) => ({ ...form, amount: event.target.value.replace(/\D/g, "") }));
-                                  }}
-                                  placeholder="0"
-                                  className="h-12 w-full rounded-xl border border-white/10 bg-white/[0.04] pl-8 pr-3 text-xl font-bold tabular-nums text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
-                                />
-                              </div>
-                            </label>
-                            <label className="block space-y-1.5 text-base font-semibold text-white">
-                              Método
-                              <select
-                                value={paymentForm.method}
-                                onChange={(event) => setPaymentForm((form) => ({ ...form, method: event.target.value }))}
-                                className="h-12 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 text-lg text-white outline-none focus:border-violet-400/50"
-                              >
-                                {paymentOptions.map((o) => (
-                                  <option key={o.id} value={o.id}>
-                                    {o.label}
-                                  </option>
-                                ))}
-                              </select>
-                            </label>
+                          <div className="grid grid-cols-2 gap-2">
+                            <SelectClippr
+                              opciones={paymentOptions.map((o) => ({ id: o.id, label: o.label }))}
+                              valor={paymentForm.method}
+                              onChange={(v) => setPaymentForm((form) => ({ ...form, method: v }))}
+                            />
+                            <div className="relative">
+                              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-white/45">$</span>
+                              <input
+                                type="text"
+                                inputMode="numeric"
+                                value={formatThousands(paymentForm.amount)}
+                                onChange={(event) => {
+                                  setPaymentAmountTouched(true);
+                                  setPaymentForm((form) => ({ ...form, amount: event.target.value.replace(/\D/g, "") }));
+                                }}
+                                placeholder="Monto"
+                                className="h-12 w-full rounded-xl border border-white/10 bg-white/[0.04] pl-8 pr-3 text-lg font-semibold tabular-nums text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
+                              />
+                            </div>
                           </div>
                           {/* Un solo renglón dinámico en vez del recuadro de
                               3 filas (Total final/Monto del pago/Saldo
