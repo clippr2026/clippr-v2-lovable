@@ -531,9 +531,7 @@
   }
 
   /* Performance helpers: fewer nested scrolls, lighter paint on mobile/tablet */
-  img {
-    content-visibility: auto;
-  }
+  /* Sin content-visibility en las imágenes: dibujaba las fotos recién al llegar con el scroll (aparecían vacías). */
 
   .content-auto {
     content-visibility: auto;
@@ -543,6 +541,15 @@
   .one-scroll {
     overflow: visible;
     max-height: none;
+  }
+
+  /* Celular: sin desenfoque de fondo en las tarjetas de vidrio. Con decenas de tarjetas, el blur de 24px
+     hacía lento el arranque y dejaba huecos vacíos al hacer scroll en iPhone. El fondo ya es casi opaco. */
+  @media (max-width: 767px) {
+    .glass, .glass-strong {
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
   }
 
   @media (min-width: 768px) and (max-width: 1180px) {
