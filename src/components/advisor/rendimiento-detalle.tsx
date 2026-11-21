@@ -353,9 +353,6 @@ function GastosView({ d, perf, prev, vsLabel }: ViewProps) {
       <Block title="Por tipo" hint="Fijos (alquiler, servicios), variables (insumos) y ocasionales.">
         <Bars rows={g.porTipo} sub={(r, t) => `${r.count} gastos ${sharePct(r, t)}`} color="bg-rose-400/70" />
       </Block>
-      <Block title="Por origen del dinero">
-        <Bars rows={g.porOrigen} sub={sharePct} color="bg-orange-400/70" />
-      </Block>
       <Block title="Por medio de pago">
         <Bars rows={g.porMedio} sub={sharePct} color="bg-teal-400/70" />
       </Block>
