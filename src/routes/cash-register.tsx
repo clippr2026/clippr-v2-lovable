@@ -189,6 +189,7 @@ import { AgendaCenteredModal } from "@/components/agenda/agenda-drawer";
 import { fetchSettlementRunServices, fetchSettlementRunSales, resolveOperativeDates, fetchVentasAnuladas } from "@/hooks/use-professionals-data";
 import { MultiMethodPaymentSplit, type MultiSplit } from "@/components/cash-register/multi-method-payment-split";
 import { SelectClippr } from "@/components/ui/select-clippr";
+import { DateClippr } from "@/components/ui/date-clippr";
 import {
   buildHistorialMovimientos,
   computeLiquidacionSummary,
@@ -7226,12 +7227,7 @@ function NuevoGastoTab({
               <div className="space-y-3">
                 <label className="block">
                   <span className={labelCls}>Vence el</span>
-                  <input
-                    type="date"
-                    value={form.due}
-                    onChange={(e) => setForm((f) => ({ ...f, due: e.target.value }))}
-                    className={cn(inputCls, "block min-w-0 max-w-full appearance-none")}
-                  />
+                  <DateClippr value={form.due} onChange={(iso) => setForm((f) => ({ ...f, due: iso }))} />
                 </label>
                 <label className="block">
                   <span className={labelCls}>Proveedor (opcional)</span>
