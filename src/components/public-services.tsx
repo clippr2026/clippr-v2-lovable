@@ -151,7 +151,9 @@ export function PublicServicesList({
       <p className="mt-2 whitespace-pre-line text-sm leading-snug opacity-80">{service.description}</p>
     ) : null;
   const featured = featuredId ? services.find((s) => s.id === featuredId) ?? null : null;
-  const rest = services.filter((s) => s.id !== featured?.id);
+  // Orden: destacado, luego las promos y al final los demás (cada grupo mantiene su orden).
+  const others = services.filter((s) => s.id !== featured?.id);
+  const rest = [...others.filter((s) => promoIds.includes(s.id)), ...others.filter((s) => !promoIds.includes(s.id))];
 
   const promoBadge = (id: string) =>
     promoIds.includes(id) ? (
