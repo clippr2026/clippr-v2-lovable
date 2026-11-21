@@ -516,7 +516,6 @@ function TicketView({ d, perf, prev, vsLabel }: ViewProps) {
       <StatGrid>
         <Stat label="Ticket promedio" value={money(t.promedio)} sub={<Delta cur={perf.ticket} prev={prev?.ticket ?? null} label={vsLabel} />} />
         <Stat label="Ticket mediano" value={money(t.mediana)} />
-        <Stat label="Rango habitual" value={`${money(t.q1)} a ${money(t.q3)}`} />
         <Stat label="Venta más alta" value={money(t.maximo)} />
         <Stat label="Venta más baja" value={money(t.minimo)} />
       </StatGrid>
