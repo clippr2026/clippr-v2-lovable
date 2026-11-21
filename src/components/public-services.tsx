@@ -140,8 +140,8 @@ export function PublicServicesList({
         onClick={() => setDescFor((v) => (v === service.id ? null : service.id))}
         aria-label="Ver descripción del servicio"
         aria-expanded={descFor === service.id}
-        className="inline-grid h-7 w-7 shrink-0 place-items-center rounded-full border transition"
-        style={{ borderColor: accent, color: descFor === service.id ? buttonText : accent, background: descFor === service.id ? accent : "transparent" }}
+        className="absolute bottom-1.5 right-1.5 z-10 grid h-8 w-8 place-items-center rounded-full border-2 shadow-lg transition"
+        style={{ borderColor: accent, color: descFor === service.id ? buttonText : "#ffffff", background: descFor === service.id ? accent : "rgba(8,7,15,0.82)" }}
       >
         <Info className="h-4 w-4" />
       </button>
@@ -217,19 +217,19 @@ export function PublicServicesList({
                 </span>
                 <Crown className="absolute right-4 top-3 h-7 w-7" style={{ color: GOLD, filter: `drop-shadow(0 0 8px ${GOLD}aa)` }} />
                 <div className="mt-2 flex items-start gap-4">
-                  <ServiceImage
-                    src={featured.image_url}
-                    alt={featured.name}
-                    position={featured.image_position}
-                    className="h-24 w-24 shrink-0 rounded-2xl ring-1 ring-white/15 sm:h-28 sm:w-28"
-                    fallback={fallback}
-                  />
+                  <div className="relative shrink-0">
+                    <ServiceImage
+                      src={featured.image_url}
+                      alt={featured.name}
+                      position={featured.image_position}
+                      className="h-24 w-24 shrink-0 rounded-2xl ring-1 ring-white/15 sm:h-28 sm:w-28"
+                      fallback={fallback}
+                    />
+                    {descButton(featured)}
+                  </div>
                   <div className="min-w-0 flex-1 pr-7">
                     {promoBadge(featured.id)}
-                    <div className="flex items-start gap-2">
-                      <p className="line-clamp-3 min-w-0 flex-1 text-xl font-bold uppercase leading-tight sm:text-2xl">{featured.name}</p>
-                      {descButton(featured)}
-                    </div>
+                    <p className="line-clamp-3 text-xl font-bold uppercase leading-tight sm:text-2xl">{featured.name}</p>
                     {descText(featured)}
                     {featuredDescription ? <p className="mt-1.5 text-sm leading-snug text-white/75">{featuredDescription}</p> : null}
                   </div>
@@ -247,19 +247,19 @@ export function PublicServicesList({
         const pr = pricingOf(service, employeeIds, overrides);
         return (
           <div key={service.id} className={`${rowBorder} flex min-w-0 items-center gap-3 rounded-2xl border p-3 transition hover:bg-white/[0.05] sm:gap-4 sm:p-4`}>
-            <ServiceImage
-              src={service.image_url}
-              alt={service.name}
-              position={service.image_position}
-              className={(light ? "ring-zinc-200" : "ring-white/10") + " h-16 w-16 shrink-0 rounded-xl ring-1 sm:h-[4.5rem] sm:w-[4.5rem]"}
-              fallback={fallback}
-            />
+            <div className="relative shrink-0">
+              <ServiceImage
+                src={service.image_url}
+                alt={service.name}
+                position={service.image_position}
+                className={(light ? "ring-zinc-200" : "ring-white/10") + " h-16 w-16 shrink-0 rounded-xl ring-1 sm:h-[4.5rem] sm:w-[4.5rem]"}
+                fallback={fallback}
+              />
+              {descButton(service)}
+            </div>
             <div className="min-w-0 flex-1">
               {promoBadge(service.id)}
-              <div className="flex items-start gap-2">
-                <p className="line-clamp-2 min-w-0 flex-1 text-base font-bold uppercase leading-snug sm:text-lg">{service.name}</p>
-                {descButton(service)}
-              </div>
+              <p className="line-clamp-2 text-base font-bold uppercase leading-snug sm:text-lg">{service.name}</p>
               {descText(service)}
               <div className="mt-1.5 sm:flex sm:items-end sm:justify-between sm:gap-3">
                 <div className="min-w-0">
