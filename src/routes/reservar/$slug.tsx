@@ -1,4 +1,4 @@
-import { esAndroid } from "@/lib/es-android";
+import { copiarEnlaceParaSafari, esAndroid, esIosNoSafari } from "@/lib/es-android";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { hiddenPublicBranchIds } from "@/lib/public-branches";
 import { normalizePublicNeon, type PublicNeonKey } from "@/lib/public-neon";
@@ -2653,9 +2653,15 @@ function PublicBookingPage() {
                                           </a>
                                         ) : null}
                                         {ics && !esAndroid() ? (
-                                          <a href={ics} className={opcion} style={calColor("#FF453A")}>
-                                            <CalendarPlus className="h-4 w-4" /> iPhone / Apple Calendar
-                                          </a>
+                                          esIosNoSafari() ? (
+                                            <button type="button" onClick={() => void copiarEnlaceParaSafari()} className={opcion} style={calColor("#FF453A")}>
+                                              <CalendarPlus className="h-4 w-4" /> Apple Calendar (abrir en Safari)
+                                            </button>
+                                          ) : (
+                                            <a href={ics} className={opcion} style={calColor("#FF453A")}>
+                                              <CalendarPlus className="h-4 w-4" /> iPhone / Apple Calendar
+                                            </a>
+                                          )
                                         ) : null}
                                         <a href={`https://outlook.live.com/calendar/0/deeplink/compose?${outlookQ.toString()}`} target="_blank" rel="noreferrer" className={opcion} style={calColor("#0EA5E9")}>
                                           <CalendarPlus className="h-4 w-4" /> Outlook

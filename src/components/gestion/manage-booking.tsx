@@ -1,4 +1,4 @@
-import { esAndroid } from "@/lib/es-android";
+import { copiarEnlaceParaSafari, esAndroid, esIosNoSafari } from "@/lib/es-android";
 import * as React from "react";
 import { AppLocalInstalar } from "@/components/app-local-instalar";
 import { INSTALAR_APP_ACTIVO } from "@/lib/feature-flags";
@@ -382,7 +382,9 @@ export function ManageBooking({ token, action }: { token: string; action?: strin
               {calOpen && (
                 <div style={{ gridColumn: "1 / -1", display: "grid", gap: 8 }}>
                   <a href={gcal} target="_blank" rel="noreferrer" style={calOpt("#4285F4")}><CalendarPlus size={17} /> Google Calendar</a>
-                  {!esAndroid() ? <a href={icsHref} style={calOpt("#FF453A")}><CalendarPlus size={17} /> iPhone / Apple Calendar</a> : null}
+                  {!esAndroid() ? (esIosNoSafari()
+                    ? <button type="button" onClick={() => void copiarEnlaceParaSafari()} style={{ ...calOpt("#FF453A"), cursor: "pointer" }}><CalendarPlus size={17} /> Apple Calendar (abrir en Safari)</button>
+                    : <a href={icsHref} style={calOpt("#FF453A")}><CalendarPlus size={17} /> iPhone / Apple Calendar</a>) : null}
                   <a href={outlookHref} target="_blank" rel="noreferrer" style={calOpt("#0EA5E9")}><CalendarPlus size={17} /> Outlook</a>
                 </div>
               )}
