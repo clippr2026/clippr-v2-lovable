@@ -17858,10 +17858,10 @@ export function NuevaVentaTab({
                         }
                       }}
                       inputMode="numeric"
-                      placeholder={`$${Math.round(finalTotal - depositApplied).toLocaleString("es-AR")}`}
+                      placeholder={`Total: $${Math.round(finalTotal - depositApplied).toLocaleString("es-AR")}`}
                       aria-label="Monto recibido"
                       className={cn(
-                        "h-12 w-full min-w-0 rounded-full border bg-black/45 px-4 text-right text-lg font-bold tabular-nums text-white outline-none placeholder:text-white/35 focus:ring-2",
+                        "h-12 w-full min-w-0 rounded-full border bg-black/45 px-4 text-right text-lg font-bold tabular-nums text-white outline-none placeholder:text-sm placeholder:font-normal placeholder:text-white/35 focus:ring-2",
                         pagoPendiente
                           ? "border-amber-300/30 focus:border-amber-300/65 focus:ring-amber-400/20"
                           : "border-blue-300/25 focus:border-blue-300/55 focus:ring-blue-400/15",
