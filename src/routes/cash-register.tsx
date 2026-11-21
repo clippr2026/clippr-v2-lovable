@@ -17520,7 +17520,7 @@ export function NuevaVentaTab({
             <div className="space-y-1">
               <div className={cn("grid gap-x-3 gap-y-1", !lockedEmployeeId ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1")}>
                 {!lockedEmployeeId && (
-                  <div className="flex min-w-0 items-center gap-2 text-sm">
+                  <div className="flex min-w-0 items-center gap-2 text-base">
                     <User className="size-4 shrink-0 text-white/35" />
                     <span className="min-w-0 truncate text-white">
                       <span className="text-white/45">Profesional: </span>
@@ -17528,7 +17528,7 @@ export function NuevaVentaTab({
                     </span>
                   </div>
                 )}
-                <div className="flex min-w-0 items-center gap-2 text-sm">
+                <div className="flex min-w-0 items-center gap-2 text-base">
                   <Users className="size-4 shrink-0 text-white/35" />
                   <span className="min-w-0 truncate text-white">
                     <span className="text-white/45">Cliente: </span>
@@ -17538,7 +17538,7 @@ export function NuevaVentaTab({
               </div>
 
               {cartItems.length === 1 ? (
-                <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-1.5 text-sm">
+                <div className="flex items-center justify-between gap-3 border-t border-white/10 pt-2 text-base">
                   <span className="flex min-w-0 items-center gap-2 text-white">
                     <Scissors className="size-4 shrink-0 text-white/35" />
                     <span className="min-w-0 truncate">
@@ -17607,7 +17607,7 @@ export function NuevaVentaTab({
                     const showCashPrice = isCashMethod && svc.cashPrice != null;
                     return (
                       <div key={svc.id} className="flex items-start justify-between gap-2">
-                        <span className="flex min-w-0 items-start gap-2 text-xs text-white/70">
+                        <span className="flex min-w-0 items-start gap-2 text-sm text-white/70">
                           {idx === 0 ? (
                             <Scissors className="size-3.5 shrink-0 text-white/35" />
                           ) : (
@@ -17629,7 +17629,7 @@ export function NuevaVentaTab({
                           ) : (
                             <>
                               {(priceDiscounts[svc.id] ?? 0) > 0 && cartUnitPrice(svc) > priceDiscounts[svc.id] ? (
-                                <span className="whitespace-nowrap text-xs">
+                                <span className="whitespace-nowrap text-sm">
                                   <span className="text-white/30 line-through">
                                     ${Math.round(cartUnitPrice(svc) * qty).toLocaleString("es-AR")}
                                   </span>{" "}
@@ -17638,7 +17638,7 @@ export function NuevaVentaTab({
                                   </span>
                                 </span>
                               ) : showCashPrice ? (
-                                <span className="whitespace-nowrap text-xs">
+                                <span className="whitespace-nowrap text-sm">
                                   <span className="text-white/30 line-through">
                                     ${Math.round(Number(svc.price) * qty).toLocaleString("es-AR")}
                                   </span>{" "}
@@ -17647,7 +17647,7 @@ export function NuevaVentaTab({
                                   </span>
                                 </span>
                               ) : (
-                                <span className={cn("tabular-nums text-xs", priceOverrides[svc.id] != null ? "font-semibold text-amber-300" : "text-white/70")}>
+                                <span className={cn("tabular-nums text-sm", priceOverrides[svc.id] != null ? "font-semibold text-amber-300" : "text-white/70")}>
                                   ${Math.round(Number(svc.price) * qty).toLocaleString("es-AR")}
                                 </span>
                               )}
@@ -17672,7 +17672,7 @@ export function NuevaVentaTab({
                     <button
                       type="button"
                       onClick={() => setSummaryExpanded((v) => !v)}
-                      className="pl-[22px] text-xs font-semibold text-blue-300 hover:text-blue-200 transition-colors"
+                      className="pl-[22px] text-sm font-semibold text-blue-300 hover:text-blue-200 transition-colors"
                     >
                       {summaryExpanded ? "Ver menos" : "Ver más"}
                     </button>
@@ -17696,11 +17696,11 @@ export function NuevaVentaTab({
                   </div>
                 </div>
               )}
-              <div className="flex items-center justify-between gap-3 rounded-xl border border-emerald-400/20 bg-emerald-400/[0.07] px-3 py-1.5">
-                <span className="flex items-center gap-1.5 text-xs font-bold text-white">
-                  <Receipt className="size-3.5 text-emerald-300" /> Total a cobrar
+              <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-400/30 bg-emerald-400/[0.08] px-4 py-2.5" style={{ backgroundImage: "radial-gradient(110% 120% at 100% 0%, rgba(16,185,129,.18), transparent 62%)" }}>
+                <span className="flex items-center gap-2 text-base font-bold text-white">
+                  <Receipt className="size-4 text-emerald-300" /> Total a cobrar
                 </span>
-                <span className="tabular-nums text-base font-extrabold text-white">
+                <span className="tabular-nums text-3xl font-extrabold text-emerald-300">
                   ${Math.round(finalTotal - depositApplied).toLocaleString("es-AR")}
                 </span>
               </div>
@@ -17959,8 +17959,8 @@ export function NuevaVentaTab({
                 .filter((sp) => sp.method !== "cash")
                 .map((sp) => (
                   <div key={sp.method} className="mt-1.5">
-                    <p className="mb-1 text-[11px] font-semibold tracking-[0.1em] text-muted-foreground/70">
-                      COMPROBANTE · {PAY_METHOD_LABEL[sp.method as PayMethod] ?? sp.method}
+                    <p className="mb-1.5 text-sm font-semibold text-white/80">
+                      Comprobante de {(PAY_METHOD_LABEL[sp.method as PayMethod] ?? sp.method).toLowerCase()}
                     </p>
                     <TransferReceiptField
                       previewUrl={splitReceiptPreviews[sp.method] ?? null}

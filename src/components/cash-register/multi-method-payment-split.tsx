@@ -172,23 +172,23 @@ export function MultiMethodPaymentSplit({
         // "Vuelto": con varios métodos combinados el excedente no
         // necesariamente es efectivo que se le devuelve al cliente en
         // mano — "Vuelto" es específico de Pago simple en efectivo.
-        <div className="flex items-center justify-between gap-2 rounded-xl border border-blue-300/20 bg-black/35 py-1.5 pl-2.5 pr-3">
+        <div className="flex items-center justify-between gap-2 rounded-full border border-blue-300/20 bg-black/35 py-1.5 pl-2.5 pr-4">
           <button
             onClick={addSplit}
             disabled={splits.length >= paymentOptions.length}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-blue-300/20 bg-blue-400/10 px-2.5 py-1 text-xs font-semibold text-blue-100 hover:bg-blue-400/15 disabled:opacity-30 transition-colors"
+            className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-blue-300/20 bg-blue-400/10 px-3.5 text-sm font-semibold text-blue-100 hover:bg-blue-400/15 disabled:opacity-30 transition-colors"
             type="button"
           >
-            <Plus className="size-3.5" /> Otro método
+            <Plus className="size-4" /> Otro método
           </button>
-          {splitsRemaining === 0 ? (
-            <span className="whitespace-nowrap text-sm font-semibold text-emerald-300">Pago completo ✓</span>
+          {splitsTotal === 0 ? null : splitsRemaining === 0 ? (
+            <span className="whitespace-nowrap text-base font-semibold text-emerald-300">Pago completo ✓</span>
           ) : splitsRemaining > 0 ? (
-            <span className="whitespace-nowrap text-sm font-semibold text-blue-200">
+            <span className="whitespace-nowrap text-base font-semibold text-blue-200">
               Restante ${splitsRemaining.toLocaleString("es-AR")}
             </span>
           ) : (
-            <span className="whitespace-nowrap text-sm font-semibold text-rose-300">
+            <span className="whitespace-nowrap text-base font-semibold text-rose-300">
               Sobra ${Math.abs(splitsRemaining).toLocaleString("es-AR")}
             </span>
           )}
