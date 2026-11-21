@@ -189,7 +189,7 @@ export function MultiMethodPaymentSplit({
             </span>
           ) : (
             <span className="whitespace-nowrap text-base font-semibold text-emerald-300">
-              Sobra ${Math.abs(splitsRemaining).toLocaleString("es-AR")} · propina
+              Propina ${Math.abs(splitsRemaining).toLocaleString("es-AR")}
             </span>
           )}
         </div>

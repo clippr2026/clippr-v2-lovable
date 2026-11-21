@@ -16384,8 +16384,14 @@ export function NuevaVentaTab({
         return;
       }
       if (receivedAmount > finalTotal + 0.01) {
-        // Recibió de más: no se rechaza, se pregunta qué hacer con la diferencia.
-        if (!(method === "cash" && overpayAsChangeRef.current)) {
+        // Recibió de más: sin efectivo la diferencia es propina y se cobra directo; en efectivo se
+        // pregunta si es vuelto.
+        if (method !== "cash") {
+          setTipAmountInput(String((Number(tipAmountInput) || 0) + Math.round(receivedAmount - finalTotal)));
+          setResubmitTick((n) => n + 1);
+          return;
+        }
+        if (!overpayAsChangeRef.current) {
           setOverpay({ diff: Math.round(receivedAmount - finalTotal) });
           return;
         }
@@ -16421,8 +16427,9 @@ export function NuevaVentaTab({
           return;
         }
         if (Math.round(splitsTotal) > Math.round(finalTotal - depositApplied)) {
-          // Los métodos suman de más: no se rechaza, se pregunta si la diferencia es propina.
-          setOverpay({ diff: Math.round(splitsTotal - (finalTotal - depositApplied)) });
+          // Los métodos suman de más: la diferencia es propina y se cobra directo.
+          setTipAmountInput(String((Number(tipAmountInput) || 0) + Math.round(splitsTotal - (finalTotal - depositApplied))));
+          setResubmitTick((n) => n + 1);
           return;
         }
         if (Math.round(splitsTotal) !== Math.round(finalTotal - depositApplied)) {
@@ -17876,8 +17883,7 @@ export function NuevaVentaTab({
                       </span>
                     ) : receivedAmount > finalTotal - depositApplied + 0.01 ? (
                       <span className="whitespace-nowrap text-base font-semibold text-emerald-300">
-                        Sobra ${Math.round(receivedAmount - (finalTotal - depositApplied)).toLocaleString("es-AR")}
-                        {method !== "cash" ? " · propina" : ""}
+                        {method !== "cash" ? "Propina" : "Sobra"} ${Math.round(receivedAmount - (finalTotal - depositApplied)).toLocaleString("es-AR")}
                       </span>
                     ) : (
                       <span className="whitespace-nowrap text-base font-semibold text-emerald-300">Pago completo ✓</span>
