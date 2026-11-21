@@ -17779,7 +17779,7 @@ export function NuevaVentaTab({
                   importe > 0 (pago completo o parcial) sigue disponible.
                   Orden fijo: Métodos de pago arriba, Monto recibido
                   debajo — mismo orden en mobile y desktop. */}
-              {!isManualFlow || receivedAmount > 0 ? (
+              {isManualFlow && receivedAmount > 0 ? (
                 <div>
                   <p className="text-[11px] tracking-[0.18em] text-muted-foreground/70 mb-1.5">
                     MÉTODO DE PAGO
@@ -17833,6 +17833,71 @@ export function NuevaVentaTab({
                   deja todo como deuda ($0 recibido); Sin cargo es cortesía/
                   garantía (sin cobro, deuda ni comisión). El pago parcial no
                   tiene botón: se detecta solo al tipear un monto menor. */}
+              {!isManualFlow && !isSinCargo && (
+                <div className="space-y-2 rounded-3xl border border-white/10 bg-[radial-gradient(120%_100%_at_0%_0%,rgba(59,130,246,0.10),transparent_60%)] p-2.5">
+                  <div className="grid grid-cols-2 gap-2">
+                    <select
+                      value={method}
+                      onChange={(e) => elegirMedio(e.target.value as PayMethod)}
+                      aria-label="Método de pago"
+                      className="h-12 min-w-0 rounded-full border border-blue-300/25 bg-black/45 px-4 text-base font-semibold text-white outline-none focus:border-blue-300/55 focus:ring-2 focus:ring-blue-400/15"
+                    >
+                      {paymentOptions.map((o) => (
+                        <option key={o.id} value={o.id}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      value={received ? Number(received).toLocaleString("es-AR") : ""}
+                      onChange={(e) => {
+                        const digits = e.target.value.replace(/\D/g, "").slice(0, 9);
+                        setReceived(digits);
+                        if (digits !== "" && (Number(digits) || 0) < subtotalAfterDiscount) {
+                          setPaymentMode("simple");
+                        }
+                      }}
+                      inputMode="numeric"
+                      placeholder={`$${Math.round(finalTotal - depositApplied).toLocaleString("es-AR")}`}
+                      aria-label="Monto recibido"
+                      className={cn(
+                        "h-12 w-full min-w-0 rounded-full border bg-black/45 px-4 text-right text-lg font-bold tabular-nums text-white outline-none placeholder:text-white/35 focus:ring-2",
+                        pagoPendiente
+                          ? "border-amber-300/30 focus:border-amber-300/65 focus:ring-amber-400/20"
+                          : "border-blue-300/25 focus:border-blue-300/55 focus:ring-blue-400/15",
+                      )}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between gap-2 rounded-full border border-blue-300/20 bg-black/35 py-1.5 pl-2.5 pr-4">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const otro = paymentOptions.find((o) => o.id !== method)?.id ?? method;
+                        setSplits([
+                          { method, amount: "" },
+                          { method: otro, amount: "" },
+                        ]);
+                        setPaymentMode("multiple");
+                      }}
+                      className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full border border-blue-300/20 bg-blue-400/10 px-3.5 text-sm font-semibold text-blue-100 transition hover:bg-blue-400/15"
+                    >
+                      <Plus className="size-4" /> Otro método
+                    </button>
+                    {received === "" ? (
+                      <span className="whitespace-nowrap text-base font-semibold text-white/60">
+                        Total ${Math.round(finalTotal - depositApplied).toLocaleString("es-AR")}
+                      </span>
+                    ) : pagoPendiente ? (
+                      <span className="whitespace-nowrap text-base font-semibold text-blue-200">
+                        Restante ${Math.round(subtotalAfterDiscount - receivedAmount).toLocaleString("es-AR")}
+                      </span>
+                    ) : (
+                      <span className="whitespace-nowrap text-base font-semibold text-emerald-300">Pago completo ✓</span>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {!isManualFlow && (
                 <div className="mt-1.5 grid grid-cols-1 gap-1.5">
                   <button
@@ -17860,22 +17925,6 @@ export function NuevaVentaTab({
                   </button>
                 </div>
               )}
-              {!isManualFlow && !isSinCargo && !pagoPendiente && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    const otro = paymentOptions.find((o) => o.id !== method)?.id ?? method;
-                    setSplits([
-                      { method, amount: "" },
-                      { method: otro, amount: "" },
-                    ]);
-                    setPaymentMode("multiple");
-                  }}
-                  className="mt-1.5 inline-flex h-11 w-full items-center justify-center gap-2 rounded-xl border border-violet-400/40 bg-violet-500/15 px-4 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/25"
-                >
-                  <Plus className="size-4" /> Agregar otro método de pago
-                </button>
-              )}
               {isSinCargo && (
                 <p className="mt-1.5 flex items-start gap-1.5 text-[11px] font-semibold leading-snug text-emerald-200/85">
                   <Gift className="mt-0.5 size-3.5 shrink-0" />
@@ -17886,43 +17935,6 @@ export function NuevaVentaTab({
               )}
               {!isManualFlow && !isSinCargo && (
                 <div className="mt-1.5">
-                  {!(pendienteBtn && received === "0") && (
-                    <>
-                  <p className="mb-1 text-[11px] font-semibold tracking-[0.1em] text-muted-foreground/70">
-                    MONTO RECIBIDO
-                  </p>
-                  <div className="relative min-w-0">
-                    <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-base font-bold text-white/55">
-                      $
-                    </span>
-                    <input
-                      value={received ? Number(received).toLocaleString("es-AR") : ""}
-                      onChange={(e) => {
-                        const digits = e.target.value.replace(/\D/g, "").slice(0, 9);
-                        setReceived(digits);
-                        // Múltiple no admite saldo (siempre reparte el
-                        // total entre métodos) — si lo que se está
-                        // tipeando ya quedó corto, se vuelve a Simple
-                        // solo, sin que el usuario tenga que buscar la
-                        // pestaña.
-                        if (digits !== "" && (Number(digits) || 0) < subtotalAfterDiscount) {
-                          setPaymentMode("simple");
-                        }
-                      }}
-                      inputMode="numeric"
-                      disabled={pendienteBtn && received === "0"}
-                      placeholder={`Total: $${Math.round(finalTotal - depositApplied).toLocaleString("es-AR")}`}
-                      aria-label="Monto recibido"
-                      className={cn(
-                        "h-10 w-full rounded-xl border bg-black/45 pl-8 pr-3 text-left text-lg font-extrabold tabular-nums text-white outline-none placeholder:text-xs placeholder:font-normal placeholder:text-white/30 focus:ring-2",
-                        pagoPendiente
-                          ? "border-amber-300/30 focus:border-amber-300/65 focus:ring-amber-400/20"
-                          : "border-blue-300/30 focus:border-blue-300/65 focus:ring-blue-400/20",
-                      )}
-                    />
-                  </div>
-                    </>
-                  )}
                   {pagoPendiente && (
                     <p className="mt-1.5 flex items-start gap-1.5 text-[11px] font-semibold leading-snug text-amber-200/85">
                       <Clock className="mt-0.5 size-3.5 shrink-0" />
