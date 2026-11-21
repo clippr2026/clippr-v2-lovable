@@ -1,11 +1,11 @@
 import * as React from "react";
-import { TrendingUp, TrendingDown, Wallet, CreditCard } from "lucide-react";
+import { TrendingUp, TrendingDown, Wallet, CreditCard, Eye, EyeOff } from "lucide-react";
 
 // "Caja de hoy": el mismo bloque que se ve en Inicio (Ingresos y Egresos, servicios realizados, productos vendidos, efectivo en
 // caja y dinero en banco), para que Caja muestre exactamente lo mismo.
 const pesos = (n: number) => `$${Math.round(n || 0).toLocaleString("es-AR")}`;
 const CARGANDO = "···";
-const OCULTO = "••••••";
+const OCULTO = "$ ****";
 const OCULTAR_KEY = "clippr_caja_montos_ocultos";
 
 // Como en el banco: tocar un número lo oculta (y otro toque lo muestra). Se acuerda de la elección.
@@ -106,7 +106,17 @@ export function CajaHoyBloque({
   const ver = (t: string) => (loading ? CARGANDO : oculto ? OCULTO : t);
   return (
     <div className={`glass rounded-2xl p-4 sm:p-5 ring-1 ring-white/5 ${loading ? "animate-pulse" : ""}`}>
-      <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">Caja de hoy</div>
+      <div className="flex items-center justify-between">
+        <div className="text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">Caja de hoy</div>
+        <button
+          type="button"
+          onClick={alternar}
+          aria-label={oculto ? "Mostrar montos" : "Ocultar montos"}
+          className="-mr-1 -mt-1 grid h-10 w-10 touch-manipulation place-items-center rounded-full text-white/70 transition active:scale-95 hover:text-white"
+        >
+          {oculto ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+        </button>
+      </div>
       <div className="mt-2 grid grid-cols-2 gap-3">
         <div>
           <div className="flex items-center gap-1.5 text-muted-foreground">
