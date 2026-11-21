@@ -1,4 +1,5 @@
 import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
+import { DateClippr } from "@/components/ui/date-clippr";
 import { HorariosSection } from "@/components/settings/horarios-section";
 import React, { useState, useEffect } from "react";
 import { COVER_ASPECT_CLASS } from "@/lib/cover-frame";
@@ -1434,67 +1435,57 @@ export function BrandingSection() {
         <>
 
           <SectionCard clippr label="Información del negocio">
-            <div className="space-y-3.5">
+            <div className="divide-y divide-white/5">
               {infoRows.map((f) => {
                 const Icon = f.icon;
                 const seccion = ({ name: "hero", address: "mapa", phone: "contacto", email: "contacto", instagram: "contacto" } as Record<string, string>)[String(f.key)];
                 return (
-                  <label key={f.key} className="flex items-start gap-3">
-                    <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.04] mt-6"><Icon className="h-4 w-4 text-white/70" /></span>
-                    <span className="min-w-0 flex-1">
-                      <span className="mb-1.5 block text-sm font-semibold text-white">{f.label}</span>
+                  <label key={f.key} className="block py-3.5 first:pt-0 last:pb-0">
+                    <span className="block">
+                      <span className="mb-2 block text-lg font-semibold text-white">{f.label}</span>
                       <input
                         type={f.type ?? "text"}
                         value={(data[f.key] as string) ?? ""}
                         onChange={set(f.key)}
                         onFocus={() => seccion && enfocar(seccion)}
-                        className="h-11 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
+                        className="h-12 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 text-lg font-semibold text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
                       />
                     </span>
                   </label>
                 );
               })}
-              <label className="flex items-start gap-3">
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.04] mt-6"><CalendarDays className="h-4 w-4 text-white/70" /></span>
-                <span className="min-w-0 flex-1">
-                  <span className="mb-1.5 block text-sm font-semibold text-white">Fecha de inicio del negocio</span>
-                  <input
-                    type="date"
-                    value={data.business_start_date}
-                    onChange={(e) => setData((d) => ({ ...d, business_start_date: e.target.value }))}
-                    onFocus={() => enfocar("hero")}
-                    className="h-11 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-violet-400/50 [color-scheme:dark]"
-                  />
+              <label className="block py-3.5 first:pt-0 last:pb-0">
+                <span className="block">
+                  <span className="mb-2 block text-lg font-semibold text-white">Fecha de inicio del negocio</span>
+                  <DateClippr value={data.business_start_date} onChange={(iso) => { setData((d) => ({ ...d, business_start_date: iso })); enfocar("hero"); }} />
                 </span>
               </label>
               {/* La URL no tiene un lugar en la página: se muestra abajo como texto chico, cómo va a quedar el link. */}
-              <label className="flex items-start gap-3">
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.04] mt-6"><Globe className="h-4 w-4 text-white/70" /></span>
-                <span className="min-w-0 flex-1">
-                  <span className="mb-1.5 block text-sm font-semibold text-white">URL pública</span>
+              <label className="block py-3.5 first:pt-0 last:pb-0">
+                <span className="block">
+                  <span className="mb-2 block text-lg font-semibold text-white">URL pública</span>
                   <input
                     type="text"
                     value={data.slug}
                     onChange={(e) => setData((d) => ({ ...d, slug: slugifyLive(e.target.value) }))}
                     onBlur={() => setData((d) => ({ ...d, slug: slugify(d.slug) }))}
                     placeholder="auro-styloff"
-                    className="h-11 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 text-sm text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
+                    className="h-12 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 text-lg font-semibold text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
                   />
-                  <span className="mt-1.5 block break-all text-[11px] text-white/50">
+                  <span className="mt-2 block break-all text-sm text-white/60">
                     {publicSiteOriginShort}/negocio/{slugify(data.slug) || slugify(data.name) || "tu-negocio"}
                   </span>
                 </span>
               </label>
-              <label className="flex items-start gap-3">
-                <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/10 bg-white/[0.04] mt-6"><FileText className="h-4 w-4 text-white/70" /></span>
-                <span className="min-w-0 flex-1">
-                  <span className="mb-1.5 block text-sm font-semibold text-white">Descripción</span>
+              <label className="block py-3.5 first:pt-0 last:pb-0">
+                <span className="block">
+                  <span className="mb-2 block text-lg font-semibold text-white">Descripción</span>
                   <textarea
                     value={data.description}
                     onChange={set("description")}
                     onFocus={() => enfocar("acerca")}
                     rows={4}
-                    className="w-full resize-none rounded-lg border border-white/10 bg-white/[0.04] px-3 py-2.5 text-sm text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
+                    className="w-full resize-none rounded-xl border border-white/10 bg-white/[0.04] px-3 py-3 text-base text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
                   />
                 </span>
               </label>
