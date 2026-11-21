@@ -17801,7 +17801,7 @@ export function NuevaVentaTab({
             className={cn(
               "pt-1.5",
               variant === "page"
-                ? "min-h-0 flex-1 overflow-y-auto overscroll-contain pr-0.5 [scrollbar-width:thin] [scrollbar-color:rgba(96,165,250,0.35)_transparent]"
+                ? "flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-contain pr-0.5 [scrollbar-width:thin] [scrollbar-color:rgba(96,165,250,0.35)_transparent]"
                 : "shrink-0",
             )}
           >
@@ -17993,7 +17993,7 @@ export function NuevaVentaTab({
                     </div>
                   )}
                   {method !== "cash" && (
-                    <div className="mt-1.5">
+                    <div className="mt-auto pt-1.5">
                       <TransferReceiptField
                         previewUrl={receiptPreviewUrl}
                         onSelect={handleReceiptFileSelected}
@@ -18019,8 +18019,8 @@ export function NuevaVentaTab({
                   Pago simple. */}
               {splits
                 .filter((sp) => sp.method !== "cash")
-                .map((sp) => (
-                  <div key={sp.method} className="mt-1.5">
+                .map((sp, i) => (
+                  <div key={sp.method} className={i === 0 ? "mt-auto pt-1.5" : "mt-1.5"}>
                     {splits.filter((x) => x.method !== "cash").length > 1 && (
                       <p className="mb-1.5 text-sm font-semibold text-white/80">
                         Comprobante de {(PAY_METHOD_LABEL[sp.method as PayMethod] ?? sp.method).toLowerCase()}
