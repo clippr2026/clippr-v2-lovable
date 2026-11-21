@@ -122,6 +122,7 @@ export function HorariosSection({
   // el horario de la sucursal anterior en la fila de la nueva (carrera
   // entre el fetch async y el auto-save de 550ms).
   const skipNextAutoSaveRef = useRef(false);
+  const baselineRef = useRef<string | null>(null);
 
   const timeToMinutes = (value: string) => {
     const [hours, minutes] = value.split(":").map(Number);
@@ -302,6 +303,7 @@ export function HorariosSection({
       toast.error("Error guardando horarios: " + error.message);
       return false;
     }
+    baselineRef.current = JSON.stringify({ days, reservationSettings });
     setDirty(false);
     toast.success("Guardado");
     return true;
@@ -312,12 +314,17 @@ export function HorariosSection({
   useEffect(() => {
     if (loading || !businessId || !activeBranchId) return;
 
+    const foto = JSON.stringify({ days, reservationSettings });
     if (skipNextAutoSaveRef.current) {
       skipNextAutoSaveRef.current = false;
+      baselineRef.current = foto;
+      setDirty(false);
       return;
     }
 
-    setDirty(true);
+    // Hay cambios solo si lo de la pantalla difiere de lo último cargado o guardado.
+    if (baselineRef.current === null) return;
+    setDirty(foto !== baselineRef.current);
   }, [loading, businessId, activeBranchId, days, reservationSettings]);
 
   const reservationRows: {

@@ -1108,6 +1108,8 @@ export function BrandingSection() {
     window.dispatchEvent(
       new CustomEvent("clippr:slug-updated", { detail: { slug: finalSlug } }),
     );
+    baselineRef.current = fotoRef.current;
+    guardadoEnRef.current = Date.now();
     setDirty(false);
     if (showToast) toast.success("Guardado");
     else reportSaveStatus("saved");
@@ -1119,6 +1121,10 @@ export function BrandingSection() {
   }, [businessId, data, logoFile, colors, theme, fontKey, entryEffect, bgStyle, decor, neonKey, benefits]);
 
   const brandingHydratedRef = React.useRef(false);
+  const baselineRef = React.useRef<string | null>(null);
+  const fotoRef = React.useRef("");
+  // Al guardar, las imágenes subidas cambian las URLs en pantalla: ese eco no cuenta como cambio nuevo.
+  const guardadoEnRef = React.useRef(0);
 
   React.useEffect(() => {
     // realDataLoadedRef (no `loading`): el efecto de fetch de arriba hace
@@ -1135,12 +1141,21 @@ export function BrandingSection() {
     // guard es siempre el que ya tiene los datos reales.
     if (!realDataLoadedRef.current) return;
 
+    const foto = JSON.stringify([data, logoFile ? [logoFile.name, logoFile.size, logoFile.lastModified] : null, colors, theme, fontKey, entryEffect, bgStyle, decor, neonKey, benefits]);
+    fotoRef.current = foto;
     if (!brandingHydratedRef.current) {
       brandingHydratedRef.current = true;
+      baselineRef.current = foto;
       return;
     }
 
-    setDirty(true);
+    if (Date.now() - guardadoEnRef.current < 600) {
+      baselineRef.current = foto;
+      setDirty(false);
+      return;
+    }
+    // Hay cambios solo si lo de la pantalla difiere de lo último cargado o guardado.
+    setDirty(foto !== baselineRef.current);
   }, [data, logoFile, colors, theme, fontKey, entryEffect, bgStyle, decor, neonKey, benefits, loading, businessId]);
 
 

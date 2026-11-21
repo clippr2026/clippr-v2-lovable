@@ -73,25 +73,31 @@ export function reportSaveStatus(status: "saving" | "saved") {
 // página de Configuración lo consulta antes de dejar la sección (y, si el
 // usuario descarta, vuelve a montar la sección para recargar lo guardado).
 export type UnsavedGuard = { isDirty: () => boolean };
-let unsavedGuard: UnsavedGuard | null = null;
-export function registerUnsavedGuard(guard: UnsavedGuard | null) {
-  unsavedGuard = guard;
+// Varias secciones pueden convivir en una pantalla (ej. Página de reservas + Horarios):
+// hay cambios sin guardar si cualquiera de ellas los tiene.
+const unsavedGuards = new Set<UnsavedGuard>();
+export function registerUnsavedGuard(guard: UnsavedGuard) {
+  unsavedGuards.add(guard);
+  return () => {
+    unsavedGuards.delete(guard);
+  };
 }
-export function getUnsavedGuard() {
-  return unsavedGuard;
+export function getUnsavedGuard(): UnsavedGuard | null {
+  if (unsavedGuards.size === 0) return null;
+  return { isDirty: () => Array.from(unsavedGuards).some((g) => g.isDirty()) };
 }
 
 export function useUnsavedGuard(dirty: boolean) {
   const dirtyRef = React.useRef(dirty);
   dirtyRef.current = dirty;
   React.useEffect(() => {
-    registerUnsavedGuard({ isDirty: () => dirtyRef.current });
+    const quitar = registerUnsavedGuard({ isDirty: () => dirtyRef.current });
     const onUnload = (e: BeforeUnloadEvent) => {
       if (dirtyRef.current) e.preventDefault();
     };
     window.addEventListener("beforeunload", onUnload);
     return () => {
-      registerUnsavedGuard(null);
+      quitar();
       window.removeEventListener("beforeunload", onUnload);
     };
   }, []);
