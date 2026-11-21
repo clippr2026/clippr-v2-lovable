@@ -162,7 +162,7 @@ function Delta({ cur, prev, label, lowerIsBetter = false }: { cur: number; prev:
   return (
     <span className={good ? "text-emerald-300" : "text-rose-300"}>
       {v >= 0 ? "+" : "-"}
-      {pct1(Math.abs(v))} {label}
+      {pct1(Math.abs(v))}
     </span>
   );
 }
@@ -402,7 +402,7 @@ function ProfesionalesView({ d, perf, prev, vsLabel }: ViewProps) {
           value={money(perf.pagoProfesionales)}
           sub={<Delta cur={perf.pagoProfesionales} prev={prev?.pagoProfesionales ?? null} label={vsLabel} />}
         />
-        <Stat label="Comisión real" value={money(p.comisionTotal)} />
+        <Stat label="Comisión real" value={money(p.comisionTotal)} sub={<Delta cur={perf.comisiones} prev={prev?.comisiones ?? null} label={vsLabel} />} />
         <Stat
           label="Descuento por puntualidad"
           value={money(-p.puntualidadTotal)}
@@ -410,7 +410,7 @@ function ProfesionalesView({ d, perf, prev, vsLabel }: ViewProps) {
           tone={p.puntualidadTotal > 0 ? "neg" : undefined}
         />
         <Stat label="Adelantos" value={money(p.adelantosTotal)} />
-        <Stat label="Consumos de productos" value={money(p.consumosTotal)} />
+        <Stat label="Consumos de productos" value={money(p.consumosTotal)} sub={<Delta cur={perf.consumosProfesionales} prev={prev?.consumosProfesionales ?? null} label={vsLabel} lowerIsBetter />} />
         <Stat
           label="Comisión sobre facturación"
           value={p.comisionSobreFacturacion != null ? pct1(p.comisionSobreFacturacion) : "—"}
