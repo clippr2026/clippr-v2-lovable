@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
-import { CalendarDays, AlarmClock, CalendarSync, Clock3 } from "lucide-react";
+import { CalendarDays, AlarmClock, CalendarSync, Clock3, Coffee } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 import { SectionCard, Toggle, FloatingSaveButton, useUnsavedGuard } from "@/components/settings/shared";
@@ -380,11 +380,11 @@ export function HorariosSection({
       <>
       <div className="glass rounded-2xl p-4 ring-1 ring-white/5">
         <div className="mb-3 text-lg font-semibold text-white">Horarios del local</div>
-        <div className="divide-y divide-white/5">
+        <div className="space-y-3">
           {days.map((d, i) => (
-            <div key={d.name} className={cn("py-3", !d.enabled && "opacity-50")}>
-            <div className="grid grid-cols-[120px_1fr_1fr_auto] items-center gap-3">
-              <div className="text-lg font-semibold text-white">{d.name}</div>
+            <div key={d.name} className={cn("rounded-2xl border border-white/10 bg-white/[0.06] p-3.5 shadow-[0_0_24px_-14px_rgba(139,92,246,0.6)]", !d.enabled && "opacity-55")}>
+            <div className="grid grid-cols-[132px_1fr_1fr_auto] items-center gap-3">
+              <div className="flex items-center gap-2.5 text-lg font-semibold text-white"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-500/20 ring-1 ring-violet-300/25"><CalendarDays className="h-4.5 w-4.5 text-violet-200" /></span>{d.name}</div>
               <input
                 type="time"
                 value={d.open}
@@ -429,8 +429,8 @@ export function HorariosSection({
               />
             </div>
             {d.enabled && (
-              <div className="mt-2.5 grid grid-cols-[120px_1fr_1fr_auto] items-center gap-3">
-                <div className="text-base text-white/70">Descanso</div>
+              <div className="mt-3 grid grid-cols-[132px_1fr_1fr_auto] items-center gap-3">
+                <div className="flex items-center gap-2.5 text-base text-white/75"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-amber-400/15 ring-1 ring-amber-300/25"><Coffee className="h-4.5 w-4.5 text-amber-200" /></span>Descanso</div>
                 {d.breakStart || d.breakEnd ? (
                   <>
                     <input

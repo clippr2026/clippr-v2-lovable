@@ -1435,51 +1435,51 @@ export function BrandingSection() {
         <>
 
           <SectionCard clippr label="Información del negocio">
-            <div className="divide-y divide-white/5">
+            <div className="space-y-3">
               {infoRows.map((f) => {
                 const Icon = f.icon;
                 const seccion = ({ name: "hero", address: "mapa", phone: "contacto", email: "contacto", instagram: "contacto" } as Record<string, string>)[String(f.key)];
                 return (
-                  <label key={f.key} className="block py-3.5 first:pt-0 last:pb-0">
+                  <label key={f.key} className="block rounded-2xl border border-white/10 bg-white/[0.06] p-3.5 shadow-[0_0_24px_-14px_rgba(139,92,246,0.6)]">
                     <span className="block">
-                      <span className="mb-2 block text-lg font-semibold text-white">{f.label}</span>
+                      <span className="mb-2.5 flex items-center gap-2.5 text-lg font-semibold text-white"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-500/20 ring-1 ring-violet-300/25"><Icon className="h-4.5 w-4.5 text-violet-200" /></span>{f.label}</span>
                       <input
                         type={f.type ?? "text"}
                         value={(data[f.key] as string) ?? ""}
                         onChange={set(f.key)}
                         onFocus={() => seccion && enfocar(seccion)}
-                        className="h-12 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 text-lg font-semibold text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
+                        className="h-12 w-full rounded-xl border border-white/10 bg-black/30 px-3 text-lg font-semibold text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
                       />
                     </span>
                   </label>
                 );
               })}
-              <label className="block py-3.5 first:pt-0 last:pb-0">
+              <label className="block rounded-2xl border border-white/10 bg-white/[0.06] p-3.5 shadow-[0_0_24px_-14px_rgba(139,92,246,0.6)]">
                 <span className="block">
-                  <span className="mb-2 block text-lg font-semibold text-white">Fecha de inicio del negocio</span>
+                  <span className="mb-2.5 flex items-center gap-2.5 text-lg font-semibold text-white"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-500/20 ring-1 ring-violet-300/25"><CalendarDays className="h-4.5 w-4.5 text-violet-200" /></span>Fecha de inicio del negocio</span>
                   <DateClippr value={data.business_start_date} onChange={(iso) => { setData((d) => ({ ...d, business_start_date: iso })); enfocar("hero"); }} />
                 </span>
               </label>
               {/* La URL no tiene un lugar en la página: se muestra abajo como texto chico, cómo va a quedar el link. */}
-              <label className="block py-3.5 first:pt-0 last:pb-0">
+              <label className="block rounded-2xl border border-white/10 bg-white/[0.06] p-3.5 shadow-[0_0_24px_-14px_rgba(139,92,246,0.6)]">
                 <span className="block">
-                  <span className="mb-2 block text-lg font-semibold text-white">URL pública</span>
+                  <span className="mb-2.5 flex items-center gap-2.5 text-lg font-semibold text-white"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-500/20 ring-1 ring-violet-300/25"><Globe className="h-4.5 w-4.5 text-violet-200" /></span>URL pública</span>
                   <input
                     type="text"
                     value={data.slug}
                     onChange={(e) => setData((d) => ({ ...d, slug: slugifyLive(e.target.value) }))}
                     onBlur={() => setData((d) => ({ ...d, slug: slugify(d.slug) }))}
                     placeholder="auro-styloff"
-                    className="h-12 w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 text-lg font-semibold text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
+                    className="h-12 w-full rounded-xl border border-white/10 bg-black/30 px-3 text-lg font-semibold text-white outline-none placeholder:text-white/35 focus:border-violet-400/50"
                   />
                   <span className="mt-2 block break-all text-sm text-white/60">
                     {publicSiteOriginShort}/negocio/{slugify(data.slug) || slugify(data.name) || "tu-negocio"}
                   </span>
                 </span>
               </label>
-              <label className="block py-3.5 first:pt-0 last:pb-0">
+              <label className="block rounded-2xl border border-white/10 bg-white/[0.06] p-3.5 shadow-[0_0_24px_-14px_rgba(139,92,246,0.6)]">
                 <span className="block">
-                  <span className="mb-2 block text-lg font-semibold text-white">Descripción</span>
+                  <span className="mb-2.5 flex items-center gap-2.5 text-lg font-semibold text-white"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-violet-500/20 ring-1 ring-violet-300/25"><FileText className="h-4.5 w-4.5 text-violet-200" /></span>Descripción</span>
                   <textarea
                     value={data.description}
                     onChange={set("description")}
