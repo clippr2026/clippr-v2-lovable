@@ -18,6 +18,8 @@ export type PreviewDraft = {
   effectNonce: number;
   // Todo lo que se escribe en el editor viaja en vivo, sin guardar: la vista previa muestra el borrador.
   neon?: string;
+  // Horarios del local tal como se editan (días, apertura, cierre y descanso).
+  schedule?: Record<string, unknown>;
   address?: string;
   phone?: string;
   email?: string;

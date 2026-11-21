@@ -1,3 +1,4 @@
+import { HorariosSection } from "@/components/settings/horarios-section";
 import React, { useState, useEffect } from "react";
 import { COVER_ASPECT_CLASS } from "@/lib/cover-frame";
 import { PUBLIC_FONTS, publicFontsStylesheet } from "@/lib/public-fonts";
@@ -1245,6 +1246,7 @@ export function BrandingSection() {
     return () => mq.removeEventListener("change", onChange);
   }, []);
   const [previewKey, setPreviewKey] = useState(0);
+  const [horarioDraft, setHorarioDraft] = useState<Record<string, unknown> | null>(null);
   const previewDraft = React.useMemo(
     () => ({
       colors: {
@@ -1279,8 +1281,9 @@ export function BrandingSection() {
       decor,
       neon: neonKey,
       effectNonce,
+      ...(horarioDraft ? { schedule: horarioDraft } : {}),
     }),
-    [colors, theme, fontKey, entryEffect, bgStyle, decor, neonKey, effectNonce, benefits, data.cover_position, data.avatar_position, data.cover_url, data.avatar_url, data.name, data.address, data.phone, data.email, data.instagram, data.description, data.business_start_date, data.portfolio_urls, data.portfolio_positions, data.featured_clients, data.featured_positions],
+    [horarioDraft, colors, theme, fontKey, entryEffect, bgStyle, decor, neonKey, effectNonce, benefits, data.cover_position, data.avatar_position, data.cover_url, data.avatar_url, data.name, data.address, data.phone, data.email, data.instagram, data.description, data.business_start_date, data.portfolio_urls, data.portfolio_positions, data.featured_clients, data.featured_positions],
   );
   // Todo viaja en vivo como borrador (previewDraft): la vista previa NO se recarga desde la base mientras se edita,
   // porque pisaría lo que todavía no se guardó. Lo guardado queda al apretar Guardar.
@@ -1482,6 +1485,8 @@ export function BrandingSection() {
               </label>
             </div>
           </SectionCard>
+
+          <HorariosSection parte="horarios" onDraft={setHorarioDraft} />
 
           <SectionCard
             clippr

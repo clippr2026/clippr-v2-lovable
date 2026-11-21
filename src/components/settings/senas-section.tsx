@@ -1,3 +1,4 @@
+import { HorariosSection } from "@/components/settings/horarios-section";
 import { DEFAULT_SENAS_MESSAGE as DEFAULT_MESSAGE } from "@/lib/senas-default-message";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
@@ -389,6 +390,7 @@ export function SenasSection() {
 
   return (
     <div className="space-y-4 pb-24">
+      <HorariosSection parte="reservas" />
       <SectionCard
         label="Pedir seña"
         headerRight={<Toggle on={cfg.enabled} onChange={(v) => set("enabled", v)} />}

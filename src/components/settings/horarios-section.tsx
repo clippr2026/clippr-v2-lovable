@@ -72,7 +72,16 @@ const DEFAULT_DAYS = DAYS.map((d, i) => ({
   enabled: i < 6,
 }));
 
-export function HorariosSection() {
+// `parte`: "horarios" (días y descanso del local, en Página de reservas) o "reservas" (turnos y reservas de clientes,
+// en Reservas). Cada una guarda solo lo suyo, así dos pantallas no se pisan entre sí.
+export function HorariosSection({
+  parte = "horarios",
+  onDraft,
+}: {
+  parte?: "horarios" | "reservas";
+  /** Los horarios tal como se van editando (sin guardar): alimentan la vista previa de la página pública. */
+  onDraft?: (schedule: Record<string, { enabled: boolean; start: string; end: string; breakStart?: string; breakEnd?: string }>) => void;
+} = {}) {
   const { businessId, activeBranchId, profile } = useAuth();
   const [days, setDays] = useState(DEFAULT_DAYS);
   const [reservationSettings, setReservationSettings] =
@@ -81,6 +90,21 @@ export function HorariosSection() {
   const [dirty, setDirty] = useState(false);
   useUnsavedGuard(dirty);
   const [loading, setLoading] = useState(true);
+  const onDraftRef = useRef(onDraft);
+  onDraftRef.current = onDraft;
+  useEffect(() => {
+    if (loading || !onDraftRef.current) return;
+    const m: Record<string, { enabled: boolean; start: string; end: string; breakStart?: string; breakEnd?: string }> = {};
+    days.forEach((d, i) => {
+      m[dayKeys[i]] = {
+        enabled: d.enabled,
+        start: d.open,
+        end: d.close,
+        ...(d.breakStart && d.breakEnd ? { breakStart: d.breakStart, breakEnd: d.breakEnd } : {}),
+      };
+    });
+    onDraftRef.current(m);
+  }, [days, loading]);
   const dayKeys = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
   // true justo después de una carga (mount o cambio de sucursal): el
   // próximo cambio de `days`/`reservationSettings` que ese setState
@@ -181,14 +205,14 @@ export function HorariosSection() {
     if (!businessId) return void toast.error("No se encontró el negocio"), false;
     if (!activeBranchId) return void toast.error("No se encontró la sucursal"), false;
 
-    const invalidDay = days.find((day) => {
+    const invalidDay = parte !== "horarios" ? undefined : days.find((day) => {
       if (!day.enabled) return false;
       const openMin = timeToMinutes(day.open);
       const closeMin = timeToMinutes(day.close);
       return openMin == null || closeMin == null || closeMin <= openMin;
     });
 
-    const invalidBreak = days.find((day) => {
+    const invalidBreak = parte !== "horarios" ? undefined : days.find((day) => {
       if (!day.enabled || (!day.breakStart && !day.breakEnd)) return false;
       const b0 = timeToMinutes(day.breakStart);
       const b1 = timeToMinutes(day.breakEnd);
@@ -221,31 +245,33 @@ export function HorariosSection() {
     const existing = (existingRow?.schedule ?? {}) as Record<string, any>;
 
     const schedule: Record<string, any> = { ...existing };
-    days.forEach((day, i) => {
-      // Esta pantalla no tiene control de "descanso" del negocio (eso vive
-      // en Equipo → Horarios, por profesional). Antes se pisaba acá un
-      // breakStart/breakEnd fijo en 12:00-13:00 en CADA guardado, invisible
-      // para el usuario — resolveDaySchedule lo unía al descanso propio de
-      // cada profesional y terminaba mostrando dos bloques de descanso en la
-      // Agenda. Se preserva lo que ya hubiera (si alguna vez se cargó por
-      // otra vía) en vez de reescribirlo con un valor inventado.
-      const prevDay = (existing[dayKeys[i]] ?? {}) as Record<string, unknown>;
-      const { breakStart: _bs, breakEnd: _be, ...restoDia } = prevDay as Record<string, unknown>;
-      schedule[dayKeys[i]] = {
-        ...restoDia,
-        enabled: day.enabled,
-        start: day.open,
-        end: day.close,
-        // Descanso del local: solo si están los dos horarios.
-        ...(day.breakStart && day.breakEnd ? { breakStart: day.breakStart, breakEnd: day.breakEnd } : {}),
-      };
-    });
+    if (parte === "horarios") {
+      days.forEach((day, i) => {
+        // Esta pantalla no tiene control de "descanso" del negocio (eso vive
+        // en Equipo → Horarios, por profesional). Antes se pisaba acá un
+        // breakStart/breakEnd fijo en 12:00-13:00 en CADA guardado, invisible
+        // para el usuario — resolveDaySchedule lo unía al descanso propio de
+        // cada profesional y terminaba mostrando dos bloques de descanso en la
+        // Agenda. Se preserva lo que ya hubiera (si alguna vez se cargó por
+        // otra vía) en vez de reescribirlo con un valor inventado.
+        const prevDay = (existing[dayKeys[i]] ?? {}) as Record<string, unknown>;
+        const { breakStart: _bs, breakEnd: _be, ...restoDia } = prevDay as Record<string, unknown>;
+        schedule[dayKeys[i]] = {
+          ...restoDia,
+          enabled: day.enabled,
+          start: day.open,
+          end: day.close,
+          // Descanso del local: solo si están los dos horarios.
+          ...(day.breakStart && day.breakEnd ? { breakStart: day.breakStart, breakEnd: day.breakEnd } : {}),
+        };
+      });
+    }
 
     const asNumber = (v: string, fallback: number) => {
       const n = Number(v);
       return v.trim() !== "" && Number.isFinite(n) && n >= 0 ? n : fallback;
     };
-    schedule._settings = {
+    if (parte === "reservas") schedule._settings = {
       maxAdvance: Math.max(1, asNumber(reservationSettings.maxAdvance, 30)),
       minAdvance: asNumber(reservationSettings.minAdvance, 60),
       minCancel: asNumber(reservationSettings.minCancel, 3),
@@ -335,18 +361,10 @@ export function HorariosSection() {
           Horarios" arriba (drill-down tipo iOS, ver settings.tsx) —
           repetir el mismo título acá era redundante. En desktop no hay
           ese header de vuelta, así que sigue siendo la única referencia. */}
-      <div className="hidden items-start justify-between gap-4 lg:flex">
-        <div>
-          <h2 className="text-xl font-display font-semibold">
-            Horarios de atención
-          </h2>
-          <p className="text-sm text-muted-foreground mt-1">
-            Días y horarios de atención.
-          </p>
-        </div>
-      </div>
-
+      {parte === "horarios" && (
+      <>
       <div className="glass rounded-2xl p-4 ring-1 ring-white/5">
+        <div className="mb-3 text-lg font-semibold text-white">Horarios del local</div>
         <div className="grid grid-cols-[120px_1fr_1fr_auto] gap-3 px-1 pb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
           <div>Día</div>
           <div>Apertura</div>
@@ -447,6 +465,10 @@ export function HorariosSection() {
 
 
 
+      </>
+      )}
+
+      {parte === "reservas" && (
       <SectionCard label="Turnos y reservas de clientes">
         <p className="mb-3 text-xs text-muted-foreground">
           Aplica a lo que hacen los clientes desde la página pública. No afecta lo que agendás vos desde la Agenda.
@@ -495,6 +517,7 @@ export function HorariosSection() {
           })}
         </div>
       </SectionCard>
+      )}
       <FloatingSaveButton visible={dirty} saving={saving} onClick={() => void saveSchedule()} />
     </>
   );

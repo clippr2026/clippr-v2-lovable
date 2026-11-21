@@ -752,6 +752,7 @@ function PublicProfilePage() {
           setEffectRun((r) => r + 1);
         }, 1700);
       }
+      if (dr.schedule && typeof dr.schedule === "object") setSchedule(dr.schedule as ScheduleMap);
       if (typeof dr.description === "string") setDescription(dr.description.trim());
       if (Array.isArray(dr.additionalInfo)) setAdditionalInfo(normalizeAdditionalInfo(dr.additionalInfo));
       if (Array.isArray(dr.portfolioUrls)) setPortfolioUrls(normalizePortfolio(dr.portfolioUrls));

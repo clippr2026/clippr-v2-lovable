@@ -60,7 +60,6 @@ import type {
 import { ClipprLoader } from "@/components/ui/clippr-loader";
 import { BrandingSection } from "@/components/settings/branding-section";
 import { ResenasSection } from "@/components/settings/resenas-section";
-import { HorariosSection } from "@/components/settings/horarios-section";
 import { EquipoSection } from "@/components/settings/equipo-section";
 import { SucursalesSection } from "@/components/settings/sucursales-section";
 import { ReglasTardanzaSection } from "@/components/settings/reglas-tardanza-section";
@@ -128,13 +127,6 @@ const groups: { label: string; items: NavItem[] }[] = [
         tint: "text-[oklch(0.85_0.17_85)]",
         glow: "from-[oklch(0.85_0.17_85/0.25)] to-[oklch(0.75_0.18_70/0.05)]",
       },
-      {
-        id: "horarios",
-        label: "Horarios",
-        icon: CalendarDays,
-        tint: "text-[oklch(0.78_0.2_270)]",
-        glow: "from-[oklch(0.78_0.2_270/0.25)] to-[oklch(0.65_0.22_285/0.05)]",
-      },
     ],
   },
   {
@@ -170,7 +162,7 @@ const groups: { label: string; items: NavItem[] }[] = [
       },
       {
         id: "senas",
-        label: "Señas",
+        label: "Reservas",
         icon: Banknote,
         tint: "text-[oklch(0.85_0.17_140)]",
         glow: "from-[oklch(0.85_0.17_140/0.25)] to-[oklch(0.72_0.19_150/0.05)]",
@@ -488,7 +480,6 @@ function SettingsPage() {
                 {active === "branding" && <BrandingSection />}
                 {active === "resenas" && <ResenasSection />}
 
-                {active === "horarios" && <HorariosSection />}
                 {active === "equipo" && <EquipoSection />}
                 {active === "servicios" && <ServiciosSection />}
 
