@@ -397,7 +397,6 @@ function ProfesionalesView({ d, perf, prev, vsLabel }: ViewProps) {
           value={money(perf.pagoProfesionales)}
           sub={<Delta cur={perf.pagoProfesionales} prev={prev?.pagoProfesionales ?? null} label={vsLabel} />}
         />
-        <Stat label="Comisión real" value={money(p.comisionTotal)} sub={<Delta cur={perf.comisiones} prev={prev?.comisiones ?? null} label={vsLabel} />} />
         <Stat
           label="Descuento por puntualidad"
           value={money(-p.puntualidadTotal)}
