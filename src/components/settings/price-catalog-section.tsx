@@ -1254,9 +1254,9 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         typeof window !== "undefined"
           ? window.localStorage.getItem(activeCatStorageKey) || ""
           : "";
-      const resolvedCat = resolvedCategories.includes(savedCat)
+      const resolvedCat = savedCat === TODOS || resolvedCategories.includes(savedCat)
         ? savedCat
-        : (resolvedCategories[0] ?? "");
+        : TODOS;
 
       // Un solo commit de estado (React los agrupa en un único render).
       setRows(fetchedRows);
@@ -1896,7 +1896,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     }
   }, [activeCatStorageKey]);
 
-  const activeCat = ready && categories.includes(cat) ? cat : "";
+  const activeCat = ready && (cat === TODOS || categories.includes(cat)) ? cat : TODOS;
   // Ref siempre al día con la categoría activa — necesaria dentro de los
   // callbacks del drag de ítems (handleItemsReorderChange/End), que pueden
   // seguir corriendo con closures viejas si la categoría cambió a mitad de
@@ -1906,9 +1906,12 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     activeCatRef.current = activeCat;
   }, [activeCat]);
 
-  const filtered = visibleRows.filter(
-    (r) => (r.category || (isService ? "Servicios" : "Productos")) === activeCat,
-  );
+  const filtered =
+    activeCat === TODOS
+      ? visibleRows
+      : visibleRows.filter(
+          (r) => (r.category || (isService ? "Servicios" : "Productos")) === activeCat,
+        );
 
   async function uploadBookingImage(file: File): Promise<string | null> {
     if (!businessId) {
@@ -1947,7 +1950,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
 
   function openNew() {
     setEditing(null);
-    setForm(emptyPriceForm(cat, isService));
+    setForm(emptyPriceForm(cat === TODOS ? (categories[0] ?? (isService ? "Servicios" : "Productos")) : cat, isService));
     setModalOpen(true);
   }
 
@@ -2535,8 +2538,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         customCatalogCategories.filter((c) => c !== category),
         "catalog",
       );
-    if (category === activeCat || !currentCategories.includes(activeCat)) {
-      selectCategory(currentCategories[0]);
+    if (category === activeCat) {
+      selectCategory(TODOS);
     }
   }
 
@@ -2610,6 +2613,16 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
               className="overflow-x-auto [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             >
               <div className="flex items-center gap-0.5">
+                <button
+                  type="button"
+                  onClick={() => selectCategory(TODOS)}
+                  className={cn(
+                    "flex shrink-0 items-center whitespace-nowrap rounded-t-lg px-3 py-2.5 text-base font-medium select-none",
+                    activeCat === TODOS ? "bg-white/5 text-foreground" : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {TODOS}
+                </button>
                 {categories.map((category) => {
                   const active = category === activeCat;
                   const hoverTarget = hoverTargetCategory === category;
@@ -2673,7 +2686,6 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
               <div
                 key={row.id}
                 ref={itemReorder.setNodeRef(row.id)}
-                onPointerDown={(event) => itemReorder.startPress(row.id, event)}
                 className={cn(
                   // touch-none (touch-action:none) desde el render, no solo
                   // al activar el drag: en la lista de ítems el eje de
@@ -2688,18 +2700,26 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                   // fila ya no scrollea la página — hay que arrancarlo desde
                   // otra zona (esto es aceptable: son pocos ítems por
                   // categoría).
-                  "relative flex items-start gap-3.5 px-4 py-4 transition-colors duration-150 select-none touch-none [-webkit-touch-callout:none]",
+                  "relative flex items-start gap-3.5 px-4 py-4 transition-colors duration-150 select-none [-webkit-touch-callout:none]",
                   itemReorder.draggingId === row.id &&
                     "z-50 rounded-2xl bg-white/[0.07] shadow-[0_8px_20px_-6px_rgba(139,92,246,0.5)] ring-2 ring-violet-400/50",
                 )}
               >
-                <ServiceImage
-                  src={imageMap[row.id]}
-                  alt={row.name}
-                  position={imagePositionMap[row.id]}
-                  className="h-14 w-14 shrink-0 self-start rounded-2xl bg-white/5 ring-1 ring-white/10"
-                  fallback={<span className="h-2.5 w-2.5 rounded-full bg-[oklch(0.72_0.2_245)]" />}
-                />
+                {/* La imagen es el agarre para reordenar (mantené apretado y arrastrá); el resto de la fila deja scrollear. */}
+                <div
+                  className={cn("shrink-0 self-start", activeCat !== TODOS && "touch-none")}
+                  onPointerDown={(event) => {
+                    if (activeCat !== TODOS) itemReorder.startPress(row.id, event);
+                  }}
+                >
+                  <ServiceImage
+                    src={imageMap[row.id]}
+                    alt={row.name}
+                    position={imagePositionMap[row.id]}
+                    className="h-14 w-14 rounded-2xl bg-white/5 ring-1 ring-white/10"
+                    fallback={<span className="h-2.5 w-2.5 rounded-full bg-[oklch(0.72_0.2_245)]" />}
+                  />
+                </div>
                 <div className="min-w-0 flex-1 space-y-3">
                   <div>
                     <div
@@ -2926,6 +2946,10 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                   <div className="px-1 pb-1.5 text-base text-white/60">
                     Mantené apretado y arrastrá para ordenar.
                   </div>
+                  <div className="flex items-center gap-2 rounded-2xl bg-white/[0.05] px-3 py-3 ring-1 ring-white/10">
+                    <span className="min-w-0 flex-1 text-lg font-semibold text-white">{TODOS}</span>
+                    <span className="text-base text-white/50">Fija</span>
+                  </div>
                   {categories.map((category) => (
                     <div
                       key={category}
@@ -3117,6 +3141,9 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     </>
   );
 }
+
+// Pestaña fija con todo junto: es la de siempre al entrar y no se puede eliminar.
+const TODOS = "Todos";
 
 export function ServiciosSection() {
   return <PriceCatalogSection kind="servicios" />;
