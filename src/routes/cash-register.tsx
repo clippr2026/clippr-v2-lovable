@@ -17361,9 +17361,9 @@ export function NuevaVentaTab({
                   toast.error((e as Error).message);
                 }
               }}
-              className="flex h-14 w-full items-center justify-center gap-2 rounded-full border border-violet-400/40 bg-violet-500/10 px-5 text-base font-semibold text-violet-100 transition hover:bg-violet-500/20 active:bg-violet-500/25"
+              className="mx-auto flex items-center justify-center gap-2 px-2 py-3 text-base font-semibold text-violet-200 transition-colors hover:text-violet-100 active:text-white"
             >
-              Continuar sin cliente
+              Continuar sin cliente <span className="font-normal text-white/50">(no recomendado)</span>
               <ArrowRight className="size-5 shrink-0" />
             </button>
           )}
