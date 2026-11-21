@@ -10,6 +10,7 @@ export function SelectClippr({
   onChange,
   className,
   pill = false,
+  compact = false,
 }: {
   opciones: Array<{ id: string; label: string }>;
   valor: string;
@@ -17,6 +18,8 @@ export function SelectClippr({
   className?: string;
   // Forma de píldora (pago): borde celeste y fondo negro, igual que los campos de monto.
   pill?: boolean;
+  // Versión chica para barras (selector de sucursal).
+  compact?: boolean;
 }) {
   const [abierto, setAbierto] = React.useState(false);
   const [pos, setPos] = React.useState<{ left: number; width: number; top?: number; bottom?: number } | null>(null);
@@ -56,7 +59,9 @@ export function SelectClippr({
         onClick={() => (abierto ? setAbierto(false) : abrir())}
         className={cn(
           "flex w-full touch-manipulation items-center justify-between gap-1.5 text-left text-[15px] font-semibold text-white outline-none",
-          pill
+          compact
+            ? "h-8 rounded-lg border border-violet-400/30 bg-violet-500/10 pl-3 pr-2 text-sm focus:border-violet-400/60"
+            : pill
             ? "h-11 rounded-full border border-blue-300/25 bg-black/45 pl-4 pr-3 focus:border-blue-300/55"
             : "h-12 rounded-xl border border-white/10 bg-white/[0.04] pl-3 pr-2.5 focus:border-violet-400/50",
         )}

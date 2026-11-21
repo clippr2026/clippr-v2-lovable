@@ -1,4 +1,4 @@
-import { Building2 } from "lucide-react";
+import { SelectClippr } from "@/components/ui/select-clippr";
 import { useAuth } from "@/hooks/use-auth";
 import { cn } from "@/lib/utils";
 
@@ -20,22 +20,12 @@ export function BranchSelector({ className }: { className?: string }) {
   if (branches.length <= 1) return null;
 
   return (
-    <div className={cn("relative inline-flex items-center", className)}>
-      <Building2 className="pointer-events-none absolute left-2.5 size-3.5 shrink-0 text-white/40" />
-      <select
-        value={activeBranchId ?? ""}
-        onChange={(e) => setActiveBranchId(e.target.value)}
-        className="h-8 min-w-0 appearance-none rounded-lg border border-white/10 bg-white/[0.04] py-0 pl-8 pr-6 text-sm font-semibold text-white outline-none transition hover:border-white/20 focus:border-violet-300/40 focus:ring-2 focus:ring-violet-400/15"
-      >
-        {branches.map((b) => (
-          <option key={b.id} value={b.id}>
-            {b.name}
-          </option>
-        ))}
-      </select>
-      {/* Flecha propia — appearance-none saca la nativa del navegador, así
-          el ancho queda consistente entre mobile/desktop. */}
-      <span className="pointer-events-none absolute right-2 text-[10px] text-white/40">▾</span>
-    </div>
+    <SelectClippr
+      compact
+      className={cn("min-w-[170px]", className)}
+      valor={activeBranchId ?? ""}
+      onChange={setActiveBranchId}
+      opciones={branches.map((b) => ({ id: b.id, label: b.name }))}
+    />
   );
 }
