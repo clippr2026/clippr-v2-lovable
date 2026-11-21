@@ -402,36 +402,42 @@ export function HorariosSection() {
               />
             </div>
             {d.enabled && (
-              <div className="mt-2.5 flex flex-wrap items-center gap-2 pl-1">
-                <span className="w-[112px] text-sm text-white/65">Descanso</span>
-                <input
-                  type="time"
-                  value={d.breakStart}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setDays((s) => s.map((x, idx) => (idx === i ? { ...x, breakStart: value } : x)));
-                  }}
-                  className="rounded-lg bg-white/5 px-3 py-2 text-sm ring-1 ring-white/10 focus:outline-none focus:ring-primary/40"
-                />
-                <span className="text-sm text-white/50">a</span>
-                <input
-                  type="time"
-                  value={d.breakEnd}
-                  onChange={(e) => {
-                    const value = e.target.value;
-                    setDays((s) => s.map((x, idx) => (idx === i ? { ...x, breakEnd: value } : x)));
-                  }}
-                  className="rounded-lg bg-white/5 px-3 py-2 text-sm ring-1 ring-white/10 focus:outline-none focus:ring-primary/40"
-                />
-                {(d.breakStart || d.breakEnd) && (
-                  <button
-                    type="button"
-                    onClick={() => setDays((s) => s.map((x, idx) => (idx === i ? { ...x, breakStart: "", breakEnd: "" } : x)))}
-                    className="rounded-full px-3 py-1.5 text-sm font-semibold text-rose-300 ring-1 ring-rose-400/25"
-                  >
-                    Quitar
-                  </button>
+              <div className="mt-2.5 grid grid-cols-[120px_1fr_1fr_auto] items-center gap-3">
+                <div className="text-sm text-white/70">Descanso</div>
+                {d.breakStart || d.breakEnd ? (
+                  <>
+                    <input
+                      type="time"
+                      value={d.breakStart}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setDays((s) => s.map((x, idx) => (idx === i ? { ...x, breakStart: value } : x)));
+                      }}
+                      className="rounded-lg bg-white/5 px-3 py-2 text-sm ring-1 ring-white/10 focus:outline-none focus:ring-primary/40"
+                    />
+                    <input
+                      type="time"
+                      value={d.breakEnd}
+                      onChange={(e) => {
+                        const value = e.target.value;
+                        setDays((s) => s.map((x, idx) => (idx === i ? { ...x, breakEnd: value } : x)));
+                      }}
+                      className="rounded-lg bg-white/5 px-3 py-2 text-sm ring-1 ring-white/10 focus:outline-none focus:ring-primary/40"
+                    />
+                  </>
+                ) : (
+                  <div className="col-span-2 text-sm text-white/40">Sin descanso</div>
                 )}
+                <Toggle
+                  on={Boolean(d.breakStart || d.breakEnd)}
+                  onChange={(v) =>
+                    setDays((s) =>
+                      s.map((x, idx) =>
+                        idx === i ? { ...x, breakStart: v ? "13:00" : "", breakEnd: v ? "14:00" : "" } : x,
+                      ),
+                    )
+                  }
+                />
               </div>
             )}
             </div>
