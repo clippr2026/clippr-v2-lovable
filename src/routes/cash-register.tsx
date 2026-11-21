@@ -7122,33 +7122,29 @@ function NuevoGastoTab({
     onSaved();
   }
 
+  // Opciones en píldora (estilo Clippr): una sola línea de texto grande, sin descripciones repetidas.
   const optionBtn = (active: boolean) =>
     cn(
-      "w-full rounded-2xl border px-4 py-3 text-left transition",
+      "flex h-12 w-full items-center justify-center rounded-full border px-3 text-center text-base font-semibold transition",
       active
-        ? "border-violet-400/60 bg-violet-500/15 text-foreground"
-        : "border-white/10 bg-white/[0.03] text-muted-foreground hover:bg-white/[0.06]",
+        ? "border-violet-400/60 bg-violet-500/20 text-white"
+        : "border-white/10 bg-white/[0.04] text-white/70 hover:bg-white/[0.08]",
     );
-  const labelCls = "mb-2 block text-sm font-semibold text-white";
+  const labelCls = "mb-2 block text-base font-semibold text-white";
   const inputCls =
-    "w-full rounded-lg border border-white/10 bg-white/[0.04] px-4 py-3 text-base text-foreground placeholder:text-muted-foreground/60 outline-none focus:border-violet-400/50";
+    "h-12 w-full rounded-xl border border-white/10 bg-white/[0.04] px-4 text-lg text-white placeholder:text-white/35 outline-none focus:border-violet-400/50";
+  const hintCls = "mt-2 text-sm leading-snug text-white/60";
+  const kindHint = EXPENSE_KINDS.find((k) => k.value === form.kind)?.hint ?? null;
 
   return (
     <div className="animate-fade-up">
-      <Card className="mx-auto w-full max-w-3xl p-3 md:p-3.5" style={{ background: "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.16), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.12), transparent 65%)" }}>
-        <div className="mb-4">
-          <h3 className="text-lg font-semibold text-foreground">
-            Nuevo gasto
-          </h3>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Registrá los gastos de tu negocio de forma simple.
-          </p>
-        </div>
+      <Card className="mx-auto w-full max-w-3xl p-3.5 md:p-4" style={{ background: "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.16), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.12), transparent 65%)" }}>
+        <h3 className="mb-4 text-xl font-semibold text-white">Nuevo gasto</h3>
 
-        <div className="space-y-4">
+        <div className="space-y-5">
           <div>
             <span className={labelCls}>¿Qué tipo de gasto es?</span>
-            <div className="grid gap-2">
+            <div className="grid grid-cols-3 gap-2">
               {EXPENSE_KINDS.map((k) => (
                 <button
                   key={k.value}
@@ -7157,11 +7153,11 @@ function NuevoGastoTab({
                   className={optionBtn(form.kind === k.value)}
                   aria-pressed={form.kind === k.value}
                 >
-                  <span className="block text-sm font-semibold">{k.label}</span>
-                  <span className="block text-xs text-muted-foreground">{k.hint}</span>
+                  {k.label}
                 </button>
               ))}
             </div>
+            {kindHint && <p className={hintCls}>{kindHint}</p>}
           </div>
 
           <label className="block">
@@ -7169,7 +7165,7 @@ function NuevoGastoTab({
             <input
               value={form.name}
               onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-              placeholder="Ej. Alquiler del local, Internet, Compra de productos"
+              placeholder="Ej. Alquiler, Internet, Productos"
               maxLength={120}
               className={inputCls}
             />
@@ -7184,48 +7180,46 @@ function NuevoGastoTab({
               type="number"
               inputMode="decimal"
               min={0}
-              className={inputCls}
+              className={cn(inputCls, "text-xl font-bold tabular-nums")}
             />
           </label>
 
-          <div className="space-y-4 rounded-2xl border border-white/10 bg-white/[0.03] p-4" style={{ background: "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.16), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.12), transparent 65%)" }}>
+          <div className="space-y-4 rounded-3xl border border-white/10 bg-white/[0.03] p-4" style={{ background: "radial-gradient(110% 90% at 100% 0%, rgba(79,125,255,.16), transparent 62%), radial-gradient(90% 80% at 0% 100%, rgba(139,92,246,.12), transparent 65%)" }}>
             <div>
               <span className={labelCls}>¿De dónde sale la plata?</span>
-              <div className="grid gap-2.5 sm:grid-cols-3">
+              <div className="grid grid-cols-3 gap-2">
                 <button
                   type="button"
                   onClick={() => setForm((f) => ({ ...f, source: "caja", later: false }))}
-                  className={cn(optionBtn(!form.later && form.source === "caja"), "text-left")}
+                  className={cn(optionBtn(!form.later && form.source === "caja"), "px-1 text-[15px]")}
                   aria-pressed={!form.later && form.source === "caja"}
                 >
-                  <span className="block text-sm font-semibold">Caja del día</span>
-                  <span className="mt-1 block text-xs font-normal leading-snug text-muted-foreground">
-                    Se descuenta de Efectivo en caja o Dinero en banco y se registra en el cierre.
-                  </span>
+                  Caja
                 </button>
                 <button
                   type="button"
                   onClick={() => setForm((f) => ({ ...f, source: "otros", later: false }))}
-                  className={cn(optionBtn(!form.later && form.source === "otros"), "text-left")}
+                  className={cn(optionBtn(!form.later && form.source === "otros"), "px-1 text-[15px] leading-tight")}
                   aria-pressed={!form.later && form.source === "otros"}
                 >
-                  <span className="block text-sm font-semibold">Fondos externos</span>
-                  <span className="mt-1 block text-xs font-normal leading-snug text-muted-foreground">
-                    Se registra el gasto, pero no descuenta de la recaudación ni entra en el cierre.
-                  </span>
+                  Fondos externos
                 </button>
                 <button
                   type="button"
                   onClick={() => setForm((f) => ({ ...f, later: true }))}
-                  className={cn(optionBtn(form.later), "text-left")}
+                  className={cn(optionBtn(form.later), "px-1 text-[15px]")}
                   aria-pressed={form.later}
                 >
-                  <span className="block text-sm font-semibold">Lo pago después</span>
-                  <span className="mt-1 block text-xs font-normal leading-snug text-muted-foreground">
-                    Queda en Gastos a pagar, con fecha de vencimiento, y no descuenta hasta que lo pagues.
-                  </span>
+                  Pago después
                 </button>
               </div>
+              <p className={hintCls}>
+                {form.later
+                  ? "Queda en Gastos a pagar y no descuenta hasta que lo pagues."
+                  : form.source === "caja"
+                    ? "Se descuenta de la caja y entra en el cierre."
+                    : "No toca la caja ni el cierre."}
+              </p>
             </div>
 
             {form.later ? (
@@ -7253,7 +7247,7 @@ function NuevoGastoTab({
             ) : (
               <div>
                 <span className={labelCls}>¿Con qué medio se pagó?</span>
-                <div className="grid grid-cols-2 gap-2.5">
+                <div className="grid grid-cols-2 gap-2">
                   {(["efectivo", "transferencia"] as const).map((m) => (
                     <button
                       key={m}
@@ -7262,19 +7256,15 @@ function NuevoGastoTab({
                       className={optionBtn(form.method === m)}
                       aria-pressed={form.method === m}
                     >
-                      <span className="block text-center text-sm font-semibold">
-                        {m === "efectivo" ? "Efectivo" : "Transferencia"}
-                      </span>
+                      {m === "efectivo" ? "Efectivo" : "Transferencia"}
                     </button>
                   ))}
                 </div>
-                <p className="mt-1.5 text-xs text-muted-foreground">
-                  {form.source === "caja"
-                    ? form.method === ""
-                      ? "Elegí un medio: según cuál sea, se descuenta de Efectivo en caja o de Dinero en banco."
-                      : `Se descuenta de ${form.method === "efectivo" ? "Efectivo en caja" : "Dinero en banco"}.`
-                    : "Elegí cómo se pagó. Con fondos externos el medio queda registrado en el gasto pero no mueve los saldos de la caja."}
-                </p>
+                {form.source === "caja" && form.method !== "" && (
+                  <p className={hintCls}>
+                    Se descuenta de {form.method === "efectivo" ? "Efectivo en caja" : "Dinero en banco"}.
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -7286,7 +7276,7 @@ function NuevoGastoTab({
               onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
               placeholder="Agregá algún detalle..."
               rows={2}
-              className={cn(inputCls, "resize-none")}
+              className={cn(inputCls, "h-auto resize-none py-3")}
             />
           </label>
 
@@ -7294,7 +7284,7 @@ function NuevoGastoTab({
             <button
               type="button"
               onClick={onCancel}
-              className="flex-1 inline-flex h-12 items-center justify-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-4 text-sm font-semibold text-white/85 transition hover:bg-white/[0.08]"
+              className="flex-1 inline-flex h-12 items-center justify-center gap-1.5 rounded-full border border-white/15 bg-white/[0.04] px-4 text-base font-semibold text-white/85 transition hover:bg-white/[0.08]"
             >
               <ArrowLeft className="size-4" /> Atrás
             </button>
@@ -7302,7 +7292,7 @@ function NuevoGastoTab({
               type="button"
               onClick={saveGasto}
               disabled={saving}
-              className="flex-[2] inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 px-5 py-2 text-center text-sm font-semibold leading-tight text-background transition hover:brightness-110 disabled:opacity-50"
+              className="flex-[2] inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-gradient-to-r from-sky-400 to-violet-500 px-5 py-2 text-center text-base font-semibold leading-tight text-background transition hover:brightness-110 disabled:opacity-50"
             >
               {saving ? (
                 <Loader2 className="size-4 animate-spin" />
