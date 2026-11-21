@@ -109,7 +109,7 @@ function Empty({ children }: { children: React.ReactNode }) {
 
 // ─────────────────────────────── Profesionales ───────────────────────────────
 
-type StaffDraft = { offers: boolean; ownPrice: boolean; price: string; commMode: "percent" | "fixed"; commValue: string; generalPct: string };
+type StaffDraft = { offers: boolean; generates: boolean; ownPrice: boolean; price: string; commMode: "percent" | "fixed"; commValue: string; generalPct: string };
 
 const DEFAULT_OVERRIDE: ServiceOverrideConfig = {
   enabled: true,
@@ -143,6 +143,7 @@ export function ServiceProfessionalsTab({ serviceId, listPrice }: { serviceId: s
         const cm = commissions[e.id]?.[serviceId];
         next[e.id] = {
           offers: ov?.enabled !== false,
+          generates: !(cm as { noCommission?: boolean } | undefined)?.noCommission,
           ownPrice: !!ov && ov.useStandardPrice === false,
           price: ov?.price ?? "",
           commMode: cm?.mode === "fixed" && String(cm?.value ?? "").trim() !== "" ? "fixed" : "percent",
@@ -180,7 +181,8 @@ export function ServiceProfessionalsTab({ serviceId, listPrice }: { serviceId: s
           },
         };
         const empCommissions = { ...(commissions[e.id] ?? {}) };
-        if (d.offers && d.commValue.trim() !== "") empCommissions[serviceId] = { enabled: true, mode: d.commMode, value: d.commValue.trim() };
+        if (d.offers && !d.generates) empCommissions[serviceId] = { enabled: true, mode: "fixed", value: "0", noCommission: true };
+        else if (d.offers && d.commValue.trim() !== "") empCommissions[serviceId] = { enabled: true, mode: d.commMode, value: d.commValue.trim() };
         else delete empCommissions[serviceId];
         commissions[e.id] = empCommissions;
       }
@@ -243,9 +245,17 @@ export function ServiceProfessionalsTab({ serviceId, listPrice }: { serviceId: s
                     </div>
                   ) : null}
                 </div>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-base font-semibold text-white">Genera comisión</span>
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-base text-white/65">{d.generates && e.commissionEnabled ? "Sí" : "No"}</span>
+                    <Toggle on={d.generates && e.commissionEnabled} onChange={(v) => update(e.id, { generates: v })} />
+                  </div>
+                </div>
                 {!e.commissionEnabled ? (
-                  <p className="text-base text-amber-200">Este profesional no genera comisión (apagado en Equipo).</p>
+                  <p className="text-base text-amber-200">Este profesional tiene la comisión apagada en todo el sistema, por eso no genera en ningún servicio.</p>
                 ) : null}
+                {d.generates && e.commissionEnabled ? (
                 <div>
                   <div className="mb-1.5 text-base font-semibold text-white">Comisión en este servicio</div>
                   <div className="grid grid-cols-[110px_minmax(0,1fr)] gap-2">
@@ -275,6 +285,7 @@ export function ServiceProfessionalsTab({ serviceId, listPrice }: { serviceId: s
                           : "Sin comisión del servicio ni general: no gana comisión acá."}
                   </p>
                 </div>
+                ) : null}
               </div>
             ) : null}
           </div>

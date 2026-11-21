@@ -162,7 +162,8 @@ export function resolveServicePricing(
 // al cobrar (fuente real de commission_records) y debe usarla cualquier
 // otro lugar que quiera mostrar "cuánto de comisión generó esta venta".
 export type CommissionMode = "percent" | "fixed";
-export type CommissionConfig = { enabled?: boolean; mode: CommissionMode; value: string };
+// noCommission: el profesional NO genera comisión en ese servicio (se carga en Servicios > Profesionales).
+export type CommissionConfig = { enabled?: boolean; mode: CommissionMode; value: string; noCommission?: boolean };
 export type EmployeeCommissionMap = Record<string, Record<string, CommissionConfig>>;
 
 // undefined/sin entrada = no hay override para ESE servicio puntual (cae al
@@ -179,6 +180,8 @@ export function resolveServiceCommission(
 ): CommissionConfig | null {
   if (!serviceId || !employeeId) return null;
   const own = commissionsMap?.[employeeId]?.[serviceId];
+  // "No genera comisión en este servicio": comisión fija de $0, no cae a ninguna otra.
+  if (own?.noCommission === true) return { enabled: true, mode: "fixed", value: "0", noCommission: true };
   if (own) return own.enabled === false ? null : own;
   // Comisión del servicio (Servicios > Datos), guardada bajo la clave "*": rige para todos los profesionales
   // que no tengan una propia en ese servicio.

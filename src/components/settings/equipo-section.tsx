@@ -4199,24 +4199,6 @@ export function EquipoSection() {
 
               {dlgTab === "comisiones" && (
                 <div className="space-y-4">
-                  <PermissionToggleRow
-                    icon={DollarSign}
-                    tone="emerald"
-                    title="Genera comisiones"
-                    description="Gana un porcentaje de cada servicio que cobra."
-                    on={form.commissionsEnabled}
-                    onChange={(v) =>
-                      setForm({ ...form, commissionsEnabled: v })
-                    }
-                  />
-                  {!form.commissionsEnabled && (
-                    <p className="px-1 text-xs text-muted-foreground">
-                      Este profesional no va a generar comisión por sus
-                      ventas (ej. el dueño del negocio). Sus ventas y
-                      propinas se siguen registrando normalmente.
-                    </p>
-                  )}
-
                   {commTab === "catalogo" && (
                     <div className="flex items-start gap-2 rounded-xl bg-violet-400/10 px-3 py-2.5 text-xs leading-relaxed text-violet-100 ring-1 ring-violet-300/20">
                       <DollarSign className="mt-0.5 h-4 w-4 shrink-0 text-violet-300" />

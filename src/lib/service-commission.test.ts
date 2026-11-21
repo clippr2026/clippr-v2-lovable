@@ -22,4 +22,9 @@ describe("comisión del servicio", () => {
     const r = computeCommissionAmount([{ serviceId: "s1", amount: 1000 } as any], "e2", map, { commissionPct: 50 });
     expect(r.pctAmount).toBe(400);
   });
+  it("'No genera comisión' en un servicio da $0, aunque haya comisión del servicio y general", () => {
+    const m = { ...map, e2: { s1: { enabled: true, mode: "fixed" as const, value: "0", noCommission: true } } };
+    const r = computeCommissionAmount([{ serviceId: "s1", amount: 1000 } as any], "e2", m, { commissionPct: 50 });
+    expect(r.pctAmount + r.fixedAmount).toBe(0);
+  });
 });
