@@ -17870,11 +17870,7 @@ export function NuevaVentaTab({
                     >
                       <Plus className="size-4" /> Otro método
                     </button>
-                    {received === "" ? (
-                      <span className="whitespace-nowrap text-base font-semibold text-white/60">
-                        Total ${Math.round(finalTotal - depositApplied).toLocaleString("es-AR")}
-                      </span>
-                    ) : pagoPendiente ? (
+                    {received === "" ? null : pagoPendiente ? (
                       <span className="whitespace-nowrap text-base font-semibold text-blue-200">
                         Restante ${Math.round(subtotalAfterDiscount - receivedAmount).toLocaleString("es-AR")}
                       </span>
