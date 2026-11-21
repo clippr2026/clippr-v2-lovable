@@ -462,6 +462,19 @@ function DraggableImageCrop({
 
 const NEW_CATEGORY_OPTION = "__new_category__";
 
+// Campo con título grande y claro (estilo Clippr) para la ventana de servicio.
+function Campo({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="mb-1.5 text-base font-semibold text-white">{label}</div>
+      {children}
+    </div>
+  );
+}
+const campoCls =
+  "h-12 w-full min-w-0 rounded-xl border border-white/10 bg-black/30 px-3 text-base font-semibold text-white placeholder:text-white/35 focus:border-violet-400/50 focus:outline-none";
+
+
 // Imagen del servicio/producto: se carga sin vista previa grande; el encuadre se hace aparte, con el botón "Encuadrar".
 function ImagenCampo({
   image,
@@ -684,9 +697,9 @@ function PriceEditorModal({
   // el placeholder muestra el precio de lista en vez de "0", como pista de
   // qué se está usando mientras el campo esté sin cargar.
   const cashPriceField = (
-    <Field label="Precio en efectivo">
+    <Campo label="Precio en efectivo">
       <div className="relative">
-        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-white/60">
           $
         </span>
         <input
@@ -699,11 +712,11 @@ function PriceEditorModal({
               cashPriceInput: clampAmount(e.target.value.replace(/\D/g, ""), Number(form.price) || 0),
             })
           }
-          className={cn(inputCls, "pl-6")}
+          className={cn(campoCls, "pl-7")}
           placeholder={formatThousands(form.price) || "0"}
         />
       </div>
-    </Field>
+    </Campo>
   );
   const availableCatalogCategories = Array.from(
     new Set([...(form.category ? [form.category] : []), ...catalogCategories]),
@@ -849,40 +862,40 @@ function PriceEditorModal({
           ) : null}
           {isService && tab !== "datos" ? null : isService ? (
             <>
-              <SectionCard label="Información principal">
+              <SectionCard clippr label={<span className="text-lg">Información principal</span>}>
                 <div className="space-y-3">
-                  <Field label="Nombre del servicio">
+                  <Campo label="Nombre del servicio">
                     <input
                       value={form.name}
                       onChange={(e) => setForm({ ...form, name: e.target.value })}
-                      className={inputCls}
+                      className={campoCls}
                       placeholder="Corte + Barba"
                       maxLength={MAX_ITEM_NAME_LENGTH}
                     />
-                  </Field>
-                  <Field label="Categoría">{categoryField}</Field>
-                  <Field label="Duración">
+                  </Campo>
+                  <Campo label="Categoría">{categoryField}</Campo>
+                  <Campo label="Duración">
                     <div className="relative">
                       <input
                         type="number"
                         min={0}
                         value={form.duration}
                         onChange={(e) => setForm({ ...form, duration: e.target.value })}
-                        className={cn(inputCls, "pr-12")}
+                        className={cn(campoCls, "pr-14")}
                       />
-                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                      <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-base text-white/60">
                         min
                       </span>
                     </div>
-                  </Field>
+                  </Campo>
                 </div>
               </SectionCard>
 
-              <SectionCard label="Precios">
+              <SectionCard clippr label={<span className="text-lg">Precios</span>}>
                 <div className="space-y-3">
-                  <Field label="Precio de lista">
+                  <Campo label="Precio de lista">
                     <div className="relative">
-                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">
+                      <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-base text-white/60">
                         $
                       </span>
                       <input
@@ -892,19 +905,18 @@ function PriceEditorModal({
                         onChange={(e) =>
                           setForm({ ...form, price: e.target.value.replace(/\D/g, "") })
                         }
-                        className={cn(inputCls, "pl-6")}
+                        className={cn(campoCls, "pl-7")}
                         placeholder="0"
                       />
                     </div>
-                  </Field>
+                  </Campo>
                   {cashPriceField}
                 </div>
               </SectionCard>
 
-              <SectionCard label="Comisión">
+              <SectionCard clippr label={<span className="text-lg">Comisión</span>}>
                 <p className="mb-3 text-base text-white/65">
-                  Lo que gana el profesional por este servicio. Vacío = cada uno usa su comisión general. Después podés cambiarla
-                  para cada profesional en la pestaña Profesionales.
+                  Lo que gana el profesional. Vacío = usa su comisión general. Para uno distinto, mirá la pestaña Profesionales.
                 </p>
                 <div className="grid grid-cols-[110px_minmax(0,1fr)] gap-2">
                   <SelectClippr
@@ -920,12 +932,12 @@ function PriceEditorModal({
                     value={form.commissionValue}
                     onChange={(e) => setForm({ ...form, commissionValue: e.target.value.replace(/[^\d.,]/g, "") })}
                     placeholder="Ej: 50"
-                    className="h-12 w-full min-w-0 rounded-xl border border-white/10 bg-black/30 px-3 text-base font-semibold text-white placeholder:text-white/35 focus:border-violet-400/50 focus:outline-none"
+                    className={campoCls}
                   />
                 </div>
               </SectionCard>
 
-              <SectionCard label="Imagen del servicio">
+              <SectionCard clippr label={<span className="text-lg">Imagen del servicio</span>}>
                 <ImagenCampo
                   image={form.image}
                   position={form.imagePosition}
@@ -943,9 +955,9 @@ function PriceEditorModal({
                 />
               </SectionCard>
 
-              <SectionCard label="Reserva online">
+              <SectionCard clippr label={<span className="text-lg">Reserva online</span>}>
                 <label className="flex items-center justify-between gap-4 cursor-pointer">
-                  <div className="text-sm font-medium">Se puede reservar online</div>
+                  <div className="text-lg font-semibold text-white">Se puede reservar online</div>
                   <Toggle
                     on={form.reservable}
                     onChange={(v) => setForm({ ...form, reservable: v })}
@@ -953,11 +965,11 @@ function PriceEditorModal({
                 </label>
               </SectionCard>
 
-              <SectionCard label="Descripción">
+              <SectionCard clippr label={<span className="text-lg">Descripción</span>}>
                 <textarea
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  className={cn(inputCls, "min-h-[72px] resize-y")}
+                  className={cn(campoCls, "h-auto min-h-[96px] resize-y py-3")}
                   placeholder="Detalles del servicio (opcional)"
                 />
               </SectionCard>

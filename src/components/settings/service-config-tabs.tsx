@@ -212,7 +212,7 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice }: { s
 
   return (
     <div className="space-y-3">
-      <p className="text-base text-white/65">Elegí quiénes hacen este servicio, cuánto cobra cada uno y su comisión. La comisión del servicio se pone en Datos; acá la cambiás solo para quien sea distinto.</p>
+      <p className="text-base text-white/65">Quién lo hace, su precio y su comisión.</p>
       {employees.map((e) => {
         const d = draft[e.id];
         if (!d) return null;
@@ -279,7 +279,7 @@ export function ServiceProfessionalsTab({ serviceId, listPrice, cashPrice }: { s
                   </div>
                 </div>
                 {!e.commissionEnabled ? (
-                  <p className="text-base text-amber-200">Este profesional tiene la comisión apagada en todo el sistema, por eso no genera en ningún servicio.</p>
+                  <p className="text-base text-amber-200">Tiene la comisión apagada en Equipo.</p>
                 ) : null}
                 {d.generates && e.commissionEnabled ? (
                 <div>
@@ -440,7 +440,7 @@ export function ServiceScheduleTab({ serviceId }: { serviceId: string }) {
       </div>
 
       <div className="text-lg font-semibold text-white">Horario por profesional</div>
-      <p className="-mt-2 text-base text-white/60">Nunca pasa del horario general de cada uno. Sirve para acotarlo solo en este servicio.</p>
+      <p className="-mt-2 text-base text-white/60">Solo acota; nunca pasa de su horario general.</p>
       {doers.length === 0 ? <Empty>Ningún profesional hace este servicio todavía.</Empty> : null}
       {doers.map((e) => (
         <div key={e.id} className={cardCls}>
