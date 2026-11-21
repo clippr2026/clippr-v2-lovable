@@ -15,6 +15,8 @@ import {
   Tag,
   Loader2,
   Pencil,
+  ChevronDown,
+  CheckCircle2,
   FolderPlus,
   GripVertical,
 } from "lucide-react";
@@ -448,6 +450,91 @@ function DraggableImageCrop({
 
 const NEW_CATEGORY_OPTION = "__new_category__";
 
+// Selector de categoría estilo Clippr: elegir, crear, renombrar y eliminar desde el mismo lugar.
+function CategoriaPicker({
+  valor,
+  categorias,
+  onPick,
+  onCreate,
+  onRename,
+  onDelete,
+}: {
+  valor: string;
+  categorias: string[];
+  onPick: (c: string) => void;
+  onCreate: () => void;
+  onRename?: (c: string) => void;
+  onDelete?: (c: string) => void;
+}) {
+  const [abierto, setAbierto] = useState(false);
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setAbierto(true)}
+        className="flex h-12 w-full items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/[0.04] px-3 text-left text-base font-semibold text-white"
+      >
+        <span className="truncate">{valor || "Elegir categoría"}</span>
+        <ChevronDown className="h-4 w-4 shrink-0 text-white/60" />
+      </button>
+      {abierto && typeof document !== "undefined" &&
+        createPortal(
+          <div className="fixed inset-0 z-[10020] flex items-end justify-center bg-black/70 p-4 pb-10 backdrop-blur-sm" onClick={() => setAbierto(false)}>
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="flex max-h-[75dvh] w-full max-w-sm flex-col rounded-[28px] border border-violet-400/45 bg-[#08070f] p-2.5 shadow-[0_0_0_1px_rgba(139,92,246,0.3),0_24px_60px_-12px_rgba(0,0,0,0.9),0_0_40px_-14px_rgba(139,92,246,0.6)] [background-image:radial-gradient(120%_60%_at_85%_0%,rgba(79,125,255,0.18),transparent_60%),radial-gradient(110%_60%_at_0%_100%,rgba(139,92,246,0.2),transparent_62%)]"
+            >
+              <div className="px-3 pb-2 pt-2 text-xl font-semibold text-white">Categoría</div>
+              <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto [overscroll-behavior:contain]">
+                {categorias.map((c) => {
+                  const activo = c === valor;
+                  return (
+                    <div key={c} className={cn("flex items-center gap-2 rounded-2xl px-2 py-1.5", activo ? "bg-violet-500/20" : "bg-white/[0.04]")}>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          onPick(c);
+                          setAbierto(false);
+                        }}
+                        className="flex min-h-11 min-w-0 flex-1 items-center gap-2 px-2 text-left text-lg font-semibold text-white"
+                      >
+                        <CheckCircle2 className={cn("h-5 w-5 shrink-0", activo ? "text-emerald-300" : "text-transparent")} />
+                        <span className="truncate">{c}</span>
+                      </button>
+                      {onRename ? (
+                        <button type="button" onClick={() => onRename(c)} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-violet-500/15 text-violet-100 ring-1 ring-violet-400/30" aria-label={`Renombrar ${c}`}>
+                          <Pencil className="h-4 w-4" />
+                        </button>
+                      ) : null}
+                      {onDelete ? (
+                        <button type="button" onClick={() => onDelete(c)} className="grid h-10 w-10 shrink-0 place-items-center rounded-full bg-red-500/10 text-red-300 ring-1 ring-red-400/30" aria-label={`Eliminar ${c}`}>
+                          <Trash2 className="h-4 w-4" />
+                        </button>
+                      ) : null}
+                    </div>
+                  );
+                })}
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setAbierto(false);
+                  onCreate();
+                }}
+                className="mt-2 flex h-14 w-full items-center gap-3 rounded-2xl px-4 text-left text-lg font-semibold text-violet-100 transition hover:bg-violet-500/20"
+              >
+                <Plus className="h-5 w-5" />
+                Nueva categoría
+              </button>
+            </div>
+          </div>,
+          document.body,
+        )}
+    </>
+  );
+}
+
+
 function PriceEditorModal({
   open,
   mode,
@@ -461,6 +548,8 @@ function PriceEditorModal({
   catalogCategories = defaultCatalogCategories,
   onUploadImage,
   onCreateCategory,
+  onRenameCategory,
+  onDeleteCategory,
   featuredOthers = 0,
 }: {
   open: boolean;
@@ -475,6 +564,8 @@ function PriceEditorModal({
   catalogCategories?: string[];
   onUploadImage?: (file: File) => Promise<string | null>;
   onCreateCategory?: (name: string) => boolean;
+  onRenameCategory?: (category: string) => void;
+  onDeleteCategory?: (category: string) => void;
   featuredOthers?: number;
 }) {
   const [uploadingImg, setUploadingImg] = useState(false);
@@ -575,23 +666,17 @@ function PriceEditorModal({
       </div>
     </div>
   ) : (
-    <select
-      value={form.category}
-      onChange={(e) => {
-        if (e.target.value === NEW_CATEGORY_OPTION) {
-          setNewCategoryName("");
-          setCreatingCategory(true);
-          return;
-        }
-        setForm({ ...form, category: e.target.value });
+    <CategoriaPicker
+      valor={form.category}
+      categorias={catalogCategories}
+      onPick={(c) => setForm({ ...form, category: c })}
+      onCreate={() => {
+        setNewCategoryName("");
+        setCreatingCategory(true);
       }}
-      className={inputCls}
-    >
-      {availableCatalogCategories.map((category) => (
-        <option key={category}>{category}</option>
-      ))}
-      <option value={NEW_CATEGORY_OPTION}>+ Crear nueva categoría</option>
-    </select>
+      onRename={onRenameCategory}
+      onDelete={onDeleteCategory}
+    />
   );
 
   if (typeof document === "undefined") return null;
@@ -603,7 +688,7 @@ function PriceEditorModal({
     // (z-40, sticky/fixed, hermanos de <main> a nivel raíz). Mismo fix que
     // "Agregar profesional" (commit a084001). padding-bottom reserva el
     // alto real del nav inferior (3.5rem + safe-area en mobile).
-    <div className="fixed inset-0 z-[9999] flex items-start justify-center overflow-y-auto bg-black/70 backdrop-blur-sm p-4 pt-[calc(24px+env(safe-area-inset-top,0px))] pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] lg:pb-4 [overscroll-behavior:contain]">
+    <div className="fixed inset-0 z-[9999] flex items-start justify-center overflow-hidden bg-black/70 backdrop-blur-sm p-4 pt-[calc(24px+env(safe-area-inset-top,0px))] pb-[calc(3.5rem+env(safe-area-inset-bottom,0px))] lg:pb-4 [overscroll-behavior:contain]">
       <div className="relative flex w-full max-w-2xl flex-col overflow-hidden rounded-2xl bg-[oklch(0.12_0.02_275)] ring-1 ring-white/10 shadow-2xl max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-3.5rem-env(safe-area-inset-bottom,0px))] lg:max-h-[calc(100dvh-24px-env(safe-area-inset-top,0px)-1rem)]">
         <div className="flex shrink-0 items-center justify-between px-5 py-4 border-b border-white/5">
           <h3 className="font-display text-lg font-semibold">{title}</h3>
@@ -615,7 +700,7 @@ function PriceEditorModal({
           </button>
         </div>
 
-        <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto p-4 space-y-3 [overscroll-behavior:contain]">
+        <div ref={scrollRef} className="min-h-0 flex-1 touch-pan-y overflow-y-auto p-4 space-y-3 [-webkit-overflow-scrolling:touch] [overscroll-behavior:contain]">
           {isService ? (
             <>
               <SectionCard label="Información principal">
@@ -2555,6 +2640,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       if (error) return toast.error("No se pudo eliminar: " + error.message);
       setRows((prev) => prev.map((r) => (r.category === category ? { ...r, category: sinCategoria } : r)));
     }
+    setForm((f) => (f.category === category ? { ...f, category: categories.find((c) => c !== category) ?? sinCategoria } : f));
     removeCategoryFromList(category);
     toast.success("Categoría eliminada");
     markSettingsDirty();
@@ -2672,7 +2758,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                 antes este botón abría directo el modal de alta de ítem. */}
             <button
               type="button"
-              onClick={() => setAddMenuOpen(true)}
+              onClick={() => openNew()}
               className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-r from-sky-400 to-violet-500 text-white shadow-[0_8px_24px_-10px_rgba(56,189,248,0.75)] transition hover:opacity-95"
               aria-label="Agregar"
             >
@@ -2817,6 +2903,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
         catalogCategories={categories}
         onUploadImage={uploadBookingImage}
         onCreateCategory={createCategory}
+        onRenameCategory={(c) => void renameCategory(c)}
+        onDeleteCategory={deleteCategory}
         featuredOthers={
           Object.entries(bookingConfig).filter(
             ([id, c]) => c.show && id !== editing?.id,
