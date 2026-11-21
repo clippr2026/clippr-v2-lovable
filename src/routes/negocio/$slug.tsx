@@ -90,6 +90,7 @@ type Service = {
   image_position?: string | null;
   category?: string | null;
   cash_discount?: number | null;
+  description?: string | null;
 };
 
 type DayKey = "sun" | "mon" | "tue" | "wed" | "thu" | "fri" | "sat";
@@ -1087,6 +1088,14 @@ function PublicProfilePage() {
           typeof (settingsSchedule as Record<string, unknown>)._serviceCashDiscounts === "object"
             ? ((settingsSchedule as Record<string, unknown>)._serviceCashDiscounts as Record<string, number>)
             : {};
+        // Descripción de cada servicio (botón "i" de la lista pública).
+        const serviceDescriptionsMap =
+          settingsSchedule &&
+          typeof settingsSchedule === "object" &&
+          (settingsSchedule as Record<string, unknown>)._serviceDescriptions &&
+          typeof (settingsSchedule as Record<string, unknown>)._serviceDescriptions === "object"
+            ? ((settingsSchedule as Record<string, unknown>)._serviceDescriptions as Record<string, string>)
+            : {};
         // Orden de categorías configurado en Configuración → Servicios
         // (business_settings.schedule._categories.service), para que la
         // página pública liste primero por categoría en ese mismo orden.
@@ -1129,6 +1138,7 @@ function PublicProfilePage() {
                 image_position: serviceImagePositions[service.id] ?? "50% 50%",
                 category: serviceCategoriesMap[service.id] ?? null,
                 cash_discount: serviceCashDiscountsMap[service.id] ?? null,
+                description: serviceDescriptionsMap[service.id] ?? null,
               })),
             extractCatalogOrderMap(settingsSchedule as Record<string, unknown>, "service"),
             "Servicios",
