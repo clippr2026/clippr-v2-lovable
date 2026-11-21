@@ -403,7 +403,6 @@ function ProfesionalesView({ d, perf, prev, vsLabel }: ViewProps) {
           sub={`${p.tardes} ${p.tardes === 1 ? "tarde" : "tardes"} · ${p.ausencias} ${p.ausencias === 1 ? "ausencia" : "ausencias"}`}
           tone={p.puntualidadTotal > 0 ? "neg" : undefined}
         />
-        <Stat label="Adelantos" value={money(p.adelantosTotal)} />
         <Stat label="Consumos de productos" value={money(p.consumosTotal)} sub={<Delta cur={perf.consumosProfesionales} prev={prev?.consumosProfesionales ?? null} label={vsLabel} lowerIsBetter />} />
         <Stat
           label="Comisión sobre facturación"
