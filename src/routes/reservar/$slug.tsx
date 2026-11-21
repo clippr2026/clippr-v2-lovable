@@ -1,3 +1,4 @@
+import { buildServiceRestriction, EMPTY_SERVICE_SCHEDULE_CONFIG, normalizeServiceScheduleConfig, type ServiceScheduleConfig } from "@/lib/service-schedule";
 import { esAndroid } from "@/lib/es-android";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { hiddenPublicBranchIds } from "@/lib/public-branches";
@@ -354,6 +355,8 @@ function PublicBookingPage() {
   const [appointments, setAppointments] = React.useState<Appointment[]>([]);
   const [schedule, setSchedule] = React.useState<ScheduleMap>(DEFAULT_SCHEDULE);
   const [employeeSchedules, setEmployeeSchedules] = React.useState<Record<string, ScheduleMap>>({});
+  // Días y horarios en que cada servicio se puede reservar (configurado en el servicio).
+  const [serviceScheduleCfg, setServiceScheduleCfg] = React.useState<ServiceScheduleConfig>(EMPTY_SERVICE_SCHEDULE_CONFIG);
   const [businessSpecial, setBusinessSpecial] = React.useState<SpecialDateMap>({});
   const [employeeSpecial, setEmployeeSpecial] = React.useState<EmployeeSpecialDateMap>({});
   // Precio/duración personalizados por profesional-servicio, resueltos con
@@ -662,8 +665,11 @@ function PublicBookingPage() {
         employeeSpecial,
         businessTimeZone,
         reservationSettings.minAdvance,
+        buildServiceRestriction(serviceScheduleCfg, selectedServiceIds),
       ),
     [
+      serviceScheduleCfg,
+      selectedServiceIds,
       schedule,
       appointments,
       employeesForSelectedServices,
@@ -1045,6 +1051,7 @@ function PublicBookingPage() {
             if (normalized) empScheds[empId] = normalized;
           }
           setEmployeeSchedules(empScheds);
+          setServiceScheduleCfg(normalizeServiceScheduleConfig(rawSchedule));
 
           const rawBizSpecial =
             rawSchedule && typeof rawSchedule._specialDates === "object" && rawSchedule._specialDates

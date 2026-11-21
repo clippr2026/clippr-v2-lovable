@@ -524,6 +524,8 @@ export function buildSlots<T extends { id: string }>(
   // Anticipación mínima para reservar online (Configuración → Horarios). 60 = el
   // comportamiento de siempre (no se ofrecen horarios de la próxima hora).
   minAdvanceMinutes = 60,
+  // Días/horarios en que el servicio elegido se puede reservar (ver service-schedule.ts).
+  restrict?: (employeeId: string, dayKey: DayKey, day: DaySchedule) => DaySchedule | null,
 ) {
   const now = new Date();
   const result: Array<{ date: Date; slots: Array<{ time: Date; employeeId: string }> }> = [];
@@ -543,7 +545,7 @@ export function buildSlots<T extends { id: string }>(
     const slotMap = new Map<number, string>();
 
     for (const employee of pool) {
-      const day = resolveDaySchedule(
+      const resolved = resolveDaySchedule(
         businessSchedule,
         employeeSchedules,
         businessSpecial,
@@ -551,6 +553,8 @@ export function buildSlots<T extends { id: string }>(
         employee.id,
         date,
       );
+      if (!resolved || !resolved.enabled) continue;
+      const day = restrict ? restrict(employee.id, DAY_KEYS[date.getDay()], resolved) : resolved;
       if (!day || !day.enabled) continue;
 
       const open = parseTimeStrict(day.start);
