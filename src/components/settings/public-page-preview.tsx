@@ -126,11 +126,14 @@ export function PublicPagePreview({
   const frameW = Math.max(200, boxW - 8);
   // Alto disponible: casi todo el alto de la pantalla (menos el encabezado del panel).
   const maxH = Math.max(360, vh - reserve);
-  const deviceW = mode === "mobile" ? 390 : 1100;
+  // Web en una pantalla angosta (celular): se ve como un celular girado, de costado y a lo alto de la pantalla.
+  const girado = mode === "web" && boxW < 700;
+  const deviceW = mode === "mobile" ? 390 : girado ? 844 : 1100;
   const mobileInnerW = Math.min(frameW - 20, Math.floor(maxH / 2.05), large ? 560 : 520);
-  const innerW = mode === "mobile" ? mobileInnerW : frameW - 2;
+  const girIW = Math.max(240, Math.min(maxH - 24, 640));
+  const innerW = mode === "mobile" ? mobileInnerW : girado ? girIW : frameW - 2;
   const scale = innerW / deviceW;
-  const innerH = mode === "mobile" ? Math.round(innerW * 2.05) : Math.min(Math.round(innerW * 0.66), maxH);
+  const innerH = mode === "mobile" ? Math.round(innerW * 2.05) : girado ? Math.round((innerW * 390) / 844) : Math.min(Math.round(innerW * 0.66), maxH);
   const deviceH = Math.round(innerH / scale);
   void boxHpx;
   const previewUrl = `${typeof window !== "undefined" ? window.location.origin : ""}/negocio/${slug}?preview=1`;
@@ -263,6 +266,18 @@ export function PublicPagePreview({
             <div className="pointer-events-none absolute left-1/2 top-[14px] z-10 h-[18px] w-[72px] -translate-x-1/2 rounded-full bg-black/90" />
             <div className="overflow-hidden rounded-[2.1rem] bg-white" style={{ width: innerW, height: innerH }}>
               {frame}
+            </div>
+          </div>
+        ) : girado ? (
+          <div className="relative" style={{ width: innerH + 18, height: innerW + 18 }}>
+            <div
+              className="absolute left-0 top-0 rounded-[2.2rem] bg-zinc-900 p-[9px] shadow-[0_20px_60px_rgba(0,0,0,0.6)] ring-1 ring-white/20"
+              style={{ width: innerW + 18, transformOrigin: "0 0", transform: `translateX(${innerH + 18}px) rotate(90deg)` }}
+            >
+              <div className="pointer-events-none absolute left-[14px] top-1/2 z-10 h-[72px] w-[18px] -translate-y-1/2 rounded-full bg-black/90" />
+              <div className="overflow-hidden rounded-[1.7rem] bg-white" style={{ width: innerW, height: innerH }}>
+                {frame}
+              </div>
             </div>
           </div>
         ) : (

@@ -2164,7 +2164,7 @@ export function BrandingSection() {
           Vista previa
         </button>
         {previewOpen ? (
-          <div className="fixed inset-0 z-[80] overflow-y-auto bg-black/70 p-3 backdrop-blur-sm">
+          <div className="fixed inset-0 z-[10040] overflow-y-auto overscroll-contain bg-black/80 p-3 pb-[calc(1rem+env(safe-area-inset-bottom))] pt-[max(0.75rem,env(safe-area-inset-top))]">
             <div className="mx-auto max-w-md">{previewPanel}</div>
           </div>
         ) : null}
