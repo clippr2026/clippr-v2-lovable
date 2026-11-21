@@ -374,17 +374,18 @@ export function ResenasSection() {
       )}
 
       {draft ? (
-        <div className="fixed inset-0 z-[300] grid place-items-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setDraft(null)}>
+        <div className="fixed inset-0 z-[10000] grid place-items-center bg-black/75 p-3" onClick={() => setDraft(null)}>
           <div
-            className="max-h-[92vh] w-full max-w-md space-y-4 overflow-y-auto overscroll-contain rounded-[28px] border border-violet-400/45 bg-[#08070f] p-5 text-white shadow-[0_0_0_1px_rgba(139,92,246,0.35),0_30px_90px_-20px_rgba(0,0,0,0.9)] [background-image:radial-gradient(120%_45%_at_85%_0%,rgba(79,125,255,0.20),transparent_60%),radial-gradient(110%_50%_at_0%_100%,rgba(139,92,246,0.22),transparent_62%)]"
+            className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-md flex-col overflow-hidden rounded-[28px] border border-violet-400/45 bg-[#08070f] text-white shadow-[0_0_0_1px_rgba(139,92,246,0.35),0_30px_90px_-20px_rgba(0,0,0,0.9)] [background-image:radial-gradient(120%_45%_at_85%_0%,rgba(79,125,255,0.20),transparent_60%),radial-gradient(110%_50%_at_0%_100%,rgba(139,92,246,0.22),transparent_62%)]"
             onClick={(e) => e.stopPropagation()}
           >
-            <div className="flex items-center justify-between">
+            <div className="flex shrink-0 items-center justify-between px-5 pb-3 pt-5">
               <h3 className="text-xl font-semibold">{draft.id ? "Editar reseña" : "Cargar reseña"}</h3>
               <button type="button" onClick={() => setDraft(null)} className="grid h-11 w-11 place-items-center rounded-full border border-white/10 bg-white/[0.05] hover:bg-white/10" aria-label="Cerrar">
                 <X className="h-5 w-5" />
               </button>
             </div>
+            <div className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain px-5 pb-2">
             <Field label="Nombre del cliente">
               <input
                 className={inputCls}
@@ -424,6 +425,8 @@ export function ResenasSection() {
                 onChange={(e) => setDraft({ ...draft, origin_note: e.target.value })}
               />
             </Field>
+            </div>
+            <div className="shrink-0 px-5 pb-5 pt-3">
             <button
               type="button"
               disabled={saving}
@@ -432,6 +435,7 @@ export function ResenasSection() {
             >
               {saving ? "Guardando…" : draft.id ? "Guardar cambios" : "Cargar y publicar"}
             </button>
+            </div>
           </div>
         </div>
       ) : null}
