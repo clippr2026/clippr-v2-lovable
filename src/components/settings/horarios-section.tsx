@@ -380,17 +380,11 @@ export function HorariosSection({
       <>
       <div className="glass rounded-2xl p-4 ring-1 ring-white/5">
         <div className="mb-3 text-lg font-semibold text-white">Horarios del local</div>
-        <div className="grid grid-cols-[120px_1fr_1fr_auto] gap-3 px-1 pb-3 text-[10px] uppercase tracking-[0.18em] text-muted-foreground/70">
-          <div>Día</div>
-          <div>Apertura</div>
-          <div>Cierre</div>
-          <div>Abierto</div>
-        </div>
         <div className="divide-y divide-white/5">
           {days.map((d, i) => (
             <div key={d.name} className={cn("py-3", !d.enabled && "opacity-50")}>
             <div className="grid grid-cols-[120px_1fr_1fr_auto] items-center gap-3">
-              <div className="text-sm font-medium">{d.name}</div>
+              <div className="text-lg font-semibold text-white">{d.name}</div>
               <input
                 type="time"
                 value={d.open}
@@ -402,7 +396,7 @@ export function HorariosSection({
                   // abierto/cerrado unas líneas más abajo.
                   setDays((s) => s.map((x, idx) => (idx === i ? { ...x, open: value } : x)));
                 }}
-                className="rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40 disabled:cursor-not-allowed"
+                className="h-12 rounded-xl bg-white/5 ring-1 ring-white/10 px-3 text-lg font-semibold focus:outline-none focus:ring-primary/40 disabled:cursor-not-allowed"
               />
               <input
                 type="time"
@@ -413,7 +407,7 @@ export function HorariosSection({
                   // Igual que apertura: solo el día editado.
                   setDays((s) => s.map((x, idx) => (idx === i ? { ...x, close: value } : x)));
                 }}
-                className="rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm focus:outline-none focus:ring-primary/40 disabled:cursor-not-allowed"
+                className="h-12 rounded-xl bg-white/5 ring-1 ring-white/10 px-3 text-lg font-semibold focus:outline-none focus:ring-primary/40 disabled:cursor-not-allowed"
               />
               <Toggle
                 on={d.enabled}
@@ -436,7 +430,7 @@ export function HorariosSection({
             </div>
             {d.enabled && (
               <div className="mt-2.5 grid grid-cols-[120px_1fr_1fr_auto] items-center gap-3">
-                <div className="text-sm text-white/70">Descanso</div>
+                <div className="text-base text-white/70">Descanso</div>
                 {d.breakStart || d.breakEnd ? (
                   <>
                     <input
@@ -446,7 +440,7 @@ export function HorariosSection({
                         const value = e.target.value;
                         setDays((s) => s.map((x, idx) => (idx === i ? { ...x, breakStart: value } : x)));
                       }}
-                      className="rounded-lg bg-white/5 px-3 py-2 text-sm ring-1 ring-white/10 focus:outline-none focus:ring-primary/40"
+                      className="h-11 rounded-xl bg-white/5 px-3 text-base font-semibold ring-1 ring-white/10 focus:outline-none focus:ring-primary/40"
                     />
                     <input
                       type="time"
@@ -455,11 +449,11 @@ export function HorariosSection({
                         const value = e.target.value;
                         setDays((s) => s.map((x, idx) => (idx === i ? { ...x, breakEnd: value } : x)));
                       }}
-                      className="rounded-lg bg-white/5 px-3 py-2 text-sm ring-1 ring-white/10 focus:outline-none focus:ring-primary/40"
+                      className="h-11 rounded-xl bg-white/5 px-3 text-base font-semibold ring-1 ring-white/10 focus:outline-none focus:ring-primary/40"
                     />
                   </>
                 ) : (
-                  <div className="col-span-2 text-sm text-white/40">Sin descanso</div>
+                  <div className="col-span-2 text-base text-white/45">Sin descanso</div>
                 )}
                 <Toggle
                   on={Boolean(d.breakStart || d.breakEnd)}
@@ -513,7 +507,7 @@ export function HorariosSection({
                       [r.key]: e.target.value,
                     }))
                   }
-                  className="min-w-[10rem] rounded-lg bg-white/5 px-3 py-2 text-sm ring-1 ring-white/10 focus:outline-none focus:ring-primary/40 [color-scheme:dark]"
+                  className="min-w-[10rem] h-11 rounded-xl bg-white/5 px-3 text-base font-semibold ring-1 ring-white/10 focus:outline-none focus:ring-primary/40 [color-scheme:dark]"
                 >
                   {/* Si había un valor guardado que no está en la lista (de antes), se conserva. */}
                   {!r.options.some((o) => String(o.value) === reservationSettings[r.key]) ? (

@@ -36,7 +36,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { ClipprLoader } from "@/components/ui/clippr-loader";
-import { SectionCard, reportSaveStatus, processImage, FloatingSaveButton, useUnsavedGuard } from "@/components/settings/shared";
+import { SectionCard, Toggle, reportSaveStatus, processImage, FloatingSaveButton, useUnsavedGuard } from "@/components/settings/shared";
 
 export function ReservasOnlineIcon({
   className,
@@ -1509,7 +1509,7 @@ export function BrandingSection() {
             headerRight={
               <span
                 className={cn(
-                  "rounded-full border px-2.5 py-0.5 text-xs font-semibold tabular-nums",
+                  "rounded-full border px-3 py-1 text-sm font-semibold tabular-nums",
                   benefits.length >= 12 ? "border-violet-400/50 bg-violet-500/20 text-violet-100" : "border-white/10 bg-white/[0.04] text-white/60",
                 )}
               >
@@ -1519,7 +1519,7 @@ export function BrandingSection() {
           >
             <div className="space-y-3">
               {benefits.length === 0 ? (
-                <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.03] p-3 text-center text-sm text-white/55">
+                <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.03] p-3 text-center text-base text-white/60">
                   Todavía no cargaste beneficios.
                 </div>
               ) : (
@@ -1537,23 +1537,15 @@ export function BrandingSection() {
                         maxLength={35}
                         onChange={(e) => updateBenefit(b.id, e.target.value)}
                         onFocus={() => enfocar("beneficios")}
-                        className={cn("h-8 min-w-0 flex-1 bg-transparent text-sm font-semibold outline-none", b.active ? "text-white" : "text-white/55")}
+                        className={cn("h-9 min-w-0 flex-1 bg-transparent text-base font-semibold outline-none", b.active ? "text-white" : "text-white/55")}
                       />
-                      <button
-                        type="button"
-                        onClick={() => {
+                      <Toggle
+                        on={b.active}
+                        onChange={() => {
                           toggleBenefit(b.id);
                           enfocar("beneficios");
                         }}
-                        className={cn(
-                          "h-8 shrink-0 rounded-full border px-3 text-xs font-semibold transition",
-                          b.active
-                            ? "border-emerald-400/40 bg-emerald-400/15 text-emerald-200"
-                            : "border-white/10 bg-white/[0.05] text-white/60",
-                        )}
-                      >
-                        {b.active ? "Activo" : "Inactivo"}
-                      </button>
+                      />
                       <button
                         type="button"
                         onClick={() => {
@@ -1584,7 +1576,7 @@ export function BrandingSection() {
                   maxLength={35}
                   disabled={benefits.length >= 12}
                   placeholder="Agregar beneficio..."
-                  className="h-11 min-w-0 flex-1 rounded-full border border-white/10 bg-white/[0.04] px-4 text-sm text-white outline-none placeholder:text-white/35 focus:border-violet-400/50 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="h-12 min-w-0 flex-1 rounded-full border border-white/10 bg-white/[0.04] px-4 text-base text-white outline-none placeholder:text-white/35 focus:border-violet-400/50 disabled:cursor-not-allowed disabled:opacity-40"
                 />
                 <button
                   type="button"
@@ -1593,7 +1585,7 @@ export function BrandingSection() {
                     enfocar("beneficios");
                   }}
                   disabled={benefits.length >= 12}
-                  className="h-11 shrink-0 rounded-full border border-violet-400/50 bg-violet-500/20 px-5 text-sm font-semibold text-violet-100 transition hover:bg-violet-500/30 disabled:cursor-not-allowed disabled:opacity-40"
+                  className="h-12 shrink-0 rounded-full border border-violet-400/50 bg-violet-500/20 px-5 text-base font-semibold text-violet-100 transition hover:bg-violet-500/30 disabled:cursor-not-allowed disabled:opacity-40"
                 >
                   Agregar
                 </button>
