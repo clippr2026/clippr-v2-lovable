@@ -2681,7 +2681,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
             No hay ítems en esta sección.
           </div>
         ) : (
-          <div className="divide-y divide-white/5">
+          <div className="space-y-3.5 p-3.5">
             {filtered.map((row) => (
               <div
                 key={row.id}
@@ -2700,7 +2700,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                   // fila ya no scrollea la página — hay que arrancarlo desde
                   // otra zona (esto es aceptable: son pocos ítems por
                   // categoría).
-                  "relative flex items-start gap-3.5 px-4 py-4 transition-colors duration-150 select-none [-webkit-touch-callout:none]",
+                  "relative flex items-start gap-3.5 rounded-2xl border border-white/10 bg-white/[0.045] px-3.5 py-4 shadow-[0_0_24px_-16px_rgba(139,92,246,0.7)] transition-colors duration-150 select-none [-webkit-touch-callout:none]",
                   itemReorder.draggingId === row.id &&
                     "z-50 rounded-2xl bg-white/[0.07] shadow-[0_8px_20px_-6px_rgba(139,92,246,0.5)] ring-2 ring-violet-400/50",
                 )}
@@ -2759,12 +2759,12 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                   </div>
 
                   {isService ? (
-                    <div className="flex flex-wrap items-center gap-2">
+                    <div className="grid grid-cols-2 gap-2">
                       <button
                         type="button"
                         onClick={() => void toggleFeatured(row)}
                         className={cn(
-                          "inline-flex h-10 items-center gap-1.5 rounded-full px-4 text-[15px] font-semibold ring-1 transition",
+                          "inline-flex h-10 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-2 text-[15px] font-semibold ring-1 transition",
                           featuredId === row.id
                             ? "bg-amber-400/15 text-amber-300 ring-amber-400/50"
                             : "bg-white/[0.05] text-white/70 ring-white/10",
@@ -2778,7 +2778,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                         type="button"
                         onClick={() => void togglePromo(row)}
                         className={cn(
-                          "inline-flex h-10 items-center gap-1.5 rounded-full px-4 text-[15px] font-semibold ring-1 transition",
+                          "inline-flex h-10 min-w-0 items-center justify-center gap-1.5 whitespace-nowrap rounded-full px-2 text-[15px] font-semibold ring-1 transition",
                           promoIds.includes(row.id)
                             ? "bg-fuchsia-400/15 text-fuchsia-300 ring-fuchsia-400/50"
                             : "bg-white/[0.05] text-white/70 ring-white/10",
