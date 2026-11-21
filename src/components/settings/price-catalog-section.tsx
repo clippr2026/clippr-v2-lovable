@@ -1870,13 +1870,13 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     ? Array.from(
         new Set([
           ...customServiceCategories,
-          ...visibleRows.map((r) => r.category || "Servicios"),
+          ...visibleRows.map((r) => r.category || "Servicios").filter((c) => c !== "Servicios"),
         ]),
       )
     : Array.from(
         new Set([
           ...customCatalogCategories,
-          ...visibleRows.map((r) => r.category || "Productos"),
+          ...visibleRows.map((r) => r.category || "Productos").filter((c) => c !== "Productos"),
         ]),
       );
 
@@ -2515,15 +2515,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
   // vacía se confirma y se borra directo; si tiene ítems, primero hay que
   // elegir a dónde moverlos (moveItemsModal).
   function deleteCategory(category: string) {
-    const itemsInCategory = rows.filter(
-      (r) => (r.category || (isService ? "Servicios" : "Productos")) === category,
-    );
-    if (itemsInCategory.length === 0) {
-      setConfirmDelCat(category);
-    } else {
-      setMoveItemsModal({ category, itemCount: itemsInCategory.length });
-      setMoveTargetCategory(categories.find((c) => c !== category) ?? "");
-    }
+    setConfirmDelCat(category);
   }
 
   function removeCategoryFromList(category: string) {
@@ -2549,11 +2541,24 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
     if (!confirmDelCat) return;
     const category = confirmDelCat;
     setConfirmDelCat(null);
-    if (categories.filter((c) => c !== category).length === 0)
-      return toast.error("Debe quedar al menos una categoría");
+    // Los ítems de la categoría no se borran: pasan a la categoría por defecto, que solo se ve en "Todos".
+    const sinCategoria = isService ? "Servicios" : "Productos";
+    const hayItems = rows.some((r) => r.category === category);
+    if (hayItems && businessId) {
+      let q = supabase
+        .from("price_catalog")
+        .update({ category: sinCategoria })
+        .eq("business_id", businessId)
+        .eq("category", category);
+      if (activeBranchId) q = q.eq("branch_id", activeBranchId);
+      const { error } = await q;
+      if (error) return toast.error("No se pudo eliminar: " + error.message);
+      setRows((prev) => prev.map((r) => (r.category === category ? { ...r, category: sinCategoria } : r)));
+    }
     removeCategoryFromList(category);
     toast.success("Categoría eliminada");
     markSettingsDirty();
+    if (hayItems) load();
   }
 
   async function moveItemsAndDeleteCategory() {
@@ -2946,10 +2951,6 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                   <div className="px-1 pb-1.5 text-base text-white/60">
                     Mantené apretado y arrastrá para ordenar.
                   </div>
-                  <div className="flex items-center gap-2 rounded-2xl bg-white/[0.05] px-3 py-3 ring-1 ring-white/10">
-                    <span className="min-w-0 flex-1 text-lg font-semibold text-white">{TODOS}</span>
-                    <span className="text-base text-white/50">Fija</span>
-                  </div>
                   {categories.map((category) => (
                     <div
                       key={category}
@@ -2974,14 +2975,8 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
                         </button>
                         <button
                           type="button"
-                          disabled={categories.length <= 1}
                           onClick={() => deleteCategory(category)}
-                          className={cn(
-                            "grid h-11 w-11 place-items-center rounded-full ring-1 transition",
-                            categories.length <= 1
-                              ? "cursor-not-allowed text-white/25 ring-white/10"
-                              : "bg-red-500/10 text-red-300 ring-red-400/30",
-                          )}
+                          className="grid h-11 w-11 place-items-center rounded-full bg-red-500/10 text-red-300 ring-1 ring-red-400/30 transition"
                           aria-label={`Eliminar ${category}`}
                         >
                           <Trash2 className="h-4.5 w-4.5" />
@@ -3076,7 +3071,7 @@ function PriceCatalogSection({ kind }: { kind: "servicios" | "catalogo" }) {
       <ConfirmDialog
         open={!!confirmDelCat}
         title="Eliminar categoría"
-        message={`¿Deseás eliminar la categoría "${confirmDelCat}"? Está vacía, no tiene ${isService ? "servicios" : "productos"}.`}
+        message={`¿Eliminar la categoría "${confirmDelCat}"? ${isService ? "Sus servicios" : "Sus productos"} no se borran: quedan en Todos.`}
         onConfirm={doDeleteCategory}
         onCancel={() => setConfirmDelCat(null)}
       />
