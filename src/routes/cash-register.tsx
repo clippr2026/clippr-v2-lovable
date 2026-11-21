@@ -17959,9 +17959,11 @@ export function NuevaVentaTab({
                 .filter((sp) => sp.method !== "cash")
                 .map((sp) => (
                   <div key={sp.method} className="mt-1.5">
-                    <p className="mb-1.5 text-sm font-semibold text-white/80">
-                      Comprobante de {(PAY_METHOD_LABEL[sp.method as PayMethod] ?? sp.method).toLowerCase()}
-                    </p>
+                    {splits.filter((x) => x.method !== "cash").length > 1 && (
+                      <p className="mb-1.5 text-sm font-semibold text-white/80">
+                        Comprobante de {(PAY_METHOD_LABEL[sp.method as PayMethod] ?? sp.method).toLowerCase()}
+                      </p>
+                    )}
                     <TransferReceiptField
                       previewUrl={splitReceiptPreviews[sp.method] ?? null}
                       onSelect={(file) => handleSplitReceiptFileSelected(sp.method, file)}
