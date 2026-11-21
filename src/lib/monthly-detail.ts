@@ -8,6 +8,8 @@ import { monthBounds, type MonthlyPerformance } from "@/lib/monthly-performance"
 import { resolveDaySchedule } from "@/lib/availability";
 import { parseCapacityContext } from "@/lib/agenda-capacity";
 
+import { NOMBRE_CLIENTE_GENERICO } from "@/lib/cliente-generico";
+
 const AR_TZ = "America/Argentina/Buenos_Aires";
 const IN_CHUNK = 150;
 
@@ -865,7 +867,9 @@ export function computeMonthlyDetail(
       frecuencia: [...frec.entries()]
         .map(([label, v]) => ({ label, value: v.value, count: v.count }))
         .sort((a, b) => a.label.localeCompare(b.label)),
+      // "Sin agendar" es la ficha genérica de quien no se registró: no es un cliente real.
       topClientes: [...served.values()]
+        .filter((c) => c.name.trim().toLowerCase() !== NOMBRE_CLIENTE_GENERICO.toLowerCase())
         .sort((a, b) => b.gasto - a.gasto)
         .slice(0, 5)
         .map((s) => ({ name: s.name, visitas: s.visitas, gasto: s.gasto })),

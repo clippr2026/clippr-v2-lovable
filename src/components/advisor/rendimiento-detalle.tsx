@@ -3,7 +3,7 @@ import { X } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { useAuth } from "@/hooks/use-auth";
 import { useClientsData } from "@/hooks/use-clients-data";
-import { Sheet, SheetClose, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { monthLabel, variationPct, type MonthlyPerformance } from "@/lib/monthly-performance";
 import {
@@ -668,12 +668,14 @@ export function DetalleSheet({
         hideClose
         className="w-full overflow-y-auto border-violet-400/30 bg-[#08070f] p-4 text-white sm:max-w-2xl sm:p-6 [background-image:radial-gradient(120%_45%_at_85%_0%,rgba(79,125,255,0.20),transparent_60%),radial-gradient(110%_50%_at_0%_100%,rgba(139,92,246,0.22),transparent_62%)]"
       >
-        <SheetClose
+        <button
+          type="button"
           aria-label="Cerrar"
-          className="absolute right-3 top-3 z-10 grid h-11 w-11 place-items-center rounded-full border border-white/10 bg-white/[0.06] text-white/80 transition hover:bg-white/[0.12]"
+          onClick={onClose}
+          className="absolute right-3 top-3 z-10 grid h-11 w-11 touch-manipulation place-items-center rounded-full border border-white/10 bg-white/[0.06] text-white/80 transition hover:bg-white/[0.12] active:scale-95"
         >
           <X className="h-5 w-5" />
-        </SheetClose>
+        </button>
         <SheetHeader className="mb-4 pr-12 text-left">
           <SheetTitle className="text-2xl font-bold text-white">{kind ? TITLES[kind] : ""}</SheetTitle>
           <SheetDescription className="text-base text-white/60">{monthLabel(monthKey)}</SheetDescription>
