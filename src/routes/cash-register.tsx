@@ -13723,7 +13723,7 @@ function TransferReceiptField({
 
   if (!previewUrl) {
     return (
-      <div className="rounded-2xl border border-dashed border-white/15 bg-white/[0.02] p-3">
+      <div className="rounded-2xl border border-dashed border-white/15 bg-white/[0.02] p-2">
         <input
           ref={inputRef}
           type="file"
@@ -17501,7 +17501,7 @@ export function NuevaVentaTab({
               el resumen del cobro. Ya no "sticky": esta Card dejó de
               scrollear como bloque único (ver más abajo), así que no hay
               contenedor scrolleable del que despegarse. */}
-          <div className="shrink-0 pt-3" />
+          <div className="shrink-0 pt-1" />
 
           <div className="shrink-0 pt-1.5">
           {/* Resumen arriba de todo — lo primero que se ve al entrar al
@@ -17696,11 +17696,11 @@ export function NuevaVentaTab({
                   </div>
                 </div>
               )}
-              <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-400/30 bg-emerald-400/[0.08] px-4 py-2.5" style={{ backgroundImage: "radial-gradient(110% 120% at 100% 0%, rgba(16,185,129,.18), transparent 62%)" }}>
-                <span className="flex items-center gap-2 text-base font-bold text-white">
+              <div className="flex items-center justify-between gap-3 rounded-2xl border border-emerald-400/30 bg-emerald-400/[0.08] px-4 py-2" style={{ backgroundImage: "radial-gradient(110% 120% at 100% 0%, rgba(16,185,129,.18), transparent 62%)" }}>
+                <span className="flex shrink-0 items-center gap-2 whitespace-nowrap text-base font-bold text-white">
                   <Receipt className="size-4 text-emerald-300" /> Total a cobrar
                 </span>
-                <span className="tabular-nums text-3xl font-extrabold text-emerald-300">
+                <span className="tabular-nums text-2xl font-extrabold text-emerald-300">
                   ${Math.round(finalTotal - depositApplied).toLocaleString("es-AR")}
                 </span>
               </div>
@@ -17811,7 +17811,7 @@ export function NuevaVentaTab({
                   garantía (sin cobro, deuda ni comisión). El pago parcial no
                   tiene botón: se detecta solo al tipear un monto menor. */}
               {!isManualFlow && (
-                <div className="space-y-2 rounded-3xl border border-white/10 bg-[radial-gradient(120%_100%_at_0%_0%,rgba(59,130,246,0.10),transparent_60%)] p-2.5">
+                <div className="space-y-1.5 rounded-3xl border border-white/10 bg-[radial-gradient(120%_100%_at_0%_0%,rgba(59,130,246,0.10),transparent_60%)] p-2">
                   <div className="grid grid-cols-2 gap-2">
                     <SelectClippr
                       pill
