@@ -24,7 +24,7 @@ import {
 // horas del servicio y por profesional) y Promo. Cada una guarda por su cuenta, sobre los mismos datos que
 // antes se editaban en Equipo y Promociones — nada se duplica ni se pierde.
 
-type Emp = { id: string; name: string };
+type Emp = { id: string; name: string; commissionPct: number | null; commissionEnabled: boolean };
 type Schedule = Record<string, any>;
 
 const DAY_LABEL: Record<DayKey, string> = {
@@ -58,14 +58,19 @@ function useBranchEmployees() {
       return;
     }
     let cancelled = false;
-    let q = supabase.from("employees").select("id,full_name,is_active").eq("business_id", businessId);
+    let q = supabase.from("employees").select("id,full_name,is_active,commission_pct,commission_enabled").eq("business_id", businessId);
     if (activeBranchId) q = q.eq("branch_id", activeBranchId);
     q.order("full_name").then(({ data }) => {
       if (cancelled) return;
       setEmployees(
-        ((data ?? []) as Array<{ id: string; full_name: string | null; is_active: boolean | null }>)
+        ((data ?? []) as Array<{ id: string; full_name: string | null; is_active: boolean | null; commission_pct: number | string | null; commission_enabled: boolean | null }>)
           .filter((e) => e.is_active !== false)
-          .map((e) => ({ id: e.id, name: e.full_name ?? "Sin nombre" })),
+          .map((e) => ({
+            id: e.id,
+            name: e.full_name ?? "Sin nombre",
+            commissionPct: e.commission_pct == null || e.commission_pct === "" ? null : Number(e.commission_pct),
+            commissionEnabled: e.commission_enabled !== false,
+          })),
       );
       setLoading(false);
     });
@@ -104,7 +109,7 @@ function Empty({ children }: { children: React.ReactNode }) {
 
 // ─────────────────────────────── Profesionales ───────────────────────────────
 
-type StaffDraft = { offers: boolean; ownPrice: boolean; price: string; commMode: "percent" | "fixed"; commValue: string };
+type StaffDraft = { offers: boolean; ownPrice: boolean; price: string; commMode: "percent" | "fixed"; commValue: string; generalPct: string };
 
 const DEFAULT_OVERRIDE: ServiceOverrideConfig = {
   enabled: true,
@@ -137,8 +142,9 @@ export function ServiceProfessionalsTab({ serviceId, listPrice }: { serviceId: s
           offers: ov?.enabled !== false,
           ownPrice: !!ov && ov.useStandardPrice === false,
           price: ov?.price ?? "",
-          commMode: cm?.mode === "fixed" ? "fixed" : "percent",
+          commMode: cm?.mode === "fixed" && String(cm?.value ?? "").trim() !== "" ? "fixed" : "percent",
           commValue: cm?.value ?? "",
+          generalPct: e.commissionPct == null ? "" : String(e.commissionPct),
         };
       }
       setDraft(next);
@@ -177,8 +183,19 @@ export function ServiceProfessionalsTab({ serviceId, listPrice }: { serviceId: s
       }
       return { ...schedule, _employeeServiceOverrides: overrides, _employeeCommissions: commissions };
     });
+    let errorGeneral: string | null = null;
+    if (!error) {
+      for (const e of employees) {
+        const d = draft[e.id];
+        if (!d) continue;
+        const next = d.generalPct.trim() === "" ? null : Number(d.generalPct.replace(",", "."));
+        if (next === e.commissionPct || (next != null && !Number.isFinite(next))) continue;
+        const { error: upErr } = await supabase.from("employees").update({ commission_pct: next }).eq("id", e.id);
+        if (upErr) errorGeneral = upErr.message;
+      }
+    }
     setSaving(false);
-    if (error) return toast.error("No se pudo guardar: " + error);
+    if (error || errorGeneral) return toast.error("No se pudo guardar: " + (error ?? errorGeneral));
     toast.success("Profesionales guardados");
   }
 
@@ -224,7 +241,26 @@ export function ServiceProfessionalsTab({ serviceId, listPrice }: { serviceId: s
                   ) : null}
                 </div>
                 <div>
-                  <div className="mb-1.5 text-base font-semibold text-white">Comisión</div>
+                  <div className="mb-1.5 flex items-center justify-between gap-2">
+                    <span className="text-base font-semibold text-white">Comisión general</span>
+                    <span className="text-base text-white/60">en todos sus servicios</span>
+                  </div>
+                  <div className="relative">
+                    <input
+                      inputMode="decimal"
+                      value={d.generalPct}
+                      onChange={(ev) => update(e.id, { generalPct: ev.target.value.replace(/[^\d.,]/g, "") })}
+                      placeholder="Ej: 50"
+                      className={cn(inputCls, "pr-9")}
+                    />
+                    <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-base text-white/50">%</span>
+                  </div>
+                  {!e.commissionEnabled ? (
+                    <p className="mt-1.5 text-base text-amber-200">Este profesional no genera comisión (apagado en Equipo).</p>
+                  ) : null}
+                </div>
+                <div>
+                  <div className="mb-1.5 text-base font-semibold text-white">Comisión solo en este servicio</div>
                   <div className="grid grid-cols-[110px_minmax(0,1fr)] gap-2">
                     <SelectClippr
                       opciones={[
@@ -238,10 +274,13 @@ export function ServiceProfessionalsTab({ serviceId, listPrice }: { serviceId: s
                       inputMode="decimal"
                       value={d.commValue}
                       onChange={(ev) => update(e.id, { commValue: ev.target.value.replace(/[^\d.,]/g, "") })}
-                      placeholder="Vacío = la general"
+                      placeholder={d.generalPct.trim() ? `Vacío = ${d.generalPct}%` : "Vacío = sin comisión"}
                       className={inputCls}
                     />
                   </div>
+                  <p className="mt-1.5 text-base text-white/55">
+                    {d.commValue.trim() ? "Se usa esta en este servicio." : d.generalPct.trim() ? `Usa la general: ${d.generalPct}%.` : "Sin comisión general ni propia: no gana comisión acá."}
+                  </p>
                 </div>
               </div>
             ) : null}
