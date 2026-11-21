@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
+import { createPortal } from "react-dom";
 import { Check, EyeOff, Eye, Loader2, Pencil, Plus, Star, Trash2, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/use-auth";
@@ -373,8 +374,8 @@ export function ResenasSection() {
         </div>
       )}
 
-      {draft ? (
-        <div className="fixed inset-0 z-[10000] grid place-items-center bg-black/75 p-3" onClick={() => setDraft(null)}>
+      {draft && typeof document !== "undefined" ? createPortal(
+        <div className="fixed inset-0 z-[10050] grid place-items-center bg-black/75 p-3" onClick={() => setDraft(null)}>
           <div
             className="flex max-h-[calc(100dvh-1.5rem)] w-full max-w-md flex-col overflow-hidden rounded-[28px] border border-violet-400/45 bg-[#08070f] text-white shadow-[0_0_0_1px_rgba(139,92,246,0.35),0_30px_90px_-20px_rgba(0,0,0,0.9)] [background-image:radial-gradient(120%_45%_at_85%_0%,rgba(79,125,255,0.20),transparent_60%),radial-gradient(110%_50%_at_0%_100%,rgba(139,92,246,0.22),transparent_62%)]"
             onClick={(e) => e.stopPropagation()}
@@ -438,7 +439,7 @@ export function ResenasSection() {
             </div>
           </div>
         </div>
-      ) : null}
+      , document.body) : null}
 
       <ConfirmDialog
         open={Boolean(toDelete)}
