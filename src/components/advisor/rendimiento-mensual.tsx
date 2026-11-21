@@ -328,6 +328,7 @@ export function RendimientoMensual({ monthKey: controlledMonthKey }: Rendimiento
             perf={perf}
             prev={comparable}
             vsLabel={vsLabel}
+            compDay={compDay}
           />
 
           {canCompare && (

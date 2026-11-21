@@ -188,7 +188,7 @@ function bestWorst(d: DayRow[], rows: { best: DayRow | null; worst: DayRow | nul
 
 // ───────────────────────────── vistas ─────────────────────────────
 
-function FacturacionView({ d, perf, prev, vsLabel }: ViewProps) {
+function FacturacionView({ d, perf, prev, vsLabel, prevDet }: ViewProps) {
   const f = d.facturacion;
   const diasTrabajados = f.porDiaSemana.filter((r) => r.dias > 0);
   const conBarberos = diasTrabajados.filter((r) => r.barberos > 0);
@@ -198,13 +198,27 @@ function FacturacionView({ d, perf, prev, vsLabel }: ViewProps) {
     <div className="space-y-5">
       <StatGrid twoCols>
         <Stat label="Facturación" value={money(f.total)} sub={<Delta cur={perf.facturacion} prev={prev?.facturacion ?? null} label={vsLabel} />} />
-        <Stat label="Servicios" value={money(f.ventasServicios)} />
+        <Stat
+          label="Servicios"
+          value={money(f.ventasServicios)}
+          sub={<Delta cur={f.ventasServicios} prev={prevDet?.facturacion.ventasServicios ?? null} label={vsLabel} />}
+        />
         <Stat
           label="Productos vendidos"
           value={money(f.ventasProductos + f.consumos)}
-          sub={f.consumos > 0 ? `Incluye ${money(f.consumos)} de consumos de profesionales` : undefined}
+          sub={
+            <Delta
+              cur={f.ventasProductos + f.consumos}
+              prev={prevDet ? prevDet.facturacion.ventasProductos + prevDet.facturacion.consumos : null}
+              label={vsLabel}
+            />
+          }
         />
-        <Stat label="Descuentos otorgados" value={money(f.descuentoTotal)} />
+        <Stat
+          label="Descuentos otorgados"
+          value={money(f.descuentoTotal)}
+          sub={<Delta cur={f.descuentoTotal} prev={prevDet?.facturacion.descuentoTotal ?? null} label={vsLabel} lowerIsBetter />}
+        />
       </StatGrid>
 
       <Block title="Por servicio" hint="Monto de cada servicio después de descuentos y promos.">
@@ -595,7 +609,7 @@ function ClientesView({ d, perf, prev, vsLabel }: ViewProps) {
   );
 }
 
-type ViewProps = { d: MonthlyDetail; perf: MonthlyPerformance; prev: MonthlyPerformance | null; vsLabel: string };
+type ViewProps = { d: MonthlyDetail; perf: MonthlyPerformance; prev: MonthlyPerformance | null; vsLabel: string; prevDet?: MonthlyDetail | null };
 
 export function DetalleSheet({
   kind,
@@ -604,7 +618,9 @@ export function DetalleSheet({
   perf,
   prev,
   vsLabel,
+  compDay,
 }: {
+  compDay?: number | null;
   kind: DetalleKind | null;
   onClose: () => void;
   monthKey: string;
@@ -621,6 +637,23 @@ export function DetalleSheet({
     queryFn: () => fetchMonthlyDetailRaw(businessId!, activeBranchId, monthKey),
   });
 
+  // Mes anterior (recortado al mismo día cuando se mira el mes en curso): para comparar Servicios, Productos y Descuentos.
+  const prevRaw = useQuery({
+    queryKey: ["monthly-detail", businessId, activeBranchId, prev?.monthKey ?? "", "prev", compDay ?? 0],
+    enabled: !!businessId && kind === "facturacion" && !!prev,
+    staleTime: 60_000,
+    queryFn: () => fetchMonthlyDetailRaw(businessId!, activeBranchId, prev!.monthKey),
+  });
+  const prevDet = React.useMemo(() => {
+    if (!prevRaw.data || !prev) return null;
+    const diaAR = (iso: string) =>
+      Number(new Date(iso).toLocaleDateString("en-CA", { timeZone: "America/Argentina/Buenos_Aires" }).slice(8, 10));
+    const raw = compDay
+      ? { ...prevRaw.data, payments: prevRaw.data.payments.filter((p) => diaAR(p.created_at) <= compDay) }
+      : prevRaw.data;
+    return computeMonthlyDetail(prev.monthKey, raw, prev, []);
+  }, [prevRaw.data, prev, compDay]);
+
   const detail = React.useMemo(() => {
     if (!raw.data) return null;
     const clients = (clientsQuery.data ?? []).map((c) => ({
@@ -633,7 +666,7 @@ export function DetalleSheet({
     return computeMonthlyDetail(monthKey, raw.data, perf, clients);
   }, [raw.data, clientsQuery.data, monthKey, perf]);
 
-  const view = detail && kind ? { d: detail, perf, prev, vsLabel } : null;
+  const view = detail && kind ? { d: detail, perf, prev, vsLabel, prevDet } : null;
 
   return (
     <Sheet open={kind !== null} onOpenChange={(open) => !open && onClose()}>
