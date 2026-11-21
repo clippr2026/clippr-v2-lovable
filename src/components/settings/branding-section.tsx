@@ -1,3 +1,4 @@
+import { useBodyScrollLock } from "@/hooks/use-body-scroll-lock";
 import { HorariosSection } from "@/components/settings/horarios-section";
 import React, { useState, useEffect } from "react";
 import { COVER_ASPECT_CLASS } from "@/lib/cover-frame";
@@ -1246,6 +1247,8 @@ export function BrandingSection() {
     return () => mq.removeEventListener("change", onChange);
   }, []);
   const [previewKey, setPreviewKey] = useState(0);
+  // Con la vista previa abierta, la pantalla de atrás no se mueve.
+  useBodyScrollLock(previewOpen);
   const [horarioDraft, setHorarioDraft] = useState<Record<string, unknown> | null>(null);
   // Los horarios se guardan junto con el resto de la página, con un solo botón Guardar.
   const [horariosDirty, setHorariosDirty] = useState(false);
