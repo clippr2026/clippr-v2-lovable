@@ -17542,9 +17542,9 @@ export function NuevaVentaTab({
 
               {cartItems.length === 1 ? (
                 <div className="flex items-start justify-between gap-3 border-t border-white/10 pt-2 text-base">
-                  <span className="flex min-w-0 items-start gap-2 text-white">
-                    <Scissors className="mt-1 size-4 shrink-0 text-white/35" />
-                    <span className="min-w-0 break-words font-semibold">{cartItems[0].svc.name}</span>
+                  <span className="flex min-w-0 items-center gap-2 text-white">
+                    <Scissors className="size-4 shrink-0 text-white/35" />
+                    <span className="min-w-0 truncate font-semibold">{cartItems[0].svc.name}</span>
                   </span>
                   <span className="flex shrink-0 items-center gap-1.5 tabular-nums">
                     {priceEditId === cartItems[0].svc.id ? (
@@ -17873,6 +17873,11 @@ export function NuevaVentaTab({
                     {received === "" ? null : pagoPendiente ? (
                       <span className="whitespace-nowrap text-base font-semibold text-blue-200">
                         Restante ${Math.round(subtotalAfterDiscount - receivedAmount).toLocaleString("es-AR")}
+                      </span>
+                    ) : receivedAmount > finalTotal - depositApplied + 0.01 ? (
+                      <span className="whitespace-nowrap text-base font-semibold text-emerald-300">
+                        Sobra ${Math.round(receivedAmount - (finalTotal - depositApplied)).toLocaleString("es-AR")}
+                        {method !== "cash" ? " · propina" : ""}
                       </span>
                     ) : (
                       <span className="whitespace-nowrap text-base font-semibold text-emerald-300">Pago completo ✓</span>
