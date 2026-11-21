@@ -416,7 +416,7 @@ export function HorariosSection({
                   // abierto/cerrado unas líneas más abajo.
                   setDays((s) => s.map((x, idx) => (idx === i ? { ...x, open: value } : x)));
                 }}
-                className="block h-12 w-full min-w-0 max-w-full appearance-none rounded-xl bg-white/5 ring-1 ring-white/10 px-3 text-lg font-semibold focus:outline-none focus:ring-primary/40 disabled:cursor-not-allowed"
+                className="flex h-12 min-h-0 w-full min-w-0 max-w-full appearance-none items-center rounded-xl py-0 leading-none [&::-webkit-date-and-time-value]:m-0 [&::-webkit-date-and-time-value]:text-left bg-white/5 ring-1 ring-white/10 px-3 text-lg font-semibold focus:outline-none focus:ring-primary/40 disabled:cursor-not-allowed"
               />
               <input
                 type="time"
@@ -427,7 +427,7 @@ export function HorariosSection({
                   // Igual que apertura: solo el día editado.
                   setDays((s) => s.map((x, idx) => (idx === i ? { ...x, close: value } : x)));
                 }}
-                className="block h-12 w-full min-w-0 max-w-full appearance-none rounded-xl bg-white/5 ring-1 ring-white/10 px-3 text-lg font-semibold focus:outline-none focus:ring-primary/40 disabled:cursor-not-allowed"
+                className="flex h-12 min-h-0 w-full min-w-0 max-w-full appearance-none items-center rounded-xl py-0 leading-none [&::-webkit-date-and-time-value]:m-0 [&::-webkit-date-and-time-value]:text-left bg-white/5 ring-1 ring-white/10 px-3 text-lg font-semibold focus:outline-none focus:ring-primary/40 disabled:cursor-not-allowed"
               />
             </div>
             {d.enabled && (
@@ -454,7 +454,7 @@ export function HorariosSection({
                         const value = e.target.value;
                         setDays((s) => s.map((x, idx) => (idx === i ? { ...x, breakStart: value } : x)));
                       }}
-                      className="block h-12 w-full min-w-0 max-w-full appearance-none rounded-xl bg-white/5 px-3 text-base font-semibold ring-1 ring-white/10 focus:outline-none focus:ring-primary/40"
+                      className="flex h-12 min-h-0 w-full min-w-0 max-w-full appearance-none items-center rounded-xl py-0 leading-none [&::-webkit-date-and-time-value]:m-0 [&::-webkit-date-and-time-value]:text-left bg-white/5 px-3 text-base font-semibold ring-1 ring-white/10 focus:outline-none focus:ring-primary/40"
                     />
                     <input
                       type="time"
@@ -463,7 +463,7 @@ export function HorariosSection({
                         const value = e.target.value;
                         setDays((s) => s.map((x, idx) => (idx === i ? { ...x, breakEnd: value } : x)));
                       }}
-                      className="block h-12 w-full min-w-0 max-w-full appearance-none rounded-xl bg-white/5 px-3 text-base font-semibold ring-1 ring-white/10 focus:outline-none focus:ring-primary/40"
+                      className="flex h-12 min-h-0 w-full min-w-0 max-w-full appearance-none items-center rounded-xl py-0 leading-none [&::-webkit-date-and-time-value]:m-0 [&::-webkit-date-and-time-value]:text-left bg-white/5 px-3 text-base font-semibold ring-1 ring-white/10 focus:outline-none focus:ring-primary/40"
                     />
                   </div>
                 ) : null}
